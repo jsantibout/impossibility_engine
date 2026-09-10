@@ -138,9 +138,35 @@ not recalled ones. Re-check the skill before changing any of it.
   because that failure is silent and expensive
 - Never interpolate date, session id, or player name into the system prompt
 
+## Parsing the SRD
+
+`packages/srd/raw/` is a third-party transcription, and it is uneven. Two rules
+follow from that, both learned the hard way:
+
+- **Never hand-edit `raw/`.** Corrections go in `parse/overrides.ts`, sourced
+  from the official PDF, so re-vendoring upstream cannot reintroduce a defect.
+- **Assert counts, not just "no problems".** A parser that silently skips
+  everything reports zero problems. `animals.md` yielded 0 creatures for exactly
+  this reason — it shifts its heading hierarchy up a level, which is why the
+  parser now detects the entry level instead of assuming it.
+
+Defects found so far, all covered by regression tests:
+
+| Defect | Where |
+|---|---|
+| 12 spells use singular `**Component:**` | normalised in `parse/spells.ts` |
+| 498 modifier cells use U+2212, not a hyphen (`parseInt` → `NaN`) | `parseSignedNumber` |
+| 3 stat blocks have collapsed table cells (`+10 +10`, `CON 29`) | `parse/overrides.ts` |
+| Succubus puts Initiative on its own line | searched block-wide |
+| `animals.md` shifts heading levels | `detectEntryLevel` |
+
+The parser stays strict on a mangled ability table rather than guessing. A
+silently wrong modifier is the worst failure this codebase has — it looks like
+a rules bug forever after.
+
 ## Known Pending Work
 
-- M0: SRD ingestion (`packages/srd`) — source not yet vendored
+- M0: equipment, classes, feats and magic items are vendored but not yet parsed
 - M1: engine beyond `dice.ts` — character, checks, attack, conditions, zones,
   combat, spells, rest, progression, events, reducer
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

@@ -55,6 +55,108 @@ export const SpellSchema = z.object({
 });
 export type Spell = z.infer<typeof SpellSchema>;
 
+export const CREATURE_SIZES = [
+  'tiny',
+  'small',
+  'medium',
+  'large',
+  'huge',
+  'gargantuan',
+] as const;
+export const CreatureSizeSchema = z.enum(CREATURE_SIZES);
+export type CreatureSize = z.infer<typeof CreatureSizeSchema>;
+
+/** One ability's score, derived modifier, and saving throw bonus. */
+export const AbilityBlockSchema = z.object({
+  score: z.number().int().min(1).max(30),
+  modifier: z.number().int(),
+  save: z.number().int(),
+});
+
+export const AbilityBlockMapSchema = z.object({
+  str: AbilityBlockSchema,
+  dex: AbilityBlockSchema,
+  con: AbilityBlockSchema,
+  int: AbilityBlockSchema,
+  wis: AbilityBlockSchema,
+  cha: AbilityBlockSchema,
+});
+
+export const SpeedSchema = z.object({
+  walk: z.number().int().min(0),
+  burrow: z.number().int().min(0).nullable(),
+  climb: z.number().int().min(0).nullable(),
+  fly: z.number().int().min(0).nullable(),
+  swim: z.number().int().min(0).nullable(),
+  /** Fly speeds annotated "(hover)". */
+  hover: z.boolean(),
+});
+
+export const HitPointsSchema = z.object({
+  average: z.number().int().min(1),
+  /** e.g. `2d6` or `13d8 + 13`. Null when the source gives only a flat value. */
+  formula: z.string().nullable(),
+});
+
+/** A named trait, action, bonus action, reaction, or legendary action. */
+export const FeatureSchema = z.object({
+  name: z.string().min(1),
+  text: z.string().min(1),
+});
+export type Feature = z.infer<typeof FeatureSchema>;
+
+export const MonsterSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  size: CreatureSizeSchema,
+  /**
+   * Further sizes the stat block offers, for the 30-odd entries printed as
+   * "Medium or Small". `size` holds the first listed.
+   */
+  alternateSizes: z.array(CreatureSizeSchema),
+  /** e.g. `Fey`, `Humanoid`, `Dragon`. */
+  type: z.string().min(1),
+  /** The parenthesised tag, e.g. `Goblinoid`. */
+  subtype: z.string().nullable(),
+  /**
+   * Set for entries printed as "Medium Swarm of Tiny Undead": `size` is the
+   * swarm's own size, `type` the member type, and this the member size.
+   */
+  swarmMemberSize: CreatureSizeSchema.nullable(),
+  alignment: z.string().min(1),
+
+  ac: z.number().int().min(1),
+  initiative: z.number().int(),
+  hp: HitPointsSchema,
+  speed: SpeedSchema,
+  abilities: AbilityBlockMapSchema,
+
+  /** Skill slug to bonus, e.g. `{ stealth: 6 }`. */
+  skills: z.record(z.string(), z.number().int()),
+  vulnerabilities: z.array(z.string()),
+  resistances: z.array(z.string()),
+  immunities: z.array(z.string()),
+  gear: z.array(z.string()),
+
+  senses: z.array(z.string()),
+  passivePerception: z.number().int().min(0),
+  languages: z.array(z.string()),
+
+  /** Numeric challenge rating; `1/8` becomes `0.125`. */
+  cr: z.number().min(0),
+  /** The rating as printed, e.g. `1/8`. */
+  crLabel: z.string().min(1),
+  xp: z.number().int().min(0),
+  proficiencyBonus: z.number().int().min(0),
+
+  traits: z.array(FeatureSchema),
+  actions: z.array(FeatureSchema),
+  bonusActions: z.array(FeatureSchema),
+  reactions: z.array(FeatureSchema),
+  legendaryActions: z.array(FeatureSchema),
+});
+export type Monster = z.infer<typeof MonsterSchema>;
+
 /**
  * A problem found while parsing. Collected rather than thrown so one bad entry
  * does not hide the other forty.
