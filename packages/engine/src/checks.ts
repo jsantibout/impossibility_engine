@@ -16,6 +16,13 @@ import {
   type CharacterSheet,
 } from './character.js';
 import { rollD20Recorded, type RecordedD20, type RollIssuer } from './rolls.js';
+import {
+  checkConditionEffect,
+  exhaustionBonus,
+  saveConditionEffect,
+  type CheckContext,
+  type ConditionState,
+} from './conditions.js';
 
 /**
  * Ability checks and saving throws — two of the three D20 Tests. (The third,
@@ -90,6 +97,13 @@ export interface D20TestOptions {
   readonly modes?: readonly (RollMode | ModeSource)[];
   /** Named modifiers: Guidance's 1d4, a tool's flat bonus, and so on. */
   readonly bonuses?: readonly Bonus[];
+  /**
+   * The creature's conditions. Their modes, exhaustion penalty and automatic
+   * failures are folded in without the caller having to remember any of it.
+   */
+  readonly conditions?: ConditionState;
+  /** What the check depends on, for Blinded and Deafened, and fear visibility. */
+  readonly conditionContext?: CheckContext;
 }
 
 export interface D20TestResult {
@@ -111,6 +125,11 @@ export interface D20TestResult {
   readonly bonuses: readonly ResolvedBonus[];
   readonly total: number;
   readonly success: boolean;
+  /**
+   * Why the test failed regardless of the roll, when a condition decided it —
+   * a Blinded creature searching by sight, a Stunned creature's Strength save.
+   */
+  readonly autoFailed: string | null;
   /** How much the total beat the DC by; negative when it failed. */
   readonly margin: number;
 }
@@ -126,21 +145,36 @@ function resolve(
 ): Result<D20TestResult> {
   const skill = options.skill ?? null;
 
+  // Conditions contribute modes, a flat exhaustion penalty, and sometimes an
+  // outright failure. The caller supplies the state; the engine reads the rules.
+  const conditions = options.conditions;
+  const conditionEffect =
+    conditions === undefined
+      ? { modes: [], autoFail: null }
+      : kind === 'saving-throw'
+        ? saveConditionEffect(conditions, ability)
+        : checkConditionEffect(conditions, options.conditionContext ?? {});
+
   const modeSources: ModeSource[] = [
     ...characterRollModes(sheet, ability, skill),
+    ...conditionEffect.modes,
     ...(options.modes ?? []).map((m) =>
       typeof m === 'string' ? { source: 'situational', mode: m } : m,
     ),
   ];
   const mode = combineRollModes(modeSources);
 
-  const modifier = baseModifier + flatBonusTotal(options.bonuses);
+  const exhaustion = conditions === undefined ? null : exhaustionBonus(conditions);
+  const allBonuses = [...(options.bonuses ?? []), ...(exhaustion === null ? [] : [exhaustion])];
+
+  const modifier = baseModifier + flatBonusTotal(allBonuses);
   const roll = rollD20Recorded(issuer, rng, mode, modifier);
 
-  const bonuses = rollBonusDice(issuer, rng, options.bonuses);
+  const bonuses = rollBonusDice(issuer, rng, allBonuses);
   if (!bonuses.ok) return bonuses;
 
   const total = roll.total + sumResolved(bonuses.value);
+  const autoFailed = conditionEffect.autoFail;
 
   return ok({
     kind,
@@ -155,11 +189,14 @@ function resolve(
     modifier,
     bonuses: bonuses.value,
     total,
+    autoFailed,
     // SRD: "If the total of the d20 and its modifiers equals or exceeds the
     // target number, the D20 Test succeeds." Nothing about naturals — those
     // rules are written for attack rolls only, so a natural 20 on a check
-    // against an impossible DC still fails.
-    success: total >= options.dc,
+    // against an impossible DC still fails. A condition that fails the test
+    // outright overrides the total entirely; the roll is still recorded,
+    // because other effects can care what the die showed.
+    success: autoFailed === null && total >= options.dc,
     margin: total - options.dc,
   });
 }
@@ -223,7 +260,9 @@ export function applyBonusAfterRoll(
     ...result,
     bonuses,
     total,
-    success: total >= result.dc,
+    // A test a condition failed outright stays failed: no die turns a Stunned
+    // creature's Strength save into a success.
+    success: result.autoFailed === null && total >= result.dc,
     margin: total - result.dc,
   });
 }

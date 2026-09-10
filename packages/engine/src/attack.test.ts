@@ -5,6 +5,7 @@ import { isErr, expect as unwrap } from '@ie/shared';
 import { parseEquipment, type Weapon } from '@ie/srd';
 import type { Rng, RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
+import { conditionState } from './conditions.js';
 import { rerollDice, treatLowRollsAs } from './dice.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
@@ -813,5 +814,157 @@ describe('applyDamage across types', () => {
 
   it('applies a per-type adjustment before resistance', () => {
     expect(applyDamage(components, { fire: { resistant: true } }, { fire: -2 }).byType.fire).toBe(3);
+  });
+});
+
+describe('conditions feed into attacks', () => {
+  const w = () => weaponFixture();
+
+  it('gives a Blinded attacker disadvantage', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([18, 5]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        attackerConditions: conditionState(['blinded']),
+      }),
+      'blind',
+    );
+    expect(result.mode).toBe('disadvantage');
+    expect(result.roll.natural).toBe(5);
+  });
+
+  it('gives advantage against a Restrained target', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([5, 18]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        targetConditions: conditionState(['restrained']),
+      }),
+      'restrained',
+    );
+    expect(result.mode).toBe('advantage');
+  });
+
+  it('cancels a Blinded attacker against a Restrained target', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([5, 18]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        attackerConditions: conditionState(['blinded']),
+        targetConditions: conditionState(['restrained']),
+      }),
+      'cancel',
+    );
+    expect(result.mode).toBe('normal');
+    expect(result.roll.rolls).toEqual([5]);
+  });
+
+  /**
+   * SRD Prone: advantage within 5 feet, "Otherwise, that attack roll has
+   * Disadvantage." A prone target is harder to hit at range.
+   */
+  it('makes a Prone target easier to hit in melee and harder at range', () => {
+    const melee = unwrap(
+      rollAttack(issuer(), scriptedRng([5, 18]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        targetConditions: conditionState(['prone']),
+        withinFiveFeet: true,
+      }),
+      'melee',
+    );
+    expect(melee.mode).toBe('advantage');
+
+    const ranged = unwrap(
+      rollAttack(issuer(), scriptedRng([18, 5]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        targetConditions: conditionState(['prone']),
+        withinFiveFeet: false,
+      }),
+      'ranged',
+    );
+    expect(ranged.mode).toBe('disadvantage');
+  });
+
+  // SRD Paralyzed: "Any attack roll that hits you is a Critical Hit if the
+  // attacker is within 5 feet of you." Not just a natural 20.
+  it('turns an ordinary hit on a Paralyzed target into a critical in melee', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([12, 12]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        targetConditions: conditionState(['paralyzed']),
+        withinFiveFeet: true,
+      }),
+      'autocrit',
+    );
+    expect(result.roll.natural).toBe(12);
+    expect(result.hit).toBe(true);
+    expect(result.critical).toBe(true);
+  });
+
+  it('does not auto-crit beyond 5 feet', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([12, 12]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        targetConditions: conditionState(['paralyzed']),
+        withinFiveFeet: false,
+      }),
+      'no-autocrit',
+    );
+    expect(result.hit).toBe(true);
+    expect(result.critical).toBe(false);
+  });
+
+  it('does not auto-crit a miss', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([1, 1]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        targetConditions: conditionState(['unconscious']),
+        withinFiveFeet: true,
+      }),
+      'miss',
+    );
+    expect(result.hit).toBe(false);
+    expect(result.critical).toBe(false);
+  });
+
+  it('subtracts the attacker’s exhaustion penalty from the attack roll', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([15]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        attackerConditions: conditionState([], 2),
+      }),
+      'exhausted',
+    );
+    // 15 + prof 2 - 4
+    expect(result.total).toBe(13);
+  });
+
+  it('gives an Invisible attacker advantage unless the target can see them', () => {
+    const unseen = unwrap(
+      rollAttack(issuer(), scriptedRng([5, 18]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        attackerConditions: conditionState(['invisible']),
+      }),
+      'unseen',
+    );
+    expect(unseen.mode).toBe('advantage');
+
+    const seen = unwrap(
+      rollAttack(issuer(), scriptedRng([5, 18]), sheet(), {
+        weapon: w(),
+        targetAc: 10,
+        attackerConditions: conditionState(['invisible']),
+        attackerContext: { targetCanSeeAttacker: true },
+      }),
+      'seen',
+    );
+    expect(seen.mode).toBe('normal');
   });
 });

@@ -1,0 +1,308 @@
+import type { Ability, ConditionName } from '@ie/shared';
+import type { Bonus, ModeSource } from './bonuses.js';
+
+/**
+ * The fifteen conditions and their mechanical effects.
+ *
+ * This is the first module that feeds *back* into the rolls: conditions supply
+ * advantage and disadvantage to checks, saves and attacks, and in a few cases
+ * decide the outcome outright.
+ *
+ * Rules verified against SRD 5.2.1 (see ATTRIBUTION.md). Purely narrative
+ * effects — Incapacitated's "you can't speak", Unconscious's "you're unaware of
+ * your surroundings", Petrified's tenfold weight — are deliberately not
+ * modelled here; they belong to narration, not arithmetic.
+ */
+
+/** Display names, for attributing a mode to the condition that caused it. */
+const LABEL: Readonly<Record<ConditionName, string>> = {
+  blinded: 'Blinded',
+  charmed: 'Charmed',
+  deafened: 'Deafened',
+  exhaustion: 'Exhaustion',
+  frightened: 'Frightened',
+  grappled: 'Grappled',
+  incapacitated: 'Incapacitated',
+  invisible: 'Invisible',
+  paralyzed: 'Paralyzed',
+  petrified: 'Petrified',
+  poisoned: 'Poisoned',
+  prone: 'Prone',
+  restrained: 'Restrained',
+  stunned: 'Stunned',
+  unconscious: 'Unconscious',
+};
+
+/**
+ * Conditions that carry others with them. Unconscious is the compound one:
+ * "You have the Incapacitated and Prone conditions."
+ */
+const IMPLIES: Partial<Readonly<Record<ConditionName, readonly ConditionName[]>>> = {
+  paralyzed: ['incapacitated'],
+  petrified: ['incapacitated'],
+  stunned: ['incapacitated'],
+  unconscious: ['incapacitated', 'prone'],
+};
+
+/**
+ * Expand implied conditions to a fixed point, sorted.
+ *
+ * Sorting matters beyond tidiness: condition state ends up in the event log,
+ * and a set that serialises differently depending on the order effects were
+ * applied would break replay comparison.
+ */
+export function expandConditions(conditions: readonly ConditionName[]): ConditionName[] {
+  const present = new Set<ConditionName>(conditions);
+
+  let added = true;
+  while (added) {
+    added = false;
+    for (const condition of [...present]) {
+      for (const implied of IMPLIES[condition] ?? []) {
+        if (!present.has(implied)) {
+          present.add(implied);
+          added = true;
+        }
+      }
+    }
+  }
+
+  return [...present].sort();
+}
+
+export interface ConditionState {
+  readonly conditions: readonly ConditionName[];
+  /** 0 to 6. Exhaustion is a level, not a flag. */
+  readonly exhaustion: number;
+}
+
+export function conditionState(
+  conditions: readonly ConditionName[] = [],
+  exhaustion = 0,
+): ConditionState {
+  return {
+    conditions: expandConditions(conditions),
+    exhaustion: Math.max(0, Math.trunc(exhaustion)),
+  };
+}
+
+export function hasCondition(state: ConditionState, name: ConditionName): boolean {
+  // Exhaustion is tracked as a level, so its presence is derived from that.
+  if (name === 'exhaustion') return state.exhaustion > 0;
+  return state.conditions.includes(name);
+}
+
+const disadvantage = (condition: ConditionName): ModeSource => ({
+  source: LABEL[condition],
+  mode: 'disadvantage',
+});
+
+const advantage = (condition: ConditionName): ModeSource => ({
+  source: LABEL[condition],
+  mode: 'advantage',
+});
+
+export interface AttackerContext {
+  /** The target can see the attacker, which negates Invisible's advantage. */
+  readonly targetCanSeeAttacker?: boolean;
+  /** The source of fear is in the attacker's line of sight. */
+  readonly fearSourceVisible?: boolean;
+  /** The target is the creature grappling the attacker. */
+  readonly targetIsGrappler?: boolean;
+}
+
+/** Advantage and disadvantage the attacker's own conditions impose on their roll. */
+export function attackerConditionModes(
+  state: ConditionState,
+  context: AttackerContext,
+): ModeSource[] {
+  const modes: ModeSource[] = [];
+
+  if (hasCondition(state, 'blinded')) modes.push(disadvantage('blinded'));
+  if (hasCondition(state, 'poisoned')) modes.push(disadvantage('poisoned'));
+  if (hasCondition(state, 'prone')) modes.push(disadvantage('prone'));
+  if (hasCondition(state, 'restrained')) modes.push(disadvantage('restrained'));
+
+  // SRD Frightened: only "while the source of fear is within line of sight".
+  if (hasCondition(state, 'frightened') && context.fearSourceVisible === true) {
+    modes.push(disadvantage('frightened'));
+  }
+
+  // SRD Grappled: disadvantage "against any target other than the grappler".
+  if (hasCondition(state, 'grappled') && context.targetIsGrappler !== true) {
+    modes.push(disadvantage('grappled'));
+  }
+
+  // SRD Invisible: "If a creature can somehow see you, you don't gain this
+  // benefit against that creature."
+  if (hasCondition(state, 'invisible') && context.targetCanSeeAttacker !== true) {
+    modes.push(advantage('invisible'));
+  }
+
+  return modes;
+}
+
+export interface TargetContext {
+  /** The attacker is within 5 feet — which flips Prone's effect. */
+  readonly withinFiveFeet?: boolean;
+  /** The attacker can see the target, negating Invisible's protection. */
+  readonly attackerCanSeeTarget?: boolean;
+}
+
+/** Advantage and disadvantage the target's conditions impose on attacks against them. */
+export function targetConditionModes(
+  state: ConditionState,
+  context: TargetContext,
+): ModeSource[] {
+  const modes: ModeSource[] = [];
+
+  for (const condition of ['blinded', 'paralyzed', 'petrified', 'restrained', 'stunned', 'unconscious'] as const) {
+    if (hasCondition(state, condition)) modes.push(advantage(condition));
+  }
+
+  if (hasCondition(state, 'invisible') && context.attackerCanSeeTarget !== true) {
+    modes.push(disadvantage('invisible'));
+  }
+
+  // SRD Prone: "An attack roll against you has Advantage if the attacker is
+  // within 5 feet of you. Otherwise, that attack roll has Disadvantage."
+  // The second half is the half that gets forgotten — a prone target is harder
+  // to hit at range, not merely no easier.
+  if (hasCondition(state, 'prone')) {
+    modes.push(context.withinFiveFeet === true ? advantage('prone') : disadvantage('prone'));
+  }
+
+  return modes;
+}
+
+/** Modes plus, where a condition decides the outcome outright, a reason. */
+export interface ConditionEffect {
+  readonly modes: readonly ModeSource[];
+  /** Set when a condition makes the test fail regardless of the roll. */
+  readonly autoFail: string | null;
+}
+
+/** SRD: these four automatically fail Strength and Dexterity saving throws. */
+const AUTO_FAILS_STR_DEX = ['paralyzed', 'petrified', 'stunned', 'unconscious'] as const;
+
+export function saveConditionEffect(state: ConditionState, ability: Ability): ConditionEffect {
+  const modes: ModeSource[] = [];
+  let autoFail: string | null = null;
+
+  if (ability === 'str' || ability === 'dex') {
+    for (const condition of AUTO_FAILS_STR_DEX) {
+      if (hasCondition(state, condition)) {
+        autoFail = `${LABEL[condition]} automatically fails Strength and Dexterity saving throws`;
+        break;
+      }
+    }
+  }
+
+  // SRD Restrained: "You have Disadvantage on Dexterity saving throws."
+  if (ability === 'dex' && hasCondition(state, 'restrained')) {
+    modes.push(disadvantage('restrained'));
+  }
+
+  return { modes, autoFail };
+}
+
+export interface CheckContext {
+  /** The check depends on sight, which Blinded fails outright. */
+  readonly requiresSight?: boolean;
+  /** The check depends on hearing, which Deafened fails outright. */
+  readonly requiresHearing?: boolean;
+  readonly fearSourceVisible?: boolean;
+}
+
+export function checkConditionEffect(
+  state: ConditionState,
+  context: CheckContext,
+): ConditionEffect {
+  const modes: ModeSource[] = [];
+  let autoFail: string | null = null;
+
+  // SRD Blinded and Deafened fail sense-dependent checks outright. Note neither
+  // imposes blanket disadvantage on every ability check.
+  if (context.requiresSight === true && hasCondition(state, 'blinded')) {
+    autoFail = 'Blinded automatically fails an ability check that requires sight';
+  } else if (context.requiresHearing === true && hasCondition(state, 'deafened')) {
+    autoFail = 'Deafened automatically fails an ability check that requires hearing';
+  }
+
+  if (hasCondition(state, 'poisoned')) modes.push(disadvantage('poisoned'));
+  if (hasCondition(state, 'frightened') && context.fearSourceVisible === true) {
+    modes.push(disadvantage('frightened'));
+  }
+
+  return { modes, autoFail };
+}
+
+/**
+ * SRD Paralyzed and Unconscious: "Any attack roll that hits you is a Critical
+ * Hit if the attacker is within 5 feet of you."
+ *
+ * Petrified and Stunned grant advantage but not automatic criticals — an easy
+ * over-generalisation to make from "helpless target".
+ */
+export function isAutomaticCritical(state: ConditionState, withinFiveFeet: boolean): boolean {
+  if (!withinFiveFeet) return false;
+  return hasCondition(state, 'paralyzed') || hasCondition(state, 'unconscious');
+}
+
+/**
+ * SRD Exhaustion: "When you make a D20 Test, the roll is reduced by 2 times
+ * your Exhaustion level." A flat penalty, not disadvantage — so it stacks with
+ * advantage rather than being cancelled by it.
+ */
+export function exhaustionBonus(state: ConditionState): Bonus | null {
+  if (state.exhaustion <= 0) return null;
+  return {
+    source: `Exhaustion ${state.exhaustion}`,
+    flat: -2 * state.exhaustion,
+  };
+}
+
+/** SRD: "You die if your Exhaustion level is 6." */
+export function isDeadFromExhaustion(state: ConditionState): boolean {
+  return state.exhaustion >= 6;
+}
+
+/** Conditions that flatly set Speed to 0. */
+const SPEED_ZERO = ['grappled', 'paralyzed', 'petrified', 'restrained', 'unconscious'] as const;
+
+/**
+ * Speed after conditions: 0 if anything pins the creature, otherwise the base
+ * reduced by 5 feet per Exhaustion level.
+ */
+export function conditionSpeed(state: ConditionState, baseSpeed: number): number {
+  if (SPEED_ZERO.some((c) => hasCondition(state, c))) return 0;
+  return Math.max(0, baseSpeed - 5 * state.exhaustion);
+}
+
+/** SRD Incapacitated: "You can't take any action, Bonus Action, or Reaction." */
+export function isIncapacitated(state: ConditionState): boolean {
+  return hasCondition(state, 'incapacitated');
+}
+
+/**
+ * SRD: Incapacitated gives Disadvantage on Initiative, Invisible gives
+ * Advantage — and a creature that is somehow both rolls normally, since these
+ * cancel like any other pair.
+ */
+export function initiativeConditionModes(state: ConditionState): ModeSource[] {
+  const modes: ModeSource[] = [];
+  if (hasCondition(state, 'invisible')) modes.push(advantage('invisible'));
+  if (isIncapacitated(state)) modes.push(disadvantage('incapacitated'));
+  return modes;
+}
+
+/** SRD Petrified: "You have Resistance to all damage." */
+export function resistsAllDamage(state: ConditionState): boolean {
+  return hasCondition(state, 'petrified');
+}
+
+/** SRD Petrified: "You have Immunity to the Poisoned condition." */
+export function canReceiveCondition(state: ConditionState, name: ConditionName): boolean {
+  if (name === 'poisoned' && hasCondition(state, 'petrified')) return false;
+  return true;
+}

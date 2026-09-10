@@ -12,6 +12,15 @@ import {
   type ResolvedBonus,
 } from './bonuses.js';
 import {
+  attackerConditionModes,
+  exhaustionBonus,
+  isAutomaticCritical,
+  targetConditionModes,
+  type AttackerContext,
+  type ConditionState,
+  type TargetContext,
+} from './conditions.js';
+import {
   rollD20Recorded,
   rollRecorded,
   type RecordedD20,
@@ -68,6 +77,14 @@ export interface AttackOptions {
    * else that reads or reacts to an individual die.
    */
   readonly damageEffects?: readonly DieEffect[];
+  /** The attacker's own conditions: Blinded, Poisoned, Prone, Invisible. */
+  readonly attackerConditions?: ConditionState;
+  /** The target's conditions: Prone, Restrained, Paralyzed, Invisible. */
+  readonly targetConditions?: ConditionState;
+  readonly attackerContext?: AttackerContext;
+  readonly targetContext?: TargetContext;
+  /** The attacker is within 5 feet — flips Prone, and enables automatic crits. */
+  readonly withinFiveFeet?: boolean;
 }
 
 const has = (weapon: Weapon | null, property: string): boolean =>
@@ -108,10 +125,13 @@ export function attackAbility(sheet: CharacterSheet, options: AttackOptions): Ab
 export function attackModifier(sheet: CharacterSheet, options: AttackOptions): number {
   const ability = attackAbility(sheet, options);
   const proficient = options.weapon === null || (options.proficient ?? true);
+  const exhaustion =
+    options.attackerConditions === undefined ? null : exhaustionBonus(options.attackerConditions);
   return (
     modifierFor(sheet, ability) +
     (proficient ? proficiencyBonus(sheet) : 0) +
-    flatBonusTotal(options.attackBonuses)
+    flatBonusTotal(options.attackBonuses) +
+    (exhaustion?.flat ?? 0)
   );
 }
 
@@ -145,6 +165,18 @@ export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): 
   // Untrained armour hampers any Strength or Dexterity D20 Test, attacks
   // included.
   modes.push(...characterRollModes(sheet, ability, null));
+
+  // Conditions on both sides of the attack.
+  const targetContext: TargetContext = {
+    ...options.targetContext,
+    ...(options.withinFiveFeet === undefined ? {} : { withinFiveFeet: options.withinFiveFeet }),
+  };
+  if (options.attackerConditions !== undefined) {
+    modes.push(...attackerConditionModes(options.attackerConditions, options.attackerContext ?? {}));
+  }
+  if (options.targetConditions !== undefined) {
+    modes.push(...targetConditionModes(options.targetConditions, targetContext));
+  }
 
   return modes;
 }
@@ -184,6 +216,14 @@ export function rollAttack(
   // overrides the total.
   const hit = roll.isCriticalHit || (!roll.isCriticalMiss && total >= options.targetAc);
 
+  // SRD Paralyzed and Unconscious: "Any attack roll that hits you is a Critical
+  // Hit if the attacker is within 5 feet of you." A hit that was not a natural
+  // 20 still becomes a critical.
+  const automaticCritical =
+    hit &&
+    options.targetConditions !== undefined &&
+    isAutomaticCritical(options.targetConditions, options.withinFiveFeet === true);
+
   return ok({
     ability,
     mode,
@@ -192,7 +232,7 @@ export function rollAttack(
     total,
     targetAc: options.targetAc,
     hit,
-    critical: roll.isCriticalHit,
+    critical: roll.isCriticalHit || automaticCritical,
   });
 }
 

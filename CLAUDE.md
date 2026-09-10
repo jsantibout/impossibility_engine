@@ -153,6 +153,15 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **Critical hits double the dice, not the modifier.** "Roll the attack's
   damage dice twice, add them together, and add any relevant modifiers as
   normal."
+- **Prone is asymmetric.** "An attack roll against you has Advantage if the
+  attacker is within 5 feet of you. **Otherwise, that attack roll has
+  Disadvantage.**" A prone target is *harder* to hit at range — the second half
+  is the half that gets dropped.
+- **Automatic criticals are Paralyzed and Unconscious only.** Petrified and
+  Stunned grant Advantage but not crits, which is an easy over-generalisation
+  from "helpless target".
+- **Exhaustion is a flat -2 per level, not Disadvantage** — so it stacks with
+  advantage instead of being cancelled by it.
 - **Boots of Elvenkind grant flat Advantage on Dexterity (Stealth) checks** in
   2024 — no condition about sound or movement. That qualifier is 2014.
 - **Great Weapon Fighting substitutes, it does not reroll.** 2024: "treat any
@@ -241,6 +250,35 @@ On a critical hit **every damage die doubles — including extra damage dice**
 ("If the attack involves other damage dice, such as from the Rogue's Sneak
 Attack feature, you also roll those dice twice") — but **flat bonuses never
 do**. A +1 weapon adds 1 on a crit, not 2.
+
+## Conditions Close The Loop
+
+`conditions.ts` is the first module that feeds *back* into the rolls rather
+than adding a layer beneath them. Checks, saves and attacks all take condition
+state and read the rules themselves — the caller supplies who has what, never
+the resulting advantage.
+
+Four things it does that a mode list alone cannot express:
+
+- **Implication.** Unconscious carries Incapacitated *and* Prone; Paralyzed,
+  Petrified and Stunned each carry Incapacitated. `expandConditions` closes
+  over these to a fixed point and sorts the result, because condition state
+  reaches the event log and an order-dependent set would break replay
+  comparison.
+- **Automatic failure.** A Blinded creature fails a sight-dependent check and a
+  Stunned creature fails a Strength save regardless of the die. The roll is
+  still recorded — other effects can care what it showed — but `autoFailed`
+  overrides the total, and no after-the-fact bonus rescues it.
+- **Automatic criticals.** A hit on a Paralyzed or Unconscious target within 5
+  feet is a critical even without a natural 20.
+- **Context-dependence.** Frightened only applies while the source is in line of
+  sight; Grappled only against targets other than the grappler; Invisible only
+  against creatures that cannot see you. These take context rather than being
+  unconditional.
+
+Purely narrative effects — "you can't speak", "you're unaware of your
+surroundings", Petrified's tenfold weight — are deliberately not modelled.
+They belong to narration, not arithmetic.
 
 ## Combat Model
 

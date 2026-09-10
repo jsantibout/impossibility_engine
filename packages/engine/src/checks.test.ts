@@ -11,6 +11,7 @@ import {
   rollSavingThrow,
 } from './checks.js';
 import { createRollIssuer } from './rolls.js';
+import { conditionState } from './conditions.js';
 import { expect as unwrap } from '@ie/shared';
 
 /**
@@ -534,5 +535,106 @@ describe('applyBonusAfterRoll', () => {
     expect(inspired.natural).toBe(9);
     expect(inspired.roll).toBe(failed.roll);
     expect(failed.total).toBe(9);
+  });
+});
+
+describe('conditions feed into checks', () => {
+  it('applies Poisoned disadvantage without the caller asking', () => {
+    const result = check(scriptedRng([15, 6]), sheet(), 'str', {
+      dc: 10,
+      conditions: conditionState(['poisoned']),
+    });
+    expect(result.mode).toBe('disadvantage');
+    expect(result.natural).toBe(6);
+  });
+
+  it('fails a sight-dependent check outright while Blinded', () => {
+    const result = check(scriptedRng([20]), sheet(), 'wis', {
+      dc: 5,
+      skill: 'perception',
+      conditions: conditionState(['blinded']),
+      conditionContext: { requiresSight: true },
+    });
+    // The die is still recorded — other effects can care what it showed.
+    expect(result.natural).toBe(20);
+    expect(result.autoFailed).toMatch(/blinded/i);
+    expect(result.success).toBe(false);
+  });
+
+  it('leaves a check that does not need sight alone while Blinded', () => {
+    const result = check(scriptedRng([15]), sheet(), 'wis', {
+      dc: 10,
+      conditions: conditionState(['blinded']),
+    });
+    expect(result.autoFailed).toBeNull();
+    expect(result.success).toBe(true);
+  });
+
+  // SRD Exhaustion: a flat penalty, so unlike disadvantage it is not cancelled
+  // by an advantage source — it stacks with everything.
+  it('subtracts the exhaustion penalty from the roll', () => {
+    const result = check(scriptedRng([15]), sheet(), 'str', {
+      dc: 10,
+      conditions: conditionState([], 3),
+    });
+    expect(result.total).toBe(15 - 6);
+    expect(result.success).toBe(false);
+  });
+
+  it('keeps the exhaustion penalty even with advantage', () => {
+    const result = check(scriptedRng([15, 18]), sheet(), 'str', {
+      dc: 10,
+      conditions: conditionState([], 2),
+      modes: ['advantage'],
+    });
+    expect(result.natural).toBe(18);
+    expect(result.total).toBe(18 - 4);
+  });
+
+  it('auto-fails a Stunned creature’s Strength save', () => {
+    const result = save(scriptedRng([20]), sheet(), 'str', {
+      dc: 5,
+      conditions: conditionState(['stunned']),
+    });
+    expect(result.autoFailed).toMatch(/stunned/i);
+    expect(result.success).toBe(false);
+  });
+
+  it('leaves a Stunned creature’s Wisdom save rollable', () => {
+    const result = save(scriptedRng([15]), sheet(), 'wis', {
+      dc: 10,
+      conditions: conditionState(['stunned']),
+    });
+    expect(result.autoFailed).toBeNull();
+    expect(result.success).toBe(true);
+  });
+
+  it('gives a Restrained creature disadvantage on Dexterity saves only', () => {
+    const dex = save(scriptedRng([15, 4]), sheet(), 'dex', {
+      dc: 10,
+      conditions: conditionState(['restrained']),
+    });
+    expect(dex.mode).toBe('disadvantage');
+
+    const con = save(scriptedRng([15, 4]), sheet(), 'con', {
+      dc: 10,
+      conditions: conditionState(['restrained']),
+    });
+    expect(con.mode).toBe('normal');
+  });
+
+  it('will not let Bardic Inspiration rescue an automatic failure', () => {
+    const failed = save(scriptedRng([18]), sheet(), 'str', {
+      dc: 5,
+      conditions: conditionState(['paralyzed']),
+    });
+    const inspired = unwrap(
+      applyBonusAfterRoll(issuer(), scriptedRng([6]), failed, {
+        source: 'Bardic Inspiration',
+        dice: '1d6',
+      }),
+      'inspired',
+    );
+    expect(inspired.success).toBe(false);
   });
 });
