@@ -8,6 +8,7 @@ import { createRollIssuer } from './rolls.js';
 import { rerollDice, treatLowRollsAs } from './dice.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
+  applyDamage,
   applyDefenses,
   attackAbility,
   attackModifier,
@@ -193,20 +194,20 @@ describe('rollAttack', () => {
   it('hits when the total equals AC', () => {
     const s = sheet({ abilities: scores({ str: 14 }) });
     // natural 12 + str 2 + prof 2 = 16
-    const result = rollAttack(issuer(), scriptedRng([12]), s, {
+    const result = unwrap(rollAttack(issuer(), scriptedRng([12]), s, {
       weapon: weaponFixture(),
       targetAc: 16,
-    });
+    }), 'attack');
     expect(result.roll.total).toBe(16);
     expect(result.hit).toBe(true);
     expect(result.critical).toBe(false);
   });
 
   it('misses when the total is one under AC', () => {
-    const result = rollAttack(issuer(), scriptedRng([12]), sheet(), {
+    const result = unwrap(rollAttack(issuer(), scriptedRng([12]), sheet(), {
       weapon: weaponFixture(),
       targetAc: 15,
-    });
+    }), 'attack');
     expect(result.hit).toBe(false);
   });
 
@@ -214,36 +215,36 @@ describe('rollAttack', () => {
   // the target's AC." This is where naturals *do* decide the outcome.
   it('hits and crits on a natural 20 against any AC', () => {
     const s = sheet({ abilities: scores({ str: 4 }) });
-    const result = rollAttack(issuer(), scriptedRng([20]), s, {
+    const result = unwrap(rollAttack(issuer(), scriptedRng([20]), s, {
       weapon: weaponFixture(),
       targetAc: 40,
-    });
+    }), 'attack');
     expect(result.hit).toBe(true);
     expect(result.critical).toBe(true);
   });
 
   it('misses on a natural 1 against any AC', () => {
     const s = sheet({ level: 20, abilities: scores({ str: 20 }) });
-    const result = rollAttack(issuer(), scriptedRng([1]), s, {
+    const result = unwrap(rollAttack(issuer(), scriptedRng([1]), s, {
       weapon: weaponFixture(),
       targetAc: 5,
-    });
+    }), 'attack');
     expect(result.hit).toBe(false);
     expect(result.critical).toBe(false);
   });
 
   it('stamps the roll with engine provenance', () => {
-    const result = rollAttack(issuer(), scriptedRng([10]), sheet(), {
+    const result = unwrap(rollAttack(issuer(), scriptedRng([10]), sheet(), {
       weapon: weaponFixture(),
       targetAc: 10,
-    });
+    }), 'attack');
     expect(result.roll.provenance).toMatchObject({ id: 't:1', source: 'engine' });
   });
 
   it('applies disadvantage from the weapon automatically', () => {
     const w = weaponFixture({ properties: ['heavy'] });
     const s = sheet({ abilities: scores({ str: 8 }) });
-    const result = rollAttack(issuer(), scriptedRng([18, 4]), s, { weapon: w, targetAc: 10 });
+    const result = unwrap(rollAttack(issuer(), scriptedRng([18, 4]), s, { weapon: w, targetAc: 10 }), 'attack');
     expect(result.mode).toBe('disadvantage');
     expect(result.roll.natural).toBe(4);
   });
@@ -256,8 +257,8 @@ describe('rollAttackDamage', () => {
       rollAttackDamage(issuer(), scriptedRng([4]), s, { weapon: weaponFixture(), targetAc: 10 }, false),
       'damage',
     );
-    expect(damage.type).toBe('slashing');
-    expect(damage.modifier).toBe(3);
+    expect(damage.components[0]!.type).toBe('slashing');
+    expect(damage.components[0]!.flat).toBe(3);
     expect(damage.total).toBe(7);
   });
 
@@ -277,7 +278,7 @@ describe('rollAttackDamage', () => {
     );
     expect(normal.total).toBe(8);
     expect(critical.total).toBe(13);
-    expect(critical.modifier).toBe(3);
+    expect(critical.components[0]!.flat).toBe(3);
     expect(critical.critical).toBe(true);
   });
 
@@ -302,8 +303,8 @@ describe('rollAttackDamage', () => {
       ),
       'two',
     );
-    expect(oneHanded.notation).toBe('1d8');
-    expect(twoHanded.notation).toBe('1d10');
+    expect(oneHanded.components[0]!.roll!.notation.sides).toBe(8);
+    expect(twoHanded.components[0]!.roll!.notation.sides).toBe(10);
   });
 
   it('handles the Blowgun, whose damage is a flat 1 with no dice', () => {
@@ -316,7 +317,7 @@ describe('rollAttackDamage', () => {
       rollAttackDamage(issuer(), scriptedRng([5]), s, { weapon: w, targetAc: 10 }, false),
       'flat',
     );
-    expect(damage.notation).toBeNull();
+    expect(damage.components[0]!.roll).toBeNull();
     expect(damage.total).toBe(1 + 3);
   });
 
@@ -337,7 +338,7 @@ describe('rollAttackDamage', () => {
       rollAttackDamage(issuer(), scriptedRng([5]), s, { weapon: null, targetAc: 10 }, false),
       'unarmed',
     );
-    expect(damage.type).toBe('bludgeoning');
+    expect(damage.components[0]!.type).toBe('bludgeoning');
     expect(damage.total).toBe(1 + 4);
   });
 
@@ -355,7 +356,7 @@ describe('rollAttackDamage', () => {
       rollAttackDamage(issuer(), scriptedRng([3]), sheet(), { weapon: weaponFixture(), targetAc: 10 }, false),
       'prov',
     );
-    expect(damage.provenance.source).toBe('engine');
+    expect(damage.components[0]!.roll!.provenance.source).toBe('engine');
   });
 
   it('reports a problem for a weapon with unusable damage', () => {
@@ -429,7 +430,7 @@ describe('against real SRD weapons', () => {
       rollAttackDamage(issuer(), scriptedRng([6]), s, { weapon: weapon('longsword'), targetAc: 10 }, false),
       'longsword',
     );
-    expect(damage.notation).toBe('1d8');
+    expect(damage.components[0]!.roll!.notation.sides).toBe(8);
     expect(damage.total).toBe(6 + 3);
   });
 
@@ -444,7 +445,7 @@ describe('against real SRD weapons', () => {
       ),
       'versatile',
     );
-    expect(damage.notation).toBe('1d10');
+    expect(damage.components[0]!.roll!.notation.sides).toBe(10);
   });
 
   it('uses Dexterity for a Longbow', () => {
@@ -483,8 +484,8 @@ describe('against real SRD weapons', () => {
       ),
       'gwf',
     );
-    expect(damage.roll!.dice.map((d) => d.rolled)).toEqual([1, 2]);
-    expect(damage.roll!.dice.map((d) => d.value)).toEqual([3, 3]);
+    expect(damage.components[0]!.roll!.dice.map((d) => d.rolled)).toEqual([1, 2]);
+    expect(damage.components[0]!.roll!.dice.map((d) => d.value)).toEqual([3, 3]);
     expect(damage.total).toBe(3 + 3 + 3);
   });
 
@@ -495,17 +496,17 @@ describe('against real SRD weapons', () => {
       rollAttackDamage(issuer(), scriptedRng([1, 1]), s, { weapon: weapon('greatsword'), targetAc: 10 }, false),
       'dice',
     );
-    expect(damage.roll!.dice).toHaveLength(2);
+    expect(damage.components[0]!.roll!.dice).toHaveLength(2);
     expect(damage.total).toBe(1 + 1 + 3);
 
     const rerolled = unwrap(
-      rerollDice(scriptedRng([6]), damage.roll!, [0], 'Empowered Spell'),
+      rerollDice(scriptedRng([6]), damage.components[0]!.roll!, [0], 'Empowered Spell'),
       'reroll',
     );
     expect(rerolled.dice[0]!.disposition).toBe('rerolled');
     expect(rerolled.dice.at(-1)).toMatchObject({ rolled: 6, replaces: 0 });
     // 6 replaces the 1: dice now total 7, and the +3 modifier is added on top.
-    expect(rerolled.total + damage.modifier).toBe(10);
+    expect(rerolled.total + damage.components[0]!.flat).toBe(10);
   });
 
   it('reports no roll for flat damage, which has no dice to act on', () => {
@@ -513,7 +514,7 @@ describe('against real SRD weapons', () => {
       rollAttackDamage(issuer(), scriptedRng([1]), sheet(), { weapon: weapon('blowgun'), targetAc: 10 }, false),
       'flat',
     );
-    expect(damage.roll).toBeNull();
+    expect(damage.components[0]!.roll).toBeNull();
   });
 
   it('rolls the Blowgun as a flat 1 plus Dexterity', () => {
@@ -523,5 +524,295 @@ describe('against real SRD weapons', () => {
       'blowgun',
     );
     expect(damage.total).toBe(1 + 2);
+  });
+});
+
+describe('bonuses to attack rolls', () => {
+  // SRD: "You gain a +1 bonus to attack rolls and damage rolls made with this
+  // magic weapon."
+  it('adds a magic weapon bonus to the attack roll', () => {
+    const s = sheet({ abilities: scores({ str: 14 }) });
+    const plain = unwrap(
+      rollAttack(issuer(), scriptedRng([10]), s, { weapon: weaponFixture(), targetAc: 10 }),
+      'plain',
+    );
+    const magic = unwrap(
+      rollAttack(issuer(), scriptedRng([10]), s, {
+        weapon: weaponFixture(),
+        targetAc: 10,
+        attackBonuses: [{ source: 'Longsword +1', flat: 1 }],
+      }),
+      'magic',
+    );
+    expect(magic.total).toBe(plain.total + 1);
+  });
+
+  // SRD Archery: "+2 bonus to attack rolls you make with Ranged weapons."
+  it('adds a fighting style bonus', () => {
+    const s = sheet({ abilities: scores({ dex: 14 }) });
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([10]), s, {
+        weapon: weaponFixture({ kind: 'ranged' }),
+        targetAc: 10,
+        attackBonuses: [{ source: 'Archery', flat: 2 }],
+      }),
+      'archery',
+    );
+    // 10 + dex 2 + prof 2 + archery 2
+    expect(result.total).toBe(16);
+  });
+
+  it('stacks several flat bonuses', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([10]), sheet(), {
+        weapon: weaponFixture(),
+        targetAc: 10,
+        attackBonuses: [
+          { source: 'Longsword +2', flat: 2 },
+          { source: 'Archery', flat: 2 },
+        ],
+      }),
+      'stack',
+    );
+    expect(result.total).toBe(10 + 2 + 2 + 2);
+  });
+
+  // Bless adds a die rather than a flat number.
+  it('rolls a dice bonus and adds it', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([10, 3]), sheet(), {
+        weapon: weaponFixture(),
+        targetAc: 10,
+        attackBonuses: [{ source: 'Bless', dice: '1d4' }],
+      }),
+      'bless',
+    );
+    expect(result.bonuses).toHaveLength(1);
+    expect(result.bonuses[0]).toMatchObject({ source: 'Bless', total: 3 });
+    expect(result.total).toBe(10 + 2 + 3);
+  });
+
+  it('keeps a dice bonus out of the d20 result itself', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([10, 4]), sheet(), {
+        weapon: weaponFixture(),
+        targetAc: 10,
+        attackBonuses: [{ source: 'Bless', dice: '1d4' }],
+      }),
+      'separate',
+    );
+    expect(result.roll.total).toBe(12);
+    expect(result.total).toBe(16);
+  });
+
+  it('lets a bonus turn a miss into a hit', () => {
+    const options = { weapon: weaponFixture(), targetAc: 15 };
+    expect(unwrap(rollAttack(issuer(), scriptedRng([12]), sheet(), options), 'miss').hit).toBe(
+      false,
+    );
+    expect(
+      unwrap(
+        rollAttack(issuer(), scriptedRng([12]), sheet(), {
+          ...options,
+          attackBonuses: [{ source: 'Longsword +1', flat: 1 }],
+        }),
+        'hit',
+      ).hit,
+    ).toBe(true);
+  });
+
+  it('never lets a bonus rescue a natural 1', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([1]), sheet(), {
+        weapon: weaponFixture(),
+        targetAc: 5,
+        attackBonuses: [
+          { source: 'Longsword +3', flat: 3 },
+          { source: 'Bless', dice: '1d4' },
+        ],
+      }),
+      'fumble',
+    );
+    expect(result.hit).toBe(false);
+  });
+});
+
+describe('bonuses to damage', () => {
+  it('adds a magic weapon bonus to damage of the weapon type', () => {
+    const s = sheet({ abilities: scores({ str: 14 }) });
+    const damage = unwrap(
+      rollAttackDamage(
+        issuer(),
+        scriptedRng([4]),
+        s,
+        {
+          weapon: weaponFixture(),
+          targetAc: 10,
+          damageBonuses: [{ source: 'Longsword +1', flat: 1 }],
+        },
+        false,
+      ),
+      'magic',
+    );
+    expect(damage.total).toBe(4 + 2 + 1);
+    expect(damage.components).toHaveLength(2);
+    expect(damage.components[1]).toMatchObject({
+      source: 'Longsword +1',
+      type: 'slashing',
+      total: 1,
+    });
+  });
+
+  // Bracers of Archery add damage but not attack; Dueling likewise.
+  it('keeps a damage-only bonus off the attack roll', () => {
+    const options = {
+      weapon: weaponFixture({ kind: 'ranged' }),
+      targetAc: 10,
+      damageBonuses: [{ source: 'Bracers of Archery', flat: 2 }],
+    };
+    const attack = unwrap(rollAttack(issuer(), scriptedRng([10]), sheet(), options), 'attack');
+    expect(attack.total).toBe(12);
+
+    const damage = unwrap(
+      rollAttackDamage(issuer(), scriptedRng([3]), sheet(), options, false),
+      'damage',
+    );
+    expect(damage.total).toBe(5);
+  });
+
+  it('records each bonus as its own component with its source', () => {
+    const damage = unwrap(
+      rollAttackDamage(
+        issuer(),
+        scriptedRng([3]),
+        sheet(),
+        {
+          weapon: weaponFixture(),
+          targetAc: 10,
+          damageBonuses: [
+            { source: 'Longsword +1', flat: 1 },
+            { source: 'Dueling', flat: 2 },
+          ],
+        },
+        false,
+      ),
+      'sources',
+    );
+    expect(damage.components.map((c) => c.source)).toEqual([
+      'Test Weapon',
+      'Longsword +1',
+      'Dueling',
+    ]);
+  });
+});
+
+describe('extra damage of another type', () => {
+  // SRD Flame Tongue: "deals an extra 2d6 Fire damage on a hit."
+  const flameTongue = { source: 'Flame Tongue', type: 'fire', dice: '2d6' };
+
+  it('keeps extra damage in its own typed component', () => {
+    const damage = unwrap(
+      rollAttackDamage(
+        issuer(),
+        scriptedRng([4]),
+        sheet(),
+        { weapon: weaponFixture(), targetAc: 10, extraDamage: [flameTongue] },
+        false,
+      ),
+      'flame',
+    );
+    expect(damage.components).toHaveLength(2);
+    expect(damage.components[0]).toMatchObject({ type: 'slashing', total: 4 });
+    expect(damage.components[1]).toMatchObject({ source: 'Flame Tongue', type: 'fire', total: 8 });
+    expect(damage.total).toBe(12);
+  });
+
+  // SRD Critical Hits: "If the attack involves other damage dice ... you also
+  // roll those dice twice."
+  it('doubles extra damage dice on a critical hit', () => {
+    const damage = unwrap(
+      rollAttackDamage(
+        issuer(),
+        scriptedRng([4]),
+        sheet(),
+        { weapon: weaponFixture(), targetAc: 10, extraDamage: [flameTongue] },
+        true,
+      ),
+      'crit',
+    );
+    // Weapon 1d6 -> 2d6 at 4 each; fire 2d6 -> 4d6 at 4 each.
+    expect(damage.components[0]!.total).toBe(8);
+    expect(damage.components[1]!.total).toBe(16);
+  });
+
+  it('never doubles a flat bonus on a critical hit', () => {
+    const s = sheet({ abilities: scores({ str: 14 }) });
+    const damage = unwrap(
+      rollAttackDamage(
+        issuer(),
+        scriptedRng([4]),
+        s,
+        {
+          weapon: weaponFixture(),
+          targetAc: 10,
+          damageBonuses: [{ source: 'Longsword +1', flat: 1 }],
+          extraDamage: [{ source: 'Rage', type: 'slashing', flat: 2 }],
+        },
+        true,
+      ),
+      'flat-crit',
+    );
+    expect(damage.components[1]!.total).toBe(1);
+    expect(damage.components[2]!.total).toBe(2);
+  });
+});
+
+describe('applyDamage across types', () => {
+  const components = [
+    { source: 'Longsword', type: 'slashing', roll: null, flat: 9, total: 9 },
+    { source: 'Flame Tongue', type: 'fire', roll: null, flat: 8, total: 8 },
+  ];
+
+  it('sums damage unchanged when the target has no relevant defences', () => {
+    expect(applyDamage(components, {})).toEqual({
+      byType: { slashing: 9, fire: 8 },
+      total: 17,
+    });
+  });
+
+  // The reason damage is typed at all: a fire-immune target still takes the
+  // sword's slashing damage.
+  it('zeroes only the immune type', () => {
+    expect(applyDamage(components, { fire: { immune: true } })).toEqual({
+      byType: { slashing: 9, fire: 0 },
+      total: 9,
+    });
+  });
+
+  it('resists one type without touching the other', () => {
+    expect(applyDamage(components, { slashing: { resistant: true } })).toEqual({
+      byType: { slashing: 4, fire: 8 },
+      total: 12,
+    });
+  });
+
+  it('applies vulnerability per type', () => {
+    expect(
+      applyDamage(components, { fire: { vulnerable: true }, slashing: { resistant: true } }),
+    ).toEqual({ byType: { slashing: 4, fire: 16 }, total: 20 });
+  });
+
+  // Halving each component separately would round down twice and undercount:
+  // 5 and 5 halved separately is 4, but 10 halved once is 5.
+  it('sums a type before halving it, not after', () => {
+    const split = [
+      { source: 'a', type: 'fire', roll: null, flat: 5, total: 5 },
+      { source: 'b', type: 'fire', roll: null, flat: 5, total: 5 },
+    ];
+    expect(applyDamage(split, { fire: { resistant: true } }).total).toBe(5);
+  });
+
+  it('applies a per-type adjustment before resistance', () => {
+    expect(applyDamage(components, { fire: { resistant: true } }, { fire: -2 }).byType.fire).toBe(3);
   });
 });

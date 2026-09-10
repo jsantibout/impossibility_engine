@@ -1,11 +1,7 @@
 import { err, ok, type Ability, type Result, type RollMode } from '@ie/shared';
 import type { Weapon } from '@ie/srd';
 import { parseNotation, type DieEffect, type Rng } from './dice.js';
-import {
-  modifierFor,
-  proficiencyBonus,
-  type CharacterSheet,
-} from './character.js';
+import { modifierFor, proficiencyBonus, type CharacterSheet } from './character.js';
 import { characterRollModes, combineRollModes } from './checks.js';
 import {
   rollD20Recorded,
@@ -13,7 +9,6 @@ import {
   type RecordedD20,
   type RecordedRoll,
   type RollIssuer,
-  type RollProvenance,
 } from './rolls.js';
 
 /**
@@ -22,6 +17,38 @@ import {
  *
  * Rules verified against SRD 5.2.1 (see ATTRIBUTION.md).
  */
+
+/**
+ * A named modifier to an attack or damage roll.
+ *
+ * Sources are carried through to the result so a log can say *why* a number
+ * was what it was — "+1 Longsword", "Archery", "Bless" — rather than presenting
+ * an unexplained total.
+ *
+ * Most bonuses are flat (+2 from Archery, +1 from a magic weapon), but some are
+ * dice: Bless adds 1d4 to attack rolls, Bardic Inspiration adds a die. Both are
+ * expressible, and a bonus may carry each.
+ */
+export interface Bonus {
+  readonly source: string;
+  readonly flat?: number;
+  /** Dice notation, e.g. `1d4` for Bless. */
+  readonly dice?: string;
+}
+
+/**
+ * Damage of a *different* type riding along with an attack.
+ *
+ * Flame Tongue deals "an extra 2d6 Fire damage" on top of the weapon's own
+ * damage, and resistance applies per type — so this cannot be folded into the
+ * weapon's damage without giving a fire-immune target the wrong answer.
+ */
+export interface ExtraDamage {
+  readonly source: string;
+  readonly type: string;
+  readonly dice?: string;
+  readonly flat?: number;
+}
 
 export interface AttackOptions {
   /** The weapon used, or null for an Unarmed Strike. */
@@ -40,9 +67,15 @@ export interface AttackOptions {
   readonly beyondNormalRange?: boolean;
   /** An enemy is within 5 feet, which hampers a ranged attack. */
   readonly nearbyEnemy?: boolean;
+  /** Modifiers to the attack roll: a magic weapon, Archery, Bless. */
+  readonly attackBonuses?: readonly Bonus[];
+  /** Modifiers to damage *of the weapon's own type*: a magic weapon, Dueling. */
+  readonly damageBonuses?: readonly Bonus[];
+  /** Damage of other types: Flame Tongue's fire, a Divine Smite's radiant. */
+  readonly extraDamage?: readonly ExtraDamage[];
   /**
-   * Per-die rules applied to the damage roll — Great Weapon Fighting, and
-   * anything else that reads or reacts to an individual die.
+   * Per-die rules applied to damage rolls — Great Weapon Fighting, and anything
+   * else that reads or reacts to an individual die.
    */
   readonly damageEffects?: readonly DieEffect[];
 }
@@ -54,6 +87,9 @@ const has = (weapon: Weapon | null, property: string): boolean =>
 function isRangedAttack(options: AttackOptions): boolean {
   return options.weapon?.kind === 'ranged' || options.thrown === true;
 }
+
+const flatTotal = (bonuses: readonly Bonus[] | undefined): number =>
+  (bonuses ?? []).reduce((sum, b) => sum + (b.flat ?? 0), 0);
 
 /**
  * SRD "Attack Roll Abilities": Strength for a melee weapon or Unarmed Strike,
@@ -76,13 +112,20 @@ export function attackAbility(sheet: CharacterSheet, options: AttackOptions): Ab
 }
 
 /**
+ * The flat part of the attack roll: ability, proficiency, and every flat bonus.
+ * Dice bonuses such as Bless are rolled separately by {@link rollAttack}.
+ *
  * SRD Unarmed Strike: "Your bonus to the roll equals your Strength modifier
  * plus your Proficiency Bonus" — there is no unproficient unarmed strike.
  */
 export function attackModifier(sheet: CharacterSheet, options: AttackOptions): number {
   const ability = attackAbility(sheet, options);
   const proficient = options.weapon === null || (options.proficient ?? true);
-  return modifierFor(sheet, ability) + (proficient ? proficiencyBonus(sheet) : 0);
+  return (
+    modifierFor(sheet, ability) +
+    (proficient ? proficiencyBonus(sheet) : 0) +
+    flatTotal(options.attackBonuses)
+  );
 }
 
 export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): RollMode[] {
@@ -113,10 +156,22 @@ export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): 
   return modes;
 }
 
+/** A bonus after its dice, if any, have been rolled. */
+export interface ResolvedBonus {
+  readonly source: string;
+  readonly flat: number;
+  readonly roll: RecordedRoll | null;
+  readonly total: number;
+}
+
 export interface AttackResult {
   readonly ability: Ability;
   readonly mode: RollMode;
   readonly roll: RecordedD20;
+  /** Bonuses that rolled dice, e.g. Bless. Flat bonuses are already in `roll`. */
+  readonly bonuses: readonly ResolvedBonus[];
+  /** The d20 result plus every bonus — what is actually compared to AC. */
+  readonly total: number;
   readonly targetAc: number;
   readonly hit: boolean;
   readonly critical: boolean;
@@ -127,45 +182,81 @@ export function rollAttack(
   rng: Rng,
   sheet: CharacterSheet,
   options: AttackOptions,
-): AttackResult {
+): Result<AttackResult> {
   const ability = attackAbility(sheet, options);
   const mode = combineRollModes([...attackRollModes(sheet, options), ...(options.modes ?? [])]);
+
+  // Flat bonuses ride on the d20's own modifier; dice bonuses are rolled after.
   const roll = rollD20Recorded(issuer, rng, mode, attackModifier(sheet, options));
+
+  const bonuses: ResolvedBonus[] = [];
+  for (const bonus of options.attackBonuses ?? []) {
+    if (bonus.dice === undefined) continue;
+    const outcome = rollRecorded(issuer, rng, bonus.dice);
+    if (!outcome.ok) return outcome;
+    bonuses.push({
+      source: bonus.source,
+      flat: 0,
+      roll: outcome.value,
+      total: outcome.value.total,
+    });
+  }
+
+  const total = roll.total + bonuses.reduce((sum, b) => sum + b.total, 0);
 
   // SRD "Rolling 20 or 1": a natural 20 hits regardless of modifiers or AC, and
   // a natural 1 misses regardless. This is the one D20 Test where the die face
   // overrides the total.
-  const hit = roll.isCriticalHit || (!roll.isCriticalMiss && roll.total >= options.targetAc);
+  const hit = roll.isCriticalHit || (!roll.isCriticalMiss && total >= options.targetAc);
 
-  return {
+  return ok({
     ability,
     mode,
     roll,
+    bonuses,
+    total,
     targetAc: options.targetAc,
     hit,
     critical: roll.isCriticalHit,
-  };
+  });
+}
+
+/** One typed slice of an attack's damage. */
+export interface DamageComponent {
+  /** Where it came from: the weapon, "Flame Tongue", "Dueling". */
+  readonly source: string;
+  readonly type: string;
+  readonly roll: RecordedRoll | null;
+  readonly flat: number;
+  readonly total: number;
 }
 
 export interface AttackDamage {
-  readonly type: string;
-  /** The dice rolled, or null when the damage is a flat amount. */
-  readonly notation: string | null;
   /**
-   * The underlying roll, with every die individually addressable — so a rule
-   * that acts on one die can. Empowered Spell rerolls chosen dice: pass this
-   * straight to `rerollDice`. Null for flat damage, which has no dice.
+   * Damage broken out by type and source. Resistance applies per type, so a
+   * flaming sword against a fire-immune target still deals its slashing.
    */
-  readonly roll: RecordedRoll | null;
-  readonly diceTotal: number;
-  readonly modifier: number;
-  readonly total: number;
+  readonly components: readonly DamageComponent[];
   readonly critical: boolean;
-  readonly provenance: RollProvenance;
+  /** Sum of every component, before the target's defences.  */
+  readonly total: number;
 }
 
 /** SRD Unarmed Strike damage: 1 Bludgeoning plus the Strength modifier. */
 const UNARMED_DAMAGE = { fixed: 1, type: 'bludgeoning' } as const;
+
+/**
+ * SRD Critical Hits: "Roll the attack's damage dice twice ... If the attack
+ * involves other damage dice, such as from the Rogue's Sneak Attack feature,
+ * you also roll those dice twice." Every damage die doubles; flat modifiers do
+ * not.
+ */
+function doubledOnCrit(notation: string, critical: boolean): Result<string> {
+  const parsed = parseNotation(notation);
+  if (!parsed.ok) return parsed;
+  const count = critical ? parsed.value.count * 2 : parsed.value.count;
+  return ok(`${count}d${parsed.value.sides}`);
+}
 
 export function rollAttackDamage(
   issuer: RollIssuer,
@@ -175,7 +266,9 @@ export function rollAttackDamage(
   critical: boolean,
 ): Result<AttackDamage> {
   const weapon = options.weapon;
+  const effects = options.damageEffects ?? [];
   const modifier = modifierFor(sheet, attackAbility(sheet, options));
+  const components: DamageComponent[] = [];
 
   // SRD Versatile: the parenthesised die applies when used with two hands.
   const dice =
@@ -187,52 +280,78 @@ export function rollAttackDamage(
 
   const type = weapon === null ? UNARMED_DAMAGE.type : weapon.damage.type;
   const fixed = weapon === null ? UNARMED_DAMAGE.fixed : weapon.damage.fixed;
+  const source = weapon?.name ?? 'Unarmed Strike';
 
-  // Flat damage — the Blowgun, and Unarmed Strikes. There are no dice to roll,
-  // so a critical hit has nothing to double.
+  // The weapon's own damage, carrying the ability modifier.
   if (dice === null) {
+    // Flat damage — the Blowgun, and Unarmed Strikes. No dice to double.
     if (fixed === null) {
-      return err('no_damage', `${weapon?.name ?? 'attack'} has neither damage dice nor a flat amount`);
+      return err('no_damage', `${source} has neither damage dice nor a flat amount`);
     }
-    return ok({
+    components.push({
+      source,
       type,
-      notation: null,
       roll: null,
-      diceTotal: fixed,
-      modifier,
-      total: Math.max(0, fixed + modifier),
-      critical,
-      provenance: issuer.issue('engine'),
+      flat: fixed + modifier,
+      total: fixed + modifier,
+    });
+  } else {
+    const notation = doubledOnCrit(dice, critical);
+    if (!notation.ok) return notation;
+    const outcome = rollRecorded(issuer, rng, notation.value, effects);
+    if (!outcome.ok) return outcome;
+    components.push({
+      source,
+      type,
+      roll: outcome.value,
+      flat: modifier,
+      total: outcome.value.total + modifier,
     });
   }
 
-  const parsed = parseNotation(dice);
-  if (!parsed.ok) return parsed;
+  // Bonuses to the weapon's own damage type: a +1 weapon, Dueling, Rage.
+  for (const bonus of options.damageBonuses ?? []) {
+    let roll: RecordedRoll | null = null;
+    if (bonus.dice !== undefined) {
+      const notation = doubledOnCrit(bonus.dice, critical);
+      if (!notation.ok) return notation;
+      const outcome = rollRecorded(issuer, rng, notation.value, effects);
+      if (!outcome.ok) return outcome;
+      roll = outcome.value;
+    }
+    const flat = bonus.flat ?? 0;
+    components.push({
+      source: bonus.source,
+      type,
+      roll,
+      flat,
+      total: (roll?.total ?? 0) + flat,
+    });
+  }
 
-  // SRD Critical Hits: "Roll the attack's damage dice twice, add them together,
-  // and add any relevant modifiers as normal." The dice double; the modifier
-  // does not.
-  const count = critical ? parsed.value.count * 2 : parsed.value.count;
-  const outcome = rollRecorded(
-    issuer,
-    rng,
-    `${count}d${parsed.value.sides}`,
-    options.damageEffects ?? [],
-  );
-  if (!outcome.ok) return outcome;
+  // Damage of other types, which must stay separate for resistance.
+  for (const extra of options.extraDamage ?? []) {
+    let roll: RecordedRoll | null = null;
+    if (extra.dice !== undefined) {
+      const notation = doubledOnCrit(extra.dice, critical);
+      if (!notation.ok) return notation;
+      const outcome = rollRecorded(issuer, rng, notation.value, effects);
+      if (!outcome.ok) return outcome;
+      roll = outcome.value;
+    }
+    const flat = extra.flat ?? 0;
+    components.push({
+      source: extra.source,
+      type: extra.type,
+      roll,
+      flat,
+      total: (roll?.total ?? 0) + flat,
+    });
+  }
 
-  const diceTotal = outcome.value.total;
+  const total = components.reduce((sum, c) => sum + Math.max(0, c.total), 0);
 
-  return ok({
-    type,
-    notation: dice,
-    roll: outcome.value,
-    diceTotal,
-    modifier,
-    total: Math.max(0, diceTotal + modifier),
-    critical,
-    provenance: outcome.value.provenance,
-  });
+  return ok({ components, critical, total });
 }
 
 export interface DamageDefenses {
@@ -253,11 +372,7 @@ export interface DamageDefenses {
  * Resistance and Vulnerability are booleans rather than counts because the SRD
  * says multiple instances affecting the same damage type count as only one.
  */
-export function applyDefenses(
-  amount: number,
-  defenses: DamageDefenses,
-  adjustment = 0,
-): number {
+export function applyDefenses(amount: number, defenses: DamageDefenses, adjustment = 0): number {
   if (defenses.immune === true) return 0;
 
   let damage = Math.max(0, amount + adjustment);
@@ -265,4 +380,38 @@ export function applyDefenses(
   if (defenses.vulnerable === true) damage = damage * 2;
 
   return damage;
+}
+
+export interface AppliedDamage {
+  /** What actually landed, per damage type, after defences. */
+  readonly byType: Readonly<Record<string, number>>;
+  readonly total: number;
+}
+
+/**
+ * Apply a target's defences to multi-type damage.
+ *
+ * Components are summed per type first and the defences applied once per type,
+ * because Resistance halves *an instance of damage of that type* — halving each
+ * component separately would round down repeatedly and undercount.
+ */
+export function applyDamage(
+  components: readonly DamageComponent[],
+  defenses: Readonly<Record<string, DamageDefenses>>,
+  adjustments: Readonly<Record<string, number>> = {},
+): AppliedDamage {
+  const rawByType = new Map<string, number>();
+  for (const component of components) {
+    rawByType.set(component.type, (rawByType.get(component.type) ?? 0) + Math.max(0, component.total));
+  }
+
+  const byType: Record<string, number> = {};
+  let total = 0;
+  for (const [type, raw] of rawByType) {
+    const applied = applyDefenses(raw, defenses[type] ?? {}, adjustments[type] ?? 0);
+    byType[type] = applied;
+    total += applied;
+  }
+
+  return { byType, total };
 }

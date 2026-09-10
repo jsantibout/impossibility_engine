@@ -188,6 +188,34 @@ cap is what terminates it), and triggers read `rolled`, never the substituted
 `value` — otherwise substituting a 1 up to a maximum would fire an explosion
 that never happened.
 
+## Damage Is Typed Components, Not A Number
+
+An attack produces a list of `DamageComponent`s, each with its own type and a
+named source. Flame Tongue deals "an extra 2d6 Fire damage" on top of a sword's
+slashing, and Resistance applies *per type* — collapsing that to one number
+gives a fire-immune target completely the wrong answer, and mixed-type damage
+is common play, not an edge case.
+
+`applyDamage` sums each type before applying defences, never per component:
+halving 5 and 5 separately gives 4, but halving their sum gives 5. Rounding
+down repeatedly silently undercounts.
+
+Modifiers are `Bonus` values carrying a `source`, so the log can say why a
+number was what it was rather than presenting an unexplained total:
+
+| Kind | Example |
+|---|---|
+| Attack only | Archery (+2 to attack rolls with Ranged weapons) |
+| Damage only | Bracers of Archery, Dueling |
+| Both | a +1/+2/+3 magic weapon |
+| Dice, not flat | Bless (+1d4 to the attack roll) |
+| Different damage type | Flame Tongue (+2d6 Fire) |
+
+On a critical hit **every damage die doubles — including extra damage dice**
+("If the attack involves other damage dice, such as from the Rogue's Sneak
+Attack feature, you also roll those dice twice") — but **flat bonuses never
+do**. A +1 weapon adds 1 on a crit, not 2.
+
 ## Combat Model
 
 Zones, not a grid. A scene is a `Zone { id, name, adjacent[], cover, terrain }`
