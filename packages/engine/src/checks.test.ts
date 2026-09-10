@@ -4,11 +4,14 @@ import type { Rng, RngState } from './dice.js';
 import { createRng } from './dice.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
+  applyBonusAfterRoll,
   characterRollModes,
   combineRollModes,
   rollAbilityCheck,
   rollSavingThrow,
 } from './checks.js';
+import { createRollIssuer } from './rolls.js';
+import { expect as unwrap } from '@ie/shared';
 
 /**
  * A generator that returns a scripted sequence, so a test can pin an exact
@@ -65,6 +68,27 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
+
+const issuer = () => createRollIssuer('t');
+
+/** Unwrapping wrappers, so each test reads as the roll it is describing. */
+const check = (
+  rng: Rng,
+  s: CharacterSheet,
+  ability: Parameters<typeof rollAbilityCheck>[3],
+  options: Parameters<typeof rollAbilityCheck>[4],
+) => unwrap(rollAbilityCheck(issuer(), rng, s, ability, options), 'check');
+
+const save = (
+  rng: Rng,
+  s: CharacterSheet,
+  ability: Parameters<typeof rollSavingThrow>[3],
+  options: Parameters<typeof rollSavingThrow>[4],
+) => unwrap(rollSavingThrow(issuer(), rng, s, ability, options), 'save');
+
+/** Just the modes, for the many assertions that do not care about attribution. */
+const modesOf = (sources: readonly { mode: string }[]) => sources.map((m) => m.mode);
+
 describe('combineRollModes', () => {
   it('is normal with no sources', () => {
     expect(combineRollModes([])).toBe('normal');
@@ -105,21 +129,21 @@ describe('combineRollModes', () => {
 describe('rollAbilityCheck', () => {
   it('succeeds when the total equals the DC', () => {
     // Natural 10, no modifier, DC 10.
-    const result = rollAbilityCheck(scriptedRng([10]), sheet(), 'str', { dc: 10 });
+    const result = check(scriptedRng([10]), sheet(), 'str', { dc: 10 });
     expect(result.total).toBe(10);
     expect(result.success).toBe(true);
     expect(result.margin).toBe(0);
   });
 
   it('fails when the total is one under the DC', () => {
-    const result = rollAbilityCheck(scriptedRng([10]), sheet(), 'str', { dc: 11 });
+    const result = check(scriptedRng([10]), sheet(), 'str', { dc: 11 });
     expect(result.success).toBe(false);
     expect(result.margin).toBe(-1);
   });
 
   it('adds the ability modifier', () => {
     const s = sheet({ abilities: scores({ str: 18 }) });
-    const result = rollAbilityCheck(scriptedRng([10]), s, 'str', { dc: 10 });
+    const result = check(scriptedRng([10]), s, 'str', { dc: 10 });
     expect(result.modifier).toBe(4);
     expect(result.total).toBe(14);
   });
@@ -130,7 +154,7 @@ describe('rollAbilityCheck', () => {
       abilities: scores({ dex: 16 }),
       skills: { stealth: 'proficient' },
     });
-    const result = rollAbilityCheck(scriptedRng([10]), s, 'dex', { dc: 10, skill: 'stealth' });
+    const result = check(scriptedRng([10]), s, 'dex', { dc: 10, skill: 'stealth' });
     expect(result.skill).toBe('stealth');
     expect(result.modifier).toBe(3 + 3);
   });
@@ -141,13 +165,13 @@ describe('rollAbilityCheck', () => {
       abilities: scores({ dex: 16 }),
       skills: { stealth: 'proficient' },
     });
-    const result = rollAbilityCheck(scriptedRng([10]), s, 'dex', { dc: 10 });
+    const result = check(scriptedRng([10]), s, 'dex', { dc: 10 });
     expect(result.skill).toBeNull();
     expect(result.modifier).toBe(3);
   });
 
   it('adds a circumstantial bonus', () => {
-    const result = rollAbilityCheck(scriptedRng([10]), sheet(), 'str', { dc: 10, bonus: 2 });
+    const result = check(scriptedRng([10]), sheet(), 'str', { dc: 10, bonuses: [{ source: 'Guidance', flat: 2 }] });
     expect(result.total).toBe(12);
   });
 
@@ -155,7 +179,7 @@ describe('rollAbilityCheck', () => {
   // An ability check is decided purely by total against DC.
   it('does not auto-succeed on a natural 20', () => {
     const s = sheet({ abilities: scores({ str: 6 }) });
-    const result = rollAbilityCheck(scriptedRng([20]), s, 'str', { dc: 25 });
+    const result = check(scriptedRng([20]), s, 'str', { dc: 25 });
     expect(result.natural).toBe(20);
     expect(result.total).toBe(18);
     expect(result.success).toBe(false);
@@ -163,14 +187,14 @@ describe('rollAbilityCheck', () => {
 
   it('does not auto-fail on a natural 1', () => {
     const s = sheet({ level: 17, abilities: scores({ str: 20 }), skills: { athletics: 'expertise' } });
-    const result = rollAbilityCheck(scriptedRng([1]), s, 'str', { dc: 10, skill: 'athletics' });
+    const result = check(scriptedRng([1]), s, 'str', { dc: 10, skill: 'athletics' });
     expect(result.natural).toBe(1);
     expect(result.total).toBe(1 + 5 + 12);
     expect(result.success).toBe(true);
   });
 
   it('takes the higher die with advantage', () => {
-    const result = rollAbilityCheck(scriptedRng([7, 15]), sheet(), 'str', {
+    const result = check(scriptedRng([7, 15]), sheet(), 'str', {
       dc: 10,
       modes: ['advantage'],
     });
@@ -180,7 +204,7 @@ describe('rollAbilityCheck', () => {
   });
 
   it('takes the lower die with disadvantage', () => {
-    const result = rollAbilityCheck(scriptedRng([7, 15]), sheet(), 'str', {
+    const result = check(scriptedRng([7, 15]), sheet(), 'str', {
       dc: 10,
       modes: ['disadvantage'],
     });
@@ -188,7 +212,7 @@ describe('rollAbilityCheck', () => {
   });
 
   it('rolls a single die when advantage and disadvantage cancel', () => {
-    const result = rollAbilityCheck(scriptedRng([7, 15]), sheet(), 'str', {
+    const result = check(scriptedRng([7, 15]), sheet(), 'str', {
       dc: 10,
       modes: ['advantage', 'disadvantage'],
     });
@@ -197,14 +221,14 @@ describe('rollAbilityCheck', () => {
   });
 
   it('reports the kind of test it was', () => {
-    expect(rollAbilityCheck(scriptedRng([10]), sheet(), 'str', { dc: 10 }).kind).toBe(
+    expect(check(scriptedRng([10]), sheet(), 'str', { dc: 10 }).kind).toBe(
       'ability-check',
     );
   });
 
   it('is reproducible from a seed', () => {
-    const a = rollAbilityCheck(createRng('check'), sheet(), 'wis', { dc: 12 });
-    const b = rollAbilityCheck(createRng('check'), sheet(), 'wis', { dc: 12 });
+    const a = check(createRng('check'), sheet(), 'wis', { dc: 12 });
+    const b = check(createRng('check'), sheet(), 'wis', { dc: 12 });
     expect(a).toEqual(b);
   });
 });
@@ -212,7 +236,7 @@ describe('rollAbilityCheck', () => {
 describe('rollSavingThrow', () => {
   it('adds proficiency for a proficient save', () => {
     const s = sheet({ level: 5, abilities: scores({ con: 16 }), saveProficiencies: ['con'] });
-    const result = rollSavingThrow(scriptedRng([10]), s, 'con', { dc: 15 });
+    const result = save(scriptedRng([10]), s, 'con', { dc: 15 });
     expect(result.kind).toBe('saving-throw');
     expect(result.modifier).toBe(3 + 3);
     expect(result.total).toBe(16);
@@ -221,17 +245,17 @@ describe('rollSavingThrow', () => {
 
   it('uses only the ability modifier for a non-proficient save', () => {
     const s = sheet({ level: 5, abilities: scores({ con: 16 }) });
-    expect(rollSavingThrow(scriptedRng([10]), s, 'con', { dc: 15 }).modifier).toBe(3);
+    expect(save(scriptedRng([10]), s, 'con', { dc: 15 }).modifier).toBe(3);
   });
 
   it('does not auto-succeed on a natural 20', () => {
     const s = sheet({ abilities: scores({ dex: 8 }) });
-    const result = rollSavingThrow(scriptedRng([20]), s, 'dex', { dc: 25 });
+    const result = save(scriptedRng([20]), s, 'dex', { dc: 25 });
     expect(result.success).toBe(false);
   });
 
   it('never carries a skill', () => {
-    expect(rollSavingThrow(scriptedRng([10]), sheet(), 'wis', { dc: 10 }).skill).toBeNull();
+    expect(save(scriptedRng([10]), sheet(), 'wis', { dc: 10 }).skill).toBeNull();
   });
 });
 
@@ -243,7 +267,7 @@ describe('characterRollModes', () => {
   // SRD: armour marked "Disadvantage" imposes it on Dexterity (Stealth) checks.
   it('gives disadvantage on Stealth in noisy armor', () => {
     const s = sheet({ armor: armorFixture({ stealthDisadvantage: true }) });
-    expect(characterRollModes(s, 'dex', 'stealth')).toEqual(['disadvantage']);
+    expect(modesOf(characterRollModes(s, 'dex', 'stealth'))).toEqual(['disadvantage']);
   });
 
   it('does not extend the stealth penalty to other Dexterity checks', () => {
@@ -259,8 +283,8 @@ describe('characterRollModes', () => {
       armor: armorFixture({ category: 'heavy' }),
       armorTraining: { light: true, medium: true, heavy: false, shields: true },
     });
-    expect(characterRollModes(s, 'str', null)).toEqual(['disadvantage']);
-    expect(characterRollModes(s, 'dex', null)).toEqual(['disadvantage']);
+    expect(modesOf(characterRollModes(s, 'str', null))).toEqual(['disadvantage']);
+    expect(modesOf(characterRollModes(s, 'dex', null))).toEqual(['disadvantage']);
   });
 
   it('leaves other abilities alone in untrained armor', () => {
@@ -288,19 +312,227 @@ describe('characterRollModes', () => {
 describe('the character penalties feed into rolls automatically', () => {
   it('applies armor stealth disadvantage without the caller asking', () => {
     const s = sheet({ armor: armorFixture({ stealthDisadvantage: true }) });
-    const result = rollAbilityCheck(scriptedRng([15, 7]), s, 'dex', { dc: 10, skill: 'stealth' });
+    const result = check(scriptedRng([15, 7]), s, 'dex', { dc: 10, skill: 'stealth' });
     expect(result.mode).toBe('disadvantage');
     expect(result.natural).toBe(7);
   });
 
   it('lets a caller-supplied advantage cancel an armor penalty', () => {
     const s = sheet({ armor: armorFixture({ stealthDisadvantage: true }) });
-    const result = rollAbilityCheck(scriptedRng([15, 7]), s, 'dex', {
+    const result = check(scriptedRng([15, 7]), s, 'dex', {
       dc: 10,
       skill: 'stealth',
       modes: ['advantage'],
     });
     expect(result.mode).toBe('normal');
     expect(result.rolls).toEqual([15]);
+  });
+});
+
+describe('bonuses on checks', () => {
+  // SRD Guidance: "the creature adds 1d4 to any ability check using the chosen
+  // skill." A die, not a flat number.
+  it('rolls a dice bonus and adds it to the total', () => {
+    const result = check(scriptedRng([10, 3]), sheet(), 'wis', {
+      dc: 10,
+      skill: 'medicine',
+      bonuses: [{ source: 'Guidance', dice: '1d4' }],
+    });
+    expect(result.bonuses).toHaveLength(1);
+    expect(result.bonuses[0]).toMatchObject({ source: 'Guidance', total: 3 });
+    expect(result.total).toBe(13);
+  });
+
+  it('keeps a dice bonus out of the d20 result itself', () => {
+    const result = check(scriptedRng([10, 4]), sheet(), 'wis', {
+      dc: 10,
+      bonuses: [{ source: 'Guidance', dice: '1d4' }],
+    });
+    expect(result.roll.total).toBe(10);
+    expect(result.total).toBe(14);
+  });
+
+  it('folds a flat bonus into the modifier', () => {
+    const result = check(scriptedRng([10]), sheet(), 'int', {
+      dc: 10,
+      bonuses: [{ source: "Navigator's Tools", flat: 2 }],
+    });
+    expect(result.modifier).toBe(2);
+    expect(result.total).toBe(12);
+  });
+
+  it('combines flat and dice bonuses from several sources', () => {
+    const result = check(scriptedRng([10, 2]), sheet(), 'cha', {
+      dc: 10,
+      bonuses: [
+        { source: 'Guidance', dice: '1d4' },
+        { source: 'Enhance Ability', flat: 1 },
+      ],
+    });
+    expect(result.total).toBe(10 + 1 + 2);
+  });
+
+  it('lets a bonus turn a failure into a success', () => {
+    const options = { dc: 13 } as const;
+    expect(check(scriptedRng([12]), sheet(), 'str', options).success).toBe(false);
+    expect(
+      check(scriptedRng([12, 3]), sheet(), 'str', {
+        ...options,
+        bonuses: [{ source: 'Guidance', dice: '1d4' }],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('applies bonuses to saving throws too', () => {
+    const result = save(scriptedRng([10, 4]), sheet(), 'wis', {
+      dc: 14,
+      bonuses: [{ source: 'Bless', dice: '1d4' }],
+    });
+    expect(result.total).toBe(14);
+    expect(result.success).toBe(true);
+  });
+
+  it('records the check roll with engine provenance', () => {
+    const result = check(scriptedRng([10]), sheet(), 'str', { dc: 10 });
+    expect(result.roll.provenance).toMatchObject({ id: 't:1', source: 'engine' });
+  });
+});
+
+describe('attributed advantage', () => {
+  // SRD Boots of Elvenkind (2024): "You also have Advantage on Dexterity
+  // (Stealth) checks." Flat advantage — the 2014 version was conditional on
+  // moving quietly, the 2024 one is not.
+  const boots = { source: 'Boots of Elvenkind', mode: 'advantage' } as const;
+
+  it('accepts an attributed advantage source', () => {
+    const result = check(scriptedRng([7, 15]), sheet(), 'dex', {
+      dc: 10,
+      skill: 'stealth',
+      modes: [boots],
+    });
+    expect(result.mode).toBe('advantage');
+    expect(result.natural).toBe(15);
+  });
+
+  it('still accepts a bare mode alongside an attributed one', () => {
+    const result = check(scriptedRng([7, 15]), sheet(), 'dex', {
+      dc: 10,
+      modes: ['advantage', { source: 'high ground', mode: 'advantage' }],
+    });
+    expect(result.mode).toBe('advantage');
+  });
+
+  it('reports every source, including ones that cancelled out', () => {
+    // Boots grant advantage; noisy armour imposes disadvantage on Stealth.
+    const s = sheet({ armor: armorFixture({ name: 'Plate Armor', stealthDisadvantage: true }) });
+    const result = check(scriptedRng([7, 15]), s, 'dex', {
+      dc: 10,
+      skill: 'stealth',
+      modes: [boots],
+    });
+
+    expect(result.mode).toBe('normal');
+    expect(result.modeSources.map((m) => m.source)).toEqual([
+      'Plate Armor',
+      'Boots of Elvenkind',
+    ]);
+    // The log can now explain why a normal roll was normal.
+    expect(result.rolls).toEqual([7]);
+  });
+
+  it('attributes the armour that caused a stealth penalty', () => {
+    const s = sheet({ armor: armorFixture({ name: 'Splint Armor', stealthDisadvantage: true }) });
+    expect(characterRollModes(s, 'dex', 'stealth')).toEqual([
+      { source: 'Splint Armor', mode: 'disadvantage' },
+    ]);
+  });
+
+  it('attributes an untrained armour penalty', () => {
+    const s = sheet({
+      armor: armorFixture({ name: 'Plate Armor', category: 'heavy' }),
+      armorTraining: { light: true, medium: true, heavy: false, shields: true },
+    });
+    expect(characterRollModes(s, 'str', null)).toEqual([
+      { source: 'untrained in Plate Armor', mode: 'disadvantage' },
+    ]);
+  });
+});
+
+describe('applyBonusAfterRoll', () => {
+  /**
+   * SRD Bardic Inspiration: "Once within the next hour when the creature fails
+   * a D20 Test, the creature can roll the Bardic Inspiration die and add the
+   * number rolled to the d20, potentially turning the failure into a success."
+   *
+   * Applied *after* the roll, once the failure is known — so it cannot be
+   * supplied up front like Guidance.
+   */
+  it('turns a known failure into a success', () => {
+    const failed = check(scriptedRng([9]), sheet(), 'cha', { dc: 13 });
+    expect(failed.success).toBe(false);
+    expect(failed.margin).toBe(-4);
+
+    const inspired = unwrap(
+      applyBonusAfterRoll(issuer(), scriptedRng([5]), failed, {
+        source: 'Bardic Inspiration',
+        dice: '1d6',
+      }),
+      'inspired',
+    );
+    expect(inspired.total).toBe(14);
+    expect(inspired.success).toBe(true);
+    expect(inspired.margin).toBe(1);
+  });
+
+  it('leaves the failure standing when the die is not enough', () => {
+    const failed = check(scriptedRng([2]), sheet(), 'cha', { dc: 13 });
+    const inspired = unwrap(
+      applyBonusAfterRoll(issuer(), scriptedRng([3]), failed, {
+        source: 'Bardic Inspiration',
+        dice: '1d6',
+      }),
+      'short',
+    );
+    expect(inspired.success).toBe(false);
+  });
+
+  it('appends the bonus rather than replacing what was already there', () => {
+    const first = check(scriptedRng([9, 2]), sheet(), 'cha', {
+      dc: 20,
+      bonuses: [{ source: 'Guidance', dice: '1d4' }],
+    });
+    const inspired = unwrap(
+      applyBonusAfterRoll(issuer(), scriptedRng([6]), first, {
+        source: 'Bardic Inspiration',
+        dice: '1d6',
+      }),
+      'both',
+    );
+    expect(inspired.bonuses.map((b) => b.source)).toEqual(['Guidance', 'Bardic Inspiration']);
+    expect(inspired.total).toBe(9 + 2 + 6);
+  });
+
+  it('accepts a flat after-the-fact bonus', () => {
+    const failed = check(scriptedRng([10]), sheet(), 'str', { dc: 12 });
+    const helped = unwrap(
+      applyBonusAfterRoll(issuer(), scriptedRng([1]), failed, { source: 'a shove', flat: 2 }),
+      'flat',
+    );
+    expect(helped.total).toBe(12);
+    expect(helped.success).toBe(true);
+  });
+
+  it('does not disturb the original roll record', () => {
+    const failed = check(scriptedRng([9]), sheet(), 'cha', { dc: 13 });
+    const inspired = unwrap(
+      applyBonusAfterRoll(issuer(), scriptedRng([5]), failed, {
+        source: 'Bardic Inspiration',
+        dice: '1d6',
+      }),
+      'record',
+    );
+    expect(inspired.natural).toBe(9);
+    expect(inspired.roll).toBe(failed.roll);
+    expect(failed.total).toBe(9);
   });
 });

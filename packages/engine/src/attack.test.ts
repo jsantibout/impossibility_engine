@@ -68,6 +68,9 @@ const weaponFixture = (over: Partial<Weapon> = {}): Weapon => ({
 
 const issuer = () => createRollIssuer('t');
 
+/** Just the modes, for assertions that do not care about attribution. */
+const modesOf = (sources: readonly { mode: string }[]) => sources.map((m) => m.mode);
+
 describe('attackAbility', () => {
   it('uses Strength for a melee weapon', () => {
     expect(attackAbility(sheet(), { weapon: weaponFixture({ kind: 'melee' }), targetAc: 10 })).toBe(
@@ -138,17 +141,17 @@ describe('attackRollModes', () => {
   // least 13, or a ranged Heavy weapon and Dexterity score isn't at least 13.
   it('gives disadvantage on a heavy melee weapon below Strength 13', () => {
     const w = weaponFixture({ kind: 'melee', properties: ['heavy'] });
-    expect(attackRollModes(sheet({ abilities: scores({ str: 12 }) }), { weapon: w, targetAc: 10 })).toEqual(
-      ['disadvantage'],
-    );
+    expect(
+      modesOf(attackRollModes(sheet({ abilities: scores({ str: 12 }) }), { weapon: w, targetAc: 10 })),
+    ).toEqual(['disadvantage']);
   });
 
   it('compares the Strength score, not the modifier', () => {
     // Str 12 and 13 share a +1 modifier but sit either side of the threshold.
     const w = weaponFixture({ kind: 'melee', properties: ['heavy'] });
-    expect(attackRollModes(sheet({ abilities: scores({ str: 12 }) }), { weapon: w, targetAc: 10 })).toEqual(
-      ['disadvantage'],
-    );
+    expect(
+      modesOf(attackRollModes(sheet({ abilities: scores({ str: 12 }) }), { weapon: w, targetAc: 10 })),
+    ).toEqual(['disadvantage']);
     expect(attackRollModes(sheet({ abilities: scores({ str: 13 }) }), { weapon: w, targetAc: 10 })).toEqual(
       [],
     );
@@ -157,29 +160,27 @@ describe('attackRollModes', () => {
   it('uses Dexterity for a heavy ranged weapon', () => {
     const w = weaponFixture({ kind: 'ranged', properties: ['heavy'] });
     const s = sheet({ abilities: scores({ str: 18, dex: 12 }) });
-    expect(attackRollModes(s, { weapon: w, targetAc: 10 })).toEqual(['disadvantage']);
+    expect(modesOf(attackRollModes(s, { weapon: w, targetAc: 10 }))).toEqual(['disadvantage']);
   });
 
   // SRD: "Your attack roll has Disadvantage when your target is beyond normal range."
   it('gives disadvantage beyond normal range', () => {
     const w = weaponFixture({ kind: 'ranged' });
     expect(
-      attackRollModes(sheet(), { weapon: w, targetAc: 10, beyondNormalRange: true }),
+      modesOf(attackRollModes(sheet(), { weapon: w, targetAc: 10, beyondNormalRange: true })),
     ).toEqual(['disadvantage']);
   });
 
   // SRD: ranged attacks have disadvantage within 5 feet of an enemy.
   it('gives disadvantage on a ranged attack in close combat', () => {
     const w = weaponFixture({ kind: 'ranged' });
-    expect(attackRollModes(sheet(), { weapon: w, targetAc: 10, nearbyEnemy: true })).toEqual([
-      'disadvantage',
-    ]);
+    expect(modesOf(attackRollModes(sheet(), { weapon: w, targetAc: 10, nearbyEnemy: true }))).toEqual(['disadvantage']);
   });
 
   it('applies close-combat disadvantage to a thrown melee weapon too', () => {
     const w = weaponFixture({ kind: 'melee', properties: ['thrown'] });
     expect(
-      attackRollModes(sheet(), { weapon: w, targetAc: 10, thrown: true, nearbyEnemy: true }),
+      modesOf(attackRollModes(sheet(), { weapon: w, targetAc: 10, thrown: true, nearbyEnemy: true })),
     ).toEqual(['disadvantage']);
   });
 
@@ -455,9 +456,7 @@ describe('against real SRD weapons', () => {
 
   it('gives a Dexterity 12 archer disadvantage with a Longbow, which is Heavy', () => {
     const s = sheet({ abilities: scores({ dex: 12 }) });
-    expect(attackRollModes(s, { weapon: weapon('longbow'), targetAc: 10 })).toEqual([
-      'disadvantage',
-    ]);
+    expect(modesOf(attackRollModes(s, { weapon: weapon('longbow'), targetAc: 10 }))).toEqual(['disadvantage']);
   });
 
   it('lets a Dagger use Dexterity through Finesse', () => {

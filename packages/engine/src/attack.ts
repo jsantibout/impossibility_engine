@@ -4,6 +4,14 @@ import { parseNotation, type DieEffect, type Rng } from './dice.js';
 import { modifierFor, proficiencyBonus, type CharacterSheet } from './character.js';
 import { characterRollModes, combineRollModes } from './checks.js';
 import {
+  flatBonusTotal,
+  rollBonusDice,
+  sumResolved,
+  type Bonus,
+  type ModeSource,
+  type ResolvedBonus,
+} from './bonuses.js';
+import {
   rollD20Recorded,
   rollRecorded,
   type RecordedD20,
@@ -17,24 +25,6 @@ import {
  *
  * Rules verified against SRD 5.2.1 (see ATTRIBUTION.md).
  */
-
-/**
- * A named modifier to an attack or damage roll.
- *
- * Sources are carried through to the result so a log can say *why* a number
- * was what it was — "+1 Longsword", "Archery", "Bless" — rather than presenting
- * an unexplained total.
- *
- * Most bonuses are flat (+2 from Archery, +1 from a magic weapon), but some are
- * dice: Bless adds 1d4 to attack rolls, Bardic Inspiration adds a die. Both are
- * expressible, and a bonus may carry each.
- */
-export interface Bonus {
-  readonly source: string;
-  readonly flat?: number;
-  /** Dice notation, e.g. `1d4` for Bless. */
-  readonly dice?: string;
-}
 
 /**
  * Damage of a *different* type riding along with an attack.
@@ -63,7 +53,7 @@ export interface AttackOptions {
   /** Which ability to use on a Finesse weapon. Defaults to the better one. */
   readonly finesseAbility?: 'str' | 'dex';
   /** Situational advantage or disadvantage from the fiction. */
-  readonly modes?: readonly RollMode[];
+  readonly modes?: readonly (RollMode | ModeSource)[];
   readonly beyondNormalRange?: boolean;
   /** An enemy is within 5 feet, which hampers a ranged attack. */
   readonly nearbyEnemy?: boolean;
@@ -87,9 +77,6 @@ const has = (weapon: Weapon | null, property: string): boolean =>
 function isRangedAttack(options: AttackOptions): boolean {
   return options.weapon?.kind === 'ranged' || options.thrown === true;
 }
-
-const flatTotal = (bonuses: readonly Bonus[] | undefined): number =>
-  (bonuses ?? []).reduce((sum, b) => sum + (b.flat ?? 0), 0);
 
 /**
  * SRD "Attack Roll Abilities": Strength for a melee weapon or Unarmed Strike,
@@ -124,12 +111,12 @@ export function attackModifier(sheet: CharacterSheet, options: AttackOptions): n
   return (
     modifierFor(sheet, ability) +
     (proficient ? proficiencyBonus(sheet) : 0) +
-    flatTotal(options.attackBonuses)
+    flatBonusTotal(options.attackBonuses)
   );
 }
 
-export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): RollMode[] {
-  const modes: RollMode[] = [];
+export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): ModeSource[] {
+  const modes: ModeSource[] = [];
   const weapon = options.weapon;
   const ability = attackAbility(sheet, options);
 
@@ -138,30 +125,28 @@ export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): 
   // *score*, not the modifier — 12 and 13 share a +1 but differ here.
   if (has(weapon, 'heavy') && weapon !== null) {
     const required = weapon.kind === 'melee' ? 'str' : 'dex';
-    if (sheet.abilities[required] < 13) modes.push('disadvantage');
+    if (sheet.abilities[required] < 13) {
+      modes.push({ source: `${weapon.name} is Heavy`, mode: 'disadvantage' });
+    }
   }
 
   // SRD: "Your attack roll has Disadvantage when your target is beyond normal
   // range" — and beyond long range it is not a legal attack at all, which is
   // the caller's check to make.
-  if (options.beyondNormalRange === true) modes.push('disadvantage');
+  if (options.beyondNormalRange === true) {
+    modes.push({ source: 'beyond normal range', mode: 'disadvantage' });
+  }
 
   // SRD: a ranged attack has Disadvantage within 5 feet of a capable enemy.
-  if (options.nearbyEnemy === true && isRangedAttack(options)) modes.push('disadvantage');
+  if (options.nearbyEnemy === true && isRangedAttack(options)) {
+    modes.push({ source: 'enemy within 5 feet', mode: 'disadvantage' });
+  }
 
   // Untrained armour hampers any Strength or Dexterity D20 Test, attacks
   // included.
   modes.push(...characterRollModes(sheet, ability, null));
 
   return modes;
-}
-
-/** A bonus after its dice, if any, have been rolled. */
-export interface ResolvedBonus {
-  readonly source: string;
-  readonly flat: number;
-  readonly roll: RecordedRoll | null;
-  readonly total: number;
 }
 
 export interface AttackResult {
@@ -189,20 +174,10 @@ export function rollAttack(
   // Flat bonuses ride on the d20's own modifier; dice bonuses are rolled after.
   const roll = rollD20Recorded(issuer, rng, mode, attackModifier(sheet, options));
 
-  const bonuses: ResolvedBonus[] = [];
-  for (const bonus of options.attackBonuses ?? []) {
-    if (bonus.dice === undefined) continue;
-    const outcome = rollRecorded(issuer, rng, bonus.dice);
-    if (!outcome.ok) return outcome;
-    bonuses.push({
-      source: bonus.source,
-      flat: 0,
-      roll: outcome.value,
-      total: outcome.value.total,
-    });
-  }
+  const bonuses = rollBonusDice(issuer, rng, options.attackBonuses);
+  if (!bonuses.ok) return bonuses;
 
-  const total = roll.total + bonuses.reduce((sum, b) => sum + b.total, 0);
+  const total = roll.total + sumResolved(bonuses.value);
 
   // SRD "Rolling 20 or 1": a natural 20 hits regardless of modifiers or AC, and
   // a natural 1 misses regardless. This is the one D20 Test where the die face
@@ -213,7 +188,7 @@ export function rollAttack(
     ability,
     mode,
     roll,
-    bonuses,
+    bonuses: bonuses.value,
     total,
     targetAc: options.targetAc,
     hit,

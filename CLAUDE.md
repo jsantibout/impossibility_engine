@@ -153,6 +153,8 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **Critical hits double the dice, not the modifier.** "Roll the attack's
   damage dice twice, add them together, and add any relevant modifiers as
   normal."
+- **Boots of Elvenkind grant flat Advantage on Dexterity (Stealth) checks** in
+  2024 — no condition about sound or movement. That qualifier is 2014.
 - **Great Weapon Fighting substitutes, it does not reroll.** 2024: "treat any
   1 or 2 on a damage die as a 3." The reroll version is 2014. No extra dice are
   rolled, and the generator is not advanced.
@@ -187,6 +189,30 @@ Two behaviours worth not breaking: a bonus die can itself trigger another (the
 cap is what terminates it), and triggers read `rolled`, never the substituted
 `value` — otherwise substituting a 1 up to a maximum would fire an explosion
 that never happened.
+
+## Modifiers Are Named, On Every D20 Test
+
+`Bonus` (in `bonuses.ts`, shared because `attack.ts` imports `checks.ts`)
+carries a `source`, so a log can say *why* a number was what it was rather than
+presenting an unexplained total. Flat bonuses fold into the d20's own modifier;
+dice bonuses are rolled separately and added, which keeps the natural-20 and
+natural-1 rules reading the die rather than a total Bless has inflated.
+
+Advantage is attributed the same way, via `ModeSource`. Because advantage
+cancels rather than stacks, `modeSources` records **every** source including
+ones that cancelled — so a normal-looking roll can still explain itself
+("Boots of Elvenkind vs Plate Armor").
+
+**Some bonuses arrive after the roll.** Bardic Inspiration is used "when the
+creature *fails* a D20 Test", once the failure is known, so it cannot be
+supplied up front like Guidance. `applyBonusAfterRoll` amends a completed test
+and recomputes success. It deliberately does not check that the test failed —
+that condition belongs to Bardic Inspiration, not to the mechanism.
+
+The engine never infers which bonuses apply. Whether Archery or Boots of
+Elvenkind is in play is a question about feats and inventory, which the engine
+does not model; the layer that knows passes them in, and the engine applies
+them correctly.
 
 ## Damage Is Typed Components, Not A Number
 
