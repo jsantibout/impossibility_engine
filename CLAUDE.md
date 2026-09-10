@@ -266,25 +266,40 @@ On a critical hit **every damage die doubles — including extra damage dice**
 Attack feature, you also roll those dice twice") — but **flat bonuses never
 do**. A +1 weapon adds 1 on a crit, not 2.
 
-## Positioning: Coordinates, Never Fabricated
+## Positioning: Coordinates, Authored But Never Defaulted
 
 Positions are real coordinates, so distance is subtraction and area of effect
-is an exact point-in-shape test. What is *not* allowed is a coordinate the
-fiction has not earned — which was the actual failure behind a competitor
-placing a monster "in the tavern" and then reporting it 1000 feet away.
+is an exact point-in-shape test.
 
-That failure is structurally identical to the model asserting a damage number:
-a value with authority it had not earned. The same answer applies — **refuse,
-do not guess**:
+**"Refuse, don't guess" does not apply here.** That rule governs things with a
+right answer — dice, damage, save DCs — where a guess is simply wrong. Where
+the ogre is standing has no right answer until someone decides. A DM asked how
+far away it is says "about thirty feet" instantly; inventing a reasonable
+position *is the job*, not a failure of rigour.
 
-- `position` is `Point | null`, and null is a normal state. There is no origin
-  to fall back to and no default placement, ever.
-- Placement is always **relative to something already placed** ("beside the
-  fighter", "20 feet from the bar"); the model never types raw coordinates, so
-  it cannot invent one that contradicts its own narration.
-- A query about an unplaced creature is a **refusal**, not a guess.
-- **Scenes declare their extent.** Nothing in a 60x40 tavern can be 1000 feet
-  from anything, because the space does not extend that far.
+The competitor bug behind this design — a monster described as appearing in a
+tavern, then reported 1000 feet away — was **not** caused by inventing a
+position. It was caused by a position appearing that **nobody chose** and that
+**contradicted the narration**. The failure is incoherence, not invention.
+
+So the guards are about coherence, not permission:
+
+- **No silent defaults.** `position` is `Point | null`; null is a normal state.
+  There is no origin and no fallback coordinate. A position exists only because
+  something deliberately placed it, and that act is recorded.
+- **Placement is always relative to something established** ("beside the
+  fighter", "20 feet from the bar"). The model never types raw coordinates, so
+  a placement cannot drift away from what was just narrated.
+- **Once placed, binding.** A creature does not relocate between turns without
+  movement being spent; a contradiction is caught rather than absorbed.
+- **Scenes declare their extent.** A 60x40 tavern cannot contain a 1000-foot
+  gap.
+
+**An unplaced creature is an engine-to-model signal, never player-facing.** The
+engine tells Maestro the ogre has no position; Maestro places it and continues.
+The player sees "the ogre lurches out from behind the bar" and never learns a
+round trip happened. Nothing here should ever surface as "sorry, that creature
+has no position".
 
 **Cover and line of sight stay declared, not ray-cast.** Computing them from
 geometry means modelling walls, pillars and doorways as obstacles, and that is
