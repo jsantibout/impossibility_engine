@@ -2,7 +2,7 @@
  * Core D&D 2024 vocabulary, from SRD 5.2.1. See ATTRIBUTION.md.
  *
  * These are the closed sets the engine switches on. Keeping them here rather
- * than in `@ir/srd` means the engine's type-level contracts do not depend on
+ * than in `@ie/srd` means the engine's type-level contracts do not depend on
  * the ingestion pipeline having run.
  */
 

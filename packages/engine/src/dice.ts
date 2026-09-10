@@ -1,4 +1,4 @@
-import { err, ok, type Result, type RollMode } from '@ir/shared';
+import { err, ok, type Result, type RollMode } from '@ie/shared';
 
 /**
  * Dice.

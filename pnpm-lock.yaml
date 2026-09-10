@@ -32,10 +32,10 @@ importers:
 
   packages/engine:
     dependencies:
-      '@ir/shared':
+      '@ie/shared':
         specifier: workspace:*
         version: link:../shared
-      '@ir/srd':
+      '@ie/srd':
         specifier: workspace:*
         version: link:../srd
 
@@ -43,7 +43,7 @@ importers:
 
   packages/srd:
     dependencies:
-      '@ir/shared':
+      '@ie/shared':
         specifier: workspace:*
         version: link:../shared
       zod:

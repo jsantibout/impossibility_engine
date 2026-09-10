@@ -6,9 +6,9 @@
     "declaration": false,
     "baseUrl": ".",
     "paths": {
-      "@ir/shared": ["./packages/shared/src/index.ts"],
-      "@ir/srd": ["./packages/srd/src/index.ts"],
-      "@ir/engine": ["./packages/engine/src/index.ts"]
+      "@ie/shared": ["./packages/shared/src/index.ts"],
+      "@ie/srd": ["./packages/srd/src/index.ts"],
+      "@ie/engine": ["./packages/engine/src/index.ts"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "packages/*/scripts/**/*.ts"]

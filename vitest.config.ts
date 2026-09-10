@@ -9,9 +9,9 @@ export default defineConfig({
   // needs a prior `tsc -b`. Production builds still resolve through dist.
   resolve: {
     alias: {
-      '@ir/shared': pkg('shared'),
-      '@ir/srd': pkg('srd'),
-      '@ir/engine': pkg('engine'),
+      '@ie/shared': pkg('shared'),
+      '@ie/srd': pkg('srd'),
+      '@ie/engine': pkg('engine'),
     },
   },
   test: {

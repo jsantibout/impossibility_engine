@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, restoreRng, roll, rollD20, parseNotation } from './dice.js';
-import { isErr, isOk, expect as unwrap } from '@ir/shared';
+import { isErr, isOk, expect as unwrap } from '@ie/shared';
 
 describe('createRng', () => {
   it('produces an identical sequence for the same seed', () => {

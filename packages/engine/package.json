@@ -1,5 +1,5 @@
 {
-  "name": "@ir/engine",
+  "name": "@ie/engine",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@ir/shared": "workspace:*",
-    "@ir/srd": "workspace:*"
+    "@ie/shared": "workspace:*",
+    "@ie/srd": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
-import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ir/shared';
-import type { Armor } from '@ir/srd';
+import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shared';
+import type { Armor } from '@ie/srd';
 
 /**
  * Derived character statistics.

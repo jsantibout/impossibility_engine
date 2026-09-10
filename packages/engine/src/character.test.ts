@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { parseEquipment, type Armor } from '@ir/srd';
+import { parseEquipment, type Armor } from '@ie/srd';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
   abilityModifier,

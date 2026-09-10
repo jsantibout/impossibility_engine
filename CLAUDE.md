@@ -43,22 +43,22 @@ that is the point.
 React (Vite) ──SSE──► Fastify ──► DM orchestrator (Claude Opus 5, tool runner)
                                         │  tools only — never direct state writes
                                         ▼
-                                  @ir/dm-tools   Zod-validated tool surface
+                                  @ie/tools   Zod-validated tool surface
                                         ▼
-                                  @ir/engine     pure, deterministic, seeded
+                                  @ie/engine     pure, deterministic, seeded
                                         ▼
-                                  @ir/srd        typed SRD 5.2.1 data
+                                  @ie/srd        typed SRD 5.2.1 data
 
                     Postgres: event log (authoritative) + pgvector (narrative memory)
 ```
 
 | Package | Responsibility |
 |---|---|
-| `@ir/shared` | Branded ids, D&D vocabulary, the `Result` type |
-| `@ir/srd` | SRD 5.2.1 ingested into typed, schema-validated data |
-| `@ir/engine` | The rules. Pure functions plus a reducer over `GameEvent` |
-| `@ir/dm-tools` | Engine operations exposed to Claude as tools *(M2)* |
-| `@ir/dm` | Prompt assembly, persona, working context, the loop *(M2)* |
+| `@ie/shared` | Branded ids, D&D vocabulary, the `Result` type |
+| `@ie/srd` | SRD 5.2.1 ingested into typed, schema-validated data |
+| `@ie/engine` | The rules. Pure functions plus a reducer over `GameEvent` |
+| `@ie/tools` | Engine operations exposed to Claude as tools *(M2)* |
+| `@maestro/dm` | Prompt assembly, persona, working context, the loop *(M2)* |
 
 ## Inviolable Rules
 
