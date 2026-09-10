@@ -172,53 +172,233 @@ export function notationBounds(notation: Notation): { min: number; max: number }
   };
 }
 
+export type DieDisposition =
+  /** Contributes its value to the total. */
+  | 'counted'
+  /** Removed by a keep-highest or keep-lowest clause. */
+  | 'dropped'
+  /** Replaced by a later die, and no longer counted. */
+  | 'rerolled';
+
+export type DieOrigin =
+  | 'initial'
+  /** Added by an effect that triggers on a value, e.g. Sorcerous Burst. */
+  | 'bonus'
+  /** Rolled to replace an earlier die. */
+  | 'reroll';
+
+/**
+ * A single die, individually addressable.
+ *
+ * Several rules operate on one die rather than on the total — Great Weapon
+ * Fighting reads each damage die, Sorcerous Burst reacts to an individual 8,
+ * Empowered Spell rerolls a chosen few. So a die records what it physically
+ * showed, what it counts as, where it came from, and what became of it.
+ */
 export interface DieRoll {
+  /** Position in the roll, stable and usable to name this die for a reroll. */
+  readonly index: number;
   readonly sides: number;
+  /** What the die physically showed. */
+  readonly rolled: number;
+  /** What it counts as — differs from `rolled` when an effect substitutes. */
   readonly value: number;
-  /** False for dice dropped by a keep-highest/keep-lowest clause. */
-  readonly kept: boolean;
+  readonly disposition: DieDisposition;
+  readonly origin: DieOrigin;
+  /** The effect that produced or altered this die. */
+  readonly cause: string | null;
+  /** Index of the die this one replaced, for a reroll. */
+  readonly replaces: number | null;
+}
+
+/**
+ * A rule that acts on individual dice as they land.
+ *
+ * The SRD has three distinct shapes here and they compose differently, so they
+ * are modelled separately rather than as one "modify the die" hook:
+ *
+ * - **Substitution** changes what a die counts as without changing what it
+ *   showed. Great Weapon Fighting treats a 1 or 2 as a 3 — note the 2024
+ *   wording, which substitutes where the 2014 rules rerolled.
+ * - **Bonus dice** add a die when one shows a trigger value. Sorcerous Burst
+ *   adds a d8 for every 8, capped at the spellcasting ability modifier.
+ * - **Rerolls** replace a die entirely, and are applied afterwards by
+ *   {@link rerollDice}, because the rules that use them let a player choose
+ *   which dice to reroll.
+ */
+export interface DieEffect {
+  readonly name: string;
+  /** Map what the die showed to what it counts as. */
+  readonly substitute?: (rolled: number, sides: number) => number;
+  /** Whether this die triggers an extra die of the same size. */
+  readonly bonusOn?: (rolled: number, sides: number) => boolean;
+  /** Cap on bonus dice this effect may add to a single roll. */
+  readonly maxBonusDice?: number;
+}
+
+/**
+ * Treat any die showing `threshold` or less as `replacement`.
+ *
+ * Great Weapon Fighting (2024): `treatLowRollsAs(2, 3, 'Great Weapon Fighting')`.
+ */
+export function treatLowRollsAs(
+  threshold: number,
+  replacement: number,
+  name: string,
+): DieEffect {
+  return {
+    name,
+    substitute: (rolled) => (rolled <= threshold ? replacement : rolled),
+  };
+}
+
+/**
+ * Add another die of the same size whenever one shows its maximum.
+ *
+ * Sorcerous Burst: `explodeOnMax(spellcastingModifier, 'Sorcerous Burst')`. The
+ * added dice can themselves trigger more, since the spell reacts to any 8
+ * rolled for it, but never past the cap.
+ */
+export function explodeOnMax(maxBonusDice: number, name: string): DieEffect {
+  return {
+    name,
+    bonusOn: (rolled, sides) => rolled === sides,
+    maxBonusDice,
+  };
 }
 
 export interface RollOutcome {
   readonly notation: Notation;
-  /** Every die in the order it was rolled, dropped dice included. */
+  /** Every die in the order it was rolled — dropped and rerolled ones included. */
   readonly dice: readonly DieRoll[];
   readonly modifier: number;
-  /** Sum of kept dice plus the modifier. */
+  /** Sum of the counted dice plus the modifier. */
   readonly total: number;
 }
 
-/** Roll dice notation. Invalid notation is a value, not an exception. */
-export function roll(rng: Rng, input: string): Result<RollOutcome> {
+const sumCounted = (dice: readonly DieRoll[], modifier: number): number =>
+  dice.reduce((sum, d) => (d.disposition === 'counted' ? sum + d.value : sum), modifier);
+
+/** Run every effect's substitution over a rolled value, in order. */
+function substituted(effects: readonly DieEffect[], rolled: number, sides: number): number {
+  let value = rolled;
+  for (const effect of effects) {
+    if (effect.substitute) value = effect.substitute(value, sides);
+  }
+  return value;
+}
+
+/**
+ * Roll dice notation, optionally with per-die effects.
+ *
+ * On keep clauses: a keep-highest or keep-lowest applies only to the dice the
+ * notation asked for, never to bonus dice an effect added. The two are not
+ * expected to meet in practice — keep is for ability scores, effects are for
+ * damage — but the precedence is defined rather than accidental.
+ */
+export function roll(
+  rng: Rng,
+  input: string,
+  effects: readonly DieEffect[] = [],
+): Result<RollOutcome> {
   const parsed = parseNotation(input);
   if (!parsed.ok) return parsed;
 
   const { count, sides, modifier, keep } = parsed.value;
 
-  const values: number[] = [];
-  for (let i = 0; i < count; i++) values.push(rng.int(sides));
+  const dice: DieRoll[] = [];
+  const bonusesByEffect = new Map<string, number>();
 
-  const keptIndices = new Set<number>();
-  if (keep === null) {
-    for (let i = 0; i < count; i++) keptIndices.add(i);
-  } else {
-    // Sort a copy of the indices, using the index itself to break ties so the
-    // choice of which duplicate to drop stays deterministic.
-    const order = values
-      .map((value, index) => ({ value, index }))
-      .sort((a, b) => (keep.mode === 'highest' ? b.value - a.value : a.value - b.value) || a.index - b.index);
-    for (const { index } of order.slice(0, keep.n)) keptIndices.add(index);
+  const rollOne = (origin: DieOrigin, cause: string | null): void => {
+    const rolled = rng.int(sides);
+    dice.push({
+      index: dice.length,
+      sides,
+      rolled,
+      value: substituted(effects, rolled, sides),
+      disposition: 'counted',
+      origin,
+      cause,
+      replaces: null,
+    });
+  };
+
+  for (let i = 0; i < count; i++) rollOne('initial', null);
+
+  // Walked as a growing list so a bonus die can itself trigger another, which
+  // is what "if you roll an 8 on a d8 for this spell" means for the dice the
+  // spell added. The per-effect cap is what terminates it.
+  for (let i = 0; i < dice.length; i++) {
+    const die = dice[i]!;
+    for (const effect of effects) {
+      if (effect.bonusOn?.(die.rolled, sides) !== true) continue;
+      const used = bonusesByEffect.get(effect.name) ?? 0;
+      if (used >= (effect.maxBonusDice ?? 0)) continue;
+      bonusesByEffect.set(effect.name, used + 1);
+      rollOne('bonus', effect.name);
+    }
   }
 
-  const dice: DieRoll[] = values.map((value, index) => ({
-    sides,
-    value,
-    kept: keptIndices.has(index),
-  }));
+  if (keep !== null) {
+    const initial = dice.filter((d) => d.origin === 'initial');
+    // Sort by value, using the index to break ties so which duplicate gets
+    // dropped stays deterministic.
+    const order = [...initial].sort(
+      (a, b) =>
+        (keep.mode === 'highest' ? b.value - a.value : a.value - b.value) || a.index - b.index,
+    );
+    for (const die of order.slice(keep.n)) {
+      dice[die.index] = { ...die, disposition: 'dropped' };
+    }
+  }
 
-  const total = dice.reduce((sum, d) => (d.kept ? sum + d.value : sum), 0) + modifier;
+  return ok({ notation: parsed.value, dice, modifier, total: sumCounted(dice, modifier) });
+}
 
-  return ok({ notation: parsed.value, dice, modifier, total });
+/**
+ * Reroll named dice, replacing them with new ones.
+ *
+ * The rules that reroll damage dice let the player pick which — Empowered Spell
+ * rerolls "a number of the damage dice up to your Charisma modifier" — so the
+ * caller names them rather than the engine matching a predicate. Rerolled dice
+ * stay in the list marked `rerolled`, so the log still shows what was given up.
+ */
+export function rerollDice(
+  rng: Rng,
+  outcome: RollOutcome,
+  indices: readonly number[],
+  cause: string,
+  effects: readonly DieEffect[] = [],
+): Result<RollOutcome> {
+  const dice = [...outcome.dice];
+
+  for (const index of indices) {
+    const die = dice[index];
+    if (die === undefined) {
+      return err('unknown_die', `this roll has no die at index ${index}`);
+    }
+    if (die.disposition === 'rerolled') {
+      return err('already_rerolled', `die ${index} has already been rerolled`);
+    }
+
+    dice[index] = { ...die, disposition: 'rerolled' };
+
+    const rolled = rng.int(die.sides);
+    dice.push({
+      index: dice.length,
+      sides: die.sides,
+      rolled,
+      value: substituted(effects, rolled, die.sides),
+      // A reroll inherits what it replaced, so rerolling a die a keep clause
+      // had already dropped does not smuggle it back into the total.
+      disposition: die.disposition === 'dropped' ? 'dropped' : 'counted',
+      origin: 'reroll',
+      cause,
+      replaces: index,
+    });
+  }
+
+  return ok({ ...outcome, dice, total: sumCounted(dice, outcome.modifier) });
 }
 
 export interface D20Outcome {

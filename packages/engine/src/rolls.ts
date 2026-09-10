@@ -5,6 +5,7 @@ import {
   roll,
   rollD20,
   type D20Outcome,
+  type DieEffect,
   type Rng,
   type RollOutcome,
 } from './dice.js';
@@ -84,8 +85,9 @@ export function rollRecorded(
   issuer: RollIssuer,
   rng: Rng,
   notation: string,
+  effects: readonly DieEffect[] = [],
 ): Result<RecordedRoll> {
-  const outcome = roll(rng, notation);
+  const outcome = roll(rng, notation, effects);
   // Issue the id only once the roll has actually happened, so a rejected roll
   // does not leave a gap in the sequence.
   if (!outcome.ok) return outcome;

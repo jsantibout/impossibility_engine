@@ -5,6 +5,7 @@ import { isErr, expect as unwrap } from '@ie/shared';
 import { parseEquipment, type Weapon } from '@ie/srd';
 import type { Rng, RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
+import { rerollDice, treatLowRollsAs } from './dice.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
   applyDefenses,
@@ -461,6 +462,58 @@ describe('against real SRD weapons', () => {
   it('lets a Dagger use Dexterity through Finesse', () => {
     const s = sheet({ abilities: scores({ str: 10, dex: 18 }) });
     expect(attackAbility(s, { weapon: weapon('dagger'), targetAc: 10 })).toBe('dex');
+  });
+
+  it('applies Great Weapon Fighting to a two-handed Greatsword', () => {
+    // SRD 2024: treat any 1 or 2 on a damage die as a 3. A Greatsword is 2d6,
+    // so a 1 and a 2 become 3 and 3 — and no extra dice are rolled, because
+    // the 2024 wording substitutes rather than rerolling.
+    const s = sheet({ abilities: scores({ str: 16 }) });
+    const damage = unwrap(
+      rollAttackDamage(
+        issuer(),
+        scriptedRng([1, 2]),
+        s,
+        {
+          weapon: weapon('greatsword'),
+          targetAc: 10,
+          damageEffects: [treatLowRollsAs(2, 3, 'Great Weapon Fighting')],
+        },
+        false,
+      ),
+      'gwf',
+    );
+    expect(damage.roll!.dice.map((d) => d.rolled)).toEqual([1, 2]);
+    expect(damage.roll!.dice.map((d) => d.value)).toEqual([3, 3]);
+    expect(damage.total).toBe(3 + 3 + 3);
+  });
+
+  it('exposes the damage roll so a rule can reroll one die of it', () => {
+    // Empowered Spell rerolls chosen damage dice; the caller names them by index.
+    const s = sheet({ abilities: scores({ str: 16 }) });
+    const damage = unwrap(
+      rollAttackDamage(issuer(), scriptedRng([1, 1]), s, { weapon: weapon('greatsword'), targetAc: 10 }, false),
+      'dice',
+    );
+    expect(damage.roll!.dice).toHaveLength(2);
+    expect(damage.total).toBe(1 + 1 + 3);
+
+    const rerolled = unwrap(
+      rerollDice(scriptedRng([6]), damage.roll!, [0], 'Empowered Spell'),
+      'reroll',
+    );
+    expect(rerolled.dice[0]!.disposition).toBe('rerolled');
+    expect(rerolled.dice.at(-1)).toMatchObject({ rolled: 6, replaces: 0 });
+    // 6 replaces the 1: dice now total 7, and the +3 modifier is added on top.
+    expect(rerolled.total + damage.modifier).toBe(10);
+  });
+
+  it('reports no roll for flat damage, which has no dice to act on', () => {
+    const damage = unwrap(
+      rollAttackDamage(issuer(), scriptedRng([1]), sheet(), { weapon: weapon('blowgun'), targetAc: 10 }, false),
+      'flat',
+    );
+    expect(damage.roll).toBeNull();
   });
 
   it('rolls the Blowgun as a flat 1 plus Dexterity', () => {

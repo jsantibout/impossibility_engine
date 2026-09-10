@@ -1,6 +1,6 @@
 import { err, ok, type Ability, type Result, type RollMode } from '@ie/shared';
 import type { Weapon } from '@ie/srd';
-import { parseNotation, type Rng } from './dice.js';
+import { parseNotation, type DieEffect, type Rng } from './dice.js';
 import {
   modifierFor,
   proficiencyBonus,
@@ -11,6 +11,7 @@ import {
   rollD20Recorded,
   rollRecorded,
   type RecordedD20,
+  type RecordedRoll,
   type RollIssuer,
   type RollProvenance,
 } from './rolls.js';
@@ -39,6 +40,11 @@ export interface AttackOptions {
   readonly beyondNormalRange?: boolean;
   /** An enemy is within 5 feet, which hampers a ranged attack. */
   readonly nearbyEnemy?: boolean;
+  /**
+   * Per-die rules applied to the damage roll — Great Weapon Fighting, and
+   * anything else that reads or reacts to an individual die.
+   */
+  readonly damageEffects?: readonly DieEffect[];
 }
 
 const has = (weapon: Weapon | null, property: string): boolean =>
@@ -145,6 +151,12 @@ export interface AttackDamage {
   readonly type: string;
   /** The dice rolled, or null when the damage is a flat amount. */
   readonly notation: string | null;
+  /**
+   * The underlying roll, with every die individually addressable — so a rule
+   * that acts on one die can. Empowered Spell rerolls chosen dice: pass this
+   * straight to `rerollDice`. Null for flat damage, which has no dice.
+   */
+  readonly roll: RecordedRoll | null;
   readonly diceTotal: number;
   readonly modifier: number;
   readonly total: number;
@@ -185,6 +197,7 @@ export function rollAttackDamage(
     return ok({
       type,
       notation: null,
+      roll: null,
       diceTotal: fixed,
       modifier,
       total: Math.max(0, fixed + modifier),
@@ -200,7 +213,12 @@ export function rollAttackDamage(
   // and add any relevant modifiers as normal." The dice double; the modifier
   // does not.
   const count = critical ? parsed.value.count * 2 : parsed.value.count;
-  const outcome = rollRecorded(issuer, rng, `${count}d${parsed.value.sides}`);
+  const outcome = rollRecorded(
+    issuer,
+    rng,
+    `${count}d${parsed.value.sides}`,
+    options.damageEffects ?? [],
+  );
   if (!outcome.ok) return outcome;
 
   const diceTotal = outcome.value.total;
@@ -208,6 +226,7 @@ export function rollAttackDamage(
   return ok({
     type,
     notation: dice,
+    roll: outcome.value,
     diceTotal,
     modifier,
     total: Math.max(0, diceTotal + modifier),

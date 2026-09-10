@@ -135,8 +135,8 @@ describe('roll', () => {
     const out = unwrap(roll(rng, '4d6kh3'), '4d6kh3');
     expect(out.dice).toHaveLength(4);
 
-    const kept = out.dice.filter((d) => d.kept);
-    const dropped = out.dice.filter((d) => !d.kept);
+    const kept = out.dice.filter((d) => d.disposition === 'counted');
+    const dropped = out.dice.filter((d) => d.disposition === 'dropped');
     expect(kept).toHaveLength(3);
     expect(dropped).toHaveLength(1);
 

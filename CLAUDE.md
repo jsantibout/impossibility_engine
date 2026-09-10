@@ -153,11 +153,40 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **Critical hits double the dice, not the modifier.** "Roll the attack's
   damage dice twice, add them together, and add any relevant modifiers as
   normal."
+- **Great Weapon Fighting substitutes, it does not reroll.** 2024: "treat any
+  1 or 2 on a damage die as a 3." The reroll version is 2014. No extra dice are
+  rolled, and the generator is not advanced.
 - **Damage order of application is adjustments, then Resistance, then
   Vulnerability** — and the order changes the answer. The SRD's worked example
   (28 fire, -5 aura, resistant and vulnerable) gives 22; doubling before
   halving gives 23. Resistance and Vulnerability are booleans, not counts,
   because multiple instances of either count as one.
+
+## Dice Are Individually Addressable
+
+Many rules act on a single die rather than a total, so `DieRoll` records what a
+die showed (`rolled`), what it counts as (`value`), where it came from
+(`origin`), what became of it (`disposition`), and which effect touched it.
+Nothing collapses to a bare number before the rules have had their say.
+
+The SRD has three distinct shapes here, and they are modelled separately
+because they compose differently:
+
+| Shape | Rule | Built-in |
+|---|---|---|
+| Substitute a value | Great Weapon Fighting: 1 or 2 counts as 3 | `treatLowRollsAs` |
+| Add a die on a trigger | Sorcerous Burst: an 8 adds a d8, capped at the spellcasting modifier | `explodeOnMax` |
+| Reroll chosen dice | Empowered Spell: reroll up to Cha modifier dice | `rerollDice` |
+
+Rerolls are applied afterwards and take explicit indices, because the rules
+that use them let the *player* choose which dice — not a predicate the engine
+matches. Rerolled dice stay in the record marked `rerolled`, so the log shows
+what was given up.
+
+Two behaviours worth not breaking: a bonus die can itself trigger another (the
+cap is what terminates it), and triggers read `rolled`, never the substituted
+`value` — otherwise substituting a 1 up to a maximum would fire an explosion
+that never happened.
 
 ## Combat Model
 
