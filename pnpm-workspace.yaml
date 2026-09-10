@@ -1,0 +1,13 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+  - 'tools/*'
+
+# esbuild ships its platform binary as an optional dependency package, so its
+# postinstall script is redundant here — vitest resolves and runs esbuild fine
+# without it. Recorded as ignored so `pnpm install` does not fail CI.
+allowBuilds:
+  esbuild: set this to true or false
+ignoredBuiltDependencies:
+  - esbuild
+strictDepBuilds: false

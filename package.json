@@ -1,0 +1,28 @@
+{
+  "name": "infinite-realms",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An AI Dungeon Master for D&D 2024, built on a deterministic SRD 5.2.1 rules engine.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.tests.json",
+    "lint": "eslint .",
+    "srd:ingest": "tsx packages/srd/scripts/ingest.ts",
+    "srd:fetch-reference": "curl -sSL --create-dirs -o packages/srd/reference/SRD_CC_v5.2.1.pdf https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.0.0",
+    "eslint": "^9.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.0.0"
+  }
+}

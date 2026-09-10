@@ -1,0 +1,7 @@
+# Normalise to LF in the repository; check out native on Windows.
+* text=auto eol=lf
+
+*.pdf binary
+
+# Vendored SRD transcription — never hand-edited, so keep diffs out of reviews.
+packages/srd/raw/*.md linguist-vendored
