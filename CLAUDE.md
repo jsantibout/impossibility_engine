@@ -20,6 +20,33 @@ Everything else in this document is downstream of that. When a change would let
 the model assert a mechanical fact directly, the change is wrong — even when it
 would be simpler, and even when the model would probably get it right.
 
+### Where the rule actually lives: provenance, not purity
+
+The engine enforces that damage comes from a roll it **issued** — never from a
+bare number. It does *not* enforce that every roll came from its own generator,
+because the same engine has to serve two different tables:
+
+| | AI DM (Maestro) | Human DM (e.g. NimbusQuill) |
+|---|---|---|
+| Engine-generated rolls | yes | yes |
+| `recordExternalD20` / `recordExternalDamage` | **never exposed** | exposed |
+
+A human DM legitimately fudges rolls — softening a TPK, letting a good idea
+land. That is a core skill of running a table, not an abuse of it. A model
+doing the same thing is a bug. So the *capability* lives in `rolls.ts` and the
+*policy* lives in each tool surface: Maestro's simply never exposes the
+external functions, so every roll it can reach is `engine`-sourced.
+
+Every roll therefore carries a `RollSource` of `engine`, `physical-dice`, or
+`dm-override`, and the log stays honest about which numbers were rolled and
+which were decided. Only the engine's own roll functions may stamp `engine` —
+`recordExternal*` refuses that source, so the layer above cannot forge the
+audit trail.
+
+Roll ids are sequential from a caller-supplied prefix, never random: replaying
+a log has to reproduce the same ids, or every RollId reference in the event log
+breaks on restart.
+
 ## Commands
 
 ```bash
@@ -119,8 +146,18 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **2024 has no contests.** Opposed checks are gone; a grapple escape is a
   check against the grapple's escape DC. Do not port 2014 assumptions.
 - **Armour replaces the base AC calculation**, it does not add to 10 + Dex.
-- **The armour Strength requirement compares the score, not the modifier.**
-  Str 14 and 15 share a +2 modifier but differ against a Str 15 requirement.
+- **Score, not modifier.** Two separate rules read an ability *score* against a
+  threshold, and both are easy to implement against the modifier by mistake:
+  the armour Strength requirement (Str 14 vs 15 share a +2) and the Heavy
+  weapon property (Str/Dex 12 vs 13 share a +1).
+- **Critical hits double the dice, not the modifier.** "Roll the attack's
+  damage dice twice, add them together, and add any relevant modifiers as
+  normal."
+- **Damage order of application is adjustments, then Resistance, then
+  Vulnerability** — and the order changes the answer. The SRD's worked example
+  (28 fire, -5 aura, resistant and vulnerable) gives 22; doubling before
+  halving gives 23. Resistance and Vulnerability are booleans, not counts,
+  because multiple instances of either count as one.
 
 ## Combat Model
 

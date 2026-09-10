@@ -157,6 +157,21 @@ export function parseNotation(input: string): Result<Notation> {
   return ok({ count, sides, modifier, keep });
 }
 
+/**
+ * The lowest and highest totals a notation can produce.
+ *
+ * Used to sanity-check a roll reported from outside the engine: someone at a
+ * real table cannot roll 30 on a `1d4`, so a claimed physical roll outside
+ * these bounds is a transcription error worth rejecting.
+ */
+export function notationBounds(notation: Notation): { min: number; max: number } {
+  const dice = notation.keep?.n ?? notation.count;
+  return {
+    min: dice * 1 + notation.modifier,
+    max: dice * notation.sides + notation.modifier,
+  };
+}
+
 export interface DieRoll {
   readonly sides: number;
   readonly value: number;
