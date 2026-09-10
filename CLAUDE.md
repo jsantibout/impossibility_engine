@@ -159,6 +159,12 @@ Defects found so far, all covered by regression tests:
 | 3 stat blocks have collapsed table cells (`+10 +10`, `CON 29`) | `parse/overrides.ts` |
 | Succubus puts Initiative on its own line | searched block-wide |
 | `animals.md` shifts heading levels | `detectEntryLevel` |
+| Equipment rows drop `</tr>`; one `<tr>` is doubled | cells grouped in sixes, not by row |
+| Weapon properties contain commas inside parentheses | `splitTopLevel` |
+
+For table-driven content, assert the **per-section** counts, not just the
+total. A missed section heading leaves the total correct while silently filing
+every row under the wrong category.
 
 The parser stays strict on a mangled ability table rather than guessing. A
 silently wrong modifier is the worst failure this codebase has — it looks like
@@ -166,7 +172,9 @@ a rules bug forever after.
 
 ## Known Pending Work
 
-- M0: equipment, classes, feats and magic items are vendored but not yet parsed
+- M0: adventuring gear and tools (93 entries in `equipment.md`), plus classes,
+  feats and magic items, are vendored but not yet parsed. Weapons and armour
+  are done because `attack.ts` needs them; the rest can wait for a consumer.
 - M1: engine beyond `dice.ts` — character, checks, attack, conditions, zones,
   combat, spells, rest, progression, events, reducer
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

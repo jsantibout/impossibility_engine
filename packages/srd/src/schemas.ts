@@ -157,6 +157,99 @@ export const MonsterSchema = z.object({
 });
 export type Monster = z.infer<typeof MonsterSchema>;
 
+export const CURRENCIES = ['cp', 'sp', 'ep', 'gp', 'pp'] as const;
+export const CurrencySchema = z.enum(CURRENCIES);
+export type Currency = z.infer<typeof CurrencySchema>;
+
+export const CostSchema = z.object({
+  amount: z.number().min(0),
+  currency: CurrencySchema,
+});
+
+/** Normal and long range in feet, as printed `80/320`. */
+export const RangeSchema = z.object({
+  normal: z.number().int().min(0),
+  long: z.number().int().min(0),
+});
+
+export const WEAPON_PROPERTIES = [
+  'ammunition',
+  'finesse',
+  'heavy',
+  'light',
+  'loading',
+  'reach',
+  'thrown',
+  'two-handed',
+  'versatile',
+] as const;
+export const WeaponPropertySchema = z.enum(WEAPON_PROPERTIES);
+export type WeaponProperty = z.infer<typeof WeaponPropertySchema>;
+
+/** Weapon mastery properties, new in the 2024 rules. */
+export const WEAPON_MASTERIES = [
+  'cleave',
+  'graze',
+  'nick',
+  'push',
+  'sap',
+  'slow',
+  'topple',
+  'vex',
+] as const;
+export const WeaponMasterySchema = z.enum(WEAPON_MASTERIES);
+export type WeaponMastery = z.infer<typeof WeaponMasterySchema>;
+
+export const WeaponDamageSchema = z.object({
+  /** Dice notation, e.g. `1d8`. Null when the weapon deals a flat amount. */
+  dice: z.string().nullable(),
+  /** Flat damage — only the Blowgun, which deals exactly 1. */
+  fixed: z.number().int().nullable(),
+  type: z.string().min(1),
+});
+
+export const WeaponSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  category: z.enum(['simple', 'martial']),
+  kind: z.enum(['melee', 'ranged']),
+  damage: WeaponDamageSchema,
+  properties: z.array(WeaponPropertySchema),
+  /** Damage when wielded two-handed, for Versatile weapons. */
+  versatileDamage: z.string().nullable(),
+  /** Range for Thrown weapons. */
+  thrownRange: RangeSchema.nullable(),
+  /** Range for Ammunition weapons. */
+  ammunitionRange: RangeSchema.nullable(),
+  /** `Bolt`, `Arrow`, `Bullet`, `Needle`. */
+  ammunitionType: z.string().nullable(),
+  /** Parenthetical caveats, e.g. the Lance's `unless mounted`. */
+  propertyNotes: z.string().nullable(),
+  mastery: WeaponMasterySchema,
+  weightLb: z.number().min(0).nullable(),
+  cost: CostSchema,
+});
+export type Weapon = z.infer<typeof WeaponSchema>;
+
+export const ArmorSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  category: z.enum(['light', 'medium', 'heavy', 'shield']),
+  /** Base AC the armour sets. Null for a Shield, which adds instead. */
+  baseAc: z.number().int().min(0).nullable(),
+  /** What a Shield adds to AC. Null for body armour. */
+  acBonus: z.number().int().nullable(),
+  addsDexModifier: z.boolean(),
+  /** The `(max 2)` cap on medium armour. */
+  maxDexBonus: z.number().int().nullable(),
+  /** Minimum Strength score, or null when there is no requirement. */
+  strengthRequirement: z.number().int().nullable(),
+  stealthDisadvantage: z.boolean(),
+  weightLb: z.number().min(0).nullable(),
+  cost: CostSchema,
+});
+export type Armor = z.infer<typeof ArmorSchema>;
+
 /**
  * A problem found while parsing. Collected rather than thrown so one bad entry
  * does not hide the other forty.
