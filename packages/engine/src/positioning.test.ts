@@ -3,7 +3,13 @@ import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import {
   addLandmark,
   canPassThrough,
+  dismount,
   endsProne,
+  isRidingUnwilling,
+  mount,
+  mountOf,
+  mountingCost,
+  ridersOf,
   isDifficultTerrain,
   sizeOf,
   coverAcBonus,
@@ -650,6 +656,163 @@ describe('moving around other creatures', () => {
     it('forgets it when the creature leaves', () => {
       const state = unwrap(removeCreature(standoff(), id('ogre')), 'gone');
       expect(sizeOf(state, id('ogre'))).toBeNull();
+    });
+  });
+});
+
+describe('riding a creature', () => {
+  const stable = () => {
+    let state = withBar();
+    state = unwrap(
+      placeCreature(state, id('rider'), { from: { landmark: 'the bar' }, feet: 5, bearing: 90 }),
+      'rider',
+    );
+    state = unwrap(
+      placeCreature(state, id('horse'), { from: { creature: id('rider') }, feet: 5, bearing: 90, size: 'large' }),
+      'horse',
+    );
+    return state;
+  };
+
+  const dragonfight = () => {
+    let state = withBar();
+    state = unwrap(
+      placeCreature(state, id('rogue'), { from: { landmark: 'the bar' }, feet: 5, bearing: 90 }),
+      'rogue',
+    );
+    state = unwrap(
+      placeCreature(state, id('dragon'), { from: { creature: id('rogue') }, feet: 5, bearing: 90, size: 'huge' }),
+      'dragon',
+    );
+    return state;
+  };
+
+  // SRD: "During your move, you can mount a creature that is within 5 feet of
+  // you... Doing so costs an amount of movement equal to half your Speed."
+  it('costs half the rider’s speed, rounded down', () => {
+    expect(mountingCost(30)).toBe(15);
+    expect(mountingCost(25)).toBe(12);
+  });
+
+  it('puts the rider just above the mount', () => {
+    const state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
+    const horse = positionOf(state, id('horse'))!;
+    expect(positionOf(state, id('rider'))).toEqual({ ...horse, z: horse.z + 1 });
+  });
+
+  /**
+   * The offset is deliberately small. Deriving it from the mount's size would
+   * be more realistic and would break the thing that makes this fun: at 15 feet
+   * above a dragon's point you could not melee the dragon you are clinging to.
+   */
+  it('leaves the rider in reach of the mount', () => {
+    const state = unwrap(mount(dragonfight(), id('rogue'), id('dragon'), { willing: false }), 'clung');
+    expect(unwrap(withinReach(state, id('rogue'), id('dragon'), 5), 'reach')).toBe(true);
+  });
+
+  it('does not count as sharing a space', () => {
+    const state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
+    // A separate point, so nothing treats the rider as standing on the horse.
+    expect(positionOf(state, id('rider'))).not.toEqual(positionOf(state, id('horse')));
+  });
+
+  it('reports the relationship in both directions', () => {
+    const state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
+    expect(mountOf(state, id('rider'))).toBe(id('horse'));
+    expect(ridersOf(state, id('horse'))).toEqual([id('rider')]);
+  });
+
+  // The whole reason this is a relationship and not just a z-offset.
+  it('carries the rider along when the mount moves', () => {
+    let state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
+    state = unwrap(
+      moveCreature(state, id('horse'), { from: { landmark: 'the bar' }, feet: 30, bearing: 90 }),
+      'galloped',
+    ).state;
+
+    const horse = positionOf(state, id('horse'))!;
+    expect(horse.x).toBe(40);
+    expect(positionOf(state, id('rider'))).toEqual({ ...horse, z: horse.z + 1 });
+  });
+
+  it('carries the rider into the air', () => {
+    let state = unwrap(mount(dragonfight(), id('rogue'), id('dragon'), { willing: false }), 'clung');
+    state = unwrap(
+      moveCreature(state, id('dragon'), { from: { landmark: 'the bar' }, feet: 10, bearing: 90, elevation: 12 }),
+      'flew',
+    ).state;
+    expect(positionOf(state, id('rogue'))?.z).toBe(13);
+  });
+
+  // SRD: a mount must be "at least one size larger than a rider".
+  it('refuses a mount that is not larger', () => {
+    let state = withBar();
+    state = unwrap(placeCreature(state, id('a'), { from: { landmark: 'the bar' }, feet: 5, bearing: 90 }), 'a');
+    state = unwrap(placeCreature(state, id('b'), { from: { creature: id('a') }, feet: 5, bearing: 90 }), 'b');
+    expect(isErr(mount(state, id('a'), id('b'), { willing: true }))).toBe(true);
+  });
+
+  // SRD: "you can mount a creature that is within 5 feet of you".
+  it('refuses a mount out of reach', () => {
+    let state = withBar();
+    state = unwrap(placeCreature(state, id('rider'), { from: { landmark: 'the bar' }, feet: 5, bearing: 90 }), 'r');
+    state = unwrap(
+      placeCreature(state, id('horse'), { from: { creature: id('rider') }, feet: 20, bearing: 90, size: 'large' }),
+      'h',
+    );
+    expect(isErr(mount(state, id('rider'), id('horse'), { willing: true }))).toBe(true);
+  });
+
+  it('refuses to ride an unplaced creature', () => {
+    expect(isErr(mount(stable(), id('rider'), id('ghost'), { willing: true }))).toBe(true);
+  });
+
+  it('refuses to ride two things at once', () => {
+    const state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
+    expect(isErr(mount(state, id('rider'), id('horse'), { willing: true }))).toBe(true);
+  });
+
+  /**
+   * The SRD only covers a *willing* mount. Clinging to a hostile dragon is not
+   * in the rules, and it is one of the most-attempted moves at any table, so it
+   * is allowed and recorded as unwilling rather than refused. Whether the rogue
+   * got up there at all is a check the DM calls for — the engine only tracks
+   * that they did.
+   */
+  it('allows clinging to an unwilling creature, and records that it was unwilling', () => {
+    const state = unwrap(mount(dragonfight(), id('rogue'), id('dragon'), { willing: false }), 'clung');
+    expect(mountOf(state, id('dragon'))).toBeNull();
+    expect(isRidingUnwilling(state, id('rogue'))).toBe(true);
+  });
+
+  it('records a willing mount as willing', () => {
+    const state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
+    expect(isRidingUnwilling(state, id('rider'))).toBe(false);
+  });
+
+  describe('dismount', () => {
+    it('sets the rider down beside the mount', () => {
+      let state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
+      state = unwrap(
+        dismount(state, id('rider'), { from: { creature: id('horse') }, feet: 5, bearing: 270 }),
+        'down',
+      );
+      expect(mountOf(state, id('rider'))).toBeNull();
+      expect(ridersOf(state, id('horse'))).toEqual([]);
+      expect(positionOf(state, id('rider'))?.z).toBe(0);
+    });
+
+    it('refuses to dismount someone who is not riding', () => {
+      expect(
+        isErr(dismount(stable(), id('rider'), { from: { creature: id('horse') }, feet: 5 })),
+      ).toBe(true);
+    });
+
+    it('leaves the rider behind when the mount is removed', () => {
+      let state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
+      state = unwrap(removeCreature(state, id('horse')), 'gone');
+      expect(mountOf(state, id('rider'))).toBeNull();
+      expect(positionOf(state, id('rider'))).not.toBeNull();
     });
   });
 });

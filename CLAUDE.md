@@ -323,6 +323,20 @@ and whether the mover is Prone. Applying the condition is the caller's job.
 Passing *through* is exposed as a predicate rather than derived, because there
 are no waypoints to trace — same reasoning as cover.
 
+**Riding is a relationship, not an offset.** SRD Mounted Combat covers a
+*willing* creature at least one size larger, within 5 feet, at half the rider's
+Speed. It says nothing about leaping onto a hostile dragon, which is among the
+most-attempted moves at any table — so that is permitted and recorded as
+`willing: false` rather than refused. Whether the character got up there is a
+check the DM calls for; the engine only tracks that they did.
+
+The rider sits **one foot** above the mount, not at a size-derived height.
+Realism would put a rogue 15 feet up a Huge dragon and thereby stop them
+meleeing the dragon they are clinging to, which destroys the entire point. How
+high it looks is narration. What the small offset buys: not sharing a space (so
+nothing knocks them Prone), staying in reach of the mount, and travelling with
+it when it moves or flies.
+
 **Cover and line of sight stay declared, not ray-cast.** Computing them from
 geometry means modelling walls, pillars and doorways as obstacles, and that is
 where a rules engine becomes a VTT. The model says "behind the bar,

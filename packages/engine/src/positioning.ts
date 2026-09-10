@@ -44,10 +44,22 @@ export interface PositionState {
   readonly sizes: Readonly<Record<string, CreatureSize>>;
   /** Declared cover, keyed `attacker>target` — cover is directional. */
   readonly cover: Readonly<Record<string, CoverDegree>>;
+  /** Who is riding what, and whether the mount consented. */
+  readonly riding: Readonly<Record<string, Ride>>;
+}
+
+export interface Ride {
+  readonly mount: CharacterId;
+  /**
+   * The SRD only covers a *willing* mount. Clinging to a hostile creature is
+   * recorded rather than refused, and flagged so narration and any ongoing
+   * checks know which it was.
+   */
+  readonly willing: boolean;
 }
 
 export function scene(extent: SceneExtent): PositionState {
-  return { extent, landmarks: {}, positions: {}, sizes: {}, cover: {} };
+  return { extent, landmarks: {}, positions: {}, sizes: {}, cover: {}, riding: {} };
 }
 
 export function positionOf(state: PositionState, who: CharacterId): Point | null {
@@ -316,6 +328,14 @@ export function moveCreature(
   if (!at.ok) return at;
 
   const positions = { ...state.positions, [who]: at.value };
+
+  // Riders travel with their mount — the reason this is a relationship rather
+  // than a one-off offset. A dragon that takes off carries whoever is clinging
+  // to it.
+  for (const rider of ridersOf(state, who)) {
+    positions[rider] = { ...at.value, z: round(at.value.z + RIDER_ELEVATION) };
+  }
+
   const moverSize = state.sizes[who] ?? 'medium';
 
   const sharingWith = Object.entries(positions)
@@ -341,7 +361,14 @@ export function removeCreature(state: PositionState, who: CharacterId): Result<P
   delete positions[who];
   const sizes = { ...state.sizes };
   delete sizes[who];
-  return ok({ ...state, positions, sizes });
+
+  // Anyone riding the departing creature is set down rather than vanishing
+  // with it.
+  const riding = { ...state.riding };
+  delete riding[who];
+  for (const rider of ridersOf(state, who)) delete riding[rider];
+
+  return ok({ ...state, positions, sizes, riding });
 }
 
 const separation = (a: Point, b: Point): number =>
@@ -376,6 +403,103 @@ export function withinReach(
   const distance = distanceBetween(state, attacker, target);
   if (!distance.ok) return distance;
   return ok(distance.value <= reach);
+}
+
+/**
+ * Riding a creature.
+ *
+ * SRD Mounted Combat covers a *willing* creature at least one size larger with
+ * an appropriate anatomy. It says nothing about leaping onto a hostile dragon,
+ * which is among the most-attempted moves at any table — so that is permitted
+ * and recorded as unwilling rather than refused. Whether the character got up
+ * there is a check the DM calls for; the engine only tracks that they did.
+ *
+ * The rider sits one foot above the mount rather than in its space. That keeps
+ * three things true at once: they are not sharing a space, so nothing knocks
+ * them Prone; they stay within reach of the creature they are clinging to,
+ * which deriving the offset from the mount's size would break; and they travel
+ * with it, because this is a relationship rather than a coordinate.
+ */
+const RIDER_ELEVATION = 1;
+
+/** SRD: mounting "costs an amount of movement equal to half your Speed (round down)". */
+export function mountingCost(speed: number): number {
+  return Math.floor(Math.max(0, speed) / 2);
+}
+
+export function mountOf(state: PositionState, rider: CharacterId): CharacterId | null {
+  return state.riding[rider]?.mount ?? null;
+}
+
+export function ridersOf(state: PositionState, mount: CharacterId): CharacterId[] {
+  return Object.entries(state.riding)
+    .filter(([, ride]) => ride.mount === mount)
+    .map(([rider]) => rider as CharacterId);
+}
+
+export function isRidingUnwilling(state: PositionState, rider: CharacterId): boolean {
+  const ride = state.riding[rider];
+  return ride !== undefined && !ride.willing;
+}
+
+export interface MountOptions {
+  /**
+   * SRD Mounted Combat requires a willing mount. False records the house case:
+   * clinging to a creature that would rather you did not.
+   */
+  readonly willing: boolean;
+}
+
+export function mount(
+  state: PositionState,
+  rider: CharacterId,
+  target: CharacterId,
+  options: MountOptions,
+): Result<PositionState> {
+  if (state.riding[rider] !== undefined) {
+    return err('already_riding', `${rider} is already riding something`);
+  }
+
+  const riderAt = state.positions[rider];
+  const mountAt = state.positions[target];
+  if (riderAt === undefined) return err('unplaced', `${rider} needs placing first`);
+  if (mountAt === undefined) return err('unplaced', `${target} needs placing first`);
+
+  // SRD: "you can mount a creature that is within 5 feet of you".
+  if (separation(riderAt, mountAt) > 5) {
+    return err('out_of_reach', `${target} is not within 5 feet of ${rider}`);
+  }
+
+  // SRD: a mount is "at least one size larger than a rider".
+  const riderSize = state.sizes[rider] ?? 'medium';
+  const mountSize = state.sizes[target] ?? 'medium';
+  if (sizeRank(mountSize) <= sizeRank(riderSize)) {
+    return err('too_small', `${target} is not larger than ${rider}`);
+  }
+
+  return ok({
+    ...state,
+    positions: { ...state.positions, [rider]: { ...mountAt, z: round(mountAt.z + RIDER_ELEVATION) } },
+    riding: { ...state.riding, [rider]: { mount: target, willing: options.willing } },
+  });
+}
+
+export function dismount(
+  state: PositionState,
+  rider: CharacterId,
+  placement: Placement,
+): Result<PositionState> {
+  if (state.riding[rider] === undefined) {
+    return err('not_riding', `${rider} is not riding anything`);
+  }
+
+  const riding = { ...state.riding };
+  delete riding[rider];
+
+  const moved = moveCreature({ ...state, riding }, rider, placement);
+  if (!moved.ok) return moved;
+
+  return ok(moved.value.state);
 }
 
 const coverKey = (from: CharacterId, to: CharacterId): string => `${from}>${to}`;
