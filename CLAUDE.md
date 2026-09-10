@@ -153,6 +153,12 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **Critical hits double the dice, not the modifier.** "Roll the attack's
   damage dice twice, add them together, and add any relevant modifiers as
   normal."
+- **Death saves are not tied to an ability score.** No modifier, no
+  proficiency — the die stands alone. Natural 1 costs two failures; natural 20
+  restores 1 hit point outright.
+- **Massive Damage measures the remainder after temporary hit points.** The
+  SRD's example: hit point maximum 12, currently 6, takes 18 — drops to 0 with
+  12 remaining, which equals the maximum, so the character dies.
 - **Initiative is a Dexterity check**, so everything that touches ability
   checks touches it — the Alert feat's Proficiency Bonus, the Bard's Jack of
   All Trades half-bonus, a magic item. It takes the same `Bonus[]` machinery as
@@ -259,6 +265,32 @@ On a critical hit **every damage die doubles — including extra damage dice**
 ("If the attack involves other damage dice, such as from the Rogue's Sneak
 Attack feature, you also roll those dice twice") — but **flat bonuses never
 do**. A +1 weapon adds 1 on a crit, not 2.
+
+## Positioning: Coordinates, Never Fabricated
+
+Positions are real coordinates, so distance is subtraction and area of effect
+is an exact point-in-shape test. What is *not* allowed is a coordinate the
+fiction has not earned — which was the actual failure behind a competitor
+placing a monster "in the tavern" and then reporting it 1000 feet away.
+
+That failure is structurally identical to the model asserting a damage number:
+a value with authority it had not earned. The same answer applies — **refuse,
+do not guess**:
+
+- `position` is `Point | null`, and null is a normal state. There is no origin
+  to fall back to and no default placement, ever.
+- Placement is always **relative to something already placed** ("beside the
+  fighter", "20 feet from the bar"); the model never types raw coordinates, so
+  it cannot invent one that contradicts its own narration.
+- A query about an unplaced creature is a **refusal**, not a guess.
+- **Scenes declare their extent.** Nothing in a 60x40 tavern can be 1000 feet
+  from anything, because the space does not extend that far.
+
+**Cover and line of sight stay declared, not ray-cast.** Computing them from
+geometry means modelling walls, pillars and doorways as obstacles, and that is
+where a rules engine becomes a VTT. The model says "behind the bar,
+three-quarters cover"; the engine applies exactly +5 AC and +5 to Dexterity
+saves. Exactness where it is cheap, judgement where geometry is expensive.
 
 ## Conditions Close The Loop
 

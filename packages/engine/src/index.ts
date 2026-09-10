@@ -6,3 +6,4 @@ export * from './character.js';
 export * from './checks.js';
 export * from './attack.js';
 export * from './combat.js';
+export * from './vitals.js';
