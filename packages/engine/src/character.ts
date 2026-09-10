@@ -55,6 +55,18 @@ export function proficiencyBonus(sheet: CharacterSheet): number {
   return proficiencyBonusForLevel(sheet.level);
 }
 
+/**
+ * Half the Proficiency Bonus, rounded down.
+ *
+ * The Bard's Jack of All Trades adds this "to any ability check you make that
+ * uses a skill proficiency you lack and that doesn't otherwise use your
+ * Proficiency Bonus" — Initiative among them, since it is a bare Dexterity
+ * check. The rounding is the part worth having a primitive for.
+ */
+export function halfProficiencyBonus(sheet: CharacterSheet): number {
+  return Math.floor(proficiencyBonus(sheet) / 2);
+}
+
 export function modifierFor(sheet: CharacterSheet, ability: Ability): number {
   return abilityModifier(sheet.abilities[ability]);
 }

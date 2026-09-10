@@ -153,6 +153,15 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **Critical hits double the dice, not the modifier.** "Roll the attack's
   damage dice twice, add them together, and add any relevant modifiers as
   normal."
+- **Initiative is a Dexterity check**, so everything that touches ability
+  checks touches it — the Alert feat's Proficiency Bonus, the Bard's Jack of
+  All Trades half-bonus, a magic item. It takes the same `Bonus[]` machinery as
+  any other check rather than a narrow signature.
+- **Surprise is Disadvantage on the Initiative roll**, not a condition. The
+  Surprised condition is 2014.
+- **A Reaction refreshes at the start of your next turn**, not at the end of
+  the round — a creature that spent one on an Opportunity Attack has none until
+  its own turn comes round.
 - **Prone is asymmetric.** "An attack roll against you has Advantage if the
   attacker is within 5 feet of you. **Otherwise, that attack roll has
   Disadvantage.**" A prone target is *harder* to hit at range — the second half

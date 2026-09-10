@@ -84,6 +84,56 @@ export function characterRollModes(
   return modes;
 }
 
+/**
+ * The shared shape of a resolved d20 test: what was rolled, why it was rolled
+ * that way, and what it came to.
+ *
+ * Initiative is a Dexterity check with no DC, so it needs everything here
+ * except the success comparison — which is why this is separate from
+ * {@link D20TestResult} rather than folded into it.
+ */
+export interface D20Roll {
+  readonly mode: RollMode;
+  /** Every source, including ones that cancelled each other out. */
+  readonly modeSources: readonly ModeSource[];
+  readonly roll: RecordedD20;
+  /** Everything static added to the die: ability, proficiency, flat bonuses. */
+  readonly modifier: number;
+  /** Bonuses that rolled dice. Flat ones are already in `modifier`. */
+  readonly bonuses: readonly ResolvedBonus[];
+  readonly total: number;
+}
+
+/**
+ * Roll a d20 with modes and bonuses resolved. Flat bonuses ride on the die's
+ * own modifier so `roll.total` stays meaningful; dice bonuses are rolled after
+ * and added, which keeps the natural-20 and natural-1 rules reading the die
+ * rather than an inflated total.
+ */
+export function rollD20Test(
+  issuer: RollIssuer,
+  rng: Rng,
+  baseModifier: number,
+  modeSources: readonly ModeSource[],
+  bonuses: readonly Bonus[],
+): Result<D20Roll> {
+  const mode = combineRollModes(modeSources);
+  const modifier = baseModifier + flatBonusTotal(bonuses);
+  const roll = rollD20Recorded(issuer, rng, mode, modifier);
+
+  const rolled = rollBonusDice(issuer, rng, bonuses);
+  if (!rolled.ok) return rolled;
+
+  return ok({
+    mode,
+    modeSources,
+    roll,
+    modifier,
+    bonuses: rolled.value,
+    total: roll.total + sumResolved(rolled.value),
+  });
+}
+
 export type D20TestKind = 'ability-check' | 'saving-throw';
 
 export interface D20TestOptions {
@@ -167,13 +217,10 @@ function resolve(
   const exhaustion = conditions === undefined ? null : exhaustionBonus(conditions);
   const allBonuses = [...(options.bonuses ?? []), ...(exhaustion === null ? [] : [exhaustion])];
 
-  const modifier = baseModifier + flatBonusTotal(allBonuses);
-  const roll = rollD20Recorded(issuer, rng, mode, modifier);
+  const rolled = rollD20Test(issuer, rng, baseModifier, modeSources, allBonuses);
+  if (!rolled.ok) return rolled;
 
-  const bonuses = rollBonusDice(issuer, rng, allBonuses);
-  if (!bonuses.ok) return bonuses;
-
-  const total = roll.total + sumResolved(bonuses.value);
+  const { roll, modifier, bonuses, total } = rolled.value;
   const autoFailed = conditionEffect.autoFail;
 
   return ok({
@@ -187,7 +234,7 @@ function resolve(
     rolls: roll.rolls,
     natural: roll.natural,
     modifier,
-    bonuses: bonuses.value,
+    bonuses,
     total,
     autoFailed,
     // SRD: "If the total of the d20 and its modifiers equals or exceeds the
