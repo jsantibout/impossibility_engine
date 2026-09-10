@@ -1,4 +1,5 @@
 import { err, ok, type CharacterId, type Result } from '@ie/shared';
+import type { CreatureSize } from '@ie/srd';
 
 /**
  * Where things are.
@@ -39,12 +40,14 @@ export interface PositionState {
   readonly extent: SceneExtent;
   readonly landmarks: Readonly<Record<string, Point>>;
   readonly positions: Readonly<Record<string, Point>>;
+  /** Sizes, which every rule about sharing a space depends on. */
+  readonly sizes: Readonly<Record<string, CreatureSize>>;
   /** Declared cover, keyed `attacker>target` — cover is directional. */
   readonly cover: Readonly<Record<string, CoverDegree>>;
 }
 
 export function scene(extent: SceneExtent): PositionState {
-  return { extent, landmarks: {}, positions: {}, cover: {} };
+  return { extent, landmarks: {}, positions: {}, sizes: {}, cover: {} };
 }
 
 export function positionOf(state: PositionState, who: CharacterId): Point | null {
@@ -88,6 +91,72 @@ export interface Placement {
   readonly bearing?: number;
   /** Height above the anchor, for a flying creature. */
   readonly elevation?: number;
+  /**
+   * Defaults to Medium. Unlike a position, this is a safe default — most
+   * creatures are Medium, and size only affects who may share a space.
+   */
+  readonly size?: CreatureSize;
+}
+
+const SIZE_ORDER: readonly CreatureSize[] = [
+  'tiny',
+  'small',
+  'medium',
+  'large',
+  'huge',
+  'gargantuan',
+];
+
+const sizeRank = (size: CreatureSize): number => SIZE_ORDER.indexOf(size);
+
+export function sizeOf(state: PositionState, who: CharacterId): CreatureSize | null {
+  return state.sizes[who] ?? null;
+}
+
+export interface PassageContext {
+  /** Allies may always be passed through, and cost nothing to pass through. */
+  readonly allied?: boolean;
+  /** SRD: an Incapacitated creature may be passed through whatever its size. */
+  readonly occupantIncapacitated?: boolean;
+}
+
+/**
+ * SRD: "During your move, you can pass through the space of an ally, a creature
+ * that has the Incapacitated condition, a Tiny creature, or a creature that is
+ * two sizes larger or smaller than you."
+ */
+export function canPassThrough(
+  mover: CreatureSize,
+  occupant: CreatureSize,
+  context: PassageContext,
+): boolean {
+  if (context.allied === true) return true;
+  if (context.occupantIncapacitated === true) return true;
+  // Tiny is a blanket exception in both directions, not merely a size gap.
+  if (mover === 'tiny' || occupant === 'tiny') return true;
+  return Math.abs(sizeRank(mover) - sizeRank(occupant)) >= 2;
+}
+
+/**
+ * SRD: "Another creature's space is Difficult Terrain for you unless that
+ * creature is Tiny or your ally."
+ *
+ * Note this is a *different* exception list from {@link canPassThrough}: an
+ * Incapacitated ogre can be squeezed past, but it still costs double.
+ */
+export function isDifficultTerrain(occupant: CreatureSize, context: PassageContext): boolean {
+  if (context.allied === true) return false;
+  return occupant !== 'tiny';
+}
+
+/**
+ * SRD: "If you somehow end a turn in a space with another creature, you have
+ * the Prone condition unless you are Tiny or are of a larger size than the
+ * other creature."
+ */
+export function endsProne(mover: CreatureSize, occupant: CreatureSize): boolean {
+  if (mover === 'tiny') return false;
+  return sizeRank(mover) <= sizeRank(occupant);
 }
 
 function resolveAnchor(state: PositionState, anchor: Anchor): Result<Point> {
@@ -133,6 +202,7 @@ function choosePoint(
   from: Point,
   placement: Placement,
   moving: CharacterId | null,
+  forced: boolean,
 ): Result<Point> {
   const { feet } = placement;
   if (!Number.isFinite(feet) || feet < 0) {
@@ -151,7 +221,10 @@ function choosePoint(
     // Two creatures cannot share a space. With no bearing named, keep sweeping;
     // with one named, the caller asked for somewhere specific and deserves to
     // hear that it is taken rather than be silently relocated.
-    if (occupied(state, at, moving)) {
+    // SRD: "You can't *willingly* end a move in a space occupied by another
+    // creature." Forced movement is exactly the "somehow" the rule allows for,
+    // so a shove or a thunderwave may land on top of someone.
+    if (!forced && occupied(state, at, moving)) {
       blockedByCreature = true;
       continue;
     }
@@ -187,16 +260,36 @@ export function placeCreature(
   const from = resolveAnchor(state, placement.from);
   if (!from.ok) return from;
 
-  const at = choosePoint(state, from.value, placement, null);
+  const at = choosePoint(state, from.value, placement, null, false);
   if (!at.ok) return at;
 
-  return ok({ ...state, positions: { ...state.positions, [who]: at.value } });
+  return ok({
+    ...state,
+    positions: { ...state.positions, [who]: at.value },
+    sizes: { ...state.sizes, [who]: placement.size ?? 'medium' },
+  });
 }
 
 export interface MoveOutcome {
   readonly state: PositionState;
   /** How far the creature actually travelled, for the movement budget. */
   readonly distance: number;
+  /** Anyone whose space the creature has ended up sharing. */
+  readonly sharingWith: readonly CharacterId[];
+  /**
+   * Whether ending there leaves the creature Prone. Applying the condition is
+   * the caller's job — `conditions.ts` owns what Prone then means.
+   */
+  readonly prone: boolean;
+}
+
+export interface MoveOptions {
+  /**
+   * Forced movement — a shove, a Thunderwave. SRD only forbids ending a move
+   * in an occupied space *willingly*, so this permits it and reports the
+   * consequence.
+   */
+  readonly forced?: boolean;
 }
 
 /**
@@ -208,6 +301,7 @@ export function moveCreature(
   state: PositionState,
   who: CharacterId,
   placement: Placement,
+  options: MoveOptions = {},
 ): Result<MoveOutcome> {
   const current = state.positions[who];
   if (current === undefined) {
@@ -217,12 +311,25 @@ export function moveCreature(
   const from = resolveAnchor(state, placement.from);
   if (!from.ok) return from;
 
-  const at = choosePoint(state, from.value, placement, who);
+  const forced = options.forced === true;
+  const at = choosePoint(state, from.value, placement, who, forced);
   if (!at.ok) return at;
 
+  const positions = { ...state.positions, [who]: at.value };
+  const moverSize = state.sizes[who] ?? 'medium';
+
+  const sharingWith = Object.entries(positions)
+    .filter(
+      ([other, p]) =>
+        other !== who && p.x === at.value.x && p.y === at.value.y && p.z === at.value.z,
+    )
+    .map(([other]) => other as CharacterId);
+
   return ok({
-    state: { ...state, positions: { ...state.positions, [who]: at.value } },
+    state: { ...state, positions },
     distance: round(separation(current, at.value)),
+    sharingWith,
+    prone: sharingWith.some((other) => endsProne(moverSize, state.sizes[other] ?? 'medium')),
   });
 }
 
@@ -232,7 +339,9 @@ export function removeCreature(state: PositionState, who: CharacterId): Result<P
   }
   const positions = { ...state.positions };
   delete positions[who];
-  return ok({ ...state, positions });
+  const sizes = { ...state.sizes };
+  delete sizes[who];
+  return ok({ ...state, positions, sizes });
 }
 
 const separation = (a: Point, b: Point): number =>

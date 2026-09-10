@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import {
   addLandmark,
+  canPassThrough,
+  endsProne,
+  isDifficultTerrain,
+  sizeOf,
   coverAcBonus,
   coverBetween,
   canBeTargeted,
@@ -449,5 +453,203 @@ describe('areas of effect', () => {
       'huge',
     );
     expect(caught).toHaveLength(3);
+  });
+});
+
+describe('moving around other creatures', () => {
+  /**
+   * SRD: "During your move, you can pass through the space of an ally, a
+   * creature that has the Incapacitated condition, a Tiny creature, or a
+   * creature that is two sizes larger or smaller than you."
+   */
+  describe('canPassThrough', () => {
+    it('lets you through an ally', () => {
+      expect(canPassThrough('medium', 'medium', { allied: true })).toBe(true);
+    });
+
+    it('stops you at a hostile creature of similar size', () => {
+      expect(canPassThrough('medium', 'medium', {})).toBe(false);
+      expect(canPassThrough('medium', 'large', {})).toBe(false);
+    });
+
+    it('lets you through anything two sizes larger or smaller', () => {
+      expect(canPassThrough('medium', 'huge', {})).toBe(true);
+      expect(canPassThrough('huge', 'medium', {})).toBe(true);
+      expect(canPassThrough('small', 'large', {})).toBe(true);
+    });
+
+    it('lets anything through a Tiny creature', () => {
+      // Tiny is a blanket exception, not just a size-difference case: a Small
+      // creature is only one step larger, but still gets through.
+      expect(canPassThrough('small', 'tiny', {})).toBe(true);
+      expect(canPassThrough('gargantuan', 'tiny', {})).toBe(true);
+    });
+
+    it('lets a Tiny creature through anything', () => {
+      expect(canPassThrough('tiny', 'small', {})).toBe(true);
+      expect(canPassThrough('tiny', 'medium', {})).toBe(true);
+    });
+
+    it('lets you through an Incapacitated creature whatever its size', () => {
+      expect(canPassThrough('medium', 'medium', { occupantIncapacitated: true })).toBe(true);
+    });
+  });
+
+  /**
+   * SRD: "Another creature's space is Difficult Terrain for you unless that
+   * creature is Tiny or your ally." Note this is a different list from the
+   * pass-through one — squeezing past a helpless ogre is allowed but costly.
+   */
+  describe('isDifficultTerrain', () => {
+    it('costs extra through a hostile creature', () => {
+      expect(isDifficultTerrain('medium', {})).toBe(true);
+    });
+
+    it('is free through an ally or a Tiny creature', () => {
+      expect(isDifficultTerrain('medium', { allied: true })).toBe(false);
+      expect(isDifficultTerrain('tiny', {})).toBe(false);
+    });
+
+    it('still costs extra through an Incapacitated creature', () => {
+      // Passable, but not free — the two rules have different exception lists.
+      expect(canPassThrough('medium', 'medium', { occupantIncapacitated: true })).toBe(true);
+      expect(isDifficultTerrain('medium', { occupantIncapacitated: true })).toBe(true);
+    });
+  });
+
+  /**
+   * SRD: "If you somehow end a turn in a space with another creature, you have
+   * the Prone condition unless you are Tiny or are of a larger size than the
+   * other creature."
+   */
+  describe('endsProne', () => {
+    it('knocks over a creature sharing a space with an equal', () => {
+      expect(endsProne('medium', 'medium')).toBe(true);
+    });
+
+    it('spares a larger creature', () => {
+      expect(endsProne('large', 'medium')).toBe(false);
+    });
+
+    it('does not spare a smaller one', () => {
+      expect(endsProne('small', 'medium')).toBe(true);
+    });
+
+    it('always spares a Tiny creature', () => {
+      expect(endsProne('tiny', 'gargantuan')).toBe(false);
+    });
+  });
+
+  describe('ending a move in an occupied space', () => {
+    const shoulderToShoulder = () => {
+      let state = withBar();
+      state = unwrap(
+        placeCreature(state, id('fighter'), { from: { landmark: 'the bar' }, feet: 10, bearing: 90 }),
+        'fighter',
+      );
+      return state;
+    };
+
+    // SRD: "You can't willingly end a move in a space occupied by another
+    // creature."
+    it('refuses a willing move onto another creature', () => {
+      let state = shoulderToShoulder();
+      state = unwrap(
+        placeCreature(state, id('ogre'), { from: { landmark: 'the bar' }, feet: 20, bearing: 90 }),
+        'ogre',
+      );
+      const blocked = moveCreature(state, id('ogre'), {
+        from: { creature: id('fighter') },
+        feet: 0,
+        bearing: 90,
+      });
+      expect(isErr(blocked)).toBe(true);
+      if (isErr(blocked)) expect(blocked.code).toBe('occupied');
+    });
+
+    // Forced movement is exactly the "somehow" the rule allows for.
+    it('allows forced movement into an occupied space', () => {
+      let state = shoulderToShoulder();
+      state = unwrap(
+        placeCreature(state, id('ogre'), { from: { landmark: 'the bar' }, feet: 20, bearing: 90 }),
+        'ogre',
+      );
+      const shoved = unwrap(
+        moveCreature(
+          state,
+          id('ogre'),
+          { from: { creature: id('fighter') }, feet: 0, bearing: 90 },
+          { forced: true },
+        ),
+        'shoved',
+      );
+      expect(positionOf(shoved.state, id('ogre'))).toEqual(positionOf(shoved.state, id('fighter')));
+    });
+
+    it('reports who ends up Prone from sharing a space', () => {
+      let state = shoulderToShoulder();
+      state = unwrap(
+        placeCreature(state, id('goblin'), { from: { landmark: 'the bar' }, feet: 20, bearing: 90, size: 'small' }),
+        'goblin',
+      );
+      const shoved = unwrap(
+        moveCreature(
+          state,
+          id('goblin'),
+          { from: { creature: id('fighter') }, feet: 0, bearing: 90 },
+          { forced: true },
+        ),
+        'shoved',
+      );
+      // Small shoved into a Medium's space: not Tiny, not larger, so Prone.
+      expect(shoved.prone).toBe(true);
+      expect(shoved.sharingWith).toEqual([id('fighter')]);
+    });
+
+    it('leaves a larger creature standing', () => {
+      let state = shoulderToShoulder();
+      state = unwrap(
+        placeCreature(state, id('ogre'), { from: { landmark: 'the bar' }, feet: 20, bearing: 90, size: 'large' }),
+        'ogre',
+      );
+      const shoved = unwrap(
+        moveCreature(
+          state,
+          id('ogre'),
+          { from: { creature: id('fighter') }, feet: 0, bearing: 90 },
+          { forced: true },
+        ),
+        'shoved',
+      );
+      expect(shoved.prone).toBe(false);
+    });
+
+    it('reports no sharing for an ordinary move', () => {
+      const moved = unwrap(
+        moveCreature(standoff(), id('fighter'), { from: { creature: id('ogre') }, feet: 5, bearing: 270 }),
+        'moved',
+      );
+      expect(moved.prone).toBe(false);
+      expect(moved.sharingWith).toEqual([]);
+    });
+  });
+
+  describe('sizes', () => {
+    it('defaults a creature to Medium', () => {
+      expect(sizeOf(standoff(), id('fighter'))).toBe('medium');
+    });
+
+    it('remembers a declared size', () => {
+      const state = unwrap(
+        placeCreature(withBar(), id('wyrm'), { from: { landmark: 'the bar' }, feet: 20, bearing: 90, size: 'huge' }),
+        'wyrm',
+      );
+      expect(sizeOf(state, id('wyrm'))).toBe('huge');
+    });
+
+    it('forgets it when the creature leaves', () => {
+      const state = unwrap(removeCreature(standoff(), id('ogre')), 'gone');
+      expect(sizeOf(state, id('ogre'))).toBeNull();
+    });
   });
 });

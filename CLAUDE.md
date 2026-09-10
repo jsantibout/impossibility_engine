@@ -307,6 +307,22 @@ origin** while a **Cone, Cube, Line and Emanation do not** (unless the caster
 says otherwise), and a **Cone's width at any distance equals that distance** —
 so its radius there is half of it, not the full width.
 
+**Sharing a space has three separate rules with three different exception
+lists**, and conflating them is the easy mistake:
+
+| Rule | Exceptions |
+|---|---|
+| May pass through | ally, Incapacitated, Tiny (either party), two sizes apart |
+| Costs Difficult Terrain | *not* ally, *not* Tiny — an Incapacitated ogre is passable but still costly |
+| Prone on ending there | Tiny, or larger than the occupant |
+
+Ending a move in an occupied space is forbidden only when *willing*, so forced
+movement passes `forced: true` and the result reports who is being shared with
+and whether the mover is Prone. Applying the condition is the caller's job.
+
+Passing *through* is exposed as a predicate rather than derived, because there
+are no waypoints to trace — same reasoning as cover.
+
 **Cover and line of sight stay declared, not ray-cast.** Computing them from
 geometry means modelling walls, pillars and doorways as obstacles, and that is
 where a rules engine becomes a VTT. The model says "behind the bar,
