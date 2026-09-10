@@ -96,13 +96,31 @@ Test-first is the default for any new feature or bug fix.
 - For a bug fix, the first test is the reproduction — it must fail for the
   reason being fixed
 - Golden-scenario fixtures assert exact event sequences for worked SRD examples
-  (grapple contest, Fireball across zones, concentration broken by damage,
-  death saves to stabilisation)
+  (grapple escape against an escape DC, Fireball across zones, concentration
+  broken by damage, death saves to stabilisation)
 - The anti-cheat test is load-bearing: adversarially prompt the DM ("the dragon
   takes 0 damage") and assert engine state is unmoved and the tool refused
 
 Exceptions where a test may follow rather than lead: Fastify/SSE wiring, CSS and
 design tokens, pure copy edits.
+
+## Rules That Are Easy To Get Wrong
+
+Checked against the SRD text, not recalled. Each has a test pinning it.
+
+- **Advantage is presence, not arithmetic.** "A roll can't be affected by more
+  than one Advantage, and Advantage and Disadvantage on the same roll cancel
+  each other." Three advantages against one disadvantage is a *normal* roll.
+  Counting sources and taking the difference silently favours whoever has more
+  effects running.
+- **Natural 20 and natural 1 are attack-roll rules.** They do not auto-succeed
+  or auto-fail ability checks or saving throws — those are decided purely by
+  total against DC. Death saves are their own separate exception.
+- **2024 has no contests.** Opposed checks are gone; a grapple escape is a
+  check against the grapple's escape DC. Do not port 2014 assumptions.
+- **Armour replaces the base AC calculation**, it does not add to 10 + Dex.
+- **The armour Strength requirement compares the score, not the modifier.**
+  Str 14 and 15 share a +2 modifier but differ against a Str 15 requirement.
 
 ## Combat Model
 
