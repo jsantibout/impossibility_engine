@@ -301,6 +301,12 @@ The player sees "the ogre lurches out from behind the bar" and never learns a
 round trip happened. Nothing here should ever surface as "sorry, that creature
 has no position".
 
+**Areas of effect are exact.** All six SRD shapes are geometric tests, and two
+details are easy to lose: a **Sphere and Cylinder include their point of
+origin** while a **Cone, Cube, Line and Emanation do not** (unless the caster
+says otherwise), and a **Cone's width at any distance equals that distance** —
+so its radius there is half of it, not the full width.
+
 **Cover and line of sight stay declared, not ray-cast.** Computing them from
 geometry means modelling walls, pillars and doorways as obstacles, and that is
 where a rules engine becomes a VTT. The model says "behind the bar,
