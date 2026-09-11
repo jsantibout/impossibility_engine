@@ -1,4 +1,5 @@
 import type { Ability, ConditionName } from '@ie/shared';
+import type { Bonus, BonusApplies } from './bonuses.js';
 import type { CastingTime } from './spells.js';
 
 /**
@@ -46,6 +47,10 @@ export type SpellRange =
 export interface DiceScaling {
   /** The base roll, e.g. `1d10`. */
   readonly dice: string;
+  /** A flat addend the spell prints alongside the dice: False Life's `+ 4`. */
+  readonly flat?: number;
+  /** A flat increase per slot level above the spell's own: False Life's `+5`. */
+  readonly flatPerSlotLevelAbove?: number;
   /**
    * SRD Cantrip Upgrade: the character levels at which one more die is added.
    * Fire Bolt's are 5, 11 and 17.
@@ -78,6 +83,37 @@ export type SpellEffect =
       readonly damage: DiceScaling;
       readonly damageType: string;
       readonly onSuccess: 'half' | 'none';
+    }
+  /**
+   * Temporary Hit Points.
+   *
+   * Not healing, and the engine already knew the difference: they sit beside
+   * hit points rather than in them, they do not stack, and a Long Rest clears
+   * them. `grantTemporaryHpTo` has existed since vitals landed; this is the
+   * effect type that finally reaches it.
+   */
+  | {
+      readonly kind: 'temp-hp';
+      readonly amount: DiceScaling;
+      readonly addSpellcastingModifier: boolean;
+    }
+  /**
+   * A named bonus that later rolls read.
+   *
+   * Bless and Bane are one mechanism with a sign — "adds 1d4 to the attack
+   * roll or save" against "must subtract 1d4" — so they share an effect type
+   * and differ by `direction`, the same argument that gave
+   * `interveneAfterRoll` a direction rather than two functions.
+   *
+   * `ability` present means the target saves first and is only affected on a
+   * failure, which is the other difference between the two: Bless asks nobody.
+   */
+  | {
+      readonly kind: 'buff';
+      readonly ability?: Ability;
+      readonly bonus: Bonus;
+      readonly applies: readonly BonusApplies[];
+      readonly direction: 'add' | 'subtract';
     }
   /**
    * Hit points restored, with the caster's spellcasting modifier where the
@@ -1244,9 +1280,149 @@ export const BANISHMENT: SpellDefinition = {
   ],
 };
 
+// — bonuses that later rolls read, and Temporary Hit Points ———————————————————
+
+/**
+ * SRD Bless:
+ *
+ * > _Level 1 Enchantment (Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You bless up to three creatures within range. Whenever a target makes an
+ * > attack roll or a saving throw before the spell ends, the target adds 1d4
+ * > to the attack roll or save."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 1."
+ *
+ * No saving throw: you bless your friends and they do not resist.
+ */
+export const BLESS: SpellDefinition = {
+  id: 'bless',
+  name: 'Bless',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 3, extraPerSlotLevelAbove: 1, self: true },
+  effects: [
+    {
+      kind: 'buff',
+      bonus: { source: 'Bless', dice: '1d4' },
+      applies: ['attack', 'save'],
+      direction: 'add',
+    },
+  ],
+  durationSeconds: 60,
+};
+
+/**
+ * SRD Bane:
+ *
+ * > _Level 1 Enchantment (Bard, Cleric, Warlock)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Up to three creatures of your choice that you can see within range must
+ * > each make a Charisma saving throw. Whenever a target that fails this save
+ * > makes an attack roll or a saving throw before the spell ends, the target
+ * > must subtract 1d4 from the attack roll or save."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 1."
+ *
+ * Bless with a minus sign and a save in front of it, which is exactly how the
+ * effect type models it.
+ */
+export const BANE: SpellDefinition = {
+  id: 'bane',
+  name: 'Bane',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 3, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'buff',
+      ability: 'cha',
+      bonus: { source: 'Bane', dice: '1d4' },
+      applies: ['attack', 'save'],
+      direction: 'subtract',
+    },
+  ],
+  durationSeconds: 60,
+};
+
+/**
+ * SRD Guidance:
+ *
+ * > _Divination Cantrip (Cleric, Druid)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** Concentration, up to 1 minute.
+ * > "You touch a willing creature and choose a skill. Until the spell ends,
+ * > the creature adds 1d4 to any ability check using the chosen skill."
+ *
+ * The 2024 wording narrowed this: it is one *chosen skill*, not any check.
+ * Choosing which skill needs somewhere to record a per-casting choice, so the
+ * bonus is hung on ability checks generally and the narrowing is declared
+ * rather than silently applied to everything.
+ */
+export const GUIDANCE: SpellDefinition = {
+  id: 'guidance',
+  name: 'Guidance',
+  level: 0,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'buff',
+      bonus: { source: 'Guidance', dice: '1d4' },
+      applies: ['ability-check'],
+      direction: 'add',
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the bonus applies to any ability check rather than only the one chosen skill, because a per-casting choice has nowhere to be recorded',
+  ],
+};
+
+/**
+ * SRD False Life:
+ *
+ * > _Level 1 Necromancy (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Instantaneous.
+ * > "You gain 2d4 + 4 Temporary Hit Points."
+ * > _Using a Higher-Level Spell Slot._ "You gain 5 additional Temporary Hit
+ * > Points for each spell slot level above 1."
+ *
+ * The spell the flat half of `DiceScaling` exists for: a printed `+ 4`, and an
+ * upcast that adds five flat and no dice at all.
+ */
+export const FALSE_LIFE: SpellDefinition = {
+  id: 'false-life',
+  name: 'False Life',
+  level: 1,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'temp-hp',
+      amount: { dice: '2d4', flat: 4, flatPerSlotLevelAbove: 5 },
+      addSpellcastingModifier: false,
+    },
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_SPLASH,
+  BANE,
   BANISHMENT,
+  BLESS,
   BLIGHT,
   BLINDNESS_DEAFNESS,
   BURNING_HANDS,
@@ -1257,9 +1433,11 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   CURE_WOUNDS,
   DISSONANT_WHISPERS,
   ELDRITCH_BLAST,
+  FALSE_LIFE,
   FEAR,
   FIREBALL,
   FIRE_BOLT,
+  GUIDANCE,
   GUIDING_BOLT,
   HARM,
   HEALING_WORD,
@@ -1310,6 +1488,22 @@ export function scaledDiceFor(
   const [extraCount] = scaling.perSlotLevelAbove.split('d');
   const above = Math.max(0, slotLevel - spellLevel);
   return `${base + Number(extraCount ?? '0') * above}d${sides}`;
+}
+
+/**
+ * The flat half of a scaled amount: False Life's "2d4 **+ 4**", growing by 5.
+ *
+ * Kept apart from the dice because they scale independently — False Life adds
+ * five flat Temporary Hit Points per slot level and no extra dice at all, so
+ * folding the two together would have to invent a die to carry the five.
+ */
+export function scaledFlatFor(
+  scaling: DiceScaling,
+  spellLevel: number,
+  slotLevel: number,
+): number {
+  const above = Math.max(0, slotLevel - spellLevel);
+  return (scaling.flat ?? 0) + (scaling.flatPerSlotLevelAbove ?? 0) * above;
 }
 
 /** How many targets a casting may take, given the slot it was cast with. */

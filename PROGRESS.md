@@ -27,6 +27,8 @@ still Wizard-shaped are named below.
 | Spell effects | `heal` and `save-damage`; defences in state; auto Concentration saves | `a4d5645` |
 | Coverage | `pnpm run coverage` → `COVERAGE.md`; definitions asserted against the book | `839e858` |
 | Areas | `resolveSpell` resolves targets from geometry; 4 area spells | `ab54bb0` |
+| Spell batch | 21 spells into the existing shapes; `unmodelled` reported at runtime | `534c03a` |
+| Buffs + temp HP | `buff` and `temp-hp` effects; bonuses live on the creature | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -44,23 +46,33 @@ still Wizard-shaped are named below.
   save is rolled by the operation that hurt them.
 - **No field without a reader.** `ignoresPartialCover` was written and then
   removed because cover reaches no saving throw; the gap is documented instead.
+- **A definition that leaves part of its spell out declares it.**
+  `SpellDefinition.unmodelled` comes back in `unverified` on every casting, so
+  the gap reaches the narrating layer rather than sitting in a docstring.
+- **A modifier somebody has to remember is one a character stops having.**
+  Bless lives on the creature in `CreatureState.bonuses` and the engine's own
+  rolls read it, merged by source with anything a caller adds. Same rule as
+  Alert on Initiative.
+- **The link is the casting, not the Concentration.** `applySpellEffect` read
+  the casting id off `caster.concentration`, which refused every
+  non-Concentration spell with a duration. A caller that knows its casting
+  says so.
 - **Equipment, wounds, spent resources and ongoing effects survive advancement.**
   `advanceCharacter` plans against the creature's *live* inventory and equipped
   set, never the creation-time snapshot.
 
 ## Next actions, in order
 
-1. **Bulk spell definitions in the shapes that already work.** Attack (16),
-   save-damage (30), save-condition (43) — most of these need no new mechanism.
-   Each needs its SRD quote in the docstring and is auto-checked against the
-   parsed index. This is the biggest coverage move available and is pure data.
-2. **Temporary Hit Points effect type** (3 spells: False Life, Aid, and the
-   Armor of Agathys shape). `grantTemporaryHpTo` already exists; no effect type
-   reaches it.
-3. **A named bonus to later rolls** (5 spells: Bless, Guidance, Bane). Needs an
-   effect that hangs a `Bonus` on a creature and a roll that reads it —
-   `bonuses.ts` has the vocabulary, nothing stores them on a creature.
-4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
+1. **Keep pouring spells into the five working shapes.** Attack, save-damage,
+   save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
+   spells fit one of them and need only a definition with its SRD quote.
+   `spell-catalogue.test.ts` drives every definition automatically, so the
+   test cost of each new one is zero. This is the cheapest coverage there is.
+2. **One save, several damage types.** Flame Strike (5d6 Fire *and* 5d6
+   Radiant) and Ice Storm roll one save for two damage types; the effect loop
+   rolls a save per effect, so they would save twice. Needs an effect that
+   carries several damage components under one save.
+3. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
 5. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt

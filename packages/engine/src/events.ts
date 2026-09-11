@@ -23,6 +23,7 @@ import {
 } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses } from './attack.js';
+import type { ActiveBonus } from './bonuses.js';
 import { itemFor } from './catalogue.js';
 import { noSpellcasting, type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
@@ -142,6 +143,19 @@ export interface CreatureState {
    * it and treating it as absolute is the documented wrong answer.
    */
   readonly defenses: Readonly<Record<string, DamageDefenses>>;
+  /**
+   * Named bonuses a running effect has hung on this creature.
+   *
+   * Bless adds 1d4 to attack rolls and saves; Bane subtracts one. They are
+   * kept on the creature rather than passed in by a caller for the same reason
+   * Alert's Initiative bonus is: a bonus somebody has to remember is a bonus a
+   * character silently stops having.
+   *
+   * Each carries the casting in its source, so ending the casting takes
+   * exactly its own bonuses off — the same link conditions use, which is what
+   * `castingSource` was built for.
+   */
+  readonly bonuses: readonly ActiveBonus[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *
@@ -275,6 +289,20 @@ export type GameEvent =
       /** What this creature resists, is immune to, or is vulnerable to. */
       readonly defenses?: Readonly<Record<string, DamageDefenses>>;
     }
+  /**
+   * A named bonus starts or stops applying to a creature's rolls.
+   *
+   * Separate from a condition because it is not one: Bless imposes nothing,
+   * it changes arithmetic. Conditions already have a home and a vocabulary,
+   * and stretching them to cover "+1d4 on saves" would lose both.
+   */
+  | {
+      readonly type: 'bonus-applied';
+      readonly id: CharacterId;
+      readonly bonus: ActiveBonus;
+    }
+  | { readonly type: 'bonus-removed'; readonly id: CharacterId; readonly source: string }
+
   /**
    * What a creature can cast, declared rather than derived.
    *
@@ -740,6 +768,15 @@ function releaseCasting(
       updated = { ...updated, conditions };
     }
 
+    // Bonuses are linked the same way and end the same way. Bless stopping
+    // when the Cleric's Concentration breaks is not a separate rule.
+    const survivors = creature.bonuses.filter(
+      (bonus) => castingIdOf(bonus.source) !== castingId,
+    );
+    if (survivors.length !== creature.bonuses.length) {
+      updated = { ...updated, bonuses: survivors };
+    }
+
     if (key === casterId && updated.concentration?.castingId === castingId) {
       updated = { ...updated, concentration: null };
     }
@@ -789,7 +826,8 @@ function releaseOnTarget(
   const doomed = creature.conditions.instances.filter(
     (instance) => castingIdOf(instance.source) === castingId,
   );
-  if (doomed.length === 0) return state;
+  const survivors = creature.bonuses.filter((bonus) => castingIdOf(bonus.source) !== castingId);
+  if (doomed.length === 0 && survivors.length === creature.bonuses.length) return state;
 
   let conditions = creature.conditions;
   for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
@@ -1171,6 +1209,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             spellcasting: noSpellcasting(),
             creatureType: event.creatureType ?? null,
             defenses: event.defenses ?? {},
+            bonuses: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
@@ -1634,6 +1673,27 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         next,
         event.id,
         { equipped, sheet: withEquipment(creature.sheet, equipped) },
+        creature,
+      );
+    }
+
+    case 'bonus-applied': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-applying the same source replaces it rather than stacking: a second
+      // Bless from the same casting is the same Bless.
+      const bonuses = [
+        ...creature.bonuses.filter((held) => held.source !== event.bonus.source),
+        event.bonus,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { bonuses }, creature);
+    }
+
+    case 'bonus-removed': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(
+        next,
+        event.id,
+        { bonuses: creature.bonuses.filter((held) => held.source !== event.source) },
         creature,
       );
     }

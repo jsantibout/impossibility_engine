@@ -129,7 +129,9 @@ const shapeOf = (spell: ParsedSpell): string =>
  */
 export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
+  'bane',
   'banishment',
+  'bless',
   'blight',
   'blindness-deafness',
   'burning-hands',
@@ -141,8 +143,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'fireball',
   'dissonant-whispers',
   'eldritch-blast',
+  'false-life',
   'fear',
   'fire-bolt',
+  'guidance',
   'guiding-bolt',
   'harm',
   'healing-word',
@@ -242,8 +246,8 @@ function render(coverage: SpellCoverage): string {
     'save-damage': '—',
     'save-condition': '—',
     heal: '—',
-    'temp-hp': 'a Temporary Hit Points effect type',
-    buff: 'an effect that adds a named bonus to a later roll',
+    'temp-hp': '—',
+    buff: '—',
     utility: 'judgement the engine deliberately leaves to the DM',
   };
 

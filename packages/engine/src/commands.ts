@@ -8,7 +8,7 @@ import {
   type Result,
   type RollMode,
 } from '@ie/shared';
-import type { Bonus, ModeSource } from './bonuses.js';
+import { bonusesFor, type Bonus, type ModeSource } from './bonuses.js';
 import {
   armorClass,
   modifierFor,
@@ -39,6 +39,7 @@ import {
 import {
   DIRECTIONAL_AREAS,
   scaledDiceFor,
+  scaledFlatFor,
   definitionFor,
   targetCountFor,
   type SpellArea,
@@ -1283,6 +1284,8 @@ export interface SpellTargetOutcome {
   readonly damage?: number;
   /** Hit points actually restored, after the cap at the maximum. */
   readonly healed?: number;
+  /** Temporary Hit Points granted. They do not stack; the larger set wins. */
+  readonly temporaryHp?: number;
   readonly condition?: ConditionName;
   /**
    * The Concentration this damage put at risk, and what became of it.
@@ -1466,6 +1469,23 @@ function dealSpellDamage(
     amount: applied.total,
     concentration: resolved.value.concentration,
   });
+}
+
+/**
+ * A creature's own bonuses on a saving throw, plus whatever the caller adds.
+ *
+ * Same rule as Alert on Initiative: a bonus somebody has to remember is a
+ * bonus a character silently stops having. Deduplicated by source so a
+ * helpful caller passing Bless as well does not apply it twice.
+ */
+function savingBonuses(
+  victim: CreatureState,
+  supplied: readonly Bonus[] | undefined,
+): readonly Bonus[] {
+  const merged = new Map<string, Bonus>();
+  for (const bonus of bonusesFor(victim.bonuses, 'save')) merged.set(bonus.source, bonus);
+  for (const bonus of supplied ?? []) merged.set(bonus.source, bonus);
+  return [...merged.values()];
 }
 
 const ranged = (range: SpellRange): number | null =>
@@ -1898,6 +1918,8 @@ function resolveOnTargets(
           targetAc: armorClass(victim.sheet),
           attackBonuses: [
             { source: `${definition.name} (spell attack)`, flat: attackModifier },
+            // Bless is on the caster, not in the caller's head.
+            ...bonusesFor(caster.bonuses, 'attack'),
             ...(supply.bonuses ?? []),
           ],
           ...(supply.modes === undefined ? {} : { modes: supply.modes }),
@@ -1959,6 +1981,77 @@ function resolveOnTargets(
         continue;
       }
 
+      // Temporary Hit Points. Beside the hit points, never in them.
+      if (effect.kind === 'temp-hp') {
+        const dice = scaledDiceFor(effect.amount, definition.level, caster.sheet.level, castLevel);
+        const rolled = rollSpellDice(supply, caster.sheet, definition.name, 'temporary', dice);
+        if (!rolled.ok) return rolled;
+
+        const flat = scaledFlatFor(effect.amount, definition.level, castLevel);
+        const modifier = effect.addSpellcastingModifier
+          ? modifierFor(caster.sheet, route.ability)
+          : 0;
+        const amount = Math.max(
+          0,
+          rolled.value.reduce((sum, c) => sum + c.total, 0) + flat + modifier,
+        );
+
+        const granted = grantTemporaryHpTo(current, target, amount);
+        if (!granted.ok) return granted;
+        events.push(...granted.value);
+        current = granted.value.reduce(applyEvent, current);
+        outcomes.push({ target, temporaryHp: amount, affected: true });
+        continue;
+      }
+
+      // A named bonus later rolls will read. Bane saves first; Bless does not.
+      if (effect.kind === 'buff') {
+        let save: D20TestResult | null = null;
+        if (effect.ability !== undefined) {
+          const rolled = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+            dc: saveDc,
+            conditions: victim.conditions,
+            ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+            bonuses: savingBonuses(victim, supply.bonuses),
+          });
+          if (!rolled.ok) return rolled;
+          save = rolled.value;
+
+          events.push(
+            recordD20Test(
+              target,
+              `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+              save,
+              save.success ? 'resisted' : 'affected',
+            ),
+          );
+
+          if (save.success) {
+            outcomes.push({ target, save, affected: false });
+            continue;
+          }
+        }
+
+        // The casting is in the source, so ending the spell ends the bonus.
+        events.push({
+          type: 'bonus-applied',
+          id: target,
+          bonus: {
+            source: castingSource(definition.name, castingId),
+            bonus: { ...effect.bonus, source: definition.name },
+            applies: effect.applies,
+            direction: effect.direction,
+          },
+        });
+        current = events.slice(-1).reduce(applyEvent, current);
+        outcomes.push({
+          target,
+          ...(save === null ? {} : { save }),
+          affected: true,
+        });
+        continue;
+      }
+
       // Hit points restored. No roll to beat and nothing to resist: healing is
       // not damage, and a target at full is a legal target who gains nothing.
       if (effect.kind === 'heal') {
@@ -2004,7 +2097,7 @@ function resolveOnTargets(
           dc: saveDc,
           conditions: victim.conditions,
           ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-          ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+          bonuses: savingBonuses(victim, supply.bonuses),
         });
         if (!save.ok) return save;
 
@@ -2068,7 +2161,7 @@ function resolveOnTargets(
         dc: saveDc,
         conditions: victim.conditions,
         ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-        ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+        bonuses: savingBonuses(victim, supply.bonuses),
       });
       if (!save.ok) return save;
 

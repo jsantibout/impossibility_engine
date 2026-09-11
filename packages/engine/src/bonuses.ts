@@ -26,6 +26,61 @@ export interface Bonus {
   readonly flat?: number;
   /** Dice notation, e.g. `1d4` for Guidance. */
   readonly dice?: string;
+  /**
+   * Which way the rolled dice push. Adding, unless stated.
+   *
+   * Bane is Bless with a minus sign — "the target must subtract 1d4 from the
+   * attack roll or save" — and the sign belongs here rather than in the
+   * notation, because `-1d4` is not dice notation and teaching the parser to
+   * read it would make every other consumer handle negative dice counts.
+   * A flat bonus needs no such flag: it can simply be negative.
+   */
+  readonly direction?: 'add' | 'subtract';
+}
+
+/** Which rolls a lasting bonus applies to. */
+export type BonusApplies = 'attack' | 'save' | 'ability-check';
+
+/**
+ * A bonus an ongoing effect has hung on a creature.
+ *
+ * `Bonus` is a modifier a caller passes to one roll. This is the same thing
+ * *stored*, with two extra facts: which rolls it touches, and which way it
+ * pushes — because Bane is Bless with a minus sign and modelling them as two
+ * mechanisms would be the same mistake `interveneAfterRoll` already avoided.
+ *
+ * The `source` carries the casting id (`Bless#cast:3`), which is what ties the
+ * bonus to the spell that made it and ends it when that spell ends.
+ */
+export interface ActiveBonus {
+  readonly source: string;
+  readonly bonus: Bonus;
+  readonly applies: readonly BonusApplies[];
+  readonly direction: 'add' | 'subtract';
+}
+
+/**
+ * The bonuses a creature carries that apply to this kind of roll.
+ *
+ * Subtraction is folded in here rather than at the reading site: a caller
+ * asking "what applies to my save" should get modifiers it can add, not a list
+ * it has to know the sign convention for.
+ */
+export function bonusesFor(
+  held: readonly ActiveBonus[],
+  kind: BonusApplies,
+): readonly Bonus[] {
+  return held
+    .filter((active) => active.applies.includes(kind))
+    .map((active) =>
+      active.direction === 'add'
+        ? active.bonus
+        : {
+            ...active.bonus,
+            ...(active.bonus.flat === undefined ? {} : { flat: -active.bonus.flat }),
+            direction: 'subtract' as const,
+          },
+    );
 }
 
 /** A bonus after its dice, if any, have been rolled. */
@@ -85,11 +140,14 @@ export function rollBonusDice(
     if (bonus.dice === undefined) continue;
     const outcome = rollRecorded(issuer, rng, bonus.dice);
     if (!outcome.ok) return outcome;
+    // The die is rolled either way and kept in the record either way; only the
+    // contribution's sign differs, so the log still shows what Bane rolled.
+    const sign = bonus.direction === 'subtract' ? -1 : 1;
     resolved.push({
       source: bonus.source,
       flat: 0,
       roll: outcome.value,
-      total: outcome.value.total,
+      total: outcome.value.total * sign,
     });
   }
 

@@ -18,7 +18,7 @@ spell is unsupported.
 
 | Parsed | Executable | Verified |
 |---|---|---|
-| 339 | 31 (9.1%) | 31 (9.1%) |
+| 339 | 35 (10.3%) | 35 (10.3%) |
 
 ### By mechanical shape
 
@@ -35,16 +35,18 @@ spell, and the area is the part that is missing.
 | An ongoing effect that acts on later turns | 18 | 0 | an effect that a later turn can act through |
 | Spell attack roll | 16 | 8 | — |
 | Saving throw for damage | 30 | 6 | — |
-| Saving throw for a condition | 43 | 5 | — |
+| Saving throw for a condition | 43 | 7 | — |
 | Restores Hit Points | 4 | 2 | — |
-| Temporary Hit Points | 3 | 0 | a Temporary Hit Points effect type |
-| A bonus to later rolls | 5 | 0 | an effect that adds a named bonus to a later roll |
-| Narrative or exploration effect | 91 | 0 | judgement the engine deliberately leaves to the DM |
+| Temporary Hit Points | 3 | 1 | — |
+| A bonus to later rolls | 5 | 0 | — |
+| Narrative or exploration effect | 91 | 1 | judgement the engine deliberately leaves to the DM |
 
 ### Executable today
 
 - **Acid Splash** (cantrip) — verified
+- **Bane** (level 1) — verified
 - **Banishment** (level 4) — verified
+- **Bless** (level 1) — verified
 - **Blight** (level 4) — verified
 - **Blindness/Deafness** (level 2) — verified
 - **Burning Hands** (level 1) — verified
@@ -55,9 +57,11 @@ spell, and the area is the part that is missing.
 - **Cure Wounds** (level 1) — verified
 - **Dissonant Whispers** (level 1) — verified
 - **Eldritch Blast** (cantrip) — verified
+- **False Life** (level 1) — verified
 - **Fear** (level 3) — verified
 - **Fire Bolt** (cantrip) — verified
 - **Fireball** (level 3) — verified
+- **Guidance** (cantrip) — verified
 - **Guiding Bolt** (level 1) — verified
 - **Harm** (level 6) — verified
 - **Healing Word** (level 1) — verified
