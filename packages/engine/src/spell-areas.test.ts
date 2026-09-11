@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { declaredCasting } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -81,12 +82,7 @@ const SETUP: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: WIZARD,
-    spellcasting: {
-      ability: 'int',
-      cantrips: [],
-      prepared: ['burning-hands', 'fireball', 'lightning-bolt', 'thunderwave'],
-      granted: [],
-    },
+    spellcasting: declaredCasting({ ability: 'int', prepared: ['burning-hands', 'fireball', 'lightning-bolt', 'thunderwave'] }),
   },
 ];
 
@@ -362,12 +358,7 @@ describe('one saving throw, several damage types', () => {
       {
         type: 'spellcasting-declared',
         id: WIZARD,
-        spellcasting: {
-          ability: 'int',
-          cantrips: [],
-          prepared: ['flame-strike', 'ice-storm'],
-          granted: [],
-        },
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['flame-strike', 'ice-storm'] }),
       },
     ]);
     const out = unwrap(
@@ -412,12 +403,7 @@ describe('one saving throw, several damage types', () => {
         {
           type: 'spellcasting-declared',
           id: WIZARD,
-          spellcasting: {
-            ability: 'int',
-            cantrips: [],
-            prepared: ['flame-strike'],
-            granted: [],
-          },
+          spellcasting: declaredCasting({ ability: 'int', prepared: ['flame-strike'] }),
         },
       ]);
 
@@ -463,7 +449,7 @@ describe('one saving throw, several damage types', () => {
       {
         type: 'spellcasting-declared',
         id: WIZARD,
-        spellcasting: { ability: 'int', cantrips: [], prepared: ['ice-storm'], granted: [] },
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['ice-storm'] }),
       },
     ]);
 

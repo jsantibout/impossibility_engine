@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { classCasting } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap, type Skill } from '@ie/shared';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { slotsAt } from './progression.js';
@@ -174,7 +175,7 @@ describe('the Bard', () => {
 describe('the Druid', () => {
   it('is a prepared-from-list caster, like the Cleric', () => {
     expect(DRUID.spellcasting?.style).toBe('prepared-from-list');
-    expect(plan(druid()).spellcasting.ability).toBe('wis');
+    expect(classCasting(plan(druid()).spellcasting, 'druid')?.ability).toBe('wis');
   });
 
   /** SRD: no Wild Shape at level 1, two from 2, rising to four at 17. */
@@ -211,7 +212,7 @@ describe('the Druid', () => {
     expect(spells?.automation).toBe('manual');
     expect(spells?.grants).toBeUndefined();
     expect(spells?.note).toContain('Long Rest');
-    expect(plan(druid()).spellcasting.prepared).toHaveLength(6);
+    expect(classCasting(plan(druid()).spellcasting, 'druid')?.prepared).toHaveLength(6);
   });
 });
 
@@ -237,7 +238,7 @@ describe('the Ranger', () => {
 
   /** SRD Favored Enemy: Hunter's Mark always prepared, with free castings. */
   it('always has Hunter’s Mark, over and above what it knows', () => {
-    const prepared = plan(ranger()).spellcasting.prepared;
+    const prepared = classCasting(plan(ranger()).spellcasting, 'ranger')?.prepared ?? [];
     expect(prepared).toContain('hunters-mark');
     // Four known at level 3, plus the one granted.
     expect(prepared).toHaveLength(5);

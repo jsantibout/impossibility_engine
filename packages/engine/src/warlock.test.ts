@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { classCasting, type SpellcastingState } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { proficiencyBonusForLevel } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { spellSlotKey } from './resources.js';
+import { pactSlotKey, spellSlotKey } from './resources.js';
 import { slotsAt } from './progression.js';
 import { highestSlotLevel } from './spellbook.js';
 import { ELDRITCH_INVOCATIONS, FIEND_PATRON, WARLOCK } from './warlock.js';
@@ -73,6 +74,10 @@ const warlock = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   ...over,
 });
 
+/** The warlock half of the sheet, which is the only half this class has. */
+const casting = (plan: { spellcasting: SpellcastingState }) =>
+  classCasting(plan.spellcasting, 'warlock')!;
+
 const made = (over: Partial<CharacterChoices> = {}): GameEvent[] =>
   unwrap(createCharacter(warlock(over), KAEL), 'create');
 
@@ -140,11 +145,14 @@ describe('Pact Magic slots are few, high and level with the class', () => {
 
   /** SRD Pact Magic: "when you finish a Short or Long Rest." */
   it('recharges its slots on a Short Rest, unlike every other caster', () => {
-    expect(WARLOCK.spellcasting?.slotRecovery).toBe('short-rest');
-    expect(WIZARD.spellcasting?.slotRecovery).toBeUndefined();
+    expect(WARLOCK.spellcasting?.feature).toBe('pact-magic');
+    expect(WIZARD.spellcasting?.feature).toBeUndefined();
 
+    // And in its own pool: SRD keeps Pact Magic out of the Spellcasting table
+    // entirely, so a Warlock's slots are never `spell-slot:` keys.
     const pools = built().creatures.kael!.resources.pools;
-    expect(pools[spellSlotKey(3)]?.recovers).toBe('short-rest');
+    expect(pools[pactSlotKey(3)]?.recovers).toBe('short-rest');
+    expect(pools[spellSlotKey(3)]).toBeUndefined();
   });
 
   it('declares a Wizard’s slots on a Long Rest, as before', () => {
@@ -203,8 +211,8 @@ describe('Pact Magic slots are few, high and level with the class', () => {
 describe('a Warlock knows its spells, from the Warlock list', () => {
   it('is made with no spellbook and a known list', () => {
     const plan = unwrap(planCharacter(warlock()), 'plan');
-    expect(plan.spellcasting.ability).toBe('cha');
-    expect(plan.spellcasting.prepared).toContain('hex');
+    expect(casting(plan).ability).toBe('cha');
+    expect(casting(plan).prepared).toContain('hex');
     expect(WARLOCK.spellcasting?.style).toBe('known');
   });
 
@@ -228,9 +236,9 @@ describe('a Warlock knows its spells, from the Warlock list', () => {
   it('always has its patron spells prepared', () => {
     const plan = unwrap(planCharacter(warlock()), 'plan');
     for (const spell of ['burning-hands', 'command', 'scorching-ray', 'suggestion']) {
-      expect(plan.spellcasting.prepared).toContain(spell);
+      expect(casting(plan).prepared).toContain(spell);
     }
-    expect(plan.spellcasting.prepared).toHaveLength(10);
+    expect(casting(plan).prepared).toHaveLength(10);
   });
 
   /**
@@ -239,7 +247,7 @@ describe('a Warlock knows its spells, from the Warlock list', () => {
    */
   it('knows Eldritch Blast, which the engine can cast', () => {
     const plan = unwrap(planCharacter(warlock()), 'plan');
-    expect(plan.spellcasting.cantrips).toContain('eldritch-blast');
+    expect(casting(plan).cantrips).toContain('eldritch-blast');
   });
 });
 

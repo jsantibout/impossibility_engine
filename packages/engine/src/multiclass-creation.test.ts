@@ -3,6 +3,7 @@ import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass, proficiencyBonus } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
+import { classCasting } from './spellcasting.js';
 import {
   checkCharacter,
   createCharacter,
@@ -250,41 +251,65 @@ describe('spell slots come from the combined rule only when two classes cast', (
   });
 
   /**
-   * Two casting classes is **refused**, and the refusal is the honest answer.
+   * SRD: "You determine what spells you can prepare for each class
+   * individually, as if you were a single-classed member of that class."
    *
-   * SRD requires each prepared spell to remember which class prepared it and
-   * to use that class's spellcasting ability. A creature here carries one
-   * prepared list and one ability, so validating a merged list would record a
-   * character the rules do not describe. The slot arithmetic for this case is
-   * implemented and tested in `multiclass.test.ts` against the SRD's own
-   * worked example; what is missing is per-class preparation, and this says so
-   * rather than guessing.
+   * This was a refusal until per-class spellcasting landed, on the honest
+   * grounds that a creature carried one prepared list and one spellcasting
+   * ability. It carries one per class now, and `multiclass-spells.test.ts`
+   * works the SRD's own example through. What survives here is the half this
+   * file is about: that the *slots* come from the combined table only when two
+   * classes actually have the Spellcasting feature.
    */
-  it('refuses two casting classes, naming both', () => {
-    // `checkCharacter` returns every problem, which is what a caller filling
-    // in a character wants; `planCharacter` returns the first. Asking for the
-    // list is how a test names the problem it means rather than whichever one
-    // happens to sort first.
-    const problems = checkCharacter(
-      gish({
-        classId: 'wizard',
-        level: 3,
-        multiclass: [{ classId: 'cleric', level: 2 }],
-        subclassId: 'evoker',
-        classSkills: ['investigation', 'insight'],
-        // Both prerequisites met, so the refusal is about the casting lists
-        // rather than about the scores.
-        abilities: {
-          method: 'standard-array',
-          assignment: { str: 8, dex: 12, con: 13, int: 15, wis: 14, cha: 10 },
+  it('is made, with each class’s spells answering to that class', () => {
+    const both = gish({
+      classId: 'wizard',
+      level: 3,
+      multiclass: [{ classId: 'cleric', level: 2 }],
+      subclassId: 'evoker',
+      classSkills: ['investigation', 'insight'],
+      // A Wizard's package has no chain mail; the starting class changed here.
+      equipped: [],
+      abilities: {
+        method: 'standard-array',
+        assignment: { str: 8, dex: 12, con: 13, int: 15, wis: 14, cha: 10 },
+      },
+      abilityIncreases: { wis: 2, con: 1 },
+      featureChoices: {
+        'human:skillful': ['insight'],
+        'wizard:scholar': ['arcana'],
+        'evoker:evocation-savant': ['burning-hands', 'thunderwave'],
+        'cleric:divine-order': ['Thaumaturge'],
+      },
+      cantrips: ['fire-bolt', 'ray-of-frost', 'light'],
+      spellbook: [
+        'magic-missile',
+        'shield',
+        'charm-person',
+        'chromatic-orb',
+        'ray-of-sickness',
+        'grease',
+        'misty-step',
+        'mirror-image',
+        'web',
+        'invisibility',
+      ].map((spellId) => ({ spellId, acquiredAt: 1, origin: 'level' as const })),
+      preparedSpells: ['magic-missile', 'shield', 'grease', 'misty-step', 'web', 'invisibility'],
+      spellsByClass: {
+        cleric: {
+          cantrips: ['sacred-flame', 'guidance', 'thaumaturgy'],
+          preparedSpells: ['bless', 'cure-wounds', 'healing-word', 'guiding-bolt', 'shield-of-faith'],
         },
-        abilityIncreases: { wis: 2, con: 1 },
-      }),
-    );
-    const clash = problems.find((p) => p.code === 'multiple_casting_classes');
-    expect(clash).toBeDefined();
-    expect(clash?.reason).toContain('Wizard');
-    expect(clash?.reason).toContain('Cleric');
+      },
+    });
+
+    expect(checkCharacter(both)).toEqual([]);
+
+    const plan = unwrap(planCharacter(both), 'plan');
+    expect(classCasting(plan.spellcasting, 'wizard')?.ability).toBe('int');
+    expect(classCasting(plan.spellcasting, 'cleric')?.ability).toBe('wis');
+    // Wizard 3 plus Cleric 2 is a level 5 caster: 4 / 3 / 2.
+    expect(plan.spellSlots).toEqual({ 1: 4, 2: 3, 3: 2 });
   });
 });
 

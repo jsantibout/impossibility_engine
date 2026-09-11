@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { declaredCasting } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -79,12 +80,11 @@ const SETUP: readonly GameEvent[] = [
     id: CASTER,
     // A creature that knows the whole catalogue, so any definition can be
     // driven without inventing a class that happens to have it.
-    spellcasting: {
+    spellcasting: declaredCasting({
       ability: 'int',
       cantrips: SPELL_DEFINITIONS.filter((d) => d.level === 0).map((d) => d.id),
       prepared: SPELL_DEFINITIONS.filter((d) => d.level > 0).map((d) => d.id),
-      granted: [],
-    },
+    }),
   },
 ];
 

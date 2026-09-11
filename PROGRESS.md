@@ -40,6 +40,7 @@ still Wizard-shaped are named below.
 | Bard, Druid, Ranger | The last three — **all twelve SRD classes** | `4762633` |
 | Class coverage | COVERAGE.md counts classes and executed features too | `a4d8d1a` |
 | Multiclassing | Rules module, and wired into creation | `e79b61d` |
+| Per-class casting | Two casting classes; Pact Magic its own pool | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -71,6 +72,27 @@ still Wizard-shaped are named below.
 - **Equipment, wounds, spent resources and ongoing effects survive advancement.**
   `advanceCharacter` plans against the creature's *live* inventory and equipped
   set, never the creation-time snapshot.
+- **A prepared spell belongs to a class, not to a creature.** SRD: "you use the
+  spellcasting ability of that class when you cast the spell."
+  `SpellcastingState` is therefore a list of `SpellcastingClass`, each with its
+  own ability, cantrips and prepared list. The old single `ability`/`cantrips`/
+  `prepared` triple could not express a Ranger/Sorcerer and was the reason two
+  casting classes were refused.
+- **The engine will not decide which class is casting.** Where two classes both
+  prepared a spell, `resolveSpell` refuses with `class_required` and names
+  `class:<id>` for each. Two preparations are two spells with two save DCs, and
+  choosing between them is a fact about the sheet, not a tie to break.
+- **Nor which pool pays.** Pact Magic slots live under `pact-slot:N` and recover
+  on a Short Rest; ordinary slots under `spell-slot:N` and on a Long Rest. Either
+  may pay for either class's spell, so a caster holding both is refused with
+  `slot_kind_required`. A caster holding one is asked nothing, which is every
+  single-classed character including a pure Warlock.
+- **The recovery belongs to the pool, not to the starting class.** It used to be
+  read off `choices.classId`, which gave a Warlock/Wizard's ordinary slots a
+  Short Rest recovery.
+- **A level is taken in one named class.** `AdvanceChoices.classId` says which;
+  the default is the starting class, so every existing caller is unchanged.
+  `MAX_LEVEL` is checked against the *total*.
 
 ## Next actions, in order
 
@@ -197,18 +219,17 @@ What remains in the class system, in likely order:
   creation reads the total level for the Proficiency Bonus, each class's own
   level for its features, the union for armour training, each class's die for
   hit points, and the weighted sum for slots.
-  **What it refuses:** two *casting* classes. SRD requires each prepared spell
-  to remember which class prepared it and to use that class's spellcasting
-  ability; a creature carries one prepared list and one ability, so a merged
-  list would record a character the rules do not describe. The slot arithmetic
-  for that case is implemented and tested against the SRD's worked example —
-  per-class preparation is the missing piece, and it is the next thing to do
-  in this area.
+  **Two casting classes now work**, through creation, advancement and
+  `resolveSpell`. `CharacterChoices.spellsByClass` carries the spells of any
+  class the flat fields do not describe, each validated against that class's
+  own table, list and slot ceiling; the SRD's own worked example — a level 4
+  Ranger / level 3 Sorcerer with five Ranger spells, six Sorcerer spells, four
+  cantrips and slots of 4/3/2 — is `multiclass-spells.test.ts`.
+  What is still missing here: **swapping a prepared spell on a Long Rest**,
+  which is the same rest mechanic Circle of the Land wants.
 - **Mystic Arcanum** (Warlock 11+) is four one-use pools attached to spells
   chosen at those levels. Not modelled, and the reason a Warlock here has no
   slots above level 5.
-- **Multiclassing is not modelled**: no combined slot table, no prerequisite
-  check, no proficiency-subset rule for the second class.
 
 ## Where the numbers stand
 
@@ -220,7 +241,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells executable and verified | 43 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 46 of 230 |
-| Tests | 1,992 passing |
+| Tests | 2,031 passing |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

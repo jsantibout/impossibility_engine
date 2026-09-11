@@ -46,7 +46,7 @@ import {
   type SpellDefinition,
   type SpellRange,
 } from './spell-definitions.js';
-import { routeFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
+import { routesFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
 import { rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
@@ -80,9 +80,10 @@ import {
 import {
   hasPool,
   remaining,
-  spellSlotKey,
+  slotKeyOf,
   type PoolDeclaration,
   type Recovery,
+  type SlotKind,
 } from './resources.js';
 import {
   castingIdOf,
@@ -533,6 +534,25 @@ export interface CastCommand extends CommandIdentity {
   readonly castingTime?: CastingTime;
   /** The level of slot to expend. Mutually exclusive with `slotless`. */
   readonly slotLevel?: number;
+  /**
+   * Which pool the slot comes out of, for a character who has both.
+   *
+   * SRD lets Pact Magic slots cast Spellcasting spells and vice versa, so this
+   * is about the purse rather than the spell. Omitted, the engine uses
+   * whichever pool has a slot of that level — and refuses to choose when both
+   * do, on the same grounds it refuses to spend a feat's free casting: two
+   * slots that come back on a Short Rest are a different resource from four
+   * that do not, and nothing should spend one for you.
+   */
+  readonly slotKind?: SlotKind;
+  /**
+   * Which route supplied the spell — a class id, or a granting feature's.
+   *
+   * Recorded so the log can explain a save DC. A Cleric/Wizard's two routes
+   * produce two different numbers for the same spell, and a log that says only
+   * "cast Hold Person" cannot say which one was rolled against.
+   */
+  readonly route?: string;
   /** Why no slot is being expended. Mutually exclusive with `slotLevel`. */
   readonly slotless?: SlotlessReason;
   /**
@@ -653,11 +673,9 @@ export function castSpell(
       );
     }
 
-    const key = spellSlotKey(level);
-    if (remaining(caster.resources, key) < 1) {
-      return err('no_slot', `${id} has no level ${level} spell slots left`);
-    }
-    slot = { key, level };
+    const kind = chooseSlotKind(caster, level, command.slotKind);
+    if (!kind.ok) return kind;
+    slot = { key: slotKeyOf(kind.value, level), level };
   }
 
   // SRD: "On a turn, you can expend only one spell slot to cast a spell."
@@ -698,6 +716,7 @@ export function castSpell(
     slotless,
     castingTime,
     concentration,
+    ...(command.route === undefined ? {} : { route: command.route }),
     ...(stamp === null ? {} : { command: stamp }),
   });
 
@@ -712,6 +731,52 @@ export function castSpell(
   }
 
   return ok(events);
+}
+
+/**
+ * Which of the two slot pools pays for this casting.
+ *
+ * SRD: "you can use the spell slots you gain from Pact Magic to cast spells
+ * you have prepared from classes with the Spellcasting feature, and you can
+ * use the spell slots you gain from the Spellcasting feature to cast Warlock
+ * spells you have prepared." So either pool may pay for either class's spell,
+ * and the only question is which one the caster wants to spend.
+ *
+ * Named, it is honoured or refused. Unnamed, a caster with exactly one pool
+ * holding a slot of that level spends it and is asked nothing — which is every
+ * single-classed character, Warlocks included. A caster with both is refused,
+ * because a Pact slot back in an hour and an ordinary slot back tomorrow are
+ * not interchangeable and choosing between them is not the engine's to make.
+ */
+function chooseSlotKind(
+  caster: CreatureState,
+  level: number,
+  named: SlotKind | undefined,
+): Result<SlotKind> {
+  const left = (kind: SlotKind): number => remaining(caster.resources, slotKeyOf(kind, level));
+
+  if (named !== undefined) {
+    if (left(named) < 1) {
+      return err(
+        'no_slot',
+        named === 'pact'
+          ? `no level ${level} Pact Magic slots left`
+          : `no level ${level} spell slots left`,
+      );
+    }
+    return ok(named);
+  }
+
+  const available: SlotKind[] = (['spell', 'pact'] as const).filter((kind) => left(kind) > 0);
+  const only = available[0];
+  if (only === undefined) return err('no_slot', `no level ${level} spell slots left`);
+  if (available.length > 1) {
+    return err(
+      'slot_kind_required',
+      `a level ${level} slot could come from Pact Magic or from Spellcasting; say which`,
+    );
+  }
+  return ok(only);
 }
 
 /**
@@ -1370,6 +1435,13 @@ export interface CastSpellRequest extends CommandIdentity {
   readonly towards?: Point;
   /** The slot to spend. Omitted for a cantrip or a free casting. */
   readonly slotLevel?: number;
+  /**
+   * Which pool the slot comes out of, for a caster who has both.
+   *
+   * Only a Warlock multiclassed into a Spellcasting class has both, and for
+   * them the two are genuinely different resources. See `chooseSlotKind`.
+   */
+  readonly slotKind?: SlotKind;
   /** Why no slot is being spent, when none is. */
   readonly slotless?: SlotlessReason;
   /**
@@ -1378,7 +1450,8 @@ export interface CastSpellRequest extends CommandIdentity {
    * **Default:** the class's own route when it supplies the spell, and the
    * single grant when only a feat does. Named explicitly when more than one
    * would serve and the choice matters — a feat brings its own spellcasting
-   * ability, so the same spell can have two different save DCs.
+   * ability, so the same spell can have two different save DCs, and so do two
+   * classes that both prepared it. `class:<classId>` names one of those.
    */
   readonly source?: string;
   /**
@@ -1884,7 +1957,11 @@ function resolveOnTargets(
     castingTime: definition.castingTime,
     ...(freePool !== null || definition.level === 0
       ? { slotless: definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const) }
-      : { slotLevel: castLevel }),
+      : {
+          slotLevel: castLevel,
+          ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
+        }),
+    route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
     ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
     ...(definition.durationSeconds === undefined
       ? {}
@@ -2229,37 +2306,57 @@ function resolveOnTargets(
 }
 
 /**
- * Which grant supplies this spell for this casting.
+ * Which route supplies this spell for this casting.
  *
- * With no `source` named the class's own route wins where it has one, because
- * a Wizard who happens to know Fire Bolt twice casts it as a Wizard. Naming a
- * source that does not supply the spell is a refusal rather than a quiet
- * fallback — a caller who asked for the feat's version meant it, and the two
- * can have different save DCs.
+ * SRD Multiclassing: "Each spell you prepare is associated with one of your
+ * classes, and you use the spellcasting ability of that class when you cast
+ * the spell." A Cleric/Wizard who has prepared the same spell through both has
+ * two spells with two save DCs, and which of them is being cast is a fact
+ * about the character sheet that the engine cannot read off the spell's name.
+ *
+ * So: with no `source` named, a class's own route wins over a feat's — a
+ * Wizard who happens to know Fire Bolt twice casts it as a Wizard — but **two
+ * class routes is a refusal**, not a coin toss. Naming a source that does not
+ * supply the spell is likewise a refusal rather than a quiet fallback: a
+ * caller who asked for the feat's version meant it.
  */
 function chooseRoute(
   spellcasting: SpellcastingState,
   spellId: string,
   source: string | undefined,
 ): Result<CastingRoute> {
-  if (source === undefined) {
-    const route = routeFor(spellcasting, spellId);
-    if (route === null) {
+  const routes = routesFor(spellcasting, spellId);
+
+  if (source === undefined || source === 'class') {
+    const fromClass = routes.filter((route) => route.kind !== 'granted');
+
+    if (fromClass.length > 1) {
+      const named = fromClass.map((route) => `class:${route.classId}`).join(', ');
       return err(
-        'spell_not_available',
-        `this creature has not prepared ${spellId} and knows it from nothing else`,
+        'class_required',
+        `${spellId} is prepared through more than one class, and each casts it with its own spellcasting ability; name one of ${named}`,
       );
     }
-    return ok(route);
+
+    const chosen = source === 'class' ? fromClass[0] : (fromClass[0] ?? routes[0]);
+    if (chosen === undefined) {
+      return source === 'class'
+        ? err('source_does_not_supply', `no class of this creature supplies ${spellId}`)
+        : err(
+            'spell_not_available',
+            `this creature has not prepared ${spellId} and knows it from nothing else`,
+          );
+    }
+    return ok(chosen);
   }
 
-  if (source === 'class') {
-    const ability = spellcasting.ability;
-    const cantrip = spellcasting.cantrips.includes(spellId);
-    if (ability === null || !(cantrip || spellcasting.prepared.includes(spellId))) {
-      return err('source_does_not_supply', `the class does not supply ${spellId}`);
+  if (source.startsWith('class:')) {
+    const classId = source.slice('class:'.length);
+    const chosen = routes.find((route) => route.kind !== 'granted' && route.classId === classId);
+    if (chosen === undefined) {
+      return err('source_does_not_supply', `this creature's ${classId} half does not supply ${spellId}`);
     }
-    return { ok: true, value: { kind: cantrip ? 'cantrip' : 'prepared', ability } };
+    return ok(chosen);
   }
 
   const grant = spellcasting.granted.find((g) => g.source === source && g.spellId === spellId);

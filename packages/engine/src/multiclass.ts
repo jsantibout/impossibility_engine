@@ -239,6 +239,5 @@ export function combinedArmorTraining(
 export const MULTICLASS_UNMODELLED: readonly string[] = [
   'Extra Attack does not stack across classes — but Extra Attack is not executed for any class, so nothing could stack yet.',
   'Only one Unarmoured Defense may apply at a time. None is applied, so the choice never arises.',
-  'A prepared spell is associated with the class that prepared it, and uses that class’s spellcasting ability. The engine keeps one prepared list and one ability per creature.',
   'A cantrip scales on total character level rather than class level, which is already what `scaledDiceFor` reads.',
 ];

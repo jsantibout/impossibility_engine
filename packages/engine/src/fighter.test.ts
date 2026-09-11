@@ -120,8 +120,8 @@ describe('the Fighter table agrees with the engine', () => {
 describe('a Fighter is made without any spellcasting at all', () => {
   it('plans with no cantrips, no prepared spells and no slots', () => {
     const plan = unwrap(planCharacter(fighter()), 'plan');
-    expect(plan.spellcasting.cantrips).toEqual([]);
-    expect(plan.spellcasting.prepared).toEqual([]);
+    expect(plan.spellcasting.classes).toEqual([]);
+    
     expect(plan.spellSlots).toEqual({});
   });
 
@@ -135,7 +135,7 @@ describe('a Fighter is made without any spellcasting at all', () => {
     expect(plan.spellcasting.granted.map((g) => g.spellId)).toContain('ray-of-frost');
     // And the feat brings its own ability, not the class's — a Fighter has none.
     expect(plan.spellcasting.granted[0]?.ability).toBe('int');
-    expect(plan.spellcasting.ability).toBeNull();
+    expect(plan.sheet.spellcastingAbility).toBeNull();
   });
 
   it('refuses a cantrip a Fighter cannot know', () => {

@@ -5,7 +5,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
-import { routeFor } from './spellcasting.js';
+import { classCasting, routeFor } from './spellcasting.js';
 import {
   FIRE_BOLT,
   HOLD_PERSON,
@@ -233,10 +233,10 @@ describe('what creation granted is what can be cast', () => {
   const state = () => fold('seed', table());
 
   it('knows the class cantrips and prepared spells', () => {
-    const casting = state().creatures.kessa!.spellcasting;
-    expect(casting.ability).toBe('int');
-    expect(casting.cantrips).toContain('fire-bolt');
-    expect(casting.prepared).toContain('hold-person');
+    const casting = classCasting(state().creatures.kessa!.spellcasting, 'wizard');
+    expect(casting?.ability).toBe('int');
+    expect(casting?.cantrips).toContain('fire-bolt');
+    expect(casting?.prepared).toContain('hold-person');
   });
 
   /** Magic Initiate's selections reach usable state, not just the record. */

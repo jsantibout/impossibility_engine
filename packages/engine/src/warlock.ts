@@ -10,7 +10,9 @@ import type { ClassDefinition, ClassLevelRow, SubclassDefinition } from './progr
  *
  * Two slots that come back every hour is a different resource from eight that
  * come back every day, and it is most of what makes a Warlock a Warlock. The
- * engine needed one new field for it: `spellcasting.slotRecovery`. Everything
+ * engine needed one new field for it: `spellcasting.feature`, which names Pact
+ * Magic as the distinct SRD feature it is — its own pool, its own recovery, and
+ * out of the Multiclass Spellcaster table. Everything
  * else fitted — the slot table already stores counts per spell level, and "two
  * level 3 slots and nothing below" is `[0, 0, 2]`, which is what the SRD's
  * two-column "Spell Slots / Slot Level" table means when written out.
@@ -85,7 +87,7 @@ export const WARLOCK: ClassDefinition = {
     style: 'known',
     startsAtLevel: 1,
     // The field this class exists to need.
-    slotRecovery: 'short-rest',
+    feature: 'pact-magic',
   },
   hitDie: 8,
   saveProficiencies: ['wis', 'cha'],

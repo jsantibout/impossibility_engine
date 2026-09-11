@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { declaredCasting } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { DamageDefenses } from './attack.js';
 import type { CharacterSheet } from './character.js';
@@ -90,12 +91,7 @@ const SETUP: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: CLERIC,
-    spellcasting: {
-      ability: 'wis',
-      cantrips: ['sacred-flame'],
-      prepared: ['cure-wounds', 'healing-word', 'inflict-wounds'],
-      granted: [],
-    },
+    spellcasting: declaredCasting({ ability: 'wis', cantrips: ['sacred-flame'], prepared: ['cure-wounds', 'healing-word', 'inflict-wounds'] }),
   },
   slot(1, 4),
   slot(2, 3),

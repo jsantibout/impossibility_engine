@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { declaredCasting } from './spellcasting.js';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import { bonusesFor } from './bonuses.js';
 import type { CharacterSheet } from './character.js';
@@ -76,12 +77,7 @@ const SETUP: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: CLERIC,
-    spellcasting: {
-      ability: 'wis',
-      cantrips: ['guidance', 'sacred-flame'],
-      prepared: ['bane', 'bless', 'false-life', 'inflict-wounds'],
-      granted: [],
-    },
+    spellcasting: declaredCasting({ ability: 'wis', cantrips: ['guidance', 'sacred-flame'], prepared: ['bane', 'bless', 'false-life', 'inflict-wounds'] }),
   },
 ];
 

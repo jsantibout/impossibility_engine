@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { classCasting, type SpellcastingState } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass, proficiencyBonusForLevel } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -68,6 +69,10 @@ const paladin = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
   ...over,
 });
+
+/** The paladin half of the sheet, which is the only half this class has. */
+const casting = (plan: { spellcasting: SpellcastingState }) =>
+  classCasting(plan.spellcasting, 'paladin')!;
 
 const made = (over: Partial<CharacterChoices> = {}): GameEvent[] =>
   unwrap(createCharacter(paladin(over), AELRIC), 'create');
@@ -144,7 +149,7 @@ describe('a caster with no cantrips', () => {
     // And it is genuinely a caster: it has slots and a prepared list.
     const plan = unwrap(planCharacter(paladin()), 'plan');
     expect(plan.spellSlots).not.toEqual({});
-    expect(plan.spellcasting.prepared.length).toBeGreaterThan(0);
+    expect(casting(plan).prepared.length).toBeGreaterThan(0);
   });
 
   /** Magic Initiate still grants cantrips, because the feat is not the class. */
@@ -157,8 +162,8 @@ describe('a caster with no cantrips', () => {
 describe('a Paladin prepares from the Paladin list', () => {
   it('prepares the number the table prints', () => {
     const plan = unwrap(planCharacter(paladin()), 'plan');
-    expect(plan.spellcasting.ability).toBe('cha');
-    expect(plan.spellcasting.prepared).toContain('bless');
+    expect(casting(plan).ability).toBe('cha');
+    expect(casting(plan).prepared).toContain('bless');
   });
 
   it('refuses a spell that is not on the Paladin list', () => {
@@ -178,9 +183,9 @@ describe('a Paladin prepares from the Paladin list', () => {
   /** SRD Oath of Devotion Spells: always prepared, over and above the count. */
   it('always has its oath spells prepared', () => {
     const plan = unwrap(planCharacter(paladin()), 'plan');
-    expect(plan.spellcasting.prepared).toContain('shield-of-faith');
-    expect(plan.spellcasting.prepared).toContain('protection-from-evil-and-good');
-    expect(plan.spellcasting.prepared).toHaveLength(6);
+    expect(casting(plan).prepared).toContain('shield-of-faith');
+    expect(casting(plan).prepared).toContain('protection-from-evil-and-good');
+    expect(casting(plan).prepared).toHaveLength(6);
   });
 });
 

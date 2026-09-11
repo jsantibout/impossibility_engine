@@ -19,6 +19,18 @@ import { err, ok, type Result } from '@ie/shared';
 /** What refills a pool. Rests are not implemented yet; the tag still records intent. */
 export type Recovery = 'short-rest' | 'long-rest' | 'dawn' | 'special';
 
+/**
+ * Which of the two slot pools a slot comes from.
+ *
+ * SRD keeps Pact Magic out of the combined Multiclass Spellcaster table, so a
+ * Warlock's slots are a second pool with its own recovery. It is not a
+ * restriction on what they may pay for: "you can use the spell slots you gain
+ * from Pact Magic to cast spells you have prepared from classes with the
+ * Spellcasting feature, and you can use the spell slots you gain from the
+ * Spellcasting feature to cast Warlock spells you have prepared."
+ */
+export type SlotKind = 'spell' | 'pact';
+
 export interface ResourcePool {
   readonly key: string;
   /** How to say it out loud: "level 2 spell slot", "Channel Divinity". */
@@ -135,6 +147,18 @@ export function restoreOn(state: ResourceState, recovers: Recovery): ResourceSta
 const SLOT_PREFIX = 'spell-slot:';
 
 /**
+ * Pact Magic slots are a *second* pool, not more of the first.
+ *
+ * SRD Multiclassing keeps them out of the combined Spellcaster table and then
+ * lets each be spent on the other's spells. Merging them would invent a slot
+ * for a Warlock 3 / Wizard 3 — both have level 2 slots, and the character has
+ * four rather than two — and it would get the recovery wrong in both
+ * directions, because Pact Magic comes back on a Short Rest and Spellcasting
+ * does not.
+ */
+const PACT_PREFIX = 'pact-slot:';
+
+/**
  * The pool key for a spell slot level.
  *
  * Cantrips are level 0 and are cast without a slot, so there is no level 0
@@ -147,19 +171,45 @@ export function spellSlotKey(level: number): string {
   return `${SLOT_PREFIX}${level}`;
 }
 
-/** The level a slot key names, or null if the key is some other pool. */
-export function spellSlotLevel(key: string): number | null {
-  if (!key.startsWith(SLOT_PREFIX)) return null;
-  const level = Number(key.slice(SLOT_PREFIX.length));
-  return Number.isInteger(level) && level >= 1 && level <= 9 ? level : null;
+/** The pool key for a Pact Magic slot of this level. */
+export function pactSlotKey(level: number): string {
+  if (!Number.isInteger(level) || level < 1 || level > 9) {
+    throw new Error(`spell slots run from level 1 to 9, got ${level}`);
+  }
+  return `${PACT_PREFIX}${level}`;
 }
 
-/** Slot levels with at least one use left, lowest first. */
+/** The key for a slot of this level, from either pool. */
+export function slotKeyOf(kind: SlotKind, level: number): string {
+  return kind === 'pact' ? pactSlotKey(level) : spellSlotKey(level);
+}
+
+/** The level a slot key names, or null if the key is some other pool. */
+export function spellSlotLevel(key: string): number | null {
+  return levelAfter(key, SLOT_PREFIX);
+}
+
+/** The level a Pact Magic slot key names, or null if it is some other pool. */
+export function pactSlotLevel(key: string): number | null {
+  return levelAfter(key, PACT_PREFIX);
+}
+
+const levelAfter = (key: string, prefix: string): number | null => {
+  if (!key.startsWith(prefix)) return null;
+  const level = Number(key.slice(prefix.length));
+  return Number.isInteger(level) && level >= 1 && level <= 9 ? level : null;
+};
+
+/** Slot levels with at least one use left, lowest first, from either pool. */
 export function slotLevelsAvailable(state: ResourceState): number[] {
   return Object.values(state.pools)
-    .map((pool) => ({ level: spellSlotLevel(pool.key), left: pool.max - pool.spent }))
+    .map((pool) => ({
+      level: spellSlotLevel(pool.key) ?? pactSlotLevel(pool.key),
+      left: pool.max - pool.spent,
+    }))
     .filter((entry): entry is { level: number; left: number } => entry.level !== null && entry.left > 0)
     .map((entry) => entry.level)
+    .filter((level, index, all) => all.indexOf(level) === index)
     .sort((a, b) => a - b);
 }
 

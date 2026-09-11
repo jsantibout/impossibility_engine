@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { classCasting, type SpellcastingState } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass, proficiencyBonusForLevel } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -78,6 +79,10 @@ const sorcerer = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   ...over,
 });
 
+/** The sorcerer half of the sheet, which is the only half this class has. */
+const casting = (plan: { spellcasting: SpellcastingState }) =>
+  classCasting(plan.spellcasting, 'sorcerer')!;
+
 const made = (over: Partial<CharacterChoices> = {}): GameEvent[] =>
   unwrap(createCharacter(sorcerer(over), VESKA), 'create');
 
@@ -130,8 +135,8 @@ describe('the Sorcerer table agrees with the engine', () => {
 describe('a Sorcerer knows their spells rather than preparing them', () => {
   it('is made with no spellbook and a known list', () => {
     const plan = unwrap(planCharacter(sorcerer()), 'plan');
-    expect(plan.spellcasting.ability).toBe('cha');
-    expect(plan.spellcasting.prepared).toContain('thunderwave');
+    expect(casting(plan).ability).toBe('cha');
+    expect(casting(plan).prepared).toContain('thunderwave');
     expect(SORCERER.spellcasting?.style).toBe('known');
   });
 
@@ -170,10 +175,10 @@ describe('a Sorcerer knows their spells rather than preparing them', () => {
   it('carries a subclass grant that is not on the class list', () => {
     const plan = unwrap(planCharacter(sorcerer()), 'plan');
     for (const spell of ['alter-self', 'chromatic-orb', 'command', 'dragons-breath']) {
-      expect(plan.spellcasting.prepared).toContain(spell);
+      expect(casting(plan).prepared).toContain(spell);
     }
     // Six known plus four granted, and the six were not reduced to make room.
-    expect(plan.spellcasting.prepared.length).toBe(10);
+    expect(casting(plan).prepared.length).toBe(10);
   });
 });
 

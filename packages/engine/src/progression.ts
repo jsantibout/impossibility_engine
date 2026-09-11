@@ -182,15 +182,19 @@ export interface ClassSpellcasting {
   readonly ability: Ability;
   readonly style: SpellcastingStyle;
   /**
-   * When spent slots come back.
+   * Which SRD feature this is — and they are two features, not one.
    *
-   * SRD Pact Magic: "You regain all expended Pact Magic spell slots when you
-   * finish a Short or Long Rest." Every other caster waits for a Long Rest,
-   * and the difference is most of what makes a Warlock a Warlock — two slots
-   * that come back every hour is a different resource from eight that come
-   * back every day. Defaults to a Long Rest when a class does not say.
+   * "Spellcasting" and "Pact Magic" differ in three ways that all matter:
+   * Pact Magic slots come back on a **Short** Rest, they stay **out** of the
+   * Multiclass Spellcaster table, and they are therefore a **separate pool**
+   * that a multiclassed character holds alongside their ordinary slots. Two
+   * slots that come back every hour is a different resource from eight that
+   * come back every day, and it is most of what makes a Warlock a Warlock.
+   *
+   * Naming the feature rather than one of its consequences is what keeps the
+   * three from drifting apart. Defaults to Spellcasting.
    */
-  readonly slotRecovery?: 'long-rest' | 'short-rest';
+  readonly feature?: 'spellcasting' | 'pact-magic';
   /**
    * The level at which the class starts casting.
    *

@@ -91,7 +91,7 @@ const wellFormed = (definition: ClassDefinition) => {
      * caster only ever gains. So the check is scoped rather than dropped, and
      * the Warlock gets its own assertion in `warlock.test.ts`.
      */
-    const accumulates = definition.spellcasting?.slotRecovery !== 'short-rest';
+    const accumulates = definition.spellcasting?.feature !== 'pact-magic';
     it.skipIf(!accumulates)('never takes a slot away as it levels', () => {
       for (let level = 2; level <= MAX_LEVEL; level += 1) {
         const before = slotsAt(definition, level - 1);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { classCasting, type SpellcastingState } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -68,6 +69,10 @@ const cleric = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   ...over,
 });
 
+/** The cleric half of the sheet, which is the only half this class has. */
+const casting = (plan: { spellcasting: SpellcastingState }) =>
+  classCasting(plan.spellcasting, 'cleric')!;
+
 const made = (over: Partial<CharacterChoices> = {}): GameEvent[] =>
   unwrap(createCharacter(cleric(over), BRANNOR), 'create');
 
@@ -128,8 +133,8 @@ describe('a Cleric prepares from the class list, not from a book', () => {
   it('is made without a spellbook at all', () => {
     const plan = unwrap(planCharacter(cleric()), 'plan');
     expect(plan.sheet.spellcastingAbility).toBe('wis');
-    expect(plan.spellcasting.ability).toBe('wis');
-    expect(plan.spellcasting.prepared).toContain('inflict-wounds');
+    expect(casting(plan).ability).toBe('wis');
+    expect(casting(plan).prepared).toContain('inflict-wounds');
   });
 
   /** Writing spells in a book a Cleric does not have is a mistake, not a spell. */
@@ -161,15 +166,15 @@ describe('a Cleric prepares from the class list, not from a book', () => {
   it('always has its domain spells prepared, over and above the count', () => {
     const plan = unwrap(planCharacter(cleric()), 'plan');
     for (const spell of ['aid', 'bless', 'cure-wounds', 'lesser-restoration']) {
-      expect(plan.spellcasting.prepared).toContain(spell);
+      expect(casting(plan).prepared).toContain(spell);
     }
     // Six chosen plus four granted, and the six were not reduced to make room.
-    expect(plan.spellcasting.prepared.length).toBeGreaterThanOrEqual(10);
+    expect(casting(plan).prepared.length).toBeGreaterThanOrEqual(10);
   });
 
   it('lets a domain spell be cast without being on the prepared list twice', () => {
     const plan = unwrap(planCharacter(cleric()), 'plan');
-    expect(plan.spellcasting.prepared.filter((s) => s === 'bless')).toHaveLength(1);
+    expect(casting(plan).prepared.filter((s) => s === 'bless')).toHaveLength(1);
   });
 });
 
