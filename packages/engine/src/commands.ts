@@ -35,6 +35,7 @@ import {
   type Recovery,
 } from './resources.js';
 import {
+  castingIdOf,
   castingSource,
   slotFits,
   validateSpellName,
@@ -672,6 +673,57 @@ export function applySpellEffect(
     castingSource(caster.concentration.spell, caster.concentration.castingId),
     immuneTo,
     duration,
+  );
+}
+
+/**
+ * End one casting's effect on one creature, leaving the casting running.
+ *
+ * SRD Hold Person: "At the end of each of its turns, the target repeats the
+ * save, **ending the spell on itself** on a success." On itself — not on
+ * everyone. Upcast, Hold Person holds several Humanoids, and one of them
+ * shaking it off must not free the rest or drop the caster's Concentration.
+ *
+ * {@link endConcentration} is the other half: that ends the casting
+ * everywhere. This ends it in one place, and the caster keeps concentrating
+ * because the spell is still doing something somewhere else.
+ *
+ * Only what *this* casting put there is removed — the link is the casting id
+ * in the condition's source, so an unrelated poisoning on the same creature
+ * stays exactly where it is.
+ */
+export function endSpellEffectOn(
+  state: GameState,
+  targetId: CharacterId,
+  casterId: CharacterId,
+): Result<GameEvent[]> {
+  const caster = creatureOf(state, casterId);
+  if (caster === null) return err('unknown_creature', `${casterId} is not in this game`);
+  if (caster.concentration === null) {
+    return err('not_concentrating', `${casterId} is not concentrating on anything`);
+  }
+
+  const target = creatureOf(state, targetId);
+  if (target === null) return err('unknown_creature', `${targetId} is not in this game`);
+
+  const castingId = caster.concentration.castingId;
+  const theirs = target.conditions.instances.filter(
+    (instance) => castingIdOf(instance.source) === castingId && instance.impliedBy === null,
+  );
+  if (theirs.length === 0) {
+    return err(
+      'no_effect_there',
+      `${caster.concentration.spell} put nothing on ${targetId} that could end`,
+    );
+  }
+
+  return ok(
+    theirs.map((instance) => ({
+      type: 'condition-removed',
+      id: targetId,
+      condition: instance.condition,
+      source: instance.source,
+    })),
   );
 }
 

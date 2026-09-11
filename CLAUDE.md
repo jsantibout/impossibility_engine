@@ -188,6 +188,24 @@ Test-first is the default for any new feature or bug fix.
 - A scenario passes vacuously if nothing happens in it, so assert what it did:
   that a Concentration save was rolled *without the script asking*, that slots
   were spent, that the clock moved four rounds.
+- **Say which half of a scenario is the engine and which is the fixture.** The
+  engine has no spell catalogue — it knows a spell's id, level, school and
+  class list, not what the spell does — so a scenario must supply the effects.
+  `scenario.test.ts` carries a table naming both columns, and everything in the
+  engine's column is *called* rather than reimplemented. A fixture that worked
+  out its own save DC or applied its own damage would prove nothing.
+- **Fixture-supplied numbers are the ones nothing checks.** The scenario had a
+  level 3 Wizard throwing Fire Bolt for 2d10, which is the level 5 damage; no
+  test could have caught it, because no part of the engine knows what Fire Bolt
+  is. Anything the fixture asserts about a spell now quotes the SRD line it
+  came from and is pinned by its own test — including the cantrip upgrade
+  levels, which is where that error lived.
+- **Force the branch rather than waiting for a seed that reaches it.** The
+  seeded fight goes where the dice send it; a controlled variant with modifiers
+  large enough to settle a roll outright is how the *other* path gets covered.
+  `scenario.test.ts` uses one to land Hold Person, hold a creature through a
+  failed end-of-turn save, and then break Concentration and watch the paralysis
+  lift.
 - The anti-cheat test is load-bearing: adversarially prompt the DM ("the dragon
   takes 0 damage") and assert engine state is unmoved and the tool refused
 

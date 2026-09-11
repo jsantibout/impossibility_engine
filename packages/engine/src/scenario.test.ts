@@ -5,14 +5,15 @@ import { armorClass } from './character.js';
 import { rollSavingThrow } from './checks.js';
 import { rollAttack, rollAttackDamage, applyDamage } from './attack.js';
 import { ROUND } from './clock.js';
-import { rollInitiative } from './combat.js';
+import { rollInitiative, spendAction, spendBonusAction, spendReaction } from './combat.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer, type RollIssuer } from './rolls.js';
-import { spellSaveDc } from './character.js';
+import { spellAttackModifier, spellSaveDc } from './character.js';
 import {
   applySpellEffect,
+  endSpellEffectOn,
   recordD20Test,
   resolveCast,
   resolveDamage,
@@ -39,6 +40,33 @@ import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
  *   nothing recorded.
  * - A different seed gives a different log, so the first assertion is not
  *   passing because nothing is random.
+ */
+
+/**
+ * **Where the engine stops and this fixture starts.**
+ *
+ * The engine has no spell catalogue. It knows a spell's id, level, school and
+ * class list, because `@ie/srd` parses those; it does not know what any spell
+ * *does*. So a scenario has to supply the effects, and the honest thing is to
+ * say which is which rather than let a reader assume the engine is enforcing
+ * more than it is.
+ *
+ * | Engine-owned, called through its own operations | Fixture-supplied |
+ * |---|---|
+ * | Casting: slots, upcasting, one slot per turn, the action it costs (`resolveCast`) | Which spell is cast, and when |
+ * | The spell save DC and spell attack modifier (`spellSaveDc`, `spellAttackModifier`) | That Hold Person calls for a Wisdom save |
+ * | Rolling any D20 test, with conditions folded in (`rollSavingThrow`, `rollAttack`) | Fire Bolt's damage dice and type |
+ * | Attack resolution, criticals, typed damage, defences (`rollAttackDamage`, `applyDamage`) | That Hold Person imposes Paralyzed |
+ * | Linking an effect to the casting that made it (`applySpellEffect`) | That the target repeats its save at end of turn |
+ * | Damage, and the Concentration save it forces (`resolveDamage`) | |
+ * | Ending a casting on one target (`endSpellEffectOn`) | |
+ * | Losing Concentration, and cleaning up what that casting did | |
+ * | Turn economy, the clock, Initiative order | |
+ *
+ * Nothing in the right-hand column is a rule the engine checks. Everything in
+ * the left-hand column is called, not reimplemented — if this fixture computed
+ * a save DC or applied damage itself, the scenario would prove nothing about
+ * the engine.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -92,6 +120,39 @@ const goblin = (who: CharacterId): GameEvent => ({
     stated: { armorClass: GOBLIN_AC, proficiencyBonus: 2, initiative: 2 },
   },
 });
+
+/**
+ * Fire Bolt, as the SRD prints it.
+ *
+ * "On a hit, the target takes 1d10 Fire damage. _Cantrip Upgrade._ The damage
+ * increases by 1d10 when you reach levels 5 (2d10), 11 (3d10), and 17 (4d10)."
+ *
+ * A level 3 Wizard therefore throws **1d10**, not 2d10. An earlier version of
+ * this fixture said 2d10, which is the level 5 damage — the sort of thing a
+ * scenario quietly gets away with, because nothing in the engine knows what
+ * Fire Bolt does. Hence the scaling is written out, and pinned by a test.
+ */
+const FIRE_BOLT = {
+  id: 'fire-bolt',
+  damageType: 'fire',
+  dice: (level: number): string => `${1 + [5, 11, 17].filter((at) => level >= at).length}d10`,
+} as const;
+
+/**
+ * Hold Person, as the SRD prints it.
+ *
+ * "The target must succeed on a Wisdom saving throw or have the Paralyzed
+ * condition for the duration. At the end of each of its turns, the target
+ * repeats the save, ending the spell on itself on a success."
+ */
+const HOLD_PERSON = {
+  id: 'hold-person',
+  name: 'Hold Person',
+  level: 2,
+  save: 'wis',
+  condition: 'paralyzed',
+  durationSeconds: 60,
+} as const;
 
 const book = (level: number): SpellbookEntry[] =>
   [
@@ -253,28 +314,7 @@ function wizardActs(t: Table, round: number): void {
   const holding = t.state().creatures[WIZARD]!.concentration !== null;
 
   if (round === 1) {
-    t.run((s) =>
-      resolveCast(s, WIZARD, {
-        spell: 'Hold Person',
-        level: 2,
-        concentration: true,
-        slotLevel: 2,
-        duration: { kind: 'seconds', seconds: 60 },
-      }),
-    );
-
-    // The goblin resists with a Wisdom save against the wizard's spell DC.
-    const dc = spellSaveDc(sheetOf(t, WIZARD)) ?? 13;
-    const save = t.rolling((issuer, rng) =>
-      rollSavingThrow(issuer, rng, sheetOf(t, GOBLIN_A), 'wis', {
-        dc,
-        conditions: conditionsOf(t, GOBLIN_A),
-      }),
-    );
-    t.push(recordD20Test(GOBLIN_A, 'Wisdom save vs Hold Person', save, save.success ? 'resisted' : 'held'));
-    if (!save.success) {
-      t.run((s) => applySpellEffect(s, GOBLIN_A, 'paralyzed', WIZARD));
-    }
+    castHoldPerson(t, GOBLIN_A);
     return;
   }
 
@@ -284,11 +324,13 @@ function wizardActs(t: Table, round: number): void {
 
   t.run((s) => resolveCast(s, WIZARD, { spell: 'Fire Bolt', level: 0, slotless: 'cantrip' }));
 
+  // The attack modifier is the engine's, not a number written here.
+  const spellAttack = spellAttackModifier(sheetOf(t, WIZARD)) ?? 0;
   const attack = t.rolling((issuer, rng) =>
     rollAttack(issuer, rng, sheetOf(t, WIZARD), {
       weapon: null,
       targetAc: GOBLIN_AC,
-      attackBonuses: [{ source: 'Fire Bolt (spell attack)', flat: 5 }],
+      attackBonuses: [{ source: 'Fire Bolt (spell attack)', flat: spellAttack }],
       targetConditions: conditionsOf(t, target),
     }),
   );
@@ -298,7 +340,7 @@ function wizardActs(t: Table, round: number): void {
     label: 'Fire Bolt',
     natural: attack.roll.natural,
     total: attack.total,
-    contributions: [{ source: 'spell attack', amount: 5 }],
+    contributions: [{ source: 'spell attack', amount: spellAttack }],
     outcome: attack.hit ? 'hit' : 'miss',
   });
   if (!attack.hit) return;
@@ -311,7 +353,13 @@ function wizardActs(t: Table, round: number): void {
       {
         weapon: null,
         targetAc: GOBLIN_AC,
-        extraDamage: [{ source: 'Fire Bolt', type: 'fire', dice: '2d10' }],
+        extraDamage: [
+          {
+            source: 'Fire Bolt',
+            type: FIRE_BOLT.damageType,
+            dice: FIRE_BOLT.dice(sheetOf(t, WIZARD).level),
+          },
+        ],
       },
       attack.critical,
     ),
@@ -328,6 +376,80 @@ function wizardActs(t: Table, round: number): void {
     ).events,
   );
   void holding;
+}
+
+/**
+ * Cast Hold Person and resolve the target's save, all through the engine.
+ *
+ * The DC comes from `spellSaveDc`, the roll from `rollSavingThrow` with the
+ * target's own conditions folded in, and the paralysis from
+ * `applySpellEffect`, which links it to this casting so losing Concentration
+ * takes it away again. What the fixture supplies is only that Hold Person
+ * calls for a Wisdom save and imposes Paralyzed.
+ */
+function castHoldPerson(
+  t: Table,
+  target: CharacterId,
+  bonuses: readonly { source: string; flat: number }[] = [],
+): boolean {
+  t.run((s) =>
+    resolveCast(s, WIZARD, {
+      spell: HOLD_PERSON.name,
+      level: HOLD_PERSON.level,
+      concentration: true,
+      slotLevel: HOLD_PERSON.level,
+      duration: { kind: 'seconds', seconds: HOLD_PERSON.durationSeconds },
+    }),
+  );
+
+  const dc = spellSaveDc(sheetOf(t, WIZARD)) ?? 0;
+  const save = t.rolling((issuer, rng) =>
+    rollSavingThrow(issuer, rng, sheetOf(t, target), HOLD_PERSON.save, {
+      dc,
+      conditions: conditionsOf(t, target),
+      bonuses,
+    }),
+  );
+  t.push(
+    recordD20Test(target, 'Wisdom save vs Hold Person', save, save.success ? 'resisted' : 'held'),
+  );
+
+  if (!save.success) t.run((s) => applySpellEffect(s, target, HOLD_PERSON.condition, WIZARD));
+  return !save.success;
+}
+
+/**
+ * SRD Hold Person: "At the end of each of its turns, the target repeats the
+ * save, ending the spell on itself on a success."
+ *
+ * That the save repeats is the fixture's knowledge. What happens on a success
+ * is the engine's: `endSpellEffectOn` lifts this casting's effect from this
+ * creature and leaves the casting — and anyone else it is holding — alone.
+ */
+function repeatHoldPersonSave(
+  t: Table,
+  target: CharacterId,
+  bonuses: readonly { source: string; flat: number }[] = [],
+): boolean {
+  const dc = spellSaveDc(sheetOf(t, WIZARD)) ?? 0;
+  const save = t.rolling((issuer, rng) =>
+    rollSavingThrow(issuer, rng, sheetOf(t, target), HOLD_PERSON.save, {
+      dc,
+      conditions: conditionsOf(t, target),
+      bonuses,
+    }),
+  );
+  t.push(
+    recordD20Test(
+      target,
+      'Wisdom save vs Hold Person (end of turn)',
+      save,
+      save.success ? 'shakes it off' : 'still held',
+    ),
+  );
+
+  if (save.success) t.run((s) => endSpellEffectOn(s, target, WIZARD));
+  return save.success;
 }
 
 /** Play the whole fight. Deterministic given the seed, branches and all. */
@@ -506,6 +628,233 @@ describe('what the scripted fight actually did', () => {
       (i) => i.condition === 'paralyzed',
     );
     if (holding === null) expect(paralysed ?? false).toBe(false);
+  });
+
+  /**
+   * What this particular seed produces, recorded because a golden scenario
+   * that asserts only invariants would pass even if the fight stopped
+   * happening. Correcting Fire Bolt from 2d10 to the 1d10 a level 3 Wizard
+   * actually throws turned a walkover into this: the goblins survive, the
+   * wizard fails a Concentration save on a natural 1, and then goes down.
+   */
+  it('tells the story the log records', () => {
+    const log = playScenario(SEED);
+    const said = log
+      .filter((e) => e.type === 'roll-recorded')
+      .map((e) => (e.type === 'roll-recorded' ? `${e.label}:${e.outcome ?? ''}` : ''));
+
+    // Hold Person was resisted, so nothing was ever paralysed.
+    expect(said).toContain('Wisdom save vs Hold Person:resisted');
+    // One Concentration save held and a later one did not.
+    expect(said).toContain('Constitution save to maintain Hold Person:maintained');
+    expect(said).toContain('Constitution save to maintain Hold Person:lost');
+
+    const state = fold(SEED, log);
+    // Losing the save ended the casting, with nothing left to clean up.
+    expect(state.creatures[WIZARD]!.concentration).toBeNull();
+
+    // The scimitars got there first: SRD says a character at 0 hit points is
+    // Unconscious, which carries Incapacitated and Prone.
+    const kessa = state.creatures[WIZARD]!;
+    expect(kessa.vitals.hp).toBe(0);
+    expect(kessa.vitals.dead).toBe(false);
+    expect(kessa.conditions.conditions).toEqual(['incapacitated', 'prone', 'unconscious']);
+
+    // And the goblins are still standing, which 2d10 would not have allowed.
+    expect(state.creatures[GOBLIN_A]!.vitals.dead).toBe(false);
+  });
+});
+
+/**
+ * A controlled variant, to walk a branch the seeded fight does not reach.
+ *
+ * The main scenario is a fight: the dice fall where they fall, and in that one
+ * the goblin happens to resist. This variant forces the outcomes instead, with
+ * flat modifiers big enough that no die can change them, because the branch
+ * being checked is *Hold Person lands, then Concentration is lost* — and that
+ * is worth checking on purpose rather than waiting for a seed that produces it.
+ *
+ * Initiative is stated rather than rolled for the same reason: the sequence of
+ * turns is the thing under test, so it should not vary.
+ */
+const CERTAIN = [{ source: 'the variant insists', flat: 40 }];
+const DOOMED = [{ source: 'the variant insists', flat: -40 }];
+
+const controlled = () => {
+  const t = table('hold-person-variant');
+  t.push(...unwrap(createCharacter(KESSA, WIZARD), 'create'));
+  t.push(goblin(GOBLIN_A), goblin(GOBLIN_B));
+  t.push({
+    type: 'combat-started',
+    combatants: [
+      { id: WIZARD, initiative: 20, speed: 30 },
+      { id: GOBLIN_A, initiative: 10, speed: 30 },
+      { id: GOBLIN_B, initiative: 5, speed: 30 },
+    ],
+  });
+  return t;
+};
+
+/** Everything a Paralyzed creature may not do, asked of the engine. */
+const cannotAct = (t: Table, who: CharacterId) => {
+  const combat = t.state().combat!;
+  const conditions = conditionsOf(t, who);
+  return {
+    action: spendAction(combat, who, conditions),
+    bonusAction: spendBonusAction(combat, who, conditions),
+    reaction: spendReaction(combat, who, conditions),
+  };
+};
+
+describe('Hold Person lands, holds, and lets go when Concentration breaks', () => {
+  it('paralyses a target that fails its save, linked to the casting', () => {
+    const t = controlled();
+    expect(castHoldPerson(t, GOBLIN_A, DOOMED)).toBe(true);
+
+    const held = conditionsOf(t, GOBLIN_A);
+    expect(held.conditions).toContain('paralyzed');
+    // SRD Paralyzed: "You have the Incapacitated condition."
+    expect(held.conditions).toContain('incapacitated');
+    expect(t.state().creatures[WIZARD]!.concentration).toMatchObject({ spell: 'Hold Person' });
+  });
+
+  /** SRD Incapacitated: "You can't take any action, Bonus Action, or Reaction." */
+  it('stops the paralysed creature taking an action, Bonus Action or Reaction', () => {
+    const t = controlled();
+    castHoldPerson(t, GOBLIN_A, DOOMED);
+    t.push({ type: 'turn-advanced' }); // the goblin's turn comes round
+
+    const refused = cannotAct(t, GOBLIN_A);
+    expect(refused.action.ok).toBe(false);
+    expect(refused.bonusAction.ok).toBe(false);
+    expect(refused.reaction.ok).toBe(false);
+    for (const outcome of Object.values(refused)) {
+      if (!outcome.ok) expect(outcome.code).toBe('incapacitated');
+    }
+  });
+
+  /** And the other goblin, untouched, can act perfectly well. */
+  it('leaves the creature it did not hold alone', () => {
+    const t = controlled();
+    castHoldPerson(t, GOBLIN_A, DOOMED);
+    t.push({ type: 'turn-advanced' }, { type: 'turn-advanced' });
+    expect(cannotAct(t, GOBLIN_B).action.ok).toBe(true);
+  });
+
+  /**
+   * "At the end of each of its turns, the target repeats the save, ending the
+   * spell on itself on a success."
+   */
+  it('keeps holding when the end-of-turn save fails', () => {
+    const t = controlled();
+    castHoldPerson(t, GOBLIN_A, DOOMED);
+    t.push({ type: 'turn-advanced' });
+
+    expect(repeatHoldPersonSave(t, GOBLIN_A, DOOMED)).toBe(false);
+    expect(conditionsOf(t, GOBLIN_A).conditions).toContain('paralyzed');
+    expect(t.state().creatures[WIZARD]!.concentration).not.toBeNull();
+  });
+
+  it('frees the target when the end-of-turn save succeeds, without ending the spell', () => {
+    const t = controlled();
+    castHoldPerson(t, GOBLIN_A, DOOMED);
+    t.push({ type: 'turn-advanced' });
+
+    expect(repeatHoldPersonSave(t, GOBLIN_A, CERTAIN)).toBe(true);
+    expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('paralyzed');
+    expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('incapacitated');
+    // The caster is still concentrating: the spell ended on the target, not on them.
+    expect(t.state().creatures[WIZARD]!.concentration).toMatchObject({ spell: 'Hold Person' });
+    // And the goblin can act again on its next turn.
+    t.push({ type: 'turn-advanced' }, { type: 'turn-advanced' }, { type: 'turn-advanced' });
+    expect(cannotAct(t, GOBLIN_A).action.ok).toBe(true);
+  });
+
+  /**
+   * The branch this variant exists for. The wizard is holding a goblin, the
+   * *other* goblin hits them, and `resolveDamage` — unprompted — works out a
+   * Concentration save is owed, rolls it, fails it, ends the casting, and the
+   * paralysis it caused goes with it. Nothing in this test asks for any of
+   * that beyond supplying a modifier that makes the save fail.
+   */
+  it('drops the paralysis when a failed Concentration save ends the spell', () => {
+    const t = controlled();
+    castHoldPerson(t, GOBLIN_A, DOOMED);
+    expect(conditionsOf(t, GOBLIN_A).conditions).toContain('paralyzed');
+
+    const { issuer, rng } = t.supply();
+    const outcome = unwrap(
+      resolveDamage(
+        t.state(),
+        WIZARD,
+        { amount: 7, source: 'Scimitar' },
+        { issuer, rng, bonuses: DOOMED },
+      ),
+      'damage',
+    );
+    t.push(...outcome.events);
+
+    expect(outcome.concentration).toMatchObject({ kind: 'resolved', maintained: false });
+    expect(t.state().creatures[WIZARD]!.concentration).toBeNull();
+    expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('paralyzed');
+    expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('incapacitated');
+
+    // Freed, the goblin can act on its turn again.
+    t.push({ type: 'turn-advanced' });
+    expect(cannotAct(t, GOBLIN_A).action.ok).toBe(true);
+  });
+
+  it('keeps holding when the Concentration save is made', () => {
+    const t = controlled();
+    castHoldPerson(t, GOBLIN_A, DOOMED);
+
+    const { issuer, rng } = t.supply();
+    const outcome = unwrap(
+      resolveDamage(
+        t.state(),
+        WIZARD,
+        { amount: 7, source: 'Scimitar' },
+        { issuer, rng, bonuses: CERTAIN },
+      ),
+      'damage',
+    );
+    t.push(...outcome.events);
+
+    expect(outcome.concentration).toMatchObject({ kind: 'resolved', maintained: true });
+    expect(conditionsOf(t, GOBLIN_A).conditions).toContain('paralyzed');
+  });
+
+  it('replays byte-identically, like the fight does', () => {
+    const play = () => {
+      const t = controlled();
+      castHoldPerson(t, GOBLIN_A, DOOMED);
+      t.push({ type: 'turn-advanced' });
+      repeatHoldPersonSave(t, GOBLIN_A, DOOMED);
+      return t.log();
+    };
+    expect(JSON.stringify(play())).toBe(JSON.stringify(play()));
+  });
+});
+
+describe('Fire Bolt scales the way the SRD says', () => {
+  /**
+   * The mistake this pins. A level 3 Wizard's Fire Bolt is 1d10; 2d10 is the
+   * level 5 damage, and nothing in the engine would have caught the fixture
+   * claiming it, because the engine does not know what Fire Bolt is.
+   */
+  it('throws one die until level 5, then one more at each upgrade', () => {
+    expect(FIRE_BOLT.dice(1)).toBe('1d10');
+    expect(FIRE_BOLT.dice(3)).toBe('1d10');
+    expect(FIRE_BOLT.dice(4)).toBe('1d10');
+    expect(FIRE_BOLT.dice(5)).toBe('2d10');
+    expect(FIRE_BOLT.dice(10)).toBe('2d10');
+    expect(FIRE_BOLT.dice(11)).toBe('3d10');
+    expect(FIRE_BOLT.dice(17)).toBe('4d10');
+    expect(FIRE_BOLT.dice(20)).toBe('4d10');
+  });
+
+  it('uses the level 3 damage in the scripted fight', () => {
+    expect(FIRE_BOLT.dice(KESSA.level)).toBe('1d10');
   });
 });
 

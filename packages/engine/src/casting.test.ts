@@ -19,6 +19,7 @@ import {
   endConcentration,
   grantTemporaryHpTo,
   nextCastingId,
+  endSpellEffectOn,
   removeCreatureEverywhere,
   commandOutcome,
   resolveDamage,
@@ -96,6 +97,9 @@ const table = (): GameEvent[] => [
   pool('wizard', 2, 1),
   pool('cleric', 1, 2),
 ];
+
+const conditionsOf = (state: GameState, who: string) =>
+  state.creatures[who]?.conditions.conditions ?? [];
 
 const HOLD = { spell: 'Hold Person', level: 2, concentration: true } as const;
 
@@ -1254,5 +1258,67 @@ describe('a command id names one command, not a slot to reuse', () => {
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('command_id_reused');
+  });
+});
+
+describe('a spell can end on one target without ending', () => {
+  /**
+   * SRD Hold Person: "At the end of each of its turns, the target repeats the
+   * save, **ending the spell on itself** on a success."
+   *
+   * On itself — not on everyone. Upcast, Hold Person holds several Humanoids,
+   * and one of them shaking it off must not free the rest or drop the caster's
+   * Concentration. Breaking Concentration ends the casting everywhere;
+   * this ends it in one place.
+   */
+  const holdingTwo = () => {
+    const a = run(table(), (s) => castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2 }));
+    const b = run(a.log, (s) => applySpellEffect(s, id('goblin'), 'paralyzed', id('wizard')));
+    return run(b.log, (s) => applySpellEffect(s, id('cleric'), 'paralyzed', id('wizard')));
+  };
+
+  it('frees the one who saved and leaves the other held', () => {
+    const held = holdingTwo();
+    expect(conditionsOf(held.state, 'goblin')).toContain('paralyzed');
+    expect(conditionsOf(held.state, 'cleric')).toContain('paralyzed');
+
+    const freed = run(held.log, (s) => endSpellEffectOn(s, id('goblin'), id('wizard')));
+
+    expect(conditionsOf(freed.state, 'goblin')).not.toContain('paralyzed');
+    expect(conditionsOf(freed.state, 'cleric')).toContain('paralyzed');
+    // The caster is still concentrating, because the spell is still doing something.
+    expect(freed.state.creatures.wizard!.concentration).toMatchObject({ castingId: 'cast:1' });
+  });
+
+  it('leaves an effect from another source alone', () => {
+    const held = holdingTwo();
+    const poisoned = run(held.log, (s) =>
+      applyConditionTo(s, id('goblin'), 'poisoned', 'a bad mushroom'),
+    );
+    const freed = run(poisoned.log, (s) => endSpellEffectOn(s, id('goblin'), id('wizard')));
+
+    expect(conditionsOf(freed.state, 'goblin')).not.toContain('paralyzed');
+    expect(conditionsOf(freed.state, 'goblin')).toContain('poisoned');
+  });
+
+  it('refuses when the caster is not concentrating on anything', () => {
+    const before = fold('seed', table());
+    const result = endSpellEffectOn(before, id('goblin'), id('wizard'));
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('not_concentrating');
+  });
+
+  it('refuses when that casting put nothing on the target', () => {
+    const held = holdingTwo();
+    const result = endSpellEffectOn(held.state, id('wizard'), id('wizard'));
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('no_effect_there');
+  });
+
+  it('drops what the ended condition carried with it', () => {
+    const held = holdingTwo();
+    expect(conditionsOf(held.state, 'goblin')).toContain('incapacitated');
+    const freed = run(held.log, (s) => endSpellEffectOn(s, id('goblin'), id('wizard')));
+    expect(conditionsOf(freed.state, 'goblin')).not.toContain('incapacitated');
   });
 });
