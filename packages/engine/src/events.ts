@@ -13,6 +13,7 @@ import {
 } from './conditions.js';
 import {
   declarePool,
+  resize,
   resourceState,
   restoreOn,
   spend as spendResource,
@@ -20,6 +21,7 @@ import {
   type Recovery,
   type ResourceState,
 } from './resources.js';
+import type { CharacterRecord } from './creation.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
   hasExpired,
@@ -107,6 +109,14 @@ export interface CreatureState {
   readonly resting: RestState | null;
   /** When their last Long Rest finished, for the sixteen-hour rule. */
   readonly lastLongRestAt: number | null;
+  /**
+   * The choices this character was built from, when it is a character.
+   *
+   * Kept so the sheet can be rebuilt exactly and a level gained without
+   * re-creating the creature — which would silently heal it and refill every
+   * pool. Monsters have no record and that is a normal state.
+   */
+  readonly character: CharacterRecord | null;
 }
 
 /**
@@ -285,6 +295,33 @@ export type GameEvent =
       readonly amount: number;
     }
   | { readonly type: 'resources-restored'; readonly id: CharacterId; readonly recovers: Recovery }
+  /**
+   * A pool's maximum changing, which is what levelling up does to Hit Dice and
+   * spell slots. What has already been spent stays spent.
+   */
+  | {
+      readonly type: 'resource-pool-resized';
+      readonly id: CharacterId;
+      readonly key: string;
+      readonly max: number;
+    }
+
+  // — characters —————————————————————
+  /** The choices a character was built from, so it can be rebuilt and advanced. */
+  | { readonly type: 'character-created'; readonly id: CharacterId; readonly record: CharacterRecord }
+  | {
+      readonly type: 'character-advanced';
+      readonly id: CharacterId;
+      readonly record: CharacterRecord;
+      /** The sheet the new level derives, replacing the old one wholesale. */
+      readonly sheet: CharacterSheet;
+    }
+  /** Gaining a level raises the maximum without healing what was lost. */
+  | {
+      readonly type: 'hit-point-maximum-raised';
+      readonly id: CharacterId;
+      readonly amount: number;
+    }
 
   // — casting ——————————————————————————
   /**
@@ -781,6 +818,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             concentration: null,
             resting: null,
             lastLongRestAt: null,
+            character: null,
           },
         },
       };
@@ -895,6 +933,46 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       const creature = creatureOf(state, event, event.id);
       const resources = must(event, spendResource(creature.resources, event.key, event.amount));
       return withCreature(next, event.id, { resources }, creature);
+    }
+
+    case 'resource-pool-resized': {
+      const creature = creatureOf(state, event, event.id);
+      const resources = must(event, resize(creature.resources, event.key, event.max));
+      return withCreature(next, event.id, { resources }, creature);
+    }
+
+    case 'character-created': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(next, event.id, { character: event.record }, creature);
+    }
+
+    case 'character-advanced': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.character === null) {
+        throw new CorruptLogError(event, `${event.id} was not created from character choices`);
+      }
+      return withCreature(next, event.id, { character: event.record, sheet: event.sheet }, creature);
+    }
+
+    case 'hit-point-maximum-raised': {
+      const creature = creatureOf(state, event, event.id);
+      if (!Number.isInteger(event.amount) || event.amount <= 0) {
+        throw new CorruptLogError(event, `a hit point maximum rises by a positive whole number, got ${event.amount}`);
+      }
+      // SRD: the maximum rises; current hit points rise with it, because the
+      // new points were never lost. Damage already taken stays taken.
+      return withCreature(
+        next,
+        event.id,
+        {
+          vitals: {
+            ...creature.vitals,
+            hpMax: creature.vitals.hpMax + event.amount,
+            hp: creature.vitals.hp + event.amount,
+          },
+        },
+        creature,
+      );
     }
 
     case 'resources-restored': {

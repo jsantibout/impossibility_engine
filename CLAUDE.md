@@ -846,6 +846,102 @@ Two smaller gaps in the same area, stated so nobody assumes otherwise:
   being set, but not the moment it lapsed — the same audit trade already made
   for Concentration, for the same reason.
 
+## Progression, Creation And Execution Are Three Jobs
+
+They arrive together in a rulebook and are kept apart here, because conflating
+them is how a character sheet ends up claiming abilities nothing honours.
+
+| | |
+|---|---|
+| **Progression** (`progression.ts`) | What a level grants. Pure data and lookups; knows nothing about any character |
+| **Creation** (`creation.ts`) | Turning choices into a character, validated |
+| **Execution** (everywhere else) | Actually doing what a feature does |
+
+**Every feature says which of the last two owns it.** `automation: 'engine'`
+means the engine applies the mechanical effect; `'manual'` means the feature is
+recorded and a DM applies it, and a required `note` says exactly what is
+missing. There is no third state where the engine half-does something, and an
+unexplained "not automated" is not a useful thing to read at three in the
+morning. A level 3 Evoker carries five manual features, and the sheet says so
+rather than implying Potent Cantrip is being applied to damage rolls.
+
+**The choices are the character.** `CharacterChoices` is stored on the creature
+and everything else is derived from it, so the sheet can be rebuilt byte for
+byte after a reload — and so gaining a level is a matter of adding to a record
+rather than re-creating a creature. That second point is load-bearing:
+re-creating would silently heal every wound, lift every condition and refund
+every spent slot, which is the kind of bug nobody notices until a boss fight.
+`advanceCharacter` emits only the differences: the hit points gained, the pools
+that grew, the sheet the new level derives.
+
+**Pools grow rather than being re-declared**, for the same reason.
+`resource-pool-resized` changes a maximum and leaves what has been spent spent.
+
+**Validation reports every problem, not the first.** `checkCharacter` returns a
+list with a `field` on each, because a caller filling in a character does not
+want to be told about one mistake at a time; `planCharacter` returns the first
+as an ordinary `Result` error for a caller that just wants a character or a
+refusal.
+
+### Rules the validator actually enforces
+
+Transcribed, not recalled, and each with a test: the standard array is exactly
+15/14/13/12/10/8; point buy is 27 points with no score outside 8–15 before
+origin increases; a background raises one ability by 2 and another by 1 *or*
+all three by 1, never above 20, and only among the three it lists; a class
+skill must be one the class offers and must not be chosen twice; Scholar's
+Expertise requires proficiency in that skill first; a subclass is refused
+before its level and required at it; a Wizard's spellbook holds six spells at
+level 1 and two more per level after; prepared spells must be in the book and
+must number what the table prints.
+
+Hit points follow the SRD: the maximum die at level 1, then the fixed value or
+a roll, plus the Constitution modifier, never less than 1 per level.
+
+### The tables are transcribed by hand
+
+`classes.md` has no parser, so the Wizard table and the Evoker are written out
+in `wizard.ts` from the SRD text. Transcription is where typos hide, so the
+tests assert *relationships* rather than presence — every printed Proficiency
+Bonus is checked against `proficiencyBonusForLevel`, and slots are checked
+never to decrease as levels rise. The same suite runs against any class
+definition, so the second class to land fails loudly rather than quietly
+disagreeing with the engine.
+
+A `classes.md` parser is the eventual home for this, and would replace the
+hand-written tables without touching the structures around them.
+
+### One complete path, and what is missing around it
+
+Supported end to end: a Human Sage Wizard from level 1 to 3, Evoker at 3.
+Everything else is transcription rather than design, and the structures are
+shaped for it.
+
+- **One class, one subclass, one species, one background.** Adding more is
+  data. Nothing in `progression.ts` or `creation.ts` is Wizard-shaped except
+  two feature ids it looks up by name — Scholar's expertise and the Evoker's
+  free spells — which is a seam to generalise when a second class arrives.
+- **Feats are recorded, never executed.** Sage grants Magic Initiate (Wizard)
+  and Human grants an Origin feat; both are names on the sheet. Magic Initiate
+  in particular *should* add two cantrips and a level 1 spell, and does not.
+- **Multiclassing is not modelled**, nor are Ability Score Improvements taken
+  as score increases rather than feats.
+- **Equipment is a list, not an inventory.** Starting packages resolve to named
+  entries with quantities and the SRD's own bracketed details, plus coin.
+  Nothing tracks weight, attunement, or whether the quarterstaff in the package
+  is the same object as the arcane focus. Weapons and armour are parsed in
+  `@ie/srd`; adventuring gear is not, so the entries are names rather than
+  references.
+- **Species traits above level 1 are not reached.** The structures handle a
+  trait that arrives at character level 3 — `cumulativeFeatures` reads a species
+  exactly as it reads a class — but the Human has none, so nothing exercises it.
+- **Spell names are strings.** Creation checks counts and spellbook membership,
+  not that a spell exists, is on the Wizard list, or is of a level the character
+  can prepare. `@ie/srd` has the data; wiring it in is the next obvious step.
+- **Arcane Recovery is a pool, not a behaviour.** The single use is declared and
+  spends correctly; choosing which slots to recover, and the half-level cap, are
+  the caller's.
+
 ## Monsters State Their Numbers; Characters Derive Them
 
 A character's Armour Class follows from their armour and Dexterity. A monster's
@@ -1064,9 +1160,10 @@ a rules bug forever after.
 - M0: adventuring gear and tools (93 entries in `equipment.md`), plus classes,
   feats and magic items, are vendored but not yet parsed. Weapons and armour
   are done because `attack.ts` needs them; the rest can wait for a consumer.
-- M1: level progression and class features, then the character creator. Spell
-  slots, Concentration, casting, rests, the clock and effect durations have
-  landed; the limitations recorded above — long casting times, rest resumption,
-  dismissing an ongoing spell, Reaction timing — are the honest edges of that
-  work, each with the reason it is still open.
+- M1: the remaining classes, species and backgrounds — transcription onto the
+  structures the Wizard path proved — then feats, multiclassing, and wiring
+  spell names to the parsed SRD data. Spell slots, Concentration, casting,
+  rests, the clock, effect durations and one complete character path have
+  landed; the limitations recorded above are the honest edges of that work,
+  each with the reason it is still open.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

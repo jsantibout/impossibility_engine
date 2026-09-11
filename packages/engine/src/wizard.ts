@@ -1,0 +1,205 @@
+import type { ClassDefinition, ClassLevelRow, SubclassDefinition } from './progression.js';
+
+/**
+ * The Wizard, transcribed from SRD 5.2.1 "Classes".
+ *
+ * Hand-written rather than parsed: `classes.md` has no parser, and writing one
+ * is a milestone of its own. Transcription hides typos, so the tests assert
+ * relationships rather than presence — every printed Proficiency Bonus is
+ * checked against the formula, and slots are checked never to go backwards.
+ *
+ * One class, complete, before a second one starts. The structures in
+ * `progression.ts` are the reusable part; this file is the proof they fit
+ * something real.
+ */
+
+/** Wizard Features table: level, PB, cantrips, prepared, then slots 1-9. */
+const TABLE: readonly (readonly number[])[] = [
+  [1, 2, 3, 4, 2],
+  [2, 2, 3, 5, 3],
+  [3, 2, 3, 6, 4, 2],
+  [4, 2, 4, 7, 4, 3],
+  [5, 3, 4, 9, 4, 3, 2],
+  [6, 3, 4, 10, 4, 3, 3],
+  [7, 3, 4, 11, 4, 3, 3, 1],
+  [8, 3, 4, 12, 4, 3, 3, 2],
+  [9, 4, 4, 14, 4, 3, 3, 3, 1],
+  [10, 4, 5, 15, 4, 3, 3, 3, 2],
+  [11, 4, 5, 16, 4, 3, 3, 3, 2, 1],
+  [12, 4, 5, 16, 4, 3, 3, 3, 2, 1],
+  [13, 5, 5, 17, 4, 3, 3, 3, 2, 1, 1],
+  [14, 5, 5, 18, 4, 3, 3, 3, 2, 1, 1],
+  [15, 5, 5, 19, 4, 3, 3, 3, 2, 1, 1, 1],
+  [16, 5, 5, 21, 4, 3, 3, 3, 2, 1, 1, 1],
+  [17, 6, 5, 22, 4, 3, 3, 3, 2, 1, 1, 1, 1],
+  [18, 6, 5, 23, 4, 3, 3, 3, 3, 1, 1, 1, 1],
+  [19, 6, 5, 24, 4, 3, 3, 3, 3, 2, 1, 1, 1],
+  [20, 6, 5, 25, 4, 3, 3, 3, 3, 2, 2, 1, 1],
+];
+
+const rows: readonly ClassLevelRow[] = TABLE.map((row) => ({
+  level: row[0] ?? 0,
+  proficiencyBonus: row[1] ?? 0,
+  cantripsKnown: row[2] ?? 0,
+  preparedSpells: row[3] ?? 0,
+  spellSlots: row.slice(4),
+}));
+
+export const WIZARD: ClassDefinition = {
+  id: 'wizard',
+  name: 'Wizard',
+  primaryAbility: 'int',
+  hitDie: 6,
+  saveProficiencies: ['int', 'wis'],
+  skillChoices: {
+    choose: 2,
+    from: ['arcana', 'history', 'insight', 'investigation', 'medicine', 'nature', 'religion'],
+  },
+  weaponProficiencies: ['simple'],
+  // SRD Core Wizard Traits: "Armor Training: None."
+  armorTraining: { light: false, medium: false, heavy: false, shields: false },
+  subclassLevel: 3,
+  table: rows,
+  startingEquipment: [
+    {
+      option: 'A',
+      items: [
+        { name: 'Dagger', quantity: 2 },
+        { name: 'Arcane Focus', quantity: 1, detail: 'Quarterstaff' },
+        { name: 'Robe', quantity: 1 },
+        { name: 'Spellbook', quantity: 1 },
+        { name: "Scholar's Pack", quantity: 1 },
+      ],
+      goldPieces: 5,
+    },
+    { option: 'B', items: [], goldPieces: 55 },
+  ],
+  features: [
+    {
+      id: 'wizard:spellcasting',
+      name: 'Spellcasting',
+      level: 1,
+      automation: 'engine',
+      note: 'Slots, prepared spells and the spellbook are tracked; the spells themselves are cast through the casting commands.',
+    },
+    {
+      id: 'wizard:ritual-adept',
+      name: 'Ritual Adept',
+      level: 1,
+      automation: 'manual',
+      note: 'Casting from the spellbook as a Ritual is legal through `castSpell` with `slotless: "ritual"`, but the engine does not check that the spell has the Ritual tag or that the book is in hand, and long casting times are refused.',
+    },
+    {
+      id: 'wizard:arcane-recovery',
+      name: 'Arcane Recovery',
+      level: 1,
+      automation: 'engine',
+      note: 'Declared as a short-rest pool of one use. Choosing which slots to recover, and the half-level cap, are the caller’s: the engine does not restore them automatically.',
+    },
+    {
+      id: 'wizard:scholar',
+      name: 'Scholar',
+      level: 2,
+      automation: 'engine',
+      note: 'Expertise in the chosen skill is applied to the sheet.',
+      choice: {
+        kind: 'skill',
+        choose: 1,
+        from: ['arcana', 'history', 'investigation', 'medicine', 'nature', 'religion'],
+      },
+    },
+    {
+      id: 'wizard:subclass',
+      name: 'Wizard Subclass',
+      level: 3,
+      automation: 'engine',
+      note: 'The subclass is recorded and its features granted.',
+      grantsSubclass: true,
+      choice: { kind: 'subclass', choose: 1 },
+    },
+    {
+      id: 'wizard:ability-score-improvement',
+      name: 'Ability Score Improvement',
+      level: 4,
+      automation: 'manual',
+      note: 'Feats are not modelled; the chosen feat is recorded only.',
+      choice: { kind: 'feat', choose: 1 },
+    },
+    {
+      id: 'wizard:memorize-spell',
+      name: 'Memorize Spell',
+      level: 5,
+      automation: 'manual',
+      note: 'Swapping a prepared spell on a Short Rest is not wired into the rest commands.',
+    },
+    {
+      id: 'wizard:spell-mastery',
+      name: 'Spell Mastery',
+      level: 18,
+      automation: 'manual',
+      note: 'Casting the chosen spells at will is not modelled.',
+    },
+    {
+      id: 'wizard:epic-boon',
+      name: 'Epic Boon',
+      level: 19,
+      automation: 'manual',
+      note: 'Feats are not modelled; the chosen boon is recorded only.',
+      choice: { kind: 'feat', choose: 1, category: 'epic-boon' },
+    },
+    {
+      id: 'wizard:signature-spells',
+      name: 'Signature Spells',
+      level: 20,
+      automation: 'manual',
+      note: 'The free level 3 castings are not modelled.',
+    },
+  ],
+};
+
+/** SRD "Wizard Subclass: Evoker" — the subclass the SRD publishes for Wizards. */
+export const EVOKER: SubclassDefinition = {
+  id: 'evoker',
+  name: 'Evoker',
+  classId: 'wizard',
+  features: [
+    {
+      id: 'evoker:evocation-savant',
+      name: 'Evocation Savant',
+      level: 3,
+      automation: 'engine',
+      note: 'The two free spells are added to the spellbook. The later "one per new slot level" grant is not automatic.',
+      choice: { kind: 'spell', choose: 2, school: 'evocation', maxLevel: 2 },
+    },
+    {
+      id: 'evoker:potent-cantrip',
+      name: 'Potent Cantrip',
+      level: 3,
+      automation: 'manual',
+      note: 'Half damage on a missed cantrip attack or a successful save is not applied; the damage pipeline has no notion of a cantrip.',
+    },
+    {
+      id: 'evoker:sculpt-spells',
+      name: 'Sculpt Spells',
+      level: 6,
+      automation: 'manual',
+      note: 'Choosing creatures to automatically succeed is not modelled.',
+    },
+    {
+      id: 'evoker:empowered-evocation',
+      name: 'Empowered Evocation',
+      level: 10,
+      automation: 'manual',
+      note: 'Adding the Intelligence modifier to an Evocation damage roll is a bonus the caller supplies.',
+    },
+    {
+      id: 'evoker:overchannel',
+      name: 'Overchannel',
+      level: 14,
+      automation: 'manual',
+      note: 'Maximised damage and the escalating Necrotic backlash are not modelled.',
+    },
+  ],
+};
+
+export const WIZARD_SUBCLASSES: readonly SubclassDefinition[] = [EVOKER];

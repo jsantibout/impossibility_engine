@@ -162,3 +162,19 @@ export function slotLevelsAvailable(state: ResourceState): number[] {
     .map((entry) => entry.level)
     .sort((a, b) => a - b);
 }
+
+/**
+ * Change a pool's maximum, leaving what has been spent alone.
+ *
+ * Levelling up grows Hit Dice and spell slots. Re-declaring the pool would
+ * reset it, handing back everything the character had already used — which is
+ * the kind of quiet refund nobody notices until a boss fight.
+ */
+export function resize(state: ResourceState, key: string, max: number): Result<ResourceState> {
+  const pool = state.pools[key];
+  if (pool === undefined) return err('unknown_pool', `${key} is not a pool this creature has`);
+  if (!Number.isInteger(max) || max < 0) {
+    return err('bad_max', `a pool's maximum must be a non-negative integer, got ${max}`);
+  }
+  return ok(derive({ ...state.pools, [key]: { ...pool, max, spent: Math.min(pool.spent, max) } }));
+}
