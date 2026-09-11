@@ -9,10 +9,11 @@ import type { CastingTime } from './spells.js';
  * engine resolves needs a definition here, written from the SRD text and
  * checked against it.
  *
- * Two so far, on purpose. The structures are the reusable part — an attack
- * that deals scaling damage, a save that imposes a condition with a repeating
- * escape — and between them Fire Bolt and Hold Person exercise every one. A
- * third spell should be data, not design.
+ * The structures are the reusable part — an attack that deals scaling damage,
+ * a save that imposes a condition with a repeating escape, a save that deals
+ * damage with a stated outcome on a success, and healing that adds the
+ * caster's own modifier. A spell that fits one of those shapes is data, not
+ * design; a spell that does not is a new shape and belongs in a milestone.
  *
  * **Everything here is data the resolution reads, never a number it hardcodes.**
  * The attack modifier, save DC, damage dice, duration and repeat-save hook are
@@ -32,8 +33,17 @@ export type SpellRange =
  * Cantrips scale with the caster's level; levelled spells scale with the slot.
  * They are different rules and a spell uses one or the other, so they are
  * separate fields rather than one overloaded number.
+ *
+ * Damage and healing use the same arithmetic — Cure Wounds reads "increases by
+ * 2d8 for each spell slot level above 1" in the same shape a damage spell
+ * does — so this is `DiceScaling` rather than anything about damage.
+ *
+ * The per-slot entry is a whole notation rather than a count, because a
+ * spell's upcast die is not always its base die *count*: Inflict Wounds is
+ * 2d10 and grows by **1**d10, and reading the increase off the base would
+ * double it.
  */
-export interface DamageScaling {
+export interface DiceScaling {
   /** The base roll, e.g. `1d10`. */
   readonly dice: string;
   /**
@@ -51,8 +61,36 @@ export type SpellEffect =
   | {
       readonly kind: 'attack';
       readonly attack: 'ranged' | 'melee';
-      readonly damage: DamageScaling;
+      readonly damage: DiceScaling;
       readonly damageType: string;
+    }
+  /**
+   * A saving throw that deals damage, with what a success buys stated.
+   *
+   * SRD writes both outcomes and they are not the same spell: Inflict Wounds
+   * gives "half as much damage on a successful one", while Sacred Flame gives
+   * nothing at all on a success. Defaulting either way silently rewrites one
+   * of them.
+   */
+  | {
+      readonly kind: 'save-damage';
+      readonly ability: Ability;
+      readonly damage: DiceScaling;
+      readonly damageType: string;
+      readonly onSuccess: 'half' | 'none';
+    }
+  /**
+   * Hit points restored, with the caster's spellcasting modifier where the
+   * spell adds it.
+   *
+   * "2d8 plus your spellcasting ability modifier" is the common shape, and the
+   * modifier is *not* universal — Prayer of Healing and Mass Cure Wounds do
+   * not add it — so whether it applies is stated rather than assumed.
+   */
+  | {
+      readonly kind: 'heal';
+      readonly healing: DiceScaling;
+      readonly addSpellcastingModifier: boolean;
     }
   /** A saving throw; a condition on a failure. */
   | {
@@ -172,20 +210,167 @@ export const HOLD_PERSON: SpellDefinition = {
   durationSeconds: 60,
 };
 
-export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [FIRE_BOLT, HOLD_PERSON];
+/**
+ * SRD Sacred Flame:
+ *
+ * > _Evocation Cantrip (Cleric)._ **Casting Time:** Action. **Range:** 60 feet.
+ * > **Duration:** Instantaneous.
+ * > "Flame-like radiance descends on a creature that you can see within range.
+ * > The target must succeed on a Dexterity saving throw or take 1d8 Radiant
+ * > damage. The target gains no benefit from Half Cover or Three-Quarters
+ * > Cover for this save."
+ * > _Cantrip Upgrade._ "The damage increases by 1d8 when you reach levels 5
+ * > (2d8), 11 (3d8), and 17 (4d8)."
+ *
+ * A success takes *no* damage: the text says "or take", not "half as much".
+ *
+ * The cover clause is **not** modelled, and no field records it. Cover is not
+ * applied to any spell saving throw yet — declared cover reaches Armour Class
+ * and nothing else — so a field saying this spell ignores it would describe an
+ * exception to a rule the engine does not have. When Dexterity saves start
+ * reading cover, this spell is the first thing that needs a field.
+ */
+export const SACRED_FLAME: SpellDefinition = {
+  id: 'sacred-flame',
+  name: 'Sacred Flame',
+  level: 0,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '1d8', cantripUpgradesAt: [5, 11, 17] },
+      damageType: 'radiant',
+      onSuccess: 'none',
+    },
+  ],
+};
+
+/**
+ * SRD Inflict Wounds:
+ *
+ * > _Level 1 Necromancy (Cleric)._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Instantaneous.
+ * > "A creature you touch makes a Constitution saving throw, taking 2d10
+ * > Necrotic damage on a failed save or half as much damage on a successful
+ * > one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d10 for each
+ * > spell slot level above 1."
+ *
+ * Note the asymmetry the scaling field exists for: the base is **2**d10 and
+ * the increase is **1**d10.
+ */
+export const INFLICT_WOUNDS: SpellDefinition = {
+  id: 'inflict-wounds',
+  name: 'Inflict Wounds',
+  level: 1,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
+      damageType: 'necrotic',
+      onSuccess: 'half',
+    },
+  ],
+};
+
+/**
+ * SRD Cure Wounds:
+ *
+ * > _Level 1 Abjuration (Bard, Cleric, Druid, Paladin, Ranger)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** Instantaneous.
+ * > "A creature you touch regains a number of Hit Points equal to 2d8 plus
+ * > your spellcasting ability modifier."
+ * > _Using a Higher-Level Spell Slot._ "The healing increases by 2d8 for each
+ * > spell slot level above 1."
+ *
+ * "A creature you touch" includes yourself, so the caster is a legal target.
+ */
+export const CURE_WOUNDS: SpellDefinition = {
+  id: 'cure-wounds',
+  name: 'Cure Wounds',
+  level: 1,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'heal',
+      healing: { dice: '2d8', perSlotLevelAbove: '2d8' },
+      addSpellcastingModifier: true,
+    },
+  ],
+};
+
+/**
+ * SRD Healing Word:
+ *
+ * > _Level 1 Abjuration (Bard, Cleric, Druid)._ **Casting Time:** Bonus Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "A creature of your choice that you can see within range regains Hit
+ * > Points equal to 2d4 plus your spellcasting ability modifier."
+ * > _Using a Higher-Level Spell Slot._ "The healing increases by 2d4 for each
+ * > spell slot level above 1."
+ *
+ * The Bonus Action is why this sits alongside Cure Wounds: the same effect at
+ * a different cost, and the action economy has to charge the right one.
+ */
+export const HEALING_WORD: SpellDefinition = {
+  id: 'healing-word',
+  name: 'Healing Word',
+  level: 1,
+  school: 'abjuration',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1, self: true },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'heal',
+      healing: { dice: '2d4', perSlotLevelAbove: '2d4' },
+      addSpellcastingModifier: true,
+    },
+  ],
+};
+
+export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
+  CURE_WOUNDS,
+  FIRE_BOLT,
+  HEALING_WORD,
+  HOLD_PERSON,
+  INFLICT_WOUNDS,
+  SACRED_FLAME,
+];
 
 export const definitionFor = (spellId: string): SpellDefinition | null =>
   SPELL_DEFINITIONS.find((spell) => spell.id === spellId) ?? null;
 
 /**
- * The damage a spell rolls, at this caster level and this slot level.
+ * The dice a spell rolls, at this caster level and this slot level.
  *
  * A cantrip reads the caster's level and ignores the slot, because it has
  * none; a levelled spell reads the slot and ignores the level. Conflating the
  * two is how a level 3 Wizard ends up throwing a level 5 Fire Bolt.
+ *
+ * Damage and healing both come through here: the arithmetic is the same, and
+ * the SRD writes both upcasts in the same sentence shape.
  */
-export function damageDiceFor(
-  scaling: DamageScaling,
+export function scaledDiceFor(
+  scaling: DiceScaling,
   spellLevel: number,
   casterLevel: number,
   slotLevel: number,

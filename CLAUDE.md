@@ -1127,10 +1127,66 @@ that says what a spell *does* — the description is English. So a spell the
 engine resolves needs a definition in `spell-definitions.ts`, written from the
 SRD text and checked against it.
 
-Two so far, deliberately. The **structures** are the reusable part — an attack
-that deals scaling damage, and a save that imposes a condition with an escape
-that repeats — and between them Fire Bolt and Hold Person exercise every field.
-A third spell should be data, not design.
+Four shapes, six spells. The **structures** are the reusable part and the
+spells are the proof they fit something real:
+
+| Shape | Spells | What the shape has to get right |
+|---|---|---|
+| Attack, scaling damage | Fire Bolt | cantrip upgrade by caster level, crits double the dice |
+| Save, condition, repeating escape | Hold Person | turn-boundary hook, per-target cleanup |
+| Save, damage, stated success | Sacred Flame, Inflict Wounds | **none** vs **half** on a success are different spells |
+| Healing, plus the caster's modifier | Cure Wounds, Healing Word | the cap at maximum, 0 hit points, Bonus Action |
+
+A spell that fits one of these is data. A spell that does not is a new shape,
+and a new shape is a milestone rather than a definition.
+
+**Damage and healing scale by the same arithmetic**, so `DiceScaling` is named
+for dice rather than for damage: Cure Wounds reads "increases by 2d8 for each
+spell slot level above 1" in exactly the sentence shape a damage spell uses.
+The per-slot entry is a whole notation, not a count, because the upcast die is
+not always the base die *count* — Inflict Wounds is **2**d10 and grows by
+**1**d10, and reading the increase off the base would double it.
+
+**What a success buys is stated, never defaulted.** Inflict Wounds gives "half
+as much damage on a successful one"; Sacred Flame gives nothing at all, because
+its text says "or take", not "half as much". Defaulting either way silently
+rewrites one of the two spells. A success against a `none` spell rolls no
+damage dice at all — the spell did nothing, and rolling would move the
+generator for no reason.
+
+**Half comes off the spell's damage, before the target's defences.** SRD:
+"The halved damage is equal to half the damage that would be dealt on a failed
+save." So the order is: roll, halve for the save, then adjustments, Resistance
+and Vulnerability. It matters: 5 necrotic against a vulnerable creature that
+saved is 2 then doubled to 4, where doubling first would give 5.
+
+**Healing is not negative damage**, and the differences are all in the rules
+rather than the arithmetic. It is capped at the hit point maximum, it lifts
+exactly the unconsciousness that having no hit points caused and no other, it
+adds the *chosen route's* spellcasting modifier rather than the class's, and
+hit points alone will not raise the dead — `healCreature` refuses a corpse, and
+the refusal costs no slot.
+
+**A creature's defences are state, and damage reads them.** `adaptMonster` has
+always produced Resistance, Vulnerability and Immunity from a stat block, and
+until this milestone they went nowhere — `applyDamage` was called with an empty
+table, so a fire-immune creature burned like anything else, silently. They now
+live on `CreatureState` and every spell's damage goes through them. Only
+*unconditional* entries: a qualified one ("except from its vampire master")
+stays out, because no boolean captures it and treating it as absolute is the
+documented wrong answer.
+
+**Spell damage settles the Concentration it puts at risk.** Every damaging
+effect goes through `resolveDamage` rather than `damageCreature`, so a target
+concentrating on something rolls its Constitution save in the same operation
+that hurt it. The attack path did not, before: Fire Bolt could drop a caster's
+Hex to 0 hit points' worth of damage and leave the spell running.
+
+**Spellcasting can be declared.** A character's comes from their choices, which
+is why `character-created` carries it. An NPC Cleric has no class table to
+derive from, so `spellcasting-declared` states it — the same rule as a stat
+block's printed Armour Class: declared wins, and the engine does not
+reverse-engineer a class that happens to add up.
 
 **Everything mechanical is derived, not supplied.** `resolveSpell` takes a
 caster, a spell id, some targets and a slot. It derives the attack modifier and
@@ -1166,6 +1222,28 @@ Reported rather than refused, in `unverified`:
   don't guess" governs numbers with a right answer; where a creature is
   standing has none until somebody places it, and an unplaced creature is an
   engine-to-model signal rather than an error.
+
+### What these effect types still do not cover
+
+- **No areas of effect.** `resolveSpell` takes target ids, so Burning Hands and
+  Fireball are not castable even though `positioning.ts` has every shape they
+  need. An area spell picks its own targets from geometry, which is a different
+  operation, not a different effect.
+- **Cover does not reach a saving throw.** Declared cover adjusts Armour Class
+  and nothing else, so Sacred Flame's "no benefit from Half Cover or
+  Three-Quarters Cover" describes an exception to a rule the engine does not
+  have yet. Nothing records the exception, because a field for it would be
+  read by nothing.
+- **No Temporary Hit Points from a spell**, so False Life and Aid have no
+  shape. `grantTemporaryHpTo` exists; no effect type reaches it.
+- **Healing restores hit points only.** Lesser Restoration ends a condition,
+  Revivify raises the dead, Aid raises the maximum — three more shapes, none of
+  them here.
+- **No damage over time, and no effect that repeats without a save.** An effect
+  either happens at resolution or hangs a repeating save on a turn boundary.
+- **A spell has one effect list applied to every target**, so nothing yet
+  expresses "each creature takes damage *and* is knocked Prone" with different
+  outcomes per target beyond the save each one rolls.
 
 **A pending turn-boundary save blocks casting**, not just turn advancement.
 Somebody may or may not still be Paralyzed; acting into a state nobody has
@@ -1625,6 +1703,9 @@ null and is reported — it never becomes either.
   Mounts, vehicles, lifestyle expenses, food, hirelings and
   spellcasting services are separate sections of `equipment.md` and are still
   unparsed.
+- M1 spell execution: six spells across four effect shapes. Areas of effect,
+  Temporary Hit Points, condition-lifting healing and cover on a saving throw
+  are the named gaps, each with the reason it is still open.
 - **M1 is done.** Its ship criterion — "a scripted 4-round combat between two
   parties resolves identically from the same seed" — is discharged by
   `scenario.test.ts`. What that proves is the *engine*: dice, rolls, checks,

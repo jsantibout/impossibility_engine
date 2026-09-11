@@ -39,7 +39,8 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | The clock | Seconds since the campaign began; a combat round costs six of them |
 | Durations | Elapsed deadlines and turn-anchored ones, expiring by effect instance |
 | Turn hooks | Repeat saves raised by the turn itself, rolled by the engine, never forgotten |
-| Spellcasting | Fire Bolt and Hold Person resolved end to end: access, range, scaling, saves |
+| Spellcasting | Six spells resolved end to end: attacks, saves, damage, healing, scaling |
+| Defences | Resistance, Vulnerability and Immunity carried on the creature and applied |
 | Targeting | Type, range, cover and sight checked; a missing fact comes back as a request |
 | Progression | Class tables, features by level, and what the engine does or does not run |
 | Creation | A validated level 1–3 Wizard: origin, scores, skills, feats, spells, kit |
@@ -56,6 +57,12 @@ Parsing a spell's text is not the same as *executing* it: the engine tracks what
 a casting costs and what it keeps alive, but no spell's own effects are scripted
 — a spell that imposes a condition is applied by the caller, linked to the
 casting that caused it.
+
+**Spells the engine executes** — Fire Bolt, Sacred Flame, Hold Person, Inflict
+Wounds, Cure Wounds and Healing Word. Every other SRD spell can be looked up
+but not cast, and the engine says so rather than guessing. Areas of effect are
+the next shape and are not done: a spell that picks its targets from geometry
+is a different operation from one handed a list of ids.
 
 **Not built yet**: the other eleven classes, feats, multiclassing, the tool
 surface Claude would call, the DM orchestration, persistence, and the web app.

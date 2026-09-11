@@ -9,7 +9,7 @@ import { routeFor } from './spellcasting.js';
 import {
   FIRE_BOLT,
   HOLD_PERSON,
-  damageDiceFor,
+  scaledDiceFor,
   definitionFor,
   targetCountFor,
 } from './spell-definitions.js';
@@ -199,18 +199,18 @@ describe('the definitions match the SRD', () => {
   /** SRD: "increases by 1d10 when you reach levels 5 (2d10), 11 (3d10), 17 (4d10)." */
   it('scales a cantrip by caster level, not by slot', () => {
     const scaling = { dice: '1d10', cantripUpgradesAt: [5, 11, 17] };
-    expect(damageDiceFor(scaling, 0, 1, 0)).toBe('1d10');
-    expect(damageDiceFor(scaling, 0, 4, 0)).toBe('1d10');
-    expect(damageDiceFor(scaling, 0, 5, 0)).toBe('2d10');
-    expect(damageDiceFor(scaling, 0, 11, 0)).toBe('3d10');
-    expect(damageDiceFor(scaling, 0, 17, 0)).toBe('4d10');
-    expect(damageDiceFor(scaling, 0, 20, 0)).toBe('4d10');
+    expect(scaledDiceFor(scaling, 0, 1, 0)).toBe('1d10');
+    expect(scaledDiceFor(scaling, 0, 4, 0)).toBe('1d10');
+    expect(scaledDiceFor(scaling, 0, 5, 0)).toBe('2d10');
+    expect(scaledDiceFor(scaling, 0, 11, 0)).toBe('3d10');
+    expect(scaledDiceFor(scaling, 0, 17, 0)).toBe('4d10');
+    expect(scaledDiceFor(scaling, 0, 20, 0)).toBe('4d10');
   });
 
   it('scales a levelled spell by slot, not by caster level', () => {
     const scaling = { dice: '2d6', perSlotLevelAbove: '1d6' };
-    expect(damageDiceFor(scaling, 1, 20, 1)).toBe('2d6');
-    expect(damageDiceFor(scaling, 1, 1, 3)).toBe('4d6');
+    expect(scaledDiceFor(scaling, 1, 20, 1)).toBe('2d6');
+    expect(scaledDiceFor(scaling, 1, 1, 3)).toBe('4d6');
   });
 
   /** SRD: "one additional Humanoid for each spell slot level above 2." */

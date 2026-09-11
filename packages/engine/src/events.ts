@@ -22,6 +22,7 @@ import {
   type ResourceState,
 } from './resources.js';
 import type { CharacterRecord } from './creation.js';
+import type { DamageDefenses } from './attack.js';
 import { itemFor } from './catalogue.js';
 import { noSpellcasting, type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
@@ -131,6 +132,16 @@ export interface CreatureState {
    * take it from their species; a stat block prints it.
    */
   readonly creatureType: string | null;
+  /**
+   * Resistance, Vulnerability and Immunity, per damage type.
+   *
+   * A stat block prints these and `adaptMonster` reads them; until they reached
+   * state nothing could apply them, so a fire-immune creature burned like
+   * anything else. Only *unconditional* entries live here — a qualified one
+   * ("except from its vampire master") stays out, because no boolean captures
+   * it and treating it as absolute is the documented wrong answer.
+   */
+  readonly defenses: Readonly<Record<string, DamageDefenses>>;
   /**
    * Bonuses this creature's own features add to Initiative.
    *
@@ -261,6 +272,21 @@ export type GameEvent =
       readonly diesAtZero?: boolean;
       /** Humanoid, Fey, Dragon. Absent means nobody has said. */
       readonly creatureType?: string;
+      /** What this creature resists, is immune to, or is vulnerable to. */
+      readonly defenses?: Readonly<Record<string, DamageDefenses>>;
+    }
+  /**
+   * What a creature can cast, declared rather than derived.
+   *
+   * A character's spellcasting comes from their choices, which is why
+   * `character-created` carries it. Everything else that casts — an NPC
+   * Cleric, a monster with innate spells — has no class table to derive from,
+   * so it is stated. Same rule as a stat block's Armour Class: printed wins.
+   */
+  | {
+      readonly type: 'spellcasting-declared';
+      readonly id: CharacterId;
+      readonly spellcasting: SpellcastingState;
     }
   | { readonly type: 'creature-removed'; readonly id: CharacterId }
 
@@ -1144,6 +1170,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             lastLongRestAt: null,
             spellcasting: noSpellcasting(),
             creatureType: event.creatureType ?? null,
+            defenses: event.defenses ?? {},
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
@@ -1609,6 +1636,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         { equipped, sheet: withEquipment(creature.sheet, equipped) },
         creature,
       );
+    }
+
+    case 'spellcasting-declared': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(next, event.id, { spellcasting: event.spellcasting }, creature);
     }
 
     case 'creature-type-declared': {

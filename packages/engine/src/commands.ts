@@ -11,15 +11,23 @@ import {
 import type { Bonus, ModeSource } from './bonuses.js';
 import {
   armorClass,
+  modifierFor,
   spellAttackModifierWith,
   spellSaveDcWith,
   untrainedArmorPenalty,
+  type CharacterSheet,
 } from './character.js';
-import { applyDamage, rollAttack, rollAttackDamage, type AttackResult } from './attack.js';
+import {
+  applyDamage,
+  rollAttack,
+  rollAttackDamage,
+  type AttackResult,
+  type DamageComponent,
+} from './attack.js';
 import { expandPack, itemFor, type CatalogueItem, type ItemKind } from './catalogue.js';
 import { coverBetween, distanceBetween, sightBetween } from './positioning.js';
 import {
-  damageDiceFor,
+  scaledDiceFor,
   definitionFor,
   targetCountFor,
   type SpellRange,
@@ -1243,7 +1251,17 @@ export interface SpellTargetOutcome {
   readonly attack?: AttackResult;
   readonly save?: D20TestResult;
   readonly damage?: number;
+  /** Hit points actually restored, after the cap at the maximum. */
+  readonly healed?: number;
   readonly condition?: ConditionName;
+  /**
+   * The Concentration this damage put at risk, and what became of it.
+   *
+   * Present whenever damage was dealt to a creature that was concentrating:
+   * the save is rolled by the same operation that dealt the damage, so nobody
+   * has to remember to ask for it.
+   */
+  readonly concentration?: ConcentrationConsequence;
   /** Whether the effect actually landed on this target. */
   readonly affected: boolean;
 }
@@ -1317,6 +1335,85 @@ export interface CastSpellRequest extends CommandIdentity {
    * slot is the caller's decision, not a default.
    */
   readonly payment?: 'slot' | 'free-casting';
+}
+
+/**
+ * Roll a spell's dice, with no weapon and no ability modifier attached.
+ *
+ * `rollAttackDamage` is the engine's one damage roller and it is built around
+ * a weapon, so a spell borrows it with `weapon: null` and its own dice as
+ * `extraDamage`, then keeps only its own components. The Unarmed Strike the
+ * weaponless branch contributes is flat, so nothing is rolled for it and the
+ * generator does not move — but it would be in the total, which is why the
+ * filter is here rather than at each call site.
+ */
+function rollSpellDice(
+  supply: ConcentrationSaveSupply,
+  sheet: CharacterSheet,
+  source: string,
+  type: string,
+  dice: string,
+): Result<readonly DamageComponent[]> {
+  const rolled = rollAttackDamage(
+    supply.issuer,
+    supply.rng,
+    sheet,
+    { weapon: null, targetAc: 0, extraDamage: [{ source, type, dice }] },
+    false,
+  );
+  if (!rolled.ok) return rolled;
+  return ok(rolled.value.components.filter((component) => component.source === source));
+}
+
+/**
+ * Apply a spell's rolled damage to a target, defences and Concentration and all.
+ *
+ * Three things a spell must not have to remember, gathered in one place:
+ *
+ * - **The target's defences.** `applyDamage` has always taken them; nothing
+ *   passed them, because they were not in state. A fire-immune creature took
+ *   full damage from Fire Bolt, silently.
+ * - **The Concentration the damage put at risk.** `resolveDamage` rolls that
+ *   save itself, which is exactly why it exists — a caller who forgets leaves
+ *   a spell running that the rules have ended.
+ * - **Death and unconsciousness**, which `damageCreature` beneath it owns.
+ *
+ * Damage is summed per type before defences are applied, never per component:
+ * halving 5 and 5 separately gives 4, halving their sum gives 5.
+ */
+function dealSpellDamage(
+  state: GameState,
+  target: CharacterId,
+  components: readonly DamageComponent[],
+  source: string,
+  supply: ConcentrationSaveSupply,
+  options: { readonly critical?: boolean },
+): Result<{
+  readonly events: readonly GameEvent[];
+  readonly amount: number;
+  readonly concentration: ConcentrationConsequence;
+}> {
+  const victim = state.creatures[target];
+  if (victim === undefined) return err('unknown_creature', `${target} is not in this game`);
+
+  const applied = applyDamage(components, victim.defenses);
+  const resolved = resolveDamage(
+    state,
+    target,
+    {
+      amount: applied.total,
+      source,
+      ...(options.critical === true ? { critical: true } : {}),
+    },
+    supply,
+  );
+  if (!resolved.ok) return resolved;
+
+  return ok({
+    events: resolved.value.events,
+    amount: applied.total,
+    concentration: resolved.value.concentration,
+  });
 }
 
 const ranged = (range: SpellRange): number | null =>
@@ -1558,7 +1655,10 @@ export function resolveSpell(
           continue;
         }
 
-        const dice = damageDiceFor(effect.damage, definition.level, caster.sheet.level, castLevel);
+        const dice = scaledDiceFor(effect.damage, definition.level, caster.sheet.level, castLevel);
+        // A critical doubles the dice, which is `rollAttackDamage`'s job, so
+        // this one call keeps the weapon-shaped signature rather than going
+        // through `rollSpellDice`.
         const rolled = rollAttackDamage(
           supply.issuer,
           supply.rng,
@@ -1572,24 +1672,128 @@ export function resolveSpell(
         );
         if (!rolled.ok) return rolled;
 
-        const applied = applyDamage(
+        const hurt = dealSpellDamage(
+          current,
+          target,
           rolled.value.components.filter((c) => c.source === definition.name),
-          {},
+          definition.name,
+          supply,
+          { ...(attack.value.critical ? { critical: true } : {}) },
         );
-        const hurt = damageCreature(current, target, {
-          amount: applied.total,
-          source: definition.name,
-          ...(attack.value.critical ? { critical: true } : {}),
-        });
         if (!hurt.ok) return hurt;
 
-        events.push(...hurt.value);
-        current = hurt.value.reduce(applyEvent, current);
+        events.push(...hurt.value.events);
+        current = hurt.value.events.reduce(applyEvent, current);
         outcomes.push({
           target,
           attack: attack.value,
-          damage: applied.total,
+          damage: hurt.value.amount,
+          concentration: hurt.value.concentration,
           affected: true,
+        });
+        continue;
+      }
+
+      // Hit points restored. No roll to beat and nothing to resist: healing is
+      // not damage, and a target at full is a legal target who gains nothing.
+      if (effect.kind === 'heal') {
+        const dice = scaledDiceFor(effect.healing, definition.level, caster.sheet.level, castLevel);
+        const rolled = rollSpellDice(supply, caster.sheet, definition.name, 'healing', dice);
+        if (!rolled.ok) return rolled;
+
+        // SRD: "2d8 plus your spellcasting ability modifier" — and it is the
+        // *chosen route's* ability, so a feat's version heals by its own.
+        const bonus = effect.addSpellcastingModifier ? modifierFor(caster.sheet, route.ability) : 0;
+        const amount = Math.max(0, rolled.value.reduce((sum, c) => sum + c.total, 0) + bonus);
+
+        events.push({
+          type: 'roll-recorded',
+          who: casterId,
+          label: `${definition.name} healing`,
+          natural: 0,
+          total: amount,
+          contributions: [{ source: 'spellcasting modifier', amount: bonus }],
+          outcome: 'healed',
+        });
+
+        // `healCreature` refuses a corpse and refuses nothing-at-all, and it
+        // lifts exactly the unconsciousness that having no hit points caused.
+        // The cap at the maximum is `heal`'s, in vitals, where it always was.
+        const before = victim.vitals.hp;
+        const healed = healCreature(current, target, Math.max(1, amount));
+        if (!healed.ok) return healed;
+
+        events.push(...healed.value);
+        current = healed.value.reduce(applyEvent, current);
+        outcomes.push({
+          target,
+          healed: (current.creatures[target]?.vitals.hp ?? before) - before,
+          affected: true,
+        });
+        continue;
+      }
+
+      // A saving throw that deals damage, with what a success buys stated.
+      if (effect.kind === 'save-damage') {
+        const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+          dc: saveDc,
+          conditions: victim.conditions,
+          ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+          ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+        });
+        if (!save.ok) return save;
+
+        events.push(
+          recordD20Test(
+            target,
+            `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+            save.value,
+            save.value.success ? 'resisted' : 'affected',
+          ),
+        );
+
+        // Nothing at all on a success means no damage roll either: the spell
+        // did nothing, and rolling would move the generator for no reason.
+        if (save.value.success && effect.onSuccess === 'none') {
+          outcomes.push({ target, save: save.value, damage: 0, affected: false });
+          continue;
+        }
+
+        const dice = scaledDiceFor(effect.damage, definition.level, caster.sheet.level, castLevel);
+        const rolled = rollSpellDice(
+          supply,
+          caster.sheet,
+          definition.name,
+          effect.damageType,
+          dice,
+        );
+        if (!rolled.ok) return rolled;
+
+        // SRD: "The halved damage is equal to half the damage that would be
+        // dealt on a failed save." Half of what the spell deals, therefore
+        // *before* the target's own Resistance — which then halves again.
+        const components = save.value.success
+          ? rolled.value.map((c) => ({ ...c, total: Math.floor(c.total / 2) }))
+          : rolled.value;
+
+        const hurt = dealSpellDamage(
+          current,
+          target,
+          components,
+          definition.name,
+          supply,
+          {},
+        );
+        if (!hurt.ok) return hurt;
+
+        events.push(...hurt.value.events);
+        current = hurt.value.events.reduce(applyEvent, current);
+        outcomes.push({
+          target,
+          save: save.value,
+          damage: hurt.value.amount,
+          concentration: hurt.value.concentration,
+          affected: !save.value.success,
         });
         continue;
       }

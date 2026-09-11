@@ -12,7 +12,7 @@ import { createRollIssuer, type RollIssuer } from './rolls.js';
 import { pendingSavesOf, resolveDamage, resolveSpell, resolveTurn } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
-import { FIRE_BOLT, damageDiceFor } from './spell-definitions.js';
+import { FIRE_BOLT, scaledDiceFor } from './spell-definitions.js';
 
 /**
  * The milestone's own ship criterion: **a scripted combat between two parties
@@ -816,7 +816,7 @@ describe('Fire Bolt scales the way the SRD says', () => {
     expect(KESSA.level).toBe(3);
     const bolt = FIRE_BOLT.effects[0];
     if (bolt?.kind !== 'attack') throw new Error('Fire Bolt is an attack spell');
-    expect(damageDiceFor(bolt.damage, 0, KESSA.level, 0)).toBe('1d10');
+    expect(scaledDiceFor(bolt.damage, 0, KESSA.level, 0)).toBe('1d10');
   });
 });
 
