@@ -523,14 +523,20 @@ describe('Origin feats and the choices they demand', () => {
 });
 
 describe('starting equipment, ownership and what is worn', () => {
-  it('takes both packages, with quantities, details and coin', () => {
+  it('takes both packages, with quantities, pack contents and coin', () => {
     const plan = planned();
-    const names = plan.inventory.map((e) => e.name);
-    expect(names).toContain('Spellbook');
-    expect(names).toContain("Scholar's Pack");
-    expect(names).toContain("Calligrapher's Supplies");
-    expect(plan.inventory).toContainEqual({ name: 'Dagger', quantity: 2 });
-    expect(plan.inventory).toContainEqual({ name: 'Parchment', quantity: 8, detail: 'sheets' });
+    const ids = plan.inventory.map((line) => line.id);
+    expect(ids).toContain('spellbook');
+    expect(ids).toContain('scholars-pack');
+    expect(ids).toContain('calligraphers-supplies');
+    expect(plan.inventory).toContainEqual({ id: 'dagger', quantity: 2 });
+    // The pack is opened: its contents are owned, not just its label.
+    expect(plan.inventory).toContainEqual({ id: 'tinderbox', quantity: 1 });
+    expect(plan.inventory).toContainEqual({ id: 'oil', quantity: 10 });
+    // Both packages hold a quarterstaff, and both are owned.
+    expect(plan.inventory).toContainEqual({ id: 'quarterstaff', quantity: 2 });
+    // 10 sheets from the Scholar's Pack, 8 from Sage.
+    expect(plan.inventory).toContainEqual({ id: 'parchment', quantity: 18 });
     // 5 GP from the Wizard package, 8 from Sage.
     expect(plan.goldPieces).toBe(13);
   });
@@ -538,8 +544,8 @@ describe('starting equipment, ownership and what is worn', () => {
   it('takes the gold instead when B is chosen, and mixes the two freely', () => {
     expect(planned({ classEquipment: 'B', backgroundEquipment: 'B' }).goldPieces).toBe(105);
     const mixed = planned({ classEquipment: 'B', backgroundEquipment: 'A' });
-    expect(mixed.inventory.map((e) => e.name)).toContain("Calligrapher's Supplies");
-    expect(mixed.inventory.map((e) => e.name)).not.toContain('Spellbook');
+    expect(mixed.inventory.map((line) => line.id)).toContain('calligraphers-supplies');
+    expect(mixed.inventory.map((line) => line.id)).not.toContain('spellbook');
     expect(mixed.goldPieces).toBe(63);
   });
 
@@ -559,7 +565,11 @@ describe('starting equipment, ownership and what is worn', () => {
   });
 
   it('refuses equipping something the character does not own', () => {
-    rejects({ equipped: ['Plate Armor'] }, 'not_owned');
+    rejects({ equipped: ['plate-armor'] }, 'not_owned');
+  });
+
+  it('refuses equipping something that is not in the catalogue at all', () => {
+    rejects({ equipped: ['vorpal-sword'] }, 'unknown_item');
   });
 
   /**
@@ -570,17 +580,17 @@ describe('starting equipment, ownership and what is worn', () => {
   it('derives a new Armour Class once granted armour is actually equipped', () => {
     const granted: Overrides = {
       dmGrants: {
-        items: [{ name: 'Chain Shirt', quantity: 1 }],
+        items: [{ id: 'chain-shirt', quantity: 1 }],
         goldPieces: 0,
         magicItems: ['Potion of Healing'],
         note: 'salvaged from the vault',
       },
     };
     const owned = planned(granted);
-    expect(owned.inventory.map((e) => e.name)).toContain('Chain Shirt');
+    expect(owned.inventory.map((line) => line.id)).toContain('chain-shirt');
     expect(armorClass(owned.sheet)).toBe(12);
 
-    const worn = planned({ ...granted, equipped: ['Chain Shirt'] });
+    const worn = planned({ ...granted, equipped: ['chain-shirt'] });
     expect(worn.sheet.armor?.name).toBe('Chain Shirt');
     // Chain Shirt is 13 + Dex, capped at +2.
     expect(armorClass(worn.sheet)).toBe(15);

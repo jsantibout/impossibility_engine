@@ -125,9 +125,16 @@ export interface SubclassDefinition extends FeatureSource {
   readonly classId: string;
 }
 
-/** An item as the SRD lists it in a starting-equipment package. */
+/**
+ * An item in a starting-equipment package.
+ *
+ * A **catalogue id**, not a name. The gear table alphabetises by inverting its
+ * names — it prints `Lantern, Hooded` where a person says "hooded lantern" —
+ * so a package written in display text silently stops containing a lantern the
+ * first time anybody looks it up. The id is the parser's slug and does not move.
+ */
 export interface EquipmentEntry {
-  readonly name: string;
+  readonly id: string;
   readonly quantity: number;
   /** A note the SRD prints in brackets, such as a book's subject. */
   readonly detail?: string;

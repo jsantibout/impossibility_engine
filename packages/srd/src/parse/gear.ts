@@ -8,6 +8,7 @@ import {
   type GearCost,
   type GearVariant,
   type GearWeight,
+  type PackContent,
   type ParseProblem,
   type Tool,
   type ToolUse,
@@ -222,7 +223,23 @@ export function parseGear(markdown: string, source: string): GearOutput {
   const gear = parseGearSection(lines, problem);
   const tools = parseToolsSection(lines, problem);
 
-  return { gear: gear.gear, ammunition: gear.ammunition, tools, problems };
+  // Packs reference other rows, so their contents can only be resolved once
+  // every row exists. A second pass over the same list, after the first.
+  const rows = gear.gear;
+  const idByName = new Map(rows.map((item) => [item.name.toLowerCase(), item.id]));
+  const lookup = (name: string): string | null => idByName.get(name.toLowerCase()) ?? null;
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const item = rows[index];
+    if (item === undefined) continue;
+    const contents = parsePackContents(item.description, lookup);
+    for (const phrase of contents.unresolved) {
+      problem(item.name, `contents list "${phrase}" names no row in the gear table`);
+    }
+    if (contents.lines.length > 0) rows[index] = { ...item, contents: [...contents.lines] };
+  }
+
+  return { gear: rows, ammunition: gear.ammunition, tools, problems };
 }
 
 type Report = (entry: string, message: string) => void;
@@ -322,6 +339,7 @@ function parseGearSection(
           cost,
           description: entry.description,
           variants: entry.variants,
+          contents: [],
         };
 
         const validated = GearSchema.safeParse(candidate);
@@ -501,4 +519,100 @@ function parseToolsSection(lines: readonly string[], problem: Report): Tool[] {
   }
 
   return tools;
+}
+
+/**
+ * SRD prints a pack's contents as a sentence rather than a table:
+ *
+ * > "A Scholar's Pack contains the following items: Backpack, Book, Ink, Ink
+ * > Pen, Lamp, 10 flasks of Oil, 10 sheets of Parchment, and Tinderbox."
+ *
+ * Buying the pack has to put those rows into somebody's hands, so each phrase
+ * is resolved back to the row it names. Three habits of the source get in the
+ * way, and every one of them is the book's rather than the parser's:
+ *
+ * - a count with a unit: `10 flasks of Oil`, `5 days of Rations`
+ * - a bare plural: `10 Candles`, `5 Ink Pens`, `10 Torches`
+ * - an inverted table name: the sentence says `Hooded Lantern` where the table
+ *   alphabetises it as `Lantern, Hooded`
+ *
+ * A phrase that resolves to nothing comes back in `unresolved` rather than
+ * being dropped, because a pack quietly missing an item is a theft nobody
+ * notices until the rope is needed.
+ */
+export interface PackContents {
+  readonly lines: readonly PackContent[];
+  readonly unresolved: readonly string[];
+}
+
+const CONTENTS = /contains the following items:\s*(.+?)\.\s*$/is;
+
+/** `10 flasks of Oil` → 10 and `Oil`; `Backpack` → 1 and `Backpack`. */
+function readPhrase(phrase: string): { quantity: number; name: string } {
+  const counted = /^(\d+)\s+(.*)$/.exec(phrase.trim());
+  if (counted === null) return { quantity: 1, name: phrase.trim() };
+
+  const quantity = Number(counted[1]);
+  const rest = (counted[2] ?? '').trim();
+
+  // "flasks of Oil", "days of Rations", "sheets of Parchment": the unit is
+  // packaging, and the row is what comes after "of".
+  const unit = /^[a-z]+\s+of\s+(.+)$/.exec(rest);
+  return { quantity, name: (unit === null ? rest : (unit[1] ?? rest)).trim() };
+}
+
+/** Singular forms the SRD's plurals take, tried in order. */
+function singulars(name: string): string[] {
+  const forms = [name];
+  if (name.endsWith('ies')) forms.push(`${name.slice(0, -3)}y`);
+  if (name.endsWith('es')) forms.push(name.slice(0, -2));
+  if (name.endsWith('s')) forms.push(name.slice(0, -1));
+  return forms;
+}
+
+/** `Hooded Lantern` is how anyone says `Lantern, Hooded`. */
+function inversions(name: string): string[] {
+  const words = name.split(' ');
+  if (words.length < 2) return [];
+  const last = words[words.length - 1];
+  const rest = words.slice(0, -1).join(' ');
+  return last === undefined ? [] : [`${last}, ${rest}`];
+}
+
+/**
+ * Read a contents sentence, resolving each phrase with the supplied lookup.
+ *
+ * The lookup is passed in rather than closed over so this can be tested
+ * without the whole catalogue, and so the resolution order stays visible: as
+ * printed, then singular, then un-inverted, then both.
+ */
+export function parsePackContents(
+  description: string,
+  idFor: (name: string) => string | null,
+): PackContents {
+  const sentence = CONTENTS.exec(description);
+  if (sentence === null) return { lines: [], unresolved: [] };
+
+  const lines: PackContent[] = [];
+  const unresolved: string[] = [];
+
+  for (const raw of (sentence[1] ?? '').split(',')) {
+    const printed = raw.replace(/^\s*and\s+/i, '').trim();
+    if (printed === '') continue;
+
+    const { quantity, name } = readPhrase(printed);
+    const candidates = [
+      ...singulars(name),
+      ...singulars(name).flatMap((form) => inversions(form)),
+    ];
+
+    const gearId = candidates.map(idFor).find((id): id is string => id !== null) ?? null;
+    if (gearId === null) {
+      unresolved.push(printed);
+      continue;
+    }
+    lines.push({ gearId, printed, quantity });
+  }
+
+  return { lines, unresolved };
 }

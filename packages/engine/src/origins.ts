@@ -85,11 +85,11 @@ export const SAGE: BackgroundDefinition = {
     {
       option: 'A',
       items: [
-        { name: 'Quarterstaff', quantity: 1 },
-        { name: "Calligrapher's Supplies", quantity: 1 },
-        { name: 'Book', quantity: 1, detail: 'history' },
-        { name: 'Parchment', quantity: 8, detail: 'sheets' },
-        { name: 'Robe', quantity: 1 },
+        { id: 'quarterstaff', quantity: 1 },
+        { id: 'calligraphers-supplies', quantity: 1 },
+        { id: 'book', quantity: 1, detail: 'history' },
+        { id: 'parchment', quantity: 8, detail: 'sheets' },
+        { id: 'robe', quantity: 1 },
       ],
       goldPieces: 8,
     },

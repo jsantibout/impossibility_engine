@@ -4,6 +4,7 @@ export * from './bonuses.js';
 export * from './conditions.js';
 export * from './clock.js';
 export * from './duration.js';
+export * from './catalogue.js';
 export * from './resources.js';
 export * from './rest.js';
 export * from './progression.js';

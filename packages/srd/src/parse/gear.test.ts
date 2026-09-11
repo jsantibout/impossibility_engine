@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseEquipment } from './equipment.js';
-import { parseGear, parseGearCost, parseGearWeight, parseToolVariants } from './gear.js';
+import {
+  parseGear,
+  parseGearCost,
+  parseGearWeight,
+  parsePackContents,
+  parseToolVariants,
+} from './gear.js';
 import { AmmunitionSchema, GearSchema, ToolSchema } from '../schemas.js';
 
 const markdown = readFileSync(
@@ -335,5 +341,92 @@ describe('a tool crafts things that exist', () => {
     expect(gearNamed('Pot, Iron')).toBeDefined();
     expect(toolNamed("Smith's Tools")?.craft).toContain('Iron Pot');
     expect(catalogue.has('iron pot')).toBe(true);
+  });
+});
+
+describe('a pack lists what is in it', () => {
+  /**
+   * SRD prints a pack's contents as a sentence: "A Scholar's Pack contains the
+   * following items: Backpack, Book, Ink, Ink Pen, Lamp, 10 flasks of Oil, 10
+   * sheets of Parchment, and Tinderbox."
+   *
+   * Buying the pack has to put those rows in a character's hands, so each
+   * phrase is resolved back to the row it names. Three things stand in the way,
+   * and all three are the source's habits rather than the parser's:
+   *
+   * - a count and a unit: `10 flasks of Oil`, `5 days of Rations`
+   * - a plural: `10 Candles`, `5 Ink Pens`, `10 Torches`
+   * - an inverted table name: the sentence says `Hooded Lantern`, the table
+   *   says `Lantern, Hooded`
+   */
+  it('resolves every phrase in every pack', () => {
+    const packs = parsed.gear.filter((g) => g.name.endsWith('Pack'));
+    expect(packs).toHaveLength(7);
+    for (const pack of packs) {
+      expect(pack.contents.length).toBeGreaterThan(0);
+      for (const line of pack.contents) {
+        expect(parsed.gear.some((g) => g.id === line.gearId)).toBe(true);
+      }
+    }
+  });
+
+  it('reads the Scholar’s Pack exactly as printed', () => {
+    const pack = gearNamed("Scholar's Pack");
+    expect(pack?.contents).toEqual([
+      { gearId: 'backpack', printed: 'Backpack', quantity: 1 },
+      { gearId: 'book', printed: 'Book', quantity: 1 },
+      { gearId: 'ink', printed: 'Ink', quantity: 1 },
+      { gearId: 'ink-pen', printed: 'Ink Pen', quantity: 1 },
+      { gearId: 'lamp', printed: 'Lamp', quantity: 1 },
+      { gearId: 'oil', printed: '10 flasks of Oil', quantity: 10 },
+      { gearId: 'parchment', printed: '10 sheets of Parchment', quantity: 10 },
+      { gearId: 'tinderbox', printed: 'Tinderbox', quantity: 1 },
+    ]);
+  });
+
+  it('counts a bare plural', () => {
+    const burglar = gearNamed("Burglar's Pack");
+    expect(burglar?.contents).toContainEqual({
+      gearId: 'candle',
+      printed: '10 Candles',
+      quantity: 10,
+    });
+  });
+
+  it('un-inverts a table name the sentence writes the natural way', () => {
+    // The table says "Lantern, Hooded"; the sentence says "Hooded Lantern".
+    expect(gearNamed("Burglar's Pack")?.contents).toContainEqual({
+      gearId: 'lantern-hooded',
+      printed: 'Hooded Lantern',
+      quantity: 1,
+    });
+    // And the plural inverted case, which is both habits at once.
+    expect(gearNamed("Diplomat's Pack")?.contents).toContainEqual({
+      gearId: 'case-map-or-scroll',
+      printed: '2 Map or Scroll Cases',
+      quantity: 2,
+    });
+  });
+
+  it('leaves everything that is not a pack with no contents', () => {
+    for (const item of parsed.gear.filter((g) => !g.name.endsWith('Pack'))) {
+      expect(item.contents).toEqual([]);
+    }
+  });
+
+  /** A pack that lost an item would be a quiet theft, so it is a parse problem. */
+  it('reports a phrase it cannot resolve rather than dropping it', () => {
+    const contents = parsePackContents(
+      'A Test Pack contains the following items: Backpack, 3 Widgets, and Rope.',
+      (name) => (name === 'Backpack' || name === 'Rope' ? `slug-${name.toLowerCase()}` : null),
+    );
+    expect(contents.unresolved).toEqual(['3 Widgets']);
+    expect(contents.lines.map((l) => l.gearId)).toEqual(['slug-backpack', 'slug-rope']);
+  });
+
+  it('reads nothing from prose that is not a contents sentence', () => {
+    const contents = parsePackContents('A sturdy Backpack holds 30 pounds.', () => 'x');
+    expect(contents.lines).toEqual([]);
+    expect(contents.unresolved).toEqual([]);
   });
 });

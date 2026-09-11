@@ -22,6 +22,7 @@ import {
   type ResourceState,
 } from './resources.js';
 import type { CharacterRecord } from './creation.js';
+import { itemFor } from './catalogue.js';
 import { noSpellcasting, type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
@@ -137,6 +138,17 @@ export interface CreatureState {
    * without a caller remembering that this character has the feat.
    */
   readonly initiativeBonuses: readonly { readonly source: string; readonly flat: number }[];
+  /**
+   * What this creature owns, by catalogue id.
+   *
+   * Sorted by id, so state serialises identically however the items arrived.
+   * Owning is not wearing: `equipped` is the subset in hand.
+   */
+  readonly inventory: readonly InventoryLine[];
+  /** The ids actually worn or wielded, which is what Armour Class reads. */
+  readonly equipped: readonly string[];
+  /** Money, in copper — the unit every SRD coin divides into. */
+  readonly coins: number;
   /**
    * The choices this character was built from, when it is a character.
    *
@@ -306,6 +318,47 @@ export type GameEvent =
       readonly source?: string;
     }
   | { readonly type: 'exhaustion-set'; readonly id: CharacterId; readonly level: number }
+  // — what a creature owns ———————————————————
+  /**
+   * Items arriving or leaving, by catalogue id.
+   *
+   * One event for a whole batch, because a starting package or a pack is one
+   * transaction: a character never half-receives a Scholar's Pack.
+   */
+  | {
+      readonly type: 'items-gained';
+      readonly id: CharacterId;
+      readonly items: readonly InventoryLine[];
+      readonly source: string;
+      readonly command?: CommandStamp;
+    }
+  | {
+      readonly type: 'items-lost';
+      readonly id: CharacterId;
+      readonly items: readonly InventoryLine[];
+      readonly source: string;
+    }
+  /** Money in or out, in copper. Negative spends. */
+  | {
+      readonly type: 'coins-changed';
+      readonly id: CharacterId;
+      readonly copper: number;
+      readonly source: string;
+    }
+  /**
+   * Something worn or wielded, or put away.
+   *
+   * Armour Class reads what is equipped, so this is also what moves the
+   * sheet's armour and shield — a chain shirt in a backpack protects nobody.
+   */
+  | {
+      readonly type: 'item-equipped';
+      readonly id: CharacterId;
+      readonly item: string;
+      readonly command?: CommandStamp;
+    }
+  | { readonly type: 'item-unequipped'; readonly id: CharacterId; readonly item: string }
+
   /** Establishing a fact the engine was missing, so a rule can read it. */
   | {
       readonly type: 'creature-type-declared';
@@ -947,6 +1000,51 @@ function dropOrphanedSaves(state: GameState): GameState {
   return changed ? { ...state, pendingSaves: live } : state;
 }
 
+/** One kind of thing, and how many of it. */
+export interface InventoryLine {
+  readonly id: string;
+  readonly quantity: number;
+}
+
+/**
+ * Quantities merge and the list stays sorted, so two identical packs agree.
+ *
+ * Exported because a plan has to describe the same inventory the log will
+ * produce: two packages that both hold a quarterstaff own one line of two, not
+ * two lines of one, before a single event is appended.
+ */
+export function mergeItems(
+  inventory: readonly InventoryLine[],
+  items: readonly InventoryLine[],
+): readonly InventoryLine[] {
+  const counts = new Map(inventory.map((line) => [line.id, line.quantity]));
+  for (const line of items) counts.set(line.id, (counts.get(line.id) ?? 0) + line.quantity);
+  return [...counts.entries()]
+    .filter(([, quantity]) => quantity > 0)
+    .map(([id, quantity]) => ({ id, quantity }))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+const removeItems = (
+  inventory: readonly InventoryLine[],
+  items: readonly InventoryLine[],
+): readonly InventoryLine[] =>
+  mergeItems(inventory, items.map((line) => ({ ...line, quantity: -line.quantity })));
+
+/**
+ * Put a piece of armour on the sheet, or take it off.
+ *
+ * Armour Class is derived from the sheet, and the sheet is what every roll
+ * reads, so equipping has to reach it. Anything that is not armour or a shield
+ * changes nothing here — a dagger in hand is tracked, but it is not AC.
+ */
+function wearing(sheet: CharacterSheet, itemId: string, on: boolean): CharacterSheet {
+  const item = itemFor(itemId);
+  if (item?.armor == null) return sheet;
+  const slot = item.armor.category === 'shield' ? 'shield' : 'armor';
+  return { ...sheet, [slot]: on ? item.armor : null };
+}
+
 const viewOf = (state: GameState): TimeView => ({
   elapsed: state.elapsed,
   combat: state.combat,
@@ -1040,6 +1138,9 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             spellcasting: noSpellcasting(),
             creatureType: event.creatureType ?? null,
             initiativeBonuses: [],
+            inventory: [],
+            equipped: [],
+            coins: 0,
             character: null,
           },
         },
@@ -1187,7 +1288,10 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         event.id,
         {
           character: event.record,
-          sheet: event.sheet,
+          // The new level derives a fresh sheet, which knows nothing about
+          // what this character is wearing. Gaining a level does not take
+          // your armour off.
+          sheet: { ...event.sheet, armor: creature.sheet.armor, shield: creature.sheet.shield },
           spellcasting: event.spellcasting,
           initiativeBonuses: event.initiativeBonuses,
         },
@@ -1439,6 +1543,67 @@ function applyOne(state: GameState, event: GameEvent): GameState {
 
     case 'creature-unplaced':
       return { ...next, scene: must(event, removeCreature(sceneOf(state, event), event.id)) };
+
+    case 'items-gained': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(
+        next,
+        event.id,
+        { inventory: mergeItems(creature.inventory, event.items) },
+        creature,
+      );
+    }
+
+    case 'items-lost': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(
+        next,
+        event.id,
+        { inventory: removeItems(creature.inventory, event.items) },
+        creature,
+      );
+    }
+
+    case 'coins-changed': {
+      const creature = creatureOf(state, event, event.id);
+      const coins = creature.coins + event.copper;
+      if (coins < 0) {
+        throw new CorruptLogError(event, `${event.id} cannot hold ${coins} copper`);
+      }
+      return withCreature(next, event.id, { coins }, creature);
+    }
+
+    case 'item-equipped': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.equipped.includes(event.item)) {
+        throw new CorruptLogError(event, `${event.item} is already equipped`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        {
+          equipped: [...creature.equipped, event.item].sort(),
+          sheet: wearing(creature.sheet, event.item, true),
+        },
+        creature,
+      );
+    }
+
+    case 'item-unequipped': {
+      const creature = creatureOf(state, event, event.id);
+      if (!creature.equipped.includes(event.item)) {
+        throw new CorruptLogError(event, `${event.item} is not equipped`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        {
+          equipped: creature.equipped.filter((held) => held !== event.item),
+          sheet: wearing(creature.sheet, event.item, false),
+        },
+        creature,
+      );
+    }
 
     case 'creature-type-declared': {
       const creature = creatureOf(state, event, event.id);

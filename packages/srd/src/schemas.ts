@@ -272,9 +272,14 @@ export interface ParseOutput<T> {
  * Slugify a name into a stable id: `Acid Splash` -> `acid-splash`.
  *
  * An apostrophe is dropped rather than replaced, so `Alchemist's Supplies`
- * becomes `alchemists-supplies` and not `alchemist-s-supplies`. Tools and gear
- * are the first entries with apostrophes in their names — no spell, monster,
- * weapon or armour has one — so this changes no existing id.
+ * becomes `alchemists-supplies` and not `alchemist-s-supplies`.
+ *
+ * This did move three existing ids, which an earlier note here said it would
+ * not: Arcanist's Magic Aura, Dragon's Breath and Hunter's Mark. The generated
+ * `spell-index.ts` simply had not been regenerated yet, so the claim looked
+ * true. Nothing referenced them, and the three new ids are the ones anybody
+ * would guess — but the lesson is that a generated file left stale hides
+ * exactly this, so regenerate before asserting what a change does not touch.
  */
 export function slugify(name: string): string {
   return name
@@ -326,6 +331,21 @@ export const GearVariantSchema = z.object({
 });
 export type GearVariant = z.infer<typeof GearVariantSchema>;
 
+/**
+ * One line of a pack's contents: which catalogue row, and how many.
+ *
+ * SRD prints these as prose — "10 flasks of Oil, 10 sheets of Parchment" — so
+ * the parser resolves each phrase back to the row it names. A phrase that
+ * resolves to nothing is a parse problem rather than a silently short pack.
+ */
+export const PackContentSchema = z.object({
+  gearId: z.string().regex(/^[a-z0-9-]+$/),
+  /** How the SRD wrote it, kept so a log can quote the book. */
+  printed: z.string().min(1),
+  quantity: z.number().int().min(1),
+});
+export type PackContent = z.infer<typeof PackContentSchema>;
+
 export const GearSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string().min(1),
@@ -334,6 +354,8 @@ export const GearSchema = z.object({
   /** The prose under the item's own heading, tables stripped out. */
   description: z.string().min(1),
   variants: z.array(GearVariantSchema),
+  /** What a pack holds. Empty for everything that is not a pack. */
+  contents: z.array(PackContentSchema),
 });
 export type Gear = z.infer<typeof GearSchema>;
 

@@ -64,11 +64,13 @@ export const WIZARD: ClassDefinition = {
     {
       option: 'A',
       items: [
-        { name: 'Dagger', quantity: 2 },
-        { name: 'Arcane Focus', quantity: 1, detail: 'Quarterstaff' },
-        { name: 'Robe', quantity: 1 },
-        { name: 'Spellbook', quantity: 1 },
-        { name: "Scholar's Pack", quantity: 1 },
+        { id: 'dagger', quantity: 2 },
+        // SRD prints "Arcane Focus (Quarterstaff)": the focus row varies in
+        // price, and the quarterstaff is the variant this package names.
+        { id: 'quarterstaff', quantity: 1, detail: 'Arcane Focus' },
+        { id: 'robe', quantity: 1 },
+        { id: 'spellbook', quantity: 1 },
+        { id: 'scholars-pack', quantity: 1 },
       ],
       goldPieces: 5,
     },

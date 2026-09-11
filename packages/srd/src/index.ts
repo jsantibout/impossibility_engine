@@ -2,6 +2,7 @@ export * from './schemas.js';
 export * from './parse/spells.js';
 export * from './spell-index.js';
 export * from './armor-index.js';
+export * from './weapon-index.js';
 export * from './parse/monsters.js';
 export * from './parse/equipment.js';
 export * from './parse/gear.js';

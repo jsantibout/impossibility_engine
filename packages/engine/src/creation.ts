@@ -8,9 +8,10 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
-import { ARMOR } from '@ie/srd';
 import { abilityModifier, proficiencyBonusForLevel, type CharacterSheet } from './character.js';
-import type { GameEvent, GameState } from './events.js';
+import { expandPack, goldToCopper, itemFor } from './catalogue.js';
+import { mergeItems } from './events.js';
+import type { GameEvent, GameState, InventoryLine } from './events.js';
 import {
   ALIGNMENTS,
   BACKGROUNDS,
@@ -175,7 +176,7 @@ export interface CharacterPlan {
   readonly spellbook: readonly SpellbookEntry[];
   readonly preparedSpells: readonly string[];
   /** Everything owned: class package, background package, and any GM grant. */
-  readonly inventory: readonly EquipmentEntry[];
+  readonly inventory: readonly InventoryLine[];
   /** The subset actually worn or held. Armour Class reads this, not the pack. */
   readonly equipped: readonly string[];
   readonly goldPieces: number;
@@ -862,14 +863,21 @@ function checkDmGrants(choices: CharacterChoices): CreationProblem[] {
 function inventoryOf(
   choices: CharacterChoices,
   parts: Parts,
-): Result<{ items: readonly EquipmentEntry[]; goldPieces: number }> {
+): Result<{ items: readonly InventoryLine[]; goldPieces: number }> {
   const classKit = equipmentFrom(parts.definition.startingEquipment, choices.classEquipment, 'classEquipment');
   if (!classKit.ok) return classKit;
   const backgroundKit = equipmentFrom(parts.background.startingEquipment, choices.backgroundEquipment, 'backgroundEquipment');
   if (!backgroundKit.ok) return backgroundKit;
 
   return ok({
-    items: [...classKit.value.items, ...backgroundKit.value.items, ...(choices.dmGrants?.items ?? [])],
+    // SRD offers "Choose A or B": the package *or* the money. Each package
+    // contributes exactly one of its halves, and both halves come from the
+    // same chosen option, so nothing is granted twice.
+    items: openPackages([
+      ...classKit.value.items,
+      ...backgroundKit.value.items,
+      ...(choices.dmGrants?.items ?? []),
+    ]),
     goldPieces:
       classKit.value.goldPieces + backgroundKit.value.goldPieces + (choices.dmGrants?.goldPieces ?? 0),
   });
@@ -878,19 +886,39 @@ function inventoryOf(
 /** Only what is owned can be worn or held. */
 function checkEquipped(
   choices: CharacterChoices,
-  owned: readonly EquipmentEntry[],
+  owned: readonly InventoryLine[],
 ): CreationProblem[] {
   const problems: CreationProblem[] = [];
-  const names = new Set(owned.map((item) => item.name));
-  for (const name of choices.equipped) {
-    if (!names.has(name)) {
-      problems.push(problem('not_owned', 'equipped', `${name} is equipped but not owned`));
+  const held = new Set(owned.map((line) => line.id));
+  for (const itemId of choices.equipped) {
+    if (itemFor(itemId) === null) {
+      problems.push(problem('unknown_item', 'equipped', `${itemId} is not in the catalogue`));
+      continue;
+    }
+    if (!held.has(itemId)) {
+      problems.push(problem('not_owned', 'equipped', `${itemId} is equipped but not owned`));
     }
   }
-  for (const name of duplicates(choices.equipped)) {
-    problems.push(problem('duplicate_equipped', 'equipped', `${name} is equipped twice`));
+  for (const itemId of duplicates(choices.equipped)) {
+    problems.push(problem('duplicate_equipped', 'equipped', `${itemId} is equipped twice`));
   }
   return problems;
+}
+
+/**
+ * Everything a package puts in your hands, packs opened.
+ *
+ * SRD prices a pack as a bundle and lists its contents, so a Scholar's Pack is
+ * nine things. A character who owns the label owns nothing useful.
+ */
+function openPackages(items: readonly EquipmentEntry[]): readonly InventoryLine[] {
+  const lines: InventoryLine[] = [];
+  for (const entry of items) {
+    for (const line of expandPack(entry.id)) {
+      lines.push({ id: line.id, quantity: line.quantity * entry.quantity });
+    }
+  }
+  return mergeItems([], lines);
 }
 
 /**
@@ -1011,9 +1039,9 @@ export function planCharacter(choices: CharacterChoices): Result<CharacterPlan> 
 
   // Armour Class reads what is *worn*, not what is owned. A suit of chain mail
   // in the backpack protects nobody.
-  const equipped = new Set(choices.equipped);
-  const worn = ARMOR.find((a) => equipped.has(a.name) && a.category !== 'shield') ?? null;
-  const held = ARMOR.find((a) => equipped.has(a.name) && a.category === 'shield') ?? null;
+  const equipped = choices.equipped.map((itemId) => itemFor(itemId)?.armor ?? null);
+  const worn = equipped.find((piece) => piece !== null && piece.category !== 'shield') ?? null;
+  const held = equipped.find((piece) => piece !== null && piece.category === 'shield') ?? null;
 
   const sheet: CharacterSheet = {
     level: choices.level,
@@ -1220,6 +1248,27 @@ export function createCharacter(
         choices,
       },
     },
+    ...(plan.value.inventory.length === 0
+      ? []
+      : [
+          {
+            type: 'items-gained' as const,
+            id,
+            items: plan.value.inventory,
+            source: 'starting equipment',
+          },
+        ]),
+    ...(plan.value.goldPieces === 0
+      ? []
+      : [
+          {
+            type: 'coins-changed' as const,
+            id,
+            copper: goldToCopper(plan.value.goldPieces),
+            source: 'starting money',
+          },
+        ]),
+    ...choices.equipped.map((itemId) => ({ type: 'item-equipped' as const, id, item: itemId })),
     ...poolEvents(id, definition, plan.value, choices.level, plan.value.features),
   ]);
 }

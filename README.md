@@ -43,11 +43,15 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Targeting | Type, range, cover and sight checked; a missing fact comes back as a request |
 | Progression | Class tables, features by level, and what the engine does or does not run |
 | Creation | A validated level 1–3 Wizard: origin, scores, skills, feats, spells, kit |
+| Equipment | One catalogue over gear, tools, weapons and armour, keyed by stable id |
+| Inventory | Starting packages opened, purchases priced in copper, worn armour reaching AC |
 | Determinism | A scripted four-round fight, replayed byte-identically from its seed |
 | Spell data | 339 SRD spells indexed by id, class list, level and school |
 | Event log | `GameState` as a fold; replay is a pure function of the record |
 
-**Parsed from the SRD** — 339 spells, 330 creatures, 38 weapons, 13 armour.
+**Parsed from the SRD** — 339 spells, 330 creatures, 38 weapons, 13 armour,
+82 pieces of gear and 25 tools, with every pack's contents resolved to the rows
+it names.
 Parsing a spell's text is not the same as *executing* it: the engine tracks what
 a casting costs and what it keeps alive, but no spell's own effects are scripted
 — a spell that imposes a condition is applied by the caller, linked to the
@@ -58,7 +62,9 @@ surface Claude would call, the DM orchestration, persistence, and the web app.
 One character path — Human Sage Wizard through level 3 — is complete; the rest
 is transcription onto the same structures. There is no frontend and no database. Casting times of a minute or
 more are refused rather than approximated, a rest cannot be resumed after an
-interruption, and Reaction timing is recorded rather than enforced — see
+interruption, Reaction timing is recorded rather than enforced, and equipment
+stops at mundane items — nothing weighs anything, no magic item is attuned, and
+ammunition is owned rather than spent — see
 [CLAUDE.md](./CLAUDE.md) for the full list, each with the reason it is still
 open.
 

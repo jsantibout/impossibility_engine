@@ -1281,6 +1281,74 @@ later. Where both a free casting and a slot would serve, the engine returns
 `payment_required` and the caller says which. A cantrip costs nothing either
 way, and a spell with one route asks nobody anything.
 
+## Owning Is Not Wearing
+
+Equipment is two separate facts about a creature, and collapsing them is the
+bug this design exists to prevent: **chain mail in a backpack protects nobody.**
+`inventory` is what is owned, `equipped` is the subset worn or wielded, and
+Armour Class reads only the second. Equipping is the single thing that moves
+armour onto the sheet, and it is an event, so the log shows the moment the
+shirt went on.
+
+**Ids, not names.** `catalogue.ts` is one lookup over the SRD's four separate
+equipment tables — gear, tools, weapons, armour — keyed by the slug the parsers
+assign. A display name is not an identifier: the gear table alphabetises by
+inverting them, so it prints `Lantern, Hooded` where a person says "hooded
+lantern", and matching on display text is how a starting package silently stops
+containing a lantern.
+
+**A pack is its contents.** The SRD prices a pack as a bundle and lists what is
+in it in prose, so `parsePackContents` resolves that sentence back to the rows
+it names — through the plurals ("10 flasks of Oil") and the inversions
+("Hooded Lantern" → `lantern-hooded`) — and an unresolved phrase is a parser
+*problem*, never a silently dropped item. A Scholar's Pack is nine things.
+Owning the label is owning nothing.
+
+**Money is copper.** Every SRD coin divides into it, and a Blanket at 5 SP has
+no representation in gold-only arithmetic. Prices the SRD prints as "Varies"
+stay `null` and a purchase of one is refused with `no_price` — the book
+declined to say, and inventing a number is worse than asking.
+
+**One of A or B, never both.** A starting package is the items *or* the gold.
+Each package contributes exactly one of its halves, and both halves come from
+the same chosen option, so no route grants a package and the money instead of
+it. Levelling up grants neither again: `advanceCharacter` emits differences,
+and equipment is not one of them.
+
+**A purchase is atomic.** The items and the coin move in one batch, so there is
+no state in which a character has paid and not received. Refusals — unknown
+item, no price, cannot afford, a quantity that is not a count — cost nothing,
+which is the same "validate before rolling" discipline applied to a purse.
+
+**The sheet survives a level.** `character-advanced` derives a fresh sheet that
+knows nothing about what is worn, so the reducer carries `armor` and `shield`
+across. Gaining a level does not take your armour off.
+
+### What equipment does not model yet
+
+- **Nothing weighs anything.** Weight is in the catalogue; carrying capacity,
+  encumbrance and the Strength score that governs them are not.
+- **No containers.** Items are a flat list per creature. A pack's contents are
+  granted, not held *inside* it, so nothing is lost by putting the pack down.
+- **No magic items and no attunement.** `dmGrants.magicItems` records names
+  only; none of them is in the catalogue and none has an effect.
+- **Ammunition is owned, not spent.** Arrows are a line in the inventory; no
+  attack consumes one, and none is recovered after a fight.
+- **"Varies" rows cannot be bought.** Arcane Focus, Component Pouch and the
+  other open-priced rows can be granted by a package or a GM, but not
+  purchased, because the SRD prints no single price.
+- **A package's `detail` is documentation.** The SRD's "Arcane Focus
+  (Quarterstaff)" grants a quarterstaff and notes what it is for; the note
+  stays on the package definition and does not reach the inventory, because the
+  engine does not model what a focus is.
+- **The Spellbook is class text, not a gear row.** SRD 5.2.1's equipment tables
+  have no Spellbook; the Wizard's feature describes it. `CLASS_ITEMS` in
+  `catalogue.ts` carries it from there, with no price, rather than letting a
+  starting package name an item that resolves to nothing.
+- **Only armour and weapons can be equipped.** Clothing, an instrument and a
+  holy symbol are carried; none has a mechanical slot. Nothing checks that two
+  hands are free, either.
+
 ## Monsters State Their Numbers; Characters Derive Them
 
 A character's Armour Class follows from their armour and Dexterity. A monster's
@@ -1521,9 +1589,10 @@ null and is reported — it never becomes either.
 
 - M0: classes, feats and magic items are vendored but not yet parsed; they can
   wait for a consumer. Adventuring gear (82 priced rows) and tools (25) are
-  done, and ship as `GEAR` and `TOOLS`. What remains is the *consumer*:
-  `creation.ts` still records a package entry as a name, so nothing yet reads
-  an item's weight. Mounts, vehicles, lifestyle expenses, food, hirelings and
+  done, and ship as `GEAR` and `TOOLS`, with every pack's contents resolved.
+  `catalogue.ts` is the consumer: creation, purchases and equipping all refer to
+  items by id. Nothing yet reads an item's *weight* — encumbrance is unmodelled.
+  Mounts, vehicles, lifestyle expenses, food, hirelings and
   spellcasting services are separate sections of `equipment.md` and are still
   unparsed.
 - **M1 is done.** Its ship criterion — "a scripted 4-round combat between two
@@ -1537,8 +1606,11 @@ null and is reported — it never becomes either.
   than guessing. Spell slots, Concentration, casting, rests, the clock,
   effect durations and one complete character path have landed; the
   limitations recorded above are the honest edges of that work, each with the
-  reason it is still open.
+  reason it is still open. Equipment closes the loop from a creation choice to
+  Armour Class: packages are granted by id, packs are opened, purchases are
+  priced in copper, and what is worn is separate from what is carried.
 - M1 leftovers, none of them blocking: the remaining classes, species and
   backgrounds (transcription onto the structures the Wizard path proved),
-  feat *execution*, and multiclassing.
+  feat *execution*, multiclassing, and the equipment gaps listed under
+  "Owning Is Not Wearing" — encumbrance, containers, attunement and ammunition.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona
