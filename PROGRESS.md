@@ -33,7 +33,8 @@ still Wizard-shaped are named below.
 | Second class | Wizard-shaped seams opened; Cleric + Life Domain, levels 1–20 | `759aa68` |
 | Third class | Fighter + Champion; the no-spellcasting path; ammunition | `f7860a1` |
 | Fourth class | Sorcerer + Draconic Sorcery; the `known` casting style | `c2a0b4c` |
-| Fifth class | Paladin + Oath of Devotion; half-caster slots, no cantrips | *this batch* |
+| Fifth class | Paladin + Oath of Devotion; half-caster slots, no cantrips | `dbbaf07` |
+| Sixth class | Rogue + Thief; the Expertise grant's second user | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -93,7 +94,7 @@ still Wizard-shaped are named below.
    machine with a per-turn obligation; the clock alone was never the blocker.
 8. **Classes.** See below.
 
-## Classes: two down, ten to go
+## Classes: six down, six to go
 
 The Wizard-shaped seams are **open**, and the Cleric is the proof:
 
@@ -131,6 +132,12 @@ Fighter (no spellcasting at all). Each opened something:
   held slots per level, and a shorter row that grows slower is the whole of it
   — and brought the second use of absent-versus-zero: a caster with slots and
   a prepared list but **no cantrips column at all**.
+
+- The Rogue proved the **Expertise grant** by being its second user — two
+  skills rather than one, chosen from the character's own proficiencies, and
+  granted twice (levels 1 and 6). A generalisation with one user is a guess.
+  It is also the first class to choose **four** skills and the first to bring
+  a tool proficiency of its own.
 
 **A rules correction worth keeping:** 2024 moved Paladin *and Ranger*
 spellcasting to **level 1**. 2014 started both at 2, which is the version most
