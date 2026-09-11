@@ -39,7 +39,7 @@ still Wizard-shaped are named below.
 | Barbarian, Monk | Two non-casters; the shared suite runs on every class | `a65c67f` |
 | Bard, Druid, Ranger | The last three — **all twelve SRD classes** | `4762633` |
 | Class coverage | COVERAGE.md counts classes and executed features too | `a4d8d1a` |
-| Multiclassing | Rules module, and wired into creation | *this batch* |
+| Multiclassing | Rules module, and wired into creation | `e79b61d` |
 
 ## Decisions that constrain what comes next
 
@@ -209,6 +209,24 @@ What remains in the class system, in likely order:
   slots above level 5.
 - **Multiclassing is not modelled**: no combined slot table, no prerequisite
   check, no proficiency-subset rule for the second class.
+
+## Where the numbers stand
+
+Run `pnpm run coverage`; these were true at the last commit.
+
+| | |
+|---|---|
+| Spells parsed | 339 |
+| Spells executable and verified | 43 |
+| Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
+| Class features executed | 46 of 230 |
+| Tests | 1,992 passing |
+
+The two numbers worth reading together are the last two. Every class is
+**validated** — creation and advancement check scores, skills, feats,
+languages, equipment and spells against the book — and most class *features*
+are not **executed**. That gap is the honest state of the class system, and
+every unexecuted feature carries a note saying what a DM still does.
 
 ## How to resume
 

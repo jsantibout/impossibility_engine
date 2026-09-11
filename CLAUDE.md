@@ -934,27 +934,113 @@ a roll, plus the Constitution modifier, never less than 1 per level.
 
 ### The tables are transcribed by hand
 
-`classes.md` has no parser, so the Wizard table and the Evoker are written out
-in `wizard.ts` from the SRD text. Transcription is where typos hide, so the
-tests assert *relationships* rather than presence — every printed Proficiency
-Bonus is checked against `proficiencyBonusForLevel`, and slots are checked
-never to decrease as levels rise. The same suite runs against any class
-definition, so the second class to land fails loudly rather than quietly
-disagreeing with the engine.
+`classes.md` has no parser, so all twelve class tables and their subclasses
+are written out from the SRD text, one file each. Transcription is where typos
+hide, so the tests assert *relationships* rather than presence — every printed
+Proficiency Bonus against `proficiencyBonusForLevel`, slots never decreasing,
+a subclass granted at the level the class says, a hit die the game uses — and
+that suite runs against **every registered class**, not the one it was written
+for. Pointing it at all twelve immediately found that Pact Magic breaks "slots
+never go backwards", which is a rule rather than a typo: a Warlock's slots move
+up rather than accumulate.
+
+Growth tables get their own assertions for the same reason: Sneak Attack's dice
+per level, the Monk's Martial Arts die, Bardic Inspiration, Rage, Wild Shape,
+Favored Enemy. A table that climbs by the wrong step in the middle is exactly
+what a transcription gets wrong and nothing else would catch.
 
 A `classes.md` parser is the eventual home for this, and would replace the
 hand-written tables without touching the structures around them.
 
-### One complete path, and what is missing around it
+### Twelve classes, and the seams that opening them exposed
 
-Supported end to end: a Human Sage Wizard from level 1 to 3, Evoker at 3.
-Everything else is transcription rather than design, and the structures are
-shaped for it.
+All twelve SRD classes, each with the subclass the SRD publishes and a level
+1–20 table. Creation and advancement are validated for every one of them.
 
-- **One class, one subclass, one species, one background.** Adding more is
-  data. Nothing in `progression.ts` or `creation.ts` is Wizard-shaped except
-  two feature ids it looks up by name — Scholar's expertise and the Evoker's
-  free spells — which is a seam to generalise when a second class arrives.
+**A class says what it is; a feature says what it does.** Three string matches
+on feature ids came out over the course of getting here, and each was found by
+a class the previous code could not have anticipated:
+
+| Seam | Found by | Now |
+|---|---|---|
+| `wizard:scholar` for Expertise | Rogue, Bard, Ranger | `grants: { kind: 'expertise' }` |
+| `evoker:evocation-savant` for free spells | Life Domain, Draconic, Fiend | `grants: { kind: 'spells' }` |
+| `human:skillful` for a skill proficiency | Barbarian's Primal Knowledge | any feature whose choice is a skill |
+
+A generalisation with one user is a guess dressed up as a structure. Each of
+these became real when a second class needed it and differed in some way the
+first had not — Expertise takes *two* skills and comes round twice, a domain
+grant is **fixed** where the Evoker's is chosen.
+
+**Three spellcasting styles, which are not interchangeable.** SRD's 2024 tables
+head the column "Prepared Spells" for every caster, which is exactly what makes
+three rules look like one:
+
+| Style | Classes | Means |
+|---|---|---|
+| `spellbook` | Wizard | prepared from a book you had to fill |
+| `prepared-from-list` | Cleric, Druid, Paladin | chosen fresh from the class list |
+| `known` | Bard, Sorcerer, Warlock, Ranger | a fixed set; never prepared |
+| *(absent)* | Barbarian, Fighter, Monk, Rogue | casts nothing at all |
+
+**Absent is not zero.** A Fighter does not know zero cantrips; a Fighter has no
+cantrips, so `cantripsKnown` is *absent* and `checkSpells` short-circuits
+before it can ask a Fighter for a spellbook. The distinction earned its keep
+twice: once for a class that casts nothing, and once for the Paladin and Ranger
+— genuine casters, with slots and prepared lists, that have no cantrips.
+
+**Two rules corrections from reading the tables rather than recalling them:**
+2024 gives the **Paladin and Ranger spellcasting at level 1** (2014 started
+both at 2), and SRD's **Multiclass Spellcaster table is identical to every full
+caster's own**, which is why it is read off one rather than transcribed twice.
+
+Class *features* are a different matter from class *tables*: 46 of 230 are
+executed, and every one of the rest carries a note saying what a DM still does.
+`pnpm run coverage` counts them, because a project that does not count them
+will believe it has twelve working classes when it has twelve validated ones.
+The recurring blockers, each wanted by several classes:
+
+- **A class feature that replaces the Armour Class calculation.** Unarmoured
+  Defense, wanted by Barbarian (Constitution), Monk (Wisdom) and Draconic
+  Sorcery. Two classes wanting the same missing hook is what makes it a shape.
+- **Extra attacks inside the Attack action.** The economy counts one Attack
+  action, not the attacks in it, so Extra Attack is offered by nobody.
+- **Reactions with triggers.** Uncanny Dodge, Deflect Attacks, Cutting Words,
+  Hellish Rebuke. `reduceDamage` and `interveneAfterRoll` exist; nothing fires
+  them, and nothing orders a Reaction against the event that caused it.
+- **Auras that follow a creature.** Every Paladin aura, Spirit Guardians.
+- **Defences that change after a rest.** Fiendish Resilience, Rage.
+- **A grant that can be re-chosen on a rest.** Circle of the Land's spells, and
+  every "swap a prepared spell on a Long Rest" rule.
+
+### Multiclassing
+
+`multiclass.ts` holds the rules that belong to no single class, because every
+one of them reads *across* the set. `CharacterChoices.multiclass` carries the
+classes beyond the starting one — SRD's own framing, since the starting class
+is the one that grants its proficiencies in full.
+
+- **Proficiency Bonus and character level come from the total**, never from a
+  class level. A level 3 Fighter / level 2 Rogue is a level 5 character.
+- **Spell slots come from a weighted sum** — all your levels in the five full
+  casters, half rounded up in Paladin and Ranger — read off the full-caster
+  table, not from adding two classes' tables together.
+- **Pact Magic is a second pool.** SRD keeps it out of the sum and then lets
+  the two be spent on each other's spells, so merging them would invent a slot.
+- **Prerequisites read both directions**: 13 in the primary ability of the new
+  class *and* every class you already have.
+- **Hit Dice pool by die type**, and hit points pay the maximum die once, for
+  the starting class, at total character level 1.
+
+**Two casting classes is refused**, and the refusal is the honest answer rather
+than a gap. SRD requires each prepared spell to remember which class prepared
+it and to use that class's spellcasting ability; a creature here carries one
+prepared list and one ability, so validating a merged list would record a
+character the rules do not describe. The slot arithmetic for that case is
+implemented and tested against the SRD's worked example — per-class preparation
+is what is missing.
+
+### What is still missing around the class system
 - **Feats are validated but not executed.** All four SRD Origin feats are
   modelled, and the choices they demand are checked: Magic Initiate's spell
   list, spellcasting ability, two cantrips and level 1 spell, all against the
@@ -964,18 +1050,16 @@ shaped for it.
   character's cantrip list and its free daily casting is not tracked, Alert's
   Initiative proficiency is not applied, Savage Attacker's reroll is not. Each
   feat carries a note saying so.
-- **Multiclassing is not modelled**, nor are Ability Score Improvements taken
-  as score increases rather than feats.
+- **Ability Score Improvements taken as score increases** rather than as feats
+  are not modelled; the choice is always a feat.
 - **Owning and wearing are separate; weight and attunement are not modelled.**
   `inventory` is everything the character has — class package, background
   package, and anything the GM added — and `equipped` is the subset actually
   worn or held. Armour Class reads `equipped`, so a chain shirt in the backpack
   protects nobody. What is still missing: weight, attunement, containers, and
   whether the quarterstaff in the package is the same object as the arcane
-  focus. Gear and tools are now parsed — `GEAR` and `TOOLS` carry every item's
-  weight, cost and variants — but `creation.ts` has not been pointed at them
-  yet, so a package entry is still a name. Armour and weapons are references
-  already.
+  focus. Every package entry is a catalogue id and packs are opened; what is
+  missing is weight, containers and attunement.
 - **Species traits above level 1 are not reached.** The structures handle a
   trait that arrives at character level 3 — `cumulativeFeatures` reads a species
   exactly as it reads a class — but the Human has none, so nothing exercises it.
@@ -989,9 +1073,10 @@ shaped for it.
 
 ### The SRD creation workflow, step by step
 
-Audited against SRD 5.2.1 "Character Creation" for the one supported path.
-Every required choice and grant is accounted for; anything the engine does not
-execute says so.
+Audited against SRD 5.2.1 "Character Creation". Every required choice and grant
+is accounted for, for every class; anything the engine does not execute says so.
+The table below names the Wizard path it was first written against, and every
+check in it runs for all twelve.
 
 | SRD step | Required choice or grant | Where | Test |
 |---|---|---|---|
@@ -1720,8 +1805,14 @@ null and is reported — it never becomes either.
   reason it is still open. Equipment closes the loop from a creation choice to
   Armour Class: packages are granted by id, packs are opened, purchases are
   priced in copper, and what is worn is separate from what is carried.
-- M1 leftovers, none of them blocking: the remaining classes, species and
-  backgrounds (transcription onto the structures the Wizard path proved),
-  feat *execution*, multiclassing, and the equipment gaps listed under
-  "Owning Is Not Wearing" — encumbrance, containers, attunement and ammunition.
+- M1 leftovers, none of them blocking: **class feature execution** (46 of 230
+  features run; the rest say what a DM still does), the remaining species and
+  backgrounds, feat *execution*, per-class spell preparation for a character
+  who casts from two classes, and the equipment gaps listed under "Owning Is
+  Not Wearing" — encumbrance, containers, attunement and ammunition.
+- M1 spells: 43 of 339 executable, with the shapes that block the rest counted
+  in `COVERAGE.md`. Areas of effect, healing, saving throws for damage or a
+  condition, Temporary Hit Points and lasting bonuses all work; summons,
+  Reaction triggers, long casting times and ongoing effects a later turn acts
+  through do not.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona
