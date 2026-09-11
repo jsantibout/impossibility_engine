@@ -22,6 +22,22 @@ export interface ArmorTraining {
   readonly shields: boolean;
 }
 
+/**
+ * Values a stat block states outright instead of deriving.
+ *
+ * A character's Armour Class follows from what they are wearing and their
+ * Dexterity; a monster's is simply printed. The same goes for its saving
+ * throws, its skills and its proficiency bonus — a stat block can and does
+ * carry numbers that no derivation would produce. Forcing a monster through
+ * the character derivations would quietly change its numbers.
+ */
+export interface StatedValues {
+  readonly armorClass?: number;
+  readonly proficiencyBonus?: number;
+  readonly saves?: Partial<Record<Ability, number>>;
+  readonly skills?: Partial<Record<Skill, number>>;
+}
+
 export interface CharacterSheet {
   readonly level: number;
   readonly abilities: AbilityScores;
@@ -35,6 +51,8 @@ export interface CharacterSheet {
   /** Walking speed in feet before armour penalties. */
   readonly baseSpeed: number;
   readonly spellcastingAbility: Ability | null;
+  /** Set for creatures whose numbers are printed rather than derived. */
+  readonly stated?: StatedValues;
 }
 
 /**
@@ -52,7 +70,7 @@ export function proficiencyBonusForLevel(level: number): number {
 }
 
 export function proficiencyBonus(sheet: CharacterSheet): number {
-  return proficiencyBonusForLevel(sheet.level);
+  return sheet.stated?.proficiencyBonus ?? proficiencyBonusForLevel(sheet.level);
 }
 
 /**
@@ -72,11 +90,17 @@ export function modifierFor(sheet: CharacterSheet, ability: Ability): number {
 }
 
 export function saveModifier(sheet: CharacterSheet, ability: Ability): number {
+  const stated = sheet.stated?.saves?.[ability];
+  if (stated !== undefined) return stated;
+
   const proficient = sheet.saveProficiencies.includes(ability);
   return modifierFor(sheet, ability) + (proficient ? proficiencyBonus(sheet) : 0);
 }
 
 export function skillModifier(sheet: CharacterSheet, skill: Skill): number {
+  const stated = sheet.stated?.skills?.[skill];
+  if (stated !== undefined) return stated;
+
   const ability = SKILL_ABILITY[skill];
   const level = sheet.skills[skill] ?? 'none';
 
@@ -90,6 +114,9 @@ export function skillModifier(sheet: CharacterSheet, skill: Skill): number {
  * both. A Shield then adds on top of whichever base applies.
  */
 export function armorClass(sheet: CharacterSheet): number {
+  const stated = sheet.stated?.armorClass;
+  if (stated !== undefined) return stated;
+
   const { armor, shield } = sheet;
 
   // Wrong slot is a programmer error, not a rules-legal refusal, so it throws.

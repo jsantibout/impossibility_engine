@@ -390,6 +390,26 @@ where a rules engine becomes a VTT. The model says "behind the bar,
 three-quarters cover"; the engine applies exactly +5 AC and +5 to Dexterity
 saves. Exactness where it is cheap, judgement where geometry is expensive.
 
+## Monsters State Their Numbers; Characters Derive Them
+
+A character's Armour Class follows from their armour and Dexterity. A monster's
+is printed. The same goes for saves, skills and the proficiency bonus — an
+Adult Red Dragon has a +0 Dexterity modifier and a **+6** Dexterity save, which
+no combination of proficiency and ability produces.
+
+So `CharacterSheet` carries an optional `stated` block that wins over
+derivation, and `adaptMonster` fills it from the stat block rather than
+reverse-engineering proficiencies that happen to add up. Characters are
+untouched: with no `stated`, every derivation behaves exactly as before.
+
+**A stat block prints damage types and conditions in one run.** A Zombie's
+immunities read "Poison, Exhaustion, Poisoned" — one damage type and two
+conditions, which the engine treats completely differently. `adaptMonster`
+splits them, and anything it recognises as neither is kept as a caveat rather
+than silently dropped. Parenthesised restrictions ("Charmed (except from its
+vampire master)") register the immunity *and* keep the qualification, because
+no boolean captures it and the DM still needs it.
+
 ## Conditions Close The Loop
 
 `conditions.ts` is the first module that feeds *back* into the rolls rather
