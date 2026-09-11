@@ -11,7 +11,8 @@ import { untrainedArmorPenalty } from './character.js';
 import { rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
-import { hasCondition, isIncapacitated, reasonsFor } from './conditions.js';
+import { conditionInstanceId, hasCondition, isIncapacitated, reasonsFor } from './conditions.js';
+import { resolveDuration, type Duration, type EffectTarget } from './duration.js';
 import { canSpendSpellSlotThisTurn } from './combat.js';
 import {
   applyEvent,
@@ -328,6 +329,7 @@ export function applyConditionTo(
   condition: ConditionName,
   source: string,
   immuneTo: readonly ConditionName[] = [],
+  duration?: Duration,
 ): Result<GameEvent[]> {
   if (creatureOf(state, id) === null) {
     return err('unknown_creature', `${id} is not in this game`);
@@ -336,7 +338,39 @@ export function applyConditionTo(
     return err('immune', `${id} is immune to the ${condition} condition`);
   }
 
-  return ok([{ type: 'condition-applied', id, condition, source }]);
+  const events: GameEvent[] = [{ type: 'condition-applied', id, condition, source }];
+
+  if (duration !== undefined) {
+    // Validate the duration before emitting anything: an unanswerable one must
+    // not leave the condition applied with no way for it to end.
+    const timer = schedule(state, {
+      kind: 'condition',
+      on: id,
+      instance: conditionInstanceId(condition, source),
+    }, duration);
+    if (!timer.ok) return timer;
+    events.push(timer.value);
+  }
+
+  return ok(events);
+}
+
+/**
+ * The event that gives an effect a moment to stop at.
+ *
+ * The duration is resolved here rather than in the reducer, so a relative
+ * duration that cannot be answered — "the start of your next turn", asked
+ * outside combat — is a refusal the caller sees, not a deadline the log cannot
+ * evaluate later.
+ */
+function schedule(
+  state: GameState,
+  target: EffectTarget,
+  duration: Duration,
+): Result<GameEvent> {
+  const deadline = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, duration);
+  if (!deadline.ok) return deadline;
+  return ok({ type: 'effect-scheduled', target, deadline: deadline.value });
 }
 
 /** Every distinct reason a creature currently has a condition. */
@@ -422,6 +456,14 @@ export interface CastCommand extends CommandIdentity {
   readonly slotLevel?: number;
   /** Why no slot is being expended. Mutually exclusive with `slotLevel`. */
   readonly slotless?: SlotlessReason;
+  /**
+   * How long this casting lasts at most.
+   *
+   * SRD writes "Concentration, up to 1 minute" as a cap *and* a Concentration:
+   * losing Concentration ends it early, and reaching the cap ends it whether
+   * or not Concentration held. Omitted, the casting has no deadline of its own.
+   */
+  readonly duration?: Duration;
 }
 
 /**
@@ -584,6 +626,12 @@ export function castSpell(
     events.push({ type: 'concentration-started', id, castingId, spell: name.value, level: castLevel });
   }
 
+  if (command.duration !== undefined) {
+    const timer = schedule(state, { kind: 'casting', castingId }, command.duration);
+    if (!timer.ok) return timer;
+    events.push(timer.value);
+  }
+
   return ok(events);
 }
 
@@ -600,6 +648,7 @@ export function applySpellEffect(
   condition: ConditionName,
   casterId: CharacterId,
   immuneTo: readonly ConditionName[] = [],
+  duration?: Duration,
 ): Result<GameEvent[]> {
   const caster = creatureOf(state, casterId);
   if (caster === null) return err('unknown_creature', `${casterId} is not in this game`);
@@ -613,6 +662,7 @@ export function applySpellEffect(
     condition,
     castingSource(caster.concentration.spell, caster.concentration.castingId),
     immuneTo,
+    duration,
   );
 }
 

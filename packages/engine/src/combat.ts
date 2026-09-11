@@ -133,6 +133,19 @@ export interface TurnBudget {
   readonly spellSlotSpentOnTurn: number | null;
 }
 
+/**
+ * How many turns a combatant has begun and ended.
+ *
+ * Both, because "until the start of your next turn" and "until the end of your
+ * next turn" are a full round apart and nothing derives one from the other.
+ * Counted per combatant rather than globally: "your next turn" is a question
+ * about one creature's place in the order, not about the round.
+ */
+export interface TurnCount {
+  readonly begun: number;
+  readonly ended: number;
+}
+
 export interface CombatState {
   /** 1-based. */
   readonly round: number;
@@ -147,6 +160,8 @@ export interface CombatState {
    * that asks "was that on this turn?" needs an answer that cannot collide.
    */
   readonly turnsTaken: number;
+  /** Turns begun and ended, per combatant, for turn-anchored durations. */
+  readonly turnCounts: Readonly<Record<string, TurnCount>>;
 }
 
 const fullBudget = (speed: number): TurnBudget => ({
@@ -188,9 +203,16 @@ export function startCombat(combatants: readonly CombatantInput[]): Result<Comba
     .map(({ id, initiative, speed, tiebreak }) => ({ id, initiative, speed, tiebreak }));
 
   const budgets: Record<string, TurnBudget> = {};
-  for (const c of order) budgets[c.id] = fullBudget(c.speed);
+  const turnCounts: Record<string, TurnCount> = {};
+  for (const c of order) {
+    budgets[c.id] = fullBudget(c.speed);
+    turnCounts[c.id] = { begun: 0, ended: 0 };
+  }
+  // The first combatant's turn starts with the fight.
+  const first = order[0];
+  if (first !== undefined) turnCounts[first.id] = { begun: 1, ended: 0 };
 
-  return ok({ round: 1, order, turnIndex: 0, budgets, turnsTaken: 0 });
+  return ok({ round: 1, order, turnIndex: 0, budgets, turnsTaken: 0, turnCounts });
 }
 
 export function currentCombatant(state: CombatState): Combatant {
@@ -205,12 +227,22 @@ export function budgetFor(state: CombatState, id: CharacterId): TurnBudget | nul
   return state.budgets[id] ?? null;
 }
 
-/** Refresh the budget of whoever is about to act. */
+const bumped = (
+  counts: Readonly<Record<string, TurnCount>>,
+  id: CharacterId,
+  field: 'begun' | 'ended',
+): Record<string, TurnCount> => {
+  const current = counts[id] ?? { begun: 0, ended: 0 };
+  return { ...counts, [id]: { ...current, [field]: current[field] + 1 } };
+};
+
+/** Refresh the budget of whoever is about to act, and count their turn begun. */
 function beginTurn(state: CombatState): CombatState {
   const combatant = currentCombatant(state);
   return {
     ...state,
     budgets: { ...state.budgets, [combatant.id]: fullBudget(combatant.speed) },
+    turnCounts: bumped(state.turnCounts, combatant.id, 'begun'),
   };
 }
 
@@ -222,8 +254,14 @@ export function advanceTurn(state: CombatState): CombatState {
   const next = state.turnIndex + 1;
   const wrapped = next >= state.order.length;
 
+  // Whoever was acting has finished. Counted before the move, because "the end
+  // of your next turn" is a moment in its own right, a full round after "the
+  // start of your next turn".
+  const ended = bumped(state.turnCounts, currentCombatant(state).id, 'ended');
+
   return beginTurn({
     ...state,
+    turnCounts: ended,
     turnIndex: wrapped ? 0 : next,
     round: wrapped ? state.round + 1 : state.round,
     turnsTaken: state.turnsTaken + 1,
@@ -386,6 +424,11 @@ export function removeCombatant(state: CombatState, id: CharacterId): Result<Com
   const order = state.order.filter((c) => c.id !== id);
   const budgets = { ...state.budgets };
   delete budgets[id];
+  // The counts go too. A duration anchored to "your next turn" has no such
+  // moment left once you have left the fight, and a deadline that can never
+  // arrive would strand the effect forever.
+  const turnCounts = { ...state.turnCounts };
+  delete turnCounts[id];
 
   // Removing someone before the current combatant shifts everyone down one.
   // Removing the current combatant means the next one is now at this index.
@@ -396,7 +439,7 @@ export function removeCombatant(state: CombatState, id: CharacterId): Result<Com
     round += 1;
   }
 
-  const next: CombatState = { ...state, order, turnIndex, budgets, round };
+  const next: CombatState = { ...state, order, turnIndex, budgets, round, turnCounts };
 
   // If the removed combatant was the one acting, the next one is now up and
   // its turn is beginning.

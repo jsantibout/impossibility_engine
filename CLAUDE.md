@@ -618,12 +618,11 @@ layer that knows.
 
 ### Limitations, stated rather than papered over
 
-- **Casting times of 1 minute or more are refused.** SRD: if Concentration
-  breaks during such a casting "the spell fails, but you don't expend a spell
-  slot" — so the slot goes at *completion*, not at the start. Elapsed time is
-  not modelled, so the engine says it cannot do this rather than expending the
-  slot at the wrong moment. Rituals cast the long way are covered by the same
-  refusal.
+- **Casting times of 1 minute or more are refused**, and the clock did not
+  change that — see "Durations Are Two Different Things". The slot is expended
+  on completion, and completion depends on the caster taking the Magic action
+  every turn of the casting, which is a state machine rather than a deadline.
+  Rituals cast the long way are covered by the same refusal.
 - **Reaction timing is recorded, not enforced.** A spell with a casting time of
   a Reaction can be cast, but the engine has no interrupt mechanism: it does not
   check that a valid trigger occurred, and it cannot order the casting against
@@ -633,10 +632,10 @@ layer that knows.
   bonuses, areas and summons alike — the source string is the link, and nothing
   about it is condition-specific — but conditions are the only effect type the
   engine currently applies, so they are the only one implemented.
-- **Non-Concentration ongoing spells are not tracked as ongoing.** A one-minute
-  spell that needs no Concentration has a casting id and its effects are linked
-  to it, but nothing knows the spell is still running or when it stops. That
-  needs duration tracking, which arrives with rests and the clock.
+- **Non-Concentration ongoing spells now run and expire.** Give `castSpell` a
+  `duration` and the casting ends on time, taking its effects with it, whether
+  or not anyone was concentrating. What is still missing is dismissing one
+  early — see the durations section.
 - **The two-call path has an ordering requirement; `resolveDamage` does not.**
   `concentrationSaveAfterDamage` must be asked of the state *after* the damage
   landed, or it reports a save for a spell the damage already ended. That is a
@@ -689,15 +688,11 @@ are left costs neither a die nor a turn of the generator.
 
 ### Limitations, again stated rather than papered over
 
-- **The clock exists; effect durations do not.** Nothing yet expires when its
-  time runs out, because that needs a duration on every effect and an expiry
-  pass — its own milestone, of which the clock is the prerequisite rather than
-  the whole. Casting times of a minute or more stay refused for the same
-  reason.
 - **A rest cannot be resumed.** SRD lets you pick a Long Rest back up for one
-  extra hour per interruption. Modelling that means a rest that survives its
-  own interruption, and the honest version is not worth it before durations
-  land. Beginning a fresh rest works.
+  extra hour per interruption. Durations did not deliver this: it needs a rest
+  that survives its own interruption and accumulates required time, which is a
+  change to how a rest ends rather than a deadline on an effect. Beginning a
+  fresh rest works.
 - **Sleep is not Unconscious.** SRD: "During a Long Rest, you sleep for at
   least 6 hours... During sleep, you have the Unconscious condition." Applying
   that needs the rest to be a state a creature *sits in* mechanically, not just
@@ -705,6 +700,92 @@ are left costs neither a die nor a turn of the generator.
   break in ways worth testing properly rather than bolting on.
 - **Reduced ability scores and a reduced hit point maximum are not restored**,
   because neither is modelled in the first place.
+
+## Durations Are Two Different Things
+
+The SRD writes how long an effect lasts in two ways, and they are **not**
+interchangeable:
+
+| | |
+|---|---|
+| A span of time | "1 minute", "8 hours", "10 days", "Concentration, up to 1 hour" |
+| A moment in the turn order | "until the start of your next turn", "until the end of your next turn" |
+
+A round is six seconds, so folding the second into the first looks free. It is
+not. Where "the start of your next turn" falls depends on where the anchor sits
+in the Initiative order *and* on whose turn the effect began — anything from
+the very next moment to a full round away. Outside combat it has no meaning at
+all, because there are no turns.
+
+So `duration.ts` has two types. `Duration` is what a caller asks for: relative,
+and sometimes unanswerable. `Deadline` is what the log records: absolute, and
+always answerable. `resolveDuration` is the single conversion between them and
+it **can refuse** — a turn-anchored duration outside combat, or anchored to a
+creature who is not in the fight, is an error rather than an approximation.
+That refusal is the whole point of the split.
+
+**Start and end of turn are a full round apart**, so combatants count turns
+begun and turns ended separately. Nothing derives one from the other. The
+asymmetry that catches people out lives in the constructors: said on the
+anchor's *own* turn, "the end of your next turn" is two turn-endings away,
+because the turn in progress has not ended yet, while "the start of your next
+turn" is one turn-beginning away, because the turn in progress has already
+begun. Callers say `startOfNextTurn(who)` and `endOfNextTurn(who)`; nobody
+writes counts by hand.
+
+**Turn-anchored timing is combat-scoped.** When the fight ends, or the anchor
+leaves it, the moment the effect was waiting for will never arrive — so it
+expires then. An effect that can never end is worse than one that ends with the
+fight. Elapsed deadlines have nothing to do with the fight and survive it.
+
+**Expiry is derived, like Concentration breaking.** A duration running out is
+not a decision anybody makes, so the reducer ends expired effects after every
+event, and no log — however assembled — can show an effect still running past
+its own end. Timer keys are visited in sorted order, so a fold is byte-identical
+however the effects were scheduled.
+
+**A timer names what it ends**, and there are exactly two things it can be: one
+condition instance on one creature, or a whole casting. The first expires that
+instance and nothing else — two Clerics' Hold Persons on one goblin with
+different durations end one at a time. The second ends the casting and
+everything it created, which is the same cleanup a broken Concentration
+performs, so "Concentration, up to 1 minute" is both at once: losing
+Concentration ends it early, reaching the cap ends it regardless.
+
+Timers are keyed by their target rather than numbered, so re-applying the same
+effect from the same source *replaces* its deadline instead of leaving a stale
+one behind to end it early.
+
+### What expiry did not buy
+
+Two things expiry is adjacent to and does **not** implement. Both were refused
+before on the grounds that time was not modelled; time is modelled now, and
+they are still not done, for different reasons:
+
+- **Casting times of 1 minute or more are still refused.** The blocker was
+  never the clock. SRD requires the caster to take the Magic action on *each*
+  turn of the casting and maintain Concentration throughout, and the slot is
+  expended only on completion — "If your Concentration is broken, the spell
+  fails, but you don't expend a spell slot." That is a casting-in-progress
+  state machine with a per-turn obligation, not a deadline. A timer can say
+  when something stops; it cannot say whether the caster kept working at it.
+- **A rest still cannot be resumed.** SRD lets you pick a Long Rest back up for
+  one extra hour per interruption. That needs a rest that survives its own
+  interruption and accumulates required time, which is a change to how a rest
+  ends, not a deadline on an effect. Beginning a fresh rest works.
+
+Two smaller gaps in the same area, stated so nobody assumes otherwise:
+
+- **A non-Concentration ongoing spell cannot be dismissed early.** SRD: "you
+  can dismiss it (no action required) if you don't have the Incapacitated
+  condition." Such a spell now runs and expires correctly when given a
+  duration; ending it ahead of time has no command, because `endConcentration`
+  is about Concentration. Adding one is small and deliberately not in this
+  milestone.
+- **The log records the effect being scheduled, not expiring.** Expiry is
+  derived, so a target's history shows the condition arriving and its deadline
+  being set, but not the moment it lapsed — the same audit trade already made
+  for Concentration, for the same reason.
 
 ## Monsters State Their Numbers; Characters Derive Them
 
@@ -924,8 +1005,9 @@ a rules bug forever after.
 - M0: adventuring gear and tools (93 entries in `equipment.md`), plus classes,
   feats and magic items, are vendored but not yet parsed. Weapons and armour
   are done because `attack.ts` needs them; the rest can wait for a consumer.
-- M1: effect durations and expiry — the clock is in place, nothing reads it
-  yet. Then level progression and class features. Spell slots, Concentration,
-  casting, rests and the clock have landed; the limitations above are the
-  honest edges of that work.
+- M1: level progression and class features, then the character creator. Spell
+  slots, Concentration, casting, rests, the clock and effect durations have
+  landed; the limitations recorded above — long casting times, rest resumption,
+  dismissing an ongoing spell, Reaction timing — are the honest edges of that
+  work, each with the reason it is still open.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

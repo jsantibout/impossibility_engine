@@ -22,6 +22,14 @@ import {
 } from './resources.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
+  hasExpired,
+  timerKey,
+  type Deadline,
+  type EffectTarget,
+  type TimeView,
+  type TimedEffect,
+} from './duration.js';
+import {
   castingIdOf,
   type CastingTime,
   type Concentration,
@@ -156,6 +164,14 @@ export interface GameState {
    * which is subtraction.
    */
   readonly elapsed: number;
+  /**
+   * Effects waiting to run out, keyed by what they will end.
+   *
+   * Keyed rather than listed so re-applying the same effect from the same
+   * source replaces its deadline instead of leaving a stale one behind to end
+   * it early.
+   */
+  readonly timers: Readonly<Record<string, TimedEffect>>;
 }
 
 export function initialState(seed: string): GameState {
@@ -170,6 +186,7 @@ export function initialState(seed: string): GameState {
     castingsBegun: 0,
     appliedCommands: {},
     elapsed: 0,
+    timers: {},
   };
 }
 
@@ -318,6 +335,19 @@ export type GameEvent =
   | { readonly type: 'time-advanced'; readonly seconds: number; readonly reason: string }
 
   // — rests ————————————————————————————
+  /**
+   * An effect given a moment to stop at.
+   *
+   * The deadline is already resolved: a relative duration that could not be
+   * answered — "the start of your next turn", asked outside combat — is
+   * refused by the command, so nothing unanswerable reaches the log.
+   */
+  | {
+      readonly type: 'effect-scheduled';
+      readonly target: EffectTarget;
+      readonly deadline: Deadline;
+    }
+
   | {
       readonly type: 'rest-begun';
       readonly id: CharacterId;
@@ -462,7 +492,11 @@ export const castingIdFor = (n: number): string => `cast:${n}`;
  * exactly one Cleric's Hold Person and leaves the other Cleric's standing —
  * and leaves alone anything the casting did not create.
  */
-function releaseCasting(state: GameState, casterId: CharacterId, castingId: string): GameState {
+function releaseCasting(
+  state: GameState,
+  casterId: CharacterId | null,
+  castingId: string,
+): GameState {
   const creatures: Record<string, CreatureState> = {};
   let changed = false;
 
@@ -489,7 +523,17 @@ function releaseCasting(state: GameState, casterId: CharacterId, castingId: stri
     creatures[key] = updated;
   }
 
-  return changed ? { ...state, creatures } : state;
+  // A casting that ends early takes its own deadline with it, or a stale timer
+  // would sit waiting to end a spell that is already over.
+  const key = timerKey({ kind: 'casting', castingId });
+  let timers: Record<string, TimedEffect> = state.timers;
+  if (state.timers[key] !== undefined) {
+    timers = { ...state.timers };
+    delete timers[key];
+    changed = true;
+  }
+
+  return changed ? { ...state, creatures, timers } : state;
 }
 
 /**
@@ -596,9 +640,89 @@ function interruptedRests(state: GameState, event: GameEvent): GameState {
   return current;
 }
 
+/**
+ * Rebuild the timer record with its keys sorted.
+ *
+ * Timers reach the event log, and a record whose key order depended on which
+ * effect happened to be scheduled first would serialise differently for two
+ * identical tables — the same reasoning that sorts condition instances and
+ * resource pools.
+ */
+function sortedTimers(timers: Readonly<Record<string, TimedEffect>>): Record<string, TimedEffect> {
+  const sorted: Record<string, TimedEffect> = {};
+  for (const key of Object.keys(timers).sort()) {
+    const timer = timers[key];
+    if (timer !== undefined) sorted[key] = timer;
+  }
+  return sorted;
+}
+
+const viewOf = (state: GameState): TimeView => ({
+  elapsed: state.elapsed,
+  combat: state.combat,
+});
+
+/**
+ * End every effect whose moment has come.
+ *
+ * Derived rather than commanded, for the same reason Concentration breaking is:
+ * a duration running out is not a decision anybody makes, and no log — however
+ * assembled — should be able to show an effect still running past its own end.
+ *
+ * Keys are visited in sorted order so a fold is byte-identical however the
+ * effects were scheduled. One pass settles it today: ending an effect cannot
+ * bring a deadline forward. The loop is what keeps that true if one ever can.
+ */
+function expireEffects(state: GameState): GameState {
+  let current = state;
+
+  for (;;) {
+    const view = viewOf(current);
+    const key = Object.keys(current.timers)
+      .sort()
+      .find((k) => {
+        const timer = current.timers[k];
+        return timer !== undefined && hasExpired(view, timer.deadline);
+      });
+    if (key === undefined) return current;
+
+    const timer = current.timers[key];
+    const timers = { ...current.timers };
+    delete timers[key];
+    current = { ...current, timers };
+    if (timer === undefined) continue;
+
+    const target = timer.target;
+    if (target.kind === 'casting') {
+      // Ending the casting takes its Concentration and every effect it created.
+      const castingId = target.castingId;
+      const caster = Object.values(current.creatures).find(
+        (c) => c.concentration?.castingId === castingId,
+      );
+      current = releaseCasting(current, caster?.id ?? null, castingId);
+    } else {
+      const creature = current.creatures[target.on];
+      if (creature !== undefined) {
+        current = {
+          ...current,
+          creatures: {
+            ...current.creatures,
+            [target.on]: {
+              ...creature,
+              conditions: removeConditionInstance(creature.conditions, target.instance),
+            },
+          },
+        };
+      }
+    }
+  }
+}
+
 export function applyEvent(state: GameState, event: GameEvent): GameState {
   const applied = applyOne(state, event);
-  return breakLostConcentration(recordCommand(interruptedRests(applied, event), event));
+  return expireEffects(
+    breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+  );
 }
 
 function applyOne(state: GameState, event: GameEvent): GameState {
@@ -792,6 +916,15 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       }
       return releaseCasting(next, event.id, event.castingId);
     }
+
+    case 'effect-scheduled':
+      return {
+        ...next,
+        timers: sortedTimers({
+          ...state.timers,
+          [timerKey(event.target)]: { target: event.target, deadline: event.deadline },
+        }),
+      };
 
     case 'time-advanced': {
       if (!Number.isInteger(event.seconds) || event.seconds < 0) {

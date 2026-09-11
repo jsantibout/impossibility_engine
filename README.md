@@ -37,6 +37,7 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Commands | Engine-owned batches, with idempotency keys so a retry is a no-op |
 | Rests | Short and Long, Hit Dice, recharges, and the interruptions the engine can see |
 | The clock | Seconds since the campaign began; a combat round costs six of them |
+| Durations | Elapsed deadlines and turn-anchored ones, expiring by effect instance |
 | Event log | `GameState` as a fold; replay is a pure function of the record |
 
 **Parsed from the SRD** — 339 spells, 330 creatures, 38 weapons, 13 armour.
@@ -45,13 +46,13 @@ a casting costs and what it keeps alive, but no spell's own effects are scripted
 — a spell that imposes a condition is applied by the caller, linked to the
 casting that caused it.
 
-**Not built yet**: effect durations — the clock runs, but nothing expires when
-its time is up — plus level progression, class features, the character creator,
+**Not built yet**: level progression, class features, the character creator,
 the tool surface Claude would call, the DM orchestration, persistence, and the
 web app. There is no frontend and no database. Casting times of a minute or
-more are refused rather than approximated, and Reaction timing is recorded
-rather than enforced — see [CLAUDE.md](./CLAUDE.md) for the full list, each
-with the reasoning.
+more are refused rather than approximated, a rest cannot be resumed after an
+interruption, and Reaction timing is recorded rather than enforced — see
+[CLAUDE.md](./CLAUDE.md) for the full list, each with the reason it is still
+open.
 
 ## Getting started
 
