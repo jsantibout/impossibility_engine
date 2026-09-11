@@ -323,20 +323,34 @@ and whether the mover is Prone. Applying the condition is the caller's job.
 Passing *through* is exposed as a predicate rather than derived, because there
 are no waypoints to trace — same reasoning as cover.
 
+**Everything is on a lattice of 5-foot cubes, and distance is Chebyshev.**
+SRD: "Each square represents 5 feet", and entering a *diagonally* adjacent
+square costs the same one square as an orthogonal one. So a diagonal neighbour
+is 5 feet away, not 7.07, every distance is an integer multiple of 5, and
+nobody ever hears "seven and a half feet". The lattice is an internal
+representation — nothing is rendered, and Maestro still speaks in feet from
+landmarks.
+
+**One metric, used everywhere — so a radius is a square.** That is not a
+simplification, it is what Chebyshev means: every cube within 20 feet of a
+point forms a 40-foot square. Measuring areas geometrically while measuring
+distance by the grid would let a creature be 20 feet from a blast by one rule
+and outside its 20-foot radius by another. Two metrics is how a system ends up
+contradicting itself. Cone, Line and Cube are directional, have no Chebyshev
+shorthand, and are the one approximation here: they resolve against cube
+centres.
+
 **Creatures occupy volume, not a point.** A footprint from the SRD's Creature
 Size and Space table, rising from the feet to a height. Treating them as points
 made a tall creature mechanically flat — a blast at head height missed it
 entirely — and put a Huge creature's only point seven feet inside its own body,
-out of a fighter's reach. So areas of effect meet the *box*, and so does
-distance.
+out of a fighter's reach. Creatures are anchored at a cube and extend from it — centring a Large creature
+would put its edges on half cubes, which the game has no notion of.
 
-**Nothing is ever measured centre to centre.** SRD: "To determine the range on
-a grid between two things — whether creatures or objects — count squares from a
+**Nothing is ever measured centre to centre.** SRD: "count squares from a
 square adjacent to one of them and stop counting in the space of the other
-one." There is therefore exactly one distance function, `distanceBetween`, and
-it measures space to space. The difference is invisible between two Medium
-creatures and decisive against a large one, where a centre measurement reports
-both melee reach and spell ranges as longer than they are.
+one." There is exactly one distance function and it counts cubes between
+volumes.
 
 **Height is declared, never inferred.** The SRD gives every creature a space
 but never a height, and size category is a poor proxy — a giraffe and a

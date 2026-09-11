@@ -114,7 +114,8 @@ describe('placement', () => {
       placeCreature(withBar(), id('wyvern'), { from: { landmark: 'the bar' }, feet: 10, bearing: 90, elevation: 12 }),
       'flying',
     );
-    expect(positionOf(state, id('wyvern'))?.z).toBe(12);
+    // Twelve feet is not a cube boundary, so it snaps to ten.
+    expect(positionOf(state, id('wyvern'))?.z).toBe(10);
   });
 
   it('refuses to fly through the ceiling', () => {
@@ -135,8 +136,10 @@ describe('distanceBetween', () => {
   // "in the space of the other one" — so the two creatures' own spaces are not
   // part of the distance. Two Medium creatures whose centres are 15 feet apart
   // have 10 feet between their spaces.
-  it('measures between two creatures’ spaces, not their centres', () => {
-    expect(unwrap(distanceBetween(standoff(), id('fighter'), id('ogre')), 'd')).toBe(10);
+  it('counts squares between two creatures, never centres', () => {
+    // Cubes three apart. SRD counts "from a square adjacent to one of them"
+    // and stops "in the space of the other one": three squares, 15 feet.
+    expect(unwrap(distanceBetween(standoff(), id('fighter'), id('ogre')), 'd')).toBe(15);
   });
 
   it('measures through the air, so a flyer overhead is genuinely distant', () => {
@@ -145,9 +148,8 @@ describe('distanceBetween', () => {
       placeCreature(state, id('wyvern'), { from: { creature: id('fighter') }, feet: 0, elevation: 15 }),
       'wyvern',
     );
-    // Directly overhead at 15 feet up: five of those feet are the fighter's
-    // own height, so ten feet of air separate them.
-    expect(unwrap(distanceBetween(state, id('fighter'), id('wyvern')), 'd')).toBe(10);
+    // Three cubes up, counted the same way as any other direction.
+    expect(unwrap(distanceBetween(state, id('fighter'), id('wyvern')), 'd')).toBe(15);
   });
 
   it('is zero to itself', () => {
@@ -310,20 +312,20 @@ describe('areas of effect', () => {
     expect(caught.sort()).toEqual([id('goblin-a'), id('goblin-b')].sort());
   });
 
-  it('is exact at the radius boundary, measured to the edge of a space', () => {
-    // goblin-a's centre is 5 feet from the bar, but a Medium creature fills a
-    // 5-foot space, so its near edge is only 2.5 feet away. The boundary is
-    // where the body is, not where the centre is.
-    const clipsTheEdge = unwrap(
-      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 2.5 }),
-      'on',
+  it('is exact at the radius boundary, counted in cubes', () => {
+    // From the bar's cube: goblin-a is the adjacent cube (5 feet) and goblin-b
+    // is four squares on (20 feet). Every boundary lands on a multiple of 5,
+    // and a radius is a square under the same metric distance uses.
+    const shortOfB = unwrap(
+      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 15 }),
+      'short',
     );
-    const fallsShort = unwrap(
-      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 2 }),
-      'off',
+    const reachesB = unwrap(
+      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 20 }),
+      'reaches',
     );
-    expect(clipsTheEdge).toEqual([id('goblin-a')]);
-    expect(fallsShort).toEqual([]);
+    expect(shortOfB).toEqual([id('goblin-a')]);
+    expect(reachesB.sort()).toEqual([id('goblin-a'), id('goblin-b')].sort());
   });
 
   // This is the whole reason positions are coordinates: whether Fireball
@@ -707,7 +709,7 @@ describe('riding a creature', () => {
   it('puts the rider just above the mount', () => {
     const state = unwrap(mount(stable(), id('rider'), id('horse'), { willing: true }), 'mounted');
     const horse = positionOf(state, id('horse'))!;
-    expect(positionOf(state, id('rider'))).toEqual({ ...horse, z: horse.z + 1 });
+    expect(positionOf(state, id('rider'))).toEqual({ ...horse, z: horse.z + 5 });
   });
 
   /**
@@ -742,7 +744,7 @@ describe('riding a creature', () => {
 
     const horse = positionOf(state, id('horse'))!;
     expect(horse.x).toBe(40);
-    expect(positionOf(state, id('rider'))).toEqual({ ...horse, z: horse.z + 1 });
+    expect(positionOf(state, id('rider'))).toEqual({ ...horse, z: horse.z + 5 });
   });
 
   it('carries the rider into the air', () => {
@@ -751,7 +753,8 @@ describe('riding a creature', () => {
       moveCreature(state, id('dragon'), { from: { landmark: 'the bar' }, feet: 10, bearing: 90, elevation: 12 }),
       'flew',
     ).state;
-    expect(positionOf(state, id('rogue'))?.z).toBe(13);
+    // Twelve feet of climb snaps to ten; the rider rides one cube above that.
+    expect(positionOf(state, id('rogue'))?.z).toBe(15);
   });
 
   // SRD: a mount must be "at least one size larger than a rider".
@@ -847,7 +850,9 @@ describe('creatures occupy volume', () => {
   describe('footprint and height', () => {
     // SRD Creature Size and Space.
     it.each([
-      ['tiny', 2.5],
+      // SRD gives Tiny a 2.5-foot space, four to a square, but the lattice has
+      // no half cubes. The rules that care about Tiny read the size category.
+      ['tiny', 5],
       ['small', 5],
       ['medium', 5],
       ['large', 10],
@@ -1030,7 +1035,8 @@ describe('height is declared, not inferred', () => {
    * the fiction, so Maestro says.
    */
   it('lets two creatures of the same size have very different heights', () => {
-    expect(heightOf(beast('giraffe', 'large', 18), id('giraffe'))).toBe(18);
+    // Eighteen feet snaps to four cubes, like every other measurement.
+    expect(heightOf(beast('giraffe', 'large', 18), id('giraffe'))).toBe(20);
     expect(heightOf(beast('hippo', 'large', 5), id('hippo'))).toBe(5);
   });
 

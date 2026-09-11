@@ -80,10 +80,11 @@ export function addLandmark(
   name: string,
   at: Point,
 ): Result<PositionState> {
-  if (!within(state.extent, at)) {
+  const on = snapPoint(at);
+  if (!within(state.extent, on)) {
     return err('outside_scene', `${name} does not fit inside this scene`);
   }
-  return ok({ ...state, landmarks: { ...state.landmarks, [name]: at } });
+  return ok({ ...state, landmarks: { ...state.landmarks, [name]: on } });
 }
 
 /**
@@ -120,7 +121,11 @@ export interface Placement {
 
 /** SRD "Creature Size and Space": the width of the square a creature occupies. */
 const FOOTPRINT: Readonly<Record<CreatureSize, number>> = {
-  tiny: 2.5,
+  // SRD gives Tiny a 2.5-foot space, four to a square. The lattice has no half
+  // cubes, so a Tiny creature holds one — the rules that actually care about
+  // Tiny are the size-category ones (passing through, sharing a space), and
+  // those read the category rather than the footprint.
+  tiny: 5,
   small: 5,
   medium: 5,
   large: 10,
@@ -155,7 +160,10 @@ export function isHeightDeclared(state: PositionState, who: CharacterId): boolea
  * how tall anything is. {@link isHeightDeclared} distinguishes the two.
  */
 export function heightOf(state: PositionState, who: CharacterId): number {
-  return state.heights[who] ?? footprintOf(state.sizes[who] ?? 'medium');
+  const declared = state.heights[who];
+  // Snapped like every other measurement: an eighteen-foot giraffe stands four
+  // cubes tall, because the game has no half-cubes.
+  return Math.max(CUBE, snap(declared ?? footprintOf(state.sizes[who] ?? 'medium')));
 }
 
 interface Box {
@@ -175,36 +183,40 @@ function boxOf(state: PositionState, who: CharacterId): Box | null {
   const at = state.positions[who];
   if (at === undefined) return null;
 
-  const half = footprintOf(state.sizes[who] ?? 'medium') / 2;
+  // A creature is anchored at its own cube and extends from there, so every
+  // bound stays on the lattice. Centring a Large creature would put its edges
+  // on half cubes, which the game has no notion of.
+  const width = footprintOf(state.sizes[who] ?? 'medium');
 
   return {
-    min: { x: at.x - half, y: at.y - half, z: at.z },
-    max: { x: at.x + half, y: at.y + half, z: at.z + heightOf(state, who) },
+    min: at,
+    max: { x: at.x + width, y: at.y + width, z: at.z + heightOf(state, who) },
   };
 }
 
-const clamp = (n: number, low: number, high: number): number => Math.min(high, Math.max(low, n));
-
-/** The point of a box closest to `p`; inside the box, that is `p` itself. */
-const closestIn = (box: Box, p: Point): Point => ({
-  x: clamp(p.x, box.min.x, box.max.x),
-  y: clamp(p.y, box.min.y, box.max.y),
-  z: clamp(p.z, box.min.z, box.max.z),
+/**
+ * The centre of every cube a creature occupies.
+ *
+ * A grid resolves an area of effect by asking whether a square's *centre* falls
+ * inside the template, rather than whether any sliver of it is clipped. That is
+ * both how the game is actually adjudicated and what keeps a blast from
+ * catching someone because half a foot of their shoulder was in range.
+ */
+const cubeCentre = (p: Point): Point => ({
+  x: p.x + CUBE / 2,
+  y: p.y + CUBE / 2,
+  z: p.z + CUBE / 2,
 });
 
-/** Corners plus centre, for shapes with no closed-form box test. */
-const samplePoints = (box: Box): Point[] => {
+const cubeCentres = (box: Box): Point[] => {
   const points: Point[] = [];
-  for (const x of [box.min.x, box.max.x]) {
-    for (const y of [box.min.y, box.max.y]) {
-      for (const z of [box.min.z, box.max.z]) points.push({ x, y, z });
+  for (let x = box.min.x; x < box.max.x; x += CUBE) {
+    for (let y = box.min.y; y < box.max.y; y += CUBE) {
+      for (let z = box.min.z; z < box.max.z; z += CUBE) {
+        points.push({ x: x + CUBE / 2, y: y + CUBE / 2, z: z + CUBE / 2 });
+      }
     }
   }
-  points.push({
-    x: (box.min.x + box.max.x) / 2,
-    y: (box.min.y + box.max.y) / 2,
-    z: (box.min.z + box.max.z) / 2,
-  });
   return points;
 };
 
@@ -292,15 +304,31 @@ const BEARING_SWEEP = [0, 90, 180, 270, 45, 135, 225, 315];
 
 const project = (from: Point, feet: number, bearing: number, elevation: number): Point => {
   const radians = (bearing * Math.PI) / 180;
-  return {
-    x: round(from.x + feet * Math.sin(radians)),
-    y: round(from.y + feet * Math.cos(radians)),
-    z: round(from.z + elevation),
-  };
+  return snapPoint({
+    x: from.x + feet * Math.sin(radians),
+    y: from.y + feet * Math.cos(radians),
+    z: from.z + elevation,
+  });
 };
 
-/** Keep coordinates tidy so replayed scenes compare exactly. */
-const round = (n: number): number => Math.round(n * 1000) / 1000;
+/**
+ * Everything lives on a lattice of 5-foot cubes.
+ *
+ * SRD: "Each square represents 5 feet", and entering a diagonally adjacent
+ * square costs the same one square as an orthogonal one. So distance in D&D is
+ * Chebyshev, not Euclidean, and always an integer multiple of 5 — a diagonal
+ * neighbour is 5 feet away, not 7.07, and nobody at a table ever hears "seven
+ * and a half feet".
+ *
+ * The lattice is an internal representation, not a battlemap: nothing is
+ * rendered, and Maestro still speaks in feet from landmarks.
+ */
+const CUBE = 5;
+
+/** Snap a measurement in feet onto the lattice. */
+const snap = (feet: number): number => Math.round(feet / CUBE) * CUBE;
+
+const snapPoint = (p: Point): Point => ({ x: snap(p.x), y: snap(p.y), z: snap(p.z) });
 
 const occupied = (state: PositionState, at: Point, ignore: CharacterId | null): boolean =>
   Object.entries(state.positions).some(
@@ -435,7 +463,7 @@ export function moveCreature(
   // than a one-off offset. A dragon that takes off carries whoever is clinging
   // to it.
   for (const rider of ridersOf(state, who)) {
-    positions[rider] = { ...at.value, z: round(at.value.z + RIDER_ELEVATION) };
+    positions[rider] = { ...at.value, z: at.value.z + RIDER_ELEVATION };
   }
 
   const moverSize = state.sizes[who] ?? 'medium';
@@ -449,7 +477,11 @@ export function moveCreature(
 
   return ok({
     state: { ...state, positions },
-    distance: round(separation(current, at.value)),
+    distance: Math.max(
+      Math.abs(at.value.x - current.x),
+      Math.abs(at.value.y - current.y),
+      Math.abs(at.value.z - current.z),
+    ),
     sharingWith,
     prone: sharingWith.some((other) => endsProne(moverSize, state.sizes[other] ?? 'medium')),
   });
@@ -474,9 +506,6 @@ export function removeCreature(state: PositionState, who: CharacterId): Result<P
 
   return ok({ ...state, positions, sizes, heights, riding });
 }
-
-const separation = (a: Point, b: Point): number =>
-  Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2);
 
 /**
  * Distance in feet between two creatures, measured between their spaces.
@@ -513,20 +542,53 @@ export function distanceBetween(
   if (boxA === null) return err('unplaced', `${a} needs placing before distances mean anything`);
   if (boxB === null) return err('unplaced', `${b} needs placing before distances mean anything`);
 
-  // Separation along each axis independently; zero where the spans overlap.
+  return ok(chebyshev(boxA, boxB));
+}
+
+/**
+ * Cubes between two occupied volumes, in feet.
+ *
+ * Taking the largest axis rather than the diagonal is the whole point: SRD
+ * costs a diagonal step the same one square as an orthogonal one, so a creature
+ * one cube north and one cube east is 5 feet away, not 7.07.
+ */
+function chebyshev(a: Box, b: Box): number {
+  // Spans are half-open — a Medium creature at x=10 holds the cube from 10 up
+  // to but not including 15 — so touching spans separate by zero.
   const gap = (minA: number, maxA: number, minB: number, maxB: number): number =>
     Math.max(0, Math.max(minA - maxB, minB - maxA));
 
-  return ok(
-    round(
-      Math.sqrt(
-        gap(boxA.min.x, boxA.max.x, boxB.min.x, boxB.max.x) ** 2 +
-          gap(boxA.min.y, boxA.max.y, boxB.min.y, boxB.max.y) ** 2 +
-          gap(boxA.min.z, boxA.max.z, boxB.min.z, boxB.max.z) ** 2,
-      ),
-    ),
+  const steps = Math.max(
+    gap(a.min.x, a.max.x, b.min.x, b.max.x),
+    gap(a.min.y, a.max.y, b.min.y, b.max.y),
+    gap(a.min.z, a.max.z, b.min.z, b.max.z),
   );
+
+  // Touching spans are adjacent, and SRD counts an adjacent square as 5 feet:
+  // range is counted "from a square adjacent to one of them" and stops "in the
+  // space of the other one". Only genuine overlap is zero.
+  if (steps > 0) return steps + CUBE;
+  return overlaps(a, b) ? 0 : CUBE;
 }
+
+/**
+ * The cube a point sits in, so one metric serves everything.
+ *
+ * A zero-size box can never overlap anything, which would report a blast
+ * centred inside a dragon as five feet from it.
+ */
+const pointBox = (p: Point): Box => ({
+  min: p,
+  max: { x: p.x + CUBE, y: p.y + CUBE, z: p.z + CUBE },
+});
+
+const overlaps = (a: Box, b: Box): boolean =>
+  a.min.x < b.max.x &&
+  b.min.x < a.max.x &&
+  a.min.y < b.max.y &&
+  b.min.y < a.max.y &&
+  a.min.z < b.max.z &&
+  b.min.z < a.max.z;
 
 /** Whether `target` is within `reach` feet of `attacker`, space to space. */
 export function withinReach(
@@ -549,13 +611,17 @@ export function withinReach(
  * and recorded as unwilling rather than refused. Whether the character got up
  * there is a check the DM calls for; the engine only tracks that they did.
  *
- * The rider sits one foot above the mount rather than in its space. That keeps
- * three things true at once: they are not sharing a space, so nothing knocks
- * them Prone; they stay within reach of the creature they are clinging to,
- * which deriving the offset from the mount's size would break; and they travel
- * with it, because this is a relationship rather than a coordinate.
+ * The rider sits one cube above the mount. Their volumes still overlap for
+ * anything the mount is tall enough to carry, so they stay within reach of what
+ * they are clinging to and an area of effect that catches the mount catches
+ * them. Nothing knocks them Prone for sharing, because that rule governs
+ * *movement* into an occupied space, and mounting is not movement.
+ *
+ * Deriving the offset from the mount's size would be more realistic and would
+ * break the point of doing it: fifteen feet above a dragon you could no longer
+ * melee the dragon you are clinging to. How high it looks is narration.
  */
-const RIDER_ELEVATION = 1;
+const RIDER_ELEVATION = CUBE;
 
 /** SRD: mounting "costs an amount of movement equal to half your Speed (round down)". */
 export function mountingCost(speed: number): number {
@@ -616,7 +682,7 @@ export function mount(
 
   return ok({
     ...state,
-    positions: { ...state.positions, [rider]: { ...mountAt, z: round(mountAt.z + RIDER_ELEVATION) } },
+    positions: { ...state.positions, [rider]: { ...mountAt, z: mountAt.z + RIDER_ELEVATION } },
     riding: { ...state.riding, [rider]: { mount: target, willing: options.willing } },
   });
 }
@@ -748,7 +814,7 @@ function inShape(origin: Point, shape: AreaShape, p: Point): boolean {
     }
 
     case 'cone': {
-      const axis = unit(subtract(shape.towards, origin));
+      const axis = unit(subtract(cubeCentre(shape.towards), origin));
       if (axis === null) return false;
       const along = dot(offset, axis);
       if (along < 0 || along > shape.length) return false;
@@ -758,7 +824,7 @@ function inShape(origin: Point, shape: AreaShape, p: Point): boolean {
     }
 
     case 'line': {
-      const axis = unit(subtract(shape.towards, origin));
+      const axis = unit(subtract(cubeCentre(shape.towards), origin));
       if (axis === null) return false;
       const along = dot(offset, axis);
       if (along < 0 || along > shape.length) return false;
@@ -766,7 +832,7 @@ function inShape(origin: Point, shape: AreaShape, p: Point): boolean {
     }
 
     case 'cube': {
-      const axis = unit(subtract(shape.towards, origin));
+      const axis = unit(subtract(cubeCentre(shape.towards), origin));
       if (axis === null) return false;
       const along = dot(offset, axis);
       if (along < 0 || along > shape.size) return false;
@@ -776,32 +842,44 @@ function inShape(origin: Point, shape: AreaShape, p: Point): boolean {
 }
 
 /**
- * Whether an area of effect meets any part of a creature's volume.
+ * Whether an area of effect catches any cube a creature occupies.
  *
- * Sphere, Emanation and Cylinder are exact: the nearest point of the box to the
- * origin settles it in closed form. Cone, Line and Cube are directional and
- * have no such shortcut, so those sample the box's corners and centre — close
- * enough that a dragon is caught by a breath weapon, and honest about being an
- * approximation rather than pretending otherwise.
+ * Every shape is resolved the same way — cube centre against the template —
+ * which is how a grid adjudicates it. A thirty-foot dragon is six cubes tall,
+ * so a blast at head height catches its upper cubes and misses its feet.
  */
 function boxInShape(origin: Point, shape: AreaShape, box: Box): boolean {
   switch (shape.kind) {
     case 'sphere':
-    case 'emanation': {
-      const radius = shape.kind === 'sphere' ? shape.radius : shape.distance;
-      return magnitude(subtract(closestIn(box, origin), origin)) <= radius;
-    }
+      return chebyshev(pointBox(origin), box) <= shape.radius;
 
+    case 'emanation':
+      return chebyshev(pointBox(origin), box) <= shape.distance;
+
+    // A Cylinder's radius and its height are separate constraints. Folding the
+    // height into the one metric would let a creature hovering just above a
+    // short cylinder count as inside its radius.
     case 'cylinder': {
-      const nearest = closestIn(box, origin);
-      const horizontal = Math.sqrt((nearest.x - origin.x) ** 2 + (nearest.y - origin.y) ** 2);
-      // Vertical spans overlap when neither sits wholly above the other.
-      const overlaps = box.min.z <= origin.z + shape.height && box.max.z >= origin.z;
-      return horizontal <= shape.radius && overlaps;
+      const column: Box = {
+        min: { x: origin.x, y: origin.y, z: box.min.z },
+        max: { x: origin.x + CUBE, y: origin.y + CUBE, z: box.max.z },
+      };
+      const withinRadius = chebyshev(column, box) <= shape.radius;
+      const withinHeight = box.min.z < origin.z + shape.height && box.max.z > origin.z;
+      return withinRadius && withinHeight;
     }
 
-    default:
-      return samplePoints(box).some((p) => inShape(origin, shape, p));
+    // Cone, Line and Cube are directional, and a direction has no Chebyshev
+    // shorthand. These resolve geometrically against the centre of each cube
+    // the creature occupies — the way a grid adjudicates a template — and are
+    // the one approximation in this module rather than an exact answer.
+    default: {
+      // Creatures are sampled at their cube centres, so the origin has to be
+      // the centre of *its* cube too. Measuring from a lattice corner made a
+      // Line drawn along a row of cubes miss every one of them.
+      const from = cubeCentre(origin);
+      return cubeCentres(box).some((p) => inShape(from, shape, p));
+    }
   }
 }
 
