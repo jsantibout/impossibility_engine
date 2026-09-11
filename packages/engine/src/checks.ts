@@ -321,7 +321,17 @@ export function interveneAfterRoll(
 ): Result<D20TestResult> {
   const sign = intervention.direction === 'penalty' ? -1 : 1;
 
-  const rolled = rollBonusDice(issuer, rng, [intervention]);
+  // Only the bonus-shaped fields. `Intervention.direction` is this function's
+  // own ("bonus" or "penalty") and the sign is applied below; handing it to
+  // `rollBonusDice`, which now understands a direction of its own, would sign
+  // the same die twice and turn Cutting Words into a bonus.
+  const rolled = rollBonusDice(issuer, rng, [
+    {
+      source: intervention.source,
+      ...(intervention.flat === undefined ? {} : { flat: intervention.flat }),
+      ...(intervention.dice === undefined ? {} : { dice: intervention.dice }),
+    },
+  ]);
   if (!rolled.ok) return rolled;
 
   const flat = intervention.flat ?? 0;

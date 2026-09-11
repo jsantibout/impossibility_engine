@@ -37,7 +37,10 @@ import {
   slotsAt,
   type ClassDefinition,
   type EquipmentEntry,
+  type ClassLevelRow,
   type FeatureDefinition,
+  type FeatureGrant,
+  type SpellcastingStyle,
   type SubclassDefinition,
 } from './progression.js';
 import { spellSlotKey } from './resources.js';
@@ -51,6 +54,7 @@ import {
   type SpellbookEntry,
 } from './spellbook.js';
 import type { GrantedSpell, SpellcastingState } from './spellcasting.js';
+import { CLERIC, CLERIC_SUBCLASSES } from './cleric.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
 
 /**
@@ -70,8 +74,8 @@ import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
  * character does not want to be told about one mistake at a time.
  */
 
-const CLASSES: readonly ClassDefinition[] = [WIZARD];
-const SUBCLASSES: readonly SubclassDefinition[] = [...WIZARD_SUBCLASSES];
+const CLASSES: readonly ClassDefinition[] = [CLERIC, WIZARD];
+const SUBCLASSES: readonly SubclassDefinition[] = [...CLERIC_SUBCLASSES, ...WIZARD_SUBCLASSES];
 
 export const classById = (id: string): ClassDefinition | null =>
   CLASSES.find((c) => c.id === id) ?? null;
@@ -407,6 +411,62 @@ function grantedFeatures(choices: CharacterChoices, parts: Parts): readonly Feat
   ];
 }
 
+/**
+ * The choices made for every feature that grants a particular kind of thing.
+ *
+ * Finding a feature by what it *does* rather than by its id is the difference
+ * between one class working and twelve working: the Rogue's Expertise and the
+ * Wizard's Scholar are the same rule, and a second subclass with free spells
+ * needs no new string match here.
+ */
+function choicesGranting(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+  kind: FeatureGrant['kind'],
+): readonly string[] {
+  const picked: string[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== kind) continue;
+    // A fixed grant is the feature's own answer; a choice is the player's.
+    if (grant.kind === 'spells' && grant.fixed !== undefined) {
+      picked.push(...grant.fixed);
+      continue;
+    }
+    picked.push(...(choices.featureChoices[feature.id] ?? []));
+  }
+  return picked;
+}
+
+/** Skills a feature granted Expertise in, whichever feature it was. */
+function expertiseSkills(choices: CharacterChoices, parts: Parts): readonly string[] {
+  return choicesGranting(choices, grantedFeatures(choices, parts), 'expertise');
+}
+
+/**
+ * Spells a feature added outside the class table's counts.
+ *
+ * Takes `parts` when the caller has them and rebuilds what it can when it does
+ * not — `checkSpells` runs before a subclass is necessarily resolved, and the
+ * class's own features are enough there.
+ */
+function spellsFromFeatures(
+  choices: CharacterChoices,
+  definition: ClassDefinition,
+  parts?: Parts,
+): readonly string[] {
+  const features =
+    parts === undefined
+      ? [
+          ...cumulativeFeatures(definition, choices.level),
+          ...(subclassById(choices.subclassId ?? '') === null
+            ? []
+            : cumulativeFeatures(subclassById(choices.subclassId ?? '')!, choices.level)),
+        ]
+      : grantedFeatures(choices, parts);
+  return choicesGranting(choices, features, 'spells');
+}
+
 function checkFeatureChoices(
   choices: CharacterChoices,
   features: readonly FeatureDefinition[],
@@ -428,6 +488,22 @@ function checkFeatureChoices(
       continue;
     }
 
+    if (asked.kind === 'option') {
+      for (const picked of made) {
+        if (!asked.from.includes(picked)) {
+          problems.push(
+            problem('option_not_offered', 'featureChoices', `${feature.name} offers ${asked.from.join(', ')}, not ${picked}`),
+          );
+        }
+      }
+      for (const picked of duplicates(made)) {
+        problems.push(
+          problem('duplicate_option', 'featureChoices', `${feature.name} takes ${picked} once`),
+        );
+      }
+      continue;
+    }
+
     if (asked.kind === 'skill') {
       for (const picked of made) {
         if (!(SKILLS as readonly string[]).includes(picked)) {
@@ -441,9 +517,11 @@ function checkFeatureChoices(
             problem('skill_not_offered', 'featureChoices', `${feature.name} offers ${asked.from.join(', ')}, not ${picked}`),
           );
         }
-        // SRD Scholar: "Choose one of the following skills **in which you have
-        // proficiency**." Expertise without proficiency is not a thing.
-        if (feature.id === 'wizard:scholar' && !proficient.has(picked as Skill)) {
+        // SRD Expertise: "Choose one of the following skills **in which you
+        // have proficiency**." Expertise without proficiency is not a thing.
+        // Found by what the feature grants, not by its id: the Rogue's
+        // Expertise is the same rule under a different name.
+        if (feature.grants?.kind === 'expertise' && !proficient.has(picked as Skill)) {
           problems.push(
             problem('expertise_without_proficiency', 'featureChoices', `${feature.name} needs proficiency in ${picked} first`),
           );
@@ -513,8 +591,10 @@ const duplicates = (ids: readonly string[]): readonly string[] => {
 
 function checkSpells(choices: CharacterChoices, definition: ClassDefinition): CreationProblem[] {
   // Spells a feature writes into the book are in the book: preparation can
-  // reach them even though the count rule does not measure them.
-  const fromFeatures = choices.featureChoices['evoker:evocation-savant'] ?? [];
+  // reach them even though the count rule does not measure them. Gathered by
+  // what the feature grants rather than by naming the Evoker's, so a second
+  // subclass with free spells needs no change here.
+  const fromFeatures = spellsFromFeatures(choices, definition);
   const problems: CreationProblem[] = [];
   const row = rowAt(definition, choices.level);
   if (!row.ok) return problems;
@@ -540,6 +620,21 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
 
   // — the spellbook ———————————————————————————————————————————————————————
   //
+  // Only a class that *has* one. SRD gives a Cleric no book at all: they
+  // prepare from the whole class list every morning, and a spellbook entry on
+  // a Cleric is a mistake rather than a spell.
+  const style = definition.spellcasting?.style ?? 'spellbook';
+
+  if (style !== 'spellbook') {
+    if (choices.spellbook.length > 0) {
+      problems.push(
+        problem('no_spellbook', 'spellbook', `a ${definition.name} has no spellbook to write spells in`),
+      );
+    }
+    problems.push(...checkPreparedFromList(choices, definition, row.value, topSlot, style));
+    return problems;
+  }
+
   // The count rule applies to the spells *levelling* granted. Spells copied
   // from a scroll in play ride along and are not counted, or a Wizard who had
   // adventured could not level up.
@@ -608,6 +703,56 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
  * school and the level cap are the feature's, not the book's, and a spell that
  * fails them should say which rule it broke.
  */
+/**
+ * Preparation for a class whose spells come from its own list.
+ *
+ * SRD Cleric: "You prepare the list of spells that are available for you to
+ * cast... choosing from the Cleric spell list." There is no book in between,
+ * so the only questions are how many, whether they are on the list, and
+ * whether the character has slots of that level — which is the same last rule
+ * a Wizard obeys, reached by a different route.
+ *
+ * A `known` class never prepares at all: the same list is what it knows, and
+ * the count is the table's. The difference between the two is when the list
+ * may change, which is a rest rule rather than a creation rule.
+ */
+function checkPreparedFromList(
+  choices: CharacterChoices,
+  definition: ClassDefinition,
+  row: ClassLevelRow,
+  topSlot: number,
+  style: SpellcastingStyle,
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  const expected = row.preparedSpells ?? 0;
+  const what = style === 'known' ? 'knows' : 'prepares';
+
+  if (choices.preparedSpells.length !== expected) {
+    problems.push(
+      problem('wrong_prepared_count', 'preparedSpells', `a level ${choices.level} ${definition.name} ${what} ${expected} spells, got ${choices.preparedSpells.length}`),
+    );
+  }
+  for (const id of duplicates(choices.preparedSpells)) {
+    problems.push(problem('duplicate_spell', 'preparedSpells', `${id} is prepared twice`));
+  }
+
+  const granted = new Set(spellsFromFeatures(choices, definition));
+  for (const id of choices.preparedSpells) {
+    // A feature's free spells are already the character's; they need not be on
+    // the class list, which is the whole point of a domain or subclass grant.
+    if (granted.has(id)) continue;
+    problems.push(
+      ...checkSpellId(id, 'preparedSpells', definition.id, {
+        minLevel: 1,
+        maxLevel: topSlot,
+        what: `a ${definition.name} spell`,
+      }),
+    );
+  }
+
+  return problems;
+}
+
 function checkEvocationSavant(
   choices: CharacterChoices,
   definition: ClassDefinition,
@@ -1061,7 +1206,7 @@ export function planCharacter(
   const features = grantedFeatures(choices, parts);
   const { skills: proficient, tools, warnings } = gatherProficiencies(choices, parts);
 
-  const expertise = new Set(choices.featureChoices['wizard:scholar'] ?? []);
+  const expertise = new Set(expertiseSkills(choices, parts));
   const skills: Partial<Record<Skill, 'proficient' | 'expertise'>> = {};
   for (const skill of proficient) {
     skills[skill] = expertise.has(skill) ? 'expertise' : 'proficient';
@@ -1088,7 +1233,7 @@ export function planCharacter(
   const owned = inventoryOf(choices, parts);
   if (!owned.ok) return owned;
 
-  const savant = (choices.featureChoices['evoker:evocation-savant'] ?? []).map((spellId) => ({
+  const savant = spellsFromFeatures(choices, definition, parts).map((spellId) => ({
     spellId,
     acquiredAt: choices.level,
     origin: 'feature' as const,
@@ -1123,10 +1268,22 @@ export function planCharacter(
     }
   }
 
+  // SRD Life Domain Spells: "you thereafter always have the listed spells
+  // prepared" — over and above what the class table allows, so they are added
+  // rather than counted against it. A Wizard's feature spells went into the
+  // spellbook instead, which is the same grant reaching a different place
+  // because the two classes come by their spells differently.
+  const alwaysPrepared =
+    definition.spellcasting?.style === 'spellbook'
+      ? []
+      : spellsFromFeatures(choices, definition, parts).filter(
+          (spellId) => !choices.preparedSpells.includes(spellId),
+        );
+
   const spellcasting: SpellcastingState = {
-    ability: definition.primaryAbility,
+    ability: definition.spellcasting?.ability ?? definition.primaryAbility,
     cantrips: choices.cantrips,
-    prepared: choices.preparedSpells,
+    prepared: [...choices.preparedSpells, ...alwaysPrepared],
     granted,
   };
 

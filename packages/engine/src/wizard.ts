@@ -49,6 +49,9 @@ export const WIZARD: ClassDefinition = {
   id: 'wizard',
   name: 'Wizard',
   primaryAbility: 'int',
+  // SRD Wizard: Intelligence, and spells are copied into a book and prepared
+  // from it — which is one of three quite different ways a class casts.
+  spellcasting: { ability: 'int', style: 'spellbook', startsAtLevel: 1 },
   hitDie: 6,
   saveProficiencies: ['int', 'wis'],
   skillChoices: {
@@ -104,6 +107,7 @@ export const WIZARD: ClassDefinition = {
       level: 2,
       automation: 'engine',
       note: 'Expertise in the chosen skill is applied to the sheet.',
+      grants: { kind: 'expertise' },
       choice: {
         kind: 'skill',
         choose: 1,
@@ -171,6 +175,7 @@ export const EVOKER: SubclassDefinition = {
       level: 3,
       automation: 'engine',
       note: 'The two free spells are added to the spellbook. The later "one per new slot level" grant is not automatic.',
+      grants: { kind: 'spells' },
       choice: { kind: 'spell', choose: 2, school: 'evocation', maxLevel: 2 },
     },
     {

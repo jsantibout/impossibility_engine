@@ -29,7 +29,8 @@ still Wizard-shaped are named below.
 | Areas | `resolveSpell` resolves targets from geometry; 4 area spells | `ab54bb0` |
 | Spell batch | 21 spells into the existing shapes; `unmodelled` reported at runtime | `534c03a` |
 | Buffs + temp HP | `buff` and `temp-hp` effects; bonuses live on the creature | `e127590` |
-| Multi-type saves | One save, several damage types; 8 more spells | *this batch* |
+| Multi-type saves | One save, several damage types; 8 more spells | `70169df` |
+| Second class | Wizard-shaped seams opened; Cleric + Life Domain, levels 1–20 | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -89,20 +90,33 @@ still Wizard-shaped are named below.
    machine with a per-turn obligation; the clock alone was never the blocker.
 8. **Classes.** See below.
 
-## Classes: what exists and what the seams are
+## Classes: two down, ten to go
 
-`progression.ts` holds the reusable structures and `wizard.ts` proves they fit.
-What is Wizard-shaped and must be generalised when a second class lands:
+The Wizard-shaped seams are **open**, and the Cleric is the proof:
 
-- Two feature ids are looked up by name in `creation.ts` — `wizard:scholar`
-  (expertise) and `evoker:evocation-savant` (free spells). Both need to become
-  a declared feature *kind* rather than a string match.
-- Spell preparation assumes a spellbook. A Cleric prepares from the whole class
-  list; a Sorcerer knows spells and never prepares. `spellbook.ts` is
-  Wizard-specific and needs a sibling, not an edit.
-- `hitPointsFor` and the pool declarations are already class-agnostic.
-- Multiclassing is not modelled at all: no rule for combining spell slots, no
-  prerequisite check, no proficiency-subset rule on the second class.
+- A feature says what it **grants** (`expertise`, `spells`) and creation looks
+  for the kind. No more matching `wizard:scholar` by id.
+- A class declares a **spellcasting style** — `spellbook`, `prepared-from-list`
+  or `known` — and `checkSpells` branches on it. A Cleric has no spellbook and
+  writing in one is refused.
+- A grant can be **fixed** rather than chosen: Life Domain spells are always
+  prepared and ask the player nothing, where the Evoker's two are a choice.
+- `FeatureChoice` gained an `option` kind for "one of these named things" —
+  Divine Order, and later Fighting Style, Metamagic, Manoeuvres.
+
+What the next class will hit, in likely order:
+
+- **`known` casters are declared but untested.** Sorcerer and Bard never
+  prepare; the branch exists and no class exercises it.
+- **Half-casters start at level 2.** `spellcasting.startsAtLevel` is recorded
+  and nothing reads it yet; Paladin and Ranger need it.
+- **Subclass level varies.** Cleric and Wizard both choose at 3; a Fighter
+  chooses at 3 too, but a Cleric's domain grants spells and a Champion does
+  not. `subclassLevel` is already per-class, so this should be free.
+- **Martial classes have no spellcasting block at all**, which is the
+  `spellcasting?: undefined` path and is also untested.
+- **Multiclassing is not modelled**: no combined slot table, no prerequisite
+  check, no proficiency-subset rule for the second class.
 
 ## How to resume
 

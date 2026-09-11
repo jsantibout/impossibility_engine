@@ -53,6 +53,15 @@ export type FeatureChoice =
       readonly school?: string;
       readonly maxLevel?: number;
     }
+  /**
+   * One of a named set the feature itself lists.
+   *
+   * SRD Divine Order offers Protector or Thaumaturge; Fighting Style, Manoeuvres
+   * and Metamagic are all the same shape. Modelling it as a feat was wrong in
+   * a way that showed immediately: there is no Protector feat, so the feat
+   * category check refused a legal character.
+   */
+  | { readonly kind: 'option'; readonly choose: number; readonly from: readonly string[] }
   | { readonly kind: 'subclass'; readonly choose: 1 }
   | { readonly kind: 'feat'; readonly choose: number; readonly category?: string };
 
@@ -79,7 +88,44 @@ export interface FeatureDefinition {
    * the player's. `spellList` pins the half the background already decided.
    */
   readonly grantsFeat?: { readonly featId: string; readonly spellList?: string };
+  /**
+   * What the engine does with the choice this feature asked for.
+   *
+   * Creation used to find these two features by **id** — `wizard:scholar` for
+   * Expertise, `evoker:evocation-savant` for free spells — which worked for
+   * exactly one class and would have needed a new string match for every class
+   * after it. A feature says what kind of thing it grants, and creation looks
+   * for the kind.
+   */
+  readonly grants?: FeatureGrant;
 }
+
+/**
+ * The mechanical shapes a feature's choice can take.
+ *
+ * Deliberately few. A feature whose effect does not fit one of these is
+ * `automation: 'manual'` with a note saying what a DM still has to do, which
+ * is the honest answer far more often than a new grant kind would be.
+ */
+export type FeatureGrant =
+  /**
+   * SRD Expertise: "Choose one of the following skills **in which you have
+   * proficiency**", and double the proficiency bonus on it. Wizard's Scholar
+   * and Rogue's Expertise are the same feature under two names.
+   */
+  | { readonly kind: 'expertise' }
+  /**
+   * Spells the feature adds to what the character can cast, outside the
+   * counts the class table prints.
+   *
+   * Two shapes, and the difference is who decides. The Evoker *chooses* two
+   * Evocations and writes them in the book; the Life Domain is *given* Aid,
+   * Bless, Cure Wounds and Lesser Restoration and always has them prepared.
+   * A fixed grant asks the player nothing, so it carries no `choice` — and
+   * modelling it as a choice with one legal answer would demand the player
+   * type it back.
+   */
+  | { readonly kind: 'spells'; readonly fixed?: readonly string[] };
 
 export interface ClassLevelRow {
   readonly level: number;
@@ -107,8 +153,39 @@ export interface FeatureSource {
   readonly features: readonly FeatureDefinition[];
 }
 
+/**
+ * How a class comes by the spells it can cast.
+ *
+ * The three shapes the SRD actually uses, and they are not interchangeable —
+ * a Wizard's prepared list is drawn from a book they have to fill, a Cleric's
+ * from the whole class list every morning, and a Sorcerer never prepares at
+ * all. Modelling the first and calling it "spellcasting" is what made
+ * `spellbook.ts` Wizard-shaped.
+ */
+export type SpellcastingStyle =
+  /** SRD Wizard: spells are copied into a book, and prepared from the book. */
+  | 'spellbook'
+  /** SRD Cleric, Druid, Paladin: prepared from the class's whole list. */
+  | 'prepared-from-list'
+  /** SRD Sorcerer, Bard, Ranger, Warlock: a fixed set known, never prepared. */
+  | 'known';
+
+export interface ClassSpellcasting {
+  readonly ability: Ability;
+  readonly style: SpellcastingStyle;
+  /**
+   * The level at which the class starts casting.
+   *
+   * Wizards and Clerics cast at 1; Paladins and Rangers at 2; a Fighter or
+   * Rogue never does, and has no `spellcasting` block at all.
+   */
+  readonly startsAtLevel: number;
+}
+
 export interface ClassDefinition extends FeatureSource {
   readonly primaryAbility: Ability;
+  /** How this class casts, or absent for a class that does not. */
+  readonly spellcasting?: ClassSpellcasting;
   readonly hitDie: number;
   readonly saveProficiencies: readonly Ability[];
   readonly skillChoices: SkillChoices;
