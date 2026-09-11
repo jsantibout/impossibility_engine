@@ -1,0 +1,979 @@
+[
+  {
+    "type": "creature-added",
+    "id": "cleric",
+    "name": "cleric",
+    "sheet": {
+      "level": 5,
+      "abilities": {
+        "str": 14,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 16,
+        "cha": 10
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 40,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "party"
+  },
+  {
+    "type": "creature-added",
+    "id": "thug",
+    "name": "thug",
+    "sheet": {
+      "level": 5,
+      "abilities": {
+        "str": 14,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 16,
+        "cha": 10
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 32,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "thugs"
+  },
+  {
+    "type": "creature-added",
+    "id": "rat",
+    "name": "rat",
+    "sheet": {
+      "level": 5,
+      "abilities": {
+        "str": 14,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 16,
+        "cha": 10
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 7,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "thugs"
+  },
+  {
+    "type": "items-gained",
+    "id": "cleric",
+    "items": [
+      {
+        "id": "mace",
+        "quantity": 1
+      },
+      {
+        "id": "chain-shirt",
+        "quantity": 1
+      }
+    ],
+    "source": "kit"
+  },
+  {
+    "type": "coins-changed",
+    "id": "cleric",
+    "copper": 50000,
+    "source": "a patron"
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "cleric",
+    "pool": {
+      "key": "spell-slot:1",
+      "label": "level 1 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "cleric",
+    "pool": {
+      "key": "spell-slot:2",
+      "label": "level 2 spell slot",
+      "max": 3,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "spellcasting-declared",
+    "id": "cleric",
+    "spellcasting": {
+      "classes": [
+        {
+          "classId": "innate",
+          "ability": "wis",
+          "cantrips": [
+            "sacred-flame"
+          ],
+          "prepared": [
+            "inflict-wounds",
+            "hold-person"
+          ],
+          "slotKind": "spell"
+        }
+      ],
+      "granted": []
+    }
+  },
+  {
+    "type": "scene-set",
+    "extent": {
+      "width": 300,
+      "depth": 300,
+      "height": 40
+    }
+  },
+  {
+    "type": "landmark-added",
+    "name": "the altar",
+    "at": {
+      "x": 100,
+      "y": 100,
+      "z": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "cleric",
+    "placement": {
+      "from": {
+        "landmark": "the altar"
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "thug",
+    "placement": {
+      "from": {
+        "creature": "cleric"
+      },
+      "feet": 5,
+      "bearing": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "rat",
+    "placement": {
+      "from": {
+        "creature": "cleric"
+      },
+      "feet": 5,
+      "bearing": 90
+    }
+  },
+  {
+    "type": "sight-declared",
+    "from": "cleric",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "cleric",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "cleric",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "cover-declared",
+    "from": "cleric",
+    "to": "rat",
+    "degree": "half"
+  },
+  {
+    "type": "creature-type-declared",
+    "id": "thug",
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "time-advanced",
+    "seconds": 600,
+    "reason": "searching the vestry"
+  },
+  {
+    "type": "items-gained",
+    "id": "cleric",
+    "items": [
+      {
+        "id": "rope",
+        "quantity": 2
+      }
+    ],
+    "source": "bought 2 × Rope",
+    "command": {
+      "id": "buy-rope",
+      "fingerprint": "purchase:cleric|{\"commandId\":\"buy-rope\",\"itemId\":\"rope\",\"quantity\":2}"
+    }
+  },
+  {
+    "type": "coins-changed",
+    "id": "cleric",
+    "copper": -200,
+    "source": "bought Rope"
+  },
+  {
+    "type": "item-equipped",
+    "id": "cleric",
+    "item": "chain-shirt",
+    "command": {
+      "id": "wear",
+      "fingerprint": "equip:cleric|{\"commandId\":\"wear\",\"itemId\":\"chain-shirt\"}"
+    }
+  },
+  {
+    "type": "combat-started",
+    "combatants": [
+      {
+        "id": "cleric",
+        "initiative": 18,
+        "speed": 30
+      },
+      {
+        "id": "thug",
+        "initiative": 12,
+        "speed": 30
+      },
+      {
+        "id": "rat",
+        "initiative": 4,
+        "speed": 20
+      }
+    ]
+  },
+  {
+    "type": "action-spent",
+    "id": "cleric"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:1",
+    "id": "cleric",
+    "spell": "Hold Person",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:innate",
+    "command": {
+      "id": "hold-1",
+      "fingerprint": "cast:cleric|{\"castingTime\":\"action\",\"commandId\":\"hold-1\",\"concentration\":true,\"duration\":{\"kind\":\"seconds\",\"seconds\":60},\"level\":2,\"route\":\"class:innate\",\"slotLevel\":2,\"spell\":\"Hold Person\"}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "cleric",
+    "castingId": "cast:1",
+    "spell": "Hold Person",
+    "level": 2
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:1"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 660
+    }
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Wisdom save vs Hold Person",
+    "natural": 16,
+    "total": -18,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -34
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "thug",
+    "condition": "paralyzed",
+    "source": "Hold Person#cast:1"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "thug",
+      "instance": "paralyzed:Hold Person#cast:1"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "repeatSave": {
+      "at": "end-of-turn",
+      "of": "thug",
+      "ability": "wis",
+      "dc": 14,
+      "onSuccess": "end-on-target",
+      "label": "Wisdom save vs Hold Person"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      1950021502,
+      -1285633746,
+      -1353499403,
+      -562255095
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-1",
+      "fingerprint": "turn|{\"commandId\":\"turn-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-2",
+      "fingerprint": "turn|{\"commandId\":\"turn-2\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      1950021502,
+      -1285633746,
+      -1353499403,
+      -562255095
+    ]
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Wisdom save vs Hold Person",
+    "natural": 16,
+    "total": 22,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": 6
+      }
+    ],
+    "outcome": "shakes it off"
+  },
+  {
+    "type": "effect-save-resolved",
+    "effectKey": "condition|thug|paralyzed:Hold Person#cast:1",
+    "turn": 2,
+    "success": true
+  },
+  {
+    "type": "attack-made",
+    "id": "rat"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "rat",
+    "label": "Unarmed Strike attack",
+    "natural": 16,
+    "total": 21,
+    "contributions": [
+      {
+        "source": "attack",
+        "amount": 5
+      }
+    ],
+    "outcome": "hit",
+    "command": {
+      "id": "bite-1",
+      "fingerprint": "attack:rat|{\"commandId\":\"bite-1\",\"target\":\"cleric\",\"weapon\":null}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      1950021502,
+      -1285633746,
+      -1353499403,
+      -562255095
+    ]
+  },
+  {
+    "type": "damage-taken",
+    "id": "cleric",
+    "amount": 3,
+    "source": "Unarmed Strike"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "cleric",
+    "label": "Constitution save to maintain Hold Person",
+    "natural": 1,
+    "total": 3,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": 2
+      }
+    ],
+    "outcome": "lost"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -1291360694,
+      703407261,
+      -1530112484,
+      -562255094
+    ]
+  },
+  {
+    "type": "concentration-ended",
+    "id": "cleric",
+    "castingId": "cast:1",
+    "reason": "failed-save"
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-3",
+      "fingerprint": "turn|{\"commandId\":\"turn-3\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "cleric"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:2",
+    "id": "cleric",
+    "spell": "Inflict Wounds",
+    "level": 1,
+    "slot": {
+      "key": "spell-slot:1",
+      "level": 1
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:innate"
+  },
+  {
+    "type": "concentration-started",
+    "id": "cleric",
+    "castingId": "cast:2",
+    "spell": "Inflict Wounds",
+    "level": 1
+  },
+  {
+    "type": "feature-activated",
+    "id": "cleric",
+    "feature": "action:ready",
+    "command": {
+      "id": "ready-1",
+      "fingerprint": "ready:cleric|{\"commandId\":\"ready-1\",\"response\":{\"kind\":\"spell\",\"slotLevel\":1,\"spellId\":\"inflict-wounds\"},\"trigger\":\"if the rat comes off the rafters\"}"
+    }
+  },
+  {
+    "type": "readied-declared",
+    "id": "cleric",
+    "readied": {
+      "trigger": "if the rat comes off the rafters",
+      "response": {
+        "kind": "spell",
+        "spellId": "inflict-wounds",
+        "castingId": "cast:2",
+        "castLevel": 1
+      }
+    }
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "feature",
+      "on": "cleric",
+      "feature": "action:ready"
+    },
+    "deadline": {
+      "kind": "turn-start",
+      "of": "cleric",
+      "count": 3
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-4",
+      "fingerprint": "turn|{\"commandId\":\"turn-4\"}"
+    }
+  },
+  {
+    "type": "reaction-spent",
+    "id": "cleric"
+  },
+  {
+    "type": "readied-released",
+    "id": "cleric",
+    "took": true,
+    "command": {
+      "id": "release-1",
+      "fingerprint": "release:cleric|{\"commandId\":\"release-1\",\"targets\":[\"rat\"]}"
+    }
+  },
+  {
+    "type": "concentration-ended",
+    "id": "cleric",
+    "castingId": "cast:2",
+    "reason": "released"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "rat",
+    "label": "Constitution save vs Inflict Wounds",
+    "natural": 16,
+    "total": 18,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": 2
+      }
+    ],
+    "outcome": "resisted"
+  },
+  {
+    "type": "damage-taken",
+    "id": "rat",
+    "amount": 4,
+    "source": "Inflict Wounds"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 2,
+    "rng": [
+      704238095,
+      -886110468,
+      2131087227,
+      -562255093
+    ]
+  },
+  {
+    "type": "damage-taken",
+    "id": "cleric",
+    "amount": 9,
+    "source": "a falling censer",
+    "command": {
+      "id": "censer",
+      "fingerprint": "damage:cleric|{\"amount\":9,\"commandId\":\"censer\",\"source\":\"a falling censer\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-5",
+      "fingerprint": "turn|{\"commandId\":\"turn-5\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-6",
+      "fingerprint": "turn|{\"commandId\":\"turn-6\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "cleric"
+  },
+  {
+    "type": "feature-activated",
+    "id": "cleric",
+    "feature": "action:dodge",
+    "command": {
+      "id": "dodge-1",
+      "fingerprint": "dodge:cleric|{\"commandId\":\"dodge-1\"}"
+    }
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "feature",
+      "on": "cleric",
+      "feature": "action:dodge"
+    },
+    "deadline": {
+      "kind": "turn-start",
+      "of": "cleric",
+      "count": 4
+    }
+  },
+  {
+    "type": "movement-spent",
+    "id": "cleric",
+    "feet": 15
+  },
+  {
+    "type": "movement-declared",
+    "move": {
+      "mover": "cleric",
+      "placement": {
+        "from": {
+          "landmark": "the altar"
+        },
+        "feet": 15,
+        "bearing": 180
+      },
+      "destination": {
+        "x": 100,
+        "y": 85,
+        "z": 0
+      },
+      "feet": 15,
+      "provoked": [
+        {
+          "reactor": "rat",
+          "reach": 5
+        },
+        {
+          "reactor": "thug",
+          "reach": 5
+        }
+      ]
+    },
+    "command": {
+      "id": "move-1",
+      "fingerprint": "move:cleric|{\"commandId\":\"move-1\",\"placement\":{\"bearing\":180,\"feet\":15,\"from\":{\"landmark\":\"the altar\"}}}"
+    }
+  },
+  {
+    "type": "opportunity-answered",
+    "reactor": "rat",
+    "took": false,
+    "command": {
+      "id": "decline-rat",
+      "fingerprint": "decline:rat|{\"commandId\":\"decline-rat\"}"
+    }
+  },
+  {
+    "type": "opportunity-answered",
+    "reactor": "thug",
+    "took": false,
+    "command": {
+      "id": "decline-thug",
+      "fingerprint": "decline:thug|{\"commandId\":\"decline-thug\"}"
+    }
+  },
+  {
+    "type": "movement-completed",
+    "id": "cleric"
+  },
+  {
+    "type": "creature-moved",
+    "id": "cleric",
+    "placement": {
+      "from": {
+        "landmark": "the altar"
+      },
+      "feet": 15,
+      "bearing": 180
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-7",
+      "fingerprint": "turn|{\"commandId\":\"turn-7\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-8",
+      "fingerprint": "turn|{\"commandId\":\"turn-8\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-9",
+      "fingerprint": "turn|{\"commandId\":\"turn-9\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "cleric"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:3",
+    "id": "cleric",
+    "spell": "Sacred Flame",
+    "level": 0,
+    "slot": null,
+    "slotless": "cantrip",
+    "castingTime": "action",
+    "concentration": false,
+    "command": {
+      "id": "flame-1",
+      "fingerprint": "cast:cleric|{\"commandId\":\"flame-1\",\"level\":0,\"slotless\":\"cantrip\",\"spell\":\"Sacred Flame\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-10",
+      "fingerprint": "turn|{\"commandId\":\"turn-10\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-11",
+      "fingerprint": "turn|{\"commandId\":\"turn-11\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-12",
+      "fingerprint": "turn|{\"commandId\":\"turn-12\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "cleric"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:4",
+    "id": "cleric",
+    "spell": "Hold Person",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:innate",
+    "command": {
+      "id": "hold-2",
+      "fingerprint": "cast:cleric|{\"castingTime\":\"action\",\"commandId\":\"hold-2\",\"concentration\":true,\"duration\":{\"kind\":\"seconds\",\"seconds\":60},\"level\":2,\"route\":\"class:innate\",\"slotLevel\":2,\"spell\":\"Hold Person\"}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "cleric",
+    "castingId": "cast:4",
+    "spell": "Hold Person",
+    "level": 2
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:4"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 684
+    }
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Wisdom save vs Hold Person",
+    "natural": 16,
+    "total": -18,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -34
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "thug",
+    "condition": "paralyzed",
+    "source": "Hold Person#cast:4"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "thug",
+      "instance": "paralyzed:Hold Person#cast:4"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "repeatSave": {
+      "at": "end-of-turn",
+      "of": "thug",
+      "ability": "wis",
+      "dc": 14,
+      "onSuccess": "end-on-target",
+      "label": "Wisdom save vs Hold Person"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      1950021502,
+      -1285633746,
+      -1353499403,
+      -562255095
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-13",
+      "fingerprint": "turn|{\"commandId\":\"turn-13\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "turn-14",
+      "fingerprint": "turn|{\"commandId\":\"turn-14\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      1950021502,
+      -1285633746,
+      -1353499403,
+      -562255095
+    ]
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Wisdom save vs Hold Person",
+    "natural": 16,
+    "total": -18,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -34
+      }
+    ],
+    "outcome": "still held"
+  },
+  {
+    "type": "effect-save-resolved",
+    "effectKey": "condition|thug|paralyzed:Hold Person#cast:4",
+    "turn": 14,
+    "success": false
+  },
+  {
+    "type": "action-spent",
+    "id": "rat"
+  },
+  {
+    "type": "feature-activated",
+    "id": "rat",
+    "feature": "action:dodge",
+    "command": {
+      "id": "dodge-rat",
+      "fingerprint": "dodge:rat|{\"commandId\":\"dodge-rat\"}"
+    }
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "feature",
+      "on": "rat",
+      "feature": "action:dodge"
+    },
+    "deadline": {
+      "kind": "turn-start",
+      "of": "rat",
+      "count": 6
+    }
+  }
+]

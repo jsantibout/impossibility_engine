@@ -63,7 +63,8 @@ still Wizard-shaped are named below.
 | Riders on a hit | Ray of Sickness poisons; an unmodelled note became behaviour | `8a3f0bb` |
 | Engine audit | Error kinds, idempotency sweep, wedge recovery, a loud reducer | `fabb8eb` |
 | One channel | `needs-context` is an `Err` everywhere; the spell union is gone | `2d28853` |
-| Missing facts | One policy for a fact nobody has told the engine | _this batch_ |
+| Missing facts | One policy for a fact nobody has told the engine | `9ef2cae` |
+| Persistence | A frozen log, the fold's real guarantee, a vocabulary contract | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -197,6 +198,27 @@ still Wizard-shaped are named below.
   end of your next turn" as a gap since it was written. The note was honest and
   it reached the table on every casting; it is still better for the engine to
   do it.
+- **The fold is a compatibility surface, and it is not pure replay.** The same
+  log under the *same* engine version folds to the same state — that is what
+  determinism means here. It does **not** follow that a log folds the same way
+  under a later version, because five derived passes run after every event and
+  those are rules. Change one and every stored campaign folds differently the
+  next time it is opened. The trade is right — the alternative is a dead
+  wizard's spell still running because the log predates the fix — but it makes
+  a rules change potentially a **migration**, and `fixtures/golden-log.json` is
+  the frozen log that says when one happened.
+- **A golden log is only as good as the state it stops in.** The first version
+  of the fixture ended after the fight, where everything had worn off — and an
+  empty derived state folds the same way under every expiry rule there has ever
+  been. It is saved **mid-encounter** now: a Concentration held, a paralysis
+  repeating its save, a Dodge inside its deadline, three live timers.
+- **Say what a test adds over the rest of the suite, not what it aspires to.**
+  Moving an expiry boundary by one breaks a dozen tests in `duration.test.ts`
+  before it reaches the golden log, so claiming the fixture catches rules
+  changes in general was an overclaim; it was measured and corrected. What it
+  actually adds is the shape of the *log* — a renamed or retired event, a field
+  that changed meaning — which is invisible at compile time to a log written
+  last season and is exactly what breaks on a deploy.
 - **A rule is never silently skipped for want of a fact**, and there are
   exactly three things that may happen instead. If the fact is a
   **precondition of legality**, the engine asks (`needs-context`, nothing
