@@ -767,7 +767,7 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
     expect(conditionsOf(t, BANDIT).conditions).not.toContain('paralyzed');
     expect(conditionsOf(t, BANDIT).conditions).not.toContain('incapacitated');
 
-    // Freed, the goblin can act on its turn again.
+    // Freed, the bandit can act on its turn again.
     endTurn(t, DOOMED);
     expect(cannotAct(t, BANDIT).action.ok).toBe(true);
   });

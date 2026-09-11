@@ -1754,6 +1754,13 @@ export interface EligibleTargets {
  * shortlist — so "the obvious target" has something to be obvious about — and
  * say why each of the others is out, so a refusal can be narrated rather than
  * reported.
+ *
+ * **This is a shortlist, not a substitution mechanism.** Maestro resolves the
+ * player's intended target *before* calling `resolveSpell`, which then checks
+ * the id it was handed and only that id. Nothing here nominates a replacement,
+ * and `resolveSpell` will refuse an ineligible target naming that target even
+ * when exactly one legal alternative is standing beside it. A player who said
+ * "the goblin" and hit the thug has been lied to about what happened.
  */
 export function eligibleTargets(
   state: GameState,

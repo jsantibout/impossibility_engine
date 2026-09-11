@@ -972,8 +972,10 @@ shaped for it.
   worn or held. Armour Class reads `equipped`, so a chain shirt in the backpack
   protects nobody. What is still missing: weight, attunement, containers, and
   whether the quarterstaff in the package is the same object as the arcane
-  focus. Adventuring gear is not parsed, so most entries are names rather than
-  references; armour and weapons are.
+  focus. Gear and tools are now parsed — `GEAR` and `TOOLS` carry every item's
+  weight, cost and variants — but `creation.ts` has not been pointed at them
+  yet, so a package entry is still a name. Armour and weapons are references
+  already.
 - **Species traits above level 1 are not reached.** The structures handle a
   trait that arrives at character level 3 — `cumulativeFeatures` reads a species
   exactly as it reads a class — but the Human has none, so nothing exercises it.
@@ -1183,12 +1185,39 @@ Alert's Initiative Proficiency comes back from creation as a named
 `initiativeBonuses` entry, which `rollInitiative` takes like any other bonus.
 Its Initiative *swap* is not modelled.
 
+### Who resolves the target, and in which order
+
+**Maestro resolves the player's intended target before the engine checks
+anything.** The order is not negotiable and it is one direction only:
+
+1. The player says "I cast Hold Person on him."
+2. Maestro reads the fiction and decides who "him" is. `eligibleTargets` is
+   there to help — it hands over the shortlist, with a reason attached to
+   everyone left off it, so the obvious target has something to be obvious
+   about.
+3. Maestro calls the engine with an **id**.
+4. The engine checks that id, and only that id.
+
+Step 4 never reaches back into step 2. **`eligibleTargets` is a shortlist, not
+a substitution mechanism**, and no part of the engine may quietly aim a spell at
+somebody other than the creature it was handed — however obviously better a
+candidate is standing next to them. A player who said "the goblin" and hit the
+thug has been lied to about what happened, and a log that records the thug is a
+log that cannot explain the fight.
+
+So an ineligible target is a refusal naming *that* target, with nothing spent,
+even when exactly one legal target exists and the substitution would be
+unambiguous. One bad target in a multi-target casting spoils the casting rather
+than being silently dropped.
+
+**Ask the player only when the intent is genuinely ambiguous**, and that is
+Maestro's call, made before the engine is involved. A missing *fact* is never
+that: it is an internal request (below), not a question for the table.
+
 ### A missing fact is a request, not a refusal
 
-The engine takes ids and checks mechanics. Working out that "him" means the
-goblin is interpretation, and belongs to the layer that reads the fiction — so
-`eligibleTargets` hands that layer the shortlist, with a reason attached to
-everyone left off it, and the obvious target has something to be obvious about.
+The engine takes ids and checks mechanics. Working out who a pronoun refers to
+is interpretation, and belongs to the layer that reads the fiction.
 
 What the engine owes that layer is a straight answer about what it cannot see.
 There are three states, not two:
@@ -1204,6 +1233,14 @@ that would establish it. It is addressed to the orchestrator, never to a
 player: "sorry, that creature has no position" is the engine's problem leaking
 out as the game's. The caller establishes the fact and casts again exactly as
 they meant to — which is why asking costs nothing.
+
+**Completing the record adds a fact; it never restates the world.** Declaring a
+creature's type leaves its position, its sight lines, its hit points and
+everything else exactly where they were, and declaring the same fact twice
+changes nothing. Several missing facts are answered one at a time, each
+answer standing while the rest are still outstanding. Anything else would mean
+the second attempt resolved against a different game than the first asked
+about.
 
 **Unknown is not no.** Sight is declared, like cover, and deliberately
 three-valued: seen, unseen, and *nobody has said*. Hold Person targets "a
@@ -1438,6 +1475,10 @@ Defects found so far, all covered by regression tests:
 | Equipment rows drop `</tr>`; one `<tr>` is doubled | cells grouped in sixes, not by row |
 | Weapon properties contain commas inside parentheses | `splitTopLevel` |
 | Legendary CR lines carry a lair value (`XP 5,900, or 7,200 in lair`) | `CR_LINE`, no defaults |
+| The master Adventuring Gear table is filed under `#### Ammunition`, not under its own heading | tables located by bold caption in `parse/gear.ts` |
+| The Entertainer's Pack weighs `58½ lb.` — a vulgar fraction, not `58.5` | `parseGearWeight` |
+| The Waterskin's weight carries a note, `5 lb. (full)` | `parseGearWeight` |
+| One `#### Spell Scroll` heading prices two table rows | prefix match in `parse/gear.ts` |
 
 **A default is how a format change becomes a wrong number.** An optional
 capture group defaulting the proficiency bonus to +2 gave 32 legendary
@@ -1457,11 +1498,24 @@ The parser stays strict on a mangled ability table rather than guessing. A
 silently wrong modifier is the worst failure this codebase has — it looks like
 a rules bug forever after.
 
+**An empty cell is not one state.** The gear table prints `—` and `Varies` in
+the same column, and they are opposites: a Bell weighs nothing worth carrying,
+while Ammunition's weight is simply stated elsewhere, on the variant you
+actually bought. Weapons and armour have only the first case, so they use
+`weightLb: number | null`; gear has three states and uses a union, because
+collapsing `Varies` into null makes a Musical Instrument weightless and an
+encumbrance total quietly wrong. Anything the parser cannot read at all stays
+null and is reported — it never becomes either.
+
 ## Known Pending Work
 
-- M0: adventuring gear and tools (93 entries in `equipment.md`), plus classes,
-  feats and magic items, are vendored but not yet parsed. Weapons and armour
-  are done because `attack.ts` needs them; the rest can wait for a consumer.
+- M0: classes, feats and magic items are vendored but not yet parsed; they can
+  wait for a consumer. Adventuring gear (82 priced rows) and tools (25) are
+  done, and ship as `GEAR` and `TOOLS`. What remains is the *consumer*:
+  `creation.ts` still records a package entry as a name, so nothing yet reads
+  an item's weight. Mounts, vehicles, lifestyle expenses, food, hirelings and
+  spellcasting services are separate sections of `equipment.md` and are still
+  unparsed.
 - **M1 is done.** Its ship criterion — "a scripted 4-round combat between two
   parties resolves identically from the same seed" — is discharged by
   `scenario.test.ts`. What that proves is the *engine*: dice, rolls, checks,

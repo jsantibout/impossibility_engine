@@ -627,3 +627,168 @@ function holdViaFeat(): GameEvent[] {
       : event,
   );
 }
+
+describe('an invalid target is refused, never swapped for a better one', () => {
+  /**
+   * The division of labour, stated as a test.
+   *
+   * Maestro resolves who "him" is **before** the engine is called: it reads the
+   * fiction, picks a creature, and hands over an id. The engine then checks
+   * that id and only that id. Nothing in here may quietly aim the spell at
+   * somebody else, however obviously better a candidate they are — a player who
+   * said "the goblin" and hit the thug has been lied to about what happened.
+   */
+  it('refuses the named target even when a legal one is standing right there', () => {
+    const state = fold('seed', table());
+    // The thug is a perfectly good Hold Person target, and is ignored.
+    expect(eligibleTargets(state, WIZARD, 'hold-person', 2).eligible).toEqual([THUG]);
+
+    const result = resolveSpell(
+      state,
+      WIZARD,
+      { spellId: 'hold-person', targets: [GOBLIN], slotLevel: 2 },
+      supply(state, DOOMED),
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.reason).toContain('goblin');
+
+    // And nothing happened to anybody: no slot, no condition, no die.
+    expect(fold('seed', table())).toEqual(state);
+  });
+
+  /**
+   * `eligibleTargets` is a shortlist for the layer doing the interpreting, not
+   * a substitution mechanism. It never names a replacement: it says who is in
+   * and, for everyone else, why they are out.
+   */
+  it('lists the excluded with a reason rather than offering an alternative', () => {
+    const listing = eligibleTargets(fold('seed', table()), WIZARD, 'hold-person', 2);
+    const excluded = listing.excluded.find((e) => e.target === GOBLIN);
+
+    expect(excluded?.reason).toContain('Fey');
+    // No field on this shape suggests a stand-in, and the shortlist is exactly
+    // the creatures that pass — never one of them singled out.
+    expect(Object.keys(listing).sort()).toEqual(['eligible', 'excluded', 'needsContext']);
+    expect(listing.eligible).not.toContain(GOBLIN);
+  });
+
+  it('refuses every target when the one named is the only one named', () => {
+    const state = fold('seed', table());
+    const result = resolveSpell(
+      state,
+      WIZARD,
+      { spellId: 'hold-person', targets: [GOBLIN, THUG], slotLevel: 3 },
+      supply(state, DOOMED),
+    );
+    // One bad target spoils the casting; the good one is not quietly kept.
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('wrong_creature_type');
+    expect(fold('seed', table())).toEqual(state);
+  });
+});
+
+describe('answering a request keeps what was already established', () => {
+  /** Position and sight are known; only the creature type is missing. */
+  const missingTypeOnly = (): GameEvent[] => [
+    ...unwrap(createCharacter(kessa(), WIZARD), 'create'),
+    creature(THUG, 'Thug', null),
+    { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
+    { type: 'landmark-added', name: 'the door', at: { x: 20, y: 20, z: 0 } },
+    { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the door' }, feet: 0 } },
+    { type: 'creature-placed', id: THUG, placement: { from: { creature: WIZARD }, feet: 20, bearing: 0 } },
+    { type: 'sight-declared', from: WIZARD, to: THUG, seen: true },
+  ];
+
+  /**
+   * Completing the record adds a fact; it does not restate the world. A
+   * declaration that quietly reset a position would make the second attempt
+   * resolve against a different game than the first.
+   */
+  it('leaves position and sight exactly as they were', () => {
+    const before = fold('seed', missingTypeOnly());
+    const after = fold('seed', [
+      ...missingTypeOnly(),
+      { type: 'creature-type-declared', id: THUG, creatureType: 'Humanoid' },
+    ]);
+
+    expect(after.scene?.positions).toEqual(before.scene?.positions);
+    expect(after.scene?.sight).toEqual(before.scene?.sight);
+    expect(after.creatures.thug?.creatureType).toBe('Humanoid');
+    // And nothing else about the creature moved.
+    expect(after.creatures.thug?.vitals).toEqual(before.creatures.thug?.vitals);
+  });
+
+  /** Two facts missing, answered one at a time, both surviving. */
+  it('accumulates answers rather than replacing them', () => {
+    const bare: GameEvent[] = [
+      ...unwrap(createCharacter(kessa(), WIZARD), 'create'),
+      creature(THUG, 'Thug', null),
+      { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
+      { type: 'landmark-added', name: 'the door', at: { x: 20, y: 20, z: 0 } },
+      { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the door' }, feet: 0 } },
+      { type: 'creature-placed', id: THUG, placement: { from: { creature: WIZARD }, feet: 20, bearing: 0 } },
+    ];
+
+    const asked = unwrap(
+      castOn(bare, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }),
+      'cast',
+    );
+    if (asked.kind !== 'needs-context') throw new Error('expected questions');
+    expect(asked.requests.map((r) => r.kind).sort()).toEqual(['creature-type', 'visibility']);
+
+    // Answer the first. The second is still outstanding, and the first stands.
+    const half = [
+      ...bare,
+      { type: 'creature-type-declared' as const, id: THUG, creatureType: 'Humanoid' },
+    ];
+    const stillAsking = unwrap(
+      castOn(half, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }),
+      'cast',
+    );
+    if (stillAsking.kind !== 'needs-context') throw new Error('expected one question left');
+    expect(stillAsking.requests.map((r) => r.kind)).toEqual(['visibility']);
+
+    // Answer the second, and the cast goes through with both facts intact.
+    const whole: GameEvent[] = [
+      ...half,
+      { type: 'sight-declared', from: WIZARD, to: THUG, seen: true },
+    ];
+    const resolved = unwrap(
+      castOn(whole, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }, DOOMED),
+      'cast',
+    );
+    expect(resolved.kind).toBe('resolved');
+
+    const state = fold('seed', whole);
+    expect(state.creatures.thug?.creatureType).toBe('Humanoid');
+    expect(state.scene?.positions.thug).toBeDefined();
+  });
+
+  /** An answer that has already been given is not disturbed by giving it again. */
+  it('is idempotent when the same fact is declared twice', () => {
+    const once = fold('seed', [
+      ...missingTypeOnly(),
+      { type: 'creature-type-declared', id: THUG, creatureType: 'Humanoid' },
+    ]);
+    const twice = fold('seed', [
+      ...missingTypeOnly(),
+      { type: 'creature-type-declared', id: THUG, creatureType: 'Humanoid' },
+      { type: 'creature-type-declared', id: THUG, creatureType: 'Humanoid' },
+    ]);
+    expect({ ...twice, eventCount: 0 }).toEqual({ ...once, eventCount: 0 });
+  });
+
+  /** The retry resolves the cast the caller originally meant, not a new one. */
+  it('resolves the original intent once the record is complete', () => {
+    const whole: GameEvent[] = [
+      ...missingTypeOnly(),
+      { type: 'creature-type-declared', id: THUG, creatureType: 'Humanoid' },
+    ];
+    const outcome = unwrap(
+      castOn(whole, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }, DOOMED),
+      'cast',
+    );
+    if (outcome.kind !== 'resolved') throw new Error('expected a resolution');
+    expect(outcome.outcomes.map((o) => o.target)).toEqual([THUG]);
+  });
+});
