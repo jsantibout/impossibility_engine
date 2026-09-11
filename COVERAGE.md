@@ -86,3 +86,30 @@ spell, and the area is the part that is missing.
 - **Thunderwave** (level 1) — verified
 - **Vicious Mockery** (cantrip) — verified
 - **Vitriolic Sphere** (level 4) — verified
+
+## Classes
+
+| Classes | Subclasses | Features | Executed by the engine |
+|---|---|---|---|
+| 12 / 12 | 12 / 12 | 230 | 46 |
+
+A feature declares its own automation, so this column is read rather than
+guessed. **Manual is not failure**: several features are judgement the
+engine should never take from a DM, and every one of them carries a note
+saying what is left to do. But a project that does not count them will
+believe it has twelve working classes when it has twelve validated ones.
+
+| Class | Casting | Features | Executed |
+|---|---|---|---|
+| Barbarian | none | 24 | 3 |
+| Bard | known | 17 | 6 |
+| Cleric | prepared-from-list | 16 | 4 |
+| Druid | prepared-from-list | 14 | 3 |
+| Fighter | none | 21 | 3 |
+| Monk | none | 26 | 2 |
+| Paladin | prepared-from-list | 22 | 5 |
+| Ranger | known | 22 | 5 |
+| Rogue | none | 24 | 3 |
+| Sorcerer | known | 15 | 4 |
+| Warlock | known | 14 | 3 |
+| Wizard | spellbook | 15 | 5 |

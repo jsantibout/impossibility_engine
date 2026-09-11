@@ -43,7 +43,8 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Defences | Resistance, Vulnerability and Immunity carried on the creature and applied |
 | Targeting | Type, range, cover and sight checked; a missing fact comes back as a request |
 | Progression | Class tables, features by level, and what the engine does or does not run |
-| Creation | A validated level 1–3 Wizard: origin, scores, skills, feats, spells, kit |
+| Creation | All twelve classes, levels 1–20: origin, scores, skills, feats, spells, kit |
+| Classes | Every class and its SRD subclass, with every feature's automation declared |
 | Equipment | One catalogue over gear, tools, weapons and armour, keyed by stable id |
 | Inventory | Starting packages opened, purchases priced in copper, worn armour reaching AC |
 | Determinism | A scripted four-round fight, replayed byte-identically from its seed |
@@ -64,7 +65,14 @@ but not cast, and the engine says so rather than guessing. Areas of effect are
 the next shape and are not done: a spell that picks its targets from geometry
 is a different operation from one handed a list of ids.
 
-**Not built yet**: the other eleven classes, feats, multiclassing, the tool
+**Classes** — all twelve, each with the subclass the SRD publishes and a full
+level 1–20 table. Creation and advancement are validated against the book:
+ability scores, skills, feats, languages, equipment and spells. Class
+*features* are a different matter — 46 of 230 are executed by the engine and
+every one of the rest carries a note saying what a DM still has to do. Run
+`pnpm run coverage` for the current numbers.
+
+**Not built yet**: feat execution, multiclassing, the tool
 surface Claude would call, the DM orchestration, persistence, and the web app.
 One character path — Human Sage Wizard through level 3 — is complete; the rest
 is transcription onto the same structures. There is no frontend and no database. Casting times of a minute or

@@ -17,11 +17,20 @@
  * Every spell is also classified by the *shape* its text needs, because the
  * work is shaped by shapes rather than by spells: one area-of-effect engine
  * unblocks ninety spells, and the next hundred definitions after that are data.
+ *
+ * Classes are measured the same way and the three states mean the same things,
+ * with one difference worth stating: a class *feature* declares its own
+ * automation, `engine` or `manual`, so the middle column is not inferred. A
+ * manual feature is not a failure — several of them are judgement the engine
+ * should never take from a DM — but a project that does not count them will
+ * believe it has twelve working classes when it has twelve validated ones.
+ *
  * Run with `pnpm run coverage`.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS } from '../src/spell-definitions.js';
+import { allClasses, allSubclasses } from '../src/creation.js';
 
 interface ParsedSpell {
   readonly id: string;
@@ -206,6 +215,70 @@ export function auditSpells(): SpellCoverage {
   };
 }
 
+interface ClassCoverage {
+  readonly classes: number;
+  readonly subclasses: number;
+  readonly features: number;
+  readonly executed: number;
+  readonly rows: readonly {
+    readonly name: string;
+    readonly style: string;
+    readonly features: number;
+    readonly executed: number;
+  }[];
+}
+
+function auditClasses(): ClassCoverage {
+  const rows = allClasses().map((definition) => {
+    const own = [
+      ...definition.features,
+      ...allSubclasses()
+        .filter((s) => s.classId === definition.id)
+        .flatMap((s) => s.features),
+    ];
+    return {
+      name: definition.name,
+      style: definition.spellcasting?.style ?? 'none',
+      features: own.length,
+      executed: own.filter((f) => f.automation === 'engine').length,
+    };
+  });
+
+  return {
+    classes: allClasses().length,
+    subclasses: allSubclasses().length,
+    features: rows.reduce((sum, r) => sum + r.features, 0),
+    executed: rows.reduce((sum, r) => sum + r.executed, 0),
+    rows,
+  };
+}
+
+function renderClasses(coverage: ClassCoverage): readonly string[] {
+  const lines = [
+    '',
+    '## Classes',
+    '',
+    `| Classes | Subclasses | Features | Executed by the engine |`,
+    `|---|---|---|---|`,
+    `| ${coverage.classes} / 12 | ${coverage.subclasses} / 12 | ${coverage.features} | ${coverage.executed} |`,
+    '',
+    'A feature declares its own automation, so this column is read rather than',
+    'guessed. **Manual is not failure**: several features are judgement the',
+    'engine should never take from a DM, and every one of them carries a note',
+    'saying what is left to do. But a project that does not count them will',
+    'believe it has twelve working classes when it has twelve validated ones.',
+    '',
+    '| Class | Casting | Features | Executed |',
+    '|---|---|---|---|',
+  ];
+
+  for (const row of [...coverage.rows].sort((a, b) => a.name.localeCompare(b.name))) {
+    lines.push(`| ${row.name} | ${row.style} | ${row.features} | ${row.executed} |`);
+  }
+
+  return lines;
+}
+
 function render(coverage: SpellCoverage): string {
   const executable = new Set(SPELL_DEFINITIONS.map((d) => d.id));
   const verified = new Set(VERIFIED_SPELLS);
@@ -279,6 +352,8 @@ function render(coverage: SpellCoverage): string {
     lines.push('', `**Inconsistent:** verified but not executable: ${missing.join(', ')}`);
   }
 
+  lines.push(...renderClasses(auditClasses()));
+
   return `${lines.join('\n')}\n`;
 }
 
@@ -286,6 +361,11 @@ const coverage = auditSpells();
 writeFileSync('COVERAGE.md', render(coverage), 'utf8');
 console.log(
   `spells: ${coverage.executable}/${coverage.total} executable, ${coverage.verified} verified`,
+);
+const classes = auditClasses();
+console.log(
+  `classes: ${classes.classes}/12 with ${classes.subclasses} subclasses; ` +
+    `${classes.executed}/${classes.features} features executed`,
 );
 for (const shape of SHAPES) {
   const bucket = coverage.byShape.get(shape.id);
