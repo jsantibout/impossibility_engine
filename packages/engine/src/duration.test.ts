@@ -342,10 +342,10 @@ describe('expiry ends one effect, not every effect like it', () => {
     );
 
     const ea = run(b.log, (s) =>
-      applySpellEffect(s, id('goblin'), 'paralyzed', id('wizard'), [], forSeconds(minutes(1))),
+      applySpellEffect(s, id('goblin'), 'paralyzed', id('wizard'), { duration: forSeconds(minutes(1)) }),
     );
     const eb = run(ea.log, (s) =>
-      applySpellEffect(s, id('goblin'), 'paralyzed', id('cleric'), [], forSeconds(hours(1))),
+      applySpellEffect(s, id('goblin'), 'paralyzed', id('cleric'), { duration: forSeconds(hours(1)) }),
     );
 
     const after = fold('seed', [...eb.log, clock(minutes(1))]);

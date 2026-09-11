@@ -25,9 +25,12 @@ import type { CharacterRecord } from './creation.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
   hasExpired,
+  pendingSaveKey,
   timerKey,
   type Deadline,
   type EffectTarget,
+  type PendingSave,
+  type RepeatSave,
   type TimeView,
   type TimedEffect,
 } from './duration.js';
@@ -182,6 +185,15 @@ export interface GameState {
    * it early.
    */
   readonly timers: Readonly<Record<string, TimedEffect>>;
+  /**
+   * Saves a turn boundary raised that nobody has rolled yet.
+   *
+   * The reducer cannot roll — randomness enters the log once, at the point of
+   * the roll — so a turn that owes a save records the debt and an engine-owned
+   * operation settles it. Keyed by effect and turn, so one boundary raises one
+   * save however many times the log is folded.
+   */
+  readonly pendingSaves: Readonly<Record<string, PendingSave>>;
 }
 
 export function initialState(seed: string): GameState {
@@ -197,6 +209,7 @@ export function initialState(seed: string): GameState {
     appliedCommands: {},
     elapsed: 0,
     timers: {},
+    pendingSaves: {},
   };
 }
 
@@ -389,6 +402,22 @@ export type GameEvent =
       readonly type: 'effect-scheduled';
       readonly target: EffectTarget;
       readonly deadline: Deadline;
+      /** A save this effect takes at a turn boundary, if it takes one. */
+      readonly repeatSave?: RepeatSave;
+    }
+  /**
+   * A turn-boundary save, rolled and settled.
+   *
+   * The roll itself is recorded separately as `roll-recorded`; this is what
+   * the outcome *did*. On a success the reducer ends the effect — on that
+   * target, or on the whole casting, as the hook says — so the consequence
+   * cannot drift from the roll that caused it.
+   */
+  | {
+      readonly type: 'effect-save-resolved';
+      readonly effectKey: string;
+      readonly turn: number;
+      readonly success: boolean;
     }
 
   | {
@@ -585,17 +614,72 @@ function releaseCasting(
     creatures[key] = updated;
   }
 
-  // A casting that ends early takes its own deadline with it, or a stale timer
-  // would sit waiting to end a spell that is already over.
-  const key = timerKey({ kind: 'casting', castingId });
-  let timers: Record<string, TimedEffect> = state.timers;
-  if (state.timers[key] !== undefined) {
-    timers = { ...state.timers };
-    delete timers[key];
-    changed = true;
+  // A casting that ends early takes its own deadlines with it, or a stale timer
+  // would sit waiting to end a spell that is already over. Every per-target
+  // hook it placed goes too.
+  const timers: Record<string, TimedEffect> = {};
+  for (const [key, timer] of Object.entries(state.timers)) {
+    const owned =
+      (timer.target.kind === 'casting' && timer.target.castingId === castingId) ||
+      (timer.target.kind === 'condition' &&
+        castingIdOf(`${timer.target.instance}`) === castingId);
+    if (owned) {
+      changed = true;
+      continue;
+    }
+    timers[key] = timer;
   }
 
   return changed ? { ...state, creatures, timers } : state;
+}
+
+/** Who is concentrating on a casting, if anybody still is. */
+const casterOf = (state: GameState, castingId: string): CharacterId | null =>
+  Object.values(state.creatures).find((c) => c.concentration?.castingId === castingId)?.id ?? null;
+
+/**
+ * End one casting's effect on one creature, leaving the casting running.
+ *
+ * SRD Hold Person: a successful repeat save ends the spell "on itself". The
+ * casting carries on for anyone else it caught, and the caster keeps
+ * concentrating, because the spell is still doing something.
+ */
+function releaseOnTarget(
+  state: GameState,
+  targetId: CharacterId,
+  castingId: string,
+): GameState {
+  const creature = state.creatures[targetId];
+  if (creature === undefined) return state;
+
+  const doomed = creature.conditions.instances.filter(
+    (instance) => castingIdOf(instance.source) === castingId,
+  );
+  if (doomed.length === 0) return state;
+
+  let conditions = creature.conditions;
+  for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
+
+  // Every timer this casting hung on this creature goes with it, so no later
+  // turn raises a hook for an effect that has ended. Filtering rather than
+  // rebuilding one key: `doomed` includes the conditions the effect *implied*,
+  // and those sort ahead of it — `incapacitated:...` before `paralyzed:...` —
+  // so guessing from the first entry pointed at the wrong timer and left the
+  // real one running.
+  const timers: Record<string, TimedEffect> = {};
+  for (const [key, timer] of Object.entries(state.timers)) {
+    const mine =
+      timer.target.kind === 'condition' &&
+      timer.target.on === targetId &&
+      castingIdOf(timer.target.instance) === castingId;
+    if (!mine) timers[key] = timer;
+  }
+
+  return {
+    ...state,
+    timers,
+    creatures: { ...state.creatures, [targetId]: { ...creature, conditions } },
+  };
 }
 
 /**
@@ -728,6 +812,86 @@ function sortedTimers(timers: Readonly<Record<string, TimedEffect>>): Record<str
   return sorted;
 }
 
+/**
+ * Raise the saves a turn boundary owes.
+ *
+ * The reducer cannot roll — randomness enters the log once, at the point of
+ * the roll — so this records the debt and an engine-owned operation settles
+ * it. Derived from `turn-advanced` rather than commanded, for the same reason
+ * a broken Concentration is: nobody decides that a turn ended, so nobody
+ * should have to remember what ending it costs.
+ *
+ * Keyed by effect *and* turn, so folding the log twice raises one save, and a
+ * later turn raises it again — which is what "repeats the save" means.
+ */
+function raiseTurnSaves(
+  state: GameState,
+  before: CombatState,
+  after: CombatState,
+): GameState {
+  const ended = before.order[before.turnIndex]?.id;
+  const begun = after.order[after.turnIndex]?.id;
+
+  const raised: Record<string, PendingSave> = {};
+  for (const key of Object.keys(state.timers).sort()) {
+    const timer = state.timers[key];
+    const hook = timer?.repeatSave;
+    if (timer === undefined || hook === undefined) continue;
+    if (timer.target.kind !== 'condition') continue;
+
+    const fires =
+      hook.at === 'end-of-turn' ? hook.of === ended : hook.of === begun;
+    if (!fires) continue;
+
+    const castingId = castingIdOf(timer.target.instance);
+    if (castingId === null) continue;
+
+    raised[pendingSaveKey(key, after.turnsTaken)] = {
+      effectKey: key,
+      target: timer.target.on,
+      castingId,
+      ability: hook.ability,
+      dc: hook.dc,
+      onSuccess: hook.onSuccess,
+      label: hook.label,
+      turn: after.turnsTaken,
+    };
+  }
+
+  if (Object.keys(raised).length === 0) return state;
+  return { ...state, pendingSaves: sortedRecord({ ...state.pendingSaves, ...raised }) };
+}
+
+/** Keys sorted, so state serialises identically however it was reached. */
+function sortedRecord<T>(entries: Readonly<Record<string, T>>): Record<string, T> {
+  const sorted: Record<string, T> = {};
+  for (const key of Object.keys(entries).sort()) {
+    const value = entries[key];
+    if (value !== undefined) sorted[key] = value;
+  }
+  return sorted;
+}
+
+/**
+ * Drop a pending save whose effect is already gone.
+ *
+ * A Concentration broken before anyone rolled, an effect that ran out of time:
+ * either way there is nothing left to save against, and a debt against a
+ * vanished effect would block the turn order forever.
+ */
+function dropOrphanedSaves(state: GameState): GameState {
+  const live: Record<string, PendingSave> = {};
+  let changed = false;
+  for (const [key, pending] of Object.entries(state.pendingSaves)) {
+    if (state.timers[pending.effectKey] === undefined) {
+      changed = true;
+      continue;
+    }
+    live[key] = pending;
+  }
+  return changed ? { ...state, pendingSaves: live } : state;
+}
+
 const viewOf = (state: GameState): TimeView => ({
   elapsed: state.elapsed,
   combat: state.combat,
@@ -791,8 +955,8 @@ function expireEffects(state: GameState): GameState {
 
 export function applyEvent(state: GameState, event: GameEvent): GameState {
   const applied = applyOne(state, event);
-  return expireEffects(
-    breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+  return dropOrphanedSaves(
+    expireEffects(breakLostConcentration(recordCommand(interruptedRests(applied, event), event))),
   );
 }
 
@@ -1044,9 +1208,33 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         ...next,
         timers: sortedTimers({
           ...state.timers,
-          [timerKey(event.target)]: { target: event.target, deadline: event.deadline },
+          [timerKey(event.target)]: {
+            target: event.target,
+            deadline: event.deadline,
+            ...(event.repeatSave === undefined ? {} : { repeatSave: event.repeatSave }),
+          },
         }),
       };
+
+    case 'effect-save-resolved': {
+      const key = pendingSaveKey(event.effectKey, event.turn);
+      const pending = state.pendingSaves[key];
+      if (pending === undefined) {
+        throw new CorruptLogError(event, `no save is pending for ${event.effectKey} on turn ${event.turn}`);
+      }
+
+      const pendingSaves = { ...state.pendingSaves };
+      delete pendingSaves[key];
+      const cleared: GameState = { ...next, pendingSaves };
+      if (!event.success) return cleared;
+
+      // SRD Hold Person: a success ends the spell "on itself" — on that target,
+      // not on everyone the casting caught. An effect whose hook says otherwise
+      // ends the casting outright.
+      return pending.onSuccess === 'end-casting'
+        ? releaseCasting(cleared, casterOf(cleared, pending.castingId), pending.castingId)
+        : releaseOnTarget(cleared, pending.target, pending.castingId);
+    }
 
     case 'time-advanced': {
       if (!Number.isInteger(event.seconds) || event.seconds < 0) {
@@ -1100,8 +1288,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'combat-ended':
       return { ...next, combat: null };
 
-    case 'turn-advanced':
-      return withCombat(next, state, advanceTurn(combatOf(state, event)));
+    case 'turn-advanced': {
+      const before = combatOf(state, event);
+      const after = advanceTurn(before);
+      return raiseTurnSaves(withCombat(next, state, after), before, after);
+    }
 
     case 'action-spent':
       return withCombat(next, state, must(event, spendAction(combatOf(state, event), event.id)));

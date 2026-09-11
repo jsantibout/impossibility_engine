@@ -1,6 +1,7 @@
 import {
   err,
   ok,
+  type Ability,
   type CharacterId,
   type ConditionName,
   type Result,
@@ -12,7 +13,13 @@ import { rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
 import { conditionInstanceId, hasCondition, isIncapacitated, reasonsFor } from './conditions.js';
-import { resolveDuration, type Duration, type EffectTarget } from './duration.js';
+import {
+  resolveDuration,
+  type Duration,
+  type EffectTarget,
+  type PendingSave,
+  type RepeatSave,
+} from './duration.js';
 import {
   canSpendSpellSlotThisTurn,
   spendAction,
@@ -340,6 +347,7 @@ export function applyConditionTo(
   source: string,
   immuneTo: readonly ConditionName[] = [],
   duration?: Duration,
+  repeatSave?: RepeatSave,
 ): Result<GameEvent[]> {
   if (creatureOf(state, id) === null) {
     return err('unknown_creature', `${id} is not in this game`);
@@ -350,14 +358,26 @@ export function applyConditionTo(
 
   const events: GameEvent[] = [{ type: 'condition-applied', id, condition, source }];
 
+  // A hook needs a timer to hang on, even when the effect has no deadline of
+  // its own: an indefinite one is still the thing the boundary looks at.
+  if (duration === undefined && repeatSave !== undefined) {
+    events.push({
+      type: 'effect-scheduled',
+      target: { kind: 'condition', on: id, instance: conditionInstanceId(condition, source) },
+      deadline: { kind: 'indefinite' },
+      repeatSave,
+    });
+  }
+
   if (duration !== undefined) {
     // Validate the duration before emitting anything: an unanswerable one must
     // not leave the condition applied with no way for it to end.
-    const timer = schedule(state, {
-      kind: 'condition',
-      on: id,
-      instance: conditionInstanceId(condition, source),
-    }, duration);
+    const timer = schedule(
+      state,
+      { kind: 'condition', on: id, instance: conditionInstanceId(condition, source) },
+      duration,
+      repeatSave,
+    );
     if (!timer.ok) return timer;
     events.push(timer.value);
   }
@@ -377,10 +397,16 @@ function schedule(
   state: GameState,
   target: EffectTarget,
   duration: Duration,
+  repeatSave?: RepeatSave,
 ): Result<GameEvent> {
   const deadline = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, duration);
   if (!deadline.ok) return deadline;
-  return ok({ type: 'effect-scheduled', target, deadline: deadline.value });
+  return ok({
+    type: 'effect-scheduled',
+    target,
+    deadline: deadline.value,
+    ...(repeatSave === undefined ? {} : { repeatSave }),
+  });
 }
 
 /** Every distinct reason a creature currently has a condition. */
@@ -652,13 +678,19 @@ export function castSpell(
  * this instance — not every Hold Person on the target, and not a condition
  * some other effect imposed.
  */
+export interface SpellEffectOptions {
+  readonly immuneTo?: readonly ConditionName[];
+  readonly duration?: Duration;
+  /** A saving throw this effect takes at a turn boundary. */
+  readonly repeatSave?: RepeatSave;
+}
+
 export function applySpellEffect(
   state: GameState,
   targetId: CharacterId,
   condition: ConditionName,
   casterId: CharacterId,
-  immuneTo: readonly ConditionName[] = [],
-  duration?: Duration,
+  options: SpellEffectOptions = {},
 ): Result<GameEvent[]> {
   const caster = creatureOf(state, casterId);
   if (caster === null) return err('unknown_creature', `${casterId} is not in this game`);
@@ -671,8 +703,9 @@ export function applySpellEffect(
     targetId,
     condition,
     castingSource(caster.concentration.spell, caster.concentration.castingId),
-    immuneTo,
-    duration,
+    options.immuneTo ?? [],
+    options.duration,
+    options.repeatSave,
   );
 }
 
@@ -1028,4 +1061,148 @@ export function resolveCast(
   // The action goes first: you spend it to *start* casting, which is also the
   // moment an earlier Concentration drops.
   return ok([economy, ...cast.value]);
+}
+
+// — turn boundaries ——————————————————————————————————————————————————————————
+
+/** One turn-boundary save, rolled and settled. */
+export interface ResolvedRepeatSave {
+  readonly effectKey: string;
+  readonly target: CharacterId;
+  readonly ability: Ability;
+  readonly dc: number;
+  readonly label: string;
+  readonly save: D20TestResult;
+  readonly success: boolean;
+}
+
+export interface TurnResolution {
+  readonly events: readonly GameEvent[];
+  /** Saves rolled here. Empty when none were owed, or none could be rolled. */
+  readonly saves: readonly ResolvedRepeatSave[];
+  /** Saves left outstanding, because no generator was supplied. */
+  readonly pending: readonly PendingSave[];
+}
+
+/** Every turn-boundary save still owed, in a stable order. */
+export function pendingSavesOf(state: GameState): readonly PendingSave[] {
+  return Object.keys(state.pendingSaves)
+    .sort()
+    .map((key) => state.pendingSaves[key])
+    .filter((pending): pending is PendingSave => pending !== undefined);
+}
+
+/**
+ * Roll the turn-boundary saves a state already owes.
+ *
+ * The deferred half of {@link resolveTurn}: a caller who advanced without a
+ * generator comes back here. The debt is in state, so this works after a
+ * reload, on a different machine, a week later.
+ */
+export function resolvePendingSaves(
+  state: GameState,
+  supply: ConcentrationSaveSupply,
+): Result<TurnResolution> {
+  const owed = pendingSavesOf(state);
+  if (owed.length === 0) return ok({ events: [], saves: [], pending: [] });
+
+  const events: GameEvent[] = [];
+  const saves: ResolvedRepeatSave[] = [];
+  const issuedBefore = supply.issuer.count;
+
+  for (const pending of owed) {
+    const creature = state.creatures[pending.target];
+    if (creature === undefined) {
+      return err('unknown_creature', `${pending.target} owes a save but is not in this game`);
+    }
+
+    const save = rollSavingThrow(supply.issuer, supply.rng, creature.sheet, pending.ability, {
+      dc: pending.dc,
+      conditions: creature.conditions,
+      ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+      ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+    });
+    if (!save.ok) return save;
+
+    events.push(
+      recordD20Test(
+        pending.target,
+        pending.label,
+        save.value,
+        save.value.success ? 'shakes it off' : 'still held',
+      ),
+      {
+        type: 'effect-save-resolved',
+        effectKey: pending.effectKey,
+        turn: pending.turn,
+        success: save.value.success,
+      },
+    );
+    saves.push({
+      effectKey: pending.effectKey,
+      target: pending.target,
+      ability: pending.ability,
+      dc: pending.dc,
+      label: pending.label,
+      save: save.value,
+      success: save.value.success,
+    });
+  }
+
+  // One generator position for the whole boundary, recorded once.
+  events.splice(0, 0, {
+    type: 'rolls-issued',
+    count: supply.issuer.count - issuedBefore,
+    rng: supply.rng.snapshot(),
+  });
+
+  return ok({ events, saves, pending: [] });
+}
+
+/**
+ * End the current turn, and settle whatever ending it owes.
+ *
+ * SRD effects that "repeat the save at the end of each of its turns" are
+ * everywhere, and leaving them to the caller means leaving them to be
+ * forgotten. So the turn itself knows: advancing raises the saves the boundary
+ * owes, and this rolls them.
+ *
+ * Given no generator the saves stay in state as a pending resolution — and the
+ * engine then **refuses to advance another turn** until they are settled.
+ * That is the difference between a debt and a leak: forgetting stops the game
+ * rather than quietly dropping a rule. `resolvePendingSaves` clears it.
+ *
+ * A success ends the effect on that target, or the whole casting, as the
+ * effect's own hook says. Either way the caster's Concentration, the other
+ * targets, and anything an unrelated source put there are left alone.
+ */
+export function resolveTurn(
+  state: GameState,
+  supply?: ConcentrationSaveSupply,
+): Result<TurnResolution> {
+  if (state.combat === null) return err('no_combat', 'no combat is running');
+
+  const outstanding = pendingSavesOf(state);
+  if (outstanding.length > 0) {
+    return err(
+      'saves_pending',
+      `${outstanding.length} turn-boundary save(s) are still owed; resolve them before the turn moves on`,
+    );
+  }
+
+  const advanced: GameEvent[] = [{ type: 'turn-advanced' }];
+  const after = advanced.reduce(applyEvent, state);
+  const raised = pendingSavesOf(after);
+
+  if (raised.length === 0) return ok({ events: advanced, saves: [], pending: [] });
+  if (supply === undefined) return ok({ events: advanced, saves: [], pending: raised });
+
+  const settled = resolvePendingSaves(after, supply);
+  if (!settled.ok) return settled;
+
+  return ok({
+    events: [...advanced, ...settled.value.events],
+    saves: settled.value.saves,
+    pending: [],
+  });
 }

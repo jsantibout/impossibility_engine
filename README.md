@@ -38,6 +38,7 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Rests | Short and Long, Hit Dice, recharges, and the interruptions the engine can see |
 | The clock | Seconds since the campaign began; a combat round costs six of them |
 | Durations | Elapsed deadlines and turn-anchored ones, expiring by effect instance |
+| Turn hooks | Repeat saves raised by the turn itself, rolled by the engine, never forgotten |
 | Progression | Class tables, features by level, and what the engine does or does not run |
 | Creation | A validated level 1–3 Wizard: origin, scores, skills, feats, spells, kit |
 | Determinism | A scripted four-round fight, replayed byte-identically from its seed |

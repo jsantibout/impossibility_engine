@@ -1056,6 +1056,62 @@ spell scroll. Copied spells ride along and are preserved across advancement.
 They are still checked: a copied spell must be a real Wizard spell of a level
 the character can prepare, which is what the SRD requires to copy it at all.
 
+## Turn Boundaries Collect What They Are Owed
+
+SRD effects that repeat a save are everywhere — Hold Person, Dominate Person,
+Ensnaring Strike — and they all have one shape: a moment, a save, and something
+that happens when it lands. "At the end of each of its turns, the target
+repeats the save, ending the spell on itself on a success."
+
+**The effect carries its own hook.** A `RepeatSave` on the timer says which
+boundary it fires on, whose turn, which ability, against what DC, what a
+success does, and how the roll reads in the log. Everything the resolution
+needs is on the effect rather than in the caller's head, because the point is
+that nobody has to remember it: the turn knows what it owes.
+
+**Raising is derived; rolling is commanded.** The reducer cannot roll —
+randomness enters the log once, at the point of the roll — so `turn-advanced`
+*raises* the saves the boundary owes into `pendingSaves`, and `resolveTurn`
+rolls them. Raising is derived for the same reason a broken Concentration is:
+nobody decides that a turn ended, so nobody should have to remember what
+ending it costs.
+
+**A pending save is a debt, not a leak.** This looks like the pending
+Concentration save that had to be torn out, and is its opposite in the way that
+matters:
+
+| | The one that was wrong | This one |
+|---|---|---|
+| Where it lived | a return value | `GameState`, derived from `turn-advanced` |
+| After a reload | gone | still there, because the fold rebuilds it |
+| If forgotten | the spell silently stayed up | **the next turn is refused** |
+| How to settle it later | there was no way — the command id was spent | `resolvePendingSaves` |
+
+`resolveTurn` given a generator rolls immediately; given none it leaves the
+debt in state and then refuses to advance again until it is paid. Forgetting
+stops the game rather than quietly dropping a rule, which is the only version
+of "optional" that is honest here.
+
+**One boundary raises one save.** Pendings are keyed by effect *and* turn, so
+folding the log twice raises it once, and the next turn raises it again — which
+is what "repeats the save" means. An effect that ends first takes its hook and
+any outstanding debt with it, so nothing waits on a save for a spell that is
+already over.
+
+**A success ends the effect where the hook says.** `end-on-target` is Hold
+Person's "ending the spell **on itself**": that creature is freed, the casting
+carries on for anyone else it caught, and the caster keeps concentrating
+because the spell is still doing something. `end-casting` is for effects that
+end outright. Either way, other targets, independent effects and the caster's
+Concentration are untouched.
+
+One bug this design caught in itself: releasing an effect on one target looked
+up its timer by rebuilding a key from the first doomed condition instance — and
+`doomed` includes the conditions the effect *implied*, which sort ahead of it
+(`incapacitated:...` before `paralyzed:...`). The lookup pointed at the wrong
+timer, left the real one running, and the hook fired again on a spell that had
+ended. Filtering the timers rather than guessing a key is what fixed it.
+
 ## Monsters State Their Numbers; Characters Derive Them
 
 A character's Armour Class follows from their armour and Dexterity. A monster's
@@ -1276,7 +1332,12 @@ a rules bug forever after.
   are done because `attack.ts` needs them; the rest can wait for a consumer.
 - **M1 is done.** Its ship criterion — "a scripted 4-round combat between two
   parties resolves identically from the same seed" — is discharged by
-  `scenario.test.ts`. Spell slots, Concentration, casting, rests, the clock,
+  `scenario.test.ts`. What that proves is the *engine*: dice, rolls, checks,
+  attacks, damage, conditions, positioning, combat, spell slots,
+  Concentration, durations, turn hooks, rests, the clock, progression and one
+  character path, all reproducible from a seed. What it does not prove is that
+  any particular spell works, because the engine has no spell catalogue — see
+  the scenario's own table of what it supplies versus what the engine owns. Spell slots, Concentration, casting, rests, the clock,
   effect durations and one complete character path have landed; the
   limitations recorded above are the honest edges of that work, each with the
   reason it is still open.

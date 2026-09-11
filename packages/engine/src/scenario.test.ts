@@ -13,10 +13,11 @@ import { createRollIssuer, type RollIssuer } from './rolls.js';
 import { spellAttackModifier, spellSaveDc } from './character.js';
 import {
   applySpellEffect,
-  endSpellEffectOn,
   recordD20Test,
   resolveCast,
+  pendingSavesOf,
   resolveDamage,
+  resolveTurn,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
@@ -59,7 +60,7 @@ import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
  * | Attack resolution, criticals, typed damage, defences (`rollAttackDamage`, `applyDamage`) | That Hold Person imposes Paralyzed |
  * | Linking an effect to the casting that made it (`applySpellEffect`) | That the target repeats its save at end of turn |
  * | Damage, and the Concentration save it forces (`resolveDamage`) | |
- * | Ending a casting on one target (`endSpellEffectOn`) | |
+ * | Turn-boundary saves: raising them, rolling them, applying the outcome (`resolveTurn`) | That Hold Person's save repeats at the end of the target's turn |
  * | Losing Concentration, and cleaning up what that casting did | |
  * | Turn economy, the clock, Initiative order | |
  *
@@ -152,6 +153,14 @@ const HOLD_PERSON = {
   save: 'wis',
   condition: 'paralyzed',
   durationSeconds: 60,
+  /**
+   * "At the end of each of its turns, the target repeats the save, ending the
+   * spell on itself on a success."
+   *
+   * The fixture states the rule; it no longer *performs* it. The hook goes on
+   * to the effect, turn advancement raises the save, and the engine rolls it.
+   */
+  repeats: { at: 'end-of-turn', ability: 'wis', onSuccess: 'end-on-target' },
 } as const;
 
 const book = (level: number): SpellbookEntry[] =>
@@ -414,44 +423,33 @@ function castHoldPerson(
     recordD20Test(target, 'Wisdom save vs Hold Person', save, save.success ? 'resisted' : 'held'),
   );
 
-  if (!save.success) t.run((s) => applySpellEffect(s, target, HOLD_PERSON.condition, WIZARD));
+  if (!save.success) {
+    t.run((s) =>
+      applySpellEffect(s, target, HOLD_PERSON.condition, WIZARD, {
+        duration: { kind: 'seconds', seconds: HOLD_PERSON.durationSeconds },
+        repeatSave: {
+          at: HOLD_PERSON.repeats.at,
+          of: target,
+          ability: HOLD_PERSON.repeats.ability,
+          dc,
+          onSuccess: HOLD_PERSON.repeats.onSuccess,
+          label: 'Wisdom save vs Hold Person',
+        },
+      }),
+    );
+  }
   return !save.success;
 }
 
 /**
- * SRD Hold Person: "At the end of each of its turns, the target repeats the
- * save, ending the spell on itself on a success."
+ * There is no `repeatHoldPersonSave` here any more, and that is the point.
  *
- * That the save repeats is the fixture's knowledge. What happens on a success
- * is the engine's: `endSpellEffectOn` lifts this casting's effect from this
- * creature and leaves the casting — and anyone else it is holding — alone.
+ * The repeat save used to be driven by this fixture: roll it at the right
+ * moment, and remember to. Now the hook rides on the effect, turn advancement
+ * raises the save, and `resolveTurn` rolls it. A fixture that forgot would not
+ * quietly skip the rule — the engine refuses to advance the next turn while a
+ * boundary save is outstanding.
  */
-function repeatHoldPersonSave(
-  t: Table,
-  target: CharacterId,
-  bonuses: readonly { source: string; flat: number }[] = [],
-): boolean {
-  const dc = spellSaveDc(sheetOf(t, WIZARD)) ?? 0;
-  const save = t.rolling((issuer, rng) =>
-    rollSavingThrow(issuer, rng, sheetOf(t, target), HOLD_PERSON.save, {
-      dc,
-      conditions: conditionsOf(t, target),
-      bonuses,
-    }),
-  );
-  t.push(
-    recordD20Test(
-      target,
-      'Wisdom save vs Hold Person (end of turn)',
-      save,
-      save.success ? 'shakes it off' : 'still held',
-    ),
-  );
-
-  if (save.success) t.run((s) => endSpellEffectOn(s, target, WIZARD));
-  return save.success;
-}
-
 /** Play the whole fight. Deterministic given the seed, branches and all. */
 function playScenario(seed: string): GameEvent[] {
   const t = table(seed);
@@ -501,7 +499,10 @@ function playScenario(seed: string): GameEvent[] {
         }
       }
 
-      t.push({ type: 'turn-advanced' });
+      // Ending the turn is an engine operation: it raises whatever the
+      // boundary owes and rolls it. Nothing here asks for a repeat save.
+      const { issuer, rng } = t.supply();
+      t.push(...unwrap(resolveTurn(t.state(), { issuer, rng }), 'turn').events);
     }
   }
 
@@ -695,6 +696,22 @@ const controlled = () => {
   return t;
 };
 
+/**
+ * End the current turn through the engine, forcing any boundary save it raises.
+ *
+ * The variant never asks for a repeat save. It ends turns, and the engine
+ * works out what that costs.
+ */
+const endTurn = (
+  t: Table,
+  bonuses: readonly { source: string; flat: number }[],
+): ReturnType<typeof resolveTurn> => {
+  const { issuer, rng } = t.supply();
+  const outcome = resolveTurn(t.state(), { issuer, rng, bonuses });
+  if (outcome.ok) t.push(...outcome.value.events);
+  return outcome;
+};
+
 /** Everything a Paralyzed creature may not do, asked of the engine. */
 const cannotAct = (t: Table, who: CharacterId) => {
   const combat = t.state().combat!;
@@ -722,7 +739,7 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
   it('stops the paralysed creature taking an action, Bonus Action or Reaction', () => {
     const t = controlled();
     castHoldPerson(t, GOBLIN_A, DOOMED);
-    t.push({ type: 'turn-advanced' }); // the goblin's turn comes round
+    endTurn(t, DOOMED); // the goblin's turn comes round
 
     const refused = cannotAct(t, GOBLIN_A);
     expect(refused.action.ok).toBe(false);
@@ -737,7 +754,8 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
   it('leaves the creature it did not hold alone', () => {
     const t = controlled();
     castHoldPerson(t, GOBLIN_A, DOOMED);
-    t.push({ type: 'turn-advanced' }, { type: 'turn-advanced' });
+    endTurn(t, DOOMED);
+    endTurn(t, DOOMED);
     expect(cannotAct(t, GOBLIN_B).action.ok).toBe(true);
   });
 
@@ -748,9 +766,10 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
   it('keeps holding when the end-of-turn save fails', () => {
     const t = controlled();
     castHoldPerson(t, GOBLIN_A, DOOMED);
-    t.push({ type: 'turn-advanced' });
+    endTurn(t, DOOMED); // the wizard's turn ends; nothing is owed
 
-    expect(repeatHoldPersonSave(t, GOBLIN_A, DOOMED)).toBe(false);
+    const goblinsTurn = endTurn(t, DOOMED);
+    expect(goblinsTurn.ok && goblinsTurn.value.saves).toMatchObject([{ success: false }]);
     expect(conditionsOf(t, GOBLIN_A).conditions).toContain('paralyzed');
     expect(t.state().creatures[WIZARD]!.concentration).not.toBeNull();
   });
@@ -758,16 +777,35 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
   it('frees the target when the end-of-turn save succeeds, without ending the spell', () => {
     const t = controlled();
     castHoldPerson(t, GOBLIN_A, DOOMED);
-    t.push({ type: 'turn-advanced' });
+    endTurn(t, DOOMED);
 
-    expect(repeatHoldPersonSave(t, GOBLIN_A, CERTAIN)).toBe(true);
+    const goblinsTurn = endTurn(t, CERTAIN);
+    expect(goblinsTurn.ok && goblinsTurn.value.saves).toMatchObject([{ success: true }]);
     expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('paralyzed');
     expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('incapacitated');
     // The caster is still concentrating: the spell ended on the target, not on them.
     expect(t.state().creatures[WIZARD]!.concentration).toMatchObject({ spell: 'Hold Person' });
-    // And the goblin can act again on its next turn.
-    t.push({ type: 'turn-advanced' }, { type: 'turn-advanced' }, { type: 'turn-advanced' });
+    // And the goblin can act again on its next turn: the save ended its own
+    // turn, so two more boundaries (goblin-b, then the wizard) bring it round.
+    endTurn(t, DOOMED);
+    endTurn(t, DOOMED);
+    expect(t.state().combat!.order[t.state().combat!.turnIndex]!.id).toBe(GOBLIN_A);
     expect(cannotAct(t, GOBLIN_A).action.ok).toBe(true);
+  });
+
+  /** Nothing in the variant asks for the save; ending a turn is what raises it. */
+  it('raises the save without anybody requesting it', () => {
+    const t = controlled();
+    castHoldPerson(t, GOBLIN_A, DOOMED);
+    expect(endTurn(t, DOOMED).ok && true).toBe(true);
+
+    const owed = pendingSavesOf(fold('hold-person-variant', t.log()));
+    expect(owed).toEqual([]);
+
+    const goblinsTurn = endTurn(t, DOOMED);
+    expect(goblinsTurn.ok && goblinsTurn.value.saves.map((s) => s.label)).toEqual([
+      'Wisdom save vs Hold Person',
+    ]);
   });
 
   /**
@@ -800,7 +838,7 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
     expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('incapacitated');
 
     // Freed, the goblin can act on its turn again.
-    t.push({ type: 'turn-advanced' });
+    endTurn(t, DOOMED);
     expect(cannotAct(t, GOBLIN_A).action.ok).toBe(true);
   });
 
@@ -828,8 +866,8 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
     const play = () => {
       const t = controlled();
       castHoldPerson(t, GOBLIN_A, DOOMED);
-      t.push({ type: 'turn-advanced' });
-      repeatHoldPersonSave(t, GOBLIN_A, DOOMED);
+      endTurn(t, DOOMED);
+      endTurn(t, DOOMED);
       return t.log();
     };
     expect(JSON.stringify(play())).toBe(JSON.stringify(play()));

@@ -1,4 +1,4 @@
-import { err, ok, type CharacterId, type Result } from '@ie/shared';
+import { err, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
 import type { CombatState, TurnCount } from './combat.js';
 
 /**
@@ -142,10 +142,71 @@ export type EffectTarget =
   /** A whole casting, and everything it created. */
   | { readonly kind: 'casting'; readonly castingId: string };
 
+/**
+ * A saving throw an effect gets at a turn boundary.
+ *
+ * SRD Hold Person: "At the end of each of its turns, the target repeats the
+ * save, ending the spell on itself on a success." Effects like that are
+ * everywhere — held, restrained, charmed, dominated — and they all have the
+ * same shape: a moment, a save, and something that happens when it lands.
+ *
+ * Everything the resolution needs lives here rather than in the caller's head,
+ * because the point of the hook is that nobody has to remember it: the turn
+ * knows what it owes.
+ */
+export interface RepeatSave {
+  /** Which boundary it fires on. */
+  readonly at: 'start-of-turn' | 'end-of-turn';
+  /** Whose turn. Usually the held creature's own, but the SRD does vary it. */
+  readonly of: CharacterId;
+  readonly ability: Ability;
+  readonly dc: number;
+  /**
+   * What a success does.
+   *
+   * `end-on-target` is Hold Person's "ending the spell **on itself**" — the
+   * casting carries on for anyone else it caught. `end-casting` is for effects
+   * that end outright when anyone shakes them off.
+   */
+  readonly onSuccess: 'end-on-target' | 'end-casting';
+  /** How the roll reads in the log. */
+  readonly label: string;
+}
+
 export interface TimedEffect {
   readonly target: EffectTarget;
   readonly deadline: Deadline;
+  /** A save this effect takes at a turn boundary, if it takes one. */
+  readonly repeatSave?: RepeatSave;
 }
+
+/**
+ * A save a turn boundary raised and nobody has rolled yet.
+ *
+ * Persisted in state rather than handed back in a return value, which is the
+ * whole difference between this and the pending Concentration save that had to
+ * be torn out: that one lived only in the caller's hands and vanished on a
+ * reload. This is derived from `turn-advanced` by the fold, so it survives
+ * anything the log survives — and the engine refuses to advance another turn
+ * while one is outstanding, so forgetting it stops the game rather than
+ * quietly losing a rule.
+ */
+export interface PendingSave {
+  /** The timer this belongs to, which is also how it is keyed. */
+  readonly effectKey: string;
+  readonly target: CharacterId;
+  readonly castingId: string;
+  readonly ability: Ability;
+  readonly dc: number;
+  readonly onSuccess: 'end-on-target' | 'end-casting';
+  readonly label: string;
+  /** The turn it was raised on. Part of the key, so one turn raises it once. */
+  readonly turn: number;
+}
+
+/** One pending save can exist per effect per turn, and no more. */
+export const pendingSaveKey = (effectKey: string, turn: number): string =>
+  `${effectKey}@${turn}`;
 
 /**
  * The key a timer is filed under.
