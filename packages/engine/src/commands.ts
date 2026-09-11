@@ -1449,10 +1449,12 @@ function provokedBy(
     const other = state.creatures[key];
     if (other === undefined || other.id === mover) continue;
 
-    // An ally does not swing at you for walking away, and a creature nobody
-    // has placed on a side is nobody's enemy — the same conservative reading
-    // an aura takes of "your allies".
-    if (other.side === null || side === null || other.side === side) continue;
+    // An ally does not swing at you for walking away — the same conservative
+    // reading an aura takes of "your allies". Declared and allied is settled;
+    // an *undeclared* side is checked below, after the geometry, so that the
+    // report only appears where it would actually have mattered.
+    const allied = other.side !== null && side !== null && other.side === side;
+    if (allied) continue;
     if (other.vitals.dead || isIncapacitated(other.conditions)) continue;
     if (state.combat !== null && state.combat.budgets[other.id]?.reaction === false) continue;
 
@@ -1461,6 +1463,17 @@ function provokedBy(
     const after = distanceToPoint(scene, other.id, to);
     if (!before.ok || !after.ok) continue;
     if (!(before.value <= reach && after.value > reach)) continue;
+
+    // Everything else about this creature says they would swing. If nobody
+    // has said whose side they are on, the offer is withheld — and that is a
+    // whole Reaction the table was never told about, so it is reported rather
+    // than passing as a rule that checked and found nothing.
+    if (other.side === null || side === null) {
+      unverified.push(
+        `nobody has said whose side ${other.side === null ? other.id : mover} is on, so ${other.id} was not offered an Opportunity Attack on ${mover}`,
+      );
+      continue;
+    }
 
     // SRD: "a creature that you can see". Declared unseen is a refusal;
     // undeclared is a fact nobody has established, and withholding the
@@ -1794,6 +1807,10 @@ export function resolveAttack(
     );
   }
 
+  // SRD: a ranged attack has Disadvantage while an enemy is within 5 feet.
+  const nearby = enemyWithinFiveFeet(state, id);
+  unverified.push(...nearby.unverified);
+
   // SRD Dodge and anything else that makes attacks against the target harder.
   // The sight clause is the *target's* view of the attacker, and undeclared is
   // not the same as blind.
@@ -1813,7 +1830,7 @@ export function resolveAttack(
     ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
     modes: [...defending.modes, ...(command.modes ?? [])],
     beyondNormalRange: reach.value.beyondNormal,
-    nearbyEnemy: enemyWithinFiveFeet(state, id),
+    nearbyEnemy: nearby.near,
     attackBonuses: [
       // Bless is on the creature, not in the caller's head.
       ...bonusesFor(attacker.bonuses, 'attack'),
@@ -1966,10 +1983,35 @@ function reachCheck(
   weapon: Weapon | null,
   thrown: boolean,
 ): Result<{ readonly apart: number | null; readonly beyondNormal: boolean }> {
+  // **No scene at all is not a gap in the record; it is a table not using
+  // positioning.** An ambush in a corridor nobody drew, a brawl in a room with
+  // no grid — most SRD play looks like this, and demanding a map before anyone
+  // may swing a sword is exactly the obstructive behaviour this engine exists
+  // not to have. So the reach check has nothing to check, the attack proceeds,
+  // and `resolveAttack` reports which rules went unapplied.
   if (state.scene === null) return ok({ apart: null, beyondNormal: false });
 
   const measured = distanceBetween(state.scene, id, target);
-  if (!measured.ok) return ok({ apart: null, beyondNormal: false });
+  if (!measured.ok) {
+    // A scene *does* exist and somebody is not on it. That is a gap in a
+    // record the table is actively keeping, and whether a weapon reaches is a
+    // precondition of the attack rather than a modifier on it — the same
+    // question `resolveSpell` has always asked about a spell's range, which
+    // until now it answered one way for a Fire Bolt and another for a sword.
+    const scene = state.scene;
+    const off = [id, target].filter((who) => positionOf(scene, who) === null);
+    return needsContext(
+      'unplaced',
+      `nobody has said where ${off.join(' or ')} ${off.length === 1 ? 'is' : 'are'} standing, and whether ${weapon?.name ?? 'an Unarmed Strike'} reaches depends on it`,
+      off.map((who) => ({
+        kind: 'position' as const,
+        subject: who,
+        need: `where ${who} is standing`,
+        because: `${weapon?.name ?? 'an Unarmed Strike'} has a reach to check`,
+        satisfyWith: `a creature-placed event for ${who}`,
+      })),
+    );
+  }
   const apart = measured.value;
 
   const range = rangeOf(weapon, thrown);
@@ -1997,23 +2039,51 @@ function reachCheck(
  * creature nobody has placed on a side is nobody's enemy either, so it hampers
  * nothing — the conservative direction, and the same one `standingFor` takes.
  */
-function enemyWithinFiveFeet(state: GameState, id: CharacterId): boolean {
+function enemyWithinFiveFeet(
+  state: GameState,
+  id: CharacterId,
+): { readonly near: boolean; readonly unverified: readonly string[] } {
   const scene = state.scene;
   const mine = state.creatures[id]?.side ?? null;
-  if (scene === null || mine === null) return false;
+  if (scene === null) return { near: false, unverified: [] };
 
-  return Object.keys(state.creatures).some((key) => {
+  let near = false;
+  const unsided: CharacterId[] = [];
+
+  for (const key of Object.keys(state.creatures).sort()) {
     const other = state.creatures[key];
-    if (other === undefined || other.id === id) return false;
-    if (other.side === null || other.side === mine) return false;
+    if (other === undefined || other.id === id) continue;
     // SRD says an enemy "that can see you and isn't Incapacitated"; sight is
     // declared and often unsaid, so only the half the engine can see is applied
     // and the other half is left to the caller's modes.
-    if (isIncapacitated(other.conditions) || other.vitals.dead) return false;
+    if (isIncapacitated(other.conditions) || other.vitals.dead) continue;
 
     const apart = distanceBetween(scene, id, other.id);
-    return apart.ok && apart.value <= 5;
-  });
+    if (!apart.ok || apart.value > 5) continue;
+
+    // Declared and allied: the rule does not apply, and nothing is missing.
+    if (mine !== null && other.side === mine) continue;
+    // Declared and opposed: the rule applies.
+    if (mine !== null && other.side !== null) {
+      near = true;
+      continue;
+    }
+    // Nobody has said. Withholding is the conservative direction and it was
+    // also **silent** — a creature standing at the archer's elbow either is or
+    // is not an enemy, and an unfired rule looks exactly like a rule that
+    // checked and found nothing.
+    unsided.push(other.id);
+  }
+
+  return {
+    near,
+    unverified:
+      unsided.length === 0
+        ? []
+        : [
+            `nobody has said whose side ${unsided.join(', ')} ${unsided.length === 1 ? 'is' : 'are'} on, so the Disadvantage a ranged attack takes with an enemy within 5 feet was not applied`,
+          ],
+  };
 }
 
 /** The hit whose damage is still to be rolled, or null. */

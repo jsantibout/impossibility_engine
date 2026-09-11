@@ -61,7 +61,9 @@ still Wizard-shaped are named below.
 | Readied move | "Up to your Speed", out of the Reaction rather than the turn | `eae9c67` |
 | Turn-anchored riders | An effect with its own deadline; Color Spray, Sunbeam | `669d151` |
 | Riders on a hit | Ray of Sickness poisons; an unmodelled note became behaviour | `8a3f0bb` |
-| Engine audit | Error kinds, idempotency sweep, wedge recovery, a loud reducer | _this batch_ |
+| Engine audit | Error kinds, idempotency sweep, wedge recovery, a loud reducer | `fabb8eb` |
+| One channel | `needs-context` is an `Err` everywhere; the spell union is gone | `2d28853` |
+| Missing facts | One policy for a fact nobody has told the engine | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -195,6 +197,22 @@ still Wizard-shaped are named below.
   end of your next turn" as a gap since it was written. The note was honest and
   it reached the table on every casting; it is still better for the engine to
   do it.
+- **A rule is never silently skipped for want of a fact**, and there are
+  exactly three things that may happen instead. If the fact is a
+  **precondition of legality**, the engine asks (`needs-context`, nothing
+  spent). If it only changes **how well it goes**, the rule proceeds under a
+  stated reading and `unverified` says which. If it is **declared-or-default by
+  design** — cover absent means none — the default stands and is documented
+  where it is read. Which one applies is a property of the *rule*, not of the
+  command that reached it, which is how the engine came to ask for a position
+  before a Fire Bolt and swing a longsword at any distance at all.
+- **No map is not a gap in one.** A scene that does not exist means the table
+  is not using positioning — an ambush in a corridor nobody drew — and
+  demanding a map before anyone may swing is the obstructive behaviour this
+  engine exists not to have. A scene that *does* exist with a creature not on
+  it is a gap in a record being actively kept, and one event fixes it. The
+  asymmetry is the whole seam, and moving it either way breaks tests in both
+  directions.
 - **An error says which of two questions it is answering.** `Err` carries
   `kind: 'refusal' | 'needs-context'`. A refusal is the rules saying no under
   facts already established; needs-context is the *record* being thin. An AI DM
