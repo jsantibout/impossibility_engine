@@ -848,13 +848,25 @@ function inShape(origin: Point, shape: AreaShape, p: Point): boolean {
  * which is how a grid adjudicates it. A thirty-foot dragon is six cubes tall,
  * so a blast at head height catches its upper cubes and misses its feet.
  */
-function boxInShape(origin: Point, shape: AreaShape, box: Box): boolean {
+function boxInShape(
+  origin: Point,
+  originBox: Box,
+  shape: AreaShape,
+  box: Box,
+): boolean {
   switch (shape.kind) {
+    // A Sphere is centred on a *point*, so a large creature at its centre
+    // does not widen it.
     case 'sphere':
       return chebyshev(pointBox(origin), box) <= shape.radius;
 
+    // SRD: an Emanation "extends in straight lines from a creature or an
+    // object in all directions" — from the creature, not from a point inside
+    // it. So it starts at the boundary: a 10-foot Emanation around a
+    // Gargantuan creature covers far more ground than one around a Medium,
+    // and is not skewed toward the corner the creature is anchored at.
     case 'emanation':
-      return chebyshev(pointBox(origin), box) <= shape.distance;
+      return chebyshev(originBox, box) <= shape.distance;
 
     // A Cylinder's radius and its height are separate constraints. Folding the
     // height into the one metric would let a creature hovering just above a
@@ -913,6 +925,11 @@ export function creaturesInArea(
     at = origin.point;
   }
 
+  // An Emanation measures from the whole creature; every other shape measures
+  // from a point.
+  const originBox =
+    originCreature === null ? pointBox(at) : (boxOf(state, originCreature) ?? pointBox(at));
+
   const includeOrigin = options.includeOrigin ?? ORIGIN_INCLUDED_BY_DEFAULT.has(shape.kind);
 
   const caught: CharacterId[] = [];
@@ -921,7 +938,7 @@ export function creaturesInArea(
     const box = boxOf(state, id);
     if (box === null) continue;
 
-    if (!boxInShape(at, shape, box)) continue;
+    if (!boxInShape(at, originBox, shape, box)) continue;
 
     // The origin creature of an Emanation, or anything standing exactly on the
     // point of origin, is excluded unless the caster says otherwise.

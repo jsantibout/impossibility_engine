@@ -340,6 +340,13 @@ contradicting itself. Cone, Line and Cube are directional, have no Chebyshev
 shorthand, and are the one approximation here: they resolve against cube
 centres.
 
+**An Emanation radiates from the creature, not from a point inside it.** SRD:
+it "extends in straight lines from a creature or an object in all directions",
+so it starts at the boundary — a 10-foot Emanation around a Gargantuan creature
+covers vastly more ground than one around a Medium, and is not skewed toward
+the corner cube the creature is anchored at. A Sphere is the opposite: centred
+on a *point*, so a large caster standing at that point does not widen it.
+
 **Creatures occupy volume, not a point.** A footprint from the SRD's Creature
 Size and Space table, rising from the feet to a height. Treating them as points
 made a tall creature mechanically flat — a blast at head height missed it

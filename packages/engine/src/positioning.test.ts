@@ -1061,3 +1061,64 @@ describe('height is declared, not inferred', () => {
     expect(heightOf(beast('unknown', 'large'), id('unknown'))).toBe(footprintOf('large'));
   });
 });
+
+describe('an emanation starts at the creature’s boundary', () => {
+  /**
+   * SRD: an Emanation "extends in straight lines from a creature or an object
+   * in all directions" — from the creature itself, not from a point inside it.
+   * So the same spell covers far more ground around something enormous.
+   */
+  const auraAround = (size: 'medium' | 'gargantuan') => {
+    let state = scene({ width: 400, depth: 400, height: 100 });
+    state = unwrap(addLandmark(state, 'field', { x: 100, y: 100, z: 0 }), 'field');
+    state = unwrap(placeCreature(state, id('source'), { from: { landmark: 'field' }, feet: 0, size }), 'source');
+    // A bystander 25 feet east of the source's anchor cube.
+    state = unwrap(
+      placeCreature(state, id('bystander'), { from: { landmark: 'field' }, feet: 25, bearing: 90 }),
+      'bystander',
+    );
+    return state;
+  };
+
+  const caughtBy = (size: 'medium' | 'gargantuan', distance: number) =>
+    unwrap(
+      creaturesInArea(auraAround(size), { creature: id('source') }, { kind: 'emanation', distance }),
+      'aura',
+    );
+
+  it('reaches further from a Gargantuan creature than a Medium one', () => {
+    // The Gargantuan creature's own 20-foot body closes most of the gap, so
+    // the bystander is within ten feet of its flank but nowhere near a
+    // Medium creature's.
+    expect(caughtBy('gargantuan', 10)).toContain(id('bystander'));
+    expect(caughtBy('medium', 10)).not.toContain(id('bystander'));
+  });
+
+  it('still has a boundary of its own', () => {
+    // Ten feet past the Gargantuan creature's edge is out.
+    let state = scene({ width: 400, depth: 400, height: 100 });
+    state = unwrap(addLandmark(state, 'field', { x: 100, y: 100, z: 0 }), 'field');
+    state = unwrap(
+      placeCreature(state, id('source'), { from: { landmark: 'field' }, feet: 0, size: 'gargantuan' }),
+      'source',
+    );
+    state = unwrap(
+      placeCreature(state, id('far'), { from: { landmark: 'field' }, feet: 40, bearing: 90 }),
+      'far',
+    );
+    expect(
+      unwrap(creaturesInArea(state, { creature: id('source') }, { kind: 'emanation', distance: 10 }), 'aura'),
+    ).not.toContain(id('far'));
+  });
+
+  it('leaves a Sphere centred on a point unaffected by the caster’s bulk', () => {
+    // A Sphere is centred on a point, so a Gargantuan creature standing at
+    // that point does not widen it.
+    const state = auraAround('gargantuan');
+    const sphere = unwrap(
+      creaturesInArea(state, { creature: id('source') }, { kind: 'sphere', radius: 10 }),
+      'sphere',
+    );
+    expect(sphere).not.toContain(id('bystander'));
+  });
+});
