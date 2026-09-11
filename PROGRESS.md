@@ -56,7 +56,8 @@ still Wizard-shaped are named below.
 | Death saves | The turn boundary rolls what it owes | `5a94ef3` |
 | Action economy | Extra Attack, Dash, Disengage | `16d1ac0` |
 | Dodge | The one action whose benefit outlives its turn | `5648241` |
-| Difficult terrain | Declared by the foot, charged exactly | _this batch_ |
+| Difficult terrain | Declared by the foot, charged exactly | `06dd3b1` |
+| Ready | An action spent now for a Reaction later; readied spells | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -107,6 +108,31 @@ still Wizard-shaped are named below.
   What is left on that list is mostly queries and deliberate non-exposure
   (`recordExternal*`), plus `rest.ts`, where `beginRest`/`endRest` are still
   reachable only from tests.
+- **The trigger of a readied action is text the engine stores and never
+  reads.** SRD asks for "a perceivable circumstance", and the circumstances a
+  table readies against — a trapdoor, a chant reaching its third line, a door
+  opening — live almost entirely in fiction that structured state has never
+  been told about. **Absence from structured state is not evidence a thing
+  does not exist**, so an engine that judged triggers would refuse readied
+  actions on the strength of its own ignorance, or invent a world to judge
+  them in. Maestro says when it fired. Everything around it is the engine's:
+  the action spent now, the Reaction spent later, the deadline, and for a
+  readied spell the slot and the Concentration.
+- **A readied spell is paid for on one turn and resolved on another**, which is
+  the first thing to split `resolveSpell` down the middle. SRD: "you cast it as
+  normal (expending any resources used to cast it) but hold its energy, which
+  you release with your Reaction." Deferring the payment instead would refund
+  the slot when Concentration broke, which is precisely the case SRD writes a
+  rule for — "the spell dissipates without taking effect" — and the slot is
+  gone. So `castOrRelease` takes the casting the Ready already paid for, and
+  everything below the payment runs unchanged rather than being copied.
+- **Holding the magic and concentrating on the spell are two different
+  Concentrations that share a casting id.** Every readied spell requires the
+  first; only some spells require the second. So releasing Hold Person changes
+  nothing about what the caster is holding, and releasing Blindness/Deafness
+  ends the hold — *before* the spell lands, because ending a Concentration ends
+  its whole casting, and dropping the hold afterwards would wipe the condition
+  the release had just applied.
 - **An attack can be held between its two rolls.** SRD Divine Smite is cast
   "immediately after hitting a target", so there has to *be* an after-hitting.
   `resolveAttack` with `hold` stops after the attack roll and records the hit
@@ -200,25 +226,32 @@ still Wizard-shaped are named below.
    spells fit one of them and need only a definition with its SRD quote.
    `spell-catalogue.test.ts` drives every definition automatically, so the
    test cost of each new one is zero. This is the cheapest coverage there is.
-3. **Turn-anchored spell durations.** `SpellDefinition.durationSeconds` is
+3. **Readying a move.** SRD: "or you choose to move up to your Speed in
+   response to it." `takeReady` accepts an action or a spell; a move needs
+   movement outside the turn budget, and `spendMovement` requires it to be the
+   mover's turn by construction. The shape is an allowance recorded at the
+   release and spent through `resolveMove` — which must still provoke
+   Opportunity Attacks, because it is the creature's own movement. Deliberately
+   its own batch rather than guessed at here.
+4. **Turn-anchored spell durations.** `SpellDefinition.durationSeconds` is
    elapsed time only, so "until the end of your next turn" cannot be written
    down — Color Spray and several riders are blocked on it. `duration.ts`
    already has `endOfNextTurn`; the definition needs a way to name it.
-4. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
+5. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
    deal a second, smaller hit at the end of the target's next turn. The turn
    hook machinery raises *saves*; this needs it to raise damage too.
-5. **Ongoing effects a later turn can act through** (18 spells). Spiritual
+6. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-6. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
+7. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
    that can order a cast against the event that triggered it. This is the
    hardest remaining spell mechanism and is deliberately last.
-7. **Summons** (9 spells). Needs a creature created mid-fight from a stat
+8. **Summons** (9 spells). Needs a creature created mid-fight from a stat
    block, which `adaptMonster` can already produce — the gap is an event that
    adds it and ties its life to the casting.
-8. **Long casting times** (43 spells). Needs a casting-in-progress state
+9. **Long casting times** (43 spells). Needs a casting-in-progress state
    machine with a per-turn obligation; the clock alone was never the blocker.
-9. **Classes.** See below.
+10. **Classes.** See below.
 
 ## Classes: all twelve, with one subclass each
 

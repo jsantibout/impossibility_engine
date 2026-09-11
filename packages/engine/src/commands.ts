@@ -56,7 +56,7 @@ import {
   type SpellRange,
 } from './spell-definitions.js';
 import { routesFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
-import { DODGE, DODGE_ACTION } from './actions.js';
+import { DODGE, DODGE_ACTION, READY, READY_ACTION } from './actions.js';
 import {
   attackedWithDisadvantage,
   defensesOf,
@@ -111,6 +111,8 @@ import {
   type GameState,
   type PendingAttack,
   type PendingMove,
+  type ReadiedAction,
+  type ReadiedResponse,
 } from './events.js';
 import {
   hasPool,
@@ -660,6 +662,331 @@ export function takeDodge(
   if (timer.value !== null) events.push(timer.value);
 
   return ok(events);
+}
+
+/**
+ * What a Ready is being held for, and what it will do.
+ *
+ * The trigger is free text and stays that way. SRD asks for "a perceivable
+ * circumstance", and the circumstances a table readies against live almost
+ * entirely in fiction the engine has never been told about — a trapdoor, a
+ * chant, a door. **Absence from structured state is not evidence that a thing
+ * does not exist**, so an engine that judged the trigger would be refusing
+ * readied actions on the strength of its own ignorance. Maestro says when it
+ * fired; everything around it is the engine's.
+ */
+export interface ReadyCommand extends CommandIdentity {
+  readonly trigger: string;
+  readonly response: ReadyResponse;
+}
+
+/** The response as a caller states it, before the engine has paid for it. */
+export type ReadyResponse =
+  | { readonly kind: 'action'; readonly note?: string }
+  | {
+      readonly kind: 'spell';
+      readonly spellId: string;
+      /** The slot to expend now. Omitted for a cantrip. */
+      readonly slotLevel?: number;
+      readonly slotKind?: SlotKind;
+      readonly source?: string;
+    };
+
+/** What this creature is holding for a trigger, or null. */
+export function readiedBy(state: GameState, id: CharacterId): ReadiedAction | null {
+  return creatureOf(state, id)?.readied ?? null;
+}
+
+/**
+ * Ready an action: spend it now, to take a Reaction later.
+ *
+ * SRD: "You take the Ready action to wait for a particular circumstance before
+ * you act. To do so, you take this action on your turn, which lets you act by
+ * taking a Reaction before the start of your next turn."
+ *
+ * The deadline is the same turn-anchored one Dodge uses, expressed the same
+ * way — an activated feature with a timer — because the benefit has to outlive
+ * the turn that bought it, and a turn budget is cleared when the turn ends.
+ *
+ * A readied **spell** is the SRD's own special case and the only part of this
+ * the engine has real rules for: "you cast it as normal (expending any
+ * resources used to cast it) but hold its energy, which you release with your
+ * Reaction when the trigger occurs... To be readied, a spell must have a
+ * casting time of an action, and holding on to the spell's magic requires
+ * Concentration." So the slot goes now and the effects do not, which is why
+ * the casting and its resolution are two commands rather than one.
+ */
+export function takeReady(
+  state: GameState,
+  id: CharacterId,
+  command: ReadyCommand,
+): Result<GameEvent[]> {
+  const identity = identify(state, `ready:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} has no record here yet; add it first`);
+
+  // SRD: "you take this action on your turn, which lets you act by taking a
+  // Reaction before the start of your next turn." Both halves need turns.
+  if (state.combat === null || state.combat.budgets[id] === undefined) {
+    return err('not_in_combat', 'a readied action waits for a Reaction, and there are no turns to take one in');
+  }
+  if (creature.readied !== null) {
+    return err('already_readied', `${id} is already holding a readied action`);
+  }
+  if (command.trigger.trim() === '') {
+    return err('no_trigger', 'a readied action waits for something; say what');
+  }
+
+  // Validate the whole thing before any of it is emitted, casting included:
+  // a Ready that refuses must leave the action, the slot and the
+  // Concentration exactly as they were.
+  const spent = spendAction(state.combat, id, creature.conditions);
+  if (!spent.ok) return spent;
+
+  const events: GameEvent[] = [{ type: 'action-spent', id }];
+  let response: ReadiedResponse;
+
+  if (command.response.kind === 'spell') {
+    const held = holdSpell(state, id, command.response);
+    if (!held.ok) return held;
+    events.push(...held.value.events);
+    response = held.value.response;
+  } else {
+    response = {
+      kind: 'action',
+      ...(command.response.note === undefined ? {} : { note: command.response.note }),
+    };
+  }
+
+  events.push({
+    type: 'feature-activated',
+    id,
+    feature: READY,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+  events.push({ type: 'readied-declared', id, readied: { trigger: command.trigger, response } });
+
+  const timer = featureTimer(state, id, READY_ACTION);
+  if (!timer.ok) return timer;
+  if (timer.value !== null) events.push(timer.value);
+
+  return ok(events);
+}
+
+/**
+ * Cast the spell being readied, without resolving it.
+ *
+ * SRD: "you cast it as normal (expending any resources used to cast it) but
+ * hold its energy." So this is an ordinary casting with the effects left
+ * undone — the slot goes, and the Concentration that holds the magic starts,
+ * whether or not the spell itself is a Concentration spell.
+ *
+ * The action is **not** spent here: the Ready action is the casting's action,
+ * and charging for both would take two actions for one thing the SRD charges
+ * once for. `castSpell` is the half beneath `resolveCast` that leaves the
+ * economy alone, which is exactly the half this wants.
+ */
+function holdSpell(
+  state: GameState,
+  id: CharacterId,
+  response: ReadyResponse & { readonly kind: 'spell' },
+): Result<{ readonly events: readonly GameEvent[]; readonly response: ReadiedResponse }> {
+  const definition = definitionFor(response.spellId);
+  if (definition === null) {
+    return err(
+      'no_definition',
+      `${response.spellId} has no executable definition; the engine can look a spell up but only executes the ones it has been taught`,
+    );
+  }
+
+  // SRD: "To be readied, a spell must have a casting time of an action."
+  if (definition.castingTime !== 'action') {
+    return err(
+      'not_readiable',
+      `${definition.name} is cast with a ${definition.castingTime}, and only a spell cast with an action can be readied`,
+    );
+  }
+
+  const caster = creatureOf(state, id);
+  if (caster === null) return err('unknown_creature', `${id} is not in this game`);
+
+  // SRD: you ready what you know or have prepared, and nothing else.
+  const chosen = chooseRoute(caster.spellcasting, response.spellId, response.source);
+  if (!chosen.ok) return chosen;
+  const route = chosen.value;
+
+  const castLevel = Math.max(definition.level, response.slotLevel ?? definition.level);
+  const castingId = nextCastingId(state);
+
+  const cast = castSpell(state, id, {
+    spell: definition.name,
+    level: definition.level,
+    // SRD: "holding on to the spell's magic requires Concentration" — for
+    // every readied spell, not only the ones whose own Duration says so.
+    concentration: true,
+    castingTime: definition.castingTime,
+    ...(response.slotLevel === undefined
+      ? { slotless: 'cantrip' as const }
+      : {
+          slotLevel: response.slotLevel,
+          ...(response.slotKind === undefined ? {} : { slotKind: response.slotKind }),
+        }),
+    route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
+    // No duration. The spell has not taken effect, so its own clock has not
+    // started; what *is* capped is the hold, and that is the Ready feature's
+    // deadline rather than the spell's.
+  });
+  if (!cast.ok) return cast;
+
+  return ok({
+    events: cast.value,
+    response: { kind: 'spell', spellId: response.spellId, castingId, castLevel },
+  });
+}
+
+/** How the held action is being let go. */
+export interface ReleaseCommand extends CommandIdentity {
+  /**
+   * SRD: "you can either take your Reaction right after the trigger finishes
+   * **or ignore the trigger**." Ignoring costs nothing and keeps the Reaction.
+   */
+  readonly ignore?: boolean;
+  /** Who a readied spell lands on. Empty for an area spell, which picks its own. */
+  readonly targets?: readonly CharacterId[];
+  /** Where a readied area spell's origin goes. */
+  readonly at?: Point;
+}
+
+/**
+ * Take the Reaction a readied action was held for — or let the trigger pass.
+ *
+ * The trigger is Maestro's call and has already been made by the time this is
+ * reached; what the engine owns is the Reaction, the hold, and, for a readied
+ * spell, everything the spell does.
+ *
+ * For an `action` response this spends the Reaction and clears the hold; the
+ * action itself goes through its own command afterwards, because the SRD's
+ * action list is open and the engine has commands for a handful of it. An
+ * attack taken this way is `resolveAttack({ free: true })` — the Reaction is
+ * what paid for it, exactly as an Opportunity Attack is.
+ */
+export function releaseReady(
+  state: GameState,
+  id: CharacterId,
+  command: ReleaseCommand,
+  supply: ConcentrationSaveSupply,
+): Result<SpellCastOutcome & { readonly events: readonly GameEvent[] }> {
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} has no record here yet; add it first`);
+
+  const readied = creature.readied;
+  if (readied === null) {
+    return err('nothing_readied', `${id} is not holding a readied action`);
+  }
+
+  const nothing = { kind: 'resolved' as const, castingId: '', outcomes: [], unverified: [] };
+
+  // SRD: "or ignore the trigger." Nothing is spent and nothing happens — but
+  // the hold is gone, because the trigger it was waiting for has been and
+  // passed. A held spell dissipates with it.
+  if (command.ignore === true) {
+    return ok({ ...nothing, events: [{ type: 'readied-released', id, took: false }] });
+  }
+
+  if (state.combat === null || state.combat.budgets[id] === undefined) {
+    return err('not_in_combat', 'there is no Reaction to spend outside combat');
+  }
+  const spent = spendReaction(state.combat, id, creature.conditions);
+  if (!spent.ok) return spent;
+
+  const events: GameEvent[] = [
+    { type: 'reaction-spent', id },
+    { type: 'readied-released', id, took: true },
+  ];
+
+  if (readied.response.kind !== 'spell') {
+    return ok({ ...nothing, events });
+  }
+
+  return releaseSpell(state, id, readied.response, command, supply, events);
+}
+
+/**
+ * Let a held spell go, and resolve it where it lands.
+ *
+ * The slot went when it was readied, so nothing is paid here. What still has
+ * to happen is the half `castSpell` would have done had the spell been cast
+ * normally at this moment: the Concentration settles, and the spell's own
+ * duration starts now rather than when the magic was first gathered.
+ */
+function releaseSpell(
+  state: GameState,
+  id: CharacterId,
+  response: ReadiedResponse & { readonly kind: 'spell' },
+  command: ReleaseCommand,
+  supply: ConcentrationSaveSupply,
+  spentSoFar: readonly GameEvent[],
+): Result<SpellCastOutcome & { readonly events: readonly GameEvent[] }> {
+  const definition = definitionFor(response.spellId);
+  if (definition === null) {
+    return err('no_definition', `${response.spellId} has no executable definition`);
+  }
+
+  const events: GameEvent[] = [...spentSoFar];
+
+  // The Concentration was holding the magic, not the spell. A spell whose own
+  // Duration does not say Concentration has nothing left to concentrate on
+  // once it has happened, so the hold ends — **before** the effects land, or
+  // ending the casting would take the conditions the release just created.
+  if (!definition.concentration) {
+    events.push({
+      type: 'concentration-ended',
+      id,
+      castingId: response.castingId,
+      reason: 'released',
+    });
+  }
+
+  const after = events.reduce(applyEvent, state);
+  const resolved = castOrRelease(
+    after,
+    id,
+    {
+      spellId: response.spellId,
+      targets: command.targets ?? [],
+      ...(command.at === undefined ? {} : { at: command.at }),
+      ...(definition.level === 0 ? {} : { slotLevel: response.castLevel }),
+    },
+    supply,
+    { castingId: response.castingId },
+  );
+  if (!resolved.ok) return resolved;
+  if (resolved.value.kind === 'needs-context') {
+    // Nothing was resolved, so nothing of this batch may stand either: the
+    // Reaction is still there and the spell is still held.
+    return ok({ ...resolved.value, events: [] });
+  }
+
+  events.push(...resolved.value.events);
+
+  // SRD writes a readied spell's Duration from the moment it takes effect, and
+  // that moment is now. `castSpell` would have scheduled this at the casting;
+  // the casting was a turn ago and did nothing.
+  if (definition.durationSeconds !== undefined) {
+    const timer = schedule(
+      events.reduce(applyEvent, state),
+      { kind: 'casting', castingId: response.castingId },
+      { kind: 'seconds', seconds: definition.durationSeconds },
+    );
+    if (!timer.ok) return timer;
+    events.push(timer.value);
+  }
+
+  return ok({ ...resolved.value, events });
 }
 
 // — movement ——————————————————————————————————————————————————————————————————
@@ -2998,6 +3325,33 @@ export function resolveSpell(
   request: CastSpellRequest,
   supply: ConcentrationSaveSupply,
 ): Result<SpellCastOutcome> {
+  return castOrRelease(state, casterId, request, supply, null);
+}
+
+/**
+ * A casting that has already been paid for and is waiting to be let go.
+ *
+ * SRD Ready is the only thing that produces one: the slot went when the spell
+ * was readied, so the release has a casting id but nothing left to spend.
+ */
+interface HeldCasting {
+  readonly castingId: string;
+}
+
+/**
+ * {@link resolveSpell}, and the same thing for a spell already paid for.
+ *
+ * One function rather than two because everything after the payment is
+ * identical — targets, range, cover, the save DC, the effects — and a second
+ * copy of it would be a second place for a rules fix to miss.
+ */
+function castOrRelease(
+  state: GameState,
+  casterId: CharacterId,
+  request: CastSpellRequest,
+  supply: ConcentrationSaveSupply,
+  held: HeldCasting | null,
+): Result<SpellCastOutcome> {
   // A turn-boundary save outstanding means somebody may or may not still be
   // Paralyzed, and casting at them would be resolving against a state nobody
   // has settled. The rule is the same one that stops the turn advancing.
@@ -3070,6 +3424,7 @@ export function resolveSpell(
     targets,
     unverified,
     supply,
+    held,
   });
 }
 
@@ -3359,20 +3714,39 @@ function resolveOnTargets(
     readonly targets: readonly CharacterId[];
     readonly unverified: string[];
     readonly supply: ConcentrationSaveSupply;
+    /** Set when the casting was paid for earlier — a readied spell. */
+    readonly held: HeldCasting | null;
   },
 ): Result<SpellCastOutcome> {
-  const { castLevel, route, targets, unverified, supply } = context;
+  const { castLevel, route, targets, unverified, supply, held } = context;
 
   // — paying for it ——————————————————————————————————————————————————————
   //
   // A free casting from a feat spends its own pool; anything else goes through
   // the ordinary casting command, which owns slots, the action, and the
   // Concentration that starts or is replaced.
+  const events: GameEvent[] = [];
+
+  // SRD Ready: "you cast it as normal (expending any resources used to cast
+  // it) but hold its energy." The expending happened when it was readied, so
+  // a release skips the whole of it — including the action, which the Ready
+  // itself was.
+  if (held !== null) {
+    return resolveEffects(state, casterId, caster, definition, {
+      castLevel,
+      route,
+      targets,
+      unverified,
+      supply,
+      castingId: held.castingId,
+      events,
+    });
+  }
+
   const payment = choosePayment(definition, route, request);
   if (!payment.ok) return payment;
   const freePool = payment.value;
 
-  const events: GameEvent[] = [];
   const castingId = nextCastingId(state);
 
   if (freePool !== null) {
@@ -3409,6 +3783,42 @@ function resolveOnTargets(
     return ok({ kind: 'resolved', events: [], castingId, outcomes: [], unverified: [] });
   }
   events.push(...cast.value);
+
+  return resolveEffects(state, casterId, caster, definition, {
+    castLevel,
+    route,
+    targets,
+    unverified,
+    supply,
+    castingId,
+    events,
+  });
+}
+
+/**
+ * What a spell does, once it has been paid for.
+ *
+ * Split from the payment above it for exactly one reason: SRD Ready pays on
+ * one turn and resolves on another, and everything from here down is the same
+ * either way. Nothing else about the two halves differs, which is why they are
+ * one function called twice rather than two functions kept in step by hand.
+ */
+function resolveEffects(
+  state: GameState,
+  casterId: CharacterId,
+  caster: CreatureState,
+  definition: SpellDefinition,
+  context: {
+    readonly castLevel: number;
+    readonly route: CastingRoute;
+    readonly targets: readonly CharacterId[];
+    readonly unverified: string[];
+    readonly supply: ConcentrationSaveSupply;
+    readonly castingId: string;
+    readonly events: GameEvent[];
+  },
+): Result<SpellCastOutcome> {
+  const { castLevel, route, targets, unverified, supply, castingId, events } = context;
 
   // — what it does ———————————————————————————————————————————————————————
   let current = events.reduce(applyEvent, state);

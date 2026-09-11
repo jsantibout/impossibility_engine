@@ -85,6 +85,15 @@ export interface Concentration {
  */
 export type ConcentrationEndReason =
   | 'voluntary'
+  /**
+   * SRD Ready: a held spell's magic let go on purpose, at its trigger.
+   *
+   * Distinct from `voluntary`, which is a caster dropping a spell that was
+   * doing something. This one is a spell that had not started yet: the
+   * Concentration existed only to hold it, and releasing it is the spell
+   * finally happening rather than the caster giving up on it.
+   */
+  | 'released'
   | 'another-concentration-effect'
   | 'failed-save'
   | 'incapacitated'

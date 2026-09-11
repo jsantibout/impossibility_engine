@@ -25,7 +25,7 @@ import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses } from './attack.js';
 import type { ActiveBonus } from './bonuses.js';
 import { itemFor } from './catalogue.js';
-import { universalAction } from './actions.js';
+import { READY, universalAction } from './actions.js';
 import { noSpellcasting, type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
@@ -173,6 +173,15 @@ export interface CreatureState {
    */
   readonly activeFeatures: readonly string[];
   /**
+   * The action this creature is holding for a trigger, or null.
+   *
+   * Paired with the `action:ready` feature rather than standing alone: that is
+   * what carries the deadline, so "before the start of your next turn" is the
+   * same turn-anchored expiry every other timed benefit uses and needs no
+   * second mechanism. When the feature lapses, this goes with it.
+   */
+  readonly readied: ReadiedAction | null;
+  /**
    * Named bonuses a running effect has hung on this creature.
    *
    * Bless adds 1d4 to attack rolls and saves; Bane subtracts one. They are
@@ -284,6 +293,52 @@ export interface PendingMove {
   readonly feet: number;
   /** Who was offered an Opportunity Attack and has not yet answered. */
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
+}
+
+/**
+ * What a readied action will do when its trigger comes.
+ *
+ * SRD Ready: "you choose the action you will take in response to that trigger,
+ * or you choose to move up to your Speed in response to it."
+ *
+ * `action` is deliberately opaque. The SRD's action list is open — Attack,
+ * Utilize, Influence, Shove, and whatever else a table invents — and the
+ * engine has commands for a handful of them. So the response says only that an
+ * action was chosen, with the caller's own words alongside it, and the caller
+ * performs it once the Reaction is spent. `spell` is the one the SRD writes
+ * its own rules for, and those rules are the engine's: the slot goes now, the
+ * magic is held with Concentration, and the effects land on release.
+ */
+export type ReadiedResponse =
+  | {
+      readonly kind: 'action';
+      /** What action was chosen, as the table said it. Never parsed. */
+      readonly note?: string;
+    }
+  | {
+      readonly kind: 'spell';
+      readonly spellId: string;
+      /** The casting that is being held — already paid for. */
+      readonly castingId: string;
+      /** The level it was cast at, so the release resolves at that level. */
+      readonly castLevel: number;
+    };
+
+/**
+ * An action held back for a trigger that has not happened yet.
+ *
+ * **The trigger is text this engine stores and never reads.** SRD calls it "a
+ * perceivable circumstance", and the circumstances a table readies against —
+ * a door opening, a chant reaching its third line, someone stepping off the
+ * pressure plate — are almost all fiction that structured state has never
+ * heard of. Absence from state is not evidence that a thing does not exist, so
+ * judging the trigger would mean either refusing most readied actions or
+ * inventing a world to judge them in. Maestro says when it fired; the engine
+ * owns the action spent now, the Reaction spent later, and the deadline.
+ */
+export interface ReadiedAction {
+  readonly trigger: string;
+  readonly response: ReadiedResponse;
 }
 
 export interface GameState {
@@ -787,6 +842,31 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly feature: string;
       readonly command?: CommandStamp;
+    }
+  /**
+   * An action held back for a trigger.
+   *
+   * The Ready action's own cost is a separate `action-spent`, and a readied
+   * spell's cost is the ordinary `spell-cast` beside it, so this event says
+   * only what is being held and what for.
+   */
+  | {
+      readonly type: 'readied-declared';
+      readonly id: CharacterId;
+      readonly readied: ReadiedAction;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The held action was let go — taken, or the trigger ignored.
+   *
+   * SRD: "you can either take your Reaction right after the trigger finishes
+   * or ignore the trigger." Ignoring costs nothing, so `took` is what tells
+   * the two apart in a log; the Reaction itself is its own event either way.
+   */
+  | {
+      readonly type: 'readied-released';
+      readonly id: CharacterId;
+      readonly took: boolean;
     }
   /**
    * A feature switched off, and why.
@@ -1394,9 +1474,11 @@ function expireEffects(state: GameState): GameState {
 export function applyEvent(state: GameState, event: GameEvent): GameState {
   const applied = applyOne(state, event);
   return dropOrphanedSaves(
-    expireEffects(
-      endLostFeatures(
-        breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+    dropLapsedReady(
+      expireEffects(
+        endLostFeatures(
+          breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+        ),
       ),
     ),
   );
@@ -1445,6 +1527,79 @@ function endLostFeatures(state: GameState): GameState {
   return { ...state, creatures, timers };
 }
 
+/**
+ * Readied actions whose hold has stopped holding.
+ *
+ * Two ways it ends without being released, and neither is anybody's decision:
+ *
+ * - **The deadline passed.** SRD: the Ready action "lets you act by taking a
+ *   Reaction before the start of your next turn". That is the `action:ready`
+ *   feature's timer, so when the feature is gone the hold is gone with it.
+ * - **A held spell's Concentration broke.** SRD: "holding on to the spell's
+ *   magic requires Concentration... If your Concentration is broken, the spell
+ *   dissipates without taking effect." The slot stays spent — it went when the
+ *   spell was readied — and the Reaction was never taken, so nothing is
+ *   refunded either way.
+ *
+ * The first case leaves a held spell's Concentration running with nothing left
+ * to release, so ending the casting is part of the same cleanup: SRD caps the
+ * hold at "the start of your next turn", and a Concentration that outlived it
+ * would block the next spell on behalf of a casting that no longer exists.
+ */
+function dropLapsedReady(state: GameState): GameState {
+  let current = state;
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = current.creatures[key];
+    if (creature === undefined || creature.readied === null) continue;
+
+    const response = creature.readied.response;
+    const held =
+      response.kind !== 'spell' || creature.concentration?.castingId === response.castingId;
+    const running = creature.activeFeatures.includes(READY);
+    if (held && running) continue;
+
+    // The deadline is what ended it, so the spell it was holding goes too.
+    if (held && response.kind === 'spell') {
+      current = releaseCasting(current, creature.id, response.castingId);
+    }
+
+    const now = current.creatures[key];
+    if (now === undefined) continue;
+    current = {
+      ...current,
+      creatures: {
+        ...current.creatures,
+        [key]: {
+          ...now,
+          readied: null,
+          activeFeatures: now.activeFeatures.filter((f) => f !== READY),
+        },
+      },
+    };
+  }
+
+  // A Ready timer exists only while something is readied — released or
+  // lapsed, the deadline has nothing left to end, and a stale one would sit
+  // waiting to cut the *next* Ready short.
+  const timers: Record<string, TimedEffect> = {};
+  let dropped = false;
+  for (const [key, timer] of Object.entries(current.timers)) {
+    const target = timer.target;
+    if (
+      target.kind === 'feature' &&
+      target.feature === READY &&
+      current.creatures[target.on]?.readied == null
+    ) {
+      dropped = true;
+      continue;
+    }
+    timers[key] = timer;
+  }
+
+  return dropped ? { ...current, timers } : current;
+}
+
 /** Whether this creature still meets what an active feature demands of them. */
 function sustains(creature: CreatureState, feature: string): boolean {
   const definition =
@@ -1491,6 +1646,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             defenses: event.defenses ?? {},
             side: event.side ?? null,
             activeFeatures: [],
+            readied: null,
             bonuses: [],
             initiativeBonuses: [],
             inventory: [],
@@ -1935,6 +2091,28 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         next,
         event.id,
         { activeFeatures: creature.activeFeatures.filter((f) => f !== event.feature) },
+        creature,
+      );
+    }
+    case 'readied-declared': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.readied !== null) {
+        throw new CorruptLogError(event, `${event.id} is already holding a readied action`);
+      }
+      return withCreature(next, event.id, { readied: event.readied }, creature);
+    }
+    case 'readied-released': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.readied === null) {
+        throw new CorruptLogError(event, `${event.id} has no readied action to release`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        {
+          readied: null,
+          activeFeatures: creature.activeFeatures.filter((f) => f !== READY),
+        },
         creature,
       );
     }

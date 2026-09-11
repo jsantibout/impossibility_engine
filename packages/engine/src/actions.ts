@@ -72,8 +72,34 @@ export const DODGE_EFFECTS: readonly StandingEffect[] = [
   },
 ];
 
+/** The feature id a held action hangs on. */
+export const READY = 'action:ready';
+
+/**
+ * SRD Ready: "you take this action on your turn, which lets you act by taking
+ * a Reaction **before the start of your next turn**."
+ *
+ * The same deadline Dodge runs to, and for the same reason it is expressed as
+ * an activated feature rather than a flag on the budget: a turn budget is
+ * cleared when the turn ends, and this has to outlive the turn that bought it.
+ *
+ * No `endsOn`. SRD does not take a readied action away from a creature that
+ * becomes Incapacitated — it takes away their *Reaction*, which the economy
+ * already refuses on its own. Ending the hold as well would be the engine
+ * inventing a second penalty for one condition. A readied *spell* is the
+ * exception and it is not an exception to this rule: what ends it is its
+ * Concentration breaking, which Incapacitated does by the ordinary route.
+ */
+export const READY_ACTION: ActivatedFeature = {
+  feature: READY,
+  name: 'Ready',
+  action: 'action',
+  pool: null,
+  lasts: 'start-of-next-turn',
+};
+
 /** Every action a creature can take that leaves something behind. */
-export const UNIVERSAL_ACTIONS: readonly ActivatedFeature[] = [DODGE_ACTION];
+export const UNIVERSAL_ACTIONS: readonly ActivatedFeature[] = [DODGE_ACTION, READY_ACTION];
 
 /** The standing effects those actions grant while they run. */
 export const UNIVERSAL_ACTION_EFFECTS: readonly StandingEffect[] = [...DODGE_EFFECTS];
