@@ -676,12 +676,30 @@ export interface MoveCommand extends CommandIdentity {
    * creature's own movement either, so it costs no Speed and provokes nobody.
    */
   readonly forced?: boolean;
+  /**
+   * How many feet of this move are through Difficult Terrain.
+   *
+   * SRD: "every foot of movement in that space costs 1 extra foot", and
+   * "Difficult Terrain isn't cumulative; either a space is Difficult Terrain or
+   * it isn't" — which declaring *feet* rather than sources makes true for
+   * free, since there is no way to say a space is difficult twice.
+   *
+   * Declared rather than deduced, on the same grounds as cover and line of
+   * sight: five of the SRD's six environmental cases are fiction — snow,
+   * rubble, furniture, a slope, a narrow opening — and working them out means
+   * modelling the room. The seventh, another creature's space, the engine
+   * *can* see, and `isDifficultTerrain` has answered it since positioning
+   * landed, for a caller working out the number to declare.
+   */
+  readonly difficultFeet?: number;
 }
 
 export interface MoveResolution {
   readonly events: readonly GameEvent[];
   /** How far they went, on the same 5-foot lattice as everything else. */
   readonly feet: number;
+  /** What it cost, which is the distance plus every difficult foot again. */
+  readonly cost: number;
   /** Facts the engine could not check — see `AttackResolution.unverified`. */
   readonly unverified: readonly string[];
   readonly duplicate: boolean;
@@ -717,7 +735,7 @@ export function resolveMove(
   const identity = identify(state, `move:${id}`, command);
   if (!identity.ok) return identity;
   if (identity.value.duplicate) {
-    return ok({ events: [], feet: 0, unverified: [], duplicate: true });
+    return ok({ events: [], feet: 0, cost: 0, unverified: [], duplicate: true });
   }
   const stamp = identity.value.stamp;
 
@@ -747,19 +765,29 @@ export function resolveMove(
   // The distance positioning itself measured, on the lattice, between volumes.
   const feet = moved.value.distance;
 
+  // SRD: "every foot of movement in that space costs 1 extra foot."
+  const difficult = command.difficultFeet ?? 0;
+  if (!Number.isInteger(difficult) || difficult < 0 || difficult > feet) {
+    return err(
+      'bad_difficult_terrain',
+      `a ${feet}-foot move cannot pass through ${difficult} feet of Difficult Terrain`,
+    );
+  }
+  const cost = feet + difficult;
+
   // — what it costs ——————————————————————————————————————————————————————
   //
   // Forced movement is not the creature's own, so it spends none of their
   // Speed. Outside combat there is no budget to spend at all.
   const events: GameEvent[] = [];
   if (state.combat !== null && state.combat.budgets[id] !== undefined && command.forced !== true) {
-    const spent = spendMovement(state.combat, id, feet, mover.conditions);
+    const spent = spendMovement(state.combat, id, cost, mover.conditions);
     if (!spent.ok) {
       return spent.code === 'not_enough_movement' || spent.code === 'no_movement'
         ? spent
         : err('not_enough_movement', spent.reason);
     }
-    events.push({ type: 'movement-spent', id, feet });
+    events.push({ type: 'movement-spent', id, feet: cost });
   }
 
   // — what it provokes ———————————————————————————————————————————————————
@@ -779,7 +807,7 @@ export function resolveMove(
       placement: command.placement,
       ...(command.forced === true ? { forced: true } : {}),
     });
-    return ok({ events, feet, unverified: opportunity.unverified, duplicate: false });
+    return ok({ events, feet, cost, unverified: opportunity.unverified, duplicate: false });
   }
 
   events.push({
@@ -788,7 +816,7 @@ export function resolveMove(
     ...(stamp === null ? {} : { command: stamp }),
   });
 
-  return ok({ events, feet, unverified: opportunity.unverified, duplicate: false });
+  return ok({ events, feet, cost, unverified: opportunity.unverified, duplicate: false });
 }
 
 /**

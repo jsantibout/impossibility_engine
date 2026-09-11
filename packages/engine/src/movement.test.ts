@@ -344,3 +344,83 @@ describe('it replays and survives a reload', () => {
     expect(retry.events).toEqual([]);
   });
 });
+
+/**
+ * Difficult Terrain, which the mover declares rather than the engine deduces.
+ *
+ * SRD: "If a space is Difficult Terrain, every foot of movement in that space
+ * costs 1 extra foot. For example, moving 5 feet through Difficult Terrain
+ * costs 10 feet of movement. **Difficult Terrain isn't cumulative; either a
+ * space is Difficult Terrain or it isn't.**"
+ *
+ * Which spaces those are is fiction in all but one of the SRD's six cases —
+ * snow, rubble, furniture, a slope, waist-deep water, a narrow opening — and
+ * deducing them would mean modelling the room, which is where a rules engine
+ * becomes a VTT. So the same rule cover and line of sight follow applies: the
+ * layer that knows says how much of the move was through it, and the engine
+ * charges for it exactly.
+ *
+ * The seventh case, another creature's space, the engine *can* see, and
+ * `isDifficultTerrain` has answered it since positioning landed — for a caller
+ * working out the number to declare.
+ */
+describe('difficult terrain costs what the SRD says it costs', () => {
+  /** "moving 5 feet through Difficult Terrain costs 10 feet of movement." */
+  it('charges a foot extra for every foot of it', () => {
+    const out = move(SETUP, { ...away(20), difficultFeet: 5 });
+    expect(out.feet).toBe(20);
+    expect(out.cost).toBe(25);
+    expect(fold('seed', out.log).combat?.budgets.rogue?.movementRemaining).toBe(5);
+  });
+
+  it('charges nothing extra for a move through none of it', () => {
+    expect(move(SETUP, away(20)).cost).toBe(20);
+  });
+
+  /** A move entirely through it costs double, which is the SRD's example writ large. */
+  it('doubles a move made entirely through it', () => {
+    const out = move(SETUP, { ...away(15), difficultFeet: 15 });
+    expect(out.cost).toBe(30);
+    expect(fold('seed', out.log).combat?.budgets.rogue?.movementRemaining).toBe(0);
+  });
+
+  it('refuses a move whose real cost is more than the Speed left', () => {
+    // Twenty feet is affordable; twenty feet of bog is not.
+    expect(isErr(resolveMove(fold('seed', SETUP), ROGUE, away(20), supply()))).toBe(false);
+    const bogged = resolveMove(
+      fold('seed', SETUP),
+      ROGUE,
+      { ...away(20), difficultFeet: 20 },
+      supply(),
+    );
+    expect(isErr(bogged)).toBe(true);
+    if (isErr(bogged)) expect(bogged.code).toBe('not_enough_movement');
+  });
+
+  /** More difficult feet than feet moved is a caller's mistake, not a rule. */
+  it('refuses more difficult feet than the move covers', () => {
+    const out = resolveMove(
+      fold('seed', SETUP),
+      ROGUE,
+      { ...away(10), difficultFeet: 15 },
+      supply(),
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('bad_difficult_terrain');
+  });
+
+  /**
+   * SRD: "Difficult Terrain isn't cumulative; either a space is Difficult
+   * Terrain or it isn't." Declaring feet rather than sources is what makes
+   * that true here — there is no way to say a space is difficult twice.
+   */
+  it('cannot be stacked, because feet are what is declared', () => {
+    expect(move(SETUP, { ...away(10), difficultFeet: 10 }).cost).toBe(20);
+  });
+
+  /** Forced movement spends nothing, so the terrain has nothing to charge. */
+  it('charges forced movement nothing, as it charges it nothing at all', () => {
+    const out = move(SETUP, { ...away(20, true), difficultFeet: 20 });
+    expect(fold('seed', out.log).combat?.budgets.rogue?.movementRemaining).toBe(30);
+  });
+});

@@ -55,7 +55,8 @@ still Wizard-shaped are named below.
 | Movement | `resolveMove` spends Speed; Opportunity Attacks | `07630c0` |
 | Death saves | The turn boundary rolls what it owes | `5a94ef3` |
 | Action economy | Extra Attack, Dash, Disengage | `16d1ac0` |
-| Dodge | The one action whose benefit outlives its turn | _this batch_ |
+| Dodge | The one action whose benefit outlives its turn | `5648241` |
+| Difficult terrain | Declared by the foot, charged exactly | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -347,7 +348,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 61 of 230 |
-| Tests | 2,453 passing, none skipped |
+| Tests | 2,460 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,
