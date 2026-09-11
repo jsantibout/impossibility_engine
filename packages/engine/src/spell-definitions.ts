@@ -61,6 +61,28 @@ export interface DiceScaling {
 }
 
 /** What a spell does to a target it reaches. */
+/**
+ * How long a rider lasts, when it ends at a moment in the turn order.
+ *
+ * SRD writes this on dozens of spells and it is **not** a span of seconds —
+ * see the durations section of CLAUDE.md for why folding the two together is
+ * wrong. Where "the start of your next turn" falls depends on the Initiative
+ * order and on whose turn the rider began, and outside combat it has no
+ * meaning at all.
+ *
+ * **The anchor is in the value, not in a separate field**, because the SRD
+ * writes two different anchors — "until the end of **your** next turn" and
+ * "until the end of **its** next turn" — and they are a full round apart. A
+ * bare `'end-of-next-turn'` would read as whichever one the next person
+ * assumed. Only the caster-anchored pair is here: every SRD spell the engine
+ * can currently execute uses it, and the target-anchored riders all need
+ * machinery this does not build — Sleep wants "each creature of your choice"
+ * in an area and a save that escalates on a second failure, Haste's lethargy
+ * fires when the spell *ends*, and the rest are summons or Reaction riders. A
+ * value nothing can be written with would be a value nothing reads.
+ */
+export type RiderDuration = 'start-of-casters-next-turn' | 'end-of-casters-next-turn';
+
 export type SpellEffect =
   /** A spell attack roll; damage on a hit. */
   | {
@@ -97,6 +119,20 @@ export type SpellEffect =
         readonly damage: DiceScaling;
         readonly damageType: string;
       }[];
+      /**
+       * A condition the **same** failed save imposes, alongside the damage.
+       *
+       * Sunbeam: "On a failed save, a creature takes 6d8 Radiant damage **and**
+       * has the Blinded condition until the start of your next turn." Exactly
+       * the argument `plus` already makes for a second damage type — writing
+       * it as a separate effect would roll a second save, and a target could
+       * then fail one and make the other, which is not the spell.
+       */
+      readonly condition?: {
+        readonly name: ConditionName;
+        /** Omitted, it lasts as long as the casting does. */
+        readonly lasts?: RiderDuration;
+      };
     }
   /**
    * Temporary Hit Points.
@@ -173,6 +209,17 @@ export type SpellEffect =
         readonly at: 'start-of-turn' | 'end-of-turn';
         readonly onSuccess: 'end-on-target' | 'end-casting';
       };
+      /**
+       * When this condition ends, if it ends before the casting does.
+       *
+       * Omitted, the condition lasts as long as the casting — which is every
+       * spell the engine executed before this existed, because the casting's
+       * own deadline was the only one there was. Two SRD shapes need their
+       * own: a rider on an **Instantaneous** spell, which has no casting
+       * deadline to borrow (Color Spray), and a rider **shorter** than the
+       * spell that made it (Sunbeam).
+       */
+      readonly lasts?: RiderDuration;
     };
 
 /**
@@ -2135,7 +2182,94 @@ export const DIVINE_SMITE: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Color Spray:
+ *
+ * > _Level 1 Illusion (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Instantaneous.
+ * > "You launch a dazzling array of flashing, colorful light. Each creature in
+ * > a 15-foot Cone originating from you must succeed on a Constitution saving
+ * > throw or have the Blinded condition until the end of your next turn."
+ *
+ * **Instantaneous, with an effect that lasts.** That combination is the whole
+ * reason riders needed their own deadline: the casting is over the moment it
+ * happens, so there is no casting timer for the Blinded to hang on, and before
+ * `lasts` this spell could not be written down at all.
+ *
+ * Range: Self, so the Cone starts at the caster and — being a Cone — does not
+ * include them.
+ */
+export const COLOR_SPRAY: SpellDefinition = {
+  id: 'color-spray',
+  name: 'Color Spray',
+  level: 1,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'cone', length: 15, origin: 'self' },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'con',
+      condition: 'blinded',
+      lasts: 'end-of-casters-next-turn',
+    },
+  ],
+};
+
+/**
+ * SRD Sunbeam:
+ *
+ * > _Level 6 Evocation (Cleric, Druid, Sorcerer, Wizard)._
+ * > **Casting Time:** Action. **Range:** Self.
+ * > **Duration:** Concentration, up to 1 minute.
+ * > "You launch a sunbeam in a 5-foot-wide, 60-foot-long Line. Each creature
+ * > in the Line makes a Constitution saving throw. On a failed save, a
+ * > creature takes 6d8 Radiant damage and has the Blinded condition until the
+ * > start of your next turn. On a successful save, it takes half as much
+ * > damage only."
+ *
+ * The opposite proof to Color Spray. Here there *is* a casting deadline and it
+ * is the wrong one by a wide margin: hanging the Blinded on the spell would
+ * blind the target for a minute rather than for the part of a round the text
+ * gives it. One save carries both the damage and the condition, which is why
+ * the condition sits inside the `save-damage` effect rather than beside it.
+ *
+ * No upcast entry: SRD prints no "Using a Higher-Level Spell Slot" line for
+ * Sunbeam, so a level 7 slot buys nothing but the casting.
+ */
+export const SUNBEAM: SpellDefinition = {
+  id: 'sunbeam',
+  name: 'Sunbeam',
+  level: 6,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'line', length: 60, width: 5, origin: 'self' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '6d8' },
+      damageType: 'radiant',
+      onSuccess: 'half',
+      condition: { name: 'blinded', lasts: 'start-of-casters-next-turn' },
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Magic action that creates a new Line on a later turn, which needs an ongoing effect a turn can act through',
+    'the mote of radiance that sheds sunlight for the duration',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
+  COLOR_SPRAY,
+  SUNBEAM,
   DIVINE_SMITE,
   COMPREHEND_LANGUAGES,
   DARKVISION,

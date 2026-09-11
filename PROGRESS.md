@@ -58,7 +58,8 @@ still Wizard-shaped are named below.
 | Dodge | The one action whose benefit outlives its turn | `5648241` |
 | Difficult terrain | Declared by the foot, charged exactly | `06dd3b1` |
 | Ready | An action spent now for a Reaction later; readied spells | `d63d75d` |
-| Readied move | "Up to your Speed", out of the Reaction rather than the turn | _this batch_ |
+| Readied move | "Up to your Speed", out of the Reaction rather than the turn | `eae9c67` |
+| Turn-anchored riders | An effect with its own deadline; Color Spray, Sunbeam | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -148,6 +149,38 @@ still Wizard-shaped are named below.
   together — both are the action — but reading the flag off the budget without
   asking which turn set it would have let one turn's Disengage cover a Reaction
   taken on another.
+- **A rider can outlive its casting, or die before it.** SRD writes dozens of
+  effects that end at a moment in the turn order rather than when the spell
+  does, and the two spells that prove it are opposites. Color Spray is
+  **Instantaneous** and blinds "until the end of your next turn" — there is no
+  casting deadline to hang the Blinded on, so the spell could not be written at
+  all. Sunbeam runs a **minute** and blinds "until the start of your next turn"
+  — hanging it on the casting would blind the target sixty seconds too long.
+  `applyConditionTo` has taken a per-condition `Duration` since durations
+  landed; what was missing was any way for a definition to ask for one.
+- **The anchor lives in the value, not in a field beside it.** SRD writes both
+  "until the end of **your** next turn" and "until the end of **its** next
+  turn", and they are a full round apart. A bare `'end-of-next-turn'` reads as
+  whichever the next person assumes, so the values are spelled
+  `end-of-casters-next-turn`. Only the caster-anchored pair exists: every SRD
+  spell the engine can currently execute uses it, and each target-anchored
+  rider needs machinery this did not build — Sleep wants "each creature of your
+  choice" inside an area and a save that escalates on a second failure, Haste's
+  lethargy fires when the spell *ends*, and the rest are summons or Reaction
+  riders. A value nothing can be written with would be a value nothing reads.
+- **A rider is checked before the first die, not when it lands.** A
+  turn-anchored deadline cannot be pinned outside combat and `resolveDuration`
+  refuses rather than inventing six seconds — but the condition is applied
+  *after* the saving throw, so discovering it there would have moved the
+  caller's generator for a cast that never happened. `resolveSpell` asks up
+  front, which is the same validate-before-rolling rule the rest of casting
+  obeys, and is why a Color Spray outside combat costs its caster nothing.
+- **One save, two consequences.** Sunbeam deals damage *and* blinds on a single
+  Constitution save, so the condition sits inside the `save-damage` effect
+  rather than beside it — exactly the argument `plus` already makes for a
+  second damage type. Two effects would roll two saves, and a target could then
+  fail one and make the other, which is not the spell. And it is on the failure
+  branch alone: "On a successful save, it takes half as much damage **only**."
 - **An attack can be held between its two rolls.** SRD Divine Smite is cast
   "immediately after hitting a target", so there has to *be* an after-hitting.
   `resolveAttack` with `hold` stops after the attack roll and records the hit
@@ -241,25 +274,32 @@ still Wizard-shaped are named below.
    spells fit one of them and need only a definition with its SRD quote.
    `spell-catalogue.test.ts` drives every definition automatically, so the
    test cost of each new one is zero. This is the cheapest coverage there is.
-3. **Turn-anchored spell durations.** `SpellDefinition.durationSeconds` is
-   elapsed time only, so "until the end of your next turn" cannot be written
-   down — Color Spray and several riders are blocked on it. `duration.ts`
-   already has `endOfNextTurn`; the definition needs a way to name it.
-4. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
+3. **Target-anchored riders**, and the two things each of them also needs.
+   `lasts` carries the caster-anchored pair only. Sleep is the nearest
+   candidate and wants "each creature of your choice" inside an area — the area
+   model catches everyone in the shape, and putting a party to sleep is a
+   *wrong* answer rather than a missing one — plus a repeat save that escalates
+   to Unconscious on a second failure, which is a third outcome the hook
+   machinery has no room for. Haste's lethargy fires when the spell ends, which
+   is a trigger nothing raises.
+4. **A condition a spell attack imposes.** Ray of Sickness poisons "until the
+   end of your next turn" on a hit, and the `attack` effect has nowhere to say
+   so — the same shape `save-damage` just gained, one branch over.
+5. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
    deal a second, smaller hit at the end of the target's next turn. The turn
    hook machinery raises *saves*; this needs it to raise damage too.
-5. **Ongoing effects a later turn can act through** (18 spells). Spiritual
+6. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-6. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
+7. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
    that can order a cast against the event that triggered it. This is the
    hardest remaining spell mechanism and is deliberately last.
-7. **Summons** (9 spells). Needs a creature created mid-fight from a stat
+8. **Summons** (9 spells). Needs a creature created mid-fight from a stat
    block, which `adaptMonster` can already produce — the gap is an event that
    adds it and ties its life to the casting.
-8. **Long casting times** (43 spells). Needs a casting-in-progress state
+9. **Long casting times** (43 spells). Needs a casting-in-progress state
    machine with a per-turn obligation; the clock alone was never the blocker.
-9. **Classes.** See below.
+10. **Classes.** See below.
 
 ## Classes: all twelve, with one subclass each
 

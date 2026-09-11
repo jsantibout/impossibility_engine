@@ -51,6 +51,7 @@ import {
   scaledFlatFor,
   definitionFor,
   targetCountFor,
+  type RiderDuration,
   type SpellArea,
   type SpellDefinition,
   type SpellRange,
@@ -470,6 +471,47 @@ export function applyConditionTo(
   }
 
   return ok(events);
+}
+
+/**
+ * A rider's own deadline, bound to the creature it is anchored to.
+ *
+ * A definition names a *role* rather than a creature, because it is written
+ * once and cast at whoever is standing there. Binding it here is the only
+ * place a role becomes an id, so there is exactly one reading of "your next
+ * turn" in the engine.
+ *
+ * Returns undefined when the rider has no deadline of its own, which is the
+ * ordinary case: the condition then lasts as long as the casting, on the
+ * casting's own timer.
+ */
+function riderDuration(
+  lasts: RiderDuration | undefined,
+  casterId: CharacterId,
+): Duration | undefined {
+  if (lasts === undefined) return undefined;
+  return lasts === 'end-of-casters-next-turn'
+    ? endOfNextTurn(casterId)
+    : startOfNextTurn(casterId);
+}
+
+/**
+ * Every rider deadline a casting of this spell is going to need.
+ *
+ * Gathered so they can be checked before anything is spent. A turn-anchored
+ * rider cannot be pinned outside combat, and finding that out at the moment
+ * the condition lands is too late: the saving throw has already been rolled,
+ * and the caller's generator has already moved for a cast that never happened.
+ */
+function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
+  const found: RiderDuration[] = [];
+  for (const effect of definition.effects) {
+    if (effect.kind === 'save' && effect.lasts !== undefined) found.push(effect.lasts);
+    if (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined) {
+      found.push(effect.condition.lasts);
+    }
+  }
+  return found;
 }
 
 /**
@@ -3492,6 +3534,19 @@ function castOrRelease(
     );
   }
 
+  // SRD gives "until the end of your next turn" no meaning where there are no
+  // turns, and `resolveDuration` refuses rather than inventing six seconds.
+  // Asked here, before the slot and before the first die: the same
+  // validate-before-rolling rule the rest of casting obeys, and the reason a
+  // Color Spray outside combat costs its caster nothing at all.
+  for (const lasts of riderDurations(definition)) {
+    const pinned = resolveDuration(
+      { elapsed: state.elapsed, combat: state.combat },
+      riderDuration(lasts, casterId) as Duration,
+    );
+    if (!pinned.ok) return pinned;
+  }
+
   // SRD Divine Smite is cast "immediately after hitting a target", so the
   // attack is the thing it needs and this command has none to give it.
   if (definition.effects.some((effect) => effect.kind === 'attack-damage')) {
@@ -4207,11 +4262,31 @@ function resolveEffects(
 
         events.push(...hurt.value.events);
         current = hurt.value.events.reduce(applyEvent, current);
+
+        // SRD Sunbeam: "takes 6d8 Radiant damage **and** has the Blinded
+        // condition". The same failed save, so no second roll — and nothing at
+        // all on a success, because the condition is on the failure branch of
+        // a sentence the damage only half-shares.
+        if (effect.condition !== undefined && !save.value.success) {
+          const rider = applySpellEffect(current, target, effect.condition.name, casterId, {
+            casting: { castingId, spell: definition.name },
+            ...(riderDuration(effect.condition.lasts, casterId) === undefined
+              ? {}
+              : { duration: riderDuration(effect.condition.lasts, casterId)! }),
+          });
+          if (!rider.ok) return rider;
+          events.push(...rider.value);
+          current = rider.value.reduce(applyEvent, current);
+        }
+
         outcomes.push({
           target,
           save: save.value,
           damage: hurt.value.amount,
           concentration: hurt.value.concentration,
+          ...(effect.condition === undefined || save.value.success
+            ? {}
+            : { condition: effect.condition.name }),
           affected: !save.value.success,
         });
         continue;
@@ -4247,6 +4322,9 @@ function resolveEffects(
 
       const landed = applySpellEffect(current, target, effect.condition, casterId, {
         casting: { castingId, spell: definition.name },
+        ...(riderDuration(effect.lasts, casterId) === undefined
+          ? {}
+          : { duration: riderDuration(effect.lasts, casterId)! }),
         ...(effect.repeats === undefined
           ? {}
           : {

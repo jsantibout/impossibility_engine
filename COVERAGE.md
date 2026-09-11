@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 14 (4.1%) | 44 (13.0%) | 43 (12.7%) |
+| 339 | 14 (4.1%) | 46 (13.6%) | 43 (12.7%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -36,7 +36,7 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Tracked | Executed | Blocked on |
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 0 | 13 | — |
+| Area of effect | 73 | 0 | 15 | — |
 | Reaction timing | 4 | 0 | 0 | an interrupt mechanism that can order a cast against its trigger |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 0 | an effect that a later turn can act through |
@@ -62,6 +62,7 @@ spell, and the area is the part that is missing.
 - **Charm Person** (level 1) — verified
 - **Chill Touch** (cantrip) — verified
 - **Circle of Death** (level 6) — verified
+- **Color Spray** (level 1) — untested
 - **Cone of Cold** (level 5) — verified
 - **Cure Wounds** (level 1) — verified
 - **Dissonant Whispers** (level 1) — verified
@@ -91,6 +92,7 @@ spell, and the area is the part that is missing.
 - **Sacred Flame** (cantrip) — verified
 - **Shatter** (level 2) — verified
 - **Shocking Grasp** (cantrip) — verified
+- **Sunbeam** (level 6) — untested
 - **Thunderwave** (level 1) — verified
 - **Vicious Mockery** (cantrip) — verified
 - **Vitriolic Sphere** (level 4) — verified

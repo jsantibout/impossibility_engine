@@ -105,12 +105,40 @@ const supply = (seed: string, bonus: number) => ({
  * excused the check.
  */
 const logFor = (spellId: string): readonly GameEvent[] => {
-  const wanted = definitionFor(spellId)?.targets.mustBeType;
-  if (wanted === undefined || wanted.toLowerCase() === 'humanoid') return SETUP;
+  const definition = definitionFor(spellId);
+  const wanted = definition?.targets.mustBeType;
+
+  const typed: readonly GameEvent[] =
+    wanted === undefined || wanted.toLowerCase() === 'humanoid'
+      ? SETUP
+      : [
+          ...SETUP,
+          { type: 'creature-type-declared', id: TARGET, creatureType: wanted },
+          { type: 'creature-type-declared', id: BYSTANDER, creatureType: wanted },
+        ];
+
+  // A rider that ends at a moment in the turn order needs there to *be* turns.
+  // SRD gives "until the end of your next turn" no meaning outside combat and
+  // the engine refuses rather than inventing six seconds, so a spell carrying
+  // one is driven in a fight. Not an excuse for the spell: the refusal is
+  // asserted on its own in `turn-anchored-riders.test.ts`.
+  const anchored = (definition?.effects ?? []).some(
+    (effect) =>
+      (effect.kind === 'save' && effect.lasts !== undefined) ||
+      (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined),
+  );
+  if (!anchored) return typed;
+
   return [
-    ...SETUP,
-    { type: 'creature-type-declared', id: TARGET, creatureType: wanted },
-    { type: 'creature-type-declared', id: BYSTANDER, creatureType: wanted },
+    ...typed,
+    {
+      type: 'combat-started',
+      combatants: [
+        { id: CASTER, initiative: 20, speed: 30 },
+        { id: TARGET, initiative: 10, speed: 30 },
+        { id: BYSTANDER, initiative: 5, speed: 30 },
+      ],
+    },
   ];
 };
 
