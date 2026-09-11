@@ -57,6 +57,14 @@ import type { GrantedSpell, SpellcastingState } from './spellcasting.js';
 import { BARBARIAN, BARBARIAN_SUBCLASSES } from './barbarian.js';
 import { BARD, BARD_SUBCLASSES } from './bard.js';
 import { CLERIC, CLERIC_SUBCLASSES } from './cleric.js';
+import {
+  characterLevel,
+  combinedArmorTraining,
+  meetsPrerequisites,
+  multiclassSlots,
+  pactSlotsOf,
+  type ClassLevel,
+} from './multiclass.js';
 import { DRUID, DRUID_SUBCLASSES } from './druid.js';
 import { MONK, MONK_SUBCLASSES } from './monk.js';
 import { FIGHTER, FIGHTER_SUBCLASSES } from './fighter.js';
@@ -197,6 +205,19 @@ export interface CharacterChoices {
   readonly cantrips: readonly string[];
   /** The book, each entry saying when it arrived and why. */
   readonly spellbook: readonly SpellbookEntry[];
+  /**
+   * Levels in classes other than the one this character started as.
+   *
+   * SRD's own framing: you begin as one class and "gain a level in a new class
+   * whenever you advance in level". So `classId` and `level` stay the starting
+   * class — which is the one that grants its *full* proficiencies — and these
+   * are the rest. A character with none of these is single-classed and every
+   * rule behaves exactly as it did before.
+   *
+   * Character level is the total. Proficiency Bonus, spell slots and hit
+   * points all read the total rather than any one class's level.
+   */
+  readonly multiclass?: readonly ClassLevel[];
   readonly preparedSpells: readonly string[];
   /** Which starting-equipment package, by the SRD's own label. */
   readonly classEquipment: string;
@@ -456,14 +477,113 @@ function checkSkills(choices: CharacterChoices, definition: ClassDefinition): Cr
   return problems;
 }
 
-/** Every feature the character has, from all four sources. */
+/**
+ * Every class this character has levels in, starting class first.
+ *
+ * One place that answers it, because "which classes" is asked by the features,
+ * the hit points, the slots, the armour training and the Proficiency Bonus,
+ * and five answers would be five chances to forget the second class.
+ */
+function classLevelsOf(choices: CharacterChoices): readonly ClassLevel[] {
+  return [{ classId: choices.classId, level: choices.level }, ...(choices.multiclass ?? [])];
+}
+
+/** SRD: "your character level is the total of all your class levels." */
+function totalLevelOf(choices: CharacterChoices): number {
+  return characterLevel(classLevelsOf(choices));
+}
+
+/**
+ * Every feature the character has, from all four sources — and from every
+ * class, at that class's own level.
+ *
+ * SRD: "When you gain a new level in a class, you get its features for that
+ * level." A level 3 Fighter / level 2 Wizard has the Fighter's level 3
+ * features and the Wizard's level 2 ones, not either at level 5.
+ */
 function grantedFeatures(choices: CharacterChoices, parts: Parts): readonly FeatureDefinition[] {
+  const extra: FeatureDefinition[] = [];
+  for (const entry of choices.multiclass ?? []) {
+    const definition = classById(entry.classId);
+    if (definition === null) continue;
+    extra.push(...cumulativeFeatures(definition, entry.level));
+    const subclass = entry.subclassId === undefined ? null : subclassById(entry.subclassId);
+    if (subclass !== null) extra.push(...cumulativeFeatures(subclass, entry.level));
+  }
+
   return [
     ...cumulativeFeatures(parts.definition, choices.level),
     ...(parts.subclass === null ? [] : cumulativeFeatures(parts.subclass, choices.level)),
+    ...extra,
     ...cumulativeFeatures(parts.species, choices.level),
     ...cumulativeFeatures(parts.background, choices.level),
   ];
+}
+
+/**
+ * The multiclassing rules, checked before anything is derived from them.
+ *
+ * Three refusals, each of which would otherwise produce a character the rules
+ * do not allow: a class nobody registered, the same class twice, and scores
+ * below the 13 every class involved demands.
+ */
+function checkMulticlass(choices: CharacterChoices): CreationProblem[] {
+  const extra = choices.multiclass ?? [];
+  if (extra.length === 0) return [];
+
+  const problems: CreationProblem[] = [];
+  const definitions: ClassDefinition[] = [];
+  const seen = new Set<string>([choices.classId]);
+
+  for (const entry of extra) {
+    const definition = classById(entry.classId);
+    if (definition === null) {
+      problems.push(problem('unknown_class', 'multiclass', `no class called ${entry.classId}`));
+      continue;
+    }
+    if (seen.has(entry.classId)) {
+      problems.push(
+        problem('duplicate_class', 'multiclass', `${definition.name} is listed twice; add its levels together instead`),
+      );
+      continue;
+    }
+    seen.add(entry.classId);
+    definitions.push(definition);
+
+    if (!Number.isInteger(entry.level) || entry.level < 1) {
+      problems.push(
+        problem('bad_level', 'multiclass', `${definition.name} needs at least one level, got ${entry.level}`),
+      );
+    }
+    if (entry.subclassId !== undefined) {
+      const subclass = subclassById(entry.subclassId);
+      if (subclass === null || subclass.classId !== entry.classId) {
+        problems.push(
+          problem('wrong_subclass', 'multiclass', `${entry.subclassId} is not a ${definition.name} subclass`),
+        );
+      } else if (entry.level < definition.subclassLevel) {
+        problems.push(
+          problem('subclass_too_early', 'multiclass', `a ${definition.name} chooses a subclass at level ${definition.subclassLevel}`),
+        );
+      }
+    }
+  }
+
+  const total = totalLevelOf(choices);
+  if (total > MAX_LEVEL) {
+    problems.push(
+      problem('bad_level', 'multiclass', `character level ${total} is past ${MAX_LEVEL}`),
+    );
+  }
+
+  const starting = classById(choices.classId);
+  const all = starting === null ? definitions : [starting, ...definitions];
+  const qualified = meetsPrerequisites(finalScores(choices), all);
+  if (!qualified.ok) {
+    problems.push(problem(qualified.code, 'multiclass', qualified.reason));
+  }
+
+  return problems;
 }
 
 /**
@@ -644,6 +764,26 @@ const duplicates = (ids: readonly string[]): readonly string[] => {
   return [...twice];
 };
 
+/**
+ * Which of a character's classes cast, each at its own level.
+ *
+ * SRD: "You determine what spells you can prepare for each class
+ * individually, as if you were a single-classed member of that class." So the
+ * class that validates a Fighter/Wizard's spells is the Wizard, at Wizard
+ * level — the Fighter has nothing to say about them.
+ */
+function castingClassesOf(choices: CharacterChoices): readonly {
+  readonly definition: ClassDefinition;
+  readonly level: number;
+}[] {
+  const casters: { definition: ClassDefinition; level: number }[] = [];
+  for (const entry of classLevelsOf(choices)) {
+    const definition = classById(entry.classId);
+    if (definition?.spellcasting !== undefined) casters.push({ definition, level: entry.level });
+  }
+  return casters;
+}
+
 function checkSpells(choices: CharacterChoices, definition: ClassDefinition): CreationProblem[] {
   // Spells a feature writes into the book are in the book: preparation can
   // reach them even though the count rule does not measure them. Gathered by
@@ -651,15 +791,45 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
   // subclass with free spells needs no change here.
   const fromFeatures = spellsFromFeatures(choices, definition);
   const problems: CreationProblem[] = [];
-  const row = rowAt(definition, choices.level);
+
+  // — which class's rules apply —————————————————————————————————————————————
+  //
+  // SRD: "You determine what spells you can prepare for each class
+  // individually, as if you were a single-classed member of that class." So a
+  // Fighter/Wizard's spells answer to the Wizard, at Wizard level, and the
+  // Fighter has nothing to say about them.
+  //
+  // Two casting classes is refused rather than approximated. The engine keeps
+  // **one** prepared list and one spellcasting ability per creature, and SRD
+  // requires each prepared spell to remember which class prepared it and to
+  // use that class's ability. Validating a merged list would record a
+  // character the rules do not describe; the slot arithmetic for that case is
+  // implemented and tested in `multiclass.ts`, and this is the part that is
+  // honestly missing.
+  const casters = castingClassesOf(choices);
+  if (casters.length > 1) {
+    return [
+      problem(
+        'multiple_casting_classes',
+        'multiclass',
+        `${casters.map((c) => c.definition.name).join(' and ')} both cast, and a creature carries one prepared list and one spellcasting ability; per-class preparation is not modelled`,
+      ),
+    ];
+  }
+
+  const caster = casters[0];
+  const spellLevel = caster?.level ?? choices.level;
+  const casting = caster?.definition ?? definition;
+
+  const row = rowAt(casting, spellLevel);
   if (!row.ok) return problems;
 
-  // A class with no spellcasting block casts nothing, and the difference
+  // A character with no casting class at all casts nothing, and the difference
   // between that and "has none at this level" matters: a Fighter does not know
   // zero cantrips, a Fighter has no cantrips. Anything written down here is a
   // mistake rather than a spell, and the feat route is untouched — Magic
   // Initiate on a Fighter is a real character.
-  if (definition.spellcasting === undefined) {
+  if (caster === undefined) {
     if (choices.cantrips.length > 0) {
       problems.push(
         problem('no_spellcasting', 'cantrips', `a ${definition.name} has no cantrips`),
@@ -678,14 +848,14 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
     return problems;
   }
 
-  const slots = slotsAt(definition, choices.level);
+  const slots = slotsAt(casting, spellLevel);
   const topSlot = highestSlotLevel(slots);
 
   // — cantrips ————————————————————————————————————————————————————————————
   const cantrips = row.value.cantripsKnown ?? 0;
   if (choices.cantrips.length !== cantrips) {
     problems.push(
-      problem('wrong_cantrip_count', 'cantrips', `a level ${choices.level} ${definition.name} knows ${cantrips} cantrips, got ${choices.cantrips.length}`),
+      problem('wrong_cantrip_count', 'cantrips', `a level ${spellLevel} ${casting.name} knows ${cantrips} cantrips, got ${choices.cantrips.length}`),
     );
   }
   for (const id of duplicates(choices.cantrips)) {
@@ -693,7 +863,7 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
   }
   for (const id of choices.cantrips) {
     problems.push(
-      ...checkSpellId(id, 'cantrips', definition.id, { minLevel: 0, maxLevel: 0, what: 'a cantrip' }),
+      ...checkSpellId(id, 'cantrips', casting.id, { minLevel: 0, maxLevel: 0, what: 'a cantrip' }),
     );
   }
 
@@ -702,15 +872,15 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
   // Only a class that *has* one. SRD gives a Cleric no book at all: they
   // prepare from the whole class list every morning, and a spellbook entry on
   // a Cleric is a mistake rather than a spell.
-  const style = definition.spellcasting?.style ?? 'spellbook';
+  const style = casting.spellcasting?.style ?? 'spellbook';
 
   if (style !== 'spellbook') {
     if (choices.spellbook.length > 0) {
       problems.push(
-        problem('no_spellbook', 'spellbook', `a ${definition.name} has no spellbook to write spells in`),
+        problem('no_spellbook', 'spellbook', `a ${casting.name} has no spellbook to write spells in`),
       );
     }
-    problems.push(...checkPreparedFromList(choices, definition, row.value, topSlot, style));
+    problems.push(...checkPreparedFromList(choices, casting, row.value, topSlot, style));
     return problems;
   }
 
@@ -718,10 +888,10 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
   // from a scroll in play ride along and are not counted, or a Wizard who had
   // adventured could not level up.
   const granted = countOf(choices.spellbook, 'level');
-  const expected = levelGrantedSpells(choices.level);
+  const expected = levelGrantedSpells(spellLevel);
   if (granted !== expected) {
     problems.push(
-      problem('wrong_spellbook_count', 'spellbook', `a level ${choices.level} ${definition.name} is granted ${expected} spells by levelling, got ${granted}; spells copied in play carry origin "copied" and are not counted`),
+      problem('wrong_spellbook_count', 'spellbook', `a level ${spellLevel} ${casting.name} is granted ${expected} spells by levelling, got ${granted}; spells copied in play carry origin "copied" and are not counted`),
     );
   }
   for (const id of duplicates(spellIds(choices.spellbook))) {
@@ -729,13 +899,13 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
   }
   for (const entry of choices.spellbook) {
     problems.push(
-      ...checkSpellId(entry.spellId, 'spellbook', definition.id, {
+      ...checkSpellId(entry.spellId, 'spellbook', casting.id, {
         minLevel: 1,
         maxLevel: topSlot,
         what: 'a spellbook',
       }),
     );
-    if (!Number.isInteger(entry.acquiredAt) || entry.acquiredAt < 1 || entry.acquiredAt > choices.level) {
+    if (!Number.isInteger(entry.acquiredAt) || entry.acquiredAt < 1 || entry.acquiredAt > spellLevel) {
       problems.push(
         problem('bad_acquisition_level', 'spellbook', `${entry.spellId} says it was acquired at level ${entry.acquiredAt}, which is not a level this character has reached`),
       );
@@ -746,7 +916,7 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
   const prepared = row.value.preparedSpells ?? 0;
   if (choices.preparedSpells.length !== prepared) {
     problems.push(
-      problem('wrong_prepared_count', 'preparedSpells', `a level ${choices.level} ${definition.name} prepares ${prepared} spells, got ${choices.preparedSpells.length}`),
+      problem('wrong_prepared_count', 'preparedSpells', `a level ${spellLevel} ${casting.name} prepares ${prepared} spells, got ${choices.preparedSpells.length}`),
     );
   }
   for (const id of duplicates(choices.preparedSpells)) {
@@ -1039,6 +1209,99 @@ export function hitPointsFor(
   return Math.max(1, total);
 }
 
+/**
+ * Hit points across every class the character has levels in.
+ *
+ * SRD: "You gain the Hit Points from your new class as described for levels
+ * after 1. You gain the level 1 Hit Points for a class only when your total
+ * character level is 1." So the starting class pays the maximum die once and
+ * every level after it — in *any* class — takes the average or a roll.
+ *
+ * A single-classed character goes through exactly the same arithmetic it
+ * always did, which is the property the existing tests hold this to.
+ */
+function multiclassHitPoints(choices: CharacterChoices, constitution: number): number {
+  const starting = classById(choices.classId);
+  if (starting === null) return 1;
+
+  const extra = choices.multiclass ?? [];
+  if (extra.length === 0) {
+    return hitPointsFor(starting, choices.level, constitution, choices.hitPoints);
+  }
+
+  // Level 1 in the starting class, at the full die.
+  let total = starting.hitDie + constitution;
+  let gained = 1;
+
+  const after = (definition: ClassDefinition, levels: number): void => {
+    const average = Math.floor(definition.hitDie / 2) + 1;
+    for (let n = 0; n < levels; n += 1) {
+      const die =
+        choices.hitPoints.method === 'rolled'
+          ? (choices.hitPoints.rolls[gained - 1] ?? average)
+          : average;
+      total += Math.max(1, die + constitution);
+      gained += 1;
+    }
+  };
+
+  after(starting, choices.level - 1);
+  for (const entry of extra) {
+    const definition = classById(entry.classId);
+    if (definition !== null) after(definition, entry.level);
+  }
+
+  return Math.max(1, total);
+}
+
+/**
+ * Spell slots, from one class's table or from the combined one.
+ *
+ * SRD: "If you multiclass but have the Spellcasting feature from only one
+ * class, follow the rules for that class." So a Fighter/Wizard reads the
+ * Wizard's own table, and only a character casting from *two* classes goes to
+ * the weighted sum. Pact Magic stays its own pool either way.
+ */
+function slotsFor(
+  choices: CharacterChoices,
+  definition: ClassDefinition,
+): Record<number, number> {
+  const extra = choices.multiclass ?? [];
+  if (extra.length === 0) return slotsAt(definition, choices.level);
+
+  const levels = classLevelsOf(choices);
+  const casters = levels.filter((entry) => classById(entry.classId)?.spellcasting !== undefined);
+
+  // Pact Magic is never in the combined sum, and is added back as its own pool.
+  const warlock = casters.find((entry) => entry.classId === 'warlock');
+  const pact =
+    warlock === undefined
+      ? {}
+      : pactSlotsOf(levels, classById('warlock')?.table ?? []);
+
+  const others = casters.filter((entry) => entry.classId !== 'warlock');
+  if (others.length === 0) return pact;
+  if (others.length === 1) {
+    const only = others[0];
+    const single = only === undefined ? null : classById(only.classId);
+    const own = single === null || only === undefined ? {} : slotsAt(single, only.level);
+    return { ...own, ...pact };
+  }
+
+  const fullCasterTable = FULL_CASTER_SLOTS();
+  return { ...multiclassSlots(levels, fullCasterTable), ...pact };
+}
+
+/**
+ * The full-caster slot rows, read off a registered full caster.
+ *
+ * SRD's Multiclass Spellcaster table is identical to every full caster's own,
+ * and `multiclass.test.ts` asserts that for all five of them. Reading one is
+ * how a second transcription of the same twenty rows is avoided.
+ */
+const FULL_CASTER_SLOTS = (): readonly (readonly number[])[] =>
+  (classById('wizard')?.table ?? []).map((row) => row.spellSlots ?? []);
+
 /** SRD "Choose Languages": Common, plus two from the Standard Languages table. */
 function checkLanguages(choices: CharacterChoices): CreationProblem[] {
   const problems: CreationProblem[] = [];
@@ -1244,6 +1507,7 @@ export function checkCharacter(
     ...checkSkills(choices, parts.definition),
     ...checkLanguages(choices),
     ...checkDmGrants(choices),
+    ...checkMulticlass(choices),
   ];
 
   const { skills } = gatherProficiencies(choices, parts);
@@ -1314,15 +1578,22 @@ export function planCharacter(
   const held = equipped.find((piece) => piece !== null && piece.category === 'shield') ?? null;
 
   const sheet: CharacterSheet = {
-    level: choices.level,
+    // SRD: the Proficiency Bonus is "based on your total character level, not
+    // your level in a particular class", and the sheet's level is what derives
+    // it. A level 3 Fighter / level 2 Rogue has a level 5 character's bonus.
+    level: totalLevelOf(choices),
     abilities: scores,
     skills,
+    // SRD gives no saving throw proficiencies for a class after the first.
     saveProficiencies: definition.saveProficiencies,
     armor: worn,
     shield: held,
-    armorTraining: definition.armorTraining,
+    armorTraining: combinedArmorTraining(
+      definition,
+      (choices.multiclass ?? []).map((entry) => entry.classId),
+    ),
     baseSpeed: species.speed,
-    spellcastingAbility: definition.primaryAbility,
+    spellcastingAbility: definition.spellcasting?.ability ?? definition.primaryAbility,
   };
 
   const owned = inventoryOf(choices, parts);
@@ -1395,9 +1666,9 @@ export function planCharacter(
   return ok({
     sheet,
     proficiencyBonus: proficiencyBonusForLevel(choices.level),
-    hitPointMaximum: hitPointsFor(definition, choices.level, abilityModifier(scores.con), choices.hitPoints),
+    hitPointMaximum: multiclassHitPoints(choices, abilityModifier(scores.con)),
     hitDie: definition.hitDie,
-    spellSlots: slotsAt(definition, choices.level),
+    spellSlots: slotsFor(choices, definition),
     cantrips: choices.cantrips,
     // The Evoker's free Evocation spells join the book, marked as the feature's.
     spellbook: [...choices.spellbook, ...savant],

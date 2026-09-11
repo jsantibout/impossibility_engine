@@ -37,7 +37,9 @@ still Wizard-shaped are named below.
 | Sixth class | Rogue + Thief; the Expertise grant's second user | `5fd7495` |
 | Seventh class | Warlock + Fiend Patron; Pact Magic and Short-Rest slots | `b1c6fb4` |
 | Barbarian, Monk | Two non-casters; the shared suite runs on every class | `a65c67f` |
-| Bard, Druid, Ranger | The last three — **all twelve SRD classes** | *this batch* |
+| Bard, Druid, Ranger | The last three — **all twelve SRD classes** | `4762633` |
+| Class coverage | COVERAGE.md counts classes and executed features too | `a4d8d1a` |
+| Multiclassing | Rules module, and wired into creation | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -190,8 +192,18 @@ What remains in the class system, in likely order:
   recurring blockers are: extra attacks inside the Attack action, Reactions
   with triggers, auras that follow a creature, and defences that can change
   after a rest.
-- **Multiclassing is not modelled**: no combined slot table, no prerequisite
-  check, no proficiency-subset rule for the second class.
+- **Multiclassing is wired.** `multiclass.ts` holds the rules that only exist
+  between classes; `CharacterChoices.multiclass` carries the extra classes, and
+  creation reads the total level for the Proficiency Bonus, each class's own
+  level for its features, the union for armour training, each class's die for
+  hit points, and the weighted sum for slots.
+  **What it refuses:** two *casting* classes. SRD requires each prepared spell
+  to remember which class prepared it and to use that class's spellcasting
+  ability; a creature carries one prepared list and one ability, so a merged
+  list would record a character the rules do not describe. The slot arithmetic
+  for that case is implemented and tested against the SRD's worked example —
+  per-class preparation is the missing piece, and it is the next thing to do
+  in this area.
 - **Mystic Arcanum** (Warlock 11+) is four one-use pools attached to spells
   chosen at those levels. Not modelled, and the reason a Warlock here has no
   slots above level 5.
