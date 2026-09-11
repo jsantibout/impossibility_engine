@@ -83,7 +83,7 @@ const PLACED: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: CASTER,
-    spellcasting: declaredCasting({ ability: 'int', prepared: ['color-spray', 'sunbeam'] }),
+    spellcasting: declaredCasting({ ability: 'int', prepared: ['color-spray', 'sunbeam', 'ray-of-sickness'] }),
   },
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
   { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
@@ -342,6 +342,115 @@ describe('Sunbeam: a rider shorter than the casting that made it', () => {
     const state = fold('seed', broken);
     expect(state.creatures.caster!.concentration).toBeNull();
     expect(blinded(state, TARGET)).toBe(false);
+  });
+});
+
+describe('Ray of Sickness: a rider on a hit rather than on a failed save', () => {
+  /**
+   * SRD Ray of Sickness: **Duration: Instantaneous**, and "Make a ranged spell
+   * attack against the target. On a hit, the target takes 2d8 Poison damage
+   * **and** has the Poisoned condition until the end of your next turn."
+   *
+   * The third place a rider can hang, after a save that only conditions and a
+   * save that also damages. What decides it here is the attack roll, so a miss
+   * leaves the target untouched — there is no half-measure branch to fall
+   * through to, which is the difference between this and Sunbeam.
+   */
+  const ray = (seed: string) =>
+    resolved(
+      unwrap(
+        resolveSpell(
+          fold('seed', SETUP),
+          CASTER,
+          { spellId: 'ray-of-sickness', targets: [TARGET], slotLevel: 1 },
+          supply(seed),
+        ),
+        'ray of sickness',
+      ),
+    );
+
+  const poisoned = (log: readonly GameEvent[]) =>
+    fold('seed', log).creatures.target!.conditions.conditions.includes('poisoned');
+
+  it('poisons on a hit', () => {
+    const out = ray('hit');
+    expect(out.outcomes[0]?.attack?.hit).toBe(true);
+    expect(poisoned([...SETUP, ...out.events])).toBe(true);
+  });
+
+  it('leaves a target it missed alone', () => {
+    // A wall of Armour Class rather than a hunt for an unlucky seed: the
+    // attack cannot land, so nothing rides on it.
+    const armoured: readonly GameEvent[] = [
+      ...PLACED.filter((e) => !(e.type === 'creature-added' && e.id === TARGET)),
+      {
+        type: 'creature-added',
+        id: TARGET,
+        name: TARGET,
+        sheet: { ...sheet(), stated: { armorClass: 40 } },
+        maxHp: 300,
+        diesAtZero: false,
+        creatureType: 'Humanoid',
+      },
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: CASTER, initiative: 20, speed: 30 },
+          { id: TARGET, initiative: 10, speed: 30 },
+        ],
+      },
+    ];
+    const out = resolved(
+      unwrap(
+        resolveSpell(
+          fold('seed', armoured),
+          CASTER,
+          { spellId: 'ray-of-sickness', targets: [TARGET], slotLevel: 1 },
+          supply('miss'),
+        ),
+        'ray of sickness',
+      ),
+    );
+    expect(out.outcomes[0]?.attack?.hit).toBe(false);
+    expect(poisoned([...armoured, ...out.events])).toBe(false);
+  });
+
+  /** Instantaneous, so the Poisoned is the only thing with a deadline. */
+  it('lifts at the end of the caster’s next turn, with no casting behind it', () => {
+    const cast = [...SETUP, ...ray('hit').events];
+    expect(fold('seed', cast).creatures.caster!.concentration).toBeNull();
+
+    expect(poisoned(nextTurn(cast))).toBe(true);
+    expect(poisoned(nextTurn(nextTurn(cast)))).toBe(true);
+    expect(poisoned(nextTurn(nextTurn(nextTurn(cast))))).toBe(false);
+  });
+
+  /**
+   * The up-front check has to see a rider wherever it hangs. On this branch
+   * the cost of missing it is the *attack roll*: without the check the ray
+   * would be thrown, the damage rolled, and only then would the Poisoned fail
+   * to find a turn to end at — leaving the caller's generator several rolls
+   * further on than it started, for a cast that never happened.
+   */
+  it('refuses outside combat before the ray is even thrown', () => {
+    const dice = supply('hit');
+    const before = { rng: dice.rng.snapshot(), rolls: dice.issuer.count };
+
+    const out = resolveSpell(
+      fold('seed', PLACED),
+      CASTER,
+      { spellId: 'ray-of-sickness', targets: [TARGET], slotLevel: 1 },
+      dice,
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('no_turns');
+    expect(dice.rng.snapshot()).toEqual(before.rng);
+    expect(dice.issuer.count).toBe(before.rolls);
+  });
+
+  /** And it says nothing about a condition it no longer leaves to the DM. */
+  it('no longer reports the Poisoned condition as unmodelled', () => {
+    expect(ray('hit').unverified.join(' ')).not.toMatch(/Poisoned/i);
   });
 });
 

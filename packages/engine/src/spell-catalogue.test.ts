@@ -125,6 +125,7 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   const anchored = (definition?.effects ?? []).some(
     (effect) =>
       (effect.kind === 'save' && effect.lasts !== undefined) ||
+      (effect.kind === 'attack' && effect.condition?.lasts !== undefined) ||
       (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined),
   );
   if (!anchored) return typed;

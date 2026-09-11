@@ -90,6 +90,20 @@ export type SpellEffect =
       readonly attack: 'ranged' | 'melee';
       readonly damage: DiceScaling;
       readonly damageType: string;
+      /**
+       * A condition the **hit** imposes, alongside the damage.
+       *
+       * Ray of Sickness: "On a hit, the target takes 2d8 Poison damage **and**
+       * has the Poisoned condition until the end of your next turn." The
+       * attack roll already decided it, so there is nothing further to roll —
+       * and unlike a saving throw there is no half-measure branch to fall
+       * through to: a miss leaves the target untouched.
+       */
+      readonly condition?: {
+        readonly name: ConditionName;
+        /** Omitted, it lasts as long as the casting does. */
+        readonly lasts?: RiderDuration;
+      };
     }
   /**
    * A saving throw that deals damage, with what a success buys stated.
@@ -895,9 +909,9 @@ export const RAY_OF_SICKNESS: SpellDefinition = {
       attack: 'ranged',
       damage: { dice: '2d8', perSlotLevelAbove: '1d8' },
       damageType: 'poison',
+      condition: { name: 'poisoned', lasts: 'end-of-casters-next-turn' },
     },
   ],
-  unmodelled: ['the target has the Poisoned condition until the end of your next turn'],
 };
 
 /**

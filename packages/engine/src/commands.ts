@@ -507,6 +507,9 @@ function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
   const found: RiderDuration[] = [];
   for (const effect of definition.effects) {
     if (effect.kind === 'save' && effect.lasts !== undefined) found.push(effect.lasts);
+    if (effect.kind === 'attack' && effect.condition?.lasts !== undefined) {
+      found.push(effect.condition.lasts);
+    }
     if (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined) {
       found.push(effect.condition.lasts);
     }
@@ -4075,11 +4078,28 @@ function resolveEffects(
 
         events.push(...hurt.value.events);
         current = hurt.value.events.reduce(applyEvent, current);
+
+        // SRD Ray of Sickness: "On a hit, the target takes 2d8 Poison damage
+        // **and** has the Poisoned condition". The attack roll settled it up
+        // there; a miss already returned, so reaching here is the hit.
+        if (effect.condition !== undefined) {
+          const rider = applySpellEffect(current, target, effect.condition.name, casterId, {
+            casting: { castingId, spell: definition.name },
+            ...(riderDuration(effect.condition.lasts, casterId) === undefined
+              ? {}
+              : { duration: riderDuration(effect.condition.lasts, casterId)! }),
+          });
+          if (!rider.ok) return rider;
+          events.push(...rider.value);
+          current = rider.value.reduce(applyEvent, current);
+        }
+
         outcomes.push({
           target,
           attack: attack.value,
           damage: hurt.value.amount,
           concentration: hurt.value.concentration,
+          ...(effect.condition === undefined ? {} : { condition: effect.condition.name }),
           affected: true,
         });
         continue;

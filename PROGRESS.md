@@ -59,7 +59,8 @@ still Wizard-shaped are named below.
 | Difficult terrain | Declared by the foot, charged exactly | `06dd3b1` |
 | Ready | An action spent now for a Reaction later; readied spells | `d63d75d` |
 | Readied move | "Up to your Speed", out of the Reaction rather than the turn | `eae9c67` |
-| Turn-anchored riders | An effect with its own deadline; Color Spray, Sunbeam | _this batch_ |
+| Turn-anchored riders | An effect with its own deadline; Color Spray, Sunbeam | `669d151` |
+| Riders on a hit | Ray of Sickness poisons; an unmodelled note became behaviour | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -181,6 +182,18 @@ still Wizard-shaped are named below.
   second damage type. Two effects would roll two saves, and a target could then
   fail one and make the other, which is not the spell. And it is on the failure
   branch alone: "On a successful save, it takes half as much damage **only**."
+- **A rider hangs in three places, and the third is an attack roll.** A save
+  that only imposes a condition, a save that also deals damage, and a hit —
+  Color Spray, Sunbeam, Ray of Sickness. The attack branch is the simplest of
+  the three, because the roll already settled it and there is no half-measure
+  to fall through to: a miss leaves the target untouched. It is also where
+  checking the rider up front pays most, since the alternative is throwing the
+  ray and rolling its damage before discovering there is no turn to end at.
+- **An `unmodelled` note becoming behaviour is the most valuable change here.**
+  Ray of Sickness had carried "the target has the Poisoned condition until the
+  end of your next turn" as a gap since it was written. The note was honest and
+  it reached the table on every casting; it is still better for the engine to
+  do it.
 - **An attack can be held between its two rolls.** SRD Divine Smite is cast
   "immediately after hitting a target", so there has to *be* an after-hitting.
   `resolveAttack` with `hold` stops after the attack roll and records the hit
@@ -282,24 +295,21 @@ still Wizard-shaped are named below.
    to Unconscious on a second failure, which is a third outcome the hook
    machinery has no room for. Haste's lethargy fires when the spell ends, which
    is a trigger nothing raises.
-4. **A condition a spell attack imposes.** Ray of Sickness poisons "until the
-   end of your next turn" on a hit, and the `attack` effect has nowhere to say
-   so — the same shape `save-damage` just gained, one branch over.
-5. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
+4. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
    deal a second, smaller hit at the end of the target's next turn. The turn
    hook machinery raises *saves*; this needs it to raise damage too.
-6. **Ongoing effects a later turn can act through** (18 spells). Spiritual
+5. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-7. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
+6. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
    that can order a cast against the event that triggered it. This is the
    hardest remaining spell mechanism and is deliberately last.
-8. **Summons** (9 spells). Needs a creature created mid-fight from a stat
+7. **Summons** (9 spells). Needs a creature created mid-fight from a stat
    block, which `adaptMonster` can already produce — the gap is an event that
    adds it and ties its life to the casting.
-9. **Long casting times** (43 spells). Needs a casting-in-progress state
+8. **Long casting times** (43 spells). Needs a casting-in-progress state
    machine with a per-turn obligation; the clock alone was never the blocker.
-10. **Classes.** See below.
+9. **Classes.** See below.
 
 ## Classes: all twelve, with one subclass each
 
