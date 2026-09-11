@@ -59,6 +59,7 @@ import { FIGHTER, FIGHTER_SUBCLASSES } from './fighter.js';
 import { PALADIN, PALADIN_SUBCLASSES } from './paladin.js';
 import { ROGUE, ROGUE_SUBCLASSES } from './rogue.js';
 import { SORCERER, SORCERER_SUBCLASSES } from './sorcerer.js';
+import { WARLOCK, WARLOCK_SUBCLASSES } from './warlock.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
 
 /**
@@ -84,6 +85,7 @@ const CLASSES: readonly ClassDefinition[] = [
   PALADIN,
   ROGUE,
   SORCERER,
+  WARLOCK,
   WIZARD,
 ];
 const SUBCLASSES: readonly SubclassDefinition[] = [
@@ -92,6 +94,7 @@ const SUBCLASSES: readonly SubclassDefinition[] = [
   ...PALADIN_SUBCLASSES,
   ...ROGUE_SUBCLASSES,
   ...SORCERER_SUBCLASSES,
+  ...WARLOCK_SUBCLASSES,
   ...WIZARD_SUBCLASSES,
 ];
 
@@ -1409,7 +1412,8 @@ function poolEvents(
         key: spellSlotKey(Number(slotLevel)),
         label: `level ${slotLevel} spell slot`,
         max: count,
-        recovers: 'long-rest',
+        // A Warlock's Pact Magic slots come back on a Short Rest.
+        recovers: definition.spellcasting?.slotRecovery ?? 'long-rest',
       },
     });
   }
@@ -1610,7 +1614,12 @@ export function advanceCharacter(
         ? {
             type: 'resource-pool-declared',
             id,
-            pool: { key, label: `level ${slotLevel} spell slot`, max: count, recovers: 'long-rest' },
+            pool: {
+              key,
+              label: `level ${slotLevel} spell slot`,
+              max: count,
+              recovers: definition.spellcasting?.slotRecovery ?? 'long-rest',
+            },
           }
         : { type: 'resource-pool-resized', id, key, max: count },
     );

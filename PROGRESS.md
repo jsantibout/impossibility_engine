@@ -34,7 +34,8 @@ still Wizard-shaped are named below.
 | Third class | Fighter + Champion; the no-spellcasting path; ammunition | `f7860a1` |
 | Fourth class | Sorcerer + Draconic Sorcery; the `known` casting style | `c2a0b4c` |
 | Fifth class | Paladin + Oath of Devotion; half-caster slots, no cantrips | `dbbaf07` |
-| Sixth class | Rogue + Thief; the Expertise grant's second user | *this batch* |
+| Sixth class | Rogue + Thief; the Expertise grant's second user | `5fd7495` |
+| Seventh class | Warlock + Fiend Patron; Pact Magic and Short-Rest slots | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -94,7 +95,7 @@ still Wizard-shaped are named below.
    machine with a per-turn obligation; the clock alone was never the blocker.
 8. **Classes.** See below.
 
-## Classes: six down, six to go
+## Classes: seven down, five to go
 
 The Wizard-shaped seams are **open**, and the Cleric is the proof:
 
@@ -144,11 +145,19 @@ spellcasting to **level 1**. 2014 started both at 2, which is the version most
 tables remember, and an earlier note in this file said so. The SRD 5.2.1 tables
 print two prepared spells and two level 1 slots at level 1 for both.
 
-What the next class will hit, in likely order:
+- The Warlock proved **Pact Magic** with one new field,
+  `spellcasting.slotRecovery`. The slot table already stored counts per spell
+  level, so "two slots at level 3 and nothing below" is `[0, 0, 2]`, and
+  `spellSlotTable` drops the empty levels so no level 1 pool is ever declared.
 
-- **The Warlock's Pact Magic is a different slot table entirely** — few slots,
-  all at the highest level, recharging on a Short Rest. `resources.ts` handles
-  it as a pool; what is missing is that it does not merge with ordinary slots.
+What remains, in likely order:
+
+- **Barbarian, Bard, Druid, Monk, Ranger** — all transcription onto structures
+  that now have at least two users each. Bard and Ranger are `known`, Druid is
+  `prepared-from-list`, Barbarian and Monk cast nothing.
+- **Mystic Arcanum** (Warlock 11+) is four one-use pools attached to spells
+  chosen at those levels. Not modelled, and the reason a Warlock here has no
+  slots above level 5.
 - **Multiclassing is not modelled**: no combined slot table, no prerequisite
   check, no proficiency-subset rule for the second class.
 

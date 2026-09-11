@@ -174,6 +174,16 @@ export interface ClassSpellcasting {
   readonly ability: Ability;
   readonly style: SpellcastingStyle;
   /**
+   * When spent slots come back.
+   *
+   * SRD Pact Magic: "You regain all expended Pact Magic spell slots when you
+   * finish a Short or Long Rest." Every other caster waits for a Long Rest,
+   * and the difference is most of what makes a Warlock a Warlock — two slots
+   * that come back every hour is a different resource from eight that come
+   * back every day. Defaults to a Long Rest when a class does not say.
+   */
+  readonly slotRecovery?: 'long-rest' | 'short-rest';
+  /**
    * The level at which the class starts casting.
    *
    * Wizards and Clerics cast at 1; Paladins and Rangers at 2; a Fighter or
