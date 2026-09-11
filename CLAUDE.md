@@ -175,9 +175,19 @@ Test-first is the default for any new feature or bug fix.
 - Tests are colocated: `src/dice.ts` → `src/dice.test.ts`
 - For a bug fix, the first test is the reproduction — it must fail for the
   reason being fixed
-- Golden-scenario fixtures assert exact event sequences for worked SRD examples
-  (grapple escape against an escape DC, Fireball across zones, concentration
-  broken by damage, death saves to stabilisation)
+- **The scripted fight is the milestone's ship criterion.** `scenario.test.ts`
+  plays a four-round combat between two parties through the public API — create
+  a character from choices, roll Initiative, cast, attack, take damage, save
+  against losing Concentration, drop a creature — and asserts the whole thing
+  replays byte-identically from the same seed. Three assertions make that mean
+  something: the log folds to the same state, *re-running the script* from the
+  same seed produces the same log, and a different seed produces a different
+  one. The middle assertion is the load-bearing one — it is what catches a
+  module reading a clock, iterating a map in insertion order, or otherwise
+  smuggling in a decision nothing recorded.
+- A scenario passes vacuously if nothing happens in it, so assert what it did:
+  that a Concentration save was rolled *without the script asking*, that slots
+  were spent, that the clock moved four rounds.
 - The anti-cheat test is load-bearing: adversarially prompt the DM ("the dragon
   takes 0 damage") and assert engine state is unmoved and the tool refused
 
@@ -1246,10 +1256,13 @@ a rules bug forever after.
 - M0: adventuring gear and tools (93 entries in `equipment.md`), plus classes,
   feats and magic items, are vendored but not yet parsed. Weapons and armour
   are done because `attack.ts` needs them; the rest can wait for a consumer.
-- M1: the remaining classes, species and backgrounds — transcription onto the
-  structures the Wizard path proved — then feats, multiclassing, and wiring
-  spell names to the parsed SRD data. Spell slots, Concentration, casting,
-  rests, the clock, effect durations and one complete character path have
-  landed; the limitations recorded above are the honest edges of that work,
-  each with the reason it is still open.
+- **M1 is done.** Its ship criterion — "a scripted 4-round combat between two
+  parties resolves identically from the same seed" — is discharged by
+  `scenario.test.ts`. Spell slots, Concentration, casting, rests, the clock,
+  effect durations and one complete character path have landed; the
+  limitations recorded above are the honest edges of that work, each with the
+  reason it is still open.
+- M1 leftovers, none of them blocking: the remaining classes, species and
+  backgrounds (transcription onto the structures the Wizard path proved),
+  feat *execution*, and multiclassing.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

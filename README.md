@@ -40,6 +40,7 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Durations | Elapsed deadlines and turn-anchored ones, expiring by effect instance |
 | Progression | Class tables, features by level, and what the engine does or does not run |
 | Creation | A validated level 1–3 Wizard: origin, scores, skills, feats, spells, kit |
+| Determinism | A scripted four-round fight, replayed byte-identically from its seed |
 | Spell data | 339 SRD spells indexed by id, class list, level and school |
 | Event log | `GameState` as a fold; replay is a pure function of the record |
 
