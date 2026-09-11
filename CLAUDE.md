@@ -1479,6 +1479,16 @@ Defects found so far, all covered by regression tests:
 | The Entertainer's Pack weighs `58½ lb.` — a vulgar fraction, not `58.5` | `parseGearWeight` |
 | The Waterskin's weight carries a note, `5 lb. (full)` | `parseGearWeight` |
 | One `#### Spell Scroll` heading prices two table rows | prefix match in `parse/gear.ts` |
+| Gear rows invert their names to alphabetise: `Lantern, Bullseye` | kept as printed; the craft-list test un-inverts to match |
+| A tool's Craft list mixes items with categories carrying parenthesised exceptions | split at the top level, as weapon properties are |
+
+**A craft list is a list of other rows, so check it against them.** Every item
+a tool can make is asserted to resolve to something the SRD actually lists — or
+to a category phrase like "Any Melee weapon (except Club, Greatclub,
+Quarterstaff, and Whip)", whose commas sit inside parentheses and are exactly
+the trap that bit the weapon parser. `Spell Scroll` is the single exception and
+an honest one: it is a magic item, and `magic-items.md` is not parsed. The test
+names it, so parsing that file will make the test say so.
 
 **A default is how a format change becomes a wrong number.** An optional
 capture group defaulting the proficiency bonus to +2 gave 32 legendary

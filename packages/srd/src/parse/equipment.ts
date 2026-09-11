@@ -6,6 +6,7 @@ import {
   WeaponSchema,
   slugify,
   type Armor,
+  type Cost,
   type ParseProblem,
   type Weapon,
   type WeaponProperty,
@@ -58,7 +59,7 @@ export function splitTopLevel(raw: string): string[] {
   return parts.filter((p) => p !== '');
 }
 
-export function parseCost(raw: string): { amount: number; currency: string } | null {
+export function parseCost(raw: string): Cost | null {
   const match = /^([\d,]+(?:\.\d+)?)\s*(CP|SP|EP|GP|PP)$/i.exec(raw.trim());
   if (!match) return null;
   const currency = CurrencySchema.safeParse(match[2]!.toLowerCase());

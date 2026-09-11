@@ -165,6 +165,7 @@ export const CostSchema = z.object({
   amount: z.number().min(0),
   currency: CurrencySchema,
 });
+export type Cost = z.infer<typeof CostSchema>;
 
 /** Normal and long range in feet, as printed `80/320`. */
 export const RangeSchema = z.object({
@@ -267,12 +268,121 @@ export interface ParseOutput<T> {
   readonly problems: readonly ParseProblem[];
 }
 
-/** Slugify a name into a stable id: `Acid Splash` -> `acid-splash`. */
+/**
+ * Slugify a name into a stable id: `Acid Splash` -> `acid-splash`.
+ *
+ * An apostrophe is dropped rather than replaced, so `Alchemist's Supplies`
+ * becomes `alchemists-supplies` and not `alchemist-s-supplies`. Tools and gear
+ * are the first entries with apostrophes in their names — no spell, monster,
+ * weapon or armour has one — so this changes no existing id.
+ */
 export function slugify(name: string): string {
   return name
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
+    .replace(/['’]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+/**
+ * A weight the SRD prints in the Adventuring Gear or Tools tables.
+ *
+ * Three states, not two, which is why this is a union rather than the
+ * `weightLb: number | null` that Weapon and Armor use. Those tables print
+ * either a number or `—`; the gear table also prints `Varies`, and the two
+ * non-numeric cells mean opposite things. A Bell weighs nothing worth
+ * tracking; Ammunition's weight is simply stated elsewhere, on the variant.
+ * Collapsing both to null would let an encumbrance calculation treat a
+ * Musical Instrument as weightless.
+ */
+export const GearWeightSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('lb'), value: z.number().min(0) }),
+  /** The table printed `—`. */
+  z.object({ kind: z.literal('negligible') }),
+  /** The table printed `Varies`; the weight lives on each variant. */
+  z.object({ kind: z.literal('varies') }),
+]);
+export type GearWeight = z.infer<typeof GearWeightSchema>;
+
+/** As `GearWeight`, but the cost column never prints `—`. */
+export const GearCostSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('cost'), value: CostSchema }),
+  z.object({ kind: z.literal('varies') }),
+]);
+export type GearCost = z.infer<typeof GearCostSchema>;
+
+/**
+ * One priced form of an entry whose own cost is `Varies` — an Arcane Focus's
+ * Rod, a Musical Instrument's lute. Each is bought separately, so each carries
+ * its own weight and cost.
+ */
+export const GearVariantSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  weight: GearWeightSchema,
+  cost: GearCostSchema,
+});
+export type GearVariant = z.infer<typeof GearVariantSchema>;
+
+export const GearSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  weight: GearWeightSchema,
+  cost: GearCostSchema,
+  /** The prose under the item's own heading, tables stripped out. */
+  description: z.string().min(1),
+  variants: z.array(GearVariantSchema),
+});
+export type Gear = z.infer<typeof GearSchema>;
+
+/**
+ * Gear as the engine sees it: everything but the prose.
+ *
+ * The engine is pure and ships its data as TypeScript, so the index is kept
+ * compact. A description is narration and belongs to the DM layer, which can
+ * read the generated JSON.
+ */
+export type GearIndexEntry = Omit<Gear, 'description'>;
+
+/**
+ * A row of the Ammunition table.
+ *
+ * Kept apart from `GearVariant` because it has columns nothing else has: how
+ * many you get for the price, and what you store them in. Folding it into the
+ * shared variant shape would put two permanently-null fields on every focus.
+ */
+export const AmmunitionSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  /** How many the listed cost buys. */
+  amount: z.number().int().min(1),
+  /** The item it is typically stored in. Bought separately. */
+  storage: z.string().min(1),
+  weight: GearWeightSchema,
+  cost: GearCostSchema,
+});
+export type Ammunition = z.infer<typeof AmmunitionSchema>;
+
+/** One thing a tool lets you do with the Utilize action, and its DC. */
+export const ToolUseSchema = z.object({
+  description: z.string().min(1),
+  dc: z.number().int().min(0).nullable(),
+});
+export type ToolUse = z.infer<typeof ToolUseSchema>;
+
+export const ToolSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  /** Artisan's Tools each need a separate proficiency; Other Tools stand alone. */
+  category: z.enum(['artisan', 'other']),
+  ability: z.enum(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']),
+  utilize: z.array(ToolUseSchema).min(1),
+  /** What the tool can craft. Empty for the five that craft nothing. */
+  craft: z.array(z.string()),
+  variants: z.array(GearVariantSchema),
+  weight: GearWeightSchema,
+  cost: GearCostSchema,
+});
+export type Tool = z.infer<typeof ToolSchema>;
