@@ -1041,15 +1041,18 @@ implemented and tested against the SRD's worked example — per-class preparatio
 is what is missing.
 
 ### What is still missing around the class system
-- **Feats are validated but not executed.** All four SRD Origin feats are
-  modelled, and the choices they demand are checked: Magic Initiate's spell
-  list, spellcasting ability, two cantrips and level 1 spell, all against the
-  parsed SRD; Skilled's three proficiencies, which *are* applied to the sheet;
-  and the rule that Magic Initiate taken twice must use different lists. What
-  is not done is execution — Magic Initiate's cantrips do not join the
-  character's cantrip list and its free daily casting is not tracked, Alert's
-  Initiative proficiency is not applied, Savage Attacker's reroll is not. Each
-  feat carries a note saying so.
+- **Three of the four Origin feats are executed; one is not.** The choices
+  every feat demands are checked — Magic Initiate's spell list, spellcasting
+  ability, two cantrips and level 1 spell, all against the parsed SRD;
+  Skilled's three proficiencies; and the rule that Magic Initiate taken twice
+  must use different lists. Beyond validation: Magic Initiate's spells are
+  castable on the feat's own ability with its free daily casting as a pool,
+  Alert's Initiative Proficiency rides on the roll, and Skilled's proficiencies
+  are on the sheet. **Savage Attacker's reroll is not applied**, and Alert's
+  Initiative *swap* is not offered. Each feat's note says which it is, and so
+  does every Ability Score Improvement feature that grants one — because
+  whether a feat does anything is a property of the feat, not of the class
+  feature that handed it over.
 - **Ability Score Improvements taken as score increases** rather than as feats
   are not modelled; the choice is always a feat.
 - **Owning and wearing are separate; weight and attunement are not modelled.**

@@ -152,7 +152,7 @@ export const WARLOCK: ClassDefinition = {
       name: 'Ability Score Improvement',
       level: 4,
       automation: 'manual',
-      note: 'Feats are not executed; the chosen feat is recorded only.',
+      note: 'Whether a feat does anything is a property of the feat, not of this feature: Alert’s Initiative Proficiency, Magic Initiate’s spells and free daily casting, and Skilled’s three proficiencies all reach the sheet, while Savage Attacker’s reroll does not. What is not modelled here is taking the increase as ability scores rather than as a feat — the choice is always a feat.',
       choice: { kind: 'feat', choose: 1 },
     },
     {
@@ -174,7 +174,7 @@ export const WARLOCK: ClassDefinition = {
       name: 'Epic Boon',
       level: 19,
       automation: 'manual',
-      note: 'Feats are not executed; the chosen boon is recorded only.',
+      note: 'Whether a boon does anything is a property of the boon, not of this feature. No Epic Boon is executed: the SRD’s boons raise an ability score maximum above 20 or grant an effect the engine has no hook for, and the choice is recorded and validated rather than applied.',
       choice: { kind: 'feat', choose: 1, category: 'epic-boon' },
     },
     {
