@@ -3,6 +3,7 @@ import { abilityModifier } from './character.js';
 import { HOUR, hours } from './clock.js';
 import type { Rng } from './dice.js';
 import type { GameEvent, GameState } from './events.js';
+import { identify } from './commands.js';
 import { remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
 
@@ -41,6 +42,14 @@ export interface RestState {
   readonly startedAt: number;
   /** What broke it off, set by the rules as it happened. */
   readonly interruptedBy: string | null;
+  /**
+   * The clock reading when it broke off.
+   *
+   * SRD pays out on the time rested *before the interruption*, so the moment
+   * matters and not just the fact. Without it, ten minutes of sleep followed
+   * by an hour of standing around counted as seventy minutes of rest.
+   */
+  readonly interruptedAt: number | null;
 }
 
 /** What a rest actually earned, which is not always what was attempted. */
@@ -51,18 +60,24 @@ export function restRequires(kind: RestKind): number {
 }
 
 /**
- * What a rest ending now would grant.
+ * What a rest ending at this moment would grant.
  *
  * SRD: "An interrupted Short Rest confers no benefits", but for a Long Rest,
- * "If you rested at least 1 hour before the interruption, you gain the
+ * "If you rested at least 1 hour **before the interruption**, you gain the
  * benefits of a Short Rest."
+ *
+ * Before the interruption. Time spent lying there afterwards is not rest —
+ * the rest was over the moment it broke — so this measures to
+ * `interruptedAt`, not to `now`. Reading total elapsed time instead paid out a
+ * Short Rest for ten minutes of sleep and an hour of waiting around.
  */
-export function restEarned(rest: RestState, elapsed: number): RestBenefit {
+export function restEarned(rest: RestState, now: number): RestBenefit {
   if (rest.interruptedBy !== null) {
     if (rest.kind === 'short') return 'none';
-    return elapsed >= SHORT_REST ? 'short' : 'none';
+    const rested = (rest.interruptedAt ?? now) - rest.startedAt;
+    return rested >= SHORT_REST ? 'short' : 'none';
   }
-  return elapsed >= restRequires(rest.kind) ? rest.kind : 'none';
+  return now - rest.startedAt >= restRequires(rest.kind) ? rest.kind : 'none';
 }
 
 const HIT_DIE_PREFIX = 'hit-die:';
@@ -105,9 +120,18 @@ export function beginRest(
   kind: RestKind,
   commandId?: string,
 ): Result<GameEvent[]> {
-  if (commandId !== undefined && state.appliedCommands[commandId] !== undefined) {
-    return ok([]);
-  }
+  // The same identity check the casting commands use. A bare "have I seen this
+  // id" test returned an empty success for *any* previously used id — another
+  // creature's rest, a different kind of rest — which is the silent no-op an
+  // idempotency key exists to avoid.
+  // Named rather than inlined so the kind travels into the fingerprint: two
+  // rests differing only in kind must not share an id.
+  const inputs: { commandId?: string; kind: RestKind } =
+    commandId === undefined ? { kind } : { commandId, kind };
+  const identity = identify(state, `rest:${id}`, inputs);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
   if (creature === null) return err('unknown_creature', `${id} is not in this game`);
@@ -130,12 +154,7 @@ export function beginRest(
   }
 
   return ok([
-    {
-      type: 'rest-begun',
-      id,
-      kind,
-      ...(commandId === undefined ? {} : { command: { id: commandId, fingerprint: `rest:${id}|${kind}` } }),
-    },
+    { type: 'rest-begun', id, kind, ...(stamp === null ? {} : { command: stamp }) },
   ]);
 }
 
@@ -188,9 +207,16 @@ export function endRest(
   const rest = creature.resting;
   if (rest === null) return err('not_resting', `${id} is not resting`);
 
-  const elapsed = state.elapsed - rest.startedAt;
   const interrupted = rest.interruptedBy ?? options.interrupted ?? null;
-  const benefit = restEarned({ ...rest, interruptedBy: interrupted }, elapsed);
+  // An interruption the engine could not see happens when it is reported;
+  // one it saw for itself carries the moment it actually happened.
+  const interruptedAt =
+    rest.interruptedBy !== null ? rest.interruptedAt : interrupted === null ? null : state.elapsed;
+  const benefit = restEarned(
+    { ...rest, interruptedBy: interrupted, interruptedAt },
+    state.elapsed,
+  );
+  const elapsed = state.elapsed - rest.startedAt;
 
   // Nothing interrupted it and it has not run its course, so it is not over.
   // Ending it here would quietly grant nothing for a rest still in progress.
@@ -289,6 +315,11 @@ export function endRest(
       // SRD: "You regain all lost Hit Points and all spent Hit Point Dice."
       const missing = creature.vitals.hpMax - creature.vitals.hp;
       if (missing > 0) events.push({ type: 'healed', id, amount: missing });
+
+      // SRD: "Temporary Hit Points last until they're depleted or you finish a
+      // Long Rest." They are not hit points and healing does not touch them,
+      // so the rest has to clear them itself.
+      if (creature.vitals.temporaryHp > 0) events.push({ type: 'temporary-hp-cleared', id });
 
       // A feature that recharges on a Short Rest recharges on a Long one too,
       // so both tags fire. The pool says which it is; the rest does not guess.

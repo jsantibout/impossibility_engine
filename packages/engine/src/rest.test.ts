@@ -17,6 +17,7 @@ import {
   hitDieSides,
   restEarned,
   type RestResolution,
+  type RestState,
 } from './rest.js';
 
 const id = (s: string) => asCharacterId(s);
@@ -120,7 +121,19 @@ describe('what a rest earns', () => {
     expect(LONG_REST_COOLDOWN).toBe(hours(16));
   });
 
-  const rest = (kind: 'short' | 'long') => ({ kind, startedAt: 0, interruptedBy: null });
+  const rest = (kind: 'short' | 'long'): RestState => ({
+    kind,
+    startedAt: 0,
+    interruptedBy: null,
+    interruptedAt: null,
+  });
+
+  /** Broken at a given moment, which is what the payout is measured from. */
+  const brokenAt = (kind: 'short' | 'long', at: number): RestState => ({
+    ...rest(kind),
+    interruptedBy: 'an ambush',
+    interruptedAt: at,
+  });
 
   it('grants the rest that was actually completed', () => {
     expect(restEarned(rest('short'), SHORT_REST)).toBe('short');
@@ -129,8 +142,8 @@ describe('what a rest earns', () => {
 
   /** SRD: "An interrupted Short Rest confers no benefits." */
   it('gives an interrupted Short Rest nothing at all', () => {
-    expect(restEarned({ ...rest('short'), interruptedBy: 'goblins' }, SHORT_REST)).toBe('none');
-    expect(restEarned({ ...rest('short'), interruptedBy: 'goblins' }, minutes(59))).toBe('none');
+    expect(restEarned(brokenAt('short', SHORT_REST), SHORT_REST)).toBe('none');
+    expect(restEarned(brokenAt('short', minutes(59)), minutes(59))).toBe('none');
   });
 
   /**
@@ -138,9 +151,13 @@ describe('what a rest earns', () => {
    * benefits of a Short Rest." An interrupted Long Rest is not simply wasted.
    */
   it('downgrades a broken Long Rest to a Short one, past the hour', () => {
-    expect(restEarned({ ...rest('long'), interruptedBy: 'an ambush' }, hours(3))).toBe('short');
-    expect(restEarned({ ...rest('long'), interruptedBy: 'an ambush' }, HOUR)).toBe('short');
-    expect(restEarned({ ...rest('long'), interruptedBy: 'an ambush' }, minutes(59))).toBe('none');
+    expect(restEarned(brokenAt('long', hours(3)), hours(3))).toBe('short');
+    expect(restEarned(brokenAt('long', HOUR), HOUR)).toBe('short');
+    expect(restEarned(brokenAt('long', minutes(59)), minutes(59))).toBe('none');
+
+    // And waiting afterwards adds nothing: the rest ended when it broke.
+    expect(restEarned(brokenAt('long', minutes(59)), hours(9))).toBe('none');
+    expect(restEarned(brokenAt('long', HOUR), hours(9))).toBe('short');
   });
 });
 
@@ -153,6 +170,7 @@ describe('taking a Short Rest', () => {
       kind: 'short',
       startedAt: 0,
       interruptedBy: null,
+      interruptedAt: null,
     });
   });
 

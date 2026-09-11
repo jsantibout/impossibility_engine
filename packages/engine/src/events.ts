@@ -220,6 +220,12 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly amount: number;
     }
+  /**
+   * SRD: "Temporary Hit Points last until they're depleted or you finish a
+   * Long Rest." They are not hit points, so healing does not clear them and
+   * the rest has to say so itself.
+   */
+  | { readonly type: 'temporary-hp-cleared'; readonly id: CharacterId }
   /** The die is already rolled; this records what it was. */
   | {
       readonly type: 'death-save-recorded';
@@ -449,6 +455,25 @@ class CorruptLogError extends Error {
   }
 }
 
+/**
+ * Install a new combat state and charge the clock for any rounds it crossed.
+ *
+ * SRD: "A round represents about 6 seconds in the game world." A round ends
+ * when the Initiative order wraps — and `advanceTurn` is not the only thing
+ * that wraps it. Removing the combatant who was acting, when they were last in
+ * the order, also starts a new round. That path used to change the round and
+ * not the clock, so a fight where enemies died on their own turns ran fast:
+ * rounds ticked by and game time did not.
+ *
+ * One place, applied to every transition, so the two can never disagree again.
+ * Transitions that do not cross a round cost nothing, which is most of them.
+ */
+const withCombat = (next: GameState, state: GameState, combat: CombatState): GameState => ({
+  ...next,
+  combat,
+  elapsed: state.elapsed + Math.max(0, combat.round - (state.combat?.round ?? combat.round)) * ROUND,
+});
+
 const creatureOf = (state: GameState, event: GameEvent, id: CharacterId): CreatureState => {
   const creature = state.creatures[id];
   if (creature === undefined) throw new CorruptLogError(event, `${id} is not in this game`);
@@ -633,7 +658,16 @@ function interruptedRests(state: GameState, event: GameEvent): GameState {
       ...current,
       creatures: {
         ...current.creatures,
-        [id]: { ...creature, resting: { ...creature.resting, interruptedBy: cause } },
+        [id]: {
+          ...creature,
+          // The moment matters, not just the fact: SRD pays a broken Long Rest
+          // on the time rested *before* the interruption.
+          resting: {
+            ...creature.resting,
+            interruptedBy: cause,
+            interruptedAt: current.elapsed,
+          },
+        },
       },
     };
   }
@@ -791,6 +825,16 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       );
     }
 
+    case 'temporary-hp-cleared': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(
+        next,
+        event.id,
+        { vitals: { ...creature.vitals, temporaryHp: 0 } },
+        creature,
+      );
+    }
+
     case 'death-save-recorded': {
       const creature = creatureOf(state, event, event.id);
       return withCreature(
@@ -941,7 +985,14 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return withCreature(
         next,
         event.id,
-        { resting: { kind: event.kind, startedAt: state.elapsed, interruptedBy: null } },
+        {
+          resting: {
+            kind: event.kind,
+            startedAt: state.elapsed,
+            interruptedBy: null,
+            interruptedAt: null,
+          },
+        },
         creature,
       );
     }
@@ -971,50 +1022,49 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'combat-ended':
       return { ...next, combat: null };
 
-    case 'turn-advanced': {
-      const before = combatOf(state, event);
-      const combat = advanceTurn(before);
-      // SRD: "A round represents about 6 seconds in the game world." A round
-      // ends when the Initiative order wraps, so that is when the clock moves.
-      // Derived rather than commanded: nobody decides how long a round takes,
-      // and a caller who had to remember would let a spell outlive its
-      // duration the first time they forgot.
-      return {
-        ...next,
-        combat,
-        elapsed: state.elapsed + (combat.round > before.round ? ROUND : 0),
-      };
-    }
+    case 'turn-advanced':
+      return withCombat(next, state, advanceTurn(combatOf(state, event)));
 
     case 'action-spent':
-      return { ...next, combat: must(event, spendAction(combatOf(state, event), event.id)) };
+      return withCombat(next, state, must(event, spendAction(combatOf(state, event), event.id)));
 
     case 'bonus-action-spent':
-      return { ...next, combat: must(event, spendBonusAction(combatOf(state, event), event.id)) };
+      return withCombat(
+        next,
+        state,
+        must(event, spendBonusAction(combatOf(state, event), event.id)),
+      );
 
     case 'reaction-spent':
-      return { ...next, combat: must(event, spendReaction(combatOf(state, event), event.id)) };
+      return withCombat(next, state, must(event, spendReaction(combatOf(state, event), event.id)));
 
     case 'movement-spent':
-      return {
-        ...next,
-        combat: must(event, spendMovement(combatOf(state, event), event.id, event.feet)),
-      };
+      return withCombat(
+        next,
+        state,
+        must(event, spendMovement(combatOf(state, event), event.id, event.feet)),
+      );
 
     case 'free-interaction-used':
-      return {
-        ...next,
-        combat: must(event, useFreeInteraction(combatOf(state, event), event.id)),
-      };
+      return withCombat(
+        next,
+        state,
+        must(event, useFreeInteraction(combatOf(state, event), event.id)),
+      );
 
     case 'combatant-removed':
-      return { ...next, combat: must(event, removeCombatant(combatOf(state, event), event.id)) };
+      return withCombat(
+        next,
+        state,
+        must(event, removeCombatant(combatOf(state, event), event.id)),
+      );
 
     case 'initiative-swapped':
-      return {
-        ...next,
-        combat: must(event, swapInitiative(combatOf(state, event), event.a, event.b)),
-      };
+      return withCombat(
+        next,
+        state,
+        must(event, swapInitiative(combatOf(state, event), event.a, event.b)),
+      );
 
     case 'scene-set':
       return { ...next, scene: scene(event.extent) };

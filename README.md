@@ -32,7 +32,7 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Positioning | A 5-foot cube lattice, Chebyshev distance, all six area shapes, cover, mounting |
 | Monsters | 235 stat blocks adapted into fightable creatures |
 | Resources | Generic limited-use pools — spell slots, Ki, charges — declared, not derived |
-| Casting | Slots, upcasting, slot-free casting, one slot per turn, casting identity |
+| Casting | Slots, upcasting, slot-free casting, one slot per turn, the action it costs |
 | Concentration | Started, replaced, dismissed, broken by damage, Incapacitation or death |
 | Commands | Engine-owned batches, with idempotency keys so a retry is a no-op |
 | Rests | Short and Long, Hit Dice, recharges, and the interruptions the engine can see |

@@ -269,6 +269,44 @@ describe('an effect that lasts until a turn', () => {
     expect(conditionsOf(after, 'goblin')).not.toContain('restrained');
   });
 
+  /**
+   * A consequence of ending them with the fight, pinned so nobody assumes
+   * otherwise: the effect is **gone**, not paused. A second fight does not
+   * resume it, because nothing was kept to resume.
+   */
+  it('does not come back when a new fight starts', () => {
+    const { log } = run(fight(), (s) =>
+      applyConditionTo(s, id('goblin'), 'restrained', 'a snare', [], startOfNextTurn(id('wizard'))),
+    );
+    const again = fold('seed', [
+      ...log,
+      { type: 'combat-ended' },
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: id('wizard'), initiative: 20, speed: 30 },
+          { id: id('goblin'), initiative: 10, speed: 30 },
+        ],
+      },
+    ]);
+    expect(conditionsOf(again, 'goblin')).not.toContain('restrained');
+    expect(Object.keys(again.timers)).toHaveLength(0);
+  });
+
+  /**
+   * And the caller is not stuck with the policy: an effect meant to outlive
+   * the fight is expressed in elapsed time, which is what elapsed time is for.
+   * The engine does not convert one into the other — that would be inventing a
+   * number the rules never gave.
+   */
+  it('offers elapsed time to anyone who wants the effect to survive', () => {
+    const { log } = run(fight(), (s) =>
+      applyConditionTo(s, id('goblin'), 'restrained', 'a snare', [], forSeconds(minutes(10))),
+    );
+    const after = fold('seed', [...log, { type: 'combat-ended' }]);
+    expect(conditionsOf(after, 'goblin')).toContain('restrained');
+  });
+
   /** An elapsed deadline has nothing to do with the fight and survives it. */
   it('leaves an elapsed deadline alone when combat ends', () => {
     const { log } = run(fight(), (s) =>

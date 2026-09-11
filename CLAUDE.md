@@ -265,6 +265,15 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
   The difference shows higher up: two hits of 30 are two DC 15 saves, where one
   hit of 60 would be a single DC 30. Summing a round's damage and saving once
   is a harder save, not an equivalent one.
+- **Temporary Hit Points do not survive a Long Rest.** "Temporary Hit Points
+  last until they're depleted or you finish a Long Rest." They are not hit
+  points, so healing to full does not touch them and the rest has to clear
+  them itself — which is exactly the sort of thing that gets forgotten,
+  because every other line of the rest is about giving things back.
+- **An interrupted Long Rest pays out on the time rested *before* the
+  interruption**, not on the time elapsed when somebody gets round to ending
+  it. "If you rested at least 1 hour before the interruption..." Ten minutes
+  of sleep and an hour of standing about is ten minutes of rest.
 - **A Long Rest restores *all* spent Hit Point Dice.** 2014 gave back half,
   minimum one, and that is the version most tables still have in their heads.
   2024: "You regain all lost Hit Points and all spent Hit Point Dice."
@@ -598,6 +607,29 @@ retry-safety means here — and appending one of them twice is caught as a
 corrupt log, because the second copy's id is no longer the next one in
 sequence.
 
+### Casting spends the action it costs
+
+`castSpell` validates the spell and expends the slot. It does not touch the
+action economy, because it predates having one to touch — and that gap let a
+caster throw two Fire Bolts in a turn, since neither expends a slot and the
+one-slot-per-turn rule therefore never fired. SRD is plain: "Most spells
+require the Magic action to cast", and two Magic actions on one turn is not a
+turn.
+
+`resolveCast` is the whole operation and the one a tool surface exposes: it
+validates the spell, spends the action, Bonus Action or Reaction the casting
+time names, expends the slot, and moves Concentration — or refuses and changes
+nothing at all. The spell is validated first and the economy second, so a
+refusal on either side leaves slots, Concentration and the budget as they were.
+A retried command id is a no-op on both halves.
+
+`castSpell` stays for callers reconstructing a log or scripting a fixture,
+where the economy is already accounted for. Same split as `damageCreature`
+beneath `resolveDamage`, and the same policy: the low-level half exists, and
+Maestro's tool surface does not expose it.
+
+Outside combat there is no economy to spend, so `resolveCast` simply casts.
+
 ### What the engine refuses, and what it declines to judge
 
 A refusal costs nothing: no slot, no generator advance, no state change. That
@@ -623,11 +655,14 @@ layer that knows.
   on completion, and completion depends on the caster taking the Magic action
   every turn of the casting, which is a state machine rather than a deadline.
   Rituals cast the long way are covered by the same refusal.
-- **Reaction timing is recorded, not enforced.** A spell with a casting time of
-  a Reaction can be cast, but the engine has no interrupt mechanism: it does not
-  check that a valid trigger occurred, and it cannot order the casting against
-  the event that triggered it. Counterspell and Shield need that machinery and
-  do not have it yet.
+- **Reaction *triggers* are not enforced, though the Reaction itself is now
+  spent.** `resolveCast` takes the Reaction off the budget and refuses a second
+  one before the caster's next turn, which is the half the engine can see. What
+  it cannot see is the trigger: it does not check that a valid one occurred,
+  and it has no interrupt mechanism, so it cannot order the casting against the
+  event that triggered it. Counterspell reacting to a spell it must resolve
+  *before* still needs machinery that does not exist. The engine will let a
+  Reaction spell be cast at a moment the rules would not allow, and say nothing.
 - **Only conditions are linked effects.** Ownership is designed for conditions,
   bonuses, areas and summons alike — the source string is the link, and nothing
   about it is condition-specific — but conditions are the only effect type the
@@ -733,10 +768,34 @@ turn" is one turn-beginning away, because the turn in progress has already
 begun. Callers say `startOfNextTurn(who)` and `endOfNextTurn(who)`; nobody
 writes counts by hand.
 
-**Turn-anchored timing is combat-scoped.** When the fight ends, or the anchor
-leaves it, the moment the effect was waiting for will never arrive — so it
-expires then. An effect that can never end is worse than one that ends with the
-fight. Elapsed deadlines have nothing to do with the fight and survive it.
+**Turn-anchored timing is combat-scoped, and that is a policy, not a rule.**
+When the fight ends, or the anchor leaves the Initiative order, the moment the
+effect was waiting for will never arrive. The SRD does not say what happens
+then — it does not contemplate the question, because at a table the DM simply
+answers it. Three things the engine could do, and only one of them is safe:
+
+| | |
+|---|---|
+| Leave it running | A permanently Restrained goblin, with no moment left that could ever free it |
+| Convert it to elapsed time | Inventing a number the rules never gave — exactly what this engine exists not to do |
+| End it with the fight | Chosen |
+
+So it ends, and the consequences are worth stating rather than discovering:
+
+- **It is gone, not paused.** A second fight does not resume it; nothing was
+  kept to resume.
+- **It ends early when combat ends early.** Dodge's benefit vanishes the
+  instant the last enemy drops, which is usually what a table would say — but
+  it is the engine saying it, not the rules.
+- **An anchor who flees, dies or is removed takes their effects with them**,
+  even where a DM might have ruled that the creature still has turns somewhere
+  off-screen.
+- **Nothing in the log says why.** Expiry is derived, so the effect is simply
+  absent on the next fold — the same audit trade Concentration already makes.
+
+A caller who wants an effect to outlive the fight says so in elapsed time,
+which is combat-independent and means exactly what it says. The engine will not
+translate between the two on anyone's behalf.
 
 **Expiry is derived, like Concentration breaking.** A duration running out is
 not a decision anybody makes, so the reducer ends expired effects after every

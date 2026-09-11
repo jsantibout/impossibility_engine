@@ -13,7 +13,12 @@ import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
 import { conditionInstanceId, hasCondition, isIncapacitated, reasonsFor } from './conditions.js';
 import { resolveDuration, type Duration, type EffectTarget } from './duration.js';
-import { canSpendSpellSlotThisTurn } from './combat.js';
+import {
+  canSpendSpellSlotThisTurn,
+  spendAction,
+  spendBonusAction,
+  spendReaction,
+} from './combat.js';
 import {
   applyEvent,
   castingIdFor,
@@ -104,7 +109,7 @@ function stableStringify(value: unknown): string {
   );
 }
 
-type Identified =
+export type Identified =
   | { readonly duplicate: true }
   | { readonly duplicate: false; readonly stamp: CommandStamp | null };
 
@@ -117,7 +122,11 @@ type Identified =
  * silently swallow the second command, which is the outcome this exists to
  * prevent.
  */
-function identify(state: GameState, kind: string, command: CommandIdentity): Result<Identified> {
+export function identify<T extends CommandIdentity>(
+  state: GameState,
+  kind: string,
+  command: T,
+): Result<Identified> {
   const id = command.commandId;
   if (id === undefined) return ok({ duplicate: false, stamp: null });
 
@@ -902,4 +911,69 @@ export function resolveDamage(
     concentration: { kind: 'resolved', check, save: save.value, maintained },
     duplicate: false,
   });
+}
+
+/**
+ * Cast a spell and spend what it costs, action economy included.
+ *
+ * {@link castSpell} validates the spell and expends the slot; it does not
+ * touch the action economy, because it predates having one to touch. That gap
+ * let a caster throw two Fire Bolts in a turn: neither expends a slot, so the
+ * one-slot-per-turn rule never fired, and nothing else was watching. SRD is
+ * plain that "Most spells require the Magic action to cast", and two Magic
+ * actions on one turn is not a turn.
+ *
+ * So this is the operation a tool surface exposes. `castSpell` stays for
+ * callers reconstructing a log or scripting a fixture, where the economy has
+ * already been accounted for — the same split as `damageCreature` beneath
+ * `resolveDamage`.
+ *
+ * The spell is validated first and the economy second, so a refusal on either
+ * side leaves slots, Concentration and the budget exactly as they were. A
+ * retried command id is a no-op on both halves: it spends no second action any
+ * more than it spends a second slot.
+ *
+ * **Reaction triggers are not enforced.** A spell with a casting time of a
+ * Reaction spends the Reaction and is recorded, but the engine has no
+ * interrupt mechanism: it does not check that a valid trigger occurred, and it
+ * cannot order the casting against the event that triggered it. Counterspell
+ * and Shield need that machinery and do not have it.
+ */
+export function resolveCast(
+  state: GameState,
+  id: CharacterId,
+  command: CastCommand,
+): Result<GameEvent[]> {
+  const cast = castSpell(state, id, command);
+  if (!cast.ok) return cast;
+  // A duplicate command id: the first run already spent the action.
+  if (cast.value.length === 0) return ok([]);
+
+  const combat = state.combat;
+  if (combat === null || combat.budgets[id] === undefined) {
+    // No turns, so no economy to spend. Out of combat a spell simply happens.
+    return cast;
+  }
+
+  const conditions = creatureOf(state, id)?.conditions;
+  const castingTime = command.castingTime ?? 'action';
+
+  const spent =
+    castingTime === 'reaction'
+      ? spendReaction(combat, id, conditions)
+      : castingTime === 'bonus-action'
+        ? spendBonusAction(combat, id, conditions)
+        : spendAction(combat, id, conditions);
+  if (!spent.ok) return spent;
+
+  const economy: GameEvent =
+    castingTime === 'reaction'
+      ? { type: 'reaction-spent', id }
+      : castingTime === 'bonus-action'
+        ? { type: 'bonus-action-spent', id }
+        : { type: 'action-spent', id };
+
+  // The action goes first: you spend it to *start* casting, which is also the
+  // moment an earlier Concentration drops.
+  return ok([economy, ...cast.value]);
 }
