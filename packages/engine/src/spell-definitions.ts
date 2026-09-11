@@ -195,6 +195,23 @@ export interface SpellDefinition {
   readonly requiresSight?: boolean;
   /** How long it lasts, in seconds. Omitted for an instantaneous spell. */
   readonly durationSeconds?: number;
+  /**
+   * Parts of the printed spell this definition does **not** do.
+   *
+   * Most SRD spells are one clean mechanic plus a rider — Ray of Frost slows
+   * the target, Thunderwave shoves it, Guiding Bolt hands the next attacker
+   * Advantage — and the riders need machinery the engine does not have yet.
+   * The choice is between not executing the spell at all and executing the
+   * part it can while saying plainly what it left out.
+   *
+   * Saying so in a docstring is not enough: nobody at the table reads the
+   * source. These come back in `unverified` on every casting, so the layer
+   * narrating the spell knows exactly which half of it the engine did, and can
+   * hand the rest to the DM instead of quietly dropping it.
+   *
+   * A spell with an empty list does everything its text says.
+   */
+  readonly unmodelled?: readonly string[];
 }
 
 /**
@@ -467,6 +484,7 @@ export const THUNDERWAVE: SpellDefinition = {
       onSuccess: 'half',
     },
   ],
+  unmodelled: ['a creature that fails is pushed 10 feet away from you'],
 };
 
 /**
@@ -539,16 +557,724 @@ export const FIREBALL: SpellDefinition = {
   ],
 };
 
+/**
+ * A ranged attack cantrip whose whole text is "hit, take dice".
+ *
+ * Five of these are the same spell with a different damage type and die, so
+ * they are built from one function rather than copied five times — the copy is
+ * where a d8 becomes a d10 and no test can see it. Every field still comes
+ * from the SRD line quoted at the call site.
+ */
+function attackCantrip(args: {
+  readonly id: string;
+  readonly name: string;
+  readonly school: string;
+  readonly feet: number | 'touch';
+  readonly dice: string;
+  readonly damageType: string;
+  readonly attack?: 'ranged' | 'melee';
+  readonly unmodelled?: readonly string[];
+}): SpellDefinition {
+  return {
+    id: args.id,
+    name: args.name,
+    level: 0,
+    school: args.school,
+    castingTime: 'action',
+    concentration: false,
+    range: args.feet === 'touch' ? { kind: 'touch' } : { kind: 'ranged', feet: args.feet },
+    targets: { count: 1 },
+    effects: [
+      {
+        kind: 'attack',
+        attack: args.attack ?? 'ranged',
+        // SRD Cantrip Upgrade is the same three levels for every cantrip.
+        damage: { dice: args.dice, cantripUpgradesAt: [5, 11, 17] },
+        damageType: args.damageType,
+      },
+    ],
+    ...(args.unmodelled === undefined ? {} : { unmodelled: args.unmodelled }),
+  };
+}
+
+/**
+ * SRD Poison Spray:
+ *
+ * > _Necromancy Cantrip (Druid, Sorcerer, Warlock, Wizard)._ **Range:** 30 feet.
+ * > "Make a ranged spell attack against the target. On a hit, the target takes
+ * > 1d12 Poison damage."
+ * > _Cantrip Upgrade._ "...increases by 1d12 when you reach levels 5 (2d12),
+ * > 11 (3d12), and 17 (4d12)."
+ *
+ * The only one of these with nothing left over: its text is the mechanic.
+ */
+export const POISON_SPRAY = attackCantrip({
+  id: 'poison-spray',
+  name: 'Poison Spray',
+  school: 'necromancy',
+  feet: 30,
+  dice: '1d12',
+  damageType: 'poison',
+});
+
+/**
+ * SRD Ray of Frost:
+ *
+ * > _Evocation Cantrip (Sorcerer, Wizard)._ **Range:** 60 feet.
+ * > "On a hit, it takes 1d8 Cold damage, and its Speed is reduced by 10 feet
+ * > until the start of your next turn."
+ */
+export const RAY_OF_FROST = attackCantrip({
+  id: 'ray-of-frost',
+  name: 'Ray of Frost',
+  school: 'evocation',
+  feet: 60,
+  dice: '1d8',
+  damageType: 'cold',
+  unmodelled: ['the target\u2019s Speed is reduced by 10 feet until the start of your next turn'],
+});
+
+/**
+ * SRD Shocking Grasp:
+ *
+ * > _Evocation Cantrip (Sorcerer, Wizard)._ **Range:** Touch.
+ * > "Make a melee spell attack against the target. On a hit, the target takes
+ * > 1d8 Lightning damage, and it can't make Opportunity Attacks until the
+ * > start of its next turn."
+ */
+export const SHOCKING_GRASP = attackCantrip({
+  id: 'shocking-grasp',
+  name: 'Shocking Grasp',
+  school: 'evocation',
+  feet: 'touch',
+  attack: 'melee',
+  dice: '1d8',
+  damageType: 'lightning',
+  unmodelled: ['the target cannot make Opportunity Attacks until the start of its next turn'],
+});
+
+/**
+ * SRD Chill Touch:
+ *
+ * > _Necromancy Cantrip (Sorcerer, Warlock, Wizard)._ **Range:** Touch.
+ * > "Make a melee spell attack against a target within reach. On a hit, the
+ * > target takes 1d10 Necrotic damage, and it can't regain Hit Points until
+ * > the end of your next turn."
+ */
+export const CHILL_TOUCH = attackCantrip({
+  id: 'chill-touch',
+  name: 'Chill Touch',
+  school: 'necromancy',
+  feet: 'touch',
+  attack: 'melee',
+  dice: '1d10',
+  damageType: 'necrotic',
+  unmodelled: ['the target cannot regain Hit Points until the end of your next turn'],
+});
+
+/**
+ * SRD Eldritch Blast:
+ *
+ * > _Evocation Cantrip (Warlock)._ **Range:** 120 feet.
+ * > "Make a ranged spell attack against one creature or object in range. On a
+ * > hit, the target takes 1d10 Force damage."
+ * > _Cantrip Upgrade._ "The spell creates two beams at level 5, three beams at
+ * > level 11, and four beams at level 17."
+ *
+ * **Not the usual cantrip upgrade.** Every other attack cantrip adds dice to
+ * one attack; this one adds *separate attack rolls*, each of which hits or
+ * misses on its own and may be aimed at a different creature. So its scaling
+ * is deliberately left flat rather than dressed up as extra dice, which would
+ * make it hit-or-miss all at once and be worth a different amount.
+ */
+export const ELDRITCH_BLAST: SpellDefinition = {
+  id: 'eldritch-blast',
+  name: 'Eldritch Blast',
+  level: 0,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 1 },
+  effects: [
+    { kind: 'attack', attack: 'ranged', damage: { dice: '1d10' }, damageType: 'force' },
+  ],
+  unmodelled: [
+    'the extra beams at levels 5, 11 and 17 \u2014 each is a separate attack roll and may take a different target, which is a shape the engine does not have',
+  ],
+};
+
+/**
+ * SRD Guiding Bolt:
+ *
+ * > _Level 1 Evocation (Cleric)._ **Casting Time:** Action. **Range:** 120 feet.
+ * > **Duration:** 1 round.
+ * > "Make a ranged spell attack against the target. On a hit, it takes 4d6
+ * > Radiant damage, and the next attack roll made against it before the end of
+ * > your next turn has Advantage."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 1."
+ */
+export const GUIDING_BOLT: SpellDefinition = {
+  id: 'guiding-bolt',
+  name: 'Guiding Bolt',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      damage: { dice: '4d6', perSlotLevelAbove: '1d6' },
+      damageType: 'radiant',
+    },
+  ],
+  unmodelled: [
+    'the next attack roll against the target before the end of your next turn has Advantage',
+  ],
+};
+
+/**
+ * SRD Ray of Sickness:
+ *
+ * > _Level 1 Necromancy (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "Make a ranged spell attack against the target. On a hit, the target takes
+ * > 2d8 Poison damage and has the Poisoned condition until the end of your
+ * > next turn."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 1."
+ *
+ * The Poisoned condition is a rider on a *hit*, not on a failed save, and the
+ * `attack` effect has nowhere to put one. It is named rather than dropped.
+ */
+export const RAY_OF_SICKNESS: SpellDefinition = {
+  id: 'ray-of-sickness',
+  name: 'Ray of Sickness',
+  level: 1,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      damage: { dice: '2d8', perSlotLevelAbove: '1d8' },
+      damageType: 'poison',
+    },
+  ],
+  unmodelled: ['the target has the Poisoned condition until the end of your next turn'],
+};
+
+/**
+ * SRD Acid Splash:
+ *
+ * > _Evocation Cantrip (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "You create an acidic bubble at a point within range, where it explodes in
+ * > a 5-foot-radius Sphere. Each creature in that Sphere must succeed on a
+ * > Dexterity saving throw or take 1d6 Acid damage."
+ * > _Cantrip Upgrade._ "...increases by 1d6 when you reach levels 5 (2d6), 11
+ * > (3d6), and 17 (4d6)."
+ *
+ * An area cantrip: a Sphere placed at a point, and nothing on a success.
+ */
+export const ACID_SPLASH: SpellDefinition = {
+  id: 'acid-splash',
+  name: 'Acid Splash',
+  level: 0,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 5, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '1d6', cantripUpgradesAt: [5, 11, 17] },
+      damageType: 'acid',
+      onSuccess: 'none',
+    },
+  ],
+};
+
+// — saving throws that deal damage ————————————————————————————————————————————
+
+/**
+ * SRD Blight:
+ *
+ * > _Level 4 Necromancy (Druid, Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Instantaneous.
+ * > "A creature that you can see within range makes a Constitution saving
+ * > throw, taking 8d8 Necrotic damage on a failed save or half as much damage
+ * > on a successful one. A Plant creature automatically fails the save."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 4."
+ */
+export const BLIGHT: SpellDefinition = {
+  id: 'blight',
+  name: 'Blight',
+  level: 4,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '8d8', perSlotLevelAbove: '1d8' },
+      damageType: 'necrotic',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: [
+    'a Plant creature automatically fails the save',
+    'the alternative target, a nonmagical plant that is not a creature',
+  ],
+};
+
+/**
+ * SRD Dissonant Whispers:
+ *
+ * > _Level 1 Enchantment (Bard)._ **Casting Time:** Action. **Range:** 60 feet.
+ * > **Duration:** Instantaneous.
+ * > "The target makes a Wisdom saving throw. On a failed save, it takes 3d6
+ * > Psychic damage and must immediately use its Reaction, if available, to
+ * > move as far away from you as it can, using the safest route. On a
+ * > successful save, the target takes half as much damage only."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 1."
+ */
+export const DISSONANT_WHISPERS: SpellDefinition = {
+  id: 'dissonant-whispers',
+  name: 'Dissonant Whispers',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'wis',
+      damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
+      damageType: 'psychic',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: ['a creature that fails spends its Reaction fleeing as far as it can'],
+};
+
+/**
+ * SRD Mind Spike:
+ *
+ * > _Level 2 Divination (Sorcerer, Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 1 hour.
+ * > "The target makes a Wisdom saving throw, taking 3d8 Psychic damage on a
+ * > failed save or half as much damage on a successful one. On a failed save,
+ * > you also always know the target's location until the spell ends..."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 2."
+ */
+export const MIND_SPIKE: SpellDefinition = {
+  id: 'mind-spike',
+  name: 'Mind Spike',
+  level: 2,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'wis',
+      damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
+      damageType: 'psychic',
+      onSuccess: 'half',
+    },
+  ],
+  durationSeconds: 3600,
+  unmodelled: [
+    'knowing the target\u2019s location for the duration, and its losing the benefit of being hidden or Invisible against you',
+  ],
+};
+
+/**
+ * SRD Harm:
+ *
+ * > _Level 6 Necromancy (Cleric)._ **Casting Time:** Action. **Range:** 60 feet.
+ * > **Duration:** Instantaneous.
+ * > "The target makes a Constitution saving throw. On a failed save, it takes
+ * > 14d6 Necrotic damage, and its Hit Point maximum is reduced by an amount
+ * > equal to the Necrotic damage it took. On a successful save, it takes half
+ * > as much damage only."
+ */
+export const HARM: SpellDefinition = {
+  id: 'harm',
+  name: 'Harm',
+  level: 6,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '14d6' },
+      damageType: 'necrotic',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: [
+    'the Hit Point maximum reduction equal to the damage taken, which cannot take it below 1',
+  ],
+};
+
+/**
+ * SRD Shatter:
+ *
+ * > _Level 2 Evocation (Bard, Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "Each creature in a 10-foot-radius Sphere centered there makes a
+ * > Constitution saving throw, taking 3d8 Thunder damage on a failed save or
+ * > half as much damage on a successful one. A Construct has Disadvantage on
+ * > the save."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 2."
+ */
+export const SHATTER: SpellDefinition = {
+  id: 'shatter',
+  name: 'Shatter',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 10, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
+      damageType: 'thunder',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: ['a Construct has Disadvantage on the save'],
+};
+
+/**
+ * SRD Cone of Cold:
+ *
+ * > _Level 5 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Instantaneous.
+ * > "Each creature in a 60-foot Cone originating from you makes a Constitution
+ * > saving throw, taking 8d8 Cold damage on a failed save or half as much
+ * > damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 5."
+ */
+export const CONE_OF_COLD: SpellDefinition = {
+  id: 'cone-of-cold',
+  name: 'Cone of Cold',
+  level: 5,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'cone', length: 60, origin: 'self' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '8d8', perSlotLevelAbove: '1d8' },
+      damageType: 'cold',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: ['a creature killed by this spell becomes a frozen statue until it thaws'],
+};
+
+/**
+ * SRD Circle of Death:
+ *
+ * > _Level 6 Necromancy (Sorcerer, Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 150 feet. **Duration:** Instantaneous.
+ * > "Negative energy ripples out in a 60-foot-radius Sphere from a point you
+ * > choose within range. Each creature in that area makes a Constitution
+ * > saving throw, taking 8d8 Necrotic damage on a failed save or half as much
+ * > damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 2d8 for each
+ * > spell slot level above 6."
+ *
+ * Note the **2**d8 per level, where most spells add one die. Reading the
+ * increase off the base die count would give the wrong number here too.
+ */
+export const CIRCLE_OF_DEATH: SpellDefinition = {
+  id: 'circle-of-death',
+  name: 'Circle of Death',
+  level: 6,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 60, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '8d8', perSlotLevelAbove: '2d8' },
+      damageType: 'necrotic',
+      onSuccess: 'half',
+    },
+  ],
+};
+
+// — saving throws that impose a condition ————————————————————————————————————
+
+/**
+ * SRD Hold Monster:
+ *
+ * > _Level 5 Enchantment (Bard, Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 90 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Choose a creature that you can see within range. The target must succeed
+ * > on a Wisdom saving throw or have the Paralyzed condition for the duration.
+ * > At the end of each of its turns, the target repeats the save, ending the
+ * > spell on itself on a success."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 5."
+ *
+ * Hold Person with the Humanoid restriction lifted, which is the whole
+ * difference between the two spells and the reason the type check is data.
+ */
+export const HOLD_MONSTER: SpellDefinition = {
+  id: 'hold-monster',
+  name: 'Hold Monster',
+  level: 5,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 90 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'paralyzed',
+      repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+    },
+  ],
+  durationSeconds: 60,
+};
+
+/**
+ * SRD Blindness/Deafness:
+ *
+ * > _Level 2 Transmutation (Bard, Cleric, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 120 feet. **Duration:** 1 minute.
+ * > "One creature that you can see within range must succeed on a Constitution
+ * > saving throw, or it has the Blinded or Deafened condition (your choice)
+ * > for the duration. At the end of each of its turns, the target repeats the
+ * > save, ending the spell on itself on a success."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 2."
+ *
+ * **One minute and no Concentration**, which is the point of having it here:
+ * it exercises a duration that runs on the clock rather than on a caster's
+ * attention. The caster's choice between the two conditions is not offered —
+ * a per-casting choice needs somewhere to be recorded, and inventing a default
+ * would silently pick Blinded every time. It picks Blinded and says so.
+ */
+export const BLINDNESS_DEAFNESS: SpellDefinition = {
+  id: 'blindness-deafness',
+  name: 'Blindness/Deafness',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save',
+      ability: 'con',
+      condition: 'blinded',
+      repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: ['the caster\u2019s choice of Deafened instead of Blinded'],
+};
+
+/**
+ * SRD Charm Person:
+ *
+ * > _Level 1 Enchantment (Bard, Druid, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 30 feet. **Duration:** 1 hour.
+ * > "One Humanoid you can see within range makes a Wisdom saving throw. It
+ * > does so with Advantage if you or your allies are fighting it. On a failed
+ * > save, the target has the Charmed condition until the spell ends or until
+ * > you or your allies damage it."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 1."
+ */
+export const CHARM_PERSON: SpellDefinition = {
+  id: 'charm-person',
+  name: 'Charm Person',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, mustBeType: 'Humanoid' },
+  requiresSight: true,
+  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the save has Advantage if you or your allies are fighting the target',
+    'the spell ends early if you or your allies damage the target',
+  ],
+};
+
+/**
+ * SRD Fear:
+ *
+ * > _Level 3 Illusion (Bard, Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > Action. **Range:** Self. **Duration:** Concentration, up to 1 minute.
+ * > "Each creature in a 30-foot Cone must succeed on a Wisdom saving throw or
+ * > drop whatever it is holding and have the Frightened condition for the
+ * > duration."
+ */
+export const FEAR: SpellDefinition = {
+  id: 'fear',
+  name: 'Fear',
+  level: 3,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'cone', length: 30, origin: 'self' },
+  effects: [{ kind: 'save', ability: 'wis', condition: 'frightened' }],
+  durationSeconds: 60,
+  unmodelled: [
+    'a creature that fails drops whatever it is holding',
+    'a Frightened creature Dashes away from you each turn, and saves again when it ends its turn out of your line of sight',
+  ],
+};
+
+/**
+ * SRD Hypnotic Pattern:
+ *
+ * > _Level 3 Illusion (Bard, Druid, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 120 feet.
+ * > **Duration:** Concentration, up to 1 minute.
+ * > "Each creature in the area who can see the pattern must succeed on a
+ * > Wisdom saving throw or have the Charmed condition for the duration. While
+ * > Charmed, the creature has the Incapacitated condition and a Speed of 0."
+ */
+export const HYPNOTIC_PATTERN: SpellDefinition = {
+  id: 'hypnotic-pattern',
+  name: 'Hypnotic Pattern',
+  level: 3,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  area: { kind: 'cube', size: 30, origin: 'point' },
+  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  durationSeconds: 60,
+  unmodelled: [
+    'only a creature that can see the pattern is affected',
+    'the Incapacitated condition and Speed 0 that ride along with the Charm',
+    'the spell ending for a creature that takes damage or is shaken out of it',
+  ],
+};
+
+/**
+ * SRD Banishment:
+ *
+ * > _Level 4 Abjuration (Cleric, Paladin, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 30 feet.
+ * > **Duration:** Concentration, up to 1 minute.
+ * > "One creature that you can see within range must succeed on a Charisma
+ * > saving throw or be transported to a harmless demiplane for the duration.
+ * > While there, the target has the Incapacitated condition."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 4."
+ */
+export const BANISHMENT: SpellDefinition = {
+  id: 'banishment',
+  name: 'Banishment',
+  level: 4,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [{ kind: 'save', ability: 'cha', condition: 'incapacitated' }],
+  durationSeconds: 60,
+  unmodelled: [
+    'the target leaving the battlefield for a demiplane, so it is Incapacitated where it stands rather than gone',
+    'an Aberration, Celestial, Elemental, Fey or Fiend not returning if the spell runs its full minute',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
+  ACID_SPLASH,
+  BANISHMENT,
+  BLIGHT,
+  BLINDNESS_DEAFNESS,
   BURNING_HANDS,
+  CHARM_PERSON,
+  CHILL_TOUCH,
+  CIRCLE_OF_DEATH,
+  CONE_OF_COLD,
   CURE_WOUNDS,
+  DISSONANT_WHISPERS,
+  ELDRITCH_BLAST,
+  FEAR,
   FIREBALL,
   FIRE_BOLT,
+  GUIDING_BOLT,
+  HARM,
   HEALING_WORD,
+  HOLD_MONSTER,
   HOLD_PERSON,
+  HYPNOTIC_PATTERN,
   INFLICT_WOUNDS,
   LIGHTNING_BOLT,
+  MIND_SPIKE,
+  POISON_SPRAY,
+  RAY_OF_FROST,
+  RAY_OF_SICKNESS,
   SACRED_FLAME,
+  SHATTER,
+  SHOCKING_GRASP,
   THUNDERWAVE,
 ];
 

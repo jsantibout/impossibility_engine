@@ -18,7 +18,7 @@ spell is unsupported.
 
 | Parsed | Executable | Verified |
 |---|---|---|
-| 339 | 10 (2.9%) | 9 (2.7%) |
+| 339 | 31 (9.1%) | 31 (9.1%) |
 
 ### By mechanical shape
 
@@ -29,13 +29,13 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Executable | Blocked on |
 |---|---|---|---|
 | Summons and created creatures | 9 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 4 | — |
+| Area of effect | 73 | 10 | — |
 | Reaction timing | 4 | 0 | an interrupt mechanism that can order a cast against its trigger |
 | Casting time of a minute or more | 43 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 0 | an effect that a later turn can act through |
-| Spell attack roll | 16 | 1 | — |
-| Saving throw for damage | 30 | 2 | — |
-| Saving throw for a condition | 43 | 1 | — |
+| Spell attack roll | 16 | 8 | — |
+| Saving throw for damage | 30 | 6 | — |
+| Saving throw for a condition | 43 | 5 | — |
 | Restores Hit Points | 4 | 2 | — |
 | Temporary Hit Points | 3 | 0 | a Temporary Hit Points effect type |
 | A bonus to later rolls | 5 | 0 | an effect that adds a named bonus to a later roll |
@@ -43,13 +43,34 @@ spell, and the area is the part that is missing.
 
 ### Executable today
 
+- **Acid Splash** (cantrip) — verified
+- **Banishment** (level 4) — verified
+- **Blight** (level 4) — verified
+- **Blindness/Deafness** (level 2) — verified
 - **Burning Hands** (level 1) — verified
+- **Charm Person** (level 1) — verified
+- **Chill Touch** (cantrip) — verified
+- **Circle of Death** (level 6) — verified
+- **Cone of Cold** (level 5) — verified
 - **Cure Wounds** (level 1) — verified
+- **Dissonant Whispers** (level 1) — verified
+- **Eldritch Blast** (cantrip) — verified
+- **Fear** (level 3) — verified
 - **Fire Bolt** (cantrip) — verified
 - **Fireball** (level 3) — verified
+- **Guiding Bolt** (level 1) — verified
+- **Harm** (level 6) — verified
 - **Healing Word** (level 1) — verified
+- **Hold Monster** (level 5) — verified
 - **Hold Person** (level 2) — verified
+- **Hypnotic Pattern** (level 3) — verified
 - **Inflict Wounds** (level 1) — verified
 - **Lightning Bolt** (level 3) — verified
+- **Mind Spike** (level 2) — verified
+- **Poison Spray** (cantrip) — verified
+- **Ray of Frost** (cantrip) — verified
+- **Ray of Sickness** (level 1) — verified
 - **Sacred Flame** (cantrip) — verified
-- **Thunderwave** (level 1) — untested
+- **Shatter** (level 2) — verified
+- **Shocking Grasp** (cantrip) — verified
+- **Thunderwave** (level 1) — verified

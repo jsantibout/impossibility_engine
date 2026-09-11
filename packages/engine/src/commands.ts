@@ -725,6 +725,17 @@ export interface SpellEffectOptions {
   readonly duration?: Duration;
   /** A saving throw this effect takes at a turn boundary. */
   readonly repeatSave?: RepeatSave;
+  /**
+   * The casting this effect belongs to.
+   *
+   * **The link is the casting, not the Concentration.** Reading it off
+   * `caster.concentration` worked for every spell the engine had, because
+   * every one of them concentrated — and then refused Blindness/Deafness,
+   * which lasts a minute and needs no attention at all. A caller that knows
+   * which casting it is resolving says so; the fallback below is for one that
+   * does not.
+   */
+  readonly casting?: { readonly castingId: string; readonly spell: string };
 }
 
 export function applySpellEffect(
@@ -736,15 +747,20 @@ export function applySpellEffect(
 ): Result<GameEvent[]> {
   const caster = creatureOf(state, casterId);
   if (caster === null) return err('unknown_creature', `${casterId} is not in this game`);
-  if (caster.concentration === null) {
-    return err('not_concentrating', `${casterId} is not concentrating on anything`);
+
+  const casting = options.casting ?? caster.concentration;
+  if (casting === null || casting === undefined) {
+    return err(
+      'not_concentrating',
+      `${casterId} is not concentrating on anything, and no casting was named`,
+    );
   }
 
   return applyConditionTo(
     state,
     targetId,
     condition,
-    castingSource(caster.concentration.spell, caster.concentration.castingId),
+    castingSource(casting.spell, casting.castingId),
     options.immuneTo ?? [],
     options.duration,
     options.repeatSave,
@@ -1504,7 +1520,11 @@ export function resolveSpell(
 
   const slotLevel = request.slotLevel ?? definition.level;
   const castLevel = Math.max(definition.level, slotLevel);
-  const unverified: string[] = [];
+  // What this definition knowingly leaves out, reported on every casting so
+  // the narrating layer can hand the rest to the DM rather than lose it.
+  const unverified: string[] = [
+    ...(definition.unmodelled ?? []).map((gap) => `${definition.name}: ${gap}`),
+  ];
   const needs: ContextRequest[] = [];
 
   // — targets ————————————————————————————————————————————————————————————
@@ -2067,6 +2087,7 @@ function resolveOnTargets(
       }
 
       const landed = applySpellEffect(current, target, effect.condition, casterId, {
+        casting: { castingId, spell: definition.name },
         ...(effect.repeats === undefined
           ? {}
           : {

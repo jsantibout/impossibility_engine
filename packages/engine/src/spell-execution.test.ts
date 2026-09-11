@@ -511,25 +511,42 @@ describe('what a cast refuses, and what it admits it cannot check', () => {
 
 describe('a feat-granted spell casts on the feat terms', () => {
   /**
-   * Ray of Frost comes from Magic Initiate, not the Wizard's cantrip list. It
-   * has no definition yet, so the engine refuses to execute it — but it says
-   * *that*, not that the caster does not know it, which is the distinction
-   * that matters for a tool surface deciding what to tell the player.
+   * Mage Hand comes from Magic Initiate, not the Wizard's cantrip list. It has
+   * no definition — a spectral hand that fetches things is not a mechanic the
+   * engine has — so the engine refuses to execute it, but it says *that*, not
+   * that the caster does not know it. That distinction is what a tool surface
+   * needs in order to decide what to tell the player.
+   *
+   * (This was Ray of Frost until Ray of Frost got a definition. The point is
+   * the missing mechanic, not the spell.)
    */
   it('knows the caster has it, and says only that it cannot execute it', () => {
     const state = fold('seed', table());
-    expect(routeFor(state.creatures.kessa!.spellcasting, 'ray-of-frost')).toMatchObject({
+    expect(routeFor(state.creatures.kessa!.spellcasting, 'mage-hand')).toMatchObject({
       kind: 'granted',
     });
 
     const result = resolveSpell(
       state,
       WIZARD,
-      { spellId: 'ray-of-frost', targets: [GOBLIN] },
+      { spellId: 'mage-hand', targets: [GOBLIN] },
       supply(state),
     );
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('no_definition');
+  });
+
+  /**
+   * And the other half of the same distinction: a granted spell that *does*
+   * have a definition casts on the feat's own terms rather than the class's.
+   */
+  it('casts a granted spell the engine can execute', () => {
+    const state = fold('seed', table());
+    const out = unwrap(
+      resolveSpell(state, WIZARD, { spellId: 'ray-of-frost', targets: [GOBLIN] }, supply(state)),
+      'ray-of-frost',
+    );
+    expect(out.kind).toBe('resolved');
   });
 });
 

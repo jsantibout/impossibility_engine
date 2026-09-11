@@ -128,15 +128,37 @@ const shapeOf = (spell: ParsedSpell): string =>
  * prevent.
  */
 export const VERIFIED_SPELLS: readonly string[] = [
+  'acid-splash',
+  'banishment',
+  'blight',
+  'blindness-deafness',
   'burning-hands',
+  'charm-person',
+  'chill-touch',
+  'circle-of-death',
+  'cone-of-cold',
   'cure-wounds',
   'fireball',
+  'dissonant-whispers',
+  'eldritch-blast',
+  'fear',
   'fire-bolt',
+  'guiding-bolt',
+  'harm',
   'healing-word',
+  'hold-monster',
   'hold-person',
+  'hypnotic-pattern',
   'inflict-wounds',
   'lightning-bolt',
+  'mind-spike',
+  'poison-spray',
+  'ray-of-frost',
+  'ray-of-sickness',
   'sacred-flame',
+  'shatter',
+  'shocking-grasp',
+  'thunderwave',
 ];
 
 export interface SpellCoverage {
