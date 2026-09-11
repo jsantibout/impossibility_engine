@@ -99,8 +99,13 @@ export const BARBARIAN: ClassDefinition = {
       id: 'barbarian:danger-sense',
       name: 'Danger Sense',
       level: 2,
-      automation: 'manual',
-      note: 'Advantage on Dexterity saves against effects you can see is context the engine does not carry; the roll takes modes from the caller.',
+      automation: 'engine',
+      note: 'SRD: "You have Advantage on Dexterity saving throws unless you have the Incapacitated condition." Applied from state on every Dexterity save, so being Stunned takes it away without anything having to remember to.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effect: { kind: 'advantage', on: 'save', ability: 'dex' },
+      },
     },
     {
       id: 'barbarian:reckless-attack',

@@ -144,6 +144,19 @@ export interface CreatureState {
    */
   readonly defenses: Readonly<Record<string, DamageDefenses>>;
   /**
+   * Which side of the fight this creature is on, or null if nobody has said.
+   *
+   * Who counts as an ally is fiction, not arithmetic — it changes when a
+   * bandit is bribed and when a summoned creature turns — so it is **declared**
+   * like cover and line of sight rather than derived from anything. SRD leans
+   * on it constantly: "You and your allies in the aura", "an ally within 5
+   * feet of you", "a creature of your choice".
+   *
+   * Null is a real state. Nobody is a creature's ally by default, so an aura
+   * that asks for allies reaches nobody the table has not placed.
+   */
+  readonly side: string | null;
+  /**
    * Named bonuses a running effect has hung on this creature.
    *
    * Bless adds 1d4 to attack rolls and saves; Bane subtracts one. They are
@@ -288,6 +301,8 @@ export type GameEvent =
       readonly creatureType?: string;
       /** What this creature resists, is immune to, or is vulnerable to. */
       readonly defenses?: Readonly<Record<string, DamageDefenses>>;
+      /** Which side of the fight this creature is on. See {@link CreatureState.side}. */
+      readonly side?: string;
     }
   /**
    * A named bonus starts or stops applying to a creature's rolls.
@@ -614,6 +629,15 @@ export type GameEvent =
       readonly forced?: boolean;
     }
   | { readonly type: 'creature-unplaced'; readonly id: CharacterId }
+  /**
+   * Which side of the fight a creature is on.
+   *
+   * Declared rather than derived, like cover and line of sight, and its own
+   * event because it changes in play: a bandit is bribed, a charmed ally turns,
+   * a summoned creature is dismissed. SRD leans on "your allies" constantly and
+   * never defines it mechanically, because at a table nobody has to ask.
+   */
+  | { readonly type: 'creature-side-declared'; readonly id: CharacterId; readonly side: string }
   /**
    * Whether one creature can see another.
    *
@@ -1209,6 +1233,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             spellcasting: noSpellcasting(),
             creatureType: event.creatureType ?? null,
             defenses: event.defenses ?? {},
+            side: event.side ?? null,
             bonuses: [],
             initiativeBonuses: [],
             inventory: [],
@@ -1604,6 +1629,10 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         scene: must(event, placeCreature(sceneOf(state, event), event.id, event.placement)),
       };
 
+    case 'creature-side-declared': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(next, event.id, { side: event.side }, creature);
+    }
     case 'creature-moved': {
       const outcome = must(
         event,

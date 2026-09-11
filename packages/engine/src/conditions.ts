@@ -110,6 +110,26 @@ const derive = (
   exhaustion: Math.max(0, Math.trunc(exhaustion)),
 });
 
+/**
+ * The same state with certain conditions taken out of it.
+ *
+ * Not a removal: the instances are dropped from a *copy*, for a reader asking
+ * what actually bites right now. SRD Aura of Courage says a Frightened ally's
+ * condition "has no effect on that ally while there" — the condition is still
+ * on them, and it comes back when they leave. See `standing.ts`, which is the
+ * only caller and explains why suppression is not removal.
+ */
+export function withoutConditions(
+  state: ConditionState,
+  names: readonly ConditionName[],
+): ConditionState {
+  if (names.length === 0) return state;
+  return derive(
+    state.instances.filter((instance) => !names.includes(instance.condition)),
+    state.exhaustion,
+  );
+}
+
 /** The default source for a condition whose cause nobody recorded. */
 const UNATTRIBUTED = 'unattributed';
 

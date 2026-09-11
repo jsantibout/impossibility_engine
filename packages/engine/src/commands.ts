@@ -47,10 +47,21 @@ import {
   type SpellRange,
 } from './spell-definitions.js';
 import { routesFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
+import {
+  effectiveConditions,
+  standingSaveBonuses,
+  standingSaveModes,
+} from './standing.js';
 import { rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
-import { conditionInstanceId, hasCondition, isIncapacitated, reasonsFor } from './conditions.js';
+import {
+  conditionInstanceId,
+  hasCondition,
+  isIncapacitated,
+  reasonsFor,
+  type ConditionState,
+} from './conditions.js';
 import {
   resolveDuration,
   type Duration,
@@ -1091,11 +1102,12 @@ export function resolveDamage(
   // Count only what this operation issues: a caller may hand the same issuer to
   // several operations in a turn, and `count` runs from where it was created.
   const issuedBefore = supply.issuer.count;
+  const support = savingSupport(after, id, caster, 'con', supply);
   const save = rollSavingThrow(supply.issuer, supply.rng, caster.sheet, 'con', {
     dc: check.dc,
-    conditions: caster.conditions,
-    ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-    ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+    conditions: support.conditions,
+    modes: support.modes,
+    bonuses: support.bonuses,
   });
   if (!save.ok) return save;
 
@@ -1248,11 +1260,12 @@ export function resolvePendingSaves(
       return err('unknown_creature', `${pending.target} owes a save but is not in this game`);
     }
 
+    const support = savingSupport(state, pending.target, creature, pending.ability, supply);
     const save = rollSavingThrow(supply.issuer, supply.rng, creature.sheet, pending.ability, {
       dc: pending.dc,
-      conditions: creature.conditions,
-      ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-      ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+      conditions: support.conditions,
+      modes: support.modes,
+      bonuses: support.bonuses,
     });
     if (!save.ok) return save;
 
@@ -1545,20 +1558,58 @@ function dealSpellDamage(
 }
 
 /**
- * A creature's own bonuses on a saving throw, plus whatever the caller adds.
+ * Everything that applies to a creature's saving throw, gathered in one place.
  *
- * Same rule as Alert on Initiative: a bonus somebody has to remember is a
- * bonus a character silently stops having. Deduplicated by source so a
- * helpful caller passing Bless as well does not apply it twice.
+ * Same rule as Alert on Initiative: a modifier somebody has to remember is a
+ * modifier a character silently stops having. Three sources, and they arrive
+ * by three different routes:
+ *
+ * - **Stored** on the creature, by a spell that hung it there — Bless, Bane.
+ * - **Standing**, from a class feature, derived from the state of the world at
+ *   this instant — Aura of Protection, Danger Sense. Nothing stores these,
+ *   because whether they apply changes when somebody walks away.
+ * - **Supplied** by the caller, for whatever the engine cannot see.
+ *
+ * Deduplicated by source, so a helpful caller passing Bless as well does not
+ * apply it twice. The conditions come back too: a feature can say a condition
+ * has no effect on this creature right now, and every roll that reads
+ * conditions has to read that instead.
  */
-function savingBonuses(
+function savingSupport(
+  state: GameState,
+  who: CharacterId,
   victim: CreatureState,
-  supplied: readonly Bonus[] | undefined,
-): readonly Bonus[] {
+  ability: Ability,
+  supply: {
+    readonly bonuses?: readonly Bonus[] | undefined;
+    readonly modes?: readonly (RollMode | ModeSource)[] | undefined;
+  },
+): {
+  readonly bonuses: readonly Bonus[];
+  readonly modes: readonly (RollMode | ModeSource)[];
+  readonly conditions: ConditionState;
+} {
   const merged = new Map<string, Bonus>();
   for (const bonus of bonusesFor(victim.bonuses, 'save')) merged.set(bonus.source, bonus);
-  for (const bonus of supplied ?? []) merged.set(bonus.source, bonus);
-  return [...merged.values()];
+  for (const bonus of standingSaveBonuses(state, who, ability)) merged.set(bonus.source, bonus);
+  for (const bonus of supply.bonuses ?? []) merged.set(bonus.source, bonus);
+
+  // A bare RollMode has no source to deduplicate on, so it rides through as
+  // given; a ModeSource is keyed, which is what stops a caller who also knows
+  // about Danger Sense applying it twice.
+  const named = new Map<string, ModeSource>();
+  const bare: RollMode[] = [];
+  for (const mode of standingSaveModes(state, who, ability)) named.set(mode.source, mode);
+  for (const mode of supply.modes ?? []) {
+    if (typeof mode === 'string') bare.push(mode);
+    else named.set(mode.source, mode);
+  }
+
+  return {
+    bonuses: [...merged.values()],
+    modes: [...bare, ...named.values()],
+    conditions: effectiveConditions(state, who),
+  };
 }
 
 const ranged = (range: SpellRange): number | null =>
@@ -2012,7 +2063,10 @@ function resolveOnTargets(
             ...(supply.bonuses ?? []),
           ],
           ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-          targetConditions: victim.conditions,
+          // A condition a feature has suppressed gives an attacker nothing:
+          // SRD Aura of Courage says the condition "has no effect on that ally
+          // while there", and being easier to hit is an effect.
+          targetConditions: effectiveConditions(current, target),
         });
         if (!attack.ok) return attack;
 
@@ -2097,11 +2151,12 @@ function resolveOnTargets(
       if (effect.kind === 'buff') {
         let save: D20TestResult | null = null;
         if (effect.ability !== undefined) {
+          const support = savingSupport(current, target, victim, effect.ability, supply);
           const rolled = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
             dc: saveDc,
-            conditions: victim.conditions,
-            ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-            bonuses: savingBonuses(victim, supply.bonuses),
+            conditions: support.conditions,
+            modes: support.modes,
+            bonuses: support.bonuses,
           });
           if (!rolled.ok) return rolled;
           save = rolled.value;
@@ -2182,11 +2237,12 @@ function resolveOnTargets(
 
       // A saving throw that deals damage, with what a success buys stated.
       if (effect.kind === 'save-damage') {
+        const support = savingSupport(current, target, victim, effect.ability, supply);
         const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
           dc: saveDc,
-          conditions: victim.conditions,
-          ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-          bonuses: savingBonuses(victim, supply.bonuses),
+          conditions: support.conditions,
+          modes: support.modes,
+          bonuses: support.bonuses,
         });
         if (!save.ok) return save;
 
@@ -2256,11 +2312,12 @@ function resolveOnTargets(
       }
 
       // A saving throw, and a condition on a failure.
+      const support = savingSupport(current, target, victim, effect.ability, supply);
       const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
         dc: saveDc,
-        conditions: victim.conditions,
-        ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-        bonuses: savingBonuses(victim, supply.bonuses),
+        conditions: support.conditions,
+        modes: support.modes,
+        bonuses: support.bonuses,
       });
       if (!save.ok) return save;
 
@@ -2565,7 +2622,7 @@ export function rollInitiativeFor(
 
   return rollInitiative(issuer, rng, id, creature.sheet, {
     ...options,
-    conditions: options.conditions ?? creature.conditions,
+    conditions: options.conditions ?? effectiveConditions(state, id),
     bonuses: [...supplied, ...mine],
   });
 }

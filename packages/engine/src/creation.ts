@@ -14,6 +14,7 @@ import {
   type CharacterSheet,
   type UnarmoredDefense,
 } from './character.js';
+import type { StandingEffect } from './standing.js';
 import { expandPack, goldToCopper, itemFor } from './catalogue.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
@@ -1718,6 +1719,33 @@ export function planCharacter(
 
   const casters = castingClassesOf(choices);
 
+  // SRD writes the Paladin's three auras as benefits *inside* one aura, and
+  // only two features say how big it is — Aura of Protection's 10 feet and
+  // Aura Expansion's 30. Resolving the radius once, here, is what stops Aura of
+  // Courage and Aura of Devotion disagreeing with Aura of Protection about
+  // their own size after level 18.
+  const auraFeet = features.reduce(
+    (widest, feature) =>
+      feature.grants?.kind === 'standing'
+        ? Math.max(widest, feature.grants.auraFeet ?? 0)
+        : widest,
+    0,
+  );
+
+  const standing: StandingEffect[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'standing') continue;
+    // A feature that only resizes the aura grants no benefit of its own.
+    if (grant.effect === undefined) continue;
+    standing.push({
+      feature: feature.id,
+      name: feature.name,
+      reach: grant.reach === 'self' ? { kind: 'self' } : { kind: 'aura', feet: auraFeet },
+      grant: grant.effect,
+    });
+  }
+
   const alternatives: UnarmoredDefense[] = [];
   for (const feature of features) {
     const grant = feature.grants;
@@ -1750,6 +1778,7 @@ export function planCharacter(
     // fourth needs no change here. A character with none carries none, and
     // Armour Class is derived exactly as it was before.
     ...(alternatives.length === 0 ? {} : { unarmoredDefense: alternatives }),
+    ...(standing.length === 0 ? {} : { standing }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every

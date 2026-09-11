@@ -1,5 +1,6 @@
 import { err, ok, type Ability, type Result, type Skill } from '@ie/shared';
 import type { ArmorTraining } from './character.js';
+import type { StandingGrant } from './standing.js';
 
 /**
  * Class progression: what a class gives you, and when.
@@ -135,6 +136,25 @@ export type FeatureGrant =
    * makes it a shape rather than one class's quirk. It asks the player
    * nothing, so it carries no `choice`.
    */
+  /**
+   * A benefit that holds for as long as its rule does — see `standing.ts`.
+   *
+   * Two shapes in one kind, because SRD writes them as one thing: a feature
+   * that puts a benefit into the character's aura, and a feature that only
+   * changes how big the aura is. Aura Expansion says nothing but "Your Aura of
+   * Protection is now a 30-foot Emanation", and Aura of Courage says nothing
+   * about distance at all — it borrows the aura it is spoken of as being
+   * inside. Resolving the radius once, at creation, is what keeps the three
+   * Paladin auras from disagreeing about their own size.
+   */
+  | {
+      readonly kind: 'standing';
+      readonly reach: 'self' | 'aura';
+      /** What it does. Absent for a feature that only resizes the aura. */
+      readonly effect?: StandingGrant;
+      /** SRD Aura Expansion: this feature makes the aura this many feet. */
+      readonly auraFeet?: number;
+    }
   | {
       readonly kind: 'unarmored-defense';
       readonly ability: Ability;

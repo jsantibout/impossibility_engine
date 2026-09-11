@@ -43,7 +43,9 @@ still Wizard-shaped are named below.
 | Per-class casting | Two casting classes; Pact Magic its own pool | `d022ca0` |
 | No skipped tests | Each class asserts the slot rule that applies to it | `a48bbb1` |
 | Unarmoured Defense | A class feature reaches the Armour Class calculation | `cc2df1f` |
-| Tracked spells | The engine casts what it cannot execute; 14 utility spells | _this batch_ |
+| Tracked spells | The engine casts what it cannot execute; 14 utility spells | `3e0e330` |
+| Feat notes | 24 features stopped claiming feats do nothing | `c918c21` |
+| Standing effects | Conditional modifiers and auras, from state; 5 features | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -78,6 +80,21 @@ still Wizard-shaped are named below.
   the casting id off `caster.concentration`, which refused every
   non-Concentration spell with a duration. A caller that knows its casting
   says so.
+- **A conditional benefit is derived, never stored.** An aura has no moment at
+  which it starts — being in one is a fact about where two creatures are
+  standing — so `standing.ts` evaluates from state on every read and nothing is
+  written onto the creature it reaches. A stored copy would be an
+  unconditional bonus wearing a feature's name, and it would go wrong exactly
+  when it mattered: the paladin walks away, the barbarian is stunned.
+- **Suppression is not removal, and not prevention.** SRD Aura of Courage: a
+  Frightened ally's condition "has no effect on that ally while there". The
+  condition stays on the creature and bites again the moment they leave, so
+  `effectiveConditions` is what every reader of condition *effects* goes
+  through, and `creature.conditions` stays the record of what is on them.
+- **Allegiance is declared, like cover and sight.** Who is an ally is fiction
+  that changes in play, so `CreatureState.side` is null until somebody says.
+  Nobody is an ally by default, which withholds a benefit rather than
+  inventing one.
 - **Equipment, wounds, spent resources and ongoing effects survive advancement.**
   `advanceCharacter` plans against the creature's *live* inventory and equipped
   set, never the creation-time snapshot.
@@ -223,9 +240,14 @@ print two prepared spells and two level 1 slots at level 1 for both.
 
 What remains in the class system, in likely order:
 
+- **An activated state with a cost and a turn-anchored duration**, which is
+  Rage: a Bonus Action, a limited pool, resistance while it runs, and "lasts
+  until the end of your next turn" with three ways to extend it. Every part
+  exists — pools, resistances, turn-anchored deadlines — and nothing yet ties
+  them to a state a creature sits in.
 - **A grant that can be re-chosen on a rest**, for Circle of the Land, for
   the Barbarian's Weapon Mastery swap, and for every "swap a prepared spell on
-  a Long Rest" rule. This is now the largest shared blocker.
+  a Long Rest" rule.
 - **Feature execution.** Every class is transcribed and validated; almost no
   class *feature* is executed. Each says what a DM still has to do, and the
   recurring blockers are: extra attacks inside the Attack action, Reactions
@@ -258,8 +280,8 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells executed and verified | 43 |
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 48 of 230 |
-| Tests | 2,236 passing, none skipped |
+| Class features executed | 53 of 230 |
+| Tests | 2,274 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

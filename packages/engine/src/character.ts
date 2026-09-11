@@ -1,4 +1,5 @@
 import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shared';
+import type { StandingEffect } from './standing.js';
 import type { Armor } from '@ie/srd';
 
 /**
@@ -64,6 +65,15 @@ export interface CharacterSheet {
    * creature's Armour Class is derived exactly as it always was.
    */
   readonly unarmoredDefense?: readonly UnarmoredDefense[];
+  /**
+   * Benefits this creature's features grant for as long as their rule holds.
+   *
+   * Resolved at creation, evaluated from state at every read — see
+   * `standing.ts`. On the sheet rather than on the creature because it is a
+   * property of what the character *is*, not of what has happened to them:
+   * nothing applies an aura and nothing takes it away.
+   */
+  readonly standing?: readonly StandingEffect[];
   /** Set for creatures whose numbers are printed rather than derived. */
   readonly stated?: StatedValues;
 }
