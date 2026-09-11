@@ -47,7 +47,8 @@ still Wizard-shaped are named below.
 | Feat notes | 24 features stopped claiming feats do nothing | `c918c21` |
 | Standing effects | Conditional modifiers and auras, from state; 5 features | `3a5cdb9` |
 | Standing defences | Resistance a feature grants; Elemental Affinity | `e64c5fb` |
-| Activated features | Rage: cost, prerequisite, deadline, extension, two ways out | _this batch_ |
+| Activated features | Rage: cost, prerequisite, deadline, extension, two ways out | `574d03b` |
+| Weapon attacks | `resolveAttack` derives AC, cover, reach, range, proficiency | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -74,6 +75,12 @@ still Wizard-shaped are named below.
 - **A definition that leaves part of its spell out declares it.**
   `SpellDefinition.unmodelled` comes back in `unverified` on every casting, so
   the gap reaches the narrating layer rather than sitting in a docstring.
+- **A weapon attack is derived, not assembled.** `rollAttack` was always pure
+  and always correct; nothing *found* its arguments, so nothing checked them
+  and a fixture could swing a longsword at somebody fifty feet away.
+  `resolveAttack` derives the target's Armour Class and cover, the reach and
+  the range, who is near enough to hamper a bow, both creatures' conditions
+  after features have suppressed any, and whether the attacker is proficient.
 - **A modifier somebody has to remember is one a character stops having.**
   Bless lives on the creature in `CreatureState.bonuses` and the engine's own
   rolls read it, merged by source with anything a caller adds. Same rule as
@@ -256,11 +263,14 @@ print two prepared spells and two level 1 slots at level 1 for both.
 What remains in the class system, in likely order:
 
 - **Damage a feature adds to a weapon's roll**, which Rage Damage, Sneak
-  Attack, Radiant Strikes and Brutal Strike all want. The blocker is one level
-  down: **no weapon attack goes through a command**, so there is nothing to
-  hook. `rollAttack` and `rollAttackDamage` are called by fixtures and callers,
-  not by the engine, which is also why Rage cannot extend itself on an attack.
-  A `resolveAttack` command is the next real piece of engine design.
+  Attack, Radiant Strikes and Brutal Strike all want. `resolveAttack` is the
+  hook they were waiting on and it exists now; what is still missing is a
+  standing grant of the shape "extra damage on a qualifying attack", and
+  Sneak Attack's own once-per-turn bookkeeping.
+- **Extra attacks inside the Attack action.** `resolveAttack` spends one
+  Attack action per swing, which is right for one attack and wrong for a
+  Fighter with Extra Attack. The economy counts actions, not the attacks in
+  them.
 - **A pool that refills partly.** SRD Rage gives back *one* use on a Short Rest
   and all of them on a Long Rest; `restoreOn` refills a whole pool by tag, and
   every other recovery in the game is all or nothing.
@@ -300,7 +310,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 53 of 230 |
-| Tests | 2,307 passing, none skipped |
+| Tests | 2,337 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

@@ -64,6 +64,7 @@ import { BARBARIAN, BARBARIAN_SUBCLASSES } from './barbarian.js';
 import { BARD, BARD_SUBCLASSES } from './bard.js';
 import { CLERIC, CLERIC_SUBCLASSES } from './cleric.js';
 import {
+  MULTICLASS_GRANTS,
   characterLevel,
   combinedArmorTraining,
   meetsPrerequisites,
@@ -1818,6 +1819,17 @@ export function planCharacter(
       (choices.multiclass ?? []).map((entry) => entry.classId),
     ),
     baseSpeed: species.speed,
+    // SRD: the starting class grants its weapon proficiencies in full, and a
+    // later class grants the subset its "As a Multiclass Character" section
+    // prints — which for most of them is nothing at all.
+    weaponProficiencies: [
+      ...new Set([
+        ...definition.weaponProficiencies,
+        ...(choices.multiclass ?? []).flatMap(
+          (entry) => MULTICLASS_GRANTS[entry.classId]?.weapons ?? [],
+        ),
+      ]),
+    ].sort(),
     // SRD Unarmored Defense and Draconic Resilience. Gathered from whatever
     // features grant one rather than by naming the three classes that do, so a
     // fourth needs no change here. A character with none carries none, and

@@ -59,6 +59,18 @@ export interface CharacterSheet {
   readonly baseSpeed: number;
   readonly spellcastingAbility: Ability | null;
   /**
+   * Weapon categories this character is proficient with.
+   *
+   * The vocabulary a class definition uses — `simple`, `martial`, and the two
+   * qualified ones the SRD actually prints: the Monk's "Martial weapons that
+   * have the Light property" and the Rogue's "Martial weapons that have the
+   * Finesse or Light property". Absent means nobody has said, and a creature
+   * nobody has said about is treated as proficient — a stat block prints its
+   * attack bonus outright, so deriving one for a monster would be inventing a
+   * number the block already gave.
+   */
+  readonly weaponProficiencies?: readonly string[];
+  /**
    * Alternative ways to work out base Armour Class, from class features.
    *
    * SRD writes three of these and they differ in both halves. Absent, and a

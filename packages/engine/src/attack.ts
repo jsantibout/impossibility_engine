@@ -50,6 +50,73 @@ export interface ExtraDamage {
   readonly flat?: number;
 }
 
+/**
+ * Whether a character is proficient with this weapon.
+ *
+ * SRD gives four shapes and the last two are easy to flatten into "martial":
+ *
+ * | Class text | Category |
+ * |---|---|
+ * | "Simple weapons" | `simple` |
+ * | "Simple and Martial weapons" | `martial` |
+ * | "Martial weapons that have the Light property" (Monk) | `martial-light` |
+ * | "Martial weapons that have the Finesse or Light property" (Rogue) | `martial-finesse-or-light` |
+ *
+ * A sheet that names no categories is proficient with everything, which is the
+ * right answer for a stat block: a monster prints its attack bonus rather than
+ * deriving one, so withholding a Proficiency Bonus from it would change a
+ * number the block already stated.
+ */
+export function proficientWith(sheet: CharacterSheet, weapon: Weapon | null): boolean {
+  const categories = sheet.weaponProficiencies;
+  // SRD Unarmed Strike: "Your bonus to the roll equals your Strength modifier
+  // plus your Proficiency Bonus" — there is no unproficient Unarmed Strike.
+  if (weapon === null || categories === undefined) return true;
+
+  const light = weapon.properties.includes('light');
+  const finesse = weapon.properties.includes('finesse');
+
+  return categories.some((category) => {
+    switch (category) {
+      case 'simple':
+        return weapon.category === 'simple';
+      case 'martial':
+        return weapon.category === 'martial';
+      case 'martial-light':
+        return weapon.category === 'martial' && light;
+      case 'martial-finesse-or-light':
+        return weapon.category === 'martial' && (finesse || light);
+      default:
+        return false;
+    }
+  });
+}
+
+/**
+ * How far this weapon reaches in melee, in feet.
+ *
+ * SRD Reach: "This weapon adds 5 feet to your reach when you attack with it."
+ * Everything else, an Unarmed Strike included, reaches five.
+ */
+export function meleeReach(weapon: Weapon | null): number {
+  return weapon?.properties.includes('reach') === true ? 10 : 5;
+}
+
+/**
+ * The normal and long range of a ranged attack, or null for a melee one.
+ *
+ * A Thrown melee weapon uses its Thrown range; an Ammunition weapon uses its
+ * own. A weapon that is neither is not making a ranged attack.
+ */
+export function rangeOf(
+  weapon: Weapon | null,
+  thrown: boolean,
+): { readonly normal: number; readonly long: number } | null {
+  if (weapon === null) return null;
+  if (thrown) return weapon.thrownRange;
+  return weapon.kind === 'ranged' ? weapon.ammunitionRange : null;
+}
+
 export interface AttackOptions {
   /** The weapon used, or null for an Unarmed Strike. */
   readonly weapon: Weapon | null;

@@ -723,6 +723,16 @@ export type GameEvent =
       readonly contributions: readonly { readonly source: string; readonly amount: number }[];
       /** How it came out, in the caller's own words. */
       readonly outcome?: string;
+      /**
+       * The command that produced it, for a command that rolls and may miss.
+       *
+       * `resolveAttack` needs somewhere to stamp its identity that happens
+       * whether or not the attack lands — a miss emits no damage, so stamping
+       * the damage would leave a missed swing retryable and rolled twice. This
+       * event still changes no game state; it only reaches the ledger that
+       * makes a retry a no-op.
+       */
+      readonly command?: CommandStamp;
     }
 
   // — dice ——————————————————————————————————————————————————————

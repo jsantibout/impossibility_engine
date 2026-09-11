@@ -19,13 +19,20 @@ import {
 } from './character.js';
 import {
   applyDamage,
+  meleeReach,
+  proficientWith,
+  rangeOf,
   rollAttack,
   rollAttackDamage,
   type AttackResult,
   type DamageComponent,
+  type ExtraDamage,
 } from './attack.js';
+import type { Weapon } from '@ie/srd';
 import { expandPack, itemFor, type CatalogueItem, type ItemKind } from './catalogue.js';
 import {
+  canBeTargeted,
+  coverAcBonus,
   coverBetween,
   creaturesInArea,
   distanceBetween,
@@ -535,6 +542,280 @@ export function restoreResourcesOn(
     return err('unknown_creature', `${id} is not in this game`);
   }
   return ok([{ type: 'resources-restored', id, recovers }]);
+}
+
+// — weapon attacks ————————————————————————————————————————————————————————————
+
+export interface AttackCommand extends CommandIdentity {
+  readonly target: CharacterId;
+  /** The weapon, by catalogue id, or null for an Unarmed Strike. */
+  readonly weapon: string | null;
+  /** Wielded in two hands, for a Versatile weapon. */
+  readonly twoHanded?: boolean;
+  /** Thrown rather than swung, for a Thrown weapon. */
+  readonly thrown?: boolean;
+  /** Which ability to use on a Finesse weapon. Defaults to the better one. */
+  readonly finesseAbility?: 'str' | 'dex';
+  /** Advantage or disadvantage from the fiction, which the engine cannot see. */
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  /** Modifiers the caller knows about: Archery, a magic weapon's plus. */
+  readonly attackBonuses?: readonly Bonus[];
+  readonly damageBonuses?: readonly Bonus[];
+  /** Damage of other types: a Divine Smite's radiant, a Flame Tongue's fire. */
+  readonly extraDamage?: readonly ExtraDamage[];
+}
+
+export interface AttackResolution {
+  readonly events: readonly GameEvent[];
+  /** The roll, or null when this command id had already landed. */
+  readonly attack: AttackResult | null;
+  /** Damage that actually landed, after the target's defences. Absent on a miss. */
+  readonly damage?: number;
+  /** What the damage did to the target's Concentration, if they had any. */
+  readonly concentration?: ConcentrationConsequence;
+  /** True when this command id had already been applied; `events` is empty. */
+  readonly duplicate: boolean;
+}
+
+/**
+ * Swing at somebody, and let the engine work out the numbers.
+ *
+ * `rollAttack` is pure and always has been: hand it a sheet, a target Armour
+ * Class, some modes and some bonuses, and it rolls correctly. What it cannot
+ * do is *find* any of those, so every one of them was the caller's to supply —
+ * which meant nothing in the engine ever checked them, and a fixture could
+ * quietly swing a longsword at somebody fifty feet away.
+ *
+ * Everything derivable is derived here:
+ *
+ * | | From |
+ * |---|---|
+ * | Target Armour Class | the target's own sheet, plus declared cover |
+ * | Reach and range | the weapon's properties and the distance between volumes |
+ * | An enemy hampering a bow | who is within 5 feet and on another side |
+ * | Advantage and disadvantage | both creatures' conditions, after features have suppressed any |
+ * | Proficiency | the weapon's category against the sheet's |
+ * | Defences | the target's own, and the ones its features grant |
+ *
+ * What the caller still says is what the engine cannot see: advantage from the
+ * fiction, a magic weapon's plus, a Smite's extra dice.
+ */
+export function resolveAttack(
+  state: GameState,
+  id: CharacterId,
+  command: AttackCommand,
+  supply: ConcentrationSaveSupply,
+): Result<AttackResolution> {
+  const identity = identify(state, `attack:${id}`, command);
+  if (!identity.ok) return identity;
+  // A retry is a no-op rather than a refusal, and says so rather than looking
+  // like a miss: the same contract `resolveDamage` keeps, for the same reason.
+  if (identity.value.duplicate) {
+    return ok({ events: [], attack: null, duplicate: true });
+  }
+  const stamp = identity.value.stamp;
+
+  const attacker = creatureOf(state, id);
+  if (attacker === null) return err('unknown_creature', `${id} is not in this game`);
+  const victim = creatureOf(state, command.target);
+  if (victim === null) return err('unknown_creature', `${command.target} is not in this game`);
+  if (attacker.vitals.dead) return err('dead', `${id} is dead and swings at nothing`);
+
+  // — the weapon —————————————————————————————————————————————————————————
+  let weapon: Weapon | null = null;
+  if (command.weapon !== null) {
+    const item = itemFor(command.weapon);
+    if (item?.weapon === undefined || item.weapon === null) {
+      return err('unknown_item', `${command.weapon} is not a weapon the SRD lists`);
+    }
+    // Owning is not wielding, but you cannot wield what you do not own.
+    if (quantityOf(state, id, command.weapon) < 1) {
+      return err('not_owned', `${id} does not have a ${item.weapon.name}`);
+    }
+    weapon = item.weapon;
+  }
+
+  // — can it even reach ——————————————————————————————————————————————————
+  const reach = reachCheck(state, id, command.target, weapon, command.thrown === true);
+  if (!reach.ok) return reach;
+
+  // SRD Total Cover: the target "can't be targeted directly".
+  const cover = state.scene === null ? 'none' : coverBetween(state.scene, id, command.target);
+  if (!canBeTargeted(cover)) {
+    return err('total_cover', `${command.target} is behind Total Cover`);
+  }
+
+  // — the action it costs —————————————————————————————————————————————————
+  //
+  // SRD: an attack with a weapon is the Attack action. Outside combat there is
+  // no economy to spend, exactly as `resolveCast` finds.
+  const events: GameEvent[] = [];
+  if (state.combat !== null && state.combat.budgets[id] !== undefined) {
+    const spent = spendAction(state.combat, id, attacker.conditions);
+    if (!spent.ok) return spent;
+    events.push({ type: 'action-spent', id });
+  }
+
+  // — the roll ———————————————————————————————————————————————————————————
+  const issuedBefore = supply.issuer.count;
+  const withinFiveFeet = reach.value.apart !== null && reach.value.apart <= 5;
+
+  const attack = rollAttack(supply.issuer, supply.rng, attacker.sheet, {
+    weapon,
+    targetAc: armorClass(victim.sheet) + coverAcBonus(cover),
+    proficient: proficientWith(attacker.sheet, weapon),
+    ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+    ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
+    ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
+    ...(command.modes === undefined ? {} : { modes: command.modes }),
+    beyondNormalRange: reach.value.beyondNormal,
+    nearbyEnemy: enemyWithinFiveFeet(state, id),
+    attackBonuses: [
+      // Bless is on the creature, not in the caller's head.
+      ...bonusesFor(attacker.bonuses, 'attack'),
+      ...(command.attackBonuses ?? []),
+    ],
+    ...(command.damageBonuses === undefined ? {} : { damageBonuses: command.damageBonuses }),
+    ...(command.extraDamage === undefined ? {} : { extraDamage: command.extraDamage }),
+    // What actually bites: a condition a feature has suppressed gives nobody
+    // anything. See `effectiveConditions`.
+    attackerConditions: effectiveConditions(state, id),
+    targetConditions: effectiveConditions(state, command.target),
+    withinFiveFeet,
+  });
+  if (!attack.ok) return attack;
+
+  events.push({
+    type: 'roll-recorded',
+    who: id,
+    label: `${weapon?.name ?? 'Unarmed Strike'} attack`,
+    natural: attack.value.roll.natural,
+    total: attack.value.total,
+    contributions: [{ source: 'attack', amount: attack.value.roll.modifier }],
+    outcome: attack.value.hit ? 'hit' : 'miss',
+    // Stamped on the roll rather than on the damage, because a miss deals none
+    // and a missed swing must not be retryable.
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  if (!attack.value.hit) {
+    events.push({
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    });
+    return ok({ events, attack: attack.value, duplicate: false });
+  }
+
+  // — the damage —————————————————————————————————————————————————————————
+  const rolled = rollAttackDamage(
+    supply.issuer,
+    supply.rng,
+    attacker.sheet,
+    {
+      weapon,
+      targetAc: attack.value.targetAc,
+      ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+      ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
+      ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
+      ...(command.damageBonuses === undefined ? {} : { damageBonuses: command.damageBonuses }),
+      ...(command.extraDamage === undefined ? {} : { extraDamage: command.extraDamage }),
+    },
+    attack.value.critical,
+  );
+  if (!rolled.ok) return rolled;
+
+  events.push({
+    type: 'rolls-issued',
+    count: supply.issuer.count - issuedBefore,
+    rng: supply.rng.snapshot(),
+  });
+
+  const after = events.reduce(applyEvent, state);
+  const hurt = dealSpellDamage(
+    after,
+    command.target,
+    rolled.value.components,
+    weapon?.name ?? 'Unarmed Strike',
+    supply,
+    attack.value.critical ? { critical: true } : {},
+  );
+  if (!hurt.ok) return hurt;
+
+  return ok({
+    events: [...events, ...hurt.value.events],
+    attack: attack.value,
+    damage: hurt.value.amount,
+    concentration: hurt.value.concentration,
+    duplicate: false,
+  });
+}
+
+/**
+ * Whether the attack can reach at all, and whether it is a long shot.
+ *
+ * SRD melee is 5 feet, or 10 with a Reach weapon. A ranged attack has
+ * Disadvantage "beyond normal range" and is not a legal attack beyond long
+ * range. An unplaced creature has no distance to anything, and that is not an
+ * error here: it is the same "nobody has said" the rest of positioning treats
+ * as a real state, so the attack proceeds unhampered rather than being refused
+ * on a fact nobody established.
+ */
+function reachCheck(
+  state: GameState,
+  id: CharacterId,
+  target: CharacterId,
+  weapon: Weapon | null,
+  thrown: boolean,
+): Result<{ readonly apart: number | null; readonly beyondNormal: boolean }> {
+  if (state.scene === null) return ok({ apart: null, beyondNormal: false });
+
+  const measured = distanceBetween(state.scene, id, target);
+  if (!measured.ok) return ok({ apart: null, beyondNormal: false });
+  const apart = measured.value;
+
+  const range = rangeOf(weapon, thrown);
+  if (range === null) {
+    const reach = meleeReach(weapon);
+    if (apart > reach) {
+      return err(
+        'out_of_reach',
+        `${weapon?.name ?? 'an Unarmed Strike'} reaches ${reach} feet; ${target} is ${apart} away`,
+      );
+    }
+    return ok({ apart, beyondNormal: false });
+  }
+
+  if (apart > range.long) {
+    return err('out_of_range', `${weapon?.name ?? 'this attack'} carries ${range.long} feet; ${target} is ${apart} away`);
+  }
+  return ok({ apart, beyondNormal: apart > range.normal });
+}
+
+/**
+ * SRD: a ranged attack has Disadvantage while an enemy is within 5 feet of you.
+ *
+ * "Enemy" is the declared side, the same fact an aura reads for "ally". A
+ * creature nobody has placed on a side is nobody's enemy either, so it hampers
+ * nothing — the conservative direction, and the same one `standingFor` takes.
+ */
+function enemyWithinFiveFeet(state: GameState, id: CharacterId): boolean {
+  const scene = state.scene;
+  const mine = state.creatures[id]?.side ?? null;
+  if (scene === null || mine === null) return false;
+
+  return Object.keys(state.creatures).some((key) => {
+    const other = state.creatures[key];
+    if (other === undefined || other.id === id) return false;
+    if (other.side === null || other.side === mine) return false;
+    // SRD says an enemy "that can see you and isn't Incapacitated"; sight is
+    // declared and often unsaid, so only the half the engine can see is applied
+    // and the other half is left to the caller's modes.
+    if (isIncapacitated(other.conditions) || other.vitals.dead) return false;
+
+    const apart = distanceBetween(scene, id, other.id);
+    return apart.ok && apart.value <= 5;
+  });
 }
 
 // — features a creature switches on ———————————————————————————————————————————
