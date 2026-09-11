@@ -323,6 +323,25 @@ and whether the mover is Prone. Applying the condition is the caller's job.
 Passing *through* is exposed as a predicate rather than derived, because there
 are no waypoints to trace — same reasoning as cover.
 
+**Creatures occupy volume, not a point.** A footprint from the SRD's Creature
+Size and Space table, rising from the feet to a height. Treating them as points
+made a tall creature mechanically flat — a blast at head height missed it
+entirely — and put a Huge creature's only point seven feet inside its own body,
+out of a fighter's reach. So areas of effect meet the *box*, and reach is
+measured space-to-space (`reachDistance`) while `distanceBetween` stays centre
+to centre for narration and spell ranges.
+
+**Height is declared, never inferred.** The SRD gives every creature a space
+but never a height, and size category is a poor proxy — a giraffe and a
+hippopotamus are both Large. Height is fiction, so Maestro says. The footprint
+fallback exists so the geometry keeps working when nobody has said; it is not a
+claim the engine knows how tall anything is, and `isHeightDeclared`
+distinguishes the two so a tool surface can ask when it would change the answer.
+
+Sphere, Emanation and Cylinder test the box exactly. Cone, Line and Cube are
+directional with no closed form, so they sample the box's corners and centre —
+documented as an approximation rather than dressed up as exact.
+
 **Riding is a relationship, not an offset.** SRD Mounted Combat covers a
 *willing* creature at least one size larger, within 5 feet, at half the rider's
 Speed. It says nothing about leaping onto a hostile dragon, which is among the

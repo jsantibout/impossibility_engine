@@ -4,6 +4,10 @@ import {
   addLandmark,
   canPassThrough,
   dismount,
+  footprintOf,
+  heightOf,
+  isHeightDeclared,
+  reachDistance,
   endsProne,
   isRidingUnwilling,
   mount,
@@ -302,18 +306,20 @@ describe('areas of effect', () => {
     expect(caught.sort()).toEqual([id('goblin-a'), id('goblin-b')].sort());
   });
 
-  it('is exact at the radius boundary', () => {
-    // goblin-a stands exactly 5 feet from the bar.
-    const onTheLine = unwrap(
-      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 5 }),
+  it('is exact at the radius boundary, measured to the edge of a space', () => {
+    // goblin-a's centre is 5 feet from the bar, but a Medium creature fills a
+    // 5-foot space, so its near edge is only 2.5 feet away. The boundary is
+    // where the body is, not where the centre is.
+    const clipsTheEdge = unwrap(
+      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 2.5 }),
       'on',
     );
-    const justInside = unwrap(
-      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 4 }),
+    const fallsShort = unwrap(
+      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 2 }),
       'off',
     );
-    expect(onTheLine).toEqual([id('goblin-a')]);
-    expect(justInside).toEqual([]);
+    expect(clipsTheEdge).toEqual([id('goblin-a')]);
+    expect(fallsShort).toEqual([]);
   });
 
   // This is the whole reason positions are coordinates: whether Fireball
@@ -814,5 +820,231 @@ describe('riding a creature', () => {
       expect(mountOf(state, id('rider'))).toBeNull();
       expect(positionOf(state, id('rider'))).not.toBeNull();
     });
+  });
+});
+
+describe('creatures occupy volume', () => {
+  const arena = () => scene({ width: 200, depth: 200, height: 200 });
+
+  const withDragon = (over: { size?: 'huge' | 'gargantuan'; height?: number } = {}) => {
+    let state = unwrap(addLandmark(arena(), 'centre', { x: 100, y: 100, z: 0 }), 'centre');
+    state = unwrap(
+      placeCreature(state, id('dragon'), {
+        from: { landmark: 'centre' },
+        feet: 0,
+        size: over.size ?? 'huge',
+        ...(over.height === undefined ? {} : { height: over.height }),
+      }),
+      'dragon',
+    );
+    return state;
+  };
+
+  describe('footprint and height', () => {
+    // SRD Creature Size and Space.
+    it.each([
+      ['tiny', 2.5],
+      ['small', 5],
+      ['medium', 5],
+      ['large', 10],
+      ['huge', 15],
+      ['gargantuan', 20],
+    ] as const)('gives %s a %i foot footprint', (size, width) => {
+      expect(footprintOf(size)).toBe(width);
+    });
+
+    // The SRD defines no creature height anywhere, so a cube is the default.
+    it('defaults height to the footprint', () => {
+      expect(heightOf(withDragon(), id('dragon'))).toBe(15);
+    });
+
+    it('accepts a declared height', () => {
+      expect(heightOf(withDragon({ height: 30 }), id('dragon'))).toBe(30);
+    });
+  });
+
+  describe('areas of effect meet the whole creature', () => {
+    /**
+     * The case this exists for: a 30-foot dragon is not a flat token. A
+     * Fireball centred well above the ground still catches its upper body.
+     */
+    it('catches a tall creature with a blast above the ground', () => {
+      const state = withDragon({ height: 30 });
+      // A 20-foot Sphere centred 40 feet up reaches down to 20 feet, which is
+      // inside a 30-foot dragon standing on the floor.
+      const caught = unwrap(
+        creaturesInArea(state, { point: { x: 100, y: 100, z: 40 } }, { kind: 'sphere', radius: 20 }),
+        'high',
+      );
+      expect(caught).toContain(id('dragon'));
+    });
+
+    it('misses when the blast is genuinely out of reach overhead', () => {
+      const state = withDragon({ height: 30 });
+      // Centred 60 feet up, a 20-foot Sphere reaches down to 40 — clear of a
+      // 30-foot dragon.
+      const caught = unwrap(
+        creaturesInArea(state, { point: { x: 100, y: 100, z: 60 } }, { kind: 'sphere', radius: 20 }),
+        'clear',
+      );
+      expect(caught).toEqual([]);
+    });
+
+    it('would have missed both if creatures were points', () => {
+      // The same dragon modelled flat: its only point is on the floor, so a
+      // blast 40 feet up misses it entirely.
+      const flat = withDragon({ height: 0 });
+      const caught = unwrap(
+        creaturesInArea(flat, { point: { x: 100, y: 100, z: 40 } }, { kind: 'sphere', radius: 20 }),
+        'flat',
+      );
+      expect(caught).toEqual([]);
+    });
+
+    // Volume cuts horizontally too: a Huge creature is 15 feet across, so a
+    // blast beside it still clips its flank.
+    it('catches the edge of a wide creature', () => {
+      const state = withDragon();
+      const caught = unwrap(
+        creaturesInArea(state, { point: { x: 112, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
+        'flank',
+      );
+      expect(caught).toContain(id('dragon'));
+    });
+
+    it('still misses when the blast clears the whole footprint', () => {
+      const state = withDragon();
+      const caught = unwrap(
+        creaturesInArea(state, { point: { x: 130, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
+        'wide',
+      );
+      expect(caught).toEqual([]);
+    });
+
+    it('respects a cylinder’s vertical span against a tall creature', () => {
+      const state = withDragon({ height: 30 });
+      const low = unwrap(
+        creaturesInArea(
+          state,
+          { point: { x: 100, y: 100, z: 50 } },
+          { kind: 'cylinder', radius: 20, height: 5 },
+        ),
+        'low',
+      );
+      const tall = unwrap(
+        creaturesInArea(
+          state,
+          { point: { x: 100, y: 100, z: 20 } },
+          { kind: 'cylinder', radius: 20, height: 40 },
+        ),
+        'tall',
+      );
+      expect(low).toEqual([]);
+      expect(tall).toContain(id('dragon'));
+    });
+
+    it('leaves a Medium creature behaving as before', () => {
+      let state = unwrap(addLandmark(arena(), 'centre', { x: 100, y: 100, z: 0 }), 'c');
+      state = unwrap(placeCreature(state, id('fighter'), { from: { landmark: 'centre' }, feet: 0 }), 'f');
+      // 5-foot footprint, so a blast 10 feet away still misses with radius 5.
+      expect(
+        unwrap(
+          creaturesInArea(state, { point: { x: 110, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
+          'near',
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  describe('reach measures to a creature’s space', () => {
+    /**
+     * Without this a fighter could not melee a Huge dragon at all: its centre
+     * point is 7.5 feet inside its own body, beyond a 5-foot reach.
+     */
+    it('lets a fighter melee a Huge dragon from outside its space', () => {
+      let state = withDragon();
+      state = unwrap(
+        placeCreature(state, id('fighter'), { from: { creature: id('dragon') }, feet: 11, bearing: 90 }),
+        'fighter',
+      );
+      expect(unwrap(withinReach(state, id('fighter'), id('dragon'), 5), 'reach')).toBe(true);
+    });
+
+    it('still refuses a reach that genuinely falls short', () => {
+      let state = withDragon();
+      state = unwrap(
+        placeCreature(state, id('fighter'), { from: { creature: id('dragon') }, feet: 30, bearing: 90 }),
+        'fighter',
+      );
+      expect(unwrap(withinReach(state, id('fighter'), id('dragon'), 5), 'reach')).toBe(false);
+    });
+
+    it('reports centre-to-centre distance separately, for narration and ranges', () => {
+      let state = withDragon();
+      state = unwrap(
+        placeCreature(state, id('fighter'), { from: { creature: id('dragon') }, feet: 30, bearing: 90 }),
+        'fighter',
+      );
+      expect(unwrap(distanceBetween(state, id('fighter'), id('dragon')), 'centres')).toBe(30);
+      // Edge to edge is shorter: the dragon's flank is 7.5 feet nearer.
+      expect(unwrap(reachDistance(state, id('fighter'), id('dragon')), 'edges')).toBe(20);
+    });
+
+    it('is zero when one creature is inside another’s space', () => {
+      let state = withDragon();
+      state = unwrap(
+        placeCreature(state, id('imp'), { from: { creature: id('dragon') }, feet: 5, bearing: 90, size: 'tiny' }),
+        'imp',
+      );
+      expect(unwrap(reachDistance(state, id('imp'), id('dragon')), 'inside')).toBe(0);
+    });
+  });
+});
+
+describe('height is declared, not inferred', () => {
+  const plain = () => scene({ width: 200, depth: 200, height: 200 });
+
+  const beast = (name: string, size: 'large' | 'huge', height?: number) => {
+    const state = unwrap(addLandmark(plain(), 'field', { x: 100, y: 100, z: 0 }), 'field');
+    return unwrap(
+      placeCreature(state, id(name), {
+        from: { landmark: 'field' },
+        feet: 0,
+        size,
+        ...(height === undefined ? {} : { height }),
+      }),
+      name,
+    );
+  };
+
+  /**
+   * Size category is a poor proxy for height: a giraffe and a hippopotamus are
+   * both Large and nothing about the category separates them. Height is part of
+   * the fiction, so Maestro says.
+   */
+  it('lets two creatures of the same size have very different heights', () => {
+    expect(heightOf(beast('giraffe', 'large', 18), id('giraffe'))).toBe(18);
+    expect(heightOf(beast('hippo', 'large', 5), id('hippo'))).toBe(5);
+  });
+
+  it('catches the giraffe overhead but not the hippo', () => {
+    const overhead = { point: { x: 100, y: 100, z: 15 } };
+    const shape = { kind: 'sphere', radius: 3 } as const;
+
+    expect(unwrap(creaturesInArea(beast('giraffe', 'large', 18), overhead, shape), 'g')).toEqual([
+      id('giraffe'),
+    ]);
+    expect(unwrap(creaturesInArea(beast('hippo', 'large', 5), overhead, shape), 'h')).toEqual([]);
+  });
+
+  it('reports whether a height was actually declared', () => {
+    expect(isHeightDeclared(beast('giraffe', 'large', 18), id('giraffe'))).toBe(true);
+    expect(isHeightDeclared(beast('unknown', 'large'), id('unknown'))).toBe(false);
+  });
+
+  // The fallback exists so the geometry keeps working, not because the engine
+  // knows how tall anything is.
+  it('falls back to the footprint when nobody has said', () => {
+    expect(heightOf(beast('unknown', 'large'), id('unknown'))).toBe(footprintOf('large'));
   });
 });

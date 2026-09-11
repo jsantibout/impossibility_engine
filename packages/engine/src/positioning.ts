@@ -42,6 +42,8 @@ export interface PositionState {
   readonly positions: Readonly<Record<string, Point>>;
   /** Sizes, which every rule about sharing a space depends on. */
   readonly sizes: Readonly<Record<string, CreatureSize>>;
+  /** Heights in feet, as declared. Absent means nobody has said. */
+  readonly heights: Readonly<Record<string, number>>;
   /** Declared cover, keyed `attacker>target` — cover is directional. */
   readonly cover: Readonly<Record<string, CoverDegree>>;
   /** Who is riding what, and whether the mount consented. */
@@ -59,7 +61,7 @@ export interface Ride {
 }
 
 export function scene(extent: SceneExtent): PositionState {
-  return { extent, landmarks: {}, positions: {}, sizes: {}, cover: {}, riding: {} };
+  return { extent, landmarks: {}, positions: {}, sizes: {}, heights: {}, cover: {}, riding: {} };
 }
 
 export function positionOf(state: PositionState, who: CharacterId): Point | null {
@@ -108,7 +110,103 @@ export interface Placement {
    * creatures are Medium, and size only affects who may share a space.
    */
   readonly size?: CreatureSize;
+  /**
+   * Height in feet. This is fiction, so it is Maestro's to decide — a giraffe
+   * and a hippopotamus are both Large and nothing about the size category
+   * distinguishes them. See {@link heightOf} for what happens when nobody says.
+   */
+  readonly height?: number;
 }
+
+/** SRD "Creature Size and Space": the width of the square a creature occupies. */
+const FOOTPRINT: Readonly<Record<CreatureSize, number>> = {
+  tiny: 2.5,
+  small: 5,
+  medium: 5,
+  large: 10,
+  huge: 15,
+  gargantuan: 20,
+};
+
+export function footprintOf(size: CreatureSize): number {
+  return FOOTPRINT[size];
+}
+
+/**
+ * Whether a creature's height was actually declared, rather than assumed.
+ *
+ * A tool surface can use this to ask Maestro for a height when one would change
+ * the answer — a blast at head height against something tall — instead of
+ * quietly proceeding on a guess.
+ */
+export function isHeightDeclared(state: PositionState, who: CharacterId): boolean {
+  return state.heights[who] !== undefined;
+}
+
+/**
+ * A creature's height in feet.
+ *
+ * The SRD gives every creature a *space* but never a height, and size category
+ * is a poor proxy: a giraffe and a hippopotamus are both Large. Height is part
+ * of the fiction, so Maestro declares it.
+ *
+ * Falling back to the footprint keeps the geometry working when nobody has
+ * said — it is a placeholder so nothing crashes, not a claim the engine knows
+ * how tall anything is. {@link isHeightDeclared} distinguishes the two.
+ */
+export function heightOf(state: PositionState, who: CharacterId): number {
+  return state.heights[who] ?? footprintOf(state.sizes[who] ?? 'medium');
+}
+
+interface Box {
+  readonly min: Point;
+  readonly max: Point;
+}
+
+/**
+ * The volume a creature occupies: its footprint centred on its position, rising
+ * from its feet to its height.
+ *
+ * Treating creatures as points made a tall creature mechanically flat — a blast
+ * at head height missed it entirely — and put a Huge creature's only point
+ * seven feet inside its own body, out of a fighter's reach.
+ */
+function boxOf(state: PositionState, who: CharacterId): Box | null {
+  const at = state.positions[who];
+  if (at === undefined) return null;
+
+  const half = footprintOf(state.sizes[who] ?? 'medium') / 2;
+
+  return {
+    min: { x: at.x - half, y: at.y - half, z: at.z },
+    max: { x: at.x + half, y: at.y + half, z: at.z + heightOf(state, who) },
+  };
+}
+
+const clamp = (n: number, low: number, high: number): number => Math.min(high, Math.max(low, n));
+
+/** The point of a box closest to `p`; inside the box, that is `p` itself. */
+const closestIn = (box: Box, p: Point): Point => ({
+  x: clamp(p.x, box.min.x, box.max.x),
+  y: clamp(p.y, box.min.y, box.max.y),
+  z: clamp(p.z, box.min.z, box.max.z),
+});
+
+/** Corners plus centre, for shapes with no closed-form box test. */
+const samplePoints = (box: Box): Point[] => {
+  const points: Point[] = [];
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) points.push({ x, y, z });
+    }
+  }
+  points.push({
+    x: (box.min.x + box.max.x) / 2,
+    y: (box.min.y + box.max.y) / 2,
+    z: (box.min.z + box.max.z) / 2,
+  });
+  return points;
+};
 
 const SIZE_ORDER: readonly CreatureSize[] = [
   'tiny',
@@ -275,10 +373,14 @@ export function placeCreature(
   const at = choosePoint(state, from.value, placement, null, false);
   if (!at.ok) return at;
 
+  const heights = { ...state.heights };
+  if (placement.height !== undefined) heights[who] = placement.height;
+
   return ok({
     ...state,
     positions: { ...state.positions, [who]: at.value },
     sizes: { ...state.sizes, [who]: placement.size ?? 'medium' },
+    heights,
   });
 }
 
@@ -361,6 +463,8 @@ export function removeCreature(state: PositionState, who: CharacterId): Result<P
   delete positions[who];
   const sizes = { ...state.sizes };
   delete sizes[who];
+  const heights = { ...state.heights };
+  delete heights[who];
 
   // Anyone riding the departing creature is set down rather than vanishing
   // with it.
@@ -368,7 +472,7 @@ export function removeCreature(state: PositionState, who: CharacterId): Result<P
   delete riding[who];
   for (const rider of ridersOf(state, who)) delete riding[rider];
 
-  return ok({ ...state, positions, sizes, riding });
+  return ok({ ...state, positions, sizes, heights, riding });
 }
 
 const separation = (a: Point, b: Point): number =>
@@ -393,14 +497,46 @@ export function distanceBetween(
   return ok(round(separation(from, to)));
 }
 
-/** Whether `target` is within `reach` feet of `attacker`. */
+/**
+ * Distance between the nearest points of two creatures' spaces.
+ *
+ * This is what reach measures against. A Huge dragon's centre sits seven and a
+ * half feet inside its own body, so measuring centre to centre would put a
+ * fighter standing against its flank out of melee range of it.
+ */
+export function reachDistance(
+  state: PositionState,
+  a: CharacterId,
+  b: CharacterId,
+): Result<number> {
+  const boxA = boxOf(state, a);
+  const boxB = boxOf(state, b);
+  if (boxA === null) return err('unplaced', `${a} needs placing first`);
+  if (boxB === null) return err('unplaced', `${b} needs placing first`);
+
+  // Separation along each axis independently; zero where the spans overlap.
+  const gap = (minA: number, maxA: number, minB: number, maxB: number): number =>
+    Math.max(0, Math.max(minA - maxB, minB - maxA));
+
+  return ok(
+    round(
+      Math.sqrt(
+        gap(boxA.min.x, boxA.max.x, boxB.min.x, boxB.max.x) ** 2 +
+          gap(boxA.min.y, boxA.max.y, boxB.min.y, boxB.max.y) ** 2 +
+          gap(boxA.min.z, boxA.max.z, boxB.min.z, boxB.max.z) ** 2,
+      ),
+    ),
+  );
+}
+
+/** Whether `target` is within `reach` feet of `attacker`, space to space. */
 export function withinReach(
   state: PositionState,
   attacker: CharacterId,
   target: CharacterId,
   reach: number,
 ): Result<boolean> {
-  const distance = distanceBetween(state, attacker, target);
+  const distance = reachDistance(state, attacker, target);
   if (!distance.ok) return distance;
   return ok(distance.value <= reach);
 }
@@ -638,6 +774,36 @@ function inShape(origin: Point, shape: AreaShape, p: Point): boolean {
   }
 }
 
+/**
+ * Whether an area of effect meets any part of a creature's volume.
+ *
+ * Sphere, Emanation and Cylinder are exact: the nearest point of the box to the
+ * origin settles it in closed form. Cone, Line and Cube are directional and
+ * have no such shortcut, so those sample the box's corners and centre — close
+ * enough that a dragon is caught by a breath weapon, and honest about being an
+ * approximation rather than pretending otherwise.
+ */
+function boxInShape(origin: Point, shape: AreaShape, box: Box): boolean {
+  switch (shape.kind) {
+    case 'sphere':
+    case 'emanation': {
+      const radius = shape.kind === 'sphere' ? shape.radius : shape.distance;
+      return magnitude(subtract(closestIn(box, origin), origin)) <= radius;
+    }
+
+    case 'cylinder': {
+      const nearest = closestIn(box, origin);
+      const horizontal = Math.sqrt((nearest.x - origin.x) ** 2 + (nearest.y - origin.y) ** 2);
+      // Vertical spans overlap when neither sits wholly above the other.
+      const overlaps = box.min.z <= origin.z + shape.height && box.max.z >= origin.z;
+      return horizontal <= shape.radius && overlaps;
+    }
+
+    default:
+      return samplePoints(box).some((p) => inShape(origin, shape, p));
+  }
+}
+
 /** Shapes whose point of origin is part of the area by default. */
 const ORIGIN_INCLUDED_BY_DEFAULT = new Set(['sphere', 'cylinder']);
 
@@ -673,8 +839,10 @@ export function creaturesInArea(
   const caught: CharacterId[] = [];
   for (const [who, p] of Object.entries(state.positions)) {
     const id = who as CharacterId;
+    const box = boxOf(state, id);
+    if (box === null) continue;
 
-    if (!inShape(at, shape, p)) continue;
+    if (!boxInShape(at, shape, box)) continue;
 
     // The origin creature of an Emanation, or anything standing exactly on the
     // point of origin, is excluded unless the caster says otherwise.
