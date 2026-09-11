@@ -8,7 +8,12 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
-import { abilityModifier, proficiencyBonusForLevel, type CharacterSheet } from './character.js';
+import {
+  abilityModifier,
+  proficiencyBonusForLevel,
+  type CharacterSheet,
+  type UnarmoredDefense,
+} from './character.js';
 import { expandPack, goldToCopper, itemFor } from './catalogue.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
@@ -1713,6 +1718,17 @@ export function planCharacter(
 
   const casters = castingClassesOf(choices);
 
+  const alternatives: UnarmoredDefense[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'unarmored-defense') continue;
+    alternatives.push({
+      source: feature.id,
+      ability: grant.ability,
+      shieldAllowed: grant.shieldAllowed,
+    });
+  }
+
   const sheet: CharacterSheet = {
     // SRD: the Proficiency Bonus is "based on your total character level, not
     // your level in a particular class", and the sheet's level is what derives
@@ -1729,6 +1745,11 @@ export function planCharacter(
       (choices.multiclass ?? []).map((entry) => entry.classId),
     ),
     baseSpeed: species.speed,
+    // SRD Unarmored Defense and Draconic Resilience. Gathered from whatever
+    // features grant one rather than by naming the three classes that do, so a
+    // fourth needs no change here. A character with none carries none, and
+    // Armour Class is derived exactly as it was before.
+    ...(alternatives.length === 0 ? {} : { unarmoredDefense: alternatives }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every

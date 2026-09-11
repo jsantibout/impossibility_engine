@@ -125,7 +125,22 @@ export type FeatureGrant =
    * modelling it as a choice with one legal answer would demand the player
    * type it back.
    */
-  | { readonly kind: 'spells'; readonly fixed?: readonly string[] };
+  | { readonly kind: 'spells'; readonly fixed?: readonly string[] }
+  /**
+   * SRD Unarmored Defense and Draconic Resilience: an alternative base Armour
+   * Class while unarmoured.
+   *
+   * A grant rather than a note, because three features want it with three
+   * different abilities and two different rules about Shields — which is what
+   * makes it a shape rather than one class's quirk. It asks the player
+   * nothing, so it carries no `choice`.
+   */
+  | {
+      readonly kind: 'unarmored-defense';
+      readonly ability: Ability;
+      /** SRD Barbarian: "You can use a Shield and still gain this benefit." */
+      readonly shieldAllowed: boolean;
+    };
 
 export interface ClassLevelRow {
   readonly level: number;

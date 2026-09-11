@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { classCasting, type SpellcastingState } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
-import { armorClass, proficiencyBonusForLevel } from './character.js';
+import { armorClass, armorClassCalculation, proficiencyBonusForLevel } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { DRACONIC_SORCERY, METAMAGIC_OPTIONS, SORCERER } from './sorcerer.js';
 import { cumulativeFeatures } from './progression.js';
@@ -227,11 +227,19 @@ describe('Metamagic is a set of named options, not a set of feats', () => {
 });
 
 describe('a Sorcerer is a creature the rest of the engine accepts', () => {
-  it('is unarmoured, like the Wizard and unlike the Cleric', () => {
+  /**
+   * SRD Draconic Resilience: "Parts of you are also covered by dragon-like
+   * scales. While you aren't wearing armor, your base Armor Class equals 10
+   * plus your Dexterity and Charisma modifiers." The third feature to want an
+   * alternative Armour Class calculation, and the one that proves the shape is
+   * not a Barbarian-and-Monk thing: it arrives at level 3, from a *subclass*.
+   */
+  it('wears no armour, and has scales instead', () => {
     const sheet = built().creatures.veska!.sheet;
     expect(sheet.armor).toBeNull();
-    // 10 + Dexterity 14 (+2).
-    expect(armorClass(sheet)).toBe(12);
+    // 10 + Dexterity 14 (+2) + Charisma 15 (+2).
+    expect(armorClass(sheet)).toBe(14);
+    expect(armorClassCalculation(sheet).source).toBe('draconic-sorcery:draconic-resilience');
   });
 
   it('has hit points from a d6', () => {

@@ -57,6 +57,13 @@ export interface CharacterSheet {
   /** Walking speed in feet before armour penalties. */
   readonly baseSpeed: number;
   readonly spellcastingAbility: Ability | null;
+  /**
+   * Alternative ways to work out base Armour Class, from class features.
+   *
+   * SRD writes three of these and they differ in both halves. Absent, and a
+   * creature's Armour Class is derived exactly as it always was.
+   */
+  readonly unarmoredDefense?: readonly UnarmoredDefense[];
   /** Set for creatures whose numbers are printed rather than derived. */
   readonly stated?: StatedValues;
 }
@@ -119,13 +126,67 @@ export function skillModifier(sheet: CharacterSheet, skill: Skill): number {
 }
 
 /**
+ * A class feature that replaces the Armour Class calculation.
+ *
+ * SRD writes three, and they differ in both halves — which ability joins
+ * Dexterity, and whether a Shield is allowed:
+ *
+ * | Feature | Ability | Shield |
+ * |---|---|---|
+ * | Barbarian Unarmored Defense | Constitution | "You can use a Shield and still gain this benefit" |
+ * | Monk Unarmored Defense | Wisdom | "or wielding a Shield" — forbidden |
+ * | Draconic Resilience | Charisma | not mentioned, so allowed |
+ *
+ * The Monk's Shield clause is the half that gets dropped, and it is not the
+ * obvious one: a Monk holding a Shield does not lose the Shield's bonus, they
+ * lose the whole alternative calculation and fall back to 10 + Dexterity.
+ *
+ * None of these applies in armour — every one of them says "while you aren't
+ * wearing armor" — so armour still replaces everything, as it always did.
+ */
+export interface UnarmoredDefense {
+  /** The feature that grants it, so a log can say which rule made the number. */
+  readonly source: string;
+  /** The ability added alongside Dexterity. */
+  readonly ability: Ability;
+  /** SRD Monk: "while you aren't wearing armor **or wielding a Shield**". */
+  readonly shieldAllowed: boolean;
+}
+
+/** How a creature's Armour Class was arrived at, and by which rule. */
+export interface ArmorClassCalculation {
+  /** The base before a Shield: 10 + Dexterity, armour's own, or a feature's. */
+  readonly base: number;
+  /** What a Shield added, or 0. */
+  readonly shield: number;
+  /**
+   * The feature whose calculation won, or null for the ordinary ones.
+   *
+   * Null covers both "10 + Dexterity" and "the armour being worn", because
+   * neither is a feature and the sheet already says which of the two applied.
+   */
+  readonly source: string | null;
+  readonly total: number;
+}
+
+/**
  * SRD: base AC is 10 + Dexterity modifier. Armour supplies a *different* base
  * calculation rather than adding to that one — you use one or the other, never
  * both. A Shield then adds on top of whichever base applies.
+ *
+ * A class feature is a third way, and SRD Multiclassing settles what happens
+ * when a character has several: "If you have multiple ways to calculate your
+ * Armor Class, you can benefit from only one at a time." That is a choice with
+ * exactly one sensible answer — a higher Armour Class costs nothing and gives
+ * up nothing — so the best *applicable* calculation is taken and recorded,
+ * rather than asking a question whose answer is arithmetic. It is also why a
+ * feature never lowers the number: 10 + Dexterity is itself one of the ways.
  */
-export function armorClass(sheet: CharacterSheet): number {
+export function armorClassCalculation(sheet: CharacterSheet): ArmorClassCalculation {
   const stated = sheet.stated?.armorClass;
-  if (stated !== undefined) return stated;
+  if (stated !== undefined) {
+    return { base: stated, shield: 0, source: null, total: stated };
+  }
 
   const { armor, shield } = sheet;
 
@@ -140,8 +201,21 @@ export function armorClass(sheet: CharacterSheet): number {
   const dex = modifierFor(sheet, 'dex');
 
   let base: number;
+  let source: string | null = null;
+
   if (armor === null) {
     base = 10 + dex;
+    // Every alternative reads Dexterity too, so they differ only in the second
+    // ability — but the comparison is on the whole number, because a future
+    // feature need not be shaped that way.
+    for (const alternative of sheet.unarmoredDefense ?? []) {
+      if (shield !== null && !alternative.shieldAllowed) continue;
+      const theirs = 10 + dex + modifierFor(sheet, alternative.ability);
+      if (theirs > base) {
+        base = theirs;
+        source = alternative.source;
+      }
+    }
   } else {
     const cap = armor.maxDexBonus;
     // The cap limits how much Dex helps; it never turns a penalty into a bonus.
@@ -152,7 +226,11 @@ export function armorClass(sheet: CharacterSheet): number {
   // A Shield only helps someone trained to use one.
   const shieldBonus = shield !== null && sheet.armorTraining.shields ? (shield.acBonus ?? 0) : 0;
 
-  return base + shieldBonus;
+  return { base, shield: shieldBonus, source, total: base + shieldBonus };
+}
+
+export function armorClass(sheet: CharacterSheet): number {
+  return armorClassCalculation(sheet).total;
 }
 
 /**

@@ -195,7 +195,8 @@ export const DRACONIC_SORCERY: SubclassDefinition = {
       name: 'Draconic Resilience',
       level: 3,
       automation: 'manual',
-      note: 'The extra hit point per Sorcerer level and the 10 + Dexterity Armour Class while unarmoured are not applied; Armour Class has no place for a class feature yet.',
+      note: 'The Armour Class half is applied: SRD, "While you aren’t wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers." The hit point half is not — "your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level" needs a feature that raises the hit point maximum, which nothing else wants yet.',
+      grants: { kind: 'unarmored-defense', ability: 'cha', shieldAllowed: true },
     },
     {
       id: 'draconic-sorcery:draconic-spells',

@@ -41,7 +41,8 @@ still Wizard-shaped are named below.
 | Class coverage | COVERAGE.md counts classes and executed features too | `a4d8d1a` |
 | Multiclassing | Rules module, and wired into creation | `e79b61d` |
 | Per-class casting | Two casting classes; Pact Magic its own pool | `d022ca0` |
-| No skipped tests | Each class asserts the slot rule that applies to it | _this batch_ |
+| No skipped tests | Each class asserts the slot rule that applies to it | `a48bbb1` |
+| Unarmoured Defense | A class feature reaches the Armour Class calculation | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -177,11 +178,14 @@ print two prepared spells and two level 1 slots at level 1 for both.
   level, so "two slots at level 3 and nothing below" is `[0, 0, 2]`, and
   `spellSlotTable` drops the empty levels so no level 1 pool is ever declared.
 
-- The Barbarian and Monk both want **Unarmoured Defense**, with different
-  abilities (Constitution and Wisdom). Two classes wanting the same missing
-  hook makes it a *shape* rather than a quirk: **a class feature that replaces
-  the Armour Class calculation has nowhere to live.** That is the next real
-  piece of engine design in the class system.
+- The Barbarian and Monk both wanted **Unarmoured Defense**, with different
+  abilities, and Draconic Resilience wanted a third. That made it a *shape*
+  rather than a quirk, and it is **built**: `FeatureGrant` has an
+  `unarmored-defense` kind, the sheet carries every alternative a character's
+  features grant, and `armorClassCalculation` takes the best applicable one and
+  records which rule won. The Monk's "or wielding a Shield" is the clause that
+  gets dropped by hand, and it costs the whole calculation rather than the
+  Shield's bonus.
 - They also found the third feature-id string match, in `gatherProficiencies`:
   `human:skillful` was matched by id, so the Barbarian's Primal Knowledge
   granted no proficiency. Any feature whose choice is a skill now grants it,
@@ -205,11 +209,9 @@ print two prepared spells and two level 1 slots at level 1 for both.
 
 What remains in the class system, in likely order:
 
-- **Unarmoured Defense**: the first class feature that needs to reach the
-  Armour Class calculation. Wanted by Barbarian (Constitution), Monk (Wisdom)
-  and Draconic Sorcery.
-- **A grant that can be re-chosen on a rest**, for Circle of the Land and for
-  every "swap a prepared spell on a Long Rest" rule.
+- **A grant that can be re-chosen on a rest**, for Circle of the Land, for
+  the Barbarian's Weapon Mastery swap, and for every "swap a prepared spell on
+  a Long Rest" rule. This is now the largest shared blocker.
 - **Feature execution.** Every class is transcribed and validated; almost no
   class *feature* is executed. Each says what a DM still has to do, and the
   recurring blockers are: extra attacks inside the Attack action, Reactions
@@ -241,8 +243,8 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells parsed | 339 |
 | Spells executable and verified | 43 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 46 of 230 |
-| Tests | 2,043 passing, none skipped |
+| Class features executed | 48 of 230 |
+| Tests | 2,054 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

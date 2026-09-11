@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
-import { armorClass } from './character.js';
+import { armorClass, armorClassCalculation } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { carrying } from './commands.js';
+import { itemFor } from './catalogue.js';
 import { BARBARIAN, RAGES_PER_REST, RAGE_DAMAGE } from './barbarian.js';
 import { FOCUS_POINTS, MARTIAL_ARTS_DIE, MONK, UNARMORED_MOVEMENT } from './monk.js';
 import { createCharacter, planCharacter, type CharacterChoices } from './creation.js';
@@ -187,27 +188,51 @@ describe('the Monk', () => {
   });
 });
 
-describe('two classes want the same missing hook', () => {
+describe('two classes want the same hook, with two different rules', () => {
   /**
-   * Neither Unarmoured Defense is applied, and the two formulas differ, which
-   * is what makes this a shape rather than a quirk. Both characters end up on
-   * the plain unarmoured Armour Class: 10 + Dexterity.
+   * Unarmoured Defense was the first class feature to need somewhere to reach
+   * the Armour Class calculation, and two classes wanting it with *different*
+   * abilities is what made it a shape rather than one class's quirk. It is
+   * applied now, and the two differ in both halves — Constitution against
+   * Wisdom, and a Shield allowed against a Shield forbidden.
    */
-  it('leaves both on 10 + Dexterity, and says so in the feature', () => {
+  it('gives each class its own ability', () => {
     const grum = built(barbarian(), GRUM).creatures.grum!.sheet;
     const shan = built(monk(), SHAN).creatures.shan!.sheet;
 
     expect(grum.armor).toBeNull();
     expect(shan.armor).toBeNull();
-    // Dexterity 13 is +1; Dexterity 15 is +2.
-    expect(armorClass(grum)).toBe(11);
-    expect(armorClass(shan)).toBe(12);
+    // Dexterity 13 (+1) and Constitution 16 (+3); Dexterity 15 (+2) and Wisdom 15 (+2).
+    expect(armorClass(grum)).toBe(14);
+    expect(armorClass(shan)).toBe(14);
+    expect(armorClassCalculation(grum).source).toBe('barbarian:unarmored-defense');
+    expect(armorClassCalculation(shan).source).toBe('monk:unarmored-defense');
 
     const barbarianFeature = BARBARIAN.features.find((f) => f.id === 'barbarian:unarmored-defense');
     const monkFeature = MONK.features.find((f) => f.id === 'monk:unarmored-defense');
-    expect(barbarianFeature?.automation).toBe('manual');
-    expect(monkFeature?.automation).toBe('manual');
-    expect(barbarianFeature?.note).toContain('Constitution');
-    expect(monkFeature?.note).toContain('Wisdom');
+    expect(barbarianFeature?.automation).toBe('engine');
+    expect(monkFeature?.automation).toBe('engine');
+    expect(barbarianFeature?.grants).toMatchObject({ ability: 'con', shieldAllowed: true });
+    expect(monkFeature?.grants).toMatchObject({ ability: 'wis', shieldAllowed: false });
+  });
+
+  /**
+   * SRD Barbarian: "You can use a Shield and still gain this benefit." SRD
+   * Monk: "while you aren't wearing armor **or wielding a Shield**". So the
+   * same Shield helps one of them and costs the other their whole feature.
+   */
+  it('reads the Shield clause each class actually prints', () => {
+    const grum = built(barbarian(), GRUM).creatures.grum!.sheet;
+    const shan = built(monk(), SHAN).creatures.shan!.sheet;
+    const shield = itemFor('shield')?.armor ?? null;
+
+    expect(armorClass({ ...grum, shield })).toBe(16);
+
+    // The Monk falls back to 10 + Dexterity — and gains nothing from the
+    // Shield either, because a Monk has no Shield training. Picking one up
+    // costs them two points of Armour Class and buys nothing.
+    expect(armorClass({ ...shan, shield })).toBe(12);
+    expect(shan.armorTraining.shields).toBe(false);
+    expect(armorClassCalculation({ ...shan, shield }).source).toBeNull();
   });
 });

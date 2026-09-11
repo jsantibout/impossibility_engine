@@ -84,8 +84,9 @@ export const BARBARIAN: ClassDefinition = {
       id: 'barbarian:unarmored-defense',
       name: 'Unarmored Defense',
       level: 1,
-      automation: 'manual',
-      note: 'The 10 + Dexterity + Constitution Armour Class while unarmoured is not applied. Armour Class is derived from the armour on the sheet and Dexterity; a class feature that replaces the calculation has nowhere to live yet.',
+      automation: 'engine',
+      note: 'SRD: "While you aren\u2019t wearing any armor, your base Armor Class equals 10 plus your Dexterity and Constitution modifiers. You can use a Shield and still gain this benefit."',
+      grants: { kind: 'unarmored-defense', ability: 'con', shieldAllowed: true },
     },
     {
       id: 'barbarian:weapon-mastery',

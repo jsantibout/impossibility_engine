@@ -92,8 +92,9 @@ export const MONK: ClassDefinition = {
       id: 'monk:unarmored-defense',
       name: 'Unarmored Defense',
       level: 1,
-      automation: 'manual',
-      note: 'The 10 + Dexterity + Wisdom Armour Class while unarmoured is not applied. Same gap as the Barbarian’s, with a different ability: a class feature that replaces the Armour Class calculation has nowhere to live yet.',
+      automation: 'engine',
+      note: 'SRD: "While you aren’t wearing armor or wielding a Shield, your base Armor Class equals 10 plus your Dexterity and Wisdom modifiers." The Shield clause takes the whole calculation away, not just the Shield’s bonus.',
+      grants: { kind: 'unarmored-defense', ability: 'wis', shieldAllowed: false },
     },
     {
       id: 'monk:focus',
