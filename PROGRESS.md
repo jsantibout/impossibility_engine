@@ -31,7 +31,8 @@ still Wizard-shaped are named below.
 | Buffs + temp HP | `buff` and `temp-hp` effects; bonuses live on the creature | `e127590` |
 | Multi-type saves | One save, several damage types; 8 more spells | `70169df` |
 | Second class | Wizard-shaped seams opened; Cleric + Life Domain, levels 1–20 | `759aa68` |
-| Third class | Fighter + Champion; the no-spellcasting path; ammunition | *this batch* |
+| Third class | Fighter + Champion; the no-spellcasting path; ammunition | `f7860a1` |
+| Fourth class | Sorcerer + Draconic Sorcery; the `known` casting style | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -105,8 +106,9 @@ The Wizard-shaped seams are **open**, and the Cleric is the proof:
 - `FeatureChoice` gained an `option` kind for "one of these named things" —
   Divine Order, and later Fighting Style, Metamagic, Manoeuvres.
 
-Three classes in: Wizard (spellbook), Cleric (prepared-from-list), Fighter
-(none). Each opened something:
+Four classes in, and **all three spellcasting styles plus none** are now
+exercised: Wizard (spellbook), Cleric (prepared-from-list), Sorcerer (known),
+Fighter (no spellcasting at all). Each opened something:
 
 - The Fighter proved `spellcasting?: undefined` — a class that casts nothing
   now short-circuits the spell rules rather than being asked for a spellbook,
@@ -119,10 +121,13 @@ Three classes in: Wizard (spellbook), Cleric (prepared-from-list), Fighter
   bundle: Arrows are 1 GP for 20, so one arrow is 5 copper and an inventory
   counts arrows rather than bundles.
 
+- The Sorcerer proved `known`, brought the second `option` choice (Metamagic,
+  two of ten) and the first subclass grant that is **not on the class list** —
+  Draconic Sorcery gives Command, a Cleric spell, which is the whole reason a
+  granted spell skips the class-list check.
+
 What the next class will hit, in likely order:
 
-- **`known` casters are declared but untested.** Sorcerer, Bard, Ranger and
-  Warlock never prepare; the branch exists and no class exercises it.
 - **Half-casters start at level 2.** `spellcasting.startsAtLevel` is recorded
   and nothing reads it yet; Paladin and Ranger need it.
 - **The Warlock's Pact Magic is a different slot table entirely** — few slots,
