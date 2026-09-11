@@ -1781,7 +1781,15 @@ export function planCharacter(
       ...(grant.forbidsCasting === undefined ? {} : { forbidsCasting: grant.forbidsCasting }),
     });
 
-    for (const effect of grant.whileActive ?? []) {
+    for (const declared of grant.whileActive ?? []) {
+      // SRD Rage Damage is a column of the class table, not a number the
+      // feature can name, so creation reads it at that class's own level —
+      // the same rule the pool's size follows.
+      const effect =
+        grant.flatByLevel !== undefined && declared.kind === 'attack-damage'
+          ? { ...declared, flat: usesOf(choices, feature.id, grant.flatByLevel) }
+          : declared;
+
       standing.push({
         feature: feature.id,
         name: feature.name,

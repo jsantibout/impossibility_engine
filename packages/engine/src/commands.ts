@@ -57,6 +57,7 @@ import { routesFor, type CastingRoute, type SpellcastingState } from './spellcas
 import {
   defensesOf,
   effectiveConditions,
+  standingAttackDamage,
   standingSaveBonuses,
   standingSaveModes,
   type ActivatedFeature,
@@ -708,6 +709,17 @@ export function resolveAttack(
   }
 
   // — the damage —————————————————————————————————————————————————————————
+  //
+  // Everything that adds to this attack, gathered in one place: the features
+  // that qualify, and whatever the caller knows about that the engine does
+  // not — a magic weapon's own damage comes in that way until magic items are
+  // parsed. A *bonus* is of the weapon's own type and rides with it through
+  // Resistance; *extra* damage of another type does not.
+  const fromFeatures = standingAttackDamage(state, id, {
+    ability: attack.value.ability,
+    melee: rangeOf(weapon, command.thrown === true) === null,
+  });
+
   const rolled = rollAttackDamage(
     supply.issuer,
     supply.rng,
@@ -718,8 +730,8 @@ export function resolveAttack(
       ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
       ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
       ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
-      ...(command.damageBonuses === undefined ? {} : { damageBonuses: command.damageBonuses }),
-      ...(command.extraDamage === undefined ? {} : { extraDamage: command.extraDamage }),
+      damageBonuses: [...fromFeatures.bonuses, ...(command.damageBonuses ?? [])],
+      extraDamage: [...fromFeatures.extra, ...(command.extraDamage ?? [])],
     },
     attack.value.critical,
   );

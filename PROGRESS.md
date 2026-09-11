@@ -48,7 +48,8 @@ still Wizard-shaped are named below.
 | Standing effects | Conditional modifiers and auras, from state; 5 features | `3a5cdb9` |
 | Standing defences | Resistance a feature grants; Elemental Affinity | `e64c5fb` |
 | Activated features | Rage: cost, prerequisite, deadline, extension, two ways out | `574d03b` |
-| Weapon attacks | `resolveAttack` derives AC, cover, reach, range, proficiency | _this batch_ |
+| Weapon attacks | `resolveAttack` derives AC, cover, reach, range, proficiency | `f1fda6d` |
+| Feature damage | Rage Damage and Radiant Strikes, on the attacks that qualify | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -75,6 +76,11 @@ still Wizard-shaped are named below.
 - **A definition that leaves part of its spell out declares it.**
   `SpellDefinition.unmodelled` comes back in `unverified` on every casting, so
   the gap reaches the narrating layer rather than sitting in a docstring.
+- **A bonus is not extra damage.** SRD Rage Damage is "a bonus to the damage"
+  of the weapon's own type, so a target resisting the sword resists it too;
+  Radiant Strikes is "an extra 1d8 Radiant damage", which that resistance does
+  nothing to. They go into `damageBonuses` and `extraDamage` respectively, and
+  collapsing the two would give one of them the wrong answer.
 - **A weapon attack is derived, not assembled.** `rollAttack` was always pure
   and always correct; nothing *found* its arguments, so nothing checked them
   and a fixture could swing a longsword at somebody fifty feet away.
@@ -262,11 +268,16 @@ print two prepared spells and two level 1 slots at level 1 for both.
 
 What remains in the class system, in likely order:
 
-- **Damage a feature adds to a weapon's roll**, which Rage Damage, Sneak
-  Attack, Radiant Strikes and Brutal Strike all want. `resolveAttack` is the
-  hook they were waiting on and it exists now; what is still missing is a
-  standing grant of the shape "extra damage on a qualifying attack", and
-  Sneak Attack's own once-per-turn bookkeeping.
+- **Damage chosen after the roll lands.** SRD 2024 Divine Smite is a *spell*
+  cast as "a Bonus Action, which you take immediately after hitting a target",
+  so the decision falls between the attack roll and the damage roll — a moment
+  `resolveAttack` currently passes straight through. It needs a hit that is
+  held open in state and settled by a second command, which is the
+  `pendingSaves` shape rather than the return-value one that had to be torn
+  out.
+- **Sneak Attack**, which wants once-per-turn bookkeeping and a condition the
+  engine can now nearly see: Advantage on the roll, or an ally within 5 feet
+  of the target.
 - **Extra attacks inside the Attack action.** `resolveAttack` spends one
   Attack action per swing, which is right for one attack and wrong for a
   Fighter with Extra Attack. The economy counts actions, not the attacks in
@@ -309,8 +320,8 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells executed and verified | 43 |
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 53 of 230 |
-| Tests | 2,337 passing, none skipped |
+| Class features executed | 54 of 230 |
+| Tests | 2,349 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

@@ -78,7 +78,7 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Rage',
       level: 1,
       automation: 'engine',
-      note: 'Entered as a Bonus Action out of a pool sized by the Rages column, lasting until the end of your next turn unless extended, and ending the moment you are Incapacitated or don Heavy armour. Resistance to Bludgeoning, Piercing and Slashing and Advantage on Strength checks and saves are applied while it runs. Two halves are not: Rage Damage needs a hook into a weapon’s damage roll, and nothing routes a weapon attack through a command yet; and the Short Rest that gives back one use is a partial refill the pool system has no shape for, where every other recovery is all or nothing.',
+      note: 'Entered as a Bonus Action out of a pool sized by the Rages column, lasting until the end of your next turn unless extended, and ending the moment you are Incapacitated or don Heavy armour. Resistance to Bludgeoning, Piercing and Slashing and Advantage on Strength checks and saves are applied while it runs. Rage Damage is applied too, as a bonus to the weapon’s own damage on any attack made with Strength. One half is not: the Short Rest that gives back one use is a partial refill the pool system has no shape for, where every other recovery is all or nothing.',
       grants: {
         kind: 'activated',
         action: 'bonus-action',
@@ -94,7 +94,11 @@ export const BARBARIAN: ClassDefinition = {
         whileActive: [
           { kind: 'damage-resistance', damageTypes: ['bludgeoning', 'piercing', 'slashing'] },
           { kind: 'advantage', on: 'save', ability: 'str' },
+          // SRD: "a bonus to the damage" — the weapon's own type, so a target
+          // resisting the sword resists this with it. The amount is a column.
+          { kind: 'attack-damage', usingAbility: 'str' },
         ],
+        flatByLevel: RAGE_DAMAGE,
       },
     },
     {

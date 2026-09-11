@@ -205,8 +205,15 @@ export const PALADIN: ClassDefinition = {
       id: 'paladin:radiant-strikes',
       name: 'Radiant Strikes',
       level: 11,
-      automation: 'manual',
-      note: 'The extra 1d8 Radiant damage on every weapon hit is a bonus the caller supplies.',
+      automation: 'engine',
+      note: 'SRD: "When you hit a target with an attack roll using a Melee weapon or an Unarmed Strike, the target takes an extra 1d8 Radiant damage." Radiant rather than the weapon’s own type, so a target that resists the weapon does nothing to this.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          { kind: 'attack-damage', dice: '1d8', damageType: 'radiant', meleeOnly: true },
+        ],
+      },
     },
     {
       id: 'paladin:restoring-touch',

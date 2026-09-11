@@ -77,7 +77,33 @@ export type StandingGrant =
    * SRD class feature grants this way — a feature that made somebody immune or
    * vulnerable would be a different shape and none exists to model it after.
    */
-  | { readonly kind: 'damage-resistance'; readonly damageTypes: readonly string[] };
+  | { readonly kind: 'damage-resistance'; readonly damageTypes: readonly string[] }
+  /**
+   * Extra damage on a weapon attack that hits.
+   *
+   * Two SRD features, and the difference between them is the whole reason this
+   * carries a damage type at all:
+   *
+   * - **Rage Damage** is "a bonus to the damage", of the weapon's own type, so
+   *   a target resisting the sword resists the bonus with it. No `damageType`.
+   * - **Radiant Strikes** is "an extra 1d8 Radiant damage", which Slashing
+   *   resistance does nothing to. `damageType: 'radiant'`.
+   *
+   * The conditions are each feature's own sentence: Rage Damage wants an
+   * attack "using Strength", Radiant Strikes one "using a Melee weapon or an
+   * Unarmed Strike".
+   */
+  | {
+      readonly kind: 'attack-damage';
+      readonly dice?: string;
+      readonly flat?: number;
+      /** Absent means the weapon's own type, which is what a *bonus* is. */
+      readonly damageType?: string;
+      /** SRD Rage Damage: "When you make an attack using Strength". */
+      readonly usingAbility?: Ability;
+      /** SRD Radiant Strikes: "using a Melee weapon or an Unarmed Strike". */
+      readonly meleeOnly?: boolean;
+    };
 
 /**
  * What must hold for a standing effect to apply at all.
@@ -346,6 +372,63 @@ export function defensesOf(
       existing === undefined ? defence : { ...existing, resistant: existing.resistant ?? true };
   }
   return merged;
+}
+
+/** What an attack was, for deciding which features have anything to say about it. */
+export interface AttackContext {
+  /** The ability the attack roll actually used. */
+  readonly ability: Ability;
+  readonly melee: boolean;
+}
+
+/**
+ * Extra damage this creature's features add to an attack that has hit.
+ *
+ * Split the way `rollAttackDamage` splits it: a *bonus* is damage of the
+ * weapon's own type and rides with it through Resistance, while *extra* damage
+ * of another type is applied separately. Collapsing the two would give a
+ * Barbarian's Rage Damage the wrong answer against a Slashing-resistant
+ * target, or a Paladin's Radiant the wrong one.
+ */
+export function standingAttackDamage(
+  state: GameState,
+  who: CharacterId,
+  context: AttackContext,
+): {
+  readonly bonuses: readonly Bonus[];
+  readonly extra: readonly {
+    readonly source: string;
+    readonly type: string;
+    readonly dice?: string;
+    readonly flat?: number;
+  }[];
+} {
+  const bonuses: Bonus[] = [];
+  const extra: { source: string; type: string; dice?: string; flat?: number }[] = [];
+
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'attack-damage') continue;
+    if (grant.usingAbility !== undefined && grant.usingAbility !== context.ability) continue;
+    if (grant.meleeOnly === true && !context.melee) continue;
+
+    if (grant.damageType === undefined) {
+      bonuses.push({
+        source: effect.name,
+        ...(grant.flat === undefined ? {} : { flat: grant.flat }),
+        ...(grant.dice === undefined ? {} : { dice: grant.dice }),
+      });
+    } else {
+      extra.push({
+        source: effect.name,
+        type: grant.damageType,
+        ...(grant.dice === undefined ? {} : { dice: grant.dice }),
+        ...(grant.flat === undefined ? {} : { flat: grant.flat }),
+      });
+    }
+  }
+
+  return { bonuses, extra };
 }
 
 /**

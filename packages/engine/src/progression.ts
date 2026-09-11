@@ -191,6 +191,14 @@ export type FeatureGrant =
       readonly endsOn?: readonly ActivationEnd[];
       readonly forbidsCasting?: boolean;
       readonly whileActive?: readonly StandingGrant[];
+      /**
+       * The flat amount a `whileActive` damage grant adds, by class level.
+       *
+       * SRD Rage Damage is +2 at level 1 and rises twice, so the feature
+       * cannot name a number: the number is a column of the class table, read
+       * at that class's own level exactly as the pool's size is.
+       */
+      readonly flatByLevel?: readonly number[];
     }
   | {
       readonly kind: 'unarmored-defense';
