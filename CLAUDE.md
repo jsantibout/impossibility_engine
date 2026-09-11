@@ -327,9 +327,16 @@ are no waypoints to trace — same reasoning as cover.
 Size and Space table, rising from the feet to a height. Treating them as points
 made a tall creature mechanically flat — a blast at head height missed it
 entirely — and put a Huge creature's only point seven feet inside its own body,
-out of a fighter's reach. So areas of effect meet the *box*, and reach is
-measured space-to-space (`reachDistance`) while `distanceBetween` stays centre
-to centre for narration and spell ranges.
+out of a fighter's reach. So areas of effect meet the *box*, and so does
+distance.
+
+**Nothing is ever measured centre to centre.** SRD: "To determine the range on
+a grid between two things — whether creatures or objects — count squares from a
+square adjacent to one of them and stop counting in the space of the other
+one." There is therefore exactly one distance function, `distanceBetween`, and
+it measures space to space. The difference is invisible between two Medium
+creatures and decisive against a large one, where a centre measurement reports
+both melee reach and spell ranges as longer than they are.
 
 **Height is declared, never inferred.** The SRD gives every creature a space
 but never a height, and size category is a poor proxy — a giraffe and a

@@ -479,8 +479,20 @@ const separation = (a: Point, b: Point): number =>
   Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2);
 
 /**
- * Distance in feet, measured through the air — so a wyvern hovering directly
- * overhead is genuinely 20 feet away rather than adjacent.
+ * Distance in feet between two creatures, measured between their spaces.
+ *
+ * SRD: "To determine the range on a grid between two things — whether creatures
+ * or objects — count squares from a square adjacent to one of them and stop
+ * counting in the space of the other one." Distance in D&D is always measured
+ * space to space; nothing is ever measured centre to centre.
+ *
+ * That distinction is invisible between two Medium creatures and decisive
+ * against a large one: a Huge creature's centre sits seven and a half feet
+ * inside its own body, so centre-to-centre measurement reports a fighter
+ * standing against its flank as out of melee range, and a spell range against
+ * it as longer than it is.
+ *
+ * Measured through the air, so a wyvern hovering overhead is genuinely distant.
  *
  * An unplaced creature is reported as such. That is a signal back to the model,
  * which places the creature and carries on; it is never something a player sees.
@@ -490,29 +502,16 @@ export function distanceBetween(
   a: CharacterId,
   b: CharacterId,
 ): Result<number> {
-  const from = state.positions[a];
-  const to = state.positions[b];
-  if (from === undefined) return err('unplaced', `${a} needs placing before distances mean anything`);
-  if (to === undefined) return err('unplaced', `${b} needs placing before distances mean anything`);
-  return ok(round(separation(from, to)));
-}
+  if (a === b) {
+    return state.positions[a] === undefined
+      ? err('unplaced', `${a} needs placing before distances mean anything`)
+      : ok(0);
+  }
 
-/**
- * Distance between the nearest points of two creatures' spaces.
- *
- * This is what reach measures against. A Huge dragon's centre sits seven and a
- * half feet inside its own body, so measuring centre to centre would put a
- * fighter standing against its flank out of melee range of it.
- */
-export function reachDistance(
-  state: PositionState,
-  a: CharacterId,
-  b: CharacterId,
-): Result<number> {
   const boxA = boxOf(state, a);
   const boxB = boxOf(state, b);
-  if (boxA === null) return err('unplaced', `${a} needs placing first`);
-  if (boxB === null) return err('unplaced', `${b} needs placing first`);
+  if (boxA === null) return err('unplaced', `${a} needs placing before distances mean anything`);
+  if (boxB === null) return err('unplaced', `${b} needs placing before distances mean anything`);
 
   // Separation along each axis independently; zero where the spans overlap.
   const gap = (minA: number, maxA: number, minB: number, maxB: number): number =>
@@ -536,7 +535,7 @@ export function withinReach(
   target: CharacterId,
   reach: number,
 ): Result<boolean> {
-  const distance = reachDistance(state, attacker, target);
+  const distance = distanceBetween(state, attacker, target);
   if (!distance.ok) return distance;
   return ok(distance.value <= reach);
 }
@@ -596,13 +595,15 @@ export function mount(
     return err('already_riding', `${rider} is already riding something`);
   }
 
-  const riderAt = state.positions[rider];
   const mountAt = state.positions[target];
-  if (riderAt === undefined) return err('unplaced', `${rider} needs placing first`);
+  if (state.positions[rider] === undefined) return err('unplaced', `${rider} needs placing first`);
   if (mountAt === undefined) return err('unplaced', `${target} needs placing first`);
 
-  // SRD: "you can mount a creature that is within 5 feet of you".
-  if (separation(riderAt, mountAt) > 5) {
+  // SRD: "you can mount a creature that is within 5 feet of you" — measured
+  // space to space like every other distance.
+  const gap = distanceBetween(state, rider, target);
+  if (!gap.ok) return gap;
+  if (gap.value > 5) {
     return err('out_of_reach', `${target} is not within 5 feet of ${rider}`);
   }
 

@@ -7,7 +7,6 @@ import {
   footprintOf,
   heightOf,
   isHeightDeclared,
-  reachDistance,
   endsProne,
   isRidingUnwilling,
   mount,
@@ -132,8 +131,12 @@ describe('placement', () => {
 });
 
 describe('distanceBetween', () => {
-  it('measures between two placed creatures', () => {
-    expect(unwrap(distanceBetween(standoff(), id('fighter'), id('ogre')), 'd')).toBe(15);
+  // SRD: range is counted "from a square adjacent to one of them" and stops
+  // "in the space of the other one" — so the two creatures' own spaces are not
+  // part of the distance. Two Medium creatures whose centres are 15 feet apart
+  // have 10 feet between their spaces.
+  it('measures between two creatures’ spaces, not their centres', () => {
+    expect(unwrap(distanceBetween(standoff(), id('fighter'), id('ogre')), 'd')).toBe(10);
   });
 
   it('measures through the air, so a flyer overhead is genuinely distant', () => {
@@ -142,8 +145,9 @@ describe('distanceBetween', () => {
       placeCreature(state, id('wyvern'), { from: { creature: id('fighter') }, feet: 0, elevation: 15 }),
       'wyvern',
     );
-    // Directly overhead at 15 feet up.
-    expect(unwrap(distanceBetween(state, id('fighter'), id('wyvern')), 'd')).toBe(15);
+    // Directly overhead at 15 feet up: five of those feet are the fighter's
+    // own height, so ten feet of air separate them.
+    expect(unwrap(distanceBetween(state, id('fighter'), id('wyvern')), 'd')).toBe(10);
   });
 
   it('is zero to itself', () => {
@@ -979,15 +983,18 @@ describe('creatures occupy volume', () => {
       expect(unwrap(withinReach(state, id('fighter'), id('dragon'), 5), 'reach')).toBe(false);
     });
 
-    it('reports centre-to-centre distance separately, for narration and ranges', () => {
+    // The whole point of measuring space to space: a Huge creature's centre is
+    // seven and a half feet inside its own body, so a centre measurement would
+    // report both melee reach and spell ranges as longer than they are.
+    it('discounts the dragon’s own bulk from the distance', () => {
       let state = withDragon();
       state = unwrap(
         placeCreature(state, id('fighter'), { from: { creature: id('dragon') }, feet: 30, bearing: 90 }),
         'fighter',
       );
-      expect(unwrap(distanceBetween(state, id('fighter'), id('dragon')), 'centres')).toBe(30);
-      // Edge to edge is shorter: the dragon's flank is 7.5 feet nearer.
-      expect(unwrap(reachDistance(state, id('fighter'), id('dragon')), 'edges')).toBe(20);
+      // Centres 30 apart; the dragon's flank is 7.5 nearer and the fighter's
+      // own space accounts for 2.5 more.
+      expect(unwrap(distanceBetween(state, id('fighter'), id('dragon')), 'spaces')).toBe(20);
     });
 
     it('is zero when one creature is inside another’s space', () => {
@@ -996,7 +1003,7 @@ describe('creatures occupy volume', () => {
         placeCreature(state, id('imp'), { from: { creature: id('dragon') }, feet: 5, bearing: 90, size: 'tiny' }),
         'imp',
       );
-      expect(unwrap(reachDistance(state, id('imp'), id('dragon')), 'inside')).toBe(0);
+      expect(unwrap(distanceBetween(state, id('imp'), id('dragon')), 'inside')).toBe(0);
     });
   });
 });
