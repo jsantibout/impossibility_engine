@@ -107,6 +107,19 @@ export interface AppliedCommand {
   readonly type: GameEvent['type'];
   /** The casting it produced, so a retry can still link that casting's effects. */
   readonly castingId: string | null;
+  /** The inputs it ran with, so reusing its id for different work is caught. */
+  readonly fingerprint: string;
+}
+
+/**
+ * A command's identity on the event it produced.
+ *
+ * The fingerprint travels with the id because policing reuse needs both: an id
+ * alone can only answer "has this landed", never "is this the same command".
+ */
+export interface CommandStamp {
+  readonly id: string;
+  readonly fingerprint: string;
 }
 
 export interface GameState {
@@ -167,7 +180,7 @@ export type GameEvent =
       /** Where it came from, for the audit trail. */
       readonly source?: string;
       /** The command that caused it, so a retry is recognised as one. */
-      readonly commandId?: string;
+      readonly command?: CommandStamp;
     }
   | { readonly type: 'healed'; readonly id: CharacterId; readonly amount: number }
   | {
@@ -245,7 +258,7 @@ export type GameEvent =
       readonly castingTime: CastingTime;
       readonly concentration: boolean;
       /** The command that caused it, so a retry is recognised as one. */
-      readonly commandId?: string;
+      readonly command?: CommandStamp;
     }
   | {
       readonly type: 'concentration-started';
@@ -472,16 +485,17 @@ function breakLostConcentration(state: GameState): GameState {
  * may appear.
  */
 function recordCommand(state: GameState, event: GameEvent): GameState {
-  if (!('commandId' in event) || event.commandId === undefined) return state;
-  if (state.appliedCommands[event.commandId] !== undefined) return state;
+  if (!('command' in event) || event.command === undefined) return state;
+  if (state.appliedCommands[event.command.id] !== undefined) return state;
 
   return {
     ...state,
     appliedCommands: {
       ...state.appliedCommands,
-      [event.commandId]: {
+      [event.command.id]: {
         type: event.type,
         castingId: event.type === 'spell-cast' ? event.castingId : null,
+        fingerprint: event.command.fingerprint,
       },
     },
   };

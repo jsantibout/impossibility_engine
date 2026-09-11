@@ -832,18 +832,47 @@ describe('damage resolves its own Concentration save', () => {
   });
 
   /**
-   * Given no generator, the save is *queued* rather than quietly skipped. A
-   * caller that has to destructure a `pending` cannot forget it the way a
-   * caller that had to remember a second function call could.
+   * Every outcome is settled: none, already-lost, or resolved. There is
+   * deliberately no fourth answer handing an unrolled save back to the caller.
+   *
+   * That design was tried and was wrong in a way worth pinning. Nothing in the
+   * log or the state held the obligation, so it did not survive a reload — and
+   * because the damage event had already consumed the command id, retrying the
+   * same command to make good on it came back a duplicate no-op reporting
+   * `none`. The spell stayed up, the save was never made, and the engine said
+   * everything was fine. The generator is required instead, which costs a
+   * caller nothing: it resumes from the state they already hold.
    */
-  it('queues the save explicitly when no generator is supplied', () => {
-    const outcome = unwrap(resolveDamage(held().state, id('wizard'), { amount: 30 }), 'resolve');
+  it('always settles the save rather than handing back an obligation', () => {
+    const first = heldOnGoblin();
+    const kinds = new Set<string>();
 
-    expect(outcome.concentration).toMatchObject({
-      kind: 'pending',
-      check: { castingId: 'cast:1', dc: 15, ability: 'con' },
+    for (const amount of [0, 8, 30, 60, 90]) {
+      const outcome = unwrap(
+        resolveDamage(
+          first.state,
+          id('wizard'),
+          { amount },
+          { ...roller(first.state), bonuses: CERTAIN },
+        ),
+        'resolve',
+      );
+      kinds.add(outcome.concentration.kind);
+    }
+
+    expect([...kinds].sort()).toEqual(['already-lost', 'none', 'resolved']);
+  });
+
+  /** A caller who wants to look before rolling asks the query, which promises nothing. */
+  it('leaves inspection to the query that makes no promises', () => {
+    const start = held().state;
+    expect(concentrationSaveAfterDamage(start, id('wizard'), 30)).toMatchObject({
+      castingId: 'cast:1',
+      dc: 15,
+      ability: 'con',
     });
-    expect(outcome.events.some((e) => e.type === 'rolls-issued')).toBe(false);
+    // Asking changed nothing: no event, no generator movement, no obligation.
+    expect(start.rollsIssued).toBe(0);
   });
 
   it('ends the spell and its effects when the save fails', () => {
@@ -904,9 +933,17 @@ describe('damage resolves its own Concentration save', () => {
   it('reads the damage before temporary hit points absorb it', () => {
     const first = held();
     const temp = run(first.log, (s) => grantTemporaryHpTo(s, id('wizard'), 40));
-    const outcome = unwrap(resolveDamage(temp.state, id('wizard'), { amount: 30 }), 'resolve');
+    const outcome = unwrap(
+      resolveDamage(
+        temp.state,
+        id('wizard'),
+        { amount: 30 },
+        { ...roller(temp.state), bonuses: CERTAIN },
+      ),
+      'resolve',
+    );
 
-    expect(outcome.concentration).toMatchObject({ kind: 'pending', check: { dc: 15 } });
+    expect(outcome.concentration).toMatchObject({ kind: 'resolved', check: { dc: 15 } });
     const after = fold('seed', [...temp.log, ...outcome.events]);
     expect(after.creatures.wizard!.vitals.hp).toBe(90);
     expect(after.creatures.wizard!.vitals.temporaryHp).toBe(10);
@@ -1017,7 +1054,11 @@ describe('a command id makes a retry a no-op, not a repeat', () => {
   it('says what the command produced, so a retry can still link its effects', () => {
     const first = applied();
     expect(wasCommandApplied(first.state, CMD)).toBe(true);
-    expect(commandOutcome(first.state, CMD)).toEqual({ type: 'spell-cast', castingId: 'cast:1' });
+    expect(commandOutcome(first.state, CMD)).toMatchObject({
+      type: 'spell-cast',
+      castingId: 'cast:1',
+    });
+    expect(typeof commandOutcome(first.state, CMD)?.fingerprint).toBe('string');
     expect(commandOutcome(first.state, 'cmd-8')).toBeNull();
   });
 
@@ -1088,5 +1129,112 @@ describe('a command id makes a retry a no-op, not a repeat', () => {
     const restored = fold('seed', JSON.parse(JSON.stringify(first.log)) as GameEvent[]);
     expect(wasCommandApplied(restored, CMD)).toBe(true);
     expect(unwrap(cast(restored), 'retry')).toEqual([]);
+  });
+});
+
+describe('a command id names one command, not a slot to reuse', () => {
+  /**
+   * The silent no-op is the dangerous half of an idempotency key. A caller
+   * that recycles an id for different work would have its second command
+   * quietly never run, and nothing would say so — which is strictly worse than
+   * either doing it or refusing it. So the inputs are fingerprinted alongside
+   * the id and a mismatch is a refusal.
+   */
+  const first = () =>
+    run(table(), (s) =>
+      castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2, commandId: 'cmd-1' }),
+    );
+
+  it('refuses the same id used for a different casting', () => {
+    const result = castSpell(first().state, id('wizard'), {
+      spell: 'Magic Missile',
+      level: 1,
+      slotLevel: 1,
+      commandId: 'cmd-1',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('command_id_reused');
+  });
+
+  it('refuses the same id used for a different slot level', () => {
+    const start = run(table(), (s) =>
+      castSpell(s, id('wizard'), { spell: 'Bless', level: 1, slotLevel: 1, commandId: 'b' }),
+    );
+    const result = castSpell(start.state, id('wizard'), {
+      spell: 'Bless',
+      level: 1,
+      slotLevel: 2,
+      commandId: 'b',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('command_id_reused');
+  });
+
+  it('refuses the same id used for different damage', () => {
+    const log = run(table(), (s) => castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2 })).log;
+    const start = fold('seed', log);
+    const hit = unwrap(
+      resolveDamage(
+        start,
+        id('wizard'),
+        { amount: 8, commandId: 'hit-1' },
+        { ...roller(start), bonuses: CERTAIN },
+      ),
+      'hit',
+    );
+    const after = fold('seed', [...log, ...hit.events]);
+
+    const result = resolveDamage(
+      after,
+      id('wizard'),
+      { amount: 9, commandId: 'hit-1' },
+      { ...roller(after), bonuses: CERTAIN },
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('command_id_reused');
+    // And the refusal cost nothing.
+    expect(after.rollsIssued).toBe(1);
+  });
+
+  /** Field order is how a caller wrote it, not what the command is. */
+  it('accepts the same inputs written in a different order', () => {
+    const retry = castSpell(first().state, id('wizard'), {
+      commandId: 'cmd-1',
+      slotLevel: 2,
+      concentration: true,
+      level: 2,
+      spell: 'Hold Person',
+    });
+    expect(isErr(retry)).toBe(false);
+    expect(unwrap(retry, 'retry')).toEqual([]);
+  });
+
+  it('still refuses after a save and reload', () => {
+    const restored = fold('seed', JSON.parse(JSON.stringify(first().log)) as GameEvent[]);
+    const result = castSpell(restored, id('wizard'), {
+      spell: 'Magic Missile',
+      level: 1,
+      slotLevel: 1,
+      commandId: 'cmd-1',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('command_id_reused');
+  });
+
+  /** Two operations cannot collide on an id by having similar shapes. */
+  it('keeps a damage id and a casting id apart', () => {
+    const log = run(table(), (s) => castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2 })).log;
+    const start = fold('seed', log);
+    const hit = unwrap(damageCreature(start, id('wizard'), { amount: 8, commandId: 'x' }), 'hit');
+    const after = fold('seed', [...log, ...hit]);
+
+    const result = castSpell(after, id('wizard'), {
+      spell: 'Bless',
+      level: 1,
+      slotLevel: 1,
+      commandId: 'x',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('command_id_reused');
   });
 });

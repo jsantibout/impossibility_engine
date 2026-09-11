@@ -17,6 +17,7 @@ import {
   applyEvent,
   castingIdFor,
   type AppliedCommand,
+  type CommandStamp,
   type GameEvent,
   type GameState,
 } from './events.js';
@@ -74,12 +75,59 @@ const creatureOf = (state: GameState, id: CharacterId) => state.creatures[id] ??
  * again is a genuine second casting that spends a second slot and rolls a
  * second save. An id is what tells those two situations apart.
  *
- * The contract is the usual one: the same id means the same command. Reusing
- * an id for different work gets a silent no-op, and the engine does not police
- * it — fingerprinting a command to catch that would cost more than it saves.
+ * The same id means the same command, and the engine holds callers to that:
+ * the inputs are fingerprinted alongside the id, and reusing an id for
+ * different work is refused rather than silently swallowed. A silent no-op
+ * there would be the worst of both worlds — the second command never runs and
+ * nobody is told.
  */
 export interface CommandIdentity {
   readonly commandId?: string;
+}
+
+/**
+ * Serialise for comparison, with object keys sorted at every level.
+ *
+ * Two callers building the same command need the same fingerprint whatever
+ * order they happened to write the fields in.
+ */
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, inner: unknown) =>
+    inner !== null && typeof inner === 'object' && !Array.isArray(inner)
+      ? Object.fromEntries(
+          Object.entries(inner as Record<string, unknown>).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0,
+          ),
+        )
+      : inner,
+  );
+}
+
+type Identified =
+  | { readonly duplicate: true }
+  | { readonly duplicate: false; readonly stamp: CommandStamp | null };
+
+/**
+ * Decide whether a command has already landed, and refuse a recycled id.
+ *
+ * The kind is part of the fingerprint so two different operations cannot
+ * collide on one by having the same field names.
+ */
+function identify(state: GameState, kind: string, command: CommandIdentity): Result<Identified> {
+  const id = command.commandId;
+  if (id === undefined) return ok({ duplicate: false, stamp: null });
+
+  const fingerprint = `${kind}|${stableStringify(command)}`;
+  const prior = state.appliedCommands[id];
+
+  if (prior === undefined) return ok({ duplicate: false, stamp: { id, fingerprint } });
+  if (prior.fingerprint !== fingerprint) {
+    return err(
+      'command_id_reused',
+      `command id ${id} has already been applied with different inputs; a command id names one command, not a slot to reuse`,
+    );
+  }
+  return ok({ duplicate: true });
 }
 
 /** Whether a command id has already been applied to this state. */
@@ -119,9 +167,10 @@ export function damageCreature(
   // Before anything else: a retry of a command that already landed is a no-op,
   // not a second hit. This has to precede validation too — otherwise a retry
   // reports whatever the first attempt caused rather than that it happened.
-  if (command.commandId !== undefined && wasCommandApplied(state, command.commandId)) {
-    return ok([]);
-  }
+  const identity = identify(state, 'damage', command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
   if (creature === null) return err('unknown_creature', `${id} is not in this game`);
@@ -137,7 +186,7 @@ export function damageCreature(
       amount: command.amount,
       ...(command.critical === undefined ? {} : { critical: command.critical }),
       ...(command.source === undefined ? {} : { source: command.source }),
-      ...(command.commandId === undefined ? {} : { commandId: command.commandId }),
+      ...(stamp === null ? {} : { command: stamp }),
     },
   ];
 
@@ -406,9 +455,10 @@ export function castSpell(
   // already landed is a no-op. Checking later would report the damage the
   // first attempt did — "no level 2 slots left" — instead of reporting that
   // the casting already happened.
-  if (command.commandId !== undefined && wasCommandApplied(state, command.commandId)) {
-    return ok([]);
-  }
+  const identity = identify(state, 'cast', command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
 
   const caster = creatureOf(state, id);
   if (caster === null) return err('unknown_creature', `${id} is not in this game`);
@@ -524,7 +574,7 @@ export function castSpell(
     slotless,
     castingTime,
     concentration,
-    ...(command.commandId === undefined ? {} : { commandId: command.commandId }),
+    ...(stamp === null ? {} : { command: stamp }),
   });
 
   if (concentration) {
@@ -658,13 +708,25 @@ export function recordD20Test(
   };
 }
 
-/** What became of a Concentration the damage put at risk. */
+/**
+ * What became of a Concentration the damage put at risk.
+ *
+ * Every variant is *settled*. An earlier design also returned the save as a
+ * pending obligation when no generator was supplied, and that was wrong in a
+ * way worth recording: nothing in the log or the state held the obligation, so
+ * it did not survive a reload — and because the damage event had already
+ * consumed the command id, retrying the same command to make good on it
+ * returned a duplicate no-op reporting `none`. The spell stayed up, the save
+ * was never made, and the engine said everything was fine.
+ *
+ * A caller that wants to look before rolling asks
+ * {@link concentrationSaveAfterDamage}, which is a query and promises nothing.
+ * `resolveDamage` settles.
+ */
 export type ConcentrationConsequence =
   | { readonly kind: 'none' }
   /** The damage itself ended it, so there was nothing to save against. */
   | { readonly kind: 'already-lost'; readonly castingId: string }
-  /** No generator was supplied; the caller still owes this save. */
-  | { readonly kind: 'pending'; readonly check: ConcentrationCheck }
   | {
       readonly kind: 'resolved';
       readonly check: ConcentrationCheck;
@@ -703,9 +765,11 @@ export interface ConcentrationSaveSupply {
  * is precisely the bookkeeping the engine exists to take off whoever is
  * driving it.
  *
- * Given a generator, the save is rolled here and a failure ends the spell in
- * the same batch. Given none, the save comes back as `pending`, which a caller
- * has to destructure rather than overlook.
+ * The generator is required, not optional. Handing back an unrolled save would
+ * be handing back an obligation nothing records: it would not survive a reload,
+ * and the command id would already be spent, so there would be no way back to
+ * it. Costing nothing to supply — every caller holding a `GameState` can
+ * resume the generator from it — requiring it is the honest trade.
  *
  * The save is skipped entirely when the damage *already* ended the
  * Concentration: a caster dropped to 0 hit points is Unconscious, therefore
@@ -716,9 +780,11 @@ export function resolveDamage(
   state: GameState,
   id: CharacterId,
   command: DamageCommand,
-  supply?: ConcentrationSaveSupply,
+  supply: ConcentrationSaveSupply,
 ): Result<DamageResolution> {
-  if (command.commandId !== undefined && wasCommandApplied(state, command.commandId)) {
+  const identity = identify(state, 'damage', command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
     return ok({ events: [], concentration: { kind: 'none' }, duplicate: true });
   }
 
@@ -738,10 +804,6 @@ export function resolveDamage(
       concentration: lost ? { kind: 'already-lost', castingId: held.castingId } : { kind: 'none' },
       duplicate: false,
     });
-  }
-
-  if (supply === undefined) {
-    return ok({ events, concentration: { kind: 'pending', check }, duplicate: false });
   }
 
   const caster = after.creatures[id];

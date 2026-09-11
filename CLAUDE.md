@@ -554,13 +554,33 @@ and `concentrationSaveAfterDamage` — still exist, but composing them meant the
 caller had to *remember* the second call, and a caller who forgot left a spell
 running that the rules had ended. Remembering is not a thing to design around.
 
-Given no generator the save comes back as `pending`, which is a value the
-caller has to destructure rather than a call they might not make. And the save
-is skipped outright when the damage *already* ended the Concentration — a
-caster dropped to 0 is Unconscious, therefore Incapacitated, therefore no
-longer concentrating, so rolling would waste a die and imply the spell might
-have survived. That case reports `already-lost` rather than `none`, because
-"nothing to roll" and "it is already gone" are different answers.
+The save is skipped outright when the damage *already* ended the
+Concentration — a caster dropped to 0 is Unconscious, therefore Incapacitated,
+therefore no longer concentrating, so rolling would waste a die and imply the
+spell might have survived. That case reports `already-lost` rather than `none`,
+because "nothing to roll" and "it is already gone" are different answers.
+
+**The generator is required, and that is a correction.** An earlier version
+made it optional and returned the unrolled save as a `pending` obligation. It
+was wrong three ways over, and the third is the one that matters:
+
+1. Nothing in the log or the state held the obligation, so it did not survive a
+   reload.
+2. Nothing consumed it either, so "resolve exactly once" had no handle —
+   `concentrationSaveAfterDamage` is a query and answers the same way however
+   often it is asked.
+3. **The damage event had already spent the command id.** Retrying the same
+   command to make good on the save came back a duplicate no-op reporting
+   `none`. The spell stayed up, the save was never made, and the engine said
+   everything was fine.
+
+An obligation the engine cannot keep is worse than one it never offered. Every
+`ConcentrationConsequence` is now settled, and requiring the generator costs a
+caller nothing: they resume it from the state they are already holding. A
+caller who wants to look before rolling asks the query, which promises nothing.
+If a genuinely deferred save is ever needed — holding the roll open so a player
+can spend something first — it needs to be an event and a piece of state, not a
+return value.
 
 **The casting id is knowable before the cast.** `nextCastingId(state)` reads
 the counter, so a caller can build the source string for the conditions a spell
@@ -709,9 +729,22 @@ an empty batch. Three details make it actually work:
 - **It is opt-in and generic.** Without an id nothing changes; any future event
   that carries a `commandId` gets the guarantee without a second mechanism.
 
-The contract is the usual one: the same id means the same command. Reusing an
-id for different work gets a silent no-op, and the engine does not police that
-— fingerprinting a command to catch it would cost more than it saves.
+The same id means the same command, and the engine holds callers to it: the
+inputs are fingerprinted alongside the id, and reusing an id for different work
+is **refused**, not swallowed. A silent no-op there is the worst available
+outcome — the second command never runs and nobody is told. The fingerprint
+sorts object keys at every level, so field order is the caller's business
+rather than part of the command's identity, and it carries the operation's kind
+so a damage id and a casting id cannot collide by having similar shapes.
+
+**Every mutating tool on the Maestro surface takes a command id.** That is not
+optional the way it is for the engine's own callers. A model-driven loop
+retries for reasons that have nothing to do with the game — a `pause_turn`
+resume, a dropped connection, a tool re-invocation after a stream error — and
+an unidentified retry is a second casting that spends a second slot and rolls a
+second save. The id is what makes "did that go through?" answerable rather than
+a guess. The engine keeps it optional because a test fixture or a scripted
+scenario has no such problem; the tool surface has no such excuse.
 
 ## Conditions Close The Loop
 
