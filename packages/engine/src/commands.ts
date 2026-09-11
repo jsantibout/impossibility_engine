@@ -25,11 +25,24 @@ import {
   type DamageComponent,
 } from './attack.js';
 import { expandPack, itemFor, type CatalogueItem, type ItemKind } from './catalogue.js';
-import { coverBetween, distanceBetween, sightBetween } from './positioning.js';
 import {
+  coverBetween,
+  creaturesInArea,
+  distanceBetween,
+  distanceToPoint,
+  positionOf,
+  sightBetween,
+  type AreaOrigin,
+  type AreaShape,
+  type Point,
+} from './positioning.js';
+import {
+  DIRECTIONAL_AREAS,
   scaledDiceFor,
   definitionFor,
   targetCountFor,
+  type SpellArea,
+  type SpellDefinition,
   type SpellRange,
 } from './spell-definitions.js';
 import { routeFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
@@ -59,6 +72,7 @@ import {
   type InventoryLine,
   type AppliedCommand,
   type CommandStamp,
+  type CreatureState,
   type GameEvent,
   type GameState,
 } from './events.js';
@@ -1312,7 +1326,29 @@ export type SpellCastOutcome = SpellResolution | SpellNeedsContext;
 
 export interface CastSpellRequest extends CommandIdentity {
   readonly spellId: string;
+  /**
+   * Who to aim at. Empty for an area spell, which picks its own.
+   *
+   * Maestro has already resolved "him" to an id by the time this arrives; the
+   * engine checks the id it was handed and never substitutes a better one.
+   */
   readonly targets: readonly CharacterId[];
+  /**
+   * Where an area spell's origin goes — "a point you choose within range".
+   *
+   * Required for an area whose origin is a point, and refused for one that
+   * starts at the caster, because Burning Hands does not get to begin
+   * somewhere else.
+   */
+  readonly at?: Point;
+  /**
+   * Which way a Cone, Cube or Line points.
+   *
+   * A point to aim at rather than an angle: Maestro speaks in landmarks and
+   * creatures, and `positionOf` turns either into coordinates. An angle would
+   * be the model typing raw geometry, which is the thing that is not allowed.
+   */
+  readonly towards?: Point;
   /** The slot to spend. Omitted for a cantrip or a free casting. */
   readonly slotLevel?: number;
   /** Why no slot is being spent, when none is. */
@@ -1472,6 +1508,194 @@ export function resolveSpell(
   const needs: ContextRequest[] = [];
 
   // — targets ————————————————————————————————————————————————————————————
+  //
+  // Two ways a spell finds its targets, and they do not mix. A named-target
+  // spell is handed ids; an area spell is handed a place and works out for
+  // itself who is standing in it.
+  const reach = ranged(definition.range);
+  let targets: readonly CharacterId[];
+
+  if (definition.area !== undefined) {
+    const resolved = areaTargets(state, casterId, definition, definition.area, request, reach);
+    if (!resolved.ok) return resolved;
+    if (resolved.value.kind === 'needs-context') return ok(resolved.value);
+    targets = resolved.value.targets;
+  } else {
+    const named = namedTargets(state, casterId, definition, request, castLevel, reach, needs);
+    if (!named.ok) return named;
+    targets = named.value;
+  }
+
+  if (needs.length > 0) return ok({ kind: 'needs-context', requests: needs });
+
+  return resolveOnTargets(state, casterId, caster, definition, request, {
+    castLevel,
+    route,
+    targets,
+    unverified,
+    supply,
+  });
+}
+
+/**
+ * Which creatures an area catches, and where the caller has to put it.
+ *
+ * The geometry is `positioning.ts`'s and is not reimplemented here: all six
+ * SRD shapes, measured between volumes on the 5-foot lattice, with the origin
+ * included or excluded per shape. What this adds is the spell's half — whether
+ * the caller supplied the point and direction the shape needs, whether the
+ * point is in range, and which of the creatures caught are ones this spell can
+ * actually affect.
+ */
+function areaTargets(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  area: SpellArea,
+  request: CastSpellRequest,
+  reach: number | null,
+): Result<{ kind: 'targets'; targets: readonly CharacterId[] } | SpellNeedsContext> {
+  if (request.targets.length > 0) {
+    return err(
+      'area_picks_its_own_targets',
+      `${definition.name} fills an area and catches whoever is in it; it does not take a target list`,
+    );
+  }
+  if (state.scene === null) {
+    return ok({
+      kind: 'needs-context',
+      requests: [
+        {
+          kind: 'scene',
+          subject: casterId,
+          need: 'a scene, so that an area has somewhere to be',
+          because: `${definition.name} fills an area`,
+          satisfyWith: 'a scene-set event',
+        },
+      ],
+    });
+  }
+
+  const placed = positionOf(state.scene, casterId);
+  if (placed === null) {
+    return ok({
+      kind: 'needs-context',
+      requests: [
+        {
+          kind: 'position',
+          subject: casterId,
+          need: `where ${casterId} is standing`,
+          because: `${definition.name} starts its area at the caster`,
+          satisfyWith: `a creature-placed event for ${casterId}`,
+        },
+      ],
+    });
+  }
+
+  // Where it starts. `self` means the caster and refuses to be moved; `point`
+  // must be given and must be within the spell's range.
+  let origin: AreaOrigin;
+  if (area.origin === 'self') {
+    if (request.at !== undefined) {
+      return err(
+        'area_starts_at_caster',
+        `${definition.name} originates from you; it cannot be placed elsewhere`,
+      );
+    }
+    origin = { creature: casterId };
+  } else {
+    if (request.at === undefined) {
+      return err('no_origin', `${definition.name} needs a point to centre its area on`);
+    }
+    if (reach !== null) {
+      const away = distanceToPoint(state.scene, casterId, request.at);
+      if (!away.ok) return away;
+      if (away.value > reach) {
+        return err(
+          'out_of_range',
+          `${definition.name} reaches ${reach} feet; that point is ${away.value} away`,
+        );
+      }
+    }
+    origin = { point: request.at };
+  }
+
+  // A Cone, Cube or Line has to be pointed somewhere.
+  const towards = request.towards;
+  if (DIRECTIONAL_AREAS.has(area.kind) && towards === undefined) {
+    return err(
+      'no_direction',
+      `${definition.name} forms a ${area.kind} and needs a direction to point it in`,
+    );
+  }
+  if (!DIRECTIONAL_AREAS.has(area.kind) && towards !== undefined) {
+    return err('not_directional', `a ${area.kind} has no direction to point`);
+  }
+
+  let shape: AreaShape;
+  switch (area.kind) {
+    case 'sphere':
+      shape = { kind: 'sphere', radius: area.radius };
+      break;
+    case 'cylinder':
+      shape = { kind: 'cylinder', radius: area.radius, height: area.height };
+      break;
+    case 'emanation':
+      shape = { kind: 'emanation', distance: area.distance };
+      break;
+    case 'cone':
+      shape = { kind: 'cone', length: area.length, towards: towards ?? placed };
+      break;
+    case 'cube':
+      shape = { kind: 'cube', size: area.size, towards: towards ?? placed };
+      break;
+    case 'line':
+      shape = { kind: 'line', length: area.length, width: area.width, towards: towards ?? placed };
+      break;
+  }
+
+  const caught = creaturesInArea(state.scene, origin, shape);
+  if (!caught.ok) return caught;
+
+  // A creature the spell cannot affect is filtered out, not refused. "Each
+  // Humanoid in the area" leaves the ogre standing there unbothered; it does
+  // not make the casting illegal, which is the difference between an area and
+  // a target a caller named.
+  const wanted = definition.targets.mustBeType;
+  const eligible = caught.value.filter((who: CharacterId) => {
+    const creature = state.creatures[who];
+    if (creature === undefined) return false;
+    if (creature.vitals.dead) return false;
+    if (wanted !== undefined && creature.creatureType?.toLowerCase() !== wanted.toLowerCase()) {
+      return false;
+    }
+    // SRD: "A spell's area of effect is blocked by Total Cover." Cover here is
+    // declared pairwise from the caster rather than traced through the area,
+    // which is the documented approximation the whole cover model makes.
+    if (state.scene !== null && coverBetween(state.scene, casterId, who) === 'total') return false;
+    return true;
+  });
+
+  return ok({ kind: 'targets', targets: eligible.slice().sort() });
+}
+
+/** The other half: a list of ids somebody chose, each checked as itself. */
+function namedTargets(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+  castLevel: number,
+  reach: number | null,
+  needs: ContextRequest[],
+): Result<readonly CharacterId[]> {
+  if (request.at !== undefined || request.towards !== undefined) {
+    return err(
+      'not_an_area',
+      `${definition.name} is cast on a target, not at a place`,
+    );
+  }
+
   const allowed = targetCountFor(definition.targets, definition.level, castLevel);
   if (request.targets.length === 0) {
     return err('no_targets', `${definition.name} needs a target`);
@@ -1486,7 +1710,6 @@ export function resolveSpell(
     return err('duplicate_target', `${definition.name} may not take the same target twice`);
   }
 
-  const reach = ranged(definition.range);
   for (const target of request.targets) {
     if (state.creatures[target] === undefined) {
       return err('unknown_creature', `${target} is not in this game`);
@@ -1566,9 +1789,31 @@ export function resolveSpell(
     }
   }
 
-  // Nothing spent, no die thrown: the caller establishes the fact and casts
-  // again exactly as they meant to.
-  if (needs.length > 0) return ok({ kind: 'needs-context', requests: needs });
+  return ok(request.targets);
+}
+
+/**
+ * Pay for the casting and apply its effects to the targets already settled.
+ *
+ * Split out from `resolveSpell` when areas arrived: how a spell finds its
+ * targets and what it then does to them are two questions, and only the first
+ * of them cares whether the spell fills a Cone or was aimed at a goblin.
+ */
+function resolveOnTargets(
+  state: GameState,
+  casterId: CharacterId,
+  caster: CreatureState,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+  context: {
+    readonly castLevel: number;
+    readonly route: CastingRoute;
+    readonly targets: readonly CharacterId[];
+    readonly unverified: string[];
+    readonly supply: ConcentrationSaveSupply;
+  },
+): Result<SpellCastOutcome> {
+  const { castLevel, route, targets, unverified, supply } = context;
 
   // — paying for it ——————————————————————————————————————————————————————
   //
@@ -1622,7 +1867,7 @@ export function resolveSpell(
   const attackModifier = spellAttackModifierWith(caster.sheet, route.ability);
   const saveDc = spellSaveDcWith(caster.sheet, route.ability);
 
-  for (const target of request.targets) {
+  for (const target of targets) {
     for (const effect of definition.effects) {
       const victim = current.creatures[target];
       if (victim === undefined) continue;

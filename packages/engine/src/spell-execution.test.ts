@@ -223,7 +223,9 @@ describe('the definitions match the SRD', () => {
   it('is found by the id the SRD index uses', () => {
     expect(definitionFor('fire-bolt')).toBe(FIRE_BOLT);
     expect(definitionFor('hold-person')).toBe(HOLD_PERSON);
-    expect(definitionFor('fireball')).toBeNull();
+    // Magic Missile is parsed and has no definition: it hits without an
+    // attack roll, and that shape does not exist yet.
+    expect(definitionFor('magic-missile')).toBeNull();
   });
 });
 

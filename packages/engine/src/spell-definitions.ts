@@ -107,6 +107,46 @@ export type SpellEffect =
       };
     };
 
+/**
+ * An area a spell fills, and where it starts.
+ *
+ * The *shape and its dimensions* belong to the spell — Fireball is always a
+ * 20-foot-radius Sphere — while *where it goes* is the caster's decision every
+ * time, so the point and the direction are supplied at the cast. Keeping those
+ * apart is the same split as everywhere else: the rules are data, the
+ * judgement is an argument.
+ *
+ * `origin` says which of the two the point comes from. `self` starts at the
+ * caster, and SRD excludes them from a Cone, Cube, Line or Emanation they
+ * cast; `point` is "a point you choose within range", which is checked against
+ * the spell's range like any other target.
+ */
+export type SpellArea =
+  | { readonly kind: 'sphere'; readonly radius: number; readonly origin: 'point' }
+  | {
+      readonly kind: 'cylinder';
+      readonly radius: number;
+      readonly height: number;
+      readonly origin: 'point';
+    }
+  /** SRD: a Cone's width at any point equals that point's distance from the origin. */
+  | { readonly kind: 'cone'; readonly length: number; readonly origin: 'self' | 'point' }
+  | { readonly kind: 'cube'; readonly size: number; readonly origin: 'self' | 'point' }
+  | {
+      readonly kind: 'line';
+      readonly length: number;
+      readonly width: number;
+      readonly origin: 'self';
+    }
+  | { readonly kind: 'emanation'; readonly distance: number; readonly origin: 'self' };
+
+/** Shapes that need to be pointed somewhere as well as placed. */
+export const DIRECTIONAL_AREAS: ReadonlySet<SpellArea['kind']> = new Set([
+  'cone',
+  'cube',
+  'line',
+]);
+
 /** Who a spell may be aimed at, and how many. */
 export interface TargetRule {
   readonly count: number;
@@ -135,6 +175,15 @@ export interface SpellDefinition {
   readonly concentration: boolean;
   readonly range: SpellRange;
   readonly targets: TargetRule;
+  /**
+   * The area it fills, for a spell that picks its own targets.
+   *
+   * A spell has an area *or* a target list, never both: "each creature in a
+   * 20-foot-radius Sphere" is not a list of ids the caller chose, and letting
+   * a caller pass ids alongside an area would let them pick who the Fireball
+   * catches. `targets.count` is ignored when this is set.
+   */
+  readonly area?: SpellArea;
   readonly effects: readonly SpellEffect[];
   /**
    * Whether the spell says the caster must *see* the target.
@@ -347,13 +396,160 @@ export const HEALING_WORD: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Burning Hands:
+ *
+ * > _Level 1 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Instantaneous.
+ * > "A thin sheet of flames shoots forth from you. Each creature in a 15-foot
+ * > Cone makes a Dexterity saving throw, taking 3d6 Fire damage on a failed
+ * > save or half as much damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 1."
+ *
+ * Range: Self, so the Cone starts at the caster and — being a Cone — does not
+ * include them.
+ */
+export const BURNING_HANDS: SpellDefinition = {
+  id: 'burning-hands',
+  name: 'Burning Hands',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'cone', length: 15, origin: 'self' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
+      damageType: 'fire',
+      onSuccess: 'half',
+    },
+  ],
+};
+
+/**
+ * SRD Thunderwave:
+ *
+ * > _Level 1 Evocation (Bard, Druid, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** Self. **Duration:** Instantaneous.
+ * > "Each creature in a 15-foot Cube originating from you makes a Constitution
+ * > saving throw. On a failed save, a creature takes 2d8 Thunder damage and is
+ * > pushed 10 feet away from you. On a successful save, a creature takes half
+ * > as much damage only."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 1."
+ *
+ * The **push is not modelled**: forced movement out of an area is its own
+ * mechanic, `moveCreature` spends movement a shove does not, and a half-done
+ * version that moved nobody would read as if it had. The damage is exact and
+ * the push is a gap, which is the honest pair.
+ */
+export const THUNDERWAVE: SpellDefinition = {
+  id: 'thunderwave',
+  name: 'Thunderwave',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'cube', size: 15, origin: 'self' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '2d8', perSlotLevelAbove: '1d8' },
+      damageType: 'thunder',
+      onSuccess: 'half',
+    },
+  ],
+};
+
+/**
+ * SRD Lightning Bolt:
+ *
+ * > _Level 3 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Instantaneous.
+ * > "A stroke of lightning forming a 100-foot-long, 5-foot-wide Line blasts
+ * > out from you in a direction you choose. Each creature in the Line makes a
+ * > Dexterity saving throw, taking 8d6 Lightning damage on a failed save or
+ * > half as much damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 3."
+ */
+export const LIGHTNING_BOLT: SpellDefinition = {
+  id: 'lightning-bolt',
+  name: 'Lightning Bolt',
+  level: 3,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'line', length: 100, width: 5, origin: 'self' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '8d6', perSlotLevelAbove: '1d6' },
+      damageType: 'lightning',
+      onSuccess: 'half',
+    },
+  ],
+};
+
+/**
+ * SRD Fireball:
+ *
+ * > _Level 3 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 150 feet. **Duration:** Instantaneous.
+ * > "A bright streak flashes from you to a point you choose within range and
+ * > then blossoms with a low roar into a fiery explosion. Each creature in a
+ * > 20-foot-radius Sphere centered on that point makes a Dexterity saving
+ * > throw, taking 8d6 Fire damage on a failed save or half as much damage on a
+ * > successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 3."
+ *
+ * A Sphere includes its point of origin, so a caster who drops one at their
+ * own feet is in it. That is the rule, and it is not softened.
+ */
+export const FIREBALL: SpellDefinition = {
+  id: 'fireball',
+  name: 'Fireball',
+  level: 3,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '8d6', perSlotLevelAbove: '1d6' },
+      damageType: 'fire',
+      onSuccess: 'half',
+    },
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
+  BURNING_HANDS,
   CURE_WOUNDS,
+  FIREBALL,
   FIRE_BOLT,
   HEALING_WORD,
   HOLD_PERSON,
   INFLICT_WOUNDS,
+  LIGHTNING_BOLT,
   SACRED_FLAME,
+  THUNDERWAVE,
 ];
 
 export const definitionFor = (spellId: string): SpellDefinition | null =>

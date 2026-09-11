@@ -616,6 +616,25 @@ export function distanceBetween(
 }
 
 /**
+ * How far a creature is from a bare point, in feet.
+ *
+ * "A point you choose within range" is a real target in the rules — Fireball
+ * is aimed at one — and it has to be measured with the same ruler as
+ * everything else, from the creature's volume rather than from an anchor cube.
+ * There is one distance function in this file and this is a caller of it, not
+ * a second one.
+ */
+export function distanceToPoint(
+  state: PositionState,
+  who: CharacterId,
+  point: Point,
+): Result<number> {
+  const box = boxOf(state, who);
+  if (box === null) return err('unplaced', `${who} needs placing before distances mean anything`);
+  return ok(chebyshev(box, pointBox(point)));
+}
+
+/**
  * Cubes between two occupied volumes, in feet.
  *
  * Taking the largest axis rather than the diagonal is the whole point: SRD

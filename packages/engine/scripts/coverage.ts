@@ -128,11 +128,14 @@ const shapeOf = (spell: ParsedSpell): string =>
  * prevent.
  */
 export const VERIFIED_SPELLS: readonly string[] = [
+  'burning-hands',
   'cure-wounds',
+  'fireball',
   'fire-bolt',
   'healing-word',
   'hold-person',
   'inflict-wounds',
+  'lightning-bolt',
   'sacred-flame',
 ];
 
@@ -209,7 +212,7 @@ function render(coverage: SpellCoverage): string {
 
   const BLOCKERS: Readonly<Record<string, string>> = {
     summon: 'creating a creature from a stat block mid-fight',
-    area: 'resolving targets from geometry rather than a list of ids',
+    area: '—',
     reaction: 'an interrupt mechanism that can order a cast against its trigger',
     'long-casting': 'a casting-in-progress state machine with a per-turn obligation',
     ongoing: 'an effect that a later turn can act through',

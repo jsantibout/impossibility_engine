@@ -18,7 +18,7 @@ spell is unsupported.
 
 | Parsed | Executable | Verified |
 |---|---|---|
-| 339 | 6 (1.8%) | 6 (1.8%) |
+| 339 | 10 (2.9%) | 9 (2.7%) |
 
 ### By mechanical shape
 
@@ -29,7 +29,7 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Executable | Blocked on |
 |---|---|---|---|
 | Summons and created creatures | 9 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 0 | resolving targets from geometry rather than a list of ids |
+| Area of effect | 73 | 4 | — |
 | Reaction timing | 4 | 0 | an interrupt mechanism that can order a cast against its trigger |
 | Casting time of a minute or more | 43 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 0 | an effect that a later turn can act through |
@@ -43,9 +43,13 @@ spell, and the area is the part that is missing.
 
 ### Executable today
 
+- **Burning Hands** (level 1) — verified
 - **Cure Wounds** (level 1) — verified
 - **Fire Bolt** (cantrip) — verified
+- **Fireball** (level 3) — verified
 - **Healing Word** (level 1) — verified
 - **Hold Person** (level 2) — verified
 - **Inflict Wounds** (level 1) — verified
+- **Lightning Bolt** (level 3) — verified
 - **Sacred Flame** (cantrip) — verified
+- **Thunderwave** (level 1) — untested

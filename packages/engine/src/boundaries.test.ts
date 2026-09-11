@@ -316,8 +316,15 @@ describe('the engine offers the targets it can see', () => {
     expect(eligible.needsContext.map((r) => r.subject)).toContain(THUG);
   });
 
+  /**
+   * Magic Missile is a real SRD spell with no definition — it hits without an
+   * attack roll, which is a shape the engine does not have. A shortlist for a
+   * spell the engine cannot resolve is empty rather than a guess at who looks
+   * plausible. (This was Fireball until Fireball became executable; the point
+   * is the missing definition, not the spell.)
+   */
   it('says nothing useful about a spell it cannot execute', () => {
-    const eligible = eligibleTargets(fold('seed', table()), WIZARD, 'fireball', 3);
+    const eligible = eligibleTargets(fold('seed', table()), WIZARD, 'magic-missile', 1);
     expect(eligible.eligible).toEqual([]);
     expect(eligible.excluded).toEqual([]);
   });
