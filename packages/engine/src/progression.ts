@@ -71,6 +71,14 @@ export interface FeatureDefinition {
   readonly choice?: FeatureChoice;
   /** Set on the feature that opens a subclass, so creation knows to ask. */
   readonly grantsSubclass?: boolean;
+  /**
+   * A feat this feature grants outright, rather than offering a choice of.
+   *
+   * A background's Origin feat is named by the background — Sage gives Magic
+   * Initiate (Wizard) and nothing else — but the feat's own choices are still
+   * the player's. `spellList` pins the half the background already decided.
+   */
+  readonly grantsFeat?: { readonly featId: string; readonly spellList?: string };
 }
 
 export interface ClassLevelRow {

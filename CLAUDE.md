@@ -921,26 +921,112 @@ shaped for it.
   data. Nothing in `progression.ts` or `creation.ts` is Wizard-shaped except
   two feature ids it looks up by name — Scholar's expertise and the Evoker's
   free spells — which is a seam to generalise when a second class arrives.
-- **Feats are recorded, never executed.** Sage grants Magic Initiate (Wizard)
-  and Human grants an Origin feat; both are names on the sheet. Magic Initiate
-  in particular *should* add two cantrips and a level 1 spell, and does not.
+- **Feats are validated but not executed.** All four SRD Origin feats are
+  modelled, and the choices they demand are checked: Magic Initiate's spell
+  list, spellcasting ability, two cantrips and level 1 spell, all against the
+  parsed SRD; Skilled's three proficiencies, which *are* applied to the sheet;
+  and the rule that Magic Initiate taken twice must use different lists. What
+  is not done is execution — Magic Initiate's cantrips do not join the
+  character's cantrip list and its free daily casting is not tracked, Alert's
+  Initiative proficiency is not applied, Savage Attacker's reroll is not. Each
+  feat carries a note saying so.
 - **Multiclassing is not modelled**, nor are Ability Score Improvements taken
   as score increases rather than feats.
-- **Equipment is a list, not an inventory.** Starting packages resolve to named
-  entries with quantities and the SRD's own bracketed details, plus coin.
-  Nothing tracks weight, attunement, or whether the quarterstaff in the package
-  is the same object as the arcane focus. Weapons and armour are parsed in
-  `@ie/srd`; adventuring gear is not, so the entries are names rather than
-  references.
+- **Owning and wearing are separate; weight and attunement are not modelled.**
+  `inventory` is everything the character has — class package, background
+  package, and anything the GM added — and `equipped` is the subset actually
+  worn or held. Armour Class reads `equipped`, so a chain shirt in the backpack
+  protects nobody. What is still missing: weight, attunement, containers, and
+  whether the quarterstaff in the package is the same object as the arcane
+  focus. Adventuring gear is not parsed, so most entries are names rather than
+  references; armour and weapons are.
 - **Species traits above level 1 are not reached.** The structures handle a
   trait that arrives at character level 3 — `cumulativeFeatures` reads a species
   exactly as it reads a class — but the Human has none, so nothing exercises it.
-- **Spell names are strings.** Creation checks counts and spellbook membership,
-  not that a spell exists, is on the Wizard list, or is of a level the character
-  can prepare. `@ie/srd` has the data; wiring it in is the next obvious step.
+- **Spell *execution* is still the caller's.** Creation now validates every
+  spell choice against the parsed SRD, but knowing a Wizard has Fireball
+  prepared does not make `resolveCast` aware of Fireball's effects; a spell's
+  own mechanics are narrated and applied through the existing commands.
 - **Arcane Recovery is a pool, not a behaviour.** The single use is declared and
   spends correctly; choosing which slots to recover, and the half-level cap, are
   the caller's.
+
+### The SRD creation workflow, step by step
+
+Audited against SRD 5.2.1 "Character Creation" for the one supported path.
+Every required choice and grant is accounted for; anything the engine does not
+execute says so.
+
+| SRD step | Required choice or grant | Where | Test |
+|---|---|---|---|
+| 1. Choose Class | Class | `resolveParts` | refuses an unknown class |
+| 2. Origin — background | Which background | `resolveParts` | refuses an unknown background |
+| | Ability scores: +2/+1 or +1/+1/+1 among its three, never past 20 | `checkAbilities` | four cases, including the all-three shape |
+| | Origin feat (Sage → Magic Initiate (Wizard)) | `grantsFeat` + `checkFeats` | refuses a feat the background did not grant |
+| | Two skill proficiencies | `gatherProficiencies` | gathered from every source |
+| | One tool proficiency | `gatherProficiencies` | `toolProficiencies` |
+| | Equipment: package A or B | `inventoryOf` | both packages, and mixing them |
+| 2. Origin — species | Which species | `resolveParts` | refuses an unknown species |
+| | Species traits, and their choices (Human: a skill, an Origin feat) | `grantedFeatures`, `checkFeats` | Skillful applies; Versatile demands a feat |
+| 2. Origin — languages | Common plus two from the Standard Languages table | `checkLanguages` | count, duplicate, off-table |
+| 3. Ability Scores | Standard array, point buy, or manual | `checkAbilities` | array and 27-point budget |
+| 4. Alignment | One of the nine | `checkCharacter` | refuses one that is not |
+| 5. Details — features | Class features recorded, with their choices made | `grantedFeatures`, `checkFeatureChoices` | every feature granted; missing choice names the feature |
+| 5. Details — numbers | Saves, skills, Passive Perception, hit points, AC, Initiative | `planCharacter` → `CharacterSheet` | save DC, skill modifiers, AC, hit points |
+| 5. Details — hit points | Max die at level 1, fixed or rolled after, minimum 1 per level | `hitPointsFor` | fixed, rolled, and a Constitution penalty |
+| Spellcasting | Cantrips known, spellbook, prepared — all against the parsed SRD | `checkSpells` | id, class list, level, duplicate, preparation, acquisition level |
+| Subclass (level 3) | Which subclass, and its own choices | `resolveParts`, `checkEvocationSavant` | refused early, required at 3; school and level cap |
+| Level Advancement | New spells per level, kept apart from copied ones | `advanceCharacter` | advances preserving copied spells and current state |
+| Starting at Higher Levels | Minimum XP for the level | `planCharacter` | 900 XP at level 3, 0 at level 1 |
+| | GM's extra equipment, money and magic items | `checkDmGrants` | refused when unstated above level 1 |
+
+**Missing choices are errors with a field attached, never silent defaults.**
+`checkCharacter` returns every problem at once with the `field` it belongs to,
+so a caller can point at what needs fixing; `planCharacter` returns the first
+as an ordinary `Result` error.
+
+### Two places the SRD does not answer, and what the engine does instead
+
+**Overlapping proficiencies.** SRD 5.2.1 gives no rule letting a player re-pick
+a proficiency they already have — the 2014 guidance to that effect is not
+reproduced anywhere in it. So the engine does not invent one. Proficiency is
+binary, as the glossary says, so overlapping grants **union**; the redundant
+pick comes back in `plan.warnings` as `redundant_proficiency`, and the table
+decides whether to swap it. Not an error, because the rules do not make it one.
+
+**What a higher-level character starts with.** SRD: "The GM decides whether
+your character starts with more than the standard equipment for a level 1
+character, possibly even one or more magic items." That is a decision the
+engine cannot make, so above level 1 it must be *stated* — `dmGrants` with a
+note, even if the note says "nothing beyond the standard package". An absent
+grant is refused rather than defaulted, because a silent zero would be the
+engine answering a question the SRD asked the GM.
+
+### Spells are validated against the parsed SRD
+
+Choices are **stable spell ids** (`magic-missile`), not names, checked against a
+generated index of all 339 SRD spells. Every selection is checked for
+existence, class-list membership, level, and duplication; the spellbook also
+checks that the acquisition level is one the character has reached, and
+preparation checks membership in the book and that the spell is of a level the
+character has slots for.
+
+The Evoker's two free spells are checked **separately**, on the feature's own
+terms — Evocation school, level 2 or lower, not already in the book — so a bad
+pick says which of the feature's rules it broke rather than a generic
+spellbook complaint.
+
+### Level-granted spells and spells found in play
+
+SRD gives a Wizard six spells at level 1 and two per level after, and
+*separately* lets them copy any Wizard spell they find. So a spellbook entry
+records where it came from: `level`, `copied`, or `feature`. **The count rule
+measures only the `level` subset.** An earlier version enforced an exact total,
+which meant levelling up would reject a Wizard for the crime of having looted a
+spell scroll. Copied spells ride along and are preserved across advancement.
+
+They are still checked: a copied spell must be a real Wizard spell of a level
+the character can prepare, which is what the SRD requires to copy it at all.
 
 ## Monsters State Their Numbers; Characters Derive Them
 

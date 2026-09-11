@@ -101,7 +101,8 @@ export const SAGE: BackgroundDefinition = {
       name: 'Magic Initiate (Wizard)',
       level: 1,
       automation: 'manual',
-      note: 'Feats are not modelled. The two cantrips and one level 1 spell this feat grants are not added to the sheet, and the free daily casting is not tracked.',
+      note: 'The chosen cantrips and level 1 spell are validated and recorded, but not executed: they do not join the sheet’s cantrip list and the free daily casting is not tracked.',
+      grantsFeat: { featId: 'magic-initiate', spellList: 'wizard' },
     },
   ],
 };
@@ -130,3 +131,101 @@ export const POINT_COSTS: Readonly<Record<number, number>> = {
   14: 7,
   15: 9,
 };
+
+/**
+ * SRD "Choose Languages": "Your character knows at least three languages:
+ * Common plus two languages you roll or choose from the Standard Languages
+ * table."
+ */
+export const COMMON = 'Common';
+export const STANDARD_LANGUAGES: readonly string[] = [
+  'Common',
+  'Common Sign Language',
+  'Draconic',
+  'Dwarvish',
+  'Elvish',
+  'Giant',
+  'Gnomish',
+  'Goblin',
+  'Halfling',
+  'Orc',
+];
+export const LANGUAGES_CHOSEN = 2;
+
+/** What an Origin feat asks for when it is taken. */
+export type FeatRequirement =
+  | { readonly kind: 'none' }
+  /** Magic Initiate: a spell list, a spellcasting ability, two cantrips, one level 1 spell. */
+  | { readonly kind: 'magic-initiate'; readonly lists: readonly string[] }
+  /** Skilled: "any combination of three skills or tools of your choice." */
+  | { readonly kind: 'proficiencies'; readonly choose: number };
+
+export interface FeatDefinition {
+  readonly id: string;
+  readonly name: string;
+  readonly category: 'origin' | 'general' | 'fighting-style' | 'epic-boon';
+  readonly requires: FeatRequirement;
+  /** Taking it twice is legal only for these, and only under the feat's own terms. */
+  readonly repeatable: boolean;
+  /** What a DM still has to apply, because the engine does not execute feats. */
+  readonly note: string;
+}
+
+/** SRD "Origin Feats". The four the SRD publishes, no more. */
+export const ORIGIN_FEATS: readonly FeatDefinition[] = [
+  {
+    id: 'alert',
+    name: 'Alert',
+    category: 'origin',
+    requires: { kind: 'none' },
+    repeatable: false,
+    note: 'Initiative Proficiency and the Initiative swap are not applied; `rollInitiative` takes a Proficiency Bonus as an ordinary named bonus when the caller supplies one.',
+  },
+  {
+    id: 'magic-initiate',
+    name: 'Magic Initiate',
+    category: 'origin',
+    requires: { kind: 'magic-initiate', lists: ['cleric', 'druid', 'wizard'] },
+    repeatable: true,
+    note: 'The chosen spells are recorded but not added to the sheet: the free daily casting of the level 1 spell is not tracked, and the cantrips do not join the character\u2019s cantrip list.',
+  },
+  {
+    id: 'savage-attacker',
+    name: 'Savage Attacker',
+    category: 'origin',
+    requires: { kind: 'none' },
+    repeatable: false,
+    note: 'Rolling weapon damage twice once per turn is not applied; the caller can reproduce it through the dice module.',
+  },
+  {
+    id: 'skilled',
+    name: 'Skilled',
+    category: 'origin',
+    requires: { kind: 'proficiencies', choose: 3 },
+    repeatable: true,
+    note: 'The three chosen proficiencies *are* applied to the sheet; nothing else about the feat needs applying.',
+  },
+];
+
+export const featById = (id: string): FeatDefinition | null =>
+  ORIGIN_FEATS.find((f) => f.id === id) ?? null;
+
+/**
+ * SRD Step 4: "Choose your character's alignment... and note it on your
+ * character sheet."
+ *
+ * A required choice with no mechanics attached — 2024 hangs nothing off it.
+ * Recorded rather than derived from, and validated only so a typo cannot slip
+ * through as an alignment nobody has heard of.
+ */
+export const ALIGNMENTS: readonly string[] = [
+  'Lawful Good',
+  'Neutral Good',
+  'Chaotic Good',
+  'Lawful Neutral',
+  'Neutral',
+  'Chaotic Neutral',
+  'Lawful Evil',
+  'Neutral Evil',
+  'Chaotic Evil',
+];

@@ -8,21 +8,29 @@ import {
   type Result,
   type Skill,
 } from '@ie/shared';
+import { ARMOR } from '@ie/srd';
 import { abilityModifier, proficiencyBonusForLevel, type CharacterSheet } from './character.js';
 import type { GameEvent, GameState } from './events.js';
 import {
+  ALIGNMENTS,
   BACKGROUNDS,
+  COMMON,
+  LANGUAGES_CHOSEN,
   POINT_BUY_BUDGET,
   POINT_COSTS,
   SPECIES,
   STANDARD_ARRAY,
+  STANDARD_LANGUAGES,
   backgroundById,
+  featById,
   speciesById,
   type BackgroundDefinition,
+  type FeatDefinition,
   type SpeciesDefinition,
 } from './origins.js';
 import {
   MAX_LEVEL,
+  XP_THRESHOLDS,
   cumulativeFeatures,
   rowAt,
   slotsAt,
@@ -33,6 +41,14 @@ import {
 } from './progression.js';
 import { spellSlotKey } from './resources.js';
 import { hitDieKey } from './rest.js';
+import {
+  countOf,
+  highestSlotLevel,
+  levelGrantedSpells,
+  lookupSpell,
+  spellIds,
+  type SpellbookEntry,
+} from './spellbook.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
 
 /**
@@ -75,6 +91,38 @@ export type HitPointChoice =
   /** One roll per level after the first; level 1 is always the maximum die. */
   | { readonly method: 'rolled'; readonly rolls: readonly number[] };
 
+/** What taking a feat requires the player to decide. */
+export interface FeatChoice {
+  readonly featId: string;
+  /** Magic Initiate: which class list the spells come from. */
+  readonly spellList?: string | undefined;
+  /** Magic Initiate: "Intelligence, Wisdom, or Charisma is your spellcasting ability". */
+  readonly spellcastingAbility?: Ability | undefined;
+  /** Magic Initiate: two cantrip ids. */
+  readonly cantrips?: readonly string[] | undefined;
+  /** Magic Initiate: one level 1 spell id. */
+  readonly levelOneSpell?: string | undefined;
+  /** Skilled: three skills or tools. */
+  readonly proficiencies?: readonly string[] | undefined;
+}
+
+/**
+ * What the GM handed out beyond the standard package.
+ *
+ * SRD "Starting at Higher Levels": "The GM decides whether your character
+ * starts with more than the standard equipment for a level 1 character,
+ * possibly even one or more magic items." That is a decision the engine cannot
+ * make and must not guess, so above level 1 it has to be stated — an empty
+ * grant with a note saying so is a fine answer, an absent one is not.
+ */
+export interface DmGrants {
+  readonly items: readonly EquipmentEntry[];
+  readonly goldPieces: number;
+  readonly magicItems: readonly string[];
+  /** Why, in the GM's own words. Recorded so the decision is visible later. */
+  readonly note: string;
+}
+
 export interface CharacterChoices {
   readonly name: string;
   readonly classId: string;
@@ -85,16 +133,28 @@ export interface CharacterChoices {
   /** SRD: one ability by 2 and another by 1, or all three by 1. */
   readonly abilityIncreases: Readonly<Partial<Record<Ability, number>>>;
   readonly classSkills: readonly Skill[];
+  /** SRD: "Common plus two languages" from the Standard Languages table. */
+  readonly languages: readonly string[];
+  /** SRD Step 4. A required choice; nothing in 2024 hangs off it mechanically. */
+  readonly alignment: string;
   readonly subclassId?: string | undefined;
+  /** Cantrip ids, checked against the class list. */
   readonly cantrips: readonly string[];
-  readonly spellbook: readonly string[];
+  /** The book, each entry saying when it arrived and why. */
+  readonly spellbook: readonly SpellbookEntry[];
   readonly preparedSpells: readonly string[];
   /** Which starting-equipment package, by the SRD's own label. */
   readonly classEquipment: string;
   readonly backgroundEquipment: string;
+  /** Items actually worn or held, which is what Armour Class reads. */
+  readonly equipped: readonly string[];
   readonly hitPoints: HitPointChoice;
   /** Choices a feature asks for, keyed by feature id. */
   readonly featureChoices: Readonly<Record<string, readonly string[]>>;
+  /** Feats, keyed by the feature that granted them. */
+  readonly feats: Readonly<Record<string, FeatChoice>>;
+  /** Required above level 1; see {@link DmGrants}. */
+  readonly dmGrants?: DmGrants | undefined;
 }
 
 export interface CreationProblem {
@@ -111,11 +171,28 @@ export interface CharacterPlan {
   readonly hitDie: number;
   readonly spellSlots: Readonly<Record<number, number>>;
   readonly cantrips: readonly string[];
-  readonly spellbook: readonly string[];
+  readonly spellbook: readonly SpellbookEntry[];
   readonly preparedSpells: readonly string[];
-  readonly equipment: readonly EquipmentEntry[];
+  /** Everything owned: class package, background package, and any GM grant. */
+  readonly inventory: readonly EquipmentEntry[];
+  /** The subset actually worn or held. Armour Class reads this, not the pack. */
+  readonly equipped: readonly string[];
   readonly goldPieces: number;
+  readonly experiencePoints: number;
+  readonly languages: readonly string[];
+  readonly alignment: string;
   readonly toolProficiencies: readonly string[];
+  /** Magic items the GM granted, recorded rather than modelled. */
+  readonly magicItems: readonly string[];
+  /**
+   * Choices that were legal but wasteful — a proficiency picked twice, say.
+   *
+   * Warnings, not errors: SRD 5.2.1 gives no rule letting a player re-pick a
+   * proficiency they already have, so the engine will not invent one. It
+   * unions the proficiencies, says the pick was redundant, and leaves the
+   * decision to the table.
+   */
+  readonly warnings: readonly CreationProblem[];
   /** Every feature the character has, each saying whether the engine runs it. */
   readonly features: readonly FeatureDefinition[];
   /** Feat names, recorded rather than executed. */
@@ -325,7 +402,9 @@ function checkFeatureChoices(
 
   for (const feature of features) {
     const asked = feature.choice;
-    if (asked === undefined || asked.kind === 'subclass') continue;
+    // Subclasses are resolved in `resolveParts`, and feats in `checkFeats`,
+    // because both need more than a list of picked names.
+    if (asked === undefined || asked.kind === 'subclass' || asked.kind === 'feat') continue;
 
     const made = choices.featureChoices[feature.id];
     if (made === undefined || made.length !== asked.choose) {
@@ -362,44 +441,323 @@ function checkFeatureChoices(
   return problems;
 }
 
-function checkSpells(
-  choices: CharacterChoices,
-  definition: ClassDefinition,
-  extraBookSpells: readonly string[],
+/**
+ * Check one spell id against the parsed SRD.
+ *
+ * Everything here is a lookup rather than a guess: the id has to name a spell
+ * the SRD publishes, and that spell has to be on the class list, at an allowed
+ * level, and — where a feature says so — of the right school. An unknown id is
+ * the important one to catch: a typo in a spell name used to sail straight
+ * through and leave a character holding a spell that does not exist.
+ */
+function checkSpellId(
+  id: string,
+  field: string,
+  classId: string,
+  options: {
+    readonly minLevel?: number;
+    readonly maxLevel?: number;
+    readonly school?: string;
+    readonly what: string;
+  },
 ): CreationProblem[] {
+  const spell = lookupSpell(id);
+  if (spell === null) {
+    return [problem('unknown_spell', field, `no SRD spell with the id ${id}`)];
+  }
+
+  const problems: CreationProblem[] = [];
+  if (!spell.classes.includes(classId)) {
+    problems.push(
+      problem('spell_not_on_class_list', field, `${spell.name} is not on the ${classId} spell list`),
+    );
+  }
+  const min = options.minLevel ?? 0;
+  const max = options.maxLevel ?? 9;
+  if (spell.level < min || spell.level > max) {
+    problems.push(
+      problem('spell_level_not_allowed', field, `${options.what} takes spells of level ${min} to ${max}; ${spell.name} is level ${spell.level}`),
+    );
+  }
+  if (options.school !== undefined && spell.school !== options.school) {
+    problems.push(
+      problem('spell_school_not_allowed', field, `${options.what} takes ${options.school} spells; ${spell.name} is ${spell.school}`),
+    );
+  }
+  return problems;
+}
+
+const duplicates = (ids: readonly string[]): readonly string[] => {
+  const seen = new Set<string>();
+  const twice = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) twice.add(id);
+    seen.add(id);
+  }
+  return [...twice];
+};
+
+function checkSpells(choices: CharacterChoices, definition: ClassDefinition): CreationProblem[] {
+  // Spells a feature writes into the book are in the book: preparation can
+  // reach them even though the count rule does not measure them.
+  const fromFeatures = choices.featureChoices['evoker:evocation-savant'] ?? [];
   const problems: CreationProblem[] = [];
   const row = rowAt(definition, choices.level);
   if (!row.ok) return problems;
 
+  const slots = slotsAt(definition, choices.level);
+  const topSlot = highestSlotLevel(slots);
+
+  // — cantrips ————————————————————————————————————————————————————————————
   const cantrips = row.value.cantripsKnown ?? 0;
   if (choices.cantrips.length !== cantrips) {
     problems.push(
       problem('wrong_cantrip_count', 'cantrips', `a level ${choices.level} ${definition.name} knows ${cantrips} cantrips, got ${choices.cantrips.length}`),
     );
   }
-
-  // SRD: the spellbook "starts with six level 1 Wizard spells of your choice",
-  // and gains two more per level after the first.
-  const expectedBook = 6 + Math.max(0, choices.level - 1) * 2;
-  if (choices.spellbook.length !== expectedBook) {
+  for (const id of duplicates(choices.cantrips)) {
+    problems.push(problem('duplicate_spell', 'cantrips', `${id} is known twice`));
+  }
+  for (const id of choices.cantrips) {
     problems.push(
-      problem('wrong_spellbook_count', 'spellbook', `a level ${choices.level} ${definition.name} writes ${expectedBook} spells, got ${choices.spellbook.length}`),
+      ...checkSpellId(id, 'cantrips', definition.id, { minLevel: 0, maxLevel: 0, what: 'a cantrip' }),
     );
   }
 
+  // — the spellbook ———————————————————————————————————————————————————————
+  //
+  // The count rule applies to the spells *levelling* granted. Spells copied
+  // from a scroll in play ride along and are not counted, or a Wizard who had
+  // adventured could not level up.
+  const granted = countOf(choices.spellbook, 'level');
+  const expected = levelGrantedSpells(choices.level);
+  if (granted !== expected) {
+    problems.push(
+      problem('wrong_spellbook_count', 'spellbook', `a level ${choices.level} ${definition.name} is granted ${expected} spells by levelling, got ${granted}; spells copied in play carry origin "copied" and are not counted`),
+    );
+  }
+  for (const id of duplicates(spellIds(choices.spellbook))) {
+    problems.push(problem('duplicate_spell', 'spellbook', `${id} is written in the book twice`));
+  }
+  for (const entry of choices.spellbook) {
+    problems.push(
+      ...checkSpellId(entry.spellId, 'spellbook', definition.id, {
+        minLevel: 1,
+        maxLevel: topSlot,
+        what: 'a spellbook',
+      }),
+    );
+    if (!Number.isInteger(entry.acquiredAt) || entry.acquiredAt < 1 || entry.acquiredAt > choices.level) {
+      problems.push(
+        problem('bad_acquisition_level', 'spellbook', `${entry.spellId} says it was acquired at level ${entry.acquiredAt}, which is not a level this character has reached`),
+      );
+    }
+  }
+
+  // — what is prepared ————————————————————————————————————————————————————
   const prepared = row.value.preparedSpells ?? 0;
   if (choices.preparedSpells.length !== prepared) {
     problems.push(
       problem('wrong_prepared_count', 'preparedSpells', `a level ${choices.level} ${definition.name} prepares ${prepared} spells, got ${choices.preparedSpells.length}`),
     );
   }
+  for (const id of duplicates(choices.preparedSpells)) {
+    problems.push(problem('duplicate_spell', 'preparedSpells', `${id} is prepared twice`));
+  }
 
-  const book = new Set([...choices.spellbook, ...extraBookSpells]);
-  for (const spell of choices.preparedSpells) {
-    if (!book.has(spell)) {
+  const book = new Set([...spellIds(choices.spellbook), ...fromFeatures]);
+  for (const id of choices.preparedSpells) {
+    if (!book.has(id)) {
       problems.push(
-        problem('spell_not_in_spellbook', 'preparedSpells', `${spell} is not in the spellbook`),
+        problem('spell_not_in_spellbook', 'preparedSpells', `${id} is not in the spellbook`),
       );
+      continue;
+    }
+    // SRD: "The chosen spells must be of a level for which you have spell slots."
+    const spell = lookupSpell(id);
+    if (spell !== null && spell.level > topSlot) {
+      problems.push(
+        problem('prepared_above_slot_level', 'preparedSpells', `${spell.name} is level ${spell.level}, and this character has no slot above level ${topSlot}`),
+      );
+    }
+  }
+
+  return problems;
+}
+
+/**
+ * SRD Evocation Savant: "Choose two Wizard spells from the Evocation school,
+ * each of which must be no higher than level 2, and add them to your spellbook
+ * for free."
+ *
+ * Checked on its own terms rather than folded into the spellbook rules: the
+ * school and the level cap are the feature's, not the book's, and a spell that
+ * fails them should say which rule it broke.
+ */
+function checkEvocationSavant(
+  choices: CharacterChoices,
+  definition: ClassDefinition,
+): CreationProblem[] {
+  const picked = choices.featureChoices['evoker:evocation-savant'];
+  if (picked === undefined) return [];
+
+  const problems: CreationProblem[] = [];
+  for (const id of duplicates(picked)) {
+    problems.push(problem('duplicate_spell', 'featureChoices', `Evocation Savant chose ${id} twice`));
+  }
+  for (const id of picked) {
+    problems.push(
+      ...checkSpellId(id, 'featureChoices', definition.id, {
+        minLevel: 1,
+        maxLevel: 2,
+        school: 'evocation',
+        what: 'Evocation Savant',
+      }),
+    );
+  }
+
+  // The free spells go into the book, so they must not already be in it.
+  const fromLevels = new Set(
+    choices.spellbook.filter((e) => e.origin !== 'feature').map((e) => e.spellId),
+  );
+  for (const id of picked) {
+    if (fromLevels.has(id)) {
+      problems.push(
+        problem('spell_already_known', 'featureChoices', `${id} is already in the spellbook, so Evocation Savant would grant nothing`),
+      );
+    }
+  }
+
+  return problems;
+}
+
+/**
+ * Feats, and the choices each one demands.
+ *
+ * The engine does not execute feats; it does make sure the choices they
+ * require were actually made, because a missing one must be an actionable
+ * error rather than a silent gap on a sheet.
+ */
+function checkFeats(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  const taken: { feature: string; feat: FeatDefinition; choice: FeatChoice }[] = [];
+
+  for (const feature of features) {
+    const fixed = feature.grantsFeat;
+    const asksForOne = feature.choice?.kind === 'feat';
+    if (fixed === undefined && !asksForOne) continue;
+
+    const made = choices.feats[feature.id];
+    if (made === undefined) {
+      problems.push(
+        problem('missing_feat_choice', 'feats', `${feature.id} (${feature.name}) grants a feat, and none was chosen`),
+      );
+      continue;
+    }
+
+    const definition = featById(made.featId);
+    if (definition === null) {
+      problems.push(problem('unknown_feat', 'feats', `no Origin feat with the id ${made.featId}`));
+      continue;
+    }
+    if (fixed !== undefined && made.featId !== fixed.featId) {
+      problems.push(
+        problem('wrong_feat', 'feats', `${feature.name} grants ${fixed.featId}, not ${made.featId}`),
+      );
+      continue;
+    }
+    if (feature.choice?.kind === 'feat' && feature.choice.category !== undefined
+        && definition.category !== feature.choice.category) {
+      problems.push(
+        problem('wrong_feat_category', 'feats', `${feature.name} grants a ${feature.choice.category} feat; ${definition.name} is ${definition.category}`),
+      );
+      continue;
+    }
+
+    taken.push({ feature: feature.id, feat: definition, choice: made });
+    problems.push(...checkFeatChoice(feature.id, definition, made, fixed?.spellList));
+  }
+
+  // SRD Magic Initiate: "you must choose a different spell list each time."
+  const lists = taken
+    .filter((t) => t.feat.id === 'magic-initiate')
+    .map((t) => t.choice.spellList);
+  for (const list of duplicates(lists.filter((l): l is string => l !== undefined))) {
+    problems.push(
+      problem('repeated_spell_list', 'feats', `Magic Initiate was taken twice from the ${list} list; each must be a different list`),
+    );
+  }
+
+  // Nothing but Magic Initiate may be taken twice.
+  const ids = taken.filter((t) => !t.feat.repeatable).map((t) => t.feat.id);
+  for (const id of duplicates(ids)) {
+    problems.push(problem('repeated_feat', 'feats', `${id} cannot be taken more than once`));
+  }
+
+  return problems;
+}
+
+function checkFeatChoice(
+  featureId: string,
+  definition: FeatDefinition,
+  made: FeatChoice,
+  fixedList: string | undefined,
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  const where = `${featureId} → ${definition.name}`;
+  const requires = definition.requires;
+
+  if (requires.kind === 'magic-initiate') {
+    const list = made.spellList;
+    if (list === undefined) {
+      problems.push(problem('missing_spell_list', 'feats', `${where} needs a spell list: ${requires.lists.join(', ')}`));
+    } else if (!requires.lists.includes(list)) {
+      problems.push(problem('unknown_spell_list', 'feats', `${where} offers ${requires.lists.join(', ')}, not ${list}`));
+    } else if (fixedList !== undefined && list !== fixedList) {
+      problems.push(problem('wrong_spell_list', 'feats', `${where} is fixed to the ${fixedList} list`));
+    }
+
+    // SRD: "Intelligence, Wisdom, or Charisma is your spellcasting ability for
+    // this feat's spells (choose when you select this feat)."
+    const ability = made.spellcastingAbility;
+    if (ability === undefined || !['int', 'wis', 'cha'].includes(ability)) {
+      problems.push(
+        problem('missing_spellcasting_ability', 'feats', `${where} needs a spellcasting ability of Intelligence, Wisdom or Charisma`),
+      );
+    }
+
+    const cantrips = made.cantrips ?? [];
+    if (cantrips.length !== 2) {
+      problems.push(problem('wrong_cantrip_count', 'feats', `${where} learns two cantrips, got ${cantrips.length}`));
+    }
+    for (const id of duplicates(cantrips)) {
+      problems.push(problem('duplicate_spell', 'feats', `${where} chose ${id} twice`));
+    }
+    if (list !== undefined && requires.lists.includes(list)) {
+      for (const id of cantrips) {
+        problems.push(...checkSpellId(id, 'feats', list, { minLevel: 0, maxLevel: 0, what: where }));
+      }
+      const one = made.levelOneSpell;
+      if (one === undefined) {
+        problems.push(problem('missing_level_one_spell', 'feats', `${where} needs one level 1 spell`));
+      } else {
+        problems.push(...checkSpellId(one, 'feats', list, { minLevel: 1, maxLevel: 1, what: where }));
+      }
+    }
+  }
+
+  if (requires.kind === 'proficiencies') {
+    const picked = made.proficiencies ?? [];
+    if (picked.length !== requires.choose) {
+      problems.push(
+        problem('wrong_proficiency_count', 'feats', `${where} grants ${requires.choose} proficiencies, got ${picked.length}`),
+      );
+    }
+    for (const id of duplicates(picked)) {
+      problems.push(problem('duplicate_proficiency', 'feats', `${where} chose ${id} twice`));
     }
   }
 
@@ -443,35 +801,171 @@ export function hitPointsFor(
   return Math.max(1, total);
 }
 
+/** SRD "Choose Languages": Common, plus two from the Standard Languages table. */
+function checkLanguages(choices: CharacterChoices): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  const chosen = choices.languages.filter((language) => language !== COMMON);
+
+  if (chosen.length !== LANGUAGES_CHOSEN) {
+    problems.push(
+      problem('wrong_language_count', 'languages', `a character knows Common plus ${LANGUAGES_CHOSEN} more, got ${chosen.length}`),
+    );
+  }
+  for (const language of duplicates(chosen)) {
+    problems.push(problem('duplicate_language', 'languages', `${language} is listed twice`));
+  }
+  for (const language of chosen) {
+    if (!STANDARD_LANGUAGES.includes(language)) {
+      problems.push(
+        problem('unknown_language', 'languages', `${language} is not on the Standard Languages table`),
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * SRD "Starting at Higher Levels": the GM decides what a character above level
+ * 1 starts with beyond the standard package.
+ *
+ * Not a default the engine can supply, so above level 1 the decision has to be
+ * stated. An empty grant with a note is a perfectly good answer; an absent one
+ * means nobody decided, and that is what this refuses.
+ */
+function checkDmGrants(choices: CharacterChoices): CreationProblem[] {
+  if (choices.level === 1) return [];
+  if (choices.dmGrants === undefined) {
+    return [
+      problem('missing_dm_grants', 'dmGrants', `a character created at level ${choices.level} starts with what the GM decides beyond the standard package — state it, even if it is nothing`),
+    ];
+  }
+  if (choices.dmGrants.note.trim() === '') {
+    return [problem('unexplained_dm_grants', 'dmGrants', 'say why, so the decision is legible later')];
+  }
+  return [];
+}
+
+/** Everything owned: both packages, plus whatever the GM added. */
+function inventoryOf(
+  choices: CharacterChoices,
+  parts: Parts,
+): Result<{ items: readonly EquipmentEntry[]; goldPieces: number }> {
+  const classKit = equipmentFrom(parts.definition.startingEquipment, choices.classEquipment, 'classEquipment');
+  if (!classKit.ok) return classKit;
+  const backgroundKit = equipmentFrom(parts.background.startingEquipment, choices.backgroundEquipment, 'backgroundEquipment');
+  if (!backgroundKit.ok) return backgroundKit;
+
+  return ok({
+    items: [...classKit.value.items, ...backgroundKit.value.items, ...(choices.dmGrants?.items ?? [])],
+    goldPieces:
+      classKit.value.goldPieces + backgroundKit.value.goldPieces + (choices.dmGrants?.goldPieces ?? 0),
+  });
+}
+
+/** Only what is owned can be worn or held. */
+function checkEquipped(
+  choices: CharacterChoices,
+  owned: readonly EquipmentEntry[],
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  const names = new Set(owned.map((item) => item.name));
+  for (const name of choices.equipped) {
+    if (!names.has(name)) {
+      problems.push(problem('not_owned', 'equipped', `${name} is equipped but not owned`));
+    }
+  }
+  for (const name of duplicates(choices.equipped)) {
+    problems.push(problem('duplicate_equipped', 'equipped', `${name} is equipped twice`));
+  }
+  return problems;
+}
+
+/**
+ * Skill and tool proficiencies, gathered from every source.
+ *
+ * SRD 5.2.1 gives **no** rule letting a player re-pick a proficiency they
+ * already have — the 2014 guidance to that effect is not reproduced. So the
+ * engine does not invent one. Proficiency is binary, as the glossary says, so
+ * overlapping grants union; a pick that was already covered is reported as a
+ * *warning* and the table decides what to do about it.
+ */
+function gatherProficiencies(
+  choices: CharacterChoices,
+  parts: Parts,
+): {
+  skills: ReadonlySet<Skill>;
+  tools: readonly string[];
+  warnings: CreationProblem[];
+} {
+  const warnings: CreationProblem[] = [];
+  const skills = new Set<Skill>();
+  const tools: string[] = [];
+
+  const add = (name: string, source: string, field: string): void => {
+    if ((SKILLS as readonly string[]).includes(name)) {
+      if (skills.has(name as Skill)) {
+        warnings.push(
+          problem('redundant_proficiency', field, `${source} grants ${name}, which this character already has; the SRD gives no rule for swapping it, so it is simply not doubled`),
+        );
+      }
+      skills.add(name as Skill);
+      return;
+    }
+    if (tools.includes(name)) {
+      warnings.push(
+        problem('redundant_proficiency', field, `${source} grants ${name}, which this character already has`),
+      );
+      return;
+    }
+    tools.push(name);
+  };
+
+  for (const skill of parts.background.skillProficiencies) add(skill, parts.background.name, 'backgroundId');
+  add(parts.background.toolProficiency, parts.background.name, 'backgroundId');
+  for (const skill of choices.classSkills) add(skill, parts.definition.name, 'classSkills');
+  for (const skill of choices.featureChoices['human:skillful'] ?? []) add(skill, 'Skillful', 'featureChoices');
+  for (const feat of Object.values(choices.feats)) {
+    for (const name of feat.proficiencies ?? []) add(name, 'Skilled', 'feats');
+  }
+
+  return { skills, tools, warnings };
+}
+
 /** Every problem with a set of choices, so a caller can show them all at once. */
 export function checkCharacter(choices: CharacterChoices): readonly CreationProblem[] {
   const { parts, problems } = resolveParts(choices);
   if (parts === null) return problems;
 
-  const all = [...problems, ...checkAbilities(choices, parts.background), ...checkSkills(choices, parts.definition)];
+  const all = [
+    ...problems,
+    ...checkAbilities(choices, parts.background),
+    ...checkSkills(choices, parts.definition),
+    ...checkLanguages(choices),
+    ...checkDmGrants(choices),
+  ];
 
-  const proficient = new Set<Skill>([
-    ...choices.classSkills,
-    ...parts.background.skillProficiencies,
-    ...((choices.featureChoices['human:skillful'] ?? []) as readonly Skill[]),
-  ]);
-
+  const { skills } = gatherProficiencies(choices, parts);
   const features = grantedFeatures(choices, parts);
-  all.push(...checkFeatureChoices(choices, features, proficient));
 
-  const savant = choices.featureChoices['evoker:evocation-savant'] ?? [];
-  all.push(...checkSpells(choices, parts.definition, savant));
+  all.push(...checkFeatureChoices(choices, features, skills));
+  all.push(...checkFeats(choices, features));
+  all.push(...checkSpells(choices, parts.definition));
+  all.push(...checkEvocationSavant(choices, parts.definition));
 
-  for (const [packages, option, field] of [
-    [parts.definition.startingEquipment, choices.classEquipment, 'classEquipment'],
-    [parts.background.startingEquipment, choices.backgroundEquipment, 'backgroundEquipment'],
-  ] as const) {
-    const resolved = equipmentFrom(packages, option, field);
-    if (!resolved.ok) all.push(problem(resolved.code, field, resolved.reason));
+  const owned = inventoryOf(choices, parts);
+  if (!owned.ok) {
+    all.push(problem(owned.code, 'classEquipment', owned.reason));
+  } else {
+    all.push(...checkEquipped(choices, owned.value.items));
   }
 
   if (choices.name.trim() === '') {
     all.push(problem('no_name', 'name', 'a character needs a name'));
+  }
+  if (!ALIGNMENTS.includes(choices.alignment)) {
+    all.push(
+      problem('unknown_alignment', 'alignment', `choose one of: ${ALIGNMENTS.join(', ')}`),
+    );
   }
 
   return all;
@@ -490,39 +984,44 @@ export function planCharacter(choices: CharacterChoices): Result<CharacterPlan> 
 
   const { parts } = resolveParts(choices);
   if (parts === null) return err('unknown_class', 'the character has no class');
-  const { definition, species, background } = parts;
+  const { definition, species } = parts;
 
   const scores = finalScores(choices);
   const features = grantedFeatures(choices, parts);
+  const { skills: proficient, tools, warnings } = gatherProficiencies(choices, parts);
 
   const expertise = new Set(choices.featureChoices['wizard:scholar'] ?? []);
   const skills: Partial<Record<Skill, 'proficient' | 'expertise'>> = {};
-  for (const skill of [
-    ...choices.classSkills,
-    ...background.skillProficiencies,
-    ...((choices.featureChoices['human:skillful'] ?? []) as readonly Skill[]),
-  ]) {
+  for (const skill of proficient) {
     skills[skill] = expertise.has(skill) ? 'expertise' : 'proficient';
   }
+
+  // Armour Class reads what is *worn*, not what is owned. A suit of chain mail
+  // in the backpack protects nobody.
+  const equipped = new Set(choices.equipped);
+  const worn = ARMOR.find((a) => equipped.has(a.name) && a.category !== 'shield') ?? null;
+  const held = ARMOR.find((a) => equipped.has(a.name) && a.category === 'shield') ?? null;
 
   const sheet: CharacterSheet = {
     level: choices.level,
     abilities: scores,
     skills,
     saveProficiencies: definition.saveProficiencies,
-    armor: null,
-    shield: null,
+    armor: worn,
+    shield: held,
     armorTraining: definition.armorTraining,
     baseSpeed: species.speed,
     spellcastingAbility: definition.primaryAbility,
   };
 
-  const classKit = equipmentFrom(definition.startingEquipment, choices.classEquipment, 'classEquipment');
-  const backgroundKit = equipmentFrom(background.startingEquipment, choices.backgroundEquipment, 'backgroundEquipment');
-  if (!classKit.ok) return classKit;
-  if (!backgroundKit.ok) return backgroundKit;
+  const owned = inventoryOf(choices, parts);
+  if (!owned.ok) return owned;
 
-  const savant = choices.featureChoices['evoker:evocation-savant'] ?? [];
+  const savant = (choices.featureChoices['evoker:evocation-savant'] ?? []).map((spellId) => ({
+    spellId,
+    acquiredAt: choices.level,
+    origin: 'feature' as const,
+  }));
 
   return ok({
     sheet,
@@ -531,18 +1030,25 @@ export function planCharacter(choices: CharacterChoices): Result<CharacterPlan> 
     hitDie: definition.hitDie,
     spellSlots: slotsAt(definition, choices.level),
     cantrips: choices.cantrips,
-    // The Evoker's free Evocation spells are written into the book itself.
+    // The Evoker's free Evocation spells join the book, marked as the feature's.
     spellbook: [...choices.spellbook, ...savant],
     preparedSpells: choices.preparedSpells,
-    equipment: [...classKit.value.items, ...backgroundKit.value.items],
-    goldPieces: classKit.value.goldPieces + backgroundKit.value.goldPieces,
-    toolProficiencies: [background.toolProficiency],
+    inventory: owned.value.items,
+    equipped: choices.equipped,
+    goldPieces: owned.value.goldPieces,
+    // SRD: "You begin with the minimum amount of XP required to reach your
+    // starting level."
+    experiencePoints: XP_THRESHOLDS[choices.level - 1] ?? 0,
+    languages: [COMMON, ...choices.languages.filter((l) => l !== COMMON)],
+    alignment: choices.alignment,
+    toolProficiencies: tools,
+    magicItems: choices.dmGrants?.magicItems ?? [],
     features,
-    feats: [
-      background.feat,
-      ...(choices.featureChoices['human:versatile'] ?? []),
-      ...(choices.featureChoices['wizard:epic-boon'] ?? []),
-    ],
+    feats: Object.entries(choices.feats).map(([featureId, feat]) => {
+      const definitionOfFeat = featById(feat.featId);
+      return `${definitionOfFeat?.name ?? feat.featId} (${featureId})`;
+    }),
+    warnings,
   });
 }
 
@@ -637,10 +1143,23 @@ export function createCharacter(
 export interface AdvanceChoices {
   readonly subclassId?: string;
   readonly cantrips?: readonly string[];
-  readonly spellbook?: readonly string[];
+  /**
+   * The spells this level grants — two, for a Wizard. Added to the book as
+   * `level`, which is the subset the count rule measures.
+   */
+  readonly newSpells?: readonly string[];
+  /**
+   * Spells copied from scrolls or other books since the last level.
+   *
+   * Added as `copied` and therefore *not* counted. A Wizard who looted a spell
+   * scroll last session must not be told their book is the wrong size.
+   */
+  readonly copiedSpells?: readonly string[];
   readonly preparedSpells?: readonly string[];
   readonly hitPointRoll?: number;
   readonly featureChoices?: Readonly<Record<string, readonly string[]>>;
+  readonly feats?: Readonly<Record<string, FeatChoice>>;
+  readonly dmGrants?: DmGrants;
 }
 
 /**
@@ -675,14 +1194,26 @@ export function advanceCharacter(
     level,
     ...(advance.subclassId === undefined ? {} : { subclassId: advance.subclassId }),
     ...(advance.cantrips === undefined ? {} : { cantrips: advance.cantrips }),
-    ...(advance.spellbook === undefined
-      ? { spellbook: grownSpellbook(record.choices.spellbook, level) }
-      : { spellbook: advance.spellbook }),
+    spellbook: [
+      ...record.choices.spellbook,
+      ...(advance.newSpells ?? []).map((spellId) => ({
+        spellId,
+        acquiredAt: level,
+        origin: 'level' as const,
+      })),
+      ...(advance.copiedSpells ?? []).map((spellId) => ({
+        spellId,
+        acquiredAt: level,
+        origin: 'copied' as const,
+      })),
+    ],
     ...(advance.preparedSpells === undefined ? {} : { preparedSpells: advance.preparedSpells }),
     ...(advance.hitPointRoll === undefined
       ? {}
       : { hitPoints: rollsFor(record.choices.hitPoints, level, advance.hitPointRoll) }),
     featureChoices: { ...record.choices.featureChoices, ...(advance.featureChoices ?? {}) },
+    feats: { ...record.choices.feats, ...(advance.feats ?? {}) },
+    ...(advance.dmGrants === undefined ? {} : { dmGrants: advance.dmGrants }),
   };
 
   const plan = planCharacter(choices);
@@ -730,18 +1261,6 @@ export function advanceCharacter(
 
   return ok(events);
 }
-
-/** SRD: "Whenever you gain a Wizard level after 1, add two Wizard spells." */
-const grownSpellbook = (book: readonly string[], level: number): readonly string[] => {
-  const wanted = 6 + Math.max(0, level - 1) * 2;
-  const grown = [...book];
-  let n = 1;
-  while (grown.length < wanted) {
-    grown.push(`Unnamed research ${n}`);
-    n += 1;
-  }
-  return grown;
-};
 
 const rollsFor = (current: HitPointChoice, level: number, roll: number): HitPointChoice => {
   const rolls = current.method === 'rolled' ? [...current.rolls] : [];

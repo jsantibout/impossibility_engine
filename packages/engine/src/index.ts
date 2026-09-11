@@ -9,6 +9,7 @@ export * from './rest.js';
 export * from './progression.js';
 export * from './wizard.js';
 export * from './origins.js';
+export * from './spellbook.js';
 export * from './creation.js';
 export * from './spells.js';
 export * from './character.js';

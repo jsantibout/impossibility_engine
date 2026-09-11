@@ -39,7 +39,8 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | The clock | Seconds since the campaign began; a combat round costs six of them |
 | Durations | Elapsed deadlines and turn-anchored ones, expiring by effect instance |
 | Progression | Class tables, features by level, and what the engine does or does not run |
-| Creation | A validated level 1–3 Wizard: origin, scores, skills, subclass, spells, kit |
+| Creation | A validated level 1–3 Wizard: origin, scores, skills, feats, spells, kit |
+| Spell data | 339 SRD spells indexed by id, class list, level and school |
 | Event log | `GameState` as a fold; replay is a pure function of the record |
 
 **Parsed from the SRD** — 339 spells, 330 creatures, 38 weapons, 13 armour.
