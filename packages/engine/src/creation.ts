@@ -1738,11 +1738,25 @@ export function planCharacter(
     if (grant?.kind !== 'standing') continue;
     // A feature that only resizes the aura grants no benefit of its own.
     if (grant.effect === undefined) continue;
+    // SRD Elemental Affinity chooses its damage type at the table; the grant
+    // says the types come from the choice rather than naming them, because the
+    // feature does not know which one the player picked.
+    const effect =
+      grant.damageTypesFromChoice === true && grant.effect.kind === 'damage-resistance'
+        ? {
+            ...grant.effect,
+            damageTypes: (choices.featureChoices[feature.id] ?? []).map((type) =>
+              type.toLowerCase(),
+            ),
+          }
+        : grant.effect;
+
     standing.push({
       feature: feature.id,
       name: feature.name,
       reach: grant.reach === 'self' ? { kind: 'self' } : { kind: 'aura', feet: auraFeet },
-      grant: grant.effect,
+      grant: effect,
+      ...(grant.requires === undefined ? {} : { requires: grant.requires }),
     });
   }
 

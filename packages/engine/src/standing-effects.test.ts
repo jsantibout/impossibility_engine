@@ -4,9 +4,11 @@ import type { CharacterSheet } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { damageCreature } from './commands.js';
 import {
+  defensesOf,
   effectiveConditions,
   standingFor,
   standingSaveBonuses,
+  standingDefenses,
   standingSaveModes,
   suppressedConditions,
 } from './standing.js';
@@ -65,6 +67,7 @@ const auraOfProtection = {
   name: 'Aura of Protection',
   reach: { kind: 'aura' as const, feet: 10 },
   grant: { kind: 'save-bonus' as const, fromAbility: 'cha' as const, minimum: 1 },
+  requires: ['not-incapacitated' as const],
 };
 
 const auraOfCourage = {
@@ -72,6 +75,7 @@ const auraOfCourage = {
   name: 'Aura of Courage',
   reach: { kind: 'aura' as const, feet: 10 },
   grant: { kind: 'condition-immunity' as const, condition: 'frightened' as const },
+  requires: ['not-incapacitated' as const],
 };
 
 const dangerSense = {
@@ -79,6 +83,7 @@ const dangerSense = {
   name: 'Danger Sense',
   reach: { kind: 'self' as const },
   grant: { kind: 'advantage' as const, on: 'save' as const, ability: 'dex' as const },
+  requires: ['not-incapacitated' as const],
 };
 
 const added = (
@@ -362,5 +367,93 @@ describe('nothing about this is stored on the creature it reaches', () => {
     for (let n = 0; n <= SETUP.length; n += 1) {
       expect(fold('seed', SETUP.slice(0, n))).toEqual(fold('seed', SETUP.slice(0, n)));
     }
+  });
+});
+
+/**
+ * Resistance a feature grants, and the correction that writing it required.
+ *
+ * The first version of this module gated *every* standing effect on the holder
+ * not being Incapacitated, which is what Danger Sense and the Paladin auras
+ * say and is not a general rule. SRD Elemental Affinity says only "You have
+ * Resistance to that damage type" — a stunned Sorcerer still resists fire, and
+ * baking one feature's clause into the mechanism would have quietly rewritten
+ * another feature.
+ *
+ * So the requirement is declared per effect, from that feature's own text.
+ */
+describe('a feature can grant Resistance, on its own terms', () => {
+  const elementalAffinity = {
+    feature: 'draconic-sorcery:elemental-affinity',
+    name: 'Elemental Affinity',
+    reach: { kind: 'self' as const },
+    grant: { kind: 'damage-resistance' as const, damageTypes: ['fire'] },
+  };
+
+  const scaled = (extra: readonly GameEvent[] = []): GameState =>
+    fold('seed', [added(id('veska'), { standing: [elementalAffinity] }, 'party'), ...extra]);
+
+  it('resists the type it named', () => {
+    expect(standingDefenses(scaled(), id('veska')).fire).toEqual({ resistant: true });
+  });
+
+  it('resists nothing else', () => {
+    expect(standingDefenses(scaled(), id('veska')).cold).toBeUndefined();
+  });
+
+  /** SRD says nothing about Incapacitated here, so nothing takes it away. */
+  it('keeps resisting while Stunned, because its text does not say otherwise', () => {
+    const stunned = scaled([
+      { type: 'condition-applied', id: id('veska'), condition: 'stunned', source: 'a spell' },
+    ]);
+    expect(standingDefenses(stunned, id('veska')).fire).toEqual({ resistant: true });
+  });
+
+  /** Where Danger Sense, whose text *does* say so, stops. */
+  it('is not how Danger Sense behaves, which is the point of declaring it', () => {
+    const stunned = fold('seed', [
+      added(id('grum'), { standing: [dangerSense] }, 'party'),
+      { type: 'condition-applied', id: id('grum'), condition: 'stunned', source: 'a spell' },
+    ]);
+    expect(standingSaveModes(stunned, id('grum'), 'dex')).toEqual([]);
+  });
+
+  /**
+   * SRD: "multiple instances of Resistance to the same damage type count as
+   * one", so a feature's resistance and a stat block's are still one halving.
+   */
+  it('does not double up with a resistance the creature already had', () => {
+    const both = fold('seed', [
+      {
+        type: 'creature-added',
+        id: id('veska'),
+        name: 'veska',
+        sheet: sheet({ standing: [elementalAffinity] }),
+        maxHp: 40,
+        diesAtZero: false,
+        creatureType: 'Humanoid',
+        defenses: { fire: { resistant: true } },
+        side: 'party',
+      },
+    ]);
+    expect(defensesOf(both, id('veska')).fire).toEqual({ resistant: true });
+  });
+
+  /** An Immunity the creature already had is not weakened into Resistance. */
+  it('does not overwrite a stronger defence', () => {
+    const immune = fold('seed', [
+      {
+        type: 'creature-added',
+        id: id('veska'),
+        name: 'veska',
+        sheet: sheet({ standing: [elementalAffinity] }),
+        maxHp: 40,
+        diesAtZero: false,
+        creatureType: 'Humanoid',
+        defenses: { fire: { immune: true } },
+        side: 'party',
+      },
+    ]);
+    expect(defensesOf(immune, id('veska')).fire).toMatchObject({ immune: true });
   });
 });

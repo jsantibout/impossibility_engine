@@ -45,7 +45,8 @@ still Wizard-shaped are named below.
 | Unarmoured Defense | A class feature reaches the Armour Class calculation | `cc2df1f` |
 | Tracked spells | The engine casts what it cannot execute; 14 utility spells | `3e0e330` |
 | Feat notes | 24 features stopped claiming feats do nothing | `c918c21` |
-| Standing effects | Conditional modifiers and auras, from state; 5 features | _this batch_ |
+| Standing effects | Conditional modifiers and auras, from state; 5 features | `3a5cdb9` |
+| Standing defences | Resistance a feature grants; Elemental Affinity | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -86,6 +87,11 @@ still Wizard-shaped are named below.
   written onto the creature it reaches. A stored copy would be an
   unconditional bonus wearing a feature's name, and it would go wrong exactly
   when it mattered: the paladin walks away, the barbarian is stunned.
+- **The condition a feature names is that feature's, not the mechanism's.**
+  `standing.ts` first gated every effect on the holder not being Incapacitated,
+  which is what Danger Sense and the Paladin auras say and is *not* a general
+  rule — Elemental Affinity names no condition, and a Stunned Sorcerer still
+  resists fire. Requirements are declared per feature now, from its own text.
 - **Suppression is not removal, and not prevention.** SRD Aura of Courage: a
   Frightened ally's condition "has no effect on that ally while there". The
   condition stays on the creature and bites again the moment they leave, so
@@ -281,7 +287,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 53 of 230 |
-| Tests | 2,274 passing, none skipped |
+| Tests | 2,281 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

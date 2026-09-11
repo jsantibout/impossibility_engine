@@ -214,7 +214,14 @@ export const DRACONIC_SORCERY: SubclassDefinition = {
       name: 'Elemental Affinity',
       level: 6,
       automation: 'manual',
-      note: 'Adding the Charisma modifier to one damage roll of a chosen type, and Resistance to it, are not applied.',
+      note: 'The Resistance is applied: SRD, "Choose one of those types: Acid, Cold, Fire, Lightning, or Poison. You have Resistance to that damage type." Its text names no condition, so a Stunned Sorcerer still resists. The other half is not applied — "when you cast a spell that deals damage of that type, you can add your Charisma modifier to one damage roll of that spell" needs a hook into a spell’s own damage roll, which no other feature wants yet.',
+      choice: { kind: 'option', choose: 1, from: ['Acid', 'Cold', 'Fire', 'Lightning', 'Poison'] },
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effect: { kind: 'damage-resistance', damageTypes: [] },
+        damageTypesFromChoice: true,
+      },
     },
     {
       id: 'draconic-sorcery:dragon-wings',

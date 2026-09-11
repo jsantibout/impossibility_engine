@@ -48,6 +48,7 @@ import {
 } from './spell-definitions.js';
 import { routesFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
 import {
+  defensesOf,
   effectiveConditions,
   standingSaveBonuses,
   standingSaveModes,
@@ -1537,7 +1538,9 @@ function dealSpellDamage(
   const victim = state.creatures[target];
   if (victim === undefined) return err('unknown_creature', `${target} is not in this game`);
 
-  const applied = applyDamage(components, victim.defenses);
+  // A creature's own defences and the ones its features grant, together. The
+  // stat block's entries alone would miss a Sorcerer's Elemental Affinity.
+  const applied = applyDamage(components, defensesOf(state, target));
   const resolved = resolveDamage(
     state,
     target,

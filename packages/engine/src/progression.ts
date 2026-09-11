@@ -1,6 +1,6 @@
 import { err, ok, type Ability, type Result, type Skill } from '@ie/shared';
 import type { ArmorTraining } from './character.js';
-import type { StandingGrant } from './standing.js';
+import type { StandingGrant, StandingRequirement } from './standing.js';
 
 /**
  * Class progression: what a class gives you, and when.
@@ -152,6 +152,16 @@ export type FeatureGrant =
       readonly reach: 'self' | 'aura';
       /** What it does. Absent for a feature that only resizes the aura. */
       readonly effect?: StandingGrant;
+      /**
+       * What the feature's own text says must hold for it to apply.
+       *
+       * Declared per feature rather than assumed: Danger Sense and the
+       * Paladin auras both stop while Incapacitated, and Elemental Affinity
+       * says nothing of the kind.
+       */
+      readonly requires?: readonly StandingRequirement[];
+      /** The damage types come from the choice this feature asked for. */
+      readonly damageTypesFromChoice?: boolean;
       /** SRD Aura Expansion: this feature makes the aura this many feet. */
       readonly auraFeet?: number;
     }

@@ -105,6 +105,7 @@ export const BARBARIAN: ClassDefinition = {
         kind: 'standing',
         reach: 'self',
         effect: { kind: 'advantage', on: 'save', ability: 'dex' },
+        requires: ['not-incapacitated'],
       },
     },
     {

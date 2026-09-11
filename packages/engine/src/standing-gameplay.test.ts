@@ -394,3 +394,99 @@ describe('the aura survives retries and replay', () => {
     expect(isErr(resolveSpell(out, id('nobody'), { spellId: 'hold-person', targets: [ALLY] }, supply()))).toBe(true);
   });
 });
+
+/**
+ * Resistance a feature grants, through the command that actually deals damage.
+ *
+ * SRD Elemental Affinity: "Choose one of those types: Acid, Cold, Fire,
+ * Lightning, or Poison. You have Resistance to that damage type." The choice
+ * is the player's, so the feature cannot name the type and creation fills it
+ * in from what they picked.
+ */
+describe('a chosen resistance reaches the damage command', () => {
+  const veska = (type: string): CharacterChoices => ({
+    name: 'Veska',
+    classId: 'sorcerer',
+    level: 6,
+    speciesId: 'human',
+    backgroundId: 'sage',
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 8, dex: 14, con: 13, int: 12, wis: 10, cha: 15 },
+    },
+    abilityIncreases: { con: 2, int: 1 },
+    classSkills: ['arcana', 'persuasion'],
+    languages: ['Draconic', 'Giant'],
+    alignment: 'Chaotic Neutral',
+    subclassId: 'draconic-sorcery',
+    cantrips: ['fire-bolt', 'ray-of-frost', 'shocking-grasp', 'acid-splash', 'poison-spray'],
+    spellbook: [],
+    preparedSpells: [
+      'burning-hands',
+      'charm-person',
+      'thunderwave',
+      'hold-person',
+      'shatter',
+      'mind-spike',
+      'fireball',
+      'blindness-deafness',
+      'chromatic-orb',
+      'scorching-ray',
+    ],
+    classEquipment: 'A',
+    backgroundEquipment: 'A',
+    equipped: [],
+    hitPoints: { method: 'fixed' },
+    featureChoices: {
+      'human:skillful': ['perception'],
+      'sorcerer:metamagic': ['Empowered Spell', 'Quickened Spell'],
+      'draconic-sorcery:elemental-affinity': [type],
+    },
+    feats: {
+      'sage:magic-initiate-wizard': {
+        featId: 'magic-initiate',
+        spellList: 'wizard',
+        spellcastingAbility: 'int',
+        cantrips: ['mage-hand', 'light'],
+        levelOneSpell: 'find-familiar',
+      },
+      'human:versatile': { featId: 'alert' },
+      'sorcerer:ability-score-improvement': { featId: 'savage-attacker' },
+    },
+    dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+  });
+
+  /** Fire Bolt at a Sorcerer who chose Fire, and at one who chose Cold. */
+  const burned = (type: string): number => {
+    const VESKA = id('veska');
+    const log: readonly GameEvent[] = [
+      ...(unwrap(createCharacter(veska(type), VESKA), 'create') as GameEvent[]),
+      { type: 'creature-side-declared', id: VESKA, side: 'party' },
+      added(WITCH, 'coven', { spellcastingAbility: 'int' }),
+      {
+        type: 'spellcasting-declared',
+        id: WITCH,
+        spellcasting: declaredCasting({ ability: 'int', cantrips: ['fire-bolt'] }),
+      },
+      { type: 'scene-set', extent: { width: 300, depth: 300, height: 40 } },
+      { type: 'landmark-added', name: 'the gate', at: { x: 100, y: 100, z: 0 } },
+      { type: 'creature-placed', id: WITCH, placement: { from: { landmark: 'the gate' }, feet: 0 } },
+      { type: 'creature-placed', id: VESKA, placement: { from: { creature: WITCH }, feet: 10, bearing: 0 } },
+      { type: 'sight-declared', from: WITCH, to: VESKA, seen: true },
+    ];
+
+    const out = unwrap(
+      resolveSpell(fold('seed', log), WITCH, { spellId: 'fire-bolt', targets: [VESKA] }, supply('burn')),
+      'fire-bolt',
+    );
+    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
+    return out.outcomes[0]?.damage ?? 0;
+  };
+
+  it('halves the damage of the type the sorcerer chose', () => {
+    const resisted = burned('Fire');
+    const unresisted = burned('Cold');
+    expect(unresisted).toBeGreaterThan(0);
+    expect(resisted).toBe(Math.floor(unresisted / 2));
+  });
+});

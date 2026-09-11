@@ -9,6 +9,7 @@ import {
 import { abilityModifier } from './character.js';
 import { distanceBetween } from './positioning.js';
 import type { GameState } from './events.js';
+import type { DamageDefenses } from './attack.js';
 
 /**
  * Benefits a class feature grants for as long as its rule holds.
@@ -68,7 +69,28 @@ export type StandingGrant =
    * creature and comes back the moment they leave, which is what "while there"
    * means and what a flat immunity would get wrong in both directions.
    */
-  | { readonly kind: 'condition-immunity'; readonly condition: ConditionName };
+  | { readonly kind: 'condition-immunity'; readonly condition: ConditionName }
+  /**
+   * SRD Elemental Affinity: "You have Resistance to that damage type."
+   *
+   * Resistance rather than a general defence entry, because that is all any
+   * SRD class feature grants this way — a feature that made somebody immune or
+   * vulnerable would be a different shape and none exists to model it after.
+   */
+  | { readonly kind: 'damage-resistance'; readonly damageTypes: readonly string[] };
+
+/**
+ * What must hold for a standing effect to apply at all.
+ *
+ * Declared per effect, from that feature's own text, because it is **not** a
+ * general rule. Danger Sense stops "unless you have the Incapacitated
+ * condition" and the Paladin's aura "is inactive while you have the
+ * Incapacitated condition"; Elemental Affinity says nothing of the kind, and a
+ * stunned Sorcerer still resists fire. An earlier version of this module
+ * applied the first two features' clause to everything, which would have
+ * quietly rewritten the third.
+ */
+export type StandingRequirement = 'not-incapacitated';
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
@@ -77,6 +99,8 @@ export interface StandingEffect {
   readonly name: string;
   readonly reach: StandingReach;
   readonly grant: StandingGrant;
+  /** What must be true of the holder. Empty means the benefit is unconditional. */
+  readonly requires?: readonly StandingRequirement[];
 }
 
 /** A standing effect that is reaching a particular creature right now. */
@@ -86,20 +110,20 @@ export interface ActiveStanding {
 }
 
 /**
- * Whether a creature can sustain what its features radiate.
+ * Whether the holder meets what this particular effect asks of them.
  *
- * SRD says "inactive while you have the Incapacitated condition" for the aura
- * and "unless you have the Incapacitated condition" for Danger Sense, which is
- * the same test read from the two ends. Death is not in either sentence
- * because the SRD does not contemplate a corpse radiating protection; it is
- * added here and said out loud rather than left to the fact that a dead
- * creature is usually Unconscious too.
+ * Only what the feature's own text says. "Inactive while you have the
+ * Incapacitated condition" is the aura's sentence and Danger Sense's, read
+ * from the two ends; it is not a property of standing effects in general.
  */
-function canSustain(state: GameState, who: CharacterId): boolean {
+function meetsRequirements(state: GameState, who: CharacterId, effect: StandingEffect): boolean {
   const creature = state.creatures[who];
   if (creature === undefined) return false;
-  if (creature.vitals.dead) return false;
-  return !isIncapacitated(creature.conditions);
+
+  for (const requirement of effect.requires ?? []) {
+    if (requirement === 'not-incapacitated' && isIncapacitated(creature.conditions)) return false;
+  }
+  return true;
 }
 
 /**
@@ -123,8 +147,14 @@ function alliedWith(state: GameState, a: CharacterId, b: CharacterId): boolean {
 
 /** Whether this effect, held by `from`, is reaching `who` right now. */
 function reaches(state: GameState, from: CharacterId, effect: StandingEffect, who: CharacterId): boolean {
-  if (!canSustain(state, from)) return false;
+  if (!meetsRequirements(state, from, effect)) return false;
   if (effect.reach.kind === 'self') return from === who;
+
+  // A corpse radiates nothing. The SRD does not say so because it does not
+  // contemplate the question; it is stated here rather than left to the fact
+  // that a dead creature is usually Unconscious too. A *self* effect is
+  // untouched by this — a dead sorcerer resisting fire harms nobody.
+  if (state.creatures[from]?.vitals.dead === true) return false;
 
   // SRD: "You and your allies in the aura."
   if (from === who) return true;
@@ -219,6 +249,54 @@ export function standingSaveModes(
   }
 
   return modes;
+}
+
+/**
+ * Damage types this creature's features make it resistant to.
+ *
+ * SRD: "multiple instances of Resistance to the same damage type count as only
+ * one", which is why `DamageDefenses` is booleans rather than counts — so two
+ * features naming Fire is the same halving as one.
+ */
+export function standingDefenses(
+  state: GameState,
+  who: CharacterId,
+): Readonly<Record<string, DamageDefenses>> {
+  const defenses: Record<string, DamageDefenses> = {};
+
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'damage-resistance') continue;
+    for (const type of effect.grant.damageTypes) {
+      defenses[type.toLowerCase()] = { resistant: true };
+    }
+  }
+
+  return defenses;
+}
+
+/**
+ * Everything this creature resists, is immune to, or is vulnerable to.
+ *
+ * The stat block's entries and the features' together, and the **stronger**
+ * answer wins per type: a creature already Immune to Fire is not weakened into
+ * merely resisting it by a feature that grants Resistance, because SRD applies
+ * Immunity first and stops.
+ */
+export function defensesOf(
+  state: GameState,
+  who: CharacterId,
+): Readonly<Record<string, DamageDefenses>> {
+  const own = state.creatures[who]?.defenses ?? {};
+  const granted = standingDefenses(state, who);
+  if (Object.keys(granted).length === 0) return own;
+
+  const merged: Record<string, DamageDefenses> = { ...own };
+  for (const [type, defence] of Object.entries(granted)) {
+    const existing = merged[type];
+    merged[type] =
+      existing === undefined ? defence : { ...existing, resistant: existing.resistant ?? true };
+  }
+  return merged;
 }
 
 /**
