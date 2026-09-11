@@ -972,8 +972,10 @@ describe('creatures occupy volume', () => {
      */
     it('lets a fighter melee a Huge dragon from outside its space', () => {
       let state = withDragon();
+      // The dragon fills three cubes, so 15 feet from its anchor is the first
+      // spot outside it — and from there its flank is within reach.
       state = unwrap(
-        placeCreature(state, id('fighter'), { from: { creature: id('dragon') }, feet: 11, bearing: 90 }),
+        placeCreature(state, id('fighter'), { from: { creature: id('dragon') }, feet: 15, bearing: 90 }),
         'fighter',
       );
       expect(unwrap(withinReach(state, id('fighter'), id('dragon'), 5), 'reach')).toBe(true);
@@ -1003,11 +1005,22 @@ describe('creatures occupy volume', () => {
     });
 
     it('is zero when one creature is inside another’s space', () => {
+      // Placement will not put one creature inside another, so the only way to
+      // get there is the way the rules allow: being forced.
       let state = withDragon();
       state = unwrap(
-        placeCreature(state, id('imp'), { from: { creature: id('dragon') }, feet: 5, bearing: 90, size: 'tiny' }),
+        placeCreature(state, id('imp'), { from: { creature: id('dragon') }, feet: 20, bearing: 90, size: 'tiny' }),
         'imp',
       );
+      state = unwrap(
+        moveCreature(
+          state,
+          id('imp'),
+          { from: { creature: id('dragon') }, feet: 0 },
+          { forced: true },
+        ),
+        'shoved',
+      ).state;
       expect(unwrap(distanceBetween(state, id('imp'), id('dragon')), 'inside')).toBe(0);
     });
   });
@@ -1120,5 +1133,178 @@ describe('an emanation starts at the creature’s boundary', () => {
       'sphere',
     );
     expect(sphere).not.toContain(id('bystander'));
+  });
+});
+
+describe('placement agrees with measurement', () => {
+  const field = () => {
+    let s = scene({ width: 400, depth: 400, height: 200 });
+    s = unwrap(addLandmark(s, 'o', { x: 200, y: 200, z: 0 }), 'o');
+    return unwrap(placeCreature(s, id('anchor'), { from: { landmark: 'o' }, feet: 0 }), 'anchor');
+  };
+
+  const placedAt = (feet: number, bearing: number, size?: 'medium' | 'large' | 'huge') => {
+    const state = unwrap(
+      placeCreature(field(), id('subject'), {
+        from: { creature: id('anchor') },
+        feet,
+        bearing,
+        ...(size === undefined ? {} : { size }),
+      }),
+      'subject',
+    );
+    return unwrap(distanceBetween(state, id('anchor'), id('subject')), 'measured');
+  };
+
+  /**
+   * Distance is Chebyshev, so placement has to be too. Projecting
+   * trigonometrically put a creature asked for at 30 feet on a diagonal only
+   * 20 feet away by the engine's own measure — the placement and the ruler
+   * disagreed.
+   */
+  it.each([0, 45, 90, 135, 180, 225, 270, 315])(
+    'places a creature exactly as far away as asked, on bearing %i',
+    (bearing) => {
+      expect(placedAt(30, bearing)).toBe(30);
+    },
+  );
+
+  it.each([5, 10, 15, 30, 60])('holds at %i feet on a diagonal', (feet) => {
+    expect(placedAt(feet, 45)).toBe(feet);
+  });
+
+  it('holds for bearings that are not multiples of 45', () => {
+    for (const bearing of [20, 30, 70, 110]) {
+      expect(placedAt(30, bearing), `bearing ${bearing}`).toBe(30);
+    }
+  });
+
+  // A larger creature's own bulk is not part of the distance, so asking for 30
+  // feet still means 30 feet whatever is standing there.
+  it.each(['medium', 'large', 'huge'] as const)('holds for a %s creature', (size) => {
+    expect(placedAt(30, 45, size)).toBe(30);
+  });
+
+  it('holds when measuring from a landmark rather than a creature', () => {
+    let state = field();
+    state = unwrap(
+      placeCreature(state, id('subject'), { from: { landmark: 'o' }, feet: 30, bearing: 45 }),
+      'subject',
+    );
+    // The landmark sits in the anchor creature's own cube, so the measurement
+    // between the two creatures is the one that matters.
+    expect(unwrap(distanceBetween(state, id('anchor'), id('subject')), 'd')).toBe(30);
+  });
+
+  it('counts elevation in the same measure, never as extra distance', () => {
+    let state = field();
+    state = unwrap(
+      placeCreature(state, id('subject'), {
+        from: { creature: id('anchor') },
+        feet: 30,
+        bearing: 90,
+        elevation: 15,
+      }),
+      'subject',
+    );
+    // Chebyshev takes the largest axis: 30 across beats 15 up.
+    expect(unwrap(distanceBetween(state, id('anchor'), id('subject')), 'd')).toBe(30);
+  });
+
+  it('measures a purely vertical placement by its height', () => {
+    let state = field();
+    state = unwrap(
+      placeCreature(state, id('subject'), { from: { creature: id('anchor') }, feet: 0, elevation: 20 }),
+      'subject',
+    );
+    expect(unwrap(distanceBetween(state, id('anchor'), id('subject')), 'd')).toBe(20);
+  });
+});
+
+describe('occupied volumes cannot overlap', () => {
+  const withLarge = () => {
+    let s = scene({ width: 400, depth: 400, height: 200 });
+    s = unwrap(addLandmark(s, 'o', { x: 200, y: 200, z: 0 }), 'o');
+    return unwrap(placeCreature(s, id('ogre'), { from: { landmark: 'o' }, feet: 0, size: 'large' }), 'ogre');
+  };
+
+  /**
+   * Occupancy compared anchor coordinates while ranges used volumes, so a
+   * Medium creature could be placed *inside* a Large creature's space simply
+   * by having a different anchor cube.
+   */
+  it('will not place a creature inside a larger one', () => {
+    // The ogre holds 200-210 on both axes; 5 feet east is still inside it.
+    const inside = placeCreature(withLarge(), id('scout'), {
+      from: { landmark: 'o' },
+      feet: 5,
+      bearing: 90,
+    });
+    expect(isErr(inside)).toBe(true);
+    if (isErr(inside)) expect(inside.code).toBe('occupied');
+  });
+
+  it('places it clear of the volume when no bearing is named', () => {
+    const state = unwrap(
+      placeCreature(withLarge(), id('scout'), { from: { landmark: 'o' }, feet: 5 }),
+      'swept',
+    );
+    expect(unwrap(distanceBetween(state, id('ogre'), id('scout')), 'd')).toBeGreaterThan(0);
+  });
+
+  it('will not move a creature into an occupied volume either', () => {
+    let state = withLarge();
+    state = unwrap(
+      placeCreature(state, id('scout'), { from: { landmark: 'o' }, feet: 40, bearing: 90 }),
+      'scout',
+    );
+    const blocked = moveCreature(state, id('scout'), {
+      from: { creature: id('ogre') },
+      feet: 5,
+      bearing: 90,
+    });
+    expect(isErr(blocked)).toBe(true);
+  });
+
+  // Forced movement is the deliberate exception, and riding is its own path.
+  it('still allows forced movement into an occupied volume', () => {
+    let state = withLarge();
+    state = unwrap(
+      placeCreature(state, id('scout'), { from: { landmark: 'o' }, feet: 40, bearing: 90 }),
+      'scout',
+    );
+    const shoved = moveCreature(
+      state,
+      id('scout'),
+      { from: { creature: id('ogre') }, feet: 0 },
+      { forced: true },
+    );
+    expect(isErr(shoved)).toBe(false);
+  });
+});
+
+describe('placement is not relocation', () => {
+  /**
+   * placeCreature silently moved a creature that already had a position, which
+   * meant a stray placement could teleport something mid-combat without any
+   * movement being spent. Placing is for creatures entering a scene; moving is
+   * its own, explicit operation.
+   */
+  it('refuses to place a creature that is already placed', () => {
+    let state = scene({ width: 400, depth: 400, height: 200 });
+    state = unwrap(addLandmark(state, 'o', { x: 200, y: 200, z: 0 }), 'o');
+    state = unwrap(placeCreature(state, id('ogre'), { from: { landmark: 'o' }, feet: 0 }), 'first');
+
+    const again = placeCreature(state, id('ogre'), { from: { landmark: 'o' }, feet: 50, bearing: 90 });
+    expect(isErr(again)).toBe(true);
+    if (isErr(again)) expect(again.code).toBe('already_placed');
+  });
+
+  it('allows placing again once the creature has left the scene', () => {
+    let state = scene({ width: 400, depth: 400, height: 200 });
+    state = unwrap(addLandmark(state, 'o', { x: 200, y: 200, z: 0 }), 'o');
+    state = unwrap(placeCreature(state, id('ogre'), { from: { landmark: 'o' }, feet: 0 }), 'first');
+    state = unwrap(removeCreature(state, id('ogre')), 'gone');
+    expect(isErr(placeCreature(state, id('ogre'), { from: { landmark: 'o' }, feet: 0 }))).toBe(false);
   });
 });

@@ -302,11 +302,30 @@ function resolveAnchor(state: PositionState, anchor: Anchor): Result<Point> {
 /** Bearings tried, in order, when the caller does not name one. */
 const BEARING_SWEEP = [0, 90, 180, 270, 45, 135, 225, 315];
 
+/**
+ * Offset a point by a bearing and a distance, on the same metric distance uses.
+ *
+ * Trigonometric projection is wrong here, and visibly so: asked for a creature
+ * 30 feet away on a diagonal it produced an offset of (21, 21), which the
+ * engine's own Chebyshev ruler then measured as 20 feet. The placement and the
+ * ruler disagreed.
+ *
+ * Normalising the direction by its Chebyshev norm rather than its Euclidean
+ * one fixes that: a diagonal at 30 feet offsets (30, 30), which measures 30.
+ * That is what a diagonal step costing the same as an orthogonal one means.
+ */
 const project = (from: Point, feet: number, bearing: number, elevation: number): Point => {
   const radians = (bearing * Math.PI) / 180;
+  const east = Math.sin(radians);
+  const north = Math.cos(radians);
+
+  // Scale so the dominant axis carries the full distance.
+  const dominant = Math.max(Math.abs(east), Math.abs(north));
+  const scale = dominant === 0 ? 0 : feet / dominant;
+
   return snapPoint({
-    x: from.x + feet * Math.sin(radians),
-    y: from.y + feet * Math.cos(radians),
+    x: from.x + east * scale,
+    y: from.y + north * scale,
     z: from.z + elevation,
   });
 };
@@ -330,10 +349,33 @@ const snap = (feet: number): number => Math.round(feet / CUBE) * CUBE;
 
 const snapPoint = (p: Point): Point => ({ x: snap(p.x), y: snap(p.y), z: snap(p.z) });
 
-const occupied = (state: PositionState, at: Point, ignore: CharacterId | null): boolean =>
-  Object.entries(state.positions).some(
-    ([who, p]) => who !== ignore && p.x === at.x && p.y === at.y && p.z === at.z,
-  );
+/**
+ * Whether a volume placed here would overlap anyone else's.
+ *
+ * Comparing anchor cubes was not enough: ranges are measured between occupied
+ * volumes, so a Medium creature could be dropped *inside* a Large one simply by
+ * having a different anchor. Occupancy now asks the same question the ruler
+ * does.
+ */
+function occupied(
+  state: PositionState,
+  at: Point,
+  size: CreatureSize,
+  height: number,
+  ignore: CharacterId | null,
+): boolean {
+  const width = footprintOf(size);
+  const box: Box = {
+    min: at,
+    max: { x: at.x + width, y: at.y + width, z: at.z + Math.max(CUBE, snap(height)) },
+  };
+
+  return Object.keys(state.positions).some((who) => {
+    if (who === ignore) return false;
+    const other = boxOf(state, who as CharacterId);
+    return other !== null && overlaps(box, other);
+  });
+}
 
 function choosePoint(
   state: PositionState,
@@ -351,6 +393,10 @@ function choosePoint(
   const named = placement.bearing !== undefined;
   const bearings = named ? [placement.bearing!] : BEARING_SWEEP;
 
+  const size = placement.size ?? (moving === null ? 'medium' : (state.sizes[moving] ?? 'medium'));
+  const height =
+    placement.height ?? (moving === null ? footprintOf(size) : heightOf(state, moving));
+
   let blockedByCreature = false;
 
   for (const bearing of bearings) {
@@ -362,7 +408,7 @@ function choosePoint(
     // SRD: "You can't *willingly* end a move in a space occupied by another
     // creature." Forced movement is exactly the "somehow" the rule allows for,
     // so a shove or a thunderwave may land on top of someone.
-    if (!forced && occupied(state, at, moving)) {
+    if (!forced && occupied(state, at, size, height, moving)) {
       blockedByCreature = true;
       continue;
     }
@@ -373,8 +419,8 @@ function choosePoint(
   // Sweeping outwards is the sensible reading of "put them right there".
   if (feet === 0 && !named) {
     for (const bearing of BEARING_SWEEP) {
-      const at = project(from, 5, bearing, elevation);
-      if (within(state.extent, at) && !occupied(state, at, moving)) return ok(at);
+      const at = project(from, CUBE, bearing, elevation);
+      if (within(state.extent, at) && !occupied(state, at, size, height, moving)) return ok(at);
     }
   }
 
@@ -395,6 +441,13 @@ export function placeCreature(
   who: CharacterId,
   placement: Placement,
 ): Result<PositionState> {
+  // Placing is for a creature entering the scene. A creature that is already
+  // somewhere moves — explicitly, spending movement — rather than being
+  // silently teleported by a stray placement.
+  if (state.positions[who] !== undefined) {
+    return err('already_placed', `${who} is already in this scene; move them instead`);
+  }
+
   const from = resolveAnchor(state, placement.from);
   if (!from.ok) return from;
 

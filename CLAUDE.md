@@ -380,6 +380,22 @@ nobody ever hears "seven and a half feet". The lattice is an internal
 representation — nothing is rendered, and Maestro still speaks in feet from
 landmarks.
 
+**Placement uses the same metric as measurement.** Projecting a bearing
+trigonometrically and then measuring the result with Chebyshev made the two
+disagree: a creature asked for at 30 feet on a diagonal landed 20 feet away by
+the engine's own ruler. `project` normalises the direction by its Chebyshev
+norm, so the dominant axis carries the full distance and a diagonal at 30 feet
+offsets (30, 30).
+
+**Occupancy is tested by volume, not by anchor.** Comparing anchor cubes let a
+Medium creature be placed *inside* a Large one simply by having a different
+anchor, while ranges were already measured between volumes. Both now ask the
+same question.
+
+**Placing is not relocating.** `placeCreature` refuses a creature that already
+has a position — that is what `moveCreature` is for, and movement is spent.
+Otherwise a stray placement teleports something mid-combat.
+
 **One metric, used everywhere — so a radius is a square.** That is not a
 simplification, it is what Chebyshev means: every cube within 20 feet of a
 point forms a 40-foot square. Measuring areas geometrically while measuring
