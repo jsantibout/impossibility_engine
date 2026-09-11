@@ -46,6 +46,14 @@ export interface PositionState {
   readonly heights: Readonly<Record<string, number>>;
   /** Declared cover, keyed `attacker>target` — cover is directional. */
   readonly cover: Readonly<Record<string, CoverDegree>>;
+  /**
+   * Who can see whom, declared rather than ray-cast — same reasoning as cover.
+   *
+   * Directional, and deliberately three-valued: `true` seen, `false` unseen,
+   * and *absent* meaning nobody has said. A spell that needs sight treats the
+   * third as a fact to go and establish, not as a no.
+   */
+  readonly sight: Readonly<Record<string, boolean>>;
   /** Who is riding what, and whether the mount consented. */
   readonly riding: Readonly<Record<string, Ride>>;
 }
@@ -61,7 +69,16 @@ export interface Ride {
 }
 
 export function scene(extent: SceneExtent): PositionState {
-  return { extent, landmarks: {}, positions: {}, sizes: {}, heights: {}, cover: {}, riding: {} };
+  return {
+    extent,
+    landmarks: {},
+    positions: {},
+    sizes: {},
+    heights: {},
+    cover: {},
+    sight: {},
+    riding: {},
+  };
 }
 
 export function positionOf(state: PositionState, who: CharacterId): Point | null {
@@ -1004,4 +1021,29 @@ export function creaturesInArea(
   }
 
   return ok(caught);
+}
+
+/** Declare whether one creature can see another. Directional, like cover. */
+export function declareSight(
+  state: PositionState,
+  from: CharacterId,
+  to: CharacterId,
+  seen: boolean,
+): Result<PositionState> {
+  if (from === to) return err('same_creature', 'a creature can see itself');
+  return ok({ ...state, sight: { ...state.sight, [coverKey(from, to)]: seen } });
+}
+
+/**
+ * Whether one creature can see another, or null when nobody has said.
+ *
+ * Null is the important value: it is not "no", it is "ask". A spell that
+ * requires sight turns it into a request to go and establish the fact.
+ */
+export function sightBetween(
+  state: PositionState,
+  from: CharacterId,
+  to: CharacterId,
+): boolean | null {
+  return state.sight[coverKey(from, to)] ?? null;
 }

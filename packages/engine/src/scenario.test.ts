@@ -63,6 +63,8 @@ const id = (s: string) => asCharacterId(s);
 const WIZARD = id('kessa');
 const GOBLIN_A = id('goblin-a');
 const GOBLIN_B = id('goblin-b');
+/** A Humanoid, because Hold Person may only touch one. */
+const BANDIT = id('bandit');
 
 /** SRD Goblin Warrior: AC 15, HP 10, Initiative +2, Scimitar +4 (1d6+2). */
 const GOBLIN_AC = 15;
@@ -96,6 +98,9 @@ const goblin = (who: CharacterId): GameEvent => ({
   name: 'Goblin Warrior',
   maxHp: GOBLIN_HP,
   diesAtZero: true,
+  // SRD 2024: "Small Fey (Goblinoid)". Goblins stopped being Humanoid, which
+  // is exactly why Hold Person cannot touch one.
+  creatureType: 'Fey',
   sheet: {
     level: 1,
     abilities: { str: 8, dex: 15, con: 10, int: 10, wis: 8, cha: 8 },
@@ -278,11 +283,15 @@ function goblinAttacks(t: Table, who: CharacterId): void {
 /** The wizard's turn, which changes with what is still standing. */
 function wizardActs(t: Table, round: number): void {
   if (round === 1) {
-    castHoldPerson(t, GOBLIN_A);
-    return;
+    // The wizard reaches for Hold Person and the engine says no: goblins are
+    // Fey. The script falls through to a cantrip, as a player would.
+    if (!holdPersonWouldBeRefused(t, GOBLIN_A)) {
+      throw new Error('a goblin should not be a legal Hold Person target');
+    }
   }
 
   // A Fire Bolt at whichever goblin is still up, resolved by the engine.
+  void round;
   const target = aliveAt(t, GOBLIN_A) ? GOBLIN_A : aliveAt(t, GOBLIN_B) ? GOBLIN_B : null;
   if (target === null) return;
 
@@ -293,7 +302,7 @@ function wizardActs(t: Table, round: number): void {
     { spellId: 'fire-bolt', targets: [target] },
     { issuer, rng },
   );
-  if (outcome.ok) t.push(...outcome.value.events);
+  if (outcome.ok && outcome.value.kind === 'resolved') t.push(...outcome.value.events);
 }
 
 /**
@@ -318,8 +327,30 @@ function castHoldPerson(
     ),
     'hold person',
   );
+  if (outcome.kind !== 'resolved') {
+    throw new Error(`the cast wanted context: ${JSON.stringify(outcome.requests)}`);
+  }
   t.push(...outcome.events);
   return outcome.outcomes.some((o) => o.affected);
+}
+
+/**
+ * Whether Hold Person may legally be aimed at this creature at all.
+ *
+ * SRD 2024 makes a Goblin Warrior **Fey**, and Hold Person says "Choose a
+ * Humanoid". The scripted fight has been casting it at goblins since the day
+ * it was written, and nothing could say so until the engine carried a creature
+ * type. It says so now.
+ */
+function holdPersonWouldBeRefused(t: Table, target: CharacterId): boolean {
+  const { issuer, rng } = t.supply();
+  const attempt = resolveSpell(
+    t.state(),
+    WIZARD,
+    { spellId: 'hold-person', targets: [target], slotLevel: 2 },
+    { issuer, rng },
+  );
+  return !attempt.ok && attempt.code === 'wrong_creature_type';
 }
 
 /**
@@ -454,11 +485,14 @@ describe('what the scripted fight actually did', () => {
     }
   });
 
-  it('spent the level 2 slot on Hold Person and no other', () => {
-    const state = finished();
-    const resources = state.creatures[WIZARD]!.resources;
-    expect(remaining(resources, spellSlotKey(2))).toBe(1);
-    // Fire Bolt is a cantrip, so the level 1 slots are untouched.
+  /**
+   * The wizard reaches for Hold Person in round 1, the engine refuses — goblins
+   * are Fey — and they throw cantrips for four rounds instead. So no slot is
+   * spent at all, which is exactly the shape a refusal should leave behind.
+   */
+  it('spent no slot, because the only levelled spell was refused', () => {
+    const resources = finished().creatures[WIZARD]!.resources;
+    expect(remaining(resources, spellSlotKey(2))).toBe(2);
     expect(remaining(resources, spellSlotKey(1))).toBe(4);
   });
 
@@ -481,20 +515,25 @@ describe('what the scripted fight actually did', () => {
   });
 
   /**
-   * The seam this scenario exists to cover. Nothing in the script asks for a
-   * Concentration save: the wizard casts, a goblin hits them, and
-   * `resolveDamage` works out that a save is owed, rolls it, and ends the
-   * spell if it fails. If that stopped happening every other assertion here
-   * would still pass, so it is pinned explicitly.
+   * The refusal is the point. SRD 2024 makes a Goblin Warrior Fey and Hold
+   * Person wants a Humanoid, so the spell the script reaches for first is not
+   * legal — and was cast anyway until the engine carried a creature type.
+   *
+   * The Concentration seam this scenario used to cover moved to the controlled
+   * variant below, which has a Humanoid to hold.
    */
-  it('rolled a Concentration save nobody asked for, because damage landed', () => {
-    const labels = playScenario(SEED)
-      .filter((e) => e.type === 'roll-recorded')
-      .map((e) => (e.type === 'roll-recorded' ? e.label : ''));
-
-    expect(labels).toContain('Constitution save to maintain Hold Person');
-    // And the spell it protected was actually cast, by the spell machinery.
-    expect(labels).toContain('Wisdom save vs Hold Person');
+  it('refused Hold Person on a Fey goblin', () => {
+    const t = table(SEED);
+    t.push(...unwrap(createCharacter(KESSA, WIZARD), 'create'));
+    t.push(goblin(GOBLIN_A));
+    t.push(
+      { type: 'scene-set', extent: { width: 60, depth: 40, height: 20 } },
+      { type: 'landmark-added', name: 'the bar', at: { x: 10, y: 10, z: 0 } },
+      { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the bar' }, feet: 0 } },
+      { type: 'creature-placed', id: GOBLIN_A, placement: { from: { creature: WIZARD }, feet: 15, bearing: 0 } },
+      { type: 'sight-declared', from: WIZARD, to: GOBLIN_A, seen: true },
+    );
+    expect(holdPersonWouldBeRefused(t, GOBLIN_A)).toBe(true);
   });
 
   /**
@@ -525,25 +564,18 @@ describe('what the scripted fight actually did', () => {
       .filter((e) => e.type === 'roll-recorded')
       .map((e) => (e.type === 'roll-recorded' ? `${e.label}:${e.outcome ?? ''}` : ''));
 
-    // Hold Person was resisted, so nothing was ever paralysed.
-    expect(said).toContain('Wisdom save vs Hold Person:resisted');
-    // One Concentration save held and a later one did not.
-    expect(said).toContain('Constitution save to maintain Hold Person:maintained');
-    expect(said).toContain('Constitution save to maintain Hold Person:lost');
+    // Four rounds of cantrips and scimitars, and nothing else: Hold Person
+    // never went off, so no save and no Concentration appear anywhere.
+    expect(said.filter((s) => s.startsWith('Fire Bolt attack'))).toHaveLength(4);
+    expect(said.some((s) => s.includes('Hold Person'))).toBe(false);
 
     const state = fold(SEED, log);
-    // Losing the save ended the casting, with nothing left to clean up.
     expect(state.creatures[WIZARD]!.concentration).toBeNull();
 
-    // The scimitars got there first: SRD says a character at 0 hit points is
-    // Unconscious, which carries Incapacitated and Prone.
-    const kessa = state.creatures[WIZARD]!;
-    expect(kessa.vitals.hp).toBe(0);
-    expect(kessa.vitals.dead).toBe(false);
-    expect(kessa.conditions.conditions).toEqual(['incapacitated', 'prone', 'unconscious']);
-
-    // And the goblins are still standing, which 2d10 would not have allowed.
-    expect(state.creatures[GOBLIN_A]!.vitals.dead).toBe(false);
+    // The wizard survived on four hit points; both goblins did not.
+    expect(state.creatures[WIZARD]!.vitals.hp).toBe(4);
+    expect(state.creatures[GOBLIN_A]!.vitals.dead).toBe(true);
+    expect(state.creatures[GOBLIN_B]!.vitals.dead).toBe(true);
   });
 });
 
@@ -565,12 +597,29 @@ const DOOMED = [{ source: 'the variant insists', flat: -40 }];
 const controlled = () => {
   const t = table('hold-person-variant');
   t.push(...unwrap(createCharacter(KESSA, WIZARD), 'create'));
-  t.push(goblin(GOBLIN_A), goblin(GOBLIN_B));
+  // A bandit stands in for the goblins here: Hold Person needs a Humanoid, and
+  // SRD 2024 goblins are Fey. The main fight proves that refusal; this variant
+  // is about what happens once the spell actually lands.
+  const bandit: GameEvent = {
+    ...(goblin(BANDIT) as Extract<GameEvent, { type: 'creature-added' }>),
+    name: 'Bandit',
+    creatureType: 'Humanoid',
+  };
+  t.push(bandit, goblin(GOBLIN_B));
+  t.push(
+    { type: 'scene-set', extent: { width: 60, depth: 40, height: 20 } },
+    { type: 'landmark-added', name: 'the bar', at: { x: 10, y: 10, z: 0 } },
+    { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the bar' }, feet: 0 } },
+    { type: 'creature-placed', id: BANDIT, placement: { from: { creature: WIZARD }, feet: 15, bearing: 0 } },
+    { type: 'creature-placed', id: GOBLIN_B, placement: { from: { creature: WIZARD }, feet: 15, bearing: 90 } },
+    { type: 'sight-declared', from: WIZARD, to: BANDIT, seen: true },
+    { type: 'sight-declared', from: WIZARD, to: GOBLIN_B, seen: true },
+  );
   t.push({
     type: 'combat-started',
     combatants: [
       { id: WIZARD, initiative: 20, speed: 30 },
-      { id: GOBLIN_A, initiative: 10, speed: 30 },
+      { id: BANDIT, initiative: 10, speed: 30 },
       { id: GOBLIN_B, initiative: 5, speed: 30 },
     ],
   });
@@ -607,9 +656,9 @@ const cannotAct = (t: Table, who: CharacterId) => {
 describe('Hold Person lands, holds, and lets go when Concentration breaks', () => {
   it('paralyses a target that fails its save, linked to the casting', () => {
     const t = controlled();
-    expect(castHoldPerson(t, GOBLIN_A, DOOMED)).toBe(true);
+    expect(castHoldPerson(t, BANDIT, DOOMED)).toBe(true);
 
-    const held = conditionsOf(t, GOBLIN_A);
+    const held = conditionsOf(t, BANDIT);
     expect(held.conditions).toContain('paralyzed');
     // SRD Paralyzed: "You have the Incapacitated condition."
     expect(held.conditions).toContain('incapacitated');
@@ -619,10 +668,10 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
   /** SRD Incapacitated: "You can't take any action, Bonus Action, or Reaction." */
   it('stops the paralysed creature taking an action, Bonus Action or Reaction', () => {
     const t = controlled();
-    castHoldPerson(t, GOBLIN_A, DOOMED);
+    castHoldPerson(t, BANDIT, DOOMED);
     endTurn(t, DOOMED); // the goblin's turn comes round
 
-    const refused = cannotAct(t, GOBLIN_A);
+    const refused = cannotAct(t, BANDIT);
     expect(refused.action.ok).toBe(false);
     expect(refused.bonusAction.ok).toBe(false);
     expect(refused.reaction.ok).toBe(false);
@@ -634,7 +683,7 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
   /** And the other goblin, untouched, can act perfectly well. */
   it('leaves the creature it did not hold alone', () => {
     const t = controlled();
-    castHoldPerson(t, GOBLIN_A, DOOMED);
+    castHoldPerson(t, BANDIT, DOOMED);
     endTurn(t, DOOMED);
     endTurn(t, DOOMED);
     expect(cannotAct(t, GOBLIN_B).action.ok).toBe(true);
@@ -646,38 +695,38 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
    */
   it('keeps holding when the end-of-turn save fails', () => {
     const t = controlled();
-    castHoldPerson(t, GOBLIN_A, DOOMED);
+    castHoldPerson(t, BANDIT, DOOMED);
     endTurn(t, DOOMED); // the wizard's turn ends; nothing is owed
 
     const goblinsTurn = endTurn(t, DOOMED);
     expect(goblinsTurn.ok && goblinsTurn.value.saves).toMatchObject([{ success: false }]);
-    expect(conditionsOf(t, GOBLIN_A).conditions).toContain('paralyzed');
+    expect(conditionsOf(t, BANDIT).conditions).toContain('paralyzed');
     expect(t.state().creatures[WIZARD]!.concentration).not.toBeNull();
   });
 
   it('frees the target when the end-of-turn save succeeds, without ending the spell', () => {
     const t = controlled();
-    castHoldPerson(t, GOBLIN_A, DOOMED);
+    castHoldPerson(t, BANDIT, DOOMED);
     endTurn(t, DOOMED);
 
     const goblinsTurn = endTurn(t, CERTAIN);
     expect(goblinsTurn.ok && goblinsTurn.value.saves).toMatchObject([{ success: true }]);
-    expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('paralyzed');
-    expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('incapacitated');
+    expect(conditionsOf(t, BANDIT).conditions).not.toContain('paralyzed');
+    expect(conditionsOf(t, BANDIT).conditions).not.toContain('incapacitated');
     // The caster is still concentrating: the spell ended on the target, not on them.
     expect(t.state().creatures[WIZARD]!.concentration).toMatchObject({ spell: 'Hold Person' });
     // And the goblin can act again on its next turn: the save ended its own
     // turn, so two more boundaries (goblin-b, then the wizard) bring it round.
     endTurn(t, DOOMED);
     endTurn(t, DOOMED);
-    expect(t.state().combat!.order[t.state().combat!.turnIndex]!.id).toBe(GOBLIN_A);
-    expect(cannotAct(t, GOBLIN_A).action.ok).toBe(true);
+    expect(t.state().combat!.order[t.state().combat!.turnIndex]!.id).toBe(BANDIT);
+    expect(cannotAct(t, BANDIT).action.ok).toBe(true);
   });
 
   /** Nothing in the variant asks for the save; ending a turn is what raises it. */
   it('raises the save without anybody requesting it', () => {
     const t = controlled();
-    castHoldPerson(t, GOBLIN_A, DOOMED);
+    castHoldPerson(t, BANDIT, DOOMED);
     expect(endTurn(t, DOOMED).ok && true).toBe(true);
 
     const owed = pendingSavesOf(fold('hold-person-variant', t.log()));
@@ -698,8 +747,8 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
    */
   it('drops the paralysis when a failed Concentration save ends the spell', () => {
     const t = controlled();
-    castHoldPerson(t, GOBLIN_A, DOOMED);
-    expect(conditionsOf(t, GOBLIN_A).conditions).toContain('paralyzed');
+    castHoldPerson(t, BANDIT, DOOMED);
+    expect(conditionsOf(t, BANDIT).conditions).toContain('paralyzed');
 
     const { issuer, rng } = t.supply();
     const outcome = unwrap(
@@ -715,17 +764,17 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
 
     expect(outcome.concentration).toMatchObject({ kind: 'resolved', maintained: false });
     expect(t.state().creatures[WIZARD]!.concentration).toBeNull();
-    expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('paralyzed');
-    expect(conditionsOf(t, GOBLIN_A).conditions).not.toContain('incapacitated');
+    expect(conditionsOf(t, BANDIT).conditions).not.toContain('paralyzed');
+    expect(conditionsOf(t, BANDIT).conditions).not.toContain('incapacitated');
 
     // Freed, the goblin can act on its turn again.
     endTurn(t, DOOMED);
-    expect(cannotAct(t, GOBLIN_A).action.ok).toBe(true);
+    expect(cannotAct(t, BANDIT).action.ok).toBe(true);
   });
 
   it('keeps holding when the Concentration save is made', () => {
     const t = controlled();
-    castHoldPerson(t, GOBLIN_A, DOOMED);
+    castHoldPerson(t, BANDIT, DOOMED);
 
     const { issuer, rng } = t.supply();
     const outcome = unwrap(
@@ -740,13 +789,13 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
     t.push(...outcome.events);
 
     expect(outcome.concentration).toMatchObject({ kind: 'resolved', maintained: true });
-    expect(conditionsOf(t, GOBLIN_A).conditions).toContain('paralyzed');
+    expect(conditionsOf(t, BANDIT).conditions).toContain('paralyzed');
   });
 
   it('replays byte-identically, like the fight does', () => {
     const play = () => {
       const t = controlled();
-      castHoldPerson(t, GOBLIN_A, DOOMED);
+      castHoldPerson(t, BANDIT, DOOMED);
       endTurn(t, DOOMED);
       endTurn(t, DOOMED);
       return t.log();
@@ -770,3 +819,4 @@ describe('Fire Bolt scales the way the SRD says', () => {
     expect(damageDiceFor(bolt.damage, 0, KESSA.level, 0)).toBe('1d10');
   });
 });
+

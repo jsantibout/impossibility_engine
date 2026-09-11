@@ -185,6 +185,8 @@ export interface CharacterPlan {
   readonly toolProficiencies: readonly string[];
   /** Magic items the GM granted, recorded rather than modelled. */
   readonly magicItems: readonly string[];
+  /** The species' creature type, which some spells demand. */
+  readonly creatureType: string;
   /**
    * Choices that were legal but wasteful — a proficiency picked twice, say.
    *
@@ -1096,6 +1098,7 @@ export function planCharacter(choices: CharacterChoices): Result<CharacterPlan> 
     alignment: choices.alignment,
     toolProficiencies: tools,
     magicItems: choices.dmGrants?.magicItems ?? [],
+    creatureType: species.creatureType,
     features,
     spellcasting,
     initiativeBonuses,
@@ -1201,11 +1204,13 @@ export function createCharacter(
       name: choices.name,
       sheet: plan.value.sheet,
       maxHp: plan.value.hitPointMaximum,
+      creatureType: plan.value.creatureType,
     },
     {
       type: 'character-created',
       id,
       spellcasting: plan.value.spellcasting,
+      initiativeBonuses: plan.value.initiativeBonuses,
       record: {
         classId: choices.classId,
         subclassId: choices.subclassId ?? null,
@@ -1330,6 +1335,7 @@ export function advanceCharacter(
     id,
     sheet: plan.value.sheet,
     spellcasting: plan.value.spellcasting,
+    initiativeBonuses: plan.value.initiativeBonuses,
     record: {
       classId: choices.classId,
       subclassId: choices.subclassId ?? null,

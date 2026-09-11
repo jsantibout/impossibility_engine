@@ -59,6 +59,7 @@ import {
 import {
   addLandmark,
   declareCover,
+  declareSight,
   dismount,
   mount,
   moveCreature,
@@ -121,6 +122,21 @@ export interface CreatureState {
    * that is a normal state.
    */
   readonly spellcasting: SpellcastingState;
+  /**
+   * What kind of creature this is: Humanoid, Fey, Dragon.
+   *
+   * Null when nobody has said, which is a real state and not a default — a
+   * spell that demands a type asks for it rather than assuming one. Characters
+   * take it from their species; a stat block prints it.
+   */
+  readonly creatureType: string | null;
+  /**
+   * Bonuses this creature's own features add to Initiative.
+   *
+   * SRD Alert's Proficiency Bonus lives here so the roll can pick it up
+   * without a caller remembering that this character has the feat.
+   */
+  readonly initiativeBonuses: readonly { readonly source: string; readonly flat: number }[];
   /**
    * The choices this character was built from, when it is a character.
    *
@@ -231,6 +247,8 @@ export type GameEvent =
       readonly sheet: CharacterSheet;
       readonly maxHp: number;
       readonly diesAtZero?: boolean;
+      /** Humanoid, Fey, Dragon. Absent means nobody has said. */
+      readonly creatureType?: string;
     }
   | { readonly type: 'creature-removed'; readonly id: CharacterId }
 
@@ -288,6 +306,12 @@ export type GameEvent =
       readonly source?: string;
     }
   | { readonly type: 'exhaustion-set'; readonly id: CharacterId; readonly level: number }
+  /** Establishing a fact the engine was missing, so a rule can read it. */
+  | {
+      readonly type: 'creature-type-declared';
+      readonly id: CharacterId;
+      readonly creatureType: string;
+    }
   /**
    * Death that does not come from running out of hit points — Exhaustion
    * reaching 6, a spell that simply kills. Damage is the wrong instrument for
@@ -336,6 +360,8 @@ export type GameEvent =
       readonly record: CharacterRecord;
       /** What the choices came to: cantrips, prepared spells, feat grants. */
       readonly spellcasting: SpellcastingState;
+      /** What a feat adds to Initiative, so the roll never has to be told. */
+      readonly initiativeBonuses: readonly { readonly source: string; readonly flat: number }[];
     }
   | {
       readonly type: 'character-advanced';
@@ -344,6 +370,7 @@ export type GameEvent =
       /** The sheet the new level derives, replacing the old one wholesale. */
       readonly sheet: CharacterSheet;
       readonly spellcasting: SpellcastingState;
+      readonly initiativeBonuses: readonly { readonly source: string; readonly flat: number }[];
     }
   /** Gaining a level raises the maximum without healing what was lost. */
   | {
@@ -480,6 +507,18 @@ export type GameEvent =
       readonly forced?: boolean;
     }
   | { readonly type: 'creature-unplaced'; readonly id: CharacterId }
+  /**
+   * Whether one creature can see another.
+   *
+   * Declared, like cover: computing it means modelling walls, and that is
+   * where a rules engine becomes a VTT.
+   */
+  | {
+      readonly type: 'sight-declared';
+      readonly from: CharacterId;
+      readonly to: CharacterId;
+      readonly seen: boolean;
+    }
   | {
       readonly type: 'cover-declared';
       readonly from: CharacterId;
@@ -999,6 +1038,8 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             resting: null,
             lastLongRestAt: null,
             spellcasting: noSpellcasting(),
+            creatureType: event.creatureType ?? null,
+            initiativeBonuses: [],
             character: null,
           },
         },
@@ -1127,7 +1168,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return withCreature(
         next,
         event.id,
-        { character: event.record, spellcasting: event.spellcasting },
+        {
+          character: event.record,
+          spellcasting: event.spellcasting,
+          initiativeBonuses: event.initiativeBonuses,
+        },
         creature,
       );
     }
@@ -1140,7 +1185,12 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return withCreature(
         next,
         event.id,
-        { character: event.record, sheet: event.sheet, spellcasting: event.spellcasting },
+        {
+          character: event.record,
+          sheet: event.sheet,
+          spellcasting: event.spellcasting,
+          initiativeBonuses: event.initiativeBonuses,
+        },
         creature,
       );
     }
@@ -1389,6 +1439,17 @@ function applyOne(state: GameState, event: GameEvent): GameState {
 
     case 'creature-unplaced':
       return { ...next, scene: must(event, removeCreature(sceneOf(state, event), event.id)) };
+
+    case 'creature-type-declared': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(next, event.id, { creatureType: event.creatureType }, creature);
+    }
+
+    case 'sight-declared':
+      return {
+        ...next,
+        scene: must(event, declareSight(sceneOf(state, event), event.from, event.to, event.seen)),
+      };
 
     case 'cover-declared':
       return {

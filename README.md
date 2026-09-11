@@ -40,6 +40,7 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Durations | Elapsed deadlines and turn-anchored ones, expiring by effect instance |
 | Turn hooks | Repeat saves raised by the turn itself, rolled by the engine, never forgotten |
 | Spellcasting | Fire Bolt and Hold Person resolved end to end: access, range, scaling, saves |
+| Targeting | Type, range, cover and sight checked; a missing fact comes back as a request |
 | Progression | Class tables, features by level, and what the engine does or does not run |
 | Creation | A validated level 1–3 Wizard: origin, scores, skills, feats, spells, kit |
 | Determinism | A scripted four-round fight, replayed byte-identically from its seed |

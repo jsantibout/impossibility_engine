@@ -216,6 +216,12 @@ design tokens, pure copy edits.
 
 Checked against the SRD text, not recalled. Each has a test pinning it.
 
+- **A Goblin Warrior is Fey, not Humanoid.** SRD 5.2.1: "Small Fey
+  (Goblinoid)". Goblinoid is a subtype tag; the *type* changed in 2024, and it
+  means Hold Person — "Choose a Humanoid" — cannot touch one. The scripted
+  scenario cast it at goblins for three commits before the engine carried a
+  creature type and could say so. Every 2014 instinct about who is a Humanoid
+  is worth re-reading.
 - **Advantage is presence, not arithmetic.** "A roll can't be affected by more
   than one Advantage, and Advantage and Disadvantage on the same roll cancel
   each other." Three advantages against one disadvantage is a *normal* roll.
@@ -1176,6 +1182,67 @@ Wizard.
 Alert's Initiative Proficiency comes back from creation as a named
 `initiativeBonuses` entry, which `rollInitiative` takes like any other bonus.
 Its Initiative *swap* is not modelled.
+
+### A missing fact is a request, not a refusal
+
+The engine takes ids and checks mechanics. Working out that "him" means the
+goblin is interpretation, and belongs to the layer that reads the fiction — so
+`eligibleTargets` hands that layer the shortlist, with a reason attached to
+everyone left off it, and the obvious target has something to be obvious about.
+
+What the engine owes that layer is a straight answer about what it cannot see.
+There are three states, not two:
+
+| | |
+|---|---|
+| The rules say no | an ordinary `err` — wrong creature type, out of range, behind Total Cover, declared unseen |
+| The record is thin | `{ kind: 'needs-context', requests }` — nothing spent, no die thrown, go and find out |
+| Fine | `{ kind: 'resolved', ... }` |
+
+A `ContextRequest` says what is missing, which rule wanted it, and the event
+that would establish it. It is addressed to the orchestrator, never to a
+player: "sorry, that creature has no position" is the engine's problem leaking
+out as the game's. The caller establishes the fact and casts again exactly as
+they meant to — which is why asking costs nothing.
+
+**Unknown is not no.** Sight is declared, like cover, and deliberately
+three-valued: seen, unseen, and *nobody has said*. Hold Person targets "a
+Humanoid that you can see", so an undeclared line of sight is a fact to go and
+get; a declared **unseen** is a refusal. Conflating the two would either invent
+a rule or hide a gap, and both are worse than asking.
+
+**Creature type is authoritative now.** It was previously reported as an
+unverified check, which was honest but useless — nothing could act on it. A
+character takes its type from its species; a stat block prints one; a creature
+nobody has typed produces a request rather than a silent pass.
+
+### Alert rides on the roll by itself
+
+`rollInitiativeFor` reads the creature's own `initiativeBonuses`, which creation
+worked out, and merges them with whatever the caller adds — deduplicated by
+source, so it lands exactly once even if a helpful caller passes it too. A
+feat that has to be remembered is a feat a character silently stops having.
+
+Flat bonuses fold into the die's own modifier by design, so the guarantee is
+arithmetic: +2 over the baseline, never +4.
+
+### Which grant pays, and with what
+
+A spell can arrive twice — the class list and a feat — and the two are not
+interchangeable, because a feat brings its own spellcasting ability and
+therefore its own save DC. So a casting may name its `source`, and the DC and
+attack modifier come from *that* route.
+
+**Default:** the class's own route where it supplies the spell; the single
+grant where only a feat does. Naming a source that does not supply the spell is
+refused rather than quietly falling back.
+
+**Payment is never chosen for you.** A grant's single free daily casting is a
+resource a player may well be saving, and spending it because no slot level
+happened to be named is the sort of quiet decision that loses a fight two rooms
+later. Where both a free casting and a slot would serve, the engine returns
+`payment_required` and the caller says which. A cantrip costs nothing either
+way, and a spell with one route asks nobody anything.
 
 ## Monsters State Their Numbers; Characters Derive Them
 

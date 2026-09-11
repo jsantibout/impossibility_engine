@@ -201,7 +201,24 @@ export function spellSaveDc(sheet: CharacterSheet): number | null {
 export function spellAttackModifier(sheet: CharacterSheet): number | null {
   const ability = sheet.spellcastingAbility;
   if (ability === null) return null;
+  return spellAttackModifierWith(sheet, ability);
+}
+
+/**
+ * The same numbers, for a spellcasting ability that is not the sheet's.
+ *
+ * A feat brings its own: SRD Magic Initiate says "Intelligence, Wisdom, or
+ * Charisma is your spellcasting ability for this feat's spells (choose when
+ * you select this feat)". Reading the class's ability for those would be quietly
+ * wrong for every character whose feat ability differs — and flatly wrong for a
+ * Fighter, who has none at all.
+ */
+export function spellAttackModifierWith(sheet: CharacterSheet, ability: Ability): number {
   return proficiencyBonus(sheet) + modifierFor(sheet, ability);
+}
+
+export function spellSaveDcWith(sheet: CharacterSheet, ability: Ability): number {
+  return 8 + proficiencyBonus(sheet) + modifierFor(sheet, ability);
 }
 
 /**

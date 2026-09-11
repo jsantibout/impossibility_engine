@@ -92,6 +92,9 @@ const dummy = (who: CharacterId, name: string, maxHp = 30): GameEvent => ({
   id: who,
   name,
   maxHp,
+  // Humanoid, so Hold Person is legal against them. SRD 2024 goblins are Fey,
+  // which is its own test in boundaries.test.ts.
+  creatureType: 'Humanoid',
   sheet: {
     level: 1,
     abilities: { str: 10, dex: 12, con: 12, int: 8, wis: 8, cha: 8 },
@@ -124,6 +127,8 @@ const table = (over: Partial<CharacterChoices> = {}): GameEvent[] => [
     id: WIZARD,
     pool: { key: spellSlotKey(3), label: 'level 3 spell slot', max: 1, recovers: 'long-rest' },
   },
+  { type: 'sight-declared', from: WIZARD, to: GOBLIN, seen: true },
+  { type: 'sight-declared', from: WIZARD, to: OGRE, seen: true },
   {
     type: 'combat-started',
     combatants: [
@@ -149,8 +154,15 @@ const cast = (
   flat?: number,
 ) => {
   const state = fold('seed', log);
-  const outcome = unwrap(resolveSpell(state, WIZARD, request, supply(state, flat)), 'cast');
-  return { log: [...log, ...outcome.events], state: fold('seed', [...log, ...outcome.events]), outcome };
+  const result = unwrap(resolveSpell(state, WIZARD, request, supply(state, flat)), 'cast');
+  if (result.kind !== 'resolved') {
+    throw new Error(`the cast wanted context: ${JSON.stringify(result.requests)}`);
+  }
+  return {
+    log: [...log, ...result.events],
+    state: fold('seed', [...log, ...result.events]),
+    outcome: result,
+  };
 };
 
 const conditionsOf = (state: GameState, who: string) =>
@@ -464,32 +476,13 @@ describe('what a cast refuses, and what it admits it cannot check', () => {
   });
 
   /**
-   * The honest half. Hold Person wants a Humanoid, and `CreatureState` carries
-   * a sheet, not a creature type. Rather than pass quietly, the cast says which
-   * check it could not make.
+   * The creature type is checked now rather than reported — see
+   * `boundaries.test.ts`. What is left here is that a cast which *can* be
+   * judged claims nothing it did not check.
    */
-  it('reports the creature type it could not verify', () => {
+  it('claims no unverified checks when it could make them all', () => {
     const { outcome } = cast(table(), { spellId: 'hold-person', targets: [GOBLIN], slotLevel: 2 }, DOOMED);
-    expect(outcome.unverified.some((note) => note.includes('humanoid'))).toBe(true);
-    // Fire Bolt asks for no type, so it claims nothing.
-    const bolt = cast(table(), { spellId: 'fire-bolt', targets: [GOBLIN] }, CERTAIN);
-    expect(bolt.outcome.unverified).toEqual([]);
-  });
-
-  it('reports an unplaced target rather than guessing the distance', () => {
-    const unplaced: GameEvent[] = [
-      ...unwrap(createCharacter(kessa(), WIZARD), 'create'),
-      dummy(GOBLIN, 'Goblin'),
-      { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
-      { type: 'landmark-added', name: 'the door', at: { x: 20, y: 20, z: 0 } },
-      { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the door' }, feet: 0 } },
-    ];
-    const state = fold('seed', unplaced);
-    const outcome = unwrap(
-      resolveSpell(state, WIZARD, { spellId: 'fire-bolt', targets: [GOBLIN] }, supply(state, CERTAIN)),
-      'cast',
-    );
-    expect(outcome.unverified.some((note) => note.includes('no position'))).toBe(true);
+    expect(outcome.unverified).toEqual([]);
   });
 
   /** A pending boundary save leaves the world unsettled; nothing acts into that. */
@@ -550,6 +543,7 @@ describe('casting is retry-safe and replays', () => {
       ),
       'retry',
     );
+    if (retry.kind !== 'resolved') throw new Error('a retry resolves to nothing, not to a question');
     expect(retry.events).toEqual([]);
     expect(fold('seed', [...first.log, ...retry.events])).toEqual(first.state);
   });

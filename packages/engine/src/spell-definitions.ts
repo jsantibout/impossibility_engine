@@ -77,10 +77,10 @@ export interface TargetRule {
   /**
    * A creature type the target must be, when the spell says so.
    *
-   * The engine does **not** check this: `CreatureState` carries a sheet, not a
-   * creature type, so there is nothing to compare against. It is recorded here
-   * and reported as an unverified check, because a silent pass would be the
-   * engine claiming to have checked something it cannot see.
+   * Checked against the target's own declared type. A creature whose type
+   * nobody has stated is not waved through: the cast comes back asking for it,
+   * because a silent pass would be the engine claiming to have checked
+   * something it could not see.
    */
   readonly mustBeType?: string;
   /** Whether the caster may pick themselves. */
@@ -98,6 +98,14 @@ export interface SpellDefinition {
   readonly range: SpellRange;
   readonly targets: TargetRule;
   readonly effects: readonly SpellEffect[];
+  /**
+   * Whether the spell says the caster must *see* the target.
+   *
+   * Hold Person does — "Choose a Humanoid that you can see within range" — and
+   * Fire Bolt does not, which is the difference between needing a fact
+   * established and not caring.
+   */
+  readonly requiresSight?: boolean;
   /** How long it lasts, in seconds. Omitted for an instantaneous spell. */
   readonly durationSeconds?: number;
 }
@@ -151,7 +159,8 @@ export const HOLD_PERSON: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
-  targets: { count: 1, extraPerSlotLevelAbove: 1, mustBeType: 'humanoid' },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, mustBeType: 'Humanoid' },
+  requiresSight: true,
   effects: [
     {
       kind: 'save',

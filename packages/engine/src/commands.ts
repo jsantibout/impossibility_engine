@@ -11,19 +11,19 @@ import {
 import type { Bonus, ModeSource } from './bonuses.js';
 import {
   armorClass,
-  spellAttackModifier,
-  spellSaveDc,
+  spellAttackModifierWith,
+  spellSaveDcWith,
   untrainedArmorPenalty,
 } from './character.js';
 import { applyDamage, rollAttack, rollAttackDamage, type AttackResult } from './attack.js';
-import { coverBetween, distanceBetween } from './positioning.js';
+import { coverBetween, distanceBetween, sightBetween } from './positioning.js';
 import {
   damageDiceFor,
   definitionFor,
   targetCountFor,
   type SpellRange,
 } from './spell-definitions.js';
-import { routeFor } from './spellcasting.js';
+import { routeFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
 import { rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
@@ -37,9 +37,12 @@ import {
 } from './duration.js';
 import {
   canSpendSpellSlotThisTurn,
+  rollInitiative,
   spendAction,
   spendBonusAction,
   spendReaction,
+  type InitiativeOptions,
+  type InitiativeRoll,
 } from './combat.js';
 import {
   applyEvent,
@@ -1243,19 +1246,49 @@ export interface SpellTargetOutcome {
   readonly affected: boolean;
 }
 
+/**
+ * A fact the engine needs before it can resolve, and how to supply it.
+ *
+ * Not a refusal and not an error: the rules are fine, the *record* is thin.
+ * These are addressed to the layer that can go and establish the fact — look
+ * it up, ask the DM, place the creature — and then cast again. A player should
+ * never see one. "Sorry, that creature has no position" is the engine's
+ * problem leaking out as the game's.
+ */
+export interface ContextRequest {
+  readonly kind: 'position' | 'visibility' | 'creature-type' | 'scene';
+  /** Who the missing fact is about. */
+  readonly subject: CharacterId;
+  /** What is missing, in plain terms. */
+  readonly need: string;
+  /** Which rule wanted it. */
+  readonly because: string;
+  /** The event or command that would establish it. */
+  readonly satisfyWith: string;
+}
+
 export interface SpellResolution {
+  readonly kind: 'resolved';
   readonly events: readonly GameEvent[];
   readonly castingId: string;
   readonly outcomes: readonly SpellTargetOutcome[];
-  /**
-   * Checks the rules call for that the engine could not make, named.
-   *
-   * A silent pass would be the engine claiming to have checked something it
-   * cannot see. Creature type is the standing example: Hold Person wants a
-   * Humanoid, and `CreatureState` carries a sheet, not a type.
-   */
+  /** Checks the rules call for that the engine still cannot make. */
   readonly unverified: readonly string[];
 }
+
+/**
+ * The cast did not happen, and nothing was spent, because a fact is missing.
+ *
+ * Returned as a success rather than an error on purpose: nothing is wrong, the
+ * caller simply has homework. Distinguishing this from a rules refusal is what
+ * lets an orchestrator retry instead of apologising.
+ */
+export interface SpellNeedsContext {
+  readonly kind: 'needs-context';
+  readonly requests: readonly ContextRequest[];
+}
+
+export type SpellCastOutcome = SpellResolution | SpellNeedsContext;
 
 export interface CastSpellRequest extends CommandIdentity {
   readonly spellId: string;
@@ -1264,6 +1297,24 @@ export interface CastSpellRequest extends CommandIdentity {
   readonly slotLevel?: number;
   /** Why no slot is being spent, when none is. */
   readonly slotless?: SlotlessReason;
+  /**
+   * Which grant to cast it through: `class`, or a granting feature's id.
+   *
+   * **Default:** the class's own route when it supplies the spell, and the
+   * single grant when only a feat does. Named explicitly when more than one
+   * would serve and the choice matters — a feat brings its own spellcasting
+   * ability, so the same spell can have two different save DCs.
+   */
+  readonly source?: string;
+  /**
+   * How to pay for it.
+   *
+   * **Default:** a slot when `slotLevel` is given, and nothing at all for a
+   * cantrip. When a grant offers a free casting *and* a slot would serve, the
+   * engine refuses to choose: spending a feat's one daily casting instead of a
+   * slot is the caller's decision, not a default.
+   */
+  readonly payment?: 'slot' | 'free-casting';
 }
 
 const ranged = (range: SpellRange): number | null =>
@@ -1288,7 +1339,7 @@ export function resolveSpell(
   casterId: CharacterId,
   request: CastSpellRequest,
   supply: ConcentrationSaveSupply,
-): Result<SpellResolution> {
+): Result<SpellCastOutcome> {
   // A turn-boundary save outstanding means somebody may or may not still be
   // Paralyzed, and casting at them would be resolving against a state nobody
   // has settled. The rule is the same one that stops the turn advancing.
@@ -1312,17 +1363,14 @@ export function resolveSpell(
   }
 
   // SRD: you cast what you know or have prepared, and nothing else.
-  const route = routeFor(caster.spellcasting, request.spellId);
-  if (route === null) {
-    return err(
-      'spell_not_available',
-      `${casterId} has not prepared ${definition.name} and knows it from nothing else`,
-    );
-  }
+  const chosen = chooseRoute(caster.spellcasting, request.spellId, request.source);
+  if (!chosen.ok) return chosen;
+  const route = chosen.value;
 
   const slotLevel = request.slotLevel ?? definition.level;
   const castLevel = Math.max(definition.level, slotLevel);
   const unverified: string[] = [];
+  const needs: ContextRequest[] = [];
 
   // — targets ————————————————————————————————————————————————————————————
   const allowed = targetCountFor(definition.targets, definition.level, castLevel);
@@ -1348,20 +1396,62 @@ export function resolveSpell(
       return err('cannot_target_self', `${definition.name} is not cast on yourself`);
     }
 
-    if (definition.targets.mustBeType !== undefined) {
-      unverified.push(
-        `${definition.name} requires a ${definition.targets.mustBeType} target; the engine does not model creature type, so ${target} was not checked`,
-      );
+    // A type the spell demands is checked; a type nobody has stated is asked
+    // for rather than waved through.
+    const wanted = definition.targets.mustBeType;
+    if (wanted !== undefined) {
+      const actual = state.creatures[target]?.creatureType ?? null;
+      if (actual === null) {
+        needs.push({
+          kind: 'creature-type',
+          subject: target,
+          need: `what kind of creature ${target} is`,
+          because: `${definition.name} may only target a ${wanted}`,
+          satisfyWith: `a creature-type-declared event for ${target}, or a creatureType when it is added`,
+        });
+      } else if (actual.toLowerCase() !== wanted.toLowerCase()) {
+        return err(
+          'wrong_creature_type',
+          `${definition.name} may only target a ${wanted}; ${target} is ${actual}`,
+        );
+      }
     }
 
     if (state.scene === null) {
-      unverified.push(`no scene is set, so ${definition.name}'s range was not checked`);
+      needs.push({
+        kind: 'scene',
+        subject: target,
+        need: 'a scene, so that distances mean something',
+        because: `${definition.name} has a range to check`,
+        satisfyWith: 'a scene-set event',
+      });
     } else if (reach !== null) {
+      // SRD Hold Person: "a Humanoid that you can see." Unknown is a fact to
+      // establish; declared *unseen* is the refusal.
+      if (definition.requiresSight === true) {
+        const seen = sightBetween(state.scene, casterId, target);
+        if (seen === null) {
+          needs.push({
+            kind: 'visibility',
+            subject: target,
+            need: `whether ${casterId} can see ${target}`,
+            because: `${definition.name} targets a creature you can see`,
+            satisfyWith: `a sight-declared event from ${casterId} to ${target}`,
+          });
+        } else if (!seen) {
+          return err('cannot_see_target', `${casterId} cannot see ${target}`);
+        }
+      }
+
       const apart = distanceBetween(state.scene, casterId, target);
       if (!apart.ok) {
-        unverified.push(
-          `${target} has no position, so ${definition.name}'s range of ${reach} feet was not checked`,
-        );
+        needs.push({
+          kind: 'position',
+          subject: target,
+          need: `where ${target} is standing`,
+          because: `${definition.name} reaches ${reach} feet and the distance is unknown`,
+          satisfyWith: `a creature-placed event for ${target}`,
+        });
       } else if (apart.value > reach) {
         return err(
           'out_of_range',
@@ -1377,13 +1467,18 @@ export function resolveSpell(
     }
   }
 
+  // Nothing spent, no die thrown: the caller establishes the fact and casts
+  // again exactly as they meant to.
+  if (needs.length > 0) return ok({ kind: 'needs-context', requests: needs });
+
   // — paying for it ——————————————————————————————————————————————————————
   //
   // A free casting from a feat spends its own pool; anything else goes through
   // the ordinary casting command, which owns slots, the action, and the
   // Concentration that starts or is replaced.
-  const freePool =
-    route.kind === 'granted' && request.slotLevel === undefined ? route.grant.freeCastPool : null;
+  const payment = choosePayment(definition, route, request);
+  if (!payment.ok) return payment;
+  const freePool = payment.value;
 
   const events: GameEvent[] = [];
   const castingId = nextCastingId(state);
@@ -1415,7 +1510,7 @@ export function resolveSpell(
   if (!cast.ok) return cast;
   // A retried command: the first run did all of this.
   if (cast.value.length === 0) {
-    return ok({ events: [], castingId, outcomes: [], unverified: [] });
+    return ok({ kind: 'resolved', events: [], castingId, outcomes: [], unverified: [] });
   }
   events.push(...cast.value);
 
@@ -1424,8 +1519,9 @@ export function resolveSpell(
   const outcomes: SpellTargetOutcome[] = [];
   const issuedBefore = supply.issuer.count;
 
-  const attackModifier = spellAttackModifier(caster.sheet) ?? 0;
-  const saveDc = spellSaveDc(caster.sheet) ?? 0;
+  // The *chosen source's* ability, not the class's. A feat brings its own.
+  const attackModifier = spellAttackModifierWith(caster.sheet, route.ability);
+  const saveDc = spellSaveDcWith(caster.sheet, route.ability);
 
   for (const target of request.targets) {
     for (const effect of definition.effects) {
@@ -1554,5 +1650,231 @@ export function resolveSpell(
     });
   }
 
-  return ok({ events, castingId, outcomes, unverified });
+  return ok({ kind: 'resolved', events, castingId, outcomes, unverified });
+}
+
+/**
+ * Which grant supplies this spell for this casting.
+ *
+ * With no `source` named the class's own route wins where it has one, because
+ * a Wizard who happens to know Fire Bolt twice casts it as a Wizard. Naming a
+ * source that does not supply the spell is a refusal rather than a quiet
+ * fallback — a caller who asked for the feat's version meant it, and the two
+ * can have different save DCs.
+ */
+function chooseRoute(
+  spellcasting: SpellcastingState,
+  spellId: string,
+  source: string | undefined,
+): Result<CastingRoute> {
+  if (source === undefined) {
+    const route = routeFor(spellcasting, spellId);
+    if (route === null) {
+      return err(
+        'spell_not_available',
+        `this creature has not prepared ${spellId} and knows it from nothing else`,
+      );
+    }
+    return ok(route);
+  }
+
+  if (source === 'class') {
+    const ability = spellcasting.ability;
+    const cantrip = spellcasting.cantrips.includes(spellId);
+    if (ability === null || !(cantrip || spellcasting.prepared.includes(spellId))) {
+      return err('source_does_not_supply', `the class does not supply ${spellId}`);
+    }
+    return { ok: true, value: { kind: cantrip ? 'cantrip' : 'prepared', ability } };
+  }
+
+  const grant = spellcasting.granted.find((g) => g.source === source && g.spellId === spellId);
+  if (grant === undefined) {
+    return err('source_does_not_supply', `${source} does not supply ${spellId}`);
+  }
+  return ok({ kind: 'granted', ability: grant.ability, grant });
+}
+
+/**
+ * What pays for the casting: a grant's free daily use, or a spell slot.
+ *
+ * The engine will not pick between them. A feat's one free casting is a
+ * resource a player may well be saving, and spending it because no slot level
+ * happened to be named is the kind of quiet decision that loses a fight two
+ * rooms later. Where both would serve, the caller says which.
+ *
+ * Returns the pool to spend, or null for "this is not a free casting".
+ */
+function choosePayment(
+  definition: { readonly level: number; readonly name: string },
+  route: CastingRoute,
+  request: CastSpellRequest,
+): Result<string | null> {
+  // A cantrip costs nothing on any route.
+  if (definition.level === 0) return ok(null);
+
+  const free = route.kind === 'granted' ? route.grant.freeCastPool : null;
+  const slotAllowed = route.kind !== 'granted' || route.grant.slotCasting;
+
+  if (request.payment === 'free-casting') {
+    if (free === null) {
+      return err('no_free_casting', `${definition.name} has no free casting on this route`);
+    }
+    return ok(free);
+  }
+  if (request.payment === 'slot') {
+    if (!slotAllowed) {
+      return err('slot_not_allowed', `${definition.name} cannot be cast with a slot on this route`);
+    }
+    return ok(null);
+  }
+
+  if (request.slotLevel !== undefined) return ok(null);
+  if (free === null) return ok(null);
+  if (!slotAllowed) return ok(free);
+
+  return err(
+    'payment_required',
+    `${definition.name} could be cast with this grant's free-casting or with a slot; say which`,
+  );
+}
+
+/** Targets a spell could legally be aimed at, and why the others could not. */
+export interface EligibleTargets {
+  readonly eligible: readonly CharacterId[];
+  readonly excluded: readonly { readonly target: CharacterId; readonly reason: string }[];
+  /** Facts that would have to be established before a target can be judged. */
+  readonly needsContext: readonly ContextRequest[];
+}
+
+/**
+ * Who this caster could legally aim this spell at.
+ *
+ * Working out that "him" means the goblin is interpretation, and belongs to the
+ * layer that reads the fiction. What the engine can do is hand that layer the
+ * shortlist — so "the obvious target" has something to be obvious about — and
+ * say why each of the others is out, so a refusal can be narrated rather than
+ * reported.
+ */
+export function eligibleTargets(
+  state: GameState,
+  casterId: CharacterId,
+  spellId: string,
+  slotLevel: number,
+): EligibleTargets {
+  const definition = definitionFor(spellId);
+  const caster = creatureOf(state, casterId);
+  if (definition === null || caster === null) {
+    return { eligible: [], excluded: [], needsContext: [] };
+  }
+  void slotLevel;
+
+  const eligible: CharacterId[] = [];
+  const excluded: { target: CharacterId; reason: string }[] = [];
+  const needsContext: ContextRequest[] = [];
+  const reach = definition.range.kind === 'ranged' ? definition.range.feet : 5;
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const target = state.creatures[key];
+    if (target === undefined) continue;
+    if (target.id === casterId && definition.targets.self !== true) continue;
+    if (target.vitals.dead) {
+      excluded.push({ target: target.id, reason: `${target.name} is dead` });
+      continue;
+    }
+
+    const wanted = definition.targets.mustBeType;
+    if (wanted !== undefined) {
+      const actual = target.creatureType;
+      if (actual === null) {
+        needsContext.push({
+          kind: 'creature-type',
+          subject: target.id,
+          need: `what kind of creature ${target.name} is`,
+          because: `${definition.name} may only target a ${wanted}`,
+          satisfyWith: `a creature-type-declared event for ${target.id}`,
+        });
+        continue;
+      }
+      if (actual.toLowerCase() !== wanted.toLowerCase()) {
+        excluded.push({ target: target.id, reason: `${target.name} is ${actual}, not ${wanted}` });
+        continue;
+      }
+    }
+
+    if (state.scene !== null) {
+      const apart = distanceBetween(state.scene, casterId, target.id);
+      if (!apart.ok) {
+        needsContext.push({
+          kind: 'position',
+          subject: target.id,
+          need: `where ${target.name} is standing`,
+          because: `${definition.name} reaches ${reach} feet`,
+          satisfyWith: `a creature-placed event for ${target.id}`,
+        });
+        continue;
+      }
+      if (apart.value > reach) {
+        excluded.push({
+          target: target.id,
+          reason: `${target.name} is ${apart.value} feet away, outside the range of ${reach}`,
+        });
+        continue;
+      }
+      if (coverBetween(state.scene, casterId, target.id) === 'total') {
+        excluded.push({ target: target.id, reason: `${target.name} is behind Total Cover` });
+        continue;
+      }
+      if (definition.requiresSight === true) {
+        const seen = sightBetween(state.scene, casterId, target.id);
+        if (seen === null) {
+          needsContext.push({
+            kind: 'visibility',
+            subject: target.id,
+            need: `whether ${casterId} can see ${target.name}`,
+            because: `${definition.name} targets a creature you can see`,
+            satisfyWith: `a sight-declared event from ${casterId} to ${target.id}`,
+          });
+          continue;
+        }
+        if (!seen) {
+          excluded.push({ target: target.id, reason: `${casterId} cannot see ${target.name}` });
+          continue;
+        }
+      }
+    }
+
+    eligible.push(target.id);
+  }
+
+  return { eligible, excluded, needsContext };
+}
+
+/**
+ * Roll Initiative for a creature, with whatever its own features contribute.
+ *
+ * SRD Alert: "When you roll Initiative, you can add your Proficiency Bonus to
+ * the roll." The engine already knows about that — creation worked it out — so
+ * making a caller remember to pass it is how a character silently stops having
+ * the feat they paid for. Supplied once, named in the roll, and deduplicated
+ * against anything the caller adds, so it cannot land twice.
+ */
+export function rollInitiativeFor(
+  state: GameState,
+  id: CharacterId,
+  issuer: RollIssuer,
+  rng: Rng,
+  options: InitiativeOptions = {},
+): Result<InitiativeRoll> {
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} is not in this game`);
+
+  const own = creature.initiativeBonuses;
+  const supplied = options.bonuses ?? [];
+  const mine = own.filter((bonus) => !supplied.some((other) => other.source === bonus.source));
+
+  return rollInitiative(issuer, rng, id, creature.sheet, {
+    ...options,
+    conditions: options.conditions ?? creature.conditions,
+    bonuses: [...supplied, ...mine],
+  });
 }
