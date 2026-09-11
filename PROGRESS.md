@@ -32,7 +32,8 @@ still Wizard-shaped are named below.
 | Multi-type saves | One save, several damage types; 8 more spells | `70169df` |
 | Second class | Wizard-shaped seams opened; Cleric + Life Domain, levels 1–20 | `759aa68` |
 | Third class | Fighter + Champion; the no-spellcasting path; ammunition | `f7860a1` |
-| Fourth class | Sorcerer + Draconic Sorcery; the `known` casting style | *this batch* |
+| Fourth class | Sorcerer + Draconic Sorcery; the `known` casting style | `c2a0b4c` |
+| Fifth class | Paladin + Oath of Devotion; half-caster slots, no cantrips | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -126,10 +127,18 @@ Fighter (no spellcasting at all). Each opened something:
   Draconic Sorcery gives Command, a Cleric spell, which is the whole reason a
   granted spell skips the class-list check.
 
+- The Paladin proved **half-casting needs no machinery** — the table already
+  held slots per level, and a shorter row that grows slower is the whole of it
+  — and brought the second use of absent-versus-zero: a caster with slots and
+  a prepared list but **no cantrips column at all**.
+
+**A rules correction worth keeping:** 2024 moved Paladin *and Ranger*
+spellcasting to **level 1**. 2014 started both at 2, which is the version most
+tables remember, and an earlier note in this file said so. The SRD 5.2.1 tables
+print two prepared spells and two level 1 slots at level 1 for both.
+
 What the next class will hit, in likely order:
 
-- **Half-casters start at level 2.** `spellcasting.startsAtLevel` is recorded
-  and nothing reads it yet; Paladin and Ranger need it.
 - **The Warlock's Pact Magic is a different slot table entirely** — few slots,
   all at the highest level, recharging on a Short Rest. `resources.ts` handles
   it as a pool; what is missing is that it does not merge with ordinary slots.

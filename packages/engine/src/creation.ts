@@ -56,6 +56,7 @@ import {
 import type { GrantedSpell, SpellcastingState } from './spellcasting.js';
 import { CLERIC, CLERIC_SUBCLASSES } from './cleric.js';
 import { FIGHTER, FIGHTER_SUBCLASSES } from './fighter.js';
+import { PALADIN, PALADIN_SUBCLASSES } from './paladin.js';
 import { SORCERER, SORCERER_SUBCLASSES } from './sorcerer.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
 
@@ -76,10 +77,11 @@ import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
  * character does not want to be told about one mistake at a time.
  */
 
-const CLASSES: readonly ClassDefinition[] = [CLERIC, FIGHTER, SORCERER, WIZARD];
+const CLASSES: readonly ClassDefinition[] = [CLERIC, FIGHTER, PALADIN, SORCERER, WIZARD];
 const SUBCLASSES: readonly SubclassDefinition[] = [
   ...CLERIC_SUBCLASSES,
   ...FIGHTER_SUBCLASSES,
+  ...PALADIN_SUBCLASSES,
   ...SORCERER_SUBCLASSES,
   ...WIZARD_SUBCLASSES,
 ];
