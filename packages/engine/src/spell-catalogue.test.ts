@@ -158,8 +158,32 @@ const castAt = (
   );
 };
 
+/**
+ * A spell cast on an attack that has hit is not cast through this command at
+ * all — SRD Divine Smite's casting time is "immediately after hitting a
+ * target", and `resolveSpell` has no attack to hand it. They are driven by
+ * `smite.test.ts` instead, and the refusal here is asserted rather than the
+ * spell being quietly left out of the sweep.
+ */
+const ON_HIT = SPELL_DEFINITIONS.filter((d) =>
+  d.effects.some((effect) => effect.kind === 'attack-damage'),
+);
+const CASTABLE = SPELL_DEFINITIONS.filter((d) => !ON_HIT.includes(d));
+
+describe('a spell cast on a hit is refused by the ordinary casting command', () => {
+  it('has some, so the rule below is not vacuous', () => {
+    expect(ON_HIT.length).toBeGreaterThan(0);
+  });
+
+  it.each(ON_HIT.map((d) => [d.id] as const))('refuses %s, and says why', (spellId) => {
+    const out = castAt(fold('seed', logFor(spellId)), spellId, -40);
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('cast_on_a_hit');
+  });
+});
+
 describe('every definition in the catalogue actually casts', () => {
-  it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('resolves %s', (spellId) => {
+  it.each(CASTABLE.map((d) => [d.id] as const))('resolves %s', (spellId) => {
     // A failed save for anything that allows one, so the interesting branch is
     // the one that runs.
     const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
@@ -181,21 +205,21 @@ describe('every definition in the catalogue actually casts', () => {
     }
   });
 
-  it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('spends exactly one casting for %s', (spellId) => {
+  it.each(CASTABLE.map((d) => [d.id] as const))('spends exactly one casting for %s', (spellId) => {
     const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
     if (out.kind !== 'resolved') return;
     expect(out.events.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
   });
 
   /** Same state, same seed, same batch — twice. */
-  it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('is deterministic for %s', (spellId) => {
+  it.each(CASTABLE.map((d) => [d.id] as const))('is deterministic for %s', (spellId) => {
     const log = logFor(spellId);
     const first = unwrap(castAt(fold('seed', log), spellId, -40), spellId);
     const second = unwrap(castAt(fold('seed', log), spellId, -40), spellId);
     expect(first).toEqual(second);
   });
 
-  it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('replays %s prefix by prefix', (spellId) => {
+  it.each(CASTABLE.map((d) => [d.id] as const))('replays %s prefix by prefix', (spellId) => {
     const base = logFor(spellId);
     const out = unwrap(castAt(fold('seed', base), spellId, -40), spellId);
     if (out.kind !== 'resolved') return;
@@ -207,7 +231,7 @@ describe('every definition in the catalogue actually casts', () => {
 });
 
 describe('a definition that leaves part of its spell out says so', () => {
-  const withGaps = SPELL_DEFINITIONS.filter((d) => (d.unmodelled ?? []).length > 0);
+  const withGaps = CASTABLE.filter((d) => (d.unmodelled ?? []).length > 0);
 
   it('has spells that admit to gaps, and spells that do not', () => {
     expect(withGaps.length).toBeGreaterThan(0);

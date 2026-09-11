@@ -1,4 +1,4 @@
-import type { CharacterId, ConditionName } from '@ie/shared';
+import type { Ability, CharacterId, ConditionName } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { ROUND } from './clock.js';
 import type { RngState } from './dice.js';
@@ -236,6 +236,27 @@ export interface CommandStamp {
   readonly fingerprint: string;
 }
 
+/**
+ * A hit whose damage is still to be rolled.
+ *
+ * Everything the settling command needs, so nothing has to be remembered
+ * between the two calls: which weapon, how it was held, whether it was a
+ * critical, and the target Armour Class the roll already beat.
+ */
+export interface PendingAttack {
+  readonly attacker: CharacterId;
+  readonly target: CharacterId;
+  /** Catalogue id, or null for an Unarmed Strike. */
+  readonly weapon: string | null;
+  readonly twoHanded: boolean;
+  readonly thrown: boolean;
+  readonly finesseAbility?: 'str' | 'dex';
+  readonly critical: boolean;
+  /** The ability the attack roll used, for a feature that asks. */
+  readonly ability: Ability;
+  readonly targetAc: number;
+}
+
 export interface GameState {
   readonly seed: string;
   /** Generator state, so a resumed session continues the same sequence. */
@@ -281,6 +302,23 @@ export interface GameState {
    * save however many times the log is folded.
    */
   readonly pendingSaves: Readonly<Record<string, PendingSave>>;
+  /**
+   * An attack that has hit and not yet rolled its damage.
+   *
+   * SRD 2024 Divine Smite is cast as "a Bonus Action, which you take
+   * immediately after hitting a target" — a moment between the attack roll and
+   * the damage roll, which an attack that rolls both in one breath does not
+   * have. Holding the hit open makes that moment real.
+   *
+   * In state rather than in a return value, which is the whole difference
+   * between this and the pending Concentration save that had to be torn out:
+   * the fold rebuilds it, so it survives a reload, and the engine refuses to
+   * advance the turn while it stands. Forgetting stops the game rather than
+   * quietly dropping a blow.
+   *
+   * At most one: an attack cannot be held while another is.
+   */
+  readonly pendingAttack: PendingAttack | null;
 }
 
 export function initialState(seed: string): GameState {
@@ -297,6 +335,7 @@ export function initialState(seed: string): GameState {
     elapsed: 0,
     timers: {},
     pendingSaves: {},
+    pendingAttack: null,
   };
 }
 
@@ -650,6 +689,24 @@ export type GameEvent =
    * never defines it mechanically, because at a table nobody has to ask.
    */
   | { readonly type: 'creature-side-declared'; readonly id: CharacterId; readonly side: string }
+  /**
+   * An attack hit, and its damage is being held for a moment.
+   *
+   * SRD Divine Smite is taken "immediately after hitting a target", so there
+   * has to *be* an after-hitting. This records the hit; `attack-damage-dealt`
+   * closes it, and the reducer refuses a second one while it stands.
+   */
+  | {
+      readonly type: 'attack-landed';
+      readonly attack: PendingAttack;
+      readonly command?: CommandStamp;
+    }
+  /** The held attack's damage has been rolled; the debt is closed. */
+  | {
+      readonly type: 'attack-damage-dealt';
+      readonly attacker: CharacterId;
+      readonly command?: CommandStamp;
+    }
   /**
    * A feature switched on, with whatever it costs already spent beside it.
    *
@@ -1780,6 +1837,18 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         { activeFeatures: creature.activeFeatures.filter((f) => f !== event.feature) },
         creature,
       );
+    }
+    case 'attack-landed': {
+      if (state.pendingAttack !== null) {
+        throw new CorruptLogError(event, 'an attack is already being held');
+      }
+      return { ...next, pendingAttack: event.attack };
+    }
+    case 'attack-damage-dealt': {
+      if (state.pendingAttack === null) {
+        throw new CorruptLogError(event, 'no attack is being held');
+      }
+      return { ...next, pendingAttack: null };
     }
     case 'creature-side-declared': {
       const creature = creatureOf(state, event, event.id);

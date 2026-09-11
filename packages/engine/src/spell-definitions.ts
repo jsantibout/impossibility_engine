@@ -142,6 +142,24 @@ export type SpellEffect =
       readonly healing: DiceScaling;
       readonly addSpellcastingModifier: boolean;
     }
+  /**
+   * Extra damage on a weapon attack that has already hit.
+   *
+   * SRD 2024 Divine Smite, whose casting time is "Bonus Action, which you take
+   * immediately after hitting a target with a Melee weapon or an Unarmed
+   * Strike". It has no target of its own and rolls nothing against anybody:
+   * the damage joins the attack's, which is what "from the attack" means and
+   * why a critical doubles it.
+   *
+   * A spell with this effect is cast through `resolveAttackDamage` rather than
+   * `resolveSpell`, because the attack is the thing it needs and `resolveSpell`
+   * has no attack to hand it.
+   */
+  | {
+      readonly kind: 'attack-damage';
+      readonly damage: DiceScaling;
+      readonly damageType: string;
+    }
   /** A saving throw; a condition on a failure. */
   | {
       readonly kind: 'save';
@@ -2082,7 +2100,43 @@ export const PRESTIDIGITATION: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Divine Smite:
+ *
+ * > _Level 1 Evocation._ **Casting Time:** Bonus Action, which you take
+ * > immediately after hitting a target with a Melee weapon or an Unarmed
+ * > Strike. **Range:** Self. **Duration:** Instantaneous.
+ * > "The target takes an extra 2d8 Radiant damage from the attack. The damage
+ * > increases by 1d8 if the target is a Fiend or an Undead."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 1."
+ */
+export const DIVINE_SMITE: SpellDefinition = {
+  id: 'divine-smite',
+  name: 'Divine Smite',
+  level: 1,
+  school: 'evocation',
+  // The SRD's printed casting time is a Bonus Action with a trigger attached.
+  // The trigger is the hit `resolveAttackDamage` is settling, so it is the
+  // command rather than the definition that enforces it.
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [
+    {
+      kind: 'attack-damage',
+      damage: { dice: '2d8', perSlotLevelAbove: '1d8' },
+      damageType: 'radiant',
+    },
+  ],
+  unmodelled: [
+    'the extra 1d8 against a Fiend or an Undead is not applied: the damage is added before the target is looked at, and nothing yet varies a spell’s damage by the creature type it lands on',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
+  DIVINE_SMITE,
   COMPREHEND_LANGUAGES,
   DARKVISION,
   DETECT_MAGIC,

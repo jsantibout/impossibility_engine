@@ -99,6 +99,7 @@ import {
   type CreatureState,
   type GameEvent,
   type GameState,
+  type PendingAttack,
 } from './events.js';
 import {
   hasPool,
@@ -564,6 +565,17 @@ export interface AttackCommand extends CommandIdentity {
   readonly damageBonuses?: readonly Bonus[];
   /** Damage of other types: a Divine Smite's radiant, a Flame Tongue's fire. */
   readonly extraDamage?: readonly ExtraDamage[];
+  /**
+   * Roll the attack and stop, leaving the damage to a second command.
+   *
+   * SRD 2024 Divine Smite: "Bonus Action, which you take immediately after
+   * hitting a target with a Melee weapon or an Unarmed Strike." There is no
+   * such moment in an attack that rolls its damage in the same breath, so a
+   * caller who might want one asks for it before swinging. Asking costs
+   * nothing and decides nothing: the slot is spent only by going through with
+   * it, and only on a hit.
+   */
+  readonly hold?: boolean;
 }
 
 export interface AttackResolution {
@@ -615,6 +627,13 @@ export function resolveAttack(
     return ok({ events: [], attack: null, duplicate: true });
   }
   const stamp = identity.value.stamp;
+
+  if (state.pendingAttack !== null) {
+    return err(
+      'attack_pending',
+      `${state.pendingAttack.attacker} has a hit whose damage is still unrolled; settle it first`,
+    );
+  }
 
   const attacker = creatureOf(state, id);
   if (attacker === null) return err('unknown_creature', `${id} is not in this game`);
@@ -704,6 +723,34 @@ export function resolveAttack(
       type: 'rolls-issued',
       count: supply.issuer.count - issuedBefore,
       rng: supply.rng.snapshot(),
+    });
+    return ok({ events, attack: attack.value, duplicate: false });
+  }
+
+  // SRD Divine Smite is taken "immediately after hitting a target", which is
+  // exactly here: the hit is known, the damage is not rolled. The roll that
+  // got us here is already in the log, so the debt survives a reload.
+  if (command.hold === true) {
+    events.push({
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    });
+    events.push({
+      type: 'attack-landed',
+      attack: {
+        attacker: id,
+        target: command.target,
+        weapon: command.weapon,
+        twoHanded: command.twoHanded === true,
+        thrown: command.thrown === true,
+        ...(command.finesseAbility === undefined
+          ? {}
+          : { finesseAbility: command.finesseAbility }),
+        critical: attack.value.critical,
+        ability: attack.value.ability,
+        targetAc: attack.value.targetAc,
+      },
     });
     return ok({ events, attack: attack.value, duplicate: false });
   }
@@ -827,6 +874,173 @@ function enemyWithinFiveFeet(state: GameState, id: CharacterId): boolean {
 
     const apart = distanceBetween(scene, id, other.id);
     return apart.ok && apart.value <= 5;
+  });
+}
+
+/** The hit whose damage is still to be rolled, or null. */
+export function pendingAttackOf(state: GameState): PendingAttack | null {
+  return state.pendingAttack;
+}
+
+export interface AttackDamageCommand extends CommandIdentity {
+  /**
+   * A spell cast on the hit, out of the SRD's own "immediately after hitting"
+   * window. Validated and paid for as a casting, because it is one.
+   */
+  readonly smite?: { readonly spellId: string; readonly slotLevel: number };
+  readonly damageBonuses?: readonly Bonus[];
+  readonly extraDamage?: readonly ExtraDamage[];
+}
+
+/**
+ * Roll the damage of an attack that was held, and settle the debt.
+ *
+ * Everything the roll needs was written down when the attack landed, so
+ * nothing has to be remembered between the two calls — which is what makes
+ * this survive a reload rather than living in the caller's hands.
+ */
+export function resolveAttackDamage(
+  state: GameState,
+  id: CharacterId,
+  command: AttackDamageCommand,
+  supply: ConcentrationSaveSupply,
+): Result<AttackResolution> {
+  const identity = identify(state, `attack-damage:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok({ events: [], attack: null, duplicate: true });
+  const stamp = identity.value.stamp;
+
+  const pending = state.pendingAttack;
+  if (pending === null || pending.attacker !== id) {
+    return err('no_pending_attack', `${id} has no hit waiting for its damage`);
+  }
+
+  const attacker = creatureOf(state, id);
+  if (attacker === null) return err('unknown_creature', `${id} is not in this game`);
+
+  const weapon = pending.weapon === null ? null : (itemFor(pending.weapon)?.weapon ?? null);
+  const events: GameEvent[] = [];
+  const extra: ExtraDamage[] = [...(command.extraDamage ?? [])];
+
+  // — the spell cast on the blow ——————————————————————————————————————————
+  if (command.smite !== undefined) {
+    const smite = castOnHit(state, id, attacker, command.smite);
+    if (!smite.ok) return smite;
+    events.push(...smite.value.events);
+    extra.push(smite.value.damage);
+  }
+
+  const current = events.reduce(applyEvent, state);
+  const fromFeatures = standingAttackDamage(current, id, {
+    ability: pending.ability,
+    melee: rangeOf(weapon, pending.thrown) === null,
+  });
+
+  const issuedBefore = supply.issuer.count;
+  const rolled = rollAttackDamage(
+    supply.issuer,
+    supply.rng,
+    attacker.sheet,
+    {
+      weapon,
+      targetAc: pending.targetAc,
+      twoHanded: pending.twoHanded,
+      thrown: pending.thrown,
+      ...(pending.finesseAbility === undefined
+        ? {}
+        : { finesseAbility: pending.finesseAbility }),
+      damageBonuses: [...fromFeatures.bonuses, ...(command.damageBonuses ?? [])],
+      extraDamage: [...fromFeatures.extra, ...extra],
+    },
+    pending.critical,
+  );
+  if (!rolled.ok) return rolled;
+
+  events.push(
+    {
+      type: 'attack-damage-dealt',
+      attacker: id,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+    {
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    },
+  );
+
+  const after = events.reduce(applyEvent, state);
+  const hurt = dealSpellDamage(
+    after,
+    pending.target,
+    rolled.value.components,
+    weapon?.name ?? 'Unarmed Strike',
+    supply,
+    pending.critical ? { critical: true } : {},
+  );
+  if (!hurt.ok) return hurt;
+
+  return ok({
+    events: [...events, ...hurt.value.events],
+    attack: null,
+    damage: hurt.value.amount,
+    concentration: hurt.value.concentration,
+    duplicate: false,
+  });
+}
+
+/**
+ * A spell cast in the window a hit opens, and what it adds to the blow.
+ *
+ * SRD Divine Smite is a level 1 Evocation spell with a Bonus Action casting
+ * time, so it goes through the casting rules like any other: the caster must
+ * have it, the slot is spent, the Bonus Action is spent, and the
+ * one-slot-per-turn rule applies. "The target takes an extra 2d8 Radiant
+ * damage **from the attack**" — from the attack, so a critical doubles it,
+ * which is why it joins the attack's own damage rather than being dealt
+ * separately.
+ */
+function castOnHit(
+  state: GameState,
+  id: CharacterId,
+  attacker: CreatureState,
+  smite: { readonly spellId: string; readonly slotLevel: number },
+): Result<{ readonly events: readonly GameEvent[]; readonly damage: ExtraDamage }> {
+  const definition = definitionFor(smite.spellId);
+  if (definition === null) {
+    return err('no_definition', `${smite.spellId} has no executable definition`);
+  }
+
+  const effect = definition.effects.find((e) => e.kind === 'attack-damage');
+  if (effect === undefined || effect.kind !== 'attack-damage') {
+    return err(
+      'not_cast_on_a_hit',
+      `${definition.name} is not a spell cast on an attack that hits`,
+    );
+  }
+
+  // The route decides nothing here — Divine Smite rolls no save and makes no
+  // attack — but casting a spell the caster does not have is still a refusal.
+  const route = chooseRoute(attacker.spellcasting, smite.spellId, undefined);
+  if (!route.ok) return route;
+
+  const cast = resolveCast(state, id, {
+    spell: definition.name,
+    level: definition.level,
+    concentration: definition.concentration,
+    castingTime: definition.castingTime,
+    slotLevel: smite.slotLevel,
+    route: route.value.kind === 'granted' ? route.value.grant.source : `class:${route.value.classId}`,
+  });
+  if (!cast.ok) return cast;
+
+  return ok({
+    events: cast.value,
+    damage: {
+      source: definition.name,
+      type: effect.damageType,
+      dice: scaledDiceFor(effect.damage, definition.level, attacker.sheet.level, smite.slotLevel),
+    },
   });
 }
 
@@ -1849,6 +2063,13 @@ export function resolveTurn(
 ): Result<TurnResolution> {
   if (state.combat === null) return err('no_combat', 'no combat is running');
 
+  if (state.pendingAttack !== null) {
+    return err(
+      'attack_pending',
+      `${state.pendingAttack.attacker} has a hit whose damage is still unrolled; settle it before the turn moves on`,
+    );
+  }
+
   const outstanding = pendingSavesOf(state);
   if (outstanding.length > 0) {
     return err(
@@ -2178,6 +2399,15 @@ export function resolveSpell(
     return err(
       'no_definition',
       `${request.spellId} has no executable definition; the engine can look a spell up but only executes the ones it has been taught`,
+    );
+  }
+
+  // SRD Divine Smite is cast "immediately after hitting a target", so the
+  // attack is the thing it needs and this command has none to give it.
+  if (definition.effects.some((effect) => effect.kind === 'attack-damage')) {
+    return err(
+      'cast_on_a_hit',
+      `${definition.name} is cast on an attack that has hit; settle the attack's damage with it instead`,
     );
   }
 
@@ -2834,6 +3064,10 @@ function resolveOnTargets(
         });
         continue;
       }
+
+      // An on-hit spell never reaches here: `resolveSpell` refuses one up
+      // front, because the attack it rides on is not this command's to give.
+      if (effect.kind === 'attack-damage') continue;
 
       // A saving throw, and a condition on a failure.
       const support = savingSupport(current, target, victim, effect.ability, supply);

@@ -49,7 +49,8 @@ still Wizard-shaped are named below.
 | Standing defences | Resistance a feature grants; Elemental Affinity | `e64c5fb` |
 | Activated features | Rage: cost, prerequisite, deadline, extension, two ways out | `574d03b` |
 | Weapon attacks | `resolveAttack` derives AC, cover, reach, range, proficiency | `f1fda6d` |
-| Feature damage | Rage Damage and Radiant Strikes, on the attacks that qualify | _this batch_ |
+| Feature damage | Rage Damage and Radiant Strikes, on the attacks that qualify | `cb5e28e` |
+| Held attacks | A hit whose damage waits; Divine Smite cast into it | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -76,6 +77,13 @@ still Wizard-shaped are named below.
 - **A definition that leaves part of its spell out declares it.**
   `SpellDefinition.unmodelled` comes back in `unverified` on every casting, so
   the gap reaches the narrating layer rather than sitting in a docstring.
+- **An attack can be held between its two rolls.** SRD Divine Smite is cast
+  "immediately after hitting a target", so there has to *be* an after-hitting.
+  `resolveAttack` with `hold` stops after the attack roll and records the hit
+  in `state.pendingAttack`; `resolveAttackDamage` settles it. In state rather
+  than in a return value, which is the whole difference from the pending
+  Concentration save that had to be torn out — the fold rebuilds it, and the
+  turn will not advance while it stands.
 - **A bonus is not extra damage.** SRD Rage Damage is "a bonus to the damage"
   of the weapon's own type, so a target resisting the sword resists it too;
   Radiant Strikes is "an extra 1d8 Radiant damage", which that resistance does
@@ -268,13 +276,6 @@ print two prepared spells and two level 1 slots at level 1 for both.
 
 What remains in the class system, in likely order:
 
-- **Damage chosen after the roll lands.** SRD 2024 Divine Smite is a *spell*
-  cast as "a Bonus Action, which you take immediately after hitting a target",
-  so the decision falls between the attack roll and the damage roll — a moment
-  `resolveAttack` currently passes straight through. It needs a hit that is
-  held open in state and settled by a second command, which is the
-  `pendingSaves` shape rather than the return-value one that had to be torn
-  out.
 - **Sneak Attack**, which wants once-per-turn bookkeeping and a condition the
   engine can now nearly see: Advantage on the roll, or an ally within 5 feet
   of the target.
@@ -317,11 +318,11 @@ Run `pnpm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executed and verified | 43 |
+| Spells executed and verified | 44 |
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 54 of 230 |
-| Tests | 2,349 passing, none skipped |
+| Tests | 2,373 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

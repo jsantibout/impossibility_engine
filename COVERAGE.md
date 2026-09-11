@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 14 (4.1%) | 43 (12.7%) | 43 (12.7%) |
+| 339 | 14 (4.1%) | 44 (13.0%) | 43 (12.7%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -46,7 +46,7 @@ spell, and the area is the part that is missing.
 | Restores Hit Points | 4 | 0 | 2 | — |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 0 | — |
-| Narrative or exploration effect | 91 | 13 | 1 | nothing — the effect is the DM’s, and the cost is tracked |
+| Narrative or exploration effect | 91 | 13 | 2 | nothing — the effect is the DM’s, and the cost is tracked |
 
 ### Executed today
 
@@ -65,6 +65,7 @@ spell, and the area is the part that is missing.
 - **Cone of Cold** (level 5) — verified
 - **Cure Wounds** (level 1) — verified
 - **Dissonant Whispers** (level 1) — verified
+- **Divine Smite** (level 1) — untested
 - **Eldritch Blast** (cantrip) — verified
 - **False Life** (level 1) — verified
 - **Fear** (level 3) — verified
