@@ -25,11 +25,46 @@ import { vitals, type Vitals } from './vitals.js';
  */
 
 export interface MonsterDefenses {
-  /** Per damage type, for `applyDamage`. */
+  /** Per damage type, for `applyDamage`. Unconditional entries only. */
   readonly byDamageType: Readonly<Record<string, DamageDefenses>>;
-  /** Conditions the creature cannot be given at all. */
+  /** Conditions the creature cannot be given at all. Unconditional only. */
   readonly conditionImmunities: readonly ConditionName[];
+  /**
+   * Defences the stat block qualifies, which the engine will not apply on its
+   * own. "Charmed (except from its vampire master)" is a real restriction that
+   * no boolean captures, and treating it as unconditional immunity is simply
+   * wrong — it makes the vampire's own hold on its spawn impossible.
+   */
+  readonly qualified: readonly QualifiedDefense[];
 }
+
+export interface QualifiedDefense {
+  readonly kind: 'immunity' | 'resistance' | 'vulnerability';
+  /** Whichever of the two this entry names. */
+  readonly condition: ConditionName | null;
+  readonly damageType: string | null;
+  /** The qualification itself: "except from its vampire master". */
+  readonly qualification: string;
+  /** The entry exactly as printed, for narration. */
+  readonly printed: string;
+}
+
+/**
+ * Whether a condition can be applied, and if not, why not.
+ *
+ * Three outcomes rather than a boolean, because they mean different things to
+ * the layer above: proceed, refuse outright, or ask the DM. Collapsing the
+ * third into either of the others is how a qualified immunity turns into an
+ * unconditional one.
+ */
+export type ConditionApplicability =
+  | { readonly kind: 'allowed' }
+  | { readonly kind: 'immune'; readonly reason: string }
+  | {
+      readonly kind: 'needs-adjudication';
+      readonly qualification: string;
+      readonly printed: string;
+    };
 
 export interface AdaptedMonster {
   readonly id: CharacterId;
@@ -58,6 +93,7 @@ const SKILL_SET = new Set<string>(SKILLS);
 interface Classified {
   readonly damage: DamageType[];
   readonly conditions: ConditionName[];
+  readonly qualified: Omit<QualifiedDefense, 'kind'>[];
   readonly caveats: string[];
 }
 
@@ -73,24 +109,40 @@ interface Classified {
 function classify(entries: readonly string[]): Classified {
   const damage: DamageType[] = [];
   const conditions: ConditionName[] = [];
+  const qualified: Omit<QualifiedDefense, 'kind'>[] = [];
   const caveats: string[] = [];
 
   for (const entry of entries) {
-    const qualifier = /\(([^)]*)\)/.exec(entry);
-    if (qualifier) caveats.push(entry.trim());
+    const printed = entry.trim();
+    const qualifier = /\(([^)]*)\)/.exec(printed);
 
-    const bare = entry
+    const bare = printed
       .replace(/\([^)]*\)/g, '')
       .replace(/[_*]/g, '')
       .trim()
       .toLowerCase();
 
-    if (DAMAGE_SET.has(bare)) damage.push(bare as DamageType);
-    else if (CONDITION_SET.has(bare)) conditions.push(bare as ConditionName);
-    else if (bare !== '') caveats.push(entry.trim());
+    const asDamage = DAMAGE_SET.has(bare) ? (bare as DamageType) : null;
+    const asCondition = CONDITION_SET.has(bare) ? (bare as ConditionName) : null;
+
+    // A qualified entry is recognised but *not* applied: the qualification is
+    // a rule the engine cannot evaluate, so it goes to whoever can.
+    if (qualifier !== null && (asDamage !== null || asCondition !== null)) {
+      qualified.push({
+        condition: asCondition,
+        damageType: asDamage,
+        qualification: qualifier[1]!.replace(/[_*]/g, '').trim(),
+        printed,
+      });
+      continue;
+    }
+
+    if (asDamage !== null) damage.push(asDamage);
+    else if (asCondition !== null) conditions.push(asCondition);
+    else if (bare !== '') caveats.push(printed);
   }
 
-  return { damage, conditions, caveats };
+  return { damage, conditions, qualified, caveats };
 }
 
 function buildDefenses(monster: Monster): { defenses: MonsterDefenses; caveats: string[] } {
@@ -107,8 +159,14 @@ function buildDefenses(monster: Monster): { defenses: MonsterDefenses; caveats: 
   for (const type of resistant.damage) set(type, { resistant: true });
   for (const type of vulnerable.damage) set(type, { vulnerable: true });
 
+  const qualified: QualifiedDefense[] = [
+    ...immune.qualified.map((q) => ({ ...q, kind: 'immunity' as const })),
+    ...resistant.qualified.map((q) => ({ ...q, kind: 'resistance' as const })),
+    ...vulnerable.qualified.map((q) => ({ ...q, kind: 'vulnerability' as const })),
+  ];
+
   return {
-    defenses: { byDamageType, conditionImmunities: immune.conditions },
+    defenses: { byDamageType, conditionImmunities: immune.conditions, qualified },
     caveats: [...immune.caveats, ...resistant.caveats, ...vulnerable.caveats],
   };
 }
@@ -178,10 +236,46 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
   };
 }
 
-/** Whether a condition can be applied, given the stat block's immunities. */
+/**
+ * Whether a condition can be applied, given the stat block's immunities.
+ *
+ * A qualified immunity returns `needs-adjudication` rather than resolving
+ * either way, because the qualification is a rule the engine cannot evaluate.
+ * Silently treating it as unconditional makes a vampire unable to charm its
+ * own spawn; silently ignoring it makes the immunity meaningless.
+ */
+export function conditionApplicability(
+  adapted: AdaptedMonster,
+  condition: ConditionName,
+): ConditionApplicability {
+  if (adapted.defenses.conditionImmunities.includes(condition)) {
+    return { kind: 'immune', reason: `${adapted.name} is immune to the ${condition} condition` };
+  }
+
+  const qualified = adapted.defenses.qualified.find(
+    (q) => q.kind === 'immunity' && q.condition === condition,
+  );
+  if (qualified !== undefined) {
+    return {
+      kind: 'needs-adjudication',
+      qualification: qualified.qualification,
+      printed: qualified.printed,
+    };
+  }
+
+  return { kind: 'allowed' };
+}
+
+/**
+ * The blunt form, for callers that only need yes or no.
+ *
+ * A qualified immunity counts as *allowed* here, because the default when
+ * nobody has adjudicated is that the condition lands — the qualification is a
+ * narrower exception, not a broader one.
+ */
 export function monsterCanReceive(
   adapted: AdaptedMonster,
   condition: ConditionName,
 ): boolean {
-  return !adapted.defenses.conditionImmunities.includes(condition);
+  return conditionApplicability(adapted, condition).kind !== 'immune';
 }

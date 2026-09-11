@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap } from '@ie/shared';
 import { parseMonsters, type Monster } from '@ie/srd';
-import { adaptMonster, monsterCanReceive } from './monster.js';
+import { adaptMonster, conditionApplicability, monsterCanReceive } from './monster.js';
 import { passiveInitiative, rollInitiative } from './combat.js';
 import {
   armorClass,
@@ -145,18 +145,62 @@ describe('defences', () => {
   });
 
   /**
-   * "Charmed (except from its vampire master)" is a real restriction that no
-   * boolean captures. The immunity still registers, and the caveat is kept
-   * verbatim so narration and the DM still have it.
+   * A qualified immunity is not an unconditional one. Applying "Charmed
+   * (except from its vampire master)" as flat immunity makes the vampire
+   * unable to charm its own spawn — the one creature the entry exists to let
+   * it charm. The engine cannot evaluate the qualification, so it does not
+   * pretend to: it hands back a structured need for adjudication.
    */
-  it('keeps a qualified immunity, and its qualification', () => {
+  it('does not turn a qualified immunity into an unconditional one', () => {
     const qualified: Monster = {
       ...monster('zombie'),
       immunities: ['Charmed (except from its vampire master)'],
     };
     const adapted = adaptMonster(qualified, asCharacterId('spawn'));
-    expect(adapted.defenses.conditionImmunities).toContain('charmed');
-    expect(adapted.caveats.some((c) => c.includes('vampire master'))).toBe(true);
+    expect(adapted.defenses.conditionImmunities).not.toContain('charmed');
+  });
+
+  it('surfaces the qualification for the DM to rule on', () => {
+    const qualified: Monster = {
+      ...monster('zombie'),
+      immunities: ['Charmed (except from its vampire master)'],
+    };
+    const adapted = adaptMonster(qualified, asCharacterId('spawn'));
+
+    const verdict = conditionApplicability(adapted, 'charmed');
+    expect(verdict.kind).toBe('needs-adjudication');
+    if (verdict.kind !== 'needs-adjudication') throw new Error('unreachable');
+    expect(verdict.qualification).toBe('except from its vampire master');
+    expect(verdict.printed).toContain('Charmed');
+  });
+
+  it('still reports an unqualified immunity as immune', () => {
+    const verdict = conditionApplicability(adapt('zombie'), 'poisoned');
+    expect(verdict.kind).toBe('immune');
+  });
+
+  it('reports an unrelated condition as allowed', () => {
+    expect(conditionApplicability(adapt('zombie'), 'prone').kind).toBe('allowed');
+  });
+
+  it('keeps a qualified damage defence off the automatic table too', () => {
+    const qualified: Monster = {
+      ...monster('zombie'),
+      resistances: ['Fire (while submerged)'],
+    };
+    const adapted = adaptMonster(qualified, asCharacterId('odd'));
+    expect(adapted.defenses.byDamageType.fire).toBeUndefined();
+    expect(adapted.defenses.qualified).toContainEqual(
+      expect.objectContaining({ kind: 'resistance', damageType: 'fire' }),
+    );
+  });
+
+  it('finds the real qualified entries in the bestiary', () => {
+    // The Archmage prints "Charmed (with Mind Blank)", which is conditional on
+    // a spell being active.
+    const archmage = adapt('archmage');
+    expect(archmage.defenses.qualified.length).toBeGreaterThan(0);
+    expect(archmage.defenses.conditionImmunities).not.toContain('charmed');
   });
 
   it('keeps an entry it recognises as neither, rather than silently dropping it', () => {

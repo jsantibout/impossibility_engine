@@ -505,9 +505,18 @@ untouched: with no `stated`, every derivation behaves exactly as before.
 immunities read "Poison, Exhaustion, Poisoned" — one damage type and two
 conditions, which the engine treats completely differently. `adaptMonster`
 splits them, and anything it recognises as neither is kept as a caveat rather
-than silently dropped. Parenthesised restrictions ("Charmed (except from its
-vampire master)") register the immunity *and* keep the qualification, because
-no boolean captures it and the DM still needs it.
+than silently dropped.
+
+**A qualified defence is not an unconditional one.** "Charmed (except from its
+vampire master)" applied as flat immunity makes the vampire unable to charm the
+one creature the entry exists to let it charm. The engine cannot evaluate a
+qualification, so it does not pretend to: qualified entries stay *out* of the
+automatic tables and `conditionApplicability` returns one of three answers —
+`allowed`, `immune`, or `needs-adjudication` with the qualification attached.
+
+Three outcomes rather than a boolean, because they mean different things
+upstream: proceed, refuse, or ask. Collapsing the third into either of the
+others is exactly how a conditional immunity becomes an absolute one.
 
 ## Conditions Remember Why
 

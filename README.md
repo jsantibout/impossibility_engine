@@ -14,8 +14,33 @@ Because the rules are safe, the DM's voice is free to have some bite.
 
 ## Status
 
-Early. `packages/engine/src/dice.ts` (seeded, replayable dice) is the first
-piece. See `CLAUDE.md` for architecture and conventions.
+Early, and honest about it: this is a **rules engine**, not yet a game.
+
+**What runs today** — all of it pure, deterministic and tested:
+
+| | |
+|---|---|
+| Dice | Seeded and replayable, with per-die effects (Great Weapon Fighting, Sorcerous Burst, rerolls) |
+| Rolls | Provenance on every roll: engine, physical dice, or a DM's override |
+| Characters | Derived AC, saves, skills, proficiency, spell save DC |
+| D20 Tests | Checks, saves, attacks, with named bonuses and attributed advantage |
+| Interventions | Bardic Inspiration, Cutting Words, Indomitable — effects used *after* a roll |
+| Damage | Typed components, resistance per type, criticals, Cutting Words reductions |
+| Conditions | All fifteen, source-aware, feeding back into every roll |
+| Vitals | Hit points, temporary HP, death saves, stabilisation, death |
+| Combat | Initiative, turn economy, reactions, the action budget |
+| Positioning | A 5-foot cube lattice, Chebyshev distance, all six area shapes, cover, mounting |
+| Monsters | 235 stat blocks adapted into fightable creatures |
+| Event log | `GameState` as a fold; replay is a pure function of the record |
+
+**Parsed from the SRD** — 339 spells, 330 creatures, 38 weapons, 13 armour.
+Parsing a spell's text is not the same as *executing* it: the engine can look a
+spell up, but casting is not implemented.
+
+**Not built yet**: spell slots and concentration, rests, level progression,
+class features, the character creator, the tool surface Claude would call, the
+DM orchestration, persistence, and the web app. There is no frontend and no
+database.
 
 ## Getting started
 
@@ -25,6 +50,31 @@ pnpm test
 ```
 
 Requires Node 22+. Postgres is not needed until persistence lands.
+
+Other commands:
+
+```bash
+pnpm run typecheck      # tsc for sources and tests
+pnpm run lint           # ESLint 9
+pnpm run srd:ingest     # re-parse the vendored SRD and write JSON
+```
+
+`srd:ingest` asserts counts rather than only the absence of errors — a parser
+that silently skips everything reports no problems at all.
+
+## Architecture
+
+See [CLAUDE.md](./CLAUDE.md) for the design decisions and the rules that are
+easy to get wrong. In short:
+
+```
+@ie/shared   ids, D&D vocabulary, the Result type
+@ie/srd      SRD 5.2.1 parsed into typed, validated data
+@ie/engine   the rules — pure functions plus a reducer over GameEvent
+```
+
+Nothing below the (not yet built) tool boundary knows an LLM exists, which is
+what lets the same engine serve a human DM as readily as an AI one.
 
 ## Licence and attribution
 
