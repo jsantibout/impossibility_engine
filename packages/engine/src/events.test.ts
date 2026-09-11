@@ -71,7 +71,7 @@ describe('replay is deterministic', () => {
       { id: id('goblin'), initiative: 9, speed: 30 },
     ] },
     { type: 'damage-taken', id: id('goblin'), amount: 4, source: 'Longsword' },
-    { type: 'condition-applied', id: id('goblin'), condition: 'frightened' },
+    { type: 'condition-applied', id: id('goblin'), condition: 'frightened', source: 'a spell' },
     { type: 'turn-advanced' },
   ];
 
@@ -177,7 +177,7 @@ describe('vitals through the log', () => {
 
 describe('conditions through the log', () => {
   it('applies a condition and its implications', () => {
-    const state = fold('seed', [...party(), { type: 'condition-applied', id: id('goblin'), condition: 'unconscious' }]);
+    const state = fold('seed', [...party(), { type: 'condition-applied', id: id('goblin'), condition: 'unconscious', source: 'a spell' }]);
     const conditions = state.creatures.goblin?.conditions.conditions ?? [];
     expect(conditions).toContain('unconscious');
     expect(conditions).toContain('incapacitated');
@@ -191,8 +191,8 @@ describe('conditions through the log', () => {
   it('drops what a condition implied, except Prone', () => {
     const state = fold('seed', [
       ...party(),
-      { type: 'condition-applied', id: id('goblin'), condition: 'unconscious' },
-      { type: 'condition-removed', id: id('goblin'), condition: 'unconscious' },
+      { type: 'condition-applied', id: id('goblin'), condition: 'unconscious', source: 'a spell' },
+      { type: 'condition-removed', id: id('goblin'), condition: 'unconscious', source: 'a spell' },
     ]);
     const conditions = state.creatures.goblin?.conditions.conditions ?? [];
     expect(conditions).not.toContain('unconscious');
@@ -210,13 +210,13 @@ describe('conditions through the log', () => {
   it('stores conditions in a stable order', () => {
     const forwards = fold('seed', [
       add('a', 10),
-      { type: 'condition-applied', id: id('a'), condition: 'blinded' },
-      { type: 'condition-applied', id: id('a'), condition: 'poisoned' },
+      { type: 'condition-applied', id: id('a'), condition: 'blinded', source: 'a spell' },
+      { type: 'condition-applied', id: id('a'), condition: 'poisoned', source: 'a spell' },
     ]);
     const backwards = fold('seed', [
       add('a', 10),
-      { type: 'condition-applied', id: id('a'), condition: 'poisoned' },
-      { type: 'condition-applied', id: id('a'), condition: 'blinded' },
+      { type: 'condition-applied', id: id('a'), condition: 'poisoned', source: 'a spell' },
+      { type: 'condition-applied', id: id('a'), condition: 'blinded', source: 'a spell' },
     ]);
     expect(forwards.creatures.a?.conditions).toEqual(backwards.creatures.a?.conditions);
   });

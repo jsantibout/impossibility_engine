@@ -70,20 +70,143 @@ export function expandConditions(conditions: readonly ConditionName[]): Conditio
   return [...present].sort();
 }
 
+/**
+ * One reason a creature has a condition.
+ *
+ * Conditions were a flat list of names, which loses *why* — and the why is
+ * load-bearing. A creature held by one effect and knocked unconscious by
+ * another has two independent reasons to be Incapacitated; removing the second
+ * must not lift the first. Flattening them made the two indistinguishable.
+ */
+export interface ConditionInstance {
+  /** Stable and deterministic, so it survives the event log and a replay. */
+  readonly id: string;
+  readonly condition: ConditionName;
+  /** What caused it: a spell, a feature, dropping to 0 hit points. */
+  readonly source: string;
+  /** The instance that carried this one, for conditions another implies. */
+  readonly impliedBy: string | null;
+}
+
 export interface ConditionState {
+  readonly instances: readonly ConditionInstance[];
+  /** Distinct condition names present, derived and sorted. */
   readonly conditions: readonly ConditionName[];
   /** 0 to 6. Exhaustion is a level, not a flag. */
   readonly exhaustion: number;
 }
 
+/** Deterministic identity: the same condition from the same source is one instance. */
+export const conditionInstanceId = (condition: ConditionName, source: string): string =>
+  `${condition}:${source}`;
+
+const derive = (
+  instances: readonly ConditionInstance[],
+  exhaustion: number,
+): ConditionState => ({
+  // Sorted by id so state serialises identically however it was reached.
+  instances: [...instances].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+  conditions: [...new Set(instances.map((i) => i.condition))].sort(),
+  exhaustion: Math.max(0, Math.trunc(exhaustion)),
+});
+
+/** The default source for a condition whose cause nobody recorded. */
+const UNATTRIBUTED = 'unattributed';
+
 export function conditionState(
   conditions: readonly ConditionName[] = [],
   exhaustion = 0,
 ): ConditionState {
-  return {
-    conditions: expandConditions(conditions),
-    exhaustion: Math.max(0, Math.trunc(exhaustion)),
-  };
+  let state = derive([], exhaustion);
+  for (const condition of conditions) {
+    state = applyCondition(state, condition, UNATTRIBUTED);
+  }
+  return { ...state, exhaustion: Math.max(0, Math.trunc(exhaustion)) };
+}
+
+/**
+ * Give a creature a condition, along with anything that condition carries.
+ *
+ * Implied instances record which instance carried them, so removing the cause
+ * removes exactly what it brought and nothing else.
+ */
+export function applyCondition(
+  state: ConditionState,
+  condition: ConditionName,
+  source: string,
+): ConditionState {
+  const id = conditionInstanceId(condition, source);
+  if (state.instances.some((i) => i.id === id)) return state;
+
+  const added: ConditionInstance[] = [{ id, condition, source, impliedBy: null }];
+
+  for (const implied of expandConditions([condition]).filter((c) => c !== condition)) {
+    const impliedId = conditionInstanceId(implied, source);
+    if (state.instances.some((i) => i.id === impliedId)) continue;
+    if (added.some((i) => i.id === impliedId)) continue;
+    added.push({ id: impliedId, condition: implied, source, impliedBy: id });
+  }
+
+  return derive([...state.instances, ...added], state.exhaustion);
+}
+
+/**
+ * Conditions that outlast the effect that brought them.
+ *
+ * SRD Unconscious: "When this condition ends, you remain Prone." Everything
+ * else an ending condition carried goes with it.
+ */
+const PERSISTS_AFTER_CAUSE: ReadonlySet<ConditionName> = new Set(['prone']);
+
+/**
+ * Remove one instance — one *reason* — and whatever it carried.
+ *
+ * Other sources of the same condition are untouched, which is the whole point:
+ * a creature Incapacitated by Hold Person and separately knocked unconscious
+ * stays Incapacitated when the unconsciousness lifts.
+ */
+export function removeConditionInstance(state: ConditionState, id: string): ConditionState {
+  const remaining = state.instances.filter((i) => {
+    if (i.id === id) return false;
+    if (i.impliedBy === id) return PERSISTS_AFTER_CAUSE.has(i.condition);
+    return true;
+  });
+
+  // A condition that outlives its cause is no longer implied by anything.
+  return derive(
+    remaining.map((i) => (i.impliedBy === id ? { ...i, impliedBy: null } : i)),
+    state.exhaustion,
+  );
+}
+
+/**
+ * Remove a condition by name, optionally only from one source.
+ *
+ * Without a source this lifts every instance of that condition, which is what
+ * a blanket "the paralysis ends" means. With one it lifts only that cause.
+ */
+export function removeCondition(
+  state: ConditionState,
+  condition: ConditionName,
+  source?: string,
+): ConditionState {
+  const targets = state.instances.filter(
+    (i) => i.condition === condition && (source === undefined || i.source === source),
+  );
+
+  return targets.reduce((acc, instance) => removeConditionInstance(acc, instance.id), state);
+}
+
+/** Every reason a creature currently has a given condition. */
+export function reasonsFor(
+  state: ConditionState,
+  condition: ConditionName,
+): readonly ConditionInstance[] {
+  return state.instances.filter((i) => i.condition === condition);
+}
+
+export function setExhaustion(state: ConditionState, level: number): ConditionState {
+  return derive(state.instances, level);
 }
 
 export function hasCondition(state: ConditionState, name: ConditionName): boolean {

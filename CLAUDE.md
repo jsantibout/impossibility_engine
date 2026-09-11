@@ -509,6 +509,44 @@ than silently dropped. Parenthesised restrictions ("Charmed (except from its
 vampire master)") register the immunity *and* keep the qualification, because
 no boolean captures it and the DM still needs it.
 
+## Conditions Remember Why
+
+A condition is not a name on a list, it is a set of **reasons**. A creature
+held by Hold Person and separately knocked unconscious has two independent
+causes of Incapacitated; lifting the unconsciousness must not lift the hold. A
+flat list of names could not tell them apart, and did not.
+
+So `ConditionState` holds `ConditionInstance`s — `{ id, condition, source,
+impliedBy }` — with deterministic ids (`condition:source`) so they survive a
+replay. Applying a condition adds what it implies, tagged with the instance
+that carried it, and `removeConditionInstance` drops exactly that cause and its
+children. Prone is the documented exception that outlives its cause: "when this
+condition ends, you remain Prone."
+
+`conditions` stays on the state as a derived, sorted list of distinct names, so
+every existing reader is unchanged.
+
+## Transitions Are Engine-Owned Batches
+
+Some changes are not one event. Dropping to 0 hit points makes a character
+Unconscious; healing from 0 lifts *that* unconsciousness and nothing else;
+Exhaustion 6 kills. Leaving those follow-ups to the caller meant relying on a
+language model to remember bookkeeping the rules already mandate — and damage
+alone left characters at 0 hit points and wide awake.
+
+`commands.ts` produces these as coherent batches: validation lives there, the
+reducer stays pure replay. That split is deliberate — commands answer "may
+this happen and what else follows", the reducer answers "what does the record
+mean".
+
+Healing lifts only the `ZERO_HIT_POINTS` cause, which is the whole reason
+sources exist: a character put to Sleep *and* dropped to 0 wakes from the hit
+points and stays asleep.
+
+Death that is not hit-point loss gets its own event. Damage is the wrong
+instrument — a healthy creature taking exactly its maximum in damage drops to
+0, it does not die.
+
 ## Conditions Close The Loop
 
 `conditions.ts` is the first module that feeds *back* into the rolls rather

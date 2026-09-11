@@ -2,8 +2,10 @@ import type { CharacterId, ConditionName } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import type { RngState } from './dice.js';
 import {
+  applyCondition,
   conditionState,
-  expandConditions,
+  removeCondition,
+  setExhaustion,
   type ConditionState,
 } from './conditions.js';
 import {
@@ -139,13 +141,27 @@ export type GameEvent =
       readonly type: 'condition-applied';
       readonly id: CharacterId;
       readonly condition: ConditionName;
+      /**
+       * What caused it. Two effects can impose the same condition, and lifting
+       * one must not lift the other, so the cause is part of the record.
+       */
+      readonly source: string;
     }
   | {
       readonly type: 'condition-removed';
       readonly id: CharacterId;
       readonly condition: ConditionName;
+      /** Lift only this cause. Omitted, every instance of the condition goes. */
+      readonly source?: string;
     }
   | { readonly type: 'exhaustion-set'; readonly id: CharacterId; readonly level: number }
+  /**
+   * Death that does not come from running out of hit points — Exhaustion
+   * reaching 6, a spell that simply kills. Damage is the wrong instrument for
+   * these: a healthy creature taking exactly its maximum in damage drops to 0,
+   * it does not die.
+   */
+  | { readonly type: 'creature-died'; readonly id: CharacterId; readonly cause: string }
 
   // — combat ——————————————————————————————————————————————————
   | { readonly type: 'combat-started'; readonly combatants: readonly CombatantInput[] }
@@ -335,31 +351,37 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
 
     case 'condition-applied': {
       const creature = creatureOf(state, event, event.id);
-      const conditions = conditionState(
-        [...creature.conditions.conditions, event.condition],
-        creature.conditions.exhaustion,
-      );
+      const conditions = applyCondition(creature.conditions, event.condition, event.source);
       return withCreature(next, event.id, { conditions }, creature);
     }
 
     case 'condition-removed': {
       const creature = creatureOf(state, event, event.id);
-      // Removing a condition drops anything it was carrying — losing
-      // Unconscious lifts the Incapacitated it implied — but Prone persists,
-      // as the rules say it does.
-      const implied = new Set(expandConditions([event.condition]));
-      implied.delete('prone');
-      const conditions = conditionState(
-        creature.conditions.conditions.filter((c) => !implied.has(c)),
-        creature.conditions.exhaustion,
-      );
+      // Lifting a cause drops what that cause carried — losing Unconscious
+      // lifts the Incapacitated it brought — while leaving any other reason
+      // for the same condition standing, and leaving Prone behind.
+      const conditions = removeCondition(creature.conditions, event.condition, event.source);
       return withCreature(next, event.id, { conditions }, creature);
     }
 
     case 'exhaustion-set': {
       const creature = creatureOf(state, event, event.id);
-      const conditions = conditionState(creature.conditions.conditions, event.level);
-      return withCreature(next, event.id, { conditions }, creature);
+      const conditions = setExhaustion(creature.conditions, event.level);
+      // SRD: "You die if your Exhaustion level is 6." That is a rule, not
+      // something a caller opts into, so it happens here.
+      const vitals =
+        conditions.exhaustion >= 6 ? { ...creature.vitals, hp: 0, dead: true } : creature.vitals;
+      return withCreature(next, event.id, { conditions, vitals }, creature);
+    }
+
+    case 'creature-died': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(
+        next,
+        event.id,
+        { vitals: { ...creature.vitals, hp: 0, dead: true } },
+        creature,
+      );
     }
 
     case 'combat-started':
