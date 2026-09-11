@@ -5,6 +5,7 @@ import { isErr, expect as unwrap } from '@ie/shared';
 import { parseEquipment, type Weapon } from '@ie/srd';
 import type { Rng, RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
+import { createRng } from './dice.js';
 import { conditionState } from './conditions.js';
 import { rerollDice, treatLowRollsAs } from './dice.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
@@ -1040,5 +1041,53 @@ describe('reduceDamage — Cutting Words', () => {
     damage = unwrap(reduceDamage(issuer(), scriptedRng([3]), damage, { source: 'b', dice: '1d6' }), 'b');
     expect(damage.reductions).toHaveLength(2);
     expect(damage.total).toBe(13);
+  });
+});
+
+describe('an invalid attack consumes nothing', () => {
+  it('leaves the generator and roll counter untouched on a malformed bonus', () => {
+    const i = createRollIssuer('t');
+    const rng = createRng('seed');
+    const before = rng.snapshot();
+
+    const result = rollAttack(i, rng, sheet(), {
+      weapon: weaponFixture(),
+      targetAc: 10,
+      attackBonuses: [{ source: 'Broken', dice: 'nonsense' }],
+    });
+
+    expect(isErr(result)).toBe(true);
+    expect(i.count).toBe(0);
+    expect(rng.snapshot()).toEqual(before);
+  });
+
+  it('does the same for malformed extra damage', () => {
+    const i = createRollIssuer('t');
+    const rng = createRng('seed');
+    const before = rng.snapshot();
+
+    const result = rollAttackDamage(
+      i,
+      rng,
+      sheet(),
+      {
+        weapon: weaponFixture(),
+        targetAc: 10,
+        extraDamage: [{ source: 'Broken', type: 'fire', dice: 'not-dice' }],
+      },
+      false,
+    );
+
+    expect(isErr(result)).toBe(true);
+    expect(i.count).toBe(0);
+    expect(rng.snapshot()).toEqual(before);
+  });
+
+  it('still consumes a roll for an attack that simply misses', () => {
+    const i = createRollIssuer('t');
+    const rng = createRng('seed');
+    const result = unwrap(rollAttack(i, rng, sheet(), { weapon: weaponFixture(), targetAc: 40 }), 'miss');
+    expect(result.hit).toBe(false);
+    expect(i.count).toBeGreaterThan(0);
   });
 });

@@ -4,6 +4,7 @@ import {
   flatBonusTotal,
   rollBonusDice,
   sumResolved,
+  validateBonusDice,
   type Bonus,
   type ModeSource,
   type ResolvedBonus,
@@ -117,6 +118,11 @@ export function rollD20Test(
   modeSources: readonly ModeSource[],
   bonuses: readonly Bonus[],
 ): Result<D20Roll> {
+  // Nothing is rolled until the whole operation is known to be valid, so a
+  // rejected roll leaves the generator and the roll counter untouched.
+  const valid = validateBonusDice(bonuses);
+  if (!valid.ok) return valid;
+
   const mode = combineRollModes(modeSources);
   const modifier = baseModifier + flatBonusTotal(bonuses);
   const roll = rollD20Recorded(issuer, rng, mode, modifier);

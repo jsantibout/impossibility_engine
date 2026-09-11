@@ -132,6 +132,30 @@ total. Its consequences arrive as their own events.
 Condition sets are sorted on the way in, so a replay compares byte for byte
 regardless of the order effects were applied.
 
+## Validate Before Rolling
+
+Nothing may advance the generator or consume a roll id until the whole
+operation is known to be valid. Rolling first and validating afterwards let a
+malformed bonus return an error *after* it had moved authoritative state — so a
+rejected operation still changed the world, and a replay would diverge from the
+live session that produced it.
+
+`validateBonusDice` parses every notation in play before the first die is
+thrown. The other half of the rule matters too: a legitimately **resolved**
+failure still costs its roll. Only *invalid* operations are free, and there are
+tests for both directions.
+
+Numeric entry points validate their inputs. A non-finite amount silently turned
+hit points into `NaN`, which then compares false against every threshold — a
+creature neither alive nor dead.
+
+**Trust boundary.** These are internal calculation functions; they trust their
+callers' arguments but not their arithmetic. A caller-supplied provenance label
+is *not* proof a roll was issued — only `rolls.ts` stamps `engine`, and
+`recordExternal*` refuses that source. When the Maestro-facing tool surface
+lands (M2) it validates at its own boundary as well, because that boundary is
+the one a model can reach.
+
 ## Determinism
 
 Same seed plus the same event log must fold to a byte-identical `GameState`.
@@ -188,10 +212,20 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **Massive Damage measures the remainder after temporary hit points.** The
   SRD's example: hit point maximum 12, currently 6, takes 18 — drops to 0 with
   12 remaining, which equals the maximum, so the character dies.
-- **Initiative is a Dexterity check**, so everything that touches ability
-  checks touches it — the Alert feat's Proficiency Bonus, the Bard's Jack of
-  All Trades half-bonus, a magic item. It takes the same `Bonus[]` machinery as
-  any other check rather than a narrow signature.
+- **Initiative is an ability check**, so the Alert feat's Proficiency Bonus and
+  a magic item's bonus apply. **Jack of All Trades does not**: 2024 requires
+  "an ability check ... that **uses a skill proficiency you lack**", and
+  Initiative uses no skill at all. Earlier guidance here said otherwise and had
+  a test enshrining it; both were wrong, and 2014 is where the confusion comes
+  from.
+- **A monster's printed Initiative is authoritative** and often differs from
+  its Dexterity — an Adult Red Dragon prints +12 against a +0 modifier. It
+  lives in `stated.initiative`, so no caller constructs a compensating bonus.
+- **Death saves are unmodifiable by ability, not unmodifiable full stop.**
+  Beacon of Hope grants advantage on them explicitly, so `rollDeathSave` takes
+  the same modes and bonuses as any other D20 Test and simply starts from zero.
+  The natural 1 and 20 results read the *die*; an ordinary success reads the
+  *total*.
 - **Surprise is Disadvantage on the Initiative roll**, not a condition. The
   Surprised condition is 2014.
 - **A Reaction refreshes at the start of your next turn**, not at the end of

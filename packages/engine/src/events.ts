@@ -37,6 +37,7 @@ import {
   applyDamageToVitals,
   grantTemporaryHp,
   heal,
+  resolveDeathSave,
   stabilize,
   vitals,
   type Vitals,
@@ -126,7 +127,10 @@ export type GameEvent =
   | {
       readonly type: 'death-save-recorded';
       readonly id: CharacterId;
+      /** The die that counted — it alone decides a natural 1 or 20. */
       readonly natural: number;
+      /** The modified total, when something added to the roll. */
+      readonly total?: number;
     }
   | { readonly type: 'stabilised'; readonly id: CharacterId }
 
@@ -319,7 +323,7 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
       return withCreature(
         next,
         event.id,
-        { vitals: applyDeathSave(creature.vitals, event.natural) },
+        { vitals: resolveDeathSave(creature.vitals, event.natural, event.total ?? event.natural).vitals },
         creature,
       );
     }
@@ -453,36 +457,6 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
     case 'rolls-issued':
       return { ...next, rollsIssued: state.rollsIssued + event.count, rng: event.rng };
   }
-}
-
-/**
- * Apply a recorded death saving throw.
- *
- * The die has already been rolled; this is the bookkeeping that followed, kept
- * here rather than in `vitals.ts` because `rollDeathSave` owns the rolling and
- * this owns replaying it.
- */
-function applyDeathSave(current: Vitals, natural: number): Vitals {
-  // SRD: a natural 20 restores 1 hit point outright.
-  if (natural === 20) {
-    return { ...current, hp: 1, deathSaveSuccesses: 0, deathSaveFailures: 0, stable: false };
-  }
-
-  // SRD: a natural 1 costs two failures.
-  if (natural === 1) {
-    const failures = current.deathSaveFailures + 2;
-    const dead = failures >= 3;
-    return { ...current, deathSaveFailures: dead ? 0 : failures, dead };
-  }
-
-  if (natural >= 10) {
-    const successes = current.deathSaveSuccesses + 1;
-    return successes >= 3 ? stabilize(current) : { ...current, deathSaveSuccesses: successes };
-  }
-
-  const failures = current.deathSaveFailures + 1;
-  const dead = failures >= 3;
-  return { ...current, deathSaveFailures: dead ? 0 : failures, dead };
 }
 
 /** Fold a whole log into the state it describes. */

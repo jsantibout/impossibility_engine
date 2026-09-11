@@ -13,7 +13,7 @@ import {
 } from './checks.js';
 import { createRollIssuer } from './rolls.js';
 import { conditionState } from './conditions.js';
-import { expect as unwrap } from '@ie/shared';
+import { isErr, expect as unwrap } from '@ie/shared';
 
 /**
  * A generator that returns a scripted sequence, so a test can pin an exact
@@ -774,5 +774,50 @@ describe('rerollTest — Indomitable', () => {
       'again',
     );
     expect(again.success).toBe(false);
+  });
+});
+
+describe('an invalid operation consumes nothing', () => {
+  /**
+   * Rolling first and validating afterwards left a malformed bonus returning an
+   * error *after* it had advanced the generator and consumed a roll id. A
+   * rejected operation must leave authoritative state exactly where it was, or
+   * a replay diverges from the live session that produced it.
+   */
+  it('leaves the generator and the roll counter untouched on a bad notation', () => {
+    const i = issuer();
+    const rng = createRng('seed');
+    const before = rng.snapshot();
+
+    const result = rollAbilityCheck(i, rng, sheet(), 'str', {
+      dc: 10,
+      bonuses: [{ source: 'Broken', dice: 'nonsense' }],
+    });
+
+    expect(isErr(result)).toBe(true);
+    expect(i.count).toBe(0);
+    expect(rng.snapshot()).toEqual(before);
+  });
+
+  it('does the same for a saving throw', () => {
+    const i = issuer();
+    const rng = createRng('seed');
+    const before = rng.snapshot();
+    expect(isErr(rollSavingThrow(i, rng, sheet(), 'wis', { dc: 10, bonuses: [{ source: 'x', dice: '??' }] }))).toBe(true);
+    expect(i.count).toBe(0);
+    expect(rng.snapshot()).toEqual(before);
+  });
+
+  // The other half of the rule: a legitimately resolved failure still costs a
+  // roll. Only invalid operations are free.
+  it('still consumes a roll for a check that simply fails', () => {
+    const i = issuer();
+    const rng = createRng('seed');
+    const before = rng.snapshot();
+
+    const result = unwrap(rollAbilityCheck(i, rng, sheet(), 'str', { dc: 30 }), 'failed');
+    expect(result.success).toBe(false);
+    expect(i.count).toBeGreaterThan(0);
+    expect(rng.snapshot()).not.toEqual(before);
   });
 });

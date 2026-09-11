@@ -7,6 +7,7 @@ import {
   flatBonusTotal,
   rollBonusDice,
   sumResolved,
+  validateBonusDice,
   type Bonus,
   type ModeSource,
   type ResolvedBonus,
@@ -200,6 +201,11 @@ export function rollAttack(
   sheet: CharacterSheet,
   options: AttackOptions,
 ): Result<AttackResult> {
+  // Validate before rolling: a malformed bonus must not leave the generator
+  // advanced and a roll id consumed behind a returned error.
+  const valid = validateBonusDice(options.attackBonuses);
+  if (!valid.ok) return valid;
+
   const ability = attackAbility(sheet, options);
   const mode = combineRollModes([...attackRollModes(sheet, options), ...(options.modes ?? [])]);
 
@@ -296,6 +302,15 @@ export function rollAttackDamage(
   critical: boolean,
 ): Result<AttackDamage> {
   const weapon = options.weapon;
+
+  // Every notation in play — the weapon's, each bonus's, each extra damage —
+  // is checked before a single die is thrown.
+  const valid = validateBonusDice([
+    ...(options.damageBonuses ?? []),
+    ...(options.extraDamage ?? []).map((e) => ({ source: e.source, ...(e.dice === undefined ? {} : { dice: e.dice }) })),
+  ]);
+  if (!valid.ok) return valid;
+
   const effects = options.damageEffects ?? [];
   const modifier = modifierFor(sheet, attackAbility(sheet, options));
   const components: DamageComponent[] = [];

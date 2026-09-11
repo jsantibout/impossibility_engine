@@ -1,5 +1,6 @@
 import { ok, type Result, type RollMode } from '@ie/shared';
 import type { Rng } from './dice.js';
+import { parseNotation } from './dice.js';
 import { rollRecorded, type RecordedRoll, type RollIssuer } from './rolls.js';
 
 /**
@@ -53,6 +54,23 @@ export interface ModeSource {
  */
 export function flatBonusTotal(bonuses: readonly Bonus[] | undefined): number {
   return (bonuses ?? []).reduce((sum, b) => sum + (b.flat ?? 0), 0);
+}
+
+/**
+ * Check every bonus's notation before anything is rolled.
+ *
+ * Rolling first and validating afterwards left a malformed bonus returning an
+ * error *after* it had advanced the generator and consumed a roll id — so a
+ * rejected operation still moved authoritative state, and a replay would
+ * diverge from the live session. Validate the whole operation, then roll.
+ */
+export function validateBonusDice(bonuses: readonly Bonus[] | undefined): Result<true> {
+  for (const bonus of bonuses ?? []) {
+    if (bonus.dice === undefined) continue;
+    const parsed = parseNotation(bonus.dice);
+    if (!parsed.ok) return parsed;
+  }
+  return ok(true);
 }
 
 /** Roll the dice half of any bonuses that have one. */

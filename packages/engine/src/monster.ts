@@ -131,6 +131,8 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
   const stated: StatedValues = {
     armorClass: monster.ac,
     proficiencyBonus: monster.proficiencyBonus,
+    // Printed Initiative is authoritative and often differs from Dexterity.
+    initiative: monster.initiative,
     saves,
     skills,
   };

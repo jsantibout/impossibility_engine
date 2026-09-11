@@ -7,7 +7,7 @@ import {
 } from '@ie/shared';
 import type { Rng } from './dice.js';
 import type { Bonus, ModeSource } from './bonuses.js';
-import { modifierFor, type CharacterSheet } from './character.js';
+import { initiativeModifier, type CharacterSheet } from './character.js';
 import { rollD20Test, type D20Roll } from './checks.js';
 import {
   conditionSpeed,
@@ -31,10 +31,11 @@ import type { RollIssuer } from './rolls.js';
 export interface InitiativeOptions {
   readonly modes?: readonly (RollMode | ModeSource)[];
   /**
-   * Named modifiers. Initiative is a plain Dexterity check, so anything that
-   * touches ability checks touches it: the Alert feat adds your Proficiency
-   * Bonus, the Bard's Jack of All Trades adds half of it, a magic item adds
-   * its own.
+   * Named modifiers. Initiative is an ability check, so the Alert feat's
+   * Proficiency Bonus and a magic item's bonus both apply here.
+   *
+   * Jack of All Trades does *not*: it needs "an ability check ... that uses a
+   * skill proficiency you lack", and Initiative uses no skill at all.
    */
   readonly bonuses?: readonly Bonus[];
   readonly conditions?: ConditionState;
@@ -75,7 +76,7 @@ export function rollInitiative(
   const exhaustion = conditions === undefined ? null : exhaustionBonus(conditions);
   const bonuses = [...(options.bonuses ?? []), ...(exhaustion === null ? [] : [exhaustion])];
 
-  const rolled = rollD20Test(issuer, rng, modifierFor(sheet, 'dex'), modeSources, bonuses);
+  const rolled = rollD20Test(issuer, rng, initiativeModifier(sheet), modeSources, bonuses);
   if (!rolled.ok) return rolled;
 
   return ok({ ...rolled.value, id });
@@ -90,7 +91,7 @@ export function rollInitiative(
  */
 export function passiveInitiative(sheet: CharacterSheet, mode: RollMode = 'normal'): number {
   const shift = mode === 'advantage' ? 5 : mode === 'disadvantage' ? -5 : 0;
-  return 10 + modifierFor(sheet, 'dex') + shift;
+  return 10 + initiativeModifier(sheet) + shift;
 }
 
 export interface Combatant {

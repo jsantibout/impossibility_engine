@@ -34,6 +34,12 @@ export interface ArmorTraining {
 export interface StatedValues {
   readonly armorClass?: number;
   readonly proficiencyBonus?: number;
+  /**
+   * The Initiative modifier a stat block prints, which need not equal the
+   * Dexterity modifier: an Adult Red Dragon has +0 Dexterity and Initiative
+   * +12. Callers should never have to construct a compensating bonus.
+   */
+  readonly initiative?: number;
   readonly saves?: Partial<Record<Ability, number>>;
   readonly skills?: Partial<Record<Skill, number>>;
 }
@@ -77,9 +83,13 @@ export function proficiencyBonus(sheet: CharacterSheet): number {
  * Half the Proficiency Bonus, rounded down.
  *
  * The Bard's Jack of All Trades adds this "to any ability check you make that
- * uses a skill proficiency you lack and that doesn't otherwise use your
- * Proficiency Bonus" — Initiative among them, since it is a bare Dexterity
- * check. The rounding is the part worth having a primitive for.
+ * **uses a skill proficiency you lack** and that doesn't otherwise use your
+ * Proficiency Bonus".
+ *
+ * Note what that excludes. Initiative is a *bare* Dexterity check — it uses no
+ * skill at all — so Jack of All Trades does **not** apply to it, despite the
+ * 2014 version having done so. Earlier guidance here said otherwise and had a
+ * test enshrining it; both were wrong. The rounding is still worth a primitive.
  */
 export function halfProficiencyBonus(sheet: CharacterSheet): number {
   return Math.floor(proficiencyBonus(sheet) / 2);
@@ -194,6 +204,14 @@ export function spellAttackModifier(sheet: CharacterSheet): number | null {
   return proficiencyBonus(sheet) + modifierFor(sheet, ability);
 }
 
+/**
+ * What a creature adds to its Initiative roll.
+ *
+ * A character derives it from Dexterity. A stat block prints it, and the two
+ * need not agree — an Adult Red Dragon has a +0 Dexterity modifier and prints
+ * Initiative +12. Reading Dexterity for a monster silently dropped twelve
+ * points off every legendary creature's place in the order.
+ */
 export function initiativeModifier(sheet: CharacterSheet): number {
-  return modifierFor(sheet, 'dex');
+  return sheet.stated?.initiative ?? modifierFor(sheet, 'dex');
 }

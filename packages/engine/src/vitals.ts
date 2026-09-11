@@ -1,6 +1,8 @@
-import { err, ok, type Result } from '@ie/shared';
+import { err, ok, type Result, type RollMode } from '@ie/shared';
 import type { Rng } from './dice.js';
-import { rollD20Recorded, type RecordedD20, type RollIssuer } from './rolls.js';
+import type { Bonus, ModeSource } from './bonuses.js';
+import { rollD20Test } from './checks.js';
+import { type RecordedD20, type RollIssuer } from './rolls.js';
 
 /**
  * Hit points, temporary hit points, death saving throws, and the arithmetic of
@@ -28,6 +30,9 @@ export interface Vitals {
 }
 
 export function vitals(hpMax: number, over: Partial<Vitals> = {}): Vitals {
+  if (!Number.isFinite(hpMax) || hpMax < 1) {
+    throw new Error(`a hit point maximum must be a finite number of at least 1, got ${hpMax}`);
+  }
   return {
     hp: hpMax,
     hpMax,
@@ -191,6 +196,12 @@ export function applyDamageToVitals(
  * Healing cannot revive the dead — that needs magic beyond hit points.
  */
 export function heal(v: Vitals, amount: number): Vitals {
+  // A non-finite amount is programmer error, and silently propagating it turns
+  // hit points into NaN — which then compares false against every threshold,
+  // so a creature is neither alive nor dead.
+  if (!Number.isFinite(amount)) {
+    throw new Error(`healing must be a finite number, got ${amount}`);
+  }
   if (v.dead || amount <= 0) return v;
 
   return {
@@ -208,6 +219,9 @@ export function heal(v: Vitals, amount: number): Vitals {
  * a caller wanting otherwise can set the field directly.
  */
 export function grantTemporaryHp(v: Vitals, amount: number): Vitals {
+  if (!Number.isFinite(amount)) {
+    throw new Error(`temporary hit points must be a finite number, got ${amount}`);
+  }
   return { ...v, temporaryHp: Math.max(v.temporaryHp, Math.max(0, amount)) };
 }
 
@@ -225,16 +239,87 @@ export interface DeathSaveOutcome {
 }
 
 /**
+ * The outcome rules for a death saving throw, given what was rolled.
+ *
+ * Separated from the rolling so that live resolution and replay share one
+ * implementation. Keeping a second copy in the reducer meant two places could
+ * disagree about what a natural 1 costs.
+ *
+ * `natural` and `total` are both needed: the natural die decides the two
+ * special results, while the total decides an ordinary success. A Beacon of
+ * Hope advantage changes which die is natural; a bonus changes only the total.
+ */
+export function resolveDeathSave(
+  v: Vitals,
+  natural: number,
+  total: number = natural,
+): { vitals: Vitals; success: boolean; revived: boolean } {
+  // SRD: "If you roll a 20 on the d20, you regain 1 Hit Point."
+  if (natural === 20) {
+    return {
+      vitals: { ...v, hp: 1, deathSaveSuccesses: 0, deathSaveFailures: 0, stable: false },
+      success: true,
+      revived: true,
+    };
+  }
+
+  // SRD: "When you roll a 1 on the d20 ... you suffer two failures."
+  if (natural === 1) {
+    const failures = v.deathSaveFailures + 2;
+    const dead = failures >= 3;
+    return {
+      vitals: { ...v, deathSaveFailures: dead ? 0 : failures, dead },
+      success: false,
+      revived: false,
+    };
+  }
+
+  // SRD: "Roll 1d20. If the roll is 10 or higher, you succeed." Anything that
+  // modifies the roll moves the total, so the comparison is against that.
+  if (total >= 10) {
+    const successes = v.deathSaveSuccesses + 1;
+    // SRD: "On your third success, you become Stable."
+    return {
+      vitals: successes >= 3 ? stabilize(v) : { ...v, deathSaveSuccesses: successes },
+      success: true,
+      revived: false,
+    };
+  }
+
+  const failures = v.deathSaveFailures + 1;
+  const dead = failures >= 3;
+  return {
+    vitals: { ...v, deathSaveFailures: dead ? 0 : failures, dead },
+    success: false,
+    revived: false,
+  };
+}
+
+export interface DeathSaveOptions {
+  /**
+   * Advantage or disadvantage. Beacon of Hope grants advantage on death saves
+   * explicitly, so this is not a hypothetical.
+   */
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  /** Named bonuses or penalties that apply to the save. */
+  readonly bonuses?: readonly Bonus[];
+}
+
+/**
  * SRD: "Whenever you start your turn with 0 Hit Points, you must make a Death
  * Saving Throw... Unlike other saving throws, this one isn't tied to an ability
  * score."
  *
- * So no ability modifier and no proficiency — the die stands alone.
+ * No ability modifier and no proficiency — but "not tied to an ability score"
+ * is not the same as "unmodifiable". Effects can grant advantage or add to the
+ * roll, so this takes the same modes and bonuses as any other D20 Test and
+ * simply starts from zero.
  */
 export function rollDeathSave(
   issuer: RollIssuer,
   rng: Rng,
   v: Vitals,
+  options: DeathSaveOptions = {},
 ): Result<DeathSaveOutcome> {
   if (v.dead) return err('already_dead', 'a dead creature makes no death saving throws');
   if (!isDown(v)) {
@@ -242,51 +327,16 @@ export function rollDeathSave(
   }
   if (v.stable) return err('stable', 'a Stable creature makes no death saving throws');
 
-  const roll = rollD20Recorded(issuer, rng, 'normal', 0);
+  const modeSources: ModeSource[] = (options.modes ?? []).map((m) =>
+    typeof m === 'string' ? { source: 'situational', mode: m } : m,
+  );
 
-  // SRD: "If you roll a 20 on the d20, you regain 1 Hit Point."
-  if (roll.natural === 20) {
-    return ok({
-      vitals: { ...v, hp: 1, deathSaveSuccesses: 0, deathSaveFailures: 0, stable: false },
-      roll,
-      success: true,
-      revived: true,
-    });
-  }
+  const rolled = rollD20Test(issuer, rng, 0, modeSources, options.bonuses ?? []);
+  if (!rolled.ok) return rolled;
 
-  // SRD: "When you roll a 1 on the d20 ... you suffer two failures."
-  if (roll.natural === 1) {
-    const failures = v.deathSaveFailures + 2;
-    const dead = failures >= 3;
-    return ok({
-      vitals: { ...v, deathSaveFailures: dead ? 0 : failures, dead },
-      roll,
-      success: false,
-      revived: false,
-    });
-  }
+  const outcome = resolveDeathSave(v, rolled.value.roll.natural, rolled.value.total);
 
-  const success = roll.total >= 10;
-
-  if (success) {
-    const successes = v.deathSaveSuccesses + 1;
-    // SRD: "On your third success, you become Stable."
-    return ok({
-      vitals: successes >= 3 ? stabilize(v) : { ...v, deathSaveSuccesses: successes },
-      roll,
-      success: true,
-      revived: false,
-    });
-  }
-
-  const failures = v.deathSaveFailures + 1;
-  const dead = failures >= 3;
-  return ok({
-    vitals: { ...v, deathSaveFailures: dead ? 0 : failures, dead },
-    roll,
-    success: false,
-    revived: false,
-  });
+  return ok({ ...outcome, roll: rolled.value.roll });
 }
 
 /**

@@ -4,6 +4,7 @@ import type { Rng, RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { conditionState } from './conditions.js';
 import { halfProficiencyBonus, proficiencyBonus } from './character.js';
+import { rollAbilityCheck } from './checks.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
   advanceTurn,
@@ -99,18 +100,35 @@ describe('rollInitiative', () => {
     expect(result.total).toBe(10 + 2 + 4);
   });
 
-  // SRD Jack of All Trades (Bard): half Proficiency Bonus, rounded down, on a
-  // check that does not otherwise use it — Initiative qualifies.
-  it('accepts Jack of All Trades, rounded down', () => {
+  /**
+   * SRD Jack of All Trades: "add half your Proficiency Bonus (round down) to
+   * any ability check you make that **uses a skill proficiency you lack** and
+   * that doesn't otherwise use your Proficiency Bonus."
+   *
+   * Initiative is a *bare* Dexterity check — it uses no skill — so the feature
+   * does not apply. Earlier guidance here claimed it did, and this test
+   * asserted the claim; both were wrong, and the 2014 version is where the
+   * confusion comes from.
+   */
+  it('does not receive Jack of All Trades, which needs a skill', () => {
     const s = sheet({ level: 5, abilities: scores({ dex: 12 }) });
+    const plain = unwrap(rollInitiative(issuer(), scriptedRng([10]), id('a'), s, {}), 'plain');
+    expect(plain.total).toBe(11);
+    // The primitive still exists for the checks the feature does cover.
     expect(halfProficiencyBonus(s)).toBe(1);
+  });
+
+  it('does receive Jack of All Trades on a skill check the character lacks', () => {
+    const s = sheet({ level: 5, abilities: scores({ str: 10 }) });
     const result = unwrap(
-      rollInitiative(issuer(), scriptedRng([10]), id('a'), s, {
+      rollAbilityCheck(issuer(), scriptedRng([10]), s, 'str', {
+        dc: 10,
+        skill: 'athletics',
         bonuses: [{ source: 'Jack of All Trades', flat: halfProficiencyBonus(s) }],
       }),
-      'jack',
+      'joat',
     );
-    expect(result.total).toBe(10 + 1 + 1);
+    expect(result.total).toBe(11);
   });
 
   it('accepts a dice bonus, such as Bless', () => {

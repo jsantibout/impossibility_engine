@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap } from '@ie/shared';
 import { parseMonsters, type Monster } from '@ie/srd';
 import { adaptMonster, monsterCanReceive } from './monster.js';
+import { passiveInitiative, rollInitiative } from './combat.js';
 import {
   armorClass,
+  initiativeModifier,
   modifierFor,
   proficiencyBonus,
   saveModifier,
@@ -221,6 +223,61 @@ describe('a monster in play', () => {
       for (const type of Object.keys(adapted.defenses.byDamageType)) {
         expect(adapted.defenses.conditionImmunities, `${m.name}: ${type}`).not.toContain(type);
       }
+    }
+  });
+});
+
+describe('printed initiative survives adaptation and resolution', () => {
+  /**
+   * adaptMonster preserved the printed Initiative on the side while
+   * rollInitiative read the sheet's Dexterity, so every stat block whose
+   * Initiative differs from its Dexterity rolled the wrong number. An Adult
+   * Red Dragon prints +12 against a +0 Dexterity modifier.
+   */
+  it('uses the printed modifier rather than Dexterity', () => {
+    const dragon = adapt('adult-red-dragon');
+    expect(modifierFor(dragon.sheet, 'dex')).toBe(0);
+    expect(initiativeModifier(dragon.sheet)).toBe(12);
+
+    const rolled = unwrap(
+      rollInitiative(createRollIssuer('t'), scriptedRng([10]), dragon.id, dragon.sheet, {}),
+      'init',
+    );
+    expect(rolled.total).toBe(22);
+  });
+
+  it('needs no compensating bonus from the caller', () => {
+    const dragon = adapt('adult-red-dragon');
+    const rolled = unwrap(
+      rollInitiative(createRollIssuer('t'), scriptedRng([10]), dragon.id, dragon.sheet, {}),
+      'init',
+    );
+    expect(rolled.bonuses).toEqual([]);
+  });
+
+  it('feeds the passive score too', () => {
+    expect(passiveInitiative(adapt('adult-red-dragon').sheet)).toBe(22);
+  });
+
+  it('still derives from Dexterity for a character', () => {
+    const character = {
+      level: 1,
+      abilities: { str: 10, dex: 16, con: 10, int: 10, wis: 10, cha: 10 },
+      skills: {},
+      saveProficiencies: [],
+      armor: null,
+      shield: null,
+      armorTraining: { light: true, medium: true, heavy: true, shields: true },
+      baseSpeed: 30,
+      spellcastingAbility: null,
+    } as const;
+    expect(initiativeModifier(character)).toBe(3);
+  });
+
+  it('matches the printed value across the whole bestiary', () => {
+    for (const m of bestiary) {
+      const adapted = adaptMonster(m, asCharacterId(m.id));
+      expect(initiativeModifier(adapted.sheet), m.name).toBe(m.initiative);
     }
   });
 });

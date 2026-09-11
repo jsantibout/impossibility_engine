@@ -333,3 +333,102 @@ describe('isDown', () => {
     expect(isDown(vitals(20, { hp: 0, dead: true }))).toBe(false);
   });
 });
+
+describe('death saves can be modified', () => {
+  const dying = () => vitals(20, { hp: 0 });
+
+  /**
+   * "Not tied to an ability score" is not the same as "unmodifiable". Beacon of
+   * Hope grants advantage on death saves explicitly, and the earlier
+   * implementation hardcoded a normal d20 at zero, so no effect could reach it.
+   */
+  it('takes advantage, as Beacon of Hope grants', () => {
+    const out = unwrap(
+      rollDeathSave(issuer(), scriptedRng([4, 17]), dying(), { modes: ['advantage'] }),
+      'save',
+    );
+    expect(out.roll.natural).toBe(17);
+    expect(out.success).toBe(true);
+  });
+
+  it('takes disadvantage', () => {
+    const out = unwrap(
+      rollDeathSave(issuer(), scriptedRng([17, 4]), dying(), { modes: ['disadvantage'] }),
+      'save',
+    );
+    expect(out.roll.natural).toBe(4);
+    expect(out.success).toBe(false);
+  });
+
+  it('takes a flat bonus, which can turn a failure into a success', () => {
+    const bare = unwrap(rollDeathSave(issuer(), scriptedRng([8]), dying()), 'bare');
+    expect(bare.success).toBe(false);
+
+    const helped = unwrap(
+      rollDeathSave(issuer(), scriptedRng([8]), dying(), {
+        bonuses: [{ source: 'a blessing', flat: 2 }],
+      }),
+      'helped',
+    );
+    expect(helped.success).toBe(true);
+  });
+
+  it('takes a dice bonus', () => {
+    const out = unwrap(
+      rollDeathSave(issuer(), scriptedRng([7, 4]), dying(), {
+        bonuses: [{ source: 'Bless', dice: '1d4' }],
+      }),
+      'bless',
+    );
+    expect(out.success).toBe(true);
+  });
+
+  /**
+   * The natural results are decided by the die, not the modified total: a
+   * natural 1 still costs two failures however much was added to it.
+   */
+  it('keeps natural 1 special regardless of bonuses', () => {
+    const out = unwrap(
+      rollDeathSave(issuer(), scriptedRng([1]), dying(), {
+        bonuses: [{ source: 'a blessing', flat: 20 }],
+      }),
+      'fumble',
+    );
+    expect(out.vitals.deathSaveFailures).toBe(2);
+    expect(out.success).toBe(false);
+  });
+
+  it('keeps natural 20 special regardless of penalties', () => {
+    const out = unwrap(
+      rollDeathSave(issuer(), scriptedRng([20]), dying(), {
+        bonuses: [{ source: 'a curse', flat: -20 }],
+      }),
+      'crit',
+    );
+    expect(out.vitals.hp).toBe(1);
+    expect(out.revived).toBe(true);
+  });
+});
+
+describe('numeric validation at the entry points', () => {
+  /**
+   * A non-finite amount silently turned hit points into NaN, which then
+   * compares false against every threshold — a creature neither alive nor dead.
+   */
+  it.each([NaN, Infinity, -Infinity])('refuses to heal by %s', (amount) => {
+    expect(() => heal(vitals(10), amount)).toThrow(/finite/);
+  });
+
+  it.each([NaN, Infinity])('refuses temporary hit points of %s', (amount) => {
+    expect(() => grantTemporaryHp(vitals(10), amount)).toThrow(/finite/);
+  });
+
+  it.each([NaN, 0, -5, Infinity])('refuses a hit point maximum of %s', (hpMax) => {
+    expect(() => vitals(hpMax)).toThrow();
+  });
+
+  it('still allows ordinary values', () => {
+    expect(heal(vitals(10, { hp: 1 }), 4).hp).toBe(5);
+    expect(grantTemporaryHp(vitals(10), 0).temporaryHp).toBe(0);
+  });
+});
