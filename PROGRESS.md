@@ -60,7 +60,8 @@ still Wizard-shaped are named below.
 | Ready | An action spent now for a Reaction later; readied spells | `d63d75d` |
 | Readied move | "Up to your Speed", out of the Reaction rather than the turn | `eae9c67` |
 | Turn-anchored riders | An effect with its own deadline; Color Spray, Sunbeam | `669d151` |
-| Riders on a hit | Ray of Sickness poisons; an unmodelled note became behaviour | _this batch_ |
+| Riders on a hit | Ray of Sickness poisons; an unmodelled note became behaviour | `8a3f0bb` |
+| Engine audit | Error kinds, idempotency sweep, wedge recovery, a loud reducer | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -194,6 +195,35 @@ still Wizard-shaped are named below.
   end of your next turn" as a gap since it was written. The note was honest and
   it reached the table on every casting; it is still better for the engine to
   do it.
+- **An error says which of two questions it is answering.** `Err` carries
+  `kind: 'refusal' | 'needs-context'`. A refusal is the rules saying no under
+  facts already established; needs-context is the *record* being thin. An AI DM
+  has to branch on that difference and cannot do it by matching error codes.
+  **Absence from structured state is not evidence a thing does not exist** — a
+  player swinging at the chandelier rope is doing something the engine has not
+  been told about, not something impossible. `err` still defaults to a refusal,
+  so a careless caller closes the question rather than starting a loop.
+- **An idempotency guard that does not engage is worse than none.** Six
+  commands took a `commandId`, called `identify`, computed a fingerprint, and
+  emitted no event carrying the stamp — so nothing was recorded and the guard
+  never fired. What the retry then returned was the real damage: a Dash came
+  back `no_action` and a Dodge `already_active`, rules refusals for commands
+  that had gone through, which the DM would narrate as a lie. The guard is only
+  as real as the event that carries it, and `invariants.test.ts` sweeps every
+  command rather than trusting that.
+- **A debt that blocks the turn must survive the debtor leaving.**
+  `pendingAttack` and `pendingMove` stop the turn advancing, and every command
+  that could settle one is addressed to the creature who owes it — so a mover
+  killed by the Opportunity Attack they provoked and then cleared off the board
+  stopped the fight for good. Leaving the game settles the holds it orphans.
+- **A deferred reference can outlive what it names, and an append-only log
+  cannot take that back.** A declared move keeps its *placement* so the mover
+  still arrives beside whoever they aimed at — and the likeliest thing to kill
+  that creature is the Opportunity Attack the move provoked. Re-resolving a
+  vanished anchor threw, and the `creature-moved` was already written down: the
+  campaign would never load again. A declared move now records the destination
+  it measured and falls back to it. **Anything the log defers must have a
+  fallback the log already contains.**
 - **An attack can be held between its two rolls.** SRD Divine Smite is cast
   "immediately after hitting a target", so there has to *be* an after-hitting.
   `resolveAttack` with `hold` stops after the attack roll and records the hit

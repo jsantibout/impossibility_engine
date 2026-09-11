@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
+import {
+  asCharacterId,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+  type CharacterId,
+  type Result,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -319,7 +326,10 @@ describe('unknown is not no', () => {
     it(`${entry.name} asks rather than refuses`, () => {
       const out = entry.run();
       expect(isErr(out)).toBe(true);
-      if (isErr(out)) expect(out.kind).toBe('needs-context');
+      // Through the predicate a tool surface will actually branch on, rather
+      // than by reading the field — the point is that this is answerable
+      // without matching a growing vocabulary of error codes.
+      expect(isNeedsContext(out)).toBe(true);
     });
   }
 
@@ -347,6 +357,7 @@ describe('unknown is not no', () => {
     it(`${entry.name} is a refusal`, () => {
       const out = entry.run();
       expect(isErr(out)).toBe(true);
+      expect(isNeedsContext(out)).toBe(false);
       if (isErr(out)) expect(out.kind).toBe('refusal');
     });
   }
