@@ -55,6 +55,7 @@ import {
 } from './spellbook.js';
 import type { GrantedSpell, SpellcastingState } from './spellcasting.js';
 import { CLERIC, CLERIC_SUBCLASSES } from './cleric.js';
+import { FIGHTER, FIGHTER_SUBCLASSES } from './fighter.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
 
 /**
@@ -74,8 +75,12 @@ import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
  * character does not want to be told about one mistake at a time.
  */
 
-const CLASSES: readonly ClassDefinition[] = [CLERIC, WIZARD];
-const SUBCLASSES: readonly SubclassDefinition[] = [...CLERIC_SUBCLASSES, ...WIZARD_SUBCLASSES];
+const CLASSES: readonly ClassDefinition[] = [CLERIC, FIGHTER, WIZARD];
+const SUBCLASSES: readonly SubclassDefinition[] = [
+  ...CLERIC_SUBCLASSES,
+  ...FIGHTER_SUBCLASSES,
+  ...WIZARD_SUBCLASSES,
+];
 
 export const classById = (id: string): ClassDefinition | null =>
   CLASSES.find((c) => c.id === id) ?? null;
@@ -598,6 +603,30 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
   const problems: CreationProblem[] = [];
   const row = rowAt(definition, choices.level);
   if (!row.ok) return problems;
+
+  // A class with no spellcasting block casts nothing, and the difference
+  // between that and "has none at this level" matters: a Fighter does not know
+  // zero cantrips, a Fighter has no cantrips. Anything written down here is a
+  // mistake rather than a spell, and the feat route is untouched — Magic
+  // Initiate on a Fighter is a real character.
+  if (definition.spellcasting === undefined) {
+    if (choices.cantrips.length > 0) {
+      problems.push(
+        problem('no_spellcasting', 'cantrips', `a ${definition.name} has no cantrips`),
+      );
+    }
+    if (choices.spellbook.length > 0) {
+      problems.push(
+        problem('no_spellbook', 'spellbook', `a ${definition.name} has no spellbook`),
+      );
+    }
+    if (choices.preparedSpells.length > 0) {
+      problems.push(
+        problem('no_spellcasting', 'preparedSpells', `a ${definition.name} prepares no spells`),
+      );
+    }
+    return problems;
+  }
 
   const slots = slotsAt(definition, choices.level);
   const topSlot = highestSlotLevel(slots);
@@ -1281,7 +1310,11 @@ export function planCharacter(
         );
 
   const spellcasting: SpellcastingState = {
-    ability: definition.spellcasting?.ability ?? definition.primaryAbility,
+    // Null for a class that does not cast. A Fighter's primary ability is
+    // Strength, and reading it as a spellcasting ability would give them a
+    // spell save DC — for spells they cannot cast, off an ability that has
+    // nothing to do with magic. A feat's granted spells carry their own.
+    ability: definition.spellcasting?.ability ?? null,
     cantrips: choices.cantrips,
     prepared: [...choices.preparedSpells, ...alwaysPrepared],
     granted,

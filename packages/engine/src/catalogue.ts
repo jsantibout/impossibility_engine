@@ -1,4 +1,4 @@
-import { ARMOR, GEAR, TOOLS, WEAPONS, type Armor, type Weapon } from '@ie/srd';
+import { AMMUNITION, ARMOR, GEAR, TOOLS, WEAPONS, type Armor, type Weapon } from '@ie/srd';
 
 /**
  * Every mundane thing a character can own, under one stable id.
@@ -14,7 +14,7 @@ import { ARMOR, GEAR, TOOLS, WEAPONS, type Armor, type Weapon } from '@ie/srd';
  * stops containing a lantern. An id is the parser's slug and does not move.
  */
 
-export type ItemKind = 'gear' | 'tool' | 'weapon' | 'armor';
+export type ItemKind = 'gear' | 'tool' | 'weapon' | 'armor' | 'ammunition';
 
 export interface CatalogueItem {
   readonly id: string;
@@ -30,6 +30,15 @@ export interface CatalogueItem {
   readonly weapon: Weapon | null;
   /** What a pack holds, in ids and quantities. Empty for everything else. */
   readonly contents: readonly { readonly id: string; readonly quantity: number }[];
+  /**
+   * How many the SRD sells at once, for a row priced by the bundle.
+   *
+   * Arrows are "1 GP for 20", so the catalogue holds *one arrow* at a
+   * twentieth of the price and this says twenty. An inventory counts arrows,
+   * not bundles — a character who shoots three has seventeen left, and a
+   * bundle-shaped entry could not say so.
+   */
+  readonly bundleSize?: number;
 }
 
 /** SRD Coin Values: 1 gp is 100 cp, and every other coin divides into it. */
@@ -94,6 +103,25 @@ function build(): Map<string, CatalogueItem> {
       armor: null,
       weapon: null,
       contents: entry.contents.map((line) => ({ id: line.gearId, quantity: line.quantity })),
+    });
+  }
+
+  // SRD prices ammunition by the bundle — "Arrows (20)" costs 1 GP — so the
+  // catalogue entry is one arrow and `bundleSize` says what a purchase buys.
+  // Pricing the bundle as a single item would make one arrow cost a gold piece.
+  for (const round of AMMUNITION) {
+    const bundle = priceInCopper(round.cost);
+    const weight = weightInPounds(round.weight);
+    items.set(round.id, {
+      id: round.id,
+      name: round.name,
+      kind: 'ammunition',
+      weightLb: weight === null ? null : weight / round.amount,
+      costCp: bundle === null ? null : bundle / round.amount,
+      armor: null,
+      weapon: null,
+      contents: [],
+      bundleSize: round.amount,
     });
   }
 

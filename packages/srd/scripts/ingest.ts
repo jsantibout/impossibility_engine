@@ -129,5 +129,12 @@ indexFile(
   ' * Every tool, with its ability, uses, craft list and variants.',
   gear.tools,
 );
+indexFile(
+  'ammunition-index',
+  'AMMUNITION',
+  'Ammunition',
+  ' * Every row of the Ammunition table: id, name, how many a purchase buys,',
+  gear.ammunition,
+);
 
 process.stdout.write(`\nwrote JSON to ${outDir}\n`);

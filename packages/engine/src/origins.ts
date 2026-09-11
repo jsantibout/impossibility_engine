@@ -207,8 +207,59 @@ export const ORIGIN_FEATS: readonly FeatDefinition[] = [
   },
 ];
 
+/**
+ * SRD "Fighting Style Feats" — the four the SRD publishes.
+ *
+ * Their prerequisite is the Fighting Style *feature*, which is how the SRD
+ * writes "only a class that grants this may take one". The feature's choice
+ * names the category, and `checkFeats` already refuses a feat from the wrong
+ * one, so the prerequisite is enforced by where the choice is offered rather
+ * than by a rule here.
+ *
+ * None is executed. Every one of them is a modifier the caller supplies, and
+ * the engine has said so since `bonuses.ts` was written: "whether Archery is
+ * in play is a question about feats and inventory, which the engine does not
+ * model; the layer that knows passes them in."
+ */
+export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
+  {
+    id: 'archery',
+    name: 'Archery',
+    category: 'fighting-style',
+    requires: { kind: 'none' },
+    repeatable: false,
+    note: 'The +2 to attack rolls with Ranged weapons is a named bonus the caller passes to the roll; nothing adds it automatically.',
+  },
+  {
+    id: 'defense',
+    name: 'Defense',
+    category: 'fighting-style',
+    requires: { kind: 'none' },
+    repeatable: false,
+    note: 'The +1 to Armour Class while wearing armour is not applied: Armour Class is derived from the armour and Dexterity, and has no place for a feat yet.',
+  },
+  {
+    id: 'great-weapon-fighting',
+    name: 'Great Weapon Fighting',
+    category: 'fighting-style',
+    requires: { kind: 'none' },
+    repeatable: false,
+    note: 'Treating a 1 or 2 on a damage die as a 3 is `treatLowRollsAs` in the dice layer, which the caller opts into per roll; taking the feat does not switch it on.',
+  },
+  {
+    id: 'two-weapon-fighting',
+    name: 'Two-Weapon Fighting',
+    category: 'fighting-style',
+    requires: { kind: 'none' },
+    repeatable: false,
+    note: 'Adding the ability modifier to the off-hand attack is not applied; the engine does not model which hand an attack came from.',
+  },
+];
+
+const ALL_FEATS: readonly FeatDefinition[] = [...ORIGIN_FEATS, ...FIGHTING_STYLE_FEATS];
+
 export const featById = (id: string): FeatDefinition | null =>
-  ORIGIN_FEATS.find((f) => f.id === id) ?? null;
+  ALL_FEATS.find((f) => f.id === id) ?? null;
 
 /**
  * SRD Step 4: "Choose your character's alignment... and note it on your

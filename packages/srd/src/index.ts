@@ -7,5 +7,6 @@ export * from './parse/monsters.js';
 export * from './parse/equipment.js';
 export * from './parse/gear.js';
 export * from './gear-index.js';
+export * from './ammunition-index.js';
 export * from './tool-index.js';
 export { ABILITY_OVERRIDES } from './parse/overrides.js';

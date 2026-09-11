@@ -30,7 +30,8 @@ still Wizard-shaped are named below.
 | Spell batch | 21 spells into the existing shapes; `unmodelled` reported at runtime | `534c03a` |
 | Buffs + temp HP | `buff` and `temp-hp` effects; bonuses live on the creature | `e127590` |
 | Multi-type saves | One save, several damage types; 8 more spells | `70169df` |
-| Second class | Wizard-shaped seams opened; Cleric + Life Domain, levels 1–20 | *this batch* |
+| Second class | Wizard-shaped seams opened; Cleric + Life Domain, levels 1–20 | `759aa68` |
+| Third class | Fighter + Champion; the no-spellcasting path; ammunition | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -104,17 +105,29 @@ The Wizard-shaped seams are **open**, and the Cleric is the proof:
 - `FeatureChoice` gained an `option` kind for "one of these named things" —
   Divine Order, and later Fighting Style, Metamagic, Manoeuvres.
 
+Three classes in: Wizard (spellbook), Cleric (prepared-from-list), Fighter
+(none). Each opened something:
+
+- The Fighter proved `spellcasting?: undefined` — a class that casts nothing
+  now short-circuits the spell rules rather than being asked for a spellbook,
+  and its spellcasting ability is **null** rather than its primary ability,
+  which would have given it a spell save DC off Strength.
+- Three equipment packages rather than two; the loop never assumed a count.
+- Fighting Style feats are registered, so `category` on `FeatDefinition`
+  finally has something in it and a Fighter cannot take Alert as a Style.
+- Ammunition reached the catalogue, priced **per round** rather than per
+  bundle: Arrows are 1 GP for 20, so one arrow is 5 copper and an inventory
+  counts arrows rather than bundles.
+
 What the next class will hit, in likely order:
 
-- **`known` casters are declared but untested.** Sorcerer and Bard never
-  prepare; the branch exists and no class exercises it.
+- **`known` casters are declared but untested.** Sorcerer, Bard, Ranger and
+  Warlock never prepare; the branch exists and no class exercises it.
 - **Half-casters start at level 2.** `spellcasting.startsAtLevel` is recorded
   and nothing reads it yet; Paladin and Ranger need it.
-- **Subclass level varies.** Cleric and Wizard both choose at 3; a Fighter
-  chooses at 3 too, but a Cleric's domain grants spells and a Champion does
-  not. `subclassLevel` is already per-class, so this should be free.
-- **Martial classes have no spellcasting block at all**, which is the
-  `spellcasting?: undefined` path and is also untested.
+- **The Warlock's Pact Magic is a different slot table entirely** — few slots,
+  all at the highest level, recharging on a Short Rest. `resources.ts` handles
+  it as a pool; what is missing is that it does not merge with ordinary slots.
 - **Multiclassing is not modelled**: no combined slot table, no prerequisite
   check, no proficiency-subset rule for the second class.
 
