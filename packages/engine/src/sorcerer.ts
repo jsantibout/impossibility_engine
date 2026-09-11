@@ -219,7 +219,7 @@ export const DRACONIC_SORCERY: SubclassDefinition = {
       grants: {
         kind: 'standing',
         reach: 'self',
-        effect: { kind: 'damage-resistance', damageTypes: [] },
+        effects: [{ kind: 'damage-resistance', damageTypes: [] }],
         damageTypesFromChoice: true,
       },
     },

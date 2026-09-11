@@ -67,7 +67,7 @@ const auraOfProtection = {
   name: 'Aura of Protection',
   reach: { kind: 'aura' as const, feet: 10 },
   grant: { kind: 'save-bonus' as const, fromAbility: 'cha' as const, minimum: 1 },
-  requires: ['not-incapacitated' as const],
+  requires: [{ kind: 'not-incapacitated' as const }],
 };
 
 const auraOfCourage = {
@@ -75,7 +75,7 @@ const auraOfCourage = {
   name: 'Aura of Courage',
   reach: { kind: 'aura' as const, feet: 10 },
   grant: { kind: 'condition-immunity' as const, condition: 'frightened' as const },
-  requires: ['not-incapacitated' as const],
+  requires: [{ kind: 'not-incapacitated' as const }],
 };
 
 const dangerSense = {
@@ -83,7 +83,7 @@ const dangerSense = {
   name: 'Danger Sense',
   reach: { kind: 'self' as const },
   grant: { kind: 'advantage' as const, on: 'save' as const, ability: 'dex' as const },
-  requires: ['not-incapacitated' as const],
+  requires: [{ kind: 'not-incapacitated' as const }],
 };
 
 const added = (

@@ -1,5 +1,5 @@
 import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shared';
-import type { StandingEffect } from './standing.js';
+import type { ActivatedFeature, StandingEffect } from './standing.js';
 import type { Armor } from '@ie/srd';
 
 /**
@@ -74,6 +74,14 @@ export interface CharacterSheet {
    * nothing applies an aura and nothing takes it away.
    */
   readonly standing?: readonly StandingEffect[];
+  /**
+   * Features this character can switch on, and what switching them on costs.
+   *
+   * Resolved at creation like `standing`, and for the same reason: the reducer
+   * has to know what ends a running Rage without re-deriving a class table on
+   * every event.
+   */
+  readonly activated?: readonly ActivatedFeature[];
   /** Set for creatures whose numbers are printed rather than derived. */
   readonly stated?: StatedValues;
 }

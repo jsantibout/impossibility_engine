@@ -14,7 +14,7 @@ import {
   type CharacterSheet,
   type UnarmoredDefense,
 } from './character.js';
-import type { StandingEffect } from './standing.js';
+import type { ActivatedFeature, StandingEffect } from './standing.js';
 import { expandPack, goldToCopper, itemFor } from './catalogue.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
@@ -1737,27 +1737,58 @@ export function planCharacter(
     const grant = feature.grants;
     if (grant?.kind !== 'standing') continue;
     // A feature that only resizes the aura grants no benefit of its own.
-    if (grant.effect === undefined) continue;
-    // SRD Elemental Affinity chooses its damage type at the table; the grant
-    // says the types come from the choice rather than naming them, because the
-    // feature does not know which one the player picked.
-    const effect =
-      grant.damageTypesFromChoice === true && grant.effect.kind === 'damage-resistance'
-        ? {
-            ...grant.effect,
-            damageTypes: (choices.featureChoices[feature.id] ?? []).map((type) =>
-              type.toLowerCase(),
-            ),
-          }
-        : grant.effect;
+    for (const declared of grant.effects ?? []) {
+      // SRD Elemental Affinity chooses its damage type at the table; the grant
+      // says the types come from the choice rather than naming them, because
+      // the feature does not know which one the player picked.
+      const effect =
+        grant.damageTypesFromChoice === true && declared.kind === 'damage-resistance'
+          ? {
+              ...declared,
+              damageTypes: (choices.featureChoices[feature.id] ?? []).map((type) =>
+                type.toLowerCase(),
+              ),
+            }
+          : declared;
 
-    standing.push({
+      standing.push({
+        feature: feature.id,
+        name: feature.name,
+        reach: grant.reach === 'self' ? { kind: 'self' } : { kind: 'aura', feet: auraFeet },
+        grant: effect,
+        ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+      });
+    }
+  }
+
+  // A feature the character can switch on, and the standing effects it
+  // switches on with it. The benefits are ordinary standing effects requiring
+  // `feature-active`, so nothing about them is special-cased anywhere else.
+  const activated: ActivatedFeature[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'activated') continue;
+
+    activated.push({
       feature: feature.id,
       name: feature.name,
-      reach: grant.reach === 'self' ? { kind: 'self' } : { kind: 'aura', feet: auraFeet },
-      grant: effect,
-      ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+      action: grant.action,
+      pool: grant.pool,
+      lasts: grant.lasts,
+      ...(grant.capSeconds === undefined ? {} : { capSeconds: grant.capSeconds }),
+      ...(grant.endsOn === undefined ? {} : { endsOn: grant.endsOn }),
+      ...(grant.forbidsCasting === undefined ? {} : { forbidsCasting: grant.forbidsCasting }),
     });
+
+    for (const effect of grant.whileActive ?? []) {
+      standing.push({
+        feature: feature.id,
+        name: feature.name,
+        reach: { kind: 'self' },
+        grant: effect,
+        requires: [{ kind: 'feature-active', feature: feature.id }],
+      });
+    }
   }
 
   const alternatives: UnarmoredDefense[] = [];
@@ -1793,6 +1824,7 @@ export function planCharacter(
     // Armour Class is derived exactly as it was before.
     ...(alternatives.length === 0 ? {} : { unarmoredDefense: alternatives }),
     ...(standing.length === 0 ? {} : { standing }),
+    ...(activated.length === 0 ? {} : { activated }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every
@@ -1922,6 +1954,25 @@ export function planCharacter(
 }
 
 /**
+ * How many uses a feature's pool holds, at the level of the class granting it.
+ *
+ * SRD prints these as a column of the class table — the Barbarian's Rages —
+ * so the count is read at *that class's* level, never the character's. A
+ * Barbarian 3 / Fighter 5 rages three times, not six.
+ */
+function usesOf(
+  choices: CharacterChoices,
+  featureId: string,
+  usesByLevel: readonly number[] | undefined,
+): number {
+  if (usesByLevel === undefined) return 1;
+  const classId = featureId.split(':')[0] ?? '';
+  const level =
+    classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
+  return usesByLevel[Math.max(0, Math.min(level, usesByLevel.length) - 1)] ?? 0;
+}
+
+/**
  * Every spell-slot pool a plan calls for, of both kinds.
  *
  * One function rather than two loops, because creation and advancement must
@@ -1971,6 +2022,7 @@ function poolEvents(
   plan: CharacterPlan,
   level: number,
   features: readonly FeatureDefinition[],
+  choices: CharacterChoices,
 ): GameEvent[] {
   const events: GameEvent[] = [
     {
@@ -2004,8 +2056,25 @@ function poolEvents(
     });
   }
 
-  // A feature that is its own limited resource declares its pool. Arcane
-  // Recovery is the only one at this level; the list is data, not a special case.
+  // A feature that is its own limited resource declares its pool, sized by the
+  // class table at the level it is read at. Arcane Recovery below is the one
+  // that still has to be matched by id, because its single use is not a column
+  // in any table.
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'activated' || grant.pool === null) continue;
+    events.push({
+      type: 'resource-pool-declared',
+      id,
+      pool: {
+        key: grant.pool,
+        label: grant.poolLabel ?? feature.name,
+        max: usesOf(choices, feature.id, grant.usesByLevel),
+        recovers: grant.recovers ?? 'long-rest',
+      },
+    });
+  }
+
   if (features.some((f) => f.id === 'wizard:arcane-recovery')) {
     events.push({
       type: 'resource-pool-declared',
@@ -2077,7 +2146,7 @@ export function createCharacter(
           },
         ]),
     ...choices.equipped.map((itemId) => ({ type: 'item-equipped' as const, id, item: itemId })),
-    ...poolEvents(id, definition, plan.value, choices.level, plan.value.features),
+    ...poolEvents(id, definition, plan.value, choices.level, plan.value.features, choices),
   ]);
 }
 

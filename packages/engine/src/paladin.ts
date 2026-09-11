@@ -177,8 +177,8 @@ export const PALADIN: ClassDefinition = {
         kind: 'standing',
         reach: 'aura',
         auraFeet: 10,
-        effect: { kind: 'save-bonus', fromAbility: 'cha', minimum: 1 },
-        requires: ['not-incapacitated'],
+        effects: [{ kind: 'save-bonus', fromAbility: 'cha', minimum: 1 }],
+        requires: [{ kind: 'not-incapacitated' }],
       },
     },
     {
@@ -197,8 +197,8 @@ export const PALADIN: ClassDefinition = {
       grants: {
         kind: 'standing',
         reach: 'aura',
-        effect: { kind: 'condition-immunity', condition: 'frightened' },
-        requires: ['not-incapacitated'],
+        effects: [{ kind: 'condition-immunity', condition: 'frightened' }],
+        requires: [{ kind: 'not-incapacitated' }],
       },
     },
     {
@@ -267,8 +267,8 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
       grants: {
         kind: 'standing',
         reach: 'aura',
-        effect: { kind: 'condition-immunity', condition: 'charmed' },
-        requires: ['not-incapacitated'],
+        effects: [{ kind: 'condition-immunity', condition: 'charmed' }],
+        requires: [{ kind: 'not-incapacitated' }],
       },
     },
     {

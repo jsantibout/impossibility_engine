@@ -1,6 +1,7 @@
 import { err, ok, type Ability, type Result, type Skill } from '@ie/shared';
 import type { ArmorTraining } from './character.js';
-import type { StandingGrant, StandingRequirement } from './standing.js';
+import type { Recovery } from './resources.js';
+import type { ActivationEnd, StandingGrant, StandingRequirement } from './standing.js';
 
 /**
  * Class progression: what a class gives you, and when.
@@ -150,8 +151,14 @@ export type FeatureGrant =
   | {
       readonly kind: 'standing';
       readonly reach: 'self' | 'aura';
-      /** What it does. Absent for a feature that only resizes the aura. */
-      readonly effect?: StandingGrant;
+      /**
+       * What it does. Empty for a feature that only resizes the aura.
+       *
+       * A list because SRD writes some of these as one sentence covering two
+       * things: Mindless Rage is "Immunity to the Charmed and Frightened
+       * conditions", which is two condition immunities and one feature.
+       */
+      readonly effects?: readonly StandingGrant[];
       /**
        * What the feature's own text says must hold for it to apply.
        *
@@ -164,6 +171,26 @@ export type FeatureGrant =
       readonly damageTypesFromChoice?: boolean;
       /** SRD Aura Expansion: this feature makes the aura this many feet. */
       readonly auraFeet?: number;
+    }
+  /**
+   * A feature the character switches on — see `ActivatedFeature` in
+   * `standing.ts`. What it does while it runs is `whileActive`, which becomes
+   * ordinary standing effects requiring the feature to be active.
+   */
+  | {
+      readonly kind: 'activated';
+      readonly action: 'action' | 'bonus-action' | 'none';
+      /** The pool key, or null when it costs no uses. */
+      readonly pool: string | null;
+      /** Uses by class level, straight off the class table. */
+      readonly usesByLevel?: readonly number[];
+      readonly poolLabel?: string;
+      readonly recovers?: Recovery;
+      readonly lasts: 'end-of-next-turn';
+      readonly capSeconds?: number;
+      readonly endsOn?: readonly ActivationEnd[];
+      readonly forbidsCasting?: boolean;
+      readonly whileActive?: readonly StandingGrant[];
     }
   | {
       readonly kind: 'unarmored-defense';

@@ -46,7 +46,8 @@ still Wizard-shaped are named below.
 | Tracked spells | The engine casts what it cannot execute; 14 utility spells | `3e0e330` |
 | Feat notes | 24 features stopped claiming feats do nothing | `c918c21` |
 | Standing effects | Conditional modifiers and auras, from state; 5 features | `3a5cdb9` |
-| Standing defences | Resistance a feature grants; Elemental Affinity | _this batch_ |
+| Standing defences | Resistance a feature grants; Elemental Affinity | `e64c5fb` |
+| Activated features | Rage: cost, prerequisite, deadline, extension, two ways out | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -87,6 +88,14 @@ still Wizard-shaped are named below.
   written onto the creature it reaches. A stored copy would be an
   unconditional bonus wearing a feature's name, and it would go wrong exactly
   when it mattered: the paladin walks away, the barbarian is stunned.
+- **A requirement names the feature it needs, not "whichever granted me".**
+  Rage's own benefits require Rage; Mindless Rage is the Berserker's feature
+  and requires the *Barbarian's* Rage. The first draft meant the second thing
+  by the first, which was right once and would have been wrong here.
+- **What an activated feature does is ordinary standing effects.** Turning Rage
+  on grants nothing directly and turning it off takes nothing away directly —
+  the Resistance and the Advantage simply require it to be active. Neither can
+  go stale, which is the same reason auras are derived.
 - **The condition a feature names is that feature's, not the mechanism's.**
   `standing.ts` first gated every effect on the holder not being Incapacitated,
   which is what Danger Sense and the Paladin auras say and is *not* a general
@@ -246,11 +255,15 @@ print two prepared spells and two level 1 slots at level 1 for both.
 
 What remains in the class system, in likely order:
 
-- **An activated state with a cost and a turn-anchored duration**, which is
-  Rage: a Bonus Action, a limited pool, resistance while it runs, and "lasts
-  until the end of your next turn" with three ways to extend it. Every part
-  exists — pools, resistances, turn-anchored deadlines — and nothing yet ties
-  them to a state a creature sits in.
+- **Damage a feature adds to a weapon's roll**, which Rage Damage, Sneak
+  Attack, Radiant Strikes and Brutal Strike all want. The blocker is one level
+  down: **no weapon attack goes through a command**, so there is nothing to
+  hook. `rollAttack` and `rollAttackDamage` are called by fixtures and callers,
+  not by the engine, which is also why Rage cannot extend itself on an attack.
+  A `resolveAttack` command is the next real piece of engine design.
+- **A pool that refills partly.** SRD Rage gives back *one* use on a Short Rest
+  and all of them on a Long Rest; `restoreOn` refills a whole pool by tag, and
+  every other recovery in the game is all or nothing.
 - **A grant that can be re-chosen on a rest**, for Circle of the Land, for
   the Barbarian's Weapon Mastery swap, and for every "swap a prepared spell on
   a Long Rest" rule.
@@ -287,7 +300,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 53 of 230 |
-| Tests | 2,281 passing, none skipped |
+| Tests | 2,307 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

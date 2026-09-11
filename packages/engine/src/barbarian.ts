@@ -78,7 +78,24 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Rage',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool of uses refilling on a Long Rest. What Rage does — Resistance to Bludgeoning, Piercing and Slashing, the damage bonus, Advantage on Strength checks and saves — is not applied: a running effect that changes defences needs defences that can change, and they are declared once when a creature is added.',
+      note: 'Entered as a Bonus Action out of a pool sized by the Rages column, lasting until the end of your next turn unless extended, and ending the moment you are Incapacitated or don Heavy armour. Resistance to Bludgeoning, Piercing and Slashing and Advantage on Strength checks and saves are applied while it runs. Two halves are not: Rage Damage needs a hook into a weapon’s damage roll, and nothing routes a weapon attack through a command yet; and the Short Rest that gives back one use is a partial refill the pool system has no shape for, where every other recovery is all or nothing.',
+      grants: {
+        kind: 'activated',
+        action: 'bonus-action',
+        pool: 'rage',
+        usesByLevel: RAGES_PER_REST,
+        poolLabel: 'Rage',
+        recovers: 'long-rest',
+        lasts: 'end-of-next-turn',
+        // SRD: "You can maintain a Rage for up to 10 minutes."
+        capSeconds: 600,
+        endsOn: ['incapacitated', 'heavy-armor'],
+        forbidsCasting: true,
+        whileActive: [
+          { kind: 'damage-resistance', damageTypes: ['bludgeoning', 'piercing', 'slashing'] },
+          { kind: 'advantage', on: 'save', ability: 'str' },
+        ],
+      },
     },
     {
       id: 'barbarian:unarmored-defense',
@@ -104,8 +121,8 @@ export const BARBARIAN: ClassDefinition = {
       grants: {
         kind: 'standing',
         reach: 'self',
-        effect: { kind: 'advantage', on: 'save', ability: 'dex' },
-        requires: ['not-incapacitated'],
+        effects: [{ kind: 'advantage', on: 'save', ability: 'dex' }],
+        requires: [{ kind: 'not-incapacitated' }],
       },
     },
     {
@@ -250,7 +267,16 @@ export const PATH_OF_THE_BERSERKER: SubclassDefinition = {
       name: 'Mindless Rage',
       level: 6,
       automation: 'manual',
-      note: 'Immunity to Charmed and Frightened while Raging is not applied, and ending them when you Rage is not either.',
+      note: 'The immunity is applied: SRD, "You have Immunity to the Charmed and Frightened conditions while your Rage is active", as suppression while the Rage runs. The other sentence is not \u2014 "If you\u2019re Charmed or Frightened when you enter your Rage, the condition ends on you" removes the condition outright, and the difference shows only in a narrow case: a Barbarian Charmed before raging finds the charm still on them when the Rage ends, where the SRD would have ended it.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        requires: [{ kind: 'feature-active', feature: 'barbarian:rage' }],
+        effects: [
+          { kind: 'condition-immunity', condition: 'charmed' },
+          { kind: 'condition-immunity', condition: 'frightened' },
+        ],
+      },
     },
     {
       id: 'berserker:retaliation',

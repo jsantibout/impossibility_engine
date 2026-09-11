@@ -52,6 +52,7 @@ import {
   effectiveConditions,
   standingSaveBonuses,
   standingSaveModes,
+  type ActivatedFeature,
 } from './standing.js';
 import { rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
@@ -64,6 +65,7 @@ import {
   type ConditionState,
 } from './conditions.js';
 import {
+  endOfNextTurn,
   resolveDuration,
   type Duration,
   type EffectTarget,
@@ -82,6 +84,7 @@ import {
 import {
   applyEvent,
   castingIdFor,
+  wearsHeavyArmor,
   type InventoryLine,
   type AppliedCommand,
   type CommandStamp,
@@ -534,6 +537,221 @@ export function restoreResourcesOn(
   return ok([{ type: 'resources-restored', id, recovers }]);
 }
 
+// — features a creature switches on ———————————————————————————————————————————
+
+export interface ActivateFeatureCommand extends CommandIdentity {
+  readonly feature: string;
+}
+
+/**
+ * Turn a feature on, paying everything it costs.
+ *
+ * SRD Rage is the shape this is built to: "You can enter it as a Bonus Action
+ * if you aren't wearing Heavy armor... You can enter your Rage the number of
+ * times shown for your Barbarian level." A prerequisite, an action, a pool,
+ * and a deadline — and nothing is spent until all of them pass, which is the
+ * same validate-before-rolling discipline casting obeys.
+ *
+ * The benefits are not here and should not be: they are standing effects that
+ * require the feature to be active, so turning it on grants nothing directly
+ * and turning it off takes nothing away directly. Neither can go stale.
+ */
+export function activateFeature(
+  state: GameState,
+  id: CharacterId,
+  command: ActivateFeatureCommand,
+): Result<GameEvent[]> {
+  const identity = identify(state, `activate:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} is not in this game`);
+
+  const definition = (creature.sheet.activated ?? []).find((a) => a.feature === command.feature);
+  if (definition === undefined) {
+    return err('no_such_feature', `${id} has no feature called ${command.feature}`);
+  }
+
+  if (creature.activeFeatures.includes(command.feature)) {
+    return err('already_active', `${id} is already in ${definition.name}`);
+  }
+
+  // SRD Rage: "if you aren't wearing Heavy armor". The same clause that ends
+  // it is the one that stops it starting, so it is read from one list.
+  for (const requirement of definition.endsOn ?? []) {
+    if (requirement === 'incapacitated' && isIncapacitated(creature.conditions)) {
+      return err('incapacitated', `${id} is Incapacitated and cannot enter ${definition.name}`);
+    }
+    if (requirement === 'heavy-armor' && wearsHeavyArmor(creature)) {
+      return err('heavy_armor', `${definition.name} cannot be entered in Heavy armour`);
+    }
+  }
+
+  if (definition.pool !== null && remaining(creature.resources, definition.pool) < 1) {
+    return err('exhausted', `${id} has no uses of ${definition.name} left`);
+  }
+
+  const events: GameEvent[] = [];
+
+  // The action economy only exists in combat; outside it there is nothing to
+  // spend, exactly as `resolveCast` finds.
+  if (state.combat !== null && definition.action !== 'none') {
+    const spent = spendFor(state, id, definition.action);
+    if (!spent.ok) return spent;
+    events.push(spent.value);
+  }
+
+  if (definition.pool !== null) {
+    events.push({ type: 'resource-spent', id, key: definition.pool, amount: 1 });
+  }
+
+  events.push({
+    type: 'feature-activated',
+    id,
+    feature: command.feature,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  const timer = featureTimer(state, id, definition);
+  if (!timer.ok) return timer;
+  if (timer.value !== null) events.push(timer.value);
+
+  return ok(events);
+}
+
+export interface EndFeatureCommand extends CommandIdentity {
+  readonly feature: string;
+}
+
+/** Switch a feature off deliberately. Costs nothing and refunds nothing. */
+export function endFeature(
+  state: GameState,
+  id: CharacterId,
+  command: EndFeatureCommand,
+): Result<GameEvent[]> {
+  const identity = identify(state, `end-feature:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} is not in this game`);
+  if (!creature.activeFeatures.includes(command.feature)) {
+    return err('not_active', `${id} is not in ${command.feature}`);
+  }
+
+  return ok([{ type: 'feature-ended', id, feature: command.feature, reason: 'dismissed' }]);
+}
+
+export interface ExtendFeatureCommand extends CommandIdentity {
+  readonly feature: string;
+  /**
+   * Which of the SRD's ways of extending it happened.
+   *
+   * SRD Rage offers three: "Make an attack roll against an enemy. Force an
+   * enemy to make a saving throw. Take a Bonus Action to extend your Rage."
+   * Only the third costs anything, so which one it was changes what is spent —
+   * and the engine cannot see the first two for itself, because nothing routes
+   * a weapon attack through a command yet. The caller says which, and the log
+   * records it.
+   */
+  readonly by: 'attack' | 'forced-save' | 'bonus-action';
+}
+
+/**
+ * Push a running feature's deadline out by another round.
+ *
+ * The timer is *replaced* rather than added to. Timers are keyed by what they
+ * end, so re-scheduling overwrites — which is what stops a stale deadline
+ * ending a Rage that has already been extended past it.
+ */
+export function extendFeature(
+  state: GameState,
+  id: CharacterId,
+  command: ExtendFeatureCommand,
+): Result<GameEvent[]> {
+  const identity = identify(state, `extend:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} is not in this game`);
+  if (!creature.activeFeatures.includes(command.feature)) {
+    return err('not_active', `${id} is not in ${command.feature}`);
+  }
+
+  const definition = (creature.sheet.activated ?? []).find((a) => a.feature === command.feature);
+  if (definition === undefined) {
+    return err('no_such_feature', `${id} has no feature called ${command.feature}`);
+  }
+
+  const events: GameEvent[] = [];
+  if (command.by === 'bonus-action' && state.combat !== null) {
+    const spent = spendFor(state, id, 'bonus-action');
+    if (!spent.ok) return spent;
+    events.push(spent.value);
+  }
+
+  const timer = featureTimer(state, id, definition);
+  if (!timer.ok) return timer;
+  if (timer.value !== null) events.push(timer.value);
+
+  return ok(events);
+}
+
+/** The deadline one activation runs to. */
+function featureTimer(
+  state: GameState,
+  id: CharacterId,
+  definition: ActivatedFeature,
+): Result<GameEvent | null> {
+  // Outside combat there are no turns, so a turn-anchored deadline has no
+  // meaning — `resolveDuration` refuses it rather than inventing seconds, and
+  // the feature simply runs until something ends it.
+  if (state.combat === null) return ok(null);
+
+  const timer = schedule(
+    state,
+    { kind: 'feature', on: id, feature: definition.feature },
+    endOfNextTurn(id),
+  );
+  if (!timer.ok) return timer;
+  return ok(timer.value);
+}
+
+/**
+ * Spend the action a feature costs, whichever kind it is.
+ *
+ * The same two functions `resolveCast` uses, because they are the ones that
+ * know the Incapacitated rule: SRD says a creature with that condition "can't
+ * take any action, Bonus Action, or Reaction", and that check belongs in one
+ * place rather than in every caller that spends one.
+ */
+function spendFor(
+  state: GameState,
+  id: CharacterId,
+  action: 'action' | 'bonus-action',
+): Result<GameEvent> {
+  const combat = state.combat;
+  if (combat === null) {
+    return err('not_in_combat', 'there is no action economy outside combat');
+  }
+  const conditions = creatureOf(state, id)?.conditions;
+
+  const spent =
+    action === 'bonus-action'
+      ? spendBonusAction(combat, id, conditions)
+      : spendAction(combat, id, conditions);
+  if (!spent.ok) return spent;
+
+  return ok(
+    action === 'bonus-action'
+      ? { type: 'bonus-action-spent', id }
+      : { type: 'action-spent', id },
+  );
+}
+
 // — casting ——————————————————————————————————————————————————————————————————
 
 export interface CastCommand extends CommandIdentity {
@@ -643,6 +861,16 @@ export function castSpell(
       'unsupported_casting_time',
       'a casting time of 1 minute or more defers its slot until the casting completes, and elapsed time is not modelled yet',
     );
+  }
+
+  // SRD Rage: "You can't maintain Concentration, and you can't cast spells."
+  // Read off the running feature rather than named here, so a second feature
+  // that says the same thing needs no change.
+  const silencing = (caster.sheet.activated ?? []).find(
+    (a) => a.forbidsCasting === true && caster.activeFeatures.includes(a.feature),
+  );
+  if (silencing !== undefined) {
+    return err('raging', `${id} cannot cast while in ${silencing.name}`);
   }
 
   // SRD: "You must have training with any armor you are wearing to cast spells

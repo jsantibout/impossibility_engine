@@ -90,7 +90,18 @@ export type StandingGrant =
  * applied the first two features' clause to everything, which would have
  * quietly rewritten the third.
  */
-export type StandingRequirement = 'not-incapacitated';
+export type StandingRequirement =
+  | { readonly kind: 'not-incapacitated' }
+  /**
+   * A feature must be switched on — and **not necessarily this one**.
+   *
+   * SRD Rage grants Resistance and Advantage "while active", where the feature
+   * required is the one granting them. Mindless Rage is the case that makes
+   * the distinction real: it is the Berserker's feature, and what it requires
+   * is the *Barbarian's* Rage. A requirement that meant "whichever feature
+   * granted me" would have been right once and wrong the next time.
+   */
+  | { readonly kind: 'feature-active'; readonly feature: string };
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
@@ -101,6 +112,36 @@ export interface StandingEffect {
   readonly grant: StandingGrant;
   /** What must be true of the holder. Empty means the benefit is unconditional. */
   readonly requires?: readonly StandingRequirement[];
+}
+
+/** What ends a feature that is running, besides its own deadline. */
+export type ActivationEnd = 'incapacitated' | 'heavy-armor';
+
+/**
+ * A feature a creature switches on, and what switching it on costs.
+ *
+ * What it *does* while it runs is ordinary {@link StandingEffect}s requiring
+ * `feature-active`; this is only the machinery of being switchable. SRD Rage
+ * needs every field of it at once, which is what makes the shape real rather
+ * than a guess: a Bonus Action, a pool sized by the class table, a deadline
+ * that can be pushed, a cap it cannot be pushed past, and two ways out that
+ * nobody commands.
+ */
+export interface ActivatedFeature {
+  readonly feature: string;
+  readonly name: string;
+  /** What turning it on costs in the action economy, outside combat nothing. */
+  readonly action: 'action' | 'bonus-action' | 'none';
+  /** The pool a use comes out of, or null when it costs none. */
+  readonly pool: string | null;
+  /** SRD Rage: "The Rage lasts until the end of your next turn." */
+  readonly lasts: 'end-of-next-turn';
+  /** SRD Rage: "You can maintain a Rage for up to 10 minutes." */
+  readonly capSeconds?: number;
+  /** What ends it early, each read from the feature's own text. */
+  readonly endsOn?: readonly ActivationEnd[];
+  /** SRD Rage: "You can't maintain Concentration, and you can't cast spells." */
+  readonly forbidsCasting?: boolean;
 }
 
 /** A standing effect that is reaching a particular creature right now. */
@@ -121,7 +162,15 @@ function meetsRequirements(state: GameState, who: CharacterId, effect: StandingE
   if (creature === undefined) return false;
 
   for (const requirement of effect.requires ?? []) {
-    if (requirement === 'not-incapacitated' && isIncapacitated(creature.conditions)) return false;
+    if (requirement.kind === 'not-incapacitated' && isIncapacitated(creature.conditions)) {
+      return false;
+    }
+    if (
+      requirement.kind === 'feature-active' &&
+      !creature.activeFeatures.includes(requirement.feature)
+    ) {
+      return false;
+    }
   }
   return true;
 }

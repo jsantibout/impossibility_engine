@@ -140,7 +140,14 @@ export type EffectTarget =
   /** One condition instance on one creature, by its deterministic id. */
   | { readonly kind: 'condition'; readonly on: CharacterId; readonly instance: string }
   /** A whole casting, and everything it created. */
-  | { readonly kind: 'casting'; readonly castingId: string };
+  | { readonly kind: 'casting'; readonly castingId: string }
+  /**
+   * A feature a creature turned on and is still in.
+   *
+   * SRD Rage: "The Rage lasts until the end of your next turn" — a deadline
+   * like any other, on a thing that is neither a condition nor a casting.
+   */
+  | { readonly kind: 'feature'; readonly on: CharacterId; readonly feature: string };
 
 /**
  * A saving throw an effect gets at a turn boundary.
@@ -216,7 +223,12 @@ export const pendingSaveKey = (effectKey: string, turn: number): string =>
  * stale one behind to end it early.
  */
 export function timerKey(target: EffectTarget): string {
-  return target.kind === 'condition'
-    ? `condition|${target.on}|${target.instance}`
-    : `casting|${target.castingId}`;
+  switch (target.kind) {
+    case 'condition':
+      return `condition|${target.on}|${target.instance}`;
+    case 'feature':
+      return `feature|${target.on}|${target.feature}`;
+    default:
+      return `casting|${target.castingId}`;
+  }
 }

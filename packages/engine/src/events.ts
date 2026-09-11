@@ -157,6 +157,18 @@ export interface CreatureState {
    */
   readonly side: string | null;
   /**
+   * Features this creature has switched on and is still in.
+   *
+   * SRD Rage is the first: entered as a Bonus Action, paid for out of a pool,
+   * lasting until a deadline unless extended, and ending the moment its
+   * conditions stop holding. What it *does* while it runs is ordinary standing
+   * effects requiring `feature-active` — the benefits are not special, only
+   * their being switchable is.
+   *
+   * Sorted, so state serialises identically however they were entered.
+   */
+  readonly activeFeatures: readonly string[];
+  /**
    * Named bonuses a running effect has hung on this creature.
    *
    * Bless adds 1d4 to attack rolls and saves; Bane subtracts one. They are
@@ -638,6 +650,34 @@ export type GameEvent =
    * never defines it mechanically, because at a table nobody has to ask.
    */
   | { readonly type: 'creature-side-declared'; readonly id: CharacterId; readonly side: string }
+  /**
+   * A feature switched on, with whatever it costs already spent beside it.
+   *
+   * The cost is separate events — `resource-spent`, the action economy — so
+   * this one says only that the feature is now running. That keeps the
+   * activation readable in a log and keeps this event from having to know how
+   * any particular feature is paid for.
+   */
+  | {
+      readonly type: 'feature-activated';
+      readonly id: CharacterId;
+      readonly feature: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A feature switched off, and why.
+   *
+   * `expired` and `incapacitated` are derived — a deadline passing and the
+   * Incapacitated condition arriving are not decisions anybody makes — so they
+   * arrive through the reducer rather than through a command, exactly as a
+   * broken Concentration does.
+   */
+  | {
+      readonly type: 'feature-ended';
+      readonly id: CharacterId;
+      readonly feature: string;
+      readonly reason: 'dismissed' | 'expired' | 'incapacitated' | 'heavy-armor';
+    }
   /**
    * Whether one creature can see another.
    *
@@ -1176,7 +1216,23 @@ function expireEffects(state: GameState): GameState {
     if (timer === undefined) continue;
 
     const target = timer.target;
-    if (target.kind === 'casting') {
+    if (target.kind === 'feature') {
+      // SRD Rage: "The Rage lasts until the end of your next turn." A deadline
+      // running out is not a decision anybody makes, so it ends here.
+      const creature = current.creatures[target.on];
+      if (creature !== undefined) {
+        current = {
+          ...current,
+          creatures: {
+            ...current.creatures,
+            [target.on]: {
+              ...creature,
+              activeFeatures: creature.activeFeatures.filter((f) => f !== target.feature),
+            },
+          },
+        };
+      }
+    } else if (target.kind === 'casting') {
       // Ending the casting takes its Concentration and every effect it created.
       const castingId = target.castingId;
       const caster = Object.values(current.creatures).find(
@@ -1204,8 +1260,72 @@ function expireEffects(state: GameState): GameState {
 export function applyEvent(state: GameState, event: GameEvent): GameState {
   const applied = applyOne(state, event);
   return dropOrphanedSaves(
-    expireEffects(breakLostConcentration(recordCommand(interruptedRests(applied, event), event))),
+    expireEffects(
+      endLostFeatures(
+        breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+      ),
+    ),
   );
+}
+
+/**
+ * Features whose own conditions have stopped holding.
+ *
+ * SRD Rage: "it ends early if you don Heavy armor or have the Incapacitated
+ * condition." Nobody decides either of those, so this is derived after every
+ * event, the same way a broken Concentration is — which means no log, however
+ * assembled, can show a Rage running on a stunned Barbarian in plate.
+ *
+ * The timer goes with it. A stale deadline would sit waiting to end something
+ * that is already over, and would end the *next* Rage early if one started
+ * before it fired.
+ */
+function endLostFeatures(state: GameState): GameState {
+  const creatures: Record<string, CreatureState> = { ...state.creatures };
+  const dropped: { id: CharacterId; feature: string }[] = [];
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[key];
+    if (creature === undefined || creature.activeFeatures.length === 0) continue;
+
+    const kept = creature.activeFeatures.filter((feature) => sustains(creature, feature));
+    if (kept.length === creature.activeFeatures.length) continue;
+
+    for (const feature of creature.activeFeatures) {
+      if (!kept.includes(feature)) dropped.push({ id: creature.id, feature });
+    }
+    creatures[key] = { ...creature, activeFeatures: kept };
+  }
+
+  if (dropped.length === 0) return state;
+
+  const timers: Record<string, TimedEffect> = {};
+  for (const [key, timer] of Object.entries(state.timers)) {
+    const target = timer.target;
+    const doomed =
+      target.kind === 'feature' &&
+      dropped.some((d) => d.id === target.on && d.feature === target.feature);
+    if (!doomed) timers[key] = timer;
+  }
+
+  return { ...state, creatures, timers };
+}
+
+/** Whether this creature still meets what an active feature demands of them. */
+function sustains(creature: CreatureState, feature: string): boolean {
+  const definition = (creature.sheet.activated ?? []).find((a) => a.feature === feature);
+  if (definition === undefined) return true;
+
+  for (const requirement of definition.endsOn ?? []) {
+    if (requirement === 'incapacitated' && isIncapacitated(creature.conditions)) return false;
+    if (requirement === 'heavy-armor' && wearsHeavyArmor(creature)) return false;
+  }
+  return true;
+}
+
+/** SRD Rage: "if you aren't wearing Heavy armor", and "if you don Heavy armor". */
+export function wearsHeavyArmor(creature: CreatureState): boolean {
+  return creature.equipped.some((itemId) => itemFor(itemId)?.armor?.category === 'heavy');
 }
 
 function applyOne(state: GameState, event: GameEvent): GameState {
@@ -1234,6 +1354,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             creatureType: event.creatureType ?? null,
             defenses: event.defenses ?? {},
             side: event.side ?? null,
+            activeFeatures: [],
             bonuses: [],
             initiativeBonuses: [],
             inventory: [],
@@ -1629,6 +1750,27 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         scene: must(event, placeCreature(sceneOf(state, event), event.id, event.placement)),
       };
 
+    case 'feature-activated': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.activeFeatures.includes(event.feature)) {
+        throw new CorruptLogError(event, `${event.id} is already in ${event.feature}`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        { activeFeatures: [...creature.activeFeatures, event.feature].sort() },
+        creature,
+      );
+    }
+    case 'feature-ended': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(
+        next,
+        event.id,
+        { activeFeatures: creature.activeFeatures.filter((f) => f !== event.feature) },
+        creature,
+      );
+    }
     case 'creature-side-declared': {
       const creature = creatureOf(state, event, event.id);
       return withCreature(next, event.id, { side: event.side }, creature);
