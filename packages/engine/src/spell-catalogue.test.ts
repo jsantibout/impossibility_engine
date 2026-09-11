@@ -132,10 +132,13 @@ const castAt = (
   const at = { x: 100, y: 100, z: 0 };
 
   if (definition.area === undefined) {
+    // A spell that aims at nobody gets nobody: Detect Magic has no target and
+    // passing one is a refusal, not a courtesy.
+    const targets = definition.targets.count === 0 ? [] : [TARGET];
     return resolveSpell(
       state,
       CASTER,
-      { spellId, targets: [TARGET], ...(slotLevel === undefined ? {} : { slotLevel }) },
+      { spellId, targets, ...(slotLevel === undefined ? {} : { slotLevel }) },
       supply(seed, bonus),
     );
   }
@@ -163,10 +166,19 @@ describe('every definition in the catalogue actually casts', () => {
     expect(out.kind).toBe('resolved');
     if (out.kind !== 'resolved') return;
 
-    // Something happened to somebody: a spell that resolves to nothing at all
-    // is a definition that compiles and does not work.
-    expect(out.outcomes.length).toBeGreaterThan(0);
     expect(out.events.length).toBeGreaterThan(0);
+
+    // Something happened to somebody: a spell that resolves to nothing at all
+    // is a definition that compiles and does not work. A **tracked** spell is
+    // the deliberate exception — it resolves to a casting and nothing else —
+    // and it owes the stronger obligation instead: it must say what the DM is
+    // being left to do, or it is a definition that quietly does nothing.
+    if (definitionFor(spellId)!.effects.length === 0) {
+      expect(out.outcomes).toEqual([]);
+      expect(out.unverified.length).toBeGreaterThan(0);
+    } else {
+      expect(out.outcomes.length).toBeGreaterThan(0);
+    }
   });
 
   it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('spends exactly one casting for %s', (spellId) => {

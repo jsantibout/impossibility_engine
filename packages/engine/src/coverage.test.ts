@@ -66,6 +66,34 @@ describe('every executable spell is a spell the SRD actually has', () => {
   );
 });
 
+/**
+ * A tracked spell is one the engine casts and does not execute: the slot, the
+ * action, the Concentration and the clock are real, and the effect is the DM's.
+ * The obligation that makes that honest rather than a stub is that it must say
+ * so, and `unverified` carries `unmodelled` to the narrating layer on every
+ * casting.
+ */
+describe('a spell the engine tracks says what it does not do', () => {
+  const tracked = SPELL_DEFINITIONS.filter((d) => d.effects.length === 0);
+
+  it('has some, so the rule below is not vacuous', () => {
+    expect(tracked.length).toBeGreaterThan(0);
+  });
+
+  it.each(tracked.map((d) => [d.id, d] as const))(
+    'leaves %s nothing unexplained',
+    (_id, definition) => {
+      expect(definition.unmodelled ?? []).not.toEqual([]);
+    },
+  );
+
+  /** And an executed spell is still allowed to have nothing to declare. */
+  it('does not demand a note from a spell that does everything it says', () => {
+    const executed = SPELL_DEFINITIONS.filter((d) => d.effects.length > 0);
+    expect(executed.some((d) => (d.unmodelled ?? []).length === 0)).toBe(true);
+  });
+});
+
 describe('the coverage table cannot claim more than the tests prove', () => {
   it('verifies only spells the engine can execute', () => {
     const executable = new Set(SPELL_DEFINITIONS.map((d) => d.id));

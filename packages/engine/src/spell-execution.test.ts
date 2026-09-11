@@ -512,24 +512,27 @@ describe('what a cast refuses, and what it admits it cannot check', () => {
 describe('a feat-granted spell casts on the feat terms', () => {
   /**
    * Mage Hand comes from Magic Initiate, not the Wizard's cantrip list. It has
-   * no definition — a spectral hand that fetches things is not a mechanic the
-   * engine has — so the engine refuses to execute it, but it says *that*, not
+   * no definition — a familiar is a creature conjured into the fight, which is
+   * not a mechanic the engine has — so it refuses to execute it, but it says
+   * *that*, not
    * that the caster does not know it. That distinction is what a tool surface
    * needs in order to decide what to tell the player.
    *
-   * (This was Ray of Frost until Ray of Frost got a definition. The point is
-   * the missing mechanic, not the spell.)
+   * (This was Ray of Frost, then Mage Hand, each until it got a definition.
+   * The point is the missing mechanic, not the spell — Find Familiar needs a
+   * creature conjured into the fight and tied to the casting, which is the
+   * summon shape and the one left standing.)
    */
   it('knows the caster has it, and says only that it cannot execute it', () => {
     const state = fold('seed', table());
-    expect(routeFor(state.creatures.kessa!.spellcasting, 'mage-hand')).toMatchObject({
+    expect(routeFor(state.creatures.kessa!.spellcasting, 'find-familiar')).toMatchObject({
       kind: 'granted',
     });
 
     const result = resolveSpell(
       state,
       WIZARD,
-      { spellId: 'mage-hand', targets: [GOBLIN] },
+      { spellId: 'find-familiar', targets: [] },
       supply(state),
     );
     expect(isErr(result)).toBe(true);

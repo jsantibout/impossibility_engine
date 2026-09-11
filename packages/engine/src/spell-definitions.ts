@@ -234,6 +234,18 @@ export interface SpellDefinition {
    * catches. `targets.count` is ignored when this is set.
    */
   readonly area?: SpellArea;
+  /**
+   * What the engine does when the spell resolves.
+   *
+   * **An empty list is a deliberate state, not a stub.** Ninety-one SRD spells
+   * do something the engine has no business deciding — Disguise Self changes
+   * how you look, Speak with Animals lets you talk to a badger — and those are
+   * the DM's and always will be. What is *not* the DM's is the cost: a slot
+   * spent, an action taken, a Concentration given up, a clock started. A spell
+   * with no effects is **tracked**: the engine spends everything the casting
+   * costs and runs its duration, and `unmodelled` says what happens at the
+   * table. Refusing the cast instead meant the slot was never spent.
+   */
   readonly effects: readonly SpellEffect[];
   /**
    * Whether the spell says the caster must *see* the target.
@@ -259,7 +271,9 @@ export interface SpellDefinition {
    * narrating the spell knows exactly which half of it the engine did, and can
    * hand the rest to the DM instead of quietly dropping it.
    *
-   * A spell with an empty list does everything its text says.
+   * A spell with an empty list does everything its text says, and a spell with
+   * no `effects` must have a non-empty one — a definition that resolved to
+   * nothing and said nothing would be worse than the refusal it replaced.
    */
   readonly unmodelled?: readonly string[];
 }
@@ -1700,7 +1714,389 @@ export const CHARM_MONSTER: SpellDefinition = {
   ],
 };
 
+
+// — spells the engine tracks rather than executes ————————————————————————————
+//
+// Each of these is cast for real: the action goes, the slot goes, Concentration
+// moves, the duration runs. What the spell *does* is narration, and every one
+// says so. The SRD line each field came from is quoted, because a tracked
+// spell's numbers are exactly as easy to get wrong as an executed one's — and
+// nothing downstream would catch a wrong duration.
+
+/**
+ * SRD Detect Magic:
+ *
+ * > _Level 1 Divination (Ritual)._ **Casting Time:** Action or Ritual.
+ * > **Range:** Self. **Duration:** Concentration, up to 10 minutes.
+ * > "For the duration, you sense the presence of magical effects within 30
+ * > feet of yourself."
+ */
+export const DETECT_MAGIC: SpellDefinition = {
+  id: 'detect-magic',
+  name: 'Detect Magic',
+  level: 1,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'sensing magical effects within 30 feet, the Magic action to see an aura, and the school a spell belongs to, are all the DM’s to narrate',
+    'the ritual casting option is not modelled; a casting time of 1 minute or more is refused',
+    'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s',
+  ],
+};
+
+/**
+ * SRD Mage Hand:
+ *
+ * > _Conjuration Cantrip._ **Casting Time:** Action. **Range:** 30 feet.
+ * > **Duration:** 1 minute.
+ * > "A spectral, floating hand appears at a point you choose within range."
+ */
+export const MAGE_HAND: SpellDefinition = {
+  id: 'mage-hand',
+  name: 'Mage Hand',
+  level: 0,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the hand itself is not a thing in the world: manipulating an object, opening a door, or moving the hand 30 feet on a later turn are the DM’s',
+    'the hand vanishing beyond 30 feet, and a second casting ending the first, are not tracked',
+    'the 10-pound carrying limit and the ban on attacking or activating magic items are the DM’s',
+  ],
+};
+
+/**
+ * SRD Light:
+ *
+ * > _Evocation Cantrip._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** 1 hour.
+ * > "You touch one Large or smaller object that isn't being worn or carried by
+ * > someone else. Until the spell ends, the object sheds Bright Light in a
+ * > 20-foot radius and Dim Light for an additional 20 feet."
+ */
+export const LIGHT: SpellDefinition = {
+  id: 'light',
+  name: 'Light',
+  level: 0,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the spell targets an object, and objects are not modelled — which object was touched, and whether it is worn or carried by someone else, are the DM’s',
+    'Bright Light in a 20-foot radius and Dim Light beyond it are not modelled; the engine has no lighting',
+    'covering the object, and a second casting ending the first, are not tracked',
+  ],
+};
+
+/**
+ * SRD Fly:
+ *
+ * > _Level 3 Transmutation._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "You touch a willing creature. For the duration, the target gains a Fly
+ * > Speed of 60 feet and can hover."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 3."
+ */
+export const FLY: SpellDefinition = {
+  id: 'fly',
+  name: 'Fly',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'a Fly Speed of 60 feet and hovering are not applied; the engine tracks one Speed and no movement modes',
+    'the fall when the spell ends on a creature still aloft is the DM’s',
+  ],
+};
+
+/**
+ * SRD Longstrider:
+ *
+ * > _Level 1 Transmutation._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** 1 hour.
+ * > "You touch a creature. The target's Speed increases by 10 feet until the
+ * > spell ends."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 1."
+ */
+export const LONGSTRIDER: SpellDefinition = {
+  id: 'longstrider',
+  name: 'Longstrider',
+  level: 1,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the 10-foot Speed increase is not applied: Speed comes from the species and nothing modifies it yet',
+  ],
+};
+
+/**
+ * SRD Darkvision:
+ *
+ * > _Level 2 Transmutation._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** 8 hours.
+ * > "For the duration, a willing creature you touch has Darkvision with a
+ * > range of 150 feet."
+ */
+export const DARKVISION: SpellDefinition = {
+  id: 'darkvision',
+  name: 'Darkvision',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'Darkvision is not modelled; sight is declared per pair of creatures rather than derived from light and senses',
+  ],
+};
+
+/**
+ * SRD Spider Climb:
+ *
+ * > _Level 2 Transmutation._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "Until the spell ends, one willing creature you touch gains the ability to
+ * > move up, down, and across vertical surfaces and along ceilings, while
+ * > leaving its hands free. The target also gains a Climb Speed equal to its
+ * > Speed."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 2."
+ */
+export const SPIDER_CLIMB: SpellDefinition = {
+  id: 'spider-climb',
+  name: 'Spider Climb',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'climbing walls and ceilings, and the Climb Speed, are not applied; the engine tracks one Speed and no movement modes',
+  ],
+};
+
+/**
+ * SRD Misty Step:
+ *
+ * > _Level 2 Conjuration._ **Casting Time:** Bonus Action. **Range:** Self.
+ * > **Duration:** Instantaneous.
+ * > "Briefly surrounded by silvery mist, you teleport up to 30 feet to an
+ * > unoccupied space you can see."
+ */
+export const MISTY_STEP: SpellDefinition = {
+  id: 'misty-step',
+  name: 'Misty Step',
+  level: 2,
+  school: 'conjuration',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the teleport itself is not performed: the caster’s position is unchanged, and moving them 30 feet to an unoccupied space they can see is a separate placement the caller makes',
+  ],
+};
+
+/**
+ * SRD Disguise Self:
+ *
+ * > _Level 1 Illusion._ **Casting Time:** Action. **Range:** Self.
+ * > **Duration:** 1 hour.
+ * > "You make yourself—including your clothing, armor, weapons, and other
+ * > belongings on your person—look different until the spell ends."
+ */
+export const DISGUISE_SELF: SpellDefinition = {
+  id: 'disguise-self',
+  name: 'Disguise Self',
+  level: 1,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'what the caster looks like is the DM’s',
+    'the Study action and the Intelligence (Investigation) check against the spell save DC that see through it are not raised by the engine',
+  ],
+};
+
+/**
+ * SRD Comprehend Languages:
+ *
+ * > _Level 1 Divination (Ritual)._ **Casting Time:** Action or Ritual.
+ * > **Range:** Self. **Duration:** 1 hour.
+ * > "For the duration, you understand the literal meaning of any language that
+ * > you hear or see signed."
+ */
+export const COMPREHEND_LANGUAGES: SpellDefinition = {
+  id: 'comprehend-languages',
+  name: 'Comprehend Languages',
+  level: 1,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'understanding a language is the DM’s; the engine records which languages a character knows but nothing reads them in play',
+    'the ritual casting option is not modelled',
+  ],
+};
+
+/**
+ * SRD Water Breathing:
+ *
+ * > _Level 3 Transmutation (Ritual)._ **Casting Time:** Action or Ritual.
+ * > **Range:** 30 feet. **Duration:** 24 hours.
+ * > "This spell grants up to ten willing creatures of your choice within range
+ * > the ability to breathe underwater until the spell ends."
+ */
+export const WATER_BREATHING: SpellDefinition = {
+  id: 'water-breathing',
+  name: 'Water Breathing',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 10 },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'breathing underwater is the DM’s; suffocation is not modelled',
+    'the ritual casting option is not modelled',
+  ],
+};
+
+/**
+ * SRD Speak with Animals:
+ *
+ * > _Level 1 Divination (Ritual)._ **Casting Time:** Action or Ritual.
+ * > **Range:** Self. **Duration:** 10 minutes.
+ * > "For the duration, you can comprehend and verbally communicate with
+ * > Beasts, and you can use any of the Influence action's skill options with
+ * > them."
+ */
+export const SPEAK_WITH_ANIMALS: SpellDefinition = {
+  id: 'speak-with-animals',
+  name: 'Speak with Animals',
+  level: 1,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'what a Beast says is the DM’s',
+    'the Influence action and its skill options are not modelled',
+    'the ritual casting option is not modelled',
+  ],
+};
+
+/**
+ * SRD Jump:
+ *
+ * > _Level 1 Transmutation._ **Casting Time:** Bonus Action. **Range:** Touch.
+ * > **Duration:** 1 minute.
+ * > "You touch a willing creature. Once on each of its turns until the spell
+ * > ends, that creature can jump up to 30 feet by spending 10 feet of
+ * > movement."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 1."
+ */
+export const JUMP: SpellDefinition = {
+  id: 'jump',
+  name: 'Jump',
+  level: 1,
+  school: 'transmutation',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count',
+  ],
+};
+
+/**
+ * SRD Prestidigitation:
+ *
+ * > _Transmutation Cantrip._ **Casting Time:** Action. **Range:** 10 feet.
+ * > **Duration:** Up to 1 hour.
+ * > "You create a magical effect within range."
+ */
+export const PRESTIDIGITATION: SpellDefinition = {
+  id: 'prestidigitation',
+  name: 'Prestidigitation',
+  level: 0,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 10 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'every one of the listed effects — a sensory effect, lighting or snuffing a flame, cleaning or soiling an object, chilling or warming, a mark, a trinket — is the DM’s',
+    'the limit of three effects at once, and dismissing one as an action, are not tracked',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
+  COMPREHEND_LANGUAGES,
+  DARKVISION,
+  DETECT_MAGIC,
+  DISGUISE_SELF,
+  FLY,
+  JUMP,
+  LIGHT,
+  LONGSTRIDER,
+  MAGE_HAND,
+  MISTY_STEP,
+  PRESTIDIGITATION,
+  SPEAK_WITH_ANIMALS,
+  SPIDER_CLIMB,
+  WATER_BREATHING,
   ACID_SPLASH,
   ANIMAL_FRIENDSHIP,
   BANE,

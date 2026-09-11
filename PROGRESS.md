@@ -42,10 +42,17 @@ still Wizard-shaped are named below.
 | Multiclassing | Rules module, and wired into creation | `e79b61d` |
 | Per-class casting | Two casting classes; Pact Magic its own pool | `d022ca0` |
 | No skipped tests | Each class asserts the slot rule that applies to it | `a48bbb1` |
-| Unarmoured Defense | A class feature reaches the Armour Class calculation | _this batch_ |
+| Unarmoured Defense | A class feature reaches the Armour Class calculation | `cc2df1f` |
+| Tracked spells | The engine casts what it cannot execute; 14 utility spells | _this batch_ |
 
 ## Decisions that constrain what comes next
 
+- **Four states, never conflated**: parsed / tracked / executed / verified.
+  **Tracked** is the one added here and it is not a half-finished *executed*:
+  the engine spends the action, the slot, the Concentration and the clock, and
+  the effect is the DM's. Disguise Self will never be executed, because what a
+  caster looks like is not arithmetic. Refusing the cast outright meant the
+  slot was never spent, which is a worse answer than either.
 - **Three states, never conflated**: parsed / executable / verified.
   `coverage.test.ts` enforces the last two. A definition that drifts from the
   book on name, level, school, casting time or Concentration fails there.
@@ -98,30 +105,37 @@ still Wizard-shaped are named below.
 
 ## Next actions, in order
 
-1. **Keep pouring spells into the five working shapes.** Attack, save-damage,
+1. **Pour the rest of the utility bucket into the tracked shape.** 14 of 91
+   are done and the mechanism costs nothing per spell: a definition with real
+   metadata, `effects: []`, and an `unmodelled` list naming what the table
+   decides. `coverage.test.ts` refuses a tracked spell that declares nothing.
+   The ones with a *check* in them — Disguise Self's Investigation against the
+   save DC, Dispel Magic's ability check — want a shape of their own, and that
+   is the next real mechanism in this area.
+2. **Keep pouring spells into the five working shapes.** Attack, save-damage,
    save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
    spells fit one of them and need only a definition with its SRD quote.
    `spell-catalogue.test.ts` drives every definition automatically, so the
    test cost of each new one is zero. This is the cheapest coverage there is.
-2. **Turn-anchored spell durations.** `SpellDefinition.durationSeconds` is
+3. **Turn-anchored spell durations.** `SpellDefinition.durationSeconds` is
    elapsed time only, so "until the end of your next turn" cannot be written
    down — Color Spray and several riders are blocked on it. `duration.ts`
    already has `endOfNextTurn`; the definition needs a way to name it.
-3. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
+4. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
    deal a second, smaller hit at the end of the target's next turn. The turn
    hook machinery raises *saves*; this needs it to raise damage too.
-4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
+5. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-5. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
+6. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
    that can order a cast against the event that triggered it. This is the
    hardest remaining spell mechanism and is deliberately last.
-6. **Summons** (9 spells). Needs a creature created mid-fight from a stat
+7. **Summons** (9 spells). Needs a creature created mid-fight from a stat
    block, which `adaptMonster` can already produce — the gap is an event that
    adds it and ties its life to the casting.
-7. **Long casting times** (43 spells). Needs a casting-in-progress state
+8. **Long casting times** (43 spells). Needs a casting-in-progress state
    machine with a per-turn obligation; the clock alone was never the blocker.
-8. **Classes.** See below.
+9. **Classes.** See below.
 
 ## Classes: all twelve, with one subclass each
 
@@ -241,10 +255,11 @@ Run `pnpm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executable and verified | 43 |
+| Spells executed and verified | 43 |
+| Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 48 of 230 |
-| Tests | 2,054 passing, none skipped |
+| Tests | 2,236 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

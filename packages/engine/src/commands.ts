@@ -1810,6 +1810,18 @@ function namedTargets(
   }
 
   const allowed = targetCountFor(definition.targets, definition.level, castLevel);
+
+  // A spell that aims at nobody. SRD's "Range: Self" utility spells — Detect
+  // Magic, Disguise Self — and the ones that act on an object or a point, like
+  // Light and Mage Hand. They are cast, they cost what they cost and they run
+  // for their duration; there is simply no creature to check.
+  if (allowed === 0) {
+    if (request.targets.length > 0) {
+      return err('takes_no_target', `${definition.name} is not cast on a creature`);
+    }
+    return ok([]);
+  }
+
   if (request.targets.length === 0) {
     return err('no_targets', `${definition.name} needs a target`);
   }
