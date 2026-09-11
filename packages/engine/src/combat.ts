@@ -1,5 +1,6 @@
 import {
   err,
+  needsContext,
   ok,
   type CharacterId,
   type Result,
@@ -290,7 +291,7 @@ export function advanceTurn(state: CombatState): CombatState {
 
 function requireCombatant(state: CombatState, id: CharacterId): Result<TurnBudget> {
   const budget = state.budgets[id];
-  if (budget === undefined) return err('unknown_combatant', `${id} is not in this combat`);
+  if (budget === undefined) return needsContext('unknown_combatant', `${id} is not in this combat`);
   return ok(budget);
 }
 
@@ -536,7 +537,7 @@ export function useFreeInteraction(state: CombatState, id: CharacterId): Result<
  */
 export function removeCombatant(state: CombatState, id: CharacterId): Result<CombatState> {
   const index = state.order.findIndex((c) => c.id === id);
-  if (index === -1) return err('unknown_combatant', `${id} is not in this combat`);
+  if (index === -1) return needsContext('unknown_combatant', `${id} is not in this combat`);
   if (state.order.length === 1) {
     return err('last_combatant', 'combat needs at least one combatant');
   }
@@ -582,8 +583,8 @@ export function swapInitiative(
 
   const first = state.order.find((c) => c.id === a);
   const second = state.order.find((c) => c.id === b);
-  if (first === undefined) return err('unknown_combatant', `${a} is not in this combat`);
-  if (second === undefined) return err('unknown_combatant', `${b} is not in this combat`);
+  if (first === undefined) return needsContext('unknown_combatant', `${a} is not in this combat`);
+  if (second === undefined) return needsContext('unknown_combatant', `${b} is not in this combat`);
 
   for (const [id, conditions] of [
     [a, conditionsA],

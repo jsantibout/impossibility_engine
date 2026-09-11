@@ -1,4 +1,4 @@
-import { err, ok, type CharacterId, type Result } from '@ie/shared';
+import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared';
 import { abilityModifier } from './character.js';
 import { HOUR, hours } from './clock.js';
 import type { Rng } from './dice.js';
@@ -134,7 +134,7 @@ export function beginRest(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return err('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
   if (creature.vitals.dead) return err('dead', `${id} is dead and is past resting`);
   if (creature.vitals.hp < 1) {
     return err('no_hit_points', `${id} needs at least 1 hit point to start a rest`);
@@ -202,7 +202,7 @@ export function endRest(
   supply?: HitDiceSupply,
 ): Result<RestResolution> {
   const creature = creatureOf(state, id);
-  if (creature === null) return err('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
 
   const rest = creature.resting;
   if (rest === null) return err('not_resting', `${id} is not resting`);

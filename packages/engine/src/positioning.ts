@@ -1,4 +1,4 @@
-import { err, ok, type CharacterId, type Result } from '@ie/shared';
+import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared';
 import type { CreatureSize } from '@ie/srd';
 
 /**
@@ -105,16 +105,35 @@ export function addLandmark(
 }
 
 /**
- * What a placement is measured from. There is deliberately no "raw point"
- * option: the model states positions relative to things the fiction has already
- * established, which is what keeps a placement from drifting away from the
- * narration.
+ * What a placement is measured from.
+ *
+ * The three a caller may use are all relative to something the fiction has
+ * already established, which is what keeps a placement from drifting away from
+ * the narration — the model never types coordinates. The fourth is the
+ * engine's own and is documented on the variant.
  */
 export type Anchor =
   | { readonly creature: CharacterId }
   | { readonly landmark: string }
   /** For the first thing in an otherwise empty scene. A deliberate choice, not a default. */
-  | { readonly sceneCenter: true };
+  | { readonly sceneCenter: true }
+  /**
+   * A point the engine has already worked out for itself.
+   *
+   * **Not for callers.** "The model never types raw coordinates" is the rule
+   * that keeps a placement tied to something just narrated, and it stands: no
+   * tool surface exposes this. It exists because a *deferred* placement can
+   * outlive its anchor — a move waits on Opportunity Attacks, and the creature
+   * it was measured from can be killed and removed before the move completes.
+   * Re-resolving then fails, and the `creature-moved` event that results can
+   * never be folded again: an append-only log with an unfoldable event in it is
+   * a campaign that will not load.
+   *
+   * So a declared move carries the destination it measured, and falls back to
+   * it when the anchor it named is gone. The fallback is a fact the engine
+   * recorded, not a coordinate anybody invented.
+   */
+  | { readonly point: Point };
 
 export interface Placement {
   readonly from: Anchor;
@@ -299,6 +318,7 @@ export function endsProne(mover: CreatureSize, occupant: CreatureSize): boolean 
 }
 
 function resolveAnchor(state: PositionState, anchor: Anchor): Result<Point> {
+  if ('point' in anchor) return ok(anchor.point);
   if ('sceneCenter' in anchor) {
     return ok({ x: state.extent.width / 2, y: state.extent.depth / 2, z: 0 });
   }
@@ -311,7 +331,7 @@ function resolveAnchor(state: PositionState, anchor: Anchor): Result<Point> {
   }
   const at = state.positions[anchor.creature];
   if (at === undefined) {
-    return err('unplaced', `${anchor.creature} has no position to measure from`);
+    return needsContext('unplaced', `${anchor.creature} has no position to measure from`);
   }
   return ok(at);
 }
@@ -517,7 +537,7 @@ export function moveCreature(
 ): Result<MoveOutcome> {
   const current = state.positions[who];
   if (current === undefined) {
-    return err('unplaced', `${who} has no position to move from`);
+    return needsContext('unplaced', `${who} has no position to move from`);
   }
 
   const from = resolveAnchor(state, placement.from);
@@ -559,7 +579,7 @@ export function moveCreature(
 
 export function removeCreature(state: PositionState, who: CharacterId): Result<PositionState> {
   if (state.positions[who] === undefined) {
-    return err('unplaced', `${who} is not in this scene`);
+    return needsContext('unplaced', `${who} is not in this scene`);
   }
   const positions = { ...state.positions };
   delete positions[who];
@@ -603,14 +623,14 @@ export function distanceBetween(
 ): Result<number> {
   if (a === b) {
     return state.positions[a] === undefined
-      ? err('unplaced', `${a} needs placing before distances mean anything`)
+      ? needsContext('unplaced', `${a} needs placing before distances mean anything`)
       : ok(0);
   }
 
   const boxA = boxOf(state, a);
   const boxB = boxOf(state, b);
-  if (boxA === null) return err('unplaced', `${a} needs placing before distances mean anything`);
-  if (boxB === null) return err('unplaced', `${b} needs placing before distances mean anything`);
+  if (boxA === null) return needsContext('unplaced', `${a} needs placing before distances mean anything`);
+  if (boxB === null) return needsContext('unplaced', `${b} needs placing before distances mean anything`);
 
   return ok(chebyshev(boxA, boxB));
 }
@@ -630,7 +650,7 @@ export function distanceToPoint(
   point: Point,
 ): Result<number> {
   const box = boxOf(state, who);
-  if (box === null) return err('unplaced', `${who} needs placing before distances mean anything`);
+  if (box === null) return needsContext('unplaced', `${who} needs placing before distances mean anything`);
   return ok(chebyshev(box, pointBox(point)));
 }
 
@@ -751,8 +771,8 @@ export function mount(
   }
 
   const mountAt = state.positions[target];
-  if (state.positions[rider] === undefined) return err('unplaced', `${rider} needs placing first`);
-  if (mountAt === undefined) return err('unplaced', `${target} needs placing first`);
+  if (state.positions[rider] === undefined) return needsContext('unplaced', `${rider} needs placing first`);
+  if (mountAt === undefined) return needsContext('unplaced', `${target} needs placing first`);
 
   // SRD: "you can mount a creature that is within 5 feet of you" — measured
   // space to space like every other distance.
@@ -1006,7 +1026,7 @@ export function creaturesInArea(
   if ('creature' in origin) {
     const found = state.positions[origin.creature];
     if (found === undefined) {
-      return err('unplaced', `${origin.creature} needs placing before its area can be resolved`);
+      return needsContext('unplaced', `${origin.creature} needs placing before its area can be resolved`);
     }
     at = found;
     originCreature = origin.creature;

@@ -2,6 +2,7 @@ import {
   ABILITIES,
   SKILLS,
   err,
+  needsContext,
   ok,
   type Ability,
   type CharacterId,
@@ -2235,7 +2236,7 @@ export function advanceCharacter(
   advance: AdvanceChoices,
 ): Result<GameEvent[]> {
   const creature = state.creatures[id];
-  if (creature === undefined) return err('unknown_creature', `${id} is not in this game`);
+  if (creature === undefined) return needsContext('unknown_creature', `${id} is not in this game`);
 
   const record = creature.character;
   if (record === null || record === undefined) {

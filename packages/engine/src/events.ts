@@ -77,6 +77,7 @@ import {
   type Placement,
   type PositionState,
   type SceneExtent,
+  type Point,
 } from './positioning.js';
 import {
   applyDamageToVitals,
@@ -290,6 +291,17 @@ export interface PendingMove {
    * meantime, "beside the fighter" still means beside the fighter.
    */
   readonly placement: Placement;
+  /**
+   * Where that placement resolved to when the move was declared.
+   *
+   * The placement is re-resolved on completion so a mover still arrives beside
+   * the fighter who shuffled sideways — but the anchor can also be *gone* by
+   * then, killed and removed by the very Opportunity Attack the move provoked.
+   * Re-resolution fails there, and the `creature-moved` event it produces can
+   * never be folded again. This is what the move falls back to: the spot it was
+   * already measured against and already paid Speed to reach.
+   */
+  readonly destination: Point;
   readonly feet: number;
   /** Who was offered an Opportunity Attack and has not yet answered. */
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
@@ -498,7 +510,12 @@ export type GameEvent =
       /** The command that caused it, so a retry is recognised as one. */
       readonly command?: CommandStamp;
     }
-  | { readonly type: 'healed'; readonly id: CharacterId; readonly amount: number }
+  | {
+      readonly type: 'healed';
+      readonly id: CharacterId;
+      readonly amount: number;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'temporary-hp-granted';
       readonly id: CharacterId;
@@ -579,7 +596,12 @@ export type GameEvent =
       readonly item: string;
       readonly command?: CommandStamp;
     }
-  | { readonly type: 'item-unequipped'; readonly id: CharacterId; readonly item: string }
+  | {
+      readonly type: 'item-unequipped';
+      readonly id: CharacterId;
+      readonly item: string;
+      readonly command?: CommandStamp;
+    }
 
   /** Establishing a fact the engine was missing, so a rule can read it. */
   | {
@@ -722,6 +744,7 @@ export type GameEvent =
       readonly deadline: Deadline;
       /** A save this effect takes at a turn boundary, if it takes one. */
       readonly repeatSave?: RepeatSave;
+      readonly command?: CommandStamp;
     }
   /**
    * A turn-boundary save, rolled and settled.
@@ -758,7 +781,14 @@ export type GameEvent =
   // — combat ——————————————————————————————————————————————————
   | { readonly type: 'combat-started'; readonly combatants: readonly CombatantInput[] }
   | { readonly type: 'combat-ended' }
-  | { readonly type: 'turn-advanced' }
+  /**
+   * The turn moved on.
+   *
+   * Carries a stamp because a retried advance is the one duplicate nobody
+   * notices: it does not double an effect, it **skips a combatant's whole
+   * turn**, and the log that results looks perfectly well-formed.
+   */
+  | { readonly type: 'turn-advanced'; readonly command?: CommandStamp }
   | { readonly type: 'action-spent'; readonly id: CharacterId }
   | { readonly type: 'bonus-action-spent'; readonly id: CharacterId }
   | { readonly type: 'reaction-spent'; readonly id: CharacterId }
@@ -771,8 +801,12 @@ export type GameEvent =
    * this is, from the budget and the sheet.
    */
   | { readonly type: 'attack-made'; readonly id: CharacterId }
-  | { readonly type: 'dash-taken'; readonly id: CharacterId }
-  | { readonly type: 'disengage-taken'; readonly id: CharacterId }
+  | { readonly type: 'dash-taken'; readonly id: CharacterId; readonly command?: CommandStamp }
+  | {
+      readonly type: 'disengage-taken';
+      readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
   | { readonly type: 'free-interaction-used'; readonly id: CharacterId }
   | { readonly type: 'combatant-removed'; readonly id: CharacterId }
   | {
@@ -829,6 +863,7 @@ export type GameEvent =
       readonly type: 'opportunity-answered';
       readonly reactor: CharacterId;
       readonly took: boolean;
+      readonly command?: CommandStamp;
     }
   /** Every Reaction is settled; the move happens. */
   | { readonly type: 'movement-completed'; readonly id: CharacterId }
@@ -876,6 +911,7 @@ export type GameEvent =
       readonly type: 'readied-released';
       readonly id: CharacterId;
       readonly took: boolean;
+      readonly command?: CommandStamp;
     }
   /**
    * A feature switched off, and why.
@@ -890,6 +926,7 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly feature: string;
       readonly reason: 'dismissed' | 'expired' | 'incapacitated' | 'heavy-armor';
+      readonly command?: CommandStamp;
     }
   /**
    * Whether one creature can see another.
@@ -2304,6 +2341,25 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'rolls-issued':
       return { ...next, rollsIssued: state.rollsIssued + event.count, rng: event.rng };
   }
+
+  // **A corrupt log is loud**, and this is the case that was quiet. An event
+  // the switch does not recognise used to fall out of it and return
+  // `undefined`, which then failed several derived passes later with a
+  // TypeError naming a function that had nothing to do with it.
+  //
+  // That is tolerable while every log is built in this process by these
+  // commands. It stops being tolerable the moment logs come back from
+  // Postgres as JSON, where a type is a string somebody wrote down last
+  // season: a renamed or retired event silently becomes an undefined world.
+  //
+  // The `never` binding is the other half, and it is free: adding a variant to
+  // `GameEvent` without a case here is a compile error rather than a runtime
+  // surprise.
+  const unhandled: never = event;
+  throw new CorruptLogError(
+    unhandled as GameEvent,
+    'the reducer has no rule for this event type; the log and the code disagree',
+  );
 }
 
 /** Fold a whole log into the state it describes. */
