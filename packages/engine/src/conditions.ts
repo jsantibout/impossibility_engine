@@ -286,7 +286,16 @@ export function attackerConditionModes(
 }
 
 export interface TargetContext {
-  /** The attacker is within 5 feet — which flips Prone's effect. */
+  /**
+   * Whether the attacker is within 5 feet, or **absent for "nobody has said"**.
+   *
+   * Three states rather than two, because Prone is the one condition whose
+   * effect flips on distance rather than merely switching off, so there is no
+   * conservative direction to fall back on. Reading an unknown distance as
+   * "not within 5 feet" would hand the attacker Disadvantage on the strength
+   * of a fact nobody established — the engine inventing a position by
+   * implication, which is what `position: Point | null` exists to prevent.
+   */
   readonly withinFiveFeet?: boolean;
   /** The attacker can see the target, negating Invisible's protection. */
   readonly attackerCanSeeTarget?: boolean;
@@ -311,8 +320,13 @@ export function targetConditionModes(
   // within 5 feet of you. Otherwise, that attack roll has Disadvantage."
   // The second half is the half that gets forgotten — a prone target is harder
   // to hit at range, not merely no easier.
-  if (hasCondition(state, 'prone')) {
-    modes.push(context.withinFiveFeet === true ? advantage('prone') : disadvantage('prone'));
+  // SRD Prone: "An attack roll against you has Advantage if the attacker is
+  // within 5 feet of you. Otherwise, that attack roll has Disadvantage." The
+  // second half is the half that gets forgotten; the *third* case is the one
+  // that gets invented. Without the distance the rule has no answer, so it
+  // gives none — see `withinFiveFeet` above.
+  if (hasCondition(state, 'prone') && context.withinFiveFeet !== undefined) {
+    modes.push(context.withinFiveFeet ? advantage('prone') : disadvantage('prone'));
   }
 
   return modes;

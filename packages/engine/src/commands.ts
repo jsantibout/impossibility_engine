@@ -580,6 +580,15 @@ export interface AttackCommand extends CommandIdentity {
 
 export interface AttackResolution {
   readonly events: readonly GameEvent[];
+  /**
+   * Facts the engine could not check, rather than checked and found false.
+   *
+   * The same channel `resolveSpell` uses, and for the same reason: an unplaced
+   * creature is one nobody has said the position of, not one standing
+   * nowhere. A rule that needs a distance gets none rather than a guess, and
+   * the layer narrating the attack is told which rule went unapplied.
+   */
+  readonly unverified: readonly string[];
   /** The roll, or null when this command id had already landed. */
   readonly attack: AttackResult | null;
   /** Damage that actually landed, after the target's defences. Absent on a miss. */
@@ -624,7 +633,7 @@ export function resolveAttack(
   // A retry is a no-op rather than a refusal, and says so rather than looking
   // like a miss: the same contract `resolveDamage` keeps, for the same reason.
   if (identity.value.duplicate) {
-    return ok({ events: [], attack: null, duplicate: true });
+    return ok({ events: [], attack: null, unverified: [], duplicate: true });
   }
   const stamp = identity.value.stamp;
 
@@ -636,9 +645,14 @@ export function resolveAttack(
   }
 
   const attacker = creatureOf(state, id);
-  if (attacker === null) return err('unknown_creature', `${id} is not in this game`);
+  if (attacker === null) return err('unknown_creature', `${id} has no record here yet; add it first`);
+  // Not a claim that no such creature exists. A DM who has just narrated a
+  // second ogre out of the treeline has a real ogre; the engine has simply not
+  // been told about it, and being told is all this refusal asks for.
   const victim = creatureOf(state, command.target);
-  if (victim === null) return err('unknown_creature', `${command.target} is not in this game`);
+  if (victim === null) {
+    return err('unknown_creature', `${command.target} has no record here yet; add it first`);
+  }
   if (attacker.vitals.dead) return err('dead', `${id} is dead and swings at nothing`);
 
   // — the weapon —————————————————————————————————————————————————————————
@@ -678,7 +692,15 @@ export function resolveAttack(
 
   // — the roll ———————————————————————————————————————————————————————————
   const issuedBefore = supply.issuer.count;
-  const withinFiveFeet = reach.value.apart !== null && reach.value.apart <= 5;
+
+  // Absent, not false: see `TargetContext.withinFiveFeet`.
+  const withinFiveFeet = reach.value.apart === null ? undefined : reach.value.apart <= 5;
+  const unverified: string[] = [];
+  if (reach.value.apart === null) {
+    unverified.push(
+      `nobody has said where ${id} and ${command.target} are standing, so any rule that reads the distance between them — Prone, an automatic critical, an enemy within 5 feet — went unapplied rather than checked`,
+    );
+  }
 
   const attack = rollAttack(supply.issuer, supply.rng, attacker.sheet, {
     weapon,
@@ -701,7 +723,7 @@ export function resolveAttack(
     // anything. See `effectiveConditions`.
     attackerConditions: effectiveConditions(state, id),
     targetConditions: effectiveConditions(state, command.target),
-    withinFiveFeet,
+    ...(withinFiveFeet === undefined ? {} : { withinFiveFeet }),
   });
   if (!attack.ok) return attack;
 
@@ -724,7 +746,7 @@ export function resolveAttack(
       count: supply.issuer.count - issuedBefore,
       rng: supply.rng.snapshot(),
     });
-    return ok({ events, attack: attack.value, duplicate: false });
+    return ok({ events, attack: attack.value, unverified, duplicate: false });
   }
 
   // SRD Divine Smite is taken "immediately after hitting a target", which is
@@ -752,7 +774,7 @@ export function resolveAttack(
         targetAc: attack.value.targetAc,
       },
     });
-    return ok({ events, attack: attack.value, duplicate: false });
+    return ok({ events, attack: attack.value, unverified, duplicate: false });
   }
 
   // — the damage —————————————————————————————————————————————————————————
@@ -806,8 +828,23 @@ export function resolveAttack(
     attack: attack.value,
     damage: hurt.value.amount,
     concentration: hurt.value.concentration,
+    unverified,
     duplicate: false,
   });
+}
+
+/**
+ * How far apart two creatures are, or null where nobody has said.
+ *
+ * Null is a real answer rather than a failure: positions are declared, so an
+ * unplaced creature is one nobody has placed, not one standing nowhere. Every
+ * rule that reads a distance has to decide what to do with the third case, and
+ * none of them may decide it by assuming.
+ */
+function apartFrom(state: GameState, a: CharacterId, b: CharacterId): number | null {
+  if (state.scene === null) return null;
+  const measured = distanceBetween(state.scene, a, b);
+  return measured.ok ? measured.value : null;
 }
 
 /**
@@ -907,7 +944,9 @@ export function resolveAttackDamage(
 ): Result<AttackResolution> {
   const identity = identify(state, `attack-damage:${id}`, command);
   if (!identity.ok) return identity;
-  if (identity.value.duplicate) return ok({ events: [], attack: null, duplicate: true });
+  if (identity.value.duplicate) {
+    return ok({ events: [], attack: null, unverified: [], duplicate: true });
+  }
   const stamp = identity.value.stamp;
 
   const pending = state.pendingAttack;
@@ -985,6 +1024,7 @@ export function resolveAttackDamage(
     attack: null,
     damage: hurt.value.amount,
     concentration: hurt.value.concentration,
+    unverified: [],
     duplicate: false,
   });
 }
@@ -2821,6 +2861,12 @@ function resolveOnTargets(
           // SRD Aura of Courage says the condition "has no effect on that ally
           // while there", and being easier to hit is an effect.
           targetConditions: effectiveConditions(current, target),
+          // Prone reads the distance, and a spell attack is measured the same
+          // way a weapon's is. Absent where nobody has placed them, so the
+          // rule gives no answer rather than a guessed one.
+          ...(apartFrom(current, casterId, target) === null
+            ? {}
+            : { withinFiveFeet: apartFrom(current, casterId, target)! <= 5 }),
         });
         if (!attack.ok) return attack;
 

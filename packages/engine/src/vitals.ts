@@ -98,9 +98,21 @@ export function applyDamageToVitals(
 
   // Damage taken while already at 0 hit points does not reduce hit points; it
   // costs death saving throws instead.
+  //
+  // **Taken, not landed.** SRD: "If you take *any* damage while you have 0 Hit
+  // Points, you suffer a Death Saving Throw failure", and Temporary Hit Points
+  // are a buffer against losing Hit Points rather than against taking damage —
+  // a downed creature can hold them, since "receiving Temporary Hit Points
+  // doesn't restore you to consciousness". So a blow the pool soaks entirely
+  // still costs a failure and still breaks Stable.
+  //
+  // This is the same reading Concentration already gets here: a caster behind
+  // Armor of Agathys who soaks thirty still rolls against DC 15. Answering the
+  // two rules differently is what this used to do.
   if (isDown(v)) {
     // SRD: "If the damage equals or exceeds your Hit Point maximum, you die."
-    if (toHp >= v.hpMax && toHp > 0) {
+    // The damage, not the remainder — what the pool absorbed was still dealt.
+    if (amount >= v.hpMax) {
       return {
         ...unchanged,
         vitals: { ...v, temporaryHp, stable: false, dead: true },
@@ -110,7 +122,7 @@ export function applyDamageToVitals(
       };
     }
 
-    const added = toHp > 0 ? (options.critical === true ? 2 : 1) : 0;
+    const added = options.critical === true ? 2 : 1;
     const failures = v.deathSaveFailures + added;
     const dead = failures >= 3;
 
@@ -120,7 +132,7 @@ export function applyDamageToVitals(
         ...v,
         temporaryHp,
         // SRD: "If the creature takes damage, it stops being Stable."
-        stable: added > 0 ? false : v.stable,
+        stable: false,
         deathSaveFailures: dead ? 0 : failures,
         dead,
       },

@@ -432,3 +432,61 @@ describe('numeric validation at the entry points', () => {
     expect(grantTemporaryHp(vitals(10), 0).temporaryHp).toBe(0);
   });
 });
+
+/**
+ * What counts as *taking* damage when Temporary Hit Points soak it.
+ *
+ * The engine already rules on this once, for Concentration: "Temporary Hit
+ * Points absorb damage; they do not stop it being taken", which is why a
+ * Warlock behind Armor of Agathys who soaks 30 still rolls a DC 15 save.
+ *
+ * SRD keys the death-save rule on the same trigger — "If you take **any**
+ * damage while you have 0 Hit Points, you suffer a Death Saving Throw failure"
+ * — and Temporary Hit Points are explicitly a buffer against losing *Hit
+ * Points*, not against taking damage. A downed character can hold them: "If
+ * you have 0 Hit Points, receiving Temporary Hit Points doesn't restore you to
+ * consciousness."
+ *
+ * So the two rules have to answer the same way, and the engine used to answer
+ * them differently: a blow entirely soaked cost a Concentration save and no
+ * death save failure.
+ */
+describe('temporary hit points do not stop damage being taken', () => {
+  const downed = (temporaryHp: number) =>
+    vitals(20, { hp: 0, temporaryHp, stable: false });
+
+  it('costs a death saving throw failure even when the pool soaks it all', () => {
+    const hit = applyDamageToVitals(downed(10), 6);
+    expect(hit.temporaryAbsorbed).toBe(6);
+    expect(hit.vitals.temporaryHp).toBe(4);
+    expect(hit.vitals.hp).toBe(0);
+    expect(hit.deathSaveFailuresAdded).toBe(1);
+  });
+
+  /** SRD: "If the damage is from a Critical Hit, you suffer two failures." */
+  it('costs two on a critical, soaked or not', () => {
+    expect(applyDamageToVitals(downed(10), 6, { critical: true }).deathSaveFailuresAdded).toBe(2);
+  });
+
+  /** SRD: "If the creature takes damage, it stops being Stable." */
+  it('breaks Stable even when the pool soaks it all', () => {
+    const stableWithBuffer = { ...downed(10), stable: true };
+    expect(applyDamageToVitals(stableWithBuffer, 6).vitals.stable).toBe(false);
+  });
+
+  /** Zero is still not damage, and neither is a blow against an empty pool. */
+  it('costs nothing for no damage at all', () => {
+    expect(applyDamageToVitals(downed(10), 0).deathSaveFailuresAdded).toBe(0);
+    expect(applyDamageToVitals({ ...downed(10), stable: true }, 0).vitals.stable).toBe(true);
+  });
+
+  /**
+   * And the instant-death rule reads the damage, not what got through: SRD
+   * says "If the damage equals or exceeds your Hit Point maximum, you die",
+   * and the damage is what was dealt.
+   */
+  it('kills outright on damage equalling the maximum, however much was soaked', () => {
+    const hit = applyDamageToVitals(downed(50), 20);
+    expect(hit.died).toBe(true);
+  });
+});
