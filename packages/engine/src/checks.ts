@@ -182,6 +182,12 @@ export interface D20TestResult {
   readonly autoFailed: string | null;
   /** How much the total beat the DC by; negative when it failed. */
   readonly margin: number;
+  /**
+   * What an earlier roll of this same test came to, when something rerolled it.
+   * Indomitable must use the new roll, so the old one is history rather than a
+   * choice — but the log should still show it.
+   */
+  readonly supersedes?: { readonly natural: number; readonly total: number };
 }
 
 function resolve(
@@ -272,36 +278,58 @@ export function rollSavingThrow(
 }
 
 /**
- * Add a bonus to a test that has already been rolled, recomputing the outcome.
+ * An effect used *after* a roll lands but before its outcome is settled.
  *
- * Some effects are used *after* seeing the result. Bardic Inspiration is the
- * clearest: "Once within the next hour when the creature fails a D20 Test, the
- * creature can roll the Bardic Inspiration die and add the number rolled to the
- * d20, potentially turning the failure into a success."
+ * There is a real window here in the rules, and three distinct shapes fill it:
  *
- * The engine deliberately does not check that the test failed. That condition
- * belongs to Bardic Inspiration specifically, not to the mechanism — other
- * effects amend a roll on other terms — so the rule that spends the resource
- * decides whether it may be used, exactly as bonuses are supplied by the
- * caller elsewhere.
+ * - **Bardic Inspiration** adds a rolled die, "when the creature fails a D20
+ *   Test", once the failure is known.
+ * - **Cutting Words** subtracts one, "when a creature ... succeeds on an
+ *   ability check or attack roll ... potentially turning the success into a
+ *   failure". The mirror image, and it also applies to damage rolls — see
+ *   `reduceDamage` in `attack.ts`.
+ * - **Indomitable** rerolls the save outright — see {@link rerollTest}.
+ *
+ * The first two are the same mechanism with a sign, so they share one function.
+ * Most of these are Reactions taken by *another* creature, which is why the
+ * source is carried through: the log should say who spent what.
+ *
+ * The engine deliberately does not check whether the test succeeded or failed.
+ * Bardic Inspiration requires a failure and Cutting Words requires a success,
+ * but those conditions belong to those features, not to the mechanism — and
+ * Bend Luck, which is neither, can push either way.
  */
-export function applyBonusAfterRoll(
+export interface Intervention {
+  readonly source: string;
+  readonly flat?: number;
+  readonly dice?: string;
+  /** Subtract rather than add. Defaults to adding. */
+  readonly direction?: 'bonus' | 'penalty';
+}
+
+export function interveneAfterRoll(
   issuer: RollIssuer,
   rng: Rng,
   result: D20TestResult,
-  bonus: Bonus,
+  intervention: Intervention,
 ): Result<D20TestResult> {
-  const rolled = rollBonusDice(issuer, rng, [bonus]);
+  const sign = intervention.direction === 'penalty' ? -1 : 1;
+
+  const rolled = rollBonusDice(issuer, rng, [intervention]);
   if (!rolled.ok) return rolled;
 
-  const flat = bonus.flat ?? 0;
-  const added: ResolvedBonus[] =
+  const flat = intervention.flat ?? 0;
+  const applied: ResolvedBonus[] =
     rolled.value.length > 0
-      ? rolled.value.map((b) => ({ ...b, flat, total: b.total + flat }))
-      : [{ source: bonus.source, flat, roll: null, total: flat }];
+      ? rolled.value.map((b) => ({
+          ...b,
+          flat: sign * flat,
+          total: sign * (b.total + flat),
+        }))
+      : [{ source: intervention.source, flat: sign * flat, roll: null, total: sign * flat }];
 
-  const bonuses = [...result.bonuses, ...added];
-  const total = result.total + sumResolved(added);
+  const bonuses = [...result.bonuses, ...applied];
+  const total = result.total + sumResolved(applied);
 
   return ok({
     ...result,
@@ -311,5 +339,52 @@ export function applyBonusAfterRoll(
     // creature's Strength save into a success.
     success: result.autoFailed === null && total >= result.dc,
     margin: total - result.dc,
+  });
+}
+
+/**
+ * Reroll a test that has already been made, keeping the new result.
+ *
+ * SRD Indomitable: "If you fail a saving throw, you can reroll it with a bonus
+ * equal to your Fighter level. **You must use the new roll.**" That last
+ * sentence is the rule — this is not take-the-better-of-two, and a reroll that
+ * comes up worse stands.
+ *
+ * The superseded roll is kept on the result, so the log still shows what was
+ * given up rather than quietly replacing it.
+ */
+export function rerollTest(
+  issuer: RollIssuer,
+  rng: Rng,
+  result: D20TestResult,
+  bonus?: Bonus,
+): Result<D20TestResult> {
+  const bonuses = bonus === undefined ? [] : [bonus];
+
+  const rolled = rollD20Test(
+    issuer,
+    rng,
+    // The original modifier already folded in its flat bonuses; re-adding the
+    // dice ones would double them, so only the new bonus rides along.
+    result.modifier,
+    result.modeSources,
+    bonuses,
+  );
+  if (!rolled.ok) return rolled;
+
+  const total = rolled.value.total;
+
+  return ok({
+    ...result,
+    mode: rolled.value.mode,
+    roll: rolled.value.roll,
+    rolls: rolled.value.roll.rolls,
+    natural: rolled.value.roll.natural,
+    modifier: rolled.value.modifier,
+    bonuses: [...result.bonuses, ...rolled.value.bonuses],
+    total,
+    success: result.autoFailed === null && total >= result.dc,
+    margin: total - result.dc,
+    supersedes: { natural: result.natural, total: result.total },
   });
 }

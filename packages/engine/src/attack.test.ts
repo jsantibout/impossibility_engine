@@ -10,6 +10,7 @@ import { rerollDice, treatLowRollsAs } from './dice.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
   applyDamage,
+  reduceDamage,
   applyDefenses,
   attackAbility,
   attackModifier,
@@ -966,5 +967,78 @@ describe('conditions feed into attacks', () => {
       'seen',
     );
     expect(seen.mode).toBe('normal');
+  });
+});
+
+describe('reduceDamage — Cutting Words', () => {
+  const rolled = () =>
+    unwrap(
+      rollAttackDamage(
+        issuer(),
+        scriptedRng([5]),
+        sheet({ abilities: scores({ str: 16 }) }),
+        {
+          weapon: weaponFixture({ damage: { dice: '1d8', fixed: null, type: 'slashing' } }),
+          targetAc: 10,
+          extraDamage: [{ source: 'Flame Tongue', type: 'fire', dice: '2d6' }],
+        },
+        false,
+      ),
+      'damage',
+    );
+
+  /**
+   * SRD Cutting Words applies to damage rolls, not only D20 Tests: "subtract
+   * the number rolled from the creature's roll, reducing the damage".
+   */
+  it('takes the rolled amount off the total', () => {
+    const damage = rolled();
+    // 1d8 at 5 plus Strength 3, and 2d6 at 5 each.
+    expect(damage.total).toBe(18);
+
+    const cut = unwrap(
+      reduceDamage(issuer(), scriptedRng([4]), damage, { source: 'Cutting Words', dice: '1d6' }),
+      'cut',
+    );
+    expect(cut.total).toBe(14);
+  });
+
+  it('records what was subtracted and by whom', () => {
+    const cut = unwrap(
+      reduceDamage(issuer(), scriptedRng([3]), rolled(), { source: 'Cutting Words', dice: '1d6' }),
+      'cut',
+    );
+    expect(cut.reductions).toHaveLength(1);
+    expect(cut.reductions[0]).toMatchObject({ source: 'Cutting Words', amount: 3 });
+  });
+
+  /**
+   * The reduction comes off the total, never off a component. Subtracting it
+   * from the slashing half of a flaming sword would give a fire-immune target
+   * the wrong answer — the exact error typed components exist to prevent.
+   */
+  it('leaves the typed components untouched', () => {
+    const damage = rolled();
+    const cut = unwrap(
+      reduceDamage(issuer(), scriptedRng([4]), damage, { source: 'Cutting Words', dice: '1d6' }),
+      'cut',
+    );
+    expect(cut.components).toEqual(damage.components);
+  });
+
+  it('never reduces damage below zero', () => {
+    const cut = unwrap(
+      reduceDamage(issuer(), scriptedRng([1]), rolled(), { source: 'Enormous', flat: 100 }),
+      'cut',
+    );
+    expect(cut.total).toBe(0);
+  });
+
+  it('accumulates more than one reduction', () => {
+    let damage = rolled();
+    damage = unwrap(reduceDamage(issuer(), scriptedRng([2]), damage, { source: 'a', dice: '1d6' }), 'a');
+    damage = unwrap(reduceDamage(issuer(), scriptedRng([3]), damage, { source: 'b', dice: '1d6' }), 'b');
+    expect(damage.reductions).toHaveLength(2);
+    expect(damage.total).toBe(13);
   });
 });

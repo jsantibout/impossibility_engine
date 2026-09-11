@@ -246,6 +246,19 @@ export interface DamageComponent {
   readonly total: number;
 }
 
+/**
+ * Damage taken away after the roll, by something like Cutting Words.
+ *
+ * Kept alongside the components rather than folded into them, because the
+ * reduction is not damage of any type — subtracting it from the slashing
+ * component would make a fire-immune target's arithmetic wrong.
+ */
+export interface DamageReduction {
+  readonly source: string;
+  readonly roll: RecordedRoll | null;
+  readonly amount: number;
+}
+
 export interface AttackDamage {
   /**
    * Damage broken out by type and source. Resistance applies per type, so a
@@ -253,7 +266,9 @@ export interface AttackDamage {
    */
   readonly components: readonly DamageComponent[];
   readonly critical: boolean;
-  /** Sum of every component, before the target's defences.  */
+  /** Reductions applied after the roll, e.g. Cutting Words. */
+  readonly reductions: readonly DamageReduction[];
+  /** Sum of every component less any reductions, before the target's defences. */
   readonly total: number;
 }
 
@@ -366,7 +381,44 @@ export function rollAttackDamage(
 
   const total = components.reduce((sum, c) => sum + Math.max(0, c.total), 0);
 
-  return ok({ components, critical, total });
+  return ok({ components, critical, reductions: [], total });
+}
+
+/**
+ * Take damage away after it has been rolled.
+ *
+ * SRD Cutting Words: "when a creature ... makes a damage roll ... roll your
+ * Bardic Inspiration die, and subtract the number rolled from the creature's
+ * roll, **reducing the damage**". So this is not only a d20-test effect — the
+ * same Reaction can blunt a hit that has already landed.
+ *
+ * The reduction comes off the total rather than off a component, because it is
+ * not damage of any type. Subtracting it from the slashing half of a flaming
+ * sword would give a fire-immune target the wrong answer, which is the exact
+ * error typed components exist to prevent.
+ */
+export function reduceDamage(
+  issuer: RollIssuer,
+  rng: Rng,
+  damage: AttackDamage,
+  reduction: { readonly source: string; readonly flat?: number; readonly dice?: string },
+): Result<AttackDamage> {
+  const rolled = rollBonusDice(issuer, rng, [reduction]);
+  if (!rolled.ok) return rolled;
+
+  const amount = (reduction.flat ?? 0) + sumResolved(rolled.value);
+  const applied: DamageReduction = {
+    source: reduction.source,
+    roll: rolled.value[0]?.roll ?? null,
+    amount,
+  };
+
+  return ok({
+    ...damage,
+    reductions: [...damage.reductions, applied],
+    // Damage never goes below zero, however much is subtracted.
+    total: Math.max(0, damage.total - amount),
+  });
 }
 
 export interface DamageDefenses {

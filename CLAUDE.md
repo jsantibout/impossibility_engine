@@ -227,11 +227,31 @@ cancels rather than stacks, `modeSources` records **every** source including
 ones that cancelled — so a normal-looking roll can still explain itself
 ("Boots of Elvenkind vs Plate Armor").
 
-**Some bonuses arrive after the roll.** Bardic Inspiration is used "when the
-creature *fails* a D20 Test", once the failure is known, so it cannot be
-supplied up front like Guidance. `applyBonusAfterRoll` amends a completed test
-and recomputes success. It deliberately does not check that the test failed —
-that condition belongs to Bardic Inspiration, not to the mechanism.
+**There is a real window after a roll lands and before its outcome settles**,
+and three distinct effects fill it. All are Reactions, usually taken by someone
+*other* than the roller, which is why every one carries a source.
+
+| Effect | Shape | API |
+|---|---|---|
+| Bardic Inspiration | **Add** a rolled die, after a failure | `interveneAfterRoll` |
+| Cutting Words | **Subtract** one, after a success — and it applies to **damage rolls** too | `interveneAfterRoll` / `reduceDamage` |
+| Indomitable | **Reroll** the save entirely, "you must use the new roll" | `rerollTest` |
+
+The first two are one mechanism with a sign, so they share a function — Bend
+Luck pushes either way, which settles the argument for a `direction` parameter
+over two functions.
+
+`rerollTest` is **not** take-the-better-of-two: a reroll that comes up worse
+stands, because that is what "you must use the new roll" means. The superseded
+roll is kept on the result so the log still shows what was given up.
+
+`reduceDamage` takes its amount off the **total**, never off a component: a
+reduction is not damage of any type, and subtracting it from the slashing half
+of a flaming sword would give a fire-immune target the wrong answer.
+
+None of these check whether the test succeeded or failed. Bardic Inspiration
+requires a failure and Cutting Words a success, but those conditions belong to
+those features, not to the mechanism.
 
 The engine never infers which bonuses apply. Whether Archery or Boots of
 Elvenkind is in play is a question about feats and inventory, which the engine

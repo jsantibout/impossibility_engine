@@ -4,7 +4,8 @@ import type { Rng, RngState } from './dice.js';
 import { createRng } from './dice.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
 import {
-  applyBonusAfterRoll,
+  interveneAfterRoll,
+  rerollTest,
   characterRollModes,
   combineRollModes,
   rollAbilityCheck,
@@ -459,7 +460,7 @@ describe('attributed advantage', () => {
   });
 });
 
-describe('applyBonusAfterRoll', () => {
+describe('interveneAfterRoll', () => {
   /**
    * SRD Bardic Inspiration: "Once within the next hour when the creature fails
    * a D20 Test, the creature can roll the Bardic Inspiration die and add the
@@ -474,7 +475,7 @@ describe('applyBonusAfterRoll', () => {
     expect(failed.margin).toBe(-4);
 
     const inspired = unwrap(
-      applyBonusAfterRoll(issuer(), scriptedRng([5]), failed, {
+      interveneAfterRoll(issuer(), scriptedRng([5]), failed, {
         source: 'Bardic Inspiration',
         dice: '1d6',
       }),
@@ -488,7 +489,7 @@ describe('applyBonusAfterRoll', () => {
   it('leaves the failure standing when the die is not enough', () => {
     const failed = check(scriptedRng([2]), sheet(), 'cha', { dc: 13 });
     const inspired = unwrap(
-      applyBonusAfterRoll(issuer(), scriptedRng([3]), failed, {
+      interveneAfterRoll(issuer(), scriptedRng([3]), failed, {
         source: 'Bardic Inspiration',
         dice: '1d6',
       }),
@@ -503,7 +504,7 @@ describe('applyBonusAfterRoll', () => {
       bonuses: [{ source: 'Guidance', dice: '1d4' }],
     });
     const inspired = unwrap(
-      applyBonusAfterRoll(issuer(), scriptedRng([6]), first, {
+      interveneAfterRoll(issuer(), scriptedRng([6]), first, {
         source: 'Bardic Inspiration',
         dice: '1d6',
       }),
@@ -516,7 +517,7 @@ describe('applyBonusAfterRoll', () => {
   it('accepts a flat after-the-fact bonus', () => {
     const failed = check(scriptedRng([10]), sheet(), 'str', { dc: 12 });
     const helped = unwrap(
-      applyBonusAfterRoll(issuer(), scriptedRng([1]), failed, { source: 'a shove', flat: 2 }),
+      interveneAfterRoll(issuer(), scriptedRng([1]), failed, { source: 'a shove', flat: 2 }),
       'flat',
     );
     expect(helped.total).toBe(12);
@@ -526,7 +527,7 @@ describe('applyBonusAfterRoll', () => {
   it('does not disturb the original roll record', () => {
     const failed = check(scriptedRng([9]), sheet(), 'cha', { dc: 13 });
     const inspired = unwrap(
-      applyBonusAfterRoll(issuer(), scriptedRng([5]), failed, {
+      interveneAfterRoll(issuer(), scriptedRng([5]), failed, {
         source: 'Bardic Inspiration',
         dice: '1d6',
       }),
@@ -629,12 +630,149 @@ describe('conditions feed into checks', () => {
       conditions: conditionState(['paralyzed']),
     });
     const inspired = unwrap(
-      applyBonusAfterRoll(issuer(), scriptedRng([6]), failed, {
+      interveneAfterRoll(issuer(), scriptedRng([6]), failed, {
         source: 'Bardic Inspiration',
         dice: '1d6',
       }),
       'inspired',
     );
     expect(inspired.success).toBe(false);
+  });
+});
+
+describe('interventions after the roll', () => {
+  /**
+   * There is a real window in the rules between a roll landing and its outcome
+   * settling, and three distinct effects fill it. All three are Reactions,
+   * usually taken by someone other than the roller.
+   */
+
+  // SRD Cutting Words: "subtract the number rolled from the creature's roll,
+  // ... potentially turning the success into a failure."
+  it('turns a success into a failure by subtracting a die', () => {
+    const succeeded = check(scriptedRng([14]), sheet(), 'cha', { dc: 13 });
+    expect(succeeded.success).toBe(true);
+
+    const cut = unwrap(
+      interveneAfterRoll(issuer(), scriptedRng([4]), succeeded, {
+        source: 'Cutting Words',
+        dice: '1d6',
+        direction: 'penalty',
+      }),
+      'cut',
+    );
+    expect(cut.total).toBe(10);
+    expect(cut.success).toBe(false);
+  });
+
+  it('records a penalty as a negative contribution, not a positive one', () => {
+    const succeeded = check(scriptedRng([14]), sheet(), 'cha', { dc: 13 });
+    const cut = unwrap(
+      interveneAfterRoll(issuer(), scriptedRng([3]), succeeded, {
+        source: 'Cutting Words',
+        dice: '1d6',
+        direction: 'penalty',
+      }),
+      'cut',
+    );
+    expect(cut.bonuses.at(-1)).toMatchObject({ source: 'Cutting Words', total: -3 });
+  });
+
+  it('still adds when no direction is given', () => {
+    const failed = check(scriptedRng([9]), sheet(), 'cha', { dc: 13 });
+    const helped = unwrap(
+      interveneAfterRoll(issuer(), scriptedRng([5]), failed, {
+        source: 'Bardic Inspiration',
+        dice: '1d6',
+      }),
+      'helped',
+    );
+    expect(helped.total).toBe(14);
+    expect(helped.success).toBe(true);
+  });
+
+  // Bend Luck pushes either way, which is why direction is a parameter rather
+  // than two functions.
+  it('applies a flat penalty as readily as a flat bonus', () => {
+    const rolled = check(scriptedRng([12]), sheet(), 'cha', { dc: 12 });
+    const hindered = unwrap(
+      interveneAfterRoll(issuer(), scriptedRng([1]), rolled, {
+        source: 'Bend Luck',
+        flat: 3,
+        direction: 'penalty',
+      }),
+      'hindered',
+    );
+    expect(hindered.total).toBe(9);
+  });
+
+  it('cannot rescue a test a condition failed outright', () => {
+    const failed = save(scriptedRng([18]), sheet(), 'str', {
+      dc: 5,
+      conditions: conditionState(['paralyzed']),
+    });
+    const helped = unwrap(
+      interveneAfterRoll(issuer(), scriptedRng([6]), failed, {
+        source: 'Bardic Inspiration',
+        dice: '1d6',
+      }),
+      'helped',
+    );
+    expect(helped.success).toBe(false);
+  });
+});
+
+describe('rerollTest — Indomitable', () => {
+  /**
+   * SRD Indomitable: "If you fail a saving throw, you can reroll it with a
+   * bonus equal to your Fighter level. **You must use the new roll.**"
+   */
+  it('replaces a failed save with the new roll', () => {
+    const failed = save(scriptedRng([3]), sheet(), 'wis', { dc: 15 });
+    expect(failed.success).toBe(false);
+
+    const again = unwrap(
+      rerollTest(issuer(), scriptedRng([14]), failed, { source: 'Indomitable', flat: 9 }),
+      'again',
+    );
+    expect(again.natural).toBe(14);
+    expect(again.total).toBe(23);
+    expect(again.success).toBe(true);
+  });
+
+  // The sentence that matters: not take-the-better-of-two.
+  it('keeps a reroll that comes up worse', () => {
+    const failed = save(scriptedRng([9]), sheet(), 'wis', { dc: 15 });
+    const again = unwrap(rerollTest(issuer(), scriptedRng([2]), failed), 'again');
+    expect(again.natural).toBe(2);
+    expect(again.total).toBeLessThan(failed.total);
+    expect(again.success).toBe(false);
+  });
+
+  it('keeps the superseded roll on the record', () => {
+    const failed = save(scriptedRng([3]), sheet(), 'wis', { dc: 15 });
+    const again = unwrap(rerollTest(issuer(), scriptedRng([14]), failed), 'again');
+    expect(again.supersedes).toEqual({ natural: 3, total: 3 });
+  });
+
+  it('carries the original modifiers into the reroll', () => {
+    const s = sheet({ level: 5, abilities: scores({ con: 16 }), saveProficiencies: ['con'] });
+    const failed = save(scriptedRng([2]), s, 'con', { dc: 15 });
+    expect(failed.modifier).toBe(6);
+
+    const again = unwrap(rerollTest(issuer(), scriptedRng([10]), failed), 'again');
+    expect(again.total).toBe(16);
+  });
+
+  it('still cannot beat an automatic failure', () => {
+    const failed = save(scriptedRng([2]), sheet(), 'str', {
+      dc: 5,
+      conditions: conditionState(['stunned']),
+    });
+    const again = unwrap(
+      rerollTest(issuer(), scriptedRng([20]), failed, { source: 'Indomitable', flat: 9 }),
+      'again',
+    );
+    expect(again.success).toBe(false);
   });
 });
