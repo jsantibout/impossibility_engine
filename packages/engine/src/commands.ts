@@ -37,8 +37,10 @@ import {
   creaturesInArea,
   distanceBetween,
   distanceToPoint,
+  moveCreature,
   positionOf,
   sightBetween,
+  type Placement,
   type AreaOrigin,
   type AreaShape,
   type Point,
@@ -84,6 +86,7 @@ import {
   canSpendSpellSlotThisTurn,
   rollInitiative,
   spendAction,
+  spendMovement,
   spendBonusAction,
   spendReaction,
   type InitiativeOptions,
@@ -100,6 +103,7 @@ import {
   type GameEvent,
   type GameState,
   type PendingAttack,
+  type PendingMove,
 } from './events.js';
 import {
   hasPool,
@@ -546,6 +550,311 @@ export function restoreResourcesOn(
   return ok([{ type: 'resources-restored', id, recovers }]);
 }
 
+// — movement ——————————————————————————————————————————————————————————————————
+
+export interface MoveCommand extends CommandIdentity {
+  /** Where to, relative to something already established. */
+  readonly placement: Placement;
+  /**
+   * Movement somebody else is doing to you.
+   *
+   * SRD makes an Opportunity Attack available only when a creature leaves your
+   * reach "using its action, its Bonus Action, its Reaction, or one of its
+   * speeds". Being shoved by Thunderwave is none of those, and it is not the
+   * creature's own movement either, so it costs no Speed and provokes nobody.
+   */
+  readonly forced?: boolean;
+}
+
+export interface MoveResolution {
+  readonly events: readonly GameEvent[];
+  /** How far they went, on the same 5-foot lattice as everything else. */
+  readonly feet: number;
+  /** Facts the engine could not check — see `AttackResolution.unverified`. */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/** The move waiting on the Opportunity Attacks it provoked, or null. */
+export function pendingMoveOf(state: GameState): PendingMove | null {
+  return state.pendingMove;
+}
+
+/**
+ * Move, spending the Speed it costs and offering what it provokes.
+ *
+ * `moveCreature` and `spendMovement` have both existed since positioning and
+ * combat landed, and nothing called either: a creature could cross a
+ * battlefield without spending a foot, and nobody ever got an Opportunity
+ * Attack, because no command sat between the two.
+ *
+ * SRD: "The attack occurs right before the creature leaves your reach." So a
+ * move that provokes does not happen yet — it is declared, held, and completed
+ * once every provoked creature has answered. Same shape as a held attack, and
+ * for the same reason: the rule needs a moment between two things that would
+ * otherwise happen at once.
+ */
+export function resolveMove(
+  state: GameState,
+  id: CharacterId,
+  command: MoveCommand,
+  supply: ConcentrationSaveSupply,
+): Result<MoveResolution> {
+  void supply;
+
+  const identity = identify(state, `move:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    return ok({ events: [], feet: 0, unverified: [], duplicate: true });
+  }
+  const stamp = identity.value.stamp;
+
+  if (state.pendingMove !== null) {
+    return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
+  }
+  if (state.pendingAttack !== null) {
+    return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+  }
+
+  const mover = creatureOf(state, id);
+  if (mover === null) return err('unknown_creature', `${id} has no record here yet; add it first`);
+  if (state.scene === null) return err('no_scene', 'there is no scene to move within');
+
+  const from = positionOf(state.scene, id);
+  if (from === null) {
+    return err('unplaced', `nobody has said where ${id} is standing, so there is nowhere to move from`);
+  }
+
+  // Resolve the destination through the same placement rules everything else
+  // uses, so the move is measured on the lattice rather than in a straight line.
+  const moved = moveCreature(state.scene, id, command.placement);
+  if (!moved.ok) return moved;
+  const to = positionOf(moved.value.state, id);
+  if (to === null) return err('unplaced', `${id} did not land anywhere`);
+
+  // The distance positioning itself measured, on the lattice, between volumes.
+  const feet = moved.value.distance;
+
+  // — what it costs ——————————————————————————————————————————————————————
+  //
+  // Forced movement is not the creature's own, so it spends none of their
+  // Speed. Outside combat there is no budget to spend at all.
+  const events: GameEvent[] = [];
+  if (state.combat !== null && state.combat.budgets[id] !== undefined && command.forced !== true) {
+    const spent = spendMovement(state.combat, id, feet, mover.conditions);
+    if (!spent.ok) {
+      return spent.code === 'not_enough_movement' || spent.code === 'no_movement'
+        ? spent
+        : err('not_enough_movement', spent.reason);
+    }
+    events.push({ type: 'movement-spent', id, feet });
+  }
+
+  // — what it provokes ———————————————————————————————————————————————————
+  const opportunity =
+    command.forced === true
+      ? { provoked: [], unverified: [] }
+      : provokedBy(state, id, from, to);
+
+  if (opportunity.provoked.length === 0) {
+    events.push({
+      type: 'creature-moved',
+      id,
+      placement: command.placement,
+      ...(command.forced === true ? { forced: true } : {}),
+    });
+    return ok({ events, feet, unverified: opportunity.unverified, duplicate: false });
+  }
+
+  events.push({
+    type: 'movement-declared',
+    move: { mover: id, placement: command.placement, feet, provoked: opportunity.provoked },
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  return ok({ events, feet, unverified: opportunity.unverified, duplicate: false });
+}
+
+/**
+ * Who may attack this creature for leaving, and what the engine could not check.
+ *
+ * SRD: "You can make an Opportunity Attack when a creature that you can see
+ * leaves your reach." Four clauses, each of which is a way to get this wrong:
+ *
+ * - **leaves** your reach — within it at the start and outside it at the end.
+ *   Circling an ogre at five feet provokes nothing.
+ * - **your reach** — the reactor's, which a Reach weapon extends to ten.
+ * - **that you can see** — declared, and three-valued. A creature nobody has
+ *   said about is not thereby blind, so the offer is made and the fact
+ *   reported rather than the rule being silently dropped.
+ * - and they must have a Reaction to take, which an Incapacitated creature
+ *   does not.
+ */
+function provokedBy(
+  state: GameState,
+  mover: CharacterId,
+  from: Point,
+  to: Point,
+): {
+  readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
+  readonly unverified: readonly string[];
+} {
+  const scene = state.scene;
+  const side = state.creatures[mover]?.side ?? null;
+  if (scene === null) return { provoked: [], unverified: [] };
+
+  const provoked: { reactor: CharacterId; reach: number }[] = [];
+  const unverified: string[] = [];
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const other = state.creatures[key];
+    if (other === undefined || other.id === mover) continue;
+
+    // An ally does not swing at you for walking away, and a creature nobody
+    // has placed on a side is nobody's enemy — the same conservative reading
+    // an aura takes of "your allies".
+    if (other.side === null || side === null || other.side === side) continue;
+    if (other.vitals.dead || isIncapacitated(other.conditions)) continue;
+    if (state.combat !== null && state.combat.budgets[other.id]?.reaction === false) continue;
+
+    const reach = reachOf(other);
+    const before = distanceToPoint(scene, other.id, from);
+    const after = distanceToPoint(scene, other.id, to);
+    if (!before.ok || !after.ok) continue;
+    if (!(before.value <= reach && after.value > reach)) continue;
+
+    // SRD: "a creature that you can see". Declared unseen is a refusal;
+    // undeclared is a fact nobody has established, and withholding the
+    // Reaction on that basis would be the engine deciding it.
+    const seen = sightBetween(scene, other.id, mover);
+    if (seen === false) continue;
+    if (seen === null) {
+      unverified.push(
+        `nobody has said whether ${other.id} can see ${mover}, and an Opportunity Attack needs that; the offer was made rather than withheld`,
+      );
+    }
+
+    provoked.push({ reactor: other.id, reach });
+  }
+
+  return { provoked, unverified };
+}
+
+/** The melee reach of whatever this creature is actually holding. */
+function reachOf(creature: CreatureState): number {
+  let reach = 5;
+  for (const itemId of creature.equipped) {
+    const weapon = itemFor(itemId)?.weapon;
+    if (weapon === undefined || weapon === null || weapon.kind !== 'melee') continue;
+    reach = Math.max(reach, meleeReach(weapon));
+  }
+  return reach;
+}
+
+export interface OpportunityCommand extends CommandIdentity {
+  /** The weapon, by catalogue id, or null for an Unarmed Strike. */
+  readonly weapon?: string | null;
+}
+
+/**
+ * Take the Opportunity Attack a move offered.
+ *
+ * The mover is still standing where they were, so this is an ordinary attack
+ * against an ordinary distance — which is the whole reason the move was held.
+ * Spending the Reaction and completing the move when the last answer comes in
+ * are both this command's, because the reducer cannot emit events.
+ */
+export function takeOpportunityAttack(
+  state: GameState,
+  reactor: CharacterId,
+  command: OpportunityCommand,
+  supply: ConcentrationSaveSupply,
+): Result<AttackResolution> {
+  const waiting = state.pendingMove;
+  if (waiting === null || !waiting.provoked.some((p) => p.reactor === reactor)) {
+    return err('not_provoked', `${reactor} was not offered an Opportunity Attack`);
+  }
+
+  const events: GameEvent[] = [];
+  if (state.combat !== null && state.combat.budgets[reactor] !== undefined) {
+    const creature = creatureOf(state, reactor);
+    const spent = spendReaction(state.combat, reactor, creature?.conditions);
+    if (!spent.ok) return spent;
+    events.push({ type: 'reaction-spent', id: reactor });
+  }
+
+  // The attack itself goes through the ordinary command, so every derivation
+  // it makes — cover, conditions, proficiency, the target's defences — applies
+  // here too rather than being reimplemented for this one case.
+  const after = events.reduce(applyEvent, state);
+  const swing = resolveAttack(
+    after,
+    reactor,
+    {
+      target: waiting.mover,
+      weapon: command.weapon ?? null,
+      // The Reaction above is what this costs; it is not the Attack action.
+      free: true,
+      ...(command.commandId === undefined ? {} : { commandId: command.commandId }),
+    },
+    supply,
+  );
+  if (!swing.ok) return swing;
+
+  const answered: GameEvent[] = [
+    ...events,
+    ...swing.value.events,
+    { type: 'opportunity-answered', reactor, took: true },
+  ];
+
+  return ok({
+    ...swing.value,
+    events: [...answered, ...completeIfSettled(state, answered)],
+  });
+}
+
+/** Pass on an Opportunity Attack that was offered. */
+export function declineOpportunity(
+  state: GameState,
+  reactor: CharacterId,
+  command: CommandIdentity,
+): Result<GameEvent[]> {
+  void command;
+
+  const waiting = state.pendingMove;
+  if (waiting === null || !waiting.provoked.some((p) => p.reactor === reactor)) {
+    return err('not_provoked', `${reactor} was not offered an Opportunity Attack`);
+  }
+
+  const answered: GameEvent[] = [{ type: 'opportunity-answered', reactor, took: false }];
+  return ok([...answered, ...completeIfSettled(state, answered)]);
+}
+
+/**
+ * The move itself, once nobody is left to answer.
+ *
+ * Emitted by whichever command settles the last Reaction, because a reducer
+ * cannot emit events and a move that completed itself silently would be a
+ * change nothing in the log accounted for.
+ */
+function completeIfSettled(state: GameState, answered: readonly GameEvent[]): readonly GameEvent[] {
+  const after = answered.reduce(applyEvent, state);
+  const waiting = after.pendingMove;
+  if (waiting === null || waiting.provoked.length > 0) return [];
+
+  // The mover may have died to the Opportunity Attack, in which case there is
+  // nobody left to move and the declaration is simply closed.
+  const mover = after.creatures[waiting.mover];
+  if (mover === undefined || mover.vitals.dead) {
+    return [{ type: 'movement-completed', id: waiting.mover }];
+  }
+
+  return [
+    { type: 'movement-completed', id: waiting.mover },
+    { type: 'creature-moved', id: waiting.mover, placement: waiting.placement },
+  ];
+}
+
 // — weapon attacks ————————————————————————————————————————————————————————————
 
 export interface AttackCommand extends CommandIdentity {
@@ -576,6 +885,15 @@ export interface AttackCommand extends CommandIdentity {
    * it, and only on a hit.
    */
   readonly hold?: boolean;
+  /**
+   * This swing is not the Attack action, so it costs nothing here.
+   *
+   * SRD Opportunity Attack: "take a Reaction to make one melee attack" — the
+   * Reaction is the cost, and the caller has already paid it. Extra Attack
+   * will want the same field for the same reason: the economy counts the
+   * Attack action, not the attacks inside it.
+   */
+  readonly free?: boolean;
 }
 
 export interface AttackResolution {
@@ -684,7 +1002,7 @@ export function resolveAttack(
   // SRD: an attack with a weapon is the Attack action. Outside combat there is
   // no economy to spend, exactly as `resolveCast` finds.
   const events: GameEvent[] = [];
-  if (state.combat !== null && state.combat.budgets[id] !== undefined) {
+  if (command.free !== true && state.combat !== null && state.combat.budgets[id] !== undefined) {
     const spent = spendAction(state.combat, id, attacker.conditions);
     if (!spent.ok) return spent;
     events.push({ type: 'action-spent', id });
@@ -2102,6 +2420,13 @@ export function resolveTurn(
   supply?: ConcentrationSaveSupply,
 ): Result<TurnResolution> {
   if (state.combat === null) return err('no_combat', 'no combat is running');
+
+  if (state.pendingMove !== null) {
+    return err(
+      'move_pending',
+      `${state.pendingMove.mover} is mid-move and still owes an Opportunity Attack; settle it before the turn moves on`,
+    );
+  }
 
   if (state.pendingAttack !== null) {
     return err(

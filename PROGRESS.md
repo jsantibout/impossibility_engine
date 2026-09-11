@@ -50,7 +50,9 @@ still Wizard-shaped are named below.
 | Activated features | Rage: cost, prerequisite, deadline, extension, two ways out | `574d03b` |
 | Weapon attacks | `resolveAttack` derives AC, cover, reach, range, proficiency | `f1fda6d` |
 | Feature damage | Rage Damage and Radiant Strikes, on the attacks that qualify | `cb5e28e` |
-| Held attacks | A hit whose damage waits; Divine Smite cast into it | _this batch_ |
+| Held attacks | A hit whose damage waits; Divine Smite cast into it | `be486c2` |
+| Audit fixes | Unknown distance; damage a temp-HP pool soaks | `f8043eb` |
+| Movement | `resolveMove` spends Speed; Opportunity Attacks | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -77,6 +79,12 @@ still Wizard-shaped are named below.
 - **A definition that leaves part of its spell out declares it.**
   `SpellDefinition.unmodelled` comes back in `unverified` on every casting, so
   the gap reaches the narrating layer rather than sitting in a docstring.
+- **A pure function nothing calls is a rule nothing enforces.** Twice now:
+  `rollAttack` was correct and unreachable until `resolveAttack`, and
+  `moveCreature`/`spendMovement` were correct and unreachable until
+  `resolveMove`. A creature could cross a battlefield without spending a foot
+  of Speed, because no command sat between the two. Worth checking the rest of
+  `positioning.ts` and `combat.ts` for the same shape.
 - **An attack can be held between its two rolls.** SRD Divine Smite is cast
   "immediately after hitting a target", so there has to *be* an after-hitting.
   `resolveAttack` with `hold` stops after the attack roll and records the hit
@@ -281,8 +289,8 @@ What remains in the class system, in likely order:
   of the target.
 - **Extra attacks inside the Attack action.** `resolveAttack` spends one
   Attack action per swing, which is right for one attack and wrong for a
-  Fighter with Extra Attack. The economy counts actions, not the attacks in
-  them.
+  Fighter with Extra Attack. `AttackCommand.free` is the field it wants —
+  Opportunity Attacks already use it — and what is missing is the count.
 - **A pool that refills partly.** SRD Rage gives back *one* use on a Short Rest
   and all of them on a Long Rest; `restoreOn` refills a whole pool by tag, and
   every other recovery in the game is all or nothing.
@@ -322,7 +330,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 54 of 230 |
-| Tests | 2,373 passing, none skipped |
+| Tests | 2,410 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

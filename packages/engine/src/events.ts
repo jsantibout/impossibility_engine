@@ -257,6 +257,31 @@ export interface PendingAttack {
   readonly targetAc: number;
 }
 
+/**
+ * A move that has been declared and is waiting on Opportunity Attacks.
+ *
+ * SRD: "The attack occurs right before the creature leaves your reach." So the
+ * mover is still standing where they were until every provoked creature has
+ * taken its Reaction or passed — which is why the destination is written down
+ * here rather than applied.
+ */
+export interface PendingMove {
+  readonly mover: CharacterId;
+  /**
+   * Where they are going, as the placement they asked for.
+   *
+   * The placement rather than a resolved point, because that is how every
+   * other position in this engine is expressed — relative to something already
+   * established, never raw coordinates. Re-resolving it when the move
+   * completes is also the more correct answer: if the anchor moved in the
+   * meantime, "beside the fighter" still means beside the fighter.
+   */
+  readonly placement: Placement;
+  readonly feet: number;
+  /** Who was offered an Opportunity Attack and has not yet answered. */
+  readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
+}
+
 export interface GameState {
   readonly seed: string;
   /** Generator state, so a resumed session continues the same sequence. */
@@ -319,6 +344,14 @@ export interface GameState {
    * At most one: an attack cannot be held while another is.
    */
   readonly pendingAttack: PendingAttack | null;
+  /**
+   * A declared move waiting on the Opportunity Attacks it provoked.
+   *
+   * The same shape as `pendingAttack` and for the same reason: the rule needs
+   * a moment between two things that would otherwise happen at once, and a
+   * moment that lives in a return value does not survive a reload.
+   */
+  readonly pendingMove: PendingMove | null;
 }
 
 export function initialState(seed: string): GameState {
@@ -336,6 +369,7 @@ export function initialState(seed: string): GameState {
     timers: {},
     pendingSaves: {},
     pendingAttack: null,
+    pendingMove: null,
   };
 }
 
@@ -701,6 +735,25 @@ export type GameEvent =
       readonly attack: PendingAttack;
       readonly command?: CommandStamp;
     }
+  /**
+   * A move was declared and provoked somebody, so it is waiting.
+   *
+   * The creature has not moved yet — that is the point. `movement-completed`
+   * closes it, and the reducer refuses a second one while it stands.
+   */
+  | {
+      readonly type: 'movement-declared';
+      readonly move: PendingMove;
+      readonly command?: CommandStamp;
+    }
+  /** One provoked creature has answered, by attacking or by passing. */
+  | {
+      readonly type: 'opportunity-answered';
+      readonly reactor: CharacterId;
+      readonly took: boolean;
+    }
+  /** Every Reaction is settled; the move happens. */
+  | { readonly type: 'movement-completed'; readonly id: CharacterId }
   /** The held attack's damage has been rolled; the debt is closed. */
   | {
       readonly type: 'attack-damage-dealt';
@@ -1837,6 +1890,31 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         { activeFeatures: creature.activeFeatures.filter((f) => f !== event.feature) },
         creature,
       );
+    }
+    case 'movement-declared': {
+      if (state.pendingMove !== null) {
+        throw new CorruptLogError(event, 'a move is already waiting');
+      }
+      return { ...next, pendingMove: event.move };
+    }
+    case 'opportunity-answered': {
+      const waiting = state.pendingMove;
+      if (waiting === null) throw new CorruptLogError(event, 'no move is waiting');
+      return {
+        ...next,
+        pendingMove: {
+          ...waiting,
+          provoked: waiting.provoked.filter((p) => p.reactor !== event.reactor),
+        },
+      };
+    }
+    case 'movement-completed': {
+      const waiting = state.pendingMove;
+      if (waiting === null) throw new CorruptLogError(event, 'no move is waiting');
+      if (waiting.provoked.length > 0) {
+        throw new CorruptLogError(event, 'the move still owes an Opportunity Attack');
+      }
+      return { ...next, pendingMove: null };
     }
     case 'attack-landed': {
       if (state.pendingAttack !== null) {
