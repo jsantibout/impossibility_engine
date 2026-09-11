@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { Armor } from '@ie/srd';
 import type { CharacterSheet } from './character.js';
+import { createRng, restoreRng } from './dice.js';
+import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { castingSource, spellOfSource } from './spells.js';
@@ -18,8 +20,11 @@ import {
   grantTemporaryHpTo,
   nextCastingId,
   removeCreatureEverywhere,
+  commandOutcome,
+  resolveDamage,
   restoreResourcesOn,
   setExhaustionLevel,
+  wasCommandApplied,
   whyCondition,
 } from './commands.js';
 
@@ -405,12 +410,20 @@ describe('losing Concentration to damage', () => {
     expect(concentrationSaveAfterDamage(temp.state, id('wizard'), 30)?.dc).toBe(15);
   });
 
-  /** Each hit is its own save: two tens are two DC 10 saves, not one DC 15. */
+  /**
+   * Each hit is its own save at its own DC. Below the floor the distinction is
+   * invisible — two tens and a single twenty are all DC 10 — so the case that
+   * pins the rule is the one where halving the combined total differs: two
+   * thirties are two DC 15 saves, where a single sixty would be DC 30.
+   */
   it('keeps separate damage instances separate', () => {
     const { state } = held();
     expect(concentrationSaveAfterDamage(state, id('wizard'), 10)?.dc).toBe(10);
     expect(concentrationSaveAfterDamage(state, id('wizard'), 10)?.dc).toBe(10);
     expect(concentrationSaveAfterDamage(state, id('wizard'), 20)?.dc).toBe(10);
+
+    expect(concentrationSaveAfterDamage(state, id('wizard'), 30)?.dc).toBe(15);
+    expect(concentrationSaveAfterDamage(state, id('wizard'), 60)?.dc).toBe(30);
   });
 
   it('ends the spell when the save is failed', () => {
@@ -739,5 +752,341 @@ describe('asking for the save after the damage, not before', () => {
     const first = held();
     const hurt = run(first.log, (s) => damageCreature(s, id('wizard'), { amount: 12 }));
     expect(concentrationSaveAfterDamage(hurt.state, id('wizard'), 12)?.dc).toBe(10);
+  });
+});
+
+// — the gap the two-call API left open ————————————————————————————————————————
+
+/**
+ * Rolling machinery wired from state, the way a caller resuming a session
+ * would: the issuer starts where the log left off, the generator resumes from
+ * the recorded snapshot.
+ */
+const roller = (state: GameState) => ({
+  issuer: createRollIssuer('r', state.rollsIssued),
+  rng: state.rng === null ? createRng('seed') : restoreRng(state.rng),
+});
+
+/** A flat bonus big enough that the save cannot fail. */
+const CERTAIN = [{ source: 'a certainty', flat: 30 }];
+
+describe('damage resolves its own Concentration save', () => {
+  /**
+   * A caster with room to take a serious hit and stay upright. The default
+   * wizard's 24 hit points cannot survive the damage that produces an
+   * interesting save DC, and a caster at 0 has already lost the spell — which
+   * is a different case, tested on its own below.
+   */
+  const stout = (): GameEvent[] => [
+    add('wizard', 90),
+    add('cleric', 30, { spellcastingAbility: 'wis' }),
+    add('goblin', 12),
+    pool('wizard', 1, 2),
+    pool('wizard', 2, 1),
+    pool('cleric', 1, 2),
+  ];
+
+  const held = () => run(stout(), (s) => castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2 }));
+  const heldOnGoblin = () => {
+    const a = held();
+    return run(a.log, (s) => applySpellEffect(s, id('goblin'), 'paralyzed', id('wizard')));
+  };
+
+  /**
+   * The whole point: one call. Asking for damage and then separately
+   * remembering to ask whether a save was owed is exactly the bookkeeping the
+   * engine exists to take off the caller — and a caller who forgets leaves a
+   * spell running that the rules ended.
+   */
+  it('returns the damage and the save together', () => {
+    const start = heldOnGoblin().state;
+    const outcome = unwrap(
+      resolveDamage(start, id('wizard'), { amount: 30, source: 'Fireball' }, roller(start)),
+      'resolve',
+    );
+
+    expect(outcome.events.some((e) => e.type === 'damage-taken')).toBe(true);
+    expect(outcome.events.some((e) => e.type === 'roll-recorded')).toBe(true);
+    expect(outcome.concentration.kind).toBe('resolved');
+  });
+
+  it('asks for nothing when the creature is not concentrating', () => {
+    const start = fold('seed', stout());
+    const outcome = unwrap(
+      resolveDamage(start, id('cleric'), { amount: 12 }, roller(start)),
+      'resolve',
+    );
+    expect(outcome.concentration).toEqual({ kind: 'none' });
+    expect(outcome.events.some((e) => e.type === 'rolls-issued')).toBe(false);
+  });
+
+  /** SRD: "If you take damage" — nothing taken, nothing to save against. */
+  it('asks for nothing on zero damage', () => {
+    const first = held();
+    const outcome = unwrap(
+      resolveDamage(first.state, id('wizard'), { amount: 0 }, roller(first.state)),
+      'resolve',
+    );
+    expect(outcome.concentration).toEqual({ kind: 'none' });
+    expect(fold('seed', [...first.log, ...outcome.events]).rollsIssued).toBe(0);
+  });
+
+  /**
+   * Given no generator, the save is *queued* rather than quietly skipped. A
+   * caller that has to destructure a `pending` cannot forget it the way a
+   * caller that had to remember a second function call could.
+   */
+  it('queues the save explicitly when no generator is supplied', () => {
+    const outcome = unwrap(resolveDamage(held().state, id('wizard'), { amount: 30 }), 'resolve');
+
+    expect(outcome.concentration).toMatchObject({
+      kind: 'pending',
+      check: { castingId: 'cast:1', dc: 15, ability: 'con' },
+    });
+    expect(outcome.events.some((e) => e.type === 'rolls-issued')).toBe(false);
+  });
+
+  it('ends the spell and its effects when the save fails', () => {
+    const first = heldOnGoblin();
+    // 60 damage is DC 30, which a level 5 caster's +5 cannot reach on any die.
+    const outcome = unwrap(
+      resolveDamage(first.state, id('wizard'), { amount: 60 }, roller(first.state)),
+      'resolve',
+    );
+
+    expect(outcome.concentration).toMatchObject({ kind: 'resolved', maintained: false });
+    const after = fold('seed', [...first.log, ...outcome.events]);
+    expect(after.creatures.wizard!.vitals.hp).toBe(30);
+    expect(after.creatures.wizard!.concentration).toBeNull();
+    expect(after.creatures.goblin!.conditions.conditions).not.toContain('paralyzed');
+  });
+
+  it('keeps the spell and its effects when the save holds', () => {
+    const first = heldOnGoblin();
+    const outcome = unwrap(
+      resolveDamage(
+        first.state,
+        id('wizard'),
+        { amount: 8 },
+        { ...roller(first.state), bonuses: CERTAIN },
+      ),
+      'resolve',
+    );
+
+    expect(outcome.concentration).toMatchObject({ kind: 'resolved', maintained: true });
+    const after = fold('seed', [...first.log, ...outcome.events]);
+    expect(after.creatures.wizard!.concentration).toMatchObject({ castingId: 'cast:1' });
+    expect(after.creatures.goblin!.conditions.conditions).toContain('paralyzed');
+  });
+
+  /**
+   * A caster dropped to 0 is Unconscious, therefore Incapacitated, therefore
+   * already not concentrating. There is no save to make, and rolling one would
+   * both waste a die and imply the spell might have survived.
+   */
+  it('skips the save when the damage already ended the Concentration', () => {
+    const first = heldOnGoblin();
+    const outcome = unwrap(
+      resolveDamage(first.state, id('wizard'), { amount: 90 }, roller(first.state)),
+      'resolve',
+    );
+
+    expect(outcome.concentration).toEqual({ kind: 'already-lost', castingId: 'cast:1' });
+    expect(outcome.events.some((e) => e.type === 'rolls-issued')).toBe(false);
+
+    const after = fold('seed', [...first.log, ...outcome.events]);
+    expect(after.rollsIssued).toBe(0);
+    expect(after.creatures.wizard!.concentration).toBeNull();
+    expect(after.creatures.goblin!.conditions.conditions).not.toContain('paralyzed');
+  });
+
+  /** Temporary hit points absorb damage; they do not stop it being taken. */
+  it('reads the damage before temporary hit points absorb it', () => {
+    const first = held();
+    const temp = run(first.log, (s) => grantTemporaryHpTo(s, id('wizard'), 40));
+    const outcome = unwrap(resolveDamage(temp.state, id('wizard'), { amount: 30 }), 'resolve');
+
+    expect(outcome.concentration).toMatchObject({ kind: 'pending', check: { dc: 15 } });
+    const after = fold('seed', [...temp.log, ...outcome.events]);
+    expect(after.creatures.wizard!.vitals.hp).toBe(90);
+    expect(after.creatures.wizard!.vitals.temporaryHp).toBe(10);
+  });
+
+  it('advances the generator exactly once, and records where it got to', () => {
+    const first = held();
+    const outcome = unwrap(
+      resolveDamage(
+        first.state,
+        id('wizard'),
+        { amount: 8 },
+        { ...roller(first.state), bonuses: CERTAIN },
+      ),
+      'resolve',
+    );
+
+    expect(outcome.events.filter((e) => e.type === 'rolls-issued')).toHaveLength(1);
+
+    const after = fold('seed', [...first.log, ...outcome.events]);
+    expect(after.rollsIssued).toBe(1);
+    expect(after.rng).not.toBeNull();
+  });
+
+  it('refuses bad damage without touching the generator', () => {
+    const start = held().state;
+    const supply = roller(start);
+    expect(isErr(resolveDamage(start, id('wizard'), { amount: NaN }, supply))).toBe(true);
+    expect(isErr(resolveDamage(start, id('ghost'), { amount: 5 }, supply))).toBe(true);
+    expect(supply.issuer.count).toBe(0);
+  });
+
+  /** War Caster grants Advantage on saves to maintain Concentration. */
+  it('takes modes and bonuses, because effects touch this save', () => {
+    const start = held().state;
+    const outcome = unwrap(
+      resolveDamage(
+        start,
+        id('wizard'),
+        { amount: 8 },
+        { ...roller(start), modes: [{ source: 'War Caster', mode: 'advantage' }] },
+      ),
+      'resolve',
+    );
+    if (outcome.concentration.kind !== 'resolved') throw new Error('expected a resolved save');
+    expect(outcome.concentration.save.mode).toBe('advantage');
+    expect(outcome.concentration.save.modeSources).toContainEqual({
+      source: 'War Caster',
+      mode: 'advantage',
+    });
+  });
+});
+
+describe('a command id makes a retry a no-op, not a repeat', () => {
+  /**
+   * This is a different guarantee from "the same state in gives the same
+   * events out", and the weaker one hides the bug. A caller that retries after
+   * its first batch was already applied is looking at *updated* state: the
+   * slot is gone, the casting happened, the effects landed. Without an
+   * identity, the command cheerfully does all of it again.
+   */
+  const CMD = 'cmd-7';
+  const cast = (s: GameState) =>
+    castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2, commandId: CMD });
+
+  const applied = () => run(table(), cast);
+
+  it('spends no second slot, and begins no second casting', () => {
+    const first = applied();
+    expect(remaining(first.state.creatures.wizard!.resources, spellSlotKey(2))).toBe(0);
+    expect(first.state.castingsBegun).toBe(1);
+
+    // The retry sees the state the first batch produced, not the one it started from.
+    const retry = unwrap(cast(first.state), 'retry');
+    expect(retry).toEqual([]);
+
+    const after = fold('seed', [...first.log, ...retry]);
+    expect(after).toEqual(first.state);
+    expect(after.castingsBegun).toBe(1);
+    expect(nextCastingId(after)).toBe('cast:2');
+  });
+
+  /**
+   * The guard has to come before validation, or the retry reports the damage
+   * the first attempt did — "no level 2 slots left" — instead of reporting
+   * that it already happened.
+   */
+  it('reports the no-op rather than the emptiness the first run caused', () => {
+    const first = applied();
+    // Without the id, casting again is a genuine second casting and fails here.
+    expect(isErr(castSpell(first.state, id('wizard'), { ...HOLD, slotLevel: 2 }))).toBe(true);
+    expect(isErr(cast(first.state))).toBe(false);
+  });
+
+  it('applies no second effect through the retried casting', () => {
+    const first = applied();
+    const effect = run(first.log, (s) =>
+      applySpellEffect(s, id('goblin'), 'paralyzed', id('wizard')),
+    );
+    const retry = unwrap(cast(effect.state), 'retry');
+    const after = fold('seed', [...effect.log, ...retry]);
+
+    expect(
+      after.creatures.goblin!.conditions.instances.filter((i) => i.condition === 'paralyzed'),
+    ).toHaveLength(1);
+  });
+
+  it('says what the command produced, so a retry can still link its effects', () => {
+    const first = applied();
+    expect(wasCommandApplied(first.state, CMD)).toBe(true);
+    expect(commandOutcome(first.state, CMD)).toEqual({ type: 'spell-cast', castingId: 'cast:1' });
+    expect(commandOutcome(first.state, 'cmd-8')).toBeNull();
+  });
+
+  it('lets a genuinely different command through', () => {
+    const first = applied();
+    const second = castSpell(first.state, id('wizard'), {
+      spell: 'Magic Missile',
+      level: 1,
+      slotLevel: 1,
+      commandId: 'cmd-8',
+    });
+    expect(isErr(second)).toBe(false);
+    expect(unwrap(second, 'second')).not.toEqual([]);
+  });
+
+  /** An id is opt-in: without one, nothing has changed about how commands behave. */
+  it('leaves an unidentified command exactly as it was', () => {
+    const first = run(table(), (s) => castSpell(s, id('wizard'), { spell: 'Bless', level: 1, concentration: true, slotLevel: 1 }));
+    const again = unwrap(
+      castSpell(first.state, id('wizard'), { spell: 'Bless', level: 1, concentration: true, slotLevel: 1 }),
+      'again',
+    );
+    expect(again).not.toEqual([]);
+    expect(fold('seed', [...first.log, ...again]).castingsBegun).toBe(2);
+  });
+
+  /**
+   * The guarantee that actually needs the id: a retried damage command must
+   * not roll a second Concentration save. Identical events from identical
+   * state would not deliver this — the generator has moved on.
+   */
+  it('consumes no further randomness when a damage command is retried', () => {
+    const log = run(table(), (s) => castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2 })).log;
+    const start = fold('seed', log);
+
+    const first = unwrap(
+      resolveDamage(
+        start,
+        id('wizard'),
+        { amount: 8, commandId: 'hit-1' },
+        { ...roller(start), bonuses: CERTAIN },
+      ),
+      'first',
+    );
+    const after = fold('seed', [...log, ...first.events]);
+    expect(after.rollsIssued).toBe(1);
+
+    const retry = unwrap(
+      resolveDamage(
+        after,
+        id('wizard'),
+        { amount: 8, commandId: 'hit-1' },
+        { ...roller(after), bonuses: CERTAIN },
+      ),
+      'retry',
+    );
+
+    expect(retry.duplicate).toBe(true);
+    expect(retry.events).toEqual([]);
+    const settled = fold('seed', [...log, ...first.events, ...retry.events]);
+    expect(settled).toEqual(after);
+    expect(settled.rollsIssued).toBe(1);
+    expect(settled.creatures.wizard!.vitals.hp).toBe(16);
+  });
+
+  it('survives the round trip, so a retry after a restart is still a no-op', () => {
+    const first = applied();
+    const restored = fold('seed', JSON.parse(JSON.stringify(first.log)) as GameEvent[]);
+    expect(wasCommandApplied(restored, CMD)).toBe(true);
+    expect(unwrap(cast(restored), 'retry')).toEqual([]);
   });
 });

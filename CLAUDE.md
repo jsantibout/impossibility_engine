@@ -260,8 +260,11 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **The Concentration save reads damage taken, not hit points lost.**
   Temporary Hit Points absorb damage; they do not stop it being taken. A
   Warlock behind *Armor of Agathys* who soaks 30 still rolls against DC 15.
-  And each instance of damage is its own save: two hits of 10 are two DC 10
-  saves, never one DC 15.
+  And each instance of damage is its own save. Two hits of 10 are two DC 10
+  saves — and so is a single hit of 20, because the floor of 10 swallows both.
+  The difference shows higher up: two hits of 30 are two DC 15 saves, where one
+  hit of 60 would be a single DC 30. Summing a round's damage and saving once
+  is a harder save, not an equivalent one.
 - **Damage order of application is adjustments, then Resistance, then
   Vulnerability** — and the order changes the answer. The SRD's worked example
   (28 fire, -5 aura, resistant and vulnerable) gives 22; doubling before
@@ -544,6 +547,21 @@ enumerate the conditions it lifts; the reducer finds them by casting id. A
 command that listed them would be building a batch against a snapshot, and a
 retry a moment later would find that list stale.
 
+**Damage settles its own Concentration save.** `resolveDamage` applies the
+damage, works out whether a save is owed, rolls it when given a generator, and
+ends the spell in the same batch when it fails. The pieces — `damageCreature`
+and `concentrationSaveAfterDamage` — still exist, but composing them meant the
+caller had to *remember* the second call, and a caller who forgot left a spell
+running that the rules had ended. Remembering is not a thing to design around.
+
+Given no generator the save comes back as `pending`, which is a value the
+caller has to destructure rather than a call they might not make. And the save
+is skipped outright when the damage *already* ended the Concentration — a
+caster dropped to 0 is Unconscious, therefore Incapacitated, therefore no
+longer concentrating, so rolling would waste a die and imply the spell might
+have survived. That case reports `already-lost` rather than `none`, because
+"nothing to roll" and "it is already gone" are different answers.
+
 **The casting id is knowable before the cast.** `nextCastingId(state)` reads
 the counter, so a caller can build the source string for the conditions a spell
 imposes without digging the id back out of the emitted events. `castSpell` run
@@ -591,11 +609,11 @@ layer that knows.
   spell that needs no Concentration has a casting id and its effects are linked
   to it, but nothing knows the spell is still running or when it stops. That
   needs duration tracking, which arrives with rests and the clock.
-- **Ask for the Concentration save *after* applying the damage.** A caster
-  dropped to 0 is Unconscious, therefore Incapacitated, therefore already not
-  concentrating — and `concentrationSaveAfterDamage` correctly asks for
-  nothing. Reading the pre-damage state would send the DM off to roll a save
-  for a spell that has already ended.
+- **The two-call path has an ordering requirement; `resolveDamage` does not.**
+  `concentrationSaveAfterDamage` must be asked of the state *after* the damage
+  landed, or it reports a save for a spell the damage already ended. That is a
+  thing to know, which is why the one-call operation exists and is what a tool
+  surface should reach for.
 - **The log records the casting that ended, not each effect that ended with
   it.** Cleanup is derived from the link, so a target's own history shows the
   condition arriving but not leaving. Making it explicit would mean building a
@@ -667,6 +685,33 @@ points and stays asleep.
 Death that is not hit-point loss gets its own event. Damage is the wrong
 instrument — a healthy creature taking exactly its maximum in damage drops to
 0, it does not die.
+
+### Retry-safety has two halves, and only one is free
+
+A pure command gives identical events from identical state. That is worth
+having and it is **not** the guarantee a retrying caller needs, because a
+caller retrying after its first batch was already applied is looking at
+*updated* state: the slot is gone, the casting happened, the generator has
+moved on. Casting again there is a genuine second casting, and the engine is
+right to treat it as one.
+
+So commands take an optional `commandId`, the event that results carries it,
+and the fold remembers it. A retry with an id that has already landed returns
+an empty batch. Three details make it actually work:
+
+- **The check comes before validation.** Otherwise a retry reports the damage
+  the first attempt did — "no level 2 slots left" — rather than reporting that
+  the casting already happened, and the caller cannot tell a duplicate from a
+  genuine refusal.
+- **The outcome stays recoverable.** `commandOutcome` gives back the casting id
+  the command produced, so a retry that gets no events can still link that
+  spell's effects.
+- **It is opt-in and generic.** Without an id nothing changes; any future event
+  that carries a `commandId` gets the guarantee without a second mechanism.
+
+The contract is the usual one: the same id means the same command. Reusing an
+id for different work gets a silent no-op, and the engine does not police that
+— fingerprinting a command to catch it would cost more than it saves.
 
 ## Conditions Close The Loop
 

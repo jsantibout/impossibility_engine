@@ -34,6 +34,7 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Resources | Generic limited-use pools — spell slots, Ki, charges — declared, not derived |
 | Casting | Slots, upcasting, slot-free casting, one slot per turn, casting identity |
 | Concentration | Started, replaced, dismissed, broken by damage, Incapacitation or death |
+| Commands | Engine-owned batches, with idempotency keys so a retry is a no-op |
 | Event log | `GameState` as a fold; replay is a pure function of the record |
 
 **Parsed from the SRD** — 339 spells, 330 creatures, 38 weapons, 13 armour.

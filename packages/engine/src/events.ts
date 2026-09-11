@@ -95,6 +95,20 @@ export interface CreatureState {
   readonly concentration: Concentration | null;
 }
 
+/**
+ * What a command did, kept so a retry can be recognised as one.
+ *
+ * A caller retrying after its first batch was already applied is looking at
+ * *updated* state — the slot gone, the casting done. Identical events from
+ * identical state says nothing about that case, so commands carry an identity
+ * and the fold remembers which ones have landed.
+ */
+export interface AppliedCommand {
+  readonly type: GameEvent['type'];
+  /** The casting it produced, so a retry can still link that casting's effects. */
+  readonly castingId: string | null;
+}
+
 export interface GameState {
   readonly seed: string;
   /** Generator state, so a resumed session continues the same sequence. */
@@ -113,6 +127,8 @@ export interface GameState {
    * same casting ids, or every effect linked to one dangles after a restart.
    */
   readonly castingsBegun: number;
+  /** Command ids already applied, by caller-supplied key. */
+  readonly appliedCommands: Readonly<Record<string, AppliedCommand>>;
 }
 
 export function initialState(seed: string): GameState {
@@ -125,6 +141,7 @@ export function initialState(seed: string): GameState {
     scene: null,
     eventCount: 0,
     castingsBegun: 0,
+    appliedCommands: {},
   };
 }
 
@@ -149,6 +166,8 @@ export type GameEvent =
       readonly critical?: boolean;
       /** Where it came from, for the audit trail. */
       readonly source?: string;
+      /** The command that caused it, so a retry is recognised as one. */
+      readonly commandId?: string;
     }
   | { readonly type: 'healed'; readonly id: CharacterId; readonly amount: number }
   | {
@@ -225,6 +244,8 @@ export type GameEvent =
       readonly slotless: SlotlessReason | null;
       readonly castingTime: CastingTime;
       readonly concentration: boolean;
+      /** The command that caused it, so a retry is recognised as one. */
+      readonly commandId?: string;
     }
   | {
       readonly type: 'concentration-started';
@@ -441,8 +462,33 @@ function breakLostConcentration(state: GameState): GameState {
   }
 }
 
+/**
+ * Remember that a command landed.
+ *
+ * Generic on purpose: any event that carries a `commandId` participates, so
+ * the next operation that needs an identity gets the guarantee by adding one
+ * field rather than by inventing a second mechanism. The first landing wins —
+ * an id is a claim about which command this is, not about how many times it
+ * may appear.
+ */
+function recordCommand(state: GameState, event: GameEvent): GameState {
+  if (!('commandId' in event) || event.commandId === undefined) return state;
+  if (state.appliedCommands[event.commandId] !== undefined) return state;
+
+  return {
+    ...state,
+    appliedCommands: {
+      ...state.appliedCommands,
+      [event.commandId]: {
+        type: event.type,
+        castingId: event.type === 'spell-cast' ? event.castingId : null,
+      },
+    },
+  };
+}
+
 export function applyEvent(state: GameState, event: GameEvent): GameState {
-  return breakLostConcentration(applyOne(state, event));
+  return breakLostConcentration(recordCommand(applyOne(state, event), event));
 }
 
 function applyOne(state: GameState, event: GameEvent): GameState {

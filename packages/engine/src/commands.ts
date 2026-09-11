@@ -1,8 +1,25 @@
-import { err, ok, type CharacterId, type ConditionName, type Result } from '@ie/shared';
+import {
+  err,
+  ok,
+  type CharacterId,
+  type ConditionName,
+  type Result,
+  type RollMode,
+} from '@ie/shared';
+import type { Bonus, ModeSource } from './bonuses.js';
 import { untrainedArmorPenalty } from './character.js';
+import { rollSavingThrow, type D20TestResult } from './checks.js';
+import type { Rng } from './dice.js';
+import type { RollIssuer } from './rolls.js';
 import { hasCondition, isIncapacitated, reasonsFor } from './conditions.js';
 import { canSpendSpellSlotThisTurn } from './combat.js';
-import { castingIdFor, type GameEvent, type GameState } from './events.js';
+import {
+  applyEvent,
+  castingIdFor,
+  type AppliedCommand,
+  type GameEvent,
+  type GameState,
+} from './events.js';
 import {
   hasPool,
   remaining,
@@ -48,7 +65,40 @@ export const ZERO_HIT_POINTS = 'zero hit points';
 
 const creatureOf = (state: GameState, id: CharacterId) => state.creatures[id] ?? null;
 
-export interface DamageCommand {
+/**
+ * An idempotency key.
+ *
+ * Retry-safety has two halves and only one of them is free. A pure command
+ * gives identical events from identical state — but a caller retrying after
+ * its batch was already applied is looking at *updated* state, where casting
+ * again is a genuine second casting that spends a second slot and rolls a
+ * second save. An id is what tells those two situations apart.
+ *
+ * The contract is the usual one: the same id means the same command. Reusing
+ * an id for different work gets a silent no-op, and the engine does not police
+ * it — fingerprinting a command to catch that would cost more than it saves.
+ */
+export interface CommandIdentity {
+  readonly commandId?: string;
+}
+
+/** Whether a command id has already been applied to this state. */
+export function wasCommandApplied(state: GameState, commandId: string): boolean {
+  return state.appliedCommands[commandId] !== undefined;
+}
+
+/**
+ * What a command produced, or null if it has not been applied.
+ *
+ * A retried casting returns no events, but the caller may still need the
+ * casting id to link that spell's effects — so the outcome is recoverable
+ * rather than lost with the empty batch.
+ */
+export function commandOutcome(state: GameState, commandId: string): AppliedCommand | null {
+  return state.appliedCommands[commandId] ?? null;
+}
+
+export interface DamageCommand extends CommandIdentity {
   readonly amount: number;
   readonly critical?: boolean;
   /** What dealt it, for the audit trail. */
@@ -66,6 +116,13 @@ export function damageCreature(
   id: CharacterId,
   command: DamageCommand,
 ): Result<GameEvent[]> {
+  // Before anything else: a retry of a command that already landed is a no-op,
+  // not a second hit. This has to precede validation too — otherwise a retry
+  // reports whatever the first attempt caused rather than that it happened.
+  if (command.commandId !== undefined && wasCommandApplied(state, command.commandId)) {
+    return ok([]);
+  }
+
   const creature = creatureOf(state, id);
   if (creature === null) return err('unknown_creature', `${id} is not in this game`);
 
@@ -80,6 +137,7 @@ export function damageCreature(
       amount: command.amount,
       ...(command.critical === undefined ? {} : { critical: command.critical }),
       ...(command.source === undefined ? {} : { source: command.source }),
+      ...(command.commandId === undefined ? {} : { commandId: command.commandId }),
     },
   ];
 
@@ -300,7 +358,7 @@ export function restoreResourcesOn(
 
 // — casting ——————————————————————————————————————————————————————————————————
 
-export interface CastCommand {
+export interface CastCommand extends CommandIdentity {
   readonly spell: string;
   /** The spell's own level. 0 for a cantrip. */
   readonly level: number;
@@ -344,6 +402,14 @@ export function castSpell(
   id: CharacterId,
   command: CastCommand,
 ): Result<GameEvent[]> {
+  // Before anything else, including validation: a retry of a command that has
+  // already landed is a no-op. Checking later would report the damage the
+  // first attempt did — "no level 2 slots left" — instead of reporting that
+  // the casting already happened.
+  if (command.commandId !== undefined && wasCommandApplied(state, command.commandId)) {
+    return ok([]);
+  }
+
   const caster = creatureOf(state, id);
   if (caster === null) return err('unknown_creature', `${id} is not in this game`);
   if (caster.vitals.dead) return err('dead', `${id} is dead and casts nothing`);
@@ -458,6 +524,7 @@ export function castSpell(
     slotless,
     castingTime,
     concentration,
+    ...(command.commandId === undefined ? {} : { commandId: command.commandId }),
   });
 
   if (concentration) {
@@ -538,7 +605,9 @@ export function endConcentration(
  * - **Zero is not damage.** No save is called for.
  *
  * Each instance of damage is its own save at its own DC. Two hits of 10 are
- * two DC 10 saves, never one DC 15.
+ * two DC 10 saves — and so is one hit of 20, since the floor of 10 swallows
+ * both. The difference shows higher up: two hits of 30 are two DC 15 saves,
+ * where one hit of 60 would be a single DC 30.
  *
  * The save itself is an ordinary Constitution saving throw — roll it through
  * `rollSavingThrow`, so proficiency, conditions and bonuses all apply — and a
@@ -560,4 +629,162 @@ export function concentrationSaveAfterDamage(
     dc: concentrationSaveDc(damage),
     damage,
   };
+}
+
+/**
+ * Turn a completed D20 test into the log's record of it.
+ *
+ * `roll-recorded` changes no state; it exists so the log can say why a number
+ * was what it was. Every named contribution goes in, including ones that
+ * subtracted, so a normal-looking total can still explain itself.
+ */
+export function recordD20Test(
+  who: CharacterId,
+  label: string,
+  result: D20TestResult,
+  outcome?: string,
+): GameEvent {
+  return {
+    type: 'roll-recorded',
+    who,
+    label,
+    natural: result.natural,
+    total: result.total,
+    contributions: [
+      { source: 'modifier', amount: result.modifier },
+      ...result.bonuses.map((bonus) => ({ source: bonus.source, amount: bonus.total })),
+    ],
+    ...(outcome === undefined ? {} : { outcome }),
+  };
+}
+
+/** What became of a Concentration the damage put at risk. */
+export type ConcentrationConsequence =
+  | { readonly kind: 'none' }
+  /** The damage itself ended it, so there was nothing to save against. */
+  | { readonly kind: 'already-lost'; readonly castingId: string }
+  /** No generator was supplied; the caller still owes this save. */
+  | { readonly kind: 'pending'; readonly check: ConcentrationCheck }
+  | {
+      readonly kind: 'resolved';
+      readonly check: ConcentrationCheck;
+      readonly save: D20TestResult;
+      readonly maintained: boolean;
+    };
+
+export interface DamageResolution {
+  readonly events: readonly GameEvent[];
+  readonly concentration: ConcentrationConsequence;
+  /** True when this command id had already been applied; `events` is empty. */
+  readonly duplicate: boolean;
+}
+
+/**
+ * A generator and the effects that touch a Concentration save.
+ *
+ * War Caster grants Advantage on saves to maintain Concentration, and Bless is
+ * Bless, so this takes the same modes and bonuses as any other D20 Test rather
+ * than a narrow signature that would have to be widened later.
+ */
+export interface ConcentrationSaveSupply {
+  readonly issuer: RollIssuer;
+  readonly rng: Rng;
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  readonly bonuses?: readonly Bonus[];
+}
+
+/**
+ * Damage a creature and settle the Concentration that damage put at risk, in
+ * one operation.
+ *
+ * `damageCreature` and `concentrationSaveAfterDamage` still exist and still
+ * work, but using them meant the caller had to *remember* the second call —
+ * and a caller who forgot left a spell running that the rules had ended. That
+ * is precisely the bookkeeping the engine exists to take off whoever is
+ * driving it.
+ *
+ * Given a generator, the save is rolled here and a failure ends the spell in
+ * the same batch. Given none, the save comes back as `pending`, which a caller
+ * has to destructure rather than overlook.
+ *
+ * The save is skipped entirely when the damage *already* ended the
+ * Concentration: a caster dropped to 0 hit points is Unconscious, therefore
+ * Incapacitated, therefore no longer concentrating. Rolling then would waste a
+ * die and imply the spell might have survived.
+ */
+export function resolveDamage(
+  state: GameState,
+  id: CharacterId,
+  command: DamageCommand,
+  supply?: ConcentrationSaveSupply,
+): Result<DamageResolution> {
+  if (command.commandId !== undefined && wasCommandApplied(state, command.commandId)) {
+    return ok({ events: [], concentration: { kind: 'none' }, duplicate: true });
+  }
+
+  const held = creatureOf(state, id)?.concentration ?? null;
+
+  const damage = damageCreature(state, id, command);
+  if (!damage.ok) return damage;
+
+  const events: GameEvent[] = [...damage.value];
+  const after = events.reduce(applyEvent, state);
+
+  const check = concentrationSaveAfterDamage(after, id, command.amount);
+  if (check === null) {
+    const lost = held !== null && (after.creatures[id]?.concentration ?? null) === null;
+    return ok({
+      events,
+      concentration: lost ? { kind: 'already-lost', castingId: held.castingId } : { kind: 'none' },
+      duplicate: false,
+    });
+  }
+
+  if (supply === undefined) {
+    return ok({ events, concentration: { kind: 'pending', check }, duplicate: false });
+  }
+
+  const caster = after.creatures[id];
+  if (caster === undefined) return err('unknown_creature', `${id} is not in this game`);
+
+  // Count only what this operation issues: a caller may hand the same issuer to
+  // several operations in a turn, and `count` runs from where it was created.
+  const issuedBefore = supply.issuer.count;
+  const save = rollSavingThrow(supply.issuer, supply.rng, caster.sheet, 'con', {
+    dc: check.dc,
+    conditions: caster.conditions,
+    ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+    ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+  });
+  if (!save.ok) return save;
+
+  const maintained = save.value.success;
+  events.push(
+    recordD20Test(
+      id,
+      `Constitution save to maintain ${check.spell}`,
+      save.value,
+      maintained ? 'maintained' : 'lost',
+    ),
+    {
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    },
+  );
+
+  if (!maintained) {
+    events.push({
+      type: 'concentration-ended',
+      id,
+      castingId: check.castingId,
+      reason: 'failed-save',
+    });
+  }
+
+  return ok({
+    events,
+    concentration: { kind: 'resolved', check, save: save.value, maintained },
+    duplicate: false,
+  });
 }
