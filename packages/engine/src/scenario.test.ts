@@ -302,7 +302,7 @@ function wizardActs(t: Table, round: number): void {
     { spellId: 'fire-bolt', targets: [target] },
     { issuer, rng },
   );
-  if (outcome.ok && outcome.value.kind === 'resolved') t.push(...outcome.value.events);
+  if (outcome.ok) t.push(...outcome.value.events);
 }
 
 /**
@@ -327,9 +327,6 @@ function castHoldPerson(
     ),
     'hold person',
   );
-  if (outcome.kind !== 'resolved') {
-    throw new Error(`the cast wanted context: ${JSON.stringify(outcome.requests)}`);
-  }
   t.push(...outcome.events);
   return outcome.outcomes.some((o) => o.affected);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { declaredCasting } from './spellcasting.js';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId , isNeedsContext, contextRequestsOf } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -107,7 +107,6 @@ const caught = (
   bonus = -40,
 ): readonly CharacterId[] => {
   const out = unwrap(resolveSpell(state, WIZARD, request, supply('area', bonus)), 'cast');
-  if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
   return out.outcomes.map((o) => o.target);
 };
 
@@ -270,7 +269,6 @@ describe('everyone caught rolls their own save', () => {
       ),
       'bolt',
     );
-    if (failed.kind !== 'resolved') throw new Error('expected a resolved cast');
     expect(failed.outcomes).toHaveLength(2);
     for (const outcome of failed.outcomes) {
       expect(outcome.save?.success).toBe(false);
@@ -287,7 +285,6 @@ describe('everyone caught rolls their own save', () => {
       ),
       'bolt',
     );
-    if (saved.kind !== 'resolved') throw new Error('expected a resolved cast');
     // SRD Lightning Bolt: "half as much damage on a successful one."
     for (const outcome of saved.outcomes) {
       expect(outcome.save?.success).toBe(true);
@@ -309,7 +306,6 @@ describe('everyone caught rolls their own save', () => {
       ),
       'bolt',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     const spent = out.events.filter((e) => e.type === 'spell-cast');
     expect(spent).toHaveLength(1);
     expect(out.outcomes).toHaveLength(2);
@@ -336,7 +332,6 @@ describe('everyone caught rolls their own save', () => {
       ),
       'fireball',
     );
-    if (low.kind !== 'resolved' || high.kind !== 'resolved') throw new Error('unresolved');
     expect(high.outcomes[0]?.damage ?? 0).toBeGreaterThan(low.outcomes[0]?.damage ?? 0);
   });
 });
@@ -370,7 +365,6 @@ describe('one saving throw, several damage types', () => {
       ),
       'flame-strike',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     for (const outcome of out.outcomes) {
       expect(outcome.save).toBeDefined();
@@ -417,7 +411,6 @@ describe('one saving throw, several damage types', () => {
         ),
         'flame-strike',
       );
-      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
       return out.outcomes.find((o) => o.target === NEAR)?.damage ?? 0;
     };
 
@@ -463,7 +456,6 @@ describe('one saving throw, several damage types', () => {
         ),
         'ice-storm',
       );
-      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
       return out.outcomes.find((o) => o.target === NEAR)?.damage ?? 0;
     };
 
@@ -486,12 +478,10 @@ describe('an area cast replays and retries like any other', () => {
       commandId: 'boom',
     };
     const first = unwrap(resolveSpell(state, WIZARD, request, supply('r', -40)), 'first');
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const applied = [...SETUP, ...first.events];
     const after = fold('seed', applied);
     const retry = unwrap(resolveSpell(after, WIZARD, request, supply('r', -40)), 'retry');
-    if (retry.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     expect(retry.events).toEqual([]);
     expect(fold('seed', [...applied, ...retry.events])).toEqual(after);
@@ -508,7 +498,6 @@ describe('an area cast replays and retries like any other', () => {
       ),
       'cast',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const log = [...SETUP, ...out.events];
     for (let n = 0; n <= log.length; n += 1) {
@@ -522,18 +511,14 @@ describe('an area cast replays and retries like any other', () => {
     // off the map takes them with it — which is exactly the state an
     // orchestrator is in before it has narrated where anybody is standing.
     const unplaced = fold('seed', SETUP.filter((e) => e.type !== 'creature-placed'));
-    const out = unwrap(
-      resolveSpell(
-        unplaced,
-        WIZARD,
-        { spellId: 'burning-hands', targets: [], towards: { x: 200, y: 100, z: 0 }, slotLevel: 1 },
-        supply('ask', -40),
-      ),
-      'ask',
+    const out = resolveSpell(
+      unplaced,
+      WIZARD,
+      { spellId: 'burning-hands', targets: [], towards: { x: 200, y: 100, z: 0 }, slotLevel: 1 },
+      supply('ask', -40),
     );
-    expect(out.kind).toBe('needs-context');
-    if (out.kind !== 'needs-context') throw new Error('expected a request');
-    expect(out.requests[0]?.kind).toBe('position');
-    expect(out.requests[0]?.subject).toBe(WIZARD);
+    expect(isNeedsContext(out)).toBe(true);
+    expect(contextRequestsOf(out)[0]?.kind).toBe('position');
+    expect(contextRequestsOf(out)[0]?.subject).toBe(WIZARD);
   });
 });

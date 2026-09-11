@@ -479,7 +479,7 @@ describe('the hold ends but the spell does not', () => {
       releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST] }, supply('blind')),
       'release',
     );
-    if (out.spell?.kind !== 'resolved') throw new Error('expected a resolved release');
+    if (out.spell === undefined) throw new Error('expected the release to resolve a spell');
     expect(out.spell.outcomes[0]?.affected).toBe(true);
 
     const after = fold('seed', [...log, ...out.events]);

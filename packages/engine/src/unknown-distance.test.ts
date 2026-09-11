@@ -237,7 +237,6 @@ describe('a spell attack measures the same way a weapon does', () => {
         ),
         'fire-bolt',
       );
-      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
       return out.outcomes[0]?.attack?.mode;
     };
 

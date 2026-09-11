@@ -216,8 +216,7 @@ describe('every definition in the catalogue actually casts', () => {
     // A failed save for anything that allows one, so the interesting branch is
     // the one that runs.
     const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
-    expect(out.kind).toBe('resolved');
-    if (out.kind !== 'resolved') return;
+    expect(out.castingId.length).toBeGreaterThan(0);
 
     expect(out.events.length).toBeGreaterThan(0);
 
@@ -236,7 +235,6 @@ describe('every definition in the catalogue actually casts', () => {
 
   it.each(CASTABLE.map((d) => [d.id] as const))('spends exactly one casting for %s', (spellId) => {
     const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
-    if (out.kind !== 'resolved') return;
     expect(out.events.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
   });
 
@@ -251,7 +249,6 @@ describe('every definition in the catalogue actually casts', () => {
   it.each(CASTABLE.map((d) => [d.id] as const))('replays %s prefix by prefix', (spellId) => {
     const base = logFor(spellId);
     const out = unwrap(castAt(fold('seed', base), spellId, -40), spellId);
-    if (out.kind !== 'resolved') return;
     const log = [...base, ...out.events];
     for (let n = 0; n <= log.length; n += 1) {
       expect(fold('seed', log.slice(0, n))).toEqual(fold('seed', log.slice(0, n)));
@@ -271,7 +268,6 @@ describe('a definition that leaves part of its spell out says so', () => {
     'reports what %s does not do, on the casting itself',
     (spellId, definition) => {
       const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
-      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
       for (const gap of definition.unmodelled ?? []) {
         expect(out.unverified).toContain(`${definition.name}: ${gap}`);
       }
@@ -281,7 +277,6 @@ describe('a definition that leaves part of its spell out says so', () => {
   /** Fireball does everything Fireball does, so it claims nothing. */
   it('says nothing about a spell it fully executes', () => {
     const out = unwrap(castAt(base(), 'fireball', -40), 'fireball');
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     expect(out.unverified).toEqual([]);
   });
 });
@@ -312,7 +307,6 @@ describe('the shapes behave as their spells describe', () => {
       ),
       'hold-monster',
     );
-    if (monster.kind !== 'resolved') throw new Error('expected a resolved cast');
     expect(monster.outcomes[0]?.condition).toBe('paralyzed');
   });
 
@@ -322,7 +316,6 @@ describe('the shapes behave as their spells describe', () => {
    */
   it('runs a timed condition without the caster concentrating', () => {
     const out = unwrap(castAt(base(), 'blindness-deafness', -40), 'blind');
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = fold('seed', [...SETUP, ...out.events]);
     expect(after.creatures.target!.conditions.conditions).toContain('blinded');
@@ -349,7 +342,6 @@ describe('the shapes behave as their spells describe', () => {
       ),
       'high',
     );
-    if (low.kind !== 'resolved' || high.kind !== 'resolved') throw new Error('unresolved');
     expect(high.outcomes[0]?.damage ?? 0).toBeGreaterThan(low.outcomes[0]?.damage ?? 0);
   });
 

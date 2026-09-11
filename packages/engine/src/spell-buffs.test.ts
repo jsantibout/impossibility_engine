@@ -103,7 +103,6 @@ const cast = (
   bonus?: number,
 ): { events: readonly GameEvent[]; log: readonly GameEvent[]; state: GameState } => {
   const out = unwrap(resolveSpell(fold('seed', log), CLERIC, request, supply(seed, bonus)), 'cast');
-  if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
   const next = [...log, ...out.events];
   return { events: out.events, log: next, state: fold('seed', next) };
 };
@@ -150,7 +149,6 @@ describe('a blessing lands on the creature, not in the caller’s head', () => {
       ),
       'helped',
     );
-    if (plain.kind !== 'resolved' || helped.kind !== 'resolved') throw new Error('unresolved');
 
     const before = plain.outcomes[0]?.save?.total ?? 0;
     const after = helped.outcomes[0]?.save?.total ?? 0;
@@ -183,7 +181,6 @@ describe('a blessing lands on the creature, not in the caller’s head', () => {
       ),
       'hindered',
     );
-    if (plain.kind !== 'resolved' || hindered.kind !== 'resolved') throw new Error('unresolved');
     expect(hindered.outcomes[0]?.save?.total ?? 0).toBeLessThan(plain.outcomes[0]?.save?.total ?? 0);
   });
 

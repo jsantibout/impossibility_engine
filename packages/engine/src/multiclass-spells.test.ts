@@ -468,7 +468,6 @@ describe('which class is casting is not the engine’s to decide', () => {
         resolveSpell(table(), MYSTIC, { spellId: 'hold-person', targets: [GOBLIN], slotLevel: 2, slotKind: 'spell', source }, supply()),
         source,
       );
-      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
       return out.outcomes[0]!.save!.dc;
     };
     // 8 + 3 proficiency + 5 Intelligence, against 8 + 3 - 1 Wisdom.
@@ -481,7 +480,6 @@ describe('which class is casting is not the engine’s to decide', () => {
       resolveSpell(table(), MYSTIC, { spellId: 'hold-person', targets: [GOBLIN], slotLevel: 2, slotKind: 'spell', source: 'class:warlock' }, supply()),
       'cast',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     const cast = out.events.find((e) => e.type === 'spell-cast');
     expect(cast).toMatchObject({ route: 'class:warlock' });
   });
@@ -499,7 +497,7 @@ describe('which class is casting is not the engine’s to decide', () => {
       resolveSpell(table(), MYSTIC, { spellId: 'fire-bolt', targets: [GOBLIN] }, supply()),
       'fire-bolt',
     );
-    expect(out.kind).toBe('resolved');
+    expect(out.castingId.length).toBeGreaterThan(0);
   });
 });
 
@@ -518,7 +516,6 @@ describe('which pool pays is not the engine’s to decide either', () => {
       resolveSpell(table(), MYSTIC, { ...named('class:wizard'), slotKind: 'pact' }, supply()),
       'cast',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     const after = fold('seed', [...TABLE, ...out.events]);
     expect(remaining(after.creatures.mystic!.resources, pactSlotKey(2))).toBe(1);
     expect(remaining(after.creatures.mystic!.resources, spellSlotKey(2))).toBe(3);
@@ -529,7 +526,6 @@ describe('which pool pays is not the engine’s to decide either', () => {
       resolveSpell(table(), MYSTIC, { ...named('class:wizard'), slotKind: 'spell' }, supply()),
       'cast',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     const after = fold('seed', [...TABLE, ...out.events]);
     expect(remaining(after.creatures.mystic!.resources, spellSlotKey(2))).toBe(2);
     expect(remaining(after.creatures.mystic!.resources, pactSlotKey(2))).toBe(2);
@@ -545,7 +541,6 @@ describe('which pool pays is not the engine’s to decide either', () => {
       resolveSpell(fold('seed', emptyPact), MYSTIC, named('class:wizard'), supply()),
       'cast',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     expect(out.events.some((e) => e.type === 'spell-cast')).toBe(true);
   });
 
@@ -565,11 +560,9 @@ describe('which pool pays is not the engine’s to decide either', () => {
   it('is retry-safe across both pools', () => {
     const request = { ...named('class:wizard'), slotKind: 'pact' as const, commandId: 'c1' };
     const first = unwrap(resolveSpell(table(), MYSTIC, request, supply()), 'first');
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const log = [...TABLE, ...first.events];
     const again = unwrap(resolveSpell(fold('seed', log), MYSTIC, request, supply()), 'retry');
-    if (again.kind !== 'resolved') throw new Error('expected a resolved retry');
     expect(again.events).toEqual([]);
 
     const after = fold('seed', [...log, ...again.events]);

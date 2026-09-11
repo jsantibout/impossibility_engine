@@ -2,6 +2,7 @@ import {
   ABILITY_NAMES,
   err,
   needsContext,
+  type ContextRequest,
   ok,
   type Ability,
   type CharacterId,
@@ -991,7 +992,7 @@ export interface ReadyRelease {
   /** Whether the Reaction was taken, or the trigger let pass. */
   readonly took: boolean;
   /** The spell that landed, for a readied spell. */
-  readonly spell?: SpellCastOutcome;
+  readonly spell?: SpellResolution;
   /** The move that was made, for a readied move. */
   readonly move?: MoveResolution;
 }
@@ -1190,12 +1191,11 @@ function releaseSpell(
     supply,
     { castingId: response.castingId },
   );
+  // A refusal of any kind takes the whole batch with it: the Reaction is
+  // still there and the spell is still held. That was already true of a rules
+  // refusal; it is now true of a missing fact too, which used to come back as
+  // a success and needed unpicking here.
   if (!resolved.ok) return resolved;
-  if (resolved.value.kind === 'needs-context') {
-    // Nothing was resolved, so nothing of this batch may stand either: the
-    // Reaction is still there and the spell is still held.
-    return ok({ events: [], took: false, spell: resolved.value });
-  }
 
   events.push(...resolved.value.events);
 
@@ -3395,48 +3395,28 @@ export interface SpellTargetOutcome {
 }
 
 /**
- * A fact the engine needs before it can resolve, and how to supply it.
+ * A cast that happened, and what it did to each target.
  *
- * Not a refusal and not an error: the rules are fine, the *record* is thin.
- * These are addressed to the layer that can go and establish the fact — look
- * it up, ask the DM, place the creature — and then cast again. A player should
- * never see one. "Sorry, that creature has no position" is the engine's
- * problem leaking out as the game's.
+ * There is no sibling shape for "it did not happen because a fact is missing".
+ * That used to be `SpellNeedsContext`, returned as a **success** carrying
+ * homework — which was the right idea reached by the wrong route. A caller had
+ * to know that this one command answered the three-state question inside its
+ * `ok` value while all forty-seven others answered it with an error, and no
+ * amount of documentation makes a language model's tool surface remember that.
+ *
+ * The distinction now lives where every command already puts it:
+ * `Err.kind === 'needs-context'`, with the structured requests on the error.
+ * The property that made the original design right is unchanged — nothing is
+ * spent, no die is thrown, and asking again after the fact is established is
+ * the cast the caller meant the first time.
  */
-export interface ContextRequest {
-  readonly kind: 'position' | 'visibility' | 'creature-type' | 'scene';
-  /** Who the missing fact is about. */
-  readonly subject: CharacterId;
-  /** What is missing, in plain terms. */
-  readonly need: string;
-  /** Which rule wanted it. */
-  readonly because: string;
-  /** The event or command that would establish it. */
-  readonly satisfyWith: string;
-}
-
 export interface SpellResolution {
-  readonly kind: 'resolved';
   readonly events: readonly GameEvent[];
   readonly castingId: string;
   readonly outcomes: readonly SpellTargetOutcome[];
   /** Checks the rules call for that the engine still cannot make. */
   readonly unverified: readonly string[];
 }
-
-/**
- * The cast did not happen, and nothing was spent, because a fact is missing.
- *
- * Returned as a success rather than an error on purpose: nothing is wrong, the
- * caller simply has homework. Distinguishing this from a rules refusal is what
- * lets an orchestrator retry instead of apologising.
- */
-export interface SpellNeedsContext {
-  readonly kind: 'needs-context';
-  readonly requests: readonly ContextRequest[];
-}
-
-export type SpellCastOutcome = SpellResolution | SpellNeedsContext;
 
 export interface CastSpellRequest extends CommandIdentity {
   readonly spellId: string;
@@ -3653,7 +3633,7 @@ export function resolveSpell(
   casterId: CharacterId,
   request: CastSpellRequest,
   supply: ConcentrationSaveSupply,
-): Result<SpellCastOutcome> {
+): Result<SpellResolution> {
   return castOrRelease(state, casterId, request, supply, null);
 }
 
@@ -3680,7 +3660,7 @@ function castOrRelease(
   request: CastSpellRequest,
   supply: ConcentrationSaveSupply,
   held: HeldCasting | null,
-): Result<SpellCastOutcome> {
+): Result<SpellResolution> {
   // A turn-boundary save outstanding means somebody may or may not still be
   // Paralyzed, and casting at them would be resolving against a state nobody
   // has settled. The rule is the same one that stops the turn advancing.
@@ -3750,15 +3730,20 @@ function castOrRelease(
   if (definition.area !== undefined) {
     const resolved = areaTargets(state, casterId, definition, definition.area, request, reach);
     if (!resolved.ok) return resolved;
-    if (resolved.value.kind === 'needs-context') return ok(resolved.value);
-    targets = resolved.value.targets;
+    targets = resolved.value;
   } else {
     const named = namedTargets(state, casterId, definition, request, castLevel, reach, needs);
     if (!named.ok) return named;
     targets = named.value;
   }
 
-  if (needs.length > 0) return ok({ kind: 'needs-context', requests: needs });
+  if (needs.length > 0) {
+    return needsContext(
+      'needs_context',
+      `${definition.name} cannot be resolved until ${needs.length === 1 ? 'a fact is' : `${needs.length} facts are`} established: ${needs.map((n) => n.need).join('; ')}`,
+      needs,
+    );
+  }
 
   return resolveOnTargets(state, casterId, caster, definition, request, {
     castLevel,
@@ -3787,7 +3772,7 @@ function areaTargets(
   area: SpellArea,
   request: CastSpellRequest,
   reach: number | null,
-): Result<{ kind: 'targets'; targets: readonly CharacterId[] } | SpellNeedsContext> {
+): Result<readonly CharacterId[]> {
   if (request.targets.length > 0) {
     return err(
       'area_picks_its_own_targets',
@@ -3795,9 +3780,10 @@ function areaTargets(
     );
   }
   if (state.scene === null) {
-    return ok({
-      kind: 'needs-context',
-      requests: [
+    return needsContext(
+      'no_scene',
+      `${definition.name} fills an area and there is no scene for it to fill`,
+      [
         {
           kind: 'scene',
           subject: casterId,
@@ -3806,14 +3792,15 @@ function areaTargets(
           satisfyWith: 'a scene-set event',
         },
       ],
-    });
+    );
   }
 
   const placed = positionOf(state.scene, casterId);
   if (placed === null) {
-    return ok({
-      kind: 'needs-context',
-      requests: [
+    return needsContext(
+      'unplaced',
+      `nobody has said where ${casterId} is standing, and ${definition.name} starts its area there`,
+      [
         {
           kind: 'position',
           subject: casterId,
@@ -3822,7 +3809,7 @@ function areaTargets(
           satisfyWith: `a creature-placed event for ${casterId}`,
         },
       ],
-    });
+    );
   }
 
   // Where it starts. `self` means the caster and refuses to be moved; `point`
@@ -3909,7 +3896,7 @@ function areaTargets(
     return true;
   });
 
-  return ok({ kind: 'targets', targets: eligible.slice().sort() });
+  return ok(eligible.slice().sort());
 }
 
 /** The other half: a list of ids somebody chose, each checked as itself. */
@@ -4059,7 +4046,7 @@ function resolveOnTargets(
     /** Set when the casting was paid for earlier — a readied spell. */
     readonly held: HeldCasting | null;
   },
-): Result<SpellCastOutcome> {
+): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, held } = context;
 
   // — paying for it ——————————————————————————————————————————————————————
@@ -4122,7 +4109,7 @@ function resolveOnTargets(
   if (!cast.ok) return cast;
   // A retried command: the first run did all of this.
   if (cast.value.length === 0) {
-    return ok({ kind: 'resolved', events: [], castingId, outcomes: [], unverified: [] });
+    return ok({ events: [], castingId, outcomes: [], unverified: [] });
   }
   events.push(...cast.value);
 
@@ -4159,7 +4146,7 @@ function resolveEffects(
     readonly castingId: string;
     readonly events: GameEvent[];
   },
-): Result<SpellCastOutcome> {
+): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, castingId, events } = context;
 
   // — what it does ———————————————————————————————————————————————————————
@@ -4545,7 +4532,7 @@ function resolveEffects(
     });
   }
 
-  return ok({ kind: 'resolved', events, castingId, outcomes, unverified });
+  return ok({ events, castingId, outcomes, unverified });
 }
 
 /**

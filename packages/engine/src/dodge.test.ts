@@ -181,7 +181,6 @@ describe('Dodge helps a Dexterity saving throw and nothing else', () => {
         ),
         'fireball',
       );
-      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
       return out.outcomes.find((o) => o.target === ROGUE)?.save?.mode;
     };
 

@@ -3,6 +3,7 @@ import {
   asCharacterId,
   isErr,
   isNeedsContext,
+  contextRequestsOf,
   expect as unwrap,
   type CharacterId,
   type Result,
@@ -11,7 +12,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
-import { spellSlotKey } from './resources.js';
+import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import {
   damageCreature,
@@ -28,6 +29,7 @@ import {
   resolveAttack,
   resolveCast,
   resolveMove,
+  resolveSpell,
   resolveTurn,
   takeDash,
   takeDisengage,
@@ -399,6 +401,109 @@ describe('a refused command leaves nothing behind', () => {
       expect(dice.issuer.count).toBe(before.rolls);
     });
   }
+});
+
+describe('one channel for a missing fact', () => {
+  /**
+   * `resolveSpell` used to answer the three-state question inside its `ok`
+   * value — a *success* carrying homework — while the other forty-seven
+   * commands answered it with an error. The idea was right and the route was
+   * wrong: a caller had to know which of two shapes this one command used, and
+   * no amount of documentation makes a model's tool surface remember that.
+   *
+   * The property that made the original design right is what these pin: a
+   * missing fact is not a verdict, it costs nothing, and the same command
+   * repeated once the fact is established is the command the caller meant.
+   */
+  // B is in the game and nobody has said what kind of creature it is. That is
+  // an ordinary state, not a broken one.
+  const untyped: readonly GameEvent[] = SETUP.map((e) =>
+    e.type === 'creature-added' && e.id === B
+      ? ({
+          type: 'creature-added',
+          id: e.id,
+          name: e.name,
+          sheet: e.sheet,
+          maxHp: e.maxHp,
+          diesAtZero: e.diesAtZero ?? false,
+          side: e.side,
+        } as GameEvent)
+      : e,
+  );
+
+  const withSlot: readonly GameEvent[] = [
+    ...untyped,
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 2, recovers: 'long-rest' },
+    },
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['hold-person'] }),
+    },
+  ];
+
+  const cast = (log: readonly GameEvent[], dice = supply()) =>
+    resolveSpell(fold('s', log), A, { spellId: 'hold-person', targets: [B], slotLevel: 2 }, dice);
+
+  it('a spell missing a fact refuses in the same shape every other command uses', () => {
+    const out = cast(withSlot);
+    expect(isErr(out)).toBe(true);
+    expect(isNeedsContext(out)).toBe(true);
+  });
+
+  /** And it still says exactly what to establish, which was the point of it. */
+  it('names the fact and the event that would settle it', () => {
+    const requests = contextRequestsOf(cast(withSlot));
+    expect(requests.length).toBeGreaterThan(0);
+    expect(requests.map((r) => r.kind)).toContain('creature-type');
+    expect(requests[0]?.satisfyWith.length).toBeGreaterThan(0);
+  });
+
+  it('costs nothing to ask — no slot, no dice, no state', () => {
+    const dice = supply();
+    const before = { state: fold('s', withSlot), rng: dice.rng.snapshot(), rolls: dice.issuer.count };
+
+    expect(isNeedsContext(cast(withSlot, dice))).toBe(true);
+
+    expect(fold('s', withSlot)).toEqual(before.state);
+    expect(dice.rng.snapshot()).toEqual(before.rng);
+    expect(dice.issuer.count).toBe(before.rolls);
+    expect(remaining(fold('s', withSlot).creatures.b!.resources, spellSlotKey(2))).toBe(0);
+  });
+
+  /**
+   * Establishing the fact adds a fact. It does not restate the world, and the
+   * cast that follows is the one the caller asked for the first time.
+   */
+  it('goes through once the fact is established', () => {
+    const answered: readonly GameEvent[] = [
+      ...withSlot,
+      { type: 'creature-type-declared', id: B, creatureType: 'Humanoid' },
+    ];
+    const out = cast(answered);
+    expect(isErr(out) ? `${out.code}: ${out.reason}` : 'ok').toBe('ok');
+  });
+
+  /** A rules refusal still carries no requests: there is nothing to go and get. */
+  it('offers nothing to establish when the rules simply say no', () => {
+    const typed: readonly GameEvent[] = [
+      ...withSlot,
+      { type: 'creature-type-declared', id: B, creatureType: 'Humanoid' },
+    ];
+    const out = resolveSpell(
+      fold('s', typed),
+      A,
+      { spellId: 'hold-person', targets: [B], slotLevel: 9 },
+      supply(),
+    );
+    expect(isErr(out)).toBe(true);
+    expect(isNeedsContext(out)).toBe(false);
+    expect(contextRequestsOf(out)).toEqual([]);
+  });
+
 });
 
 describe('a campaign cannot wedge', () => {

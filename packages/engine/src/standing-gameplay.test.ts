@@ -142,7 +142,6 @@ const holdPerson = (log: readonly GameEvent[], seed = 'cast') => {
     ),
     'hold-person',
   );
-  if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
   return out;
 };
 
@@ -359,7 +358,6 @@ describe('the aura survives retries and replay', () => {
       ),
       'first',
     );
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = [...log, ...first.events];
     const retry = unwrap(
@@ -371,7 +369,6 @@ describe('the aura survives retries and replay', () => {
       ),
       'retry',
     );
-    if (retry.kind !== 'resolved') throw new Error('expected a resolved retry');
     expect(retry.events).toEqual([]);
     expect(standingSaveBonuses(fold('seed', after), ALLY, 'wis')).toHaveLength(1);
   });
@@ -479,7 +476,6 @@ describe('a chosen resistance reaches the damage command', () => {
       resolveSpell(fold('seed', log), WITCH, { spellId: 'fire-bolt', targets: [VESKA] }, supply('burn')),
       'fire-bolt',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     return out.outcomes[0]?.damage ?? 0;
   };
 

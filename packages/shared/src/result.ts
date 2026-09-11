@@ -27,12 +27,45 @@
  */
 export type ErrKind = 'refusal' | 'needs-context';
 
+/**
+ * A fact the engine needs before it can resolve, and how to supply it.
+ *
+ * The structured half of a `needs-context` refusal. `reason` is always there
+ * and is always enough for a person to read; this is for the cases where the
+ * engine can say precisely *what* is missing and *which event* would settle
+ * it, so an orchestrator can fix it without parsing prose.
+ *
+ * Addressed to the orchestrator, never to a player. "Sorry, that creature has
+ * no position" is the engine's problem leaking out as the game's — the layer
+ * that sees this places the creature and asks again, and the table never
+ * learns a round trip happened.
+ */
+export interface ContextRequest {
+  /** What sort of fact is missing. */
+  readonly kind: 'position' | 'visibility' | 'creature-type' | 'scene';
+  /** Who the missing fact is about. */
+  readonly subject: string;
+  /** What is missing, in plain terms. */
+  readonly need: string;
+  /** Which rule wanted it. */
+  readonly because: string;
+  /** The event or command that would establish it. */
+  readonly satisfyWith: string;
+}
+
 export type Ok<T> = { readonly ok: true; readonly value: T };
 export type Err = {
   readonly ok: false;
   readonly reason: string;
   readonly code: string;
   readonly kind: ErrKind;
+  /**
+   * Exactly what to establish, when the engine can be that precise.
+   *
+   * Only ever present on a `needs-context` refusal, and optional even there:
+   * most thin-record cases are one missing creature and the reason says so.
+   */
+  readonly requests?: readonly ContextRequest[];
 };
 export type Result<T> = Ok<T> | Err;
 
@@ -62,16 +95,25 @@ export const err = (code: string, reason: string): Err => ({
  * to a player — "sorry, that creature has no position" is the engine's problem
  * leaking out as the game's.
  */
-export const needsContext = (code: string, reason: string): Err => ({
+export const needsContext = (
+  code: string,
+  reason: string,
+  requests?: readonly ContextRequest[],
+): Err => ({
   ok: false,
   code,
   reason,
   kind: 'needs-context',
+  ...(requests === undefined || requests.length === 0 ? {} : { requests }),
 });
 
 /** Whether this refusal is homework rather than a verdict. */
 export const isNeedsContext = (r: Result<unknown>): boolean =>
   !r.ok && r.kind === 'needs-context';
+
+/** What a `needs-context` refusal wants established, or nothing. */
+export const contextRequestsOf = (r: Result<unknown>): readonly ContextRequest[] =>
+  !r.ok && r.kind === 'needs-context' ? (r.requests ?? []) : [];
 
 export const isOk = <T>(r: Result<T>): r is Ok<T> => r.ok;
 export const isErr = <T>(r: Result<T>): r is Err => !r.ok;

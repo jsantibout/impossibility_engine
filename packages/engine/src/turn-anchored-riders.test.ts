@@ -6,7 +6,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
-import { resolveSpell, resolveTurn, type SpellCastOutcome } from './commands.js';
+import { resolveSpell, resolveTurn } from './commands.js';
 
 /**
  * Riders that end at a moment in the turn order rather than on the clock.
@@ -115,11 +115,6 @@ const nextTurn = (log: readonly GameEvent[]): readonly GameEvent[] => [
   ...unwrap(resolveTurn(fold('seed', log), supply('turn')), 'turn').events,
 ];
 
-const resolved = (out: SpellCastOutcome) => {
-  if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
-  return out;
-};
-
 const blinded = (state: GameState, who: CharacterId) =>
   state.creatures[who]!.conditions.conditions.includes('blinded');
 
@@ -136,16 +131,14 @@ describe('Color Spray: a rider that outlives an instantaneous casting', () => {
    * could not be written down at all.
    */
   const spray = (log: readonly GameEvent[] = SETUP, seed = 'spray') =>
-    resolved(
-      unwrap(
-        resolveSpell(
-          fold('seed', log),
-          CASTER,
-          { spellId: 'color-spray', targets: [], towards: { x: 100, y: 200, z: 0 }, slotLevel: 1 },
-          supply(seed),
-        ),
-        'color spray',
+    unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CASTER,
+        { spellId: 'color-spray', targets: [], towards: { x: 100, y: 200, z: 0 }, slotLevel: 1 },
+        supply(seed),
       ),
+      'color spray',
     );
 
   const sprayed = (log: readonly GameEvent[] = SETUP) => [...log, ...spray(log).events];
@@ -243,16 +236,14 @@ describe('Sunbeam: a rider shorter than the casting that made it', () => {
    * text gives.
    */
   const beam = (log: readonly GameEvent[] = SETUP, seed = 'beam') =>
-    resolved(
-      unwrap(
-        resolveSpell(
-          fold('seed', log),
-          CASTER,
-          { spellId: 'sunbeam', targets: [], towards: { x: 100, y: 200, z: 0 }, slotLevel: 6 },
-          supply(seed),
-        ),
-        'sunbeam',
+    unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CASTER,
+        { spellId: 'sunbeam', targets: [], towards: { x: 100, y: 200, z: 0 }, slotLevel: 6 },
+        supply(seed),
       ),
+      'sunbeam',
     );
 
   const burned = (log: readonly GameEvent[] = SETUP) => [...log, ...beam(log).events];
@@ -283,16 +274,14 @@ describe('Sunbeam: a rider shorter than the casting that made it', () => {
    * the damage would blind a creature the spell says it did not.
    */
   it('blinds nobody who makes the save, though the damage still lands', () => {
-    const out = resolved(
-      unwrap(
-        resolveSpell(
-          fold('seed', SETUP),
-          CASTER,
-          { spellId: 'sunbeam', targets: [], towards: { x: 100, y: 200, z: 0 }, slotLevel: 6 },
-          supply('beam', 40),
-        ),
-        'sunbeam',
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', SETUP),
+        CASTER,
+        { spellId: 'sunbeam', targets: [], towards: { x: 100, y: 200, z: 0 }, slotLevel: 6 },
+        supply('beam', 40),
       ),
+      'sunbeam',
     );
     const made = out.outcomes.find((o) => o.target === TARGET);
     expect(made?.save?.success).toBe(true);
@@ -357,16 +346,14 @@ describe('Ray of Sickness: a rider on a hit rather than on a failed save', () =>
    * through to, which is the difference between this and Sunbeam.
    */
   const ray = (seed: string) =>
-    resolved(
-      unwrap(
-        resolveSpell(
-          fold('seed', SETUP),
-          CASTER,
-          { spellId: 'ray-of-sickness', targets: [TARGET], slotLevel: 1 },
-          supply(seed),
-        ),
-        'ray of sickness',
+    unwrap(
+      resolveSpell(
+        fold('seed', SETUP),
+        CASTER,
+        { spellId: 'ray-of-sickness', targets: [TARGET], slotLevel: 1 },
+        supply(seed),
       ),
+      'ray of sickness',
     );
 
   const poisoned = (log: readonly GameEvent[]) =>
@@ -400,16 +387,14 @@ describe('Ray of Sickness: a rider on a hit rather than on a failed save', () =>
         ],
       },
     ];
-    const out = resolved(
-      unwrap(
-        resolveSpell(
-          fold('seed', armoured),
-          CASTER,
-          { spellId: 'ray-of-sickness', targets: [TARGET], slotLevel: 1 },
-          supply('miss'),
-        ),
-        'ray of sickness',
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', armoured),
+        CASTER,
+        { spellId: 'ray-of-sickness', targets: [TARGET], slotLevel: 1 },
+        supply('miss'),
       ),
+      'ray of sickness',
     );
     expect(out.outcomes[0]?.attack?.hit).toBe(false);
     expect(poisoned([...armoured, ...out.events])).toBe(false);
@@ -458,16 +443,14 @@ describe('it replays', () => {
   it('replays prefix by prefix', () => {
     const log = nextTurn([
       ...SETUP,
-      ...resolved(
-        unwrap(
-          resolveSpell(
-            fold('seed', SETUP),
-            CASTER,
-            { spellId: 'color-spray', targets: [], towards: { x: 100, y: 200, z: 0 }, slotLevel: 1 },
-            supply('spray'),
-          ),
-          'color spray',
+      ...unwrap(
+        resolveSpell(
+          fold('seed', SETUP),
+          CASTER,
+          { spellId: 'color-spray', targets: [], towards: { x: 100, y: 200, z: 0 }, slotLevel: 1 },
+          supply('spray'),
         ),
+        'color spray',
       ).events,
     ]);
     for (let n = 0; n <= log.length; n += 1) {

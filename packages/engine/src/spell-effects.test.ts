@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { declaredCasting } from './spellcasting.js';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId , isNeedsContext, contextRequestsOf } from '@ie/shared';
 import type { DamageDefenses } from './attack.js';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -136,7 +136,6 @@ describe('healing restores hit points and nothing else', () => {
       resolveSpell(state, CLERIC, { spellId: 'cure-wounds', targets: [ALLY], slotLevel: 1 }, supply('heal')),
       'cure',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = fold('seed', [...SETUP, ...wound(ALLY, 15), ...out.events]);
     const healed = after.creatures.wenna!.vitals.hp - 5;
@@ -157,7 +156,6 @@ describe('healing restores hit points and nothing else', () => {
       resolveSpell(down, CLERIC, { spellId: 'healing-word', targets: [ALLY], slotLevel: 1 }, supply('up')),
       'word',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = fold('seed', [...log, ...out.events]);
     expect(after.creatures.wenna!.vitals.hp).toBeGreaterThan(0);
@@ -174,7 +172,6 @@ describe('healing restores hit points and nothing else', () => {
       resolveSpell(nicked, CLERIC, { spellId: 'cure-wounds', targets: [ALLY], slotLevel: 3 }, supply('cap')),
       'cure',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = fold('seed', [...log, ...out.events]);
     // A level 3 slot rolls 6d8 + 3, which is far more than the single point
@@ -200,7 +197,6 @@ describe('healing restores hit points and nothing else', () => {
       resolveSpell(hurt, CLERIC, { spellId: 'cure-wounds', targets: [CLERIC], slotLevel: 1 }, supply('self')),
       'self',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     expect(fold('seed', [...log, ...out.events]).creatures.brannor!.vitals.hp).toBeGreaterThan(30);
   });
 });
@@ -222,7 +218,6 @@ describe('a saving throw that deals damage', () => {
   it('deals nothing at all when the save succeeds, because the spell says so', () => {
     // +30 on the save beats any DC, so the success branch is certain.
     const out = unwrap(flame(base(), 'flame-pass', 30), 'flame');
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     expect(out.outcomes[0]?.save?.success).toBe(true);
     expect(out.outcomes[0]?.damage).toBe(0);
@@ -232,7 +227,6 @@ describe('a saving throw that deals damage', () => {
 
   it('deals its damage when the save fails', () => {
     const out = unwrap(flame(base(), 'flame-fail', -30), 'flame');
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     expect(out.outcomes[0]?.save?.success).toBe(false);
     expect(out.outcomes[0]?.affected).toBe(true);
@@ -258,7 +252,6 @@ describe('a saving throw that deals damage', () => {
       ),
       'inflict',
     );
-    if (passed.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     expect(passed.outcomes[0]?.save?.success).toBe(true);
     // 2d10 halved per die and floored: at least 0, and never the full roll.
@@ -298,8 +291,6 @@ describe('the target’s own defences apply', () => {
     const resistant = hit(withDefense({ necrotic: { resistant: true } }), 'defences');
     const immune = hit(withDefense({ necrotic: { immune: true } }), 'defences');
     const vulnerable = hit(withDefense({ necrotic: { vulnerable: true } }), 'defences');
-    if (plain.kind !== 'resolved' || resistant.kind !== 'resolved') throw new Error('unresolved');
-    if (immune.kind !== 'resolved' || vulnerable.kind !== 'resolved') throw new Error('unresolved');
 
     const full = plain.outcomes[0]?.damage ?? 0;
     expect(full).toBeGreaterThan(0);
@@ -311,7 +302,6 @@ describe('the target’s own defences apply', () => {
   it('leaves a defence against a different damage type alone', () => {
     const elsewhere = hit(withDefense({ fire: { immune: true } }), 'defences');
     const plain = hit(base(), 'defences');
-    if (elsewhere.kind !== 'resolved' || plain.kind !== 'resolved') throw new Error('unresolved');
     expect(elsewhere.outcomes[0]?.damage).toBe(plain.outcomes[0]?.damage);
   });
 });
@@ -348,7 +338,6 @@ describe('damage settles the Concentration it put at risk', () => {
       ),
       'inflict',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const consequence = out.outcomes[0]?.concentration;
     expect(consequence?.kind).toBe('resolved');
@@ -370,7 +359,6 @@ describe('damage settles the Concentration it put at risk', () => {
       ),
       'inflict',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
     expect(out.outcomes[0]?.concentration?.kind).toBe('none');
   });
 });
@@ -406,7 +394,6 @@ describe('the action economy charges what the spell costs', () => {
       ),
       'word',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = fold('seed', [...log, ...out.events]);
     const budget = after.combat?.budgets[CLERIC];
@@ -425,7 +412,6 @@ describe('the action economy charges what the spell costs', () => {
       ),
       'word',
     );
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const applied = [...log, ...first.events];
     const after = fold('seed', applied);
@@ -451,7 +437,6 @@ describe('the action economy charges what the spell costs', () => {
       ),
       'word',
     );
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = fold('seed', [...log, ...first.events]);
     const second = resolveSpell(
@@ -475,7 +460,6 @@ describe('the action economy charges what the spell costs', () => {
       ),
       'word',
     );
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = fold('seed', [...log, ...first.events]);
     const flame = resolveSpell(after, CLERIC, { spellId: 'sacred-flame', targets: [GOBLIN] }, supply('two'));
@@ -526,7 +510,6 @@ describe('scaling comes from the definition, never from a caller', () => {
       resolveSpell(state, CLERIC, { spellId: 'cure-wounds', targets: [ALLY], slotLevel: 3 }, supply('big')),
       'cure',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const after = fold('seed', [...log, ...out.events]);
     expect(remaining(after.creatures.brannor!.resources, spellSlotKey(3))).toBe(1);
@@ -548,12 +531,10 @@ describe('a retry spends nothing twice', () => {
   it('is a no-op on a healing spell, leaving hit points and slots alone', () => {
     const log = [...SETUP, ...wound(ALLY, 15)];
     const first = unwrap(once(fold('seed', log), 'cure-wounds', ALLY, 1), 'first');
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const applied = [...log, ...first.events];
     const after = fold('seed', applied);
     const retry = unwrap(once(after, 'cure-wounds', ALLY, 1), 'retry');
-    if (retry.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     expect(retry.events).toEqual([]);
     expect(fold('seed', [...applied, ...retry.events])).toEqual(after);
@@ -562,14 +543,12 @@ describe('a retry spends nothing twice', () => {
 
   it('is a no-op on a damaging spell, rolling no second save and no second die', () => {
     const first = unwrap(once(base(), 'inflict-wounds', GOBLIN, 1), 'first');
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
 
     const applied = [...SETUP, ...first.events];
     const after = fold('seed', applied);
     const hp = after.creatures.goblin!.vitals.hp;
 
     const retry = unwrap(once(after, 'inflict-wounds', GOBLIN, 1), 'retry');
-    if (retry.kind !== 'resolved') throw new Error('expected a resolved cast');
     expect(retry.events).toEqual([]);
     expect(after.creatures.goblin!.vitals.hp).toBe(hp);
     expect(fold('seed', [...applied, ...retry.events])).toEqual(after);
@@ -578,7 +557,6 @@ describe('a retry spends nothing twice', () => {
   /** A different spell under the same id is a caller bug, not a retry. */
   it('refuses the same command id carrying different inputs', () => {
     const first = unwrap(once(base(), 'inflict-wounds', GOBLIN, 1), 'first');
-    if (first.kind !== 'resolved') throw new Error('expected a resolved cast');
     const after = fold('seed', [...SETUP, ...first.events]);
 
     const different = once(after, 'sacred-flame', GOBLIN);
@@ -592,7 +570,6 @@ describe('the whole thing replays', () => {
     let log: GameEvent[] = [...SETUP, ...wound(ALLY, 18)];
     const step = (request: Parameters<typeof resolveSpell>[2], seed: string): void => {
       const out = unwrap(resolveSpell(fold('seed', log), CLERIC, request, supply(seed)), 'cast');
-      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
       log = [...log, ...out.events];
     };
     step({ spellId: 'cure-wounds', targets: [ALLY], slotLevel: 1 }, 'a');
@@ -630,13 +607,14 @@ describe('a missing fact still comes back as a request, not a refusal', () => {
     const unplaced = fold('seed', [
       ...SETUP.filter((e) => !(e.type === 'creature-placed' && e.id === GOBLIN)),
     ]);
-    const out = unwrap(
-      resolveSpell(unplaced, CLERIC, { spellId: 'sacred-flame', targets: [GOBLIN] }, supply('ask')),
-      'ask',
+    const out = resolveSpell(
+      unplaced,
+      CLERIC,
+      { spellId: 'sacred-flame', targets: [GOBLIN] },
+      supply('ask'),
     );
-    expect(out.kind).toBe('needs-context');
-    if (out.kind !== 'needs-context') throw new Error('expected a request');
-    expect(out.requests.map((r) => r.kind)).toContain('position');
+    expect(isNeedsContext(out)).toBe(true);
+    expect(contextRequestsOf(out).map((r) => r.kind)).toContain('position');
 
     // Nothing was spent asking: the generator never moved.
     expect(fold('seed', SETUP.filter((e) => !(e.type === 'creature-placed' && e.id === GOBLIN)))).toEqual(

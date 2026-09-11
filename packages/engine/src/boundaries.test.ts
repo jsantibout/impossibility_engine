@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId , isNeedsContext, contextRequestsOf } from '@ie/shared';
 import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
@@ -199,16 +199,13 @@ describe('a missing fact is a request, not a refusal', () => {
    * out, never to a player, who should not be told the database is thin.
    */
   it('asks for a creature type it does not have', () => {
-    const outcome = unwrap(
-      castOn(untyped(), { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }),
-      'cast',
-    );
-    expect(outcome.kind).toBe('needs-context');
-    if (outcome.kind !== 'needs-context') return;
+    const outcome = castOn(untyped(), { spellId: 'hold-person', targets: [THUG], slotLevel: 2 });
+    expect(isNeedsContext(outcome)).toBe(true);
 
-    expect(outcome.requests).toHaveLength(1);
-    expect(outcome.requests[0]).toMatchObject({ kind: 'creature-type', subject: THUG });
-    expect(outcome.requests[0]?.satisfyWith.length).toBeGreaterThan(0);
+    const requests = contextRequestsOf(outcome);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({ kind: 'creature-type', subject: THUG });
+    expect(requests[0]?.satisfyWith.length).toBeGreaterThan(0);
   });
 
   it('asks for a position rather than guessing a distance', () => {
@@ -220,13 +217,9 @@ describe('a missing fact is a request, not a refusal', () => {
       { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the door' }, feet: 0 } },
       { type: 'sight-declared', from: WIZARD, to: THUG, seen: true },
     ];
-    const outcome = unwrap(
-      castOn(unplaced, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }),
-      'cast',
-    );
-    expect(outcome.kind).toBe('needs-context');
-    if (outcome.kind !== 'needs-context') return;
-    expect(outcome.requests.map((r) => r.kind)).toContain('position');
+    const outcome = castOn(unplaced, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 });
+    expect(isNeedsContext(outcome)).toBe(true);
+    expect(contextRequestsOf(outcome).map((r) => r.kind)).toContain('position');
   });
 
   /** SRD Hold Person: "a Humanoid that you can **see**." */
@@ -234,19 +227,15 @@ describe('a missing fact is a request, not a refusal', () => {
     const unseen = table().filter(
       (e) => !(e.type === 'sight-declared' && e.to === THUG),
     );
-    const outcome = unwrap(
-      castOn(unseen, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }),
-      'cast',
-    );
-    expect(outcome.kind).toBe('needs-context');
-    if (outcome.kind !== 'needs-context') return;
-    expect(outcome.requests.map((r) => r.kind)).toContain('visibility');
+    const outcome = castOn(unseen, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 });
+    expect(isNeedsContext(outcome)).toBe(true);
+    expect(contextRequestsOf(outcome).map((r) => r.kind)).toContain('visibility');
   });
 
   it('does not ask about sight for a spell that does not need it', () => {
     const unseen = table().filter((e) => e.type !== 'sight-declared');
     const outcome = unwrap(castOn(unseen, { spellId: 'fire-bolt', targets: [GOBLIN] }), 'cast');
-    expect(outcome.kind).toBe('resolved');
+    expect(outcome.castingId.length).toBeGreaterThan(0);
   });
 
   /** Declared unseen is an answer, and the answer is no. */
@@ -263,7 +252,8 @@ describe('a missing fact is a request, not a refusal', () => {
   /** Asking costs nothing: no slot, no action, no die. */
   it('changes nothing while it is asking', () => {
     const before = fold('seed', untyped());
-    unwrap(castOn(untyped(), { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }), 'cast');
+    const asked = castOn(untyped(), { spellId: 'hold-person', targets: [THUG], slotLevel: 2 });
+    expect(isNeedsContext(asked)).toBe(true);
     expect(fold('seed', untyped())).toEqual(before);
     expect(before.rollsIssued).toBe(0);
   });
@@ -278,7 +268,7 @@ describe('a missing fact is a request, not a refusal', () => {
       castOn(answered, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }, DOOMED),
       'cast',
     );
-    expect(outcome.kind).toBe('resolved');
+    expect(outcome.castingId.length).toBeGreaterThan(0);
   });
 });
 
@@ -425,7 +415,6 @@ describe('which grant pays, and with what', () => {
       resolveSpell(state, WIZARD, { spellId: 'fire-bolt', targets: [GOBLIN] }, supply(state, 40)),
       'cast',
     );
-    if (outcome.kind !== 'resolved') throw new Error('expected a resolution');
     // Intelligence 17 (+3) and Proficiency 2: the Wizard's number, not Wisdom's.
     expect(outcome.events.find((e) => e.type === 'roll-recorded')).toMatchObject({
       contributions: [{ source: 'spell attack', amount: 5 }],
@@ -455,7 +444,6 @@ describe('which grant pays, and with what', () => {
       ),
       'cast',
     );
-    if (outcome.kind !== 'resolved') throw new Error('expected a resolution');
     // Wisdom 12 (+1) and Proficiency 2.
     expect(outcome.events.find((e) => e.type === 'roll-recorded')).toMatchObject({
       contributions: [{ source: 'spell attack', amount: 3 }],
@@ -512,7 +500,6 @@ describe('which grant pays, and with what', () => {
       ),
       'cast',
     );
-    if (outcome.kind !== 'resolved') throw new Error('expected a resolution');
 
     const after = fold('seed', [...log, ...outcome.events]);
     expect(remaining(after.creatures.kessa!.resources, freeCastPoolKey('sage:magic-initiate-wizard'))).toBe(0);
@@ -538,7 +525,6 @@ describe('which grant pays, and with what', () => {
       ),
       'cast',
     );
-    if (outcome.kind !== 'resolved') throw new Error('expected a resolution');
 
     const after = fold('seed', [...log, ...outcome.events]);
     expect(remaining(after.creatures.kessa!.resources, spellSlotKey(2))).toBe(1);
@@ -564,7 +550,6 @@ describe('which grant pays, and with what', () => {
       ),
       'cast',
     );
-    if (first.kind !== 'resolved') throw new Error('expected a resolution');
 
     const after = fold('seed', [...log, ...first.events, { type: 'turn-advanced' }, { type: 'turn-advanced' }, { type: 'turn-advanced' }]);
     const again = resolveSpell(
@@ -736,24 +721,21 @@ describe('answering a request keeps what was already established', () => {
       { type: 'creature-placed', id: THUG, placement: { from: { creature: WIZARD }, feet: 20, bearing: 0 } },
     ];
 
-    const asked = unwrap(
-      castOn(bare, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }),
-      'cast',
-    );
-    if (asked.kind !== 'needs-context') throw new Error('expected questions');
-    expect(asked.requests.map((r) => r.kind).sort()).toEqual(['creature-type', 'visibility']);
+    const asked = castOn(bare, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 });
+    expect(isNeedsContext(asked)).toBe(true);
+    expect(contextRequestsOf(asked).map((r) => r.kind).sort()).toEqual([
+      'creature-type',
+      'visibility',
+    ]);
 
     // Answer the first. The second is still outstanding, and the first stands.
     const half = [
       ...bare,
       { type: 'creature-type-declared' as const, id: THUG, creatureType: 'Humanoid' },
     ];
-    const stillAsking = unwrap(
-      castOn(half, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }),
-      'cast',
-    );
-    if (stillAsking.kind !== 'needs-context') throw new Error('expected one question left');
-    expect(stillAsking.requests.map((r) => r.kind)).toEqual(['visibility']);
+    const stillAsking = castOn(half, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 });
+    expect(isNeedsContext(stillAsking)).toBe(true);
+    expect(contextRequestsOf(stillAsking).map((r) => r.kind)).toEqual(['visibility']);
 
     // Answer the second, and the cast goes through with both facts intact.
     const whole: GameEvent[] = [
@@ -764,7 +746,7 @@ describe('answering a request keeps what was already established', () => {
       castOn(whole, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }, DOOMED),
       'cast',
     );
-    expect(resolved.kind).toBe('resolved');
+    expect(resolved.castingId.length).toBeGreaterThan(0);
 
     const state = fold('seed', whole);
     expect(state.creatures.thug?.creatureType).toBe('Humanoid');
@@ -795,7 +777,6 @@ describe('answering a request keeps what was already established', () => {
       castOn(whole, { spellId: 'hold-person', targets: [THUG], slotLevel: 2 }, DOOMED),
       'cast',
     );
-    if (outcome.kind !== 'resolved') throw new Error('expected a resolution');
     expect(outcome.outcomes.map((o) => o.target)).toEqual([THUG]);
   });
 });

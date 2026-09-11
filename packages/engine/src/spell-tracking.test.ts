@@ -142,11 +142,8 @@ const cast = (
   );
 };
 
-const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = SETUP) => {
-  const out = unwrap(cast(spellId, over, log), spellId);
-  if (out.kind !== 'resolved') throw new Error(`${spellId} asked for context`);
-  return out;
-};
+const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = SETUP) =>
+  unwrap(cast(spellId, over, log), spellId);
 
 describe('a tracked spell is cast, not refused', () => {
   it.each(TRACKED.map((s) => [s] as const))('casts %s', (spellId) => {
@@ -227,7 +224,7 @@ describe('a tracked spell still obeys its target rule', () => {
     if (isErr(two)) expect(two.code).toBe('too_many_targets');
 
     const out = unwrap(cast('fly', { targets: [ALLY, FOE], slotLevel: 4 }), 'fly at 4');
-    expect(out.kind).toBe('resolved');
+    expect(out.castingId.length).toBeGreaterThan(0);
   });
 
   /** SRD Water Breathing: "up to ten willing creatures of your choice". */
@@ -255,7 +252,6 @@ describe('a tracked spell is retried and replayed like any other', () => {
     const first = resolved('fly', { commandId: 'c1' });
     const log = [...SETUP, ...first.events];
     const again = unwrap(cast('fly', { commandId: 'c1' }, log), 'retry');
-    if (again.kind !== 'resolved') throw new Error('expected a resolved retry');
     expect(again.events).toEqual([]);
     expect(remaining(fold('seed', log).creatures.wizard!.resources, spellSlotKey(3))).toBe(3);
   });
