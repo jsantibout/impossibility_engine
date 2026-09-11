@@ -902,6 +902,24 @@ function checkEquipped(
   for (const itemId of duplicates(choices.equipped)) {
     problems.push(problem('duplicate_equipped', 'equipped', `${itemId} is equipped twice`));
   }
+
+  // SRD wears one suit of body armour and holds one Shield. `equipItem`
+  // already refuses a second of either; creation must refuse it too, or a
+  // character can be born wearing two suits and the sheet has to pick one.
+  const slots = new Map<string, string>();
+  for (const itemId of choices.equipped) {
+    const armor = itemFor(itemId)?.armor;
+    if (armor == null) continue;
+    const slot = armor.category === 'shield' ? 'shield' : 'body armour';
+    const taken = slots.get(slot);
+    if (taken === undefined) {
+      slots.set(slot, itemId);
+    } else {
+      problems.push(
+        problem('slot_taken', 'equipped', `${taken} and ${itemId} cannot both be worn as ${slot}`),
+      );
+    }
+  }
   return problems;
 }
 
@@ -973,7 +991,10 @@ function gatherProficiencies(
 }
 
 /** Every problem with a set of choices, so a caller can show them all at once. */
-export function checkCharacter(choices: CharacterChoices): readonly CreationProblem[] {
+export function checkCharacter(
+  choices: CharacterChoices,
+  carried?: readonly InventoryLine[],
+): readonly CreationProblem[] {
   const { parts, problems } = resolveParts(choices);
   if (parts === null) return problems;
 
@@ -997,7 +1018,7 @@ export function checkCharacter(choices: CharacterChoices): readonly CreationProb
   if (!owned.ok) {
     all.push(problem(owned.code, 'classEquipment', owned.reason));
   } else {
-    all.push(...checkEquipped(choices, owned.value.items));
+    all.push(...checkEquipped(choices, carried ?? owned.value.items));
   }
 
   if (choices.name.trim() === '') {
@@ -1017,9 +1038,18 @@ export function checkCharacter(choices: CharacterChoices): readonly CreationProb
  *
  * The first problem is returned as the error, because `Result` carries one —
  * `checkCharacter` is there for a caller that wants the whole list.
+ *
+ * `carried` is what the creature *actually* owns, for a character who already
+ * exists. At creation there is no such thing, and the packages are the answer;
+ * once the character is playing, the inventory is state and the packages are a
+ * record of one decision made at level 1. Levelling up has to read the first,
+ * or a GM note that does not re-list last season's chain shirt takes it away.
  */
-export function planCharacter(choices: CharacterChoices): Result<CharacterPlan> {
-  const problems = checkCharacter(choices);
+export function planCharacter(
+  choices: CharacterChoices,
+  carried?: readonly InventoryLine[],
+): Result<CharacterPlan> {
+  const problems = checkCharacter(choices, carried);
   const first = problems[0];
   if (first !== undefined) return err(first.code, `${first.field}: ${first.reason}`);
 
@@ -1348,9 +1378,13 @@ export function advanceCharacter(
     featureChoices: { ...record.choices.featureChoices, ...(advance.featureChoices ?? {}) },
     feats: { ...record.choices.feats, ...(advance.feats ?? {}) },
     ...(advance.dmGrants === undefined ? {} : { dmGrants: advance.dmGrants }),
+    // What is worn is live state, not a choice made at level 1. A shirt bought
+    // and put on in play is on; one taken off is off; and the record the new
+    // level stores should say which.
+    equipped: [...creature.equipped],
   };
 
-  const plan = planCharacter(choices);
+  const plan = planCharacter(choices, creature.inventory);
   if (!plan.ok) return plan;
 
   const definition = classById(choices.classId);

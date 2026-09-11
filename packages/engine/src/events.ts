@@ -1032,17 +1032,24 @@ const removeItems = (
   mergeItems(inventory, items.map((line) => ({ ...line, quantity: -line.quantity })));
 
 /**
- * Put a piece of armour on the sheet, or take it off.
+ * Derive the sheet's armour from what is equipped.
  *
- * Armour Class is derived from the sheet, and the sheet is what every roll
- * reads, so equipping has to reach it. Anything that is not armour or a shield
- * changes nothing here — a dagger in hand is tracked, but it is not AC.
+ * `equipped` is the authoritative fact; `sheet.armor` and `sheet.shield` are a
+ * view of it that Armour Class happens to read. So this recomputes both from
+ * the whole list rather than patching one slot per event — patching is only
+ * correct if every event arrives in the right order and nothing else ever
+ * touches the sheet, and `character-advanced` replaces the sheet wholesale.
+ *
+ * Anything that is not armour or a shield contributes nothing: a dagger in
+ * hand is tracked, but it is not Armour Class.
  */
-function wearing(sheet: CharacterSheet, itemId: string, on: boolean): CharacterSheet {
-  const item = itemFor(itemId);
-  if (item?.armor == null) return sheet;
-  const slot = item.armor.category === 'shield' ? 'shield' : 'armor';
-  return { ...sheet, [slot]: on ? item.armor : null };
+function withEquipment(sheet: CharacterSheet, equipped: readonly string[]): CharacterSheet {
+  const pieces = equipped.map((itemId) => itemFor(itemId)?.armor ?? null);
+  return {
+    ...sheet,
+    armor: pieces.find((piece) => piece !== null && piece.category !== 'shield') ?? null,
+    shield: pieces.find((piece) => piece !== null && piece.category === 'shield') ?? null,
+  };
 }
 
 const viewOf = (state: GameState): TimeView => ({
@@ -1288,10 +1295,13 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         event.id,
         {
           character: event.record,
-          // The new level derives a fresh sheet, which knows nothing about
-          // what this character is wearing. Gaining a level does not take
-          // your armour off.
-          sheet: { ...event.sheet, armor: creature.sheet.armor, shield: creature.sheet.shield },
+          // The new level derives a fresh sheet — new hit points, new
+          // proficiency, new everything the level changes — and it knows
+          // nothing about what this character is wearing. So the sheet is the
+          // new one, and its armour comes from the equipment state, which the
+          // level did not touch. Gaining a level does not take your armour off,
+          // and it does not put back what you took off either.
+          sheet: withEquipment(event.sheet, creature.equipped),
           spellcasting: event.spellcasting,
           initiativeBonuses: event.initiativeBonuses,
         },
@@ -1578,13 +1588,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       if (creature.equipped.includes(event.item)) {
         throw new CorruptLogError(event, `${event.item} is already equipped`);
       }
+      const equipped = [...creature.equipped, event.item].sort();
       return withCreature(
         next,
         event.id,
-        {
-          equipped: [...creature.equipped, event.item].sort(),
-          sheet: wearing(creature.sheet, event.item, true),
-        },
+        { equipped, sheet: withEquipment(creature.sheet, equipped) },
         creature,
       );
     }
@@ -1594,13 +1602,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       if (!creature.equipped.includes(event.item)) {
         throw new CorruptLogError(event, `${event.item} is not equipped`);
       }
+      const equipped = creature.equipped.filter((held) => held !== event.item);
       return withCreature(
         next,
         event.id,
-        {
-          equipped: creature.equipped.filter((held) => held !== event.item),
-          sheet: wearing(creature.sheet, event.item, false),
-        },
+        { equipped, sheet: withEquipment(creature.sheet, equipped) },
         creature,
       );
     }

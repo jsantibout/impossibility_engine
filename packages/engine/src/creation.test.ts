@@ -573,6 +573,29 @@ describe('starting equipment, ownership and what is worn', () => {
   });
 
   /**
+   * One suit of body armour and one Shield, the same rule `equipItem` applies
+   * in play. Without it a character could be born wearing two suits and the
+   * sheet would have to pick one.
+   */
+  it('refuses a character created wearing two suits of body armour', () => {
+    rejects(
+      {
+        dmGrants: {
+          items: [
+            { id: 'chain-shirt', quantity: 1 },
+            { id: 'leather-armor', quantity: 1 },
+          ],
+          goldPieces: 0,
+          magicItems: [],
+          note: 'salvaged',
+        },
+        equipped: ['chain-shirt', 'leather-armor'],
+      },
+      'slot_taken',
+    );
+  });
+
+  /**
    * A GM handing over a chain shirt is the only way a level 3 Wizard comes by
    * armour, and it makes the separation visible: owning it changes nothing
    * until it goes on.

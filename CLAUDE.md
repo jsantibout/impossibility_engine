@@ -1286,9 +1286,21 @@ way, and a spell with one route asks nobody anything.
 Equipment is two separate facts about a creature, and collapsing them is the
 bug this design exists to prevent: **chain mail in a backpack protects nobody.**
 `inventory` is what is owned, `equipped` is the subset worn or wielded, and
-Armour Class reads only the second. Equipping is the single thing that moves
-armour onto the sheet, and it is an event, so the log shows the moment the
-shirt went on.
+Armour Class reads only the second. Equipping is an event, so the log shows the
+moment the shirt went on.
+
+**`equipped` is the fact; `sheet.armor` is a view of it.** The reducer derives
+both armour fields from the whole equipped list after every equipment event
+rather than patching one slot at a time, because patching is only correct while
+events arrive in order and nothing else replaces the sheet — and
+`character-advanced` replaces the sheet wholesale. One derivation, used
+everywhere, is what keeps the two from drifting; a test walks the whole log
+prefix by prefix asserting they agree at every step.
+
+**One suit, one Shield, at creation as well as in play.** `equipItem` refuses a
+second of either, and `checkEquipped` now refuses the same thing at creation.
+Without that, a character could be born wearing two suits and the sheet would
+have to pick one.
 
 **Ids, not names.** `catalogue.ts` is one lookup over the SRD's four separate
 equipment tables — gear, tools, weapons, armour — keyed by the slug the parsers
@@ -1320,9 +1332,20 @@ no state in which a character has paid and not received. Refusals — unknown
 item, no price, cannot afford, a quantity that is not a count — cost nothing,
 which is the same "validate before rolling" discipline applied to a purse.
 
-**The sheet survives a level.** `character-advanced` derives a fresh sheet that
-knows nothing about what is worn, so the reducer carries `armor` and `shield`
-across. Gaining a level does not take your armour off.
+**Advancement recalculates the sheet and keeps the equipment.** The new level
+derives everything a level changes — hit points, proficiency, slots — and knows
+nothing about what is worn, so the reducer takes the *new* sheet and puts the
+armour back from `equipped`. Gaining a level does not take your armour off, and
+it does not put back what you took off either.
+
+**What is worn is state, not a creation choice.** `choices.equipped` records a
+decision made at level 1; the chain shirt bought in play was never part of it,
+and the one taken off in play is still named by it. So `advanceCharacter` plans
+against the creature's *live* inventory and equipped set, and writes those into
+the record it stores. Before that, a GM note for level 4 that did not re-list
+last season's chain shirt made the plan's inventory forget it, and advancement
+was refused with `not_owned` for a character wearing armour they owned. That is
+the shape of the bug this split prevents: a snapshot standing in for state.
 
 ### What equipment does not model yet
 
@@ -1549,6 +1572,13 @@ Defects found so far, all covered by regression tests:
 | One `#### Spell Scroll` heading prices two table rows | prefix match in `parse/gear.ts` |
 | Gear rows invert their names to alphabetise: `Lantern, Bullseye` | kept as printed; the craft-list test un-inverts to match |
 | A tool's Craft list mixes items with categories carrying parenthesised exceptions | split at the top level, as weapon properties are |
+
+**A pack's contents are asserted item by item, not phrase by phrase.**
+Checking only that every phrase *resolves* passes on three different wrong
+answers — a plural that lost its count, an inversion that landed on a
+neighbouring row, a phrase dropped entirely — because all three resolve to
+something. All seven packs are transcribed from `equipment.md` as exact
+`[id, quantity]` lists and compared whole.
 
 **A craft list is a list of other rows, so check it against them.** Every item
 a tool can make is asserted to resolve to something the SRD actually lists — or

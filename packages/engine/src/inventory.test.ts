@@ -4,7 +4,12 @@ import { armorClass } from './character.js';
 import { expandPack, goldToCopper, itemFor } from './catalogue.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
-import { advanceCharacter, createCharacter, type CharacterChoices } from './creation.js';
+import {
+  advanceCharacter,
+  createCharacter,
+  type CharacterChoices,
+  type DmGrants,
+} from './creation.js';
 import { carrying, coinsOf, equipItem, purchaseItem, unequipItem } from './commands.js';
 
 /**
@@ -91,6 +96,24 @@ const run = (
 
 const held = (state: GameState, itemId: string): number =>
   carrying(state, KESSA).find((line) => line.id === itemId)?.quantity ?? 0;
+
+/**
+ * `equipped` is the fact; the sheet's armour is a view of it.
+ *
+ * Anything that leaves the two disagreeing is a bug whatever else it got
+ * right, because Armour Class reads the view and every refusal reads the fact.
+ */
+const sheetAgreesWithEquipment = (state: GameState): void => {
+  const creature = state.creatures.kessa;
+  if (creature === undefined) return;
+  const pieces = creature.equipped.map((itemId) => itemFor(itemId)?.armor ?? null);
+  expect(creature.sheet.armor).toEqual(
+    pieces.find((piece) => piece !== null && piece.category !== 'shield') ?? null,
+  );
+  expect(creature.sheet.shield).toEqual(
+    pieces.find((piece) => piece !== null && piece.category === 'shield') ?? null,
+  );
+};
 
 describe('the catalogue is keyed by id, not by display text', () => {
   /**
@@ -361,6 +384,106 @@ describe('owning, wearing, and Armour Class', () => {
   });
 });
 
+describe('advancement keeps the equipment and redoes the arithmetic', () => {
+  const ADVANCE_TO_4 = {
+    cantrips: ['fire-bolt', 'light', 'prestidigitation', 'mending'],
+    newSpells: ['sleep', 'invisibility'],
+    preparedSpells: [
+      'magic-missile',
+      'shield',
+      'mage-armor',
+      'hold-person',
+      'burning-hands',
+      'scorching-ray',
+      'misty-step',
+    ],
+    featureChoices: {
+      'wizard:scholar': ['arcana'],
+      'human:skillful': ['perception'],
+      'evoker:evocation-savant': ['burning-hands', 'scorching-ray'],
+    },
+    feats: {
+      ...kessa().feats,
+      'wizard:ability-score-improvement': { featId: 'alert' as const },
+    },
+  };
+
+  const grant = (note: string) => ({
+    items: [{ id: 'chain-shirt', quantity: 1 }],
+    goldPieces: 0,
+    magicItems: [],
+    note,
+  });
+
+  const levelUp = (log: readonly GameEvent[], dmGrants: DmGrants) =>
+    run(log, (st) => advanceCharacter(st, KESSA, { ...ADVANCE_TO_4, dmGrants }));
+
+  /**
+   * The GM's note for level 4 is about level 4. It does not re-list the shirt
+   * they handed over at level 1, and it should not have to: the shirt is in the
+   * inventory, which is state, not in a creation choice, which is a record of
+   * what was decided once.
+   */
+  it('advances a character wearing armour the new GM note does not re-list', () => {
+    const start = made({ dmGrants: grant('salvaged'), equipped: ['chain-shirt'] });
+    const levelled = levelUp(start, { items: [], goldPieces: 0, magicItems: [], note: 'nothing new' });
+
+    expect(levelled.state.creatures.kessa!.character?.level).toBe(4);
+    expect(levelled.state.creatures.kessa!.equipped).toEqual(['chain-shirt']);
+    expect(armorClass(levelled.state.creatures.kessa!.sheet)).toBe(15);
+    expect(held(levelled.state, 'chain-shirt')).toBe(1);
+  });
+
+  /** Bought and worn after creation, so no creation choice mentions it at all. */
+  it('keeps armour that was bought and put on after the character existed', () => {
+    const bought = run(made({ classEquipment: 'B', backgroundEquipment: 'B' }), (st) =>
+      purchaseItem(st, KESSA, 'chain-shirt', 1),
+    );
+    const worn = run(bought.log, (st) => equipItem(st, KESSA, 'chain-shirt'));
+    expect(armorClass(worn.state.creatures.kessa!.sheet)).toBe(15);
+
+    const levelled = levelUp(worn.log, {
+      items: [],
+      goldPieces: 0,
+      magicItems: [],
+      note: 'nothing new',
+    });
+    expect(levelled.state.creatures.kessa!.equipped).toEqual(['chain-shirt']);
+    expect(armorClass(levelled.state.creatures.kessa!.sheet)).toBe(15);
+  });
+
+  /**
+   * The other direction, and the one a patched sheet gets wrong: creation put
+   * the shirt on, so `choices.equipped` names it forever. Taking it off is
+   * state the record never hears about, and the new level's sheet must read the
+   * state rather than the record.
+   */
+  it('does not put back armour the character took off before levelling', () => {
+    const start = made({ dmGrants: grant('salvaged'), equipped: ['chain-shirt'] });
+    const bare = run(start, (st) => unequipItem(st, KESSA, 'chain-shirt'));
+    const levelled = levelUp(bare.log, { items: [], goldPieces: 0, magicItems: [], note: 'nothing new' });
+
+    expect(levelled.state.creatures.kessa!.equipped).toEqual([]);
+    expect(levelled.state.creatures.kessa!.sheet.armor).toBeNull();
+    expect(armorClass(levelled.state.creatures.kessa!.sheet)).toBe(12);
+  });
+
+  /** Everything else on the sheet *is* recalculated: this is a level 4 Wizard. */
+  it('rebuilds the rest of the sheet from the new level', () => {
+    const start = made({ dmGrants: grant('salvaged'), equipped: ['chain-shirt'] });
+    const before = fold('seed', start);
+    const levelled = levelUp(start, { items: [], goldPieces: 0, magicItems: [], note: 'nothing new' });
+    const after = levelled.state.creatures.kessa!;
+
+    expect(after.sheet.level).toBe(4);
+    expect(after.vitals.hpMax).toBeGreaterThan(before.creatures.kessa!.vitals.hpMax);
+    // Level 4 is where the Wizard's fourth cantrip and a second level 2 slot land.
+    expect(after.resources.pools['spell-slot:2']?.max).toBe(3);
+    // And the armour came through all of it.
+    expect(after.sheet.armor?.name).toBe('Chain Shirt');
+  });
+});
+
 describe('the whole path replays', () => {
   const played = (): GameEvent[] => {
     const bought = run(made({ classEquipment: 'B', backgroundEquipment: 'B' }), (s) =>
@@ -380,6 +503,14 @@ describe('the whole path replays', () => {
     const log = played();
     for (let n = 0; n <= log.length; n += 1) {
       expect(fold('seed', log.slice(0, n))).toEqual(fold('seed', log.slice(0, n)));
+    }
+  });
+
+  /** And at no point along the way does the sheet disagree with the facts. */
+  it('keeps the sheet agreeing with the equipped set at every step', () => {
+    const log = played();
+    for (let n = 0; n <= log.length; n += 1) {
+      sheetAgreesWithEquipment(fold('seed', log.slice(0, n)));
     }
   });
 

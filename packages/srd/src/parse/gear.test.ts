@@ -359,13 +359,111 @@ describe('a pack lists what is in it', () => {
    * - an inverted table name: the sentence says `Hooded Lantern`, the table
    *   says `Lantern, Hooded`
    */
-  it('resolves every phrase in every pack', () => {
+  /**
+   * Transcribed from `equipment.md`, id by id and count by count.
+   *
+   * Asserting only that every phrase *resolves* is the weaker test and it
+   * passes on the wrong answer: a plural that loses its count, an inversion
+   * that lands on a neighbouring row, a phrase dropped entirely. All three
+   * resolve to something. What a character ends up holding is the list below,
+   * so the list below is what the test pins.
+   */
+  const PACKS: Readonly<Record<string, readonly (readonly [string, number])[]>> = {
+    "Burglar's Pack": [
+      ['backpack', 1],
+      ['ball-bearings', 1],
+      ['bell', 1],
+      ['candle', 10],
+      ['crowbar', 1],
+      ['lantern-hooded', 1],
+      ['oil', 7],
+      ['rations', 5],
+      ['rope', 1],
+      ['tinderbox', 1],
+      ['waterskin', 1],
+    ],
+    "Diplomat's Pack": [
+      ['chest', 1],
+      ['clothes-fine', 1],
+      ['ink', 1],
+      ['ink-pen', 5],
+      ['lamp', 1],
+      ['case-map-or-scroll', 2],
+      ['oil', 4],
+      ['paper', 5],
+      ['parchment', 5],
+      ['perfume', 1],
+      ['tinderbox', 1],
+    ],
+    "Dungeoneer's Pack": [
+      ['backpack', 1],
+      ['caltrops', 1],
+      ['crowbar', 1],
+      ['oil', 2],
+      ['rations', 10],
+      ['rope', 1],
+      ['tinderbox', 1],
+      ['torch', 10],
+      ['waterskin', 1],
+    ],
+    "Entertainer's Pack": [
+      ['backpack', 1],
+      ['bedroll', 1],
+      ['bell', 1],
+      ['lantern-bullseye', 1],
+      ['costume', 3],
+      ['mirror', 1],
+      ['oil', 8],
+      ['rations', 9],
+      ['tinderbox', 1],
+      ['waterskin', 1],
+    ],
+    "Explorer's Pack": [
+      ['backpack', 1],
+      ['bedroll', 1],
+      ['oil', 2],
+      ['rations', 10],
+      ['rope', 1],
+      ['tinderbox', 1],
+      ['torch', 10],
+      ['waterskin', 1],
+    ],
+    "Priest's Pack": [
+      ['backpack', 1],
+      ['blanket', 1],
+      ['holy-water', 1],
+      ['lamp', 1],
+      ['rations', 7],
+      ['robe', 1],
+      ['tinderbox', 1],
+    ],
+    "Scholar's Pack": [
+      ['backpack', 1],
+      ['book', 1],
+      ['ink', 1],
+      ['ink-pen', 1],
+      ['lamp', 1],
+      ['oil', 10],
+      ['parchment', 10],
+      ['tinderbox', 1],
+    ],
+  };
+
+  it('lists every pack by exact id and quantity', () => {
     const packs = parsed.gear.filter((g) => g.name.endsWith('Pack'));
-    expect(packs).toHaveLength(7);
+    expect(packs.map((pack) => pack.name).sort()).toEqual(Object.keys(PACKS).sort());
     for (const pack of packs) {
-      expect(pack.contents.length).toBeGreaterThan(0);
-      for (const line of pack.contents) {
-        expect(parsed.gear.some((g) => g.id === line.gearId)).toBe(true);
+      expect(pack.contents.map((line) => [line.gearId, line.quantity])).toEqual(
+        PACKS[pack.name],
+      );
+    }
+  });
+
+  /** And every id named above is a row the table actually has. */
+  it('names only rows the gear table lists', () => {
+    for (const lines of Object.values(PACKS)) {
+      for (const [gearId] of lines) {
+        expect(parsed.gear.some((g) => g.id === gearId)).toBe(true);
       }
     }
   });
