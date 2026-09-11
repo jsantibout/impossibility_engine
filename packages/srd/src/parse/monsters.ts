@@ -58,7 +58,15 @@ const AC_LINE = /\*\*AC\*\*\s*(\d+)/;
 const INITIATIVE = /\*\*Initiative\*\*\s*([+−-]?\d+)/;
 const HP_LINE = /\*\*HP\*\*\s*([\d,]+)\s*(?:\(([^)]*)\))?/;
 const SPEED_LINE = /\*\*Speed\*\*\s*([^<]*)/;
-const CR_LINE = /\*\*CR\*\*\s*([\d/]+)\s*(?:\(XP\s*([\d,]+)\s*;\s*PB\s*([+−-]?\d+)\s*\))?/;
+/**
+ * `**CR** 1/8 (XP 25; PB +2)`, and two variants that a narrower pattern
+ * silently swallowed: legendary creatures carry a lair value
+ * (`XP 5,900, or 7,200 in lair`), and a handful put XP after the number
+ * (`450 XP`). Everything up to the semicolon is skipped rather than matched,
+ * so a third variant will not break this again.
+ */
+const CR_LINE =
+  /\*\*CR\*\*\s*([\d/]+)\s*\(\s*(?:XP\s*([\d,]+)|([\d,]+)\s*XP)[^;)]*;\s*PB\s*([+−-]?\d+)\s*\)/;
 const FIELD_LINE = /\*\*([A-Za-z]+)\*\*\s*([^<]*)/;
 /** `**_Nimble Escape._** The goblin takes...` */
 const FEATURE_LINE = /^\*\*_(.+?)\._\*\*\s*(.*)$/;
@@ -309,10 +317,18 @@ function parseEntry(
   if (abilities === null) return problem('missing or unparsable ability score table');
 
   const crMatch = CR_LINE.exec(body);
-  if (!crMatch) return problem('missing CR');
+  if (!crMatch) return problem('missing or unparsable CR line');
   const crLabel = crMatch[1]!;
   const cr = parseChallengeRating(crLabel);
   if (cr === null) return problem(`unparsable challenge rating: "${crLabel}"`);
+
+  // Neither of these defaults to anything. A proficiency bonus quietly falling
+  // back to +2 is how thirty-two legendary creatures ended up with the
+  // proficiency of a goblin.
+  const xpText = crMatch[2] ?? crMatch[3];
+  if (xpText === undefined) return problem('CR line states no XP');
+  const proficiencyBonus = parseSignedNumber(crMatch[4]!);
+  if (proficiencyBonus === null) return problem('CR line states no proficiency bonus');
 
   // Optional single-line fields.
   const fields = new Map<string, string>();
@@ -383,8 +399,8 @@ function parseEntry(
 
     cr,
     crLabel,
-    xp: crMatch[2] ? Number(crMatch[2].replace(/,/g, '')) : 0,
-    proficiencyBonus: crMatch[3] ? (parseSignedNumber(crMatch[3]) ?? 2) : 2,
+    xp: Number(xpText.replace(/,/g, '')),
+    proficiencyBonus,
 
     traits: parseFeatures(sections.traits),
     actions: parseFeatures(sections.actions),

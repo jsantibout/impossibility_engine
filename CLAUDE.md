@@ -476,6 +476,17 @@ Defects found so far, all covered by regression tests:
 | `animals.md` shifts heading levels | `detectEntryLevel` |
 | Equipment rows drop `</tr>`; one `<tr>` is doubled | cells grouped in sixes, not by row |
 | Weapon properties contain commas inside parentheses | `splitTopLevel` |
+| Legendary CR lines carry a lair value (`XP 5,900, or 7,200 in lair`) | `CR_LINE`, no defaults |
+
+**A default is how a format change becomes a wrong number.** An optional
+capture group defaulting the proficiency bonus to +2 gave 32 legendary
+creatures — every dragon with a lair — the proficiency of a goblin, silently,
+for weeks. Parse strictly and report a problem; never fall back to a plausible
+value.
+
+Where a field is derivable from another, **assert the relationship** rather
+than only the presence: every monster's proficiency bonus must match what its
+challenge rating implies. That test is what catches the next variant.
 
 For table-driven content, assert the **per-section** counts, not just the
 total. A missed section heading leaves the total correct while silently filing

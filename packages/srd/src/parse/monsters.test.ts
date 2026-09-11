@@ -406,3 +406,42 @@ _Medium Beast, Unaligned_
     expect(problems[0]!.message).toContain('ability score table');
   });
 });
+
+describe('challenge rating, XP and proficiency bonus', () => {
+  const read = (file: string) =>
+    readFileSync(fileURLToPath(new URL(`../../raw/${file}`, import.meta.url)), 'utf8');
+  const { items } = parseMonsters(read('monsters-A-Z.md'), 'monsters-A-Z.md');
+
+  /** The standard progression: +2 through CR 4, then +1 every four ratings. */
+  const expectedProficiency = (cr: number): number =>
+    cr <= 4 ? 2 : 2 + Math.ceil((cr - 4) / 4);
+
+  /**
+   * The guard that would have caught this. Thirty-two legendary creatures —
+   * every dragon and archfiend with a lair — parsed as PB +2 with 0 XP,
+   * because their CR line carries a lair value ("XP 5,900, or 7,200 in lair")
+   * that the pattern did not match and an optional group quietly defaulted.
+   */
+  it('gives every monster the proficiency bonus its challenge rating implies', () => {
+    for (const m of items) {
+      expect(m.proficiencyBonus, `${m.name} at CR ${m.crLabel}`).toBe(expectedProficiency(m.cr));
+    }
+  });
+
+  it('gives every monster a non-zero XP value above CR 0', () => {
+    for (const m of items.filter((x) => x.cr > 0)) {
+      expect(m.xp, `${m.name} at CR ${m.crLabel}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('parses the lair variant of the CR line', () => {
+    const ancient = items.find((m) => m.id === 'ancient-red-dragon');
+    expect(ancient).toMatchObject({ cr: 24, proficiencyBonus: 7, xp: 62000 });
+  });
+
+  it('parses the variant that puts XP after the number', () => {
+    // A handful read "(450 XP; PB +2)" rather than "(XP 450; PB +2)".
+    const suffixed = items.filter((m) => m.xp > 0 && m.cr === 2);
+    expect(suffixed.length).toBeGreaterThan(0);
+  });
+});
