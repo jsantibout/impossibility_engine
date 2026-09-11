@@ -96,6 +96,24 @@ const supply = (seed: string, bonus: number) => ({
   bonuses: [{ source: 'forced', flat: bonus }],
 });
 
+/**
+ * A log whose target is whatever kind of creature this spell demands.
+ *
+ * Animal Friendship wants a Beast and Charm Person wants a Humanoid, and the
+ * type check is real — refusing the wrong type is the behaviour, not an
+ * obstacle. So the fixture says what the target is rather than the spell being
+ * excused the check.
+ */
+const logFor = (spellId: string): readonly GameEvent[] => {
+  const wanted = definitionFor(spellId)?.targets.mustBeType;
+  if (wanted === undefined || wanted.toLowerCase() === 'humanoid') return SETUP;
+  return [
+    ...SETUP,
+    { type: 'creature-type-declared', id: TARGET, creatureType: wanted },
+    { type: 'creature-type-declared', id: BYSTANDER, creatureType: wanted },
+  ];
+};
+
 /** Cast at whatever the definition needs: a target, or a place. */
 const castAt = (
   state: GameState,
@@ -141,7 +159,7 @@ describe('every definition in the catalogue actually casts', () => {
   it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('resolves %s', (spellId) => {
     // A failed save for anything that allows one, so the interesting branch is
     // the one that runs.
-    const out = unwrap(castAt(base(), spellId, -40), spellId);
+    const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
     expect(out.kind).toBe('resolved');
     if (out.kind !== 'resolved') return;
 
@@ -152,22 +170,24 @@ describe('every definition in the catalogue actually casts', () => {
   });
 
   it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('spends exactly one casting for %s', (spellId) => {
-    const out = unwrap(castAt(base(), spellId, -40), spellId);
+    const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
     if (out.kind !== 'resolved') return;
     expect(out.events.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
   });
 
   /** Same state, same seed, same batch — twice. */
   it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('is deterministic for %s', (spellId) => {
-    const first = unwrap(castAt(base(), spellId, -40), spellId);
-    const second = unwrap(castAt(base(), spellId, -40), spellId);
+    const log = logFor(spellId);
+    const first = unwrap(castAt(fold('seed', log), spellId, -40), spellId);
+    const second = unwrap(castAt(fold('seed', log), spellId, -40), spellId);
     expect(first).toEqual(second);
   });
 
   it.each(SPELL_DEFINITIONS.map((d) => [d.id] as const))('replays %s prefix by prefix', (spellId) => {
-    const out = unwrap(castAt(base(), spellId, -40), spellId);
+    const base = logFor(spellId);
+    const out = unwrap(castAt(fold('seed', base), spellId, -40), spellId);
     if (out.kind !== 'resolved') return;
-    const log = [...SETUP, ...out.events];
+    const log = [...base, ...out.events];
     for (let n = 0; n <= log.length; n += 1) {
       expect(fold('seed', log.slice(0, n))).toEqual(fold('seed', log.slice(0, n)));
     }
@@ -185,7 +205,7 @@ describe('a definition that leaves part of its spell out says so', () => {
   it.each(withGaps.map((d) => [d.id, d] as const))(
     'reports what %s does not do, on the casting itself',
     (spellId, definition) => {
-      const out = unwrap(castAt(base(), spellId, -40), spellId);
+      const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
       if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
       for (const gap of definition.unmodelled ?? []) {
         expect(out.unverified).toContain(`${definition.name}: ${gap}`);

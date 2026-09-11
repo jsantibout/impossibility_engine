@@ -83,6 +83,20 @@ export type SpellEffect =
       readonly damage: DiceScaling;
       readonly damageType: string;
       readonly onSuccess: 'half' | 'none';
+      /**
+       * Further damage of other types, under the **same** saving throw.
+       *
+       * Flame Strike deals "5d6 Fire damage and 5d6 Radiant damage" on one
+       * Dexterity save. Writing that as two effects would roll two saves, and
+       * a target could fail one and make the other, which is not the spell.
+       * Each type scales on its own, because they do not always scale
+       * together: Ice Storm's Bludgeoning grows per slot level and its Cold
+       * does not.
+       */
+      readonly plus?: readonly {
+        readonly damage: DiceScaling;
+        readonly damageType: string;
+      }[];
     }
   /**
    * Temporary Hit Points.
@@ -1418,14 +1432,284 @@ export const FALSE_LIFE: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Flame Strike:
+ *
+ * > _Level 5 Evocation (Cleric)._ **Casting Time:** Action. **Range:** 60 feet.
+ * > **Duration:** Instantaneous.
+ * > "Each creature in a 10-foot-radius, 40-foot-high Cylinder centered on a
+ * > point within range makes a Dexterity saving throw, taking 5d6 Fire damage
+ * > and 5d6 Radiant damage on a failed save or half as much damage on a
+ * > successful one."
+ * > _Using a Higher-Level Spell Slot._ "The Fire damage and the Radiant damage
+ * > increase by 1d6 for each spell slot level above 5."
+ *
+ * **One save, two damage types** — the spell the `plus` field exists for. Two
+ * separate effects would roll two saves and let a target fail one and make the
+ * other, which is not this spell. Both halves scale, and a creature resistant
+ * to Fire alone still takes the Radiant in full.
+ */
+export const FLAME_STRIKE: SpellDefinition = {
+  id: 'flame-strike',
+  name: 'Flame Strike',
+  level: 5,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  area: { kind: 'cylinder', radius: 10, height: 40, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '5d6', perSlotLevelAbove: '1d6' },
+      damageType: 'fire',
+      onSuccess: 'half',
+      plus: [{ damage: { dice: '5d6', perSlotLevelAbove: '1d6' }, damageType: 'radiant' }],
+    },
+  ],
+};
+
+/**
+ * SRD Ice Storm:
+ *
+ * > _Level 4 Evocation (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 300 feet. **Duration:** Instantaneous.
+ * > "Each creature in the Cylinder makes a Dexterity saving throw. A creature
+ * > takes 2d10 Bludgeoning damage and 4d6 Cold damage on a failed save or half
+ * > as much damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The Bludgeoning damage increases by
+ * > 1d10 for each spell slot level above 4."
+ *
+ * The other half of why the two types scale separately: here **only** the
+ * Bludgeoning grows. A shared scaling field would quietly upcast the Cold too.
+ */
+export const ICE_STORM: SpellDefinition = {
+  id: 'ice-storm',
+  name: 'Ice Storm',
+  level: 4,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 300 },
+  targets: { count: 0 },
+  area: { kind: 'cylinder', radius: 20, height: 40, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
+      damageType: 'bludgeoning',
+      onSuccess: 'half',
+      plus: [{ damage: { dice: '4d6' }, damageType: 'cold' }],
+    },
+  ],
+  unmodelled: ['the ground in the Cylinder becomes Difficult Terrain until the end of your next turn'],
+};
+
+/**
+ * SRD Finger of Death:
+ *
+ * > _Level 7 Necromancy (Sorcerer, Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "The target makes a Constitution saving throw, taking 7d8 + 30 Necrotic
+ * > damage on a failed save or half as much damage on a successful one. A
+ * > Humanoid killed by this spell rises at the start of your next turn as a
+ * > **Zombie** that follows your verbal orders."
+ *
+ * The printed `+ 30` is why damage scaling carries a flat half as well as
+ * dice; before that this spell could not be written down at all.
+ */
+export const FINGER_OF_DEATH: SpellDefinition = {
+  id: 'finger-of-death',
+  name: 'Finger of Death',
+  level: 7,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '7d8', flat: 30 },
+      damageType: 'necrotic',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: ['a Humanoid killed by this spell rises as a Zombie under your command'],
+};
+
+/**
+ * SRD Vitriolic Sphere:
+ *
+ * > _Level 4 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 150 feet. **Duration:** Instantaneous.
+ * > "Each creature in that area makes a Dexterity saving throw. On a failed
+ * > save, a creature takes 10d4 Acid damage and another 5d4 Acid damage at the
+ * > end of its next turn."
+ * > _Using a Higher-Level Spell Slot._ "The initial damage increases by 2d4 for
+ * > each spell slot level above 4."
+ */
+export const VITRIOLIC_SPHERE: SpellDefinition = {
+  id: 'vitriolic-sphere',
+  name: 'Vitriolic Sphere',
+  level: 4,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '10d4', perSlotLevelAbove: '2d4' },
+      damageType: 'acid',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: [
+    'the further 5d4 Acid damage at the end of the target\u2019s next turn, which needs damage that arrives on a later turn',
+  ],
+};
+
+/**
+ * SRD Vicious Mockery:
+ *
+ * > _Enchantment Cantrip (Bard)._ **Casting Time:** Action. **Range:** 60 feet.
+ * > **Duration:** Instantaneous.
+ * > "The target must succeed on a Wisdom saving throw or take 1d6 Psychic
+ * > damage and have Disadvantage on the next attack roll it makes before the
+ * > end of its next turn."
+ * > _Cantrip Upgrade._ "...increases by 1d6 when you reach levels 5 (2d6), 11
+ * > (3d6), and 17 (4d6)."
+ */
+export const VICIOUS_MOCKERY: SpellDefinition = {
+  id: 'vicious-mockery',
+  name: 'Vicious Mockery',
+  level: 0,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'wis',
+      damage: { dice: '1d6', cantripUpgradesAt: [5, 11, 17] },
+      damageType: 'psychic',
+      onSuccess: 'none',
+    },
+  ],
+  unmodelled: [
+    'Disadvantage on the target\u2019s next attack roll before the end of its next turn',
+  ],
+};
+
+/**
+ * SRD Grease:
+ *
+ * > _Level 1 Conjuration (Wizard)._ **Casting Time:** Action. **Range:** 60
+ * > feet. **Duration:** 1 minute.
+ * > "Nonflammable grease covers the ground in a 10-foot square centered on a
+ * > point within range and turns it into Difficult Terrain for the duration.
+ * > When the grease appears, each creature standing in its area must succeed
+ * > on a Dexterity saving throw or have the Prone condition."
+ *
+ * Prone is the documented exception that outlives its cause — SRD: "when this
+ * condition ends, you remain Prone" — so the spell's duration does not lift it.
+ */
+export const GREASE: SpellDefinition = {
+  id: 'grease',
+  name: 'Grease',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  area: { kind: 'cube', size: 10, origin: 'point' },
+  effects: [{ kind: 'save', ability: 'dex', condition: 'prone' }],
+  unmodelled: [
+    'the area becoming Difficult Terrain for the duration, and the save a creature makes on entering it later',
+  ],
+};
+
+/**
+ * SRD Animal Friendship:
+ *
+ * > _Level 1 Enchantment (Bard, Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** 24 hours.
+ * > "Target a Beast that you can see within range. The target must succeed on
+ * > a Wisdom saving throw or have the Charmed condition for the duration. If
+ * > you or one of your allies deals damage to the target, the spell ends."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional Beast for
+ * > each spell slot level above 1."
+ */
+export const ANIMAL_FRIENDSHIP: SpellDefinition = {
+  id: 'animal-friendship',
+  name: 'Animal Friendship',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, mustBeType: 'Beast' },
+  requiresSight: true,
+  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  durationSeconds: 86400,
+  unmodelled: ['the spell ending early if you or an ally damages the target'],
+};
+
+/**
+ * SRD Charm Monster:
+ *
+ * > _Level 4 Enchantment (Bard, Druid, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 30 feet. **Duration:** 1 hour.
+ * > "One creature you can see within range makes a Wisdom saving throw. It
+ * > does so with Advantage if you or your allies are fighting it. On a failed
+ * > save, the target has the Charmed condition until the spell ends or until
+ * > you or your allies damage it."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 4."
+ *
+ * Charm Person with the Humanoid restriction lifted, exactly as Hold Monster
+ * is to Hold Person — the pair that shows the type check is data.
+ */
+export const CHARM_MONSTER: SpellDefinition = {
+  id: 'charm-monster',
+  name: 'Charm Monster',
+  level: 4,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the save has Advantage if you or your allies are fighting the target',
+    'the spell ends early if you or your allies damage the target',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_SPLASH,
+  ANIMAL_FRIENDSHIP,
   BANE,
   BANISHMENT,
   BLESS,
   BLIGHT,
   BLINDNESS_DEAFNESS,
   BURNING_HANDS,
+  CHARM_MONSTER,
   CHARM_PERSON,
   CHILL_TOUCH,
   CIRCLE_OF_DEATH,
@@ -1435,8 +1719,11 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ELDRITCH_BLAST,
   FALSE_LIFE,
   FEAR,
+  FINGER_OF_DEATH,
+  FLAME_STRIKE,
   FIREBALL,
   FIRE_BOLT,
+  GREASE,
   GUIDANCE,
   GUIDING_BOLT,
   HARM,
@@ -1444,6 +1731,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HOLD_MONSTER,
   HOLD_PERSON,
   HYPNOTIC_PATTERN,
+  ICE_STORM,
   INFLICT_WOUNDS,
   LIGHTNING_BOLT,
   MIND_SPIKE,
@@ -1454,6 +1742,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SHATTER,
   SHOCKING_GRASP,
   THUNDERWAVE,
+  VICIOUS_MOCKERY,
+  VITRIOLIC_SPHERE,
 ];
 
 export const definitionFor = (spellId: string): SpellDefinition | null =>

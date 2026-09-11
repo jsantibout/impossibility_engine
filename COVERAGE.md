@@ -18,7 +18,7 @@ spell is unsupported.
 
 | Parsed | Executable | Verified |
 |---|---|---|
-| 339 | 35 (10.3%) | 35 (10.3%) |
+| 339 | 43 (12.7%) | 43 (12.7%) |
 
 ### By mechanical shape
 
@@ -29,13 +29,13 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Executable | Blocked on |
 |---|---|---|---|
 | Summons and created creatures | 9 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 10 | — |
+| Area of effect | 73 | 13 | — |
 | Reaction timing | 4 | 0 | an interrupt mechanism that can order a cast against its trigger |
 | Casting time of a minute or more | 43 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 0 | an effect that a later turn can act through |
 | Spell attack roll | 16 | 8 | — |
-| Saving throw for damage | 30 | 6 | — |
-| Saving throw for a condition | 43 | 7 | — |
+| Saving throw for damage | 30 | 8 | — |
+| Saving throw for a condition | 43 | 10 | — |
 | Restores Hit Points | 4 | 2 | — |
 | Temporary Hit Points | 3 | 1 | — |
 | A bonus to later rolls | 5 | 0 | — |
@@ -44,12 +44,14 @@ spell, and the area is the part that is missing.
 ### Executable today
 
 - **Acid Splash** (cantrip) — verified
+- **Animal Friendship** (level 1) — verified
 - **Bane** (level 1) — verified
 - **Banishment** (level 4) — verified
 - **Bless** (level 1) — verified
 - **Blight** (level 4) — verified
 - **Blindness/Deafness** (level 2) — verified
 - **Burning Hands** (level 1) — verified
+- **Charm Monster** (level 4) — verified
 - **Charm Person** (level 1) — verified
 - **Chill Touch** (cantrip) — verified
 - **Circle of Death** (level 6) — verified
@@ -59,8 +61,11 @@ spell, and the area is the part that is missing.
 - **Eldritch Blast** (cantrip) — verified
 - **False Life** (level 1) — verified
 - **Fear** (level 3) — verified
+- **Finger of Death** (level 7) — verified
 - **Fire Bolt** (cantrip) — verified
 - **Fireball** (level 3) — verified
+- **Flame Strike** (level 5) — verified
+- **Grease** (level 1) — verified
 - **Guidance** (cantrip) — verified
 - **Guiding Bolt** (level 1) — verified
 - **Harm** (level 6) — verified
@@ -68,6 +73,7 @@ spell, and the area is the part that is missing.
 - **Hold Monster** (level 5) — verified
 - **Hold Person** (level 2) — verified
 - **Hypnotic Pattern** (level 3) — verified
+- **Ice Storm** (level 4) — verified
 - **Inflict Wounds** (level 1) — verified
 - **Lightning Bolt** (level 3) — verified
 - **Mind Spike** (level 2) — verified
@@ -78,3 +84,5 @@ spell, and the area is the part that is missing.
 - **Shatter** (level 2) — verified
 - **Shocking Grasp** (cantrip) — verified
 - **Thunderwave** (level 1) — verified
+- **Vicious Mockery** (cantrip) — verified
+- **Vitriolic Sphere** (level 4) — verified

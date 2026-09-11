@@ -2117,22 +2117,32 @@ function resolveOnTargets(
           continue;
         }
 
-        const dice = scaledDiceFor(effect.damage, definition.level, caster.sheet.level, castLevel);
-        const rolled = rollSpellDice(
-          supply,
-          caster.sheet,
-          definition.name,
-          effect.damageType,
-          dice,
-        );
-        if (!rolled.ok) return rolled;
+        // One save, and every damage type the spell names under it. Each
+        // type rolls and scales separately; the save was already made once.
+        const parts = [
+          { damage: effect.damage, damageType: effect.damageType },
+          ...(effect.plus ?? []),
+        ];
+        const rolledParts: DamageComponent[] = [];
+        for (const part of parts) {
+          const dice = scaledDiceFor(part.damage, definition.level, caster.sheet.level, castLevel);
+          const rolled = rollSpellDice(
+            supply,
+            caster.sheet,
+            definition.name,
+            part.damageType,
+            dice,
+          );
+          if (!rolled.ok) return rolled;
+          rolledParts.push(...rolled.value);
+        }
 
         // SRD: "The halved damage is equal to half the damage that would be
         // dealt on a failed save." Half of what the spell deals, therefore
         // *before* the target's own Resistance — which then halves again.
         const components = save.value.success
-          ? rolled.value.map((c) => ({ ...c, total: Math.floor(c.total / 2) }))
-          : rolled.value;
+          ? rolledParts.map((c) => ({ ...c, total: Math.floor(c.total / 2) }))
+          : rolledParts;
 
         const hurt = dealSpellDamage(
           current,

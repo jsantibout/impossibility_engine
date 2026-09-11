@@ -28,7 +28,8 @@ still Wizard-shaped are named below.
 | Coverage | `pnpm run coverage` → `COVERAGE.md`; definitions asserted against the book | `839e858` |
 | Areas | `resolveSpell` resolves targets from geometry; 4 area spells | `ab54bb0` |
 | Spell batch | 21 spells into the existing shapes; `unmodelled` reported at runtime | `534c03a` |
-| Buffs + temp HP | `buff` and `temp-hp` effects; bonuses live on the creature | *this batch* |
+| Buffs + temp HP | `buff` and `temp-hp` effects; bonuses live on the creature | `e127590` |
+| Multi-type saves | One save, several damage types; 8 more spells | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -68,11 +69,14 @@ still Wizard-shaped are named below.
    spells fit one of them and need only a definition with its SRD quote.
    `spell-catalogue.test.ts` drives every definition automatically, so the
    test cost of each new one is zero. This is the cheapest coverage there is.
-2. **One save, several damage types.** Flame Strike (5d6 Fire *and* 5d6
-   Radiant) and Ice Storm roll one save for two damage types; the effect loop
-   rolls a save per effect, so they would save twice. Needs an effect that
-   carries several damage components under one save.
-3. **Ongoing effects a later turn can act through** (18 spells). Spiritual
+2. **Turn-anchored spell durations.** `SpellDefinition.durationSeconds` is
+   elapsed time only, so "until the end of your next turn" cannot be written
+   down — Color Spray and several riders are blocked on it. `duration.ts`
+   already has `endOfNextTurn`; the definition needs a way to name it.
+3. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
+   deal a second, smaller hit at the end of the target's next turn. The turn
+   hook machinery raises *saves*; this needs it to raise damage too.
+4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
 5. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt

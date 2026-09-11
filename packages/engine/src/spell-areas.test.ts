@@ -345,6 +345,150 @@ describe('everyone caught rolls their own save', () => {
   });
 });
 
+describe('one saving throw, several damage types', () => {
+  /**
+   * SRD Flame Strike deals "5d6 Fire damage and 5d6 Radiant damage" on a
+   * single Dexterity save. Two effects would roll two saves and let a target
+   * fail one and make the other, which is not the spell.
+   */
+  it('rolls one save for both halves of Flame Strike', () => {
+    const state = fold('seed', [
+      ...SETUP,
+      {
+        type: 'resource-pool-declared',
+        id: WIZARD,
+        pool: { key: spellSlotKey(5), label: 'level 5 spell slot', max: 2, recovers: 'long-rest' },
+      },
+      {
+        type: 'spellcasting-declared',
+        id: WIZARD,
+        spellcasting: {
+          ability: 'int',
+          cantrips: [],
+          prepared: ['flame-strike', 'ice-storm'],
+          granted: [],
+        },
+      },
+    ]);
+    const out = unwrap(
+      resolveSpell(
+        state,
+        WIZARD,
+        { spellId: 'flame-strike', targets: [], at: at(state, NEAR), slotLevel: 5 },
+        supply('strike', -40),
+      ),
+      'flame-strike',
+    );
+    if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
+
+    for (const outcome of out.outcomes) {
+      expect(outcome.save).toBeDefined();
+    }
+    // One save per creature caught, not two.
+    const saves = out.events.filter(
+      (e) => e.type === 'roll-recorded' && e.label.includes('Flame Strike'),
+    );
+    expect(saves).toHaveLength(out.outcomes.length);
+  });
+
+  /**
+   * Resistance to one of the two types halves only that half. This is what
+   * `applyDamage` summing per type was always for, and what a single collapsed
+   * number would get wrong.
+   */
+  it('applies a Resistance to one type and leaves the other whole', () => {
+    const declare = (defenses: Record<string, { resistant?: boolean }>): GameState =>
+      fold('seed', [
+        ...SETUP.map((event) =>
+          event.type === 'creature-added' && event.id === NEAR
+            ? { ...event, defenses }
+            : event,
+        ),
+        {
+          type: 'resource-pool-declared',
+          id: WIZARD,
+          pool: { key: spellSlotKey(5), label: 'level 5 spell slot', max: 2, recovers: 'long-rest' },
+        },
+        {
+          type: 'spellcasting-declared',
+          id: WIZARD,
+          spellcasting: {
+            ability: 'int',
+            cantrips: [],
+            prepared: ['flame-strike'],
+            granted: [],
+          },
+        },
+      ]);
+
+    const cast = (state: GameState) => {
+      const out = unwrap(
+        resolveSpell(
+          state,
+          WIZARD,
+          { spellId: 'flame-strike', targets: [], at: at(state, NEAR), slotLevel: 5 },
+          supply('strike', -40),
+        ),
+        'flame-strike',
+      );
+      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
+      return out.outcomes.find((o) => o.target === NEAR)?.damage ?? 0;
+    };
+
+    const whole = cast(declare({}));
+    const halfFire = cast(declare({ fire: { resistant: true } }));
+    const both = cast(declare({ fire: { resistant: true }, radiant: { resistant: true } }));
+
+    expect(halfFire).toBeLessThan(whole);
+    expect(both).toBeLessThan(halfFire);
+    // Resisting only Fire still leaves more than resisting both: the Radiant
+    // half came through untouched.
+    expect(whole - halfFire).toBeLessThan(whole - both);
+  });
+
+  /** SRD Ice Storm upcasts only its Bludgeoning; the Cold stays at 4d6. */
+  it('scales only the half the spell says scales', () => {
+    const state = fold('seed', [
+      ...SETUP,
+      {
+        type: 'resource-pool-declared',
+        id: WIZARD,
+        pool: { key: spellSlotKey(4), label: 'level 4 spell slot', max: 2, recovers: 'long-rest' },
+      },
+      {
+        type: 'resource-pool-declared',
+        id: WIZARD,
+        pool: { key: spellSlotKey(6), label: 'level 6 spell slot', max: 2, recovers: 'long-rest' },
+      },
+      {
+        type: 'spellcasting-declared',
+        id: WIZARD,
+        spellcasting: { ability: 'int', cantrips: [], prepared: ['ice-storm'], granted: [] },
+      },
+    ]);
+
+    const cast = (slotLevel: number) => {
+      const out = unwrap(
+        resolveSpell(
+          state,
+          WIZARD,
+          { spellId: 'ice-storm', targets: [], at: at(state, NEAR), slotLevel },
+          supply('storm', -40),
+        ),
+        'ice-storm',
+      );
+      if (out.kind !== 'resolved') throw new Error('expected a resolved cast');
+      return out.outcomes.find((o) => o.target === NEAR)?.damage ?? 0;
+    };
+
+    // Two slot levels up is +2d10 Bludgeoning and no extra Cold at all, so the
+    // increase can never exceed twenty.
+    const grew = cast(6) - cast(4);
+    expect(grew).toBeGreaterThan(0);
+    expect(grew).toBeLessThanOrEqual(20);
+  });
+});
+
 describe('an area cast replays and retries like any other', () => {
   it('is a no-op when the same command id comes back', () => {
     const state = base();
