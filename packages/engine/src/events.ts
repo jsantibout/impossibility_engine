@@ -25,6 +25,7 @@ import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses } from './attack.js';
 import type { ActiveBonus } from './bonuses.js';
 import { itemFor } from './catalogue.js';
+import { universalAction } from './actions.js';
 import { noSpellcasting, type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
@@ -1446,8 +1447,10 @@ function endLostFeatures(state: GameState): GameState {
 
 /** Whether this creature still meets what an active feature demands of them. */
 function sustains(creature: CreatureState, feature: string): boolean {
-  const definition = (creature.sheet.activated ?? []).find((a) => a.feature === feature);
-  if (definition === undefined) return true;
+  const definition =
+    (creature.sheet.activated ?? []).find((a) => a.feature === feature) ??
+    universalAction(feature);
+  if (definition === null || definition === undefined) return true;
 
   for (const requirement of definition.endsOn ?? []) {
     if (requirement === 'incapacitated' && isIncapacitated(creature.conditions)) return false;

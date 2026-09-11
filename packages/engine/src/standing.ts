@@ -1,6 +1,8 @@
 import type { Ability, CharacterId, ConditionName } from '@ie/shared';
 import type { Bonus, ModeSource } from './bonuses.js';
+import { UNIVERSAL_ACTION_EFFECTS } from './actions.js';
 import {
+  conditionSpeed,
   conditionState,
   isIncapacitated,
   withoutConditions,
@@ -93,6 +95,15 @@ export type StandingGrant =
    * attack "using Strength", Radiant Strikes one "using a Melee weapon or an
    * Unarmed Strike".
    */
+  /**
+   * SRD Dodge: "any attack roll made against you has Disadvantage if you can
+   * see the attacker."
+   *
+   * Read at the attack rather than at a save, which is why it is its own kind
+   * — and `ifSeen` carries the clause, because sight here is the *target's* of
+   * the attacker, not the other way round.
+   */
+  | { readonly kind: 'attacked-with-disadvantage'; readonly ifSeen: boolean }
   | {
       readonly kind: 'attack-damage';
       readonly dice?: string;
@@ -127,7 +138,14 @@ export type StandingRequirement =
    * is the *Barbarian's* Rage. A requirement that meant "whichever feature
    * granted me" would have been right once and wrong the next time.
    */
-  | { readonly kind: 'feature-active'; readonly feature: string };
+  | { readonly kind: 'feature-active'; readonly feature: string }
+  /**
+   * SRD Dodge: "You lose these benefits ... if your Speed is 0."
+   *
+   * Speed after conditions, which is what Grappled, Restrained and the rest
+   * set to zero — the same reading movement takes.
+   */
+  | { readonly kind: 'has-speed' };
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
@@ -160,8 +178,14 @@ export interface ActivatedFeature {
   readonly action: 'action' | 'bonus-action' | 'none';
   /** The pool a use comes out of, or null when it costs none. */
   readonly pool: string | null;
-  /** SRD Rage: "The Rage lasts until the end of your next turn." */
-  readonly lasts: 'end-of-next-turn';
+  /**
+   * When one activation runs to, unless it is extended.
+   *
+   * Both moments the SRD uses, and they are a full round apart: Rage "lasts
+   * until the end of your next turn", Dodge "until the start of your next
+   * turn". Nothing derives one from the other.
+   */
+  readonly lasts: 'end-of-next-turn' | 'start-of-next-turn';
   /** SRD Rage: "You can maintain a Rage for up to 10 minutes." */
   readonly capSeconds?: number;
   /** What ends it early, each read from the feature's own text. */
@@ -194,6 +218,12 @@ function meetsRequirements(state: GameState, who: CharacterId, effect: StandingE
     if (
       requirement.kind === 'feature-active' &&
       !creature.activeFeatures.includes(requirement.feature)
+    ) {
+      return false;
+    }
+    if (
+      requirement.kind === 'has-speed' &&
+      conditionSpeed(creature.conditions, creature.sheet.baseSpeed) <= 0
     ) {
       return false;
     }
@@ -258,9 +288,14 @@ export function standingFor(state: GameState, who: CharacterId): readonly Active
     const creature = state.creatures[holder];
     if (creature === undefined) continue;
 
-    for (const effect of [...(creature.sheet.standing ?? [])].sort((a, b) =>
-      a.feature.localeCompare(b.feature),
-    )) {
+    // A creature's own features, plus the actions anybody can take. The
+    // second list is not on anybody's sheet, because it belongs to everybody.
+    const held = [
+      ...(creature.sheet.standing ?? []),
+      ...UNIVERSAL_ACTION_EFFECTS,
+    ].sort((a, b) => a.feature.localeCompare(b.feature));
+
+    for (const effect of held) {
       if (reaches(state, holder as CharacterId, effect, who)) {
         active.push({ from: holder as CharacterId, effect });
       }
@@ -324,6 +359,36 @@ export function standingSaveModes(
   }
 
   return modes;
+}
+
+/**
+ * Whether attacks against this creature are made at Disadvantage right now.
+ *
+ * `seen` is the *target's* view of the attacker — SRD Dodge says "if you can
+ * see the attacker" — and is three-valued like every other declared fact. A
+ * benefit whose clause nobody has settled is applied and reported rather than
+ * dropped, which is the same direction an Opportunity Attack takes.
+ */
+export function attackedWithDisadvantage(
+  state: GameState,
+  who: CharacterId,
+  seen: boolean | null,
+): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
+  const modes: ModeSource[] = [];
+  const unverified: string[] = [];
+
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'attacked-with-disadvantage') continue;
+    if (effect.grant.ifSeen && seen === false) continue;
+    if (effect.grant.ifSeen && seen === null) {
+      unverified.push(
+        `nobody has said whether ${who} can see their attacker, and ${effect.name} needs that; the benefit was applied rather than withheld`,
+      );
+    }
+    modes.push({ source: effect.name, mode: 'disadvantage' });
+  }
+
+  return { modes, unverified };
 }
 
 /**

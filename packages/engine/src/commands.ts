@@ -56,7 +56,9 @@ import {
   type SpellRange,
 } from './spell-definitions.js';
 import { routesFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
+import { DODGE, DODGE_ACTION } from './actions.js';
 import {
+  attackedWithDisadvantage,
   defensesOf,
   effectiveConditions,
   standingAttackDamage,
@@ -77,6 +79,7 @@ import {
 import {
   endOfNextTurn,
   resolveDuration,
+  startOfNextTurn,
   type Duration,
   type EffectTarget,
   type PendingSave,
@@ -618,6 +621,47 @@ export function takeDisengage(
   return ok([{ type: 'action-spent', id }, { type: 'disengage-taken', id }]);
 }
 
+/**
+ * SRD Dodge: "until the start of your next turn, any attack roll made against
+ * you has Disadvantage if you can see the attacker, and you make Dexterity
+ * saving throws with Advantage."
+ *
+ * An action anybody can take, so the benefits come out of `actions.ts` rather
+ * than off a sheet — but everything else about it is the shape `activateFeature`
+ * already has, including the turn-anchored deadline and the end when the
+ * dodger is Incapacitated.
+ */
+export function takeDodge(
+  state: GameState,
+  id: CharacterId,
+  command: CommandIdentity,
+): Result<GameEvent[]> {
+  const identity = identify(state, `dodge:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} has no record here yet; add it first`);
+  if (creature.activeFeatures.includes(DODGE)) {
+    return err('already_active', `${id} is already Dodging`);
+  }
+
+  const events: GameEvent[] = [];
+  if (state.combat !== null && state.combat.budgets[id] !== undefined) {
+    const spent = spendAction(state.combat, id, creature.conditions);
+    if (!spent.ok) return spent;
+    events.push({ type: 'action-spent', id });
+  }
+
+  events.push({ type: 'feature-activated', id, feature: DODGE });
+
+  const timer = featureTimer(state, id, DODGE_ACTION);
+  if (!timer.ok) return timer;
+  if (timer.value !== null) events.push(timer.value);
+
+  return ok(events);
+}
+
 // — movement ——————————————————————————————————————————————————————————————————
 
 export interface MoveCommand extends CommandIdentity {
@@ -1099,6 +1143,16 @@ export function resolveAttack(
     );
   }
 
+  // SRD Dodge and anything else that makes attacks against the target harder.
+  // The sight clause is the *target's* view of the attacker, and undeclared is
+  // not the same as blind.
+  const defending = attackedWithDisadvantage(
+    state,
+    command.target,
+    state.scene === null ? null : sightBetween(state.scene, command.target, id),
+  );
+  unverified.push(...defending.unverified);
+
   const attack = rollAttack(supply.issuer, supply.rng, attacker.sheet, {
     weapon,
     targetAc: armorClass(victim.sheet) + coverAcBonus(cover),
@@ -1106,7 +1160,7 @@ export function resolveAttack(
     ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
     ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
     ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
-    ...(command.modes === undefined ? {} : { modes: command.modes }),
+    modes: [...defending.modes, ...(command.modes ?? [])],
     beyondNormalRange: reach.value.beyondNormal,
     nearbyEnemy: enemyWithinFiveFeet(state, id),
     attackBonuses: [
@@ -1658,7 +1712,7 @@ function featureTimer(
   const timer = schedule(
     state,
     { kind: 'feature', on: id, feature: definition.feature },
-    endOfNextTurn(id),
+    definition.lasts === 'start-of-next-turn' ? startOfNextTurn(id) : endOfNextTurn(id),
   );
   if (!timer.ok) return timer;
   return ok(timer.value);

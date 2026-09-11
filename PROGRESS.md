@@ -54,7 +54,8 @@ still Wizard-shaped are named below.
 | Audit fixes | Unknown distance; damage a temp-HP pool soaks | `f8043eb` |
 | Movement | `resolveMove` spends Speed; Opportunity Attacks | `07630c0` |
 | Death saves | The turn boundary rolls what it owes | `5a94ef3` |
-| Action economy | Extra Attack, Dash, Disengage | _this batch_ |
+| Action economy | Extra Attack, Dash, Disengage | `16d1ac0` |
+| Dodge | The one action whose benefit outlives its turn | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -81,6 +82,15 @@ still Wizard-shaped are named below.
 - **A definition that leaves part of its spell out declares it.**
   `SpellDefinition.unmodelled` comes back in `unverified` on every casting, so
   the gap reaches the narrating layer rather than sitting in a docstring.
+- **An action anybody can take is not a feature on anybody's sheet.** Dodge is
+  the one common action with a lasting benefit, and it needed no new machinery
+  — an activated feature with a turn-anchored deadline, granting standing
+  effects while it runs. What it lacked was a sheet to be declared on, so
+  `actions.ts` holds the one entry rather than every creature ever made
+  carrying a copy.
+- **"Start of your next turn" and "end of your next turn" are a full round
+  apart**, and a test that advances past both cannot tell them apart. The
+  discriminating moment for Dodge is *during* the dodger's own next turn.
 - **One event, one thing.** `dash-taken` first both spent the action and
   granted the movement, and the command emitted `action-spent` beside it — so
   replaying the pair charged twice. The action is spent by its own event and
@@ -337,7 +347,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 61 of 230 |
-| Tests | 2,439 passing, none skipped |
+| Tests | 2,453 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,
