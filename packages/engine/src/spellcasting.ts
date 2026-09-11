@@ -110,18 +110,6 @@ export function classCasting(
   return spellcasting.classes.find((entry) => entry.classId === classId) ?? null;
 }
 
-/** Every cantrip the creature has from any class, deduplicated, in order. */
-export function allCantrips(spellcasting: SpellcastingState): readonly string[] {
-  return unique(spellcasting.classes.flatMap((entry) => entry.cantrips));
-}
-
-/** Every level 1+ spell prepared or known through any class. */
-export function allPrepared(spellcasting: SpellcastingState): readonly string[] {
-  return unique(spellcasting.classes.flatMap((entry) => entry.prepared));
-}
-
-const unique = (ids: readonly string[]): readonly string[] => [...new Set(ids)];
-
 /** How a creature comes to be able to cast a particular spell. */
 export type CastingRoute =
   | { readonly kind: 'cantrip'; readonly ability: Ability; readonly classId: string }
@@ -173,11 +161,3 @@ export function routeFor(
   return routesFor(spellcasting, spellId)[0] ?? null;
 }
 
-/** Every spell id this creature could name, for a caller listing options. */
-export function castableSpells(spellcasting: SpellcastingState): readonly string[] {
-  return unique([
-    ...allCantrips(spellcasting),
-    ...allPrepared(spellcasting),
-    ...spellcasting.granted.map((g) => g.spellId),
-  ]);
-}

@@ -25,6 +25,3 @@ export const ARMOR: readonly Armor[] = [
   {"id":"plate-armor","name":"Plate Armor","category":"heavy","baseAc":18,"acBonus":null,"addsDexModifier":false,"maxDexBonus":null,"strengthRequirement":15,"stealthDisadvantage":true,"weightLb":65,"cost":{"amount":1500,"currency":"gp"}},
   {"id":"shield","name":"Shield","category":"shield","baseAc":null,"acBonus":2,"addsDexModifier":false,"maxDexBonus":null,"strengthRequirement":null,"stealthDisadvantage":false,"weightLb":6,"cost":{"amount":10,"currency":"gp"}},
 ];
-
-export const armorByName = (name: string): Armor | null =>
-  ARMOR.find((piece) => piece.name === name) ?? null;

@@ -237,6 +237,13 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
   threshold, and both are easy to implement against the modifier by mistake:
   the armour Strength requirement (Str 14 vs 15 share a +2) and the Heavy
   weapon property (Str/Dex 12 vs 13 share a +1).
+- **A flat addend printed beside the dice is part of the damage.** Finger of
+  Death is "7d8 + 30" and Disintegrate is "10d6 + 40". `DiceScaling` carried
+  the number from the start and nothing on the damage path read it — the one
+  caller of `scaledFlatFor` was Temporary Hit Points — so Finger of Death dealt
+  7d8 for as long as it had existed, silently. A **minimum** is what catches
+  this: 7d8 + 30 cannot come to less than 37, and it was dealing 32. The
+  addend does not double on a critical, for the same reason no flat bonus does.
 - **Critical hits double the dice, not the modifier.** "Roll the attack's
   damage dice twice, add them together, and add any relevant modifiers as
   normal."
@@ -1228,6 +1235,27 @@ spells are the proof they fit something real:
 A spell that fits one of these is data. A spell that does not is a new shape,
 and a new shape is a milestone rather than a definition.
 
+**There are three ways a spell finds its targets, not two**, and the third is
+the one that gets collapsed into the other two:
+
+| | SRD wording | Field |
+|---|---|---|
+| The caller names them | "a Humanoid that you can see" | `targets` |
+| The geometry picks them | "each creature in a 20-foot-radius Sphere" | `area` |
+| The caller names them, from inside an area | "choose up to six creatures in a 30-foot-radius Sphere" | `targetsWithin` |
+
+Mass Cure Wounds is the third and neither of the others: an `area` would heal
+every enemy standing in the Sphere, and a plain target list would let the
+caster heal anyone in range and ignore the Sphere. **The range then belongs to
+the point rather than to each target** — the SRD reaches 60 feet to place a
+30-foot Sphere, so a creature 85 feet away is a legal target and measuring it
+from the caster would wrongly refuse it. Weird is both halves at once.
+
+**"Each creature of your choice" names no number at all**, so `targets.count`
+has nothing honest to hold and `unlimited` says so rather than picking a
+generous one. It is not unchecked: range and sight bound it, and both are
+already checked against every name the caller gives.
+
 **Damage and healing scale by the same arithmetic**, so `DiceScaling` is named
 for dice rather than for damage: Cure Wounds reads "increases by 2d8 for each
 spell slot level above 1" in exactly the sentence shape a damage spell uses.
@@ -1313,10 +1341,10 @@ Reported rather than refused, in `unverified`:
 
 ### What these effect types still do not cover
 
-- **No areas of effect.** `resolveSpell` takes target ids, so Burning Hands and
-  Fireball are not castable even though `positioning.ts` has every shape they
-  need. An area spell picks its own targets from geometry, which is a different
-  operation, not a different effect.
+- **No wall or multi-area spells.** All six SRD shapes are castable, but a
+  spell whose area is *several* of them — Meteor Swarm's four Spheres, Fire
+  Storm's ten Cubes — or a wall with a length, a height and a thickness, has
+  no way to say so. One area per spell.
 - **Cover does not reach a saving throw.** Declared cover adjusts Armour Class
   and nothing else, so Sacred Flame's "no benefit from Half Cover or
   Three-Quarters Cover" describes an exception to a rule the engine does not
@@ -1676,14 +1704,27 @@ They belong to narration, not arithmetic.
 
 ## Combat Model
 
-Zones, not a grid. A scene is a `Zone { id, name, adjacent[], cover, terrain }`
-graph; ranges resolve as bands — same zone is melee, adjacent is ~30ft, two hops
-is 60ft+. This keeps the decisions that matter (closing to melee, AoE catching
-several targets, ranged-into-melee disadvantage, cover) without line-of-sight
-maths or token rendering.
+**The zone graph described here was never built.** The plan was a
+`Zone { id, name, adjacent[], cover, terrain }` graph with ranges resolving as
+bands — same zone melee, adjacent ~30ft, two hops 60ft+ — and this section said
+so for long enough that `ZoneId` survived in `ids.ts` as its only trace. It has
+been removed; this note replaces it so the next reader does not go looking.
 
-Rendering a battlemap later is a presentation change, not an engine change.
-Resist scope creep toward a VTT — the zone model is deliberately the boundary.
+What shipped instead is **a lattice of 5-foot cubes with Chebyshev distance**,
+and it is documented at length under "Positioning: Coordinates, Authored But
+Never Defaulted". Zones were abandoned because the thing they were meant to
+avoid — geometry — turned out to be the cheap part, while the thing they forced
+was expensive: every area of effect becomes a judgement about which zone it
+catches, and "does Fireball get two goblins or three" is the most consequential
+positional call in the game. Exactness is cheap where the answer is arithmetic.
+
+**The boundary the original note was protecting still holds**, and it is worth
+keeping in those words: resist scope creep toward a VTT. The lattice is an
+internal representation, nothing is rendered, Maestro speaks in feet from
+landmarks, and cover and line of sight stay *declared* rather than ray-cast —
+because computing them needs walls, and walls are where a rules engine becomes
+a map editor. Rendering a battlemap later is a presentation change, not an
+engine change.
 
 ## Claude Integration (M2+)
 
@@ -1813,7 +1854,7 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 43 of 339 executable, with the shapes that block the rest counted
+- M1 spells: 67 of 339 executable, with the shapes that block the rest counted
   in `COVERAGE.md`. Areas of effect, healing, saving throws for damage or a
   condition, Temporary Hit Points and lasting bonuses all work; summons,
   Reaction triggers, long casting times and ongoing effects a later turn acts

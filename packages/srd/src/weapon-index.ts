@@ -48,6 +48,3 @@ export const WEAPONS: readonly Weapon[] = [
   {"id":"musket","name":"Musket","category":"martial","kind":"ranged","damage":{"dice":"1d12","fixed":null,"type":"piercing"},"properties":["ammunition","loading","two-handed"],"versatileDamage":null,"thrownRange":null,"ammunitionRange":{"normal":40,"long":120},"ammunitionType":"Bullet","propertyNotes":null,"mastery":"slow","weightLb":10,"cost":{"amount":500,"currency":"gp"}},
   {"id":"pistol","name":"Pistol","category":"martial","kind":"ranged","damage":{"dice":"1d10","fixed":null,"type":"piercing"},"properties":["ammunition","loading"],"versatileDamage":null,"thrownRange":null,"ammunitionRange":{"normal":30,"long":90},"ammunitionType":"Bullet","propertyNotes":null,"mastery":"vex","weightLb":3,"cost":{"amount":250,"currency":"gp"}},
 ];
-
-export const weaponById = (id: string): Weapon | null =>
-  WEAPONS.find((weapon) => weapon.id === id) ?? null;

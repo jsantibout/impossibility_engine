@@ -55,7 +55,7 @@ export interface RestState {
 /** What a rest actually earned, which is not always what was attempted. */
 export type RestBenefit = 'none' | 'short' | 'long';
 
-export function restRequires(kind: RestKind): number {
+function restRequires(kind: RestKind): number {
   return kind === 'short' ? SHORT_REST : LONG_REST;
 }
 

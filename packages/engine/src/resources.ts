@@ -190,7 +190,7 @@ export function spellSlotLevel(key: string): number | null {
 }
 
 /** The level a Pact Magic slot key names, or null if it is some other pool. */
-export function pactSlotLevel(key: string): number | null {
+function pactSlotLevel(key: string): number | null {
   return levelAfter(key, PACT_PREFIX);
 }
 

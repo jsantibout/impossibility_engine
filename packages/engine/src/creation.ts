@@ -145,7 +145,7 @@ export const allSubclasses = (): readonly SubclassDefinition[] => SUBCLASSES;
 export const classById = (id: string): ClassDefinition | null =>
   CLASSES.find((c) => c.id === id) ?? null;
 
-export const subclassById = (id: string): SubclassDefinition | null =>
+const subclassById = (id: string): SubclassDefinition | null =>
   SUBCLASSES.find((s) => s.id === id) ?? null;
 
 export type AbilityMethod = 'standard-array' | 'point-buy' | 'manual';
@@ -1325,7 +1325,7 @@ function equipmentFrom(
  * SRD: level 1 grants the maximum die; later levels the fixed value or a roll,
  * plus the Constitution modifier, "minimum of 1" per level.
  */
-export function hitPointsFor(
+function hitPointsFor(
   definition: ClassDefinition,
   level: number,
   constitution: number,

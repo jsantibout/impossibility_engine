@@ -46,8 +46,6 @@ export const COPPER_PER = { cp: 1, sp: 10, ep: 50, gp: 100, pp: 1000 } as const;
 
 export const goldToCopper = (gold: number): number => gold * COPPER_PER.gp;
 
-/** Copper as gold, rounding down, which is how a purse is counted out. */
-export const copperToGold = (copper: number): number => Math.floor(copper / COPPER_PER.gp);
 
 const priceInCopper = (cost: { kind: string; value?: { amount: number; currency: string } }):
   | number
@@ -171,7 +169,7 @@ const CATALOGUE = build();
 
 export const itemFor = (id: string): CatalogueItem | null => CATALOGUE.get(id) ?? null;
 
-export const catalogueIds = (): readonly string[] => [...CATALOGUE.keys()].sort();
+
 
 /**
  * Everything a pack puts in your hands, the pack itself included.

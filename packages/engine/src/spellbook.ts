@@ -1,4 +1,4 @@
-import { spellById, spellsForClass, type SpellIndexEntry } from '@ie/srd';
+import { spellById, type SpellIndexEntry } from '@ie/srd';
 
 /**
  * A Wizard's spellbook, and where each spell in it came from.
@@ -47,9 +47,3 @@ export const highestSlotLevel = (slots: Readonly<Record<number, number>>): numbe
   Object.keys(slots).reduce((highest, level) => Math.max(highest, Number(level)), 0);
 
 export const lookupSpell = (id: string): SpellIndexEntry | null => spellById(id);
-
-export const classSpellList = (classId: string): readonly SpellIndexEntry[] =>
-  spellsForClass(classId);
-
-export const isOnClassList = (spell: SpellIndexEntry, classId: string): boolean =>
-  spell.classes.includes(classId);
