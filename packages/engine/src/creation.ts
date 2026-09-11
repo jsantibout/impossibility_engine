@@ -55,10 +55,13 @@ import {
 } from './spellbook.js';
 import type { GrantedSpell, SpellcastingState } from './spellcasting.js';
 import { BARBARIAN, BARBARIAN_SUBCLASSES } from './barbarian.js';
+import { BARD, BARD_SUBCLASSES } from './bard.js';
 import { CLERIC, CLERIC_SUBCLASSES } from './cleric.js';
+import { DRUID, DRUID_SUBCLASSES } from './druid.js';
 import { MONK, MONK_SUBCLASSES } from './monk.js';
 import { FIGHTER, FIGHTER_SUBCLASSES } from './fighter.js';
 import { PALADIN, PALADIN_SUBCLASSES } from './paladin.js';
+import { RANGER, RANGER_SUBCLASSES } from './ranger.js';
 import { ROGUE, ROGUE_SUBCLASSES } from './rogue.js';
 import { SORCERER, SORCERER_SUBCLASSES } from './sorcerer.js';
 import { WARLOCK, WARLOCK_SUBCLASSES } from './warlock.js';
@@ -83,10 +86,13 @@ import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
 
 const CLASSES: readonly ClassDefinition[] = [
   BARBARIAN,
+  BARD,
   CLERIC,
+  DRUID,
   FIGHTER,
   MONK,
   PALADIN,
+  RANGER,
   ROGUE,
   SORCERER,
   WARLOCK,
@@ -94,10 +100,13 @@ const CLASSES: readonly ClassDefinition[] = [
 ];
 const SUBCLASSES: readonly SubclassDefinition[] = [
   ...BARBARIAN_SUBCLASSES,
+  ...BARD_SUBCLASSES,
   ...CLERIC_SUBCLASSES,
+  ...DRUID_SUBCLASSES,
   ...FIGHTER_SUBCLASSES,
   ...MONK_SUBCLASSES,
   ...PALADIN_SUBCLASSES,
+  ...RANGER_SUBCLASSES,
   ...ROGUE_SUBCLASSES,
   ...SORCERER_SUBCLASSES,
   ...WARLOCK_SUBCLASSES,
@@ -432,7 +441,13 @@ function checkSkills(choices: CharacterChoices, definition: ClassDefinition): Cr
     problems.push(problem('duplicate_skill', 'classSkills', 'the same skill was chosen twice'));
   }
   for (const skill of choices.classSkills) {
-    if (!from.includes(skill)) {
+    // No list means any skill — SRD's "Choose any 3 skills" — so the only
+    // thing left to check is that it is a skill at all.
+    if (!(SKILLS as readonly string[]).includes(skill)) {
+      problems.push(problem('unknown_skill', 'classSkills', `${skill} is not a skill`));
+      continue;
+    }
+    if (from !== undefined && !from.includes(skill)) {
       problems.push(
         problem('skill_not_offered', 'classSkills', `a ${definition.name} may choose ${from.join(', ')}, not ${skill}`),
       );

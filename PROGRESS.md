@@ -36,7 +36,8 @@ still Wizard-shaped are named below.
 | Fifth class | Paladin + Oath of Devotion; half-caster slots, no cantrips | `dbbaf07` |
 | Sixth class | Rogue + Thief; the Expertise grant's second user | `5fd7495` |
 | Seventh class | Warlock + Fiend Patron; Pact Magic and Short-Rest slots | `b1c6fb4` |
-| Barbarian, Monk | Two non-casters; the shared suite runs on every class | *this batch* |
+| Barbarian, Monk | Two non-casters; the shared suite runs on every class | `a65c67f` |
+| Bard, Druid, Ranger | The last three — **all twelve SRD classes** | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -96,7 +97,7 @@ still Wizard-shaped are named below.
    machine with a per-turn obligation; the clock alone was never the blocker.
 8. **Classes.** See below.
 
-## Classes: nine down, three to go
+## Classes: all twelve, with one subclass each
 
 The Wizard-shaped seams are **open**, and the Cleric is the proof:
 
@@ -165,12 +166,32 @@ print two prepared spells and two level 1 slots at level 1 for both.
   backwards" — a Warlock's slots move up rather than accumulate. The
   invariant is scoped, and the Warlock has its own.
 
-What remains, in likely order:
+- The Ranger is the one combination no other class has — a **half-caster that
+  knows rather than prepares** — and needed nothing new, which is what being
+  twelfth rather than second is for.
+- The Bard needed `SkillChoices.from` to become optional, for SRD's "Choose
+  any 3 skills". Absent means any skill, rather than a copy of the whole list:
+  different rules, and only one survives the game gaining a skill.
+- **Circle of the Land is the one subclass grant the engine cannot express.**
+  Its spells are chosen *after each Long Rest* from one of four land types, so
+  they are neither fixed nor decided at creation. The feature grants nothing
+  and its note says what it would take: a grant that can be re-chosen on a
+  rest, which is a rest mechanic rather than a creation one.
 
-- **Bard, Druid, Ranger** — transcription. Bard and Ranger are `known`, Druid
-  is `prepared-from-list`.
-- **Unarmoured Defense**, above: the first class feature that needs to reach
-  the Armour Class calculation.
+What remains in the class system, in likely order:
+
+- **Unarmoured Defense**: the first class feature that needs to reach the
+  Armour Class calculation. Wanted by Barbarian (Constitution), Monk (Wisdom)
+  and Draconic Sorcery.
+- **A grant that can be re-chosen on a rest**, for Circle of the Land and for
+  every "swap a prepared spell on a Long Rest" rule.
+- **Feature execution.** Every class is transcribed and validated; almost no
+  class *feature* is executed. Each says what a DM still has to do, and the
+  recurring blockers are: extra attacks inside the Attack action, Reactions
+  with triggers, auras that follow a creature, and defences that can change
+  after a rest.
+- **Multiclassing is not modelled**: no combined slot table, no prerequisite
+  check, no proficiency-subset rule for the second class.
 - **Mystic Arcanum** (Warlock 11+) is four one-use pools attached to spells
   chosen at those levels. Not modelled, and the reason a Warlock here has no
   slots above level 5.

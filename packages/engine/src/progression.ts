@@ -138,7 +138,15 @@ export interface ClassLevelRow {
 
 export interface SkillChoices {
   readonly choose: number;
-  readonly from: readonly Skill[];
+  /**
+   * The list to choose from, or absent for "any skill".
+   *
+   * SRD gives the Bard "Choose any 3 skills" where every other class names
+   * six or so. Absent rather than a copy of the whole skill list, because the
+   * two are different rules: a class that names every skill would have to be
+   * updated if the game ever added one, and a class that says "any" would not.
+   */
+  readonly from?: readonly Skill[];
 }
 
 /**
