@@ -103,6 +103,35 @@ React (Vite) ──SSE──► Fastify ──► DM orchestrator (Claude Opus 5
 - **SRD attribution ships with every build** — see `ATTRIBUTION.md`. Product
   Identity excluded from the SRD must never enter `packages/srd/raw/`.
 
+## The Event Log
+
+`GameState` is a fold over a list of `GameEvent`s; nothing mutates state by any
+other route. `events.ts` owns the union and the reducer.
+
+**Events carry resolved outcomes, not intents.** A die is rolled once, when it
+is rolled, and the result is recorded forever. Replaying applies those recorded
+numbers; it does not roll again. Replaying *intents* through the rules would
+mean every future rules fix silently rewrote history, and a campaign played
+last week would resolve differently today. So randomness enters the log exactly
+once, at the point of the roll, and the fold is a pure function of what is
+written down. The seed and generator state are recorded only so a **live**
+session resumes its sequence — a replay never needs them, and there is a test
+asserting two different seeds fold the same log identically.
+
+**A corrupt log is loud.** Rules-legal refusals never become events: the command
+layer asks the engine first and emits nothing if the answer is no. So a reducer
+failure means the log and the code disagree, and it throws rather than
+degrading. Two actions in one turn is not a rules dispute at that layer — it
+means something emitted an event it should never have emitted.
+
+**`roll-recorded` changes no state.** It exists so the log can answer "why did
+the goblin die": a roll that Bless lifted and Cutting Words then cut shows all
+three contributions with their sources and signs, rather than one unexplained
+total. Its consequences arrive as their own events.
+
+Condition sets are sorted on the way in, so a replay compares byte for byte
+regardless of the order effects were applied.
+
 ## Determinism
 
 Same seed plus the same event log must fold to a byte-identical `GameState`.

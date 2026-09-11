@@ -9,3 +9,4 @@ export * from './combat.js';
 export * from './vitals.js';
 export * from './positioning.js';
 export * from './monster.js';
+export * from './events.js';

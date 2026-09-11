@@ -184,6 +184,27 @@ export type GameEvent =
     }
   | { readonly type: 'dismounted'; readonly rider: CharacterId; readonly placement: Placement }
 
+  /**
+   * A roll and everything that shaped it, recorded for the audit trail.
+   *
+   * This changes no state — the consequences arrive as their own events — but
+   * without it the log cannot answer "why did the goblin die". A roll that
+   * Bardic Inspiration lifted and Cutting Words then cut shows all three
+   * contributions with their sources, rather than one unexplained total.
+   */
+  | {
+      readonly type: 'roll-recorded';
+      readonly who: CharacterId;
+      /** What was being rolled: "Dexterity save", "Longsword attack". */
+      readonly label: string;
+      readonly natural: number;
+      readonly total: number;
+      /** Every named contribution, including ones that subtracted. */
+      readonly contributions: readonly { readonly source: string; readonly amount: number }[];
+      /** How it came out, in the caller's own words. */
+      readonly outcome?: string;
+    }
+
   // — dice ——————————————————————————————————————————————————————
   /**
    * Records that rolls happened, so a resumed session picks the generator up
@@ -424,6 +445,10 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
         ...next,
         scene: must(event, dismount(sceneOf(state, event), event.rider, event.placement)),
       };
+
+    // A record, not a mutation: the consequences arrive as their own events.
+    case 'roll-recorded':
+      return next;
 
     case 'rolls-issued':
       return { ...next, rollsIssued: state.rollsIssued + event.count, rng: event.rng };
