@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { Weapon } from '@ie/srd';
 import { armorClass } from './character.js';
-import { rollSavingThrow } from './checks.js';
 import { rollAttack, rollAttackDamage, applyDamage } from './attack.js';
 import { ROUND } from './clock.js';
 import { rollInitiative, spendAction, spendBonusAction, spendReaction } from './combat.js';
@@ -10,17 +9,10 @@ import { createRng, restoreRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer, type RollIssuer } from './rolls.js';
-import { spellAttackModifier, spellSaveDc } from './character.js';
-import {
-  applySpellEffect,
-  recordD20Test,
-  resolveCast,
-  pendingSavesOf,
-  resolveDamage,
-  resolveTurn,
-} from './commands.js';
+import { pendingSavesOf, resolveDamage, resolveSpell, resolveTurn } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
+import { FIRE_BOLT, damageDiceFor } from './spell-definitions.js';
 
 /**
  * The milestone's own ship criterion: **a scripted combat between two parties
@@ -46,28 +38,24 @@ import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
 /**
  * **Where the engine stops and this fixture starts.**
  *
- * The engine has no spell catalogue. It knows a spell's id, level, school and
- * class list, because `@ie/srd` parses those; it does not know what any spell
- * *does*. So a scenario has to supply the effects, and the honest thing is to
- * say which is which rather than let a reader assume the engine is enforcing
- * more than it is.
+ * Smaller than it was. Fire Bolt and Hold Person now have executable
+ * definitions in `spell-definitions.ts`, so the engine derives their attack
+ * modifier, save DC, damage dice, scaling, duration, condition and end-of-turn
+ * repeat save from the definition and the caster's own sheet. This file names
+ * a spell and some targets; it no longer says what either spell does.
  *
  * | Engine-owned, called through its own operations | Fixture-supplied |
  * |---|---|
- * | Casting: slots, upcasting, one slot per turn, the action it costs (`resolveCast`) | Which spell is cast, and when |
- * | The spell save DC and spell attack modifier (`spellSaveDc`, `spellAttackModifier`) | That Hold Person calls for a Wisdom save |
- * | Rolling any D20 test, with conditions folded in (`rollSavingThrow`, `rollAttack`) | Fire Bolt's damage dice and type |
- * | Attack resolution, criticals, typed damage, defences (`rollAttackDamage`, `applyDamage`) | That Hold Person imposes Paralyzed |
- * | Linking an effect to the casting that made it (`applySpellEffect`) | That the target repeats its save at end of turn |
+ * | The whole of a casting: access, targets, range, cover, slot, action, damage, saves, conditions, Concentration (`resolveSpell`) | Which spell is cast, at whom, with which slot |
+ * | Turn-boundary saves: raising them, rolling them, applying the outcome (`resolveTurn`) | Who attacks whom with what weapon |
+ * | Attack resolution, criticals, typed damage, defences | The scripted order of a fight |
  * | Damage, and the Concentration save it forces (`resolveDamage`) | |
- * | Turn-boundary saves: raising them, rolling them, applying the outcome (`resolveTurn`) | That Hold Person's save repeats at the end of the target's turn |
  * | Losing Concentration, and cleaning up what that casting did | |
  * | Turn economy, the clock, Initiative order | |
+ * | Character creation: proficiencies, feats, spells, pools | |
  *
- * Nothing in the right-hand column is a rule the engine checks. Everything in
- * the left-hand column is called, not reimplemented — if this fixture computed
- * a save DC or applied damage itself, the scenario would prove nothing about
- * the engine.
+ * A spell with no definition cannot be cast through `resolveSpell` at all, and
+ * says so — so this fixture cannot quietly reintroduce its own version of one.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -123,45 +111,14 @@ const goblin = (who: CharacterId): GameEvent => ({
 });
 
 /**
- * Fire Bolt, as the SRD prints it.
+ * There is no FIRE_BOLT or HOLD_PERSON here any more, and that is the point.
  *
- * "On a hit, the target takes 1d10 Fire damage. _Cantrip Upgrade._ The damage
- * increases by 1d10 when you reach levels 5 (2d10), 11 (3d10), and 17 (4d10)."
- *
- * A level 3 Wizard therefore throws **1d10**, not 2d10. An earlier version of
- * this fixture said 2d10, which is the level 5 damage — the sort of thing a
- * scenario quietly gets away with, because nothing in the engine knows what
- * Fire Bolt does. Hence the scaling is written out, and pinned by a test.
+ * Both used to be transcribed into this file: damage dice, save ability,
+ * condition, duration, and the rule that the save repeats. A level 3 Wizard
+ * threw Fire Bolt for 2d10 for exactly as long as nobody checked. They are
+ * engine definitions now, and this fixture cannot state a spell's mechanics
+ * even by accident.
  */
-const FIRE_BOLT = {
-  id: 'fire-bolt',
-  damageType: 'fire',
-  dice: (level: number): string => `${1 + [5, 11, 17].filter((at) => level >= at).length}d10`,
-} as const;
-
-/**
- * Hold Person, as the SRD prints it.
- *
- * "The target must succeed on a Wisdom saving throw or have the Paralyzed
- * condition for the duration. At the end of each of its turns, the target
- * repeats the save, ending the spell on itself on a success."
- */
-const HOLD_PERSON = {
-  id: 'hold-person',
-  name: 'Hold Person',
-  level: 2,
-  save: 'wis',
-  condition: 'paralyzed',
-  durationSeconds: 60,
-  /**
-   * "At the end of each of its turns, the target repeats the save, ending the
-   * spell on itself on a success."
-   *
-   * The fixture states the rule; it no longer *performs* it. The hook goes on
-   * to the effect, turn advancement raises the save, and the engine rolls it.
-   */
-  repeats: { at: 'end-of-turn', ability: 'wis', onSuccess: 'end-on-target' },
-} as const;
 
 const book = (level: number): SpellbookEntry[] =>
   [
@@ -320,125 +277,49 @@ function goblinAttacks(t: Table, who: CharacterId): void {
 
 /** The wizard's turn, which changes with what is still standing. */
 function wizardActs(t: Table, round: number): void {
-  const holding = t.state().creatures[WIZARD]!.concentration !== null;
-
   if (round === 1) {
     castHoldPerson(t, GOBLIN_A);
     return;
   }
 
-  // A Fire Bolt at whichever goblin is still up, or nothing if the fight is won.
+  // A Fire Bolt at whichever goblin is still up, resolved by the engine.
   const target = aliveAt(t, GOBLIN_A) ? GOBLIN_A : aliveAt(t, GOBLIN_B) ? GOBLIN_B : null;
   if (target === null) return;
 
-  t.run((s) => resolveCast(s, WIZARD, { spell: 'Fire Bolt', level: 0, slotless: 'cantrip' }));
-
-  // The attack modifier is the engine's, not a number written here.
-  const spellAttack = spellAttackModifier(sheetOf(t, WIZARD)) ?? 0;
-  const attack = t.rolling((issuer, rng) =>
-    rollAttack(issuer, rng, sheetOf(t, WIZARD), {
-      weapon: null,
-      targetAc: GOBLIN_AC,
-      attackBonuses: [{ source: 'Fire Bolt (spell attack)', flat: spellAttack }],
-      targetConditions: conditionsOf(t, target),
-    }),
-  );
-  t.push({
-    type: 'roll-recorded',
-    who: WIZARD,
-    label: 'Fire Bolt',
-    natural: attack.roll.natural,
-    total: attack.total,
-    contributions: [{ source: 'spell attack', amount: spellAttack }],
-    outcome: attack.hit ? 'hit' : 'miss',
-  });
-  if (!attack.hit) return;
-
-  const burn = t.rolling((issuer, rng) =>
-    rollAttackDamage(
-      issuer,
-      rng,
-      sheetOf(t, WIZARD),
-      {
-        weapon: null,
-        targetAc: GOBLIN_AC,
-        extraDamage: [
-          {
-            source: 'Fire Bolt',
-            type: FIRE_BOLT.damageType,
-            dice: FIRE_BOLT.dice(sheetOf(t, WIZARD).level),
-          },
-        ],
-      },
-      attack.critical,
-    ),
-  );
-  const applied = applyDamage(
-    burn.components.filter((c) => c.source === 'Fire Bolt'),
-    {},
-  );
   const { issuer, rng } = t.supply();
-  t.push(
-    ...unwrap(
-      resolveDamage(t.state(), target, { amount: applied.total, source: 'Fire Bolt' }, { issuer, rng }),
-      'fire bolt damage',
-    ).events,
+  const outcome = resolveSpell(
+    t.state(),
+    WIZARD,
+    { spellId: 'fire-bolt', targets: [target] },
+    { issuer, rng },
   );
-  void holding;
+  if (outcome.ok) t.push(...outcome.value.events);
 }
 
 /**
- * Cast Hold Person and resolve the target's save, all through the engine.
+ * Cast Hold Person at a target. Everything else is the engine's.
  *
- * The DC comes from `spellSaveDc`, the roll from `rollSavingThrow` with the
- * target's own conditions folded in, and the paralysis from
- * `applySpellEffect`, which links it to this casting so losing Concentration
- * takes it away again. What the fixture supplies is only that Hold Person
- * calls for a Wisdom save and imposes Paralyzed.
+ * The DC, the target's save, the Paralyzed condition, the one-minute duration
+ * and the end-of-turn repeat save all come from the definition and the
+ * caster's sheet. This says which spell and which target.
  */
 function castHoldPerson(
   t: Table,
   target: CharacterId,
   bonuses: readonly { source: string; flat: number }[] = [],
 ): boolean {
-  t.run((s) =>
-    resolveCast(s, WIZARD, {
-      spell: HOLD_PERSON.name,
-      level: HOLD_PERSON.level,
-      concentration: true,
-      slotLevel: HOLD_PERSON.level,
-      duration: { kind: 'seconds', seconds: HOLD_PERSON.durationSeconds },
-    }),
+  const { issuer, rng } = t.supply();
+  const outcome = unwrap(
+    resolveSpell(
+      t.state(),
+      WIZARD,
+      { spellId: 'hold-person', targets: [target], slotLevel: 2 },
+      { issuer, rng, bonuses },
+    ),
+    'hold person',
   );
-
-  const dc = spellSaveDc(sheetOf(t, WIZARD)) ?? 0;
-  const save = t.rolling((issuer, rng) =>
-    rollSavingThrow(issuer, rng, sheetOf(t, target), HOLD_PERSON.save, {
-      dc,
-      conditions: conditionsOf(t, target),
-      bonuses,
-    }),
-  );
-  t.push(
-    recordD20Test(target, 'Wisdom save vs Hold Person', save, save.success ? 'resisted' : 'held'),
-  );
-
-  if (!save.success) {
-    t.run((s) =>
-      applySpellEffect(s, target, HOLD_PERSON.condition, WIZARD, {
-        duration: { kind: 'seconds', seconds: HOLD_PERSON.durationSeconds },
-        repeatSave: {
-          at: HOLD_PERSON.repeats.at,
-          of: target,
-          ability: HOLD_PERSON.repeats.ability,
-          dc,
-          onSuccess: HOLD_PERSON.repeats.onSuccess,
-          label: 'Wisdom save vs Hold Person',
-        },
-      }),
-    );
-  }
-  return !save.success;
+  t.push(...outcome.events);
+  return outcome.outcomes.some((o) => o.affected);
 }
 
 /**
@@ -876,23 +757,16 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
 
 describe('Fire Bolt scales the way the SRD says', () => {
   /**
-   * The mistake this pins. A level 3 Wizard's Fire Bolt is 1d10; 2d10 is the
-   * level 5 damage, and nothing in the engine would have caught the fixture
-   * claiming it, because the engine does not know what Fire Bolt is.
+   * The mistake that started this. A level 3 Wizard's Fire Bolt is 1d10; 2d10
+   * is the level 5 damage. It lived in this file's own fixture, where nothing
+   * could check it. The rule is in `spell-definitions.ts` now, with its own
+   * tests — this one only asserts that the scenario's caster is the level the
+   * correction was about.
    */
-  it('throws one die until level 5, then one more at each upgrade', () => {
-    expect(FIRE_BOLT.dice(1)).toBe('1d10');
-    expect(FIRE_BOLT.dice(3)).toBe('1d10');
-    expect(FIRE_BOLT.dice(4)).toBe('1d10');
-    expect(FIRE_BOLT.dice(5)).toBe('2d10');
-    expect(FIRE_BOLT.dice(10)).toBe('2d10');
-    expect(FIRE_BOLT.dice(11)).toBe('3d10');
-    expect(FIRE_BOLT.dice(17)).toBe('4d10');
-    expect(FIRE_BOLT.dice(20)).toBe('4d10');
-  });
-
-  it('uses the level 3 damage in the scripted fight', () => {
-    expect(FIRE_BOLT.dice(KESSA.level)).toBe('1d10');
+  it('is cast by a level 3 Wizard, which is one die', () => {
+    expect(KESSA.level).toBe(3);
+    const bolt = FIRE_BOLT.effects[0];
+    if (bolt?.kind !== 'attack') throw new Error('Fire Bolt is an attack spell');
+    expect(damageDiceFor(bolt.damage, 0, KESSA.level, 0)).toBe('1d10');
   });
 });
-

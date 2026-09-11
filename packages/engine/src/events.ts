@@ -22,6 +22,7 @@ import {
   type ResourceState,
 } from './resources.js';
 import type { CharacterRecord } from './creation.js';
+import { noSpellcasting, type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
   hasExpired,
@@ -112,6 +113,14 @@ export interface CreatureState {
   readonly resting: RestState | null;
   /** When their last Long Rest finished, for the sixteen-hour rule. */
   readonly lastLongRestAt: number | null;
+  /**
+   * What this creature can actually cast, and by what route.
+   *
+   * Derived from creation's choices, so a feat's spells reach usable state
+   * rather than sitting in a record nothing reads. Monsters have none, and
+   * that is a normal state.
+   */
+  readonly spellcasting: SpellcastingState;
   /**
    * The choices this character was built from, when it is a character.
    *
@@ -321,13 +330,20 @@ export type GameEvent =
 
   // — characters —————————————————————
   /** The choices a character was built from, so it can be rebuilt and advanced. */
-  | { readonly type: 'character-created'; readonly id: CharacterId; readonly record: CharacterRecord }
+  | {
+      readonly type: 'character-created';
+      readonly id: CharacterId;
+      readonly record: CharacterRecord;
+      /** What the choices came to: cantrips, prepared spells, feat grants. */
+      readonly spellcasting: SpellcastingState;
+    }
   | {
       readonly type: 'character-advanced';
       readonly id: CharacterId;
       readonly record: CharacterRecord;
       /** The sheet the new level derives, replacing the old one wholesale. */
       readonly sheet: CharacterSheet;
+      readonly spellcasting: SpellcastingState;
     }
   /** Gaining a level raises the maximum without healing what was lost. */
   | {
@@ -982,6 +998,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             concentration: null,
             resting: null,
             lastLongRestAt: null,
+            spellcasting: noSpellcasting(),
             character: null,
           },
         },
@@ -1107,7 +1124,12 @@ function applyOne(state: GameState, event: GameEvent): GameState {
 
     case 'character-created': {
       const creature = creatureOf(state, event, event.id);
-      return withCreature(next, event.id, { character: event.record }, creature);
+      return withCreature(
+        next,
+        event.id,
+        { character: event.record, spellcasting: event.spellcasting },
+        creature,
+      );
     }
 
     case 'character-advanced': {
@@ -1115,7 +1137,12 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       if (creature.character === null) {
         throw new CorruptLogError(event, `${event.id} was not created from character choices`);
       }
-      return withCreature(next, event.id, { character: event.record, sheet: event.sheet }, creature);
+      return withCreature(
+        next,
+        event.id,
+        { character: event.record, sheet: event.sheet, spellcasting: event.spellcasting },
+        creature,
+      );
     }
 
     case 'hit-point-maximum-raised': {

@@ -49,6 +49,7 @@ import {
   spellIds,
   type SpellbookEntry,
 } from './spellbook.js';
+import type { GrantedSpell, SpellcastingState } from './spellcasting.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
 
 /**
@@ -197,6 +198,16 @@ export interface CharacterPlan {
   readonly features: readonly FeatureDefinition[];
   /** Feat names, recorded rather than executed. */
   readonly feats: readonly string[];
+  /** What the character can cast, and by what route. */
+  readonly spellcasting: SpellcastingState;
+  /**
+   * Bonuses a feat contributes to a roll the engine already makes.
+   *
+   * SRD Alert: "When you roll Initiative, you can add your Proficiency Bonus
+   * to the roll." Named, so the log says why, and optional in the SRD's own
+   * words — a caller passes them in or does not.
+   */
+  readonly initiativeBonuses: readonly { readonly source: string; readonly flat: number }[];
 }
 
 /** What is stored on the creature so the character can be rebuilt. */
@@ -1023,6 +1034,48 @@ export function planCharacter(choices: CharacterChoices): Result<CharacterPlan> 
     origin: 'feature' as const,
   }));
 
+  // A feat's spells reach usable state here, rather than sitting in a record
+  // nothing reads. Magic Initiate brings its own ability and its own free
+  // daily casting; the class's prepared list is untouched by it.
+  const granted: GrantedSpell[] = [];
+  for (const [featureId, feat] of Object.entries(choices.feats)) {
+    if (feat.featId !== 'magic-initiate') continue;
+    const ability = feat.spellcastingAbility;
+    if (ability === undefined) continue;
+
+    for (const cantrip of feat.cantrips ?? []) {
+      granted.push({
+        spellId: cantrip,
+        source: featureId,
+        ability,
+        freeCastPool: null,
+        slotCasting: false,
+      });
+    }
+    if (feat.levelOneSpell !== undefined) {
+      granted.push({
+        spellId: feat.levelOneSpell,
+        source: featureId,
+        ability,
+        freeCastPool: freeCastPoolKey(featureId),
+        slotCasting: true,
+      });
+    }
+  }
+
+  const spellcasting: SpellcastingState = {
+    ability: definition.primaryAbility,
+    cantrips: choices.cantrips,
+    prepared: choices.preparedSpells,
+    granted,
+  };
+
+  // SRD Alert: "When you roll Initiative, you can add your Proficiency Bonus."
+  const hasAlert = Object.values(choices.feats).some((feat) => feat.featId === 'alert');
+  const initiativeBonuses = hasAlert
+    ? [{ source: 'Alert', flat: proficiencyBonusForLevel(choices.level) }]
+    : [];
+
   return ok({
     sheet,
     proficiencyBonus: proficiencyBonusForLevel(choices.level),
@@ -1044,6 +1097,8 @@ export function planCharacter(choices: CharacterChoices): Result<CharacterPlan> 
     toolProficiencies: tools,
     magicItems: choices.dmGrants?.magicItems ?? [],
     features,
+    spellcasting,
+    initiativeBonuses,
     feats: Object.entries(choices.feats).map(([featureId, feat]) => {
       const definitionOfFeat = featById(feat.featId);
       return `${definitionOfFeat?.name ?? feat.featId} (${featureId})`;
@@ -1051,6 +1106,15 @@ export function planCharacter(choices: CharacterChoices): Result<CharacterPlan> 
     warnings,
   });
 }
+
+/**
+ * The pool that holds a feat's free daily casting.
+ *
+ * SRD Magic Initiate: "You can cast it once without a spell slot, and you
+ * regain the ability to cast it in that way when you finish a Long Rest." That
+ * is a resource pool like any other, so it is one.
+ */
+export const freeCastPoolKey = (featureId: string): string => `${featureId}:free-cast`;
 
 /** The pools a character of this class and level has. */
 function poolEvents(
@@ -1081,6 +1145,21 @@ function poolEvents(
         key: spellSlotKey(Number(slotLevel)),
         label: `level ${slotLevel} spell slot`,
         max: count,
+        recovers: 'long-rest',
+      },
+    });
+  }
+
+  // A feat's free casting is a pool too, one per grant that has one.
+  for (const grant of plan.spellcasting.granted) {
+    if (grant.freeCastPool === null) continue;
+    events.push({
+      type: 'resource-pool-declared',
+      id,
+      pool: {
+        key: grant.freeCastPool,
+        label: `free casting of ${grant.spellId}`,
+        max: 1,
         recovers: 'long-rest',
       },
     });
@@ -1126,6 +1205,7 @@ export function createCharacter(
     {
       type: 'character-created',
       id,
+      spellcasting: plan.value.spellcasting,
       record: {
         classId: choices.classId,
         subclassId: choices.subclassId ?? null,
@@ -1248,6 +1328,8 @@ export function advanceCharacter(
   events.push({
     type: 'character-advanced',
     id,
+    sheet: plan.value.sheet,
+    spellcasting: plan.value.spellcasting,
     record: {
       classId: choices.classId,
       subclassId: choices.subclassId ?? null,
@@ -1256,7 +1338,6 @@ export function advanceCharacter(
       level,
       choices,
     },
-    sheet: plan.value.sheet,
   });
 
   return ok(events);

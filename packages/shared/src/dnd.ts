@@ -9,6 +9,21 @@
 export const ABILITIES = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const;
 export type Ability = (typeof ABILITIES)[number];
 
+/**
+ * How an ability reads out loud.
+ *
+ * The log is meant for a DM at three in the morning: "Wisdom save vs Hold
+ * Person", not "wis save vs Hold Person". The codes are for the engine.
+ */
+export const ABILITY_NAMES: Readonly<Record<Ability, string>> = {
+  str: 'Strength',
+  dex: 'Dexterity',
+  con: 'Constitution',
+  int: 'Intelligence',
+  wis: 'Wisdom',
+  cha: 'Charisma',
+};
+
 export const SKILLS = [
   'acrobatics',
   'animal-handling',

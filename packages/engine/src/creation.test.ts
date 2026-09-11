@@ -656,12 +656,14 @@ describe('features are granted, and say what is not automated', () => {
 
   it('says which granted features the engine does not execute', () => {
     const manual = planned().features.filter((f) => f.automation === 'manual');
+    // Versatile and Magic Initiate left this list when their mechanics were
+    // actually applied: the feat's proficiencies and spells reach the sheet,
+    // and the free daily casting is a pool the engine spends. What is left is
+    // genuinely unexecuted.
     expect(manual.map((f) => f.id)).toEqual([
       'wizard:ritual-adept',
       'evoker:potent-cantrip',
       'human:resourceful',
-      'human:versatile',
-      'sage:magic-initiate-wizard',
     ]);
     for (const feature of manual) expect(feature.note.length).toBeGreaterThan(0);
   });

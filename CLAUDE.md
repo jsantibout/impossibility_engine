@@ -1112,6 +1112,71 @@ up its timer by rebuilding a key from the first doomed condition instance — an
 timer, left the real one running, and the hook fired again on a spell that had
 ended. Filtering the timers rather than guessing a key is what fixed it.
 
+## Spells The Engine Executes
+
+`@ie/srd` parses every spell's id, level, school, class list and prose. None of
+that says what a spell *does* — the description is English. So a spell the
+engine resolves needs a definition in `spell-definitions.ts`, written from the
+SRD text and checked against it.
+
+Two so far, deliberately. The **structures** are the reusable part — an attack
+that deals scaling damage, and a save that imposes a condition with an escape
+that repeats — and between them Fire Bolt and Hold Person exercise every field.
+A third spell should be data, not design.
+
+**Everything mechanical is derived, not supplied.** `resolveSpell` takes a
+caster, a spell id, some targets and a slot. It derives the attack modifier and
+save DC from the caster's sheet, the damage dice from the definition's scaling
+and either the caster's level (a cantrip) or the slot (a levelled spell), the
+target count from the slot, and the condition, duration and end-of-turn repeat
+save from the definition. A caller names a spell; it does not get to say what
+the spell does.
+
+That is the whole reason this exists. Fire Bolt spent a commit being thrown for
+2d10 by a level 3 Wizard because the number lived in a test fixture, where
+nothing in the engine could check it.
+
+**Cantrips scale by caster level and levelled spells by slot**, and they are
+separate fields rather than one overloaded number, because conflating them is
+exactly the mistake that was made.
+
+### What a cast refuses, and what it admits it cannot check
+
+Refused: a spell with no executable definition, a spell the caster has not
+prepared and knows from nothing else, no targets, a duplicate target, a
+stranger, more targets than the slot allows, a target out of range, a target
+behind Total Cover, no action left, no slot left, no free casting left, and
+casting at all while a turn-boundary save is outstanding.
+
+Reported rather than refused, in `unverified`:
+
+- **The creature type a spell demands.** Hold Person wants a Humanoid.
+  `CreatureState` carries a sheet, not a creature type, so there is nothing to
+  compare against. A silent pass would be the engine claiming to have checked
+  something it cannot see.
+- **Range, when a target has no position**, or when no scene is set. "Refuse,
+  don't guess" governs numbers with a right answer; where a creature is
+  standing has none until somebody places it, and an unplaced creature is an
+  engine-to-model signal rather than an error.
+
+**A pending turn-boundary save blocks casting**, not just turn advancement.
+Somebody may or may not still be Paralyzed; acting into a state nobody has
+settled would resolve against the wrong world.
+
+### Feat grants reach usable state
+
+Magic Initiate's selections are not a note on a sheet. The chosen cantrips and
+level 1 spell land in `spellcasting.granted`, each carrying the feat's own
+spellcasting ability — which matters the moment a Sage Fighter takes it — and
+the level 1 spell's free daily casting is a long-rest pool the engine spends
+before it reaches for a slot. `routeFor` says which source supplies a spell,
+preferring the class's own, so a Wizard who has Fire Bolt twice casts it as a
+Wizard.
+
+Alert's Initiative Proficiency comes back from creation as a named
+`initiativeBonuses` entry, which `rollInitiative` takes like any other bonus.
+Its Initiative *swap* is not modelled.
+
 ## Monsters State Their Numbers; Characters Derive Them
 
 A character's Armour Class follows from their armour and Dexterity. A monster's
@@ -1335,9 +1400,10 @@ a rules bug forever after.
   `scenario.test.ts`. What that proves is the *engine*: dice, rolls, checks,
   attacks, damage, conditions, positioning, combat, spell slots,
   Concentration, durations, turn hooks, rests, the clock, progression and one
-  character path, all reproducible from a seed. What it does not prove is that
-  any particular spell works, because the engine has no spell catalogue — see
-  the scenario's own table of what it supplies versus what the engine owns. Spell slots, Concentration, casting, rests, the clock,
+  character path, all reproducible from a seed. Two spells — Fire Bolt and Hold
+  Person — are executable definitions the engine resolves end to end; every
+  other spell can be looked up but not cast, and `resolveSpell` says so rather
+  than guessing. Spell slots, Concentration, casting, rests, the clock,
   effect durations and one complete character path have landed; the
   limitations recorded above are the honest edges of that work, each with the
   reason it is still open.

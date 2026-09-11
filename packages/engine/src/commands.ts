@@ -1,4 +1,5 @@
 import {
+  ABILITY_NAMES,
   err,
   ok,
   type Ability,
@@ -8,7 +9,21 @@ import {
   type RollMode,
 } from '@ie/shared';
 import type { Bonus, ModeSource } from './bonuses.js';
-import { untrainedArmorPenalty } from './character.js';
+import {
+  armorClass,
+  spellAttackModifier,
+  spellSaveDc,
+  untrainedArmorPenalty,
+} from './character.js';
+import { applyDamage, rollAttack, rollAttackDamage, type AttackResult } from './attack.js';
+import { coverBetween, distanceBetween } from './positioning.js';
+import {
+  damageDiceFor,
+  definitionFor,
+  targetCountFor,
+  type SpellRange,
+} from './spell-definitions.js';
+import { routeFor } from './spellcasting.js';
 import { rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
@@ -898,6 +913,14 @@ export interface DamageResolution {
 export interface ConcentrationSaveSupply {
   readonly issuer: RollIssuer;
   readonly rng: Rng;
+  /**
+   * Modifiers on the rolls this operation makes.
+   *
+   * War Caster on a Concentration save, Bless on a spell attack, a penalty a
+   * DM is imposing. The operation does not know which roll a caller had in
+   * mind, so they apply to the rolls it makes — which for a spell is the
+   * attack and the target's save alike.
+   */
   readonly modes?: readonly (RollMode | ModeSource)[];
   readonly bonuses?: readonly Bonus[];
 }
@@ -1205,4 +1228,331 @@ export function resolveTurn(
     saves: settled.value.saves,
     pending: [],
   });
+}
+
+// — casting a spell the engine knows ——————————————————————————————————————————
+
+/** What happened to one target of one casting. */
+export interface SpellTargetOutcome {
+  readonly target: CharacterId;
+  readonly attack?: AttackResult;
+  readonly save?: D20TestResult;
+  readonly damage?: number;
+  readonly condition?: ConditionName;
+  /** Whether the effect actually landed on this target. */
+  readonly affected: boolean;
+}
+
+export interface SpellResolution {
+  readonly events: readonly GameEvent[];
+  readonly castingId: string;
+  readonly outcomes: readonly SpellTargetOutcome[];
+  /**
+   * Checks the rules call for that the engine could not make, named.
+   *
+   * A silent pass would be the engine claiming to have checked something it
+   * cannot see. Creature type is the standing example: Hold Person wants a
+   * Humanoid, and `CreatureState` carries a sheet, not a type.
+   */
+  readonly unverified: readonly string[];
+}
+
+export interface CastSpellRequest extends CommandIdentity {
+  readonly spellId: string;
+  readonly targets: readonly CharacterId[];
+  /** The slot to spend. Omitted for a cantrip or a free casting. */
+  readonly slotLevel?: number;
+  /** Why no slot is being spent, when none is. */
+  readonly slotless?: SlotlessReason;
+}
+
+const ranged = (range: SpellRange): number | null =>
+  range.kind === 'ranged' ? range.feet : range.kind === 'touch' ? 5 : null;
+
+/**
+ * Cast a spell the engine has a definition for, and resolve it on its targets.
+ *
+ * Everything mechanical is derived, not supplied: the attack modifier and save
+ * DC from the caster's sheet, the damage dice from the definition's scaling and
+ * the caster's level or the slot, the condition and its duration and its
+ * end-of-turn repeat save from the definition. A caller names a spell, some
+ * targets, and a slot; it does not get to say what the spell does.
+ *
+ * It refuses what it can check and *reports* what it cannot. Access and
+ * preparation, the slot, the action, range and Total Cover are checked; the
+ * creature type a spell demands is not, because nothing in state carries one,
+ * and that comes back in `unverified` rather than passing quietly.
+ */
+export function resolveSpell(
+  state: GameState,
+  casterId: CharacterId,
+  request: CastSpellRequest,
+  supply: ConcentrationSaveSupply,
+): Result<SpellResolution> {
+  // A turn-boundary save outstanding means somebody may or may not still be
+  // Paralyzed, and casting at them would be resolving against a state nobody
+  // has settled. The rule is the same one that stops the turn advancing.
+  const owed = pendingSavesOf(state);
+  if (owed.length > 0) {
+    return err(
+      'saves_pending',
+      `${owed.length} turn-boundary save(s) are still owed; resolve them before acting`,
+    );
+  }
+
+  const caster = creatureOf(state, casterId);
+  if (caster === null) return err('unknown_creature', `${casterId} is not in this game`);
+
+  const definition = definitionFor(request.spellId);
+  if (definition === null) {
+    return err(
+      'no_definition',
+      `${request.spellId} has no executable definition; the engine can look a spell up but only executes the ones it has been taught`,
+    );
+  }
+
+  // SRD: you cast what you know or have prepared, and nothing else.
+  const route = routeFor(caster.spellcasting, request.spellId);
+  if (route === null) {
+    return err(
+      'spell_not_available',
+      `${casterId} has not prepared ${definition.name} and knows it from nothing else`,
+    );
+  }
+
+  const slotLevel = request.slotLevel ?? definition.level;
+  const castLevel = Math.max(definition.level, slotLevel);
+  const unverified: string[] = [];
+
+  // — targets ————————————————————————————————————————————————————————————
+  const allowed = targetCountFor(definition.targets, definition.level, castLevel);
+  if (request.targets.length === 0) {
+    return err('no_targets', `${definition.name} needs a target`);
+  }
+  if (request.targets.length > allowed) {
+    return err(
+      'too_many_targets',
+      `${definition.name} at level ${castLevel} takes ${allowed} target(s), got ${request.targets.length}`,
+    );
+  }
+  if (new Set(request.targets).size !== request.targets.length) {
+    return err('duplicate_target', `${definition.name} may not take the same target twice`);
+  }
+
+  const reach = ranged(definition.range);
+  for (const target of request.targets) {
+    if (state.creatures[target] === undefined) {
+      return err('unknown_creature', `${target} is not in this game`);
+    }
+    if (target === casterId && definition.targets.self !== true) {
+      return err('cannot_target_self', `${definition.name} is not cast on yourself`);
+    }
+
+    if (definition.targets.mustBeType !== undefined) {
+      unverified.push(
+        `${definition.name} requires a ${definition.targets.mustBeType} target; the engine does not model creature type, so ${target} was not checked`,
+      );
+    }
+
+    if (state.scene === null) {
+      unverified.push(`no scene is set, so ${definition.name}'s range was not checked`);
+    } else if (reach !== null) {
+      const apart = distanceBetween(state.scene, casterId, target);
+      if (!apart.ok) {
+        unverified.push(
+          `${target} has no position, so ${definition.name}'s range of ${reach} feet was not checked`,
+        );
+      } else if (apart.value > reach) {
+        return err(
+          'out_of_range',
+          `${definition.name} reaches ${reach} feet; ${target} is ${apart.value} away`,
+        );
+      }
+
+      // SRD: "To target something with a spell, a caster must have a clear
+      // path to it, so it can't be behind Total Cover."
+      if (coverBetween(state.scene, casterId, target) === 'total') {
+        return err('total_cover', `${target} is behind Total Cover`);
+      }
+    }
+  }
+
+  // — paying for it ——————————————————————————————————————————————————————
+  //
+  // A free casting from a feat spends its own pool; anything else goes through
+  // the ordinary casting command, which owns slots, the action, and the
+  // Concentration that starts or is replaced.
+  const freePool =
+    route.kind === 'granted' && request.slotLevel === undefined ? route.grant.freeCastPool : null;
+
+  const events: GameEvent[] = [];
+  const castingId = nextCastingId(state);
+
+  if (freePool !== null) {
+    if (remaining(caster.resources, freePool) < 1) {
+      return err(
+        'no_free_casting',
+        `${casterId} has used the free casting of ${definition.name} and must spend a slot`,
+      );
+    }
+    events.push({ type: 'resource-spent', id: casterId, key: freePool, amount: 1 });
+  }
+
+  const cast = resolveCast(state, casterId, {
+    spell: definition.name,
+    level: definition.level,
+    concentration: definition.concentration,
+    castingTime: definition.castingTime,
+    ...(freePool !== null || definition.level === 0
+      ? { slotless: definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const) }
+      : { slotLevel: castLevel }),
+    ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
+    ...(definition.durationSeconds === undefined
+      ? {}
+      : { duration: { kind: 'seconds' as const, seconds: definition.durationSeconds } }),
+    ...(request.commandId === undefined ? {} : { commandId: request.commandId }),
+  });
+  if (!cast.ok) return cast;
+  // A retried command: the first run did all of this.
+  if (cast.value.length === 0) {
+    return ok({ events: [], castingId, outcomes: [], unverified: [] });
+  }
+  events.push(...cast.value);
+
+  // — what it does ———————————————————————————————————————————————————————
+  let current = events.reduce(applyEvent, state);
+  const outcomes: SpellTargetOutcome[] = [];
+  const issuedBefore = supply.issuer.count;
+
+  const attackModifier = spellAttackModifier(caster.sheet) ?? 0;
+  const saveDc = spellSaveDc(caster.sheet) ?? 0;
+
+  for (const target of request.targets) {
+    for (const effect of definition.effects) {
+      const victim = current.creatures[target];
+      if (victim === undefined) continue;
+
+      if (effect.kind === 'attack') {
+        const attack = rollAttack(supply.issuer, supply.rng, caster.sheet, {
+          weapon: null,
+          targetAc: armorClass(victim.sheet),
+          attackBonuses: [
+            { source: `${definition.name} (spell attack)`, flat: attackModifier },
+            ...(supply.bonuses ?? []),
+          ],
+          ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+          targetConditions: victim.conditions,
+        });
+        if (!attack.ok) return attack;
+
+        events.push({
+          type: 'roll-recorded',
+          who: casterId,
+          label: `${definition.name} attack`,
+          natural: attack.value.roll.natural,
+          total: attack.value.total,
+          contributions: [{ source: 'spell attack', amount: attackModifier }],
+          outcome: attack.value.hit ? 'hit' : 'miss',
+        });
+
+        if (!attack.value.hit) {
+          outcomes.push({ target, attack: attack.value, affected: false });
+          continue;
+        }
+
+        const dice = damageDiceFor(effect.damage, definition.level, caster.sheet.level, castLevel);
+        const rolled = rollAttackDamage(
+          supply.issuer,
+          supply.rng,
+          caster.sheet,
+          {
+            weapon: null,
+            targetAc: armorClass(victim.sheet),
+            extraDamage: [{ source: definition.name, type: effect.damageType, dice }],
+          },
+          attack.value.critical,
+        );
+        if (!rolled.ok) return rolled;
+
+        const applied = applyDamage(
+          rolled.value.components.filter((c) => c.source === definition.name),
+          {},
+        );
+        const hurt = damageCreature(current, target, {
+          amount: applied.total,
+          source: definition.name,
+          ...(attack.value.critical ? { critical: true } : {}),
+        });
+        if (!hurt.ok) return hurt;
+
+        events.push(...hurt.value);
+        current = hurt.value.reduce(applyEvent, current);
+        outcomes.push({
+          target,
+          attack: attack.value,
+          damage: applied.total,
+          affected: true,
+        });
+        continue;
+      }
+
+      // A saving throw, and a condition on a failure.
+      const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+        dc: saveDc,
+        conditions: victim.conditions,
+        ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+        ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+      });
+      if (!save.ok) return save;
+
+      events.push(
+        recordD20Test(
+          target,
+          `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+          save.value,
+          save.value.success ? 'resisted' : 'affected',
+        ),
+      );
+
+      if (save.value.success) {
+        outcomes.push({ target, save: save.value, affected: false });
+        continue;
+      }
+
+      const landed = applySpellEffect(current, target, effect.condition, casterId, {
+        ...(effect.repeats === undefined
+          ? {}
+          : {
+              repeatSave: {
+                at: effect.repeats.at,
+                of: target,
+                ability: effect.ability,
+                dc: saveDc,
+                onSuccess: effect.repeats.onSuccess,
+                label: `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+              },
+            }),
+      });
+      if (!landed.ok) return landed;
+
+      events.push(...landed.value);
+      current = landed.value.reduce(applyEvent, current);
+      outcomes.push({
+        target,
+        save: save.value,
+        condition: effect.condition,
+        affected: true,
+      });
+    }
+  }
+
+  if (supply.issuer.count > issuedBefore) {
+    events.push({
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    });
+  }
+
+  return ok({ events, castingId, outcomes, unverified });
 }
