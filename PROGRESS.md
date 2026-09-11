@@ -57,7 +57,8 @@ still Wizard-shaped are named below.
 | Action economy | Extra Attack, Dash, Disengage | `16d1ac0` |
 | Dodge | The one action whose benefit outlives its turn | `5648241` |
 | Difficult terrain | Declared by the foot, charged exactly | `06dd3b1` |
-| Ready | An action spent now for a Reaction later; readied spells | _this batch_ |
+| Ready | An action spent now for a Reaction later; readied spells | `d63d75d` |
+| Readied move | "Up to your Speed", out of the Reaction rather than the turn | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -133,6 +134,20 @@ still Wizard-shaped are named below.
   ends the hold — *before* the spell lands, because ending a Concentration ends
   its whole casting, and dropping the hold afterwards would wipe the condition
   the release had just applied.
+- **A movement allowance need not come from the turn budget.** SRD Ready:
+  "or you choose to move up to your Speed in response to it" — on somebody
+  else's turn, where `spendMovement` refuses by construction and is right to,
+  because a budget belongs to a turn. So `moveWithin` takes an allowance in
+  feet, null for the ordinary case; everything else about the move is
+  unchanged, Opportunity Attacks included, because it is still the creature's
+  own movement and SRD does not ask what paid for the leaving. The allowance is
+  read at the *release*: a mover Grappled while waiting has a Speed of 0, and
+  freezing it at the Ready would hand them thirty feet out of the fist.
+- **A turn's Disengage does not follow a readied move into the next turn.**
+  SRD: "for the rest of the current turn." The two cannot even be taken
+  together — both are the action — but reading the flag off the budget without
+  asking which turn set it would have let one turn's Disengage cover a Reaction
+  taken on another.
 - **An attack can be held between its two rolls.** SRD Divine Smite is cast
   "immediately after hitting a target", so there has to *be* an after-hitting.
   `resolveAttack` with `hold` stops after the attack roll and records the hit
@@ -226,32 +241,25 @@ still Wizard-shaped are named below.
    spells fit one of them and need only a definition with its SRD quote.
    `spell-catalogue.test.ts` drives every definition automatically, so the
    test cost of each new one is zero. This is the cheapest coverage there is.
-3. **Readying a move.** SRD: "or you choose to move up to your Speed in
-   response to it." `takeReady` accepts an action or a spell; a move needs
-   movement outside the turn budget, and `spendMovement` requires it to be the
-   mover's turn by construction. The shape is an allowance recorded at the
-   release and spent through `resolveMove` — which must still provoke
-   Opportunity Attacks, because it is the creature's own movement. Deliberately
-   its own batch rather than guessed at here.
-4. **Turn-anchored spell durations.** `SpellDefinition.durationSeconds` is
+3. **Turn-anchored spell durations.** `SpellDefinition.durationSeconds` is
    elapsed time only, so "until the end of your next turn" cannot be written
    down — Color Spray and several riders are blocked on it. `duration.ts`
    already has `endOfNextTurn`; the definition needs a way to name it.
-5. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
+4. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
    deal a second, smaller hit at the end of the target's next turn. The turn
    hook machinery raises *saves*; this needs it to raise damage too.
-6. **Ongoing effects a later turn can act through** (18 spells). Spiritual
+5. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-7. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
+6. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
    that can order a cast against the event that triggered it. This is the
    hardest remaining spell mechanism and is deliberately last.
-8. **Summons** (9 spells). Needs a creature created mid-fight from a stat
+7. **Summons** (9 spells). Needs a creature created mid-fight from a stat
    block, which `adaptMonster` can already produce — the gap is an event that
    adds it and ties its life to the casting.
-9. **Long casting times** (43 spells). Needs a casting-in-progress state
+8. **Long casting times** (43 spells). Needs a casting-in-progress state
    machine with a per-turn obligation; the clock alone was never the blocker.
-10. **Classes.** See below.
+9. **Classes.** See below.
 
 ## Classes: all twelve, with one subclass each
 

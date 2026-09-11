@@ -322,7 +322,16 @@ export type ReadiedResponse =
       readonly castingId: string;
       /** The level it was cast at, so the release resolves at that level. */
       readonly castLevel: number;
-    };
+    }
+  /**
+   * SRD: "or you choose to move up to your Speed in response to it."
+   *
+   * Nothing is recorded here, deliberately. "Your Speed" is read when the
+   * creature actually moves, not when they decided they might — a mover who
+   * has been Grappled in the meantime has a Speed of 0, and an allowance
+   * frozen at the moment of readying would hand them thirty feet anyway.
+   */
+  | { readonly kind: 'move' };
 
 /**
  * An action held back for a trigger that has not happened yet.

@@ -6,7 +6,15 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
-import { readiedBy, releaseReady, resolveAttack, resolveTurn, takeReady } from './commands.js';
+import {
+  pendingMoveOf,
+  readiedBy,
+  releaseReady,
+  resolveAttack,
+  resolveTurn,
+  takeDisengage,
+  takeReady,
+} from './commands.js';
 
 /**
  * Ready: an action spent now for a Reaction taken later.
@@ -471,12 +479,156 @@ describe('the hold ends but the spell does not', () => {
       releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST] }, supply('blind')),
       'release',
     );
-    if (out.kind !== 'resolved') throw new Error('expected a resolved release');
-    expect(out.outcomes[0]?.affected).toBe(true);
+    if (out.spell?.kind !== 'resolved') throw new Error('expected a resolved release');
+    expect(out.spell.outcomes[0]?.affected).toBe(true);
 
     const after = fold('seed', [...log, ...out.events]);
     expect(after.creatures.cultist!.conditions.conditions).toContain('blinded');
     expect(after.creatures.archer!.concentration).toBeNull();
+  });
+});
+
+describe('a readied move spends the Reaction, not the Speed', () => {
+  /**
+   * SRD Ready: "or you choose to move up to your Speed in response to it."
+   *
+   * The allowance is the thing that needed building. A turn budget belongs to
+   * a turn, and this movement happens on somebody else's — so `spendMovement`
+   * refuses it by construction, correctly, and a readied move draws on its own
+   * allowance instead: the mover's Speed, read at the moment they actually
+   * move rather than at the moment they decided to.
+   */
+  const readyMove = (log: readonly GameEvent[] = SETUP) => nextTurn(ready({ kind: 'move' }, log));
+
+  const away = (feet: number) => ({ from: { creature: CULTIST }, feet, bearing: 180 } as const);
+
+  it('moves on somebody else’s turn, at the cost of the Reaction', () => {
+    const log = readyMove();
+    const out = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { placement: away(60) }, supply('run')),
+      'release',
+    );
+    const after = fold('seed', [...log, ...out.events]);
+
+    expect(out.move?.cost).toBe(30);
+    expect(budget(after)?.reaction).toBe(false);
+    expect(readiedBy(after, ARCHER)).toBeNull();
+    // Still the cultist's turn, and the archer's own movement is untouched.
+    expect(after.combat?.order[after.combat.turnIndex]?.id).toBe(CULTIST);
+  });
+
+  /** SRD: "up to your Speed", and not a foot further. */
+  it('refuses a move further than the mover’s Speed', () => {
+    const log = readyMove();
+    const out = releaseReady(fold('seed', log), ARCHER, { placement: away(75) }, supply('run'));
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('not_enough_movement');
+  });
+
+  /**
+   * And nothing is spent by a refusal: the Reaction is still there and the
+   * action is still held, so the same trigger can be answered with a legal
+   * move.
+   */
+  it('costs nothing when it refuses', () => {
+    const log = readyMove();
+    expect(isErr(releaseReady(fold('seed', log), ARCHER, { placement: away(75) }, supply()))).toBe(true);
+
+    const state = fold('seed', log);
+    expect(budget(state)?.reaction).toBe(true);
+    expect(readiedBy(state, ARCHER)).not.toBeNull();
+  });
+
+  /**
+   * Difficult Terrain costs the readied move exactly what it costs any other:
+   * "every foot of movement in that space costs 1 extra foot." The Speed is
+   * the allowance, so ten difficult feet take twenty of it.
+   */
+  it('charges Difficult Terrain against the allowance', () => {
+    const log = readyMove();
+    const out = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { placement: away(50), difficultFeet: 10 }, supply()),
+      'release',
+    );
+    expect(out.move?.feet).toBe(20);
+    expect(out.move?.cost).toBe(30);
+
+    // 25 feet of ground, ten of it difficult, is 35 feet of Speed — five more
+    // than the archer has, though the distance alone would have fitted.
+    const over = releaseReady(
+      fold('seed', log),
+      ARCHER,
+      { placement: away(55), difficultFeet: 10 },
+      supply(),
+    );
+    expect(isErr(over)).toBe(true);
+    expect(
+      unwrap(releaseReady(fold('seed', log), ARCHER, { placement: away(55) }, supply()), 'plain')
+        .move?.cost,
+    ).toBe(25);
+  });
+
+  /**
+   * The allowance is "your Speed" read at the moment of moving, not at the
+   * moment of deciding. SRD Grappled: "Your Speed becomes 0." A creature
+   * grabbed while waiting on its trigger goes nowhere, and an allowance frozen
+   * at the Ready would have handed it thirty feet out of the ogre's fist.
+   */
+  it('reads the mover’s Speed at the release, not at the Ready', () => {
+    const grabbed: readonly GameEvent[] = [
+      ...readyMove(),
+      { type: 'condition-applied', id: ARCHER, condition: 'grappled', source: 'the cultist' },
+    ];
+    const out = releaseReady(fold('seed', grabbed), ARCHER, { placement: away(35) }, supply());
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('not_enough_movement');
+  });
+
+  /**
+   * It is the creature's own movement, so it provokes. SRD offers the
+   * Opportunity Attack to "a creature that you can see leaves your reach", and
+   * says nothing about which of the mover's resources paid for the leaving.
+   */
+  it('provokes an Opportunity Attack like any other movement', () => {
+    const close: readonly GameEvent[] = [
+      ...SETUP.filter((e) => !(e.type === 'creature-placed' && e.id === CULTIST)),
+      { type: 'creature-placed', id: CULTIST, placement: { from: { creature: ARCHER }, feet: 5, bearing: 0 } },
+      { type: 'sight-declared', from: CULTIST, to: ARCHER, seen: true },
+    ];
+    const log = readyMove(close);
+    const out = unwrap(
+      releaseReady(
+        fold('seed', log),
+        ARCHER,
+        { placement: { from: { creature: CULTIST }, feet: 30, bearing: 180 } },
+        supply('flee'),
+      ),
+      'release',
+    );
+
+    expect(pendingMoveOf(fold('seed', [...log, ...out.events]))?.provoked.map((p) => p.reactor)).toEqual([
+      CULTIST,
+    ]);
+  });
+
+  /** SRD Disengage is a turn-long flag, and this is not that turn. */
+  it('still provokes even though the mover Disengaged on their own turn', () => {
+    const close: readonly GameEvent[] = [
+      ...SETUP.filter((e) => !(e.type === 'creature-placed' && e.id === CULTIST)),
+      { type: 'creature-placed', id: CULTIST, placement: { from: { creature: ARCHER }, feet: 5, bearing: 0 } },
+      { type: 'sight-declared', from: CULTIST, to: ARCHER, seen: true },
+    ];
+    const disengaged = [
+      ...close,
+      ...unwrap(takeDisengage(fold('seed', close), ARCHER, {}), 'disengage'),
+    ];
+    // Readying costs the action, which Disengage has already taken — so the
+    // two cannot be combined on one turn in the first place. What this pins is
+    // that a turn's Disengage does not follow the mover into the next one.
+    expect(isErr(takeReady(fold('seed', disengaged), ARCHER, {
+      trigger: TRIGGER,
+      response: { kind: 'move' },
+    }))).toBe(true);
   });
 });
 

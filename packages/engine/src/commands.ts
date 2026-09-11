@@ -71,6 +71,7 @@ import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
 import {
   conditionInstanceId,
+  conditionSpeed,
   hasCondition,
   isIncapacitated,
   reasonsFor,
@@ -683,6 +684,7 @@ export interface ReadyCommand extends CommandIdentity {
 /** The response as a caller states it, before the engine has paid for it. */
 export type ReadyResponse =
   | { readonly kind: 'action'; readonly note?: string }
+  | { readonly kind: 'move' }
   | {
       readonly kind: 'spell';
       readonly spellId: string;
@@ -755,6 +757,8 @@ export function takeReady(
     if (!held.ok) return held;
     events.push(...held.value.events);
     response = held.value.response;
+  } else if (command.response.kind === 'move') {
+    response = { kind: 'move' };
   } else {
     response = {
       kind: 'action',
@@ -848,6 +852,25 @@ function holdSpell(
   });
 }
 
+/**
+ * What letting the held action go actually did.
+ *
+ * One shape with two optional halves rather than a union, because what the
+ * release *always* does — spend the Reaction, close the hold — is the same
+ * whichever response was held, and the rest is what that response happened to
+ * be. An `action` response fills in neither: the engine has commands for a
+ * handful of the SRD's open action list, so the caller takes it from here.
+ */
+export interface ReadyRelease {
+  readonly events: readonly GameEvent[];
+  /** Whether the Reaction was taken, or the trigger let pass. */
+  readonly took: boolean;
+  /** The spell that landed, for a readied spell. */
+  readonly spell?: SpellCastOutcome;
+  /** The move that was made, for a readied move. */
+  readonly move?: MoveResolution;
+}
+
 /** How the held action is being let go. */
 export interface ReleaseCommand extends CommandIdentity {
   /**
@@ -859,6 +882,10 @@ export interface ReleaseCommand extends CommandIdentity {
   readonly targets?: readonly CharacterId[];
   /** Where a readied area spell's origin goes. */
   readonly at?: Point;
+  /** Where a readied move goes, relative to something already established. */
+  readonly placement?: Placement;
+  /** How many feet of that move are through Difficult Terrain. */
+  readonly difficultFeet?: number;
 }
 
 /**
@@ -879,7 +906,7 @@ export function releaseReady(
   id: CharacterId,
   command: ReleaseCommand,
   supply: ConcentrationSaveSupply,
-): Result<SpellCastOutcome & { readonly events: readonly GameEvent[] }> {
+): Result<ReadyRelease> {
   const creature = creatureOf(state, id);
   if (creature === null) return err('unknown_creature', `${id} has no record here yet; add it first`);
 
@@ -888,13 +915,11 @@ export function releaseReady(
     return err('nothing_readied', `${id} is not holding a readied action`);
   }
 
-  const nothing = { kind: 'resolved' as const, castingId: '', outcomes: [], unverified: [] };
-
   // SRD: "or ignore the trigger." Nothing is spent and nothing happens — but
   // the hold is gone, because the trigger it was waiting for has been and
   // passed. A held spell dissipates with it.
   if (command.ignore === true) {
-    return ok({ ...nothing, events: [{ type: 'readied-released', id, took: false }] });
+    return ok({ events: [{ type: 'readied-released', id, took: false }], took: false });
   }
 
   if (state.combat === null || state.combat.budgets[id] === undefined) {
@@ -908,11 +933,68 @@ export function releaseReady(
     { type: 'readied-released', id, took: true },
   ];
 
-  if (readied.response.kind !== 'spell') {
-    return ok({ ...nothing, events });
+  if (readied.response.kind === 'spell') {
+    return releaseSpell(state, id, readied.response, command, supply, events);
+  }
+  if (readied.response.kind === 'move') {
+    return releaseMove(state, id, command, supply, events);
   }
 
-  return releaseSpell(state, id, readied.response, command, supply, events);
+  return ok({ events, took: true });
+}
+
+/**
+ * Move as the Reaction a Ready held back.
+ *
+ * SRD: "you choose to move up to your Speed in response to it." The Reaction
+ * is what paid for this, so no Speed is spent — a turn budget belongs to a
+ * turn and this is somebody else's, which is why `spendMovement` refuses it by
+ * construction and is right to. The allowance is the mover's Speed **now**,
+ * after whatever conditions have arrived since they readied: a creature
+ * Grappled while waiting has a Speed of 0 and goes nowhere.
+ *
+ * Everything else is an ordinary move. It provokes, because it is the
+ * creature's own movement and SRD offers the Opportunity Attack for leaving a
+ * reach without caring what paid for the leaving.
+ */
+function releaseMove(
+  state: GameState,
+  id: CharacterId,
+  command: ReleaseCommand,
+  supply: ConcentrationSaveSupply,
+  spentSoFar: readonly GameEvent[],
+): Result<ReadyRelease> {
+  if (command.placement === undefined) {
+    return err('no_placement', `${id} readied a move; say where to`);
+  }
+
+  const combat = state.combat;
+  const creature = creatureOf(state, id);
+  if (combat === null || creature === null) {
+    return err('not_in_combat', 'there is no Reaction to spend outside combat');
+  }
+
+  const declared = combat.order.find((c) => c.id === id)?.speed ?? creature.sheet.baseSpeed;
+  const allowance = Math.max(0, conditionSpeed(creature.conditions, declared));
+
+  const after = spentSoFar.reduce(applyEvent, state);
+  const moved = moveWithin(
+    after,
+    id,
+    {
+      placement: command.placement,
+      ...(command.difficultFeet === undefined ? {} : { difficultFeet: command.difficultFeet }),
+    },
+    supply,
+    allowance,
+  );
+  if (!moved.ok) return moved;
+
+  return ok({
+    events: [...spentSoFar, ...moved.value.events],
+    took: true,
+    move: moved.value,
+  });
 }
 
 /**
@@ -930,7 +1012,7 @@ function releaseSpell(
   command: ReleaseCommand,
   supply: ConcentrationSaveSupply,
   spentSoFar: readonly GameEvent[],
-): Result<SpellCastOutcome & { readonly events: readonly GameEvent[] }> {
+): Result<ReadyRelease> {
   const definition = definitionFor(response.spellId);
   if (definition === null) {
     return err('no_definition', `${response.spellId} has no executable definition`);
@@ -968,7 +1050,7 @@ function releaseSpell(
   if (resolved.value.kind === 'needs-context') {
     // Nothing was resolved, so nothing of this batch may stand either: the
     // Reaction is still there and the spell is still held.
-    return ok({ ...resolved.value, events: [] });
+    return ok({ events: [], took: false, spell: resolved.value });
   }
 
   events.push(...resolved.value.events);
@@ -986,7 +1068,7 @@ function releaseSpell(
     events.push(timer.value);
   }
 
-  return ok({ ...resolved.value, events });
+  return ok({ events, took: true, spell: resolved.value });
 }
 
 // — movement ——————————————————————————————————————————————————————————————————
@@ -1057,6 +1139,25 @@ export function resolveMove(
   command: MoveCommand,
   supply: ConcentrationSaveSupply,
 ): Result<MoveResolution> {
+  return moveWithin(state, id, command, supply, null);
+}
+
+/**
+ * {@link resolveMove}, and the same thing paid for out of something else.
+ *
+ * `allowance` is null for an ordinary move, which draws on the turn budget,
+ * and a number of feet for a move the turn budget knows nothing about — SRD
+ * Ready's "move up to your Speed in response to it", taken on somebody else's
+ * turn. One function rather than two because everything except where the feet
+ * come from is identical, Opportunity Attacks included.
+ */
+function moveWithin(
+  state: GameState,
+  id: CharacterId,
+  command: MoveCommand,
+  supply: ConcentrationSaveSupply,
+  allowance: number | null,
+): Result<MoveResolution> {
   void supply;
 
   const identity = identify(state, `move:${id}`, command);
@@ -1107,7 +1208,20 @@ export function resolveMove(
   // Forced movement is not the creature's own, so it spends none of their
   // Speed. Outside combat there is no budget to spend at all.
   const events: GameEvent[] = [];
-  if (state.combat !== null && state.combat.budgets[id] !== undefined && command.forced !== true) {
+  if (allowance !== null) {
+    // A readied move: the Reaction paid for it, so no Speed is spent and
+    // nothing is recorded against a budget this move does not belong to.
+    if (cost > allowance) {
+      return err(
+        'not_enough_movement',
+        `${id} may move up to ${allowance} feet in response, and that move costs ${cost}`,
+      );
+    }
+  } else if (
+    state.combat !== null &&
+    state.combat.budgets[id] !== undefined &&
+    command.forced !== true
+  ) {
     const spent = spendMovement(state.combat, id, cost, mover.conditions);
     if (!spent.ok) {
       return spent.code === 'not_enough_movement' || spent.code === 'no_movement'
@@ -1121,7 +1235,11 @@ export function resolveMove(
   // SRD Disengage: "your movement doesn't provoke Opportunity Attacks for the
   // rest of the current turn." Forced movement provokes nothing either, for a
   // different reason — it is not the creature's movement at all.
-  const disengaged = state.combat?.budgets[id]?.disengaged === true;
+  // SRD Disengage: "for the rest of the current turn." A readied move is taken
+  // on a later turn, so a Disengage taken on the mover's own turn does not
+  // reach it — and it could not have been taken on the same turn anyway, since
+  // Disengage and Ready are both the action.
+  const disengaged = allowance === null && state.combat?.budgets[id]?.disengaged === true;
   const opportunity =
     command.forced === true || disengaged
       ? { provoked: [], unverified: [] }
