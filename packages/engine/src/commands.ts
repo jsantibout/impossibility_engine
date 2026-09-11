@@ -84,6 +84,7 @@ import {
 } from './duration.js';
 import {
   canSpendSpellSlotThisTurn,
+  currentCombatant,
   rollInitiative,
   spendAction,
   spendMovement,
@@ -123,7 +124,12 @@ import {
   type ConcentrationEndReason,
   type SlotlessReason,
 } from './spells.js';
-import { applyDamageToVitals, concentrationSaveDc, isDown } from './vitals.js';
+import {
+  applyDamageToVitals,
+  concentrationSaveDc,
+  isDown,
+  rollDeathSave,
+} from './vitals.js';
 
 /**
  * Engine-owned state transitions.
@@ -2444,7 +2450,25 @@ export function resolveTurn(
   }
 
   const advanced: GameEvent[] = [{ type: 'turn-advanced' }];
-  const after = advanced.reduce(applyEvent, state);
+  let after = advanced.reduce(applyEvent, state);
+
+  // SRD: "Whenever you start your turn with 0 Hit Points, you must make a
+  // Death Saving Throw." Whenever — nobody decides it, so the turn owes it the
+  // same way it owes an effect's repeat save, and for the same reason.
+  const owed = deathSaveOwedBy(after);
+  if (owed !== null) {
+    if (supply === undefined) {
+      return err(
+        'death_save_owed',
+        `${owed} starts their turn at 0 hit points and owes a Death Saving Throw; advancing needs a generator to roll it`,
+      );
+    }
+    const rolled = rollTheDeathSave(after, owed, supply);
+    if (!rolled.ok) return rolled;
+    advanced.push(...rolled.value);
+    after = rolled.value.reduce(applyEvent, after);
+  }
+
   const raised = pendingSavesOf(after);
 
   if (raised.length === 0) return ok({ events: advanced, saves: [], pending: [] });
@@ -2458,6 +2482,80 @@ export function resolveTurn(
     saves: settled.value.saves,
     pending: [],
   });
+}
+
+/**
+ * Whose turn has just begun at 0 hit points, if anybody's.
+ *
+ * SRD is precise about who rolls: a creature at 0 that is neither Stable nor
+ * dead. A monster is none of these — it "dies the instant it drops to 0" — so
+ * there is never one to ask.
+ */
+function deathSaveOwedBy(state: GameState): CharacterId | null {
+  const combat = state.combat;
+  if (combat === null) return null;
+
+  const whose = currentCombatant(combat).id;
+  const creature = state.creatures[whose];
+  if (creature === undefined) return null;
+  if (creature.vitals.dead || creature.vitals.stable) return null;
+  return isDown(creature.vitals) ? whose : null;
+}
+
+/**
+ * Roll it, and record what it was.
+ *
+ * Through `rollDeathSave` rather than an ordinary saving throw, because this
+ * one is tied to no ability score: SRD, "Unlike other saving throws, this one
+ * isn't tied to an ability score." It still takes modes and bonuses — Beacon
+ * of Hope grants Advantage on it explicitly — which is why the roll starts
+ * from zero rather than skipping the machinery.
+ */
+function rollTheDeathSave(
+  state: GameState,
+  who: CharacterId,
+  supply: ConcentrationSaveSupply,
+): Result<GameEvent[]> {
+  const creature = state.creatures[who];
+  if (creature === undefined) return err('unknown_creature', `${who} has no record here`);
+
+  const issuedBefore = supply.issuer.count;
+  const rolled = rollDeathSave(supply.issuer, supply.rng, creature.vitals, {
+    ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+    ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+  });
+  if (!rolled.ok) return rolled;
+
+  return ok([
+    {
+      type: 'death-save-recorded',
+      id: who,
+      natural: rolled.value.roll.natural,
+      ...(rolled.value.roll.total === rolled.value.roll.natural
+        ? {}
+        : { total: rolled.value.roll.total }),
+    },
+    // SRD: a natural 20 "regains 1 Hit Point", and unconsciousness lasts only
+    // "until you regain any Hit Points". The lifting is emitted here rather
+    // than derived in the reducer, for the same reason healing emits it: the
+    // reducer replays a record, and only the cause that put them down is
+    // lifted — a character who was also put to Sleep stays asleep.
+    ...(rolled.value.revived
+      ? [
+          {
+            type: 'condition-removed' as const,
+            id: who,
+            condition: 'unconscious' as const,
+            source: ZERO_HIT_POINTS,
+          },
+        ]
+      : []),
+    {
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    },
+  ]);
 }
 
 // — casting a spell the engine knows ——————————————————————————————————————————

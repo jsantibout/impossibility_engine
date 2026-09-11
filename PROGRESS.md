@@ -52,7 +52,8 @@ still Wizard-shaped are named below.
 | Feature damage | Rage Damage and Radiant Strikes, on the attacks that qualify | `cb5e28e` |
 | Held attacks | A hit whose damage waits; Divine Smite cast into it | `be486c2` |
 | Audit fixes | Unknown distance; damage a temp-HP pool soaks | `f8043eb` |
-| Movement | `resolveMove` spends Speed; Opportunity Attacks | _this batch_ |
+| Movement | `resolveMove` spends Speed; Opportunity Attacks | `07630c0` |
+| Death saves | The turn boundary rolls what it owes | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -79,12 +80,17 @@ still Wizard-shaped are named below.
 - **A definition that leaves part of its spell out declares it.**
   `SpellDefinition.unmodelled` comes back in `unverified` on every casting, so
   the gap reaches the narrating layer rather than sitting in a docstring.
-- **A pure function nothing calls is a rule nothing enforces.** Twice now:
+- **A pure function nothing calls is a rule nothing enforces.** Three times
+  now:
   `rollAttack` was correct and unreachable until `resolveAttack`, and
   `moveCreature`/`spendMovement` were correct and unreachable until
-  `resolveMove`. A creature could cross a battlefield without spending a foot
-  of Speed, because no command sat between the two. Worth checking the rest of
-  `positioning.ts` and `combat.ts` for the same shape.
+  `resolveMove`; and `rollDeathSave` was correct and unreached until the turn
+  boundary raised one, so a character at 0 hit points never rolled at all. A
+  script in the scratchpad lists every exported rules function no command and
+  no reducer reaches — it is the highest-signal audit this codebase has.
+  What is left on that list is mostly queries and deliberate non-exposure
+  (`recordExternal*`), plus `rest.ts`, where `beginRest`/`endRest` are still
+  reachable only from tests.
 - **An attack can be held between its two rolls.** SRD Divine Smite is cast
   "immediately after hitting a target", so there has to *be* an after-hitting.
   `resolveAttack` with `hold` stops after the attack roll and records the hit
@@ -330,7 +336,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 54 of 230 |
-| Tests | 2,410 passing, none skipped |
+| Tests | 2,423 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,
