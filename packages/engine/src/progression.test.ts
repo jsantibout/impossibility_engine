@@ -83,35 +83,48 @@ const wellFormed = (definition: ClassDefinition) => {
     });
 
     /**
-     * Slots accumulate — except under Pact Magic, where they *move up*.
+     * Slots only ever improve — and "improve" means two different things.
      *
-     * A Warlock at level 4 has two level 2 slots and at level 5 has two level
-     * 3 slots and none at level 2. That is the rule, not a transcription
-     * error, and it is the one class the SRD writes this way; every other
-     * caster only ever gains. So the check is scoped rather than dropped, and
-     * the Warlock gets its own assertion in `warlock.test.ts`.
+     * Every caster but one accumulates: a level 5 Wizard has everything a
+     * level 4 Wizard had and more. Pact Magic instead *moves up* — a Warlock
+     * at 4 has two level 2 slots and at 5 has two level 3 slots and none at
+     * level 2 — so the accumulating check is simply false for it, and it is
+     * the rule rather than a transcription error.
+     *
+     * Two rules, so two assertions, and each class gets **the one that applies
+     * to it** rather than one of them being skipped. A skipped test reports as
+     * a gap in coverage and reads like one; a class that never ran either
+     * assertion is the thing actually worth catching, and `spellcasting.feature`
+     * being one of exactly two values is what rules that out.
      */
-    const accumulates = definition.spellcasting?.feature !== 'pact-magic';
-    it.skipIf(!accumulates)('never takes a slot away as it levels', () => {
-      for (let level = 2; level <= MAX_LEVEL; level += 1) {
-        const before = slotsAt(definition, level - 1);
-        const now = slotsAt(definition, level);
-        for (let slot = 1; slot <= 9; slot += 1) {
-          expect(now[slot] ?? 0).toBeGreaterThanOrEqual(before[slot] ?? 0);
+    if (definition.spellcasting?.feature === 'pact-magic') {
+      it('never loses a Pact Magic slot or drops its level', () => {
+        const total = (level: number) =>
+          Object.values(slotsAt(definition, level)).reduce((sum, n) => sum + n, 0);
+        const topLevel = (level: number) =>
+          Math.max(0, ...Object.keys(slotsAt(definition, level)).map(Number));
+        for (let level = 2; level <= MAX_LEVEL; level += 1) {
+          expect(total(level)).toBeGreaterThanOrEqual(total(level - 1));
+          expect(topLevel(level)).toBeGreaterThanOrEqual(topLevel(level - 1));
         }
-      }
-    });
+      });
+    } else {
+      it('never takes a slot away as it levels', () => {
+        for (let level = 2; level <= MAX_LEVEL; level += 1) {
+          const before = slotsAt(definition, level - 1);
+          const now = slotsAt(definition, level);
+          for (let slot = 1; slot <= 9; slot += 1) {
+            expect(now[slot] ?? 0).toBeGreaterThanOrEqual(before[slot] ?? 0);
+          }
+        }
+      });
+    }
 
-    /** Pact Magic instead only ever gains *total* slots, at a rising level. */
-    it.skipIf(accumulates)('never loses a Pact Magic slot or drops its level', () => {
-      const total = (level: number) =>
-        Object.values(slotsAt(definition, level)).reduce((sum, n) => sum + n, 0);
-      const topLevel = (level: number) =>
-        Math.max(0, ...Object.keys(slotsAt(definition, level)).map(Number));
-      for (let level = 2; level <= MAX_LEVEL; level += 1) {
-        expect(total(level)).toBeGreaterThanOrEqual(total(level - 1));
-        expect(topLevel(level)).toBeGreaterThanOrEqual(topLevel(level - 1));
-      }
+    /** Which makes the branch above total: there is no third kind of caster. */
+    it('casts by Spellcasting, by Pact Magic, or not at all', () => {
+      const feature = definition.spellcasting?.feature;
+      if (definition.spellcasting === undefined) expect(feature).toBeUndefined();
+      else expect(['spellcasting', 'pact-magic', undefined]).toContain(feature);
     });
 
     it('grants its subclass at the level it says', () => {

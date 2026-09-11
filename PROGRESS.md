@@ -40,7 +40,8 @@ still Wizard-shaped are named below.
 | Bard, Druid, Ranger | The last three — **all twelve SRD classes** | `4762633` |
 | Class coverage | COVERAGE.md counts classes and executed features too | `a4d8d1a` |
 | Multiclassing | Rules module, and wired into creation | `e79b61d` |
-| Per-class casting | Two casting classes; Pact Magic its own pool | _this batch_ |
+| Per-class casting | Two casting classes; Pact Magic its own pool | `d022ca0` |
+| No skipped tests | Each class asserts the slot rule that applies to it | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -241,7 +242,7 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells executable and verified | 43 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 46 of 230 |
-| Tests | 2,031 passing |
+| Tests | 2,043 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,
