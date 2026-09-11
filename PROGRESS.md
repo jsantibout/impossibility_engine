@@ -35,7 +35,8 @@ still Wizard-shaped are named below.
 | Fourth class | Sorcerer + Draconic Sorcery; the `known` casting style | `c2a0b4c` |
 | Fifth class | Paladin + Oath of Devotion; half-caster slots, no cantrips | `dbbaf07` |
 | Sixth class | Rogue + Thief; the Expertise grant's second user | `5fd7495` |
-| Seventh class | Warlock + Fiend Patron; Pact Magic and Short-Rest slots | *this batch* |
+| Seventh class | Warlock + Fiend Patron; Pact Magic and Short-Rest slots | `b1c6fb4` |
+| Barbarian, Monk | Two non-casters; the shared suite runs on every class | *this batch* |
 
 ## Decisions that constrain what comes next
 
@@ -95,7 +96,7 @@ still Wizard-shaped are named below.
    machine with a per-turn obligation; the clock alone was never the blocker.
 8. **Classes.** See below.
 
-## Classes: seven down, five to go
+## Classes: nine down, three to go
 
 The Wizard-shaped seams are **open**, and the Cleric is the proof:
 
@@ -150,11 +151,26 @@ print two prepared spells and two level 1 slots at level 1 for both.
   level, so "two slots at level 3 and nothing below" is `[0, 0, 2]`, and
   `spellSlotTable` drops the empty levels so no level 1 pool is ever declared.
 
+- The Barbarian and Monk both want **Unarmoured Defense**, with different
+  abilities (Constitution and Wisdom). Two classes wanting the same missing
+  hook makes it a *shape* rather than a quirk: **a class feature that replaces
+  the Armour Class calculation has nowhere to live.** That is the next real
+  piece of engine design in the class system.
+- They also found the third feature-id string match, in `gatherProficiencies`:
+  `human:skillful` was matched by id, so the Barbarian's Primal Knowledge
+  granted no proficiency. Any feature whose choice is a skill now grants it,
+  with Expertise the documented exception.
+- `progression.test.ts`'s well-formed suite now runs on **every** registered
+  class, and found that Pact Magic legitimately breaks "slots never go
+  backwards" — a Warlock's slots move up rather than accumulate. The
+  invariant is scoped, and the Warlock has its own.
+
 What remains, in likely order:
 
-- **Barbarian, Bard, Druid, Monk, Ranger** — all transcription onto structures
-  that now have at least two users each. Bard and Ranger are `known`, Druid is
-  `prepared-from-list`, Barbarian and Monk cast nothing.
+- **Bard, Druid, Ranger** — transcription. Bard and Ranger are `known`, Druid
+  is `prepared-from-list`.
+- **Unarmoured Defense**, above: the first class feature that needs to reach
+  the Armour Class calculation.
 - **Mystic Arcanum** (Warlock 11+) is four one-use pools attached to spells
   chosen at those levels. Not modelled, and the reason a Warlock here has no
   slots above level 5.

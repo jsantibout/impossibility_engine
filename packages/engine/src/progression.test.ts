@@ -12,7 +12,24 @@ import {
   spellSlotTable,
   type ClassDefinition,
 } from './progression.js';
+import { allClasses, allSubclasses } from './creation.js';
 import { EVOKER, WIZARD } from './wizard.js';
+
+/** The twelve classes SRD 5.2.1 publishes, by name. */
+const SRD_CLASSES: readonly string[] = [
+  'Barbarian',
+  'Bard',
+  'Cleric',
+  'Druid',
+  'Fighter',
+  'Monk',
+  'Paladin',
+  'Ranger',
+  'Rogue',
+  'Sorcerer',
+  'Warlock',
+  'Wizard',
+];
 
 describe('the advancement table', () => {
   /**
@@ -65,13 +82,35 @@ const wellFormed = (definition: ClassDefinition) => {
       }
     });
 
-    it('never takes a slot away as it levels', () => {
+    /**
+     * Slots accumulate — except under Pact Magic, where they *move up*.
+     *
+     * A Warlock at level 4 has two level 2 slots and at level 5 has two level
+     * 3 slots and none at level 2. That is the rule, not a transcription
+     * error, and it is the one class the SRD writes this way; every other
+     * caster only ever gains. So the check is scoped rather than dropped, and
+     * the Warlock gets its own assertion in `warlock.test.ts`.
+     */
+    const accumulates = definition.spellcasting?.slotRecovery !== 'short-rest';
+    it.skipIf(!accumulates)('never takes a slot away as it levels', () => {
       for (let level = 2; level <= MAX_LEVEL; level += 1) {
         const before = slotsAt(definition, level - 1);
         const now = slotsAt(definition, level);
         for (let slot = 1; slot <= 9; slot += 1) {
           expect(now[slot] ?? 0).toBeGreaterThanOrEqual(before[slot] ?? 0);
         }
+      }
+    });
+
+    /** Pact Magic instead only ever gains *total* slots, at a rising level. */
+    it.skipIf(accumulates)('never loses a Pact Magic slot or drops its level', () => {
+      const total = (level: number) =>
+        Object.values(slotsAt(definition, level)).reduce((sum, n) => sum + n, 0);
+      const topLevel = (level: number) =>
+        Math.max(0, ...Object.keys(slotsAt(definition, level)).map(Number));
+      for (let level = 2; level <= MAX_LEVEL; level += 1) {
+        expect(total(level)).toBeGreaterThanOrEqual(total(level - 1));
+        expect(topLevel(level)).toBeGreaterThanOrEqual(topLevel(level - 1));
       }
     });
 
@@ -86,7 +125,74 @@ const wellFormed = (definition: ClassDefinition) => {
   });
 };
 
-wellFormed(WIZARD);
+// Every class the engine knows, not just the one the suite was written for.
+for (const definition of allClasses()) wellFormed(definition);
+
+describe('every class the engine knows is registered and coherent', () => {
+  /**
+   * Every class registered is one the SRD actually publishes.
+   *
+   * Not "there are twelve": how many are transcribed is progress, and progress
+   * belongs in COVERAGE.md rather than in a test that fails until the work is
+   * finished. What a test can say is that nothing invented a class.
+   */
+  it('registers only classes the SRD publishes', () => {
+    for (const definition of allClasses()) {
+      expect(SRD_CLASSES, `${definition.name} is not an SRD class`).toContain(definition.name);
+    }
+  });
+
+  it('gives every class a unique id and a unique name', () => {
+    const ids = allClasses().map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const names = allClasses().map((c) => c.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  /** A subclass that names a class nobody registered can never be chosen. */
+  it('points every subclass at a class that exists', () => {
+    for (const subclass of allSubclasses()) {
+      expect(allClasses().some((c) => c.id === subclass.classId)).toBe(true);
+    }
+  });
+
+  /** SRD publishes exactly one subclass per class. */
+  it('gives every class at least one subclass', () => {
+    for (const definition of allClasses()) {
+      expect(allSubclasses().some((s) => s.classId === definition.id)).toBe(true);
+    }
+  });
+
+  /**
+   * Every feature that is not executed says what a DM still has to do. An
+   * unexplained "not automated" is not a useful thing to read at three in the
+   * morning, and there are now hundreds of them.
+   */
+  it('explains every feature it does not execute', () => {
+    for (const source of [...allClasses(), ...allSubclasses()]) {
+      for (const feature of source.features) {
+        expect(feature.note.length, `${feature.id} has no note`).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it('namespaces every feature id and never repeats one', () => {
+    const ids = [...allClasses(), ...allSubclasses()].flatMap((s) =>
+      s.features.map((f) => f.id),
+    );
+    for (const featureId of ids) expect(featureId).toContain(':');
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  /** A class either casts or it does not; there is no half-declared state. */
+  it('gives a spell table only to a class that declares spellcasting', () => {
+    for (const definition of allClasses()) {
+      const casts = definition.spellcasting !== undefined;
+      const hasSlots = definition.table.some((row) => (row.spellSlots ?? []).length > 0);
+      expect(hasSlots, `${definition.name}`).toBe(casts);
+    }
+  });
+});
 
 describe('the Wizard table matches the SRD', () => {
   it('states the core traits', () => {

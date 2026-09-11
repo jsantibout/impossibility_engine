@@ -54,7 +54,9 @@ import {
   type SpellbookEntry,
 } from './spellbook.js';
 import type { GrantedSpell, SpellcastingState } from './spellcasting.js';
+import { BARBARIAN, BARBARIAN_SUBCLASSES } from './barbarian.js';
 import { CLERIC, CLERIC_SUBCLASSES } from './cleric.js';
+import { MONK, MONK_SUBCLASSES } from './monk.js';
 import { FIGHTER, FIGHTER_SUBCLASSES } from './fighter.js';
 import { PALADIN, PALADIN_SUBCLASSES } from './paladin.js';
 import { ROGUE, ROGUE_SUBCLASSES } from './rogue.js';
@@ -80,8 +82,10 @@ import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
  */
 
 const CLASSES: readonly ClassDefinition[] = [
+  BARBARIAN,
   CLERIC,
   FIGHTER,
+  MONK,
   PALADIN,
   ROGUE,
   SORCERER,
@@ -89,14 +93,29 @@ const CLASSES: readonly ClassDefinition[] = [
   WIZARD,
 ];
 const SUBCLASSES: readonly SubclassDefinition[] = [
+  ...BARBARIAN_SUBCLASSES,
   ...CLERIC_SUBCLASSES,
   ...FIGHTER_SUBCLASSES,
+  ...MONK_SUBCLASSES,
   ...PALADIN_SUBCLASSES,
   ...ROGUE_SUBCLASSES,
   ...SORCERER_SUBCLASSES,
   ...WARLOCK_SUBCLASSES,
   ...WIZARD_SUBCLASSES,
 ];
+
+/**
+ * Every class the engine knows, so a test suite can run against all of them.
+ *
+ * Exported rather than reachable only by id, because the checks that matter —
+ * the Proficiency Bonus against the formula, slots never going backwards, a
+ * subclass granted at the level the class says — must run on *every* class, or
+ * the next one to land quietly disagrees with the engine instead of failing.
+ */
+export const allClasses = (): readonly ClassDefinition[] => CLASSES;
+
+/** Every subclass, for the same reason. */
+export const allSubclasses = (): readonly SubclassDefinition[] => SUBCLASSES;
 
 export const classById = (id: string): ClassDefinition | null =>
   CLASSES.find((c) => c.id === id) ?? null;
@@ -1172,7 +1191,23 @@ function gatherProficiencies(
   for (const skill of parts.background.skillProficiencies) add(skill, parts.background.name, 'backgroundId');
   add(parts.background.toolProficiency, parts.background.name, 'backgroundId');
   for (const skill of choices.classSkills) add(skill, parts.definition.name, 'classSkills');
-  for (const skill of choices.featureChoices['human:skillful'] ?? []) add(skill, 'Skillful', 'featureChoices');
+
+  // Any feature that asks the player to choose a skill grants proficiency in
+  // it — the Human's Skillful, the Barbarian's Primal Knowledge, and whatever
+  // comes next. Matching `human:skillful` by id was the third place in this
+  // file doing that, and Primal Knowledge is what found it.
+  //
+  // Expertise is the exception, and it is the opposite rule: it asks for a
+  // skill you are *already* proficient in and doubles the bonus, so granting
+  // proficiency from it would make "Expertise without proficiency" impossible
+  // to refuse.
+  for (const feature of grantedFeatures(choices, parts)) {
+    if (feature.choice?.kind !== 'skill') continue;
+    if (feature.grants?.kind === 'expertise') continue;
+    for (const skill of choices.featureChoices[feature.id] ?? []) {
+      add(skill, feature.name, 'featureChoices');
+    }
+  }
   for (const feat of Object.values(choices.feats)) {
     for (const name of feat.proficiencies ?? []) add(name, 'Skilled', 'feats');
   }
