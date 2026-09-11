@@ -31,16 +31,22 @@ Early, and honest about it: this is a **rules engine**, not yet a game.
 | Combat | Initiative, turn economy, reactions, the action budget |
 | Positioning | A 5-foot cube lattice, Chebyshev distance, all six area shapes, cover, mounting |
 | Monsters | 235 stat blocks adapted into fightable creatures |
+| Resources | Generic limited-use pools — spell slots, Ki, charges — declared, not derived |
+| Casting | Slots, upcasting, slot-free casting, one slot per turn, casting identity |
+| Concentration | Started, replaced, dismissed, broken by damage, Incapacitation or death |
 | Event log | `GameState` as a fold; replay is a pure function of the record |
 
 **Parsed from the SRD** — 339 spells, 330 creatures, 38 weapons, 13 armour.
-Parsing a spell's text is not the same as *executing* it: the engine can look a
-spell up, but casting is not implemented.
+Parsing a spell's text is not the same as *executing* it: the engine tracks what
+a casting costs and what it keeps alive, but no spell's own effects are scripted
+— a spell that imposes a condition is applied by the caller, linked to the
+casting that caused it.
 
-**Not built yet**: spell slots and concentration, rests, level progression,
-class features, the character creator, the tool surface Claude would call, the
-DM orchestration, persistence, and the web app. There is no frontend and no
-database.
+**Not built yet**: rests, elapsed time, level progression, class features, the
+character creator, the tool surface Claude would call, the DM orchestration,
+persistence, and the web app. There is no frontend and no database. Casting
+times of a minute or more are refused rather than approximated, and Reaction
+timing is recorded rather than enforced — see [CLAUDE.md](./CLAUDE.md).
 
 ## Getting started
 

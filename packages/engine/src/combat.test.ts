@@ -253,6 +253,7 @@ describe('startCombat', () => {
       reaction: true,
       movementRemaining: 30,
       freeInteraction: true,
+      spellSlotSpentOnTurn: null,
     });
   });
 });

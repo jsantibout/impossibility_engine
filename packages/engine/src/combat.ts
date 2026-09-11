@@ -121,6 +121,16 @@ export interface TurnBudget {
   readonly movementRemaining: number;
   /** SRD: one free object interaction per turn; a second needs Utilize. */
   readonly freeInteraction: boolean;
+  /**
+   * Which turn this creature last expended a spell slot on, or null.
+   *
+   * SRD: "On a turn, you can expend only one spell slot to cast a spell." Note
+   * *a* turn, not *your* turn — a Reaction spell cast on someone else's turn
+   * is a different turn from the one you cast Fireball on. So this records the
+   * turn rather than a flag that the budget refresh would clear at the wrong
+   * moment.
+   */
+  readonly spellSlotSpentOnTurn: number | null;
 }
 
 export interface CombatState {
@@ -129,6 +139,14 @@ export interface CombatState {
   readonly order: readonly Combatant[];
   readonly turnIndex: number;
   readonly budgets: Readonly<Record<string, TurnBudget>>;
+  /**
+   * Turns taken since the fight began, counting up and never reused.
+   *
+   * Derived from round and turn index it would not be: combatants leave, the
+   * order shrinks, and two different turns could then share a number. A rule
+   * that asks "was that on this turn?" needs an answer that cannot collide.
+   */
+  readonly turnsTaken: number;
 }
 
 const fullBudget = (speed: number): TurnBudget => ({
@@ -137,6 +155,7 @@ const fullBudget = (speed: number): TurnBudget => ({
   reaction: true,
   movementRemaining: Math.max(0, speed),
   freeInteraction: true,
+  spellSlotSpentOnTurn: null,
 });
 
 /**
@@ -171,7 +190,7 @@ export function startCombat(combatants: readonly CombatantInput[]): Result<Comba
   const budgets: Record<string, TurnBudget> = {};
   for (const c of order) budgets[c.id] = fullBudget(c.speed);
 
-  return ok({ round: 1, order, turnIndex: 0, budgets });
+  return ok({ round: 1, order, turnIndex: 0, budgets, turnsTaken: 0 });
 }
 
 export function currentCombatant(state: CombatState): Combatant {
@@ -207,6 +226,7 @@ export function advanceTurn(state: CombatState): CombatState {
     ...state,
     turnIndex: wrapped ? 0 : next,
     round: wrapped ? state.round + 1 : state.round,
+    turnsTaken: state.turnsTaken + 1,
   });
 }
 
@@ -428,4 +448,23 @@ export function swapInitiative(
     order: rebuilt.value.order,
     turnIndex: Math.min(state.turnIndex, rebuilt.value.order.length - 1),
   });
+}
+
+/**
+ * SRD: "On a turn, you can expend only one spell slot to cast a spell."
+ *
+ * Whether a slot is available this turn, and recording that one went. Both
+ * no-op for a creature outside the initiative order: with no turns there is
+ * nothing for the restriction to attach to.
+ */
+export function canSpendSpellSlotThisTurn(state: CombatState, id: CharacterId): boolean {
+  const budget = state.budgets[id];
+  if (budget === undefined) return true;
+  return budget.spellSlotSpentOnTurn !== state.turnsTaken;
+}
+
+export function markSpellSlotSpent(state: CombatState, id: CharacterId): CombatState {
+  const budget = state.budgets[id];
+  if (budget === undefined) return state;
+  return withBudget(state, id, { spellSlotSpentOnTurn: state.turnsTaken }, budget);
 }

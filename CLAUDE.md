@@ -245,6 +245,23 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
 - **Great Weapon Fighting substitutes, it does not reroll.** 2024: "treat any
   1 or 2 on a damage die as a 3." The reroll version is 2014. No extra dice are
   rolled, and the generator is not advanced.
+- **One spell slot per turn, whatever the casting time.** 2024: "On a turn,
+  you can expend only one spell slot to cast a spell." This replaced the 2014
+  rule about Bonus Action spells limiting you to cantrips, and the two are not
+  the same restriction — porting the old one forbids legal turns and permits
+  illegal ones. Note *a* turn, not *your* turn: a Reaction spell cast on
+  someone else's turn is a different turn from the one you cast Fireball on.
+- **Concentration breaks the moment you start casting the next one.** "You
+  lose Concentration on an effect the moment you start casting a spell that
+  requires Concentration." The old spell is gone even if the new casting goes
+  on to accomplish nothing — every target saves, the spell is Counterspelled.
+  Ending the old one only on success would hand back a spell the rules already
+  took away.
+- **The Concentration save reads damage taken, not hit points lost.**
+  Temporary Hit Points absorb damage; they do not stop it being taken. A
+  Warlock behind *Armor of Agathys* who soaks 30 still rolls against DC 15.
+  And each instance of damage is its own save: two hits of 10 are two DC 10
+  saves, never one DC 15.
 - **Damage order of application is adjustments, then Resistance, then
   Vulnerability** — and the order changes the answer. The SRD's worked example
   (28 fire, -5 aura, resistant and vulnerable) gives 22; doubling before
@@ -489,6 +506,101 @@ where a rules engine becomes a VTT. The model says "behind the bar,
 three-quarters cover"; the engine applies exactly +5 AC and +5 to Dexterity
 saves. Exactness where it is cheap, judgement where geometry is expensive.
 
+## Spell Slots Are Pools; A Casting Is A Thing With An Identity
+
+Two ideas carry the whole spell system, and neither is about spells.
+
+**A spell slot is not special.** `resources.ts` holds named pools — a key, a
+maximum, a count spent, and what refills them — and slots are just pools named
+`spell-slot:1` through `spell-slot:9`. Channel Divinity, Ki, a wand's charges
+and a dragon's breath recharge are the same mechanism. Pools are **declared,
+never derived**: the engine does not know that a level 3 Wizard has four level
+1 slots, because that is a class table and class progression is not modelled.
+Keeping the two apart is what lets the pool system land before the class system
+does, rather than waiting on it.
+
+**A casting has an identity.** "Hold Person" is not the thing that is running;
+*this* casting of Hold Person, by this caster, at this level, is. Two Clerics
+can hold the same goblin, and one of them losing Concentration must end exactly
+one of the two paralyses. So every casting gets a sequential id — `cast:1`,
+`cast:2`, never random, because replay has to reproduce them — and every effect
+it creates carries that id inside its source: `Hold Person#cast:3`.
+
+That encoding is deliberate on both sides. `castingIdOf` makes cleanup an exact
+match rather than a search for a spell name, which would catch the other
+Cleric's spell too. `spellOfSource` gives the narration layer the readable half
+back. The engine never has to choose between being precise and being legible.
+
+**Losing Concentration is derived, not commanded.** SRD: "Your Concentration
+ends if you have the Incapacitated condition or you die." Nobody decides that,
+so the reducer applies it after every event — which means it catches the break
+however it arrived: damage to 0 hit points, a Stunning Strike, Exhaustion
+reaching 6. No log, however assembled, can produce a state where a dead
+wizard's Hold Person is still running. Ending it *by choice* or *by a failed
+save* is a decision, so those are events with a reason attached.
+
+The same split explains where the effects go. `concentration-ended` does not
+enumerate the conditions it lifts; the reducer finds them by casting id. A
+command that listed them would be building a batch against a snapshot, and a
+retry a moment later would find that list stale.
+
+**The casting id is knowable before the cast.** `nextCastingId(state)` reads
+the counter, so a caller can build the source string for the conditions a spell
+imposes without digging the id back out of the emitted events. `castSpell` run
+twice against the same state produces byte-identical batches — that is what
+retry-safety means here — and appending one of them twice is caught as a
+corrupt log, because the second copy's id is no longer the next one in
+sequence.
+
+### What the engine refuses, and what it declines to judge
+
+A refusal costs nothing: no slot, no generator advance, no state change. That
+is the existing "validate before rolling" discipline, and casting is the easiest
+place to break it, because the natural order — spend the slot, then check —
+reads fine and is wrong.
+
+It refuses a slot smaller than the spell, a slot level with none left, a
+cantrip that asks for a slot, a level 1+ spell that names neither a slot nor a
+reason to skip one, a caster who is Incapacitated or dead, a caster in armour
+they lack training in, and a spell name carrying the `#` that would forge a
+casting link.
+
+It **declines to judge** whether the caster knows or has prepared the spell, or
+has the components. Spell lists, preparation and inventory are not modelled, and
+refusing on a rule the engine cannot evaluate is worse than leaving it to the
+layer that knows.
+
+### Limitations, stated rather than papered over
+
+- **Casting times of 1 minute or more are refused.** SRD: if Concentration
+  breaks during such a casting "the spell fails, but you don't expend a spell
+  slot" — so the slot goes at *completion*, not at the start. Elapsed time is
+  not modelled, so the engine says it cannot do this rather than expending the
+  slot at the wrong moment. Rituals cast the long way are covered by the same
+  refusal.
+- **Reaction timing is recorded, not enforced.** A spell with a casting time of
+  a Reaction can be cast, but the engine has no interrupt mechanism: it does not
+  check that a valid trigger occurred, and it cannot order the casting against
+  the event that triggered it. Counterspell and Shield need that machinery and
+  do not have it yet.
+- **Only conditions are linked effects.** Ownership is designed for conditions,
+  bonuses, areas and summons alike — the source string is the link, and nothing
+  about it is condition-specific — but conditions are the only effect type the
+  engine currently applies, so they are the only one implemented.
+- **Non-Concentration ongoing spells are not tracked as ongoing.** A one-minute
+  spell that needs no Concentration has a casting id and its effects are linked
+  to it, but nothing knows the spell is still running or when it stops. That
+  needs duration tracking, which arrives with rests and the clock.
+- **Ask for the Concentration save *after* applying the damage.** A caster
+  dropped to 0 is Unconscious, therefore Incapacitated, therefore already not
+  concentrating — and `concentrationSaveAfterDamage` correctly asks for
+  nothing. Reading the pre-damage state would send the DM off to roll a save
+  for a spell that has already ended.
+- **The log records the casting that ended, not each effect that ended with
+  it.** Cleanup is derived from the link, so a target's own history shows the
+  condition arriving but not leaving. Making it explicit would mean building a
+  list that a retry could find stale; the trade was taken deliberately.
+
 ## Monsters State Their Numbers; Characters Derive Them
 
 A character's Armour Class follows from their armour and Dexterity. A monster's
@@ -667,6 +779,7 @@ a rules bug forever after.
 - M0: adventuring gear and tools (93 entries in `equipment.md`), plus classes,
   feats and magic items, are vendored but not yet parsed. Weapons and armour
   are done because `attack.ts` needs them; the rest can wait for a consumer.
-- M1: engine beyond `dice.ts` — character, checks, attack, conditions, zones,
-  combat, spells, rest, progression, events, reducer
+- M1: rests and the clock, level progression and class features. Spell slots,
+  Concentration and casting landed with `resources.ts` and `spells.ts`; the
+  limitations above are the honest edges of that work.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

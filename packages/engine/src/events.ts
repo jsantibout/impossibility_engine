@@ -4,12 +4,31 @@ import type { RngState } from './dice.js';
 import {
   applyCondition,
   conditionState,
+  isIncapacitated,
   removeCondition,
+  removeConditionInstance,
   setExhaustion,
   type ConditionState,
 } from './conditions.js';
 import {
+  declarePool,
+  resourceState,
+  restoreOn,
+  spend as spendResource,
+  type PoolDeclaration,
+  type Recovery,
+  type ResourceState,
+} from './resources.js';
+import {
+  castingIdOf,
+  type CastingTime,
+  type Concentration,
+  type ConcentrationEndReason,
+  type SlotlessReason,
+} from './spells.js';
+import {
   advanceTurn,
+  markSpellSlotSpent,
   startCombat,
   spendAction,
   spendBonusAction,
@@ -70,6 +89,10 @@ export interface CreatureState {
   readonly sheet: CharacterSheet;
   readonly vitals: Vitals;
   readonly conditions: ConditionState;
+  /** Spell slots and every other limited-use pool this creature has. */
+  readonly resources: ResourceState;
+  /** The one casting this creature is sustaining, if any. */
+  readonly concentration: Concentration | null;
 }
 
 export interface GameState {
@@ -83,6 +106,13 @@ export interface GameState {
   readonly scene: PositionState | null;
   /** Events applied so far, for auditing a single creature's history. */
   readonly eventCount: number;
+  /**
+   * Castings begun, so the next one's id is known before it happens.
+   *
+   * A counter rather than a random id: replaying the log has to reproduce the
+   * same casting ids, or every effect linked to one dangles after a restart.
+   */
+  readonly castingsBegun: number;
 }
 
 export function initialState(seed: string): GameState {
@@ -94,6 +124,7 @@ export function initialState(seed: string): GameState {
     combat: null,
     scene: null,
     eventCount: 0,
+    castingsBegun: 0,
   };
 }
 
@@ -162,6 +193,61 @@ export type GameEvent =
    * it does not die.
    */
   | { readonly type: 'creature-died'; readonly id: CharacterId; readonly cause: string }
+
+  // — resources —————————————————————————
+  /**
+   * A pool exists because something declared it, never because it was derived
+   * from a level. Class tables are not modelled; see `resources.ts`.
+   */
+  | {
+      readonly type: 'resource-pool-declared';
+      readonly id: CharacterId;
+      readonly pool: PoolDeclaration;
+    }
+  | { readonly type: 'resources-restored'; readonly id: CharacterId; readonly recovers: Recovery }
+
+  // — casting ——————————————————————————
+  /**
+   * One casting of one spell, with its own identity.
+   *
+   * The slot is expended here, which is why the event carries the pool it came
+   * from: replay must reproduce the expenditure without re-deciding it.
+   */
+  | {
+      readonly type: 'spell-cast';
+      /** Sequential — `cast:1`, `cast:2` — and checked on replay. */
+      readonly castingId: string;
+      readonly id: CharacterId;
+      readonly spell: string;
+      /** The level it was cast at, which is the slot's level when upcast. */
+      readonly level: number;
+      readonly slot: { readonly key: string; readonly level: number } | null;
+      readonly slotless: SlotlessReason | null;
+      readonly castingTime: CastingTime;
+      readonly concentration: boolean;
+    }
+  | {
+      readonly type: 'concentration-started';
+      readonly id: CharacterId;
+      readonly castingId: string;
+      readonly spell: string;
+      readonly level: number;
+    }
+  /**
+   * Concentration ending by choice or by a failed save.
+   *
+   * Ending it also ends everything that casting created — SRD: "If the
+   * effect's creator loses Concentration, the effect ends" — which the reducer
+   * does by the casting id carried in each effect's source, rather than the
+   * command enumerating a list a retry could find stale.
+   */
+  | {
+      readonly type: 'concentration-ended';
+      readonly id: CharacterId;
+      readonly castingId: string;
+      readonly reason: ConcentrationEndReason;
+    }
+
 
   // — combat ——————————————————————————————————————————————————
   | { readonly type: 'combat-started'; readonly combatants: readonly CombatantInput[] }
@@ -279,7 +365,87 @@ function must<T>(event: GameEvent, result: { ok: true; value: T } | { ok: false;
   return result.value;
 }
 
+/** The id of the nth casting. Sequential and never random, so replay matches. */
+export const castingIdFor = (n: number): string => `cast:${n}`;
+
+/**
+ * End a casting: drop the caster's Concentration and every effect that casting
+ * created, wherever it landed.
+ *
+ * The link is the casting id carried in each effect's source, so this removes
+ * exactly one Cleric's Hold Person and leaves the other Cleric's standing —
+ * and leaves alone anything the casting did not create.
+ */
+function releaseCasting(state: GameState, casterId: CharacterId, castingId: string): GameState {
+  const creatures: Record<string, CreatureState> = {};
+  let changed = false;
+
+  for (const key of Object.keys(state.creatures)) {
+    const creature = state.creatures[key];
+    if (creature === undefined) continue;
+
+    let updated = creature;
+
+    const doomed = creature.conditions.instances.filter(
+      (instance) => castingIdOf(instance.source) === castingId,
+    );
+    if (doomed.length > 0) {
+      let conditions = creature.conditions;
+      for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
+      updated = { ...updated, conditions };
+    }
+
+    if (key === casterId && updated.concentration?.castingId === castingId) {
+      updated = { ...updated, concentration: null };
+    }
+
+    if (updated !== creature) changed = true;
+    creatures[key] = updated;
+  }
+
+  return changed ? { ...state, creatures } : state;
+}
+
+/**
+ * SRD Concentration: "Your Concentration ends if you have the Incapacitated
+ * condition or you die."
+ *
+ * This is derived rather than commanded, because it is not a decision anybody
+ * makes. A caster knocked to 0 hit points is Unconscious, therefore
+ * Incapacitated, therefore not concentrating — and no log, however it was
+ * assembled, should be able to produce a state where a dead wizard's Hold
+ * Person is still running.
+ *
+ * Applied after every event, so it catches the break however it arrived:
+ * damage, a spell, Exhaustion reaching 6.
+ */
+function breakLostConcentration(state: GameState): GameState {
+  let current = state;
+
+  // Releasing one casting cannot Incapacitate anybody, so this settles in a
+  // single pass today. The loop is what keeps that true if an effect type that
+  // *can* ever lands.
+  for (;;) {
+    const lost = Object.keys(current.creatures)
+      .sort()
+      .map((key) => current.creatures[key])
+      .find(
+        (creature) =>
+          creature !== undefined &&
+          creature.concentration !== null &&
+          (creature.vitals.dead || isIncapacitated(creature.conditions)),
+      );
+
+    if (lost?.concentration == null) return current;
+    current = releaseCasting(current, lost.id, lost.concentration.castingId);
+  }
+}
+
 export function applyEvent(state: GameState, event: GameEvent): GameState {
+  return breakLostConcentration(applyOne(state, event));
+}
+
+function applyOne(state: GameState, event: GameEvent): GameState {
   const next = { ...state, eventCount: state.eventCount + 1 };
 
   switch (event.type) {
@@ -297,16 +463,25 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
             sheet: event.sheet,
             vitals: vitals(event.maxHp, { diesAtZero: event.diesAtZero ?? false }),
             conditions: conditionState(),
+            resources: resourceState(),
+            concentration: null,
           },
         },
       };
     }
 
     case 'creature-removed': {
-      creatureOf(state, event, event.id);
-      const creatures = { ...state.creatures };
+      const creature = creatureOf(state, event, event.id);
+      // A caster who leaves the game takes their ongoing spell with them.
+      // Their record is about to be deleted, so the casting id has to be read
+      // off it first or the effects it created would dangle for good.
+      const cleaned =
+        creature.concentration === null
+          ? next
+          : releaseCasting(next, event.id, creature.concentration.castingId);
+      const creatures = { ...cleaned.creatures };
       delete creatures[event.id];
-      return { ...next, creatures };
+      return { ...cleaned, creatures };
     }
 
     case 'damage-taken': {
@@ -382,6 +557,76 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
         { vitals: { ...creature.vitals, hp: 0, dead: true } },
         creature,
       );
+    }
+
+    case 'resource-pool-declared': {
+      const creature = creatureOf(state, event, event.id);
+      const resources = must(event, declarePool(creature.resources, event.pool));
+      return withCreature(next, event.id, { resources }, creature);
+    }
+
+    case 'resources-restored': {
+      const creature = creatureOf(state, event, event.id);
+      return withCreature(
+        next,
+        event.id,
+        { resources: restoreOn(creature.resources, event.recovers) },
+        creature,
+      );
+    }
+
+    case 'spell-cast': {
+      const creature = creatureOf(state, event, event.id);
+
+      // Casting ids run in sequence. Applying a batch twice — a retried
+      // command appended a second time — lands here with an id that is no
+      // longer next, which is a corrupt log rather than a second casting.
+      const expected = castingIdFor(state.castingsBegun + 1);
+      if (event.castingId !== expected) {
+        throw new CorruptLogError(event, `expected casting ${expected}, got ${event.castingId}`);
+      }
+
+      const resources =
+        event.slot === null
+          ? creature.resources
+          : must(event, spendResource(creature.resources, event.slot.key));
+
+      const cast = withCreature(next, event.id, { resources }, creature);
+      return {
+        ...cast,
+        castingsBegun: state.castingsBegun + 1,
+        // SRD: "On a turn, you can expend only one spell slot to cast a spell."
+        combat:
+          event.slot === null || cast.combat === null
+            ? cast.combat
+            : markSpellSlotSpent(cast.combat, event.id),
+      };
+    }
+
+    case 'concentration-started': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.concentration !== null) {
+        throw new CorruptLogError(
+          event,
+          `${event.id} is already concentrating on ${creature.concentration.castingId}`,
+        );
+      }
+      return withCreature(
+        next,
+        event.id,
+        {
+          concentration: { castingId: event.castingId, spell: event.spell, level: event.level },
+        },
+        creature,
+      );
+    }
+
+    case 'concentration-ended': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.concentration?.castingId !== event.castingId) {
+        throw new CorruptLogError(event, `${event.id} is not concentrating on ${event.castingId}`);
+      }
+      return releaseCasting(next, event.id, event.castingId);
     }
 
     case 'combat-started':

@@ -1,7 +1,25 @@
 import { err, ok, type CharacterId, type ConditionName, type Result } from '@ie/shared';
-import { hasCondition, reasonsFor } from './conditions.js';
-import type { GameEvent, GameState } from './events.js';
-import { applyDamageToVitals, isDown } from './vitals.js';
+import { untrainedArmorPenalty } from './character.js';
+import { hasCondition, isIncapacitated, reasonsFor } from './conditions.js';
+import { canSpendSpellSlotThisTurn } from './combat.js';
+import { castingIdFor, type GameEvent, type GameState } from './events.js';
+import {
+  hasPool,
+  remaining,
+  spellSlotKey,
+  type PoolDeclaration,
+  type Recovery,
+} from './resources.js';
+import {
+  castingSource,
+  slotFits,
+  validateSpellName,
+  type CastingTime,
+  type ConcentrationCheck,
+  type ConcentrationEndReason,
+  type SlotlessReason,
+} from './spells.js';
+import { applyDamageToVitals, concentrationSaveDc, isDown } from './vitals.js';
 
 /**
  * Engine-owned state transitions.
@@ -158,6 +176,18 @@ export function removeCreatureEverywhere(
 
   const events: GameEvent[] = [];
 
+  // A caster leaving takes their ongoing spell with them, and the log should
+  // say so rather than leaving the reader to infer it from the disappearance.
+  const creature = creatureOf(state, id);
+  if (creature?.concentration != null) {
+    events.push({
+      type: 'concentration-ended',
+      id,
+      castingId: creature.concentration.castingId,
+      reason: 'removed',
+    });
+  }
+
   // Order matters: leave the map and the initiative order before leaving the
   // cast, so each of those events still finds the creature it refers to.
   if (state.scene?.positions[id] !== undefined) {
@@ -208,4 +238,326 @@ export function whyCondition(
   const creature = creatureOf(state, id);
   if (creature === null) return [];
   return reasonsFor(creature.conditions, condition).map((i) => i.source);
+}
+
+/**
+ * Grant Temporary Hit Points.
+ *
+ * SRD: they are not healing and do not stack — "If you have Temporary Hit
+ * Points and receive more of them, you choose whether to keep the ones you
+ * have or gain the new ones." Keeping the larger pool is that choice made the
+ * only way it is ever made.
+ */
+export function grantTemporaryHpTo(
+  state: GameState,
+  id: CharacterId,
+  amount: number,
+): Result<GameEvent[]> {
+  if (creatureOf(state, id) === null) {
+    return err('unknown_creature', `${id} is not in this game`);
+  }
+  if (!Number.isFinite(amount) || amount < 0) {
+    return err('bad_amount', `temporary hit points must be a non-negative number, got ${amount}`);
+  }
+  return ok([{ type: 'temporary-hp-granted', id, amount }]);
+}
+
+// — resources ————————————————————————————————————————————————————————————————
+
+/**
+ * Declare a limited-use pool on a creature.
+ *
+ * Pools are declared, never derived: the engine does not own the class tables
+ * that say how many slots a level 5 Wizard has. See `resources.ts`.
+ */
+export function declareResourcePool(
+  state: GameState,
+  id: CharacterId,
+  pool: PoolDeclaration,
+): Result<GameEvent[]> {
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} is not in this game`);
+  if (hasPool(creature.resources, pool.key)) {
+    return err('duplicate_pool', `${id} already has a ${pool.key} pool`);
+  }
+  if (!Number.isInteger(pool.max) || pool.max < 0) {
+    return err('bad_max', `a pool's maximum must be a non-negative integer, got ${pool.max}`);
+  }
+  return ok([{ type: 'resource-pool-declared', id, pool }]);
+}
+
+/** SRD: "Finishing a Long Rest restores any expended spell slots." */
+export function restoreResourcesOn(
+  state: GameState,
+  id: CharacterId,
+  recovers: Recovery,
+): Result<GameEvent[]> {
+  if (creatureOf(state, id) === null) {
+    return err('unknown_creature', `${id} is not in this game`);
+  }
+  return ok([{ type: 'resources-restored', id, recovers }]);
+}
+
+// — casting ——————————————————————————————————————————————————————————————————
+
+export interface CastCommand {
+  readonly spell: string;
+  /** The spell's own level. 0 for a cantrip. */
+  readonly level: number;
+  /** Whether the spell's Duration entry says Concentration. */
+  readonly concentration?: boolean;
+  /** Defaults to an action. */
+  readonly castingTime?: CastingTime;
+  /** The level of slot to expend. Mutually exclusive with `slotless`. */
+  readonly slotLevel?: number;
+  /** Why no slot is being expended. Mutually exclusive with `slotLevel`. */
+  readonly slotless?: SlotlessReason;
+}
+
+/**
+ * The id the next casting will get, known before the command runs.
+ *
+ * Effects are linked to a casting by id, and the caller needs that id to build
+ * the source string for the conditions the spell imposes. Exposing it up front
+ * is what keeps the link deterministic instead of requiring the caller to dig
+ * it back out of the emitted events.
+ */
+export function nextCastingId(state: GameState): string {
+  return castingIdFor(state.castingsBegun + 1);
+}
+
+/**
+ * Cast a spell: validate everything, then expend what it costs.
+ *
+ * Nothing is spent and no die is rolled until every check has passed, so an
+ * illegal casting leaves the caster exactly as they were — the refusal is
+ * something the DM narrates around, not something that quietly costs a slot.
+ *
+ * What this deliberately does *not* check: whether the caster knows or has
+ * prepared the spell, and whether they have the components. Spell lists,
+ * preparation and inventory are not modelled, and refusing on a rule the
+ * engine cannot actually evaluate would be worse than leaving it to the layer
+ * that knows.
+ */
+export function castSpell(
+  state: GameState,
+  id: CharacterId,
+  command: CastCommand,
+): Result<GameEvent[]> {
+  const caster = creatureOf(state, id);
+  if (caster === null) return err('unknown_creature', `${id} is not in this game`);
+  if (caster.vitals.dead) return err('dead', `${id} is dead and casts nothing`);
+
+  // SRD Incapacitated: "You can't take any action, Bonus Action, or Reaction."
+  // Every casting time is one of those, so none of them is available.
+  if (isIncapacitated(caster.conditions)) {
+    return err('incapacitated', `${id} is Incapacitated and can't cast`);
+  }
+
+  const name = validateSpellName(command.spell);
+  if (!name.ok) return name;
+
+  if (!Number.isInteger(command.level) || command.level < 0 || command.level > 9) {
+    return err('bad_level', `a spell's level runs from 0 to 9, got ${command.level}`);
+  }
+
+  const castingTime = command.castingTime ?? 'action';
+  // SRD: a spell of 1 minute or more "doesn't expend a spell slot" if
+  // Concentration breaks before it finishes — so the slot goes at completion,
+  // not at the start. Elapsed time is not modelled, so the engine says it
+  // cannot do this rather than expending the slot at the wrong moment.
+  if (castingTime === 'long') {
+    return err(
+      'unsupported_casting_time',
+      'a casting time of 1 minute or more defers its slot until the casting completes, and elapsed time is not modelled yet',
+    );
+  }
+
+  // SRD: "You must have training with any armor you are wearing to cast spells
+  // while wearing it."
+  if (untrainedArmorPenalty(caster.sheet)) {
+    return err('untrained_armor', `${id} is not trained in the armour they are wearing`);
+  }
+
+  if (command.slotLevel !== undefined && command.slotless !== undefined) {
+    return err('conflicting_slot', 'a casting either expends a slot or explains why it does not');
+  }
+
+  // SRD: "A cantrip is cast without a spell slot."
+  if (command.level === 0 && command.slotLevel !== undefined) {
+    return err('cantrip_takes_no_slot', 'a cantrip is cast without a spell slot');
+  }
+
+  let slot: { key: string; level: number } | null = null;
+  let slotless: SlotlessReason | null = command.slotless ?? null;
+
+  if (command.slotLevel === undefined) {
+    if (command.level === 0) {
+      slotless = slotless ?? 'cantrip';
+    } else if (slotless === null) {
+      return err(
+        'no_slot_named',
+        `${command.spell} is level ${command.level}; name the slot to expend or why none is`,
+      );
+    }
+  } else {
+    const level = command.slotLevel;
+    if (!Number.isInteger(level) || level < 1 || level > 9) {
+      return err('bad_slot_level', `spell slots run from level 1 to 9, got ${level}`);
+    }
+    // SRD: "a level 2 spell fits only into a slot that's at least level 2."
+    if (!slotFits(command.level, level)) {
+      return err(
+        'slot_too_small',
+        `a level ${command.level} spell does not fit in a level ${level} slot`,
+      );
+    }
+
+    const key = spellSlotKey(level);
+    if (remaining(caster.resources, key) < 1) {
+      return err('no_slot', `${id} has no level ${level} spell slots left`);
+    }
+    slot = { key, level };
+  }
+
+  // SRD: "On a turn, you can expend only one spell slot to cast a spell."
+  // Outside combat there are no turns, so there is nothing to restrict.
+  if (slot !== null && state.combat !== null && !canSpendSpellSlotThisTurn(state.combat, id)) {
+    return err(
+      'slot_already_spent_this_turn',
+      `${id} has already expended a spell slot this turn`,
+    );
+  }
+
+  // SRD: "the spell takes on the higher level for that casting."
+  const castLevel = slot === null ? command.level : slot.level;
+  const concentration = command.concentration === true;
+  const castingId = nextCastingId(state);
+  const events: GameEvent[] = [];
+
+  // SRD: "You lose Concentration on an effect the moment you start casting a
+  // spell that requires Concentration." The moment you *start* — which is why
+  // this precedes the slot going, and why a casting that goes on to accomplish
+  // nothing still costs the caster the spell they were holding.
+  if (concentration && caster.concentration !== null) {
+    events.push({
+      type: 'concentration-ended',
+      id,
+      castingId: caster.concentration.castingId,
+      reason: 'another-concentration-effect',
+    });
+  }
+
+  events.push({
+    type: 'spell-cast',
+    castingId,
+    id,
+    spell: name.value,
+    level: castLevel,
+    slot,
+    slotless,
+    castingTime,
+    concentration,
+  });
+
+  if (concentration) {
+    events.push({ type: 'concentration-started', id, castingId, spell: name.value, level: castLevel });
+  }
+
+  return ok(events);
+}
+
+/**
+ * Impose a condition that belongs to the caster's ongoing Concentration.
+ *
+ * The source carries the casting id, so losing Concentration lifts exactly
+ * this instance — not every Hold Person on the target, and not a condition
+ * some other effect imposed.
+ */
+export function applySpellEffect(
+  state: GameState,
+  targetId: CharacterId,
+  condition: ConditionName,
+  casterId: CharacterId,
+  immuneTo: readonly ConditionName[] = [],
+): Result<GameEvent[]> {
+  const caster = creatureOf(state, casterId);
+  if (caster === null) return err('unknown_creature', `${casterId} is not in this game`);
+  if (caster.concentration === null) {
+    return err('not_concentrating', `${casterId} is not concentrating on anything`);
+  }
+
+  return applyConditionTo(
+    state,
+    targetId,
+    condition,
+    castingSource(caster.concentration.spell, caster.concentration.castingId),
+    immuneTo,
+  );
+}
+
+/**
+ * End a Concentration, and with it everything that casting created.
+ *
+ * SRD: "The creator can end Concentration at any time (no action required)",
+ * and "If the effect's creator loses Concentration, the effect ends."
+ *
+ * Breaking on Incapacitation or death does not come through here: that is not
+ * a decision anybody makes, so the reducer derives it. See `events.ts`.
+ */
+export function endConcentration(
+  state: GameState,
+  id: CharacterId,
+  reason: ConcentrationEndReason,
+): Result<GameEvent[]> {
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} is not in this game`);
+  if (creature.concentration === null) {
+    return err('not_concentrating', `${id} is not concentrating on anything`);
+  }
+
+  return ok([
+    { type: 'concentration-ended', id, castingId: creature.concentration.castingId, reason },
+  ]);
+}
+
+/**
+ * What a damaged concentrator has to roll, or null if nothing is at stake.
+ *
+ * SRD: "If you take damage, you must succeed on a Constitution saving throw to
+ * maintain Concentration. The DC equals 10 or half the damage taken (round
+ * down), whichever number is higher, up to a maximum DC of 30."
+ *
+ * Two details the wording decides:
+ *
+ * - **Damage taken, not hit points lost.** Temporary Hit Points absorb damage;
+ *   they do not stop it being taken. So this reads the damage after the
+ *   target's defences and *before* the temporary pool soaks any of it —
+ *   otherwise a Warlock behind Armor of Agathys would concentrate through
+ *   anything.
+ * - **Zero is not damage.** No save is called for.
+ *
+ * Each instance of damage is its own save at its own DC. Two hits of 10 are
+ * two DC 10 saves, never one DC 15.
+ *
+ * The save itself is an ordinary Constitution saving throw — roll it through
+ * `rollSavingThrow`, so proficiency, conditions and bonuses all apply — and a
+ * failure is reported back with {@link endConcentration}.
+ */
+export function concentrationSaveAfterDamage(
+  state: GameState,
+  id: CharacterId,
+  damage: number,
+): ConcentrationCheck | null {
+  const creature = creatureOf(state, id);
+  if (creature?.concentration == null) return null;
+  if (!Number.isFinite(damage) || damage <= 0) return null;
+
+  return {
+    castingId: creature.concentration.castingId,
+    spell: creature.concentration.spell,
+    ability: 'con',
+    dc: concentrationSaveDc(damage),
+    damage,
+  };
 }
