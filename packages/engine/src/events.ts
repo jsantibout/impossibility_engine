@@ -1,5 +1,6 @@
 import type { CharacterId, ConditionName } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
+import { ROUND } from './clock.js';
 import type { RngState } from './dice.js';
 import {
   applyCondition,
@@ -19,6 +20,7 @@ import {
   type Recovery,
   type ResourceState,
 } from './resources.js';
+import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
   castingIdOf,
   type CastingTime,
@@ -93,6 +95,10 @@ export interface CreatureState {
   readonly resources: ResourceState;
   /** The one casting this creature is sustaining, if any. */
   readonly concentration: Concentration | null;
+  /** The rest this creature is part-way through, if any. */
+  readonly resting: RestState | null;
+  /** When their last Long Rest finished, for the sixteen-hour rule. */
+  readonly lastLongRestAt: number | null;
 }
 
 /**
@@ -142,6 +148,14 @@ export interface GameState {
   readonly castingsBegun: number;
   /** Command ids already applied, by caller-supplied key. */
   readonly appliedCommands: Readonly<Record<string, AppliedCommand>>;
+  /**
+   * Seconds since the campaign began.
+   *
+   * One clock, counting up. There is no calendar and no time of day — those
+   * are fiction and the DM owns them. What the rules need is "how long since",
+   * which is subtraction.
+   */
+  readonly elapsed: number;
 }
 
 export function initialState(seed: string): GameState {
@@ -155,6 +169,7 @@ export function initialState(seed: string): GameState {
     eventCount: 0,
     castingsBegun: 0,
     appliedCommands: {},
+    elapsed: 0,
   };
 }
 
@@ -236,6 +251,16 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly pool: PoolDeclaration;
     }
+  /**
+   * Uses taken out of a pool on their own, rather than as part of a casting.
+   * Spending a Hit Die on a Short Rest is the first of these.
+   */
+  | {
+      readonly type: 'resource-spent';
+      readonly id: CharacterId;
+      readonly key: string;
+      readonly amount: number;
+    }
   | { readonly type: 'resources-restored'; readonly id: CharacterId; readonly recovers: Recovery }
 
   // — casting ——————————————————————————
@@ -281,6 +306,33 @@ export type GameEvent =
       readonly castingId: string;
       readonly reason: ConcentrationEndReason;
     }
+
+  // — the clock ————————————————————————
+  /**
+   * Time passing outside combat, because somebody said it did.
+   *
+   * Inside combat the clock is derived — a round is six seconds, and nobody
+   * decides that. Out of combat, how long the party spent searching the vault
+   * is narration, so it arrives as an event.
+   */
+  | { readonly type: 'time-advanced'; readonly seconds: number; readonly reason: string }
+
+  // — rests ————————————————————————————
+  | {
+      readonly type: 'rest-begun';
+      readonly id: CharacterId;
+      readonly kind: RestKind;
+      readonly command?: CommandStamp;
+    }
+  | {
+      readonly type: 'rest-ended';
+      readonly id: CharacterId;
+      readonly kind: RestKind;
+      /** What it earned, which is not always what was attempted. */
+      readonly benefit: RestBenefit;
+      readonly interrupted?: string;
+    }
+
 
 
   // — combat ——————————————————————————————————————————————————
@@ -501,8 +553,52 @@ function recordCommand(state: GameState, event: GameEvent): GameState {
   };
 }
 
+/**
+ * SRD rest interruptions: "Rolling Initiative", "Casting a spell other than a
+ * cantrip", "Taking any damage".
+ *
+ * Marked as they happen rather than reported by the caller. A caller who had
+ * to report them would eventually miss one, and the party would collect a rest
+ * the rules had already broken — which is the same reasoning that makes
+ * Concentration derived. The first cause is the one that broke it; later ones
+ * change nothing.
+ */
+function interruptedRests(state: GameState, event: GameEvent): GameState {
+  const broken: [CharacterId, string][] = [];
+
+  switch (event.type) {
+    case 'damage-taken':
+      if (event.amount > 0) broken.push([event.id, 'damage']);
+      break;
+    case 'spell-cast':
+      // "other than a cantrip" — a cantrip is level 0 and breaks nothing.
+      if (event.level > 0) broken.push([event.id, 'a spell']);
+      break;
+    case 'combat-started':
+      for (const combatant of event.combatants) broken.push([combatant.id, 'Initiative']);
+      break;
+    default:
+      return state;
+  }
+
+  let current = state;
+  for (const [id, cause] of broken) {
+    const creature = current.creatures[id];
+    if (creature?.resting == null || creature.resting.interruptedBy !== null) continue;
+    current = {
+      ...current,
+      creatures: {
+        ...current.creatures,
+        [id]: { ...creature, resting: { ...creature.resting, interruptedBy: cause } },
+      },
+    };
+  }
+  return current;
+}
+
 export function applyEvent(state: GameState, event: GameEvent): GameState {
-  return breakLostConcentration(recordCommand(applyOne(state, event), event));
+  const applied = applyOne(state, event);
+  return breakLostConcentration(recordCommand(interruptedRests(applied, event), event));
 }
 
 function applyOne(state: GameState, event: GameEvent): GameState {
@@ -525,6 +621,8 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             conditions: conditionState(),
             resources: resourceState(),
             concentration: null,
+            resting: null,
+            lastLongRestAt: null,
           },
         },
       };
@@ -625,6 +723,12 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return withCreature(next, event.id, { resources }, creature);
     }
 
+    case 'resource-spent': {
+      const creature = creatureOf(state, event, event.id);
+      const resources = must(event, spendResource(creature.resources, event.key, event.amount));
+      return withCreature(next, event.id, { resources }, creature);
+    }
+
     case 'resources-restored': {
       const creature = creatureOf(state, event, event.id);
       return withCreature(
@@ -689,14 +793,65 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return releaseCasting(next, event.id, event.castingId);
     }
 
+    case 'time-advanced': {
+      if (!Number.isInteger(event.seconds) || event.seconds < 0) {
+        throw new CorruptLogError(event, `time runs forwards in whole seconds, got ${event.seconds}`);
+      }
+      return { ...next, elapsed: state.elapsed + event.seconds };
+    }
+
+    case 'rest-begun': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.resting !== null) {
+        throw new CorruptLogError(event, `${event.id} is already resting`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        { resting: { kind: event.kind, startedAt: state.elapsed, interruptedBy: null } },
+        creature,
+      );
+    }
+
+    case 'rest-ended': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.resting === null) {
+        throw new CorruptLogError(event, `${event.id} is not resting`);
+      }
+      // A Long Rest only starts the sixteen-hour clock if it was actually
+      // finished as one. A Long Rest that collapsed into a Short Rest does
+      // not, or an interrupted night would lock out the next one.
+      return withCreature(
+        next,
+        event.id,
+        {
+          resting: null,
+          ...(event.benefit === 'long' ? { lastLongRestAt: state.elapsed } : {}),
+        },
+        creature,
+      );
+    }
+
     case 'combat-started':
       return { ...next, combat: must(event, startCombat(event.combatants)) };
 
     case 'combat-ended':
       return { ...next, combat: null };
 
-    case 'turn-advanced':
-      return { ...next, combat: advanceTurn(combatOf(state, event)) };
+    case 'turn-advanced': {
+      const before = combatOf(state, event);
+      const combat = advanceTurn(before);
+      // SRD: "A round represents about 6 seconds in the game world." A round
+      // ends when the Initiative order wraps, so that is when the clock moves.
+      // Derived rather than commanded: nobody decides how long a round takes,
+      // and a caller who had to remember would let a spell outlive its
+      // duration the first time they forgot.
+      return {
+        ...next,
+        combat,
+        elapsed: state.elapsed + (combat.round > before.round ? ROUND : 0),
+      };
+    }
 
     case 'action-spent':
       return { ...next, combat: must(event, spendAction(combatOf(state, event), event.id)) };

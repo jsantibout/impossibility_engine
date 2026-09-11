@@ -1221,6 +1221,24 @@ describe('a command id names one command, not a slot to reuse', () => {
     if (isErr(result)) expect(result.code).toBe('command_id_reused');
   });
 
+  /** Nor by being the same command aimed at somebody else. */
+  it('keeps the same command on two creatures apart', () => {
+    const log = [
+      ...table(),
+      { type: 'resource-pool-declared' as const, id: id('cleric'), pool: { key: spellSlotKey(2), label: 'l2', max: 1, recovers: 'long-rest' as const } },
+    ];
+    const first = run(log, (s) =>
+      castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2, commandId: 'both' }),
+    );
+    const result = castSpell(first.state, id('cleric'), {
+      ...HOLD,
+      slotLevel: 2,
+      commandId: 'both',
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('command_id_reused');
+  });
+
   /** Two operations cannot collide on an id by having similar shapes. */
   it('keeps a damage id and a casting id apart', () => {
     const log = run(table(), (s) => castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2 })).log;

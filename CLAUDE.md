@@ -265,6 +265,14 @@ Checked against the SRD text, not recalled. Each has a test pinning it.
   The difference shows higher up: two hits of 30 are two DC 15 saves, where one
   hit of 60 would be a single DC 30. Summing a round's damage and saving once
   is a harder save, not an equivalent one.
+- **A Long Rest restores *all* spent Hit Point Dice.** 2014 gave back half,
+  minimum one, and that is the version most tables still have in their heads.
+  2024: "You regain all lost Hit Points and all spent Hit Point Dice."
+- **An interrupted Short Rest is worth nothing; an interrupted Long Rest often
+  is not.** "An interrupted Short Rest confers no benefits", but for a Long
+  Rest, "If you rested at least 1 hour before the interruption, you gain the
+  benefits of a Short Rest." Treating both interruptions the same way robs the
+  party of a rest they earned.
 - **Damage order of application is adjustments, then Resistance, then
   Vulnerability** — and the order changes the answer. The SRD's worked example
   (28 fire, -5 aura, resistant and vulnerable) gives 22; doubling before
@@ -639,6 +647,65 @@ layer that knows.
   condition arriving but not leaving. Making it explicit would mean building a
   list that a retry could find stale; the trade was taken deliberately.
 
+## Rests And The Clock
+
+There is one clock, counting seconds up from the start of the campaign. No
+calendar, no time of day — those are fiction and the DM owns them. What the
+rules need is "how long since", and that is subtraction: the sixteen hours
+between Long Rests, the hour that turns a broken Long Rest into a Short one.
+
+Seconds because the game's units nest exactly — SRD, "A round represents about
+6 seconds", ten rounds to the minute — so every duration the rules name is a
+whole number of them and nothing lands between two rounds.
+
+**In combat the clock is derived.** A round ends when the Initiative order
+wraps, and six seconds have passed; nobody decides that. Out of combat, how
+long the party spent searching the vault is narration, so it arrives as a
+`time-advanced` event. Same split as everywhere else: rules are derived,
+judgements are events.
+
+**A rest is a span, not a button.** It begins, time passes, it ends. That is
+what lets the engine tell a completed rest from an abandoned one, and apply the
+rule that turns a Long Rest broken after an hour into a Short Rest rather than
+into nothing.
+
+**The engine notices its own interruptions.** The SRD lists four, and three of
+them the engine can see: rolling Initiative, casting a spell other than a
+cantrip, and taking any damage. Those mark the rest *as they happen*, so ending
+it reads what occurred instead of asking the caller to report it — a caller who
+had to report them would eventually miss one, and the party would collect a
+rest the rules had already broken. The fourth, "1 hour of walking or other
+physical exertion", is fiction the engine cannot see, so that one is passed in.
+The first cause is the one that broke it; later ones change nothing.
+
+**Hit Dice are a resource pool**, tagged `long-rest`, with the die size in the
+key because nothing else knows it: a sheet has a level but no class, and the
+class table saying a Wizard takes d6s is not modelled. Declared, never derived
+— the same rule as every other pool, and the reason pools landed before classes
+did.
+
+Spending them validates every die before rolling any, so asking for more than
+are left costs neither a die nor a turn of the generator.
+
+### Limitations, again stated rather than papered over
+
+- **The clock exists; effect durations do not.** Nothing yet expires when its
+  time runs out, because that needs a duration on every effect and an expiry
+  pass — its own milestone, of which the clock is the prerequisite rather than
+  the whole. Casting times of a minute or more stay refused for the same
+  reason.
+- **A rest cannot be resumed.** SRD lets you pick a Long Rest back up for one
+  extra hour per interruption. Modelling that means a rest that survives its
+  own interruption, and the honest version is not worth it before durations
+  land. Beginning a fresh rest works.
+- **Sleep is not Unconscious.** SRD: "During a Long Rest, you sleep for at
+  least 6 hours... During sleep, you have the Unconscious condition." Applying
+  that needs the rest to be a state a creature *sits in* mechanically, not just
+  a span the engine measures, and it would interact with the Concentration
+  break in ways worth testing properly rather than bolting on.
+- **Reduced ability scores and a reduced hit point maximum are not restored**,
+  because neither is modelled in the first place.
+
 ## Monsters State Their Numbers; Characters Derive Them
 
 A character's Armour Class follows from their armour and Dexterity. A monster's
@@ -857,7 +924,8 @@ a rules bug forever after.
 - M0: adventuring gear and tools (93 entries in `equipment.md`), plus classes,
   feats and magic items, are vendored but not yet parsed. Weapons and armour
   are done because `attack.ts` needs them; the rest can wait for a consumer.
-- M1: rests and the clock, level progression and class features. Spell slots,
-  Concentration and casting landed with `resources.ts` and `spells.ts`; the
-  limitations above are the honest edges of that work.
+- M1: effect durations and expiry — the clock is in place, nothing reads it
+  yet. Then level progression and class features. Spell slots, Concentration,
+  casting, rests and the clock have landed; the limitations above are the
+  honest edges of that work.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

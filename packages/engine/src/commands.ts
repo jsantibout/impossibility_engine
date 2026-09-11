@@ -110,8 +110,11 @@ type Identified =
 /**
  * Decide whether a command has already landed, and refuse a recycled id.
  *
- * The kind is part of the fingerprint so two different operations cannot
- * collide on one by having the same field names.
+ * The kind carries both the operation and the creature it acts on, so two
+ * commands cannot collide on one id by having the same field names or by
+ * being the same command aimed at somebody else. Either collision would
+ * silently swallow the second command, which is the outcome this exists to
+ * prevent.
  */
 function identify(state: GameState, kind: string, command: CommandIdentity): Result<Identified> {
   const id = command.commandId;
@@ -167,7 +170,7 @@ export function damageCreature(
   // Before anything else: a retry of a command that already landed is a no-op,
   // not a second hit. This has to precede validation too — otherwise a retry
   // reports whatever the first attempt caused rather than that it happened.
-  const identity = identify(state, 'damage', command);
+  const identity = identify(state, `damage:${id}`, command);
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
@@ -455,7 +458,7 @@ export function castSpell(
   // already landed is a no-op. Checking later would report the damage the
   // first attempt did — "no level 2 slots left" — instead of reporting that
   // the casting already happened.
-  const identity = identify(state, 'cast', command);
+  const identity = identify(state, `cast:${id}`, command);
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
@@ -782,7 +785,7 @@ export function resolveDamage(
   command: DamageCommand,
   supply: ConcentrationSaveSupply,
 ): Result<DamageResolution> {
-  const identity = identify(state, 'damage', command);
+  const identity = identify(state, `damage:${id}`, command);
   if (!identity.ok) return identity;
   if (identity.value.duplicate) {
     return ok({ events: [], concentration: { kind: 'none' }, duplicate: true });
