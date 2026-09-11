@@ -85,8 +85,11 @@ import {
 import {
   canSpendSpellSlotThisTurn,
   currentCombatant,
+  dash,
+  disengage,
   rollInitiative,
   spendAction,
+  spendAttack,
   spendMovement,
   spendBonusAction,
   spendReaction,
@@ -556,6 +559,65 @@ export function restoreResourcesOn(
   return ok([{ type: 'resources-restored', id, recovers }]);
 }
 
+// — the actions that change what a turn can do ————————————————————————————————
+
+/**
+ * SRD Dash: "you gain extra movement for the current turn. The increase equals
+ * your Speed after applying any modifiers."
+ */
+export function takeDash(
+  state: GameState,
+  id: CharacterId,
+  command: CommandIdentity,
+): Result<GameEvent[]> {
+  const identity = identify(state, `dash:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} has no record here yet; add it first`);
+  if (state.combat === null) {
+    return err('not_in_combat', 'there is no movement budget to add to outside combat');
+  }
+
+  // Validate the whole operation before any of it is emitted: the action has
+  // to be there to spend, and the increase has to be one this creature can
+  // actually receive.
+  const spent = spendAction(state.combat, id, creature.conditions);
+  if (!spent.ok) return spent;
+  const dashed = dash(spent.value, id, creature.conditions);
+  if (!dashed.ok) return dashed;
+
+  return ok([{ type: 'action-spent', id }, { type: 'dash-taken', id }]);
+}
+
+/**
+ * SRD Disengage: "your movement doesn't provoke Opportunity Attacks for the
+ * rest of the current turn."
+ */
+export function takeDisengage(
+  state: GameState,
+  id: CharacterId,
+  command: CommandIdentity,
+): Result<GameEvent[]> {
+  const identity = identify(state, `disengage:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return err('unknown_creature', `${id} has no record here yet; add it first`);
+  if (state.combat === null) {
+    return err('not_in_combat', 'there are no Opportunity Attacks to avoid outside combat');
+  }
+
+  const spent = spendAction(state.combat, id, creature.conditions);
+  if (!spent.ok) return spent;
+  const taken = disengage(spent.value, id);
+  if (!taken.ok) return taken;
+
+  return ok([{ type: 'action-spent', id }, { type: 'disengage-taken', id }]);
+}
+
 // — movement ——————————————————————————————————————————————————————————————————
 
 export interface MoveCommand extends CommandIdentity {
@@ -657,8 +719,12 @@ export function resolveMove(
   }
 
   // — what it provokes ———————————————————————————————————————————————————
+  // SRD Disengage: "your movement doesn't provoke Opportunity Attacks for the
+  // rest of the current turn." Forced movement provokes nothing either, for a
+  // different reason — it is not the creature's movement at all.
+  const disengaged = state.combat?.budgets[id]?.disengaged === true;
   const opportunity =
-    command.forced === true
+    command.forced === true || disengaged
       ? { provoked: [], unverified: [] }
       : provokedBy(state, id, from, to);
 
@@ -1009,9 +1075,16 @@ export function resolveAttack(
   // no economy to spend, exactly as `resolveCast` finds.
   const events: GameEvent[] = [];
   if (command.free !== true && state.combat !== null && state.combat.budgets[id] !== undefined) {
-    const spent = spendAction(state.combat, id, attacker.conditions);
+    // SRD Extra Attack: the action is taken once and holds however many
+    // attacks a feature puts in it, so only the first swing costs one.
+    const spent = spendAttack(
+      state.combat,
+      id,
+      attacker.sheet.attacksPerAction ?? 1,
+      attacker.conditions,
+    );
     if (!spent.ok) return spent;
-    events.push({ type: 'action-spent', id });
+    events.push({ type: 'attack-made', id });
   }
 
   // — the roll ———————————————————————————————————————————————————————————

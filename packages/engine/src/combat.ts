@@ -119,6 +119,24 @@ export interface TurnBudget {
   readonly bonusAction: boolean;
   readonly reaction: boolean;
   readonly movementRemaining: number;
+  /**
+   * Attacks left in the Attack action, or null if it has not been taken.
+   *
+   * SRD Extra Attack: "You can attack twice instead of once whenever you take
+   * the Attack action." The action is taken once and holds however many
+   * attacks a feature puts in it, so counting actions alone gave a level 5
+   * Fighter one swing a turn.
+   *
+   * Null rather than zero, because "has not attacked yet" and "has used up the
+   * attacks" are different states and only the first may take the action.
+   */
+  readonly attacksRemaining: number | null;
+  /**
+   * SRD Disengage: "your movement doesn't provoke Opportunity Attacks for the
+   * rest of the current turn." The turn is the whole of its life, which is why
+   * it lives in the budget and not on the creature.
+   */
+  readonly disengaged: boolean;
   /** SRD: one free object interaction per turn; a second needs Utilize. */
   readonly freeInteraction: boolean;
   /**
@@ -169,6 +187,8 @@ const fullBudget = (speed: number): TurnBudget => ({
   bonusAction: true,
   reaction: true,
   movementRemaining: Math.max(0, speed),
+  attacksRemaining: null,
+  disengaged: false,
   freeInteraction: true,
   spellSlotSpentOnTurn: null,
 });
@@ -357,6 +377,106 @@ export function spendReaction(
   }
 
   return ok(withBudget(state, id, { reaction: false }, budget.value));
+}
+
+/**
+ * Take the Attack action, or take another swing inside the one already taken.
+ *
+ * SRD: "When you take the Attack action, you can make one attack roll with a
+ * weapon or an Unarmed Strike", and Extra Attack puts more in the same action.
+ * So the first swing spends the action and fills the quiver; every swing after
+ * it empties the quiver and spends nothing.
+ */
+export function spendAttack(
+  state: CombatState,
+  id: CharacterId,
+  attacksPerAction: number,
+  conditions?: ConditionState,
+): Result<{ readonly state: CombatState; readonly tookAction: boolean }> {
+  const budget = requireTheirTurn(state, id);
+  if (!budget.ok) return budget;
+
+  // Still inside an Attack action already taken.
+  if (budget.value.attacksRemaining !== null) {
+    if (budget.value.attacksRemaining < 1) {
+      return err('no_attacks_left', `${id} has used every attack of their Attack action`);
+    }
+    return ok({
+      state: withBudget(
+        state,
+        id,
+        { attacksRemaining: budget.value.attacksRemaining - 1 },
+        budget.value,
+      ),
+      tookAction: false,
+    });
+  }
+
+  const taken = spendAction(state, id, conditions);
+  if (!taken.ok) return taken;
+
+  const after = requireTheirTurn(taken.value, id);
+  if (!after.ok) return after;
+
+  return ok({
+    state: withBudget(
+      taken.value,
+      id,
+      { attacksRemaining: Math.max(0, attacksPerAction - 1) },
+      after.value,
+    ),
+    tookAction: true,
+  });
+}
+
+/**
+ * SRD Dash: "you gain extra movement for the current turn. The increase equals
+ * your Speed **after applying any modifiers**."
+ *
+ * After modifiers is the load-bearing half, and the SRD spells it out: "If
+ * your Speed of 30 feet is reduced to 15 feet, you can move up to 30 feet this
+ * turn if you Dash." So the increase is read through the same conditions that
+ * reduce movement, not off the combatant's printed Speed.
+ */
+export function dash(
+  state: CombatState,
+  id: CharacterId,
+  conditions?: ConditionState,
+): Result<CombatState> {
+  const combatant = state.order.find((c) => c.id === id);
+  if (combatant === undefined) return err('not_a_combatant', `${id} is not in this fight`);
+
+  const budget = requireTheirTurn(state, id);
+  if (!budget.ok) return budget;
+
+  const increase =
+    conditions === undefined ? combatant.speed : conditionSpeed(conditions, combatant.speed);
+
+  return ok(
+    withBudget(
+      state,
+      id,
+      { movementRemaining: budget.value.movementRemaining + Math.max(0, increase) },
+      budget.value,
+    ),
+  );
+}
+
+/**
+ * SRD Disengage: no Opportunity Attacks from your movement, for this turn.
+ *
+ * The action each of these costs is spent by its own `action-spent` event, so
+ * neither of them spends it here: one event, one thing, and a reducer that
+ * cannot double-charge by replaying a pair.
+ */
+export function disengage(
+  state: CombatState,
+  id: CharacterId,
+): Result<CombatState> {
+  const budget = requireTheirTurn(state, id);
+  if (!budget.ok) return budget;
+
+  return ok(withBudget(state, id, { disengaged: true }, budget.value));
 }
 
 /**

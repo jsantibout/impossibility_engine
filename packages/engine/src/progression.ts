@@ -200,6 +200,15 @@ export type FeatureGrant =
        */
       readonly flatByLevel?: readonly number[];
     }
+  /**
+   * SRD Extra Attack: "You can attack twice instead of once whenever you take
+   * the Attack action."
+   *
+   * The *total* the Attack action holds, not the increment, because the
+   * Fighter's later features restate the total — "three attacks", "four" — and
+   * multiclassing takes the highest rather than adding them up.
+   */
+  | { readonly kind: 'extra-attack'; readonly attacks: number }
   | {
       readonly kind: 'unarmored-defense';
       readonly ability: Ability;

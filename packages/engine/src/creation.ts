@@ -1800,6 +1800,13 @@ export function planCharacter(
     }
   }
 
+  // SRD: the features "don't stack", so the most generous grant wins.
+  const attacksPerAction = features.reduce(
+    (most, feature) =>
+      feature.grants?.kind === 'extra-attack' ? Math.max(most, feature.grants.attacks) : most,
+    1,
+  );
+
   const alternatives: UnarmoredDefense[] = [];
   for (const feature of features) {
     const grant = feature.grants;
@@ -1844,6 +1851,7 @@ export function planCharacter(
     // Armour Class is derived exactly as it was before.
     ...(alternatives.length === 0 ? {} : { unarmoredDefense: alternatives }),
     ...(standing.length === 0 ? {} : { standing }),
+    ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
     ...(activated.length === 0 ? {} : { activated }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save

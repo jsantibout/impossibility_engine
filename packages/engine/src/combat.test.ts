@@ -252,6 +252,10 @@ describe('startCombat', () => {
       bonusAction: true,
       reaction: true,
       movementRemaining: 30,
+      // Null rather than 1: the Attack action has not been taken, which is a
+      // different state from having taken it and used every attack in it.
+      attacksRemaining: null,
+      disengaged: false,
       freeInteraction: true,
       spellSlotSpentOnTurn: null,
     });

@@ -53,7 +53,8 @@ still Wizard-shaped are named below.
 | Held attacks | A hit whose damage waits; Divine Smite cast into it | `be486c2` |
 | Audit fixes | Unknown distance; damage a temp-HP pool soaks | `f8043eb` |
 | Movement | `resolveMove` spends Speed; Opportunity Attacks | `07630c0` |
-| Death saves | The turn boundary rolls what it owes | _this batch_ |
+| Death saves | The turn boundary rolls what it owes | `5a94ef3` |
+| Action economy | Extra Attack, Dash, Disengage | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -80,6 +81,10 @@ still Wizard-shaped are named below.
 - **A definition that leaves part of its spell out declares it.**
   `SpellDefinition.unmodelled` comes back in `unverified` on every casting, so
   the gap reaches the narrating layer rather than sitting in a docstring.
+- **One event, one thing.** `dash-taken` first both spent the action and
+  granted the movement, and the command emitted `action-spent` beside it — so
+  replaying the pair charged twice. The action is spent by its own event and
+  each other event does only its own half.
 - **A pure function nothing calls is a rule nothing enforces.** Three times
   now:
   `rollAttack` was correct and unreachable until `resolveAttack`, and
@@ -293,10 +298,6 @@ What remains in the class system, in likely order:
 - **Sneak Attack**, which wants once-per-turn bookkeeping and a condition the
   engine can now nearly see: Advantage on the roll, or an ally within 5 feet
   of the target.
-- **Extra attacks inside the Attack action.** `resolveAttack` spends one
-  Attack action per swing, which is right for one attack and wrong for a
-  Fighter with Extra Attack. `AttackCommand.free` is the field it wants —
-  Opportunity Attacks already use it — and what is missing is the count.
 - **A pool that refills partly.** SRD Rage gives back *one* use on a Short Rest
   and all of them on a Long Rest; `restoreOn` refills a whole pool by tag, and
   every other recovery in the game is all or nothing.
@@ -335,8 +336,8 @@ Run `pnpm run coverage`; these were true at the last commit.
 | Spells executed and verified | 44 |
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 54 of 230 |
-| Tests | 2,423 passing, none skipped |
+| Class features executed | 61 of 230 |
+| Tests | 2,439 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

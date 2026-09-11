@@ -94,6 +94,17 @@ export interface CharacterSheet {
    * every event.
    */
   readonly activated?: readonly ActivatedFeature[];
+  /**
+   * How many attacks this character's Attack action holds. One, unless a
+   * feature says otherwise.
+   *
+   * SRD Multiclassing: "If you gain the Extra Attack feature from more than
+   * one class, the features don't stack. You can't make more than two attacks
+   * with this feature unless you have a feature that says you can." So a
+   * Fighter/Ranger has two, not three — the highest grant wins rather than the
+   * sum, and the Fighter's own later features are the ones that say more.
+   */
+  readonly attacksPerAction?: number;
   /** Set for creatures whose numbers are printed rather than derived. */
   readonly stated?: StatedValues;
 }

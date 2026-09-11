@@ -304,11 +304,16 @@ describe('the attack costs an action, once', () => {
     expect(out.state.combat?.budgets.fighter?.action).toBe(false);
   });
 
+  /**
+   * This sheet has no Extra Attack, so its Attack action holds exactly one —
+   * and the refusal names the attacks rather than the action, because the
+   * action is gone either way and only one of those tells you why.
+   */
   it('refuses a second one in the same turn', () => {
     const first = swing(fighting(), { target: GOBLIN, weapon: 'longsword' });
     const again = resolveAttack(first.state, FIGHTER, { target: GOBLIN, weapon: 'longsword' }, supply());
     expect(isErr(again)).toBe(true);
-    if (isErr(again)) expect(again.code).toBe('no_action');
+    if (isErr(again)) expect(again.code).toBe('no_attacks_left');
   });
 
   /** Outside combat there is no economy to spend, so a swing simply happens. */

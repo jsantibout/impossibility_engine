@@ -157,8 +157,9 @@ export const PALADIN: ClassDefinition = {
       id: 'paladin:extra-attack',
       name: 'Extra Attack',
       level: 5,
-      automation: 'manual',
-      note: 'The action economy counts one Attack action, not the attacks inside it.',
+      automation: 'engine',
+      note: 'SRD: "You can attack twice instead of once whenever you take the Attack action." The Attack action holds two attacks now rather than costing an action each.',
+      grants: { kind: 'extra-attack', attacks: 2 },
     },
     {
       id: 'paladin:faithful-steed',

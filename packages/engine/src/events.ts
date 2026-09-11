@@ -47,10 +47,13 @@ import {
 } from './spells.js';
 import {
   advanceTurn,
+  dash,
+  disengage,
   markSpellSlotSpent,
   startCombat,
   spendAction,
   spendBonusAction,
+  spendAttack,
   spendMovement,
   spendReaction,
   useFreeInteraction,
@@ -695,6 +698,16 @@ export type GameEvent =
   | { readonly type: 'bonus-action-spent'; readonly id: CharacterId }
   | { readonly type: 'reaction-spent'; readonly id: CharacterId }
   | { readonly type: 'movement-spent'; readonly id: CharacterId; readonly feet: number }
+  /**
+   * One attack of an Attack action.
+   *
+   * Not `action-spent`, because the action is taken once and holds however
+   * many attacks a feature puts in it. The reducer works out which of the two
+   * this is, from the budget and the sheet.
+   */
+  | { readonly type: 'attack-made'; readonly id: CharacterId }
+  | { readonly type: 'dash-taken'; readonly id: CharacterId }
+  | { readonly type: 'disengage-taken'; readonly id: CharacterId }
   | { readonly type: 'free-interaction-used'; readonly id: CharacterId }
   | { readonly type: 'combatant-removed'; readonly id: CharacterId }
   | {
@@ -1827,6 +1840,37 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         must(event, spendBonusAction(combatOf(state, event), event.id)),
       );
 
+    case 'attack-made': {
+      const creature = creatureOf(state, event, event.id);
+      return withCombat(
+        next,
+        state,
+        must(
+          event,
+          spendAttack(
+            combatOf(state, event),
+            event.id,
+            creature.sheet.attacksPerAction ?? 1,
+            creature.conditions,
+          ),
+        ).state,
+      );
+    }
+    case 'dash-taken': {
+      const creature = creatureOf(state, event, event.id);
+      return withCombat(
+        next,
+        state,
+        must(event, dash(combatOf(state, event), event.id, creature.conditions)),
+      );
+    }
+    case 'disengage-taken': {
+      return withCombat(
+        next,
+        state,
+        must(event, disengage(combatOf(state, event), event.id)),
+      );
+    }
     case 'reaction-spent':
       return withCombat(next, state, must(event, spendReaction(combatOf(state, event), event.id)));
 
