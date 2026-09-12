@@ -5,3 +5,34 @@
 
 # Vendored SRD transcription — never hand-edited, so keep diffs out of reviews.
 packages/srd/raw/*.md linguist-vendored
+
+# — generated files are regenerated, never hand-merged ————————————————————————
+#
+# `merge=binary` makes git refuse to auto-merge these: the path is left
+# conflicted with our version in the worktree, and you resolve it by re-running
+# the generator rather than by editing. That is deliberately louder than a text
+# merge, because a text merge of COVERAGE.md succeeds and produces arithmetic
+# nobody computed.
+#
+# Deliberately **not** `merge=union`. Every one of these is a line-oriented
+# list, which is exactly what makes union look tempting — and union accepts both
+# sides silently. On an SRD index that is a duplicated row which `spellById`'s
+# `.find()` resolves to the first of; on package-lock.json it is no longer JSON.
+# Union is safe only where a duplicated line is a no-op, and none of these are.
+#
+# `linguist-generated` collapses them in GitHub's diff. It does not affect merge.
+# Do not add `-diff`: CI diffs these files to detect drift.
+
+# resolve with: npm run coverage
+COVERAGE.md                   merge=binary linguist-generated=true
+
+# resolve with: git checkout --ours package-lock.json && npm install
+package-lock.json             merge=binary linguist-generated=true
+
+# resolve with: npm run srd:ingest && npm run srd:index
+packages/srd/src/*-index.ts   merge=binary linguist-generated=true
+
+# Frozen on purpose — a compatibility fixture that is never regenerated. A
+# conflict here means two branches both moved the goalposts, and it should stop
+# somebody rather than merge quietly. Resolve by taking main's copy untouched.
+packages/engine/fixtures/golden-log.json merge=binary linguist-generated=true
