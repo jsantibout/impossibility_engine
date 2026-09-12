@@ -87,7 +87,7 @@ still Wizard-shaped are named below.
 | Self-heal | Spend a use, roll the die, heal; Second Wind, Wholeness of Body | `d3e64e9` |
 | Recovery + heal | Uncanny Metabolism, which the two batches above had already built | `1c1e900` |
 | Healing touch | A pool of hit points spent by touching somebody; Lay On Hands, Restoring Touch | `ec14f10` |
-| Reaction windows | Five named instants shared by spells and features; 8 class Reactions | *(this batch)* |
+| Reaction windows | Five named instants shared by spells and features; 8 class Reactions | `e66c2f8` |
 
 ## Decisions that constrain what comes next
 
