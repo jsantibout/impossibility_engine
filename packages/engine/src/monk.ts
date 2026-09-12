@@ -278,8 +278,24 @@ export const WARRIOR_OF_THE_OPEN_HAND: SubclassDefinition = {
       id: 'open-hand:wholeness-of-body',
       name: 'Wholeness of Body',
       level: 6,
-      automation: 'manual',
-      note: 'Healing yourself as a Bonus Action, Wisdom-modifier times per Long Rest, is not modelled as its own pool.',
+      automation: 'engine',
+      note: 'Its uses are a pool sized by the Wisdom modifier with the SRD’s floor of one, refilling on a Long Rest. Spending one rolls the Martial Arts die at that Monk’s level and heals — SRD: "roll your Martial Arts die. You regain a number of Hit Points equal to the number rolled plus your Wisdom modifier (minimum of 1 Hit Point regained)."',
+      grants: {
+        kind: 'pool',
+        key: 'wholeness-of-body',
+        label: 'Wholeness of Body',
+        // SRD: "a number of times equal to your Wisdom modifier (minimum of once)."
+        fromAbilityModifier: 'wis',
+        minimum: 1,
+        recovers: 'long-rest',
+        heals: {
+          action: 'bonus-action',
+          diceByLevel: MARTIAL_ARTS_DIE,
+          plus: 'wis',
+          // SRD: "(minimum of 1 Hit Point regained)".
+          minimum: 1,
+        },
+      },
     },
     {
       id: 'open-hand:fleet-step',

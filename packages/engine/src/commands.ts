@@ -73,6 +73,7 @@ import {
   checkFeatureDamageTypes,
   evadesHalfDamage,
   recoveryCap,
+  selfHealAddend,
   standingAttackDamage,
   standingInitiativeModes,
   standingSkillModes,
@@ -82,7 +83,7 @@ import {
 } from './standing.js';
 import { rollAbilityCheck, rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
-import type { RollIssuer } from './rolls.js';
+import { rollRecorded, type RollIssuer } from './rolls.js';
 import {
   conditionInstanceId,
   conditionSpeed,
@@ -2742,6 +2743,103 @@ export function activateFeature(
   const timer = featureTimer(state, id, definition);
   if (!timer.ok) return timer;
   if (timer.value !== null) events.push(timer.value);
+
+  return ok(events);
+}
+
+export interface UseSelfHealCommand extends CommandIdentity {
+  readonly feature: string;
+}
+
+/**
+ * Spend a use of a feature, roll its die, and heal the holder.
+ *
+ * SRD Second Wind — "As a Bonus Action, you can use it to regain Hit Points
+ * equal to 1d10 plus your Fighter level" — and Wholeness of Body, which is the
+ * same sentence with the Monk's own die and modifier. Both pools were already
+ * declared, sized off the class table and refilling on the right rest, and
+ * neither gave back a hit point: Second Wind's note said as much out loud,
+ * *"healCreature exists and nothing ties the two together."*
+ *
+ * **Validate before rolling.** Every refusal here — no such feature, an empty
+ * pool, no Bonus Action, a dead Fighter — lands before the die is thrown, so a
+ * refused use costs neither the use nor a turn of the generator. Rolling first
+ * would let a rejected operation move authoritative state, and a replay would
+ * then diverge from the session that produced it.
+ *
+ * The healing itself goes through `healCreature`, so the cap at the hit point
+ * maximum and the rule that lifts unconsciousness from 0 hit points — and only
+ * that unconsciousness — are the ones already written rather than a second
+ * copy of them.
+ */
+export function useSelfHeal(
+  state: GameState,
+  id: CharacterId,
+  command: UseSelfHealCommand,
+  supply: { readonly issuer: RollIssuer; readonly rng: Rng },
+): Result<GameEvent[]> {
+  const identity = identify(state, `self-heal:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+
+  const definition = (creature.sheet.selfHeals ?? []).find((s) => s.feature === command.feature);
+  if (definition === undefined) {
+    return err('no_such_feature', `${id} has no feature called ${command.feature}`);
+  }
+
+  if (remaining(creature.resources, definition.pool) < 1) {
+    return err('exhausted', `${id} has no uses of ${definition.name} left`);
+  }
+
+  // Asked before the die rather than discovered after it: `healCreature`
+  // refuses a corpse, and a refusal that arrived after the roll would have
+  // spent a die on nothing.
+  if (creature.vitals.dead) {
+    return err('dead', `${id} is dead; hit points alone will not bring them back`);
+  }
+
+  const events: GameEvent[] = [];
+
+  // The action economy only exists in combat; outside it there is nothing to
+  // spend, exactly as `resolveCast` and `activateFeature` find.
+  if (state.combat !== null) {
+    const spent = spendFor(state, id, definition.action);
+    if (!spent.ok) return spent;
+    events.push(spent.value);
+  }
+
+  const issuedBefore = supply.issuer.count;
+  const rolled = rollRecorded(supply.issuer, supply.rng, definition.dice);
+  if (!rolled.ok) return rolled;
+
+  const addend = selfHealAddend(definition, creature.sheet.abilities);
+  // SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". Second Wind
+  // names no floor, and on 1d10 plus a level it could never reach one.
+  const amount = Math.max(definition.minimum ?? 1, rolled.value.total + addend.amount);
+
+  const healed = healCreature(state, id, amount);
+  if (!healed.ok) return healed;
+
+  events.push(
+    { type: 'resource-spent', id, key: definition.pool, amount: 1 },
+    {
+      type: 'roll-recorded',
+      who: id,
+      label: `${definition.name} (${definition.dice})`,
+      natural: rolled.value.total,
+      total: rolled.value.total + addend.amount,
+      contributions: [{ source: addend.label, amount: addend.amount }],
+      outcome: `${amount} hit points`,
+    },
+    { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+    ...healed.value.map((event) =>
+      event.type === 'healed' && stamp !== null ? { ...event, command: stamp } : event,
+    ),
+  );
 
   return ok(events);
 }

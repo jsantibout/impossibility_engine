@@ -297,6 +297,51 @@ export interface ActivatedFeature {
 }
 
 /**
+ * A feature whose use is spent to heal its own holder.
+ *
+ * Second Wind and Wholeness of Body. Both are a pool that already existed,
+ * sized off the class table and refilling on the right rest, with nothing on
+ * the other end of it: Second Wind's own note said *"healCreature exists and
+ * nothing ties the two together."*
+ *
+ * The die is resolved at creation because one of the two reads it off a class
+ * table — "roll your Martial Arts die" is 1d6 at Monk 1 and 1d10 at Monk 11 —
+ * and the addend is kept symbolic because one of the two is an ability
+ * modifier, which is a number on the sheet at the moment it is wanted.
+ */
+export interface SelfHealFeature {
+  readonly feature: string;
+  readonly name: string;
+  /** What using it costs in the action economy; outside combat, nothing. */
+  readonly action: 'action' | 'bonus-action';
+  /** The pool a use comes out of. */
+  readonly pool: string;
+  /** Resolved: "1d10", or the Martial Arts die at that Monk's level. */
+  readonly dice: string;
+  readonly plus:
+    | { readonly kind: 'level'; readonly level: number; readonly label: string }
+    | { readonly kind: 'ability'; readonly ability: Ability; readonly label: string };
+  /** SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". */
+  readonly minimum?: number;
+}
+
+/**
+ * What the feature adds to the die, and what to call it in the log.
+ *
+ * Derived rather than stored for the ability case, so the number is the one on
+ * the sheet when the die is thrown — the rule every conditional benefit in
+ * this file follows.
+ */
+export function selfHealAddend(
+  feature: SelfHealFeature,
+  abilities: Readonly<Record<Ability, number>>,
+): { readonly amount: number; readonly label: string } {
+  return feature.plus.kind === 'level'
+    ? { amount: feature.plus.level, label: feature.plus.label }
+    : { amount: abilityModifier(abilities[feature.plus.ability]), label: feature.plus.label };
+}
+
+/**
  * A feature that gives a *different* pool's uses back, at a moment that is not
  * a rest.
  *

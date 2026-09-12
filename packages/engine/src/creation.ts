@@ -1,5 +1,6 @@
 import {
   ABILITIES,
+  ABILITY_NAMES,
   SKILLS,
   err,
   needsContext,
@@ -18,6 +19,7 @@ import {
 import type {
   ActivatedFeature,
   RecoveryFeature,
+  SelfHealFeature,
   StandingEffect,
   StandingGrant,
 } from './standing.js';
@@ -1825,6 +1827,40 @@ export function planCharacter(
     }
   }
 
+  // A feature whose use is spent to heal its holder. The die is resolved here
+  // because one of the two reads it off a class table — "roll your Martial
+  // Arts die" is 1d6 at Monk 1 and 1d10 at Monk 11 — and the addend stays
+  // symbolic because the other one is an ability modifier, which is a number
+  // on the sheet at the moment the die is thrown.
+  const selfHeals: SelfHealFeature[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'pool' || grant.heals === undefined) continue;
+    const heals = grant.heals;
+
+    const level = classLevelFor(choices, feature.id);
+    const dice =
+      heals.diceByLevel === undefined
+        ? heals.dice
+        : heals.diceByLevel[Math.max(0, Math.min(level, heals.diceByLevel.length) - 1)];
+    if (dice === undefined) continue;
+
+    selfHeals.push({
+      feature: feature.id,
+      name: feature.name,
+      action: heals.action,
+      pool: grant.key,
+      dice,
+      plus:
+        heals.plus === 'class-level'
+          ? // "plus your **Fighter** level", so the class's own name is what
+            // the log should say rather than a bare number.
+            { kind: 'level', level, label: `${definition.name} level` }
+          : { kind: 'ability', ability: heals.plus, label: ABILITY_NAMES[heals.plus] },
+      ...(heals.minimum === undefined ? {} : { minimum: heals.minimum }),
+    });
+  }
+
   // A feature that gives some *other* pool's uses back. The key it refills is
   // resolved here rather than named by the feature, because Pact Magic's key
   // carries a slot level that moves as the Warlock levels — the same reason
@@ -1943,6 +1979,7 @@ export function planCharacter(
     ...(criticalOn < 20 ? { criticalOn } : {}),
     ...(activated.length === 0 ? {} : { activated }),
     ...(recoveries.length === 0 ? {} : { recoveries }),
+    ...(selfHeals.length === 0 ? {} : { selfHeals }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every

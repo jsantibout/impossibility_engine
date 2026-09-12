@@ -1,5 +1,10 @@
 import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shared';
-import type { ActivatedFeature, RecoveryFeature, StandingEffect } from './standing.js';
+import type {
+  ActivatedFeature,
+  RecoveryFeature,
+  SelfHealFeature,
+  StandingEffect,
+} from './standing.js';
 import type { Armor } from '@ie/srd';
 
 /**
@@ -103,6 +108,14 @@ export interface CharacterSheet {
    * carries a slot level that moves as the Warlock levels.
    */
   readonly recoveries?: readonly RecoveryFeature[];
+  /**
+   * Features whose use is spent to heal their own holder — Second Wind,
+   * Wholeness of Body.
+   *
+   * Resolved at creation beside `recoveries`, because one of the two reads its
+   * die off a class table.
+   */
+  readonly selfHeals?: readonly SelfHealFeature[];
   /**
    * How many attacks this character's Attack action holds. One, unless a
    * feature says otherwise.

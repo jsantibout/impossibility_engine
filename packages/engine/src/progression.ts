@@ -276,6 +276,33 @@ export type FeatureGrant =
       readonly recovers: Recovery;
       /** SRD: "you regain one expended use when you finish a Short Rest." */
       readonly regainsOnShortRest?: number;
+      /**
+       * What one use buys, where what it buys is hit points for the holder.
+       *
+       * Second Wind and Wholeness of Body, which are one sentence apart —
+       * "regain Hit Points equal to 1d10 plus your Fighter level" and "roll
+       * your Martial Arts die... plus your Wisdom modifier (minimum of 1 Hit
+       * Point regained)". Both pools were declared and sized correctly and
+       * neither gave back a hit point, because nothing joined a pool to
+       * `healCreature`.
+       *
+       * It hangs off the pool grant rather than standing beside it, because a
+       * feature that heals from a pool is not two features: the sizing, the
+       * recovery and the Short Rest clause all belong to the pool already, and
+       * restating them would be a second place to get the Fighter's table
+       * wrong.
+       */
+      readonly heals?: {
+        readonly action: 'action' | 'bonus-action';
+        /** SRD Second Wind: a printed "1d10". */
+        readonly dice?: string;
+        /** SRD Wholeness of Body: "your Martial Arts die" — a class-table column. */
+        readonly diceByLevel?: readonly string[];
+        /** SRD: "plus your Fighter level" or "plus your Wisdom modifier". */
+        readonly plus: 'class-level' | Ability;
+        /** SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". */
+        readonly minimum?: number;
+      };
     }
   /**
    * A feature that gives a *different* pool's uses back — see

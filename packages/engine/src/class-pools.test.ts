@@ -274,7 +274,11 @@ describe('a feature that claims a pool declares one', () => {
     expect(['short-rest', 'long-rest', 'dawn', 'special']).toContain(grant.recovers);
   });
 
-  /** Nine of them, which is the measure of what was being counted for nothing. */
+  /**
+   * Nine of them when the guard was written, which was the measure of what was
+   * being counted for nothing. Wholeness of Body joined them: it had a pool in
+   * its note and none in its grant, in exactly the same way.
+   */
   it('declares a pool for every class resource the notes name', () => {
     const keys = everyFeature()
       .map((f) => (f.grants?.kind === 'pool' ? f.grants.key : null))
@@ -289,6 +293,7 @@ describe('a feature that claims a pool declares one', () => {
       'lay-on-hands',
       'second-wind',
       'sorcery-points',
+      'wholeness-of-body',
       'wild-shape',
       'wizard:arcane-recovery',
     ]);

@@ -140,7 +140,7 @@ export const FIGHTER: ClassDefinition = {
       name: 'Second Wind',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool sized by the Second Wind column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. The 1d10 plus Fighter level of healing is not spent through the pool: healCreature exists and nothing ties the two together.',
+      note: 'Declared as a pool sized by the Second Wind column, refilling on a Long Rest, with one use back on a Short Rest. Spending a use rolls 1d10, adds the Fighter level and heals — SRD: "As a Bonus Action, you can use it to regain Hit Points equal to 1d10 plus your Fighter level." The Bonus Action is spent in combat, and outside combat there is no economy to spend.',
       grants: {
         kind: 'pool',
         key: 'second-wind',
@@ -149,6 +149,8 @@ export const FIGHTER: ClassDefinition = {
         recovers: 'long-rest',
         // SRD: "You regain one expended use when you finish a Short Rest."
         regainsOnShortRest: 1,
+        // SRD: "regain Hit Points equal to 1d10 plus your Fighter level."
+        heals: { action: 'bonus-action', dice: '1d10', plus: 'class-level' },
       },
     },
     {

@@ -46,6 +46,7 @@ import {
   takeReady,
   unequipItem,
   useRecovery,
+  useSelfHeal,
 } from './commands.js';
 
 /**
@@ -87,6 +88,16 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   weaponProficiencies: ['simple', 'martial'],
   activated: [
     { feature: 'test:stance', name: 'Stance', action: 'bonus-action', pool: null, lasts: 'end-of-next-turn' },
+  ],
+  selfHeals: [
+    {
+      feature: 'test:self-heal',
+      name: 'A Draught Of Vigour',
+      action: 'bonus-action',
+      pool: 'test:vigour',
+      dice: '1d10',
+      plus: { kind: 'level', level: 5, label: 'some level' },
+    },
   ],
   ...over,
 });
@@ -241,9 +252,9 @@ const untyped = (): readonly GameEvent[] => [
 ];
 
 /**
- * A creature with a feature that gives another pool's uses back, built by
- * hand rather than from a class table — so the guard is tested on the
- * mechanism rather than on the Sorcerer.
+ * A creature with a feature that gives another pool's uses back and one that
+ * spends a use to heal, both built by hand rather than from a class table — so
+ * the guard is tested on the mechanism rather than on the Sorcerer.
  */
 const recovering = (): readonly GameEvent[] => [
   ...SETUP,
@@ -279,6 +290,20 @@ const recovering = (): readonly GameEvent[] => [
     pool: { key: 'test:points', label: 'points', max: 6, recovers: 'long-rest' },
   },
   { type: 'resource-spent', id: C, key: 'test:points', amount: 6 },
+];
+
+/**
+ * A is hurt and has something to spend on it — a self-heal built by hand, so
+ * the guard is tested on the mechanism rather than on the Fighter.
+ */
+const vigorous = (): readonly GameEvent[] => [
+  ...SETUP,
+  {
+    type: 'resource-pool-declared',
+    id: A,
+    pool: { key: 'test:vigour', label: 'vigour', max: 2, recovers: 'long-rest' },
+  },
+  { type: 'damage-taken', id: A, amount: 20, source: 'a trap' },
 ];
 
 const GUARDED: readonly Guarded[] = [
@@ -334,6 +359,11 @@ const GUARDED: readonly Guarded[] = [
       resolveCast(s, A, { spell: 'Inflict Wounds', level: 1, slotLevel: 1, commandId }),
   },
   { name: 'resolveTurn', log: SETUP, run: (s, commandId) => resolveTurn(s, supply(), { commandId }) },
+  {
+    name: 'useSelfHeal',
+    log: vigorous(),
+    run: (s, commandId) => useSelfHeal(s, A, { feature: 'test:self-heal', commandId }, supply()),
+  },
   {
     name: 'useRecovery',
     log: recovering(),
