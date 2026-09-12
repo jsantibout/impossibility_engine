@@ -66,7 +66,9 @@ still Wizard-shaped are named below.
 | Missing facts | One policy for a fact nobody has told the engine | `9ef2cae` |
 | Persistence | A frozen log, the fold's real guarantee, a vocabulary contract | `768623d` |
 | Dead code | 14 exports removed, and an architecture CLAUDE.md still described | `312649e` |
-| Fold speed | Three derived passes stopped sorting the cast on every event | _this batch_ |
+| Fold speed | Three derived passes stopped sorting the cast on every event | `8be2697` |
+| Doctrine | `DOCTRINE.md`, audited; three conformance debts named | `bac982d` |
+| Later damage | A hit a turn boundary collects; Acid Arrow, Vitriolic Sphere | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -419,21 +421,18 @@ they are debts rather than surprises.
    to Unconscious on a second failure, which is a third outcome the hook
    machinery has no room for. Haste's lethargy fires when the spell ends, which
    is a trigger nothing raises.
-4. **Damage that arrives on a later turn.** Acid Arrow and Vitriolic Sphere
-   deal a second, smaller hit at the end of the target's next turn. The turn
-   hook machinery raises *saves*; this needs it to raise damage too.
-5. **Ongoing effects a later turn can act through** (18 spells). Spiritual
+4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-6. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
+5. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
    that can order a cast against the event that triggered it. This is the
    hardest remaining spell mechanism and is deliberately last.
-7. **Summons** (9 spells). Needs a creature created mid-fight from a stat
+6. **Summons** (9 spells). Needs a creature created mid-fight from a stat
    block, which `adaptMonster` can already produce — the gap is an event that
    adds it and ties its life to the casting.
-8. **Long casting times** (43 spells). Needs a casting-in-progress state
+7. **Long casting times** (43 spells). Needs a casting-in-progress state
    machine with a per-turn obligation; the clock alone was never the blocker.
-9. **Classes.** See below.
+8. **Classes.** See below.
 
 ## Classes: all twelve, with one subclass each
 

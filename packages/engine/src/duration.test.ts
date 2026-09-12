@@ -9,10 +9,13 @@ import { castingSource } from './spells.js';
 import {
   endOfNextTurn,
   forSeconds,
+  hasExpired,
   indefinite,
+  isDue,
   resolveDuration,
   startOfNextTurn,
   timeView,
+  type Deadline,
 } from './duration.js';
 import {
   applyConditionTo,
@@ -539,5 +542,52 @@ describe('durations survive a round trip', () => {
       on: id('goblin'),
       instance: conditionInstanceId('poisoned', 'venom'),
     });
+  });
+});
+
+/**
+ * The one place a deadline and a debt read the same moment differently.
+ *
+ * `hasExpired` answers "is there no moment left for this to end at", and says
+ * **yes** once the fight is over or the anchor has gone — deliberately, so
+ * that nothing runs forever. A scheduled hit asks a different question, "has
+ * the moment arrived", and for it the same circumstance means the moment never
+ * will. Reading one answer as the other fires Acid Arrow's second hit at the
+ * instant the last enemy drops.
+ *
+ * `dropStrandedDamage` removes such a schedule from state before anything asks
+ * either function, so this branch cannot be reached through the reducer. It is
+ * pinned here rather than deleted because the guard is what keeps the ordering
+ * of those two passes from becoming load-bearing — and because a mutation that
+ * flips it back should fail something.
+ */
+describe('a deadline that can never arrive', () => {
+  const gone: Deadline = { kind: 'turn-end', of: id('ghost'), count: 3 };
+
+  it('has expired, so an effect waiting on it ends', () => {
+    expect(hasExpired(timeView(fold('seed', table())), gone)).toBe(true);
+  });
+
+  it('is not due, so a debt waiting on it is forgiven rather than collected', () => {
+    expect(isDue(timeView(fold('seed', table())), gone)).toBe(false);
+  });
+
+  /** In the fight and not yet there: both agree it is neither over nor due. */
+  it('agrees with itself while the anchor is still taking turns', () => {
+    const log: GameEvent[] = [
+      ...table(),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: id('wizard'), initiative: 20, speed: 30 },
+          { id: id('goblin'), initiative: 10, speed: 30 },
+        ],
+      },
+    ];
+    const view = timeView(fold('seed', log));
+    const soon: Deadline = { kind: 'turn-end', of: id('goblin'), count: 2 };
+
+    expect(hasExpired(view, soon)).toBe(false);
+    expect(isDue(view, soon)).toBe(false);
   });
 });

@@ -31,11 +31,13 @@ import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
   hasExpired,
   pendingSaveKey,
+  scheduledDamageKey,
   timerKey,
   type Deadline,
   type EffectTarget,
   type PendingSave,
   type RepeatSave,
+  type ScheduledDamage,
   type TimeView,
   type TimedEffect,
 } from './duration.js';
@@ -408,6 +410,14 @@ export interface GameState {
    */
   readonly pendingSaves: Readonly<Record<string, PendingSave>>;
   /**
+   * Damage a spell promised and a later moment collects.
+   *
+   * In state rather than in a caller's hands, so it survives a reload — the
+   * difference between this and the pending Concentration save that had to be
+   * torn out. Keyed by casting and target.
+   */
+  readonly scheduledDamage: Readonly<Record<string, ScheduledDamage>>;
+  /**
    * An attack that has hit and not yet rolled its damage.
    *
    * SRD 2024 Divine Smite is cast as "a Bonus Action, which you take
@@ -448,6 +458,7 @@ export function initialState(seed: string): GameState {
     elapsed: 0,
     timers: {},
     pendingSaves: {},
+    scheduledDamage: {},
     pendingAttack: null,
     pendingMove: null,
   };
@@ -759,6 +770,31 @@ export type GameEvent =
       readonly effectKey: string;
       readonly turn: number;
       readonly success: boolean;
+    }
+  /**
+   * Damage a spell promised for a later moment.
+   *
+   * SRD Acid Arrow's "2d4 Acid damage at the end of its next turn". The dice
+   * are a notation rather than a total: the roll belongs to the moment, not to
+   * the casting, and a number written down here would be a number the log knew
+   * before the thing that produced it.
+   */
+  | {
+      readonly type: 'damage-scheduled';
+      readonly schedule: ScheduledDamage;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A scheduled hit, collected.
+   *
+   * This clears the debt and nothing else — the damage itself arrives as the
+   * ordinary `damage-taken` events beside it, so there is exactly one path by
+   * which a creature loses hit points and every rule that hangs off it
+   * (Concentration, Temporary Hit Points, dropping to 0) keeps working.
+   */
+  | {
+      readonly type: 'scheduled-damage-collected';
+      readonly key: string;
     }
 
   | {
@@ -1413,6 +1449,42 @@ function sortedRecord<T>(entries: Readonly<Record<string, T>>): Record<string, T
  * either way there is nothing left to save against, and a debt against a
  * vanished effect would block the turn order forever.
  */
+/**
+ * Drop a scheduled hit whose moment can no longer arrive.
+ *
+ * Turn-anchored timing is combat-scoped — CLAUDE.md argues that at length for
+ * effects and the same reasoning applies here, with the sign reversed. When
+ * the fight ends or the target leaves the Initiative order, the moment the
+ * damage was waiting for will never come. An effect in that position **ends**;
+ * a debt in that position is **forgiven**, because collecting it would mean
+ * firing the acid at the instant the last enemy dropped.
+ *
+ * Derived rather than commanded, for the usual reason: nobody decides that a
+ * combat ended, so nobody should have to remember what ending it forgives.
+ */
+function dropStrandedDamage(state: GameState): GameState {
+  const live: Record<string, ScheduledDamage> = {};
+  let changed = false;
+
+  for (const key of Object.keys(state.scheduledDamage).sort()) {
+    const scheduled = state.scheduledDamage[key];
+    if (scheduled === undefined) continue;
+
+    const deadline = scheduled.deadline;
+    const stranded =
+      (deadline.kind === 'turn-start' || deadline.kind === 'turn-end') &&
+      (state.combat?.turnCounts[deadline.of] ?? null) === null;
+
+    if (stranded) {
+      changed = true;
+      continue;
+    }
+    live[key] = scheduled;
+  }
+
+  return changed ? { ...state, scheduledDamage: live } : state;
+}
+
 function dropOrphanedSaves(state: GameState): GameState {
   const live: Record<string, PendingSave> = {};
   let changed = false;
@@ -1557,11 +1629,13 @@ function expireEffects(state: GameState): GameState {
 
 export function applyEvent(state: GameState, event: GameEvent): GameState {
   const applied = applyOne(state, event);
-  return dropOrphanedSaves(
-    dropLapsedReady(
-      expireEffects(
-        endLostFeatures(
-          breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+  return dropStrandedDamage(
+    dropOrphanedSaves(
+      dropLapsedReady(
+        expireEffects(
+          endLostFeatures(
+            breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+          ),
         ),
       ),
     ),
@@ -2009,6 +2083,23 @@ function applyOne(state: GameState, event: GameEvent): GameState {
           },
         }),
       };
+
+    case 'damage-scheduled': {
+      const key = scheduledDamageKey(event.schedule.source, event.schedule.target);
+      return {
+        ...next,
+        scheduledDamage: sortedRecord({ ...state.scheduledDamage, [key]: event.schedule }),
+      };
+    }
+
+    case 'scheduled-damage-collected': {
+      if (state.scheduledDamage[event.key] === undefined) {
+        throw new CorruptLogError(event, `no damage is scheduled under ${event.key}`);
+      }
+      const scheduledDamage = { ...state.scheduledDamage };
+      delete scheduledDamage[event.key];
+      return { ...next, scheduledDamage };
+    }
 
     case 'effect-save-resolved': {
       const key = pendingSaveKey(event.effectKey, event.turn);

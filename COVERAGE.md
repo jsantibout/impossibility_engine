@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 14 (4.1%) | 67 (19.8%) | 45 (13.3%) |
+| 339 | 14 (4.1%) | 68 (20.1%) | 45 (13.3%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -40,7 +40,7 @@ spell, and the area is the part that is missing.
 | Reaction timing | 4 | 0 | 0 | an interrupt mechanism that can order a cast against its trigger |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 0 | an effect that a later turn can act through |
-| Spell attack roll | 16 | 0 | 9 | — |
+| Spell attack roll | 16 | 0 | 10 | — |
 | Saving throw for damage | 30 | 0 | 13 | — |
 | Saving throw for a condition | 43 | 0 | 16 | — |
 | Restores Hit Points | 4 | 0 | 3 | — |
@@ -50,6 +50,7 @@ spell, and the area is the part that is missing.
 
 ### Executed today
 
+- **Acid Arrow** (level 2) — untested
 - **Acid Splash** (cantrip) — verified
 - **Animal Friendship** (level 1) — verified
 - **Bane** (level 1) — verified

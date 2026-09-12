@@ -1362,8 +1362,34 @@ Reported rather than refused, in `unverified`:
 - **Healing restores hit points only.** Lesser Restoration ends a condition,
   Revivify raises the dead, Aid raises the maximum — three more shapes, none of
   them here.
-- **No damage over time, and no effect that repeats without a save.** An effect
-  either happens at resolution or hangs a repeating save on a turn boundary.
+- **A second hit at a later moment now works; damage over time still does
+  not.** SRD Acid Arrow's "2d4 Acid damage at the end of its next turn" is a
+  `delayed` rider on the attack or the save that caused it, and Vitriolic
+  Sphere is the same sentence off a failed save. What that does *not* buy is an
+  effect that keeps dealing damage every round — one hit, one moment, and the
+  debt is discharged.
+
+  Three details the shape had to get right, each from the book rather than from
+  the shape being tidy:
+
+  - **The later damage carries its own scaling.** Acid Arrow: "The damage
+    (both initial and later) increases by 1d4 for each spell slot level above
+    2." Vitriolic Sphere: "The **initial** damage increases by 2d4" — its 5d4
+    never grows. One shared field would have silently made one of the two
+    spells wrong, and it is the sort of wrong nothing else could catch.
+  - **A miss or a successful save owes nothing later.** Both spells end the
+    sentence with "only".
+  - **The debt is the target's, not the casting's.** Both spells are
+    Instantaneous and neither takes Concentration, so the caster dying changes
+    nothing — the acid is already on them.
+
+  **A debt is not a deadline, and reads the same moment the other way.**
+  `hasExpired` says **yes** for an anchor who has left the fight, deliberately,
+  so nothing runs forever; `isDue` says **no** for the same deadline, because a
+  moment that will never arrive means the damage is forgiven rather than
+  collected. Reading one as the other fires Acid Arrow's second hit at the
+  instant the last enemy drops. Two functions over one `Deadline` type, and a
+  test pins the difference.
 - **A spell has one effect list applied to every target**, so nothing yet
   expresses "each creature takes damage *and* is knocked Prone" with different
   outcomes per target beyond the save each one rolls.

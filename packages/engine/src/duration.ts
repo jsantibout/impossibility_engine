@@ -211,6 +211,77 @@ export interface PendingSave {
   readonly turn: number;
 }
 
+/**
+ * Damage a spell promised and a later moment collects.
+ *
+ * SRD Acid Arrow: "the target takes 4d4 Acid damage **and 2d4 Acid damage at
+ * the end of its next turn**." Nothing about the target changes in between —
+ * no condition, no bonus, nothing an effect could be hung on — so this is
+ * neither a timer nor a repeat save. It is a debt with a due date.
+ *
+ * **The dice are a notation, not a number.** Rolling at cast time and storing
+ * the total would put a number in the log before the moment that produced it,
+ * and would let a player learn the second hit early. Randomness enters the log
+ * once, at the point of the roll, and the roll is at the boundary.
+ *
+ * Deliberately *not* a {@link TimedEffect}: a timer's deadline says when
+ * something **stops**, and `hasExpired` answers true for an anchor who has
+ * left the fight precisely so that nothing runs forever. Reading that same
+ * answer as "collect the damage" would fire the acid the instant the last
+ * enemy dropped. Same deadline type, opposite policy at the edge — see
+ * {@link isDue}.
+ */
+export interface ScheduledDamage {
+  readonly target: CharacterId;
+  /** When it falls due. Always the end of the target's next turn, so far. */
+  readonly deadline: Deadline;
+  /** Rolled when the moment arrives, never before. */
+  readonly notation: string;
+  readonly damageType: string;
+  /** `Acid Arrow#cast:3` — the casting that promised it. */
+  readonly source: string;
+  /** How the roll reads in the log. */
+  readonly label: string;
+}
+
+/**
+ * The key a schedule is filed under.
+ *
+ * By casting and target, so two Acid Arrows at one goblin each keep their own
+ * debt, and folding the same log twice produces one of each rather than two.
+ */
+export const scheduledDamageKey = (source: string, target: CharacterId): string =>
+  `${source}|${target}`;
+
+/**
+ * Whether a scheduled hit is due **now**.
+ *
+ * The difference from {@link hasExpired} is the whole reason this exists. That
+ * function answers "is there no moment left for this to end at", and returns
+ * true when the fight is over or the anchor has gone — which is right for an
+ * effect that must not outlive the fight, and exactly wrong for a debt, which
+ * would then be collected at the moment it should have been forgiven.
+ *
+ * So a schedule whose anchor is no longer taking turns is never due. Dropping
+ * it is a separate pass, and dropping is what happens to it.
+ */
+export function isDue(view: TimeView, deadline: Deadline): boolean {
+  switch (deadline.kind) {
+    case 'indefinite':
+      return false;
+    case 'elapsed':
+      return view.elapsed >= deadline.at;
+    case 'turn-start':
+    case 'turn-end': {
+      const turns = turnsOf(view.combat, deadline.of);
+      if (turns === null) return false;
+      return deadline.kind === 'turn-start'
+        ? turns.begun >= deadline.count
+        : turns.ended >= deadline.count;
+    }
+  }
+}
+
 /** One pending save can exist per effect per turn, and no more. */
 export const pendingSaveKey = (effectKey: string, turn: number): string =>
   `${effectKey}@${turn}`;

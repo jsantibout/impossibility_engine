@@ -53,6 +53,7 @@ import {
   scaledFlatFor,
   definitionFor,
   targetCountFor,
+  type DelayedDamage,
   type RiderDuration,
   type SpellArea,
   type SpellDefinition,
@@ -82,12 +83,15 @@ import {
 } from './conditions.js';
 import {
   endOfNextTurn,
+  isDue,
   resolveDuration,
   startOfNextTurn,
+  timeView,
   type Duration,
   type EffectTarget,
   type PendingSave,
   type RepeatSave,
+  type ScheduledDamage,
 } from './duration.js';
 import {
   canSpendSpellSlotThisTurn,
@@ -3220,6 +3224,82 @@ export interface TurnResolution {
   readonly duplicate?: boolean;
 }
 
+/**
+ * Every scheduled hit whose moment has arrived, in a stable order.
+ *
+ * A query, so a caller may look before advancing. Due-ness is a function of
+ * the turn counts alone: a schedule whose anchor has left the fight is never
+ * due, and a derived pass drops it — the moment did not arrive, so the damage
+ * is forgiven rather than collected.
+ */
+export function dueDamageOf(state: GameState): readonly (ScheduledDamage & { readonly key: string })[] {
+  const view = timeView(state);
+  return Object.keys(state.scheduledDamage)
+    .sort()
+    .flatMap((key) => {
+      const scheduled = state.scheduledDamage[key];
+      if (scheduled === undefined || !isDue(view, scheduled.deadline)) return [];
+      return [{ ...scheduled, key }];
+    });
+}
+
+/**
+ * Roll and apply every scheduled hit that has fallen due.
+ *
+ * The damage arrives as ordinary `damage-taken` events through the same
+ * `dealSpellDamage` every spell uses, so the target's Resistance, its
+ * Temporary Hit Points, its Concentration save and its dropping to 0 all
+ * behave exactly as they would from any other source. The only extra event is
+ * the one that clears the debt.
+ */
+function collectDueDamage(
+  state: GameState,
+  supply: ConcentrationSaveSupply,
+): Result<readonly GameEvent[]> {
+  const due = dueDamageOf(state);
+  if (due.length === 0) return ok([]);
+
+  const events: GameEvent[] = [];
+  let current = state;
+
+  for (const scheduled of due) {
+    const victim = current.creatures[scheduled.target];
+    // Gone from the game entirely — not merely out of the fight, which the
+    // derived pass already forgave. Nothing to hurt, so clear the debt.
+    if (victim === undefined) {
+      const cleared: GameEvent = { type: 'scheduled-damage-collected', key: scheduled.key };
+      events.push(cleared);
+      current = applyEvent(current, cleared);
+      continue;
+    }
+
+    // The sheet contributes nothing: `rollSpellDice` keeps only the components
+    // whose source is the spell, and the delayed hit is flat dice with no
+    // ability modifier. The victim's own is used because the caster may be
+    // dead by now — Acid Arrow is Instantaneous and the acid does not care.
+    const rolled = rollSpellDice(
+      supply,
+      victim.sheet,
+      scheduled.label,
+      scheduled.damageType,
+      scheduled.notation,
+    );
+    if (!rolled.ok) return rolled;
+
+    const hurt = dealSpellDamage(current, scheduled.target, rolled.value, scheduled.label, supply, {});
+    if (!hurt.ok) return hurt;
+
+    // Cleared first, so the log reads as the debt being settled and then the
+    // damage landing — and so a `damage-taken` that drops the target cannot
+    // leave the schedule behind if anything later throws.
+    const cleared: GameEvent = { type: 'scheduled-damage-collected', key: scheduled.key };
+    events.push(cleared, ...hurt.value.events);
+    current = [cleared, ...hurt.value.events].reduce(applyEvent, current);
+  }
+
+  return ok(events);
+}
+
 /** Every turn-boundary save still owed, in a stable order. */
 export function pendingSavesOf(state: GameState): readonly PendingSave[] {
   return Object.keys(state.pendingSaves)
@@ -3358,6 +3438,26 @@ export function resolveTurn(
     { type: 'turn-advanced', ...(stamp === null ? {} : { command: stamp }) },
   ];
   let after = advanced.reduce(applyEvent, state);
+
+  // A hit the last turn promised — SRD Acid Arrow's "at the end of its next
+  // turn". Collected **before** everything below it, for two reasons that both
+  // matter: the damage can break a Concentration, which ends the very effect
+  // whose repeat save this boundary would otherwise raise; and in a fight with
+  // one combatant the creature ending its turn is the creature beginning the
+  // next, so acid that drops it to 0 must land before the Death Save is asked
+  // for.
+  if (dueDamageOf(after).length > 0) {
+    if (supply === undefined) {
+      return err(
+        'damage_owed',
+        `${dueDamageOf(after).length} scheduled hit(s) fall due at this boundary; advancing needs a generator to roll them`,
+      );
+    }
+    const collected = collectDueDamage(after, supply);
+    if (!collected.ok) return collected;
+    advanced.push(...collected.value);
+    after = collected.value.reduce(applyEvent, after);
+  }
 
   // SRD: "Whenever you start your turn with 0 Hit Points, you must make a
   // Death Saving Throw." Whenever — nobody decides it, so the turn owes it the
@@ -4346,6 +4446,55 @@ function resolveOnTargets(
  * either way. Nothing else about the two halves differs, which is why they are
  * one function called twice rather than two functions kept in step by hand.
  */
+/**
+ * The `damage-scheduled` event a delayed hit needs, or nothing.
+ *
+ * SRD writes the moment as "at the end of its next turn" — anchored to the
+ * **target**, which is why this cannot reuse `riderDuration`'s caster-anchored
+ * pair. `endOfNextTurn` already encodes the asymmetry that makes it right: said
+ * on the target's own turn, the end of their *next* turn is two turn-endings
+ * away, not one.
+ *
+ * Outside combat there are no turns for it to be the end of, so nothing is
+ * scheduled and the caller is told. Refusing the whole casting would be worse
+ * — Acid Arrow is perfectly legal at a fleeing target nobody has rolled
+ * Initiative against, and its first 4d4 lands either way.
+ */
+function scheduleDelayed(
+  state: GameState,
+  target: CharacterId,
+  delayed: DelayedDamage,
+  context: {
+    readonly definition: SpellDefinition;
+    readonly castingId: string;
+    readonly castLevel: number;
+    readonly casterLevel: number;
+    readonly unverified: string[];
+  },
+): GameEvent | null {
+  const { definition, castingId, castLevel, casterLevel, unverified } = context;
+
+  const deadline = resolveDuration(timeView(state), endOfNextTurn(target));
+  if (!deadline.ok) {
+    unverified.push(
+      `${definition.name} owes ${target} a second hit at the end of their next turn, and there are no turns outside combat; it was not scheduled`,
+    );
+    return null;
+  }
+
+  return {
+    type: 'damage-scheduled',
+    schedule: {
+      target,
+      deadline: deadline.value,
+      notation: scaledDiceFor(delayed.damage, definition.level, casterLevel, castLevel),
+      damageType: delayed.damageType,
+      source: `${definition.name}#${castingId}`,
+      label: `${definition.name} (delayed)`,
+    },
+  };
+}
+
 function resolveEffects(
   state: GameState,
   casterId: CharacterId,
@@ -4462,6 +4611,23 @@ function resolveEffects(
           if (!rider.ok) return rider;
           events.push(...rider.value);
           current = rider.value.reduce(applyEvent, current);
+        }
+
+        // SRD Acid Arrow: "and 2d4 Acid damage at the end of its next turn".
+        // A miss already returned above, so reaching here is the hit — the
+        // same branch the condition rider takes, for the same reason.
+        if (effect.delayed !== undefined) {
+          const scheduled = scheduleDelayed(current, target, effect.delayed, {
+            definition,
+            castingId,
+            castLevel,
+            casterLevel: caster.sheet.level,
+            unverified,
+          });
+          if (scheduled !== null) {
+            events.push(scheduled);
+            current = applyEvent(current, scheduled);
+          }
         }
 
         outcomes.push({
@@ -4676,6 +4842,23 @@ function resolveEffects(
           if (!rider.ok) return rider;
           events.push(...rider.value);
           current = rider.value.reduce(applyEvent, current);
+        }
+
+        // SRD Vitriolic Sphere: "On a successful save, a creature takes half
+        // the initial damage **only**." Half the damage, none of the later
+        // hit — the success branch owes nothing, however much it still hurt.
+        if (effect.delayed !== undefined && !save.value.success) {
+          const scheduled = scheduleDelayed(current, target, effect.delayed, {
+            definition,
+            castingId,
+            castLevel,
+            casterLevel: caster.sheet.level,
+            unverified,
+          });
+          if (scheduled !== null) {
+            events.push(scheduled);
+            current = applyEvent(current, scheduled);
+          }
         }
 
         outcomes.push({

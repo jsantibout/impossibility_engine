@@ -83,6 +83,31 @@ export interface DiceScaling {
  */
 export type RiderDuration = 'start-of-casters-next-turn' | 'end-of-casters-next-turn';
 
+/**
+ * A second, smaller hit that arrives at a later moment.
+ *
+ * SRD Acid Arrow: "the target takes 4d4 Acid damage **and 2d4 Acid damage at
+ * the end of its next turn**." Vitriolic Sphere writes the same sentence off a
+ * failed save. It is not a condition and not an ongoing effect — nothing about
+ * the target changes in between — so it rides on the effect that caused it,
+ * exactly as `condition` does.
+ *
+ * **The scaling is its own**, and that is the detail a shared field would have
+ * flattened. Acid Arrow: "The damage (both initial and later) increases by 1d4
+ * for each spell slot level above 2." Vitriolic Sphere: "The **initial**
+ * damage increases by 2d4" — its later hit never grows. Two spells, two rules,
+ * one field each.
+ *
+ * **The moment is not a parameter.** Both spells say "at the end of its next
+ * turn", target-anchored, and nothing in the SRD this engine can execute says
+ * anything else. A field with one possible value is a field nothing reads —
+ * the argument `RiderDuration` already makes in the other direction.
+ */
+export interface DelayedDamage {
+  readonly damage: DiceScaling;
+  readonly damageType: string;
+}
+
 export type SpellEffect =
   /** A spell attack roll; damage on a hit. */
   | {
@@ -104,6 +129,14 @@ export type SpellEffect =
         /** Omitted, it lasts as long as the casting does. */
         readonly lasts?: RiderDuration;
       };
+      /**
+       * A second hit at the end of the target's next turn, on a hit only.
+       *
+       * SRD Acid Arrow: "On a miss, the arrow splashes the target with acid
+       * for half as much of the initial damage **only**." A miss owes nothing
+       * later, which is the same branch the condition rider already takes.
+       */
+      readonly delayed?: DelayedDamage;
     }
   /**
    * A saving throw that deals damage, with what a success buys stated.
@@ -147,6 +180,14 @@ export type SpellEffect =
         /** Omitted, it lasts as long as the casting does. */
         readonly lasts?: RiderDuration;
       };
+      /**
+       * A second hit at the end of the target's next turn, on a failure only.
+       *
+       * SRD Vitriolic Sphere: "On a successful save, a creature takes half the
+       * initial damage **only**." A creature that saved owes nothing later,
+       * however much of the initial damage it still took.
+       */
+      readonly delayed?: DelayedDamage;
     }
   /**
    * Temporary Hit Points.
@@ -524,6 +565,55 @@ export const INFLICT_WOUNDS: SpellDefinition = {
       damageType: 'necrotic',
       onSuccess: 'half',
     },
+  ],
+};
+
+/**
+ * SRD Acid Arrow:
+ *
+ * > _Level 2 Evocation (Wizard)._ **Casting Time:** Action. **Range:** 90
+ * > feet. **Duration:** Instantaneous.
+ * > "A shimmering green arrow streaks toward a target within range and bursts
+ * > in a spray of acid. Make a ranged spell attack against the target. On a
+ * > hit, the target takes 4d4 Acid damage and 2d4 Acid damage at the end of
+ * > its next turn. On a miss, the arrow splashes the target with acid for half
+ * > as much of the initial damage only."
+ * > _Using a Higher-Level Spell Slot._ "The damage (both initial and later)
+ * > increases by 1d4 for each spell slot level above 2."
+ *
+ * **The miss branch is not modelled and says so.** "Half as much of the
+ * initial damage only" on a *miss* is a third outcome the attack shape has no
+ * room for — an attack either hits or does nothing — and inventing a
+ * half-damage-on-a-miss path for one spell would be a mechanism with one user.
+ * So a miss deals nothing here and `unmodelled` names it, which is the honest
+ * version of a gap.
+ */
+export const ACID_ARROW: SpellDefinition = {
+  id: 'acid-arrow',
+  name: 'Acid Arrow',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 90 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      damage: { dice: '4d4', perSlotLevelAbove: '1d4' },
+      damageType: 'acid',
+      // "both initial and later" — so the later hit scales too, and by the
+      // same 1d4. Its own field, because the other spell with this shape
+      // scales the initial damage and not the later one.
+      delayed: {
+        damage: { dice: '2d4', perSlotLevelAbove: '1d4' },
+        damageType: 'acid',
+      },
+    },
+  ],
+  unmodelled: [
+    'On a miss the arrow still splashes for half the initial damage; a miss deals nothing here.',
   ],
 };
 
@@ -2517,10 +2607,15 @@ export const VITRIOLIC_SPHERE: SpellDefinition = {
       damage: { dice: '10d4', perSlotLevelAbove: '2d4' },
       damageType: 'acid',
       onSuccess: 'half',
+      // "The **initial** damage increases by 2d4 for each spell slot level
+      // above 4." That word is the whole difference between this spell and
+      // Acid Arrow, whose text reads "both initial and later" — so the
+      // later hit declares no growth, and carries its own scaling to say so.
+      delayed: {
+        damage: { dice: '5d4' },
+        damageType: 'acid',
+      },
     },
-  ],
-  unmodelled: [
-    'the further 5d4 Acid damage at the end of the target\u2019s next turn, which needs damage that arrives on a later turn',
   ],
 };
 
@@ -3171,6 +3266,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   CHILL_TOUCH,
   CIRCLE_OF_DEATH,
   CONE_OF_COLD,
+  ACID_ARROW,
   CURE_WOUNDS,
   DISSONANT_WHISPERS,
   DISINTEGRATE,

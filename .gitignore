@@ -11,3 +11,6 @@ packages/srd/src/generated/
 
 # 6MB binary, re-fetchable from a stable CC-BY URL: pnpm run srd:fetch-reference
 packages/srd/reference/*.pdf
+
+# Mutation-testing backups and other working files; never part of the build
+scratchpad/
