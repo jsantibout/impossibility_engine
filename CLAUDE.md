@@ -62,7 +62,7 @@ npm test                  # Vitest, all packages
 npm run test:watch
 npm run test:coverage
 npm run typecheck         # tsc -b (build) + tsconfig.tests.json (tests)
-npm run lint              # ESLint 9 flat config
+npm run lint              # ESLint 10 flat config
 ```
 
 Postgres is not required until M3.

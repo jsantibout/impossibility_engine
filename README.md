@@ -90,13 +90,14 @@ npm install
 npm test
 ```
 
-Requires Node 22+. Postgres is not needed until persistence lands.
+Requires Node 22.13+ or 24+ — the floor ESLint 10 and Vitest 4 set.
+Postgres is not needed until persistence lands.
 
 Other commands:
 
 ```bash
 npm run typecheck      # tsc for sources and tests
-npm run lint           # ESLint 9
+npm run lint           # ESLint 10
 npm run srd:ingest     # re-parse the vendored SRD and write JSON
 ```
 

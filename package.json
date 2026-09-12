@@ -5,7 +5,7 @@
   "type": "module",
   "description": "An AI Dungeon Master for D&D 2024, built on a deterministic SRD 5.2.1 rules engine.",
   "engines": {
-    "node": ">=22"
+    "node": "^22.13.0 || >=24"
   },
   "workspaces": [
     "packages/*",
@@ -28,7 +28,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^4.0.0",
-    "eslint": "^9.0.0",
+    "eslint": "^10.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.0.0",
