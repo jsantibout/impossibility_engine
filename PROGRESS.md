@@ -80,7 +80,8 @@ still Wizard-shaped are named below.
 | Chosen damage type | A rider whose type the holder names at the hit; Divine Strike, Primal Strike | `bae34d8` |
 | Critical range | The die face that scores a Critical Hit, off the sheet; the Champion | `7c0227e` |
 | Evasion | A halved Dexterity save becomes none; the Rogue and the Monk | `9a1ebb4` |
-| Rolls features change | Advantage on Initiative and on a skill; saving throw proficiencies | _this batch_ |
+| Rolls features change | Advantage on Initiative and on a skill; saving throw proficiencies | `92a3c88` |
+| Class pools | Nine features that claimed a pool and had none | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -773,6 +774,45 @@ still Wizard-shaped are named below.
   spelled `'all'` rather than the six written out, because that is how the
   feature reads and because writing six is how one gets missed.
 
+- **Nine features were counted as executed on the strength of a note, and
+  executed nothing.** Bardic Inspiration, both Channel Divinities, Wild Shape,
+  Second Wind, Action Surge, Monk's Focus, Lay On Hands and Sorcery Points all
+  said "declared as a pool" and none was. A Bard built by the engine had a Hit
+  Die, three spell-slot pools and a feat's free casting, and nowhere to spend
+  an inspiration from.
+
+  **This is the failure the coverage table exists to prevent, wearing the one
+  disguise it cannot see through**: a feature declares its own automation, and
+  nothing checked the declaration. The guard is now
+  `class-pools.test.ts` — *a note that claims a pool must be a feature that
+  declares one* — and it is worth more than the nine fixes it forced. A note is
+  prose and cannot be parsed for meaning; what it can be checked for is that if
+  it says the word, the feature has the thing.
+- **The SRD sizes a pool three ways and each is here because a feature uses
+  it**: a column of the class table (six of the nine), an ability modifier with
+  a floor (Bardic Inspiration: "equal to your Charisma modifier (minimum of
+  once)"), and a multiple of the class level (Lay On Hands: "five times your
+  Paladin level"). Each read at *that class's* own level, so a multiclassed
+  Bard's inspiration does not grow with their Fighter levels.
+- **`recovers` is honest about which of these it can express.** Monk's Focus
+  and Action Surge come back **whole** on a Short Rest and are tagged
+  `short-rest`; Channel Divinity, Wild Shape and Second Wind give back *one*
+  on a Short Rest and all on a Long, which the pool system cannot say, so they
+  are tagged `long-rest` and their notes name the gap. Tagging them
+  `short-rest` would hand a level 1 Fighter their whole Second Wind back after
+  every breather.
+- **Four features share that partial refill, which is the evidence the next
+  batch wants.** Rage, both Channel Divinities, Wild Shape and Second Wind all
+  say "one expended use when you finish a Short Rest" — five users of one
+  shape, where an hour earlier it looked like Rage's private quirk. `restore()`
+  in `resources.ts` already gives back N uses of one pool and is reached by no
+  command: the sixth instance of *a pure function nothing calls is a rule
+  nothing enforces*.
+- **Arcane Recovery stopped being matched by id.** It was the one pool declared
+  by name in `poolEvents` because "its single use is not a column in any
+  table"; `minimum` covers that, so it now uses the same grant as everything
+  else and the special case is gone.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -1222,7 +1262,7 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 75 of 230 |
-| Tests | 3,478 passing, none skipped |
+| Tests | 3,507 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

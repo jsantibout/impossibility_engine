@@ -76,6 +76,11 @@ export const DIVINE_STRIKE_DICE: readonly number[] = [
   0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
 ];
 
+/** Cleric Features table, Channel Divinity column. None at level 1. */
+export const CLERIC_CHANNEL_DIVINITY: readonly number[] = [
+  0, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4,
+];
+
 export const CLERIC: ClassDefinition = {
   id: 'cleric',
   name: 'Cleric',
@@ -129,7 +134,14 @@ export const CLERIC: ClassDefinition = {
       name: 'Channel Divinity',
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool that recharges on a Short Rest. What each use does is the subclass feature that spends it.',
+      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. SRD also gives back **one** use on a Short Rest, which the pool system expresses as all-or-nothing and so does not do. What each use buys — Turn Undead, Divine Spark — is not executed.',
+      grants: {
+        kind: 'pool',
+        key: 'channel-divinity',
+        label: 'Channel Divinity',
+        usesByLevel: CLERIC_CHANNEL_DIVINITY,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'cleric:subclass',

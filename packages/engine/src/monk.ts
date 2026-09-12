@@ -101,7 +101,14 @@ export const MONK: ClassDefinition = {
       name: "Monk's Focus",
       level: 2,
       automation: 'engine',
-      note: 'Focus Points are declared as a pool refilling on a Short Rest. Flurry of Blows, Patient Defense and Step of the Wind are what a point buys, and none is modelled.',
+      note: 'Declared as a pool of Focus Points sized by the class table, refilling on a **Short** Rest — SRD: "unavailable until you finish a Short or Long Rest, at the end of which you regain all your expended points", which is all-or-nothing and needs nothing the pool system lacks. What the points buy — Flurry of Blows, Patient Defense, Step of the Wind — is not executed.',
+      grants: {
+        kind: 'pool',
+        key: 'focus-points',
+        label: 'Focus Points',
+        usesByLevel: FOCUS_POINTS,
+        recovers: 'short-rest',
+      },
     },
     {
       id: 'monk:unarmored-movement',

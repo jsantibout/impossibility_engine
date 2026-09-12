@@ -63,6 +63,14 @@ const rows: readonly ClassLevelRow[] = TABLE.map((row) => ({
 export const SECOND_WIND_USES: readonly number[] = TABLE.map((row) => row[2] ?? 0);
 export const WEAPON_MASTERY_COUNT: readonly number[] = TABLE.map((row) => row[3] ?? 0);
 
+/**
+ * SRD Action Surge: one use, and "starting at level 17, you can use it twice".
+ * Not a column of the table — the feature says it — so it is written here.
+ */
+export const ACTION_SURGE_USES: readonly number[] = [
+  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2,
+];
+
 export const FIGHTER: ClassDefinition = {
   id: 'fighter',
   name: 'Fighter',
@@ -132,7 +140,14 @@ export const FIGHTER: ClassDefinition = {
       name: 'Second Wind',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool that recharges on a Short Rest, growing at levels 4, 10 and 16. Spending it to heal 1d10 plus Fighter level is the caller’s: the engine does not roll a pool’s effect for it.',
+      note: 'Declared as a pool sized by the Second Wind column, refilling on a Long Rest. SRD also gives back one use on a Short Rest, which the pool system does not express. The 1d10 plus Fighter level of healing is not spent through the pool: healCreature exists and nothing ties the two together.',
+      grants: {
+        kind: 'pool',
+        key: 'second-wind',
+        label: 'Second Wind',
+        usesByLevel: SECOND_WIND_USES,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'fighter:weapon-mastery',
@@ -146,7 +161,14 @@ export const FIGHTER: ClassDefinition = {
       name: 'Action Surge',
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool that recharges on a Short Rest. Taking the extra action is a command the caller issues; the pool is what stops it happening twice.',
+      note: 'Declared as a pool of one use, two from Fighter level 17, refilling on a **Short** Rest — SRD: "you can’t do so again until you finish a Short or Long Rest", which is all-or-nothing and so is exactly what the pool system already says. The extra action itself is not granted: the turn budget holds one action and nothing adds a second.',
+      grants: {
+        kind: 'pool',
+        key: 'action-surge',
+        label: 'Action Surge',
+        usesByLevel: ACTION_SURGE_USES,
+        recovers: 'short-rest',
+      },
     },
     {
       id: 'fighter:tactical-mind',

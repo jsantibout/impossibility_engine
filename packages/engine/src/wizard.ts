@@ -99,7 +99,14 @@ export const WIZARD: ClassDefinition = {
       name: 'Arcane Recovery',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a short-rest pool of one use. Choosing which slots to recover, and the half-level cap, are the caller’s: the engine does not restore them automatically.',
+      note: 'Declared as a pool of one use refilling on a Long Rest — the same grant every other class resource now uses, rather than the one feature matched by id. Choosing which slots to recover, and the half-level cap on their total, are the caller’s.',
+      grants: {
+        kind: 'pool',
+        key: 'wizard:arcane-recovery',
+        label: 'Arcane Recovery',
+        minimum: 1,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'wizard:scholar',

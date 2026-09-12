@@ -98,7 +98,14 @@ export const PALADIN: ClassDefinition = {
       name: 'Lay On Hands',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool of five hit points per Paladin level, refilling on a Long Rest. Spending it to heal, or to end the Poisoned condition for 5, is the caller’s: the engine does not decide how a pool is spent.',
+      note: 'Declared as a pool of five hit points per Paladin level, refilling on a Long Rest — SRD: "a total number of Hit Points equal to five times your Paladin level". A pool of hit points rather than of uses, which the pool system carries without caring. Spending it to heal, and the 5 points that end the Poisoned condition, are not wired to it.',
+      grants: {
+        kind: 'pool',
+        key: 'lay-on-hands',
+        label: 'Lay On Hands',
+        perClassLevel: 5,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'paladin:spellcasting',
@@ -134,7 +141,14 @@ export const PALADIN: ClassDefinition = {
       name: 'Channel Divinity',
       level: 3,
       automation: 'engine',
-      note: 'Declared as a pool refilling on a Short Rest. What a use does is the subclass feature that spends it.',
+      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. SRD also gives back one use on a Short Rest, which the pool system expresses as all-or-nothing and so does not do. What each use buys is not executed.',
+      grants: {
+        kind: 'pool',
+        key: 'channel-divinity',
+        label: 'Channel Divinity',
+        usesByLevel: PALADIN_CHANNEL_DIVINITY,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'paladin:subclass',

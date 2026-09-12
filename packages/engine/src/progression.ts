@@ -243,6 +243,36 @@ export type FeatureGrant =
    * written by hand, because that is how the two features read.
    */
   | { readonly kind: 'save-proficiency'; readonly abilities: readonly Ability[] | 'all' }
+  /**
+   * A named resource the feature *is*, rather than one it spends.
+   *
+   * Nine features were marked as executed on the strength of a note saying
+   * "declared as a pool", and no pool was ever declared: Bardic Inspiration,
+   * both Channel Divinities, Wild Shape, Second Wind, Action Surge, Monk's
+   * Focus, Lay On Hands and Sorcery Points. The `activated` grant beside this
+   * one already declares a pool, but only for a feature that is switched *on*
+   * and grants standing effects while it runs, which none of these is.
+   *
+   * The SRD sizes a pool three ways and each is here because a feature uses
+   * it: a column of the class table (six of the nine), an ability modifier
+   * with a floor (Bardic Inspiration: "equal to your Charisma modifier
+   * (minimum of once)"), and a multiple of the class level (Lay On Hands:
+   * "five times your Paladin level").
+   */
+  | {
+      readonly kind: 'pool';
+      readonly key: string;
+      readonly label?: string;
+      /** Uses by class level, straight off the class table. */
+      readonly usesByLevel?: readonly number[];
+      /** SRD Bardic Inspiration: "equal to your Charisma modifier". */
+      readonly fromAbilityModifier?: Ability;
+      /** The floor that modifier cannot go below: "(minimum of once)". */
+      readonly minimum?: number;
+      /** SRD Lay On Hands: "five times your Paladin level". */
+      readonly perClassLevel?: number;
+      readonly recovers: Recovery;
+    }
   | {
       readonly kind: 'unarmored-defense';
       readonly ability: Ability;

@@ -2033,6 +2033,42 @@ export function planCharacter(
  * so the count is read at *that class's* level, never the character's. A
  * Barbarian 3 / Fighter 5 rages three times, not six.
  */
+/**
+ * How big a pool a feature declares is, the three ways the SRD sizes one.
+ *
+ * A column of the class table, an ability modifier with a floor, or a multiple
+ * of the class level — each read at *that class's* own level, which is the
+ * same rule the slot tables and Rage's uses already follow and the reason a
+ * multiclassed Bard's inspiration does not grow with their Fighter levels.
+ */
+function poolSizeOf(
+  choices: CharacterChoices,
+  featureId: string,
+  grant: {
+    readonly usesByLevel?: readonly number[];
+    readonly fromAbilityModifier?: Ability;
+    readonly minimum?: number;
+    readonly perClassLevel?: number;
+  },
+): number {
+  if (grant.usesByLevel !== undefined) return usesOf(choices, featureId, grant.usesByLevel);
+
+  if (grant.perClassLevel !== undefined) {
+    const classId = featureId.split(':')[0] ?? '';
+    const level =
+      classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
+    return grant.perClassLevel * level;
+  }
+
+  if (grant.fromAbilityModifier !== undefined) {
+    const scores = finalScores(choices);
+    const modifier = abilityModifier(scores[grant.fromAbilityModifier] ?? 10);
+    return Math.max(grant.minimum ?? 0, modifier);
+  }
+
+  return grant.minimum ?? 1;
+}
+
 function usesOf(
   choices: CharacterChoices,
   featureId: string,
@@ -2148,15 +2184,19 @@ function poolEvents(
     });
   }
 
-  if (features.some((f) => f.id === 'wizard:arcane-recovery')) {
+  // A feature that *is* a named resource. Nine of these were marked executed
+  // on the strength of a note saying the pool existed, and none did.
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'pool') continue;
     events.push({
       type: 'resource-pool-declared',
       id,
       pool: {
-        key: 'wizard:arcane-recovery',
-        label: 'Arcane Recovery',
-        max: 1,
-        recovers: 'long-rest',
+        key: grant.key,
+        label: grant.label ?? feature.name,
+        max: poolSizeOf(choices, feature.id, grant),
+        recovers: grant.recovers,
       },
     });
   }

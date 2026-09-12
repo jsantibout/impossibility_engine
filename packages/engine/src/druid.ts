@@ -128,7 +128,14 @@ export const DRUID: ClassDefinition = {
       name: 'Wild Shape',
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool of uses refilling on a Short Rest. Becoming a Beast is not modelled: it replaces a creature’s whole stat block, and nothing can swap one mid-game.',
+      note: 'Declared as a pool sized by the Wild Shape column, refilling on a Long Rest. SRD also gives back one use on a Short Rest, which the pool system does not express. Becoming a Beast — the form’s statistics, the hours it lasts, and the Bonus Action either way — is not modelled.',
+      grants: {
+        kind: 'pool',
+        key: 'wild-shape',
+        label: 'Wild Shape',
+        usesByLevel: WILD_SHAPE_USES,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'druid:wild-companion',

@@ -118,7 +118,14 @@ export const SORCERER: ClassDefinition = {
       name: 'Font of Magic',
       level: 2,
       automation: 'engine',
-      note: 'Sorcery Points are declared as a pool that refills on a Long Rest. Converting them into spell slots and back is not modelled: it would mint a slot the class table never printed.',
+      note: 'Sorcery Points are declared as a pool sized by the class table, refilling on a Long Rest — SRD: "You regain all expended Sorcery Points when you finish a Long Rest." Converting them into spell slots and back is not modelled: it would mint a slot the class table never printed.',
+      grants: {
+        kind: 'pool',
+        key: 'sorcery-points',
+        label: 'Sorcery Points',
+        usesByLevel: SORCERY_POINTS,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'sorcerer:metamagic',

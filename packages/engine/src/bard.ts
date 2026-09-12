@@ -81,7 +81,15 @@ export const BARD: ClassDefinition = {
       name: 'Bardic Inspiration',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool of Charisma-modifier uses refilling on a Long Rest. Handing the die to somebody who has already rolled is `interveneAfterRoll`, which exists; nothing spends a Bard’s uses for it.',
+      note: 'Declared as a pool of Charisma-modifier uses, minimum one, refilling on a Long Rest — SRD: "a number of times equal to your Charisma modifier (minimum of once)". Handing the die to somebody who has already rolled is interveneAfterRoll, which exists; nothing spends a Bard’s uses for it.',
+      grants: {
+        kind: 'pool',
+        key: 'bardic-inspiration',
+        label: 'Bardic Inspiration',
+        fromAbilityModifier: 'cha',
+        minimum: 1,
+        recovers: 'long-rest',
+      },
     },
     {
       id: 'bard:spellcasting',
