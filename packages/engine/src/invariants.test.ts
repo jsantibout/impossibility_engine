@@ -34,6 +34,7 @@ import {
   takeDash,
   takeDisengage,
   takeDodge,
+  takeOpportunityAttack,
   takeReady,
   unequipItem,
 } from './commands.js';
@@ -166,6 +167,17 @@ const provoking = (): readonly GameEvent[] => {
   return [...SETUP, ...out.events];
 };
 
+/**
+ * Circling at five feet, which provokes nothing.
+ *
+ * SRD offers the Opportunity Attack for *leaving* a reach, so a move that
+ * starts and ends inside one is the ordinary case rather than an exotic one —
+ * and it is the branch `resolveMove` takes whenever nobody is owed a swing.
+ * The provoked branch has its own event to carry the stamp; this one did not,
+ * which is exactly why a sweep has to exercise both.
+ */
+const CIRCLING = { from: { creature: B }, feet: 5, bearing: 90 } as const;
+
 /** A feature already switched on, so ending and extending it are legal. */
 const stanced = (): readonly GameEvent[] => [
   ...SETUP,
@@ -202,6 +214,16 @@ const GUARDED: readonly Guarded[] = [
     log: SETUP,
     run: (s, commandId) =>
       resolveMove(s, A, { placement: { from: { creature: B }, feet: 15, bearing: 180 }, commandId }, supply()),
+  },
+  {
+    name: 'resolveMove (provoking nobody)',
+    log: SETUP,
+    run: (s, commandId) => resolveMove(s, A, { placement: CIRCLING, commandId }, supply()),
+  },
+  {
+    name: 'takeOpportunityAttack',
+    log: provoking(),
+    run: (s, commandId) => takeOpportunityAttack(s, B, { commandId }, supply()),
   },
   {
     name: 'resolveAttack',
@@ -270,6 +292,19 @@ describe('a retried command changes nothing the first one did not', () => {
       expect(eventsOf(retry.value)).toEqual([]);
     });
   }
+
+  /**
+   * And the fixture must exercise the branch it was written for.
+   *
+   * A move that provokes takes a different exit from `resolveMove` than one
+   * that does not, and only the first had an event carrying the stamp. Pinning
+   * which branch this fixture reaches is what stops the sweep quietly going
+   * back to covering one of the two.
+   */
+  it('the unprovoked move fixture really does provoke nobody', () => {
+    const out = unwrap(resolveMove(fold('s', SETUP), A, { placement: CIRCLING }, supply()), 'move');
+    expect(out.events.map((e) => e.type)).toEqual(['movement-spent', 'creature-moved']);
+  });
 
   /**
    * Reusing an id for different work is refused rather than swallowed. A

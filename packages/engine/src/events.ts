@@ -824,6 +824,14 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly placement: Placement;
       readonly forced?: boolean;
+      /**
+       * A move that provoked nothing is the whole command, so the stamp rides
+       * here. The provoked path stamps `movement-declared` instead, because
+       * there the move is only declared and something else completes it —
+       * and a `creature-moved` emitted by that completion is derived, so it
+       * carries no stamp of its own.
+       */
+      readonly command?: CommandStamp;
     }
   | { readonly type: 'creature-unplaced'; readonly id: CharacterId }
   /**

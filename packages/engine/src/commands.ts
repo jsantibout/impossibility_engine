@@ -1390,11 +1390,16 @@ function moveWithin(
       : provokedBy(state, id, from, to);
 
   if (opportunity.provoked.length === 0) {
+    // Nobody is owed a swing, so this is the whole move and the stamp belongs
+    // here. Without it the guard above computed a fingerprint that nothing
+    // ever recorded: a retry moved the creature a second time, and an id
+    // reused for different work was executed instead of refused.
     events.push({
       type: 'creature-moved',
       id,
       placement: command.placement,
       ...(command.forced === true ? { forced: true } : {}),
+      ...(stamp === null ? {} : { command: stamp }),
     });
     return ok({ events, feet, cost, unverified: opportunity.unverified, duplicate: false });
   }
@@ -1522,6 +1527,19 @@ export function takeOpportunityAttack(
   command: OpportunityCommand,
   supply: ConcentrationSaveSupply,
 ): Result<AttackResolution> {
+  // Before the offer is checked, exactly as `declineOpportunity` does it: the
+  // first run answered the offer and completed the move, so a retry finds no
+  // `pendingMove` and used to come back `not_provoked` — telling the caller
+  // they were never offered the swing that in fact landed. The guard has to
+  // precede validation or it reports the first run's consequences instead of
+  // the fact that it happened.
+  const identity = identify(state, `opportunity:${reactor}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    return ok({ events: [], attack: null, unverified: [], duplicate: true });
+  }
+  const stamp = identity.value.stamp;
+
   const waiting = state.pendingMove;
   if (waiting === null || !waiting.provoked.some((p) => p.reactor === reactor)) {
     return err('not_provoked', `${reactor} was not offered an Opportunity Attack`);
@@ -1547,7 +1565,10 @@ export function takeOpportunityAttack(
       weapon: command.weapon ?? null,
       // The Reaction above is what this costs; it is not the Attack action.
       free: true,
-      ...(command.commandId === undefined ? {} : { commandId: command.commandId }),
+      // No id: this command owns the guard, and the same id fingerprinted
+      // twice under two kinds would make the retry read as a reused id.
+      // Same split as `releaseReady`, which guards the release and hands the
+      // inner move no id of its own.
     },
     supply,
   );
@@ -1556,7 +1577,12 @@ export function takeOpportunityAttack(
   const answered: GameEvent[] = [
     ...events,
     ...swing.value.events,
-    { type: 'opportunity-answered', reactor, took: true },
+    {
+      type: 'opportunity-answered',
+      reactor,
+      took: true,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
   ];
 
   return ok({
