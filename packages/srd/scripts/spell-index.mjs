@@ -106,9 +106,6 @@ writeFileSync(
 export const ARMOR: readonly Armor[] = [
 ${armorBody}
 ];
-
-export const armorByName = (name: string): Armor | null =>
-  ARMOR.find((piece) => piece.name === name) ?? null;
 `,
   'utf8',
 );
@@ -131,9 +128,6 @@ writeFileSync(
 export const WEAPONS: readonly Weapon[] = [
 ${weapons.map((w) => `  ${JSON.stringify(w)},`).join('\n')}
 ];
-
-export const weaponById = (id: string): Weapon | null =>
-  WEAPONS.find((weapon) => weapon.id === id) ?? null;
 `,
   'utf8',
 );
