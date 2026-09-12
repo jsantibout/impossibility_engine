@@ -106,6 +106,25 @@ export type StandingGrant =
    * the attacker, not the other way round.
    */
   | { readonly kind: 'attacked-with-disadvantage'; readonly ifSeen: boolean }
+  /**
+   * SRD Evasion, which the Rogue and the Monk both have under that name:
+   *
+   * > "When you're subjected to an effect that allows you to make a Dexterity
+   * > saving throw to take only half damage, you instead take no damage if you
+   * > succeed on the saving throw and only half damage if you fail."
+   *
+   * Named for the SRD rule rather than for either class, exactly as
+   * `expertise` is — two features, one rule, and the rule has a name. It
+   * carries no fields because both features are word for word the same; where
+   * they differ is the Monk's "You can't use this feature if you have the
+   * Incapacitated condition", which is an ordinary `StandingRequirement` and
+   * is declared on that feature alone.
+   *
+   * It bites only where the effect already offers half on a success. An effect
+   * that offers nothing — Sacred Flame — has no half to take, and Evasion says
+   * nothing about it.
+   */
+  | { readonly kind: 'evasion' }
   | {
       readonly kind: 'attack-damage';
       readonly dice?: string;
@@ -628,6 +647,22 @@ function adjacentAllyOf(
     if (apart.ok && apart.value <= 5) return { found: true, declared: true };
   }
   return { found: false, declared: true };
+}
+
+/**
+ * Whether this creature's features turn a half-damage Dexterity save into none.
+ *
+ * Asked of the *target* rather than the caster, which is what makes it a
+ * defence: the Rogue standing in the Fireball is the one who evades it.
+ */
+export function evadesHalfDamage(
+  state: GameState,
+  who: CharacterId,
+  ability: Ability,
+  offersHalfOnSuccess: boolean,
+): boolean {
+  if (ability !== 'dex' || !offersHalfOnSuccess) return false;
+  return standingFor(state, who).some(({ effect }) => effect.grant.kind === 'evasion');
 }
 
 export function standingAttackDamage(

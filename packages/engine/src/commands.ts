@@ -71,6 +71,7 @@ import {
   defensesOf,
   effectiveConditions,
   checkFeatureDamageTypes,
+  evadesHalfDamage,
   standingAttackDamage,
   standingSaveBonuses,
   standingSaveModes,
@@ -5774,9 +5775,16 @@ function resolveEffects(
           ),
         );
 
+        // SRD Evasion: a successful Dexterity save against an effect that
+        // would have halved the damage takes **none** of it, and a failed one
+        // takes half. Read off the *target's* features, because it is a
+        // defence rather than something the caster does.
+        const evading = evadesHalfDamage(current, target, effect.ability, effect.onSuccess === 'half');
+
         // Nothing at all on a success means no damage roll either: the spell
         // did nothing, and rolling would move the generator for no reason.
-        if (save.value.success && effect.onSuccess === 'none') {
+        // Evasion reaches the same place from the other direction.
+        if (save.value.success && (effect.onSuccess === 'none' || evading)) {
           outcomes.push({ target, save: save.value, damage: 0, affected: false });
           continue;
         }
@@ -5809,7 +5817,10 @@ function resolveEffects(
         // SRD: "The halved damage is equal to half the damage that would be
         // dealt on a failed save." Half of what the spell deals, therefore
         // *before* the target's own Resistance — which then halves again.
-        const components = save.value.success
+        // Without Evasion the success is halved; with it the *failure* is,
+        // and the success took nothing at all above.
+        const halve = evading ? !save.value.success : save.value.success;
+        const components = halve
           ? rolledParts.map((c) => ({ ...c, total: Math.floor(c.total / 2) }))
           : rolledParts;
 

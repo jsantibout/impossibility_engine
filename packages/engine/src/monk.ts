@@ -174,8 +174,17 @@ export const MONK: ClassDefinition = {
       id: 'monk:evasion',
       name: 'Evasion',
       level: 7,
-      automation: 'manual',
-      note: 'Taking no damage on a successful Dexterity save is not applied: a save-for-damage effect states one outcome for everyone.',
+      automation: 'engine',
+      note: 'SRD: \"When you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you instead take no damage if you succeed on the saving throw and only half damage if you fail.\" Applied by the save-for-damage path, read off the target’s own features. It bites only where the effect already offers half on a success: Sacred Flame offers nothing, and Evasion says nothing about it. The Incapacitated clause is this feature’s own and is declared on it.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'evasion' }],
+        // SRD Monk: "You can't use this feature if you have the Incapacitated
+        // condition." The Rogue's Evasion says no such thing, which is why the
+        // requirement is declared per feature rather than assumed.
+        requires: [{ kind: 'not-incapacitated' }],
+      },
     },
     {
       id: 'monk:acrobatic-movement',

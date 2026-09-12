@@ -78,7 +78,8 @@ still Wizard-shaped are named below.
 | Ability checks | A check a spell offers against its own ongoing effect; `checks.ts` reachable | `e9a323f` |
 | Once per turn | An attack-damage rider with a per-turn allowance; Sneak Attack, Colossus Slayer | `52274c9` |
 | Chosen damage type | A rider whose type the holder names at the hit; Divine Strike, Primal Strike | `bae34d8` |
-| Critical range | The die face that scores a Critical Hit, off the sheet; the Champion | _this batch_ |
+| Critical range | The die face that scores a Critical Hit, off the sheet; the Champion | `7c0227e` |
+| Evasion | A halved Dexterity save becomes none; the Rogue and the Monk | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -719,6 +720,33 @@ still Wizard-shaped are named below.
   1 and say so. Three earlier tests in this file had been passing on the luck
   of a shared seed, which is the same failure in a quieter form.
 
+- **Evasion is named for the SRD rule, not for either class.** The Rogue and
+  the Monk both have a feature called Evasion and the texts are word for word
+  the same, so `{ kind: 'evasion' }` is the same move `{ kind: 'expertise' }`
+  already made — a grant named for a rule several features share. Where they
+  differ is one clause, and it is a `StandingRequirement` on the Monk's feature
+  alone: "You can't use this feature if you have the Incapacitated condition",
+  which the Rogue's text does not say.
+- **It bites only where the effect already offers half.** SRD: "an effect that
+  allows you to make a Dexterity saving throw **to take only half damage**".
+  Sacred Flame offers nothing on a success, so there is no half to take and
+  Evasion says nothing about it — a distinction the `onSuccess` field already
+  drew for a different reason.
+- **A defence is read off the target.** The Rogue standing in the Fireball is
+  the one who evades it, so the lookup is on the victim rather than on the
+  caster — which is what makes it different in kind from every attack-damage
+  rider in the two batches before it.
+- **An area spell rolls its dice per target, and that makes cross-target
+  arithmetic meaningless.** The first draft of the Evasion tests compared the
+  Rogue's damage to a bystander's and failed on numbers that were simply two
+  different rolls of 8d6. Worse, comparing the *same* creature across two casts
+  is only sound when the generator consumes the same draws either way — and an
+  evading target skips its damage roll entirely, so a second evader in the
+  blast desynchronises the two runs. The tests are solo: one caster, one
+  target, one save, one roll, and the only difference between the two logs is
+  the sheet under test. **A fixture whose arithmetic depends on the dice must
+  hold the dice still.**
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -1167,8 +1195,8 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells verified end to end | 47 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 69 of 230 |
-| Tests | 3,460 passing, none skipped |
+| Class features executed | 71 of 230 |
+| Tests | 3,470 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,
