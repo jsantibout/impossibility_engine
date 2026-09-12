@@ -362,6 +362,41 @@ still Wizard-shaped are named below.
   the default is the starting class, so every existing caller is unchanged.
   `MAX_LEVEL` is checked against the *total*.
 
+## Doctrine conformance, and the debts it names
+
+`DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
+and states what must stay true of the Engine whatever it is asked to do next.
+Audited against the code rather than assumed, most of it already holds: state
+moves only through events, events carry resolved outcomes, the engine is pure
+and headless, no model writes a number, commands are retry-safe, and
+`needs-context` is a first-class answer. Three gaps are real and named here so
+they are debts rather than surprises.
+
+- **A declared fact can be silently overwritten, and no command declares one.**
+  `creature-type-declared` goes through `withCreature` unvalidated, so a second
+  declaration of a different type overwrites the first with no refusal and no
+  record — and a Hold Person that already landed on a "Humanoid" becomes
+  retroactively illegitimate. Worse, *nothing emits it*: `resolveSpell` asks for
+  the event by name in a `satisfyWith`, but no command produces it, so the
+  layer above hand-assembles an event into the authoritative log. That is
+  narration writing directly to truth, which is invariant 1 inverted.
+  The fix is small because the mechanism exists — `declareSight` returns a
+  `Result` the reducer `must`s. The distinction that makes it safe:
+  **creature type is durable** (what a thing *is*), while **sight and cover are
+  momentary** (what is true *now*). Re-declaring sight is an update;
+  re-declaring type differently is a contradiction and should be refused.
+- **Provenance is per-command, not causal** (invariant 10). Events carry
+  `command?: CommandStamp`, which answers *who asked*. Nothing answers *what
+  caused this* — there is no link from an event to the event that provoked it,
+  and derived changes (expiry, Concentration breaking) write nothing at all, a
+  trade `CLAUDE.md` already documents. The doctrine says "eventually", so this
+  is a debt with a name rather than a bug.
+- **There is one scene.** `state.scene` is a single `PositionState | null`.
+  Multiple locations or world regions is a listed compatibility concern, and
+  this is the one structural decision that would be expensive to revisit later
+  and nearly free to keep open now. No action yet — evidence first, per the
+  generalization rule.
+
 ## Next actions, in order
 
 1. **Pour the rest of the utility bucket into the tracked shape.** 14 of 91

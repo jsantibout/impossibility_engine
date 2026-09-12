@@ -8,6 +8,13 @@ pure rules engine → tool surface → Claude orchestration → Fastify + React.
 Target user: a player who wants a real D&D campaign — solo or with friends —
 run by a DM with actual personality and rules you can trust.
 
+**`DOCTRINE.md` is the constitutional document and outranks this file.** It
+states what must remain true of the Engine whatever it is asked to do next;
+this file records how the code actually works and why. Where they disagree,
+the doctrine wins and this file is the thing that needs correcting. Its core
+principle is the one line worth carrying everywhere: **AI interprets
+possibility; the Engine adjudicates reality.**
+
 ## The Inviolable Rule
 
 **The model never produces a number.**
