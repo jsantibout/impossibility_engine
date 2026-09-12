@@ -15,6 +15,7 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import {
+  activateSpell,
   applyConditionTo,
   damageCreature,
   declareCreatureType,
@@ -429,6 +430,46 @@ const stung = (): readonly GameEvent[] => {
   ];
 };
 
+/**
+ * A casting that is still running and can be acted through on a later turn.
+ *
+ * Vampiric Touch, because it is the shape: the casting spends the Action, the
+ * turn comes round, and the spell strikes again through a record that has to
+ * survive everything in between.
+ */
+const draining = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({
+        ability: 'int',
+        prepared: ['inflict-wounds', 'disguise-self', 'vampiric-touch'],
+      }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(3), label: 'level 3 spell slot', max: 2, recovers: 'long-rest' },
+    },
+  ];
+  const cast = [
+    ...armed,
+    ...unwrap(
+      resolveSpell(fold('s', armed), A, { spellId: 'vampiric-touch', targets: [B], slotLevel: 3 }, supply()),
+      'drain',
+    ).events,
+  ];
+  // The casting was the Action; the turn has to come round before the spell
+  // can be used again.
+  let log: readonly GameEvent[] = cast;
+  for (let n = 0; n < 2; n += 1) {
+    log = [...log, ...unwrap(resolveTurn(fold('s', log), supply()), 'turn').events];
+  }
+  return log;
+};
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'damageCreature',
@@ -601,6 +642,18 @@ const GUARDED: readonly Guarded[] = [
     log: stung(),
     run: (s, commandId) =>
       takeDamageResponse(s, A, { feature: 'test:riposte', weapon: 'mace', commandId }, supply()),
+  },
+  /**
+   * Acting through a spell that is still running. The most retry-vulnerable
+   * casting there is: it spends an Action and rolls an attack, and the attack
+   * may miss — so the stamp rides on the activation rather than on damage that
+   * a miss never deals.
+   */
+  {
+    name: 'activateSpell',
+    log: draining(),
+    run: (s, commandId) =>
+      activateSpell(s, A, { castingId: 'cast:1', targets: [B], commandId }, supply()),
   },
   { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, A, 'rope', 1, commandId) },
   { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, A, 'chain-shirt', commandId) },

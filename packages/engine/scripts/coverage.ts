@@ -157,6 +157,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'cone-of-cold',
   'counterspell',
   'cure-wounds',
+  'dispel-magic',
   'dissonant-whispers',
   'eldritch-blast',
   'false-life',
@@ -164,6 +165,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'finger-of-death',
   'fire-bolt',
   'fireball',
+  'flame-blade',
   'flame-strike',
   'grease',
   'guidance',
@@ -185,6 +187,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'shatter',
   'shocking-grasp',
   'thunderwave',
+  'vampiric-touch',
   'vicious-mockery',
   'vitriolic-sphere',
 ];
@@ -200,9 +203,20 @@ export interface SpellCoverage {
   readonly spells: readonly ParsedSpell[];
 }
 
-/** A definition with no effects is tracked; one with effects is executed. */
+/**
+ * A definition the engine resolves nothing of is tracked; one it resolves
+ * something of is executed.
+ *
+ * "Something" is the spell's own effects **or its activation**: Flame Blade
+ * evokes a blade and does nothing else at the moment of casting, and every
+ * blow it ever strikes is machinery the engine owns. Counting it as tracked
+ * would understate the engine in exactly the direction this file exists to
+ * prevent.
+ */
 const TRACKED_IDS: ReadonlySet<string> = new Set(
-  SPELL_DEFINITIONS.filter((d) => d.effects.length === 0).map((d) => d.id),
+  SPELL_DEFINITIONS.filter((d) => d.effects.length === 0 && d.activation === undefined).map(
+    (d) => d.id,
+  ),
 );
 
 export function auditSpells(): SpellCoverage {

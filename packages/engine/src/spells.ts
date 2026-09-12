@@ -80,6 +80,95 @@ export interface Concentration {
 }
 
 /**
+ * A casting that is still mechanically running.
+ *
+ * **This is not the casting; it is what the casting left behind.** The casting
+ * is history and the event log has it — which slot went, which action, at what
+ * moment. This is the live half: the handful of facts a *later* mechanic has
+ * to be able to ask about, and which nothing else holds.
+ *
+ * The SRD decides every field, and Dispel Magic decides most of them: "Any
+ * ongoing spell of level 3 or lower on the target ends. For each ongoing spell
+ * of level 4 or higher on the target, make an ability check ... (DC 10 plus
+ * that spell's level)." To obey that sentence an engine must be able to say,
+ * of one creature, **which spells are on it and at what level** — and before
+ * this record the level lived only in the log and on a concentrating caster.
+ *
+ * | Field | The mechanic that needs it |
+ * |---|---|
+ * | `castingId` | the handle everything already uses to link an effect to its cause |
+ * | `level` | Dispel Magic's threshold and its DC |
+ * | `caster` | "**you** can take a Magic action" — nobody else may act through it |
+ * | `spellId` | finding the definition again, a minute later |
+ * | `route` | the save DC and attack modifier a later activation rolls with |
+ * | `on` | "on the target": which creatures this spell is currently affecting |
+ * | `concentration` | whether losing Concentration is what ends it |
+ *
+ * **No second identity.** One casting can affect several creatures — Hold
+ * Person at level 3 holds two — and each is released independently, but each
+ * is addressed as *(casting, creature)*, which the engine has always done.
+ * The only SRD spells that create several independently addressable *things*
+ * from one casting are the ones that give those things positions (Dancing
+ * Lights' four lights, Mage Hand's hand), and those are blocked on geometry
+ * rather than on identity.
+ *
+ * **What is deliberately absent**: the slot, the casting time, the targets as
+ * they were named, anything a narrator would like. Those are history, the log
+ * has them, and duplicating them here would make two answers to one question.
+ */
+export interface OngoingSpell {
+  /** The casting that created it — the same id every effect already carries. */
+  readonly castingId: string;
+  readonly caster: string;
+  /** The SRD slug, so a later activation finds the same definition. */
+  readonly spellId: string;
+  /** The display name, so a log needs no lookup. */
+  readonly spell: string;
+  /**
+   * The level it was cast at, which is the slot's level when upcast.
+   *
+   * The reason this record exists at all: Dispel Magic reads it, and nothing
+   * live held it for a spell whose caster is not concentrating.
+   */
+  readonly level: number;
+  readonly concentration: boolean;
+  /** Which grant supplied it, so a later activation rolls the same numbers. */
+  readonly route: string | null;
+  /**
+   * The creatures this spell is currently on, sorted.
+   *
+   * SRD Dispel Magic ends "any ongoing spell ... **on the target**", so this
+   * is the question it asks. It shrinks: a creature that shakes the spell off
+   * — Hold Person's repeat save, an escape check — leaves this list while the
+   * casting carries on for everyone else.
+   *
+   * **Range decides it, not the target list.** A Range: Self spell is on its
+   * caster however many creatures its effects reach: Vampiric Touch attacks
+   * somebody else every turn and is on the wizard. Everything else is on whom
+   * it was cast.
+   *
+   * Empty is a real state and not an error — Minor Illusion is on nobody,
+   * which is exactly why Dispel Magic calls that case "a magical effect"
+   * rather than a creature.
+   */
+  readonly on: readonly string[];
+}
+
+/**
+ * Why an ongoing spell stopped, when somebody *decided* it.
+ *
+ * Deliberately short. Concentration breaking and a deadline passing are
+ * derived — nobody decides either — so they end the record through the same
+ * reducer pass that already ends the conditions, with no event of their own.
+ * That is the audit trade `CLAUDE.md` records for expiry, unchanged.
+ */
+export type OngoingEndReason =
+  /** SRD Dispel Magic, and anything else that ends a spell by naming it. */
+  | 'dispelled'
+  /** SRD Mage Hand: "The hand vanishes ... if you cast this spell again." */
+  | 'recast';
+
+/**
  * Why a Concentration ended. Every one of these is in the SRD except
  * `dispelled`, which stands in for the effects that end a spell by name.
  */

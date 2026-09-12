@@ -78,7 +78,9 @@ describe('every executable spell is a spell the SRD actually has', () => {
  * casting.
  */
 describe('a spell the engine tracks says what it does not do', () => {
-  const tracked = SPELL_DEFINITIONS.filter((d) => d.effects.length === 0);
+  const tracked = SPELL_DEFINITIONS.filter(
+    (d) => d.effects.length === 0 && d.activation === undefined,
+  );
 
   it('has some, so the rule below is not vacuous', () => {
     expect(tracked.length).toBeGreaterThan(0);
@@ -93,7 +95,9 @@ describe('a spell the engine tracks says what it does not do', () => {
 
   /** And an executed spell is still allowed to have nothing to declare. */
   it('does not demand a note from a spell that does everything it says', () => {
-    const executed = SPELL_DEFINITIONS.filter((d) => d.effects.length > 0);
+    const executed = SPELL_DEFINITIONS.filter(
+    (d) => d.effects.length > 0 || d.activation !== undefined,
+  );
     expect(executed.some((d) => (d.unmodelled ?? []).length === 0)).toBe(true);
   });
 });

@@ -924,6 +924,142 @@ Counterspell is refused rather than nested. And it is not the long-casting-time
 machinery: a casting of a minute or more needs a per-turn obligation the caster
 must keep, which is a state machine, not a window.
 
+## A Casting Is History; What It Left Behind Is State
+
+The engine has given every casting an identity since the first spell landed,
+and used it to link the conditions and bonuses that casting created. What it
+never had was the other half — **which castings are still running, on whom, and
+at what level** — and three SRD sentences are unwritable without it:
+
+| Sentence | What it needs live |
+|---|---|
+| Dispel Magic: "any ongoing spell of level 3 or lower **on the target**" | which spells are on a creature, and their level |
+| Vampiric Touch: "you can make the attack again on each of your turns" | the casting, its caster, and the level it was cast at |
+| Mage Hand: "the hand vanishes ... **if you cast this spell again**" | the caster's own prior casting of that spell |
+
+`OngoingSpell` in `spells.ts` is that half, held in `state.ongoing` by casting
+id. **The log keeps the casting for ever** — which slot went, which action, at
+what moment — and this keeps only what a later rule has to ask. Ending the
+second never touches the first, which is what the distinction is for: a test
+asserts the record is gone and the `spell-cast` event is still there.
+
+**The level is why it exists.** Before it, a spell's level lived in the log and
+on a *concentrating* caster, so a spell whose caster was not concentrating had
+no live level anywhere and Dispel Magic had nothing to read.
+
+### No second identity, and the evidence for that
+
+One casting can affect several creatures — Hold Person at level 3 holds two —
+and each is released independently. But each is addressed as *(casting,
+creature)*, which the engine has done since the repeat save. The only SRD
+spells that make several independently addressable *things* from one casting
+are the ones that give those things **positions**: Dancing Lights' four lights,
+Mage Hand's hand, Spiritual Weapon's force. Every one of those is blocked on
+geometry, not on identity — so a second level of identity would have been a
+structure invented ahead of any mechanic that needed it.
+
+### Range decides what a spell is *on*; the target list does not
+
+Vampiric Touch is **Range: Self** and punches somebody else every turn. It is
+on the wizard. Getting this backwards would let a fighter end it by standing
+still and being hit. Everything else is on whom it was cast — **minus whoever
+it failed to catch**, because a creature that saved against Banishment is not
+banished and a record claiming otherwise reports a hit where there was none.
+
+That is why the record is written at the **end** of the resolution rather than
+beside the slot: what a casting is on is not knowable until the casting has
+resolved. A tracked spell resolves nothing and keeps all its targets, which is
+how Darkvision stays dispellable.
+
+### Lifecycle, and the one place it ends
+
+`releaseCasting` is the **single** place the record is removed, so Concentration
+breaking, a deadline arriving and an explicit dispel all converge on one answer
+to "is this spell still running". There is no second route by which a finished
+spell stays queryable, and no zombie.
+
+| | |
+|---|---|
+| Created | `spell-ongoing`, once the effects have resolved |
+| Concentration lost | the existing derived pass; no event, as before |
+| Deadline reached | the existing timer; no event, as before |
+| Dispelled or recast | `spell-ended`, with a reason |
+| Target shakes it off | leaves `on`; the casting runs for everyone else |
+| Target leaves the game | leaves `on`; the spell is **not** ended, because the SRD does not end a Bless when one of the blessed walks out |
+
+**Expiry and a broken Concentration still write nothing.** Nobody decides
+either, so they stay derived — the same audit trade this file already records
+for every other derived ending.
+
+### `spell-ended` carries the whole of Dispel Magic's target distinction
+
+`on: null` ends the casting and everything it made; `on: <creature>` releases it
+on that creature. Both operations have existed since Hold Person's repeat save;
+this is the event that names which. SRD lets Dispel Magic target "one creature,
+object, or **magical effect**", and that is the same distinction: a spell on
+this creature and nobody else has nothing left to be, so it ends, while one that
+caught three loses only this one.
+
+### Dispel Magic is 2024, and 2024 removed a roll
+
+"Any ongoing spell of level 3 or lower on the target ends" — **no check at
+all** below the threshold. The 2014 habit of rolling for everything is a
+different spell. Above it, "DC 10 plus that spell's level", a bare ability check
+on the caster's spellcasting ability. And the printed "level 3" is not a third
+number: it is the same sentence as *Using a Higher-Level Spell Slot* read at
+the spell's own level, so the engine has one rule — **automatic at or below the
+level this casting was made at.**
+
+The definition therefore carries **no numbers at all**. Every one of them is a
+fact the engine holds, and a definition restating any would be a second place
+to get the spell wrong.
+
+### Acting through a spell on a later turn
+
+`activateSpell` is the narrow shape two SRD spells write identically —
+Vampiric Touch and Flame Blade — and it is not scripting. What is pinned and
+what is read afresh is the whole design:
+
+| Pinned at the casting | Read again now |
+|---|---|
+| the level, so the dice do not grow when the caster does | who it is aimed at |
+| the route, so the numbers are the ones it was cast with | the range to them |
+| the caster — nobody else may act through it | their Armour Class, conditions, defences |
+
+**Flame Blade is the one that proves the shape is a shape**: its casting does
+nothing whatever, so its own effect list is empty and every blow it strikes
+comes through the activation. A spell whose activation the engine resolves is
+therefore **executed, not tracked**, and `coverage.ts` counts it that way.
+
+### The family that works and the family that does not
+
+The twenty-odd spells that act on a later turn split cleanly, and the split is
+not about the rule — it is about whether the spell made a **thing with its own
+position**:
+
+| | Spells | Status |
+|---|---|---|
+| A permission the caster exercises | Vampiric Touch, Flame Blade, Expeditious Retreat, Gust of Wind, Telekinesis, Detect Thoughts | the shape built here |
+| A thing with a position of its own | Spiritual Weapon, Flaming Sphere, Mage Hand's hand, Dancing Lights, Arcane Eye, Arcane Hand, Unseen Servant, Silent Image, Mislead, Project Image, Call Lightning's cloud | blocked on a spell-created thing having a position |
+
+The second column is the doctrine's own "non-creature persistent world objects"
+seam, and this primitive was built so it does not pretend that seam is closed:
+nothing here has coordinates, and a spell that needs them stays blocked rather
+than being half-served.
+
+### Two bugs this found in code that was already there
+
+- **`releaseOnTarget` computed the surviving bonuses and never applied them.**
+  From the day it was written. Nothing noticed because every spell that
+  released on one target hung a *condition* — Hold Person, Black Tentacles —
+  and Dispel Magic is the first thing to release a spell that hung a **bonus**.
+  A Bless the rules had ended went on adding its d4.
+- **`spell-cast` never declared the `route` it was emitting.** Excess-property
+  checking on a union accepts a property **any** member declares, and
+  `PendingCasting` declares one — so the field reached the log and no reader
+  could see it. This is the second instance of that trap in this file; the
+  first was a `command` stamp on an event that did not declare it.
+
 ## A Reaction Is A Window, Not A Trigger
 
 Eight class features spent eleven batches saying *"needs an interrupt the
@@ -2587,18 +2723,20 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 72 of 339 executable and 44 tracked, with the shapes that block
+- M1 spells: 75 of 339 executable and 46 tracked, with the shapes that block
   the rest counted in `COVERAGE.md` and ranked in `PROGRESS.md`. The utility
   bucket was audited spell by spell rather than by shape: 30 of the 76 open
   ones became tracked, 42 carry a rule the engine should own, and 4 depend on
   a world fact nothing can represent. **An ability check a spell offers against
   its own ongoing effect is now built** — Black Tentacles' escape, and the
   Investigation check that sees through Disguise Self, Minor Illusion and
-  Silent Image. The highest-leverage shape left is a **durable record of an
-  ongoing casting**: Dispel Magic needs the level of what it is dispelling, 18
-  spells need a casting a later turn can act through, and 17 need to enumerate
-  what is running in order to end it. Areas of effect, healing, saving throws for damage or a
-  condition, Temporary Hit Points, lasting bonuses and an interruptible casting
-  all work; summons, long casting times, ongoing effects a later turn acts
-  through, and a Reaction that answers a fall do not.
+  Silent Image. **A durable record of an ongoing casting is built too** — see
+  "A Casting Is History; What It Left Behind Is State": Dispel Magic reads the
+  level of what it is dispelling, Vampiric Touch and Flame Blade are used again
+  on a later turn, and Mage Hand and Minor Illusion end their own previous
+  casting. Areas of effect, healing, saving throws for damage or a condition,
+  Temporary Hit Points, lasting bonuses and an interruptible casting all work;
+  summons, long casting times, a spell that created a **thing with a position**
+  — Spiritual Weapon, Flaming Sphere, Call Lightning's cloud — and a Reaction
+  that answers a fall do not.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

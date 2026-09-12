@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 46 (13.6%) | 72 (21.2%) | 47 (13.9%) |
+| 339 | 46 (13.6%) | 75 (22.1%) | 50 (14.7%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -39,14 +39,14 @@ spell, and the area is the part that is missing.
 | Area of effect | 73 | 2 | 23 | — |
 | Reaction timing | 4 | 0 | 3 | falling — Counterspell now has a casting it can hold open |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
-| An ongoing effect that acts on later turns | 18 | 1 | 0 | an effect that a later turn can act through |
+| An ongoing effect that acts on later turns | 18 | 1 | 2 | an effect that a later turn can act through |
 | Spell attack roll | 16 | 0 | 10 | — |
 | Saving throw for damage | 30 | 0 | 13 | — |
 | Saving throw for a condition | 43 | 0 | 16 | — |
 | Restores Hit Points | 4 | 0 | 3 | — |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 1 | — |
-| Narrative or exploration effect | 91 | 43 | 2 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class, a Speed, a Resistance, healing |
+| Narrative or exploration effect | 91 | 43 | 3 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class, a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -74,6 +74,7 @@ spell, and the area is the part that is missing.
 - **Counterspell** (level 3) — verified
 - **Cure Wounds** (level 1) — verified
 - **Disintegrate** (level 6) — untested
+- **Dispel Magic** (level 3) — verified
 - **Dissonant Whispers** (level 1) — verified
 - **Divine Smite** (level 1) — untested
 - **Dominate Beast** (level 4) — untested
@@ -85,6 +86,7 @@ spell, and the area is the part that is missing.
 - **Finger of Death** (level 7) — verified
 - **Fire Bolt** (cantrip) — verified
 - **Fireball** (level 3) — verified
+- **Flame Blade** (level 2) — verified
 - **Flame Strike** (level 5) — verified
 - **Freezing Sphere** (level 6) — untested
 - **Grease** (level 1) — verified
@@ -119,6 +121,7 @@ spell, and the area is the part that is missing.
 - **Sunbeam** (level 6) — untested
 - **Sunburst** (level 8) — untested
 - **Thunderwave** (level 1) — verified
+- **Vampiric Touch** (level 3) — verified
 - **Vicious Mockery** (cantrip) — verified
 - **Vitriolic Sphere** (level 4) — verified
 - **Weird** (level 9) — untested
@@ -150,7 +153,7 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Longstrider** (level 1) — 1 noted
 - **Mage Hand** (cantrip) — 3 noted
 - **Message** (cantrip) — 3 noted
-- **Minor Illusion** (cantrip) — 4 noted
+- **Minor Illusion** (cantrip) — 3 noted
 - **Misty Step** (level 2) — 1 noted
 - **Move Earth** (level 6) — 3 noted
 - **Nondetection** (level 3) — 2 noted

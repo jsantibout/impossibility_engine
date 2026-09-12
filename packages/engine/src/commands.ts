@@ -179,6 +179,7 @@ import {
   type CastingTime,
   type ConcentrationCheck,
   type ConcentrationEndReason,
+  type OngoingSpell,
   type SlotlessReason,
 } from './spells.js';
 import {
@@ -3841,6 +3842,284 @@ export function reactionOpportunities(state: GameState): readonly ReactionOpport
   return found;
 }
 
+// — ongoing spells ————————————————————————————————————————————————————————————
+//
+// A casting is history; what it left behind is live state. `state.ongoing`
+// holds the second — see `OngoingSpell` in `spells.ts` for why each field is
+// there and why none of the others are.
+
+/**
+ * The spells currently running on a creature, oldest casting first.
+ *
+ * SRD Dispel Magic's actual question: "Any ongoing spell ... **on the
+ * target**". Sorted by casting id so two readers of the same state agree about
+ * the order, which matters because Dispel Magic walks the list rolling checks.
+ *
+ * A pure query over live state: it looks nothing up in the log, searches no
+ * history, and answers only what the rules ask for.
+ */
+export function ongoingSpellsOn(
+  state: GameState,
+  who: CharacterId,
+): readonly OngoingSpell[] {
+  return byCastingOrder(state).filter((record) => record.on.includes(who));
+}
+
+/** The spells this creature cast that are still running, oldest first. */
+export function ongoingSpellsBy(
+  state: GameState,
+  caster: CharacterId,
+): readonly OngoingSpell[] {
+  return byCastingOrder(state).filter((record) => record.caster === caster);
+}
+
+/** One ongoing spell by the casting that made it, or null if it has ended. */
+export function ongoingSpellOf(state: GameState, castingId: string): OngoingSpell | null {
+  return state.ongoing[castingId] ?? null;
+}
+
+/**
+ * Every ongoing spell, in the order the castings happened.
+ *
+ * Numerically, not lexically: `cast:2` runs before `cast:10`, and a string
+ * sort would put ten first — which would silently reorder the checks Dispel
+ * Magic rolls and make a replay of the same log produce different dice.
+ */
+function byCastingOrder(state: GameState): readonly OngoingSpell[] {
+  return Object.values(state.ongoing).sort(
+    (a, b) => castingNumber(a.castingId) - castingNumber(b.castingId),
+  );
+}
+
+const castingNumber = (castingId: string): number =>
+  Number(castingId.slice('cast:'.length)) || 0;
+
+/**
+ * Whether a casting is on its own caster rather than on whom it was aimed at.
+ *
+ * The SRD keeps Range and target apart and so does this. A Range: Self spell
+ * is on its caster however far its effects reach — Vampiric Touch attacks
+ * somebody new every turn and is on the wizard the whole time. Dispel Magic
+ * reads the result, so getting this backwards would let a fighter end the
+ * wizard's Vampiric Touch by standing still and being punched.
+ */
+function onCaster(definition: SpellDefinition): boolean {
+  return definition.range.kind === 'self';
+}
+
+/**
+ * Whether this casting leaves anything running.
+ *
+ * A duration or a Concentration, which is what "ongoing" means in the SRD's
+ * own Duration line. Instantaneous spells leave nothing and get no record —
+ * Fireball is history the moment it lands.
+ */
+function persists(definition: SpellDefinition): boolean {
+  return (
+    definition.concentration ||
+    definition.durationSeconds !== undefined ||
+    definition.durationUntil !== undefined
+  );
+}
+
+/**
+ * SRD Mage Hand: "The hand vanishes ... if you cast this spell again."
+ *
+ * The same caster, the same spell. A lookup over the live records rather than
+ * a search through history, which is the difference the ongoing record makes:
+ * before it, obeying this sentence meant scanning the log for a `spell-cast`
+ * and then proving nothing had ended it since.
+ */
+function replacedCastings(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+): readonly GameEvent[] {
+  if (definition.replacesPriorCasting !== true) return [];
+  return ongoingSpellsBy(state, casterId)
+    .filter((record) => record.spellId === definition.id)
+    .map((record) => ({
+      type: 'spell-ended' as const,
+      castingId: record.castingId,
+      on: null,
+      reason: 'recast' as const,
+    }));
+}
+
+export interface ActivateSpellCommand extends CommandIdentity {
+  /** Which running casting to act through, from {@link ongoingSpellsBy}. */
+  readonly castingId: string;
+  /** Who it is aimed at this time. "The same creature or a different one." */
+  readonly targets: readonly CharacterId[];
+}
+
+/**
+ * Use a spell that is still running, on a later turn.
+ *
+ * SRD Vampiric Touch: "Until the spell ends, you can make the attack again on
+ * each of your turns as a Magic action, targeting the same creature or a
+ * different one." Flame Blade writes the same sentence about a blade in your
+ * hand. Both are the same shape and it is a narrow one: **the caster spends an
+ * action and the spell does again what it already does.**
+ *
+ * What is pinned and what is fresh is the whole of the design:
+ *
+ * | Pinned at the casting | Read again now |
+ * |---|---|
+ * | the level it was cast at, so the dice do not grow | who it is aimed at |
+ * | the route, so the attack modifier is the one it was cast with | the range to them |
+ * | the caster — nobody else may act through it | their Armour Class, conditions, defences |
+ *
+ * **It is not generic scripting.** There is no trigger, no predicate and no
+ * ordering: a definition names an action, a range and the effects the spell
+ * already knows how to resolve, and this spends the one and runs the others.
+ * The spells that need more — a force with its own position, moved twenty feet
+ * before it strikes — are blocked on geometry, and are listed as such rather
+ * than half-served here.
+ */
+export function activateSpell(
+  state: GameState,
+  casterId: CharacterId,
+  command: ActivateSpellCommand,
+  supply: ConcentrationSaveSupply,
+): Result<SpellResolution> {
+  // Before the casting is even looked up. A retry arrives after the first run
+  // has already spent the action, and reporting "no such casting" for a
+  // casting that has since ended would be the confusion command ids exist to
+  // prevent.
+  const identity = identify(state, `activate:${casterId}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    const already =
+      command.commandId === undefined ? null : commandOutcome(state, command.commandId);
+    return ok({
+      events: [],
+      castingId: already?.castingId ?? command.castingId,
+      outcomes: [],
+      unverified: [],
+    });
+  }
+  const stamp = identity.value.stamp;
+
+  // The same rule that stops the turn advancing: acting while a boundary save
+  // is outstanding resolves against a state nobody has settled.
+  const owed = pendingSavesOf(state);
+  if (owed.length > 0) {
+    return err(
+      'saves_pending',
+      `${owed.length} turn-boundary save(s) are still owed; resolve them before acting`,
+    );
+  }
+
+  const record = state.ongoing[command.castingId];
+  if (record === undefined) {
+    return err(
+      'not_ongoing',
+      `${command.castingId} is not a spell that is still running`,
+    );
+  }
+
+  // SRD: "**you** can make the attack again." A spell is not a thing lying
+  // about for anyone to pick up, and this is the refusal that says so.
+  if (record.caster !== casterId) {
+    return err(
+      'not_your_spell',
+      `${command.castingId} is ${record.caster}'s casting; ${casterId} cannot act through it`,
+    );
+  }
+
+  const caster = creatureOf(state, casterId);
+  if (caster === null) return unknownCreature(casterId);
+
+  const definition = definitionFor(record.spellId);
+  if (definition?.activation === undefined) {
+    return err(
+      'no_activation',
+      `${record.spell} is not a spell its caster can use again on a later turn`,
+    );
+  }
+  const activation = definition.activation;
+
+  // The route the casting was made with, not whichever one happens to supply
+  // the spell now. A Sage Fighter who later learns the spell as a Wizard does
+  // not re-aim a minute-old casting through a better save DC.
+  const chosen = chooseRoute(caster.spellcasting, record.spellId, record.route ?? undefined);
+  if (!chosen.ok) return chosen;
+
+  if (command.targets.length !== 1) {
+    return err(
+      'wrong_target_count',
+      `${record.spell} strikes one creature at a time, got ${command.targets.length}`,
+    );
+  }
+  const target = command.targets[0]!;
+  if (creatureOf(state, target) === null) return unknownCreature(target);
+
+  // Checked afresh: the creature that was in reach a minute ago may not be.
+  const unverified: string[] = [];
+  const reach = ranged(activation.range);
+  if (reach !== null) {
+    if (state.scene === null) {
+      unverified.push(
+        `no scene is set, so ${record.spell} could not check that ${target} is within ${reach} feet`,
+      );
+    } else {
+      const apart = distanceBetween(state.scene, casterId, target);
+      if (!apart.ok) {
+        unverified.push(
+          `nobody has said where ${casterId} and ${target} are standing, so ${record.spell}'s ${reach}-foot reach went unchecked`,
+        );
+      } else if (apart.value > reach) {
+        return err(
+          'out_of_range',
+          `${target} is ${apart.value} feet away and ${record.spell} reaches ${reach}`,
+        );
+      }
+    }
+  }
+
+  // Nothing is rolled until the action is known to be affordable — the same
+  // validate-before-rolling rule casting itself obeys. Outside combat there is
+  // no economy to spend.
+  const events: GameEvent[] = [];
+  const combat = state.combat;
+  if (combat !== null && combat.budgets[casterId] !== undefined) {
+    const spent =
+      activation.action === 'bonus-action'
+        ? spendBonusAction(combat, casterId, caster.conditions)
+        : spendAction(combat, casterId, caster.conditions);
+    if (!spent.ok) return spent;
+    events.push(
+      activation.action === 'bonus-action'
+        ? { type: 'bonus-action-spent', id: casterId }
+        : { type: 'action-spent', id: casterId },
+    );
+  }
+
+  // The stamp rides here because this event always happens: the attack it runs
+  // may miss, and a missed activation must not be retryable.
+  events.push({
+    type: 'spell-activated',
+    castingId: record.castingId,
+    by: casterId,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  return resolveEffects(state, casterId, caster, definition, {
+    // The level the casting was made at. A wizard who gained a level since
+    // does not upcast a spell already in the air.
+    castLevel: record.level,
+    route: chosen.value,
+    targets: [target],
+    unverified,
+    supply,
+    castingId: record.castingId,
+    events,
+    effects: activation.effects,
+    label: activation.label,
+  });
+}
+
 // — features a creature switches on ———————————————————————————————————————————
 
 export interface ActivateFeatureCommand extends CommandIdentity {
@@ -5937,6 +6216,16 @@ export interface SpellTargetOutcome {
    */
   readonly concentration?: ConcentrationConsequence;
   /**
+   * The ongoing spell this effect ended, when it ended one.
+   *
+   * The casting id rather than a name, because that is the handle: a log
+   * reader asking which of the two Blesses went has to be able to tell them
+   * apart.
+   */
+  readonly dispelled?: string;
+  /** The ability check a dispel had to roll, when the spell was too high. */
+  readonly check?: D20TestResult;
+  /**
    * The casting this effect interrupted, when it interrupted one.
    *
    * Counterspell's whole outcome, and it is the *casting id* rather than a
@@ -6344,6 +6633,9 @@ export function resolveDeclaredCast(
     supply,
     castingId: pending.castingId,
     events,
+    ...(persists(definition)
+      ? { becomesOngoing: { spellId: definition.id, onCaster: onCaster(definition) } }
+      : {}),
   });
 }
 
@@ -7007,6 +7299,13 @@ function resolveOnTargets(
       unverified: [],
     });
   }
+
+  // SRD Mage Hand: "The hand vanishes ... if you cast this spell again."
+  // **After the duplicate check**, so a retried casting does not end the
+  // casting its own first run created — the same trap the trigger guard and
+  // the pending-casting guard both sprang before it, and the third instance
+  // of the rule that a retry must never look at the world it made.
+  events.push(...replacedCastings(state, casterId, definition));
   events.push(...cast.value);
 
   // Declared and held open. The action is spent, any Concentration the caster
@@ -7024,6 +7323,9 @@ function resolveOnTargets(
     supply,
     castingId,
     events,
+    ...(persists(definition)
+      ? { becomesOngoing: { spellId: definition.id, onCaster: onCaster(definition) } }
+      : {}),
   });
   if (!resolved.ok) return resolved;
 
@@ -7107,9 +7409,33 @@ function resolveEffects(
     readonly supply: ConcentrationSaveSupply;
     readonly castingId: string;
     readonly events: GameEvent[];
+    /**
+     * What to run, when it is not the spell's own effect list.
+     *
+     * SRD Vampiric Touch does the same thing on a later turn that it did on
+     * the first, so the later turn runs a list the definition supplies rather
+     * than a second resolver kept in step with this one by hand.
+     */
+    readonly effects?: readonly SpellEffect[];
+    /** How the log reads, when an activation wants its own wording. */
+    readonly label?: string;
+    /**
+     * Set when this casting leaves something running.
+     *
+     * Recorded **after** the effects rather than beside the slot, because what
+     * a spell is *on* is not who it was aimed at: a target who saved against
+     * Banishment is not banished, and a record claiming otherwise would let
+     * Dispel Magic end a spell that was never on them.
+     *
+     * Absent for an activation, which acts through a record that already
+     * exists rather than making a second one.
+     */
+    readonly becomesOngoing?: { readonly spellId: string; readonly onCaster: boolean };
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, castingId, events } = context;
+  const running = context.effects ?? definition.effects;
+  const label = context.label ?? definition.name;
 
   // — what it does ———————————————————————————————————————————————————————
   let current = events.reduce(applyEvent, state);
@@ -7121,7 +7447,7 @@ function resolveEffects(
   const saveDc = spellSaveDcWith(caster.sheet, route.ability);
 
   for (const target of targets) {
-    for (const effect of definition.effects) {
+    for (const effect of running) {
       const victim = current.creatures[target];
       if (victim === undefined) continue;
 
@@ -7152,7 +7478,7 @@ function resolveEffects(
         events.push({
           type: 'roll-recorded',
           who: casterId,
-          label: `${definition.name} attack`,
+          label: `${label} attack`,
           natural: attack.value.roll.natural,
           total: attack.value.total,
           contributions: [{ source: 'spell attack', amount: attackModifier }],
@@ -7186,7 +7512,13 @@ function resolveEffects(
           target,
           withFlatAddend(
             rolled.value.components.filter((c) => c.source === definition.name),
-            scaledFlatFor(effect.damage, definition.level, castLevel),
+            // SRD Flame Blade: "3d6 **plus your spellcasting ability
+            // modifier**" — the chosen route's, so a feat's version adds its
+            // own. A flat addend printed beside the dice adds on top of it.
+            scaledFlatFor(effect.damage, definition.level, castLevel) +
+              (effect.addSpellcastingModifier === true
+                ? modifierFor(caster.sheet, route.ability)
+                : 0),
           ),
           definition.name,
           supply,
@@ -7196,6 +7528,21 @@ function resolveEffects(
 
         events.push(...hurt.value.events);
         current = hurt.value.events.reduce(applyEvent, current);
+
+        // SRD Vampiric Touch: "you regain Hit Points equal to **half the
+        // amount of Necrotic damage dealt**." Half of what actually landed, so
+        // a resistant target heals the caster for less — which is why it reads
+        // the damage taken rather than the dice thrown. Rounding is the SRD's
+        // usual: down, and a single point heals nothing.
+        if (effect.healsCasterForHalf === true && hurt.value.amount > 0) {
+          const back = Math.floor(hurt.value.amount / 2);
+          if (back > 0) {
+            const drained = healCreature(current, casterId, back);
+            if (!drained.ok) return drained;
+            events.push(...drained.value);
+            current = drained.value.reduce(applyEvent, current);
+          }
+        }
 
         // SRD Ray of Sickness: "On a hit, the target takes 2d8 Poison damage
         // **and** has the Poisoned condition". The attack roll settled it up
@@ -7552,6 +7899,90 @@ function resolveEffects(
         continue;
       }
 
+      if (effect.kind === 'dispel') {
+        // SRD Dispel Magic: "Any ongoing spell of level 3 or lower **on the
+        // target** ends." What is on the target is live state, and before the
+        // ongoing record the engine could not have answered it: a spell's
+        // level lived in the log and on a concentrating caster, and neither is
+        // a thing a later spell can ask about.
+        const running = ongoingSpellsOn(current, target);
+        if (running.length === 0) {
+          outcomes.push({ target, affected: false });
+          continue;
+        }
+
+        for (const spell of running) {
+          // SRD "Using a Higher-Level Spell Slot": "You automatically end a
+          // spell on the target if the spell's level is equal to or less than
+          // the level of the spell slot you use." Dispel Magic is level 3, so
+          // the printed "level 3 or lower" is the same sentence read at the
+          // spell's own level — one rule, not two.
+          const automatic = spell.level <= castLevel;
+          let rolled: D20TestResult | undefined;
+
+          if (!automatic) {
+            // "make an ability check using your spellcasting ability (DC 10
+            // plus that spell's level)" — a bare ability check, no skill and
+            // no proficiency, through the one calculator the engine has.
+            const check = rollAbilityCheck(
+              supply.issuer,
+              supply.rng,
+              caster.sheet,
+              route.ability,
+              {
+                dc: 10 + spell.level,
+                conditions: effectiveConditions(current, casterId),
+                ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+                ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+              },
+            );
+            if (!check.ok) return check;
+
+            events.push(
+              recordD20Test(
+                casterId,
+                `${definition.name} vs ${spell.spell} (level ${spell.level})`,
+                check.value,
+                check.value.success ? 'dispelled' : 'held',
+              ),
+            );
+
+            if (!check.value.success) {
+              // A failed check changes nothing at all. The spell runs on, the
+              // slot is still spent, and the log says which.
+              outcomes.push({ target, check: check.value, affected: false });
+              continue;
+            }
+            rolled = check.value;
+          }
+
+          // Whether the whole casting ends or only its hold on this creature
+          // is the distinction SRD draws by letting Dispel Magic target "one
+          // creature, object, or magical effect": a spell that is on this
+          // creature and nobody else has nothing left to be, so it ends, while
+          // one that caught three creatures loses only this one.
+          const whole = spell.on.length <= 1;
+          const ended: GameEvent = {
+            type: 'spell-ended',
+            castingId: spell.castingId,
+            on: whole ? null : target,
+            reason: 'dispelled',
+          };
+          events.push(ended);
+          current = applyEvent(current, ended);
+
+          outcomes.push({
+            target,
+            // Present only when the spell was high enough to need one, which
+            // is the difference between the two halves of the SRD's sentence.
+            ...(rolled === undefined ? {} : { check: rolled }),
+            dispelled: spell.castingId,
+            affected: true,
+          });
+        }
+        continue;
+      }
+
       if (effect.kind === 'interrupt-casting') {
         // SRD Counterspell: "The creature makes a Constitution saving throw.
         // On a failed save, the spell dissipates with no effect."
@@ -7637,7 +8068,49 @@ function resolveEffects(
     });
   }
 
+  // The live half of the casting, now that it is known what the casting
+  // actually caught. See `OngoingSpell` for why each field is there.
+  const becomes = context.becomesOngoing;
+  if (becomes !== undefined) {
+    events.push({
+      type: 'spell-ongoing',
+      casting: {
+        castingId,
+        caster: casterId,
+        spellId: becomes.spellId,
+        spell: definition.name,
+        level: castLevel,
+        concentration: definition.concentration,
+        route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
+        on: becomes.onCaster ? [casterId] : landedOn(targets, outcomes),
+      },
+    });
+  }
+
   return ok({ events, castingId, outcomes, unverified });
+}
+
+/**
+ * Which of the creatures a spell was aimed at it is actually **on**.
+ *
+ * A target the spell reported nothing about keeps its place: a tracked spell
+ * resolves no effects at all and is still on whoever it was cast on, which is
+ * how Darkvision gets dispelled. A target every effect reported as unaffected
+ * comes off — a creature that saved against Banishment is not banished, and a
+ * spell is not on somebody it failed to touch.
+ *
+ * Sorted, so the record serialises identically however the targets arrived.
+ */
+function landedOn(
+  targets: readonly CharacterId[],
+  outcomes: readonly SpellTargetOutcome[],
+): readonly CharacterId[] {
+  return [...targets]
+    .filter((target) => {
+      const said = outcomes.filter((outcome) => outcome.target === target);
+      return said.length === 0 || said.some((outcome) => outcome.affected);
+    })
+    .sort();
 }
 
 /**

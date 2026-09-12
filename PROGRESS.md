@@ -88,6 +88,7 @@ still Wizard-shaped are named below.
 | Recovery + heal | Uncanny Metabolism, which the two batches above had already built | `1c1e900` |
 | Healing touch | A pool of hit points spent by touching somebody; Lay On Hands, Restoring Touch | `ec14f10` |
 | Reaction windows | Five named instants shared by spells and features; 8 class Reactions | `e66c2f8` |
+| Ongoing spells | A live record of a casting that is still running; Dispel Magic, later-turn use, replacement | *(this batch)* |
 
 ## Decisions that constrain what comes next
 
@@ -904,6 +905,13 @@ they are debts rather than surprises.
   rather than that its command already landed. Pre-existing, orthogonal to this
   work, and left alone deliberately — moving it is its own change with its own
   failing test, not a drive-by inside a batch about casting.
+- **A spell can create a thing, and the thing cannot stand anywhere.** New
+  with the ongoing-spell record, and named here because it is now the *only*
+  thing between the engine and eleven later-turn spells. A casting has an
+  identity, a lifecycle, a caster and a level; what a spell-made force, sphere,
+  hand or cloud has not got is coordinates. The doctrine's "non-creature
+  persistent world objects" seam is exactly this, and its one instruction —
+  do not widen `CreatureState` into a property bag — is the decision to keep.
 - **There is one scene.** `state.scene` is a single `PositionState | null`.
   Multiple locations or world regions is a listed compatibility concern, and
   this is the one structural decision that would be expensive to revisit later
@@ -1001,7 +1009,7 @@ everywhere. A spell can need more than one, so the columns do not sum.
 | Healing that lifts a condition, raises the dead, or raises the maximum | 10 | the `heal` effect, `healCreature`'s refusal of a corpse | low |
 | Teleportation | 13 | positions, occupancy, `placeCreature`'s volume test | medium |
 | Damage with neither an attack roll nor a save | 19 | `rollSpellDice`, `dealSpellDamage` | low |
-| An effect that ends another casting | 15 | `concentration-ended`'s cleanup by casting id | medium |
+| An effect that ends another casting | 15 (**unblocked**) | `state.ongoing` names every running casting, its caster and its level; `spell-ended` ends one whole or on one creature | low |
 | An Armour Class a spell sets or floors | 13 (≈4 real) | Unarmoured Defense already replaces the calculation for a *feature* | low |
 | A random outcome that is not a d20 | 11 | the generator, `parseNotation` | low |
 | Extra damage on the target's later attacks | 7 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes | medium |
@@ -1240,13 +1248,17 @@ primitive — which is why it is below the four above it despite being unblocked
 
 ## Next actions, in order
 
-1. **A durable record of an ongoing casting, and the later turn that acts
-   through it.** The top of the recalculated map above, and the batch this one
-   hands off to: Dispel Magic wants the level of what it is dispelling, 18
-   spells want a casting a later turn can spend an action through, and 17 want
-   to enumerate what is running so they can end it. Three concrete mechanics,
-   one missing primitive — which is the evidence the generalization rule asks
-   for. Deliberately **not** built inside the ability-check batch.
+1. **A spell-created thing with a position of its own.** The batch this one
+   hands off to, and the *exact* seam eleven later-turn spells are now blocked
+   on rather than a vague one: Spiritual Weapon's force, Flaming Sphere,
+   Mage Hand's hand, Dancing Lights' four lights, Arcane Eye, Arcane Hand,
+   Unseen Servant, Silent Image, Mislead, Project Image, and Call Lightning's
+   cloud. Every one of them now has an identity, a lifecycle and a caster; what
+   none of them has is coordinates. It is the doctrine's own "non-creature
+   persistent world objects" seam, and the decision not to make wrongly is
+   stated there: do **not** widen `CreatureState` into a property bag. A
+   spell-made object needs its own precise record, a position in the scene, and
+   an answer to what happens when the scene ends.
 2. **Keep pouring spells into the five working shapes.** Attack, save-damage,
    save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
    spells fit one of them and need only a definition with its SRD quote.
@@ -1260,9 +1272,12 @@ primitive — which is why it is below the four above it despite being unblocked
    to Unconscious on a second failure, which is a third outcome the hook
    machinery has no room for. Haste's lethargy fires when the spell ends, which
    is a trigger nothing raises.
-4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
-   Weapon, Call Lightning: a casting that a subsequent turn spends an action to
-   use. Needs a handle on the casting that a command can name.
+4. **Ongoing effects a later turn can act through** — half built. The handle
+   exists (`state.ongoing`, keyed by casting id) and the spells that need
+   nothing else run: Vampiric Touch and Flame Blade. The eleven that are left
+   all need the same missing thing, which is item 1 above: a position for what
+   the spell created. Expeditious Retreat, Gust of Wind, Telekinesis and Detect
+   Thoughts need neither and are ordinary transcription onto `activation`.
 5. **The Reaction spell that is left, and the falling it shares with a
    feature.** Shield, Hellish Rebuke and Counterspell are done, and the class
    features that answer the same instants are done beside them.
@@ -1401,12 +1416,12 @@ Run `npm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executed | 72 |
-| Spells verified end to end | 47 |
+| Spells executed | 75 |
+| Spells verified end to end | 50 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 3,707 passing, none skipped |
+| Tests | 3,782 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

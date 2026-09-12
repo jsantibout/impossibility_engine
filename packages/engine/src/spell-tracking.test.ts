@@ -76,7 +76,12 @@ const added = (who: CharacterId): GameEvent => ({
  * drove. `effects.length === 0` is the same predicate `coverage.ts` counts
  * with, so the list under test and the number in `COVERAGE.md` cannot disagree.
  */
-const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter((d) => d.effects.length === 0)
+const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter(
+  // A spell whose *activation* the engine resolves is executed, not tracked:
+  // Flame Blade's casting evokes a blade and does nothing else, and every blow
+  // it strikes comes through machinery the engine owns.
+  (d) => d.effects.length === 0 && d.activation === undefined,
+)
   .map((d) => d.id)
   .sort();
 

@@ -216,6 +216,25 @@ export type SpellEffect =
        * later, which is the same branch the condition rider already takes.
        */
       readonly delayed?: DelayedDamage;
+      /**
+       * SRD Flame Blade: "Fire damage equal to 3d6 **plus your spellcasting
+       * ability modifier**."
+       *
+       * The same field `heal` and `temp-hp` already carry, on the third kind
+       * of effect that adds it — and it is the *chosen route's* ability, so a
+       * feat's version adds its own.
+       */
+      readonly addSpellcastingModifier?: boolean;
+      /**
+       * SRD Vampiric Touch: "you regain Hit Points equal to **half the amount
+       * of Necrotic damage dealt**."
+       *
+       * Half of what actually landed, so a resistant target heals the caster
+       * for less — which is why it is computed from the damage the target
+       * took rather than from the dice. One spell writes this sentence, and it
+       * is transcribed rather than generalised for exactly that reason.
+       */
+      readonly healsCasterForHalf?: true;
     }
   /**
    * A saving throw that deals damage, with what a success buys stated.
@@ -380,6 +399,25 @@ export type SpellEffect =
    * Inflict Wounds needed that field because their texts differ, and these do
    * not.
    */
+  /**
+   * End the ongoing spells on a target.
+   *
+   * SRD Dispel Magic, whole: "Any ongoing spell of level 3 or lower on the
+   * target ends. For each ongoing spell of level 4 or higher on the target,
+   * make an ability check using your spellcasting ability (DC 10 plus that
+   * spell's level). On a successful check, the spell ends." — and *Using a
+   * Higher-Level Spell Slot*: "You automatically end a spell on the target if
+   * the spell's level is equal to or less than the level of the spell slot you
+   * use."
+   *
+   * **The effect carries no numbers at all**, and that is the point. The
+   * threshold is the level this casting was made at; the DC is ten plus the
+   * level of whatever is being ended; the ability is the caster's own
+   * spellcasting ability by the route that supplied the spell. Every one of
+   * those is a fact the engine holds, and a definition that restated any of
+   * them would be a second place to get Dispel Magic wrong.
+   */
+  | { readonly kind: 'dispel' }
   | {
       readonly kind: 'interrupt-casting';
       readonly ability: Ability;
@@ -561,6 +599,46 @@ export interface SpellDefinition {
    * standing there to look at.
    */
   readonly check?: SpellCheck;
+  /**
+   * What the caster may do again, on a later turn, through a spell that is
+   * still running.
+   *
+   * SRD Vampiric Touch: "Until the spell ends, you can make the attack again
+   * on each of your turns **as a Magic action**"; Flame Blade: "**As a Magic
+   * action**, you can make a melee spell attack with the fiery blade."
+   *
+   * **Only the caster, and only what the spell already does.** The effects run
+   * with the level the casting was made at and the route that supplied it, so
+   * a wizard who levels mid-fight does not upgrade a spell already in the air.
+   *
+   * One target, because both spells that write this take one — "targeting the
+   * same creature or a different one". The family that takes more is the one
+   * whose spell created a *thing* with a position of its own (Spiritual
+   * Weapon's force, Flaming Sphere, Mage Hand), and every one of those is
+   * blocked on geometry rather than on a count.
+   */
+  readonly activation?: SpellActivation;
+  /**
+   * SRD Mage Hand: "The hand vanishes ... **if you cast this spell again**";
+   * Minor Illusion: "The illusion ends if you cast this spell again."
+   *
+   * The same caster casting the same spell. Two spells write the sentence
+   * identically, which is what makes it a rule rather than a quirk, and the
+   * ongoing record is what makes obeying it a lookup instead of a search.
+   */
+  readonly replacesPriorCasting?: true;
+}
+
+/** What an ongoing spell lets its caster do again. */
+export interface SpellActivation {
+  /** SRD writes "a Magic action" or "a Bonus Action"; both appear. */
+  readonly action: 'action' | 'bonus-action';
+  /** Checked afresh each time: the force is where it is *now*. */
+  readonly range: SpellRange;
+  /** How the log reads: "Vampiric Touch (again)". */
+  readonly label: string;
+  /** What it does, run with the level and route pinned at the casting. */
+  readonly effects: readonly SpellEffect[];
 }
 
 /**
@@ -3107,9 +3185,11 @@ export const MAGE_HAND: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 60,
+  // SRD: "The hand vanishes ... if you cast this spell again."
+  replacesPriorCasting: true,
   unmodelled: [
     'the hand itself is not a thing in the world: manipulating an object, opening a door, or moving the hand 30 feet on a later turn are the DM’s',
-    'the hand vanishing beyond 30 feet is the DM’s; a second casting ending the first is not the DM’s and is not done either — the engine holds every casting by caster and spell and nothing ends one on that basis',
+    'the hand vanishing when it is ever more than 30 feet from the caster is the DM’s: the hand has no position of its own',
     'the 10-pound carrying limit and the ban on attacking or activating magic items are the DM’s',
   ],
 };
@@ -4409,11 +4489,12 @@ export const MINOR_ILLUSION: SpellDefinition = {
   effects: [],
   durationSeconds: 60,
   check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
+  // SRD: "The illusion ends if you cast this spell again."
+  replacesPriorCasting: true,
   unmodelled: [
     'what the sound or image is, and whether anybody thinks to examine it, are the DM’s',
     'the image becoming faint to a creature that saw through it is narration; the engine records the roll and nothing else changes',
     'physical interaction revealing the image, and the 5-foot Cube it fits in, are the DM’s — objects are not modelled',
-    'a second casting ending the first is not done: the engine holds every casting by caster and spell, and nothing ends one on that basis',
   ],
 };
 
@@ -4452,6 +4533,159 @@ export const SILENT_IMAGE: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Dispel Magic:
+ *
+ * > _Level 3 Abjuration (Bard, Cleric, Druid, Paladin, Ranger, Sorcerer,
+ * > Warlock, Wizard)._ **Casting Time:** Action. **Range:** 120 feet.
+ * > **Duration:** Instantaneous.
+ * > "Choose one creature, object, or magical effect within range. Any ongoing
+ * > spell of level 3 or lower on the target ends. For each ongoing spell of
+ * > level 4 or higher on the target, make an ability check using your
+ * > spellcasting ability (DC 10 plus that spell's level). On a successful
+ * > check, the spell ends."
+ * > _Using a Higher-Level Spell Slot._ "You automatically end a spell on the
+ * > target if the spell's level is equal to or less than the level of the
+ * > spell slot you use."
+ *
+ * **The definition carries no numbers**, and that is the whole point of it.
+ * The threshold is the level this casting was made at, the DC is ten plus the
+ * level of whatever is being ended, and both of those are facts the engine
+ * holds about castings that are still running. A definition that restated
+ * either would be a second place to get Dispel Magic wrong.
+ *
+ * Note what 2024 changed: **there is no check at all** below the threshold.
+ * The 2014 habit of rolling for everything is a different spell.
+ */
+export const DISPEL_MAGIC: SpellDefinition = {
+  id: 'dispel-magic',
+  name: 'Dispel Magic',
+  level: 3,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 1 },
+  effects: [{ kind: 'dispel' }],
+  unmodelled: [
+    '"one creature, object, or magical effect" — only a creature can be named, because only a creature has a record to hand the engine; a spell running on nobody (an illusion, a wall) is reachable by no target',
+  ],
+};
+
+/**
+ * SRD Vampiric Touch:
+ *
+ * > _Level 3 Necromancy (Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > Action. **Range:** Self. **Duration:** Concentration, up to 1 minute.
+ * > "Make a melee spell attack against one creature within reach. On a hit,
+ * > the target takes 3d6 Necrotic damage, and you regain Hit Points equal to
+ * > half the amount of Necrotic damage dealt."
+ * > "Until the spell ends, you can make the attack again on each of your turns
+ * > as a Magic action, targeting the same creature or a different one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 3."
+ *
+ * The first spell the engine can use on a turn after the one it was cast on.
+ * Three things make that possible and all three are facts pinned when the
+ * casting began: **the level** (so the dice do not grow when the caster does),
+ * **the route** (so the attack modifier is the one it was cast with), and
+ * **the caster** (so nobody else can swing it).
+ *
+ * Range: Self is the transcription, and it is also why the spell is *on* the
+ * wizard rather than on whoever is being drained — which is what Dispel Magic
+ * needs to know.
+ */
+export const VAMPIRIC_TOUCH: SpellDefinition = {
+  id: 'vampiric-touch',
+  name: 'Vampiric Touch',
+  level: 3,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'melee',
+      damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
+      damageType: 'necrotic',
+      healsCasterForHalf: true,
+    },
+  ],
+  durationSeconds: 60,
+  activation: {
+    action: 'action',
+    // "targeting the same creature or a different one", and the attack is a
+    // melee one — so five feet, checked afresh every time.
+    range: { kind: 'touch' },
+    label: 'Vampiric Touch (again)',
+    effects: [
+      {
+        kind: 'attack',
+        attack: 'melee',
+        damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
+        damageType: 'necrotic',
+        healsCasterForHalf: true,
+      },
+    ],
+  },
+  unmodelled: [
+    'the *initial* attack\u2019s "within reach" goes unchecked: the spell\u2019s printed Range is Self, which is the reach the targeting rules read, and the five feet belong to the attack rather than to the spell. Every later use checks it',
+  ],
+};
+
+/**
+ * SRD Flame Blade:
+ *
+ * > _Level 2 Evocation (Druid, Sorcerer)._ **Casting Time:** Bonus Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 10 minutes.
+ * > "You evoke a fiery blade in your free hand... **As a Magic action**, you
+ * > can make a melee spell attack with the fiery blade. On a hit, the target
+ * > takes Fire damage equal to 3d6 plus your spellcasting ability modifier."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 2."
+ *
+ * The second member of the later-turn family, and the one that proves the
+ * shape is a shape: **the casting itself does nothing at all.** Evoking the
+ * blade is not an attack, so the spell's own effect list is empty and every
+ * blow it ever strikes comes through the activation.
+ *
+ * The blade is in the caster's hand, which is why this belongs to the family
+ * that works today rather than to the one that does not: nothing has a
+ * position except the caster, who already has one.
+ */
+export const FLAME_BLADE: SpellDefinition = {
+  id: 'flame-blade',
+  name: 'Flame Blade',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'bonus-action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  activation: {
+    action: 'action',
+    range: { kind: 'touch' },
+    label: 'Flame Blade',
+    effects: [
+      {
+        kind: 'attack',
+        attack: 'melee',
+        damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
+        damageType: 'fire',
+        addSpellcastingModifier: true,
+      },
+    ],
+  },
+  unmodelled: [
+    'letting go of the blade and evoking it again as a Bonus Action is not modelled: what is in a creature\u2019s hands is not tracked',
+    'the Bright Light in a 10-foot radius and the Dim Light beyond it are the DM\u2019s; light is not modelled',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -4487,6 +4721,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DETECT_POISON_AND_DISEASE,
   DISGUISE_SELF,
   DISINTEGRATE,
+  DISPEL_MAGIC,
   DISSONANT_WHISPERS,
   DIVINE_SMITE,
   DOMINATE_BEAST,
@@ -4499,6 +4734,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FINGER_OF_DEATH,
   FIRE_BOLT,
   FIREBALL,
+  FLAME_BLADE,
   FLAME_STRIKE,
   FLOATING_DISK,
   FLY,
@@ -4564,6 +4800,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   TONGUES,
   TRANSPORT_VIA_PLANTS,
   TRUE_SEEING,
+  VAMPIRIC_TOUCH,
   VICIOUS_MOCKERY,
   VITRIOLIC_SPHERE,
   WALL_OF_FORCE,

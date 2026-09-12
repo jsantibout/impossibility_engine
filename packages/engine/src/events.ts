@@ -50,6 +50,8 @@ import {
   type CastingTime,
   type Concentration,
   type ConcentrationEndReason,
+  type OngoingEndReason,
+  type OngoingSpell,
   type SlotlessReason,
 } from './spells.js';
 import {
@@ -673,6 +675,19 @@ export interface GameState {
    * {@link PendingTest}.
    */
   readonly pendingTest: PendingTest | null;
+  /**
+   * Castings that are still mechanically running, by casting id.
+   *
+   * The live half of a casting — see {@link OngoingSpell}. The log holds the
+   * history; this holds only what a *later* mechanic has to be able to ask,
+   * and the answer it most needs is the spell's **level**, which nothing else
+   * held once the caster stopped concentrating.
+   *
+   * Keyed by the id every effect already carries, so nothing new has to be
+   * matched up: ending a casting removes the record in the same pass that
+   * removes its conditions.
+   */
+  readonly ongoing: Readonly<Record<string, OngoingSpell>>;
 }
 
 export function initialState(seed: string): GameState {
@@ -695,6 +710,7 @@ export function initialState(seed: string): GameState {
     pendingCasting: null,
     pendingDamage: null,
     pendingTest: null,
+    ongoing: {},
   };
 }
 
@@ -984,7 +1000,63 @@ export type GameEvent =
       readonly slotless: SlotlessReason | null;
       readonly castingTime: CastingTime;
       readonly concentration: boolean;
+      /**
+       * Which grant supplied the spell — a class id, or a granting feature's.
+       *
+       * `castSpell` has written this since routes landed and the event did not
+       * declare it, so it reached the log and no reader could see it: excess
+       * properties on a union are accepted if **any** member declares one, and
+       * `PendingCasting` does. Declared now because the ongoing record pins it,
+       * and a later activation has to roll the numbers the casting rolled.
+       */
+      readonly route?: string;
       /** The command that caused it, so a retry is recognised as one. */
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A casting that is still running, recorded the moment it starts to.
+   *
+   * Its own event rather than a field on `spell-cast`, because it says
+   * something different: `spell-cast` is "this casting happened and cost
+   * this", which is true of Fireball, and this is "and it is still going",
+   * which is not. One event, one thing — and a log reader can see exactly
+   * where a spell became something a later turn could act on.
+   */
+  | { readonly type: 'spell-ongoing'; readonly casting: OngoingSpell }
+  /**
+   * An ongoing spell stopped because somebody decided it should.
+   *
+   * `on` is the whole of the distinction SRD Dispel Magic draws between its
+   * two kinds of target: null ends the casting and everything it created,
+   * a creature releases it on that creature and leaves the casting running
+   * for anyone else it caught. The engine has had both operations since Hold
+   * Person's repeat save; this is the event that names which one.
+   *
+   * Expiry and a broken Concentration are **not** here. Nobody decides those,
+   * so they are derived by the reducer and write nothing, which is the audit
+   * trade `CLAUDE.md` already records for every other derived ending.
+   */
+  | {
+      readonly type: 'spell-ended';
+      readonly castingId: string;
+      /** The creature it is released on, or null for the whole casting. */
+      readonly on: CharacterId | null;
+      readonly reason: OngoingEndReason;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * An ongoing spell was used again on a later turn.
+   *
+   * Changes no state — the action it costs and the damage it deals are their
+   * own events — so this is `roll-recorded`'s shape and exists for the same
+   * two reasons: without it the log shows an attack with no visible cause, and
+   * a command whose only other events may be a miss has nowhere to put its
+   * stamp.
+   */
+  | {
+      readonly type: 'spell-activated';
+      readonly castingId: string;
+      readonly by: CharacterId;
       readonly command?: CommandStamp;
     }
   /**
@@ -1606,7 +1678,46 @@ function releaseCasting(
     timers[key] = timer;
   }
 
-  return changed ? { ...state, creatures, timers } : state;
+  // And the live record goes with them. **This is the one place it is removed**
+  // — whether the casting ended because Concentration broke, because its
+  // deadline arrived, or because somebody dispelled it — so there is exactly
+  // one answer to "is this spell still running", and no route by which a
+  // finished spell stays queryable.
+  let ongoing: Readonly<Record<string, OngoingSpell>> = state.ongoing;
+  if (ongoing[castingId] !== undefined) {
+    const rest: Record<string, OngoingSpell> = { ...ongoing };
+    delete rest[castingId];
+    ongoing = rest;
+    changed = true;
+  }
+
+  return changed ? { ...state, creatures, timers, ongoing } : state;
+}
+
+/**
+ * Take a creature off an ongoing spell without ending the spell.
+ *
+ * Two things do this and they are the same thing: a target shaking the spell
+ * off, and a target leaving the game. Either way the casting carries on for
+ * whoever is left, and `on` has to stop claiming somebody it no longer covers
+ * — Dispel Magic reads that list, and a stale name in it would let a creature
+ * dispel a spell that is not on them.
+ */
+function withoutTarget(
+  state: GameState,
+  targetId: CharacterId,
+  castingId: string | null,
+): GameState {
+  let ongoing: Record<string, OngoingSpell> | null = null;
+
+  for (const [key, record] of Object.entries(state.ongoing)) {
+    if (castingId !== null && key !== castingId) continue;
+    if (!record.on.includes(targetId)) continue;
+    ongoing ??= { ...state.ongoing };
+    ongoing[key] = { ...record, on: record.on.filter((who) => who !== targetId) };
+  }
+
+  return ongoing === null ? state : { ...state, ongoing };
 }
 
 /** Who is concentrating on a casting, if anybody still is. */
@@ -1628,11 +1739,16 @@ function releaseOnTarget(
   const creature = state.creatures[targetId];
   if (creature === undefined) return state;
 
+  // The live record loses this creature whatever else changes — a tracked
+  // spell like Darkvision is *on* somebody and hangs nothing on them, so the
+  // condition-and-bonus test below would say there was nothing to release.
+  const base = withoutTarget(state, targetId, castingId);
+
   const doomed = creature.conditions.instances.filter(
     (instance) => castingIdOf(instance.source) === castingId,
   );
   const survivors = creature.bonuses.filter((bonus) => castingIdOf(bonus.source) !== castingId);
-  if (doomed.length === 0 && survivors.length === creature.bonuses.length) return state;
+  if (doomed.length === 0 && survivors.length === creature.bonuses.length) return base;
 
   let conditions = creature.conditions;
   for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
@@ -1644,7 +1760,7 @@ function releaseOnTarget(
   // so guessing from the first entry pointed at the wrong timer and left the
   // real one running.
   const timers: Record<string, TimedEffect> = {};
-  for (const [key, timer] of Object.entries(state.timers)) {
+  for (const [key, timer] of Object.entries(base.timers)) {
     const mine =
       timer.target.kind === 'condition' &&
       timer.target.on === targetId &&
@@ -1653,9 +1769,15 @@ function releaseOnTarget(
   }
 
   return {
-    ...state,
+    ...base,
     timers,
-    creatures: { ...state.creatures, [targetId]: { ...creature, conditions } },
+    // **The bonuses go too.** They were computed and then dropped on the floor
+    // here from the day this function was written, and nothing noticed because
+    // every spell that released on one target hung a *condition* — Hold
+    // Person, Black Tentacles. Dispel Magic is the first thing to release a
+    // spell that hung a bonus, and a Bless the rules had ended went on adding
+    // its d4.
+    creatures: { ...base.creatures, [targetId]: { ...creature, conditions, bonuses: survivors } },
   };
 }
 
@@ -2295,7 +2417,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
           : releaseCasting(next, event.id, creature.concentration.castingId);
       const creatures = { ...cleaned.creatures };
       delete creatures[event.id];
-      return { ...cleaned, creatures };
+      // Every *other* spell that was on them stops being on them. Not ended —
+      // SRD does not end a Cleric's Bless because one of the blessed walked
+      // out — but a name in `on` that no longer belongs to anybody is a
+      // dispellable target that does not exist.
+      return withoutTarget({ ...cleaned, creatures }, event.id, null);
     }
 
     case 'damage-taken': {
@@ -2519,6 +2645,39 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       };
     }
 
+    case 'spell-ongoing': {
+      const casting = event.casting;
+      if (state.ongoing[casting.castingId] !== undefined) {
+        throw new CorruptLogError(event, `${casting.castingId} is already running`);
+      }
+      // The casting has to have happened. A record for a casting nobody cast
+      // is the shape of every "the model made it up" failure this engine
+      // exists to refuse, and the counter is the one fact that proves it.
+      if (Number(casting.castingId.slice('cast:'.length)) > state.castingsBegun) {
+        throw new CorruptLogError(event, `${casting.castingId} has not been cast`);
+      }
+      return {
+        ...next,
+        ongoing: sortedRecord({ ...state.ongoing, [casting.castingId]: casting }),
+      };
+    }
+    case 'spell-ended': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      // Two operations the engine has had since Hold Person's repeat save, and
+      // the event says which: one creature shakes it off, or the whole spell
+      // stops.
+      return event.on === null
+        ? releaseCasting(next, casterOf(state, event.castingId), event.castingId)
+        : releaseOnTarget(next, event.on, event.castingId);
+    }
+    // Changes nothing, like `roll-recorded`: the action it cost and the damage
+    // it dealt are their own events. It is here so the log can say why a spell
+    // struck on a turn nobody cast it.
+    case 'spell-activated':
+      return next;
     case 'spell-interrupted': {
       const waiting = state.pendingCasting;
       if (waiting === null) throw new CorruptLogError(event, 'no casting is waiting to resolve');
