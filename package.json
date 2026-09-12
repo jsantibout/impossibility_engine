@@ -1,5 +1,5 @@
 {
-  "name": "infinite-realms",
+  "name": "impossibility-engine",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -17,8 +17,10 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc -b --pretty && tsc -p tsconfig.tests.json",
+    "typecheck:ci": "tsc -b --force --pretty && tsc -p tsconfig.tests.json",
     "lint": "eslint .",
     "srd:ingest": "tsx packages/srd/scripts/ingest.ts",
+    "srd:index": "node packages/srd/scripts/spell-index.mjs",
     "srd:fetch-reference": "curl -sSL --create-dirs -o packages/srd/reference/SRD_CC_v5.2.1.pdf https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf",
     "coverage": "tsx packages/engine/scripts/coverage.ts"
   },

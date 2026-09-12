@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push supersedes the run it replaced — but never cancel a run on main.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: check (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The two halves of `engines: ^22.13.0 || >=24`, which are also the two
+        # npm majors: Node 22 ships npm 10, which does not know `allowScripts`
+        # and so runs esbuild's postinstall; Node 24 ships npm 11, which denies
+        # it. Both are install shapes a contributor really has.
+        node: ['22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # Also the lockfile drift check: `npm ci` refuses to run when
+      # package-lock.json and package.json disagree.
+      - name: Install
+        run: npm ci
+
+      # Before coverage, which runs under tsx and imports @ie/srd as a *value* —
+      # that resolves through node_modules to packages/srd/dist.
+      #
+      # `--force` because `tsc -b` is incremental: dist/ and *.tsbuildinfo are
+      # both gitignored and setup-node caches only ~/.npm, so a runner has no
+      # stale build today — but if build output is ever cached, a non-forced
+      # build can report clean over real errors. It has done so in this repo.
+      #
+      # Both halves are needed: `tsc -b` builds the three composite projects,
+      # which exclude src/**/*.test.ts, and tsconfig.tests.json is the only
+      # thing that typechecks the tests and packages/*/scripts.
+      - name: Typecheck
+        run: npm run typecheck:ci
+
+      # Required, not optional. packages/srd/src/generated/ is gitignored, and
+      # coverage.test.ts imports scripts/coverage.ts, whose top-level code reads
+      # generated/spells.json — so without this, `npm test` dies at collection
+      # and takes 274 tests with it.
+      #
+      # ingest.ts asserts hard counts (339 spells, 235 monsters, …) and exits 1
+      # on a shortfall, so it is a parser regression test in its own right. It
+      # writes three of the six tracked index files; srd:index writes the rest
+      # and reads the JSON ingest just produced, so it runs second.
+      - name: Regenerate SRD data
+        run: |
+          npm run srd:ingest
+          npm run srd:index
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Coverage report
+        run: npm run coverage
+
+      # Everything generated has now been regenerated from committed sources, so
+      # nothing may have moved. Both generators are pure functions of tracked
+      # files — packages/srd/raw/*.md and the hand-written definitions — with no
+      # clock, no randomness and no network, so a diff here is a stale commit
+      # rather than flake. `git diff` catches an edit; `git status` also catches
+      # a generator that started emitting a file nobody committed.
+      #
+      # Last, deliberately: a stale COVERAGE.md is bookkeeping, and putting this
+      # first would hide whether the tests actually pass.
+      - name: Generated files match their sources
+        run: |
+          git diff --exit-code -- COVERAGE.md packages/srd/src
+          test -z "$(git status --porcelain -- COVERAGE.md packages/srd/src)"
