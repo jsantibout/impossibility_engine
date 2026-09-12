@@ -178,7 +178,7 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 230 | 63 |
+| 12 / 12 | 12 / 12 | 230 | 67 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -190,8 +190,8 @@ believe it has twelve working classes when it has twelve validated ones.
 |---|---|---|---|
 | Barbarian | none | 24 | 6 |
 | Bard | known | 17 | 6 |
-| Cleric | prepared-from-list | 16 | 4 |
-| Druid | prepared-from-list | 14 | 3 |
+| Cleric | prepared-from-list | 16 | 6 |
+| Druid | prepared-from-list | 14 | 5 |
 | Fighter | none | 21 | 6 |
 | Monk | none | 26 | 4 |
 | Paladin | prepared-from-list | 22 | 11 |

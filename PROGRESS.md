@@ -76,7 +76,8 @@ still Wizard-shaped are named below.
 | Interruptible casting | A casting held between declaration and effect; Counterspell | `6e12880` |
 | Utility audit | 76 spells read one at a time; 30 tracked; `unmodelled` given a guard | `5d1dfc4` |
 | Ability checks | A check a spell offers against its own ongoing effect; `checks.ts` reachable | `e9a323f` |
-| Once per turn | An attack-damage rider with a per-turn allowance; Sneak Attack, Colossus Slayer | _this batch_ |
+| Once per turn | An attack-damage rider with a per-turn allowance; Sneak Attack, Colossus Slayer | `52274c9` |
+| Chosen damage type | A rider whose type the holder names at the hit; Divine Strike, Primal Strike | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -664,6 +665,34 @@ still Wizard-shaped are named below.
   if the swing does not land** — a fixture that silently stops testing what it
   says it tests is worse than one that fails.
 
+- **Naming no damage type is how "you can" is declined.** SRD Divine Strike and
+  Primal Strike both let the holder choose the type at the hit, and both are
+  written as "you **can** cause the target to take" — so the choice and the
+  opt-out are the same act. There is no other moment at which declining could
+  be said, and inventing a separate `decline` field would have been a second
+  mechanism for a question the first already answers. Sneak Attack's own "you
+  can" is *not* answered this way, because it has no choice to hang it on: the
+  engine takes it automatically, and that is recorded in its note as a gap
+  rather than pretended away.
+- **A chosen type is extra damage, never a bonus — and a mutation proved the
+  tests had not said so.** Divine Strike's Radiant is its own damage against
+  the target's own Radiant defences; a mace's Bludgeoning is not. Discarding
+  the chosen type so the dice rode as a weapon bonus passed *every* test in
+  the file, because every fixture target resisted nothing. A
+  Bludgeoning-immune thug settles it in one line: the mace deals nothing and
+  the Radiant still lands. **A rule about damage types cannot be tested
+  against a creature with no damage types.**
+- **An "Improved X" feature that only raises a number executes through the
+  first feature's own table.** Improved Blessed Strikes says "increases to
+  2d8" and nothing else; the dice come from `diceCountByLevel` read at the
+  character's class level, so the level-14 feature is the step rather than a
+  second grant. Two grants would stack and deal both.
+- **An illegal damage type is refused before the action is spent.** A Cleric
+  asking Divine Strike for Fire is asking for a rule the SRD does not print, so
+  `checkFeatureDamageTypes` runs before the economy and before the die — the
+  same validate-before-rolling discipline, and the mutation that moves it after
+  the roll fails two tests.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -1112,8 +1141,8 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells verified end to end | 47 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 63 of 230 |
-| Tests | 3,447 passing, none skipped |
+| Class features executed | 67 of 230 |
+| Tests | 3,456 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

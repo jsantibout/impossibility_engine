@@ -1567,6 +1567,23 @@ guess.
 one attack, so the only honest way to swing twice on a turn is an attack whose
 cost is paid elsewhere — which is exactly what `takeOpportunityAttack` passes.
 
+**A rider whose damage type is chosen at the hit is chosen, or declined.**
+Divine Strike is "Necrotic or Radiant (your choice)" and Primal Strike "Cold,
+Fire, Lightning, or Thunder (choose when you hit)" — per hit, so it cannot live
+on the sheet. `featureDamageTypes` on the attack command names it by feature
+id, an illegal type is refused before the action is spent, and **naming none is
+how the SRD's "you can" is declined**. That is one act, not two: a separate
+opt-out field would answer a question the choice already answers.
+
+**A chosen type is extra damage, not a bonus.** Radiant from Divine Strike
+meets the target's Radiant defences; a mace's Bludgeoning does not. A test that
+proves this needs a target that *has* damage defences — against an
+undefended dummy the two are indistinguishable, which is how a mutation
+discarding the chosen type passed a whole file of tests.
+
+**An "Improved X" that only raises a number is the step in the first feature's
+table, not a second grant.** Two grants would stack and deal both.
+
 ### A Check A Spell Offers Against What It Is Still Doing
 
 SRD writes this twenty times — see through the illusion, tear free of the

@@ -7,6 +7,9 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { resolveAttack, resolveTurn, damageCreature } from './commands.js';
 import { planCharacter, type CharacterChoices } from './creation.js';
 import { SNEAK_ATTACK_DICE } from './rogue.js';
+import { DIVINE_STRIKE_DICE } from './cleric.js';
+import { PRIMAL_STRIKE_DICE } from './druid.js';
+import { isErr } from '@ie/shared';
 
 /**
  * Extra damage a feature adds to a hit, **once per turn**.
@@ -627,5 +630,221 @@ describe('the pieces this batch deliberately did not touch', () => {
         (e) => e.feature !== 'hunter:hunters-prey',
       ),
     );
+  });
+});
+
+describe('a feature whose damage type is chosen at the hit', () => {
+  const CLERIC = id('cleric');
+
+  const clericChoices = (level: number, option: string): CharacterChoices => ({
+    ...common,
+    name: 'Ansel',
+    classId: 'cleric',
+    level,
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 14, dex: 10, con: 13, int: 8, wis: 15, cha: 12 },
+    },
+    abilityIncreases: { con: 2, wis: 1 },
+    classSkills: ['insight', 'religion'],
+    subclassId: 'life-domain',
+    cantrips: ['sacred-flame', 'guidance', 'light', 'mending', 'resistance'].slice(
+      0,
+      level >= 10 ? 5 : 4,
+    ),
+    // Sized and levelled from the class table rather than guessed at: a level
+    // 7 Cleric prepares 11 spells of level 1-4, a level 14 one more and higher.
+    preparedSpells: [
+      'bless',
+      'cure-wounds',
+      'healing-word',
+      'guiding-bolt',
+      'inflict-wounds',
+      'hold-person',
+      'blindness-deafness',
+      'aid',
+      'lesser-restoration',
+      'silence',
+      'revivify',
+      'mass-healing-word',
+      'beacon-of-hope',
+      'banishment',
+      'death-ward',
+      'greater-restoration',
+      'mass-cure-wounds',
+      'heal',
+      'harm',
+      'fire-storm',
+      'divine-word',
+      'sunbeam',
+    ].slice(0, level >= 14 ? 17 : 11),
+    featureChoices: {
+      'human:skillful': ['perception'],
+      'cleric:divine-order': ['Protector'],
+      'cleric:blessed-strikes': [option],
+    },
+    feats: {
+      ...common.feats,
+      ...(level >= 4 ? { 'cleric:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+      ...(level >= 8 ? { 'cleric:ability-score-improvement-2': { featId: 'skilled' } } : {}),
+    },
+  });
+
+  const clericSheet = (level: number, option = 'Divine Strike'): CharacterSheet =>
+    unwrap(planCharacter(clericChoices(level, option)), `cleric ${level}`).sheet;
+
+  const clericTable = (level = 7, option = 'Divine Strike'): readonly GameEvent[] => [
+    added(CLERIC, 'party', clericSheet(level, option)),
+    added(THUG, 'thugs', sheet()),
+    kit(CLERIC, ['mace', 'warhammer']),
+    { type: 'scene-set', extent: { width: 2000, depth: 2000, height: 40 } },
+    { type: 'landmark-added', name: 'the shrine', at: { x: 500, y: 500, z: 0 } },
+    { type: 'creature-placed', id: CLERIC, placement: { from: { landmark: 'the shrine' }, feet: 0 } },
+    at(THUG, CLERIC, 5, 0),
+    {
+      type: 'combat-started',
+      combatants: [
+        { id: CLERIC, initiative: 20, speed: 30 },
+        { id: THUG, initiative: 10, speed: 30 },
+      ],
+    },
+  ];
+
+  /** SRD: "1d8 ... increases to 2d8" at 14. Not a column; written in the features. */
+  it('steps the dice at the level the feature says', () => {
+    expect(DIVINE_STRIKE_DICE[6]).toBe(1);
+    expect(DIVINE_STRIKE_DICE[12]).toBe(1);
+    expect(DIVINE_STRIKE_DICE[13]).toBe(2);
+    expect(PRIMAL_STRIKE_DICE[6]).toBe(1);
+    expect(PRIMAL_STRIKE_DICE[13]).toBe(1);
+    expect(PRIMAL_STRIKE_DICE[14]).toBe(2);
+  });
+
+  it('reads the step off the character’s own class level', () => {
+    const grantOf = (level: number) => {
+      const e = clericSheet(level).standing?.find((x) => x.feature === 'cleric:blessed-strikes');
+      if (e?.grant.kind !== 'attack-damage') throw new Error('expected attack damage');
+      return e.grant;
+    };
+    expect(grantOf(7).dice).toBe('1d8');
+    expect(grantOf(14).dice).toBe('2d8');
+  });
+
+  /**
+   * SRD: "you **can** cause the target to take an extra 1d8 Necrotic or
+   * Radiant damage (your choice)". Naming no type is how that "can" is
+   * declined — there is no other moment at which it could be said.
+   */
+  it('declines the feature when no type is named', () => {
+    const out = swing(clericTable(), { target: THUG, weapon: 'mace' }, CLERIC);
+    expect(spent(out.events, 'cleric:blessed-strikes')).toBe(false);
+  });
+
+  it('applies the type the caster named', () => {
+    const out = swing(
+      clericTable(),
+      { target: THUG, weapon: 'mace', featureDamageTypes: { 'cleric:blessed-strikes': 'radiant' } },
+      CLERIC,
+    );
+    expect(spent(out.events, 'cleric:blessed-strikes')).toBe(true);
+    expect(dealt(out)).toBeGreaterThan(
+      dealt(swing(clericTable(), { target: THUG, weapon: 'mace' }, CLERIC)),
+    );
+  });
+
+  /**
+   * The type is extra damage of its own kind rather than a bonus of the
+   * weapon's, which is the whole reason the grant carries a type at all — and
+   * the difference is only visible against a creature whose defences differ
+   * between the two.
+   *
+   * Found by mutation: discarding the chosen type and letting the dice ride as
+   * a bonus of the weapon's own type passed every other test in this file. A
+   * Bludgeoning-immune target settles it — a mace alone deals nothing, and the
+   * Radiant still lands.
+   */
+  it('is extra typed damage rather than a bonus of the weapon’s type', () => {
+    const grant = clericSheet(7).standing?.find((x) => x.feature === 'cleric:blessed-strikes');
+    if (grant?.grant.kind !== 'attack-damage') throw new Error('expected attack damage');
+    expect(grant.grant.damageTypeChoices).toEqual(['necrotic', 'radiant']);
+    expect(grant.grant.damageType).toBeUndefined();
+
+    const immune: readonly GameEvent[] = clericTable().map((e) =>
+      e.type === 'creature-added' && e.id === THUG
+        ? { ...e, defenses: { bludgeoning: { immune: true } } }
+        : e,
+    );
+    const mace = swing(immune, { target: THUG, weapon: 'mace' }, CLERIC);
+    expect(dealt(mace)).toBe(0);
+
+    const blessed = swing(
+      immune,
+      { target: THUG, weapon: 'mace', featureDamageTypes: { 'cleric:blessed-strikes': 'radiant' } },
+      CLERIC,
+    );
+    expect(dealt(blessed)).toBeGreaterThan(0);
+  });
+
+  /** A Cleric asking for Fire is asking for a rule the SRD does not print. */
+  it('refuses a damage type the feature does not offer, before rolling', () => {
+    const generator = supply();
+    const out = resolveAttack(
+      fold('seed', clericTable()),
+      CLERIC,
+      {
+        target: THUG,
+        weapon: 'mace',
+        featureDamageTypes: { 'cleric:blessed-strikes': 'fire' },
+        attackBonuses: [{ source: 'forced', flat: 40 }],
+      },
+      generator,
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('bad_damage_type');
+    // Validate before rolling: the refusal cost no die and no roll id.
+    expect(generator.issuer.count).toBe(0);
+  });
+
+  /** And naming a feature the character does not have is likewise refused. */
+  it('refuses a choice for a feature the character does not have', () => {
+    const out = resolveAttack(
+      fold('seed', clericTable()),
+      CLERIC,
+      {
+        target: THUG,
+        weapon: 'mace',
+        featureDamageTypes: { 'druid:elemental-fury': 'fire' },
+        attackBonuses: [{ source: 'forced', flat: 40 }],
+      },
+      supply(),
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('no_such_feature_choice');
+  });
+
+  /** SRD "You gain one of the following options of your choice." */
+  it('grants nothing to a Cleric who chose Potent Spellcasting', () => {
+    expect(
+      (clericSheet(7, 'Potent Spellcasting').standing ?? []).some(
+        (e) => e.feature === 'cleric:blessed-strikes',
+      ),
+    ).toBe(false);
+  });
+
+  /** It shares the allowance machinery, so it is once per turn like the rest. */
+  it('is once per turn', () => {
+    const types = { 'cleric:blessed-strikes': 'necrotic' };
+    const first = swing(
+      clericTable(),
+      { target: THUG, weapon: 'mace', featureDamageTypes: types },
+      CLERIC,
+    );
+    const second = swing(
+      first.log,
+      { target: THUG, weapon: 'mace', featureDamageTypes: types, free: true },
+      CLERIC,
+    );
+    expect(spent(first.events, 'cleric:blessed-strikes')).toBe(true);
+    expect(spent(second.events, 'cleric:blessed-strikes')).toBe(false);
   });
 });

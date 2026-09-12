@@ -1,4 +1,4 @@
-import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
+import { err, ok, type Ability, type CharacterId, type ConditionName, type Result, type RollMode } from '@ie/shared';
 import type { Bonus, ModeSource } from './bonuses.js';
 import { UNIVERSAL_ACTION_EFFECTS } from './actions.js';
 import {
@@ -158,6 +158,19 @@ export type StandingGrant =
        * each of these is a feature's own clause rather than a generalisation.
        */
       readonly advantageOrAdjacentAlly?: boolean;
+      /**
+       * Damage types the holder picks between **at the hit**.
+       *
+       * SRD Divine Strike: "an extra 1d8 Necrotic or Radiant damage (your
+       * choice)". SRD Primal Strike: "Cold, Fire, Lightning, or Thunder
+       * (choose when you hit)". Per hit, so it cannot live on the sheet the
+       * way Elemental Affinity's one resistance does.
+       *
+       * Naming no type is how a caller declines the feature, which is what
+       * "**you can** cause the target to take" means. An illegal type is
+       * refused before anything is rolled rather than quietly ignored.
+       */
+      readonly damageTypeChoices?: readonly string[];
     };
 
 /**
@@ -530,6 +543,49 @@ export interface AttackContext {
   readonly target: CharacterId;
   /** The turn this attack happens on; null outside combat, where none exists. */
   readonly turn: number | null;
+  /**
+   * The damage type chosen for each feature that offers a choice, by feature id.
+   *
+   * Absent for a feature means the holder declined it — SRD writes these as
+   * "you can", and there is no other moment at which declining could be said.
+   */
+  readonly featureDamageTypes?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Refuse a damage type the feature does not offer, before anything is rolled.
+ *
+ * A caller may choose between the types the SRD prints and may not invent one:
+ * Divine Strike is Necrotic or Radiant, and a Cleric asking for Fire is asking
+ * for a rule that does not exist. Checked up front, so a refusal costs neither
+ * a die nor the attack.
+ */
+export function checkFeatureDamageTypes(
+  state: GameState,
+  who: CharacterId,
+  chosen: Readonly<Record<string, string>> | undefined,
+): Result<true> {
+  if (chosen === undefined) return ok(true);
+  const offered = new Map<string, readonly string[]>();
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind === 'attack-damage' && effect.grant.damageTypeChoices !== undefined) {
+      offered.set(effect.feature, effect.grant.damageTypeChoices);
+    }
+  }
+
+  for (const [feature, type] of Object.entries(chosen)) {
+    const allowed = offered.get(feature);
+    if (allowed === undefined) {
+      return err('no_such_feature_choice', `${who} has no feature ${feature} that chooses a damage type`);
+    }
+    if (!allowed.includes(type)) {
+      return err(
+        'bad_damage_type',
+        `${feature} deals ${allowed.join(' or ')} damage, not ${type}`,
+      );
+    }
+  }
+  return ok(true);
 }
 
 /**
@@ -629,12 +685,22 @@ export function standingAttackDamage(
     }
     // Last, so that a feature ruled out by its own qualifications does not
     // spend an allowance it never used.
+    // SRD "you can cause the target to take an extra 1d8 Necrotic or Radiant
+    // damage (your choice)": naming no type declines the feature, which is the
+    // only moment at which "you can" could be answered.
+    let chosenType: string | undefined;
+    if (grant.damageTypeChoices !== undefined) {
+      chosenType = context.featureDamageTypes?.[effect.feature];
+      if (chosenType === undefined || !grant.damageTypeChoices.includes(chosenType)) continue;
+    }
+
     if (grant.oncePerTurn === true && state.combat !== null) {
       if (!canUseFeatureThisTurn(state.combat, who, effect.feature)) continue;
       if (context.turn !== null) spent.push(effect.feature);
     }
 
-    if (grant.damageType === undefined) {
+    const type = chosenType ?? grant.damageType;
+    if (type === undefined) {
       bonuses.push({
         source: effect.name,
         ...(grant.flat === undefined ? {} : { flat: grant.flat }),
@@ -643,7 +709,7 @@ export function standingAttackDamage(
     } else {
       extra.push({
         source: effect.name,
-        type: grant.damageType,
+        type,
         ...(grant.dice === undefined ? {} : { dice: grant.dice }),
         ...(grant.flat === undefined ? {} : { flat: grant.flat }),
       });

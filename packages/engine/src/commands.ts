@@ -70,6 +70,7 @@ import {
   attackedWithDisadvantage,
   defensesOf,
   effectiveConditions,
+  checkFeatureDamageTypes,
   standingAttackDamage,
   standingSaveBonuses,
   standingSaveModes,
@@ -2009,6 +2010,17 @@ export interface AttackCommand extends CommandIdentity {
    * Attack action, not the attacks inside it.
    */
   readonly free?: boolean;
+  /**
+   * Which damage type a feature that offers a choice deals on this hit.
+   *
+   * SRD Divine Strike is "Necrotic or Radiant damage (your choice)" and Primal
+   * Strike "Cold, Fire, Lightning, or Thunder (choose when you hit)" — per
+   * hit, so it cannot be settled on the sheet. Keyed by feature id.
+   *
+   * Naming no type declines the feature, which is what "you can cause" means;
+   * naming one it does not offer is refused before anything is rolled.
+   */
+  readonly featureDamageTypes?: Readonly<Record<string, string>>;
 }
 
 export interface AttackResolution {
@@ -2111,6 +2123,12 @@ export function resolveAttack(
   if (!canBeTargeted(cover)) {
     return err('total_cover', `${command.target} is behind Total Cover`);
   }
+
+  // A damage type a feature does not offer is refused here, before the action
+  // is spent and before a die is thrown — the same validate-before-rolling
+  // rule the rest of the engine keeps.
+  const legalTypes = checkFeatureDamageTypes(state, id, command.featureDamageTypes);
+  if (!legalTypes.ok) return legalTypes;
 
   // — the action it costs —————————————————————————————————————————————————
   //
@@ -2248,6 +2266,9 @@ export function resolveAttack(
     mode: attack.value.roll.mode,
     target: command.target,
     turn: state.combat?.turnsTaken ?? null,
+    ...(command.featureDamageTypes === undefined
+      ? {}
+      : { featureDamageTypes: command.featureDamageTypes }),
   });
   unverified.push(...fromFeatures.unverified);
 
@@ -2449,6 +2470,14 @@ export interface AttackDamageCommand extends CommandIdentity {
   readonly smite?: { readonly spellId: string; readonly slotLevel: number };
   readonly damageBonuses?: readonly Bonus[];
   readonly extraDamage?: readonly ExtraDamage[];
+  /**
+   * The damage type a feature that offers a choice deals on this hit.
+   *
+   * The choice belongs to the moment the damage is rolled, which for a held
+   * attack is here rather than when it landed. See the field of the same name
+   * on {@link AttackCommand}.
+   */
+  readonly featureDamageTypes?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -2492,6 +2521,9 @@ export function resolveAttackDamage(
   }
 
   const current = events.reduce(applyEvent, state);
+  const legalTypes = checkFeatureDamageTypes(current, id, command.featureDamageTypes);
+  if (!legalTypes.ok) return legalTypes;
+
   const fromFeatures = standingAttackDamage(current, id, {
     ability: pending.ability,
     melee: rangeOf(weapon, pending.thrown) === null,
@@ -2501,6 +2533,9 @@ export function resolveAttackDamage(
     mode: pending.mode ?? 'normal',
     target: pending.target,
     turn: current.combat?.turnsTaken ?? null,
+    ...(command.featureDamageTypes === undefined
+      ? {}
+      : { featureDamageTypes: command.featureDamageTypes }),
   });
 
   const issuedBefore = supply.issuer.count;

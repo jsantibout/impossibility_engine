@@ -64,6 +64,18 @@ const rows: readonly ClassLevelRow[] = TABLE.map((row) => ({
   spellSlots: row.slice(4),
 }));
 
+/**
+ * SRD Divine Strike: the extra damage dice at each Cleric level.
+ *
+ * Not a column of the class table — the SRD writes it in the features
+ * themselves, 1d8 at level 7 and "increases to 2d8" at 14 — so it is
+ * transcribed here rather than read off `TABLE`. Zero below 7, which is what
+ * a feature the character does not have yet contributes.
+ */
+export const DIVINE_STRIKE_DICE: readonly number[] = [
+  0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
+];
+
 export const CLERIC: ClassDefinition = {
   id: 'cleric',
   name: 'Cleric',
@@ -147,8 +159,28 @@ export const CLERIC: ClassDefinition = {
       id: 'cleric:blessed-strikes',
       name: 'Blessed Strikes',
       level: 7,
-      automation: 'manual',
-      note: 'The extra damage on a cantrip or weapon hit is a bonus the caller supplies; nothing adds it automatically.',
+      automation: 'engine',
+      note: 'Divine Strike is executed: a hit with a weapon deals an extra 1d8, rising to 2d8 at Cleric level 14, of whichever of Necrotic or Radiant the caster names at the hit — once per turn, and naming no type is how the option is declined. Potent Spellcasting is not: adding the Wisdom modifier to a cantrip’s damage is a spell-damage rider rather than an attack one, and a Cleric who chose it gains nothing here.',
+      // SRD: "You gain one of the following options of your choice."
+      choice: { kind: 'option', choose: 1, from: ['Divine Strike', 'Potent Spellcasting'] },
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        onlyIfChoice: 'Divine Strike',
+        // SRD: "Once on each of your turns when you hit a creature with an
+        // attack roll using a weapon, you can cause the target to take an
+        // extra 1d8 Necrotic or Radiant damage (your choice)."
+        effects: [
+          {
+            kind: 'attack-damage',
+            dice: '1d8',
+            oncePerTurn: true,
+            weaponOnly: true,
+            damageTypeChoices: ['necrotic', 'radiant'],
+          },
+        ],
+        diceCountByLevel: DIVINE_STRIKE_DICE,
+      },
     },
     {
       id: 'cleric:divine-intervention',
@@ -161,8 +193,8 @@ export const CLERIC: ClassDefinition = {
       id: 'cleric:improved-blessed-strikes',
       name: 'Improved Blessed Strikes',
       level: 14,
-      automation: 'manual',
-      note: 'The improved extra damage is not applied, for the same reason as Blessed Strikes.',
+      automation: 'engine',
+      note: 'SRD: "The extra damage of your Divine Strike increases to 2d8." The increase is applied by Blessed Strikes’ own dice table, which is read at the character’s Cleric level — this feature is the level at which that table steps, and has no separate effect to execute. The Potent Spellcasting branch’s Temporary Hit Points are not modelled.',
     },
     {
       id: 'cleric:epic-boon',

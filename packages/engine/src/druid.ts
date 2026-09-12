@@ -49,6 +49,16 @@ const rows: readonly ClassLevelRow[] = TABLE.map((row) => ({
 /** SRD Wild Shape: uses per rest, by level. None before level 2. */
 export const WILD_SHAPE_USES: readonly number[] = TABLE.map((row) => row[2] ?? 0);
 
+/**
+ * SRD Primal Strike: the extra damage dice at each Druid level.
+ *
+ * Written in the features rather than in a column — 1d8 at level 7, "increases
+ * to 2d8" at 15 — so it is transcribed here beside the table it is not part of.
+ */
+export const PRIMAL_STRIKE_DICE: readonly number[] = [
+  0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2,
+];
+
 export const DRUID: ClassDefinition = {
   id: 'druid',
   name: 'Druid',
@@ -155,16 +165,35 @@ export const DRUID: ClassDefinition = {
       id: 'druid:elemental-fury',
       name: 'Elemental Fury',
       level: 7,
-      automation: 'manual',
-      note: 'Potent Spellcasting adds the Wisdom modifier to cantrip damage; Primal Strike adds 1d8 to an attack. Both are bonuses the caller supplies.',
+      automation: 'engine',
+      note: 'Primal Strike is executed: a hit with a weapon deals an extra 1d8, rising to 2d8 at Druid level 15, of whichever of Cold, Fire, Lightning or Thunder the Druid names at the hit — once per turn, and naming no type is how the option is declined. The Beast form’s attack it also covers is not, because Wild Shape is not modelled. Potent Spellcasting is not executed: adding the Wisdom modifier to a cantrip’s damage is a spell-damage rider rather than an attack one.',
       choice: { kind: 'option', choose: 1, from: ['Potent Spellcasting', 'Primal Strike'] },
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        onlyIfChoice: 'Primal Strike',
+        // SRD: "Once on each of your turns when you hit a creature with an
+        // attack roll using a weapon or a Beast form's attack in Wild Shape,
+        // you can cause the target to take an extra 1d8 Cold, Fire, Lightning,
+        // or Thunder damage (choose when you hit)."
+        effects: [
+          {
+            kind: 'attack-damage',
+            dice: '1d8',
+            oncePerTurn: true,
+            weaponOnly: true,
+            damageTypeChoices: ['cold', 'fire', 'lightning', 'thunder'],
+          },
+        ],
+        diceCountByLevel: PRIMAL_STRIKE_DICE,
+      },
     },
     {
       id: 'druid:improved-elemental-fury',
       name: 'Improved Elemental Fury',
       level: 15,
-      automation: 'manual',
-      note: 'The improved version of whichever option was taken, neither of which is applied.',
+      automation: 'engine',
+      note: 'SRD: "The extra damage of your Primal Strike increases to 2d8." The increase is applied by Elemental Fury’s own dice table, read at the character’s Druid level — this feature is the level at which that table steps, and has no separate effect to execute. The Potent Spellcasting branch’s 300 feet of extra cantrip range is not modelled.',
     },
     {
       id: 'druid:beast-spells',
