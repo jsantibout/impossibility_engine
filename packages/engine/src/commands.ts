@@ -73,6 +73,8 @@ import {
   checkFeatureDamageTypes,
   evadesHalfDamage,
   standingAttackDamage,
+  standingInitiativeModes,
+  standingSkillModes,
   standingSaveBonuses,
   standingSaveModes,
   type ActivatedFeature,
@@ -4007,12 +4009,18 @@ export function resolveEffectCheck(
   }
 
   const issuedBefore = supply.issuer.count;
+  // A feature that grants Advantage on this very skill — SRD Remarkable
+  // Athlete: "Advantage on ... Strength (Athletics) checks", which is exactly
+  // what tearing free of Black Tentacles asks for.
+  const fromFeatures =
+    check.skill === undefined ? [] : standingSkillModes(state, who, check.skill);
+
   const rolled = rollAbilityCheck(supply.issuer, supply.rng, creature.sheet, check.ability, {
     dc: check.dc,
     ...(check.skill === undefined ? {} : { skill: check.skill }),
     conditions: effectiveConditions(state, who),
+    modes: [...fromFeatures, ...(command.modes ?? [])],
     ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
-    ...(command.modes === undefined ? {} : { modes: command.modes }),
     ...(command.bonuses === undefined ? {} : { bonuses: command.bonuses }),
   });
   if (!rolled.ok) return rolled;
@@ -6285,10 +6293,24 @@ export function rollInitiativeFor(
   const supplied = options.bonuses ?? [];
   const mine = own.filter((bonus) => !supplied.some((other) => other.source === bonus.source));
 
+  // SRD Feral Instinct and Remarkable Athlete both say "Advantage on
+  // Initiative rolls", and a modifier somebody has to remember is one a
+  // character silently stops having — the same rule Alert's bonus above
+  // already follows. Deduplicated by source, so a caller who also knows about
+  // the feature does not apply it twice.
+  const named = new Map<string, ModeSource>();
+  for (const mode of standingInitiativeModes(state, id)) named.set(mode.source, mode);
+  const bare: (RollMode | ModeSource)[] = [];
+  for (const mode of options.modes ?? []) {
+    if (typeof mode === 'string') bare.push(mode);
+    else named.set(mode.source, mode);
+  }
+
   return rollInitiative(issuer, rng, id, creature.sheet, {
     ...options,
     conditions: options.conditions ?? effectiveConditions(state, id),
     bonuses: [...supplied, ...mine],
+    modes: [...bare, ...named.values()],
   });
 }
 

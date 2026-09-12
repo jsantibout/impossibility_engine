@@ -218,8 +218,9 @@ export const MONK: ClassDefinition = {
       id: 'monk:disciplined-survivor',
       name: 'Disciplined Survivor',
       level: 14,
-      automation: 'manual',
-      note: 'Proficiency in every save, and rerolling a failed one for a Focus Point, are not applied; save proficiencies are a fixed list on the class.',
+      automation: 'engine',
+      note: 'SRD: "Your physical and mental discipline grant you proficiency in all saving throws." All six are unioned into the sheet. Reroll ing a failed save for a Focus Point is not modelled: rerollTest exists and nothing spends a Monk’s Focus for it.',
+      grants: { kind: 'save-proficiency', abilities: 'all' },
     },
     {
       id: 'monk:perfect-focus',

@@ -1853,8 +1853,24 @@ export function planCharacter(
     level: totalLevelOf(choices),
     abilities: scores,
     skills,
-    // SRD gives no saving throw proficiencies for a class after the first.
-    saveProficiencies: definition.saveProficiencies,
+    // SRD gives no saving throw proficiencies for a class after the first —
+    // but a *feature* may add some, and two do: Slippery Mind names Wisdom and
+    // Charisma, Disciplined Survivor names all six. Union, never a count:
+    // proficiency is binary, so adding one a character already has is a no-op
+    // rather than a doubling, which is the same rule overlapping skill
+    // proficiencies already follow.
+    saveProficiencies: [
+      ...new Set([
+        ...definition.saveProficiencies,
+        ...features.flatMap((feature) =>
+          feature.grants?.kind === 'save-proficiency'
+            ? feature.grants.abilities === 'all'
+              ? [...ABILITIES]
+              : feature.grants.abilities
+            : [],
+        ),
+      ]),
+    ].sort(),
     armor: worn,
     shield: held,
     armorTraining: combinedArmorTraining(

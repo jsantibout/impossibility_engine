@@ -184,8 +184,9 @@ export const BARBARIAN: ClassDefinition = {
       id: 'barbarian:feral-instinct',
       name: 'Feral Instinct',
       level: 7,
-      automation: 'manual',
-      note: 'Advantage on Initiative is not applied. `initiativeBonuses` carries flat bonuses a character’s features add; a mode is not a bonus and has no equivalent field.',
+      automation: 'engine',
+      note: 'SRD: "Your instincts are so honed that you have Advantage on Initiative rolls." Applied by rollInitiativeFor, off the creature’s own features rather than out of a caller’s hand — the same rule Alert’s Proficiency Bonus already follows.',
+      grants: { kind: 'standing', reach: 'self', effects: [{ kind: 'advantage', on: 'initiative' }] },
     },
     {
       id: 'barbarian:instinctive-pounce',

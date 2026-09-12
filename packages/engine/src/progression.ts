@@ -235,6 +235,14 @@ export type FeatureGrant =
    * again, exactly as Extra Attack restates a total.
    */
   | { readonly kind: 'critical-range'; readonly on: number }
+  /**
+   * SRD Slippery Mind: "You gain proficiency in Wisdom and Charisma saving
+   * throws"; Disciplined Survivor: "proficiency in all saving throws".
+   *
+   * A list rather than a count, and `all` spelled out rather than the six
+   * written by hand, because that is how the two features read.
+   */
+  | { readonly kind: 'save-proficiency'; readonly abilities: readonly Ability[] | 'all' }
   | {
       readonly kind: 'unarmored-defense';
       readonly ability: Ability;

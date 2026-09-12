@@ -79,7 +79,8 @@ still Wizard-shaped are named below.
 | Once per turn | An attack-damage rider with a per-turn allowance; Sneak Attack, Colossus Slayer | `52274c9` |
 | Chosen damage type | A rider whose type the holder names at the hit; Divine Strike, Primal Strike | `bae34d8` |
 | Critical range | The die face that scores a Critical Hit, off the sheet; the Champion | `7c0227e` |
-| Evasion | A halved Dexterity save becomes none; the Rogue and the Monk | _this batch_ |
+| Evasion | A halved Dexterity save becomes none; the Rogue and the Monk | `9a1ebb4` |
+| Rolls features change | Advantage on Initiative and on a skill; saving throw proficiencies | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -747,6 +748,31 @@ still Wizard-shaped are named below.
   the sheet under test. **A fixture whose arithmetic depends on the dice must
   hold the dice still.**
 
+- **Advantage on Initiative is its own grant, not a Dexterity save with a
+  different name.** SRD says "Initiative rolls", and Initiative is an ability
+  check rolled by a different function from a save — folding them together
+  would have made Danger Sense's Dexterity-save Advantage apply to Initiative,
+  which it does not. Two features want it (Feral Instinct, Remarkable
+  Athlete), which is what makes it a member rather than a guess.
+- **Advantage is presence, and a feature that grants it must still cancel.** A
+  Barbarian with Feral Instinct and Disadvantage from somewhere else rolls
+  *one* die, and both sources stay in `modeSources` so the record can say why a
+  normal-looking roll was normal. Deduplicated by source, so a caller who also
+  knows about the feature does not apply it twice — the rule Alert's flat bonus
+  already follows, now applying to a mode.
+- **Remarkable Athlete's Athletics half is reachable, and only because of last
+  batch's work.** "Advantage on ... Strength (Athletics) checks" had nowhere to
+  bite until a command rolled a skill check, and `resolveEffectCheck` is that
+  command: a Champion tearing free of Black Tentacles rolls with Advantage. A
+  feature and a spell meeting through a primitive neither of them named is the
+  clearest evidence yet that the check shape was the right one.
+- **Save proficiencies union rather than count.** Proficiency is binary, so a
+  feature naming one the class already had is a no-op — the same rule
+  overlapping skill proficiencies follow, and the reason the merge is a `Set`
+  rather than a concatenation. Disciplined Survivor's "all saving throws" is
+  spelled `'all'` rather than the six written out, because that is how the
+  feature reads and because writing six is how one gets missed.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -1195,8 +1221,8 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells verified end to end | 47 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 71 of 230 |
-| Tests | 3,470 passing, none skipped |
+| Class features executed | 75 of 230 |
+| Tests | 3,478 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

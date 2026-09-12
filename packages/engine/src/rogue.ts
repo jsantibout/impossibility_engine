@@ -240,8 +240,9 @@ export const ROGUE: ClassDefinition = {
       id: 'rogue:slippery-mind',
       name: 'Slippery Mind',
       level: 15,
-      automation: 'manual',
-      note: 'Wisdom and Charisma save proficiency is not added; save proficiencies are a fixed list on the class.',
+      automation: 'engine',
+      note: 'SRD: "You gain proficiency in Wisdom and Charisma saving throws." Unioned into the sheet’s save proficiencies at creation; proficiency is binary, so one the character already had is a no-op rather than a doubling.',
+      grants: { kind: 'save-proficiency', abilities: ['wis', 'cha'] },
     },
     {
       id: 'rogue:elusive',

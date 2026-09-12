@@ -1,4 +1,13 @@
-import { err, ok, type Ability, type CharacterId, type ConditionName, type Result, type RollMode } from '@ie/shared';
+import {
+  err,
+  ok,
+  type Ability,
+  type CharacterId,
+  type ConditionName,
+  type Result,
+  type RollMode,
+  type Skill,
+} from '@ie/shared';
 import type { Bonus, ModeSource } from './bonuses.js';
 import { UNIVERSAL_ACTION_EFFECTS } from './actions.js';
 import {
@@ -58,6 +67,23 @@ export type StandingReach =
 export type StandingGrant =
   /** SRD Danger Sense: "Advantage on Dexterity saving throws". */
   | { readonly kind: 'advantage'; readonly on: 'save'; readonly ability: Ability }
+  /**
+   * SRD Feral Instinct: "you have Advantage on Initiative rolls."
+   *
+   * Its own member rather than a save with a Dexterity ability, because
+   * Initiative is an ability check and the two are rolled by different
+   * functions — and because the SRD says "Initiative rolls" rather than
+   * "Dexterity checks", which are not the same set.
+   */
+  | { readonly kind: 'advantage'; readonly on: 'initiative' }
+  /**
+   * SRD Remarkable Athlete: "Advantage on ... Strength (Athletics) checks."
+   *
+   * Named by skill rather than by ability, because that is how the SRD writes
+   * it and because a skill check and a bare ability check of the same ability
+   * are different rolls.
+   */
+  | { readonly kind: 'advantage'; readonly on: 'skill'; readonly skill: Skill }
   /**
    * SRD Aura of Protection: "a bonus to saving throws equal to your Charisma
    * modifier (minimum bonus of +1)" — the *holder's* modifier, read off their
@@ -655,6 +681,35 @@ function adjacentAllyOf(
  * Asked of the *target* rather than the caster, which is what makes it a
  * defence: the Rogue standing in the Fireball is the one who evades it.
  */
+/**
+ * Advantage on Initiative this creature's features grant.
+ *
+ * Attributed, like every other mode, because Advantage cancels rather than
+ * stacks and a roll that came out normal should still be able to say what
+ * cancelled what.
+ */
+export function standingInitiativeModes(state: GameState, who: CharacterId): ModeSource[] {
+  return standingFor(state, who)
+    .filter(({ effect }) => effect.grant.kind === 'advantage' && effect.grant.on === 'initiative')
+    .map(({ effect }) => ({ source: effect.name, mode: 'advantage' as const }));
+}
+
+/** Advantage on a named skill's checks, from the same place. */
+export function standingSkillModes(
+  state: GameState,
+  who: CharacterId,
+  skill: Skill,
+): ModeSource[] {
+  return standingFor(state, who)
+    .filter(
+      ({ effect }) =>
+        effect.grant.kind === 'advantage' &&
+        effect.grant.on === 'skill' &&
+        effect.grant.skill === skill,
+    )
+    .map(({ effect }) => ({ source: effect.name, mode: 'advantage' as const }));
+}
+
 export function evadesHalfDamage(
   state: GameState,
   who: CharacterId,

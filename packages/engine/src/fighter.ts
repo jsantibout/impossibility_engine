@@ -253,8 +253,16 @@ export const CHAMPION: SubclassDefinition = {
       id: 'champion:remarkable-athlete',
       name: 'Remarkable Athlete',
       level: 3,
-      automation: 'manual',
-      note: 'Advantage on Initiative and the extra jump distance are not applied.',
+      automation: 'engine',
+      note: 'SRD: "you have Advantage on Initiative rolls and Strength (Athletics) checks." Both are applied — the Initiative roll by rollInitiativeFor and the Athletics check wherever the engine rolls one, which today is the escape a spell offers. The extra running-jump distance is not: jumping is not modelled.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          { kind: 'advantage', on: 'initiative' },
+          { kind: 'advantage', on: 'skill', skill: 'athletics' },
+        ],
+      },
     },
     {
       id: 'champion:additional-fighting-style',
