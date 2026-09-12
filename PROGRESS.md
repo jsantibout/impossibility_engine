@@ -90,6 +90,7 @@ still Wizard-shaped are named below.
 | Reaction windows | Five named instants shared by spells and features; 8 class Reactions | `e66c2f8` |
 | Ongoing spells | A live record of a casting that is still running; Dispel Magic, later-turn use, replacement | `99b7c06` |
 | Architecture audit II | An offer is a (reactor, feature) pair; the Ready path’s record; activation guards; retry order; scheduled-damage cleanup | `f2512c7` |
+| Spell origins | A casting holds a point; the attack's origin is not its actor; Spiritual Weapon | `adaf5eb` |
 
 ## Decisions that constrain what comes next
 
