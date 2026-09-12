@@ -81,7 +81,8 @@ still Wizard-shaped are named below.
 | Critical range | The die face that scores a Critical Hit, off the sheet; the Champion | `7c0227e` |
 | Evasion | A halved Dexterity save becomes none; the Rogue and the Monk | `9a1ebb4` |
 | Rolls features change | Advantage on Initiative and on a skill; saving throw proficiencies | `92a3c88` |
-| Class pools | Nine features that claimed a pool and had none | _this batch_ |
+| Class pools | Nine features that claimed a pool and had none | `abf6b7b` |
+| Partial refill | One use back on a Short Rest; five features that say it | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -813,6 +814,26 @@ still Wizard-shaped are named below.
   table"; `minimum` covers that, so it now uses the same grant as everything
   else and the special case is gone.
 
+- **"One expended use on a Short Rest" is a shape, and it took five users to
+  look like one.** Rage carried it as a documented gap for months — "a partial
+  refill the pool system has no shape for, where every other recovery is all or
+  nothing" — and it read as that class's quirk. Declaring the other eight class
+  pools in the batch before this one turned it into Rage, both Channel
+  Divinities, Wild Shape and Second Wind saying the same sentence. That is the
+  generalisation rule working the way it is meant to: the evidence arrived
+  before the abstraction did.
+- **A number rather than a flag, because the SRD writes a number.** All five
+  say "one", and a boolean would be a rule that could only ever mean one.
+- **A guard nothing can reach is not a rule, and a hand-built fixture can fix
+  that.** The `recovers === 'short-rest'` check in `restoreOn` was unreachable
+  through any class: every feature with a partial rule is also tagged
+  `long-rest`, so a Long Rest takes the whole-refill branch before the partial
+  one is consulted. The mutation that removed it passed everything. `restoreOn`
+  is a pure function over a pool, so a pool that recovers at **dawn** and
+  refills one on a Short Rest can simply be built — and it stands exactly in
+  the gap the guard was defending. Better than `placeArea`'s dead
+  `no_scene`, which stayed dead because nothing could construct its case.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -1262,7 +1283,7 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 75 of 230 |
-| Tests | 3,507 passing, none skipped |
+| Tests | 3,515 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

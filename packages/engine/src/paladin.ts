@@ -141,13 +141,15 @@ export const PALADIN: ClassDefinition = {
       name: 'Channel Divinity',
       level: 3,
       automation: 'engine',
-      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. SRD also gives back one use on a Short Rest, which the pool system expresses as all-or-nothing and so does not do. What each use buys is not executed.',
+      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. What each use buys is not executed.',
       grants: {
         kind: 'pool',
         key: 'channel-divinity',
         label: 'Channel Divinity',
         usesByLevel: PALADIN_CHANNEL_DIVINITY,
         recovers: 'long-rest',
+        // SRD: "You regain one expended use when you finish a Short Rest."
+        regainsOnShortRest: 1,
       },
     },
     {

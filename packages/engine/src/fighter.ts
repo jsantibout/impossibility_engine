@@ -140,13 +140,15 @@ export const FIGHTER: ClassDefinition = {
       name: 'Second Wind',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool sized by the Second Wind column, refilling on a Long Rest. SRD also gives back one use on a Short Rest, which the pool system does not express. The 1d10 plus Fighter level of healing is not spent through the pool: healCreature exists and nothing ties the two together.',
+      note: 'Declared as a pool sized by the Second Wind column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. The 1d10 plus Fighter level of healing is not spent through the pool: healCreature exists and nothing ties the two together.',
       grants: {
         kind: 'pool',
         key: 'second-wind',
         label: 'Second Wind',
         usesByLevel: SECOND_WIND_USES,
         recovers: 'long-rest',
+        // SRD: "You regain one expended use when you finish a Short Rest."
+        regainsOnShortRest: 1,
       },
     },
     {

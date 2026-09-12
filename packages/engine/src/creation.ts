@@ -2180,6 +2180,9 @@ function poolEvents(
         label: grant.poolLabel ?? feature.name,
         max: usesOf(choices, feature.id, grant.usesByLevel),
         recovers: grant.recovers ?? 'long-rest',
+        ...(grant.regainsOnShortRest === undefined
+          ? {}
+          : { regainsOnShortRest: grant.regainsOnShortRest }),
       },
     });
   }
@@ -2197,6 +2200,9 @@ function poolEvents(
         label: grant.label ?? feature.name,
         max: poolSizeOf(choices, feature.id, grant),
         recovers: grant.recovers,
+        ...(grant.regainsOnShortRest === undefined
+          ? {}
+          : { regainsOnShortRest: grant.regainsOnShortRest }),
       },
     });
   }

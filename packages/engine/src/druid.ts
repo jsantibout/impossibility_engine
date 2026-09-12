@@ -128,13 +128,15 @@ export const DRUID: ClassDefinition = {
       name: 'Wild Shape',
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool sized by the Wild Shape column, refilling on a Long Rest. SRD also gives back one use on a Short Rest, which the pool system does not express. Becoming a Beast — the form’s statistics, the hours it lasts, and the Bonus Action either way — is not modelled.',
+      note: 'Declared as a pool sized by the Wild Shape column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. Becoming a Beast — the form’s statistics, the hours it lasts, and the Bonus Action either way — is not modelled.',
       grants: {
         kind: 'pool',
         key: 'wild-shape',
         label: 'Wild Shape',
         usesByLevel: WILD_SHAPE_USES,
         recovers: 'long-rest',
+        // SRD: "You regain one expended use when you finish a Short Rest."
+        regainsOnShortRest: 1,
       },
     },
     {

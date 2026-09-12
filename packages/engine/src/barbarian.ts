@@ -78,7 +78,7 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Rage',
       level: 1,
       automation: 'engine',
-      note: 'Entered as a Bonus Action out of a pool sized by the Rages column, lasting until the end of your next turn unless extended, and ending the moment you are Incapacitated or don Heavy armour. Resistance to Bludgeoning, Piercing and Slashing and Advantage on Strength checks and saves are applied while it runs. Rage Damage is applied too, as a bonus to the weapon’s own damage on any attack made with Strength. One half is not: the Short Rest that gives back one use is a partial refill the pool system has no shape for, where every other recovery is all or nothing.',
+      note: 'Entered as a Bonus Action out of a pool sized by the Rages column, lasting until the end of your next turn unless extended, and ending the moment you are Incapacitated or don Heavy armour. Resistance to Bludgeoning, Piercing and Slashing and Advantage on Strength checks and saves are applied while it runs. Rage Damage is applied too, as a bonus to the weapon’s own damage on any attack made with Strength. The Short Rest that gives back one use is applied too — a partial refill the pool system expresses now that five features asked for it.',
       grants: {
         kind: 'activated',
         action: 'bonus-action',
@@ -86,6 +86,9 @@ export const BARBARIAN: ClassDefinition = {
         usesByLevel: RAGES_PER_REST,
         poolLabel: 'Rage',
         recovers: 'long-rest',
+        // SRD: "You regain one expended use when you finish a Short Rest, and you
+        // regain all expended uses when you finish a Long Rest."
+        regainsOnShortRest: 1,
         lasts: 'end-of-next-turn',
         // SRD: "You can maintain a Rage for up to 10 minutes."
         capSeconds: 600,

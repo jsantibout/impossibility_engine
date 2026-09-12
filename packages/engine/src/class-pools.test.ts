@@ -4,6 +4,9 @@ import { abilityModifier } from './character.js';
 import { fold, type GameEvent } from './events.js';
 import { createCharacter, allClasses, allSubclasses, type CharacterChoices } from './creation.js';
 import { FOCUS_POINTS } from './monk.js';
+import { SECOND_WIND_USES } from './fighter.js';
+import { declarePool, remaining, restoreOn, spend, type ResourceState } from './resources.js';
+import { expect as unwrapResource } from '@ie/shared';
 
 /**
  * A feature that *is* a named resource.
@@ -122,6 +125,28 @@ const monk = (level: number): CharacterChoices => ({
   feats: {
     ...common.feats,
     ...(level >= 4 ? { 'monk:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+  },
+});
+
+const fighter = (level: number): CharacterChoices => ({
+  ...common,
+  name: 'Bram',
+  classId: 'fighter',
+  level,
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { int: 2, wis: 1 },
+  classSkills: ['athletics', 'intimidation'],
+  ...(level >= 3 ? { subclassId: 'champion' } : {}),
+  cantrips: [],
+  preparedSpells: [],
+  featureChoices: { 'human:skillful': ['perception'] },
+  feats: {
+    ...common.feats,
+    'fighter:fighting-style': { featId: 'defense' },
+    ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
   },
 });
 
@@ -255,6 +280,139 @@ describe('a feature that claims a pool declares one', () => {
       'sorcery-points',
       'wild-shape',
       'wizard:arcane-recovery',
+    ]);
+  });
+});
+
+describe('a Short Rest that gives back one use without emptying the pool', () => {
+  /**
+   * SRD writes this five times in the same words — Rage, both Channel
+   * Divinities, Wild Shape, Second Wind:
+   *
+   * > "You regain **one** expended use when you finish a Short Rest, and you
+   * > regain **all** expended uses when you finish a Long Rest."
+   *
+   * The `recovers` tag is the second half and is all-or-nothing; this is the
+   * first half, and tagging these pools `short-rest` instead would hand a
+   * level 1 Fighter their whole Second Wind back after every breather. Five
+   * users is what made it a shape rather than Rage's private quirk.
+   */
+  const spendAll = (pools: ResourceState, key: string): ResourceState => {
+    const max = pools.pools[key]?.max ?? 0;
+    return unwrapResource(spend(pools, key, max), 'spend');
+  };
+
+  const poolsFrom = (choices: CharacterChoices): ResourceState => ({
+    pools: poolsOf(choices),
+  });
+
+  it('gives back exactly one, not all', () => {
+    const key = 'second-wind';
+    const fighterAt5 = fighter(5);
+    const full = poolsFrom(fighterAt5);
+    // Off the class table, not a number this test remembers.
+    expect(full.pools[key]?.max).toBe(SECOND_WIND_USES[4]);
+
+    const empty = spendAll(full, key);
+    expect(remaining(empty, key)).toBe(0);
+
+    const rested = restoreOn(empty, 'short-rest');
+    expect(remaining(rested, key)).toBe(1);
+  });
+
+  /** And a Long Rest still gives back all of them. */
+  it('gives back all on a Long Rest', () => {
+    const key = 'second-wind';
+    const empty = spendAll(poolsFrom(fighter(5)), key);
+    expect(remaining(restoreOn(empty, 'long-rest'), key)).toBe(SECOND_WIND_USES[4]);
+  });
+
+  /** It never overshoots: one back from one spent is a full pool, not more. */
+  it('never restores past the maximum', () => {
+    const key = 'second-wind';
+    const full = poolsFrom(fighter(5));
+    const one = unwrapResource(spend(full, key, 1), 'spend');
+    const rested = restoreOn(one, 'short-rest');
+    expect(remaining(rested, key)).toBe(SECOND_WIND_USES[4]);
+    expect(rested.pools[key]?.spent).toBe(0);
+  });
+
+  /** A pool with no partial rule is untouched by a Short Rest. */
+  it('leaves a plain Long Rest pool alone', () => {
+    const key = 'lay-on-hands';
+    const empty = spendAll(poolsFrom(paladin(4)), key);
+    expect(remaining(restoreOn(empty, 'short-rest'), key)).toBe(0);
+    expect(remaining(restoreOn(empty, 'long-rest'), key)).toBe(20);
+  });
+
+  /** And a Short Rest pool still empties completely rather than by one. */
+  it('still refills an all-or-nothing Short Rest pool whole', () => {
+    const key = 'focus-points';
+    const empty = spendAll(poolsFrom(monk(5)), key);
+    expect(remaining(empty, key)).toBe(0);
+    expect(remaining(restoreOn(empty, 'short-rest'), key)).toBe(FOCUS_POINTS[4]);
+  });
+
+  /**
+   * The rule at the level it is actually written, rather than through a class.
+   *
+   * Found by mutation: dropping the `short-rest` guard changed nothing, because
+   * every feature that has a partial rule is also tagged `long-rest` and so
+   * takes the whole-refill branch first. The guard was real and unreachable —
+   * a pool that recovered on any *other* event would have been quietly emptied
+   * by one on a Long Rest. A hand-built pool is the only way to stand in that
+   * gap, and `restoreOn` is a pure function that will take one.
+   */
+  it('gives back one only on a Short Rest, whatever else the pool recovers on', () => {
+    const dawn = unwrapResource(
+      declarePool(
+        { pools: {} },
+        { key: 'moonlight', label: 'Moonlight', max: 3, recovers: 'dawn', regainsOnShortRest: 1 },
+      ),
+      'declare',
+    );
+    const empty = unwrapResource(spend(dawn, 'moonlight', 3), 'spend');
+
+    expect(remaining(restoreOn(empty, 'short-rest'), 'moonlight')).toBe(1);
+    // A Long Rest is not this pool's event and offers it no partial refill.
+    expect(remaining(restoreOn(empty, 'long-rest'), 'moonlight')).toBe(0);
+    expect(remaining(restoreOn(empty, 'dawn'), 'moonlight')).toBe(3);
+  });
+
+  /** And the amount is validated where it is declared. */
+  it('refuses a partial refill that is not a positive whole number', () => {
+    const bad = declarePool(
+      { pools: {} },
+      { key: 'x', label: 'X', max: 3, recovers: 'long-rest', regainsOnShortRest: 0 },
+    );
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.code).toBe('bad_partial_recovery');
+  });
+
+  /** Every feature the SRD writes this rule for has it, and no other does. */
+  it('is declared by exactly the five features whose text says it', () => {
+    const withPartial = allClasses()
+      .flatMap((definition) => [
+        ...definition.features,
+        ...allSubclasses()
+          .filter((s) => s.classId === definition.id)
+          .flatMap((s) => s.features),
+      ])
+      .filter((f) => {
+        const grant = f.grants;
+        if (grant?.kind === 'pool') return grant.regainsOnShortRest !== undefined;
+        if (grant?.kind === 'activated') return grant.regainsOnShortRest !== undefined;
+        return false;
+      })
+      .map((f) => f.id)
+      .sort();
+
+    expect(withPartial).toEqual([
+      'barbarian:rage',
+      'cleric:channel-divinity',
+      'druid:wild-shape',
+      'fighter:second-wind',
+      'paladin:channel-divinity',
     ]);
   });
 });

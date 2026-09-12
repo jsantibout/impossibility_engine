@@ -204,6 +204,8 @@ export type FeatureGrant =
       readonly usesByLevel?: readonly number[];
       readonly poolLabel?: string;
       readonly recovers?: Recovery;
+      /** SRD Rage: "You regain one expended use when you finish a Short Rest." */
+      readonly regainsOnShortRest?: number;
       readonly lasts: 'end-of-next-turn';
       readonly capSeconds?: number;
       readonly endsOn?: readonly ActivationEnd[];
@@ -272,6 +274,8 @@ export type FeatureGrant =
       /** SRD Lay On Hands: "five times your Paladin level". */
       readonly perClassLevel?: number;
       readonly recovers: Recovery;
+      /** SRD: "you regain one expended use when you finish a Short Rest." */
+      readonly regainsOnShortRest?: number;
     }
   | {
       readonly kind: 'unarmored-defense';

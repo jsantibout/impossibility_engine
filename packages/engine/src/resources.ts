@@ -38,6 +38,20 @@ export interface ResourcePool {
   readonly max: number;
   readonly spent: number;
   readonly recovers: Recovery;
+  /**
+   * Uses this pool gives back on a **Short** Rest without emptying.
+   *
+   * SRD writes it five times in the same words — Rage, both Channel
+   * Divinities, Wild Shape, Second Wind: "You regain one expended use when you
+   * finish a Short Rest, and you regain all expended uses when you finish a
+   * Long Rest." The `recovers` tag beside it is all-or-nothing and cannot say
+   * that, and tagging these `short-rest` instead would hand a level 1 Fighter
+   * their whole Second Wind back after every breather.
+   *
+   * A number rather than a flag because the SRD writes a number, and because a
+   * flag would be a rule that could only ever mean one.
+   */
+  readonly regainsOnShortRest?: number;
 }
 
 export interface PoolDeclaration {
@@ -45,6 +59,20 @@ export interface PoolDeclaration {
   readonly label: string;
   readonly max: number;
   readonly recovers: Recovery;
+  /**
+   * Uses this pool gives back on a **Short** Rest without emptying.
+   *
+   * SRD writes it five times in the same words — Rage, both Channel
+   * Divinities, Wild Shape, Second Wind: "You regain one expended use when you
+   * finish a Short Rest, and you regain all expended uses when you finish a
+   * Long Rest." The `recovers` tag beside it is all-or-nothing and cannot say
+   * that, and tagging these `short-rest` instead would hand a level 1 Fighter
+   * their whole Second Wind back after every breather.
+   *
+   * A number rather than a flag because the SRD writes a number, and because a
+   * flag would be a rule that could only ever mean one.
+   */
+  readonly regainsOnShortRest?: number;
 }
 
 export interface ResourceState {
@@ -76,7 +104,7 @@ export function declarePool(
   state: ResourceState,
   declaration: PoolDeclaration,
 ): Result<ResourceState> {
-  const { key, label, max, recovers } = declaration;
+  const { key, label, max, recovers, regainsOnShortRest } = declaration;
 
   if (key.trim() === '') return err('bad_key', 'a pool needs a key');
   if (!Number.isInteger(max) || max < 0) {
@@ -86,7 +114,29 @@ export function declarePool(
     return err('duplicate_pool', `${key} is already declared`);
   }
 
-  return ok(derive({ ...state.pools, [key]: { key, label, max, spent: 0, recovers } }));
+  if (
+    regainsOnShortRest !== undefined &&
+    (!Number.isInteger(regainsOnShortRest) || regainsOnShortRest <= 0)
+  ) {
+    return err(
+      'bad_partial_recovery',
+      `a Short Rest gives back a positive whole number of uses, got ${regainsOnShortRest}`,
+    );
+  }
+
+  return ok(
+    derive({
+      ...state.pools,
+      [key]: {
+        key,
+        label,
+        max,
+        spent: 0,
+        recovers,
+        ...(regainsOnShortRest === undefined ? {} : { regainsOnShortRest }),
+      },
+    }),
+  );
 }
 
 export function hasPool(state: ResourceState, key: string): boolean {
@@ -139,7 +189,19 @@ export function restore(state: ResourceState, key: string, amount: number): Resu
 export function restoreOn(state: ResourceState, recovers: Recovery): ResourceState {
   const pools: Record<string, ResourcePool> = {};
   for (const [key, pool] of Object.entries(state.pools)) {
-    pools[key] = pool.recovers === recovers ? { ...pool, spent: 0 } : pool;
+    if (pool.recovers === recovers) {
+      pools[key] = { ...pool, spent: 0 };
+      continue;
+    }
+    // SRD Rage, Channel Divinity, Wild Shape, Second Wind: "You regain **one**
+    // expended use when you finish a Short Rest, and you regain **all**
+    // expended uses when you finish a Long Rest." The second half is the tag
+    // above; this is the first, and it never empties the pool.
+    if (recovers === 'short-rest' && pool.regainsOnShortRest !== undefined) {
+      pools[key] = { ...pool, spent: Math.max(0, pool.spent - pool.regainsOnShortRest) };
+      continue;
+    }
+    pools[key] = pool;
   }
   return derive(pools);
 }
