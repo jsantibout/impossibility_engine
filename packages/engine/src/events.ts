@@ -1191,7 +1191,37 @@ function releaseOnTarget(
  * Applied after every event, so it catches the break however it arrived:
  * damage, a spell, Exhaustion reaching 6.
  */
+/**
+ * Whether any creature at all matches, without allocating anything.
+ *
+ * Three derived passes run after **every** event and each begins by sorting
+ * the whole cast — `Object.keys(creatures).sort()`, an array of N strings and
+ * an N log N comparison, to find the handful of creatures that could possibly
+ * be affected. Most events affect none of them: nobody is concentrating,
+ * nothing is switched on, nothing is readied.
+ *
+ * Measured on a cast of 128 over 2,256 events, those three passes were 90% of
+ * the fold. This is the question they should ask first — a bare `for...in`
+ * that allocates nothing and stops at the first match. When it says no, the
+ * pass returns the state it was given; when it says yes, the original sorted
+ * path runs unchanged, so the *order* effects are applied in is exactly what
+ * it always was.
+ */
+function anyCreature(
+  state: GameState,
+  matches: (creature: CreatureState) => boolean,
+): boolean {
+  for (const key in state.creatures) {
+    const creature = state.creatures[key];
+    if (creature !== undefined && matches(creature)) return true;
+  }
+  return false;
+}
+
 function breakLostConcentration(state: GameState): GameState {
+  // Nobody concentrating, nothing to lose. The common case by a wide margin.
+  if (!anyCreature(state, (c) => c.concentration !== null)) return state;
+
   let current = state;
 
   // Releasing one casting cannot Incapacitate anybody, so this settles in a
@@ -1543,6 +1573,9 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
  * before it fired.
  */
 function endLostFeatures(state: GameState): GameState {
+  // Nothing switched on anywhere, so nothing can have stopped holding.
+  if (!anyCreature(state, (c) => c.activeFeatures.length > 0)) return state;
+
   const creatures: Record<string, CreatureState> = { ...state.creatures };
   const dropped: { id: CharacterId; feature: string }[] = [];
 
@@ -1593,6 +1626,18 @@ function endLostFeatures(state: GameState): GameState {
  * would block the next spell on behalf of a casting that no longer exists.
  */
 function dropLapsedReady(state: GameState): GameState {
+  // Two jobs, and the guard has to cover both. The obvious half is lapsing a
+  // hold, which needs a creature holding one. The half that caught this guard
+  // out is sweeping a **stale Ready timer**, which by definition happens when
+  // a creature's `readied` is already null — so guarding on holders alone left
+  // a released Ready's deadline sitting in state, and `ready.test.ts` said so
+  // within a minute of the optimisation landing.
+  const holding = anyCreature(state, (c) => c.readied !== null);
+  const scheduled = Object.values(state.timers).some(
+    (timer) => timer.target.kind === 'feature' && timer.target.feature === READY,
+  );
+  if (!holding && !scheduled) return state;
+
   let current = state;
 
   for (const key of Object.keys(state.creatures).sort()) {

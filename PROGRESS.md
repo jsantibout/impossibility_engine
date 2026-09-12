@@ -64,7 +64,9 @@ still Wizard-shaped are named below.
 | Engine audit | Error kinds, idempotency sweep, wedge recovery, a loud reducer | `fabb8eb` |
 | One channel | `needs-context` is an `Err` everywhere; the spell union is gone | `2d28853` |
 | Missing facts | One policy for a fact nobody has told the engine | `9ef2cae` |
-| Persistence | A frozen log, the fold's real guarantee, a vocabulary contract | _this batch_ |
+| Persistence | A frozen log, the fold's real guarantee, a vocabulary contract | `768623d` |
+| Dead code | 14 exports removed, and an architecture CLAUDE.md still described | `312649e` |
+| Fold speed | Three derived passes stopped sorting the cast on every event | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -198,6 +200,23 @@ still Wizard-shaped are named below.
   end of your next turn" as a gap since it was written. The note was honest and
   it reached the table on every casting; it is still better for the engine to
   do it.
+- **The fold's cost is per event × per creature, and the cast only grows.**
+  Three derived passes ran `Object.keys(creatures).sort()` after *every* event
+  to find the handful of creatures that could be affected — and
+  `endLostFeatures` copied the whole map first, then usually threw the copy
+  away. Measured on a cast of 128 over 2,256 events, those three were 90% of
+  the fold. A guard that asks "is any creature concentrating / holding a
+  feature / holding a Ready" with a bare `for...in` and no allocation made a
+  large cast 9× faster and a long log 3×. Profile before optimising: the
+  suspicion going in was that log *length* was the problem, and length was
+  already linear and cheap.
+- **A guard is only as good as the job it guards.** The first version of
+  `dropLapsedReady`'s guard asked whether anybody was holding a readied action
+  — and that pass has a second job, sweeping a **stale Ready timer**, which by
+  definition runs when `readied` is already null. The suite caught it in one
+  run. The optimisation is proved safe by mutation rather than by reading:
+  forcing the guard to `true` is behaviourally identical to the code before it
+  and passes everything, while forcing it to `false` fails fourteen tests.
 - **The fold is a compatibility surface, and it is not pure replay.** The same
   log under the *same* engine version folds to the same state — that is what
   determinism means here. It does **not** follow that a log folds the same way
