@@ -91,14 +91,17 @@ export type RiderDuration = 'start-of-casters-next-turn' | 'end-of-casters-next-
  * "Reaction" and ignored the rest. It spent the Reaction correctly and let the
  * spell be cast at a moment the rules never offered.
  *
- * **One member, because one spell.** The other three Reaction spells in the
- * SRD each need machinery that does not exist: Hellish Rebuke answers damage
- * and `damage-taken` records prose rather than the creature that dealt it,
- * Counterspell answers a casting and a casting is atomic here, Feather Fall
- * answers a fall and nothing falls. A second member will arrive with the
- * machinery that makes it checkable, not before it.
+ * **A member arrives with the machinery that makes it checkable**, never
+ * before. `hit-by-attack` could be written because a held attack was already
+ * in state; `damaged-by-creature` could not, until damage started naming the
+ * creature that dealt it rather than only describing it in prose.
+ *
+ * The two left still cannot be written. Counterspell answers a casting, and a
+ * casting is atomic here — holding one open needs a refundable slot, because
+ * SRD 2024 gives it back on a failed save. Feather Fall answers a fall, and
+ * nothing falls.
  */
-export type ReactionTrigger = 'hit-by-attack';
+export type ReactionTrigger = 'hit-by-attack' | 'damaged-by-creature';
 
 /**
  * A second, smaller hit that arrives at a later moment.
@@ -725,6 +728,54 @@ export const SHIELD_OF_FAITH: SpellDefinition = {
     },
   ],
   durationSeconds: 600,
+};
+
+/**
+ * SRD Hellish Rebuke:
+ *
+ * > _Level 1 Evocation (Warlock)._ **Casting Time:** Reaction, which you take
+ * > in response to taking damage from a creature that you can see within 60
+ * > feet of yourself. **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "The creature that damaged you is momentarily surrounded by green flames.
+ * > It makes a Dexterity saving throw, taking 2d10 Fire damage on a failed
+ * > save or half as much damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d10 for each
+ * > spell slot level above 1."
+ *
+ * **The effect is an ordinary shape; the trigger is the whole difficulty.**
+ * Once the target is settled this is `save-damage` with `onSuccess: 'half'`,
+ * indistinguishable from Inflict Wounds. What it needed was for damage to name
+ * the creature that dealt it — `source` has always been prose, and prose
+ * cannot be set on fire.
+ *
+ * **"The creature that damaged you" is not "a creature of your choice".** The
+ * target is forced, so aiming it elsewhere is refused rather than quietly
+ * redirected — the same rule `eligibleTargets` states for every other spell.
+ *
+ * Sight and range are the spell's own to check and are checked by the ordinary
+ * machinery: `requiresSight` makes an undeclared line of sight a request and a
+ * declared *unseen* a refusal, and 60 feet is the range.
+ */
+export const HELLISH_REBUKE: SpellDefinition = {
+  id: 'hellish-rebuke',
+  name: 'Hellish Rebuke',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'reaction',
+  trigger: 'damaged-by-creature',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
+      damageType: 'fire',
+      onSuccess: 'half',
+    },
+  ],
 };
 
 /**
@@ -3396,6 +3447,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   GUIDING_BOLT,
   HARM,
   HEALING_WORD,
+  HELLISH_REBUKE,
   HOLD_MONSTER,
   HOLD_PERSON,
   HYPNOTIC_PATTERN,

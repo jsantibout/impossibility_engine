@@ -185,6 +185,16 @@ export interface CreatureState {
    */
   readonly readied: ReadiedAction | null;
   /**
+   * The last damage this creature took from another creature, and when.
+   *
+   * The window a Reaction to being damaged opens into. SRD says "in response
+   * to", which means immediately, and the finest grain the engine has for that
+   * is the turn — the same grain the one-slot-per-turn rule and `pendingSaves`
+   * already use. Out of combat there are no turns, so the clock closes it
+   * instead. Both are facts already in state; neither invents a number.
+   */
+  readonly lastDamage: LastDamage | null;
+  /**
    * Named bonuses a running effect has hung on this creature.
    *
    * Bless adds 1d4 to attack rolls and saves; Bane subtracts one. They are
@@ -259,6 +269,19 @@ export interface CommandStamp {
  * between the two calls: which weapon, how it was held, whether it was a
  * critical, and the target Armour Class the roll already beat.
  */
+/**
+ * Damage one creature dealt another, and the moment it happened.
+ *
+ * `turn` is the combat's `turnsTaken` when it landed, or null outside combat;
+ * `elapsed` is the clock. A Reaction that answers damage is legal while both
+ * still match, which is exactly "before anything has moved on".
+ */
+export interface LastDamage {
+  readonly by: CharacterId;
+  readonly turn: number | null;
+  readonly elapsed: number;
+}
+
 export interface PendingAttack {
   readonly attacker: CharacterId;
   readonly target: CharacterId;
@@ -529,6 +552,16 @@ export type GameEvent =
       readonly critical?: boolean;
       /** Where it came from, for the audit trail. */
       readonly source?: string;
+      /**
+       * Which creature dealt it, where one did.
+       *
+       * `source` is prose — `'a trap'`, `'Longsword'` — and prose cannot be
+       * aimed at. SRD Hellish Rebuke answers "taking damage from a creature
+       * that you can see" by burning "the creature that damaged you", so
+       * something has to be an id. Absent is a real answer and the common one:
+       * a falling rock has no dealer, and there is nothing to rebuke.
+       */
+      readonly by?: CharacterId;
       /** The command that caused it, so a retry is recognised as one. */
       readonly command?: CommandStamp;
     }
@@ -1840,6 +1873,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             side: event.side ?? null,
             activeFeatures: [],
             readied: null,
+            lastDamage: null,
             bonuses: [],
             initiativeBonuses: [],
             inventory: [],
@@ -1872,7 +1906,27 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         event.amount,
         event.critical === undefined ? {} : { critical: event.critical },
       );
-      return withCreature(next, event.id, { vitals: outcome.vitals }, creature);
+      // A dealer overwrites the last one; damage from nothing in the game
+      // leaves whatever was there, because a falling rock does not make the
+      // thug who stabbed you a moment ago un-stabbed you. The window closes on
+      // its own when the turn or the clock moves.
+      return withCreature(
+        next,
+        event.id,
+        {
+          vitals: outcome.vitals,
+          ...(event.by === undefined
+            ? {}
+            : {
+                lastDamage: {
+                  by: event.by,
+                  turn: state.combat?.turnsTaken ?? null,
+                  elapsed: state.elapsed,
+                },
+              }),
+        },
+        creature,
+      );
     }
 
     case 'healed': {

@@ -725,7 +725,7 @@ layer that knows.
   on completion, and completion depends on the caster taking the Magic action
   every turn of the casting, which is a state machine rather than a deadline.
   Rituals cast the long way are covered by the same refusal.
-- **One Reaction trigger is enforced; the other three need machinery that does
+- **Two Reaction triggers are enforced; the other two need machinery that does
   not exist.** SRD writes a Reaction's casting time as a clause — "Reaction,
   **which you take when you are hit by an attack roll**" — and the clause is a
   rule. `SpellDefinition.trigger` carries it, and a casting whose moment has
@@ -745,18 +745,38 @@ layer that knows.
   drop the cover and let the barrier cancel the pillar. And a **natural 20 hits
   regardless**, so no bonus turns one aside.
 
-  The other three Reaction spells are each blocked on something different, and
-  naming them separately is the point — this was one bucket in `COVERAGE.md`
-  and it is three problems:
+  **Hellish Rebuke works, and what it needed was a fact rather than a
+  mechanism.** Its trigger is "taking damage from a creature that you can
+  see", and its target is "the creature that damaged you" — but every damage
+  event carried only a `source`, which is *prose* for the audit trail
+  (`'a trap'`, `'Longsword'`). Prose cannot be set on fire. So damage now names
+  its dealer where one is known, `CreatureState.lastDamage` remembers the most
+  recent, and a trap still names nobody — which is the honest answer, not a
+  gap: there is nothing to rebuke.
+
+  **The window is two facts already in state, not a number.** "In response to"
+  means immediately, and the finest grain the engine has for that is the turn —
+  the same grain the one-slot-per-turn rule uses. Outside combat there are no
+  turns, so the clock closes it instead: a Reaction is legal while both the
+  turn and `elapsed` still match the moment the damage landed. Inventing a
+  window of so many seconds is exactly the kind of number this engine exists
+  not to invent.
+
+  **The target is forced, so aiming it elsewhere is refused** rather than
+  quietly redirected — the rule `eligibleTargets` states for every spell, and
+  the one place a Reaction could have smuggled in a substitution.
+
+  The two that are left are each blocked on something different, and naming
+  them separately is the point — this was one bucket in `COVERAGE.md` and it
+  was three problems:
 
   | Spell | What it answers | What is missing |
   |---|---|---|
-  | Hellish Rebuke | taking damage from a creature you can see | `damage-taken` records a *source* in prose (`'a trap'`), not the creature that dealt it |
-  | Counterspell | a creature casting a spell | a casting held between declaration and resolution; `resolveSpell` is atomic, and the slot must be refundable because SRD returns it |
+  | Counterspell | a creature casting a spell | a casting held between declaration and resolution; `resolveSpell` is atomic, and the slot must be **refundable** because SRD 2024 gives it back on a failed save |
   | Feather Fall | a creature falling | falling, which is not modelled at all |
 
-  `ReactionTrigger` has one member for that reason. A second arrives with the
-  machinery that makes it checkable, not before.
+  A `ReactionTrigger` member arrives with the machinery that makes it
+  checkable, never before.
 - **Only conditions are linked effects.** Ownership is designed for conditions,
   bonuses, areas and summons alike — the source string is the link, and nothing
   about it is condition-specific — but conditions are the only effect type the
@@ -1069,7 +1089,9 @@ The recurring blockers, each wanted by several classes:
   Hellish Rebuke. `reduceDamage` and `interveneAfterRoll` exist; nothing fires
   them, and nothing orders a Reaction against the event that caused it. A
   spell's trigger is checked now (see Shield, above), but a *feature's* is not:
-  these four all answer damage, and damage does not record who dealt it.
+  these four all answer damage. Damage names its dealer now, so the fact they
+  need is there; what is still missing is a feature-level trigger to hang on
+  it, and an ordering of the Reaction against the event that caused it.
 - **Auras that follow a creature.** Every Paladin aura, Spirit Guardians.
 - **Defences that change after a rest.** Fiendish Resilience, Rage.
 - **A grant that can be re-chosen on a rest.** Circle of the Land's spells, and

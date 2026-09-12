@@ -7,6 +7,7 @@ import {
   type Ability,
   type CharacterId,
   type ConditionName,
+  type Err,
   type Result,
   type RollMode,
 } from '@ie/shared';
@@ -53,10 +54,10 @@ import {
   definitionFor,
   targetCountFor,
   type DelayedDamage,
-  type ReactionTrigger,
   type RiderDuration,
   type SpellArea,
   type SpellDefinition,
+  type ReactionTrigger,
   type SpellRange,
 } from './spell-definitions.js';
 import { routesFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
@@ -291,6 +292,14 @@ export interface DamageCommand extends CommandIdentity {
   readonly critical?: boolean;
   /** What dealt it, for the audit trail. */
   readonly source?: string;
+  /**
+   * Which creature dealt it, where one did.
+   *
+   * Separate from `source`, which is prose and cannot be aimed at. A Reaction
+   * that answers damage needs an id to answer; a trap has none, and that is a
+   * real answer rather than a gap.
+   */
+  readonly by?: CharacterId;
 }
 
 /**
@@ -326,6 +335,7 @@ export function damageCreature(
       amount: command.amount,
       ...(command.critical === undefined ? {} : { critical: command.critical }),
       ...(command.source === undefined ? {} : { source: command.source }),
+      ...(command.by === undefined ? {} : { by: command.by }),
       ...(stamp === null ? {} : { command: stamp }),
     },
   ];
@@ -618,15 +628,63 @@ export function applyConditionTo(
  * Divine Smite had to land between an attack's two rolls, and which is exactly
  * the state Shield needs: a hit that is known and not yet settled.
  */
-function triggerHasArrived(
+function triggerRefusal(
   state: GameState,
   casterId: CharacterId,
-  trigger: ReactionTrigger,
-): boolean {
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+): Err | null {
+  const trigger: ReactionTrigger | undefined = definition.trigger;
+
   switch (trigger) {
+    case undefined:
+      return null;
+
     case 'hit-by-attack': {
       const held = state.pendingAttack;
-      return held !== null && held.target === casterId;
+      if (held !== null && held.target === casterId) return null;
+      return err(
+        'no_trigger',
+        `${definition.name} is a Reaction taken when you are hit by an attack roll, and no attack on ${casterId} is waiting to be settled`,
+      );
+    }
+
+    case 'damaged-by-creature': {
+      const hurt = state.creatures[casterId]?.lastDamage ?? null;
+      if (hurt === null) {
+        return err(
+          'no_trigger',
+          `${definition.name} is a Reaction taken in response to taking damage from a creature, and nothing in this game has damaged ${casterId}`,
+        );
+      }
+
+      // The window. "In response to" means immediately, and a turn is the
+      // finest grain the engine has for it — the grain the one-slot-per-turn
+      // rule already uses. Outside combat there are no turns, so the clock
+      // closes it instead. Both facts are already in state.
+      if (hurt.turn !== (state.combat?.turnsTaken ?? null) || hurt.elapsed !== state.elapsed) {
+        return err(
+          'no_trigger',
+          `${definition.name} answers damage as it lands, and the moment ${hurt.by} damaged ${casterId} has passed`,
+        );
+      }
+
+      // SRD: "**The creature that damaged you** is momentarily surrounded by
+      // green flames." The target is forced, so a different one is refused
+      // rather than quietly redirected — however obviously better a candidate
+      // is standing next to them.
+      if (request.targets.length !== 1 || request.targets[0] !== hurt.by) {
+        return err(
+          'no_trigger',
+          `${definition.name} burns the creature that damaged you, which is ${hurt.by}`,
+        );
+      }
+      return null;
+    }
+
+    default: {
+      const unhandled: never = trigger;
+      throw new Error(`no trigger rule for ${String(unhandled)}`);
     }
   }
 }
@@ -2156,7 +2214,7 @@ export function resolveAttack(
     rolled.value.components,
     weapon?.name ?? 'Unarmed Strike',
     supply,
-    attack.value.critical ? { critical: true } : {},
+    { by: id, ...(attack.value.critical ? { critical: true } : {}) },
   );
   if (!hurt.ok) return hurt;
 
@@ -2405,7 +2463,7 @@ export function resolveAttackDamage(
     rolled.value.components,
     weapon?.name ?? 'Unarmed Strike',
     supply,
-    pending.critical ? { critical: true } : {},
+    { by: pending.attacker, ...(pending.critical ? { critical: true } : {}) },
   );
   if (!hurt.ok) return hurt;
 
@@ -3489,7 +3547,9 @@ function collectDueDamage(
     );
     if (!rolled.ok) return rolled;
 
-    const hurt = dealSpellDamage(current, scheduled.target, rolled.value, scheduled.label, supply, {});
+    const hurt = dealSpellDamage(current, scheduled.target, rolled.value, scheduled.label, supply, {
+      by: scheduled.by,
+    });
     if (!hurt.ok) return hurt;
 
     // Cleared first, so the log reads as the debt being settled and then the
@@ -3945,7 +4005,7 @@ function dealSpellDamage(
   components: readonly DamageComponent[],
   source: string,
   supply: ConcentrationSaveSupply,
-  options: { readonly critical?: boolean },
+  options: { readonly critical?: boolean; readonly by?: CharacterId },
 ): Result<{
   readonly events: readonly GameEvent[];
   readonly amount: number;
@@ -3964,6 +4024,7 @@ function dealSpellDamage(
       amount: applied.total,
       source,
       ...(options.critical === true ? { critical: true } : {}),
+      ...(options.by === undefined ? {} : { by: options.by }),
     },
     supply,
   );
@@ -4116,13 +4177,9 @@ function castOrRelease(
   // report the duplicate; `resolveCast` below returns the empty batch.
   const replayed = request.commandId !== undefined && wasCommandApplied(state, request.commandId);
 
-  if (held === null && !replayed && definition.trigger !== undefined) {
-    if (!triggerHasArrived(state, casterId, definition.trigger)) {
-      return err(
-        'no_trigger',
-        `${definition.name} is a Reaction taken when you are hit by an attack roll, and no attack on ${casterId} is waiting to be settled`,
-      );
-    }
+  if (held === null && !replayed) {
+    const refused = triggerRefusal(state, casterId, definition, request);
+    if (refused !== null) return refused;
   }
 
   // SRD gives "until the end of your next turn" no meaning where there are no
@@ -4704,6 +4761,7 @@ function scheduleDelayed(
   target: CharacterId,
   delayed: DelayedDamage,
   context: {
+    readonly casterId: CharacterId;
     readonly definition: SpellDefinition;
     readonly castingId: string;
     readonly castLevel: number;
@@ -4711,7 +4769,7 @@ function scheduleDelayed(
     readonly unverified: string[];
   },
 ): GameEvent | null {
-  const { definition, castingId, castLevel, casterLevel, unverified } = context;
+  const { casterId, definition, castingId, castLevel, casterLevel, unverified } = context;
 
   const deadline = resolveDuration(timeView(state), endOfNextTurn(target));
   if (!deadline.ok) {
@@ -4725,6 +4783,7 @@ function scheduleDelayed(
     type: 'damage-scheduled',
     schedule: {
       target,
+      by: casterId,
       deadline: deadline.value,
       notation: scaledDiceFor(delayed.damage, definition.level, casterLevel, castLevel),
       damageType: delayed.damageType,
@@ -4830,7 +4889,7 @@ function resolveEffects(
           ),
           definition.name,
           supply,
-          { ...(attack.value.critical ? { critical: true } : {}) },
+          { by: casterId, ...(attack.value.critical ? { critical: true } : {}) },
         );
         if (!hurt.ok) return hurt;
 
@@ -4857,6 +4916,7 @@ function resolveEffects(
         // same branch the condition rider takes, for the same reason.
         if (effect.delayed !== undefined) {
           const scheduled = scheduleDelayed(current, target, effect.delayed, {
+            casterId,
             definition,
             castingId,
             castLevel,
@@ -5060,7 +5120,7 @@ function resolveEffects(
           components,
           definition.name,
           supply,
-          {},
+          { by: casterId },
         );
         if (!hurt.ok) return hurt;
 
@@ -5088,6 +5148,7 @@ function resolveEffects(
         // hit — the success branch owes nothing, however much it still hurt.
         if (effect.delayed !== undefined && !save.value.success) {
           const scheduled = scheduleDelayed(current, target, effect.delayed, {
+            casterId,
             definition,
             castingId,
             castLevel,

@@ -137,9 +137,8 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   // excused its own casting time. The refusal is asserted on its own in
   // `reaction-triggers.test.ts`.
   const triggered: readonly GameEvent[] =
-    definition?.trigger !== 'hit-by-attack'
-      ? []
-      : [
+    definition?.trigger === 'hit-by-attack'
+      ? [
           {
             type: 'attack-landed',
             attack: {
@@ -158,7 +157,13 @@ const logFor = (spellId: string): readonly GameEvent[] => {
               natural: 19,
             },
           },
-        ];
+        ]
+      : definition?.trigger === 'damaged-by-creature'
+        ? // Damage dealt by the creature the fixture goes on to cast at, since
+          // "the creature that damaged you" is a forced target rather than a
+          // choice.
+          [{ type: 'damage-taken', id: CASTER, amount: 4, source: 'a blade', by: TARGET }]
+        : [];
 
   if (!anchored && triggered.length === 0) return typed;
 

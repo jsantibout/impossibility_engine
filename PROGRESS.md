@@ -71,7 +71,8 @@ still Wizard-shaped are named below.
 | Later damage | A hit a turn boundary collects; Acid Arrow, Vitriolic Sphere | `e21b59a` |
 | Architecture audit | Facts have providers; four more guards; every request named | `b1d98a7` |
 | Tooling | pnpm → npm workspaces; ESLint 10 | `36016fc`, `5c7e217` |
-| Reaction triggers | A trigger the engine checks; Shield deflects the hit it answered | _this batch_ |
+| Reaction triggers | A trigger the engine checks; Shield deflects the hit it answered | `a0aca8c` |
+| Hellish Rebuke | Damage names its dealer; a Reaction that answers being hurt | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -463,15 +464,10 @@ Measured, not recalled. The numbers are what the code said on the day.
 4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-5. **The three Reaction spells that are left**, which are three problems
-   rather than one bucket. Shield is done: `SpellDefinition.trigger` is checked
-   before anything is spent, and the hit it answers is re-measured against the
-   Armour Class it raised. What the others need, each different:
-   - **Hellish Rebuke** — `damage-taken` carries a prose `source` (`'a trap'`),
-     so the engine cannot say *which creature* damaged you, and the trigger is
-     "a creature that you can see". An optional dealer id on the damage events
-     is small and additive; the trigger then reads the last one. This is the
-     cheapest of the three and the obvious next one.
+5. **The two Reaction spells that are left.** Shield and Hellish Rebuke are
+   done; both triggers are checked before anything is spent, and damage now
+   names the creature that dealt it, which is a fact several *class* features
+   (Uncanny Dodge, Deflect Attacks, Cutting Words) will want too.
    - **Counterspell** — needs a casting held between declaration and
      resolution, the way `pendingAttack` holds an attack between its two rolls.
      `resolveSpell` is atomic today, and the slot has to be *refundable*: SRD

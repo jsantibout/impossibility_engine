@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 14 (4.1%) | 70 (20.6%) | 45 (13.3%) |
+| 339 | 14 (4.1%) | 71 (20.9%) | 45 (13.3%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -37,7 +37,7 @@ spell, and the area is the part that is missing.
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
 | Area of effect | 73 | 0 | 23 | — |
-| Reaction timing | 4 | 0 | 1 | three different things: damage that records who dealt it, a casting held open, and falling |
+| Reaction timing | 4 | 0 | 2 | two different things: a casting held open with a refundable slot, and falling |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 0 | an effect that a later turn can act through |
 | Spell attack roll | 16 | 0 | 10 | — |
@@ -91,6 +91,7 @@ spell, and the area is the part that is missing.
 - **Guiding Bolt** (level 1) — verified
 - **Harm** (level 6) — verified
 - **Healing Word** (level 1) — verified
+- **Hellish Rebuke** (level 1) — untested
 - **Hold Monster** (level 5) — verified
 - **Hold Person** (level 2) — verified
 - **Hypnotic Pattern** (level 3) — verified

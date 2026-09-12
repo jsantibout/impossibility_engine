@@ -6,7 +6,13 @@ import { fold, type GameEvent, type GameState, type PendingAttack } from './even
 import { spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
 import { declaredCasting } from './spellcasting.js';
-import { resolveAttack, resolveAttackDamage, resolveSpell, resolveTurn } from './commands.js';
+import {
+  damageCreature,
+  resolveAttack,
+  resolveAttackDamage,
+  resolveSpell,
+  resolveTurn,
+} from './commands.js';
 
 /**
  * A Reaction whose trigger the engine can actually see.
@@ -84,7 +90,7 @@ const TABLE: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: WIZARD,
-    spellcasting: declaredCasting({ ability: 'int', prepared: ['shield'] }),
+    spellcasting: declaredCasting({ ability: 'int', prepared: ['shield', 'hellish-rebuke'] }),
   },
   {
     type: 'spellcasting-declared',
@@ -409,6 +415,150 @@ describe('retrying a Reaction does not cast it twice', () => {
     const after = fold('s', [...log, ...first.events]);
 
     const retry = unwrap(castShield([...log, ...first.events], 'shield-1'), 'retry');
+    expect(retry.events).toEqual([]);
+    expect(fold('s', [...log, ...first.events, ...retry.events])).toEqual(after);
+  });
+});
+
+/**
+ * The second trigger, and the fact the engine had to start recording first.
+ *
+ * SRD Hellish Rebuke is "Reaction, which you take in response to **taking
+ * damage from a creature that you can see** within 60 feet of yourself", and
+ * its target is "the creature that damaged you". Every damage event in this
+ * engine carried a `source` — prose, for the audit trail: `'a trap'`,
+ * `'Longsword'`. Prose cannot be aimed at, so there was no way to ask who to
+ * set on fire.
+ *
+ * So damage now names its dealer where one is known, and the creature
+ * remembers the last one. A trap still has no dealer, and that is the honest
+ * answer rather than a missing one: nothing to rebuke.
+ */
+describe('damage records who dealt it', () => {
+  it('names the attacker behind a weapon', () => {
+    const swung = unwrap(
+      resolveAttack(
+        fold('s', TABLE),
+        THUG,
+        { target: WIZARD, weapon: 'longsword', free: true, attackBonuses: [{ source: 'x', flat: 40 }] },
+        supply(),
+      ),
+      'attack',
+    );
+    expect(fold('s', [...TABLE, ...swung.events]).creatures.wizard?.lastDamage?.by).toBe(THUG);
+  });
+
+  /** A falling rock has no dealer, and inventing one would be worse than none. */
+  it('leaves it unnamed when nothing in the game dealt it', () => {
+    const log = [
+      ...TABLE,
+      ...unwrap(damageCreature(fold('s', TABLE), WIZARD, { amount: 5, source: 'a falling rock' }), 'rock'),
+    ];
+    expect(fold('s', log).creatures.wizard?.lastDamage).toBeNull();
+  });
+});
+
+describe('a Reaction to being damaged', () => {
+  /** The warlock's own trigger: somebody hit them, and they answer in kind. */
+  const hurtBy = (log: readonly GameEvent[], by: CharacterId): GameEvent[] => [
+    ...log,
+    ...unwrap(
+      damageCreature(fold('s', log), WIZARD, { amount: 7, source: 'a blade', by }),
+      'damage',
+    ),
+  ];
+
+  const rebuke = (log: readonly GameEvent[], target: CharacterId, commandId?: string) =>
+    resolveSpell(
+      fold('s', log),
+      WIZARD,
+      {
+        spellId: 'hellish-rebuke',
+        targets: [target],
+        slotLevel: 1,
+        ...(commandId === undefined ? {} : { commandId }),
+      },
+      supply(-40),
+    );
+
+  it('refuses when nobody has damaged you, and spends nothing', () => {
+    const refused = rebuke(TABLE, THUG);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('no_trigger');
+
+    const state = fold('s', TABLE);
+    expect(state.creatures.wizard?.resources.pools['spell-slot:1']?.spent).toBe(0);
+    expect(state.combat?.budgets.wizard?.reaction).toBe(true);
+  });
+
+  it('refuses when the damage came from no creature at all', () => {
+    const log = [
+      ...TABLE,
+      ...unwrap(damageCreature(fold('s', TABLE), WIZARD, { amount: 5, source: 'a trap' }), 'trap'),
+    ];
+    const refused = rebuke(log, THUG);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('no_trigger');
+  });
+
+  it('burns the creature that dealt the damage', () => {
+    const log = hurtBy(TABLE, THUG);
+    const out = unwrap(rebuke(log, THUG), 'rebuke');
+
+    const after = fold('s', [...log, ...out.events]);
+    expect(after.creatures.thug!.vitals.hp).toBeLessThan(60);
+    expect(out.events.some((e) => e.type === 'reaction-spent')).toBe(true);
+  });
+
+  /**
+   * SRD: "**The creature that damaged you** is momentarily surrounded by green
+   * flames." Not a creature of your choice. Aiming it at somebody else is the
+   * same substitution `eligibleTargets` exists to refuse — the engine checks
+   * the id it was handed and never quietly aims at a better one.
+   */
+  it('refuses to burn anybody else', () => {
+    const log = hurtBy(TABLE, THUG);
+    const refused = rebuke(log, CLERIC);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('no_trigger');
+  });
+
+  /**
+   * The window. "In response to" means immediately, and a turn is the finest
+   * grain the engine has for that — the same grain `pendingSaves` and the
+   * one-slot-per-turn rule already use. Closing it on a number of seconds
+   * nobody printed would be inventing one.
+   */
+  it('closes when the turn it happened on ends', () => {
+    let log = hurtBy(TABLE, THUG);
+    log = [...log, ...unwrap(resolveTurn(fold('s', log), supply(), { commandId: 't1' }), 't1').events];
+
+    const refused = rebuke(log, THUG);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('no_trigger');
+  });
+
+  /** And out of combat, where there are no turns, the clock closes it. */
+  it('closes when time passes, with no turns to measure it in', () => {
+    const peace = TABLE.filter((e) => e.type !== 'combat-started');
+    const hurt = hurtBy(peace, THUG);
+    expect(rebuke(hurt, THUG).ok).toBe(true);
+
+    const later: GameEvent[] = [
+      ...hurt,
+      { type: 'time-advanced', seconds: 60, reason: 'binding a wound' },
+    ];
+    const refused = rebuke(later, THUG);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('no_trigger');
+  });
+
+  it('is a no-op on a repeated command id', () => {
+    const log = hurtBy(TABLE, THUG);
+    const first = unwrap(rebuke(log, THUG, 'rebuke-1'), 'rebuke');
+    const after = fold('s', [...log, ...first.events]);
+
+    const retry = unwrap(rebuke([...log, ...first.events], THUG, 'rebuke-1'), 'retry');
     expect(retry.events).toEqual([]);
     expect(fold('s', [...log, ...first.events, ...retry.events])).toEqual(after);
   });

@@ -233,6 +233,13 @@ export interface PendingSave {
  */
 export interface ScheduledDamage {
   readonly target: CharacterId;
+  /**
+   * The caster who promised it.
+   *
+   * Acid Arrow's second hit is still the wizard's doing, arriving a turn late,
+   * so it names its dealer like any other damage — and can be answered.
+   */
+  readonly by: CharacterId;
   /** When it falls due. Always the end of the target's next turn, so far. */
   readonly deadline: Deadline;
   /** Rolled when the moment arrives, never before. */
