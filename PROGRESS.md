@@ -67,8 +67,9 @@ still Wizard-shaped are named below.
 | Persistence | A frozen log, the fold's real guarantee, a vocabulary contract | `768623d` |
 | Dead code | 14 exports removed, and an architecture CLAUDE.md still described | `312649e` |
 | Fold speed | Three derived passes stopped sorting the cast on every event | `8be2697` |
-| Doctrine | `DOCTRINE.md`, audited; three conformance debts named | `bac982d` |
-| Later damage | A hit a turn boundary collects; Acid Arrow, Vitriolic Sphere | _this batch_ |
+| Doctrine | `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md`, audited; three conformance debts named | `bac982d` |
+| Later damage | A hit a turn boundary collects; Acid Arrow, Vitriolic Sphere | `e21b59a` |
+| Architecture audit | Facts have providers; four more guards; every request named | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -366,7 +367,7 @@ still Wizard-shaped are named below.
 
 ## Doctrine conformance, and the debts it names
 
-`DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
+`docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
 and states what must stay true of the Engine whatever it is asked to do next.
 Audited against the code rather than assumed, most of it already holds: state
 moves only through events, events carry resolved outcomes, the engine is pure
@@ -374,19 +375,12 @@ and headless, no model writes a number, commands are retry-safe, and
 `needs-context` is a first-class answer. Three gaps are real and named here so
 they are debts rather than surprises.
 
-- **A declared fact can be silently overwritten, and no command declares one.**
-  `creature-type-declared` goes through `withCreature` unvalidated, so a second
-  declaration of a different type overwrites the first with no refusal and no
-  record — and a Hold Person that already landed on a "Humanoid" becomes
-  retroactively illegitimate. Worse, *nothing emits it*: `resolveSpell` asks for
-  the event by name in a `satisfyWith`, but no command produces it, so the
-  layer above hand-assembles an event into the authoritative log. That is
-  narration writing directly to truth, which is invariant 1 inverted.
-  The fix is small because the mechanism exists — `declareSight` returns a
-  `Result` the reducer `must`s. The distinction that makes it safe:
-  **creature type is durable** (what a thing *is*), while **sight and cover are
-  momentary** (what is true *now*). Re-declaring sight is an update;
-  re-declaring type differently is a contradiction and should be refused.
+- **~~A declared fact can be silently overwritten, and no command declares
+  one.~~ Paid.** `declareCreatureType` is the authoritative provider for the
+  request `resolveSpell` makes; a second, different type is refused with
+  `type_established` and a contradicting log is corrupt. The distinction that
+  kept it small: **type is durable**, sight and cover are **momentary**. A
+  retcon path for a DM who misspoke is deliberately not built.
 - **Provenance is per-command, not causal** (invariant 10). Events carry
   `command?: CommandStamp`, which answers *who asked*. Nothing answers *what
   caused this* — there is no link from an event to the event that provoked it,
@@ -398,6 +392,49 @@ they are debts rather than surprises.
   this is the one structural decision that would be expensive to revisit later
   and nearly free to keep open now. No action yet — evidence first, per the
   generalization rule.
+
+### Architecture audit against the doctrine
+
+Measured, not recalled. The numbers are what the code said on the day.
+
+- **Idempotency.** 21 commands called `identify`; four DM-facing mutators did
+  not and had no way to take an id at all — `applyConditionTo`,
+  `endConcentration`, `setExhaustionLevel`, `grantTemporaryHpTo`. A retried
+  `endConcentration` came back `not_concentrating`: a rules refusal for a
+  command that had succeeded. All four now take a `CommandIdentity`, stamp
+  their event, and sit in the `invariants.test.ts` sweep, which is the
+  authoritative list. Still unguarded and deliberately so: `applySpellEffect`,
+  `endSpellEffectOn`, `declareResourcePool`, `restoreResourcesOn` — the
+  fixture-and-log-reconstruction halves the tool surface does not expose.
+- **needs-context consistency.** 62 sites; 55 carried no `ContextRequest`,
+  and 37 of those were `unknown_creature` — the single most common one, and
+  `contextRequestsOf` returned `[]` for it. Every command-level `needs-context`
+  now carries a request (`kind: 'creature'` is new, with 37 users on arrival),
+  the sweep asserts it, and requests name the *command* that satisfies them
+  rather than a raw event. Pure helpers (`positioning.ts`, `combat.ts`,
+  `rest.ts`) return the bare kind by design; the command attaches the request.
+  One inconsistency left in place: `placeArea`'s `err('no_scene')` is
+  unreachable — both callers check the scene first — so it has no failing test
+  and stays as a dead guard rather than a silent behaviour change.
+- **Engine independence.** `packages/engine` imports `@ie/shared`, `@ie/srd`
+  and nothing else; `node:` appears only in tests and scripts. Clean.
+- **`commands.ts` is 5,400 lines and thirteen domains**, in this order:
+  vitals (277), conditions (502), declared facts, resources (656), common
+  actions (690), Ready (828), movement (1266), attacks (1753), features
+  (2308), casting (2571), turns (3165), spell resolution (3848), inventory
+  (5203). The coupling is real and it is one thing: every command folds its
+  own batch through `applyEvent` and shares private helpers, so a split has to
+  choose which helpers become a module's public seam. **Not done here** — a
+  move has no failing test to start from, and a 5,000-line reorganisation
+  under the rule "do not reorganise solely for cleanliness" is exactly the
+  refactor that rule forbids. The map above is the recommendation; spell
+  resolution (1,300 lines, the fewest shared helpers) is the natural first
+  cut when there is a behavioural reason to touch it.
+- **`unknown_combatant` has no provider.** "X is not in this combat" is a
+  request with nothing that can satisfy it mid-fight: `combat-started` is the
+  only way in. Reinforcements and summons both need a creature joining an
+  Initiative order in progress, and that event does not exist. Named here; it
+  is the summons blocker in the list below, not a separate item.
 
 ## Next actions, in order
 

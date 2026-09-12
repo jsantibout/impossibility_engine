@@ -41,8 +41,15 @@ export type ErrKind = 'refusal' | 'needs-context';
  * learns a round trip happened.
  */
 export interface ContextRequest {
-  /** What sort of fact is missing. */
-  readonly kind: 'position' | 'visibility' | 'creature-type' | 'scene';
+  /**
+   * What sort of fact is missing. This is the field a tool surface branches
+   * on; the strings below are for whoever is reading.
+   *
+   * `creature` is the one that was missing for longest: the most common
+   * `needs-context` in the engine is a creature it has never been told about,
+   * and it carried no request at all.
+   */
+  readonly kind: 'creature' | 'position' | 'visibility' | 'creature-type' | 'scene';
   /** Who the missing fact is about. */
   readonly subject: string;
   /** What is missing, in plain terms. */

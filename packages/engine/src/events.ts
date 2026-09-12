@@ -531,6 +531,7 @@ export type GameEvent =
       readonly type: 'temporary-hp-granted';
       readonly id: CharacterId;
       readonly amount: number;
+      readonly command?: CommandStamp;
     }
   /**
    * SRD: "Temporary Hit Points last until they're depleted or you finish a
@@ -559,6 +560,7 @@ export type GameEvent =
        * one must not lift the other, so the cause is part of the record.
        */
       readonly source: string;
+      readonly command?: CommandStamp;
     }
   | {
       readonly type: 'condition-removed';
@@ -567,7 +569,12 @@ export type GameEvent =
       /** Lift only this cause. Omitted, every instance of the condition goes. */
       readonly source?: string;
     }
-  | { readonly type: 'exhaustion-set'; readonly id: CharacterId; readonly level: number }
+  | {
+      readonly type: 'exhaustion-set';
+      readonly id: CharacterId;
+      readonly level: number;
+      readonly command?: CommandStamp;
+    }
   // — what a creature owns ———————————————————
   /**
    * Items arriving or leaving, by catalogue id.
@@ -619,6 +626,7 @@ export type GameEvent =
       readonly type: 'creature-type-declared';
       readonly id: CharacterId;
       readonly creatureType: string;
+      readonly command?: CommandStamp;
     }
   /**
    * Death that does not come from running out of hit points — Exhaustion
@@ -729,6 +737,7 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly castingId: string;
       readonly reason: ConcentrationEndReason;
+      readonly command?: CommandStamp;
     }
 
   // — the clock ————————————————————————
@@ -2448,6 +2457,20 @@ function applyOne(state: GameState, event: GameEvent): GameState {
 
     case 'creature-type-declared': {
       const creature = creatureOf(state, event, event.id);
+      // A type is durable: a stat block prints it, a species grants it, a DM
+      // declares it once. Restating it is harmless and changes nothing;
+      // contradicting it is not a new fact but a rewrite of one that Hold
+      // Person may already have been cast on the strength of. The command
+      // layer refuses that, so a contradiction in the log means it was
+      // bypassed — the corrupt-log case. A transformation that legitimately
+      // changes a type (Wild Shape, Polymorph) will be its own event.
+      if (creature.creatureType === event.creatureType) return next;
+      if (creature.creatureType !== null) {
+        throw new CorruptLogError(
+          event,
+          `${event.id} is already established as ${creature.creatureType}; a declaration cannot make them ${event.creatureType}`,
+        );
+      }
       return withCreature(next, event.id, { creatureType: event.creatureType }, creature);
     }
 

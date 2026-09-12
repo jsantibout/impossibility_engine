@@ -8,7 +8,7 @@ pure rules engine → tool surface → Claude orchestration → Fastify + React.
 Target user: a player who wants a real D&D campaign — solo or with friends —
 run by a DM with actual personality and rules you can trust.
 
-**`DOCTRINE.md` is the constitutional document and outranks this file.** It
+**`docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` is the constitutional document and outranks this file.** It
 states what must remain true of the Engine whatever it is asked to do next;
 this file records how the code actually works and why. Where they disagree,
 the doctrine wins and this file is the thing that needs correcting. Its core
@@ -1480,6 +1480,17 @@ unverified check, which was honest but useless — nothing could act on it. A
 character takes its type from its species; a stat block prints one; a creature
 nobody has typed produces a request rather than a silent pass.
 
+**A request names the command that satisfies it, and every command-level
+request has one.** `declareCreatureType` is the provider for the type
+request, and it is the durable-fact case: declaring the same type again emits
+nothing, declaring a *different* one is refused with `type_established`, and
+a log that contradicts itself is corrupt. Sight and cover are momentary facts
+and re-declare freely. `ContextRequest.kind` is the field a tool surface
+branches on — `creature`, `position`, `visibility`, `creature-type`, `scene` —
+and `invariants.test.ts` asserts that no command returns `needs-context`
+without saying which. Pure helpers beneath the commands return the bare kind;
+the command that knows which rule wanted the fact attaches the request.
+
 ### Alert rides on the roll by itself
 
 `rollInitiativeFor` reads the creature's own `initiativeBonuses`, which creation
@@ -1698,7 +1709,11 @@ rather than part of the command's identity, and it carries the operation's kind
 so a damage id and a casting id cannot collide by having similar shapes.
 
 **Every mutating tool on the Maestro surface takes a command id.** That is not
-optional the way it is for the engine's own callers. A model-driven loop
+optional the way it is for the engine's own callers. The sweep in
+`invariants.test.ts` is the authoritative list of which engine commands honour
+one; a command absent from it is unguarded, and the DM-facing four that were —
+`applyConditionTo`, `endConcentration`, `setExhaustionLevel`,
+`grantTemporaryHpTo` — are there now. A model-driven loop
 retries for reasons that have nothing to do with the game — a `pause_turn`
 resume, a dropped connection, a tool re-invocation after a stream error — and
 an unidentified retry is a second casting that spends a second slot and rolls a

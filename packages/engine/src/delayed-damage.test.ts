@@ -24,7 +24,7 @@ import { declaredCasting } from './spellcasting.js';
  * condition — so the debt gets its own small structure rather than an invented
  * condition to hang on.
  *
- * **The debt lives in state, which is the whole point.** DOCTRINE.md 9:
+ * **The debt lives in state, which is the whole point.** docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md 9:
  * incomplete multi-step resolution must survive reloads. A schedule held in a
  * caller's hands is the pending Concentration save that had to be torn out.
  */

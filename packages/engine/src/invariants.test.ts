@@ -15,8 +15,13 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import {
+  applyConditionTo,
   damageCreature,
+  declareCreatureType,
   declineOpportunity,
+  endConcentration,
+  grantTemporaryHpTo,
+  setExhaustionLevel,
   pendingAttackOf,
   pendingMoveOf,
   removeCreatureEverywhere,
@@ -184,6 +189,18 @@ const stanced = (): readonly GameEvent[] => [
   { type: 'feature-activated', id: A, feature: 'test:stance' },
 ];
 
+/** A is concentrating on something, so dismissing it is legal. */
+const concentrating = (): readonly GameEvent[] => [
+  ...SETUP,
+  { type: 'concentration-started', id: A, castingId: 'cast:1', spell: 'Bless', level: 1 },
+];
+
+/** A third creature nobody has typed, so declaring its type says something. */
+const untyped = (): readonly GameEvent[] => [
+  ...SETUP,
+  { type: 'creature-added', id: C, name: C, sheet: sheet(), maxHp: 20, diesAtZero: true, side: 'foes' },
+];
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'damageCreature',
@@ -242,6 +259,29 @@ const GUARDED: readonly Guarded[] = [
     name: 'extendFeature',
     log: stanced(),
     run: (s, commandId) => extendFeature(s, A, { feature: 'test:stance', by: 'attack', commandId }),
+  },
+  /**
+   * The DM-facing state changes a narrating layer reaches for constantly, and
+   * the ones the first sweep did not cover. Each is a mutating tool on the
+   * Maestro surface, and CLAUDE.md is explicit that every one of those takes a
+   * command id — a retried "you are Frightened" is a second Frightened.
+   */
+  {
+    name: 'applyConditionTo',
+    log: SETUP,
+    run: (s, commandId) => applyConditionTo(s, B, 'frightened', 'a dragon', [], undefined, undefined, { commandId }),
+  },
+  {
+    name: 'endConcentration',
+    log: concentrating(),
+    run: (s, commandId) => endConcentration(s, A, 'voluntary', { commandId }),
+  },
+  { name: 'setExhaustionLevel', log: SETUP, run: (s, commandId) => setExhaustionLevel(s, B, 2, { commandId }) },
+  { name: 'grantTemporaryHpTo', log: SETUP, run: (s, commandId) => grantTemporaryHpTo(s, B, 8, { commandId }) },
+  {
+    name: 'declareCreatureType',
+    log: untyped(),
+    run: (s, commandId) => declareCreatureType(s, C, 'Fey', { commandId }),
   },
   { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, A, 'rope', 1, commandId) },
   { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, A, 'chain-shirt', commandId) },
@@ -367,6 +407,23 @@ describe('unknown is not no', () => {
       // than by reading the field — the point is that this is answerable
       // without matching a growing vocabulary of error codes.
       expect(isNeedsContext(out)).toBe(true);
+    });
+
+    /**
+     * And it says *what* is missing. A `needs-context` with no request is
+     * "go and find out" with the "what" left in a prose string, and the layer
+     * above is back to matching error codes — the thing the predicate above
+     * exists to make unnecessary. The four-step contract in docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md is
+     * identify the fact, say why, say how; a bare code is none of them.
+     */
+    it(`${entry.name} names the fact it is missing`, () => {
+      const out = entry.run();
+      const requests = contextRequestsOf(out);
+      expect(requests.length).toBeGreaterThan(0);
+      for (const request of requests) {
+        expect(request.subject.length).toBeGreaterThan(0);
+        expect(request.satisfyWith.length).toBeGreaterThan(0);
+      }
     });
   }
 

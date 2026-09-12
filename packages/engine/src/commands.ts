@@ -175,6 +175,30 @@ export const ZERO_HIT_POINTS = 'zero hit points';
 const creatureOf = (state: GameState, id: CharacterId) => state.creatures[id] ?? null;
 
 /**
+ * The answer for a creature the engine has never been told about.
+ *
+ * The most common `needs-context` there is, and until now the one that named
+ * no request — so `contextRequestsOf` came back empty and a tool surface was
+ * left matching the error code, which is the thing the predicate exists to
+ * make unnecessary. Absence from structured state is not evidence a thing
+ * does not exist; this says what would make it exist here.
+ *
+ * Commands attach requests. The pure helpers beneath them (`positioning.ts`,
+ * `combat.ts`) return the bare kind and leave the request to the command that
+ * knows which rule wanted the fact.
+ */
+const unknownCreature = (id: CharacterId, detail = 'is not in this game') =>
+  needsContext('unknown_creature', `${id} ${detail}`, [
+    {
+      kind: 'creature',
+      subject: id,
+      need: `a record for ${id}`,
+      because: 'the command names a creature the engine has never been told about',
+      satisfyWith: `a creature-added event for ${id}`,
+    },
+  ]);
+
+/**
  * An idempotency key.
  *
  * Retry-safety has two halves and only one of them is free. A pure command
@@ -288,7 +312,7 @@ export function damageCreature(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
 
   if (!Number.isFinite(command.amount) || command.amount < 0) {
     return err('bad_amount', `damage must be a non-negative number, got ${command.amount}`);
@@ -345,7 +369,7 @@ export function healCreature(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
 
   if (!Number.isFinite(amount) || amount <= 0) {
     return err('bad_amount', `healing must be a positive number, got ${amount}`);
@@ -378,9 +402,15 @@ export function setExhaustionLevel(
   state: GameState,
   id: CharacterId,
   level: number,
+  command: CommandIdentity = {},
 ): Result<GameEvent[]> {
+  const identity = identify(state, `exhaustion:${id}`, { ...command, level });
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
   if (creatureOf(state, id) === null) {
-    return needsContext('unknown_creature', `${id} is not in this game`);
+    return unknownCreature(id);
   }
 
   if (!Number.isInteger(level) || level < 0 || level > 6) {
@@ -391,7 +421,7 @@ export function setExhaustionLevel(
   // level is 6" is a rule rather than a caller's decision. Damage would be the
   // wrong instrument: a healthy creature taking exactly its maximum drops to 0
   // rather than dying.
-  return ok([{ type: 'exhaustion-set', id, level }]);
+  return ok([{ type: 'exhaustion-set', id, level, ...(stamp === null ? {} : { command: stamp }) }]);
 }
 
 /**
@@ -405,7 +435,7 @@ export function removeCreatureEverywhere(
   id: CharacterId,
 ): Result<GameEvent[]> {
   if (creatureOf(state, id) === null) {
-    return needsContext('unknown_creature', `${id} is not in this game`);
+    return unknownCreature(id);
   }
 
   // Anything this creature was holding up has to be settled first, or the
@@ -507,15 +537,33 @@ export function applyConditionTo(
   immuneTo: readonly ConditionName[] = [],
   duration?: Duration,
   repeatSave?: RepeatSave,
+  command: CommandIdentity = {},
 ): Result<GameEvent[]> {
+  // "You are Frightened" is the state change a narrating layer reaches for
+  // most, and a retried one was a second Frightened from the same source —
+  // harmless to the condition set, which keys by source, but a second
+  // `effect-scheduled` that reset its deadline.
+  const identity = identify(state, `condition:${id}`, {
+    ...command,
+    condition,
+    source,
+    ...(duration === undefined ? {} : { duration }),
+    ...(repeatSave === undefined ? {} : { repeatSave }),
+  });
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
   if (creatureOf(state, id) === null) {
-    return needsContext('unknown_creature', `${id} is not in this game`);
+    return unknownCreature(id);
   }
   if (immuneTo.includes(condition)) {
     return err('immune', `${id} is immune to the ${condition} condition`);
   }
 
-  const events: GameEvent[] = [{ type: 'condition-applied', id, condition, source }];
+  const events: GameEvent[] = [
+    { type: 'condition-applied', id, condition, source, ...(stamp === null ? {} : { command: stamp }) },
+  ];
 
   // A hook needs a timer to hang on, even when the effect has no deadline of
   // its own: an indefinite one is still the thing the boundary looks at.
@@ -635,14 +683,74 @@ export function grantTemporaryHpTo(
   state: GameState,
   id: CharacterId,
   amount: number,
+  command: CommandIdentity = {},
 ): Result<GameEvent[]> {
+  const identity = identify(state, `temp-hp:${id}`, { ...command, amount });
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
   if (creatureOf(state, id) === null) {
-    return needsContext('unknown_creature', `${id} is not in this game`);
+    return unknownCreature(id);
   }
   if (!Number.isFinite(amount) || amount < 0) {
     return err('bad_amount', `temporary hit points must be a non-negative number, got ${amount}`);
   }
-  return ok([{ type: 'temporary-hp-granted', id, amount }]);
+  return ok([
+    { type: 'temporary-hp-granted', id, amount, ...(stamp === null ? {} : { command: stamp }) },
+  ]);
+}
+
+// — declared facts ———————————————————————————————————————————————————————————
+
+/**
+ * Establish a creature's type, once.
+ *
+ * The authoritative path for a fact `resolveSpell` has been asking for by
+ * name: Hold Person wants "a Humanoid", the request said which event would
+ * settle it, and nothing produced that event — so the layer above wrote one
+ * into the log by hand. That is narration writing directly to truth, which is
+ * the first thing docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md forbids.
+ *
+ * Two rules, both from the doctrine's sixth invariant. **Fiction may supply
+ * a fact**: a creature nobody has typed takes the type it is given. **Fiction
+ * may not overwrite established truth**: a creature already typed — by its
+ * stat block, its species, or an earlier declaration — refuses a different
+ * one, because a spell may already have been cast on the strength of it.
+ * Declaring the same type again emits nothing; completing the record adds a
+ * fact, it never restates the world.
+ *
+ * The refusal is a verdict rather than homework: the fact is *known*, and the
+ * caller is contradicting it. A DM who genuinely misspoke has no path here to
+ * take it back, deliberately — a retcon facility would need its own event
+ * and its own audit trail, and inventing one for a case nobody has hit yet is
+ * the kind of abstraction the doctrine says to wait for.
+ */
+export function declareCreatureType(
+  state: GameState,
+  id: CharacterId,
+  creatureType: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  const identity = identify(state, `declare-type:${id}`, { ...command, creatureType });
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+
+  if (creature.creatureType === creatureType) return ok([]);
+  if (creature.creatureType !== null) {
+    return err(
+      'type_established',
+      `${id} is already established as ${creature.creatureType}; a declaration cannot make them ${creatureType}`,
+    );
+  }
+
+  return ok([
+    { type: 'creature-type-declared', id, creatureType, ...(stamp === null ? {} : { command: stamp }) },
+  ]);
 }
 
 // — resources ————————————————————————————————————————————————————————————————
@@ -659,7 +767,7 @@ export function declareResourcePool(
   pool: PoolDeclaration,
 ): Result<GameEvent[]> {
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
   if (hasPool(creature.resources, pool.key)) {
     return err('duplicate_pool', `${id} already has a ${pool.key} pool`);
   }
@@ -676,7 +784,7 @@ export function restoreResourcesOn(
   recovers: Recovery,
 ): Result<GameEvent[]> {
   if (creatureOf(state, id) === null) {
-    return needsContext('unknown_creature', `${id} is not in this game`);
+    return unknownCreature(id);
   }
   return ok([{ type: 'resources-restored', id, recovers }]);
 }
@@ -698,7 +806,7 @@ export function takeDash(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} has no record here yet; add it first`);
+  if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
   if (state.combat === null) {
     return err('not_in_combat', 'there is no movement budget to add to outside combat');
   }
@@ -732,7 +840,7 @@ export function takeDisengage(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} has no record here yet; add it first`);
+  if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
   if (state.combat === null) {
     return err('not_in_combat', 'there are no Opportunity Attacks to avoid outside combat');
   }
@@ -769,7 +877,7 @@ export function takeDodge(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} has no record here yet; add it first`);
+  if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
   if (creature.activeFeatures.includes(DODGE)) {
     return err('already_active', `${id} is already Dodging`);
   }
@@ -859,7 +967,7 @@ export function takeReady(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} has no record here yet; add it first`);
+  if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
 
   // SRD: "you take this action on your turn, which lets you act by taking a
   // Reaction before the start of your next turn." Both halves need turns.
@@ -946,7 +1054,7 @@ function holdSpell(
   }
 
   const caster = creatureOf(state, id);
-  if (caster === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (caster === null) return unknownCreature(id);
 
   // SRD: you ready what you know or have prepared, and nothing else.
   const chosen = chooseRoute(caster.spellcasting, response.spellId, response.source);
@@ -1047,7 +1155,7 @@ export function releaseReady(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} has no record here yet; add it first`);
+  if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
 
   const readied = creature.readied;
   if (readied === null) {
@@ -1323,12 +1431,24 @@ function moveWithin(
   }
 
   const mover = creatureOf(state, id);
-  if (mover === null) return needsContext('unknown_creature', `${id} has no record here yet; add it first`);
+  if (mover === null) return unknownCreature(id, 'has no record here yet; add it first');
   if (state.scene === null) return needsContext('no_scene', 'there is no scene to move within');
 
   const from = positionOf(state.scene, id);
   if (from === null) {
-    return needsContext('unplaced', `nobody has said where ${id} is standing, so there is nowhere to move from`);
+    return needsContext(
+      'unplaced',
+      `nobody has said where ${id} is standing, so there is nowhere to move from`,
+      [
+        {
+          kind: 'position',
+          subject: id,
+          need: `where ${id} is standing`,
+          because: 'a move is measured from where the mover starts',
+          satisfyWith: `a creature-placed event for ${id}`,
+        },
+      ],
+    );
   }
 
   // Resolve the destination through the same placement rules everything else
@@ -1773,13 +1893,13 @@ export function resolveAttack(
   }
 
   const attacker = creatureOf(state, id);
-  if (attacker === null) return needsContext('unknown_creature', `${id} has no record here yet; add it first`);
+  if (attacker === null) return unknownCreature(id, 'has no record here yet; add it first');
   // Not a claim that no such creature exists. A DM who has just narrated a
   // second ogre out of the treeline has a real ogre; the engine has simply not
   // been told about it, and being told is all this refusal asks for.
   const victim = creatureOf(state, command.target);
   if (victim === null) {
-    return needsContext('unknown_creature', `${command.target} has no record here yet; add it first`);
+    return unknownCreature(command.target, 'has no record here yet; add it first');
   }
   if (attacker.vitals.dead) return err('dead', `${id} is dead and swings at nothing`);
 
@@ -2157,7 +2277,7 @@ export function resolveAttackDamage(
   }
 
   const attacker = creatureOf(state, id);
-  if (attacker === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (attacker === null) return unknownCreature(id);
 
   const weapon = pending.weapon === null ? null : (itemFor(pending.weapon)?.weapon ?? null);
   const events: GameEvent[] = [];
@@ -2316,7 +2436,7 @@ export function activateFeature(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
 
   const definition = (creature.sheet.activated ?? []).find((a) => a.feature === command.feature);
   if (definition === undefined) {
@@ -2386,7 +2506,7 @@ export function endFeature(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
   if (!creature.activeFeatures.includes(command.feature)) {
     return err('not_active', `${id} is not in ${command.feature}`);
   }
@@ -2435,7 +2555,7 @@ export function extendFeature(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
   if (!creature.activeFeatures.includes(command.feature)) {
     return err('not_active', `${id} is not in ${command.feature}`);
   }
@@ -2600,7 +2720,7 @@ export function castSpell(
   const stamp = identity.value.stamp;
 
   const caster = creatureOf(state, id);
-  if (caster === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (caster === null) return unknownCreature(id);
   if (caster.vitals.dead) return err('dead', `${id} is dead and casts nothing`);
 
   // SRD Incapacitated: "You can't take any action, Bonus Action, or Reaction."
@@ -2817,7 +2937,7 @@ export function applySpellEffect(
   options: SpellEffectOptions = {},
 ): Result<GameEvent[]> {
   const caster = creatureOf(state, casterId);
-  if (caster === null) return needsContext('unknown_creature', `${casterId} is not in this game`);
+  if (caster === null) return unknownCreature(casterId);
 
   const casting = options.casting ?? caster.concentration;
   if (casting === null || casting === undefined) {
@@ -2860,13 +2980,13 @@ export function endSpellEffectOn(
   casterId: CharacterId,
 ): Result<GameEvent[]> {
   const caster = creatureOf(state, casterId);
-  if (caster === null) return needsContext('unknown_creature', `${casterId} is not in this game`);
+  if (caster === null) return unknownCreature(casterId);
   if (caster.concentration === null) {
     return err('not_concentrating', `${casterId} is not concentrating on anything`);
   }
 
   const target = creatureOf(state, targetId);
-  if (target === null) return needsContext('unknown_creature', `${targetId} is not in this game`);
+  if (target === null) return unknownCreature(targetId);
 
   const castingId = caster.concentration.castingId;
   const theirs = target.conditions.instances.filter(
@@ -2902,15 +3022,30 @@ export function endConcentration(
   state: GameState,
   id: CharacterId,
   reason: ConcentrationEndReason,
+  command: CommandIdentity = {},
 ): Result<GameEvent[]> {
+  // The check comes first, or a retry of a dismissal that went through comes
+  // back `not_concentrating` — a rules refusal for a command that succeeded,
+  // and the caller cannot tell it from a genuine one.
+  const identity = identify(state, `end-concentration:${id}`, { ...command, reason });
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
   if (creature.concentration === null) {
     return err('not_concentrating', `${id} is not concentrating on anything`);
   }
 
   return ok([
-    { type: 'concentration-ended', id, castingId: creature.concentration.castingId, reason },
+    {
+      type: 'concentration-ended',
+      id,
+      castingId: creature.concentration.castingId,
+      reason,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
   ]);
 }
 
@@ -3091,7 +3226,7 @@ export function resolveDamage(
   }
 
   const caster = after.creatures[id];
-  if (caster === undefined) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (caster === undefined) return unknownCreature(id);
 
   // Count only what this operation issues: a caller may hand the same issuer to
   // several operations in a turn, and `count` runs from where it was created.
@@ -3329,7 +3464,7 @@ export function resolvePendingSaves(
   for (const pending of owed) {
     const creature = state.creatures[pending.target];
     if (creature === undefined) {
-      return needsContext('unknown_creature', `${pending.target} owes a save but is not in this game`);
+      return unknownCreature(pending.target, 'owes a save but is not in this game');
     }
 
     const support = savingSupport(state, pending.target, creature, pending.ability, supply);
@@ -3524,7 +3659,7 @@ function rollTheDeathSave(
   supply: ConcentrationSaveSupply,
 ): Result<GameEvent[]> {
   const creature = state.creatures[who];
-  if (creature === undefined) return needsContext('unknown_creature', `${who} has no record here`);
+  if (creature === undefined) return unknownCreature(who, 'has no record here');
 
   const issuedBefore = supply.issuer.count;
   const rolled = rollDeathSave(supply.issuer, supply.rng, creature.vitals, {
@@ -3749,7 +3884,7 @@ function dealSpellDamage(
   readonly concentration: ConcentrationConsequence;
 }> {
   const victim = state.creatures[target];
-  if (victim === undefined) return needsContext('unknown_creature', `${target} is not in this game`);
+  if (victim === undefined) return unknownCreature(target);
 
   // A creature's own defences and the ones its features grant, together. The
   // stat block's entries alone would miss a Sorcerer's Elemental Affinity.
@@ -3890,7 +4025,7 @@ function castOrRelease(
   }
 
   const caster = creatureOf(state, casterId);
-  if (caster === null) return needsContext('unknown_creature', `${casterId} is not in this game`);
+  if (caster === null) return unknownCreature(casterId);
 
   const definition = definitionFor(request.spellId);
   if (definition === null) {
@@ -4239,7 +4374,7 @@ function namedTargets(
 
   for (const target of request.targets) {
     if (state.creatures[target] === undefined) {
-      return needsContext('unknown_creature', `${target} is not in this game`);
+      return unknownCreature(target);
     }
     if (target === casterId && definition.targets.self !== true) {
       return err('cannot_target_self', `${definition.name} is not cast on yourself`);
@@ -4256,7 +4391,7 @@ function namedTargets(
           subject: target,
           need: `what kind of creature ${target} is`,
           because: `${definition.name} may only target a ${wanted}`,
-          satisfyWith: `a creature-type-declared event for ${target}, or a creatureType when it is added`,
+          satisfyWith: `declareCreatureType(${target}, …), or a creatureType when the creature is added`,
         });
       } else if (actual.toLowerCase() !== wanted.toLowerCase()) {
         return err(
@@ -5109,7 +5244,7 @@ export function eligibleTargets(
           subject: target.id,
           need: `what kind of creature ${target.name} is`,
           because: `${definition.name} may only target a ${wanted}`,
-          satisfyWith: `a creature-type-declared event for ${target.id}`,
+          satisfyWith: `declareCreatureType(${target.id}, …)`,
         });
         continue;
       }
@@ -5184,7 +5319,7 @@ export function rollInitiativeFor(
   options: InitiativeOptions = {},
 ): Result<InitiativeRoll> {
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
 
   const own = creature.initiativeBonuses;
   const supplied = options.bonuses ?? [];
@@ -5238,7 +5373,7 @@ export function purchaseItem(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
 
   if (!Number.isInteger(quantity) || quantity < 1) {
     return err('bad_quantity', `a purchase takes a positive whole number, got ${quantity}`);
@@ -5306,7 +5441,7 @@ export function equipItem(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
 
   const item = itemFor(itemId);
   if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
@@ -5360,7 +5495,7 @@ export function unequipItem(
   const stamp = identity.value.stamp;
 
   const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+  if (creature === null) return unknownCreature(id);
   if (!creature.equipped.includes(itemId)) {
     const item = itemFor(itemId);
     return err('not_equipped', `${item?.name ?? itemId} is not worn or wielded`);

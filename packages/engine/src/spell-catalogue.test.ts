@@ -41,14 +41,14 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const added = (who: CharacterId): GameEvent => ({
+const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
   sheet: sheet(),
   maxHp: 500,
   diesAtZero: false,
-  creatureType: 'Humanoid',
+  creatureType,
 });
 
 /** Every slot level, so any spell in the catalogue can actually be paid for. */
@@ -63,10 +63,15 @@ const slots: GameEvent[] = Array.from({ length: 9 }, (_, i) => ({
   },
 }));
 
-const SETUP: readonly GameEvent[] = [
+/**
+ * The table, with the target and bystander being whatever kind of creature
+ * a spell demands. A type is durable — the engine refuses a declaration that
+ * rewrites one — so a fixture says what a creature is when it adds it.
+ */
+const setupWith = (targetType: string): readonly GameEvent[] => [
   added(CASTER),
-  added(TARGET),
-  added(BYSTANDER),
+  added(TARGET, targetType),
+  added(BYSTANDER, targetType),
   ...slots,
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
   { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
@@ -88,6 +93,8 @@ const SETUP: readonly GameEvent[] = [
   },
 ];
 
+const SETUP: readonly GameEvent[] = setupWith('Humanoid');
+
 const base = (): GameState => fold('seed', SETUP);
 
 const supply = (seed: string, bonus: number) => ({
@@ -108,14 +115,7 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   const definition = definitionFor(spellId);
   const wanted = definition?.targets.mustBeType;
 
-  const typed: readonly GameEvent[] =
-    wanted === undefined || wanted.toLowerCase() === 'humanoid'
-      ? SETUP
-      : [
-          ...SETUP,
-          { type: 'creature-type-declared', id: TARGET, creatureType: wanted },
-          { type: 'creature-type-declared', id: BYSTANDER, creatureType: wanted },
-        ];
+  const typed: readonly GameEvent[] = wanted === undefined ? SETUP : setupWith(wanted);
 
   // A rider that ends at a moment in the turn order needs there to *be* turns.
   // SRD gives "until the end of your next turn" no meaning outside combat and
@@ -289,10 +289,7 @@ describe('a definition that leaves part of its spell out says so', () => {
 describe('the shapes behave as their spells describe', () => {
   /** SRD Hold Monster is Hold Person without the Humanoid restriction. */
   it('holds a creature of any type, where Hold Person would not', () => {
-    const dragon = fold('seed', [
-      ...SETUP,
-      { type: 'creature-type-declared', id: TARGET, creatureType: 'Dragon' },
-    ]);
+    const dragon = fold('seed', setupWith('Dragon'));
 
     const person = resolveSpell(
       dragon,
