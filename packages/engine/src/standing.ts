@@ -1,4 +1,4 @@
-import type { Ability, CharacterId, ConditionName } from '@ie/shared';
+import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
 import type { Bonus, ModeSource } from './bonuses.js';
 import { UNIVERSAL_ACTION_EFFECTS } from './actions.js';
 import {
@@ -12,6 +12,8 @@ import { abilityModifier, armorClass } from './character.js';
 import { distanceBetween } from './positioning.js';
 import type { GameState } from './events.js';
 import type { DamageDefenses } from './attack.js';
+import type { Weapon } from '@ie/srd';
+import { canUseFeatureThisTurn } from './combat.js';
 
 /**
  * Benefits a class feature grants for as long as its rule holds.
@@ -114,6 +116,48 @@ export type StandingGrant =
       readonly usingAbility?: Ability;
       /** SRD Radiant Strikes: "using a Melee weapon or an Unarmed Strike". */
       readonly meleeOnly?: boolean;
+      /**
+       * SRD "Once per turn" / "Once on each of your turns".
+       *
+       * Sneak Attack, Colossus Slayer, Divine Strike and Primal Strike all say
+       * it, which is what makes it the shape rather than one class's quirk —
+       * and it is **not** once per round. See `featureUsedOnTurn`.
+       *
+       * Outside combat there are no turns and nothing restricts it.
+       */
+      readonly oncePerTurn?: boolean;
+      /**
+       * SRD Colossus Slayer: "When you hit a creature **with a weapon**".
+       *
+       * Distinct from `meleeOnly`: an Unarmed Strike is melee and is not a
+       * weapon, so a Monk's fist qualifies for Radiant Strikes and not for
+       * this.
+       */
+      readonly weaponOnly?: boolean;
+      /** SRD Sneak Attack: "the attack uses a Finesse or a Ranged weapon". */
+      readonly finesseOrRangedWeapon?: boolean;
+      /**
+       * SRD Colossus Slayer: "if it's missing any of its Hit Points".
+       *
+       * A fact about the target the engine holds exactly, which is why this
+       * feature is expressible and Horde Breaker beside it is not.
+       */
+      readonly targetMissingHitPoints?: boolean;
+      /**
+       * SRD Sneak Attack's two-branch qualification, transcribed whole.
+       *
+       * > "if you have Advantage on the roll ... You don't need Advantage on
+       * > the attack roll if at least one of your allies is within 5 feet of
+       * > the target, the ally doesn't have the Incapacitated condition, and
+       * > you don't have Disadvantage on the attack roll."
+       *
+       * One field rather than three because it is one sentence with an
+       * either/or in it, and splitting it would let a definition express half
+       * of a rule the SRD never writes by halves. It has one user, like
+       * `usingAbility` had when Rage Damage was the only feature with it —
+       * each of these is a feature's own clause rather than a generalisation.
+       */
+      readonly advantageOrAdjacentAlly?: boolean;
     };
 
 /**
@@ -473,6 +517,19 @@ export interface AttackContext {
   /** The ability the attack roll actually used. */
   readonly ability: Ability;
   readonly melee: boolean;
+  /** Null for an Unarmed Strike, which is not a weapon. */
+  readonly weapon: Weapon | null;
+  /**
+   * How the attack roll came out, after Advantage and Disadvantage cancelled.
+   *
+   * The *resolved* mode rather than a list of sources, because that is what
+   * SRD Sneak Attack asks about: "if you have Advantage on the roll" reads the
+   * roll, and a roll with one of each is a normal roll.
+   */
+  readonly mode: RollMode;
+  readonly target: CharacterId;
+  /** The turn this attack happens on; null outside combat, where none exists. */
+  readonly turn: number | null;
 }
 
 /**
@@ -484,6 +541,39 @@ export interface AttackContext {
  * Barbarian's Rage Damage the wrong answer against a Slashing-resistant
  * target, or a Paladin's Radiant the wrong one.
  */
+/**
+ * SRD Sneak Attack's second branch, which is the one the engine can only
+ * sometimes answer.
+ *
+ * > "at least one of your allies is within 5 feet of the target, the ally
+ * > doesn't have the Incapacitated condition, and you don't have Disadvantage
+ * > on the attack roll."
+ *
+ * Allegiance is **declared**, like cover and sight, and nobody is an ally by
+ * default. A table that has not said who is on whose side gets no ally here —
+ * which withholds the benefit rather than inventing one, and is reported so
+ * the layer above knows the difference between "no ally was near" and "nobody
+ * has said".
+ */
+function adjacentAllyOf(
+  state: GameState,
+  attacker: CharacterId,
+  target: CharacterId,
+): { readonly found: boolean; readonly declared: boolean } {
+  const mine = state.creatures[attacker]?.side ?? null;
+  if (mine === null || state.scene === null) return { found: false, declared: false };
+
+  for (const id of Object.keys(state.creatures).sort()) {
+    if (id === attacker || id === target) continue;
+    const other = state.creatures[id];
+    if (other === undefined || other.side !== mine || other.vitals.dead) continue;
+    if (isIncapacitated(other.conditions)) continue;
+    const apart = distanceBetween(state.scene, id as CharacterId, target);
+    if (apart.ok && apart.value <= 5) return { found: true, declared: true };
+  }
+  return { found: false, declared: true };
+}
+
 export function standingAttackDamage(
   state: GameState,
   who: CharacterId,
@@ -496,15 +586,53 @@ export function standingAttackDamage(
     readonly dice?: string;
     readonly flat?: number;
   }[];
+  /** Once-per-turn features this attack spends the allowance of. */
+  readonly spent: readonly string[];
+  /** Qualifications the engine could not settle from what it holds. */
+  readonly unverified: readonly string[];
 } {
   const bonuses: Bonus[] = [];
   const extra: { source: string; type: string; dice?: string; flat?: number }[] = [];
+  const spent: string[] = [];
+  const unverified: string[] = [];
 
   for (const { effect } of standingFor(state, who)) {
     const grant = effect.grant;
     if (grant.kind !== 'attack-damage') continue;
     if (grant.usingAbility !== undefined && grant.usingAbility !== context.ability) continue;
     if (grant.meleeOnly === true && !context.melee) continue;
+    if (grant.weaponOnly === true && context.weapon === null) continue;
+    if (
+      grant.finesseOrRangedWeapon === true &&
+      !(context.weapon?.properties.includes('finesse') === true ||
+        context.weapon?.kind === 'ranged')
+    ) {
+      continue;
+    }
+    if (grant.targetMissingHitPoints === true) {
+      const victim = state.creatures[context.target];
+      if (victim === undefined || victim.vitals.hp >= victim.vitals.hpMax) continue;
+    }
+    if (grant.advantageOrAdjacentAlly === true && context.mode !== 'advantage') {
+      // The second branch. Disadvantage rules it out outright; otherwise it
+      // needs an ally the table has placed and named.
+      if (context.mode === 'disadvantage') continue;
+      const ally = adjacentAllyOf(state, who, context.target);
+      if (!ally.found) {
+        if (!ally.declared) {
+          unverified.push(
+            `${effect.name} could also qualify through an ally within 5 feet of ${context.target}; nobody has declared who is on whose side, so it did not`,
+          );
+        }
+        continue;
+      }
+    }
+    // Last, so that a feature ruled out by its own qualifications does not
+    // spend an allowance it never used.
+    if (grant.oncePerTurn === true && state.combat !== null) {
+      if (!canUseFeatureThisTurn(state.combat, who, effect.feature)) continue;
+      if (context.turn !== null) spent.push(effect.feature);
+    }
 
     if (grant.damageType === undefined) {
       bonuses.push({
@@ -522,7 +650,7 @@ export function standingAttackDamage(
     }
   }
 
-  return { bonuses, extra };
+  return { bonuses, extra, spent, unverified };
 }
 
 /**

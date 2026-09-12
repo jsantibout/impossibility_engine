@@ -15,7 +15,7 @@ import {
   type CharacterSheet,
   type UnarmoredDefense,
 } from './character.js';
-import type { ActivatedFeature, StandingEffect } from './standing.js';
+import type { ActivatedFeature, StandingEffect, StandingGrant } from './standing.js';
 import { expandPack, goldToCopper, itemFor } from './catalogue.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
@@ -1738,12 +1738,23 @@ export function planCharacter(
   for (const feature of features) {
     const grant = feature.grants;
     if (grant?.kind !== 'standing') continue;
+    // SRD "You gain one of the following options of your choice": a feature
+    // whose player took the other option grants nothing at all. Checked before
+    // the effects rather than inside them, because the whole grant belongs to
+    // the option.
+    if (
+      grant.onlyIfChoice !== undefined &&
+      !(choices.featureChoices[feature.id] ?? []).includes(grant.onlyIfChoice)
+    ) {
+      continue;
+    }
+
     // A feature that only resizes the aura grants no benefit of its own.
     for (const declared of grant.effects ?? []) {
       // SRD Elemental Affinity chooses its damage type at the table; the grant
       // says the types come from the choice rather than naming them, because
       // the feature does not know which one the player picked.
-      const effect =
+      let effect: StandingGrant =
         grant.damageTypesFromChoice === true && declared.kind === 'damage-resistance'
           ? {
               ...declared,
@@ -1752,6 +1763,14 @@ export function planCharacter(
               ),
             }
           : declared;
+
+      // SRD Sneak Attack's dice are a column of the Rogue table, read at that
+      // class's own level — the same rule Rage Damage's flat bonus follows.
+      if (grant.diceCountByLevel !== undefined && effect.kind === 'attack-damage') {
+        const count = usesOf(choices, feature.id, grant.diceCountByLevel);
+        const faces = (effect.dice ?? '1d6').split('d')[1] ?? '6';
+        effect = { ...effect, dice: `${count}d${faces}` };
+      }
 
       standing.push({
         feature: feature.id,

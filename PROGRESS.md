@@ -75,7 +75,8 @@ still Wizard-shaped are named below.
 | Hellish Rebuke | Damage names its dealer; a Reaction that answers being hurt | `595e6c6` |
 | Interruptible casting | A casting held between declaration and effect; Counterspell | `6e12880` |
 | Utility audit | 76 spells read one at a time; 30 tracked; `unmodelled` given a guard | `5d1dfc4` |
-| Ability checks | A check a spell offers against its own ongoing effect; `checks.ts` reachable | _this batch_ |
+| Ability checks | A check a spell offers against its own ongoing effect; `checks.ts` reachable | `e9a323f` |
+| Once per turn | An attack-damage rider with a per-turn allowance; Sneak Attack, Colossus Slayer | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -620,6 +621,49 @@ still Wizard-shaped are named below.
   file, not the mutation. Half an hour of the invariant work went that way and
   had to be rewritten. Copy the file first; restore from the copy.
 
+- **"Once per turn" is the allowance, and the qualifications are each feature's
+  own sentence.** Four SRD features carry the allowance — Sneak Attack,
+  Colossus Slayer, Divine Strike, Primal Strike — which is what makes it a
+  shape rather than one class's quirk. What must *not* be generalised with it
+  is the qualification: Sneak Attack wants Advantage or a flanking ally and a
+  Finesse or Ranged weapon, Colossus Slayer wants a weapon and a wounded
+  target, and folding those into one predicate language would be the trigger
+  framework this batch was told not to build. They are declared fields on the
+  grant, exactly as `usingAbility` and `meleeOnly` already were.
+- **It is once per *a* turn, not once per *your* turn, and that is the whole
+  reason it is state.** A flag would be cleared by the budget refresh at the
+  start of the holder's own turn — the one moment it does not matter — and
+  would go on blocking every Reaction in between. So the allowance records the
+  global `turnsTaken`, exactly as `spellSlotSpentOnTurn` beside it does, and a
+  Rogue who Sneak Attacked on their own turn may Sneak Attack again on the
+  Opportunity Attack they take during the Fighter's. Mutating the comparison to
+  a presence check fails two tests and nothing else, which is why both had to
+  exist.
+- **A failed qualification must not eat the allowance.** The spend is computed
+  last, after every qualification has had its say, so a Rogue who swings a Mace
+  still has their Sneak Attack for the dagger later in the turn. Reordering
+  those two lines is a mutation the suite catches.
+- **Sneak Attack's ally clause is the first rule to need *declared allegiance*,
+  and it withholds rather than invents.** `side` is null until somebody says,
+  so a table that is not tracking sides gets no ally — and the attack reports
+  it in `unverified` rather than passing quietly. That is the same three-valued
+  discipline cover and sight already use, reaching a class feature for the
+  first time.
+- **A held attack has to remember how its roll came out.** SRD Sneak Attack
+  asks "if you have Advantage on the roll", and `resolveAttackDamage` settles
+  the damage in a second call that would otherwise have to guess. `mode` joins
+  `total` and `natural` on `PendingAttack` for the same reason those are there.
+- **`free: true` is what a second attack in one turn actually is.** A Rogue's
+  Attack action holds one attack, so the only honest way to swing twice on a
+  turn is an attack whose cost is paid elsewhere — which is what
+  `takeOpportunityAttack` passes and what the once-per-turn tests use.
+- **A test fixture that forces a roll must force the right one.**
+  `supply.bonuses` feeds saves, not the attack roll, so a "forced" +40 there
+  did nothing and three tests were passing on the luck of their seed. The
+  helper now puts the bonus on the command's own `attackBonuses` **and throws
+  if the swing does not land** — a fixture that silently stops testing what it
+  says it tests is worse than one that fails.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -1068,8 +1112,8 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells verified end to end | 47 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 61 of 230 |
-| Tests | 3,420 passing, none skipped |
+| Class features executed | 63 of 230 |
+| Tests | 3,447 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

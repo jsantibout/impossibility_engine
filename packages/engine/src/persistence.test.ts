@@ -228,6 +228,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'exhaustion-set',
   'feature-activated',
   'feature-ended',
+  'feature-used',
   'free-interaction-used',
   'healed',
   'hit-point-maximum-raised',

@@ -2228,6 +2228,7 @@ export function resolveAttack(
         targetAc: attack.value.targetAc,
         total: attack.value.total,
         natural: attack.value.roll.natural,
+        mode: attack.value.roll.mode,
       },
     });
     return ok({ events, attack: attack.value, unverified, duplicate: false });
@@ -2243,7 +2244,12 @@ export function resolveAttack(
   const fromFeatures = standingAttackDamage(state, id, {
     ability: attack.value.ability,
     melee: rangeOf(weapon, command.thrown === true) === null,
+    weapon,
+    mode: attack.value.roll.mode,
+    target: command.target,
+    turn: state.combat?.turnsTaken ?? null,
   });
+  unverified.push(...fromFeatures.unverified);
 
   const rolled = rollAttackDamage(
     supply.issuer,
@@ -2267,6 +2273,13 @@ export function resolveAttack(
     count: supply.issuer.count - issuedBefore,
     rng: supply.rng.snapshot(),
   });
+
+  // A once-per-turn feature that rode on this hit has now used its allowance.
+  // Recorded before the damage, so a log read forwards never shows the damage
+  // of a feature whose use had not yet been written down.
+  for (const feature of fromFeatures.spent) {
+    events.push({ type: 'feature-used', id, feature, turn: state.combat?.turnsTaken ?? 0 });
+  }
 
   const after = events.reduce(applyEvent, state);
   const hurt = dealSpellDamage(
@@ -2482,6 +2495,12 @@ export function resolveAttackDamage(
   const fromFeatures = standingAttackDamage(current, id, {
     ability: pending.ability,
     melee: rangeOf(weapon, pending.thrown) === null,
+    weapon,
+    // Recorded when the attack was held. Absent only in a log written before
+    // the field existed, and none has one: `resolveAttack` always sets it.
+    mode: pending.mode ?? 'normal',
+    target: pending.target,
+    turn: current.combat?.turnsTaken ?? null,
   });
 
   const issuedBefore = supply.issuer.count;
@@ -2516,6 +2535,12 @@ export function resolveAttackDamage(
       rng: supply.rng.snapshot(),
     },
   );
+
+  // The same allowance the ordinary attack path spends, spent on the half of a
+  // held attack that actually deals the damage.
+  for (const feature of fromFeatures.spent) {
+    events.push({ type: 'feature-used', id, feature, turn: current.combat?.turnsTaken ?? 0 });
+  }
 
   const after = events.reduce(applyEvent, state);
   const hurt = dealSpellDamage(

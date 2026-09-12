@@ -1,4 +1,4 @@
-import type { Ability, CharacterId, ConditionName } from '@ie/shared';
+import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { ROUND } from './clock.js';
 import type { RngState } from './dice.js';
@@ -53,6 +53,7 @@ import {
   advanceTurn,
   dash,
   disengage,
+  markFeatureUsed,
   markSpellSlotSpent,
   startCombat,
   spendAction,
@@ -306,6 +307,15 @@ export interface PendingAttack {
    */
   readonly total: number;
   readonly natural: number;
+  /**
+   * How the attack roll came out, after Advantage and Disadvantage cancelled.
+   *
+   * On the hold because SRD Sneak Attack asks "if you have Advantage on the
+   * roll", and a held attack settles its damage in a second call that would
+   * otherwise have to guess. Optional only so that a log written before this
+   * existed still folds; `resolveAttack` always records it.
+   */
+  readonly mode?: RollMode;
 }
 
 /**
@@ -1121,6 +1131,26 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly feature: string;
       readonly command?: CommandStamp;
+    }
+  /**
+   * A once-per-turn feature spending its allowance for this turn.
+   *
+   * SRD Sneak Attack is "Once per turn", Colossus Slayer "only once per turn",
+   * Divine Strike "Once on each of your turns" — and the turn is recorded
+   * rather than a flag being set, because the distinction is *a* turn, not
+   * *your* turn. A Rogue who used it on their own turn may use it again on an
+   * Opportunity Attack during somebody else's.
+   *
+   * Its own event rather than a field on the attack, because one event does
+   * one thing: the attack landed, and separately the feature that rode on it
+   * used up its allowance.
+   */
+  | {
+      readonly type: 'feature-used';
+      readonly id: CharacterId;
+      readonly feature: string;
+      /** The turn it was used on, from the combat's own never-reused counter. */
+      readonly turn: number;
     }
   /**
    * An action held back for a trigger.
@@ -2570,6 +2600,14 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         ...next,
         scene: must(event, placeCreature(sceneOf(state, event), event.id, event.placement)),
       };
+
+    case 'feature-used': {
+      if (state.combat === null) {
+        throw new CorruptLogError(event, 'a once-per-turn feature was used outside combat');
+      }
+      creatureOf(state, event, event.id);
+      return { ...next, combat: markFeatureUsed(state.combat, event.id, event.feature, event.turn) };
+    }
 
     case 'feature-activated': {
       const creature = creatureOf(state, event, event.id);

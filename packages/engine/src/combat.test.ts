@@ -258,6 +258,9 @@ describe('startCombat', () => {
       disengaged: false,
       freeInteraction: true,
       spellSlotSpentOnTurn: null,
+      // Empty rather than absent: a once-per-turn feature records the turn it
+      // was used on, and nothing has been used yet.
+      featureUsedOnTurn: {},
     });
   });
 });

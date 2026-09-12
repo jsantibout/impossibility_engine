@@ -150,6 +150,23 @@ export interface TurnBudget {
    * moment.
    */
   readonly spellSlotSpentOnTurn: number | null;
+  /**
+   * Which turn each once-per-turn feature was last used on.
+   *
+   * SRD writes "Once per turn" and "Once on each of your turns" on Sneak
+   * Attack, Colossus Slayer, Divine Strike and Primal Strike, and it is
+   * **not** once per round. The distinction is only visible on somebody
+   * else's turn: a Rogue who Sneak Attacked on their own turn may Sneak
+   * Attack again on the Opportunity Attack they take during the Fighter's,
+   * because that is a different turn.
+   *
+   * So this records the turn rather than a flag, for exactly the reason
+   * `spellSlotSpentOnTurn` above it does — a flag would be cleared by the
+   * budget refresh at the start of the holder's *own* turn, which is the one
+   * moment that does not matter, and would go on blocking every Reaction in
+   * between.
+   */
+  readonly featureUsedOnTurn: Readonly<Record<string, number>>;
 }
 
 /**
@@ -192,6 +209,7 @@ const fullBudget = (speed: number): TurnBudget => ({
   disengaged: false,
   freeInteraction: true,
   spellSlotSpentOnTurn: null,
+  featureUsedOnTurn: {},
 });
 
 /**
@@ -625,6 +643,40 @@ export function canSpendSpellSlotThisTurn(state: CombatState, id: CharacterId): 
   const budget = state.budgets[id];
   if (budget === undefined) return true;
   return budget.spellSlotSpentOnTurn !== state.turnsTaken;
+}
+
+/**
+ * Whether a once-per-turn feature is still available to this creature.
+ *
+ * Outside combat there are no turns, so nothing restricts it — the same
+ * reading the one-slot-per-turn rule takes, and for the same reason: "once per
+ * turn" has no referent where nobody is taking turns.
+ */
+export function canUseFeatureThisTurn(
+  state: CombatState,
+  id: CharacterId,
+  feature: string,
+): boolean {
+  const budget = state.budgets[id];
+  if (budget === undefined) return true;
+  return budget.featureUsedOnTurn[feature] !== state.turnsTaken;
+}
+
+export function markFeatureUsed(
+  state: CombatState,
+  id: CharacterId,
+  feature: string,
+  turn: number,
+): CombatState {
+  const budget = state.budgets[id];
+  if (budget === undefined) return state;
+  // Sorted, because this reaches `GameState` and a fold has to compare byte
+  // for byte however the keys arrived.
+  const used: Record<string, number> = {};
+  for (const key of [...Object.keys(budget.featureUsedOnTurn), feature].sort()) {
+    used[key] = key === feature ? turn : (budget.featureUsedOnTurn[key] ?? 0);
+  }
+  return withBudget(state, id, { featureUsedOnTurn: used }, budget);
 }
 
 export function markSpellSlotSpent(state: CombatState, id: CharacterId): CombatState {

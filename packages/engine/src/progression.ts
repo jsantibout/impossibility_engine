@@ -171,6 +171,24 @@ export type FeatureGrant =
       readonly damageTypesFromChoice?: boolean;
       /** SRD Aura Expansion: this feature makes the aura this many feet. */
       readonly auraFeet?: number;
+      /**
+       * How many dice an `attack-damage` grant rolls, by class level.
+       *
+       * SRD Sneak Attack is a column of the Rogue table — 1d6 at level 1 and
+       * 10d6 at 19 — so the feature cannot name a number any more than Rage
+       * Damage can. The die size stays on the grant; only the count is read at
+       * the class's own level, exactly as `flatByLevel` and the pool sizes are.
+       */
+      readonly diceCountByLevel?: readonly number[];
+      /**
+       * The option this effect belongs to, for a feature that offers several.
+       *
+       * SRD writes "You gain one of the following options of your choice" on
+       * Hunter's Prey, Elemental Fury and Blessed Strikes, and only one of the
+       * options is this grant. A feature whose chosen option is the other one
+       * grants nothing — which is different from granting something inert.
+       */
+      readonly onlyIfChoice?: string;
     }
   /**
    * A feature the character switches on — see `ActivatedFeature` in

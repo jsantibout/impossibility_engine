@@ -110,8 +110,30 @@ export const ROGUE: ClassDefinition = {
       id: 'rogue:sneak-attack',
       name: 'Sneak Attack',
       level: 1,
-      automation: 'manual',
-      note: 'The extra d6s are damage the caller supplies, and the conditions — Advantage, or an ally within 5 feet of the target — are not checked. A critical doubles them, which the damage pipeline already does for any extra dice.',
+      automation: 'engine',
+      note: 'The dice are read off the Rogue table at the character’s Rogue level and added to a qualifying hit, once per turn — *a* turn, so an Opportunity Attack on somebody else’s turn qualifies again. The qualifications are checked: Advantage on the roll, or a non-Incapacitated ally within 5 feet of the target and no Disadvantage, and a Finesse or Ranged weapon either way. The damage is of the weapon’s own type, so Resistance to the weapon resists it too, and a critical doubles the dice. What the engine cannot settle is the ally clause where nobody has declared who is on whose side: it withholds the benefit and says so rather than inventing an ally. Cunning Strike’s trade of dice for effects is a separate feature and is not modelled.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        // SRD: "Once per turn, you can deal an extra 1d6 damage to one
+        // creature you hit with an attack roll if you have Advantage on the
+        // roll and the attack uses a Finesse or a Ranged weapon. The extra
+        // damage's type is the same as the weapon's type."
+        //
+        // No `damageType`, which is what makes it a *bonus* rather than extra
+        // typed damage — the weapon's own type, riding with it through
+        // Resistance.
+        effects: [
+          {
+            kind: 'attack-damage',
+            dice: '1d6',
+            oncePerTurn: true,
+            finesseOrRangedWeapon: true,
+            advantageOrAdjacentAlly: true,
+          },
+        ],
+        diceCountByLevel: SNEAK_ATTACK_DICE,
+      },
     },
     {
       id: 'rogue:thieves-cant',

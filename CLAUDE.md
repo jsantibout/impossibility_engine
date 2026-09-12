@@ -1526,6 +1526,47 @@ nothing in the engine could check it.
 separate fields rather than one overloaded number, because conflating them is
 exactly the mistake that was made.
 
+### Once Per Turn Is A Turn, Not A Round
+
+Four SRD class features add damage to a hit and cap it at once a turn — Sneak
+Attack, Colossus Slayer, Divine Strike, Primal Strike. The **allowance** is the
+shape; the **qualifications** are not, and keeping them apart is the whole
+design. Sneak Attack wants Advantage or a flanking ally and a Finesse or Ranged
+weapon; Colossus Slayer wants a weapon and a target already wounded. Those are
+declared fields on the grant, each transcribed from its own sentence, exactly
+as `usingAbility` (Rage Damage) and `meleeOnly` (Radiant Strikes) already were.
+Folding them into one predicate language would be a trigger framework nothing
+asked for.
+
+**The allowance records a turn number, never a flag.** SRD says *a* turn, and
+the distinction is only visible on somebody else's: a Rogue who Sneak Attacked
+on their own turn may Sneak Attack again on the Opportunity Attack they take
+during the Fighter's. A flag would be cleared by the budget refresh at the start
+of the Rogue's *own* turn — the one moment that does not matter — and would go
+on blocking every Reaction until then. So `featureUsedOnTurn` sits on the turn
+budget beside `spellSlotSpentOnTurn` and is compared against `turnsTaken`,
+which is global and never reused. Outside combat there are no turns and nothing
+restricts it, the same reading the one-slot-per-turn rule takes.
+
+**A failed qualification must not eat the allowance.** The spend is computed
+after every qualification has had its say, so a Rogue who swings a Mace still
+has their Sneak Attack for the dagger later in the turn.
+
+**Declared allegiance reaches a class feature.** Sneak Attack's second branch
+needs "at least one of your allies within 5 feet of the target", and `side` is
+null until somebody says so. A table not tracking sides gets no ally — the
+benefit is withheld rather than invented — and the attack says so in
+`unverified`. Same three-valued discipline as cover and sight.
+
+**A held attack remembers how its roll came out.** `PendingAttack.mode` joins
+`total` and `natural`, because SRD Sneak Attack asks about *the roll* and
+`resolveAttackDamage` settles the damage in a second call that would otherwise
+guess.
+
+**A second attack on one turn is `free: true`.** A Rogue's Attack action holds
+one attack, so the only honest way to swing twice on a turn is an attack whose
+cost is paid elsewhere — which is exactly what `takeOpportunityAttack` passes.
+
 ### A Check A Spell Offers Against What It Is Still Doing
 
 SRD writes this twenty times — see through the illusion, tear free of the

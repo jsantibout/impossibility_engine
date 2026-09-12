@@ -242,9 +242,29 @@ export const HUNTER: SubclassDefinition = {
       id: 'hunter:hunters-prey',
       name: "Hunter's Prey",
       level: 3,
-      automation: 'manual',
-      note: 'Colossus Slayer and Horde Breaker are extra damage and an extra attack, neither of which the engine offers: extra attacks inside an Attack action are not modelled.',
+      automation: 'engine',
+      note: 'Colossus Slayer is executed: a hit with a weapon on a target missing any of its Hit Points deals an extra 1d8 of the weapon’s own type, once per turn. Horde Breaker is not — an extra attack inside the Attack action against a second creature is a shape the engine does not have — and a character who chose it gains nothing here. Swapping the option on a rest is not modelled.',
       choice: { kind: 'option', choose: 1, from: ['Colossus Slayer', 'Horde Breaker'] },
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        // SRD: "When you hit a creature with a weapon, the weapon deals an
+        // extra 1d8 damage to the target if it's missing any of its Hit
+        // Points. You can deal this extra damage only once per turn."
+        //
+        // No damage type is named, so it is the weapon's own — a bonus, like
+        // Sneak Attack. "With a weapon" excludes an Unarmed Strike.
+        onlyIfChoice: 'Colossus Slayer',
+        effects: [
+          {
+            kind: 'attack-damage',
+            dice: '1d8',
+            oncePerTurn: true,
+            weaponOnly: true,
+            targetMissingHitPoints: true,
+          },
+        ],
+      },
     },
     {
       id: 'hunter:defensive-tactics',
