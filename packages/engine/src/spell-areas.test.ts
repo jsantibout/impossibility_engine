@@ -29,6 +29,13 @@ const WIZARD = id('kessa');
 const NEAR = id('near');
 const FAR = id('far');
 const BEHIND = id('behind');
+/**
+ * 85 feet *east*: past Mass Cure Wounds' 60-foot range but inside a Sphere
+ * centred within it. Deliberately off the north-south line the other three sit
+ * on — bearing 0 is +y here — so no Cone or Line pointed at `far` sweeps it up
+ * and changes what the geometry fixtures below catch.
+ */
+const YONDER = id('yonder');
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 5,
@@ -71,6 +78,7 @@ const SETUP: readonly GameEvent[] = [
   added(NEAR),
   added(FAR),
   added(BEHIND),
+  added(YONDER),
   slot(1, 4),
   slot(3, 3),
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
@@ -79,10 +87,18 @@ const SETUP: readonly GameEvent[] = [
   { type: 'creature-placed', id: NEAR, placement: { from: { creature: WIZARD }, feet: 10, bearing: 0 } },
   { type: 'creature-placed', id: FAR, placement: { from: { creature: WIZARD }, feet: 60, bearing: 0 } },
   { type: 'creature-placed', id: BEHIND, placement: { from: { creature: WIZARD }, feet: 10, bearing: 180 } },
+  // Placed from its own landmark rather than by bearing, so the coordinate is
+  // stated outright: 85 feet east of the wizard, off the north-south line the
+  // other three share.
+  { type: 'landmark-added', name: 'the well', at: { x: 185, y: 100, z: 0 } },
+  { type: 'creature-placed', id: YONDER, placement: { from: { landmark: 'the well' }, feet: 0 } },
   {
     type: 'spellcasting-declared',
     id: WIZARD,
-    spellcasting: declaredCasting({ ability: 'int', prepared: ['burning-hands', 'fireball', 'lightning-bolt', 'thunderwave'] }),
+    spellcasting: declaredCasting({
+      ability: 'int',
+      prepared: ['burning-hands', 'fireball', 'lightning-bolt', 'thunderwave', 'mass-cure-wounds'],
+    }),
   },
 ];
 
@@ -520,5 +536,99 @@ describe('an area cast replays and retries like any other', () => {
     expect(isNeedsContext(out)).toBe(true);
     expect(contextRequestsOf(out)[0]?.kind).toBe('position');
     expect(contextRequestsOf(out)[0]?.subject).toBe(WIZARD);
+  });
+});
+
+/**
+ * The third way a spell finds its targets: the caller chooses them, from
+ * inside an area.
+ *
+ * SRD Mass Cure Wounds — "Choose up to six creatures in a 30-foot-radius
+ * Sphere centered on [a point you can see within range]" — is neither of the
+ * other two. An area picking its own targets would heal every enemy standing
+ * in the Sphere, which is not the spell; a plain target list would let the
+ * caster heal anyone within range and ignore the Sphere entirely.
+ *
+ * So the Sphere bounds *eligibility* and the caller still names who is healed.
+ * The range then belongs to the **point**, not to each target: the SRD reaches
+ * 60 feet to place a 30-foot Sphere, so a creature 85 feet from the caster is
+ * a legal target and measuring it from the caster would wrongly refuse it.
+ */
+describe('targets chosen from inside an area', () => {
+  /** A level 5 slot, which SETUP leaves out so other tests can declare it. */
+  const ready = (extra: readonly GameEvent[] = []): GameState =>
+    fold('seed', [...SETUP, slot(5, 2), ...extra]);
+
+  /** North, where `near`, `far` and `behind` stand. */
+  const north = (feet: number) => ({ x: 100, y: 100 + feet, z: 0 });
+  /** East, where `yonder` stands alone. */
+  const east = (feet: number) => ({ x: 100 + feet, y: 100, z: 0 });
+
+  it('heals a creature the caller named inside the Sphere', () => {
+    const hurt = ready([{ type: 'damage-taken', id: NEAR, amount: 20, source: 'setup' }]);
+    const out = unwrap(
+      resolveSpell(
+        hurt,
+        WIZARD,
+        { spellId: 'mass-cure-wounds', targets: [NEAR], at: north(10), slotLevel: 5 },
+        supply('heal', 0),
+      ),
+      'mass cure wounds',
+    );
+    expect(out.outcomes.map((o) => o.target)).toEqual([NEAR]);
+    expect(out.events.some((e) => e.type === 'healed')).toBe(true);
+  });
+
+  /** The Sphere is the bound, and a creature outside it is not eligible. */
+  it('refuses a named target standing outside the Sphere', () => {
+    const result = resolveSpell(
+      ready(),
+      WIZARD,
+      { spellId: 'mass-cure-wounds', targets: [BEHIND], at: north(60), slotLevel: 5 },
+      supply('out', 0),
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('outside_area');
+  });
+
+  /**
+   * The point carries the range, so the Sphere reaches further than the
+   * caster does. `yonder` is 85 feet away and the spell reaches 60.
+   */
+  it('reaches a creature further away than the spell’s own range', () => {
+    const out = unwrap(
+      resolveSpell(
+        ready(),
+        WIZARD,
+        { spellId: 'mass-cure-wounds', targets: [YONDER], at: east(60), slotLevel: 5 },
+        supply('far', 0),
+      ),
+      'yonder',
+    );
+    expect(out.outcomes.map((o) => o.target)).toEqual([YONDER]);
+  });
+
+  /** And the point itself is still held to the spell's range. */
+  it('refuses to centre the Sphere beyond the spell’s range', () => {
+    const result = resolveSpell(
+      ready(),
+      WIZARD,
+      { spellId: 'mass-cure-wounds', targets: [YONDER], at: east(85), slotLevel: 5 },
+      supply('reach', 0),
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('out_of_range');
+  });
+
+  /** Nothing defaults the point, exactly as for a Fireball. */
+  it('refuses to centre the Sphere nowhere', () => {
+    const result = resolveSpell(
+      ready(),
+      WIZARD,
+      { spellId: 'mass-cure-wounds', targets: [NEAR], slotLevel: 5 },
+      supply('none', 0),
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('no_origin');
   });
 });

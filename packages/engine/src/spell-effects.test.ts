@@ -91,11 +91,17 @@ const SETUP: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: CLERIC,
-    spellcasting: declaredCasting({ ability: 'wis', cantrips: ['sacred-flame'], prepared: ['cure-wounds', 'healing-word', 'inflict-wounds'] }),
+    spellcasting: declaredCasting({
+      ability: 'wis',
+      cantrips: ['sacred-flame'],
+      prepared: ['cure-wounds', 'healing-word', 'inflict-wounds', 'finger-of-death', 'compulsion'],
+    }),
   },
   slot(1, 4),
   slot(2, 3),
   slot(3, 2),
+  slot(4, 2),
+  slot(7, 2),
   { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
   { type: 'landmark-added', name: 'the altar', at: { x: 20, y: 20, z: 0 } },
   { type: 'creature-placed', id: CLERIC, placement: { from: { landmark: 'the altar' }, feet: 0 } },
@@ -620,5 +626,93 @@ describe('a missing fact still comes back as a request, not a refusal', () => {
     expect(fold('seed', SETUP.filter((e) => !(e.type === 'creature-placed' && e.id === GOBLIN)))).toEqual(
       unplaced,
     );
+  });
+});
+
+/**
+ * A flat addend the SRD prints beside the dice is part of the damage.
+ *
+ * Two SRD spells print one — Finger of Death's "7d8 + 30" and Disintegrate's
+ * "10d6 + 40" — and `DiceScaling.flat` was carrying the number while nothing
+ * on the damage path read it. `scaledFlatFor` was reached only by Temporary
+ * Hit Points, so both spells rolled their dice and silently dropped the
+ * addend, for as long as Finger of Death had existed.
+ *
+ * A minimum is what catches it. 7d8 + 30 cannot come to less than 37, so any
+ * roll below that is proof the + 30 never arrived, whatever the dice did.
+ */
+describe('a flat addend the SRD prints beside the dice', () => {
+  const cast = (seed: string) =>
+    unwrap(
+      resolveSpell(
+        base(),
+        CLERIC,
+        { spellId: 'finger-of-death', targets: [GOBLIN], slotLevel: 7 },
+        supply(seed),
+      ),
+      'finger of death',
+    );
+
+  it('adds Finger of Death’s printed + 30 on a failed save', () => {
+    // Several seeds, because one lucky roll could clear 37 on dice alone.
+    for (const seed of ['a', 'b', 'c', 'd', 'e']) {
+      const out = cast(seed);
+      const outcome = out.outcomes[0];
+      if (outcome?.save?.success === true) continue;
+      expect(outcome?.damage ?? 0).toBeGreaterThanOrEqual(37);
+    }
+  });
+
+  /** SRD: "half as much damage" is half of the whole, addend included. */
+  it('halves the addend along with the dice on a success', () => {
+    for (const seed of ['a', 'b', 'c', 'd', 'e']) {
+      const out = cast(seed);
+      const outcome = out.outcomes[0];
+      if (outcome?.save?.success !== true) continue;
+      expect(outcome.damage ?? 0).toBeGreaterThanOrEqual(18);
+    }
+  });
+});
+
+/**
+ * A target list the SRD gives no number at all.
+ *
+ * Compulsion says "each creature of your choice that you can see within
+ * range", and Weird and Divine Word say the same thing. There is no count to
+ * transcribe — the bound is range and sight, both of which are already
+ * checked per target — so `targets.count` has nothing honest to hold and
+ * `unlimited` says so outright rather than picking a plausible number.
+ */
+describe('a spell that names no number of targets', () => {
+  it('takes as many as the caller names', () => {
+    const out = unwrap(
+      resolveSpell(
+        base(),
+        CLERIC,
+        { spellId: 'compulsion', targets: [ALLY, GOBLIN], slotLevel: 4 },
+        supply('compel'),
+      ),
+      'compulsion',
+    );
+    expect(out.outcomes.map((o) => o.target).slice().sort()).toEqual([ALLY, GOBLIN].slice().sort());
+  });
+
+  /** Unlimited is not unchecked: range and sight still refuse. */
+  it('still refuses a target it cannot reach', () => {
+    const away = fold('seed', [
+      ...SETUP,
+      { type: 'landmark-added', name: 'the gate', at: { x: 150, y: 20, z: 0 } },
+      { type: 'creature-added', id: id('watchman'), name: 'watchman', sheet: MOOK, maxHp: 10, diesAtZero: false, creatureType: 'Humanoid' },
+      { type: 'creature-placed', id: id('watchman'), placement: { from: { landmark: 'the gate' }, feet: 0 } },
+      { type: 'sight-declared', from: CLERIC, to: id('watchman'), seen: true },
+    ]);
+    const result = resolveSpell(
+      away,
+      CLERIC,
+      { spellId: 'compulsion', targets: [ALLY, id('watchman')], slotLevel: 4 },
+      supply('far'),
+    );
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('out_of_range');
   });
 });

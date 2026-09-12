@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 14 (4.1%) | 46 (13.6%) | 43 (12.7%) |
+| 339 | 14 (4.1%) | 67 (19.8%) | 45 (13.3%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -36,14 +36,14 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Tracked | Executed | Blocked on |
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 0 | 15 | — |
+| Area of effect | 73 | 0 | 23 | — |
 | Reaction timing | 4 | 0 | 0 | an interrupt mechanism that can order a cast against its trigger |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 0 | an effect that a later turn can act through |
-| Spell attack roll | 16 | 0 | 8 | — |
-| Saving throw for damage | 30 | 0 | 8 | — |
-| Saving throw for a condition | 43 | 0 | 10 | — |
-| Restores Hit Points | 4 | 0 | 2 | — |
+| Spell attack roll | 16 | 0 | 9 | — |
+| Saving throw for damage | 30 | 0 | 13 | — |
+| Saving throw for a condition | 43 | 0 | 16 | — |
+| Restores Hit Points | 4 | 0 | 3 | — |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 0 | — |
 | Narrative or exploration effect | 91 | 13 | 2 | nothing — the effect is the DM’s, and the cost is tracked |
@@ -54,19 +54,29 @@ spell, and the area is the part that is missing.
 - **Animal Friendship** (level 1) — verified
 - **Bane** (level 1) — verified
 - **Banishment** (level 4) — verified
+- **Befuddlement** (level 8) — untested
+- **Black Tentacles** (level 4) — untested
 - **Bless** (level 1) — verified
 - **Blight** (level 4) — verified
 - **Blindness/Deafness** (level 2) — verified
 - **Burning Hands** (level 1) — verified
+- **Chain Lightning** (level 6) — untested
 - **Charm Monster** (level 4) — verified
 - **Charm Person** (level 1) — verified
 - **Chill Touch** (cantrip) — verified
 - **Circle of Death** (level 6) — verified
+- **Cloudkill** (level 5) — untested
 - **Color Spray** (level 1) — untested
+- **Compulsion** (level 4) — verified
 - **Cone of Cold** (level 5) — verified
+- **Contagion** (level 5) — untested
 - **Cure Wounds** (level 1) — verified
+- **Disintegrate** (level 6) — untested
 - **Dissonant Whispers** (level 1) — verified
 - **Divine Smite** (level 1) — untested
+- **Dominate Beast** (level 4) — untested
+- **Dominate Monster** (level 8) — untested
+- **Dominate Person** (level 5) — untested
 - **Eldritch Blast** (cantrip) — verified
 - **False Life** (level 1) — verified
 - **Fear** (level 3) — verified
@@ -74,6 +84,7 @@ spell, and the area is the part that is missing.
 - **Fire Bolt** (cantrip) — verified
 - **Fireball** (level 3) — verified
 - **Flame Strike** (level 5) — verified
+- **Freezing Sphere** (level 6) — untested
 - **Grease** (level 1) — verified
 - **Guidance** (cantrip) — verified
 - **Guiding Bolt** (level 1) — verified
@@ -83,19 +94,29 @@ spell, and the area is the part that is missing.
 - **Hold Person** (level 2) — verified
 - **Hypnotic Pattern** (level 3) — verified
 - **Ice Storm** (level 4) — verified
+- **Incendiary Cloud** (level 8) — untested
 - **Inflict Wounds** (level 1) — verified
+- **Insect Plague** (level 5) — untested
 - **Lightning Bolt** (level 3) — verified
+- **Mass Cure Wounds** (level 5) — verified
+- **Mass Healing Word** (level 3) — untested
+- **Mass Suggestion** (level 6) — untested
 - **Mind Spike** (level 2) — verified
+- **Phantasmal Killer** (level 4) — untested
 - **Poison Spray** (cantrip) — verified
 - **Ray of Frost** (cantrip) — verified
 - **Ray of Sickness** (level 1) — verified
 - **Sacred Flame** (cantrip) — verified
 - **Shatter** (level 2) — verified
 - **Shocking Grasp** (cantrip) — verified
+- **Starry Wisp** (cantrip) — untested
+- **Suggestion** (level 2) — untested
 - **Sunbeam** (level 6) — untested
+- **Sunburst** (level 8) — untested
 - **Thunderwave** (level 1) — verified
 - **Vicious Mockery** (cantrip) — verified
 - **Vitriolic Sphere** (level 4) — verified
+- **Weird** (level 9) — untested
 
 ### Tracked today
 

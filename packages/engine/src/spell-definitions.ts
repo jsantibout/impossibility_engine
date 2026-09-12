@@ -292,6 +292,19 @@ export interface TargetRule {
   readonly mustBeType?: string;
   /** Whether the caster may pick themselves. */
   readonly self?: boolean;
+  /**
+   * SRD "each creature of your choice", which names no number at all.
+   *
+   * Compulsion, Weird and Divine Word are all written this way. There is no
+   * count to transcribe, and the spell is not unbounded either — range and
+   * sight bound it, and both are already checked against every target. So
+   * `count` has nothing honest to hold, and picking a generous number would
+   * be the engine answering a question the SRD did not ask.
+   *
+   * Set alongside `count: 0`, which then means "no number stated" rather than
+   * "aims at nobody".
+   */
+  readonly unlimited?: boolean;
 }
 
 export interface SpellDefinition {
@@ -313,6 +326,26 @@ export interface SpellDefinition {
    * catches. `targets.count` is ignored when this is set.
    */
   readonly area?: SpellArea;
+  /**
+   * An area the targets the caller names must all be standing in.
+   *
+   * The third way an SRD spell finds its targets, and it is neither of the
+   * other two. Mass Cure Wounds says "Choose up to six creatures in a
+   * 30-foot-radius Sphere centered on [a point you can see within range]": an
+   * `area` would pick its own targets and heal every enemy in the Sphere,
+   * which is not the spell, while a plain target list would let the caster
+   * heal anyone in range and ignore the Sphere altogether.
+   *
+   * So the caller still names who is affected and this bounds who may be
+   * named. **The range then belongs to the point, not to each target** — the
+   * SRD reaches 60 feet to place a 30-foot Sphere, so a creature 85 feet away
+   * is a legal target, and measuring it from the caster would wrongly refuse
+   * it.
+   *
+   * Set this or `area`, never both: one says the geometry chooses, the other
+   * says the geometry bounds a choice.
+   */
+  readonly targetsWithin?: SpellArea;
   /**
    * What the engine does when the spell resolves.
    *
@@ -551,6 +584,78 @@ export const HEALING_WORD: SpellDefinition = {
     {
       kind: 'heal',
       healing: { dice: '2d4', perSlotLevelAbove: '2d4' },
+      addSpellcastingModifier: true,
+    },
+  ],
+};
+
+/**
+ * SRD Mass Healing Word:
+ *
+ * > _Level 3 Abjuration (Bard, Cleric)._ **Casting Time:** Bonus Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "Up to six creatures of your choice that you can see within range regain
+ * > Hit Points equal to 2d4 plus your spellcasting ability modifier."
+ * > _Using a Higher-Level Spell Slot._ "The healing increases by 1d4 for each
+ * > spell slot level above 3."
+ *
+ * Healing Word for six, and the upcast is the place to be careful: this one
+ * grows by **1**d4 where Healing Word grows by 2d4, which is exactly the sort
+ * of number that gets copied across from the neighbouring spell.
+ */
+export const MASS_HEALING_WORD: SpellDefinition = {
+  id: 'mass-healing-word',
+  name: 'Mass Healing Word',
+  level: 3,
+  school: 'abjuration',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 6, self: true },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'heal',
+      healing: { dice: '2d4', perSlotLevelAbove: '1d4' },
+      addSpellcastingModifier: true,
+    },
+  ],
+};
+
+/**
+ * SRD Mass Cure Wounds:
+ *
+ * > _Level 5 Abjuration (Bard, Cleric, Druid)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "A wave of healing energy washes out from a point you can see within
+ * > range. Choose up to six creatures in a 30-foot-radius Sphere centered on
+ * > that point. Each target regains Hit Points equal to 5d8 plus your
+ * > spellcasting ability modifier."
+ * > _Using a Higher-Level Spell Slot._ "The healing increases by 1d8 for each
+ * > spell slot level above 5."
+ *
+ * **A target list bounded by an area**, which is what `targetsWithin` exists
+ * for. `area` picks its own targets from geometry — everyone inside it, which
+ * is right for Fireball and wrong here, because the caster chooses *up to six*
+ * of the creatures in the Sphere and would otherwise heal the enemies standing
+ * in it. Choosing is the operative rule and the Sphere bounds what may be
+ * chosen, so both halves are real: the point is held to the spell's range, and
+ * every name is held to the Sphere.
+ */
+export const MASS_CURE_WOUNDS: SpellDefinition = {
+  id: 'mass-cure-wounds',
+  name: 'Mass Cure Wounds',
+  level: 5,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 6, self: true },
+  targetsWithin: { kind: 'sphere', radius: 30, origin: 'point' },
+  effects: [
+    {
+      kind: 'heal',
+      healing: { dice: '5d8', perSlotLevelAbove: '1d8' },
       addSpellcastingModifier: true,
     },
   ],
@@ -813,6 +918,34 @@ export const CHILL_TOUCH = attackCantrip({
   dice: '1d10',
   damageType: 'necrotic',
   unmodelled: ['the target cannot regain Hit Points until the end of your next turn'],
+});
+
+/**
+ * SRD Starry Wisp:
+ *
+ * > _Evocation Cantrip (Bard, Druid)._ **Casting Time:** Action. **Range:** 60
+ * > feet. **Duration:** Instantaneous.
+ * > "You launch a mote of light at one creature or object within range. Make a
+ * > ranged spell attack against the target. On a hit, the target takes 1d8
+ * > Radiant damage, and until the end of your next turn, it emits Dim Light in
+ * > a 10-foot radius and can't benefit from the Invisible condition."
+ * > _Cantrip Upgrade._ "The damage increases by 1d8 when you reach levels 5
+ * > (2d8), 11 (3d8), and 17 (4d8)."
+ *
+ * The rider is not a condition: it is light, and the *loss* of a benefit the
+ * target would otherwise have. `attack.condition` names a `ConditionName`, and
+ * neither half of this is one.
+ */
+export const STARRY_WISP = attackCantrip({
+  id: 'starry-wisp',
+  name: 'Starry Wisp',
+  school: 'evocation',
+  feet: 60,
+  dice: '1d8',
+  damageType: 'radiant',
+  unmodelled: [
+    'until the end of your next turn the target emits Dim Light in a 10-foot radius and cannot benefit from the Invisible condition',
+  ],
 });
 
 /**
@@ -1193,6 +1326,472 @@ export const CIRCLE_OF_DEATH: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Chain Lightning:
+ *
+ * > _Level 6 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 150 feet. **Duration:** Instantaneous.
+ * > "You launch a lightning bolt toward a target you can see within range.
+ * > Three bolts then leap from that target to as many as three other targets
+ * > of your choice, each of which must be within 30 feet of the first target.
+ * > A target can be a creature or an object and can be targeted by only one of
+ * > the bolts. Each target makes a Dexterity saving throw, taking 10d8
+ * > Lightning damage on a failed save or half as much damage on a successful
+ * > one."
+ * > _Using a Higher-Level Spell Slot._ "One additional bolt leaps from the
+ * > first target to another target for each spell slot level above 6."
+ *
+ * Four named targets rather than an area: every one of them is the caster's
+ * choice, which is what makes this a target list and not a Sphere. What the
+ * list cannot carry is the geometry *between* the targets — the SRD measures
+ * the three later bolts from the first target, and the engine measures every
+ * target from the caster.
+ */
+export const CHAIN_LIGHTNING: SpellDefinition = {
+  id: 'chain-lightning',
+  name: 'Chain Lightning',
+  level: 6,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 4, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '10d8' },
+      damageType: 'lightning',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: [
+    'each later bolt must be within 30 feet of the first target: every target is checked against the spell\u2019s own range from the caster instead',
+    'only the first target must be seen; sight is required of all four here',
+  ],
+};
+
+/**
+ * SRD Disintegrate:
+ *
+ * > _Level 6 Transmutation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "A creature targeted by this spell makes a Dexterity saving throw. On a
+ * > failed save, the target takes 10d6 + 40 Force damage. If this damage
+ * > reduces it to 0 Hit Points, it and everything nonmagical it is wearing and
+ * > carrying are disintegrated into gray dust."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 3d6 for each
+ * > spell slot level above 6."
+ *
+ * The flat 40 is why `DiceScaling` carries a `flat`, and the upcast is why it
+ * carries the increase as a whole notation: 10d6 growing by **3**d6 is not the
+ * base count, and reading the step off the base would more than triple it.
+
+ *
+ * `onSuccess: 'none'` is transcribed, not assumed. The SRD gives this spell no
+ * success clause at all — unlike Inflict Wounds, which says "half as much" —
+ * and defaulting either way rewrites one of the two spells.
+ */
+export const DISINTEGRATE: SpellDefinition = {
+  id: 'disintegrate',
+  name: 'Disintegrate',
+  level: 6,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '10d6', flat: 40, perSlotLevelAbove: '3d6' },
+      damageType: 'force',
+      onSuccess: 'none',
+    },
+  ],
+  unmodelled: [
+    'a target the damage reduces to 0 Hit Points is disintegrated to dust with everything nonmagical it carries, and can then be revived only by True Resurrection or Wish',
+    'the automatic disintegration of a Large or smaller nonmagical object or creation of magical force, and of a 10-foot-Cube portion of a larger one',
+  ],
+};
+
+/**
+ * SRD Befuddlement:
+ *
+ * > _Level 8 Enchantment (Bard, Druid, Warlock, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 150 feet. **Duration:** Instantaneous.
+ * > "You blast the mind of a creature that you can see within range. The
+ * > target makes an Intelligence saving throw. On a failed save, the target
+ * > takes 10d12 Psychic damage and can't cast spells or take the Magic action.
+ * > At the end of every 30 days, the target repeats the save, ending the
+ * > effect on a success. On a successful save, the target takes half as much
+ * > damage only."
+ */
+export const BEFUDDLEMENT: SpellDefinition = {
+  id: 'befuddlement',
+  name: 'Befuddlement',
+  level: 8,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'int',
+      damage: { dice: '10d12' },
+      damageType: 'psychic',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: [
+    'the failed save also stops the target casting spells or taking the Magic action, which is not a condition the engine names',
+    'the save the target repeats at the end of every 30 days, and the Greater Restoration, Heal or Wish that would end it sooner',
+  ],
+};
+
+/**
+ * SRD Contagion:
+ *
+ * > _Level 5 Necromancy (Cleric, Druid)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** 7 days.
+ * > "The target must succeed on a Constitution saving throw or take 11d8
+ * > Necrotic damage and have the Poisoned condition. Also, choose one ability
+ * > when you cast the spell. While Poisoned, the target has Disadvantage on
+ * > saving throws made with the chosen ability."
+ *
+ * Damage and a condition off one save, which is the shape `condition` exists
+ * for. The seven days are the *failed* branch of a mechanic the engine cannot
+ * run — three successes end it, three failures fix it — so the definition
+ * takes the branch the SRD prints as the duration and says which one it took.
+ */
+export const CONTAGION: SpellDefinition = {
+  id: 'contagion',
+  name: 'Contagion',
+  level: 5,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '11d8' },
+      damageType: 'necrotic',
+      onSuccess: 'none',
+      condition: { name: 'poisoned' },
+    },
+  ],
+  durationSeconds: 604800,
+  unmodelled: [
+    'the ability chosen at the cast, on which the Poisoned target then has Disadvantage on saving throws',
+    'the save repeated at the end of each of the target\u2019s turns until three successes end the spell or three failures fix it for the 7 days assumed here',
+    'the Constitution save the target makes before any effect can end the Poisoned condition on it',
+  ],
+};
+
+/**
+ * SRD Freezing Sphere:
+ *
+ * > _Level 6 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 300 feet. **Duration:** Instantaneous.
+ * > "A frigid globe streaks from you to a point of your choice within range,
+ * > where it explodes in a 60-foot-radius Sphere. Each creature in that area
+ * > makes a Constitution saving throw, taking 10d6 Cold damage on failed save
+ * > or half as much damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 6."
+ */
+export const FREEZING_SPHERE: SpellDefinition = {
+  id: 'freezing-sphere',
+  name: 'Freezing Sphere',
+  level: 6,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 300 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 60, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '10d6', perSlotLevelAbove: '1d6' },
+      damageType: 'cold',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: [
+    'freezing a body of water to a depth of 6 inches, and the Restrained condition on creatures swimming there',
+    'holding the globe back rather than firing it, to be thrown or slung later or to explode on its own after 1 minute',
+  ],
+};
+
+/**
+ * SRD Sunburst:
+ *
+ * > _Level 8 Evocation (Cleric, Druid, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 150 feet. **Duration:** Instantaneous.
+ * > "Brilliant sunlight flashes in a 60-foot-radius Sphere centered on a point
+ * > you choose within range. Each creature in the Sphere makes a Constitution
+ * > saving throw. On a failed save, a creature takes 12d6 Radiant damage and
+ * > has the Blinded condition for 1 minute. On a successful save, it takes
+ * > half as much damage only."
+ *
+ * The Blinded rider is left out rather than approximated. `condition.lasts`
+ * offers a moment in the turn order and omitting it borrows the casting's own
+ * deadline — but this spell is Instantaneous and the rider runs for a minute
+ * on its own clock, repeating a save that ends it. Neither answer is a minute,
+ * and picking the nearer one would be the engine inventing a duration.
+ */
+export const SUNBURST: SpellDefinition = {
+  id: 'sunburst',
+  name: 'Sunburst',
+  level: 8,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 60, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '12d6' },
+      damageType: 'radiant',
+      onSuccess: 'half',
+    },
+  ],
+  unmodelled: [
+    'the Blinded condition a failed save imposes for 1 minute, and the Constitution save that ends it at the end of each of the target\u2019s turns',
+    'dispelling magical Darkness in the area',
+  ],
+};
+
+/**
+ * SRD Insect Plague:
+ *
+ * > _Level 5 Conjuration (Cleric, Druid, Sorcerer)._ **Casting Time:** Action.
+ * > **Range:** 300 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "Swarming locusts fill a 20-foot-radius Sphere centered on a point you
+ * > choose within range... When the swarm appears, each creature in it makes a
+ * > Constitution saving throw, taking 4d10 Piercing damage on a failed save or
+ * > half as much damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d10 for each
+ * > spell slot level above 5."
+ *
+ * The save when the swarm *appears* is the half that resolves at the cast. The
+ * rest of this spell is an area that keeps acting, which is the shape nothing
+ * in the engine has yet.
+ */
+export const INSECT_PLAGUE: SpellDefinition = {
+  id: 'insect-plague',
+  name: 'Insect Plague',
+  level: 5,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 300 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '4d10', perSlotLevelAbove: '1d10' },
+      damageType: 'piercing',
+      onSuccess: 'half',
+    },
+  ],
+  durationSeconds: 600,
+  unmodelled: [
+    'the Sphere remains for the duration, its area Lightly Obscured and Difficult Terrain',
+    'the same save again when a creature first enters the area on a turn or ends its turn there, once per turn',
+  ],
+};
+
+/**
+ * SRD Cloudkill:
+ *
+ * > _Level 5 Conjuration (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "You create a 20-foot-radius Sphere of yellow-green fog centered on a
+ * > point within range... Each creature in the Sphere makes a Constitution
+ * > saving throw, taking 5d8 Poison damage on a failed save or half as much
+ * > damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 5."
+ *
+ * Insect Plague's shape with a fog that walks: the cloud moves 10 feet away
+ * from the caster every turn, which is an area whose *position* changes on a
+ * later turn rather than one that merely persists.
+ */
+export const CLOUDKILL: SpellDefinition = {
+  id: 'cloudkill',
+  name: 'Cloudkill',
+  level: 5,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '5d8', perSlotLevelAbove: '1d8' },
+      damageType: 'poison',
+      onSuccess: 'half',
+    },
+  ],
+  durationSeconds: 600,
+  unmodelled: [
+    'the fog lasts for the duration and its area is Heavily Obscured',
+    'the same save again when the Sphere moves into a creature\u2019s space, or when it enters the Sphere or ends its turn there, once per turn',
+    'the Sphere moving 10 feet away from you at the start of each of your turns',
+    'strong wind disperses the fog and ends the spell',
+  ],
+};
+
+/**
+ * SRD Incendiary Cloud:
+ *
+ * > _Level 8 Conjuration (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 150 feet. **Duration:** Concentration, up to 1 minute.
+ * > "A swirling cloud of embers and smoke fills a 20-foot-radius Sphere
+ * > centered on a point within range... When the cloud appears, each creature
+ * > in it makes a Dexterity saving throw, taking 10d8 Fire damage on a failed
+ * > save or half as much damage on a successful one."
+ *
+ * Cloudkill's shape at eight levels higher, down to the cloud that walks: the
+ * save when it appears is the half that resolves at the cast, and an area
+ * whose position changes on a later turn is the shape nothing here has yet.
+ */
+export const INCENDIARY_CLOUD: SpellDefinition = {
+  id: 'incendiary-cloud',
+  name: 'Incendiary Cloud',
+  level: 8,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '10d8' },
+      damageType: 'fire',
+      onSuccess: 'half',
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the cloud lasts for the duration and its area is Heavily Obscured',
+    'the same save again when the Sphere moves into a creature\u2019s space, or when it enters the Sphere or ends its turn there, once per turn',
+    'the cloud moving 10 feet away from you, in a direction you choose, at the start of each of your turns',
+    'a strong wind disperses the cloud and ends the spell',
+  ],
+};
+
+/**
+ * SRD Black Tentacles:
+ *
+ * > _Level 4 Conjuration (Wizard)._ **Casting Time:** Action. **Range:** 90
+ * > feet. **Duration:** Concentration, up to 1 minute.
+ * > "Squirming, ebony tentacles fill a 20-foot square on ground that you can
+ * > see within range... Each creature in that area makes a Strength saving
+ * > throw. On a failed save, it takes 3d6 Bludgeoning damage, and it has the
+ * > Restrained condition until the spell ends."
+ *
+ * A 20-foot square is modelled as a Cube, the same reading Grease's 10-foot
+ * square already takes: the lattice has no 2D shape, and the SRD's squares on
+ * the ground are the footprint of one.
+ *
+ * `onSuccess: 'none'` is the text, not a default — "On a failed save, it
+ * takes..." gives a successful save nothing to take.
+ */
+export const BLACK_TENTACLES: SpellDefinition = {
+  id: 'black-tentacles',
+  name: 'Black Tentacles',
+  level: 4,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 90 },
+  targets: { count: 0 },
+  area: { kind: 'cube', size: 20, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'str',
+      damage: { dice: '3d6' },
+      damageType: 'bludgeoning',
+      onSuccess: 'none',
+      condition: { name: 'restrained' },
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the area is Difficult Terrain for the duration',
+    'the same save again when a creature enters the area or ends its turn there, once per turn',
+    'the action a Restrained creature takes to make a Strength (Athletics) check against your spell save DC, freeing itself on a success',
+  ],
+};
+
+/**
+ * SRD Phantasmal Killer:
+ *
+ * > _Level 4 Illusion (Bard, Wizard)._ **Casting Time:** Action. **Range:**
+ * > 120 feet. **Duration:** Concentration, up to 1 minute.
+ * > "The target makes a Wisdom saving throw. On a failed save, the target
+ * > takes 4d10 Psychic damage and has Disadvantage on ability checks and
+ * > attack rolls for the duration. On a successful save, the target takes half
+ * > as much damage, and the spell ends."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d10 for each
+ * > spell slot level above 4."
+ *
+ * The opening save is the half the engine resolves. The rest is an effect a
+ * later turn acts *through* — a save each turn that deals the damage again —
+ * which is the shape that blocks eighteen SRD spells and is not built.
+ */
+export const PHANTASMAL_KILLER: SpellDefinition = {
+  id: 'phantasmal-killer',
+  name: 'Phantasmal Killer',
+  level: 4,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'wis',
+      damage: { dice: '4d10', perSlotLevelAbove: '1d10' },
+      damageType: 'psychic',
+      onSuccess: 'half',
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Disadvantage on ability checks and attack rolls a failed save imposes for the duration, which is not a condition the engine names',
+    'the Wisdom save at the end of each of the target\u2019s turns, which deals the Psychic damage again on a failure',
+    'a successful save ends the spell, where the engine leaves the Concentration running',
+  ],
+};
+
 // — saving throws that impose a condition ————————————————————————————————————
 
 /**
@@ -1384,6 +1983,260 @@ export const BANISHMENT: SpellDefinition = {
   unmodelled: [
     'the target leaving the battlefield for a demiplane, so it is Incapacitated where it stands rather than gone',
     'an Aberration, Celestial, Elemental, Fey or Fiend not returning if the spell runs its full minute',
+  ],
+};
+
+/**
+ * SRD Suggestion:
+ *
+ * > _Level 2 Enchantment (Bard, Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 30 feet. **Duration:** Concentration, up to 8 hours.
+ * > "You suggest a course of activity\u2014described in no more than 25 words\u2014to
+ * > one creature you can see within range that can hear and understand you...
+ * > The target must succeed on a Wisdom saving throw or have the Charmed
+ * > condition for the duration or until you or your allies deal damage to the
+ * > target. The Charmed target pursues the suggestion to the best of its
+ * > ability."
+ *
+ * The save and the Charmed condition are arithmetic; the suggestion is not.
+ * Whether "fetch the key and give it to me" is achievable, and whether it
+ * obviously harms the target, is a judgement the SRD hands the table, so the
+ * engine spends the slot, runs the eight hours, and says so.
+ */
+export const SUGGESTION: SpellDefinition = {
+  id: 'suggestion',
+  name: 'Suggestion',
+  level: 2,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  durationSeconds: 28800,
+  unmodelled: [
+    'the course of activity you suggest, whether it sounds achievable, and whether the target pursues or completes it',
+    'the spell ends early when you or your allies deal damage to the target, or when the suggested activity is completed',
+    'the target must be able to hear and understand you',
+  ],
+};
+
+/**
+ * A Dominate spell: a save, the Charmed condition, and a link to command them.
+ *
+ * SRD prints Dominate Beast and Dominate Person as the same paragraph with the
+ * creature type and the slot levels changed, so they are built from one
+ * function rather than transcribed twice. Every field still comes from the SRD
+ * line quoted at the call site.
+ *
+ * What none of them can carry is the repeat: "whenever the target takes
+ * damage, it repeats the save". `repeats` fires at a **turn boundary**, which
+ * is when Hold Person's save comes round; damage is a trigger, and an effect
+ * that hangs on one needs machinery the engine does not have.
+ */
+function dominate(args: {
+  readonly id: string;
+  readonly name: string;
+  readonly level: number;
+  /** Omitted by Dominate Monster, which takes anything at all. */
+  readonly creatureType?: string;
+  readonly durationSeconds: number;
+  /** How the SRD lengthens the Concentration with a bigger slot, verbatim. */
+  readonly longer: string;
+}): SpellDefinition {
+  return {
+    id: args.id,
+    name: args.name,
+    level: args.level,
+    school: 'enchantment',
+    castingTime: 'action',
+    concentration: true,
+    range: { kind: 'ranged', feet: 60 },
+    targets: {
+      count: 1,
+      ...(args.creatureType === undefined ? {} : { mustBeType: args.creatureType }),
+    },
+    requiresSight: true,
+    effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+    durationSeconds: args.durationSeconds,
+    unmodelled: [
+      'the save has Advantage if you or your allies are fighting the target',
+      'the target repeats the save whenever it takes damage, which is a trigger rather than a turn boundary',
+      'the telepathic link that issues commands, and spending your own Reaction to command one of the target\u2019s',
+      `a higher-level slot lengthens the Concentration: ${args.longer}`,
+    ],
+  };
+}
+
+/**
+ * SRD Dominate Beast:
+ *
+ * > _Level 4 Enchantment (Druid, Ranger, Sorcerer)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "One Beast you can see within range must succeed on a Wisdom saving throw
+ * > or have the Charmed condition for the duration."
+ * > _Using a Higher-Level Spell Slot._ "Your Concentration can last longer
+ * > with a spell slot of level 5 (up to 10 minutes), 6 (up to 1 hour), or 7+
+ * > (up to 8 hours)."
+ */
+export const DOMINATE_BEAST = dominate({
+  id: 'dominate-beast',
+  name: 'Dominate Beast',
+  level: 4,
+  creatureType: 'Beast',
+  durationSeconds: 60,
+  longer: '10 minutes at level 5, 1 hour at 6, 8 hours at 7 and above',
+});
+
+/**
+ * SRD Dominate Person:
+ *
+ * > _Level 5 Enchantment (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "One Humanoid you can see within range must succeed on a Wisdom saving
+ * > throw or have the Charmed condition for the duration."
+ * > _Using a Higher-Level Spell Slot._ "Your Concentration can last longer
+ * > with a spell slot of level 6 (up to 10 minutes), 7 (up to 1 hour), or 8+
+ * > (up to 8 hours)."
+ */
+export const DOMINATE_PERSON = dominate({
+  id: 'dominate-person',
+  name: 'Dominate Person',
+  level: 5,
+  creatureType: 'Humanoid',
+  durationSeconds: 60,
+  longer: '10 minutes at level 6, 1 hour at 7, 8 hours at 8 and above',
+});
+
+/**
+ * SRD Dominate Monster:
+ *
+ * > _Level 8 Enchantment (Bard, Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 60 feet. **Duration:** Concentration, up to 1 hour.
+ * > "One creature you can see within range must succeed on a Wisdom saving
+ * > throw or have the Charmed condition for the duration."
+ * > _Using a Higher-Level Spell Slot._ "Your Concentration can last longer
+ * > with a level 9 spell slot (up to 8 hours)."
+ *
+ * The same paragraph again with the creature type lifted — the difference
+ * between Hold Person and Hold Monster, made the same way and for the same
+ * reason: the restriction is data, not a separate spell.
+ */
+export const DOMINATE_MONSTER = dominate({
+  id: 'dominate-monster',
+  name: 'Dominate Monster',
+  level: 8,
+  durationSeconds: 3600,
+  longer: '8 hours with a level 9 slot',
+});
+
+/**
+ * SRD Mass Suggestion:
+ *
+ * > _Level 6 Enchantment (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** 24 hours.
+ * > "You suggest a course of activity\u2014described in no more than 25 words\u2014to
+ * > twelve or fewer creatures you can see within range that can hear and
+ * > understand you... Each target must succeed on a Wisdom saving throw or
+ * > have the Charmed condition for the duration or until you or your allies
+ * > deal damage to the target."
+ * > _Using a Higher-Level Spell Slot._ "The duration is longer with a spell
+ * > slot of level 7 (10 days), 8 (30 days), or 9 (366 days)."
+ *
+ * Suggestion for twelve, and **without Concentration** — a full day running
+ * on the clock rather than on the caster's attention, which is the difference
+ * a bigger slot buys and the reason the two are separate spells.
+ */
+export const MASS_SUGGESTION: SpellDefinition = {
+  id: 'mass-suggestion',
+  name: 'Mass Suggestion',
+  level: 6,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 12 },
+  requiresSight: true,
+  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  durationSeconds: 86400,
+  unmodelled: [
+    'the course of activity you suggest, whether it sounds achievable, and whether a target pursues or completes it',
+    'the spell ends on a target when you or your allies deal it damage, or when it completes the suggested activity',
+    'the targets must be able to hear and understand you',
+    'a higher-level slot lengthens the duration: 10 days at level 7, 30 days at 8, 366 days at 9',
+  ],
+};
+
+/**
+ * SRD Compulsion:
+ *
+ * > _Level 4 Enchantment (Bard)._ **Casting Time:** Action. **Range:** 30
+ * > feet. **Duration:** Concentration, up to 1 minute.
+ * > "Each creature of your choice that you can see within range must succeed
+ * > on a Wisdom saving throw or have the Charmed condition until the spell
+ * > ends."
+ *
+ * The first spell here whose target list the SRD gives no number — see
+ * `TargetRule.unlimited`. Range and sight are the bound, and both are checked
+ * against every name the caller gives.
+ */
+export const COMPULSION: SpellDefinition = {
+  id: 'compulsion',
+  name: 'Compulsion',
+  level: 4,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0, unlimited: true },
+  requiresSight: true,
+  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Bonus Action that designates a direction, and the movement each Charmed target must spend going that way',
+    'the save a target repeats after moving, which ends the spell on itself on a success',
+  ],
+};
+
+/**
+ * SRD Weird:
+ *
+ * > _Level 9 Illusion (Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Each creature of your choice in a 30-foot-radius Sphere centered on a
+ * > point within range makes a Wisdom saving throw. On a failed save, a target
+ * > takes 10d10 Psychic damage and has the Frightened condition for the
+ * > duration. On a successful save, a target takes half as much damage only."
+ *
+ * Both of the new shapes at once, which is why it is worth having: the Sphere
+ * bounds who may be chosen (`targetsWithin`) and the SRD names no number of
+ * them (`unlimited`). Reading it as a plain area would terrify the caster's
+ * own party, standing in the same Sphere.
+ */
+export const WEIRD: SpellDefinition = {
+  id: 'weird',
+  name: 'Weird',
+  level: 9,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0, unlimited: true },
+  targetsWithin: { kind: 'sphere', radius: 30, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'wis',
+      damage: { dice: '10d10' },
+      damageType: 'psychic',
+      onSuccess: 'half',
+      condition: { name: 'frightened' },
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Wisdom save a Frightened target makes at the end of each of its turns, which deals 5d10 Psychic damage again on a failure and ends the spell on that target on a success',
   ],
 };
 
@@ -2302,21 +3155,32 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_SPLASH,
   ANIMAL_FRIENDSHIP,
   BANE,
+  BEFUDDLEMENT,
   BANISHMENT,
   BLESS,
+  BLACK_TENTACLES,
   BLIGHT,
   BLINDNESS_DEAFNESS,
   BURNING_HANDS,
   CHARM_MONSTER,
   CHARM_PERSON,
+  CHAIN_LIGHTNING,
+  CLOUDKILL,
+  CONTAGION,
+  COMPULSION,
   CHILL_TOUCH,
   CIRCLE_OF_DEATH,
   CONE_OF_COLD,
   CURE_WOUNDS,
   DISSONANT_WHISPERS,
+  DISINTEGRATE,
+  DOMINATE_BEAST,
+  DOMINATE_PERSON,
+  DOMINATE_MONSTER,
   ELDRITCH_BLAST,
   FALSE_LIFE,
   FEAR,
+  FREEZING_SPHERE,
   FINGER_OF_DEATH,
   FLAME_STRIKE,
   FIREBALL,
@@ -2330,18 +3194,28 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HOLD_PERSON,
   HYPNOTIC_PATTERN,
   ICE_STORM,
+  INCENDIARY_CLOUD,
   INFLICT_WOUNDS,
+  INSECT_PLAGUE,
   LIGHTNING_BOLT,
+  MASS_CURE_WOUNDS,
+  MASS_SUGGESTION,
+  MASS_HEALING_WORD,
   MIND_SPIKE,
   POISON_SPRAY,
+  PHANTASMAL_KILLER,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
   SACRED_FLAME,
   SHATTER,
+  STARRY_WISP,
+  SUGGESTION,
+  SUNBURST,
   SHOCKING_GRASP,
   THUNDERWAVE,
   VICIOUS_MOCKERY,
   VITRIOLIC_SPHERE,
+  WEIRD,
 ];
 
 export const definitionFor = (spellId: string): SpellDefinition | null =>

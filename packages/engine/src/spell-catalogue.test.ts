@@ -163,11 +163,16 @@ const castAt = (
   if (definition.area === undefined) {
     // A spell that aims at nobody gets nobody: Detect Magic has no target and
     // passing one is a refusal, not a courtesy.
-    const targets = definition.targets.count === 0 ? [] : [TARGET];
+    const aimsAtNobody =
+      definition.targets.count === 0 && definition.targets.unlimited !== true;
+    const targets = aimsAtNobody ? [] : [TARGET];
+    // A bounded target list takes both halves: the names, and the point whose
+    // area bounds them. Centred on the caster, who has everyone in reach.
+    const bounded = definition.targetsWithin !== undefined ? { at } : {};
     return resolveSpell(
       state,
       CASTER,
-      { spellId, targets, ...(slotLevel === undefined ? {} : { slotLevel }) },
+      { spellId, targets, ...bounded, ...(slotLevel === undefined ? {} : { slotLevel }) },
       supply(seed, bonus),
     );
   }

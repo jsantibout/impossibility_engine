@@ -3581,6 +3581,27 @@ export interface CastSpellRequest extends CommandIdentity {
  * generator does not move — but it would be in the total, which is why the
  * filter is here rather than at each call site.
  */
+/**
+ * Fold a spell's printed flat addend into what its dice rolled.
+ *
+ * SRD prints two of these — Finger of Death's "7d8 + 30" and Disintegrate's
+ * "10d6 + 40" — and the number is part of the damage rather than a separate
+ * effect. `DiceScaling` carried it from the start and nothing on this path
+ * read it, so both spells rolled their dice and silently dropped the addend.
+ *
+ * It lands once, on the first component, and it does **not** double on a
+ * critical: "roll the attack's damage dice twice, add them together, and add
+ * any relevant modifiers as normal."
+ */
+function withFlatAddend(
+  components: readonly DamageComponent[],
+  addend: number,
+): readonly DamageComponent[] {
+  if (addend === 0 || components.length === 0) return components;
+  const [first, ...rest] = components as readonly [DamageComponent, ...DamageComponent[]];
+  return [{ ...first, flat: first.flat + addend, total: first.total + addend }, ...rest];
+}
+
 function rollSpellDice(
   supply: ConcentrationSaveSupply,
   sheet: CharacterSheet,
@@ -3852,60 +3873,27 @@ function castOrRelease(
 }
 
 /**
- * Which creatures an area catches, and where the caller has to put it.
+ * Where a spell's area sits and what shape it is.
  *
- * The geometry is `positioning.ts`'s and is not reimplemented here: all six
- * SRD shapes, measured between volumes on the 5-foot lattice, with the origin
- * included or excluded per shape. What this adds is the spell's half — whether
- * the caller supplied the point and direction the shape needs, whether the
- * point is in range, and which of the creatures caught are ones this spell can
- * actually affect.
+ * Shared by the two callers that need it, and they need it for opposite
+ * reasons: an `area` uses the result to *find* its targets, while a
+ * `targetsWithin` uses it to *bound* the targets the caller already named.
+ * The rules about placing it are the same either way — a self-originating
+ * shape refuses to be moved, a point must be given and must be in range, and
+ * a Cone, Cube or Line has to be pointed somewhere — so they live here rather
+ * than being written twice and drifting apart.
  */
-function areaTargets(
+function placeArea(
   state: GameState,
   casterId: CharacterId,
   definition: SpellDefinition,
   area: SpellArea,
   request: CastSpellRequest,
   reach: number | null,
-): Result<readonly CharacterId[]> {
-  if (request.targets.length > 0) {
-    return err(
-      'area_picks_its_own_targets',
-      `${definition.name} fills an area and catches whoever is in it; it does not take a target list`,
-    );
-  }
+  placed: Point,
+): Result<{ readonly origin: AreaOrigin; readonly shape: AreaShape }> {
   if (state.scene === null) {
-    return needsContext(
-      'no_scene',
-      `${definition.name} fills an area and there is no scene for it to fill`,
-      [
-        {
-          kind: 'scene',
-          subject: casterId,
-          need: 'a scene, so that an area has somewhere to be',
-          because: `${definition.name} fills an area`,
-          satisfyWith: 'a scene-set event',
-        },
-      ],
-    );
-  }
-
-  const placed = positionOf(state.scene, casterId);
-  if (placed === null) {
-    return needsContext(
-      'unplaced',
-      `nobody has said where ${casterId} is standing, and ${definition.name} starts its area there`,
-      [
-        {
-          kind: 'position',
-          subject: casterId,
-          need: `where ${casterId} is standing`,
-          because: `${definition.name} starts its area at the caster`,
-          satisfyWith: `a creature-placed event for ${casterId}`,
-        },
-      ],
-    );
+    return err('no_scene', `${definition.name} needs a scene for its area to sit in`);
   }
 
   // Where it starts. `self` means the caster and refuses to be moved; `point`
@@ -3970,7 +3958,70 @@ function areaTargets(
       break;
   }
 
-  const caught = creaturesInArea(state.scene, origin, shape);
+  return ok({ origin, shape });
+}
+
+/**
+ * Which creatures an area catches, and where the caller has to put it.
+ *
+ * The geometry is `positioning.ts`'s and is not reimplemented here: all six
+ * SRD shapes, measured between volumes on the 5-foot lattice, with the origin
+ * included or excluded per shape. What this adds is the spell's half — whether
+ * the caller supplied the point and direction the shape needs, whether the
+ * point is in range, and which of the creatures caught are ones this spell can
+ * actually affect.
+ */
+function areaTargets(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  area: SpellArea,
+  request: CastSpellRequest,
+  reach: number | null,
+): Result<readonly CharacterId[]> {
+  if (request.targets.length > 0) {
+    return err(
+      'area_picks_its_own_targets',
+      `${definition.name} fills an area and catches whoever is in it; it does not take a target list`,
+    );
+  }
+  if (state.scene === null) {
+    return needsContext(
+      'no_scene',
+      `${definition.name} fills an area and there is no scene for it to fill`,
+      [
+        {
+          kind: 'scene',
+          subject: casterId,
+          need: 'a scene, so that an area has somewhere to be',
+          because: `${definition.name} fills an area`,
+          satisfyWith: 'a scene-set event',
+        },
+      ],
+    );
+  }
+
+  const placed = positionOf(state.scene, casterId);
+  if (placed === null) {
+    return needsContext(
+      'unplaced',
+      `nobody has said where ${casterId} is standing, and ${definition.name} starts its area there`,
+      [
+        {
+          kind: 'position',
+          subject: casterId,
+          need: `where ${casterId} is standing`,
+          because: `${definition.name} starts its area at the caster`,
+          satisfyWith: `a creature-placed event for ${casterId}`,
+        },
+      ],
+    );
+  }
+
+  const placement = placeArea(state, casterId, definition, area, request, reach, placed);
+  if (!placement.ok) return placement;
+
+  const caught = creaturesInArea(state.scene, placement.value.origin, placement.value.shape);
   if (!caught.ok) return caught;
 
   // A creature the spell cannot affect is filtered out, not refused. "Each
@@ -4005,7 +4056,9 @@ function namedTargets(
   reach: number | null,
   needs: ContextRequest[],
 ): Result<readonly CharacterId[]> {
-  if (request.at !== undefined || request.towards !== undefined) {
+  // A bounded target list is the one shape that takes both a point and a list.
+  const bound = definition.targetsWithin;
+  if (bound === undefined && (request.at !== undefined || request.towards !== undefined)) {
     return err(
       'not_an_area',
       `${definition.name} is cast on a target, not at a place`,
@@ -4018,7 +4071,8 @@ function namedTargets(
   // Magic, Disguise Self — and the ones that act on an object or a point, like
   // Light and Mage Hand. They are cast, they cost what they cost and they run
   // for their duration; there is simply no creature to check.
-  if (allowed === 0) {
+  const unlimited = definition.targets.unlimited === true;
+  if (allowed === 0 && !unlimited) {
     if (request.targets.length > 0) {
       return err('takes_no_target', `${definition.name} is not cast on a creature`);
     }
@@ -4028,7 +4082,9 @@ function namedTargets(
   if (request.targets.length === 0) {
     return err('no_targets', `${definition.name} needs a target`);
   }
-  if (request.targets.length > allowed) {
+  // "Each creature of your choice" states no number, so there is none to
+  // exceed. Range and sight still bound it, target by target, below.
+  if (!unlimited && request.targets.length > allowed) {
     return err(
       'too_many_targets',
       `${definition.name} at level ${castLevel} takes ${allowed} target(s), got ${request.targets.length}`,
@@ -4036,6 +4092,49 @@ function namedTargets(
   }
   if (new Set(request.targets).size !== request.targets.length) {
     return err('duplicate_target', `${definition.name} may not take the same target twice`);
+  }
+
+  // The bound, worked out once. Its point carries the spell's range, so the
+  // per-target range check below stands down — SRD reaches 60 feet to place a
+  // 30-foot Sphere, and a creature 85 feet away inside it is a legal target.
+  let eligible: ReadonlySet<CharacterId> | null = null;
+  if (bound !== undefined) {
+    if (state.scene === null) {
+      return needsContext(
+        'no_scene',
+        `${definition.name} chooses its targets inside an area and there is no scene for it to sit in`,
+        [
+          {
+            kind: 'scene',
+            subject: casterId,
+            need: 'a scene, so that an area has somewhere to be',
+            because: `${definition.name} bounds its targets by an area`,
+            satisfyWith: 'a scene-set event',
+          },
+        ],
+      );
+    }
+    const placed = positionOf(state.scene, casterId);
+    if (placed === null) {
+      return needsContext(
+        'unplaced',
+        `nobody has said where ${casterId} is standing, and ${definition.name} measures its area from there`,
+        [
+          {
+            kind: 'position',
+            subject: casterId,
+            need: `where ${casterId} is standing`,
+            because: `${definition.name} places its area within range of you`,
+            satisfyWith: `a creature-placed event for ${casterId}`,
+          },
+        ],
+      );
+    }
+    const placement = placeArea(state, casterId, definition, bound, request, reach, placed);
+    if (!placement.ok) return placement;
+    const caught = creaturesInArea(state.scene, placement.value.origin, placement.value.shape);
+    if (!caught.ok) return caught;
+    eligible = new Set(caught.value);
   }
 
   for (const target of request.targets) {
@@ -4093,20 +4192,39 @@ function namedTargets(
         }
       }
 
-      const apart = distanceBetween(state.scene, casterId, target);
-      if (!apart.ok) {
-        needs.push({
-          kind: 'position',
-          subject: target,
-          need: `where ${target} is standing`,
-          because: `${definition.name} reaches ${reach} feet and the distance is unknown`,
-          satisfyWith: `a creature-placed event for ${target}`,
-        });
-      } else if (apart.value > reach) {
-        return err(
-          'out_of_range',
-          `${definition.name} reaches ${reach} feet; ${target} is ${apart.value} away`,
-        );
+      if (eligible !== null) {
+        // The area is the bound, so an unplaced creature is a fact to go and
+        // get rather than someone standing outside it.
+        if (positionOf(state.scene, target) === null) {
+          needs.push({
+            kind: 'position',
+            subject: target,
+            need: `where ${target} is standing`,
+            because: `${definition.name} may only be aimed at a creature inside its area`,
+            satisfyWith: `a creature-placed event for ${target}`,
+          });
+        } else if (!eligible.has(target)) {
+          return err(
+            'outside_area',
+            `${definition.name} may only be aimed at a creature inside its area; ${target} is not in it`,
+          );
+        }
+      } else {
+        const apart = distanceBetween(state.scene, casterId, target);
+        if (!apart.ok) {
+          needs.push({
+            kind: 'position',
+            subject: target,
+            need: `where ${target} is standing`,
+            because: `${definition.name} reaches ${reach} feet and the distance is unknown`,
+            satisfyWith: `a creature-placed event for ${target}`,
+          });
+        } else if (apart.value > reach) {
+          return err(
+            'out_of_range',
+            `${definition.name} reaches ${reach} feet; ${target} is ${apart.value} away`,
+          );
+        }
       }
 
       // SRD: "To target something with a spell, a caster must have a clear
@@ -4318,7 +4436,10 @@ function resolveEffects(
         const hurt = dealSpellDamage(
           current,
           target,
-          rolled.value.components.filter((c) => c.source === definition.name),
+          withFlatAddend(
+            rolled.value.components.filter((c) => c.source === definition.name),
+            scaledFlatFor(effect.damage, definition.level, castLevel),
+          ),
           definition.name,
           supply,
           { ...(attack.value.critical ? { critical: true } : {}) },
@@ -4436,7 +4557,11 @@ function resolveEffects(
         // SRD: "2d8 plus your spellcasting ability modifier" — and it is the
         // *chosen route's* ability, so a feat's version heals by its own.
         const bonus = effect.addSpellcastingModifier ? modifierFor(caster.sheet, route.ability) : 0;
-        const amount = Math.max(0, rolled.value.reduce((sum, c) => sum + c.total, 0) + bonus);
+        const addend = scaledFlatFor(effect.healing, definition.level, castLevel);
+        const amount = Math.max(
+          0,
+          rolled.value.reduce((sum, c) => sum + c.total, 0) + bonus + addend,
+        );
 
         events.push({
           type: 'roll-recorded',
@@ -4509,7 +4634,12 @@ function resolveEffects(
             dice,
           );
           if (!rolled.ok) return rolled;
-          rolledParts.push(...rolled.value);
+          rolledParts.push(
+            ...withFlatAddend(
+              rolled.value,
+              scaledFlatFor(part.damage, definition.level, castLevel),
+            ),
+          );
         }
 
         // SRD: "The halved damage is equal to half the damage that would be
