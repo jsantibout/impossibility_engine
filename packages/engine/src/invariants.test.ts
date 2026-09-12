@@ -34,6 +34,7 @@ import {
   resolveAttack,
   resolveCast,
   resolveMove,
+  resolveDeclaredCast,
   resolveSpell,
   resolveTurn,
   takeDash,
@@ -195,6 +196,20 @@ const concentrating = (): readonly GameEvent[] => [
   { type: 'concentration-started', id: A, castingId: 'cast:1', spell: 'Bless', level: 1 },
 ];
 
+/** A has declared a casting and not yet settled it, so there is one to settle. */
+const declaring = (): readonly GameEvent[] => [
+  ...SETUP,
+  ...unwrap(
+    resolveSpell(
+      fold('s', SETUP),
+      A,
+      { spellId: 'inflict-wounds', targets: [B], slotLevel: 1, hold: true },
+      supply(),
+    ),
+    'declare',
+  ).events,
+];
+
 /** A third creature nobody has typed, so declaring its type says something. */
 const untyped = (): readonly GameEvent[] => [
   ...SETUP,
@@ -282,6 +297,23 @@ const GUARDED: readonly Guarded[] = [
     name: 'declareCreatureType',
     log: untyped(),
     run: (s, commandId) => declareCreatureType(s, C, 'Fey', { commandId }),
+  },
+  /**
+   * The interruptible casting pair. Both halves need the guard and for
+   * different reasons: a retried declaration would open a second casting with
+   * a second action gone, and a retried settlement would spend a second slot
+   * and roll the spell's dice again.
+   */
+  {
+    name: 'resolveSpell (declaring a casting)',
+    log: SETUP,
+    run: (s, commandId) =>
+      resolveSpell(s, A, { spellId: 'inflict-wounds', targets: [B], slotLevel: 1, hold: true, commandId }, supply()),
+  },
+  {
+    name: 'resolveDeclaredCast',
+    log: declaring(),
+    run: (s, commandId) => resolveDeclaredCast(s, supply(), { commandId }),
   },
   { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, A, 'rope', 1, commandId) },
   { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, A, 'chain-shirt', commandId) },

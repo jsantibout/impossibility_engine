@@ -154,6 +154,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'circle-of-death',
   'compulsion',
   'cone-of-cold',
+  'counterspell',
   'cure-wounds',
   'dissonant-whispers',
   'eldritch-blast',
@@ -343,7 +344,7 @@ function render(coverage: SpellCoverage): string {
   const BLOCKERS: Readonly<Record<string, string>> = {
     summon: 'creating a creature from a stat block mid-fight',
     area: '—',
-    reaction: 'two different things: a casting held open with a refundable slot, and falling',
+    reaction: 'falling — Counterspell now has a casting it can hold open',
     'long-casting': 'a casting-in-progress state machine with a per-turn obligation',
     ongoing: 'an effect that a later turn can act through',
     attack: '—',

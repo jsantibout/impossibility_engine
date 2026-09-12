@@ -96,12 +96,12 @@ export type RiderDuration = 'start-of-casters-next-turn' | 'end-of-casters-next-
  * in state; `damaged-by-creature` could not, until damage started naming the
  * creature that dealt it rather than only describing it in prose.
  *
- * The two left still cannot be written. Counterspell answers a casting, and a
- * casting is atomic here — holding one open needs a refundable slot, because
- * SRD 2024 gives it back on a failed save. Feather Fall answers a fall, and
- * nothing falls.
+ * `casting-a-spell` could be written once a casting stopped being atomic:
+ * `pendingCasting` holds one open between its declaration and its effects, and
+ * the slot the SRD spares is simply not spent until it settles. Feather Fall
+ * is the one left — it answers a fall, and nothing falls.
  */
-export type ReactionTrigger = 'hit-by-attack' | 'damaged-by-creature';
+export type ReactionTrigger = 'hit-by-attack' | 'damaged-by-creature' | 'casting-a-spell';
 
 /**
  * A second, smaller hit that arrives at a later moment.
@@ -295,6 +295,25 @@ export type SpellEffect =
        * spell that made it (Sunbeam).
        */
       readonly lasts?: RiderDuration;
+    }
+  /**
+   * A saving throw that interrupts a casting already in progress.
+   *
+   * SRD Counterspell: "You attempt to interrupt a creature in the process of
+   * casting a spell. The creature makes a Constitution saving throw. On a
+   * failed save, the spell dissipates with no effect."
+   *
+   * The ability is data rather than hardcoded, but nothing else about this is
+   * negotiable: **the save is made by the creature being countered**, against
+   * the counterspeller's own spell save DC, and a success means the spell
+   * simply proceeds. The SRD states no consequence for a success at all, which
+   * is why there is no `onSuccess` here to state one — Sacred Flame and
+   * Inflict Wounds needed that field because their texts differ, and these do
+   * not.
+   */
+  | {
+      readonly kind: 'interrupt-casting';
+      readonly ability: Ability;
     };
 
 /**
@@ -673,6 +692,55 @@ export const ACID_ARROW: SpellDefinition = {
  * there is nothing to be targeted by — and the immunity to its damage has
  * nothing to attach to.
  */
+/**
+ * SRD Counterspell:
+ *
+ * > _Level 3 Abjuration (Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > Reaction, which you take when you see a creature within 60 feet of
+ * > yourself casting a spell with Verbal, Somatic, or Material components.
+ * > **Range:** 60 feet. **Components:** S. **Duration:** Instantaneous.
+ * > "You attempt to interrupt a creature in the process of casting a spell.
+ * > The creature makes a Constitution saving throw. On a failed save, the
+ * > spell dissipates with no effect, and the action, Bonus Action, or Reaction
+ * > used to cast it is wasted. If that spell was cast with a spell slot, the
+ * > slot isn't expended."
+ *
+ * **2024 is not 2014 here, and the difference is the whole spell.** There is
+ * no check against the countered spell's level, no automatic success below a
+ * threshold, and — read the text again — **no "Using a Higher-Level Spell
+ * Slot" clause at all**. Upcasting Counterspell buys nothing. Every one of
+ * those is a 2014 memory, and a `DiceScaling` or an `onSuccess` written from
+ * one would be inventing a rule.
+ *
+ * The save is made by **the creature being countered**, against the
+ * counterspeller's spell save DC, which is why this is an effect aimed at a
+ * target rather than a roll the caster makes.
+ *
+ * The one clause not modelled is the components qualifier, and it is worth
+ * saying why rather than quietly checking nothing: **all 339 SRD 5.2.1 spells
+ * have at least one of Verbal, Somatic or Material**, so the clause excludes
+ * nothing the engine can currently be asked about, and a creature casting by
+ * some means the engine has not been told the components of is an unknown
+ * rather than a no. `counterspell.test.ts` pins that count, so the day the
+ * data stops saying it, something goes red.
+ */
+export const COUNTERSPELL: SpellDefinition = {
+  id: 'counterspell',
+  name: 'Counterspell',
+  level: 3,
+  school: 'abjuration',
+  castingTime: 'reaction',
+  trigger: 'casting-a-spell',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  requiresSight: true,
+  targets: { count: 1 },
+  effects: [{ kind: 'interrupt-casting', ability: 'con' }],
+  unmodelled: [
+    'the trigger reads "casting a spell with Verbal, Somatic, or Material components"; every SRD 5.2.1 spell has one of the three, so the qualifier is not checked and excludes nothing',
+  ],
+};
+
 export const SHIELD: SpellDefinition = {
   id: 'shield',
   name: 'Shield',
@@ -3426,6 +3494,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   COMPULSION,
   CONE_OF_COLD,
   CONTAGION,
+  COUNTERSPELL,
   CURE_WOUNDS,
   DARKVISION,
   DETECT_MAGIC,

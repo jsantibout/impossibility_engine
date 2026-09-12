@@ -90,6 +90,7 @@ import {
   resolveDuration,
   startOfNextTurn,
   timeView,
+  type Deadline,
   type Duration,
   type EffectTarget,
   type PendingSave,
@@ -121,6 +122,7 @@ import {
   type GameEvent,
   type GameState,
   type PendingAttack,
+  type PendingCasting,
   type PendingMove,
   type ReadiedAction,
   type ReadiedResponse,
@@ -503,6 +505,21 @@ export function removeCreatureEverywhere(
 function settleHoldsInvolving(state: GameState, id: CharacterId): readonly GameEvent[] {
   const events: GameEvent[] = [];
 
+  // A caster who leaves mid-casting takes the casting with them. Nothing else
+  // could settle it — `resolveDeclaredCast` is addressed to them — and the
+  // slot was never spent, so the spell simply never happened. That is the
+  // honest record, and it is the same one an interruption writes.
+  const casting = state.pendingCasting;
+  if (casting !== null && casting.caster === id) {
+    events.push({
+      type: 'spell-interrupted',
+      castingId: casting.castingId,
+      id: casting.caster,
+      by: null,
+      reason: 'caster-left',
+    });
+  }
+
   // A held hit needs both parties: one to roll the damage and one to take it.
   const attack = state.pendingAttack;
   if (attack !== null && (attack.attacker === id || attack.target === id)) {
@@ -678,6 +695,29 @@ function triggerRefusal(
         return err(
           'no_trigger',
           `${definition.name} burns the creature that damaged you, which is ${hurt.by}`,
+        );
+      }
+      return null;
+    }
+
+    case 'casting-a-spell': {
+      const open = state.pendingCasting;
+      if (open === null) {
+        return err(
+          'no_trigger',
+          `${definition.name} is a Reaction taken when you see a creature casting a spell, and nobody is midway through a casting`,
+        );
+      }
+
+      // SRD: "You attempt to interrupt **a creature in the process of casting
+      // a spell**." The target is forced by the trigger, exactly as Hellish
+      // Rebuke's is — there is only one casting open, and answering it is the
+      // only thing this Reaction does. Aiming elsewhere is refused rather than
+      // redirected.
+      if (request.targets.length !== 1 || request.targets[0] !== open.caster) {
+        return err(
+          'no_trigger',
+          `${definition.name} interrupts the creature that is casting, which is ${open.caster}`,
         );
       }
       return null;
@@ -2805,6 +2845,34 @@ export interface CastCommand extends CommandIdentity {
    * or not Concentration held. Omitted, the casting has no deadline of its own.
    */
   readonly duration?: Duration;
+  /**
+   * Begin the casting and stop, leaving it open to be interrupted.
+   *
+   * SRD Counterspell interrupts "a creature in the process of casting a
+   * spell", and an atomic casting has no such process. Asked for, this spends
+   * the action and drops any Concentration the caster was holding — both of
+   * which the SRD says are gone whatever happens next — and stops short of the
+   * slot and the effects, which it does not.
+   *
+   * The resolution half of the record comes from the layer that worked the
+   * targets out; `castSpell` supplies the casting half. Neither knows the
+   * other's, which is why it arrives as an argument rather than being derived.
+   */
+  readonly hold?: CastingPlan;
+}
+
+/**
+ * What settlement needs that the casting command cannot know.
+ *
+ * `castSpell` owns the slot, the level, the casting time and the id.
+ * `resolveSpell` owns which definition it is, who it is aimed at, and what the
+ * definition admits it does not do. A held casting has to carry both, and
+ * these are the half that comes from above.
+ */
+export interface CastingPlan {
+  readonly spellId: string;
+  readonly targets: readonly CharacterId[];
+  readonly unverified: readonly string[];
 }
 
 /**
@@ -2958,6 +3026,44 @@ export function castSpell(
     });
   }
 
+  // SRD Counterspell: the casting is held open, the action is already gone,
+  // and **the slot is not**. So this stops before the slot, before the
+  // Concentration the spell would start, and before its deadline — all three
+  // belong to a spell that has taken effect, and this one has not yet.
+  //
+  // The deadline is nonetheless *resolved* now, so that a turn-anchored
+  // duration outside combat is refused while refusing still costs nothing. A
+  // window that could not be closed would wedge the fight.
+  if (command.hold !== undefined) {
+    let deadline: Deadline | undefined;
+    if (command.duration !== undefined) {
+      const pinned = resolveDuration(timeView(state), command.duration);
+      if (!pinned.ok) return pinned;
+      deadline = pinned.value;
+    }
+
+    events.push({
+      type: 'spell-declared',
+      casting: {
+        castingId,
+        caster: id,
+        spellId: command.hold.spellId,
+        spell: name.value,
+        level: castLevel,
+        slot,
+        slotless,
+        castingTime,
+        concentration,
+        ...(command.route === undefined ? {} : { route: command.route }),
+        targets: command.hold.targets,
+        unverified: command.hold.unverified,
+        ...(deadline === undefined ? {} : { deadline }),
+      },
+      ...(stamp === null ? {} : { command: stamp }),
+    });
+    return ok(events);
+  }
+
   events.push({
     type: 'spell-cast',
     castingId,
@@ -2983,6 +3089,52 @@ export function castSpell(
   }
 
   return ok(events);
+}
+
+/**
+ * The events that settle a casting held open since it was declared.
+ *
+ * The mirror of the block above: everything a declaration deliberately did not
+ * do. The slot goes here, the Concentration starts here, and the deadline
+ * pinned at declaration is scheduled here — because all three belong to a
+ * spell that has actually taken effect.
+ */
+function settlementEvents(pending: PendingCasting, stamp: CommandStamp | null): GameEvent[] {
+  const events: GameEvent[] = [
+    {
+      type: 'spell-cast',
+      castingId: pending.castingId,
+      id: pending.caster,
+      spell: pending.spell,
+      level: pending.level,
+      slot: pending.slot,
+      slotless: pending.slotless,
+      castingTime: pending.castingTime,
+      concentration: pending.concentration,
+      ...(pending.route === undefined ? {} : { route: pending.route }),
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+  ];
+
+  if (pending.concentration) {
+    events.push({
+      type: 'concentration-started',
+      id: pending.caster,
+      castingId: pending.castingId,
+      spell: pending.spell,
+      level: pending.level,
+    });
+  }
+
+  if (pending.deadline !== undefined) {
+    events.push({
+      type: 'effect-scheduled',
+      target: { kind: 'casting', castingId: pending.castingId },
+      deadline: pending.deadline,
+    });
+  }
+
+  return events;
 }
 
 /**
@@ -3690,6 +3842,16 @@ export function resolveTurn(
     );
   }
 
+  // A declared casting is engine debt in exactly the way a held attack is: the
+  // action is spent, the slot is not, and nothing has taken effect. Advancing
+  // past it would strand a spell that the rules say is still being cast.
+  if (state.pendingCasting !== null) {
+    return err(
+      'casting_pending',
+      `${state.pendingCasting.caster} has declared ${state.pendingCasting.spell} and it has not taken effect; settle it before the turn moves on`,
+    );
+  }
+
   const outstanding = pendingSavesOf(state);
   if (outstanding.length > 0) {
     return err(
@@ -3850,6 +4012,14 @@ export interface SpellTargetOutcome {
    * has to remember to ask for it.
    */
   readonly concentration?: ConcentrationConsequence;
+  /**
+   * The casting this effect interrupted, when it interrupted one.
+   *
+   * Counterspell's whole outcome, and it is the *casting id* rather than a
+   * boolean because that is what names the thing that stopped: a log reader
+   * asking why Hold Person never landed wants `cast:3`, not `true`.
+   */
+  readonly interrupted?: string;
   /** Whether the effect actually landed on this target. */
   readonly affected: boolean;
 }
@@ -3933,6 +4103,21 @@ export interface CastSpellRequest extends CommandIdentity {
    * slot is the caller's decision, not a default.
    */
   readonly payment?: 'slot' | 'free-casting';
+  /**
+   * Declare the casting and stop, leaving it open to be interrupted.
+   *
+   * SRD Counterspell answers "a creature in the process of casting a spell",
+   * and an atomic casting is never in the process of anything. Asking for the
+   * window costs the caster exactly what the SRD says it costs whatever
+   * happens next — the action, and any Concentration they were holding — and
+   * settles the rest at {@link resolveDeclaredCast}.
+   *
+   * **Opt-in, because most castings have no window that matters.** A spell
+   * nobody can answer resolves in one call exactly as it always has; turning
+   * every casting into a two-step ceremony would be a worse API for the sake
+   * of a moment that is usually empty.
+   */
+  readonly hold?: boolean;
 }
 
 /**
@@ -4120,6 +4305,89 @@ export function resolveSpell(
 }
 
 /**
+ * The casting waiting to resolve, if one is.
+ *
+ * A query, so a caller — or a Reaction deciding whether it has a trigger — can
+ * look without changing anything.
+ */
+export function pendingCastingOf(state: GameState): PendingCasting | null {
+  return state.pendingCasting;
+}
+
+/**
+ * Let a declared casting take effect: spend the slot, run the spell.
+ *
+ * The other half of {@link resolveSpell} with `hold`. Everything the
+ * declaration deliberately left undone happens here, and nothing the
+ * declaration already did happens twice: the action stays spent, the
+ * Concentration that was dropped stays dropped, and the slot — untouched until
+ * now, because SRD Counterspell spares it — is expended at last.
+ *
+ * **The caller does not restate the spell.** Who it was aimed at, what level it
+ * was cast at and which route supplied it were all settled and written down at
+ * declaration. A settlement that took a fresh request could declare Fireball
+ * at the goblins and settle it at the party, and no rule in the engine would
+ * have noticed.
+ */
+export function resolveDeclaredCast(
+  state: GameState,
+  supply: ConcentrationSaveSupply,
+  command: CommandIdentity = {},
+): Result<SpellResolution> {
+  // Before the pending casting is even read. A retry that arrives after the
+  // first settlement finds no casting open, and reporting "nothing is being
+  // cast" for a spell that has already landed is the exact confusion command
+  // ids exist to prevent.
+  const identity = identify(state, 'settle-cast', command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    const already = command.commandId === undefined ? null : commandOutcome(state, command.commandId);
+    return ok({
+      events: [],
+      castingId: already?.castingId ?? '',
+      outcomes: [],
+      unverified: [],
+    });
+  }
+  const stamp = identity.value.stamp;
+
+  const pending = state.pendingCasting;
+  if (pending === null) {
+    return err('no_casting_pending', 'no casting is waiting to resolve');
+  }
+
+  const caster = creatureOf(state, pending.caster);
+  if (caster === null) return unknownCreature(pending.caster);
+
+  const definition = definitionFor(pending.spellId);
+  if (definition === null) {
+    return err(
+      'no_definition',
+      `${pending.spellId} has no executable definition; the casting cannot be settled`,
+    );
+  }
+
+  // Re-derived rather than stored: the route is a fact about the caster's
+  // sheet, which nothing between the declaration and here can have changed,
+  // and a `CastingRoute` in the log would be a derived value pretending to be
+  // history.
+  const chosen = chooseRoute(caster.spellcasting, pending.spellId, pending.route);
+  if (!chosen.ok) return chosen;
+
+  const events: GameEvent[] = settlementEvents(pending, stamp);
+
+  return resolveEffects(state, pending.caster, caster, definition, {
+    castLevel: pending.level,
+    route: chosen.value,
+    targets: pending.targets,
+    unverified: [...pending.unverified],
+    supply,
+    castingId: pending.castingId,
+    events,
+  });
+}
+
+/**
  * A casting that has already been paid for and is waiting to be let go.
  *
  * SRD Ready is the only thing that produces one: the slot went when the spell
@@ -4181,6 +4449,27 @@ function castOrRelease(
   if (held === null && !replayed) {
     const refused = triggerRefusal(state, casterId, definition, request);
     if (refused !== null) return refused;
+  }
+
+  // A casting already open is a moment the rules are in the middle of, and the
+  // only thing that may happen in it is the Reaction that answers it. Anything
+  // else would be a second spell begun before the first has taken effect.
+  //
+  // Checked against the trigger rather than against the spell, so this stays a
+  // rule about *answering a casting* rather than a mention of Counterspell in
+  // the middle of the casting path.
+  //
+  // **After the duplicate check, never before it** — the same trap the trigger
+  // above fell into, and it bites harder here: a retried *declaration* looks
+  // at a window its own first run opened, so an eager guard reports
+  // `casting_pending` for the command that opened it. A retry must report the
+  // duplicate; `resolveCast` below returns the empty batch.
+  const open = state.pendingCasting;
+  if (open !== null && !replayed && definition.trigger !== 'casting-a-spell') {
+    return err(
+      'casting_pending',
+      `${open.caster} is midway through casting ${open.spell}; settle that casting before beginning another`,
+    );
   }
 
   // SRD gives "until the end of your next turn" no meaning where there are no
@@ -4657,6 +4946,12 @@ function resolveOnTargets(
   // it) but hold its energy." The expending happened when it was readied, so
   // a release skips the whole of it — including the action, which the Ready
   // itself was.
+  // SRD Ready: "you cast it as normal (**expending any resources used to cast
+  // it**) but hold its energy." The slot went when the spell was readied, so a
+  // release has no unspent cost for Counterspell's "the slot isn't expended"
+  // to spare, and there is no window to open here. `ReleaseCommand` has no
+  // `hold` to ask for one, which is where that rule is actually enforced — a
+  // runtime guard here would be unreachable code claiming to be a rule.
   if (held !== null) {
     return resolveEffects(state, casterId, caster, definition, {
       castLevel,
@@ -4708,13 +5003,34 @@ function resolveOnTargets(
         ? {}
         : { duration: riderDuration(definition.durationUntil, casterId)! }),
     ...(request.commandId === undefined ? {} : { commandId: request.commandId }),
+    // The window, and everything settlement will need to finish the job
+    // without the caller getting to restate what the spell was aimed at.
+    ...(request.hold === true
+      ? { hold: { spellId: request.spellId, targets, unverified } }
+      : {}),
   });
   if (!cast.ok) return cast;
-  // A retried command: the first run did all of this.
+  // A retried command: the first run did all of this. The casting id it
+  // allocated is the one to report — `nextCastingId` would name the casting
+  // that *would* come next, which is a different spell entirely.
   if (cast.value.length === 0) {
-    return ok({ events: [], castingId, outcomes: [], unverified: [] });
+    const already =
+      request.commandId === undefined ? null : commandOutcome(state, request.commandId);
+    return ok({
+      events: [],
+      castingId: already?.castingId ?? castingId,
+      outcomes: [],
+      unverified: [],
+    });
   }
   events.push(...cast.value);
+
+  // Declared and held open. The action is spent, any Concentration the caster
+  // was holding is gone, and the slot is not — which is exactly the state SRD
+  // Counterspell describes and the reason the effects are not run here.
+  if (request.hold === true) {
+    return ok({ events, castingId, outcomes: [], unverified });
+  }
 
   const resolved = resolveEffects(state, casterId, caster, definition, {
     castLevel,
@@ -5235,7 +5551,68 @@ function resolveEffects(
         continue;
       }
 
-      // Seven kinds, seven branches, and the `never` binding is what keeps
+      if (effect.kind === 'interrupt-casting') {
+        // SRD Counterspell: "The creature makes a Constitution saving throw.
+        // On a failed save, the spell dissipates with no effect."
+        //
+        // The window was proved open by the trigger before anything was spent.
+        // It is read again here because the events emitted since — the
+        // Counterspell's own casting — have been folded in, and reading the
+        // stale copy would be reading a different game than the one being
+        // changed.
+        const open = current.pendingCasting;
+        if (open === null) {
+          return err(
+            'nothing_to_interrupt',
+            `${definition.name} found no casting in progress to interrupt`,
+          );
+        }
+
+        const support = savingSupport(current, target, victim, effect.ability, supply);
+        const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+          dc: saveDc,
+          conditions: support.conditions,
+          modes: support.modes,
+          bonuses: support.bonuses,
+        });
+        if (!save.ok) return save;
+
+        events.push(
+          recordD20Test(
+            target,
+            `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+            save.value,
+            save.value.success ? 'resisted' : 'affected',
+          ),
+        );
+
+        // A success buys the caster nothing beyond their spell going ahead —
+        // the SRD states no other consequence, so neither does this.
+        if (save.value.success) {
+          outcomes.push({ target, save: save.value, affected: false });
+          continue;
+        }
+
+        const interrupted: GameEvent = {
+          type: 'spell-interrupted',
+          castingId: open.castingId,
+          id: open.caster,
+          by: casterId,
+          reason: 'countered',
+        };
+        events.push(interrupted);
+        current = applyEvent(current, interrupted);
+
+        outcomes.push({
+          target,
+          save: save.value,
+          affected: true,
+          interrupted: open.castingId,
+        });
+        continue;
+      }
+
+      // Eight kinds, eight branches, and the `never` binding is what keeps
       // that true. Until now the last kind was an unguarded fall-through, so
       // an effect this chain had no rule for was read as a saving throw: it
       // took `effect.ability` off a definition that has none and rolled

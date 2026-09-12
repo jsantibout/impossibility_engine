@@ -72,7 +72,8 @@ still Wizard-shaped are named below.
 | Architecture audit | Facts have providers; four more guards; every request named | `b1d98a7` |
 | Tooling | pnpm → npm workspaces; ESLint 10 | `36016fc`, `5c7e217` |
 | Reaction triggers | A trigger the engine checks; Shield deflects the hit it answered | `a0aca8c` |
-| Hellish Rebuke | Damage names its dealer; a Reaction that answers being hurt | _this batch_ |
+| Hellish Rebuke | Damage names its dealer; a Reaction that answers being hurt | `595e6c6` |
+| Interruptible casting | A casting held between declaration and effect; Counterspell | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -368,6 +369,62 @@ still Wizard-shaped are named below.
   the default is the starting class, so every existing caller is unchanged.
   `MAX_LEVEL` is checked against the *total*.
 
+- **The SRD says which costs are already paid, and it is not "all of them".**
+  Counterspell: "the action, Bonus Action, or Reaction used to cast it is
+  **wasted**. If that spell was cast with a spell slot, the slot **isn't
+  expended**." So the economy goes at declaration and never comes back, and the
+  slot is not taken at all until the casting settles. **There is no refund
+  anywhere in this**, which is the whole reason it could be built without a
+  compensating event: `spell-declared` records what actually happened, and an
+  interruption drops a slot that was never spent. Spend-and-reverse would have
+  written a history that was false at both ends.
+- **A window that is opt-in is a window that costs nothing.** `resolveSpell`
+  without `hold` is byte-for-byte the command it always was, which is why every
+  stored log still folds and `golden-log.json` was not touched. Most castings
+  have no moment anybody can act in, and making every client perform a two-step
+  ceremony to serve a usually-empty moment would be a worse API for no rules
+  gain. The engine cannot know whether a Counterspell is coming; the layer
+  holding the fight can.
+- **The reducer branches on the casting id, not on "is anything pending".** A
+  Counterspell is cast *while* a casting is open, so its own `spell-cast` must
+  allocate the next id rather than trying to settle somebody else's casting.
+  Asking "is a casting open" conflates the two and corrupts the log — and it is
+  a mutation the suite catches seventeen tests' worth.
+- **The id is allocated at declaration, so the settlement must not allocate
+  again.** Naming the open casting is the entire point: `spell-interrupted`
+  refers to `cast:3`, and so does a reader asking why Hold Person never landed.
+  `spell-declared` advances `castingsBegun`; `spell-cast` settling one does not.
+- **Settlement accepts no fresh request.** Targets, level and route were
+  resolved and written down at declaration. A settlement that took a new
+  request could declare Fireball at the goblins and settle it at the party, and
+  nothing in the engine would have noticed — the same class of hole as a
+  fixture working out its own save DC.
+- **A deadline is pinned before the window opens, never after.**
+  `resolveDuration` can refuse, and refusing *at settlement* is a window that
+  can never be closed, which is a wedged fight. The same validate-before-rolling
+  discipline, applied to the one new place it could be broken.
+- **A guard above the duplicate check lies to a retry — third time.** The
+  `casting_pending` refusal was written before the command-id check, and a
+  retried declaration then reported that somebody was mid-cast: true, and it
+  was the retry's own first run. `triggerRefusal` and the six unstamped
+  commands were the first two. The shape is always the same — *a retry looks at
+  the world its first run made* — and the duplicate check comes first, always.
+  Found by a test, not by reading.
+- **An unreachable guard is not a rule.** A first draft refused `hold` on a
+  released readied spell; `ReleaseCommand` has no `hold` to pass, so the branch
+  could never run. Removed in favour of the comment saying where the rule is
+  actually enforced — the same reasoning that removed `ignoresPartialCover`.
+- **A clause that excludes nothing is documented, not modelled.** Counterspell
+  triggers on a spell "with Verbal, Somatic, or Material components", and all
+  339 SRD 5.2.1 spells have one. A field whose only reachable value is "yes"
+  would be a rule nothing enforces, so the gap rides in `unverified` and a test
+  pins the count that makes it safe. If the data ever stops saying it, that
+  test goes red rather than the engine quietly waving spells through.
+- **A mutation that does not apply proves nothing.** One of the fourteen
+  adversarial edits silently matched no text — wrong indentation — and
+  "survived". Checking that the file actually changed is part of the technique,
+  not a formality.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -390,6 +447,18 @@ they are debts rather than surprises.
   and derived changes (expiry, Concentration breaking) write nothing at all, a
   trade `CLAUDE.md` already documents. The doctrine says "eventually", so this
   is a debt with a name rather than a bug.
+- **A casting can be interrupted; a stack of them cannot.** `pendingCasting`
+  holds one casting. A Counterspell answering a Counterspell is legal at a real
+  table — Counterspell has Somatic components, so it triggers itself — and is
+  refused here rather than nested, because a stack is a generalisation with one
+  user and the doctrine says wait for the second. Named so it is a debt rather
+  than a surprise.
+- **`resolveSpell`'s `saves_pending` guard still sits above the duplicate
+  check.** Same shape as the `casting_pending` bug fixed in this batch: a retry
+  arriving after a turn boundary raised saves would be told the saves are owed
+  rather than that its command already landed. Pre-existing, orthogonal to this
+  work, and left alone deliberately — moving it is its own change with its own
+  failing test, not a drive-by inside a batch about casting.
 - **There is one scene.** `state.scene` is a single `PositionState | null`.
   Multiple locations or world regions is a listed compatibility concern, and
   this is the one structural decision that would be expensive to revisit later
@@ -464,16 +533,10 @@ Measured, not recalled. The numbers are what the code said on the day.
 4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-5. **The two Reaction spells that are left.** Shield and Hellish Rebuke are
-   done; both triggers are checked before anything is spent, and damage now
+5. **The Reaction spell that is left.** Shield, Hellish Rebuke and Counterspell
+   are done; every trigger is checked before anything is spent, and damage now
    names the creature that dealt it, which is a fact several *class* features
    (Uncanny Dodge, Deflect Attacks, Cutting Words) will want too.
-   - **Counterspell** — needs a casting held between declaration and
-     resolution, the way `pendingAttack` holds an attack between its two rolls.
-     `resolveSpell` is atomic today, and the slot has to be *refundable*: SRD
-     2024 says "the slot isn't expended" on a failed save, so a two-phase cast
-     must not spend it until the window closes. This is a public-shape change
-     to the most-used command in the engine and wants its own batch.
    - **Feather Fall** — needs falling. Nothing falls, nothing takes fall
      damage, and no rate of descent is modelled. Furthest away by a distance.
 6. **Summons** (9 spells). Needs a creature created mid-fight from a stat
@@ -607,11 +670,12 @@ Run `npm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executed and verified | 44 |
+| Spells executed | 72 |
+| Spells verified end to end | 46 |
 | Spells tracked (cast, effect narrated) | 14 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 61 of 230 |
-| Tests | 2,460 passing, none skipped |
+| Tests | 2,930 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

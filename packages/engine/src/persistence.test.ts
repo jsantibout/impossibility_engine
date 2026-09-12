@@ -256,6 +256,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'scheduled-damage-collected',
   'sight-declared',
   'spell-cast',
+  'spell-declared',
+  'spell-interrupted',
   'spellcasting-declared',
   'stabilised',
   'temporary-hp-cleared',

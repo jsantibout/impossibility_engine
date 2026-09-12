@@ -756,7 +756,7 @@ layer that knows.
   on completion, and completion depends on the caster taking the Magic action
   every turn of the casting, which is a state machine rather than a deadline.
   Rituals cast the long way are covered by the same refusal.
-- **Two Reaction triggers are enforced; the other two need machinery that does
+- **Three Reaction triggers are enforced; the fourth needs machinery that does
   not exist.** SRD writes a Reaction's casting time as a clause — "Reaction,
   **which you take when you are hit by an attack roll**" — and the clause is a
   rule. `SpellDefinition.trigger` carries it, and a casting whose moment has
@@ -797,13 +797,12 @@ layer that knows.
   quietly redirected — the rule `eligibleTargets` states for every spell, and
   the one place a Reaction could have smuggled in a substitution.
 
-  The two that are left are each blocked on something different, and naming
-  them separately is the point — this was one bucket in `COVERAGE.md` and it
-  was three problems:
+  **Counterspell works, and what it needed was for a casting to stop being
+  atomic.** See "A Casting Can Be Interrupted" below. One Reaction trigger is
+  left:
 
   | Spell | What it answers | What is missing |
   |---|---|---|
-  | Counterspell | a creature casting a spell | a casting held between declaration and resolution; `resolveSpell` is atomic, and the slot must be **refundable** because SRD 2024 gives it back on a failed save |
   | Feather Fall | a creature falling | falling, which is not modelled at all |
 
   A `ReactionTrigger` member arrives with the machinery that makes it
@@ -825,6 +824,100 @@ layer that knows.
   it.** Cleanup is derived from the link, so a target's own history shows the
   condition arriving but not leaving. Making it explicit would mean building a
   list that a retry could find stale; the trade was taken deliberately.
+
+## A Casting Can Be Interrupted
+
+`resolveSpell` was atomic: it validated, spent the slot, and landed the
+effects in one breath. SRD 2024 Counterspell interrupts "a creature **in the
+process of casting a spell**", and there was no such process to interrupt.
+
+**The SRD decides which costs are already paid, and it is not "all of them".**
+One sentence settles the whole design:
+
+> "On a failed save, the spell dissipates with no effect, and **the action,
+> Bonus Action, or Reaction used to cast it is wasted**. If that spell was cast
+> with a spell slot, **the slot isn't expended**."
+
+So the economy is spent at declaration and never given back, and the slot is
+**not spent at declaration at all**. That asymmetry is the reason this is a
+two-event casting rather than a spend-and-compensate one: there is no refund,
+because nothing was taken. Every event still records something that happened.
+
+| | Declaration (`spell-declared`) | Settlement (`spell-cast`) |
+|---|---|---|
+| Action / Bonus Action / Reaction | **spent** — "wasted" whatever follows | — |
+| Concentration the caster was holding | **broken** — "the moment you *start* casting" | — |
+| The spell slot | — | **spent** |
+| A feat's free daily casting | **spent** | — |
+| The new Concentration | — | **started** |
+| The casting's own deadline | resolved, so it cannot fail later | scheduled |
+| The effects | — | **resolved** |
+
+Two of those rows are readings rather than transcriptions, and are stated here
+because nothing else records them. **A feat's free daily casting is spent and
+not spared**: the SRD's relief names the spell slot and nothing else, and
+extending it to a different resource would be inventing a rule. And **the
+one-slot-per-turn rule reads expenditure**, so a countered casting does not use
+up the turn's one slot — the marker rides on the settling `spell-cast`.
+
+**It is opt-in, and that is the compatibility story.** `resolveSpell` with no
+`hold` is byte-for-byte what it always was: one call, one `spell-cast`, no
+pending state — which is why every log written before this exists still folds,
+`golden-log.json` included. Turning every casting into a two-step ceremony to
+serve a moment that is usually empty would be a worse API for no rules gain.
+
+**The reducer branches on the id, not on "is anything pending".** A
+Counterspell is itself cast *while* a casting is open, so its own `spell-cast`
+has to allocate the next id in sequence rather than trying to settle somebody
+else's casting. Matching `pendingCasting.castingId` against the event's is what
+keeps those two cases apart; asking "is a casting open" conflates them and
+corrupts the log.
+
+**The casting id is allocated at declaration**, because the entire point is
+that other mechanics can name the casting while it is open — `cast:3` is what
+`spell-interrupted` refers to, and what a log reader asking why Hold Person
+never landed needs to see. So `spell-declared` advances `castingsBegun` and the
+settling `spell-cast` must not advance it again.
+
+**Settlement takes no fresh request.** Who the spell was aimed at, what level it
+was cast at and which route supplied it were settled and written down at
+declaration; `resolveDeclaredCast` reads them off the pending record. A
+settlement that accepted a new request could declare Fireball at the goblins
+and settle it at the party, and no rule in the engine would have noticed.
+
+**The deadline is pinned at declaration, not re-resolved at settlement.**
+`resolveDuration` can refuse — a turn-anchored duration outside combat — and a
+refusal *at settlement* would be a window that could never be closed, which is
+a wedged fight. Refusing before the window opens costs nothing, which is the
+same validate-before-rolling rule the rest of casting obeys.
+
+**A pending casting is engine debt, and it is guarded the way the others are.**
+The turn refuses to advance past it; a second casting is refused while it
+stands, except the Reaction that answers it; and a caster who leaves the game
+takes it with them, exactly as `settleHoldsInvolving` already does for a held
+attack and a declared move. A debt whose only settling command is addressed to
+a creature who has left is a campaign that never continues.
+
+**A guard placed before the duplicate check is a lie told to a retry.** The
+`casting_pending` refusal was written above the command-id check first, and a
+retried declaration then reported that somebody was mid-cast — which was true,
+and was the retry's own first run. This is the third time that trap has been
+sprung in this file (`triggerRefusal` and the six unstamped commands were the
+others), and it is always the same shape: *a retry looks at the world its first
+run made*. The duplicate check comes first, always.
+
+**Counterspell's components clause is not checked, and the reason is in a
+test.** SRD triggers it on "casting a spell with Verbal, Somatic, or Material
+components" — and all 339 SRD 5.2.1 spells have at least one of the three, so
+the qualifier excludes nothing the engine can be asked about. A field whose
+only reachable value is "yes" is not a rule, so the gap is reported in
+`unverified` and `counterspell.test.ts` pins the count that makes it safe.
+
+**Two things this deliberately is not.** It is not a general interruption
+framework — one pending casting, no stack, and a Counterspell answering a
+Counterspell is refused rather than nested. And it is not the long-casting-time
+machinery: a casting of a minute or more needs a per-turn obligation the caster
+must keep, which is a state machine, not a window.
 
 ## Rests And The Clock
 
@@ -2003,9 +2096,9 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 67 of 339 executable, with the shapes that block the rest counted
+- M1 spells: 72 of 339 executable, with the shapes that block the rest counted
   in `COVERAGE.md`. Areas of effect, healing, saving throws for damage or a
-  condition, Temporary Hit Points and lasting bonuses all work; summons,
-  Reaction triggers, long casting times and ongoing effects a later turn acts
-  through do not.
+  condition, Temporary Hit Points, lasting bonuses and an interruptible casting
+  all work; summons, long casting times, ongoing effects a later turn acts
+  through, and a Reaction that answers a fall do not.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

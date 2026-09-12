@@ -344,6 +344,68 @@ export interface PendingMove {
 }
 
 /**
+ * A casting that has been declared and has not yet resolved.
+ *
+ * SRD 2024 Counterspell is the rule that makes this moment real: "You attempt
+ * to interrupt a creature **in the process of casting a spell**." A casting
+ * that spends its slot and lands its effects in one breath has no such moment,
+ * and Counterspell could not be written against it.
+ *
+ * **The SRD decides which costs are already paid, and it is not "all of
+ * them".** "The action, Bonus Action, or Reaction used to cast it is wasted"
+ * — so the economy is spent at declaration and interruption does not hand it
+ * back. "If that spell was cast with a spell slot, the slot isn't expended" —
+ * so the slot is *not* spent here, and an interruption has nothing to refund
+ * because nothing was taken. That asymmetry is why this is a two-event casting
+ * rather than a spend-and-compensate one: every event still records something
+ * that actually happened.
+ *
+ * In state rather than in a return value, for the reason `pendingAttack` is:
+ * the fold rebuilds it, so it survives a reload, and the turn refuses to
+ * advance while it stands.
+ *
+ * At most one. A Counterspell answering a Counterspell would need a stack, and
+ * a second declaration is refused rather than quietly nested.
+ */
+export interface PendingCasting {
+  /** The casting's identity, allocated at declaration and nameable by others. */
+  readonly castingId: string;
+  readonly caster: CharacterId;
+  /** The SRD slug, so settlement finds the same definition. */
+  readonly spellId: string;
+  /** The display name, as the settling `spell-cast` will record it. */
+  readonly spell: string;
+  /** The level it is cast at, which is the slot's level when upcast. */
+  readonly level: number;
+  /**
+   * The slot settlement will expend, or null.
+   *
+   * Named but **not yet spent**. An interruption drops this record and the
+   * slot was never taken; there is no compensating event because there is
+   * nothing to compensate.
+   */
+  readonly slot: { readonly key: string; readonly level: number } | null;
+  readonly slotless: SlotlessReason | null;
+  readonly castingTime: CastingTime;
+  readonly concentration: boolean;
+  /** Which grant supplies it, so settlement derives the same save DC. */
+  readonly route?: string;
+  /** The targets resolved at declaration, so settlement cannot re-aim it. */
+  readonly targets: readonly CharacterId[];
+  /** What the definition knowingly leaves out, gathered at declaration. */
+  readonly unverified: readonly string[];
+  /**
+   * When the casting ends, already pinned.
+   *
+   * Resolved at declaration rather than at settlement so that settlement
+   * cannot fail: a turn-anchored duration that `resolveDuration` would refuse
+   * is refused before the window opens, and a window that could not be closed
+   * would wedge the fight.
+   */
+  readonly deadline?: Deadline;
+}
+
+/**
  * What a readied action will do when its trigger comes.
  *
  * SRD Ready: "you choose the action you will take in response to that trigger,
@@ -476,6 +538,13 @@ export interface GameState {
    * moment that lives in a return value does not survive a reload.
    */
   readonly pendingMove: PendingMove | null;
+  /**
+   * A spell declared and not yet resolved, held open so it can be interrupted.
+   *
+   * The third debt of this shape, and the one whose costs are split: the
+   * action is already spent and the slot is not. See {@link PendingCasting}.
+   */
+  readonly pendingCasting: PendingCasting | null;
 }
 
 export function initialState(seed: string): GameState {
@@ -495,6 +564,7 @@ export function initialState(seed: string): GameState {
     scheduledDamage: {},
     pendingAttack: null,
     pendingMove: null,
+    pendingCasting: null,
   };
 }
 
@@ -759,6 +829,42 @@ export type GameEvent =
       readonly castingTime: CastingTime;
       readonly concentration: boolean;
       /** The command that caused it, so a retry is recognised as one. */
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A casting begun and held open, so that a Reaction can answer it.
+   *
+   * SRD Counterspell interrupts "a creature in the process of casting a
+   * spell", and this is that process made mechanical. It is not an *intent*
+   * event: by the time it is written the caster has irrevocably spent the
+   * action the spell cost and has lost any Concentration they were holding, so
+   * it records things that have already happened. What it deliberately does
+   * not do is expend the slot — SRD gives that back, which means it was never
+   * taken, so the settling `spell-cast` is what spends it.
+   *
+   * The casting id is allocated here, not at settlement, because the whole
+   * point is that other mechanics can name this casting while it is open.
+   */
+  | {
+      readonly type: 'spell-declared';
+      readonly casting: PendingCasting;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A declared casting that never took effect.
+   *
+   * SRD Counterspell: "the spell dissipates with no effect." Nothing is
+   * refunded because nothing beyond the action was spent, and the action is
+   * "wasted" by the same sentence. The only state this changes is that the
+   * window closes.
+   */
+  | {
+      readonly type: 'spell-interrupted';
+      readonly castingId: string;
+      readonly id: CharacterId;
+      /** Who interrupted it, or null when it lapsed with its caster. */
+      readonly by: CharacterId | null;
+      readonly reason: 'countered' | 'caster-left';
       readonly command?: CommandStamp;
     }
   | {
@@ -1359,7 +1465,15 @@ function recordCommand(state: GameState, event: GameEvent): GameState {
       ...state.appliedCommands,
       [event.command.id]: {
         type: event.type,
-        castingId: event.type === 'spell-cast' ? event.castingId : null,
+        // A declaration allocates the casting id, so a retried declaration has
+        // to be able to recover it — the caller needs to name the casting it
+        // already opened, not the one that would come next.
+        castingId:
+          event.type === 'spell-cast'
+            ? event.castingId
+            : event.type === 'spell-declared'
+              ? event.casting.castingId
+              : null,
         fingerprint: event.command.fingerprint,
       },
     },
@@ -1386,6 +1500,12 @@ function interruptedRests(state: GameState, event: GameEvent): GameState {
     case 'spell-cast':
       // "other than a cantrip" — a cantrip is level 0 and breaks nothing.
       if (event.level > 0) broken.push([event.id, 'a spell']);
+      break;
+    case 'spell-declared':
+      // The rest breaks when the casting *starts*, which is the same moment
+      // the action is spent. A casting later interrupted does not un-break it:
+      // the caster still stopped resting to cast.
+      if (event.casting.level > 0) broken.push([event.casting.caster, 'a spell']);
       break;
     case 'combat-started':
       for (const combatant of event.combatants) broken.push([combatant.id, 'Initiative']);
@@ -2091,15 +2211,67 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       );
     }
 
+    case 'spell-declared': {
+      if (state.pendingCasting !== null) {
+        throw new CorruptLogError(event, 'a casting is already waiting to resolve');
+      }
+      creatureOf(state, event, event.casting.caster);
+
+      // The id is allocated here, so this is the event that advances the
+      // sequence. The `spell-cast` that settles it must not advance it again.
+      const expected = castingIdFor(state.castingsBegun + 1);
+      if (event.casting.castingId !== expected) {
+        throw new CorruptLogError(
+          event,
+          `expected casting ${expected}, got ${event.casting.castingId}`,
+        );
+      }
+
+      return {
+        ...next,
+        castingsBegun: state.castingsBegun + 1,
+        pendingCasting: event.casting,
+      };
+    }
+
+    case 'spell-interrupted': {
+      const waiting = state.pendingCasting;
+      if (waiting === null) throw new CorruptLogError(event, 'no casting is waiting to resolve');
+      if (waiting.castingId !== event.castingId) {
+        throw new CorruptLogError(
+          event,
+          `casting ${waiting.castingId} is waiting, not ${event.castingId}`,
+        );
+      }
+      // Nothing is given back. The action was wasted by the same SRD sentence
+      // that spares the slot, and the slot was never spent.
+      return { ...next, pendingCasting: null };
+    }
+
     case 'spell-cast': {
       const creature = creatureOf(state, event, event.id);
 
-      // Casting ids run in sequence. Applying a batch twice — a retried
-      // command appended a second time — lands here with an id that is no
-      // longer next, which is a corrupt log rather than a second casting.
-      const expected = castingIdFor(state.castingsBegun + 1);
-      if (event.castingId !== expected) {
-        throw new CorruptLogError(event, `expected casting ${expected}, got ${event.castingId}`);
+      // Two shapes reach this event and they are not the same. A casting held
+      // open since `spell-declared` **settles** here: its id was allocated
+      // then, so the sequence does not move again and the window closes. Every
+      // other casting is declared and resolved in one breath, and allocates
+      // its own id exactly as it always has — which is why every log written
+      // before interruptible castings existed still folds unchanged.
+      //
+      // Matching on the id rather than on "is anything pending" is what lets a
+      // Counterspell be cast *while* a casting is open: its own `spell-cast`
+      // is a different casting and takes the ordinary branch.
+      const waiting = state.pendingCasting;
+      const settling = waiting !== null && waiting.castingId === event.castingId;
+
+      if (!settling) {
+        // Casting ids run in sequence. Applying a batch twice — a retried
+        // command appended a second time — lands here with an id that is no
+        // longer next, which is a corrupt log rather than a second casting.
+        const expected = castingIdFor(state.castingsBegun + 1);
+        if (event.castingId !== expected) {
+          throw new CorruptLogError(event, `expected casting ${expected}, got ${event.castingId}`);
+        }
       }
 
       const resources =
@@ -2110,8 +2282,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       const cast = withCreature(next, event.id, { resources }, creature);
       return {
         ...cast,
-        castingsBegun: state.castingsBegun + 1,
+        castingsBegun: settling ? state.castingsBegun : state.castingsBegun + 1,
+        ...(settling ? { pendingCasting: null } : {}),
         // SRD: "On a turn, you can expend only one spell slot to cast a spell."
+        // It reads *expenditure*, so a casting whose slot is still unspent has
+        // not used the turn's one slot — and a countered one never will.
         combat:
           event.slot === null || cast.combat === null
             ? cast.combat

@@ -163,7 +163,31 @@ const logFor = (spellId: string): readonly GameEvent[] => {
           // "the creature that damaged you" is a forced target rather than a
           // choice.
           [{ type: 'damage-taken', id: CASTER, amount: 4, source: 'a blade', by: TARGET }]
-        : [];
+        : definition?.trigger === 'casting-a-spell'
+          ? // A casting held open by the creature the fixture casts at, since
+            // "a creature in the process of casting a spell" is likewise a
+            // forced target. Written straight into the log rather than driven
+            // through `resolveSpell`, so the fixture states the moment rather
+            // than depending on another spell's rules to produce it.
+            ([
+              {
+                type: 'spell-declared',
+                casting: {
+                  castingId: 'cast:1',
+                  caster: TARGET,
+                  spellId: 'fire-bolt',
+                  spell: 'Fire Bolt',
+                  level: 0,
+                  slot: null,
+                  slotless: 'cantrip',
+                  castingTime: 'action',
+                  concentration: false,
+                  targets: [BYSTANDER],
+                  unverified: [],
+                },
+              },
+            ] as readonly GameEvent[])
+          : [];
 
   if (!anchored && triggered.length === 0) return typed;
 
