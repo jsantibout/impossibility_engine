@@ -84,6 +84,23 @@ export interface DiceScaling {
 export type RiderDuration = 'start-of-casters-next-turn' | 'end-of-casters-next-turn';
 
 /**
+ * The moment a Reaction spell is cast in answer to.
+ *
+ * SRD writes a Reaction's casting time as a clause — "Reaction, which you take
+ * **when you are hit by an attack roll**" — and until now the engine read the
+ * "Reaction" and ignored the rest. It spent the Reaction correctly and let the
+ * spell be cast at a moment the rules never offered.
+ *
+ * **One member, because one spell.** The other three Reaction spells in the
+ * SRD each need machinery that does not exist: Hellish Rebuke answers damage
+ * and `damage-taken` records prose rather than the creature that dealt it,
+ * Counterspell answers a casting and a casting is atomic here, Feather Fall
+ * answers a fall and nothing falls. A second member will arrive with the
+ * machinery that makes it checkable, not before it.
+ */
+export type ReactionTrigger = 'hit-by-attack';
+
+/**
  * A second, smaller hit that arrives at a later moment.
  *
  * SRD Acid Arrow: "the target takes 4d4 Acid damage **and 2d4 Acid damage at
@@ -429,6 +446,21 @@ export interface SpellDefinition {
    * nothing and said nothing would be worse than the refusal it replaced.
    */
   readonly unmodelled?: readonly string[];
+  /**
+   * What a Reaction spell is cast in answer to, checked before anything is
+   * spent. A spell with no trigger is not a Reaction spell and is unaffected.
+   */
+  readonly trigger?: ReactionTrigger;
+  /**
+   * A casting that ends at a moment in the turn order rather than after a span
+   * of seconds.
+   *
+   * Shield lasts "until the start of your next turn", which is not six seconds
+   * and not one round — see the durations section of CLAUDE.md for why folding
+   * the two together is wrong. Separate from `durationSeconds` because a
+   * definition means one or the other, never both.
+   */
+  readonly durationUntil?: RiderDuration;
 }
 
 /**
@@ -615,6 +647,84 @@ export const ACID_ARROW: SpellDefinition = {
   unmodelled: [
     'On a miss the arrow still splashes for half the initial damage; a miss deals nothing here.',
   ],
+};
+
+/**
+ * SRD Shield:
+ *
+ * > _Level 1 Abjuration (Sorcerer, Wizard)._ **Casting Time:** Reaction, which
+ * > you take when you are hit by an attack roll or targeted by the _Magic
+ * > Missile_ spell. **Range:** Self. **Duration:** 1 round.
+ * > "An imperceptible barrier of magical force protects you. Until the start
+ * > of your next turn, you have a +5 bonus to AC, including against the
+ * > triggering attack, and you take no damage from _Magic Missile_."
+ *
+ * **"Including against the triggering attack" is the whole spell.** A Shield
+ * that only helped against what came next would be a much weaker one, so the
+ * casting re-measures the hit it answered: the attack is still held, the roll
+ * that made it is written down, and whether it now falls short is arithmetic
+ * rather than anybody's judgement.
+ *
+ * Two halves of the text are not modelled and say so. Magic Missile is not a
+ * trigger the engine can see — the spell has no executable definition, so
+ * there is nothing to be targeted by — and the immunity to its damage has
+ * nothing to attach to.
+ */
+export const SHIELD: SpellDefinition = {
+  id: 'shield',
+  name: 'Shield',
+  level: 1,
+  school: 'abjuration',
+  castingTime: 'reaction',
+  trigger: 'hit-by-attack',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'buff',
+      bonus: { source: 'Shield', flat: 5 },
+      applies: ['ac'],
+      direction: 'add',
+    },
+  ],
+  durationUntil: 'start-of-casters-next-turn',
+  unmodelled: [
+    'being targeted by Magic Missile is also a trigger, and taking no damage from it is also a benefit; neither is modelled, because Magic Missile is not executable here',
+  ],
+};
+
+/**
+ * SRD Shield of Faith:
+ *
+ * > _Level 1 Abjuration (Cleric, Paladin)._ **Casting Time:** Bonus Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "A shimmering field surrounds a creature of your choice within range,
+ * > granting it a +2 bonus to AC for the duration."
+ *
+ * No Reaction, no trigger, no window — and it needed exactly one of the three
+ * things Shield needed: an Armour Class an effect can reach. Two spells
+ * wanting the same missing piece and differing in every other way is what
+ * makes `applies: ['ac']` a shape rather than a special case for Shield.
+ */
+export const SHIELD_OF_FAITH: SpellDefinition = {
+  id: 'shield-of-faith',
+  name: 'Shield of Faith',
+  level: 1,
+  school: 'abjuration',
+  castingTime: 'bonus-action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'buff',
+      bonus: { source: 'Shield of Faith', flat: 2 },
+      applies: ['ac'],
+      direction: 'add',
+    },
+  ],
+  durationSeconds: 600,
 };
 
 /**
@@ -3303,6 +3413,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
   SACRED_FLAME,
+  SHIELD,
+  SHIELD_OF_FAITH,
   SHATTER,
   STARRY_WISP,
   SUGGESTION,

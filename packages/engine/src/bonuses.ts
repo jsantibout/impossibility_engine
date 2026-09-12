@@ -38,8 +38,20 @@ export interface Bonus {
   readonly direction?: 'add' | 'subtract';
 }
 
-/** Which rolls a lasting bonus applies to. */
-export type BonusApplies = 'attack' | 'save' | 'ability-check';
+/**
+ * What a lasting bonus applies to.
+ *
+ * The first three are rolls. `ac` is not — it is a number the rules compare a
+ * roll *against* — and it is here rather than in its own mechanism because the
+ * SRD writes it in the same breath: Shield of Faith's "+2 bonus to AC" and
+ * Bless's "+1d4 to the attack roll" are one sentence shape with two targets.
+ *
+ * Only the flat half of a bonus reaches an Armour Class. No SRD spell grants a
+ * rolled one, and a d4 of AC has no moment at which it could be rolled: an
+ * Armour Class is a standing number that many attacks are measured against,
+ * not an event.
+ */
+export type BonusApplies = 'attack' | 'save' | 'ability-check' | 'ac';
 
 /**
  * A bonus an ongoing effect has hung on a creature.

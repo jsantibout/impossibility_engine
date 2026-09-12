@@ -271,6 +271,17 @@ export interface PendingAttack {
   /** The ability the attack roll used, for a feature that asks. */
   readonly ability: Ability;
   readonly targetAc: number;
+  /**
+   * What the attack roll came to, and what the die itself showed.
+   *
+   * Both are on the hold for the reason everything else here is: nothing may
+   * have to be remembered between the two calls. SRD Shield is "+5 bonus to
+   * AC, **including against the triggering attack**", so the window has to be
+   * able to ask whether the roll still clears a number that has since gone up
+   * — and a natural 20 hits whatever the Armour Class becomes.
+   */
+  readonly total: number;
+  readonly natural: number;
 }
 
 /**

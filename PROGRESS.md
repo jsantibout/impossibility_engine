@@ -69,7 +69,9 @@ still Wizard-shaped are named below.
 | Fold speed | Three derived passes stopped sorting the cast on every event | `8be2697` |
 | Doctrine | `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md`, audited; three conformance debts named | `bac982d` |
 | Later damage | A hit a turn boundary collects; Acid Arrow, Vitriolic Sphere | `e21b59a` |
-| Architecture audit | Facts have providers; four more guards; every request named | _this batch_ |
+| Architecture audit | Facts have providers; four more guards; every request named | `b1d98a7` |
+| Tooling | pnpm → npm workspaces; ESLint 10 | `36016fc`, `5c7e217` |
+| Reaction triggers | A trigger the engine checks; Shield deflects the hit it answered | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -461,9 +463,23 @@ Measured, not recalled. The numbers are what the code said on the day.
 4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-5. **Reaction triggers** (4 spells: Shield, Counterspell). Needs an interrupt
-   that can order a cast against the event that triggered it. This is the
-   hardest remaining spell mechanism and is deliberately last.
+5. **The three Reaction spells that are left**, which are three problems
+   rather than one bucket. Shield is done: `SpellDefinition.trigger` is checked
+   before anything is spent, and the hit it answers is re-measured against the
+   Armour Class it raised. What the others need, each different:
+   - **Hellish Rebuke** — `damage-taken` carries a prose `source` (`'a trap'`),
+     so the engine cannot say *which creature* damaged you, and the trigger is
+     "a creature that you can see". An optional dealer id on the damage events
+     is small and additive; the trigger then reads the last one. This is the
+     cheapest of the three and the obvious next one.
+   - **Counterspell** — needs a casting held between declaration and
+     resolution, the way `pendingAttack` holds an attack between its two rolls.
+     `resolveSpell` is atomic today, and the slot has to be *refundable*: SRD
+     2024 says "the slot isn't expended" on a failed save, so a two-phase cast
+     must not spend it until the window closes. This is a public-shape change
+     to the most-used command in the engine and wants its own batch.
+   - **Feather Fall** — needs falling. Nothing falls, nothing takes fall
+     damage, and no rate of descent is modelled. Furthest away by a distance.
 6. **Summons** (9 spells). Needs a creature created mid-fight from a stat
    block, which `adaptMonster` can already produce — the gap is an event that
    adds it and ties its life to the casting.

@@ -122,24 +122,61 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   // the engine refuses rather than inventing six seconds, so a spell carrying
   // one is driven in a fight. Not an excuse for the spell: the refusal is
   // asserted on its own in `turn-anchored-riders.test.ts`.
-  const anchored = (definition?.effects ?? []).some(
-    (effect) =>
-      (effect.kind === 'save' && effect.lasts !== undefined) ||
-      (effect.kind === 'attack' && effect.condition?.lasts !== undefined) ||
-      (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined),
-  );
-  if (!anchored) return typed;
+  const anchored =
+    definition?.durationUntil !== undefined ||
+    (definition?.effects ?? []).some(
+      (effect) =>
+        (effect.kind === 'save' && effect.lasts !== undefined) ||
+        (effect.kind === 'attack' && effect.condition?.lasts !== undefined) ||
+        (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined),
+    );
+
+  // A Reaction is cast in answer to something, and the engine now checks that
+  // the something happened. Same principle as the creature type above: the
+  // fixture supplies the moment the spell needs rather than the spell being
+  // excused its own casting time. The refusal is asserted on its own in
+  // `reaction-triggers.test.ts`.
+  const triggered: readonly GameEvent[] =
+    definition?.trigger !== 'hit-by-attack'
+      ? []
+      : [
+          {
+            type: 'attack-landed',
+            attack: {
+              attacker: TARGET,
+              target: CASTER,
+              weapon: null,
+              twoHanded: false,
+              thrown: false,
+              critical: false,
+              ability: 'str',
+              targetAc: 10,
+              // High enough that no bonus this fixture grants turns it aside,
+              // so the spell under test is the casting rather than the
+              // deflection.
+              total: 40,
+              natural: 19,
+            },
+          },
+        ];
+
+  if (!anchored && triggered.length === 0) return typed;
 
   return [
     ...typed,
-    {
-      type: 'combat-started',
-      combatants: [
-        { id: CASTER, initiative: 20, speed: 30 },
-        { id: TARGET, initiative: 10, speed: 30 },
-        { id: BYSTANDER, initiative: 5, speed: 30 },
-      ],
-    },
+    ...(anchored
+      ? ([
+          {
+            type: 'combat-started',
+            combatants: [
+              { id: CASTER, initiative: 20, speed: 30 },
+              { id: TARGET, initiative: 10, speed: 30 },
+              { id: BYSTANDER, initiative: 5, speed: 30 },
+            ],
+          },
+        ] as readonly GameEvent[])
+      : []),
+    ...triggered,
   ];
 };
 

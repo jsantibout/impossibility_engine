@@ -8,7 +8,7 @@ import {
   withoutConditions,
   type ConditionState,
 } from './conditions.js';
-import { abilityModifier } from './character.js';
+import { abilityModifier, armorClass } from './character.js';
 import { distanceBetween } from './positioning.js';
 import type { GameState } from './events.js';
 import type { DamageDefenses } from './attack.js';
@@ -437,6 +437,35 @@ export function defensesOf(
       existing === undefined ? defence : { ...existing, resistant: existing.resistant ?? true };
   }
   return merged;
+}
+
+/**
+ * A creature's Armour Class, with whatever is currently raising it.
+ *
+ * `armorClass` reads a sheet: armour, Dexterity, a shield, or the number a
+ * stat block printed. That is the whole answer for a creature nobody has cast
+ * anything on, and it was the only answer the engine had — so Shield of Faith
+ * had no way to grant its +2 and Shield had no way to grant its +5.
+ *
+ * Only flat bonuses count. An Armour Class is a standing number rather than a
+ * roll, so there is no moment at which a die could be thrown for it, and no
+ * SRD spell asks for one. A rolled bonus aimed at `ac` is ignored rather than
+ * guessed at.
+ *
+ * Cover is deliberately *not* here: it is a fact about one attacker's line to
+ * one target, not about the target, and the attack that reads it adds it.
+ */
+export function armorClassOf(state: GameState, who: CharacterId): number {
+  const creature = state.creatures[who];
+  if (creature === undefined) return 0;
+
+  let total = armorClass(creature.sheet);
+  for (const active of creature.bonuses) {
+    if (!active.applies.includes('ac')) continue;
+    const flat = active.bonus.flat ?? 0;
+    total += active.direction === 'subtract' ? -flat : flat;
+  }
+  return total;
 }
 
 /** What an attack was, for deciding which features have anything to say about it. */

@@ -410,6 +410,19 @@ None of these check whether the test succeeded or failed. Bardic Inspiration
 requires a failure and Cutting Words a success, but those conditions belong to
 those features, not to the mechanism.
 
+**An Armour Class is something an effect can push on.** `BonusApplies` covers
+attacks, saves and ability checks — all rolls — and now `ac`, which is not a
+roll but a number rolls are measured *against*. It is in the same union rather
+than a mechanism of its own because the SRD writes it in the same sentence
+shape: Shield of Faith's "+2 bonus to AC" beside Bless's "+1d4 to the attack
+roll". Only the flat half reaches an Armour Class; a standing number has no
+moment at which a die could be thrown for it, and no SRD spell asks for one.
+
+`armorClassOf(state, id)` is the reader. `armorClass(sheet)` still answers for
+a creature nobody has cast anything on, and is what it falls back to. Cover
+stays outside both: it is a fact about one attacker's line to one target, not
+about the target, so the attack that reads it adds it.
+
 The engine never infers which bonuses apply. Whether Archery or Boots of
 Elvenkind is in play is a question about feats and inventory, which the engine
 does not model; the layer that knows passes them in, and the engine applies
@@ -712,14 +725,38 @@ layer that knows.
   on completion, and completion depends on the caster taking the Magic action
   every turn of the casting, which is a state machine rather than a deadline.
   Rituals cast the long way are covered by the same refusal.
-- **Reaction *triggers* are not enforced, though the Reaction itself is now
-  spent.** `resolveCast` takes the Reaction off the budget and refuses a second
-  one before the caster's next turn, which is the half the engine can see. What
-  it cannot see is the trigger: it does not check that a valid one occurred,
-  and it has no interrupt mechanism, so it cannot order the casting against the
-  event that triggered it. Counterspell reacting to a spell it must resolve
-  *before* still needs machinery that does not exist. The engine will let a
-  Reaction spell be cast at a moment the rules would not allow, and say nothing.
+- **One Reaction trigger is enforced; the other three need machinery that does
+  not exist.** SRD writes a Reaction's casting time as a clause — "Reaction,
+  **which you take when you are hit by an attack roll**" — and the clause is a
+  rule. `SpellDefinition.trigger` carries it, and a casting whose moment has
+  not arrived is refused before a slot or a Reaction is spent.
+
+  **Shield works, including the hard half.** "A +5 bonus to AC, including
+  against the triggering attack" means the attack must still be undecided when
+  the Reaction lands, and it is: `pendingAttack` — the window built so a Divine
+  Smite could land between an attack's two rolls — holds the hit, the roll that
+  made it, and the Armour Class it was measured against. So the hit is
+  re-measured, and whether +5 is enough is arithmetic the engine owns rather
+  than a judgement the model makes.
+
+  Two details in that re-measuring, both from the book. The bonus is applied to
+  **the number the attack actually met**, which already has that attacker's
+  cover in it — recomputing an Armour Class from the creature would quietly
+  drop the cover and let the barrier cancel the pillar. And a **natural 20 hits
+  regardless**, so no bonus turns one aside.
+
+  The other three Reaction spells are each blocked on something different, and
+  naming them separately is the point — this was one bucket in `COVERAGE.md`
+  and it is three problems:
+
+  | Spell | What it answers | What is missing |
+  |---|---|---|
+  | Hellish Rebuke | taking damage from a creature you can see | `damage-taken` records a *source* in prose (`'a trap'`), not the creature that dealt it |
+  | Counterspell | a creature casting a spell | a casting held between declaration and resolution; `resolveSpell` is atomic, and the slot must be refundable because SRD returns it |
+  | Feather Fall | a creature falling | falling, which is not modelled at all |
+
+  `ReactionTrigger` has one member for that reason. A second arrives with the
+  machinery that makes it checkable, not before.
 - **Only conditions are linked effects.** Ownership is designed for conditions,
   bonuses, areas and summons alike — the source string is the link, and nothing
   about it is condition-specific — but conditions are the only effect type the
@@ -1030,7 +1067,9 @@ The recurring blockers, each wanted by several classes:
   action, not the attacks in it, so Extra Attack is offered by nobody.
 - **Reactions with triggers.** Uncanny Dodge, Deflect Attacks, Cutting Words,
   Hellish Rebuke. `reduceDamage` and `interveneAfterRoll` exist; nothing fires
-  them, and nothing orders a Reaction against the event that caused it.
+  them, and nothing orders a Reaction against the event that caused it. A
+  spell's trigger is checked now (see Shield, above), but a *feature's* is not:
+  these four all answer damage, and damage does not record who dealt it.
 - **Auras that follow a creature.** Every Paladin aura, Spirit Guardians.
 - **Defences that change after a rest.** Fiendish Resilience, Rage.
 - **A grant that can be re-chosen on a rest.** Circle of the Land's spells, and

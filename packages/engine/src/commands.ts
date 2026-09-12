@@ -12,7 +12,6 @@ import {
 } from '@ie/shared';
 import { bonusesFor, type Bonus, type ModeSource } from './bonuses.js';
 import {
-  armorClass,
   modifierFor,
   spellAttackModifierWith,
   spellSaveDcWith,
@@ -54,6 +53,7 @@ import {
   definitionFor,
   targetCountFor,
   type DelayedDamage,
+  type ReactionTrigger,
   type RiderDuration,
   type SpellArea,
   type SpellDefinition,
@@ -62,6 +62,7 @@ import {
 import { routesFor, type CastingRoute, type SpellcastingState } from './spellcasting.js';
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from './actions.js';
 import {
+  armorClassOf,
   attackedWithDisadvantage,
   defensesOf,
   effectiveConditions,
@@ -604,6 +605,71 @@ export function applyConditionTo(
  * ordinary case: the condition then lasts as long as the casting, on the
  * casting's own timer.
  */
+/**
+ * Whether the moment a Reaction spell answers has actually arrived.
+ *
+ * SRD writes a Reaction's casting time as a clause, and the clause is a rule:
+ * "Reaction, which you take **when you are hit by an attack roll**". The
+ * engine has spent the Reaction correctly since the action economy landed and
+ * checked nothing about the moment, so a Shield cast in an empty corridor cost
+ * the same slot and the same Reaction as one cast into a swinging sword.
+ *
+ * The window is the held attack — `pendingAttack`, which exists because a
+ * Divine Smite had to land between an attack's two rolls, and which is exactly
+ * the state Shield needs: a hit that is known and not yet settled.
+ */
+function triggerHasArrived(
+  state: GameState,
+  casterId: CharacterId,
+  trigger: ReactionTrigger,
+): boolean {
+  switch (trigger) {
+    case 'hit-by-attack': {
+      const held = state.pendingAttack;
+      return held !== null && held.target === casterId;
+    }
+  }
+}
+
+/**
+ * SRD Shield: "+5 bonus to AC, **including against the triggering attack**."
+ *
+ * The hit is re-measured against what the Armour Class has just become. Two
+ * details decide it, and both are in the SRD rather than in anybody's
+ * judgement — which is the reason this is the engine's to do at all:
+ *
+ * - **The delta is applied to the number the attack was actually measured
+ *   against**, not to a freshly computed Armour Class. `targetAc` already has
+ *   this attacker's cover folded into it, and recomputing would quietly drop
+ *   it — the barrier would cancel the pillar.
+ * - **A natural 20 hits regardless.** SRD: a 20 "hits regardless of any
+ *   modifiers or the target's AC", so no bonus turns one aside.
+ *
+ * Closing the hold is the existing `attack-damage-dealt`, which is what a hold
+ * closing means — `settleHoldsInvolving` already uses it for an attack whose
+ * damage is never rolled. No damage events go with it, and the Shield sitting
+ * in the log immediately before says why.
+ */
+function deflectTriggeringAttack(
+  before: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  events: readonly GameEvent[],
+): readonly GameEvent[] {
+  if (definition.trigger !== 'hit-by-attack') return [];
+
+  const after = events.reduce(applyEvent, before);
+  const held = after.pendingAttack;
+  if (held === null || held.target !== casterId) return [];
+
+  if (held.natural === 20) return [];
+
+  const raised = held.targetAc + (armorClassOf(after, casterId) - armorClassOf(before, casterId));
+  if (held.total >= raised) return [];
+
+  return [{ type: 'attack-damage-dealt', attacker: held.attacker }];
+}
+
 function riderDuration(
   lasts: RiderDuration | undefined,
   casterId: CharacterId,
@@ -1973,7 +2039,7 @@ export function resolveAttack(
 
   const attack = rollAttack(supply.issuer, supply.rng, attacker.sheet, {
     weapon,
-    targetAc: armorClass(victim.sheet) + coverAcBonus(cover),
+    targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
     proficient: proficientWith(attacker.sheet, weapon),
     ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
     ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
@@ -2041,6 +2107,8 @@ export function resolveAttack(
         critical: attack.value.critical,
         ability: attack.value.ability,
         targetAc: attack.value.targetAc,
+        total: attack.value.total,
+        natural: attack.value.roll.natural,
       },
     });
     return ok({ events, attack: attack.value, unverified, duplicate: false });
@@ -4035,6 +4103,28 @@ function castOrRelease(
     );
   }
 
+  // Before anything is spent, and before a die is thrown. A Reaction is a
+  // whole action-economy slot and usually a spell slot too, and handing both
+  // over for a moment that never came is the expensive kind of wrong. A
+  // released readied spell is exempt: its trigger was declared and paid for
+  // when it was readied, and this is the release.
+  //
+  // **After the duplicate check, never before it.** The first Shield closed
+  // the very attack that triggered it, so by the time a retry arrives the
+  // trigger is gone — and reporting `no_trigger` for a casting that already
+  // happened is the exact confusion command ids exist to prevent. A retry must
+  // report the duplicate; `resolveCast` below returns the empty batch.
+  const replayed = request.commandId !== undefined && wasCommandApplied(state, request.commandId);
+
+  if (held === null && !replayed && definition.trigger !== undefined) {
+    if (!triggerHasArrived(state, casterId, definition.trigger)) {
+      return err(
+        'no_trigger',
+        `${definition.name} is a Reaction taken when you are hit by an attack roll, and no attack on ${casterId} is waiting to be settled`,
+      );
+    }
+  }
+
   // SRD gives "until the end of your next turn" no meaning where there are no
   // turns, and `resolveDuration` refuses rather than inventing six seconds.
   // Asked here, before the slot and before the first die: the same
@@ -4550,9 +4640,15 @@ function resolveOnTargets(
         }),
     route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
     ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
-    ...(definition.durationSeconds === undefined
-      ? {}
-      : { duration: { kind: 'seconds' as const, seconds: definition.durationSeconds } }),
+    // A span of seconds, or a moment in the turn order. A definition carries
+    // one or the other: Shield's "until the start of your next turn" is not
+    // six seconds, and `resolveDuration` refuses to pretend otherwise where
+    // there are no turns to anchor to.
+    ...(definition.durationSeconds !== undefined
+      ? { duration: { kind: 'seconds' as const, seconds: definition.durationSeconds } }
+      : definition.durationUntil === undefined
+        ? {}
+        : { duration: riderDuration(definition.durationUntil, casterId)! }),
     ...(request.commandId === undefined ? {} : { commandId: request.commandId }),
   });
   if (!cast.ok) return cast;
@@ -4562,7 +4658,7 @@ function resolveOnTargets(
   }
   events.push(...cast.value);
 
-  return resolveEffects(state, casterId, caster, definition, {
+  const resolved = resolveEffects(state, casterId, caster, definition, {
     castLevel,
     route,
     targets,
@@ -4571,6 +4667,14 @@ function resolveOnTargets(
     castingId,
     events,
   });
+  if (!resolved.ok) return resolved;
+
+  // The spell has landed; now the attack it answered is re-measured against
+  // what it did. Nothing for any spell that is not a Reaction to a hit.
+  const deflected = deflectTriggeringAttack(state, casterId, definition, resolved.value.events);
+  if (deflected.length === 0) return resolved;
+
+  return ok({ ...resolved.value, events: [...resolved.value.events, ...deflected] });
 }
 
 /**
@@ -4664,7 +4768,7 @@ function resolveEffects(
       if (effect.kind === 'attack') {
         const attack = rollAttack(supply.issuer, supply.rng, caster.sheet, {
           weapon: null,
-          targetAc: armorClass(victim.sheet),
+          targetAc: armorClassOf(current, target),
           attackBonuses: [
             { source: `${definition.name} (spell attack)`, flat: attackModifier },
             // Bless is on the caster, not in the caller's head.
@@ -4710,7 +4814,7 @@ function resolveEffects(
           caster.sheet,
           {
             weapon: null,
-            targetAc: armorClass(victim.sheet),
+            targetAc: armorClassOf(current, target),
             extraDamage: [{ source: definition.name, type: effect.damageType, dice }],
           },
           attack.value.critical,

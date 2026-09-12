@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 14 (4.1%) | 68 (20.1%) | 45 (13.3%) |
+| 339 | 14 (4.1%) | 70 (20.6%) | 45 (13.3%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -37,7 +37,7 @@ spell, and the area is the part that is missing.
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
 | Area of effect | 73 | 0 | 23 | — |
-| Reaction timing | 4 | 0 | 0 | an interrupt mechanism that can order a cast against its trigger |
+| Reaction timing | 4 | 0 | 1 | three different things: damage that records who dealt it, a casting held open, and falling |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 0 | an effect that a later turn can act through |
 | Spell attack roll | 16 | 0 | 10 | — |
@@ -45,7 +45,7 @@ spell, and the area is the part that is missing.
 | Saving throw for a condition | 43 | 0 | 16 | — |
 | Restores Hit Points | 4 | 0 | 3 | — |
 | Temporary Hit Points | 3 | 0 | 1 | — |
-| A bonus to later rolls | 5 | 0 | 0 | — |
+| A bonus to later rolls | 5 | 0 | 1 | — |
 | Narrative or exploration effect | 91 | 13 | 2 | nothing — the effect is the DM’s, and the cost is tracked |
 
 ### Executed today
@@ -109,6 +109,8 @@ spell, and the area is the part that is missing.
 - **Ray of Sickness** (level 1) — verified
 - **Sacred Flame** (cantrip) — verified
 - **Shatter** (level 2) — verified
+- **Shield** (level 1) — untested
+- **Shield of Faith** (level 1) — untested
 - **Shocking Grasp** (cantrip) — verified
 - **Starry Wisp** (cantrip) — untested
 - **Suggestion** (level 2) — untested

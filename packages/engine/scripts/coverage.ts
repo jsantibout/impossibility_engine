@@ -343,7 +343,8 @@ function render(coverage: SpellCoverage): string {
   const BLOCKERS: Readonly<Record<string, string>> = {
     summon: 'creating a creature from a stat block mid-fight',
     area: '—',
-    reaction: 'an interrupt mechanism that can order a cast against its trigger',
+    reaction:
+      'three different things: damage that records who dealt it, a casting held open, and falling',
     'long-casting': 'a casting-in-progress state machine with a per-turn obligation',
     ongoing: 'an effect that a later turn can act through',
     attack: '—',
