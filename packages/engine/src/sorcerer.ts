@@ -156,8 +156,16 @@ export const SORCERER: ClassDefinition = {
       id: 'sorcerer:sorcerous-restoration',
       name: 'Sorcerous Restoration',
       level: 5,
-      automation: 'manual',
-      note: 'Regaining Sorcery Points on a Short Rest is not wired to the rest commands; the pool recharges on a Long Rest only.',
+      automation: 'engine',
+      note: 'SRD: "When you finish a Short Rest, you can regain expended Sorcery Points, but no more than a number equal to half your Sorcerer level (round down). Once you use this feature, you can’t do so again until you finish a Long Rest." The cap is derived at the moment of use, the moment is checked against the rest that just finished, and the daily limit is a pool of one.',
+      grants: {
+        kind: 'recovery',
+        pool: 'sorcerer:sorcerous-restoration',
+        poolLabel: 'Sorcerous Restoration',
+        restores: { kind: 'pool', key: 'sorcery-points' },
+        upTo: 'half-class-level',
+        moment: 'short-rest',
+      },
     },
     {
       id: 'sorcerer:sorcery-incarnate',

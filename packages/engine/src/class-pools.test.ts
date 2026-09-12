@@ -229,7 +229,15 @@ describe('a feature that claims a pool declares one', () => {
 
   it.each(
     everyFeature()
-      .filter((f) => /\bdeclared as a pool\b|\bare declared as a pool\b/i.test(f.note ?? ''))
+      // "is a pool" joined the two "declared as a pool" phrasings when the
+      // recovery features arrived, because that is how their notes say it.
+      // Deliberately not a bare "a pool": Instinctive Pounce's note says "Rage
+      // itself is only a pool", which is a claim about a *different* feature.
+      .filter((f) =>
+        /\bdeclared as a pool\b|\bare declared as a pool\b|\b(?:is|are) a pool\b/i.test(
+          f.note ?? '',
+        ),
+      )
       .map((f) => [f.id, f] as const),
   )('%s declares the pool its note claims', (_id, feature) => {
     const grant = feature.grants;
@@ -242,7 +250,10 @@ describe('a feature that claims a pool declares one', () => {
       // `boundaries.test.ts` spends.
       grant?.kind === 'pool' ||
       (grant?.kind === 'activated' && grant.pool !== null) ||
-      grant?.kind === 'spells';
+      grant?.kind === 'spells' ||
+      // And `recovery`, whose pool holds the one use the feature's own
+      // sentence allows it before a Long Rest.
+      grant?.kind === 'recovery';
     expect(declares).toBe(true);
   });
 

@@ -277,6 +277,33 @@ export type FeatureGrant =
       /** SRD: "you regain one expended use when you finish a Short Rest." */
       readonly regainsOnShortRest?: number;
     }
+  /**
+   * A feature that gives a *different* pool's uses back — see
+   * `RecoveryFeature` in `standing.ts`.
+   *
+   * Sorcerous Restoration and Magical Cunning, which are the same sentence
+   * with every number changed. The grant declares the pool holding the
+   * feature's own once-per-Long-Rest limit, because that limit *is* a pool of
+   * one and the engine already has pools.
+   */
+  | {
+      readonly kind: 'recovery';
+      /** The key of the pool holding this feature's own single daily use. */
+      readonly pool: string;
+      readonly poolLabel?: string;
+      /**
+       * The pool it refills.
+       *
+       * Pact Magic's key carries its slot level, which moves as the Warlock
+       * levels — so the feature cannot name it and creation resolves it. The
+       * two members are the two features, not a space of possibilities.
+       */
+      readonly restores:
+        | { readonly kind: 'pool'; readonly key: string }
+        | { readonly kind: 'pact-slots' };
+      readonly upTo: 'half-class-level' | 'half-pool-maximum';
+      readonly moment: 'short-rest' | 'declared';
+    }
   | {
       readonly kind: 'unarmored-defense';
       readonly ability: Ability;

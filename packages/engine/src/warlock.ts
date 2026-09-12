@@ -135,8 +135,16 @@ export const WARLOCK: ClassDefinition = {
       id: 'warlock:magical-cunning',
       name: 'Magical Cunning',
       level: 2,
-      automation: 'manual',
-      note: 'Regaining Pact Magic slots after a one-minute ritual, once per Long Rest, is not modelled; the pool recharges on a rest and nothing else refills it.',
+      automation: 'engine',
+      note: 'SRD: "you regain expended Pact Magic spell slots but no more than a number equal to half your maximum (round up). Once you use this feature, you can’t do so again until you finish a Long Rest." The slots are the engine’s and the once-a-day limit is a pool of one. The one-minute esoteric rite is the table’s: no state distinguishes a minute of ritual from a minute of walking, and performing a rite is not arithmetic.',
+      grants: {
+        kind: 'recovery',
+        pool: 'warlock:magical-cunning',
+        poolLabel: 'Magical Cunning',
+        restores: { kind: 'pact-slots' },
+        upTo: 'half-pool-maximum',
+        moment: 'declared',
+      },
     },
     {
       id: 'warlock:subclass',

@@ -15,6 +15,7 @@ import {
   declarePool,
   resize,
   resourceState,
+  restore,
   restoreOn,
   spend as spendResource,
   type PoolDeclaration,
@@ -126,6 +127,16 @@ export interface CreatureState {
   readonly resting: RestState | null;
   /** When their last Long Rest finished, for the sixteen-hour rule. */
   readonly lastLongRestAt: number | null;
+  /**
+   * When a rest that earned a **Short** Rest's benefits last finished.
+   *
+   * SRD Sorcerous Restoration happens "when you finish a Short Rest", and a
+   * moment is a fact rather than a mechanism — the same thing `lastDamage` is
+   * for Hellish Rebuke's "in response to". What is recorded is the benefit
+   * *earned*, so an interrupted Long Rest that collapsed into a Short one
+   * counts, which is what the SRD says it is.
+   */
+  readonly lastShortRestAt: number | null;
   /**
    * What this creature can actually cast, and by what route.
    *
@@ -791,6 +802,22 @@ export type GameEvent =
       readonly amount: number;
     }
   | { readonly type: 'resources-restored'; readonly id: CharacterId; readonly recovers: Recovery }
+  /**
+   * Uses given back to **one** pool, by something that is not a rest.
+   *
+   * `resources-restored` beside it refills every pool carrying a recovery tag
+   * and is what a rest emits; this names a single pool and an amount, which is
+   * what a feature like Sorcerous Restoration gives. The two are a letter
+   * apart in spelling and nothing alike in effect, so they are spelled
+   * differently on purpose.
+   */
+  | {
+      readonly type: 'resource-regained';
+      readonly id: CharacterId;
+      readonly key: string;
+      readonly amount: number;
+      readonly command?: CommandStamp;
+    }
   /**
    * A pool's maximum changing, which is what levelling up does to Hit Dice and
    * spell slots. What has already been spent stays spent.
@@ -2049,6 +2076,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             concentration: null,
             resting: null,
             lastLongRestAt: null,
+            lastShortRestAt: null,
             spellcasting: noSpellcasting(),
             creatureType: event.creatureType ?? null,
             defenses: event.defenses ?? {},
@@ -2195,6 +2223,12 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'resource-spent': {
       const creature = creatureOf(state, event, event.id);
       const resources = must(event, spendResource(creature.resources, event.key, event.amount));
+      return withCreature(next, event.id, { resources }, creature);
+    }
+
+    case 'resource-regained': {
+      const creature = creatureOf(state, event, event.id);
+      const resources = must(event, restore(creature.resources, event.key, event.amount));
       return withCreature(next, event.id, { resources }, creature);
     }
 
@@ -2500,6 +2534,10 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         {
           resting: null,
           ...(event.benefit === 'long' ? { lastLongRestAt: state.elapsed } : {}),
+          // SRD: an interrupted Long Rest of at least an hour "gains the
+          // benefits of a Short Rest", so what is recorded is what the rest
+          // earned rather than what it set out to be.
+          ...(event.benefit === 'short' ? { lastShortRestAt: state.elapsed } : {}),
         },
         creature,
       );

@@ -1,5 +1,5 @@
 import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shared';
-import type { ActivatedFeature, StandingEffect } from './standing.js';
+import type { ActivatedFeature, RecoveryFeature, StandingEffect } from './standing.js';
 import type { Armor } from '@ie/srd';
 
 /**
@@ -94,6 +94,15 @@ export interface CharacterSheet {
    * every event.
    */
   readonly activated?: readonly ActivatedFeature[];
+  /**
+   * Features that give another pool's uses back — Sorcerous Restoration,
+   * Magical Cunning.
+   *
+   * Resolved at creation beside `activated`, and for the same reason: what a
+   * feature refills is named by a class table, and Pact Magic's pool key
+   * carries a slot level that moves as the Warlock levels.
+   */
+  readonly recoveries?: readonly RecoveryFeature[];
   /**
    * How many attacks this character's Attack action holds. One, unless a
    * feature says otherwise.

@@ -45,6 +45,7 @@ import {
   takeOpportunityAttack,
   takeReady,
   unequipItem,
+  useRecovery,
 } from './commands.js';
 
 /**
@@ -239,6 +240,47 @@ const untyped = (): readonly GameEvent[] => [
   { type: 'creature-added', id: C, name: C, sheet: sheet(), maxHp: 20, diesAtZero: true, side: 'foes' },
 ];
 
+/**
+ * A creature with a feature that gives another pool's uses back, built by
+ * hand rather than from a class table — so the guard is tested on the
+ * mechanism rather than on the Sorcerer.
+ */
+const recovering = (): readonly GameEvent[] => [
+  ...SETUP,
+  {
+    type: 'creature-added',
+    id: C,
+    name: C,
+    sheet: sheet({
+      recoveries: [
+        {
+          feature: 'test:recovery',
+          name: 'A Second Wind Of Sorts',
+          pool: 'test:recovery',
+          restores: 'test:points',
+          upTo: 'half-class-level',
+          classLevel: 6,
+          moment: 'declared',
+        },
+      ],
+    }),
+    maxHp: 20,
+    diesAtZero: true,
+    side: 'foes',
+  },
+  {
+    type: 'resource-pool-declared',
+    id: C,
+    pool: { key: 'test:recovery', label: 'the feature', max: 1, recovers: 'long-rest' },
+  },
+  {
+    type: 'resource-pool-declared',
+    id: C,
+    pool: { key: 'test:points', label: 'points', max: 6, recovers: 'long-rest' },
+  },
+  { type: 'resource-spent', id: C, key: 'test:points', amount: 6 },
+];
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'damageCreature',
@@ -292,6 +334,11 @@ const GUARDED: readonly Guarded[] = [
       resolveCast(s, A, { spell: 'Inflict Wounds', level: 1, slotLevel: 1, commandId }),
   },
   { name: 'resolveTurn', log: SETUP, run: (s, commandId) => resolveTurn(s, supply(), { commandId }) },
+  {
+    name: 'useRecovery',
+    log: recovering(),
+    run: (s, commandId) => useRecovery(s, C, { feature: 'test:recovery', commandId }),
+  },
   { name: 'endFeature', log: stanced(), run: (s, commandId) => endFeature(s, A, { feature: 'test:stance', commandId }) },
   {
     name: 'extendFeature',

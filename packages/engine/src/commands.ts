@@ -72,6 +72,7 @@ import {
   effectiveConditions,
   checkFeatureDamageTypes,
   evadesHalfDamage,
+  recoveryCap,
   standingAttackDamage,
   standingInitiativeModes,
   standingSkillModes,
@@ -2743,6 +2744,93 @@ export function activateFeature(
   if (timer.value !== null) events.push(timer.value);
 
   return ok(events);
+}
+
+export interface UseRecoveryCommand extends CommandIdentity {
+  readonly feature: string;
+}
+
+/**
+ * Use a feature that gives another pool's uses back.
+ *
+ * SRD Sorcerous Restoration and Magical Cunning, which are the same sentence
+ * with every number changed. `restore()` in `resources.ts` has been written,
+ * correct and reached by no command since the day pools landed — the eighth
+ * time in this repo that a rule turned out to be a pure function nothing
+ * called.
+ *
+ * **How much comes back is derived, never supplied.** The command names a
+ * feature; the cap comes from the feature's own sentence, what is actually
+ * expended comes from the pool, and the smaller of the two is what is given.
+ * There is no field here for an amount, for the same reason there is none on
+ * an effect check for a result.
+ *
+ * **Nothing expended is a refusal, not a silent success.** "You regain
+ * expended Sorcery Points" has nothing to do when none are, and spending a
+ * once-a-day feature for nothing is the kind of quiet loss a player discovers
+ * two rooms later. A refusal costs neither the use nor anything else.
+ */
+export function useRecovery(
+  state: GameState,
+  id: CharacterId,
+  command: UseRecoveryCommand,
+): Result<GameEvent[]> {
+  const identity = identify(state, `recovery:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+
+  const definition = (creature.sheet.recoveries ?? []).find((r) => r.feature === command.feature);
+  if (definition === undefined) {
+    return err('no_such_feature', `${id} has no feature called ${command.feature}`);
+  }
+
+  // SRD Sorcerous Restoration happens "when you finish a Short Rest". The
+  // finest grain the engine has for "when" out of combat is the clock, which
+  // is the same window a Reaction to damage uses: the rest earned a Short
+  // Rest's benefits and nothing has happened since.
+  if (definition.moment === 'short-rest' && creature.lastShortRestAt !== state.elapsed) {
+    return err(
+      'not_the_moment',
+      `${definition.name} happens when a Short Rest finishes, and ${id} has not just finished one`,
+    );
+  }
+
+  if (remaining(creature.resources, definition.pool) < 1) {
+    return err('exhausted', `${id} has no uses of ${definition.name} left`);
+  }
+
+  const target = creature.resources.pools[definition.restores];
+  if (target === undefined) {
+    return err('unknown_pool', `${id} has no ${definition.restores} to regain`);
+  }
+  // One check, two causes, because a mutation proved they were two checks and
+  // one cause: a separate `spent === 0` guard above this one was unreachable,
+  // since nothing expended makes the amount zero and lands here anyway. Which
+  // cause it was still belongs in the message.
+  const amount = Math.min(recoveryCap(definition, target.max), target.spent);
+  if (amount < 1) {
+    return err(
+      'nothing_to_regain',
+      target.spent === 0
+        ? `${id} has spent no ${target.label}`
+        : `${definition.name} gives back nothing at level ${definition.classLevel}`,
+    );
+  }
+
+  return ok([
+    { type: 'resource-spent', id, key: definition.pool, amount: 1 },
+    {
+      type: 'resource-regained',
+      id,
+      key: definition.restores,
+      amount,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+  ]);
 }
 
 export interface EndFeatureCommand extends CommandIdentity {

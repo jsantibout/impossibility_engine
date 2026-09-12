@@ -15,7 +15,12 @@ import {
   type CharacterSheet,
   type UnarmoredDefense,
 } from './character.js';
-import type { ActivatedFeature, StandingEffect, StandingGrant } from './standing.js';
+import type {
+  ActivatedFeature,
+  RecoveryFeature,
+  StandingEffect,
+  StandingGrant,
+} from './standing.js';
 import { expandPack, goldToCopper, itemFor } from './catalogue.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
@@ -1820,6 +1825,45 @@ export function planCharacter(
     }
   }
 
+  // A feature that gives some *other* pool's uses back. The key it refills is
+  // resolved here rather than named by the feature, because Pact Magic's key
+  // carries a slot level that moves as the Warlock levels — the same reason
+  // Rage Damage's flat bonus is read at that class's own level rather than
+  // written into the grant.
+  const recoveries: RecoveryFeature[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'recovery') continue;
+
+    // A Warlock has Pact slots at exactly **one** level at a time: the table is
+    // written with zeros below, and `pactSlotsOf` keeps only the rows with a
+    // count. So there is one key, not a list to choose from — a mutation
+    // reversing a sort over it changed nothing, which is how the sort was
+    // found to be a line that could never matter. A character with no Pact
+    // slots is a grant that refills nothing, and is skipped rather than
+    // pointed at a pool that does not exist.
+    const pactLevels = Object.keys(slotsFor(choices).pact).map(Number);
+    const restores =
+      grant.restores.kind === 'pool'
+        ? grant.restores.key
+        : pactLevels.length === 1
+          ? pactSlotKey(pactLevels[0] ?? 0)
+          : undefined;
+    if (restores === undefined) continue;
+
+    recoveries.push({
+      feature: feature.id,
+      name: feature.name,
+      pool: grant.pool,
+      restores,
+      upTo: grant.upTo,
+      // "half your **Sorcerer** level" — that class's level, not the
+      // character's, so a Sorcerer 5 / Fighter 5 still gets two.
+      classLevel: classLevelFor(choices, feature.id),
+      moment: grant.moment,
+    });
+  }
+
   // SRD: the features "don't stack", so the most generous grant wins.
   const attacksPerAction = features.reduce(
     (most, feature) =>
@@ -1898,6 +1942,7 @@ export function planCharacter(
     ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
     ...(criticalOn < 20 ? { criticalOn } : {}),
     ...(activated.length === 0 ? {} : { activated }),
+    ...(recoveries.length === 0 ? {} : { recoveries }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every
@@ -2069,15 +2114,27 @@ function poolSizeOf(
   return grant.minimum ?? 1;
 }
 
+/**
+ * The level a feature's own class table is read at.
+ *
+ * *That class's* level and not the character's: a multiclassed Bard's
+ * inspiration does not grow with their Fighter levels, and a Sorcerer 5 /
+ * Fighter 5 gets back half of five rather than half of ten. A feature whose
+ * class is not one this character has falls back to the character level, which
+ * is the only reading available for a species or feat grant.
+ */
+function classLevelFor(choices: CharacterChoices, featureId: string): number {
+  const classId = featureId.split(':')[0] ?? '';
+  return classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
+}
+
 function usesOf(
   choices: CharacterChoices,
   featureId: string,
   usesByLevel: readonly number[] | undefined,
 ): number {
   if (usesByLevel === undefined) return 1;
-  const classId = featureId.split(':')[0] ?? '';
-  const level =
-    classLevelsOf(choices).find((entry) => entry.classId === classId)?.level ?? choices.level;
+  const level = classLevelFor(choices, featureId);
   return usesByLevel[Math.max(0, Math.min(level, usesByLevel.length) - 1)] ?? 0;
 }
 
@@ -2203,6 +2260,25 @@ function poolEvents(
         ...(grant.regainsOnShortRest === undefined
           ? {}
           : { regainsOnShortRest: grant.regainsOnShortRest }),
+      },
+    });
+  }
+
+  // A feature that gives another pool's uses back holds its own limit in a
+  // pool of one. "Once you use this feature, you can't do so again until you
+  // finish a Long Rest" is exactly what a pool already says, so it is one
+  // rather than a second kind of limit sitting beside them.
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'recovery') continue;
+    events.push({
+      type: 'resource-pool-declared',
+      id,
+      pool: {
+        key: grant.pool,
+        label: grant.poolLabel ?? feature.name,
+        max: 1,
+        recovers: 'long-rest',
       },
     });
   }

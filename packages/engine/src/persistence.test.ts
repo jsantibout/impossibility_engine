@@ -248,6 +248,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'readied-released',
   'resource-pool-declared',
   'resource-pool-resized',
+  'resource-regained',
   'resource-spent',
   'resources-restored',
   'rest-begun',

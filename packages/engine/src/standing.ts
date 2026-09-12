@@ -296,6 +296,79 @@ export interface ActivatedFeature {
   readonly forbidsCasting?: boolean;
 }
 
+/**
+ * A feature that gives a *different* pool's uses back, at a moment that is not
+ * a rest.
+ *
+ * Two features write this sentence — Sorcerous Restoration and Magical
+ * Cunning — and they agree on everything structural and differ on every
+ * number. Both spend one use of a pool of their own that only a Long Rest
+ * refills, both regain expended uses of some other pool, and both cap what
+ * comes back. What is not shared is the pool, the sizing, the rounding or the
+ * moment, so each of those is declared per feature from its own sentence —
+ * the rule `StandingRequirement` already follows.
+ *
+ * It is not `ActivatedFeature`: nothing is switched on, nothing runs for a
+ * duration, and there is nothing to switch off.
+ */
+export interface RecoveryFeature {
+  readonly feature: string;
+  readonly name: string;
+  /**
+   * The pool holding the feature's own limit.
+   *
+   * "Once you use this feature, you can't do so again until you finish a Long
+   * Rest" is a pool of one that recovers on a Long Rest, which is a thing the
+   * engine already has — so it is one, rather than a second kind of limit.
+   */
+  readonly pool: string;
+  /** The pool it gives uses back to. */
+  readonly restores: string;
+  /**
+   * How the cap is sized, transcribed from the feature's own sentence.
+   *
+   * Two members because two features, and each names a different number to
+   * halve *and* a different way to round it. Collapsing them would have made
+   * one of the two wrong, silently, in exactly the way `DiceScaling`'s
+   * per-slot notation was nearly made wrong by reading an increase off a base.
+   */
+  readonly upTo: 'half-class-level' | 'half-pool-maximum';
+  /** The level the sizing reads, which is *that class's*, not the character's. */
+  readonly classLevel: number;
+  /**
+   * The moment the feature's sentence names.
+   *
+   * `short-rest` is one the engine can see and therefore enforces. `declared`
+   * is one it cannot: Magical Cunning's "esoteric rite for 1 minute" is a
+   * minute of fiction, and no state distinguishes it from a minute of walking.
+   * That clause is the table's in the same way a disguise is — performing a
+   * rite is not arithmetic — and naming it here is what keeps it from being
+   * mistaken for a rule nobody built.
+   */
+  readonly moment: 'short-rest' | 'declared';
+}
+
+/**
+ * The most this feature can give back, before what is actually expended is
+ * taken into account.
+ *
+ * Derived at the moment of use rather than stored on the sheet, for the reason
+ * every conditional benefit in this file is: a pool's maximum can move, and a
+ * number written down at creation would go on being the old one.
+ */
+export function recoveryCap(feature: RecoveryFeature, poolMax: number): number {
+  switch (feature.upTo) {
+    // SRD Sorcerous Restoration: "no more than a number equal to half your
+    // Sorcerer level (round down)."
+    case 'half-class-level':
+      return Math.floor(feature.classLevel / 2);
+    // SRD Magical Cunning: "no more than a number equal to half your maximum
+    // (round up)."
+    case 'half-pool-maximum':
+      return Math.ceil(poolMax / 2);
+  }
+}
+
 /** A standing effect that is reaching a particular creature right now. */
 export interface ActiveStanding {
   readonly from: CharacterId;
