@@ -15,7 +15,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@ie/shared": "workspace:*",
-    "@ie/srd": "workspace:*"
+    "@ie/shared": "*",
+    "@ie/srd": "*"
   }
 }

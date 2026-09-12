@@ -9,7 +9,7 @@
  *
  * So the parser keeps failing loudly, and these overrides supply the correct
  * values. Every number below was read from the authority — the official
- * `SRD_CC_v5.2.1.pdf` (fetch with `pnpm run srd:fetch-reference`) — not
+ * `SRD_CC_v5.2.1.pdf` (fetch with `npm run srd:fetch-reference`) — not
  * reconstructed from the damaged markdown.
  *
  * Per `raw/PROVENANCE.md`, corrections live here rather than as hand-edits to

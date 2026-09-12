@@ -57,15 +57,24 @@ breaks on restart.
 ## Commands
 
 ```bash
-pnpm install
-pnpm test                 # Vitest, all packages
-pnpm test:watch
-pnpm test:coverage
-pnpm run typecheck        # tsc -b (build) + tsconfig.tests.json (tests)
-pnpm run lint             # ESLint 9 flat config
+npm install
+npm test                  # Vitest, all packages
+npm run test:watch
+npm run test:coverage
+npm run typecheck         # tsc -b (build) + tsconfig.tests.json (tests)
+npm run lint              # ESLint 9 flat config
 ```
 
 Postgres is not required until M3.
+
+**npm workspaces**, declared in the root `package.json`; a sibling package is
+depended on as `"*"`, which npm resolves to the workspace before the registry.
+
+npm gates install scripts, so `allowScripts` records the one decision taken:
+**esbuild's postinstall is denied**. It ships its platform binary as an
+optional dependency package, so the script is redundant here — vitest resolves
+and runs esbuild without it, and the whole suite passes. Left unrecorded, npm
+warns on every install and in CI.
 
 ## Architecture
 
@@ -1010,7 +1019,7 @@ caster's own**, which is why it is read off one rather than transcribed twice.
 
 Class *features* are a different matter from class *tables*: 46 of 230 are
 executed, and every one of the rest carries a note saying what a DM still does.
-`pnpm run coverage` counts them, because a project that does not count them
+`npm run coverage` counts them, because a project that does not count them
 will believe it has twelve working classes when it has twelve validated ones.
 The recurring blockers, each wanted by several classes:
 

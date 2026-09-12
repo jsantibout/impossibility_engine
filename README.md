@@ -70,7 +70,7 @@ level 1–20 table. Creation and advancement are validated against the book:
 ability scores, skills, feats, languages, equipment and spells. Class
 *features* are a different matter — 46 of 230 are executed by the engine and
 every one of the rest carries a note saying what a DM still has to do. Run
-`pnpm run coverage` for the current numbers.
+`npm run coverage` for the current numbers.
 
 **Not built yet**: feat execution, multiclassing, the tool
 surface Claude would call, the DM orchestration, persistence, and the web app.
@@ -86,8 +86,8 @@ open.
 ## Getting started
 
 ```bash
-pnpm install
-pnpm test
+npm install
+npm test
 ```
 
 Requires Node 22+. Postgres is not needed until persistence lands.
@@ -95,9 +95,9 @@ Requires Node 22+. Postgres is not needed until persistence lands.
 Other commands:
 
 ```bash
-pnpm run typecheck      # tsc for sources and tests
-pnpm run lint           # ESLint 9
-pnpm run srd:ingest     # re-parse the vendored SRD and write JSON
+npm run typecheck      # tsc for sources and tests
+npm run lint           # ESLint 9
+npm run srd:ingest     # re-parse the vendored SRD and write JSON
 ```
 
 `srd:ingest` asserts counts rather than only the absence of errors — a parser

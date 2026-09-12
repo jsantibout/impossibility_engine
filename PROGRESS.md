@@ -25,7 +25,7 @@ still Wizard-shaped are named below.
 | Equipment | Catalogue by id, packs opened, purchases, equip/unequip → AC | `f7e66c9` |
 | Equipment state | Sheet armour derived from `equipped`; advancement keeps it | `c19691c` |
 | Spell effects | `heal` and `save-damage`; defences in state; auto Concentration saves | `a4d5645` |
-| Coverage | `pnpm run coverage` → `COVERAGE.md`; definitions asserted against the book | `839e858` |
+| Coverage | `npm run coverage` → `COVERAGE.md`; definitions asserted against the book | `839e858` |
 | Areas | `resolveSpell` resolves targets from geometry; 4 area spells | `ab54bb0` |
 | Spell batch | 21 spells into the existing shapes; `unmodelled` reported at runtime | `534c03a` |
 | Buffs + temp HP | `buff` and `temp-hp` effects; bonuses live on the creature | `e127590` |
@@ -590,7 +590,7 @@ What remains in the class system, in likely order:
 
 ## Where the numbers stand
 
-Run `pnpm run coverage`; these were true at the last commit.
+Run `npm run coverage`; these were true at the last commit.
 
 | | |
 |---|---|
@@ -610,10 +610,10 @@ every unexecuted feature carries a note saying what a DM still does.
 ## How to resume
 
 ```bash
-pnpm run coverage   # regenerates COVERAGE.md; the numbers are the truth
-pnpm test
-pnpm run typecheck
-pnpm run lint
+npm run coverage   # regenerates COVERAGE.md; the numbers are the truth
+npm test
+npm run typecheck
+npm run lint
 ```
 
 Then pick the top unfinished item in "Next actions". Work in one coherent
