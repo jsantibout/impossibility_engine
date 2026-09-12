@@ -57,6 +57,7 @@ import {
   type RiderDuration,
   type SpellArea,
   type SpellDefinition,
+  type SpellEffect,
   type ReactionTrigger,
   type SpellRange,
 } from './spell-definitions.js';
@@ -5178,58 +5179,75 @@ function resolveEffects(
       // front, because the attack it rides on is not this command's to give.
       if (effect.kind === 'attack-damage') continue;
 
-      // A saving throw, and a condition on a failure.
-      const support = savingSupport(current, target, victim, effect.ability, supply);
-      const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
-        dc: saveDc,
-        conditions: support.conditions,
-        modes: support.modes,
-        bonuses: support.bonuses,
-      });
-      if (!save.ok) return save;
+      if (effect.kind === 'save') {
+        // A saving throw, and a condition on a failure.
+        const support = savingSupport(current, target, victim, effect.ability, supply);
+        const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+          dc: saveDc,
+          conditions: support.conditions,
+          modes: support.modes,
+          bonuses: support.bonuses,
+        });
+        if (!save.ok) return save;
 
-      events.push(
-        recordD20Test(
+        events.push(
+          recordD20Test(
+            target,
+            `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+            save.value,
+            save.value.success ? 'resisted' : 'affected',
+          ),
+        );
+
+        if (save.value.success) {
+          outcomes.push({ target, save: save.value, affected: false });
+          continue;
+        }
+
+        const landed = applySpellEffect(current, target, effect.condition, casterId, {
+          casting: { castingId, spell: definition.name },
+          ...(riderDuration(effect.lasts, casterId) === undefined
+            ? {}
+            : { duration: riderDuration(effect.lasts, casterId)! }),
+          ...(effect.repeats === undefined
+            ? {}
+            : {
+                repeatSave: {
+                  at: effect.repeats.at,
+                  of: target,
+                  ability: effect.ability,
+                  dc: saveDc,
+                  onSuccess: effect.repeats.onSuccess,
+                  label: `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+                },
+              }),
+        });
+        if (!landed.ok) return landed;
+
+        events.push(...landed.value);
+        current = landed.value.reduce(applyEvent, current);
+        outcomes.push({
           target,
-          `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
-          save.value,
-          save.value.success ? 'resisted' : 'affected',
-        ),
-      );
-
-      if (save.value.success) {
-        outcomes.push({ target, save: save.value, affected: false });
+          save: save.value,
+          condition: effect.condition,
+          affected: true,
+        });
         continue;
       }
 
-      const landed = applySpellEffect(current, target, effect.condition, casterId, {
-        casting: { castingId, spell: definition.name },
-        ...(riderDuration(effect.lasts, casterId) === undefined
-          ? {}
-          : { duration: riderDuration(effect.lasts, casterId)! }),
-        ...(effect.repeats === undefined
-          ? {}
-          : {
-              repeatSave: {
-                at: effect.repeats.at,
-                of: target,
-                ability: effect.ability,
-                dc: saveDc,
-                onSuccess: effect.repeats.onSuccess,
-                label: `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
-              },
-            }),
-      });
-      if (!landed.ok) return landed;
-
-      events.push(...landed.value);
-      current = landed.value.reduce(applyEvent, current);
-      outcomes.push({
-        target,
-        save: save.value,
-        condition: effect.condition,
-        affected: true,
-      });
+      // Seven kinds, seven branches, and the `never` binding is what keeps
+      // that true. Until now the last kind was an unguarded fall-through, so
+      // an effect this chain had no rule for was read as a saving throw: it
+      // took `effect.ability` off a definition that has none and rolled
+      // against a DC of NaN. A definition and its resolver disagreeing is a
+      // bug in this repo rather than a rules dispute, so it is loud — and,
+      // more to the point, a merge that drops one of these branches now
+      // fails to compile instead of failing in a fight.
+      const unhandled: never = effect;
+      throw new Error(
+        `no spell-effect rule for ${(unhandled as SpellEffect).kind}; ` +
+          'the definition and the resolver disagree',
+      );
     }
   }
 
