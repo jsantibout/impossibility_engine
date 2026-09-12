@@ -88,7 +88,7 @@ still Wizard-shaped are named below.
 | Recovery + heal | Uncanny Metabolism, which the two batches above had already built | `1c1e900` |
 | Healing touch | A pool of hit points spent by touching somebody; Lay On Hands, Restoring Touch | `ec14f10` |
 | Reaction windows | Five named instants shared by spells and features; 8 class Reactions | `e66c2f8` |
-| Ongoing spells | A live record of a casting that is still running; Dispel Magic, later-turn use, replacement | *(this batch)* |
+| Ongoing spells | A live record of a casting that is still running; Dispel Magic, later-turn use, replacement | `99b7c06` |
 
 ## Decisions that constrain what comes next
 
