@@ -89,6 +89,7 @@ still Wizard-shaped are named below.
 | Healing touch | A pool of hit points spent by touching somebody; Lay On Hands, Restoring Touch | `ec14f10` |
 | Reaction windows | Five named instants shared by spells and features; 8 class Reactions | `e66c2f8` |
 | Ongoing spells | A live record of a casting that is still running; Dispel Magic, later-turn use, replacement | `99b7c06` |
+| Architecture audit II | An offer is a (reactor, feature) pair; the Ready path’s record; activation guards; retry order; scheduled-damage cleanup | `f2512c7` |
 
 ## Decisions that constrain what comes next
 
