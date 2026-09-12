@@ -186,6 +186,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'sacred-flame',
   'shatter',
   'shocking-grasp',
+  'spiritual-weapon',
   'thunderwave',
   'vampiric-touch',
   'vicious-mockery',

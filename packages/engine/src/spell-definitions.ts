@@ -463,6 +463,54 @@ export const DIRECTIONAL_AREAS: ReadonlySet<SpellArea['kind']> = new Set([
   'line',
 ]);
 
+/**
+ * A point in the scene that the casting keeps, and measures from.
+ *
+ * SRD Spiritual Weapon: "The force appears within range **in a space of your
+ * choice**, and you can immediately make one melee spell attack against one
+ * creature **within 5 feet of the force**. ... As a Bonus Action on your later
+ * turns, you can **move the force up to 20 feet** and repeat the attack
+ * against a creature within 5 feet of it."
+ *
+ * Three numbers in that paragraph and only two are here. The **60 feet** is
+ * the spell's printed Range and lives in `range`, because it governs where the
+ * casting may reach to put the point down — the same 60 feet an area spell
+ * reaches to centre a Sphere. The other two are about the point itself.
+ *
+ * **A point is a point until a mechanic proves it is more.** Nothing here is
+ * an object, an entity or a record with properties: a casting either holds a
+ * point or does not, and what that point *is* in the fiction — a spectral
+ * mace, a storm cloud, a mass of webbing — is narration.
+ *
+ * The two SRD families this covers share the storage and not the commands:
+ *
+ * | | Spells | Field |
+ * |---|---|---|
+ * | Chosen once and kept | Call Lightning's cloud, Web's cube | `movableBy` absent |
+ * | Steered on a later turn | Spiritual Weapon, Flaming Sphere, Arcane Eye | `movableBy` in feet |
+ *
+ * A fixed origin gets no move command rather than a move command it refuses,
+ * which is why the allowance is the field and not a boolean beside one.
+ */
+export interface CastingOrigin {
+  /**
+   * How far from the point the spell's own targeting reaches, in feet.
+   *
+   * "one creature within 5 feet of the force" — measured from the force, both
+   * on the casting turn and on every later one, which is the whole reason this
+   * lives here rather than on the activation. `SpellActivation.range` is the
+   * caster-measured version and a definition has one or the other.
+   */
+  readonly reach: number;
+  /**
+   * How far the caster may move it on a later activation, in feet.
+   *
+   * Absent for an origin the SRD never moves. Do not add a number because a
+   * spell has a point: Web's 20-foot Cube stays exactly where it was conjured.
+   */
+  readonly movableBy?: number;
+}
+
 /** Who a spell may be aimed at, and how many. */
 export interface TargetRule {
   readonly count: number;
@@ -492,6 +540,18 @@ export interface TargetRule {
    * "aims at nobody".
    */
   readonly unlimited?: boolean;
+  /**
+   * SRD "you **can** ... make one melee spell attack": naming nobody is legal.
+   *
+   * Spiritual Weapon's force appears whether or not there is anything beside
+   * it to hit, and the same sentence governs every later turn. Without this
+   * the engine refuses the opening move of the spell — putting the weapon up
+   * before anyone is in reach — on a rule the SRD does not have.
+   *
+   * Different from `unlimited`, which says the *count* is unstated. This says
+   * the target list may be empty.
+   */
+  readonly optional?: true;
 }
 
 export interface SpellDefinition {
@@ -533,6 +593,16 @@ export interface SpellDefinition {
    * says the geometry bounds a choice.
    */
   readonly targetsWithin?: SpellArea;
+  /**
+   * A point in the scene this casting keeps — see {@link CastingOrigin}.
+   *
+   * The caller chooses the space (`at`), the engine checks it against `range`
+   * and the scene, and everything the spell does afterwards is measured from
+   * it rather than from the caster. A casting with an origin is therefore on
+   * **nobody**: the force is not on the creature it hit, and a Dispel Magic
+   * aimed at that creature must not put it out.
+   */
+  readonly origin?: CastingOrigin;
   /**
    * What the engine does when the spell resolves.
    *
@@ -611,11 +681,11 @@ export interface SpellDefinition {
    * with the level the casting was made at and the route that supplied it, so
    * a wizard who levels mid-fight does not upgrade a spell already in the air.
    *
-   * One target, because both spells that write this take one — "targeting the
-   * same creature or a different one". The family that takes more is the one
-   * whose spell created a *thing* with a position of its own (Spiritual
-   * Weapon's force, Flaming Sphere, Mage Hand), and every one of those is
-   * blocked on geometry rather than on a count.
+   * One target, because every spell that writes this takes one — "targeting
+   * the same creature or a different one", "repeat the attack against a
+   * creature within 5 feet of it". A casting that holds an `origin` measures
+   * that one target from the point rather than from the caster, and may also
+   * move the point in the same action; nothing else about the shape changes.
    */
   readonly activation?: SpellActivation;
   /**
@@ -633,8 +703,15 @@ export interface SpellDefinition {
 export interface SpellActivation {
   /** SRD writes "a Magic action" or "a Bonus Action"; both appear. */
   readonly action: 'action' | 'bonus-action';
-  /** Checked afresh each time: the force is where it is *now*. */
-  readonly range: SpellRange;
+  /**
+   * How far the **caster** reaches, checked afresh each time.
+   *
+   * Absent when the casting holds an origin: the reach is then measured from
+   * that point and `CastingOrigin.reach` is the number. A definition has one or
+   * the other and never both — two fields saying five feet would be two places
+   * to get one sentence wrong, and `spell-catalogue.test.ts` pins it.
+   */
+  readonly range?: SpellRange;
   /** How the log reads: "Vampiric Touch (again)". */
   readonly label: string;
   /** What it does, run with the level and route pinned at the casting. */
@@ -4125,6 +4202,83 @@ export const SPEAK_WITH_DEAD: SpellDefinition = {
  * > "You touch a stone object of Medium size or smaller or a section of stone
  * > no more than 5 feet in any dimension and form it into any shape you like."
  */
+/**
+ * SRD Spiritual Weapon:
+ *
+ * > _Level 2 Evocation (Cleric)._ **Casting Time:** Bonus Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You create a floating, spectral force that resembles a weapon of your
+ * > choice and lasts for the duration. The force appears within range in a
+ * > space of your choice, and you can immediately make one melee spell attack
+ * > against one creature within 5 feet of the force. On a hit, the target takes
+ * > Force damage equal to 1d8 plus your spellcasting ability modifier.
+ * >
+ * > As a Bonus Action on your later turns, you can move the force up to 20 feet
+ * > and repeat the attack against a creature within 5 feet of it."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for every
+ * > slot level above 2."
+ *
+ * **The spell that proves a casting can hold a point**, and the one worth
+ * reading for what it does *not* say. Nothing here gives the force an Armour
+ * Class, Hit Points, a space it occupies, an action of its own, or a name
+ * anything else could address. Unseen Servant and Arcane Hand print every one
+ * of those in the same book; this prints none, so the force is a coordinate on
+ * the casting rather than a creature, an object or a world entity.
+ *
+ * Three numbers, three homes, and they are not interchangeable:
+ *
+ * | SRD | Here | Measured from |
+ * |---|---|---|
+ * | "within range in a space of your choice" | `range` | the caster |
+ * | "one creature within 5 feet of the force" | `origin.reach` | the force |
+ * | "move the force up to 20 feet" | `origin.movableBy` | the force, now |
+ *
+ * **2024 gives this spell Concentration**, which 2014 did not. The whole point
+ * of quoting the text is that the difference is not recalled.
+ */
+export const SPIRITUAL_WEAPON: SpellDefinition = {
+  id: 'spiritual-weapon',
+  name: 'Spiritual Weapon',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'bonus-action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  // "you **can** immediately make one melee spell attack": the force appears
+  // whether or not there is anything standing next to it.
+  targets: { count: 1, optional: true },
+  origin: { reach: 5, movableBy: 20 },
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'melee',
+      damage: { dice: '1d8', perSlotLevelAbove: '1d8' },
+      damageType: 'force',
+      addSpellcastingModifier: true,
+    },
+  ],
+  durationSeconds: 60,
+  activation: {
+    action: 'bonus-action',
+    // No `range`: the five feet are measured from the force, and `origin.reach`
+    // is where that number lives. Two fields saying five would be two places to
+    // get one sentence wrong.
+    label: 'Spiritual Weapon (again)',
+    effects: [
+      {
+        kind: 'attack',
+        attack: 'melee',
+        damage: { dice: '1d8', perSlotLevelAbove: '1d8' },
+        damageType: 'force',
+        addSpellcastingModifier: true,
+      },
+    ],
+  },
+  unmodelled: [
+    'what the force looks like — "a weapon of your choice" — is narration, and nothing mechanical reads it',
+  ],
+};
+
 export const STONE_SHAPE: SpellDefinition = {
   id: 'stone-shape',
   name: 'Stone Shape',
@@ -4790,6 +4944,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SPEAK_WITH_ANIMALS,
   SPEAK_WITH_DEAD,
   SPIDER_CLIMB,
+  SPIRITUAL_WEAPON,
   STARRY_WISP,
   STONE_SHAPE,
   SUGGESTION,

@@ -234,11 +234,17 @@ const castAt = (
     const targets = aimsAtNobody ? [] : [TARGET];
     // A bounded target list takes both halves: the names, and the point whose
     // area bounds them. Centred on the caster, who has everyone in reach.
-    const bounded = definition.targetsWithin !== undefined ? { at } : {};
+    //
+    // A casting that holds an `origin` takes a point for a different reason —
+    // it is what the spell then measures from, not a bound on a choice — but
+    // the same square serves: the caster's own is five feet from TARGET, which
+    // is the reach Spiritual Weapon's force has.
+    const placed =
+      definition.targetsWithin !== undefined || definition.origin !== undefined ? { at } : {};
     return resolveSpell(
       state,
       CASTER,
-      { spellId, targets, ...bounded, ...(slotLevel === undefined ? {} : { slotLevel }) },
+      { spellId, targets, ...placed, ...(slotLevel === undefined ? {} : { slotLevel }) },
       supply(seed, bonus),
     );
   }

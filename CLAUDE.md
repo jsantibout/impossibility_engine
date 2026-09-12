@@ -953,10 +953,12 @@ One casting can affect several creatures — Hold Person at level 3 holds two �
 and each is released independently. But each is addressed as *(casting,
 creature)*, which the engine has done since the repeat save. The only SRD
 spells that make several independently addressable *things* from one casting
-are the ones that give those things **positions**: Dancing Lights' four lights,
-Mage Hand's hand, Spiritual Weapon's force. Every one of those is blocked on
-geometry, not on identity — so a second level of identity would have been a
-structure invented ahead of any mechanic that needed it.
+are the ones that give those things **positions** — and a position turned out
+not to need an identity either: see "A Casting Can Hold A Point", where the
+force is a field on the casting and is addressed as the casting. The one spell
+that genuinely makes *several* placed things is Dancing Lights, which is
+blocked on light being modelled at all, so a second level of identity would
+still be a structure invented ahead of any mechanic that needed it.
 
 ### Range decides what a spell is *on*; the target list does not
 
@@ -1054,12 +1056,148 @@ position**:
 | | Spells | Status |
 |---|---|---|
 | A permission the caster exercises | Vampiric Touch, Flame Blade, Expeditious Retreat, Gust of Wind, Telekinesis, Detect Thoughts | the shape built here |
-| A thing with a position of its own | Spiritual Weapon, Flaming Sphere, Mage Hand's hand, Dancing Lights, Arcane Eye, Arcane Hand, Unseen Servant, Silent Image, Mislead, Project Image, Call Lightning's cloud | blocked on a spell-created thing having a position |
+| A permission exercised **from a point** | Spiritual Weapon | see "A Casting Can Hold A Point" below |
+| A thing with statistics | Unseen Servant, Arcane Hand, Project Image | the **summons** seam |
+| A point whose effect needs a trigger the engine lacks | Flaming Sphere, Call Lightning's cloud, Dancing Lights, Arcane Eye, Mage Hand's hand, Silent Image, Mislead | named, spell by spell, below |
 
-The second column is the doctrine's own "non-creature persistent world objects"
-seam, and this primitive was built so it does not pretend that seam is closed:
-nothing here has coordinates, and a spell that needs them stays blocked rather
-than being half-served.
+The second row was the doctrine's own "non-creature persistent world objects"
+seam and is now open. The third and fourth are not, and the split between them
+is the thing that batch settled: **what the SRD prints decides it, not what the
+spell looks like.**
+
+## A Casting Can Hold A Point
+
+`OngoingSpell` gained one optional field, `origin: Point`, and that is the
+whole of the spatial primitive. No entity, no object record, no second
+identity, nothing in the scene's `positions` table.
+
+**Spiritual Weapon is the adversarial case, and it argues against itself.** It
+is the spell most obviously "a thing" — a floating spectral weapon that moves
+about the battlefield and hits people — so if anything in the SRD justified a
+world object, it would. Read against the two spells in the same book that
+*are* objects, it prints none of what they print:
+
+| | Spiritual Weapon | Unseen Servant / Arcane Hand |
+|---|---|---|
+| Armour Class, Hit Points | none | "AC 10, 1 Hit Point"; "AC 20 and Hit Points equal to your Hit Point maximum" |
+| Can be attacked | nothing addresses it | dropping to 0 Hit Points ends the spell |
+| Occupies its space | nothing says so | Arcane Hand says explicitly that it does **not**, which is a rule only an occupant needs |
+| Acts | the caster spends a Bonus Action | commanded, with a Strength score of its own |
+| Moved by anyone else | no | no |
+
+So: **a point is a point until a mechanic proves it needs to be more.** Giving
+the force a creature record would have been inventing an Armour Class the book
+declines to print, and every spell that hits it would then have been the
+engine answering a question the SRD asked nobody.
+
+**Three numbers, three homes, and they are not interchangeable.**
+
+| SRD | Field | Measured from |
+|---|---|---|
+| "appears within range in a space of your choice" | `range` | the caster |
+| "one creature within 5 feet of the force" | `origin.reach` | the point |
+| "move the force up to 20 feet" | `origin.movableBy` | the point, **now** |
+
+The third is why the allowance lives on the definition rather than a boolean
+beside it: a fixed origin — Web's Cube, Call Lightning's cloud — is the same
+storage with no `movableBy`, so **a fixed origin and a movable one share
+state without sharing commands.** Do not give a spell a movement allowance
+because it has a point.
+
+### Actor and spatial origin are two different things
+
+This is the seam the spell forced, and it is one optional argument wide.
+`resolveEffects` takes a `from?: Point`; the roller, the attack modifier, the
+dice and the level are all still the caster's, and only the *spatial* questions
+move — the reach, and the Prone rule that reads "within 5 feet of you".
+
+The two alternatives were both lies in state: moving the caster to the force
+(a teleport nothing narrated) or making the force a creature (an Armour Class
+nobody printed). Audited across the engine, nothing else needs the distinction
+yet — a weapon attack, a spell attack and an Opportunity Attack all originate
+at their attacker — so it is an argument rather than a concept.
+
+### Moving the point is not creature movement
+
+The two change coordinates and share nothing else. None of Speed, Difficult
+Terrain, Opportunity Attacks, occupancy, Prone-for-sharing, Grappled or
+Disengage applies, because the SRD applies none of them to the force. Routing
+the relocation through `moveCreature` to reuse the geometry would have imported
+every one of them silently, which is why `relocateOrigin` is its own eight-line
+function that reuses the *ruler* and nothing else.
+
+What the engine does own is exactly what the SRD prints: the allowance in feet
+measured from where the point is **now**, the scene's extent, and the identity
+of the casting being moved. The caller chooses the destination.
+
+**The move is part of the activation, not a command of its own.** Every SRD
+spell in this family spends one action to move and act — "move the force up to
+20 feet **and** repeat the attack", "you can control the hand thus again. As
+part of that action, you can move the hand up to 30 feet" — so a separate
+command would charge a second Bonus Action or charge none, and both are wrong.
+`ActivateSpellCommand.to` is optional because "up to 20 feet" includes none of
+them.
+
+### A casting that holds a point is on nobody
+
+`OngoingSpell.on` answers Dispel Magic's "any ongoing spell **on the target**",
+and the force is not on the goblin it hit. A Dispel Magic aimed at that goblin
+must not put the Cleric's weapon out, so the presence of an origin *is* the
+rule: the spell is on its point, and `on` is the empty list the record already
+supports for a spell that caught nobody.
+
+### What the SRD scene test had to be
+
+Two guards looked tested and were not, and the reason is worth keeping: in a
+600-foot hall, **every space past the wall is also past sixty feet**, so the
+range check answers first and a missing scene check hides behind it
+permanently. The discriminating fixture is a room barely wider than the spell
+reaches. Same lesson as the multiclass fixture and the Rogue who resisted
+nothing: a guard needs a case where it is the *only* thing that can refuse.
+
+### The point goes with the casting, through one door
+
+`releaseCasting` already removed the conditions, bonuses, timers and scheduled
+damage a casting created, and the record with them — so the origin needed no
+new cleanup at all. Concentration broken, the minute running out, a dispel, the
+caster leaving: all four converge there, and a test asserts the serialised
+state no longer mentions the casting id at all.
+
+**A new scene leaves the point where it was**, and that is a debt with a name
+rather than an accident. `scene-set` unplaces every creature and nothing can
+re-place a force — the only command that moves one moves it twenty feet.
+Dropping the point instead would be worse: a Spiritual Weapon with no point is
+a spell whose every reach check silently stops happening. So the coordinate
+stands, the reach comes back in `unverified`, and the real fix is the
+doctrine's multiple-scenes seam.
+
+### Which spells this reaches, and which it does not
+
+Thirty-nine SRD spells keep a place. **One is executable by this primitive
+today**, and the honest reason the rest are not is never "it needs a position":
+
+| Blocked on | Spells |
+|---|---|
+| A creature that ends its turn in an area | Flaming Sphere, Moonbeam, Spike Growth, Cloudkill, Stinking Cloud, Incendiary Cloud, Insect Plague |
+| A creature that **enters** an area | Web, Grease, Wind Wall, Spike Growth |
+| An activation that resolves an area at a point chosen now | Call Lightning, Storm of Vengeance |
+| A stat block created mid-fight | Unseen Servant, Arcane Hand, the four Conjures, Guardian of Faith, Faithful Hound, Phantom Steed, Summon Dragon, Giant Insect |
+| Walls and barriers as obstacles | Arcane Eye, Passwall, Wall of Stone, Prismatic Wall |
+| Light, which is not modelled | Dancing Lights, Daylight, Darkness |
+| A second location | Project Image, Secret Chest |
+
+**One origin per casting, and Dancing Lights is the reason that is a decision.**
+It is the only SRD spell that makes several independently placed things from
+one casting — four lights, each within 20 feet of another — and it is blocked
+on light being modelled at all, so plural storage would be a shape built ahead
+of any mechanic that could use it. Adding an index later is additive to the
+event and to the record; choosing plurality now would not be.
+
+**Call Lightning was audited as the candidate second user and rejected.** Its
+cloud is a fixed origin, which is exactly the evidence wanted — but its
+activation aims at a *point* and resolves an area there, which no activation
+does, and its "point you can see" and outdoor-storm damage bonus are facts the
+engine does not hold. It is a new shape, not a transcription.
 
 ### Two bugs this found in code that was already there
 
@@ -2799,9 +2937,11 @@ null and is reported — it never becomes either.
   "A Casting Is History; What It Left Behind Is State": Dispel Magic reads the
   level of what it is dispelling, Vampiric Touch and Flame Blade are used again
   on a later turn, and Mage Hand and Minor Illusion end their own previous
-  casting. Areas of effect, healing, saving throws for damage or a condition,
-  Temporary Hit Points, lasting bonuses and an interruptible casting all work;
-  summons, long casting times, a spell that created a **thing with a position**
-  — Spiritual Weapon, Flaming Sphere, Call Lightning's cloud — and a Reaction
-  that answers a fall do not.
+  casting. **A casting can hold a point** — see that section: Spiritual Weapon
+  appears in a space, strikes from it, and is moved twenty feet on a later
+  Bonus Action. Areas of effect, healing, saving throws for damage or a
+  condition, Temporary Hit Points, lasting bonuses and an interruptible casting
+  all work; summons, long casting times, an area that acts when a creature
+  enters or ends its turn in it, an activation that resolves an area at a point
+  chosen now, and a Reaction that answers a fall do not.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

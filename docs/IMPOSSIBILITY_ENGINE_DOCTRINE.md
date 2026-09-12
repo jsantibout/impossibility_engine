@@ -197,14 +197,23 @@ none is to be started on the strength of this section. Each names the seam
 that exists today, what would strain it, and the one decision worth not making
 wrongly in the meantime.
 
-**Non-creature persistent world objects.** Today the only persistent things
-are creatures and landmarks; a door, a chandelier, a lever exist in narration
-and are attacked or moved by being *declared* into a creature-shaped record. The
-seam is `ContextRequest.kind: 'creature'` — the request for "a thing with this
-id" — and `creature-added` as its provider. Do not widen `CreatureState` into a
+**Non-creature persistent world objects.** The persistent placed things are
+creatures, landmarks, and **a point an ongoing casting holds**; a door, a
+chandelier, a lever exist in narration and are attacked or moved by being
+*declared* into a creature-shaped record. The seam is
+`ContextRequest.kind: 'creature'` — the request for "a thing with this id" —
+and `creature-added` as its provider. Do not widen `CreatureState` into a
 property bag to accommodate objects; when a second concrete mechanic needs an
 object (a door with hit points *and* a lock DC is the likely first), give it
 its own precise record and its own request kind.
+
+Spiritual Weapon's force was the first thing to test that instruction and it
+answered by *not* needing an object at all: the SRD prints it no Armour Class,
+no Hit Points, no occupancy and no action of its own, so it is a `Point` on the
+casting rather than a record with an identity. The rule that generalises is
+**a point is a point until a mechanic proves it needs to be more** — and the
+mechanic that will prove it is the one that lets something attack the thing,
+which is the summons seam, not this one.
 
 **Multiple scenes / locations.** `state.scene` is a single `PositionState |
 null`. Every positional query takes the scene explicitly rather than reaching

@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '@ie/shared';
+import type { Point } from './positioning.js';
 
 /**
  * Casting: what a spell costs, who is concentrating on what, and which effects
@@ -103,14 +104,14 @@ export interface Concentration {
  * | `route` | the save DC and attack modifier a later activation rolls with |
  * | `on` | "on the target": which creatures this spell is currently affecting |
  * | `concentration` | whether losing Concentration is what ends it |
+ * | `origin` | "within 5 feet of the force": where a spell that holds a point is |
  *
  * **No second identity.** One casting can affect several creatures — Hold
  * Person at level 3 holds two — and each is released independently, but each
  * is addressed as *(casting, creature)*, which the engine has always done.
- * The only SRD spells that create several independently addressable *things*
- * from one casting are the ones that give those things positions (Dancing
- * Lights' four lights, Mage Hand's hand), and those are blocked on geometry
- * rather than on identity.
+ * The spells that create a *thing* with a position of its own do not need one
+ * either: SRD addresses that thing only through the caster's own action on
+ * this casting, so `origin` below is a field rather than an entity.
  *
  * **What is deliberately absent**: the slot, the casting time, the targets as
  * they were named, anything a narrator would like. Those are history, the log
@@ -152,6 +153,34 @@ export interface OngoingSpell {
    * rather than a creature.
    */
   readonly on: readonly string[];
+  /**
+   * Where this casting is, for a spell that holds a point in the scene.
+   *
+   * SRD Spiritual Weapon: "The force appears within range **in a space of your
+   * choice**", and every later sentence measures from it — "one creature
+   * within 5 feet of the force", "move the force up to 20 feet". Nothing else
+   * in the engine could answer where the force is: a creature's position is in
+   * the scene, and the force is not a creature.
+   *
+   * **It is a point, and the SRD is why it is only a point.** Read Spiritual
+   * Weapon against the two spells that look like it and print more:
+   *
+   * | | Spiritual Weapon | Unseen Servant / Arcane Hand |
+   * |---|---|---|
+   * | Armour Class, Hit Points | none printed | "AC 10, 1 Hit Point"; "AC 20 and Hit Points equal to your Hit Point maximum" |
+   * | Can be attacked | nothing addresses it | dropping to 0 Hit Points ends the spell |
+   * | Occupies its space | nothing says so | Arcane Hand says explicitly that it does *not*, because it otherwise would |
+   * | Acts | the caster spends a Bonus Action | the caster commands it, and it has a Strength score |
+   *
+   * So a creature record here would be inventing an Armour Class the book
+   * declines to print. The second column is the **summons** seam and waits
+   * there.
+   *
+   * Absent means this casting holds no point — which is most of them. Not
+   * null: "nobody has said where it is" is not a state a spell with an origin
+   * can be in, because the space is chosen at the cast or the cast is refused.
+   */
+  readonly origin?: Point;
 }
 
 /**

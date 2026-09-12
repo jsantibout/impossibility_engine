@@ -655,6 +655,49 @@ export function distanceToPoint(
 }
 
 /**
+ * How far one bare point is from another, in feet.
+ *
+ * The third caller of the one distance function, and the one that measures
+ * nothing anybody is standing in. SRD Spiritual Weapon moves "the force up to
+ * 20 feet", from where the force is to where it is going, and neither end of
+ * that is a creature.
+ *
+ * Same ruler as everything else, so twenty feet here is the twenty feet a
+ * fighter walks: each point is the cube it sits in, and the gap between two
+ * cubes is counted the way a grid counts it.
+ */
+export function distanceBetweenPoints(a: Point, b: Point): number {
+  return chebyshev(pointBox(a), pointBox(b));
+}
+
+/**
+ * The space a point sits in.
+ *
+ * SRD writes "a space of your choice" as often as it writes "a point you
+ * choose", and a space is a cube on this lattice. Every creature position in
+ * the engine is already snapped — `project` does it on the way out — so a
+ * point that is going to be *kept* is snapped too, and a stored coordinate is
+ * always one the engine could have produced itself.
+ *
+ * Not a default and not a guess: the caller chose the space, and this names
+ * which cube that is.
+ */
+export function snapToSpace(point: Point): Point {
+  return snapPoint(point);
+}
+
+/**
+ * Whether a point is inside the scene's declared extent.
+ *
+ * "Scenes declare their extent" is the guard that stops a 60x40 tavern
+ * containing a 1000-foot gap, and a point something *keeps* has to obey it for
+ * the same reason a creature's position does.
+ */
+export function isInsideScene(state: PositionState, point: Point): boolean {
+  return within(state.extent, point);
+}
+
+/**
  * Cubes between two occupied volumes, in feet.
  *
  * Taking the largest axis rather than the diagonal is the whole point: SRD

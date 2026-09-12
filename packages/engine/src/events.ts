@@ -418,6 +418,15 @@ export interface PendingCasting {
   readonly route?: string;
   /** The targets resolved at declaration, so settlement cannot re-aim it. */
   readonly targets: readonly CharacterId[];
+  /**
+   * The space chosen at declaration, for a spell that holds a point.
+   *
+   * Beside the targets and for the same reason: settlement takes no fresh
+   * request, so a Spiritual Weapon declared beside the goblins cannot settle
+   * beside the party. Checked against the spell's range once, while refusing
+   * still costs nothing.
+   */
+  readonly origin?: Point;
   /** What the definition knowingly leaves out, gathered at declaration. */
   readonly unverified: readonly string[];
   /**
@@ -1058,6 +1067,26 @@ export type GameEvent =
       readonly castingId: string;
       readonly by: CharacterId;
       readonly command?: CommandStamp;
+    }
+  /**
+   * The point an ongoing spell holds is now somewhere else.
+   *
+   * SRD Spiritual Weapon: "you can move the force up to 20 feet". Resolved
+   * history, not intent — by the time this is written the caster has spent the
+   * Bonus Action that moved it and the engine has checked the twenty feet.
+   *
+   * It carries the destination rather than an offset so that folding the log
+   * reconstructs the point without doing arithmetic, and no `by`: only the
+   * caster may move it and the ongoing record already names them.
+   *
+   * Its own event rather than a field on `spell-activated`, because the move
+   * is optional and the activation is not — one event, one thing. The command
+   * stamp therefore rides on `spell-activated`, which always happens.
+   */
+  | {
+      readonly type: 'spell-origin-moved';
+      readonly castingId: string;
+      readonly to: Point;
     }
   /**
    * A casting begun and held open, so that a Reaction can answer it.
@@ -2734,6 +2763,22 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     // struck on a turn nobody cast it.
     case 'spell-activated':
       return next;
+    case 'spell-origin-moved': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      // A casting that never held a point cannot have moved one. The command
+      // refuses this; a hand-built log that does it anyway is a log and a set
+      // of rules that disagree, which is loud rather than absorbed.
+      if (record.origin === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} holds no point to move`);
+      }
+      return {
+        ...next,
+        ongoing: { ...state.ongoing, [event.castingId]: { ...record, origin: event.to } },
+      };
+    }
     case 'spell-interrupted': {
       const waiting = state.pendingCasting;
       if (waiting === null) throw new CorruptLogError(event, 'no casting is waiting to resolve');

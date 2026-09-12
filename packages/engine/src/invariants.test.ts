@@ -470,6 +470,48 @@ const draining = (): readonly GameEvent[] => {
   return log;
 };
 
+/**
+ * A Spiritual Weapon standing in the scene, one turn old.
+ *
+ * A different shape from `draining()` above and the reason it is here: the
+ * activation moves a **point** as well as rolling an attack, so a retry that
+ * slipped past the guard would walk the force twenty feet a second time. The
+ * casting is a Bonus Action, so the turn has to come round before it can be
+ * used again.
+ */
+const conjured = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 2, recovers: 'long-rest' },
+    },
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['spiritual-weapon'] }),
+    },
+  ];
+  const cast = [
+    ...armed,
+    ...unwrap(
+      resolveSpell(
+        fold('s', armed),
+        A,
+        { spellId: 'spiritual-weapon', targets: [], at: { x: 100, y: 120, z: 0 }, slotLevel: 2 },
+        supply(),
+      ),
+      'conjure',
+    ).events,
+  ];
+  let log: readonly GameEvent[] = cast;
+  for (let n = 0; n < 2; n += 1) {
+    log = [...log, ...unwrap(resolveTurn(fold('s', log), supply()), 'turn').events];
+  }
+  return log;
+};
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'damageCreature',
@@ -664,6 +706,20 @@ const GUARDED: readonly Guarded[] = [
     log: draining(),
     run: (s, commandId) =>
       activateSpell(s, A, { castingId: 'cast:1', targets: [B], commandId }, supply()),
+  },
+  {
+    // And the same command when it also moves a point. A retry that got past
+    // the guard would move the force a second twenty feet, which no event
+    // would explain and every later range check would read.
+    name: 'activateSpell (moving an origin)',
+    log: conjured(),
+    run: (s, commandId) =>
+      activateSpell(
+        s,
+        A,
+        { castingId: 'cast:1', targets: [], to: { x: 100, y: 140, z: 0 }, commandId },
+        supply(),
+      ),
   },
   { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, A, 'rope', 1, commandId) },
   { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, A, 'chain-shirt', commandId) },

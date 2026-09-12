@@ -114,6 +114,27 @@ still Wizard-shaped are named below.
   — one user, and an abstraction with one user is a guess. The note says which
   half and why.
 
+- **A point is a point until a mechanic proves it needs to be more.** The
+  spatial primitive is one optional field — `OngoingSpell.origin: Point` — and
+  Spiritual Weapon is the adversarial case *for* it: the spell most obviously
+  "a thing" prints no Armour Class, no Hit Points, no occupancy and no action
+  of its own, where Unseen Servant and Arcane Hand print all four in the same
+  book. A creature record would have been inventing numbers the SRD declines
+  to give.
+- **Actor and spatial origin are two different things**, and the seam is one
+  optional argument (`resolveEffects`'s `from`). The Cleric rolls and the force
+  is what is adjacent. The alternatives — teleporting the caster, or making the
+  force a creature — were both lies in state.
+- **Moving a spell's point is not creature movement**, and nothing about Speed,
+  Difficult Terrain, Opportunity Attacks, occupancy or Disengage applies. The
+  two share a *ruler* and nothing else, which is why `relocateOrigin` reuses
+  `distanceBetweenPoints` rather than `moveCreature`.
+- **A guard needs a fixture where it is the only thing that can refuse.** Two
+  scene-extent checks looked tested and were not: in a 600-foot hall every
+  space past the wall is also past the spell's range, so the range check
+  answered first. The discriminating fixture is a room barely wider than the
+  spell reaches. Third instance of this lesson, after the multiclass build and
+  the Rogue who resisted nothing.
 - **Four states, never conflated**: parsed / tracked / executed / verified.
   **Tracked** is the one added here and it is not a half-finished *executed*:
   the engine spends the action, the slot, the Concentration and the clock, and
@@ -937,13 +958,20 @@ they are debts rather than surprises.
     accepted, because nothing records that a casting ended.
   - Reactor eligibility scans every creature in the game, not the scene or the
     fight. Fine at one scene; the shape to change when locations arrive.
-- **A spell can create a thing, and the thing cannot stand anywhere.** New
-  with the ongoing-spell record, and named here because it is now the *only*
-  thing between the engine and eleven later-turn spells. A casting has an
-  identity, a lifecycle, a caster and a level; what a spell-made force, sphere,
-  hand or cloud has not got is coordinates. The doctrine's "non-creature
-  persistent world objects" seam is exactly this, and its one instruction —
-  do not widen `CreatureState` into a property bag — is the decision to keep.
+- ~~**A spell can create a thing, and the thing cannot stand anywhere.**~~
+  **Closed**, and the answer was smaller than the debt implied: a casting holds
+  an optional `Point`, there is no thing and no record. The doctrine's one
+  instruction — do not widen `CreatureState` into a property bag — was kept by
+  not needing a second record either. What replaced it as the blocker is a
+  *trigger*, not a position: an area that acts when a creature enters it or
+  ends its turn in it. See item 1 of "Next actions".
+
+  The four `OngoingSpell` debts listed above are **untouched and still open**:
+  `concentration` has no reader, `on` does not shrink when an independently
+  timed condition expires, "Until dispelled" spells leave no record, and a
+  hand-built `spell-ongoing` for an ended casting is still accepted. None of
+  them is on this primitive's path — the origin is created, moved and removed
+  through the record's existing lifecycle — so none was touched.
 - **There is one scene.** `state.scene` is a single `PositionState | null`.
   Multiple locations or world regions is a listed compatibility concern, and
   this is the one structural decision that would be expensive to revisit later
@@ -1280,35 +1308,53 @@ primitive — which is why it is below the four above it despite being unblocked
 
 ## Next actions, in order
 
-1. **A spell-created thing with a position of its own.** The batch this one
-   hands off to, and the *exact* seam eleven later-turn spells are now blocked
-   on rather than a vague one: Spiritual Weapon's force, Flaming Sphere,
-   Mage Hand's hand, Dancing Lights' four lights, Arcane Eye, Arcane Hand,
-   Unseen Servant, Silent Image, Mislead, Project Image, and Call Lightning's
-   cloud. Every one of them now has an identity, a lifecycle and a caster; what
-   none of them has is coordinates. It is the doctrine's own "non-creature
-   persistent world objects" seam, and the decision not to make wrongly is
-   stated there: do **not** widen `CreatureState` into a property bag. A
-   spell-made object needs its own precise record, a position in the scene, and
-   an answer to what happens when the scene ends.
+1. ~~**A spell-created thing with a position of its own.**~~ **Done.** The
+   primitive is `OngoingSpell.origin: Point` — one optional field, a
+   `spell-origin-moved` event, and cleanup that needed no new code because
+   `releaseCasting` already removed the record. Spiritual Weapon proved it end
+   to end: it appears in a space within 60 feet, strikes from that space, is
+   moved 20 feet on a later Bonus Action, and the attack is measured from the
+   point while the roll stays the caster's. See CLAUDE.md, "A Casting Can Hold
+   A Point".
 
-   **Audited, and it is not one family.** Read spell by spell, the eleven split
-   three ways, and only the first two share a primitive:
+   **What the audit actually found.** Thirty-nine SRD spells keep a place, not
+   eleven, and they do not split the way the previous note guessed — the line
+   is drawn by what the SRD *prints*, not by whether the thing moves:
 
-   | | Spells | What it is |
+   | | Spells | Status |
    |---|---|---|
-   | A fixed origin the casting keeps | Call Lightning's cloud, and the Web / Grease / Fog Cloud shape behind it | a point (and an area) on the ongoing record; no identity of its own, no movement |
-   | An origin the caster steers | Spiritual Weapon, Flaming Sphere, Mage Hand, Arcane Eye, Silent Image, Dancing Lights (four points), Mislead's double | the same point, plus a move as a Bonus Action and range measured *from it*; none is attackable, none has hit points, none occupies a space |
-   | A creature-shaped thing with statistics | Unseen Servant (AC 10, 1 HP), Arcane Hand (AC 20, hit points, Large, grapples), Project Image at 500 miles | a creature record tied to the casting — the **summons** seam, not this one |
+   | A point the caster acts from | Spiritual Weapon | **built** |
+   | A point the casting keeps and never moves | Call Lightning's cloud, Web, Grease, Fog Cloud, Darkness, Moonbeam, Silence, Spike Growth, Zone of Truth, Wind Wall | the same storage with no `movableBy`; blocked on the triggers below |
+   | A thing with printed statistics | Unseen Servant (AC 10, 1 HP), Arcane Hand (AC 20, HP, Large, grapples), Guardian of Faith, Faithful Hound, Phantom Steed, the four Conjures, Summon Dragon, Giant Insect | the **summons** seam, and it is not close to this one |
+   | A point whose effect the engine cannot model | Dancing Lights and Daylight (light), Arcane Eye and Passwall (walls as obstacles), Project Image and Secret Chest (a second location) | blocked elsewhere |
 
-   So the primitive is **an ongoing casting can have an origin in the scene**,
-   which is a field on `OngoingSpell` and a `spell-moved` event, and
-   `releaseCasting` is where it disappears. Spiritual Weapon is the cheapest
-   proof (origin, move, activation measured from the origin); Flaming Sphere
-   and Web then want the trigger "a creature ends its turn within the area",
-   which is item 3 of the ranked map. Unseen Servant and Arcane Hand wait for
-   summons. Dancing Lights is the only multi-point case and light is not
-   modelled, so it proves nothing about identity.
+   So **a fixed origin and a movable origin share state without sharing
+   commands**, which is why the allowance is a field (`origin.movableBy`)
+   rather than a boolean beside one. Nothing was built for the fixed case,
+   because no fixed-origin spell is unblocked by it alone.
+
+   Three named mechanics now stand between the primitive and the next thirty
+   spells, and each is a *trigger* rather than a position:
+
+   - **"a creature that ends its turn within the area"** — Flaming Sphere,
+     Moonbeam, Cloudkill, Stinking Cloud, Spike Growth, Insect Plague,
+     Incendiary Cloud. This is item 3 below.
+   - **"the first time a creature enters the area on a turn"** — Web, Grease,
+     Wind Wall. The same shape with a different moment, and movement would have
+     to raise it.
+   - **an activation that resolves an area at a point chosen now** — Call
+     Lightning, Storm of Vengeance. Audited as the candidate second user of the
+     primitive and rejected: the cloud is exactly the fixed origin wanted, but
+     every activation in the engine aims at a creature, and Call Lightning aims
+     at a point and blasts around it. A new shape, not a transcription — and
+     its "a point you can see" and outdoor-storm damage bonus are facts the
+     engine does not hold either.
+
+   **One origin per casting, deliberately.** Dancing Lights is the only SRD
+   spell that makes several independently placed things from one casting, and
+   it is blocked on light being modelled at all. Adding an index to the event
+   and the record later is additive; choosing plurality now would be a shape
+   built ahead of any mechanic that could use it.
 2. **Keep pouring spells into the five working shapes.** Attack, save-damage,
    save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
    spells fit one of them and need only a definition with its SRD quote.
@@ -1322,12 +1368,13 @@ primitive — which is why it is below the four above it despite being unblocked
    to Unconscious on a second failure, which is a third outcome the hook
    machinery has no room for. Haste's lethargy fires when the spell ends, which
    is a trigger nothing raises.
-4. **Ongoing effects a later turn can act through** — half built. The handle
-   exists (`state.ongoing`, keyed by casting id) and the spells that need
-   nothing else run: Vampiric Touch and Flame Blade. The eleven that are left
-   all need the same missing thing, which is item 1 above: a position for what
-   the spell created. Expeditious Retreat, Gust of Wind, Telekinesis and Detect
-   Thoughts need neither and are ordinary transcription onto `activation`.
+4. **Ongoing effects a later turn can act through** — mostly built. The handle
+   exists (`state.ongoing`, keyed by casting id), the spells that need nothing
+   else run (Vampiric Touch, Flame Blade), and the ones that act **from a
+   point** run too (Spiritual Weapon). Expeditious Retreat, Gust of Wind,
+   Telekinesis and Detect Thoughts need neither and are ordinary transcription
+   onto `activation`. What is left in this family is not a position any more:
+   it is the three triggers named under item 1.
 5. **The Reaction spell that is left, and the falling it shares with a
    feature.** Shield, Hellish Rebuke and Counterspell are done, and the class
    features that answer the same instants are done beside them.
@@ -1466,12 +1513,12 @@ Run `npm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executed | 75 |
-| Spells verified end to end | 50 |
+| Spells executed | 76 |
+| Spells verified end to end | 51 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 3,782 passing, none skipped |
+| Tests | 3,878 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

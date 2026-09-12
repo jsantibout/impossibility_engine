@@ -268,6 +268,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'spell-ended',
   'spell-interrupted',
   'spell-ongoing',
+  'spell-origin-moved',
   'spellcasting-declared',
   'stabilised',
   'temporary-hp-cleared',
