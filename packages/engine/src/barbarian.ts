@@ -224,7 +224,7 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Persistent Rage',
       level: 15,
       automation: 'manual',
-      note: 'Rage lasting ten minutes and refreshing on Initiative is not modelled, because Rage is not a running effect here.',
+      note: 'Half of it is now buildable and deliberately not built. Regaining all uses of Rage when Initiative is rolled, once per Long Rest, is the same shape as Uncanny Metabolism and would be a recovery grant. The other half is not: "your Rage now lasts for 10 minutes without you needing to do anything to extend it", and "ends early if you have the Unconscious condition (not just the Incapacitated condition)", are a feature changing another feature’s activation — a shape with one user, which is a guess dressed up as a structure. Executing one half and not the other is the state this file does not have.',
     },
     {
       id: 'barbarian:improved-brutal-strike-2',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer, type RollIssuer } from './rolls.js';

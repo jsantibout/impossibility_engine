@@ -367,7 +367,7 @@ const GUARDED: readonly Guarded[] = [
   {
     name: 'useRecovery',
     log: recovering(),
-    run: (s, commandId) => useRecovery(s, C, { feature: 'test:recovery', commandId }),
+    run: (s, commandId) => useRecovery(s, C, { feature: 'test:recovery', commandId }, supply()),
   },
   { name: 'endFeature', log: stanced(), run: (s, commandId) => endFeature(s, A, { feature: 'test:stance', commandId }) },
   {

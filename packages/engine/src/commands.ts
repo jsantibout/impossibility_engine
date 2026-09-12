@@ -74,6 +74,7 @@ import {
   evadesHalfDamage,
   recoveryCap,
   selfHealAddend,
+  type HealAmount,
   standingAttackDamage,
   standingInitiativeModes,
   standingSkillModes,
@@ -2812,36 +2813,61 @@ export function useSelfHeal(
     events.push(spent.value);
   }
 
+  events.push({ type: 'resource-spent', id, key: definition.pool, amount: 1 });
+
+  const healed = rollAndHeal(state, id, definition, definition.name, supply, stamp);
+  if (!healed.ok) return healed;
+  events.push(...healed.value);
+
+  return ok(events);
+}
+
+/**
+ * Roll a feature's healing die, add what its sentence adds, and heal.
+ *
+ * Shared by the two commands that heal from a feature, so the SRD floor and
+ * the cap at the hit point maximum live in one place. The caller has already
+ * refused a dead creature — this rolls, so everything that could say no must
+ * have said it.
+ */
+function rollAndHeal(
+  state: GameState,
+  id: CharacterId,
+  heal: HealAmount,
+  name: string,
+  supply: { readonly issuer: RollIssuer; readonly rng: Rng },
+  stamp: CommandStamp | null,
+): Result<GameEvent[]> {
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+
   const issuedBefore = supply.issuer.count;
-  const rolled = rollRecorded(supply.issuer, supply.rng, definition.dice);
+  const rolled = rollRecorded(supply.issuer, supply.rng, heal.dice);
   if (!rolled.ok) return rolled;
 
-  const addend = selfHealAddend(definition, creature.sheet.abilities);
+  const addend = selfHealAddend(heal, creature.sheet.abilities);
   // SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". Second Wind
-  // names no floor, and on 1d10 plus a level it could never reach one.
-  const amount = Math.max(definition.minimum ?? 1, rolled.value.total + addend.amount);
+  // and Uncanny Metabolism name no floor, and neither could reach one.
+  const amount = Math.max(heal.minimum ?? 1, rolled.value.total + addend.amount);
 
-  const healed = healCreature(state, id, amount);
-  if (!healed.ok) return healed;
+  const done = healCreature(state, id, amount);
+  if (!done.ok) return done;
 
-  events.push(
-    { type: 'resource-spent', id, key: definition.pool, amount: 1 },
+  return ok([
     {
       type: 'roll-recorded',
       who: id,
-      label: `${definition.name} (${definition.dice})`,
+      label: `${name} (${heal.dice})`,
       natural: rolled.value.total,
       total: rolled.value.total + addend.amount,
       contributions: [{ source: addend.label, amount: addend.amount }],
       outcome: `${amount} hit points`,
     },
     { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
-    ...healed.value.map((event) =>
+    ...done.value.map((event) =>
       event.type === 'healed' && stamp !== null ? { ...event, command: stamp } : event,
     ),
-  );
-
-  return ok(events);
+  ]);
 }
 
 export interface UseRecoveryCommand extends CommandIdentity {
@@ -2872,6 +2898,7 @@ export function useRecovery(
   state: GameState,
   id: CharacterId,
   command: UseRecoveryCommand,
+  supply: { readonly issuer: RollIssuer; readonly rng: Rng },
 ): Result<GameEvent[]> {
   const identity = identify(state, `recovery:${id}`, command);
   if (!identity.ok) return identity;
@@ -2897,6 +2924,20 @@ export function useRecovery(
     );
   }
 
+  // SRD Uncanny Metabolism and Persistent Rage happen "when you roll
+  // Initiative", which is before anybody acts. The closest the engine holds is
+  // the first turn of the fight — `turnsTaken` counts turns *finished*, so it
+  // is still 0 throughout it — and that window is the same for everyone in the
+  // order rather than depending on where in it the holder sits. A creature who
+  // is fourth in Initiative takes it during the first combatant's turn, which
+  // is when the SRD says it happens.
+  if (definition.moment === 'initiative' && (state.combat === null || state.combat.turnsTaken > 0)) {
+    return err(
+      'not_the_moment',
+      `${definition.name} happens when Initiative is rolled, and that moment has passed`,
+    );
+  }
+
   if (remaining(creature.resources, definition.pool) < 1) {
     return err('exhausted', `${id} has no uses of ${definition.name} left`);
   }
@@ -2919,7 +2960,10 @@ export function useRecovery(
     );
   }
 
-  return ok([
+  // SRD Uncanny Metabolism heals "when you do so" — riding on the recovery,
+  // with no cost of its own. A creature who cannot be healed still recovers:
+  // the sentence gives the points first.
+  const events: GameEvent[] = [
     { type: 'resource-spent', id, key: definition.pool, amount: 1 },
     {
       type: 'resource-regained',
@@ -2928,7 +2972,15 @@ export function useRecovery(
       amount,
       ...(stamp === null ? {} : { command: stamp }),
     },
-  ]);
+  ];
+
+  if (definition.heal !== undefined && !creature.vitals.dead) {
+    const healed = rollAndHeal(state, id, definition.heal, definition.name, supply, null);
+    if (!healed.ok) return healed;
+    events.push(...healed.value);
+  }
+
+  return ok(events);
 }
 
 export interface EndFeatureCommand extends CommandIdentity {

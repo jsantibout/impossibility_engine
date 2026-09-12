@@ -103,6 +103,24 @@ export interface FeatureDefinition {
 }
 
 /**
+ * Hit points a feature gives its holder, as the class text writes the sum.
+ *
+ * Three features say it — Second Wind, Wholeness of Body and Uncanny
+ * Metabolism — and between them they name a printed die and a class-table
+ * column, a class level and an ability modifier, and one floor.
+ */
+export interface HealGrant {
+  /** SRD Second Wind: a printed "1d10". */
+  readonly dice?: string;
+  /** SRD Wholeness of Body: "your Martial Arts die" — a class-table column. */
+  readonly diceByLevel?: readonly string[];
+  /** SRD: "plus your Fighter level" or "plus your Wisdom modifier". */
+  readonly plus: 'class-level' | Ability;
+  /** SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". */
+  readonly minimum?: number;
+}
+
+/**
  * The mechanical shapes a feature's choice can take.
  *
  * Deliberately few. A feature whose effect does not fit one of these is
@@ -292,17 +310,7 @@ export type FeatureGrant =
        * restating them would be a second place to get the Fighter's table
        * wrong.
        */
-      readonly heals?: {
-        readonly action: 'action' | 'bonus-action';
-        /** SRD Second Wind: a printed "1d10". */
-        readonly dice?: string;
-        /** SRD Wholeness of Body: "your Martial Arts die" — a class-table column. */
-        readonly diceByLevel?: readonly string[];
-        /** SRD: "plus your Fighter level" or "plus your Wisdom modifier". */
-        readonly plus: 'class-level' | Ability;
-        /** SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". */
-        readonly minimum?: number;
-      };
+      readonly heals?: HealGrant & { readonly action: 'action' | 'bonus-action' };
     }
   /**
    * A feature that gives a *different* pool's uses back — see
@@ -328,8 +336,15 @@ export type FeatureGrant =
       readonly restores:
         | { readonly kind: 'pool'; readonly key: string }
         | { readonly kind: 'pact-slots' };
-      readonly upTo: 'half-class-level' | 'half-pool-maximum';
-      readonly moment: 'short-rest' | 'declared';
+      readonly upTo: 'half-class-level' | 'half-pool-maximum' | 'all';
+      readonly moment: 'short-rest' | 'declared' | 'initiative';
+      /**
+       * SRD Uncanny Metabolism: "When you do so, roll your Martial Arts die,
+       * and regain a number of Hit Points equal to your Monk level plus the
+       * number rolled." The healing rides on the recovery and has no cost of
+       * its own, which is why it is a field here and not a second feature.
+       */
+      readonly heals?: HealGrant;
     }
   | {
       readonly kind: 'unarmored-defense';

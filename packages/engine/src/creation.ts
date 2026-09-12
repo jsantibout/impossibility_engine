@@ -18,6 +18,7 @@ import {
 } from './character.js';
 import type {
   ActivatedFeature,
+  HealAmount,
   RecoveryFeature,
   SelfHealFeature,
   StandingEffect,
@@ -54,6 +55,7 @@ import {
   type ClassLevelRow,
   type FeatureDefinition,
   type FeatureGrant,
+  type HealGrant,
   type SpellcastingStyle,
   type SubclassDefinition,
 } from './progression.js';
@@ -1832,24 +1834,15 @@ export function planCharacter(
   // Arts die" is 1d6 at Monk 1 and 1d10 at Monk 11 — and the addend stays
   // symbolic because the other one is an ability modifier, which is a number
   // on the sheet at the moment the die is thrown.
-  const selfHeals: SelfHealFeature[] = [];
-  for (const feature of features) {
-    const grant = feature.grants;
-    if (grant?.kind !== 'pool' || grant.heals === undefined) continue;
-    const heals = grant.heals;
-
-    const level = classLevelFor(choices, feature.id);
+  const healFor = (featureId: string, heals: HealGrant): HealAmount | null => {
+    const level = classLevelFor(choices, featureId);
     const dice =
       heals.diceByLevel === undefined
         ? heals.dice
         : heals.diceByLevel[Math.max(0, Math.min(level, heals.diceByLevel.length) - 1)];
-    if (dice === undefined) continue;
+    if (dice === undefined) return null;
 
-    selfHeals.push({
-      feature: feature.id,
-      name: feature.name,
-      action: heals.action,
-      pool: grant.key,
+    return {
       dice,
       plus:
         heals.plus === 'class-level'
@@ -1858,6 +1851,23 @@ export function planCharacter(
             { kind: 'level', level, label: `${definition.name} level` }
           : { kind: 'ability', ability: heals.plus, label: ABILITY_NAMES[heals.plus] },
       ...(heals.minimum === undefined ? {} : { minimum: heals.minimum }),
+    };
+  };
+
+  const selfHeals: SelfHealFeature[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'pool' || grant.heals === undefined) continue;
+
+    const heal = healFor(feature.id, grant.heals);
+    if (heal === null) continue;
+
+    selfHeals.push({
+      feature: feature.id,
+      name: feature.name,
+      action: grant.heals.action,
+      pool: grant.key,
+      ...heal,
     });
   }
 
@@ -1897,6 +1907,12 @@ export function planCharacter(
       // character's, so a Sorcerer 5 / Fighter 5 still gets two.
       classLevel: classLevelFor(choices, feature.id),
       moment: grant.moment,
+      ...(grant.heals === undefined
+        ? {}
+        : (() => {
+            const heal = healFor(feature.id, grant.heals);
+            return heal === null ? {} : { heal };
+          })()),
     });
   }
 

@@ -5,6 +5,8 @@ import { createCharacter, type CharacterChoices } from './creation.js';
 import { beginRest, endRest } from './rest.js';
 import { useRecovery } from './commands.js';
 import { recoveryCap, type RecoveryFeature } from './standing.js';
+import { createRng, type Rng } from './dice.js';
+import { createRollIssuer, type RollIssuer } from './rolls.js';
 import { pactSlotKey, remaining } from './resources.js';
 import { SORCERY_POINTS } from './sorcerer.js';
 
@@ -31,6 +33,20 @@ import { SORCERY_POINTS } from './sorcerer.js';
  */
 
 const id = (s: string) => asCharacterId(s);
+
+/**
+ * A generator for the one recovery that rolls.
+ *
+ * `useRecovery` requires it rather than offering it, for the reason the
+ * Concentration save's deferred version was torn out: an obligation the engine
+ * cannot keep is worse than one it never offered. It costs a caller nothing —
+ * they resume it from the state they are already holding — and the two
+ * recoveries that roll nothing never touch it.
+ */
+const supply = (seed = 'r'): { issuer: RollIssuer; rng: Rng } => ({
+  issuer: createRollIssuer('roll'),
+  rng: createRng(seed) as Rng,
+});
 const VESKA = id('veska');
 const KAEL = id('kael');
 
@@ -195,7 +211,7 @@ const game = (choices: CharacterChoices, who: string): Game => {
 const recoveriesOf = (g: Game, who: string): readonly string[] =>
   (g.creature(who).sheet.recoveries ?? []).map((r) => r.feature);
 
-const cap = (over: Partial<RecoveryFeature>): number => {
+const cap = (over: Partial<RecoveryFeature> & { max?: number }): number => {
   const base: RecoveryFeature = {
     feature: 'f',
     name: 'A Feature',
@@ -205,7 +221,7 @@ const cap = (over: Partial<RecoveryFeature>): number => {
     classLevel: 5,
     moment: 'short-rest',
   };
-  const { max = 99, ...rest } = over as Partial<RecoveryFeature> & { max?: number };
+  const { max = 99, ...rest } = over;
   return recoveryCap({ ...base, ...rest }, max);
 };
 
@@ -239,10 +255,15 @@ describe('the cap a recovery feature names', () => {
 describe('Sorcerous Restoration', () => {
   const built = (level = 5) => game(sorcerer(level), 'veska');
   const use = (g: Game, commandId?: string) =>
-    useRecovery(g.state, VESKA, {
-      feature: 'sorcerer:sorcerous-restoration',
-      ...(commandId === undefined ? {} : { commandId }),
-    });
+    useRecovery(
+      g.state,
+      VESKA,
+      {
+        feature: 'sorcerer:sorcerous-restoration',
+        ...(commandId === undefined ? {} : { commandId }),
+      },
+      supply(),
+    );
 
   it('arrives at the level the Sorcerer table prints it', () => {
     expect(recoveriesOf(built(4), 'veska')).toEqual([]);
@@ -429,7 +450,7 @@ describe('Sorcerous Restoration', () => {
 
   it('refuses a feature this creature does not have', () => {
     const g = built(5).rest('veska', 'short');
-    const out = useRecovery(g.state, VESKA, { feature: 'warlock:magical-cunning' });
+    const out = useRecovery(g.state, VESKA, { feature: 'warlock:magical-cunning' }, supply());
     expect(isErr(out) && out.code).toBe('no_such_feature');
   });
 
@@ -495,7 +516,7 @@ describe('a feature whose cap works out to nothing', () => {
       { type: 'resource-spent', id: WHO, key: 'test:points', amount: 4 },
     ]);
 
-    const out = useRecovery(g.state, WHO, { feature: 'test:recovery' });
+    const out = useRecovery(g.state, WHO, { feature: 'test:recovery' }, supply());
     expect(isErr(out) && out.code).toBe('nothing_to_regain');
     expect(isErr(out) && out.reason).toContain('level 1');
     expect(g.left('lone', 'test:recovery')).toBe(1);
@@ -504,7 +525,7 @@ describe('a feature whose cap works out to nothing', () => {
 
 describe('Magical Cunning', () => {
   const built = (level = 5) => game(warlock(level), 'kael');
-  const use = (g: Game) => useRecovery(g.state, KAEL, { feature: 'warlock:magical-cunning' });
+  const use = (g: Game) => useRecovery(g.state, KAEL, { feature: 'warlock:magical-cunning' }, supply());
 
   it('arrives at the level the Warlock table prints it', () => {
     expect(recoveriesOf(built(1), 'kael')).toEqual([]);
@@ -572,5 +593,174 @@ describe('Magical Cunning', () => {
     g.rest('kael', 'short');
     expect(g.left('kael', pactSlotKey(3))).toBe(2);
     expect(g.left('kael', 'warlock:magical-cunning')).toBe(0);
+  });
+});
+
+/**
+ * Uncanny Metabolism: a recovery that also heals.
+ *
+ * SRD: "When you roll Initiative, you can regain all expended Focus Points.
+ * When you do so, roll your Martial Arts die, and regain a number of Hit
+ * Points equal to your Monk level plus the number rolled."
+ *
+ * One act, not two — the healing has no cost of its own and cannot be had
+ * without the recovery, which is why it is a field on the recovery rather than
+ * a feature beside it. It was held back from the first recovery batch on the
+ * grounds that a healing field would have had exactly one user; the field has
+ * two now, and Second Wind and Wholeness of Body built it.
+ */
+describe('Uncanny Metabolism', () => {
+  const TAM = id('tam');
+
+  const monk = (level: number): CharacterChoices => ({
+    name: 'Tam',
+    classId: 'monk',
+    level,
+    speciesId: 'human',
+    backgroundId: 'sage',
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 10, dex: 15, con: 13, int: 8, wis: 14, cha: 12 },
+    },
+    abilityIncreases: { int: 2, wis: 1 },
+    classSkills: ['acrobatics', 'stealth'],
+    languages: ['Dwarvish', 'Orc'],
+    alignment: 'Neutral',
+    ...(level >= 3 ? { subclassId: 'warrior-of-the-open-hand' } : {}),
+    cantrips: [],
+    preparedSpells: [],
+    spellbook: [],
+    classEquipment: 'A',
+    backgroundEquipment: 'A',
+    equipped: [],
+    hitPoints: { method: 'fixed' },
+    featureChoices: { 'human:skillful': ['perception'] },
+    feats: {
+      'sage:magic-initiate-wizard': {
+        featId: 'magic-initiate',
+        spellList: 'wizard',
+        spellcastingAbility: 'int',
+        cantrips: ['mage-hand', 'light'],
+        levelOneSpell: 'find-familiar',
+      },
+      'human:versatile': { featId: 'alert' },
+      ...(level >= 4 ? { 'monk:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    },
+    dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+  });
+
+  /** Initiative rolled, nobody has finished a turn. */
+  const fighting = (g: Game): Game =>
+    g.push([{ type: 'combat-started', combatants: [{ id: TAM, initiative: 20, speed: 30 }] }]);
+
+  const built = (level = 5) => {
+    const g = game(monk(level), 'tam');
+    return g.push([{ type: 'damage-taken', id: TAM, amount: 15, source: 'a trap' }]);
+  };
+
+  const use = (g: Game, seed = 'r') =>
+    useRecovery(g.state, TAM, { feature: 'monk:uncanny-metabolism' }, supply(seed));
+
+  it('arrives at the level the Monk table prints it', () => {
+    expect(recoveriesOf(built(1), 'tam')).toEqual([]);
+    expect(recoveriesOf(built(2), 'tam')).toEqual(['monk:uncanny-metabolism']);
+  });
+
+  /** "regain **all** expended Focus Points" — the whole pool, not half of it. */
+  it('gives every expended Focus Point back', () => {
+    const g = fighting(built(5));
+    g.drain('tam', 'focus-points', 5);
+    expect(g.left('tam', 'focus-points')).toBe(0);
+
+    g.push(unwrap(use(g), 'use'));
+    expect(g.left('tam', 'focus-points')).toBe(5);
+  });
+
+  /** And heals by the Martial Arts die plus the Monk level, in the same act. */
+  it('heals the Martial Arts die plus the Monk level', () => {
+    const g = fighting(built(5));
+    g.drain('tam', 'focus-points', 5);
+    const before = g.creature('tam').vitals.hp;
+
+    const events = unwrap(use(g), 'use');
+    const roll = events.find((e) => e.type === 'roll-recorded');
+    if (roll === undefined || roll.type !== 'roll-recorded') throw new Error('nothing was rolled');
+    expect(roll.label).toBe('Uncanny Metabolism (1d8)');
+    expect(roll.contributions).toEqual([{ source: 'Monk level', amount: 5 }]);
+
+    g.push(events);
+    expect(g.creature('tam').vitals.hp).toBe(before + roll.natural + 5);
+  });
+
+  /**
+   * The moment is "when you roll Initiative", and the closest the engine holds
+   * is the first turn of the fight. Outside combat there is no such moment at
+   * all.
+   */
+  it('refuses outside combat', () => {
+    const g = built(5).drain('tam', 'focus-points', 5);
+    const out = use(g);
+    expect(isErr(out) && out.code).toBe('not_the_moment');
+  });
+
+  /**
+   * A turn, not a round.
+   *
+   * With one combatant the two are indistinguishable — the order wraps at the
+   * end of the only turn and the round ticks with it — which is how a mutation
+   * reading the window as "the first round" passed a whole file. Two
+   * combatants separate them: after the first one finishes, a turn has gone by
+   * and the round has not.
+   */
+  it('refuses once a turn has gone by, while the first round still runs', () => {
+    const other = id('foe');
+    const g = built(5).drain('tam', 'focus-points', 5);
+    g.push([
+      {
+        type: 'creature-added',
+        id: other,
+        name: 'foe',
+        sheet: g.creature('tam').sheet,
+        maxHp: 20,
+        diesAtZero: true,
+      },
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: other, initiative: 25, speed: 30 },
+          { id: TAM, initiative: 5, speed: 30 },
+        ],
+      },
+    ]);
+    expect(use(g).ok).toBe(true);
+
+    // The foe finishes its turn. The round is still 1 and a turn has passed.
+    g.push([{ type: 'turn-advanced' }]);
+    expect(g.state.combat?.round).toBe(1);
+    expect(g.state.combat?.turnsTaken).toBe(1);
+
+    const out = use(g);
+    expect(isErr(out) && out.code).toBe('not_the_moment');
+  });
+
+  /**
+   * Nothing expended is nothing to regain, and the healing rides on the
+   * recovery — so a Monk at full Focus cannot spend the day's use on the hit
+   * points alone. SRD ties them with "when you do so".
+   */
+  it('refuses at full Focus, and heals nobody', () => {
+    const g = fighting(built(5));
+    const out = use(g);
+    expect(isErr(out) && out.code).toBe('nothing_to_regain');
+    expect(g.left('tam', 'monk:uncanny-metabolism')).toBe(1);
+  });
+
+  it('is once per Long Rest, like the others', () => {
+    const g = fighting(built(5)).drain('tam', 'focus-points', 5);
+    g.push(unwrap(use(g), 'use'));
+    expect(g.left('tam', 'monk:uncanny-metabolism')).toBe(0);
+
+    g.drain('tam', 'focus-points', 3);
+    expect(isErr(use(g)) && (use(g) as { code: string }).code).toBe('exhausted');
   });
 });

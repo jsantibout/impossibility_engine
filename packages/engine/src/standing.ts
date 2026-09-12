@@ -309,13 +309,16 @@ export interface ActivatedFeature {
  * and the addend is kept symbolic because one of the two is an ability
  * modifier, which is a number on the sheet at the moment it is wanted.
  */
-export interface SelfHealFeature {
-  readonly feature: string;
-  readonly name: string;
-  /** What using it costs in the action economy; outside combat, nothing. */
-  readonly action: 'action' | 'bonus-action';
-  /** The pool a use comes out of. */
-  readonly pool: string;
+/**
+ * Hit points a feature gives its holder: a die, something added to it, and
+ * sometimes a floor.
+ *
+ * Its own type because three features write the same sum and only two of them
+ * spend a pool use for it — Uncanny Metabolism's arrives riding on a recovery
+ * instead. Resolved at creation, because two of the three read their die off a
+ * class table.
+ */
+export interface HealAmount {
   /** Resolved: "1d10", or the Martial Arts die at that Monk's level. */
   readonly dice: string;
   readonly plus:
@@ -323,6 +326,15 @@ export interface SelfHealFeature {
     | { readonly kind: 'ability'; readonly ability: Ability; readonly label: string };
   /** SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". */
   readonly minimum?: number;
+}
+
+export interface SelfHealFeature extends HealAmount {
+  readonly feature: string;
+  readonly name: string;
+  /** What using it costs in the action economy; outside combat, nothing. */
+  readonly action: 'action' | 'bonus-action';
+  /** The pool a use comes out of. */
+  readonly pool: string;
 }
 
 /**
@@ -333,7 +345,7 @@ export interface SelfHealFeature {
  * this file follows.
  */
 export function selfHealAddend(
-  feature: SelfHealFeature,
+  feature: HealAmount,
   abilities: Readonly<Record<Ability, number>>,
 ): { readonly amount: number; readonly label: string } {
   return feature.plus.kind === 'level'
@@ -377,7 +389,7 @@ export interface RecoveryFeature {
    * one of the two wrong, silently, in exactly the way `DiceScaling`'s
    * per-slot notation was nearly made wrong by reading an increase off a base.
    */
-  readonly upTo: 'half-class-level' | 'half-pool-maximum';
+  readonly upTo: 'half-class-level' | 'half-pool-maximum' | 'all';
   /** The level the sizing reads, which is *that class's*, not the character's. */
   readonly classLevel: number;
   /**
@@ -390,7 +402,16 @@ export interface RecoveryFeature {
    * rite is not arithmetic — and naming it here is what keeps it from being
    * mistaken for a rule nobody built.
    */
-  readonly moment: 'short-rest' | 'declared';
+  readonly moment: 'short-rest' | 'declared' | 'initiative';
+  /**
+   * Hit points the recovery brings with it.
+   *
+   * SRD Uncanny Metabolism: "you can regain all expended Focus Points. When
+   * you do so, roll your Martial Arts die, and regain a number of Hit Points
+   * equal to your Monk level plus the number rolled." One act, not two — the
+   * healing has no separate cost and cannot be had without the recovery.
+   */
+  readonly heal?: HealAmount;
 }
 
 /**
@@ -411,6 +432,11 @@ export function recoveryCap(feature: RecoveryFeature, poolMax: number): number {
     // (round up)."
     case 'half-pool-maximum':
       return Math.ceil(poolMax / 2);
+    // SRD Uncanny Metabolism and Persistent Rage: "regain **all** expended
+    // ...". The pool's own maximum is the most that can ever be owed, and
+    // what is actually expended narrows it at the moment of use.
+    case 'all':
+      return poolMax;
   }
 }
 
