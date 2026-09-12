@@ -616,6 +616,11 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => declineDamageReaction(s, A, { commandId }),
   },
   {
+    name: 'declineDamageReaction (one feature)',
+    log: blunting(),
+    run: (s, commandId) => declineDamageReaction(s, A, { feature: 'test:blunt', commandId }),
+  },
+  {
     name: 'settleDamage',
     log: blunting(),
     run: (s, commandId) => settleDamage(s, supply(), { commandId }),
@@ -635,6 +640,11 @@ const GUARDED: readonly Guarded[] = [
     name: 'declineTestReaction',
     log: tested(),
     run: (s, commandId) => declineTestReaction(s, A, { commandId }),
+  },
+  {
+    name: 'declineTestReaction (one feature)',
+    log: tested(),
+    run: (s, commandId) => declineTestReaction(s, A, { feature: 'test:push', commandId }),
   },
   { name: 'settleTest', log: tested(), run: (s, commandId) => settleTest(s, { commandId }) },
   {

@@ -991,6 +991,20 @@ spell stays queryable, and no zombie.
 either, so they stay derived — the same audit trade this file already records
 for every other derived ending.
 
+**Three paths resolve a casting, and one record has to come out of all of
+them.** The ordinary cast, the settlement of a declared one, and the release
+of a readied one all end in `resolveEffects`, and the third wrote no
+`spell-ongoing`: a readied Bless was running, concentrated on, adding its d4,
+and invisible to Dispel Magic. A fork no single-path fixture can see, so
+`ongoing-spells.test.ts` now drives the Ready path to the same record.
+
+**A casting's debts include the damage it scheduled.** `scheduledDamage`
+carries the casting id in its source exactly as a condition does, and
+`releaseCasting` dropped conditions, bonuses and timers while leaving a later
+hit standing. No ongoing spell schedules one yet — both delayed-damage spells
+are Instantaneous — which is precisely when a convergence point is cheapest to
+complete and easiest to forget.
+
 ### `spell-ended` carries the whole of Dispel Magic's target distinction
 
 `on: null` ends the casting and everything it made; `on: <creature>` releases it
@@ -1110,6 +1124,23 @@ from. Three instances of "a finite list of creatures, answered one at a time,
 with the thing they hold up happening when the last one answers" is evidence;
 one would have been a guess.
 
+### An offer is a (reactor, feature) pair, not a reactor
+
+One creature can hold two features in one window. A Rogue 5 / Monk 3 is
+offered Uncanny Dodge *and* Deflect Attacks against the same blow, and a
+Fighter / Fiend Warlock may reroll a failed save with Indomitable and then add
+Dark One's Own Luck to the new roll — the SRD forbids neither. The reducer
+first matched an answer by **reactor**, so the first answer consumed both
+offers, and a settlement that recorded one pass per offer then found the
+second already gone and threw. A legal build crashed `settleDamage` and wrote
+a `test-settled` batch the fold refused for ever.
+
+So an answer names its feature and settles exactly that offer; a bare pass
+(no feature) lets every offer the reactor holds lapse, which is what declining
+the window means. Every single-class fixture has one feature per window, which
+is how the mismatch survived a whole suite — **the multiclass is the fixture
+that discriminates**, the same lesson as class level against character level.
+
 ### The window and the action-economy cost are two facts
 
 Four of the eight features here spend a Reaction and four spend none at all.
@@ -1201,6 +1232,40 @@ way to be asked.
   one open window at a time and the reducer refuses a second. No currently
   implemented SRD mechanic needs otherwise — the nearest, Counterspell on
   Counterspell, was already refused deliberately and stays refused.
+- **Two windows open on the actor's opt-in; three open on detection.**
+  `damage-rolled`, `test-rolled` and `damaged-by-creature` open because the
+  engine found somebody who could answer. `hit-by-attack` and
+  `casting-a-spell` open only when the *attacker* holds the attack or the
+  *caster* holds the casting — so whether a Rogue gets their *Shield* depends
+  on the other side's command. The engine holds every fact needed to say
+  "somebody could answer this" before the swing; a pre-flight query is the
+  consistent shape, and auto-holding would change the atomic path.
+- **"Can answer" is not "would".** Cutting Words answers any creature's
+  damage roll within 60 feet, allies included, so a Lore Bard with a die left
+  turns every party hit into a two-command negotiation. That is the SRD, not a
+  bug; withholding the offer by side would invent a rule. The tool surface is
+  where "the Bard is not cutting the Fighter" belongs.
+- **Spell attacks do not open `damage-rolled` either**, and the reason given
+  above covers a *Fireball* but not a *Fire Bolt*: SRD Uncanny Dodge answers
+  any attack roll, and a single-target spell attack rolls per target already.
+  The same seam blocks Indomitable against a save a spell forced, a
+  Concentration save or a repeat save: `resolveEffects` resolves every target
+  in one breath, so `test-rolled` opens only from `resolveTest`. Both are one
+  missing thing — **a casting's resolution suspended per target** — and
+  Indomitable is executed today only for the saves a DM calls for directly.
+
+### The duplicate check comes first, and this batch sprang the trap a fourth time
+
+The `damage_pending` and `test_pending` guards were added to `castOrRelease`
+above the replay check, beside a `saves_pending` guard that had sat there since
+turn hooks landed. None is opened by a casting's own first run, which is why it
+was quieter than the three before it, and it was the same trap: a retry that
+arrives after somebody else held a roll open, or after the next boundary
+raised a save, was told about the world instead of that its command had
+landed. `unsettledRefusal` is now the one function that names those debts,
+`castOrRelease` skips it for a replayed command, and `activateSpell` reads it
+too — an activation is a Magic action into the world exactly as a casting is,
+and it had none of the casting's guards.
 
 ## Rests And The Clock
 

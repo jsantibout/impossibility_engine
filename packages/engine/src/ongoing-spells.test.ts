@@ -11,9 +11,12 @@ import {
   ongoingSpellOf,
   ongoingSpellsBy,
   ongoingSpellsOn,
+  releaseReady,
   removeCreatureEverywhere,
   resolveSpell,
+  resolveTest,
   resolveTurn,
+  takeReady,
 } from './commands.js';
 
 /**
@@ -1016,5 +1019,301 @@ describe('the live record is rebuilt from the log', () => {
     expect(
       isErr(activateSpell(reloaded, WIZ, { castingId, targets: [FOE] }, supply('after'))),
     ).toBe(false);
+  });
+});
+
+// — three resolution paths, one record ————————————————————————————————————————
+
+/**
+ * SRD Ready pays for a spell on one turn and lands it on another, and the
+ * release was the one resolution path of three that wrote no live record: a
+ * readied Bless was running, concentrated on, adding its d4 to every roll —
+ * and invisible to Dispel Magic. A fork nothing single-path could catch.
+ */
+describe('a readied spell is a running spell once released', () => {
+  const fighting = (): GameEvent[] => [
+    {
+      type: 'combat-started',
+      combatants: [
+        { id: WIZ, initiative: 20, speed: 30 },
+        { id: RIVAL, initiative: 10, speed: 30 },
+        { id: FOE, initiative: 5, speed: 30 },
+      ],
+    },
+  ];
+
+  const readied = (slotLevel: number): { g: Game; castingId: string } => {
+    const g = new Game().push(fighting());
+    g.push(
+      unwrap(
+        takeReady(g.state, WIZ, {
+          trigger: 'when the foe moves',
+          response: { kind: 'spell', spellId: 'bless', slotLevel },
+        }),
+        'ready',
+      ),
+    );
+    // Paid for and held: nothing is running yet.
+    expect(g.state.ongoing).toEqual({});
+    const released = unwrap(releaseReady(g.state, WIZ, { targets: [ALLY] }, supply()), 'release');
+    g.push(released.events);
+    return { g, castingId: released.spell!.castingId };
+  };
+
+  it('records the release on whom it landed, at the level it was readied at', () => {
+    const { g, castingId } = readied(2);
+    const record = ongoingSpellOf(g.state, castingId);
+    expect(record?.on).toEqual([ALLY]);
+    expect(record?.level).toBe(2);
+    expect(ongoingSpellsOn(g.state, ALLY).map((o) => o.castingId)).toEqual([castingId]);
+  });
+
+  it('can be dispelled like any other running spell', () => {
+    const { g, castingId } = readied(1);
+    expect(g.state.creatures[ALLY]?.bonuses).toHaveLength(1);
+
+    // Round to the rival, who has the Action to dispel with.
+    g.push(unwrap(resolveTurn(g.state, supply()), 'turn').events);
+    g.push(
+      unwrap(
+        resolveSpell(
+          g.state,
+          RIVAL,
+          { spellId: 'dispel-magic', targets: [ALLY], slotLevel: 3 },
+          supply(),
+        ),
+        'dispel',
+      ).events,
+    );
+    expect(ongoingSpellOf(g.state, castingId)).toBeNull();
+    expect(g.state.creatures[ALLY]?.bonuses).toEqual([]);
+    expect(g.state.creatures[WIZ]?.concentration).toBeNull();
+  });
+});
+
+/**
+ * An activation is a Magic action taken into the world exactly as a casting
+ * is, and it lacked every guard the casting path keeps: Vampiric Touch could
+ * strike while a damage roll against somebody was still held open, or while
+ * a casting stood open to be Counterspelled.
+ */
+describe('acting through a spell respects the debts a casting respects', () => {
+  const heldDamage = (): GameEvent => ({
+    type: 'damage-rolled',
+    damage: {
+      target: ALLY,
+      by: FOE,
+      source: 'Longsword',
+      components: [{ source: 'Longsword', type: 'slashing', roll: null, flat: 8, total: 8 }],
+      critical: false,
+      fromAttack: true,
+      reductions: [],
+      offers: [{ reactor: ALLY, feature: 'x', name: 'x', costsReaction: true, pool: null }],
+    },
+  });
+
+  it('is refused while a damage roll is held open', () => {
+    const g = new Game();
+    const drain = g.cast(WIZ, 'vampiric-touch', [FOE], 3);
+    g.push([heldDamage()]);
+    const out = activateSpell(g.state, WIZ, { castingId: drain, targets: [FOE] }, supply());
+    expect(isErr(out) ? out.code : 'ok').toBe('damage_pending');
+  });
+
+  it('is refused while a D20 Test is held open', () => {
+    const g = new Game();
+    const drain = g.cast(WIZ, 'vampiric-touch', [FOE], 3);
+    const rolled = unwrap(
+      resolveTest(g.state, ALLY, { kind: 'saving-throw', ability: 'dex', dc: 40 }, supply()),
+      'test',
+    );
+    g.push([
+      ...rolled.events,
+      {
+        type: 'test-rolled',
+        test: {
+          who: ALLY,
+          label: 'a pit',
+          result: rolled.test!,
+          offers: [{ reactor: ALLY, feature: 'x', name: 'x', costsReaction: false, pool: null }],
+        },
+      },
+    ]);
+    const out = activateSpell(g.state, WIZ, { castingId: drain, targets: [FOE] }, supply());
+    expect(isErr(out) ? out.code : 'ok').toBe('test_pending');
+  });
+
+  it('is refused while another casting stands open to be interrupted', () => {
+    const g = new Game();
+    const drain = g.cast(WIZ, 'vampiric-touch', [FOE], 3);
+    g.push(
+      unwrap(
+        resolveSpell(
+          g.state,
+          RIVAL,
+          { spellId: 'bless', targets: [ALLY], slotLevel: 1, hold: true },
+          supply(),
+        ),
+        'declare',
+      ).events,
+    );
+    const out = activateSpell(g.state, WIZ, { castingId: drain, targets: [FOE] }, supply());
+    expect(isErr(out) ? out.code : 'ok').toBe('casting_pending');
+  });
+});
+
+/**
+ * `releaseCasting` is the one place a casting ends, and it forgot one kind of
+ * debt: a hit the casting scheduled for a later moment. No ongoing spell
+ * schedules one yet — both delayed-damage spells are Instantaneous — so the
+ * log is assembled by hand, which is what a pure fold is for.
+ */
+describe('a casting takes the damage it scheduled with it', () => {
+  const owed = (castingId: string, target: CharacterId): GameEvent => ({
+    type: 'damage-scheduled',
+    schedule: {
+      target,
+      by: WIZ,
+      deadline: { kind: 'elapsed', at: 30 },
+      notation: '2d4',
+      damageType: 'acid',
+      source: `Bless#${castingId}`,
+      label: 'Bless (delayed)',
+    },
+  });
+
+  it('drops every hit the casting owed when the casting ends', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY, FOE], 1);
+    g.push([owed(bless, ALLY), owed(bless, FOE)]);
+    expect(Object.keys(g.state.scheduledDamage)).toHaveLength(2);
+
+    g.push([{ type: 'spell-ended', castingId: bless, on: null, reason: 'dispelled' }]);
+    expect(g.state.scheduledDamage).toEqual({});
+  });
+
+  it('drops only that creature’s hit when the casting is released on them', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY, FOE], 1);
+    g.push([owed(bless, ALLY), owed(bless, FOE)]);
+
+    g.push([{ type: 'spell-ended', castingId: bless, on: FOE, reason: 'dispelled' }]);
+    expect(Object.values(g.state.scheduledDamage).map((s) => s.target)).toEqual([ALLY]);
+  });
+
+  it('leaves what another casting owes, and goes when Concentration goes', () => {
+    const g = new Game();
+    const mine = g.cast(WIZ, 'bless', [ALLY], 1, 'mine');
+    const theirs = g.cast(RIVAL, 'bless', [FOE], 1, 'theirs');
+    g.push([owed(mine, ALLY), owed(theirs, FOE)]);
+
+    g.push([{ type: 'condition-applied', id: WIZ, condition: 'stunned', source: 'a blow' }]);
+    expect(ongoingSpellOf(g.state, mine)).toBeNull();
+    expect(Object.values(g.state.scheduledDamage).map((s) => s.source)).toEqual([`Bless#${theirs}`]);
+  });
+});
+
+/**
+ * **The duplicate check comes first, always** — and three guards on the
+ * casting path sat above it: a boundary save owed, a damage roll held, a D20
+ * Test held. None is opened by a casting's own first run, so the trap was
+ * quieter than the ones this repo has sprung before, and the same: a retry
+ * arriving after the world moved on was told about the world instead of
+ * being told its command had already landed.
+ */
+describe('a retried casting reports the duplicate however the world has moved on', () => {
+  const heldDamage = (): GameEvent => ({
+    type: 'damage-rolled',
+    damage: {
+      target: ALLY,
+      by: FOE,
+      source: 'Longsword',
+      components: [{ source: 'Longsword', type: 'slashing', roll: null, flat: 8, total: 8 }],
+      critical: false,
+      fromAttack: true,
+      reductions: [],
+      offers: [{ reactor: ALLY, feature: 'x', name: 'x', costsReaction: true, pool: null }],
+    },
+  });
+
+  const illusion = (g: Game) =>
+    resolveSpell(g.state, WIZ, { spellId: 'minor-illusion', targets: [], commandId: 'm1' }, supply());
+
+  it('after a damage roll somebody else held open', () => {
+    const g = new Game();
+    g.push(unwrap(illusion(g), 'first').events);
+    g.push([heldDamage()]);
+    const before = g.state;
+
+    const retry = unwrap(illusion(g), 'retry');
+    expect(retry.events).toEqual([]);
+    expect(fold('seed', [...g.log, ...retry.events])).toEqual(before);
+  });
+
+  it('after a D20 Test somebody else held open', () => {
+    const g = new Game();
+    g.push(unwrap(illusion(g), 'first').events);
+    const rolled = unwrap(
+      resolveTest(g.state, ALLY, { kind: 'saving-throw', ability: 'dex', dc: 40 }, supply()),
+      'test',
+    );
+    g.push([
+      ...rolled.events,
+      {
+        type: 'test-rolled',
+        test: {
+          who: ALLY,
+          label: 'a pit',
+          result: rolled.test!,
+          offers: [{ reactor: ALLY, feature: 'x', name: 'x', costsReaction: false, pool: null }],
+        },
+      },
+    ]);
+    const before = g.state;
+
+    const retry = unwrap(illusion(g), 'retry');
+    expect(retry.events).toEqual([]);
+    expect(fold('seed', [...g.log, ...retry.events])).toEqual(before);
+  });
+
+  /**
+   * The one PROGRESS.md had already named as a debt: Hold Person lands, the
+   * turn comes round to the end of the held creature's turn, the repeat save
+   * is raised and left owed — and the retry of the casting that put it there
+   * was refused with `saves_pending`.
+   */
+  it('after the boundary raised a save the first run made owed', () => {
+    const g = new Game().push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: WIZ, initiative: 20, speed: 30 },
+          { id: FOE, initiative: 10, speed: 30 },
+        ],
+      },
+    ]);
+    const hold = (seed: string) =>
+      resolveSpell(
+        g.state,
+        WIZ,
+        { spellId: 'hold-person', targets: [FOE], slotLevel: 2, commandId: 'hp1' },
+        supply(seed),
+      );
+    // A seed the foe fails against, chosen by outcome rather than by hope.
+    const seed = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].find(
+      (candidate) => unwrap(hold(candidate), 'hold').outcomes[0]?.affected === true,
+    );
+    expect(seed, 'no seed made the save fail').toBeDefined();
+    g.push(unwrap(hold(seed!), 'first').events);
+
+    // Without a generator, the boundary raises the save and leaves it owed.
+    g.push(unwrap(resolveTurn(g.state), 'to the foe').events);
+    g.push(unwrap(resolveTurn(g.state), 'past the foe').events);
+    expect(Object.keys(g.state.pendingSaves)).toHaveLength(1);
+    const before = g.state;
+
+    const retry = unwrap(hold(seed!), 'retry');
+    expect(retry.events).toEqual([]);
+    expect(fold('seed', [...g.log, ...retry.events])).toEqual(before);
   });
 });

@@ -572,7 +572,12 @@ function settleHoldsInvolving(state: GameState, id: CharacterId): readonly GameE
   const held = state.pendingDamage;
   if (held !== null && held.target === id) {
     for (const offer of held.offers) {
-      events.push({ type: 'damage-reaction-answered', reactor: offer.reactor, took: false });
+      events.push({
+        type: 'damage-reaction-answered',
+        reactor: offer.reactor,
+        took: false,
+        feature: offer.feature,
+      });
     }
     events.push({ type: 'damage-settled', target: held.target });
   }
@@ -582,7 +587,12 @@ function settleHoldsInvolving(state: GameState, id: CharacterId): readonly GameE
   const test = state.pendingTest;
   if (test !== null && test.who === id) {
     for (const offer of test.offers) {
-      events.push({ type: 'test-reaction-answered', reactor: offer.reactor, took: false });
+      events.push({
+        type: 'test-reaction-answered',
+        reactor: offer.reactor,
+        took: false,
+        feature: offer.feature,
+      });
     }
     events.push({ type: 'test-settled', who: test.who });
   }
@@ -2957,6 +2967,19 @@ export interface DamageReactionCommand extends CommandIdentity {
   readonly feature: string;
 }
 
+/**
+ * Passing on a window.
+ *
+ * An offer is a (reactor, feature) pair, so a creature holding two features
+ * in one window may let one lapse and keep the other — a Fighter / Fiend
+ * Warlock declining Indomitable still has Dark One's Own Luck to add. Naming
+ * no feature passes on every offer this creature holds, which is what
+ * ignoring the trigger altogether means.
+ */
+export interface DeclineReactionCommand extends CommandIdentity {
+  readonly feature?: string;
+}
+
 export interface ReactionResolution {
   readonly events: readonly GameEvent[];
   /** What came off the damage, when something did. */
@@ -3087,7 +3110,7 @@ export function takeDamageReaction(
 export function declineDamageReaction(
   state: GameState,
   reactor: CharacterId,
-  command: CommandIdentity = {},
+  command: DeclineReactionCommand = {},
 ): Result<GameEvent[]> {
   const identity = identify(state, `decline-damage-reaction:${reactor}`, command);
   if (!identity.ok) return identity;
@@ -3098,8 +3121,13 @@ export function declineDamageReaction(
   if (pending === null) {
     return err('no_pending_damage', `no damage roll is waiting for ${reactor} to answer`);
   }
-  if (!pending.offers.some((o) => o.reactor === reactor)) {
-    return err('not_offered', `${reactor} was not offered a Reaction against this damage`);
+  const held = (o: ReactionOffer): boolean =>
+    o.reactor === reactor && (command.feature === undefined || o.feature === command.feature);
+  if (!pending.offers.some(held)) {
+    return err(
+      'not_offered',
+      `${reactor} was not offered ${command.feature ?? 'a Reaction'} against this damage`,
+    );
   }
 
   return ok([
@@ -3107,6 +3135,7 @@ export function declineDamageReaction(
       type: 'damage-reaction-answered',
       reactor,
       took: false,
+      ...(command.feature === undefined ? {} : { feature: command.feature }),
       ...(stamp === null ? {} : { command: stamp }),
     },
   ]);
@@ -3151,11 +3180,14 @@ export function settleDamage(
   if (pending === null) return err('no_pending_damage', 'no damage roll is waiting to be dealt');
 
   // Everyone who never answered is recorded as having passed. Their Reaction
-  // is untouched — ignoring a trigger costs nothing.
+  // is untouched — ignoring a trigger costs nothing. One pass per **offer**,
+  // each naming its feature: an offer is a (reactor, feature) pair, and a
+  // creature holding two features in this window owes two answers.
   const events: GameEvent[] = pending.offers.map((offer) => ({
     type: 'damage-reaction-answered' as const,
     reactor: offer.reactor,
     took: false,
+    feature: offer.feature,
   }));
 
   events.push({
@@ -3484,7 +3516,7 @@ export function takeTestReaction(
 export function declineTestReaction(
   state: GameState,
   reactor: CharacterId,
-  command: CommandIdentity = {},
+  command: DeclineReactionCommand = {},
 ): Result<GameEvent[]> {
   const identity = identify(state, `decline-test-reaction:${reactor}`, command);
   if (!identity.ok) return identity;
@@ -3495,8 +3527,13 @@ export function declineTestReaction(
   if (pending === null) {
     return err('no_pending_test', `no D20 Test is waiting for ${reactor} to answer`);
   }
-  if (!pending.offers.some((o) => o.reactor === reactor)) {
-    return err('not_offered', `${reactor} was not offered a Reaction against this roll`);
+  const held = (o: ReactionOffer): boolean =>
+    o.reactor === reactor && (command.feature === undefined || o.feature === command.feature);
+  if (!pending.offers.some(held)) {
+    return err(
+      'not_offered',
+      `${reactor} was not offered ${command.feature ?? 'a Reaction'} against this roll`,
+    );
   }
 
   return ok([
@@ -3504,6 +3541,7 @@ export function declineTestReaction(
       type: 'test-reaction-answered',
       reactor,
       took: false,
+      ...(command.feature === undefined ? {} : { feature: command.feature }),
       ...(stamp === null ? {} : { command: stamp }),
     },
   ]);
@@ -3539,6 +3577,7 @@ export function settleTest(
     type: 'test-reaction-answered' as const,
     reactor: offer.reactor,
     took: false,
+    feature: offer.feature,
   }));
 
   events.push({
@@ -4001,13 +4040,20 @@ export function activateSpell(
   }
   const stamp = identity.value.stamp;
 
-  // The same rule that stops the turn advancing: acting while a boundary save
-  // is outstanding resolves against a state nobody has settled.
-  const owed = pendingSavesOf(state);
-  if (owed.length > 0) {
+  // The same debts that stop a casting, read by the same function — an
+  // activation is a Magic action taken into the world exactly as a casting
+  // is, and a guard the casting path keeps that this one lacked let Vampiric
+  // Touch strike while a damage roll against somebody was still held open.
+  const unsettled = unsettledRefusal(state);
+  if (unsettled !== null) return unsettled;
+
+  // SRD Counterspell's window: while a casting is in process, the only thing
+  // that may happen is the Reaction that answers it. Same rule `castOrRelease`
+  // applies, with no exemption here because no activation is a Reaction.
+  if (state.pendingCasting !== null) {
     return err(
-      'saves_pending',
-      `${owed.length} turn-boundary save(s) are still owed; resolve them before acting`,
+      'casting_pending',
+      `${state.pendingCasting.caster} is midway through casting ${state.pendingCasting.spell}; settle that casting before acting through another`,
     );
   }
 
@@ -6640,6 +6686,44 @@ export function resolveDeclaredCast(
 }
 
 /**
+ * The debt that stops a creature acting right now, or null.
+ *
+ * A turn-boundary save outstanding means somebody may or may not still be
+ * Paralyzed; a damage roll or a D20 Test held open is an outcome nobody has
+ * settled. Acting into either resolves against a state that is not yet
+ * decided — a Cleric healing the Rogue who is about to be hit by damage
+ * already rolled. `pendingAttack` is deliberately *not* here: SRD Divine
+ * Smite is cast into that window on purpose.
+ *
+ * One function for the two commands that take an action through magic —
+ * casting and acting through a running spell — so the list cannot drift
+ * between them. It is the same rule that stops the turn advancing, and
+ * `resolveTurn` keeps its own wording of it.
+ */
+function unsettledRefusal(state: GameState): Err | null {
+  const owed = pendingSavesOf(state);
+  if (owed.length > 0) {
+    return err(
+      'saves_pending',
+      `${owed.length} turn-boundary save(s) are still owed; resolve them before acting`,
+    );
+  }
+  if (state.pendingDamage !== null) {
+    return err(
+      'damage_pending',
+      `damage rolled against ${state.pendingDamage.target} has not been settled; settle it before acting`,
+    );
+  }
+  if (state.pendingTest !== null) {
+    return err(
+      'test_pending',
+      `the D20 Test ${state.pendingTest.who} rolled has not been settled; settle it before acting`,
+    );
+  }
+  return null;
+}
+
+/**
  * A casting that has already been paid for and is waiting to be let go.
  *
  * SRD Ready is the only thing that produces one: the slot went when the spell
@@ -6663,33 +6747,21 @@ function castOrRelease(
   supply: ConcentrationSaveSupply,
   held: HeldCasting | null,
 ): Result<SpellResolution> {
-  // A turn-boundary save outstanding means somebody may or may not still be
-  // Paralyzed, and casting at them would be resolving against a state nobody
-  // has settled. The rule is the same one that stops the turn advancing.
-  const owed = pendingSavesOf(state);
-  if (owed.length > 0) {
-    return err(
-      'saves_pending',
-      `${owed.length} turn-boundary save(s) are still owed; resolve them before acting`,
-    );
-  }
+  // **The duplicate check comes first, always.** A retry arrives at whatever
+  // the world has become since its first run — a damage roll somebody else
+  // has since held open, a save the next boundary raised — and every guard
+  // below reports that world instead of the fact that the command already
+  // landed. `resolveCast` owns the identity and answers the retry with an
+  // empty batch; everything between here and there is skipped for one.
+  const replayed = request.commandId !== undefined && wasCommandApplied(state, request.commandId);
 
-  // Same rule, newer debts. A spell cast while a damage roll or a D20 Test is
-  // held open would change the world underneath an outcome nobody has settled
-  // — a Cleric healing the Rogue who is about to be hit by damage already
-  // rolled. `pendingAttack` is deliberately *not* in this list: SRD Divine
-  // Smite is cast into that window on purpose.
-  if (state.pendingDamage !== null) {
-    return err(
-      'damage_pending',
-      `damage rolled against ${state.pendingDamage.target} has not been settled; settle it before acting`,
-    );
-  }
-  if (state.pendingTest !== null) {
-    return err(
-      'test_pending',
-      `the D20 Test ${state.pendingTest.who} rolled has not been settled; settle it before acting`,
-    );
+  // A turn-boundary save outstanding means somebody may or may not still be
+  // Paralyzed, and a damage roll or a D20 Test held open is an outcome nobody
+  // has settled; casting into either would change the world underneath it.
+  // See `unsettledRefusal`, which `activateSpell` reads too.
+  if (!replayed) {
+    const unsettled = unsettledRefusal(state);
+    if (unsettled !== null) return unsettled;
   }
 
   const caster = creatureOf(state, casterId);
@@ -6714,8 +6786,6 @@ function castOrRelease(
   // trigger is gone — and reporting `no_trigger` for a casting that already
   // happened is the exact confusion command ids exist to prevent. A retry must
   // report the duplicate; `resolveCast` below returns the empty batch.
-  const replayed = request.commandId !== undefined && wasCommandApplied(state, request.commandId);
-
   if (held === null && !replayed) {
     const refused = triggerRefusal(state, casterId, definition, request);
     if (refused !== null) return refused;
@@ -7231,6 +7301,13 @@ function resolveOnTargets(
       supply,
       castingId: held.castingId,
       events,
+      // A released spell leaves the same thing running that a cast one does.
+      // This was the one resolution path of three that wrote no record, so a
+      // readied Bless was running, concentrated on, and invisible to Dispel
+      // Magic.
+      ...(persists(definition)
+        ? { becomesOngoing: { spellId: definition.id, onCaster: onCaster(definition) } }
+        : {}),
     });
   }
 

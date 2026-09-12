@@ -1678,6 +1678,13 @@ function releaseCasting(
     timers[key] = timer;
   }
 
+  // A hit the casting promised for a later moment goes with it. No ongoing
+  // casting schedules one yet — both delayed-damage spells are Instantaneous —
+  // but the schedule already names its casting, and a convergence point that
+  // forgot one kind of debt is the hole `releaseOnTarget`'s bonuses were.
+  const scheduledDamage = withoutScheduledDamage(state, castingId, null).scheduledDamage;
+  if (scheduledDamage !== state.scheduledDamage) changed = true;
+
   // And the live record goes with them. **This is the one place it is removed**
   // — whether the casting ended because Concentration broke, because its
   // deadline arrived, or because somebody dispelled it — so there is exactly
@@ -1691,7 +1698,31 @@ function releaseCasting(
     changed = true;
   }
 
-  return changed ? { ...state, creatures, timers, ongoing } : state;
+  return changed ? { ...state, creatures, timers, ongoing, scheduledDamage } : state;
+}
+
+/**
+ * Drop the hits a casting promised for later — all of them, or one creature's.
+ *
+ * The schedule's source carries the casting id exactly as a condition's does,
+ * so ending a casting can find what it owes without a second index. Returns
+ * the state it was given when nothing matched, so callers can tell.
+ */
+function withoutScheduledDamage(
+  state: GameState,
+  castingId: string,
+  targetId: CharacterId | null,
+): GameState {
+  let scheduled: Record<string, ScheduledDamage> | null = null;
+
+  for (const [key, hit] of Object.entries(state.scheduledDamage)) {
+    if (castingIdOf(hit.source) !== castingId) continue;
+    if (targetId !== null && hit.target !== targetId) continue;
+    scheduled ??= { ...state.scheduledDamage };
+    delete scheduled[key];
+  }
+
+  return scheduled === null ? state : { ...state, scheduledDamage: scheduled };
 }
 
 /**
@@ -1720,6 +1751,27 @@ function withoutTarget(
   return ongoing === null ? state : { ...state, ongoing };
 }
 
+/**
+ * Which offer an answer settles.
+ *
+ * **An offer is a (reactor, feature) pair, not a reactor.** One creature can
+ * hold two features in one window — a Rogue 5 / Monk 3 is offered Uncanny
+ * Dodge *and* Deflect Attacks against the same blow, and a Fighter / Fiend
+ * Warlock may Indomitable a failed save and then add Dark One's Own Luck to
+ * the new roll, which the SRD permits. Matching answers by reactor alone
+ * consumed both offers on the first answer, and a settlement that recorded
+ * one pass per offer then found the second already gone and threw — a legal
+ * character build that crashed the settle command and corrupted the log.
+ *
+ * An answer that names no feature is a bare pass and lets every offer that
+ * reactor held lapse, which is what declining a window means.
+ */
+const offerAnswered =
+  (event: { readonly reactor: CharacterId; readonly feature?: string }) =>
+  (offer: ReactionOffer): boolean =>
+    offer.reactor === event.reactor &&
+    (event.feature === undefined || offer.feature === event.feature);
+
 /** Who is concentrating on a casting, if anybody still is. */
 const casterOf = (state: GameState, castingId: string): CharacterId | null =>
   Object.values(state.creatures).find((c) => c.concentration?.castingId === castingId)?.id ?? null;
@@ -1742,7 +1794,11 @@ function releaseOnTarget(
   // The live record loses this creature whatever else changes — a tracked
   // spell like Darkvision is *on* somebody and hangs nothing on them, so the
   // condition-and-bonus test below would say there was nothing to release.
-  const base = withoutTarget(state, targetId, castingId);
+  const base = withoutScheduledDamage(
+    withoutTarget(state, targetId, castingId),
+    castingId,
+    targetId,
+  );
 
   const doomed = creature.conditions.instances.filter(
     (instance) => castingIdOf(instance.source) === castingId,
@@ -3087,8 +3143,12 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       // An answer from somebody who was never offered one is a log and a set of
       // rules that disagree, not a rules dispute — the same loudness a second
       // action in one turn gets.
-      if (!waiting.offers.some((o) => o.reactor === event.reactor)) {
-        throw new CorruptLogError(event, `${event.reactor} was not offered this Reaction`);
+      const answered = offerAnswered(event);
+      if (!waiting.offers.some(answered)) {
+        throw new CorruptLogError(
+          event,
+          `${event.reactor} was not offered ${event.feature ?? 'a Reaction'} against this damage`,
+        );
       }
       return {
         ...next,
@@ -3098,13 +3158,19 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             event.reduction === undefined
               ? waiting.reductions
               : [...waiting.reductions, event.reduction],
-          offers: waiting.offers.filter((o) => o.reactor !== event.reactor),
+          offers: waiting.offers.filter((o) => !answered(o)),
         },
       };
     }
     case 'damage-settled': {
       const waiting = state.pendingDamage;
       if (waiting === null) throw new CorruptLogError(event, 'no damage roll is being held');
+      if (waiting.target !== event.target) {
+        throw new CorruptLogError(
+          event,
+          `the damage being held is against ${waiting.target}, not ${event.target}`,
+        );
+      }
       if (waiting.offers.length > 0) {
         throw new CorruptLogError(event, 'somebody still owes an answer to this damage');
       }
@@ -3119,8 +3185,12 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'test-reaction-answered': {
       const waiting = state.pendingTest;
       if (waiting === null) throw new CorruptLogError(event, 'no D20 Test is being held');
-      if (!waiting.offers.some((o) => o.reactor === event.reactor)) {
-        throw new CorruptLogError(event, `${event.reactor} was not offered this Reaction`);
+      const answered = offerAnswered(event);
+      if (!waiting.offers.some(answered)) {
+        throw new CorruptLogError(
+          event,
+          `${event.reactor} was not offered ${event.feature ?? 'a Reaction'} against this test`,
+        );
       }
       return {
         ...next,
@@ -3129,13 +3199,19 @@ function applyOne(state: GameState, event: GameEvent): GameState {
           // The pushed roll replaces the old one. The superseded number is on
           // the result itself, so the log still shows what was given up.
           ...(event.result === undefined ? {} : { result: event.result }),
-          offers: waiting.offers.filter((o) => o.reactor !== event.reactor),
+          offers: waiting.offers.filter((o) => !answered(o)),
         },
       };
     }
     case 'test-settled': {
       const waiting = state.pendingTest;
       if (waiting === null) throw new CorruptLogError(event, 'no D20 Test is being held');
+      if (waiting.who !== event.who) {
+        throw new CorruptLogError(
+          event,
+          `the D20 Test being held is ${waiting.who}'s, not ${event.who}'s`,
+        );
+      }
       if (waiting.offers.length > 0) {
         throw new CorruptLogError(event, 'somebody still owes an answer to this test');
       }

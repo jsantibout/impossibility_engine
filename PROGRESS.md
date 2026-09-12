@@ -899,12 +899,43 @@ they are debts rather than surprises.
   offer list — `pendingMove.provoked` had been one since Opportunity Attacks,
   and `pendingDamage` and `pendingTest` are the second and third, which is the
   order the generalization rule asks for.
-- **`resolveSpell`'s `saves_pending` guard still sits above the duplicate
-  check.** Same shape as the `casting_pending` bug fixed in this batch: a retry
-  arriving after a turn boundary raised saves would be told the saves are owed
-  rather than that its command already landed. Pre-existing, orthogonal to this
-  work, and left alone deliberately — moving it is its own change with its own
-  failing test, not a drive-by inside a batch about casting.
+- **~~`resolveSpell`'s `saves_pending` guard still sits above the duplicate
+  check.~~ Paid**, and the reaction batch had added two more of the same shape
+  beside it (`damage_pending`, `test_pending`). All three now live in
+  `unsettledRefusal`, skipped for a replayed command, and `activateSpell` —
+  which had none of them — reads the same function. Three failing tests in
+  `ongoing-spells.test.ts` pin the order.
+- **An offer is a (reactor, feature) pair.** Found by the second architecture
+  audit: the reducer matched a Reaction answer by reactor alone, so a Rogue 5 /
+  Monk 3 hit by a sword — offered Uncanny Dodge and Deflect Attacks together —
+  crashed `settleDamage`, and a Fighter / Fiend Warlock's failed save produced
+  a `test-settled` batch the fold refused. Fixed in the reducer and the settle
+  commands; the multiclass fixture is the one that discriminates. Paid.
+- **A readied spell left no live record**, the one of three resolution paths
+  without a `spell-ongoing`; and `releaseCasting` did not drop the damage a
+  casting had scheduled. Both paid, both pinned.
+- **Named by the audit and deliberately left open**, each small and each
+  waiting for the mechanic that would make it real:
+  - `hit-by-attack` and `casting-a-spell` open on the *actor's* opt-in
+    (`hold`) while the other three windows open on the engine's own detection,
+    so a Rogue's *Shield* depends on the attacker's command. A pre-flight
+    "could anybody answer this" query is the consistent shape.
+  - Cutting Words is offered against allies' rolls too, so a Lore Bard makes
+    every party hit a two-command exchange. SRD-correct; a tool-surface policy.
+  - Spell attacks never open `damage-rolled` and no save inside a spell, a
+    Concentration save or a repeat save opens `test-rolled` — Uncanny Dodge
+    against Fire Bolt and Indomitable against Hold Person are both blocked on
+    one thing, a casting's resolution suspended per target.
+  - `OngoingSpell.concentration` has no reader and is derivable from the
+    caster's record; `on` is not shrunk when a condition expires by its own
+    timer while the casting persists (no executed spell reaches it — Sunbeam,
+    the only candidate, is Range: Self); "Until dispelled" spells leave no
+    record because `persists` reads a duration; a readied Mage Hand does not
+    end the prior hand (`replacedCastings` runs at the cast, not the release);
+    and a hand-built `spell-ongoing` for a casting that has already ended is
+    accepted, because nothing records that a casting ended.
+  - Reactor eligibility scans every creature in the game, not the scene or the
+    fight. Fine at one scene; the shape to change when locations arrive.
 - **A spell can create a thing, and the thing cannot stand anywhere.** New
   with the ongoing-spell record, and named here because it is now the *only*
   thing between the engine and eleven later-turn spells. A casting has an
@@ -1259,6 +1290,24 @@ primitive — which is why it is below the four above it despite being unblocked
    stated there: do **not** widen `CreatureState` into a property bag. A
    spell-made object needs its own precise record, a position in the scene, and
    an answer to what happens when the scene ends.
+
+   **Audited, and it is not one family.** Read spell by spell, the eleven split
+   three ways, and only the first two share a primitive:
+
+   | | Spells | What it is |
+   |---|---|---|
+   | A fixed origin the casting keeps | Call Lightning's cloud, and the Web / Grease / Fog Cloud shape behind it | a point (and an area) on the ongoing record; no identity of its own, no movement |
+   | An origin the caster steers | Spiritual Weapon, Flaming Sphere, Mage Hand, Arcane Eye, Silent Image, Dancing Lights (four points), Mislead's double | the same point, plus a move as a Bonus Action and range measured *from it*; none is attackable, none has hit points, none occupies a space |
+   | A creature-shaped thing with statistics | Unseen Servant (AC 10, 1 HP), Arcane Hand (AC 20, hit points, Large, grapples), Project Image at 500 miles | a creature record tied to the casting — the **summons** seam, not this one |
+
+   So the primitive is **an ongoing casting can have an origin in the scene**,
+   which is a field on `OngoingSpell` and a `spell-moved` event, and
+   `releaseCasting` is where it disappears. Spiritual Weapon is the cheapest
+   proof (origin, move, activation measured from the origin); Flaming Sphere
+   and Web then want the trigger "a creature ends its turn within the area",
+   which is item 3 of the ranked map. Unseen Servant and Arcane Hand wait for
+   summons. Dancing Lights is the only multi-point case and light is not
+   modelled, so it proves nothing about identity.
 2. **Keep pouring spells into the five working shapes.** Attack, save-damage,
    save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
    spells fit one of them and need only a definition with its SRD quote.

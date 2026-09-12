@@ -2418,3 +2418,226 @@ describe('the existing Reaction spells still work, and compose with the new wind
     expect(isErr(spell) ? spell.code : 'ok').toBe('no_trigger');
   });
 });
+
+// — an offer is a (reactor, feature) pair ————————————————————————————————————
+
+/**
+ * One creature can hold two features in one window. A Rogue 5 / Monk 3 is
+ * offered Uncanny Dodge *and* Deflect Attacks against the same blow, and a
+ * Fighter / Fiend Warlock may reroll a failed save with Indomitable and then
+ * add Dark One's Own Luck to the new roll — two features, neither costing a
+ * Reaction, and the SRD forbids neither.
+ *
+ * Matching an answer by reactor alone consumed both offers on the first
+ * answer, and a settlement that recorded one pass per offer then found the
+ * second already gone and threw: a legal character build crashed
+ * `settleDamage` and wrote a `test-settled` batch the fold refused for ever.
+ * Every single-class fixture in this file has exactly one feature per window,
+ * which is how that survived the whole suite — the multiclass is the fixture
+ * that discriminates.
+ */
+describe('an offer is a (reactor, feature) pair, not a reactor', () => {
+  /** A Rogue 5 / Monk 3, built through creation so both grants are real. */
+  const rogueMonk = (): CharacterChoices => ({
+    ...common,
+    name: 'Nyx',
+    classId: 'rogue',
+    level: 5,
+    multiclass: [{ classId: 'monk', level: 3, subclassId: 'warrior-of-the-open-hand' }],
+    abilities: {
+      method: 'standard-array',
+      // SRD multiclassing into Monk needs 13 in Dexterity *and* Wisdom.
+      assignment: { str: 8, dex: 15, con: 12, int: 10, wis: 13, cha: 14 },
+    },
+    abilityIncreases: { con: 2, int: 1 },
+    classSkills: ['stealth', 'sleight-of-hand', 'acrobatics', 'investigation'],
+    subclassId: 'thief',
+    featureChoices: {
+      'human:skillful': ['perception'],
+      'rogue:expertise': ['stealth', 'sleight-of-hand'],
+    },
+    feats: { ...common.feats, 'rogue:ability-score-improvement': { featId: 'savage-attacker' } },
+  });
+
+  const both = () => new Game(duel(NYX, sheetFor(rogueMonk(), 'rogue 5 / monk 3')));
+
+  it('offers both features against one blow', () => {
+    const g = both();
+    expect(swing(g, NYX).reactions?.map((o) => o.feature)).toEqual([
+      'monk:deflect-attacks',
+      'rogue:uncanny-dodge',
+    ]);
+  });
+
+  it('settles with nobody answering, one pass per offer, and the log folds', () => {
+    const g = both();
+    const rolled = heldDamage(swing(g, NYX).events);
+    const before = rolled!.components.reduce((sum, c) => sum + c.total, 0);
+
+    const settled = unwrap(settleDamage(g.state, supply()), 'settle');
+    const passes = settled.events.flatMap((e) =>
+      e.type === 'damage-reaction-answered' ? [e.feature] : [],
+    );
+    expect(passes).toEqual(['monk:deflect-attacks', 'rogue:uncanny-dodge']);
+    g.push(settled.events);
+    expect(g.hp(NYX)).toBe(80 - before);
+    g.foldsAtEveryPrefix();
+  });
+
+  it('leaves the other offer standing when one is taken, and the settlement passes it', () => {
+    const g = both();
+    const rolled = heldDamage(swing(g, NYX).events);
+    const before = rolled!.components.reduce((sum, c) => sum + c.total, 0);
+
+    g.push(
+      unwrap(
+        takeDamageReaction(g.state, NYX, { feature: 'rogue:uncanny-dodge' }, supply()),
+        'dodge',
+      ).events,
+    );
+    expect(g.state.pendingDamage?.offers.map((o) => o.feature)).toEqual(['monk:deflect-attacks']);
+    // Still in the record, no longer affordable: the one Reaction is spent.
+    expect(reactionOpportunities(g.state)).toEqual([]);
+    const second = takeDamageReaction(g.state, NYX, { feature: 'monk:deflect-attacks' }, supply());
+    expect(isErr(second) ? second.code : 'ok').toBe('no_reaction');
+
+    const settled = unwrap(settleDamage(g.state, supply()), 'settle');
+    g.push(settled.events);
+    expect(settled.amount).toBe(Math.floor(before / 2));
+    g.foldsAtEveryPrefix();
+  });
+
+  it('lets one feature be declined while the other is kept', () => {
+    const g = both();
+    swing(g, NYX);
+    g.push(
+      unwrap(declineDamageReaction(g.state, NYX, { feature: 'monk:deflect-attacks' }), 'decline'),
+    );
+    expect(g.state.pendingDamage?.offers.map((o) => o.feature)).toEqual(['rogue:uncanny-dodge']);
+    expect(
+      isErr(takeDamageReaction(g.state, NYX, { feature: 'rogue:uncanny-dodge' }, supply())),
+    ).toBe(false);
+  });
+
+  it('declining with no feature named passes on every offer the creature holds', () => {
+    const g = both();
+    swing(g, NYX);
+    g.push(unwrap(declineDamageReaction(g.state, NYX, {}), 'decline'));
+    expect(g.state.pendingDamage?.offers).toEqual([]);
+  });
+
+  /**
+   * The D20 Test window, with the two features the SRD lets stack: a reroll,
+   * and then a die added to the new roll. The sheet is assembled by hand from
+   * the two classes' own grants, because the arithmetic of stacking is what
+   * is under test and creation's half is proved by the Rogue / Monk above.
+   */
+  const stacked = (): Game =>
+    new Game([
+      added(
+        BRAM,
+        'party',
+        plain({
+          reactions: [
+            ...(sheetFor(fighter(9), 'fighter 9').reactions ?? []),
+            ...(sheetFor(warlock(6), 'warlock 6').reactions ?? []),
+          ],
+        }),
+      ),
+      pool(BRAM, 'fighter:indomitable', 'Indomitable', 1),
+      pool(BRAM, 'fiend-patron:dark-ones-own-luck', "Dark One's Own Luck", 3),
+    ]);
+
+  const failing = (g: Game) =>
+    unwrap(
+      resolveTest(g.state, BRAM, { kind: 'saving-throw', ability: 'dex', dc: 40 }, supply()),
+      'save',
+    );
+
+  it("rerolls with Indomitable and then adds Dark One's Own Luck to the new roll", () => {
+    const g = stacked();
+    const failed = failing(g);
+    expect(failed.offers.map((o) => o.feature)).toEqual([
+      'fiend-patron:dark-ones-own-luck',
+      'fighter:indomitable',
+    ]);
+    g.push(failed.events);
+
+    const rerolled = unwrap(
+      takeTestReaction(g.state, BRAM, { feature: 'fighter:indomitable' }, supply('again')),
+      'indomitable',
+    );
+    g.push(rerolled.events);
+    expect(g.state.pendingTest?.offers.map((o) => o.feature)).toEqual([
+      'fiend-patron:dark-ones-own-luck',
+    ]);
+
+    const lucky = unwrap(
+      takeTestReaction(g.state, BRAM, { feature: 'fiend-patron:dark-ones-own-luck' }, supply('luck')),
+      'luck',
+    );
+    g.push(lucky.events);
+    const added = lucky.test!.total - rerolled.test!.total;
+    expect(added).toBeGreaterThanOrEqual(1);
+    expect(added).toBeLessThanOrEqual(10);
+    // The die rode on the rerolled number, which is the one that stands.
+    expect(lucky.test!.supersedes).toEqual(rerolled.test!.supersedes);
+
+    g.push(unwrap(settleTest(g.state), 'settle').events);
+    expect(g.state.pendingTest).toBeNull();
+    g.foldsAtEveryPrefix();
+  });
+
+  it('settles a held test with two offers for one creature, and the log folds', () => {
+    const g = stacked();
+    g.push(failing(g).events);
+    const settled = unwrap(settleTest(g.state), 'settle');
+    expect(settled.events.filter((e) => e.type === 'test-reaction-answered')).toHaveLength(2);
+    g.push(settled.events);
+    g.foldsAtEveryPrefix();
+  });
+
+  /** And the reducer holds the log to the same identity. */
+  it('refuses a log in which an answer names a feature that was never offered', () => {
+    const g = both();
+    swing(g, NYX);
+    expect(() =>
+      fold('seed', [
+        ...g.log,
+        { type: 'damage-reaction-answered', reactor: NYX, took: true, feature: 'bard:cutting-words' },
+      ]),
+    ).toThrow();
+  });
+
+  it('refuses a log that settles held damage against the wrong creature', () => {
+    const g = both();
+    swing(g, NYX);
+    const passes: GameEvent[] = g.state.pendingDamage!.offers.map((o) => ({
+      type: 'damage-reaction-answered',
+      reactor: o.reactor,
+      took: false,
+      feature: o.feature,
+    }));
+    expect(() =>
+      fold('seed', [...g.log, ...passes, { type: 'damage-settled', target: THUG }]),
+    ).toThrow();
+    expect(() =>
+      fold('seed', [...g.log, ...passes, { type: 'damage-settled', target: NYX }]),
+    ).not.toThrow();
+  });
+
+  it('refuses a log that closes a held test for the wrong creature', () => {
+    const g = stacked();
+    g.push(failing(g).events);
+    const passes: GameEvent[] = g.state.pendingTest!.offers.map((o) => ({
+      type: 'test-reaction-answered',
+      reactor: o.reactor,
+      took: false,
+      feature: o.feature,
+    }));
+    expect(() => fold('seed', [...g.log, ...passes, { type: 'test-settled', who: THUG }])).toThrow();
+    expect(() =>
+      fold('seed', [...g.log, ...passes, { type: 'test-settled', who: BRAM }]),
+    ).not.toThrow();
+  });
+});
