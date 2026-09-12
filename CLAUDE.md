@@ -924,6 +924,148 @@ Counterspell is refused rather than nested. And it is not the long-casting-time
 machinery: a casting of a minute or more needs a per-turn obligation the caster
 must keep, which is a state machine, not a window.
 
+## A Reaction Is A Window, Not A Trigger
+
+Eight class features spent eleven batches saying *"needs an interrupt the
+engine does not have"* while the three pieces of arithmetic they wanted —
+`reduceDamage`, `interveneAfterRoll`, `rerollTest` — sat written, correct and
+reachable from no command at all. That is the tenth instance in this file of a
+pure function nothing calls, and the largest.
+
+What was missing was not arithmetic and not a trigger language. **It was two
+instants**: a damage roll that has been made and not applied, and a D20 Test
+whose total is known and whose effects have not occurred.
+
+**The vocabulary is five named windows and it is shared with spells.**
+`ReactionWindow` in `reactions.ts` is the whole of it, and it is a table rather
+than a framework because every member is a point in a resolution the engine
+already performs:
+
+| Window | Pinned before it opens | Still unresolved | Who names it |
+|---|---|---|---|
+| `hit-by-attack` | the attack roll hit; the Armour Class it beat | the damage roll | *Shield*; seven monsters' Parry |
+| `damage-rolled` | the damage, by type | what the target takes | Uncanny Dodge, Deflect Attacks, Cutting Words |
+| `damaged-by-creature` | **everything** | nothing | *Hellish Rebuke*, Retaliation |
+| `test-rolled` | the total, and whether it beat the DC | the effects of that outcome | Indomitable, Dark One's Own Luck, Peerless Skill, Cutting Words |
+| `casting-a-spell` | the casting, the action, the Concentration dropped | the slot, the effects | *Counterspell* |
+
+**`damaged-by-creature` is in both columns**, and that overlap is the evidence
+the vocabulary is shared rather than merely tidy: *Hellish Rebuke* and
+Retaliation answer the same instant under the same rule, and `damageWindowOpen`
+is the one function that decides whether it is still open. Two clients, one
+reading.
+
+Class features therefore did **not** reuse the spell machinery — a spell
+Reaction is a *casting*, with a definition, a route, a slot and an action, and
+a feature has none of those. Both sit on the window instead.
+
+### The window opens only when somebody can answer it
+
+A window that opened on every damage roll would make every swing of every
+sword a two-command negotiation, and `scenario.test.ts` and the frozen
+`golden-log.json` would both have had to change. With no eligible reactor the
+damage is dealt in the same breath it was rolled, the same events come out, and
+no caller learns a window exists.
+
+That is not an optimisation. It is the rule `pendingMove` has followed since
+Opportunity Attacks landed — **a move that provokes nobody simply happens** —
+and `pendingMove.provoked` was already the offer list this batch generalised
+from. Three instances of "a finite list of creatures, answered one at a time,
+with the thing they hold up happening when the last one answers" is evidence;
+one would have been a guess.
+
+### The window and the action-economy cost are two facts
+
+Four of the eight features here spend a Reaction and four spend none at all.
+Indomitable, Dark One's Own Luck and Peerless Skill are bare permissions
+limited by a pool; the SRD asks for no Reaction and never mentions one. This is
+the commonest mistake about this corner of the rules, and folding the two
+together would have made half the batch wrong. `costsReaction` is a per-feature
+field for that reason.
+
+### Settlement is its own command, and that is the opposite of `pendingMove`
+
+`takeDamageReaction` answers an offer; it does not deal the damage.
+`settleDamage` does, always, and records every offer still outstanding as
+passed. Four things follow, and they are why the choice went the other way from
+the move:
+
+- **One place computes the number.** The damage is arithmetic the reactions
+  changed, so exactly one function applies the reductions and the defences.
+- **"Nobody reacts" has a command.** The engine will not wait forever for a
+  decision nobody is going to make, and it will not take the decision either.
+- **A departing bystander cannot wedge the fight.** Their offer stays in the
+  record and the settlement records it as passed. Only a departing *target*
+  closes the window, with the damage undealt — the same honest record
+  `settleHoldsInvolving` already writes for a held attack.
+- **The turn has one thing to refuse on.**
+
+### Ordering among two reactors is the caller's, and the log records it
+
+SRD writes no rule for sequencing two voluntary Reactions, and the order is
+observable: halving a total and then subtracting three is not subtracting three
+and then halving. So the engine does not choose — **whoever answers first is
+applied first** — and each `damage-reaction-answered` carries its own
+reduction, so the log shows the sequence rather than a normalised total. That
+is the smallest deterministic protocol that invents no rule.
+
+### A reduction is an adjustment, and the SRD orders it
+
+"Modifiers to damage are applied in the following order: adjustments such as
+bonuses, penalties, **or multipliers** are applied first; Resistance is applied
+second." So Uncanny Dodge's halving and Deflect Attacks' 1d10 both land
+*before* Resistance, and a Rogue with Resistance who dodges takes a quarter.
+The order is observable and a mutation that reversed it **survived the whole
+suite**, because the fixture's Rogue resisted nothing. A test for an order of
+application needs a target that has both.
+
+What the SRD never says is which damage *type* a reduction comes off when an
+attack deals two, because every worked example it prints has one. Uncanny Dodge
+halves "the attack's damage" — the total, which `applyDamage` cannot take as
+one number because Resistance is per type. So the engine chooses, once, in
+`adjustmentsFor`: **largest raw amount first, ties by type name**. A choice
+rather than a rule, which is why it is stated rather than buried.
+
+### The two windows this batch added, and what they hold
+
+`pendingDamage` holds the typed components as rolled, who dealt it, whether an
+attack roll caused it, the reductions in the order they were taken, and the
+offers still outstanding. `pendingTest` holds the resolved `D20TestResult` and
+its offers. Both are in `GameState`, derived from events, and the turn refuses
+to advance past either — the `pendingSaves` discipline, not the pending
+Concentration save that had to be torn out.
+
+**Closing a test window changes nothing**, deliberately. A standalone check or
+save is a number the engine owns and a consequence the table owns; the window
+existed so the number could be pushed. Same honest answer as
+`SpellCheck.onSuccess: 'none'`.
+
+**`resolveTest` is the command a DM always needed.** `rollAbilityCheck` and
+`rollSavingThrow` were complete and correct and reachable only from inside a
+spell's own resolution. A DM asks for a save constantly and the engine had no
+way to be asked.
+
+### What the window is *not*, and where it stops
+
+- **Spell damage does not open one.** A spell rolls its damage once for every
+  target it caught, so holding one target's share open would mean holding the
+  whole casting open per target — a different debt. Cutting Words answers a
+  sword and not a *Fireball*, and that is stated rather than silently true.
+- **A spell's saving throws are atomic**, so nothing can be pushed inside
+  `resolveSpell`. That is what blocks Countercharm, along with the fact that
+  **nothing records what a save was against**.
+- **A feature carries one grant**, which is what blocks Disciplined Survivor's
+  reroll: the feature already grants six save proficiencies, and its second
+  sentence is Indomitable's shape exactly.
+- **`reactionOpportunities` transfers no authority.** It reports what is open
+  and what it would cost; taking it goes through the command that checks all of
+  it again, and the query re-checks affordability rather than trusting an offer
+  in state that may have gone stale.
+- **No nesting.** A Reaction cannot be answered by another Reaction: there is
+  one open window at a time and the reducer refuses a second. No currently
+  implemented SRD mechanic needs otherwise — the nearest, Counterspell on
+  Counterspell, was already refused deliberately and stays refused.
+
 ## Rests And The Clock
 
 There is one clock, counting seconds up from the start of the campaign. No
@@ -1203,7 +1345,7 @@ twice: once for a class that casts nothing, and once for the Paladin and Ranger
 both at 2), and SRD's **Multiclass Spellcaster table is identical to every full
 caster's own**, which is why it is read off one rather than transcribed twice.
 
-Class *features* are a different matter from class *tables*: 80 of 230 are
+Class *features* are a different matter from class *tables*: 88 of 230 are
 executed, and every one of the rest carries a note saying what a DM still does.
 `npm run coverage` counts them, because a project that does not count them
 will believe it has twelve working classes when it has twelve validated ones.
@@ -1214,13 +1356,14 @@ The recurring blockers, each wanted by several classes:
   Sorcery. Two classes wanting the same missing hook is what makes it a shape.
 - **Extra attacks inside the Attack action.** The economy counts one Attack
   action, not the attacks in it, so Extra Attack is offered by nobody.
-- **Reactions with triggers.** Uncanny Dodge, Deflect Attacks, Cutting Words,
-  Hellish Rebuke. `reduceDamage` and `interveneAfterRoll` exist; nothing fires
-  them, and nothing orders a Reaction against the event that caused it. A
-  spell's trigger is checked now (see Shield, above), but a *feature's* is not:
-  these four all answer damage. Damage names its dealer now, so the fact they
-  need is there; what is still missing is a feature-level trigger to hang on
-  it, and an ordering of the Reaction against the event that caused it.
+- **Reactions with triggers — built.** See "A Reaction Is A Window, Not A
+  Trigger". Uncanny Dodge, Deflect Attacks, Deflect Energy, Cutting Words,
+  Peerless Skill, Indomitable, Dark One's Own Luck and Retaliation all run.
+  What is left in this family is named rather than vague: Countercharm needs a
+  spell's saving throws to be interruptible *and* a save that remembers what it
+  was against; Superior Hunter's Defense needs a Resistance with a deadline;
+  Slow Fall needs falling; Disciplined Survivor's reroll needs a feature to
+  carry two grants; a stat block's printed Reactions are not read at all.
 - **Auras that follow a creature.** Every Paladin aura, Spirit Guardians.
 - **Defences that change after a rest.** Fiendish Resilience, Rage.
 - **A grant that can be re-chosen on a rest.** Circle of the Land's spells, and
@@ -2439,7 +2582,7 @@ null and is reported — it never becomes either.
   reason it is still open. Equipment closes the loop from a creation choice to
   Armour Class: packages are granted by id, packs are opened, purchases are
   priced in copper, and what is worn is separate from what is carried.
-- M1 leftovers, none of them blocking: **class feature execution** (80 of 230
+- M1 leftovers, none of them blocking: **class feature execution** (88 of 230
   features run; the rest say what a DM still does), the remaining species and
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is

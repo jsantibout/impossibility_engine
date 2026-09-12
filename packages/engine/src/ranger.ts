@@ -286,7 +286,7 @@ export const HUNTER: SubclassDefinition = {
       name: "Superior Hunter's Defense",
       level: 15,
       automation: 'manual',
-      note: 'Halving damage with a Reaction needs an interrupt the engine does not have.',
+      note: 'SRD: "When you take damage, you can take a Reaction to give yourself Resistance to that damage **and any other damage of the same type until the end of the current turn**." The window exists and Uncanny Dodge answers it. What is missing is the other half: a **Resistance with a deadline**, granted in play. Defences are declared when a creature is added and nothing changes them afterwards, and applying only the first half would quietly drop a benefit that lasts the rest of the turn.',
     },
   ],
 };

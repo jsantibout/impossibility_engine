@@ -87,6 +87,7 @@ still Wizard-shaped are named below.
 | Self-heal | Spend a use, roll the die, heal; Second Wind, Wholeness of Body | `d3e64e9` |
 | Recovery + heal | Uncanny Metabolism, which the two batches above had already built | `1c1e900` |
 | Healing touch | A pool of hit points spent by touching somebody; Lay On Hands, Restoring Touch | `ec14f10` |
+| Reaction windows | Five named instants shared by spells and features; 8 class Reactions | *(this batch)* |
 
 ## Decisions that constrain what comes next
 
@@ -887,6 +888,16 @@ they are debts rather than surprises.
   refused here rather than nested, because a stack is a generalisation with one
   user and the doctrine says wait for the second. Named so it is a debt rather
   than a surprise.
+
+  **Re-evaluated when the reaction windows landed, and the restriction stands.**
+  Eight more class Reactions now run and not one of them needs nesting: a
+  damage reduction cannot be reduced, a reroll cannot be rerolled, and
+  Retaliation answers damage that has already landed. The second user still has
+  not arrived, so the boundary is unchanged and is now documented in
+  `CLAUDE.md` rather than only here. What *did* arrive is the evidence for the
+  offer list — `pendingMove.provoked` had been one since Opportunity Attacks,
+  and `pendingDamage` and `pendingTest` are the second and third, which is the
+  order the generalization rule asks for.
 - **`resolveSpell`'s `saves_pending` guard still sits above the duplicate
   check.** Same shape as the `casting_pending` bug fixed in this batch: a retry
   arriving after a turn boundary raised saves would be told the saves are owed
@@ -1149,22 +1160,36 @@ finally spent pools that had been declared and idle since they landed.
 
 | Rank | Shape | Features | Why it is where it is |
 |---|---|---|---|
-| 1 | A Reaction a feature takes in answer to something | ~8 | the largest coherent bucket left, and the one real D&D misses most |
-| 2 | A turn-scoped stance later rolls read | ~4 | Reckless Attack, and Frenzy waits behind it |
-| 3 | A Speed a feature changes | ~5 | blocked on a module seam, not on a rule |
-| 4 | An ability modifier on spell damage | 3 | small, and the SRD wording is ambiguous on multi-target spells |
-| 5 | An action taken as a Bonus Action | ~4 | Cunning Action, Patient Defense, Step of the Wind, Fleet Step |
-| 6 | Weapon mastery properties | 5 | parsed onto weapons, executed by nothing |
-| 7 | Transformations | ~6 | Wild Shape's Beast form, and every summon |
+| ~~1~~ | ~~A Reaction a feature takes in answer to something~~ | **8 built** | see below |
+| 1 | A turn-scoped stance later rolls read | ~4 | Reckless Attack, and Frenzy waits behind it |
+| 2 | A Speed a feature changes | ~5 | blocked on a module seam, not on a rule |
+| 3 | An ability modifier on spell damage | 3 | small, and the SRD wording is ambiguous on multi-target spells |
+| 4 | An action taken as a Bonus Action | ~4 | Cunning Action, Patient Defense, Step of the Wind, Fleet Step |
+| 5 | Weapon mastery properties | 5 | parsed onto weapons, executed by nothing |
+| 6 | Transformations | ~6 | Wild Shape's Beast form, and every summon |
 
-**1. A Reaction a feature takes.** Unchanged and still the top of the list.
-Uncanny Dodge, Deflect Attacks, Deflect Energy, Cutting Words, Superior
-Hunter's Defense, Retaliation, Countercharm, Dark One's Own Luck. Both halves
-of every one of them are written — `reduceDamage`, `interveneAfterRoll`,
-`rerollTest` — and nothing fires them. What is missing is a feature-level
-trigger and an ordering of the Reaction against the event that provoked it.
-Spells have theirs; whether a feature's is the same mechanism or a second one
-beside it is the architectural question to put to a person.
+**A Reaction a feature takes — built.** Eight run: Uncanny Dodge, Deflect
+Attacks, Deflect Energy, Cutting Words, Peerless Skill, Indomitable, Dark One's
+Own Luck, Retaliation. `reduceDamage`, `interveneAfterRoll` and `rerollTest`
+are all fired at last.
+
+The architectural question was put and answered: **class features do not reuse
+the spell machinery, and both sit on a shared window vocabulary instead.** A
+spell Reaction is a *casting* — definition, route, slot, action — and a feature
+has none of those; what the two genuinely share is the *instant*. See "A
+Reaction Is A Window, Not A Trigger" in `CLAUDE.md`.
+
+What is left in this family, each blocked on something named:
+
+| Feature | Blocked on |
+|---|---|
+| Countercharm | a spell's saving throws being interruptible, **and** a save that records what it was against |
+| Superior Hunter's Defense | a Resistance with a deadline, granted in play |
+| Slow Fall | falling, which nothing models |
+| Disciplined Survivor's reroll | a feature carrying two grants; it already grants six save proficiencies |
+| Deflect Attacks' redirect | chaining a second effect — a save and damage — onto a reaction |
+| Bardic Inspiration, the holder's use | a resource one creature confers on another |
+| A stat block's printed Reactions | `adaptMonster` does not read the Reactions block at all; seven monsters print Parry, which is *Shield*'s window exactly |
 
 **2. A turn-scoped stance.** Reckless Attack, Frenzy, Steady Aim, Studied
 Attacks, Sacred Weapon. "Until your next turn" is a deadline the duration
@@ -1215,20 +1240,14 @@ primitive — which is why it is below the four above it despite being unblocked
 
 ## Next actions, in order
 
-1. **A Reaction a feature takes in answer to something.** The largest coherent
-   class bucket left (~8 features) and the seventh instance of a pure function
-   nothing calls: `reduceDamage`, `interveneAfterRoll` and `rerollTest` are all
-   written and correct and nothing fires them. Spells have their trigger
-   machinery already; whether a feature's is the same mechanism or a second
-   one is the question to settle with a person awake.
-2. **A durable record of an ongoing casting, and the later turn that acts
+1. **A durable record of an ongoing casting, and the later turn that acts
    through it.** The top of the recalculated map above, and the batch this one
    hands off to: Dispel Magic wants the level of what it is dispelling, 18
    spells want a casting a later turn can spend an action through, and 17 want
    to enumerate what is running so they can end it. Three concrete mechanics,
    one missing primitive — which is the evidence the generalization rule asks
    for. Deliberately **not** built inside the ability-check batch.
-3. **Keep pouring spells into the five working shapes.** Attack, save-damage,
+2. **Keep pouring spells into the five working shapes.** Attack, save-damage,
    save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
    spells fit one of them and need only a definition with its SRD quote.
    `spell-catalogue.test.ts` drives every definition automatically, so the
@@ -1244,12 +1263,13 @@ primitive — which is why it is below the four above it despite being unblocked
 4. **Ongoing effects a later turn can act through** (18 spells). Spiritual
    Weapon, Call Lightning: a casting that a subsequent turn spends an action to
    use. Needs a handle on the casting that a command can name.
-5. **The Reaction spell that is left.** Shield, Hellish Rebuke and Counterspell
-   are done; every trigger is checked before anything is spent, and damage now
-   names the creature that dealt it, which is a fact several *class* features
-   (Uncanny Dodge, Deflect Attacks, Cutting Words) will want too.
-   - **Feather Fall** — needs falling. Nothing falls, nothing takes fall
-     damage, and no rate of descent is modelled. Furthest away by a distance.
+5. **The Reaction spell that is left, and the falling it shares with a
+   feature.** Shield, Hellish Rebuke and Counterspell are done, and the class
+   features that answer the same instants are done beside them.
+   - **Feather Fall** and **Slow Fall** — both need falling. Nothing falls,
+     nothing takes fall damage, and no rate of descent is modelled. Two
+     mechanics wanting the same missing thing is what would make it a shape;
+     it is still furthest away by a distance.
 6. **Summons** (9 spells). Needs a creature created mid-fight from a stat
    block, which `adaptMonster` can already produce — the gap is an event that
    adds it and ties its life to the casting.
@@ -1385,8 +1405,8 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells verified end to end | 47 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 80 of 230 |
-| Tests | 3,598 passing, none skipped |
+| Class features executed | 88 of 230 |
+| Tests | 3,707 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

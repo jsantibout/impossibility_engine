@@ -26,6 +26,12 @@ import type {
   StandingEffect,
   StandingGrant,
 } from './standing.js';
+import type {
+  ReactionAddend,
+  ReactionAmount,
+  ReactionEffect,
+  ReactionFeature,
+} from './reactions.js';
 import { expandPack, goldToCopper, itemFor } from './catalogue.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
@@ -60,6 +66,8 @@ import {
   type HealGrant,
   type SpellcastingStyle,
   type SubclassDefinition,
+  type ReactionGrantAmount,
+  type ReactionGrantEffect,
 } from './progression.js';
 import { pactSlotKey, spellSlotKey, type PoolDeclaration } from './resources.js';
 import { hitDieKey } from './rest.js';
@@ -1892,6 +1900,60 @@ export function planCharacter(
     });
   }
 
+  // A Reaction a feature takes at one of the engine's named windows. The die
+  // is resolved here for the same reason a self-heal's is: two of the nine
+  // read it off a class table — the Bardic Inspiration die is a d6 at Bard 1
+  // and a d12 at 15 — and the ability addends stay symbolic, because a
+  // modifier is a number on the sheet at the moment the die is thrown.
+  const reactions: ReactionFeature[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'reaction') continue;
+
+    const level = classLevelFor(choices, feature.id);
+    for (const declared of grant.does) {
+      const resolved = reactionEffectOf(declared, level, definition.name);
+      if (resolved === null) continue;
+
+      reactions.push({
+        feature: feature.id,
+        name: feature.name,
+        // Derived from what the effect acts on rather than declared beside it,
+        // so the two can never disagree — and so Cutting Words, which answers
+        // "a damage roll **or** a success on an ability check", is filed under
+        // both windows from one grant.
+        window:
+          resolved.kind === 'reduce-damage'
+            ? 'damage-rolled'
+            : resolved.kind === 'melee-attack'
+              ? 'damaged-by-creature'
+              : 'test-rolled',
+        costsReaction: grant.costsReaction,
+        pool: grant.pool ?? null,
+        reach: grant.reach,
+        ...(grant.requiresSight === undefined ? {} : { requiresSight: grant.requiresSight }),
+        does: resolved,
+      });
+    }
+  }
+
+  // SRD Deflect Energy: a second feature restating the first's damage-type
+  // list. Applied after the list is built, because it names a feature that has
+  // to be in it — and granting a second Reaction instead would let a Monk 13
+  // deflect the same blow twice.
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'widens-reaction') continue;
+    for (let index = 0; index < reactions.length; index += 1) {
+      const current = reactions[index];
+      if (current === undefined || current.feature !== grant.feature) continue;
+      if (current.does.kind !== 'reduce-damage') continue;
+      const widened = { ...current.does };
+      delete (widened as { damageTypes?: readonly string[] }).damageTypes;
+      reactions[index] = { ...current, does: widened };
+    }
+  }
+
   // A feature that gives some *other* pool's uses back. The key it refills is
   // resolved here rather than named by the feature, because Pact Magic's key
   // carries a slot level that moves as the Warlock levels — the same reason
@@ -2015,6 +2077,7 @@ export function planCharacter(
     ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
     ...(criticalOn < 20 ? { criticalOn } : {}),
     ...(activated.length === 0 ? {} : { activated }),
+    ...(reactions.length === 0 ? {} : { reactions }),
     ...(recoveries.length === 0 ? {} : { recoveries }),
     ...(selfHeals.length === 0 ? {} : { selfHeals }),
     ...(healingTouch.length === 0 ? {} : { healingTouch }),
@@ -2190,6 +2253,83 @@ function poolSizeOf(
 }
 
 /**
+ * A reaction grant with its class-table numbers read off.
+ *
+ * The die is resolved here because two of the nine features name a column
+ * rather than a notation — the Bardic Inspiration die is a d6 at Bard 1 and a
+ * d12 at 15 — and the ability addends stay symbolic, because a modifier is a
+ * number on the sheet at the moment the die is thrown rather than at creation.
+ *
+ * Returns null when the column has no entry at this level, which is the same
+ * answer `healFor` gives and means the feature simply does not apply yet.
+ */
+function reactionEffectOf(
+  does: ReactionGrantEffect,
+  level: number,
+  className: string,
+): ReactionEffect | null {
+  const addendsOf = (plus: readonly ('class-level' | Ability)[] | undefined): ReactionAddend[] =>
+    (plus ?? []).map((entry) =>
+      entry === 'class-level'
+        ? // "plus your **Monk** level", so the log names the class rather than
+          // printing a bare number nobody can trace.
+          ({ kind: 'level' as const, level, label: `${className} level` } as ReactionAddend)
+        : ({ kind: 'ability' as const, ability: entry, label: ABILITY_NAMES[entry] } as ReactionAddend),
+    );
+
+  const amountOf = (amount: ReactionGrantAmount): ReactionAmount | null => {
+    const dice =
+      amount.diceByLevel === undefined
+        ? amount.dice
+        : amount.diceByLevel[Math.max(0, Math.min(level, amount.diceByLevel.length) - 1)];
+    if (dice === undefined && amount.halve !== true) return null;
+
+    const plus = addendsOf(amount.plus);
+    return {
+      ...(dice === undefined ? {} : { dice }),
+      ...(plus.length === 0 ? {} : { plus }),
+      ...(amount.halve === undefined ? {} : { halve: amount.halve }),
+    };
+  };
+
+  if (does.kind === 'reduce-damage') {
+    const amount = amountOf(does.amount);
+    if (amount === null) return null;
+    return {
+      kind: 'reduce-damage',
+      amount,
+      ...(does.damageTypes === undefined ? {} : { damageTypes: does.damageTypes }),
+      ...(does.fromAttackOnly === undefined ? {} : { fromAttackOnly: does.fromAttackOnly }),
+    };
+  }
+
+  if (does.kind === 'intervene') {
+    const amount = amountOf(does.amount);
+    if (amount === null) return null;
+    return {
+      kind: 'intervene',
+      amount,
+      direction: does.direction,
+      tests: does.tests,
+      outcome: does.outcome,
+      ...(does.refundedOnFailure === undefined ? {} : { refundedOnFailure: does.refundedOnFailure }),
+    };
+  }
+
+  if (does.kind === 'reroll') {
+    return {
+      kind: 'reroll',
+      // SRD Indomitable: "reroll it with a bonus equal to your Fighter level".
+      ...(does.bonus === undefined
+        ? {}
+        : { bonus: { kind: 'level' as const, level, label: `${className} level` } }),
+    };
+  }
+
+  return { kind: 'melee-attack', withinFeet: does.withinFeet };
+}
+
+/**
  * The level a feature's own class table is read at.
  *
  * *That class's* level and not the character's: a multiclassed Bard's
@@ -2358,6 +2498,30 @@ function poolEvents(
         ...(grant.regainsOnShortRest === undefined
           ? {}
           : { regainsOnShortRest: grant.regainsOnShortRest }),
+      },
+    });
+  }
+
+  // A Reaction feature with a limit of its own. Indomitable's "twice before a
+  // Long Rest starting at level 13" is a column of the Fighter table, which is
+  // a pool; Cutting Words spends Bardic Inspiration, which is somebody else's
+  // pool, and declares nothing.
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'reaction' || grant.declares === undefined || grant.pool === undefined) {
+      continue;
+    }
+    events.push({
+      type: 'resource-pool-declared',
+      id,
+      pool: {
+        key: grant.pool,
+        label: grant.poolLabel ?? feature.name,
+        // The same three sizings every other pool uses, read by the same
+        // function: Indomitable is a column of the Fighter table, Dark One's
+        // Own Luck is a Charisma modifier with a floor.
+        max: poolSizeOf(choices, feature.id, grant.declares),
+        recovers: grant.declares.recovers,
       },
     });
   }

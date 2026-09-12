@@ -54,6 +54,18 @@ const TABLE: readonly (readonly number[])[] = [
   [20, 6, 4, 6],
 ];
 
+/**
+ * SRD Indomitable: one use at level 9, "twice before a Long Rest starting at
+ * level 13 and three times before a Long Rest starting at level 17".
+ *
+ * Written out rather than folded into the table above, because it is not a
+ * column the SRD prints — the Fighter table names the feature and the
+ * sentence carries the count.
+ */
+export const INDOMITABLE_USES: readonly number[] = [
+  0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
+];
+
 const rows: readonly ClassLevelRow[] = TABLE.map((row) => ({
   level: row[0] ?? 0,
   proficiencyBonus: row[1] ?? 0,
@@ -217,8 +229,17 @@ export const FIGHTER: ClassDefinition = {
       id: 'fighter:indomitable',
       name: 'Indomitable',
       level: 9,
-      automation: 'manual',
-      note: 'Rerolling a failed save is `rerollTest`, which exists and takes the new roll; nothing spends a Fighter’s uses for it.',
+      automation: 'engine',
+      note: 'SRD: "If you fail a saving throw, you can reroll it with a bonus equal to your Fighter level. **You must use the new roll**, and you can’t use this feature again until you finish a Long Rest." A pool of uses — one, then two at 13 and three at 17 — and **no Reaction**: the SRD grants it as a bare permission, which is why the window and the action-economy cost are separate facts. A reroll that comes up worse stands; the superseded number stays on the result so the log shows what was given up.',
+      grants: {
+        kind: 'reaction',
+        costsReaction: false,
+        reach: { kind: 'self' },
+        pool: 'fighter:indomitable',
+        poolLabel: 'Indomitable',
+        declares: { usesByLevel: INDOMITABLE_USES, recovers: 'long-rest' },
+        does: [{ kind: 'reroll', bonus: 'class-level' }],
+      },
     },
     {
       id: 'fighter:tactical-master',

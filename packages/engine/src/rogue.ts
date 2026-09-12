@@ -191,8 +191,23 @@ export const ROGUE: ClassDefinition = {
       id: 'rogue:uncanny-dodge',
       name: 'Uncanny Dodge',
       level: 5,
-      automation: 'manual',
-      note: 'Halving damage with a Reaction needs an interrupt the engine does not have; `reduceDamage` exists and nothing triggers it.',
+      automation: 'engine',
+      note: 'SRD: "When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack’s damage against you (round down)." The hit holds its damage open, the Reaction is spent, and the halving comes off the total before defences — so a Rogue with Resistance takes a quarter, which is what the order of application says.',
+      grants: {
+        kind: 'reaction',
+        costsReaction: true,
+        reach: { kind: 'self' },
+        // "an attacker **that you can see**".
+        requiresSight: true,
+        does: [
+          {
+            kind: 'reduce-damage',
+            amount: { halve: true },
+            // "hits you with an attack roll" — not a Fireball.
+            fromAttackOnly: true,
+          },
+        ],
+      },
     },
     {
       id: 'rogue:second-expertise',

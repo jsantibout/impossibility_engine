@@ -23,7 +23,9 @@ import {
   type ResourceState,
 } from './resources.js';
 import type { CharacterRecord } from './creation.js';
-import type { DamageDefenses } from './attack.js';
+import type { DamageComponent, DamageDefenses, DamageReduction } from './attack.js';
+import type { D20TestResult } from './checks.js';
+import type { ReactionOffer, ReactionWindow } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
 import { itemFor } from './catalogue.js';
 import { READY, universalAction } from './actions.js';
@@ -437,6 +439,88 @@ export interface PendingCasting {
 }
 
 /**
+ * A damage roll that has been made and not yet applied.
+ *
+ * The fourth debt of this shape, and the first whose *whole* reason for
+ * existing is somebody else's decision. SRD Uncanny Dodge halves "the attack's
+ * damage against you", Deflect Attacks reduces "the attack's total damage" and
+ * Cutting Words subtracts from a creature's "damage roll" — three features that
+ * all need a total that exists and has not landed. An attack that rolls its
+ * damage and applies it in one breath has no such moment.
+ *
+ * **It is opened only when somebody can answer it.** With no eligible reactor
+ * the attack stays exactly as atomic as it always was, emits the same events
+ * and needs no second command. That is not an optimisation: it is the rule
+ * `pendingMove` already follows, where a move that provokes nobody simply
+ * happens. Making every swing a two-step negotiation to serve a moment that is
+ * almost always empty would be a worse API for no rules gain.
+ *
+ * Everything the settlement needs is written down here, so nothing has to be
+ * remembered between the calls and a reload rebuilds it: the typed components
+ * as rolled, who dealt it, whether it was a critical, and whether an attack
+ * roll caused it — which two of the three features require and the third does
+ * not.
+ */
+export interface PendingDamage {
+  readonly target: CharacterId;
+  /**
+   * Who dealt it, or null where nobody did.
+   *
+   * A trap has no dealer, and that is a real answer: Uncanny Dodge needs "an
+   * attacker that you can see", so nothing is offered against a falling rock.
+   */
+  readonly by: CharacterId | null;
+  /** Prose for the audit trail — "Longsword", "Fire Bolt". */
+  readonly source: string;
+  /** As rolled, by type. Defences have not been applied. */
+  readonly components: readonly DamageComponent[];
+  readonly critical: boolean;
+  /** SRD Uncanny Dodge and Deflect Attacks: "When an attack roll hits you". */
+  readonly fromAttack: boolean;
+  /**
+   * What reactions have taken off, **in the order they were taken**.
+   *
+   * Order is recorded rather than normalised because it is observable: halving
+   * a total and then subtracting 3 is not the same as subtracting 3 and then
+   * halving, and the SRD gives no rule for sequencing two voluntary Reactions.
+   * The engine does not choose — whoever answers first is applied first, and
+   * the log says which that was.
+   */
+  readonly reductions: readonly DamageReduction[];
+  /** Who was offered a Reaction and has not yet answered. */
+  readonly offers: readonly ReactionOffer[];
+}
+
+/**
+ * A D20 Test whose total is known and whose effects have not happened.
+ *
+ * SRD Dark One's Own Luck writes the window out in one clause — "after seeing
+ * the roll **but before any of the roll's effects occur**" — which is what
+ * makes this a real instant rather than a convenient one. Indomitable rerolls
+ * into it, Peerless Skill and Cutting Words push it either way, and the Sphinx
+ * has a stat-block Reaction that does the same thing.
+ *
+ * The *result* lives here rather than in a caller's hands for the reason
+ * invariant 3 demands: the die has been thrown, so the number is history. A
+ * window that lived in a return value would be lost on a reload and the caller
+ * would have to roll again — which is precisely the "replaying intents"
+ * failure the event log exists to prevent.
+ *
+ * **It settles nothing by itself.** A standalone test's consequence is the
+ * table's: the engine owns the number, not what is done about it. So closing
+ * this window emits no mechanical change, and that is the honest answer rather
+ * than a stub — the same reading `SpellCheck.onSuccess: 'none'` already takes.
+ */
+export interface PendingTest {
+  readonly who: CharacterId;
+  /** What was being rolled, in the caller's words: "Dexterity save vs the pit". */
+  readonly label: string;
+  /** The test as it currently stands, after whatever has already pushed it. */
+  readonly result: D20TestResult;
+  readonly offers: readonly ReactionOffer[];
+}
+
+/**
  * What a readied action will do when its trigger comes.
  *
  * SRD Ready: "you choose the action you will take in response to that trigger,
@@ -576,6 +660,19 @@ export interface GameState {
    * action is already spent and the slot is not. See {@link PendingCasting}.
    */
   readonly pendingCasting: PendingCasting | null;
+  /**
+   * Damage rolled and not yet applied, held open for the Reactions that answer
+   * it — see {@link PendingDamage}.
+   *
+   * Null is the ordinary state and the important one: a swing nobody can
+   * answer never opens this, so the attack command stays one call.
+   */
+  readonly pendingDamage: PendingDamage | null;
+  /**
+   * A D20 Test that has landed and whose effects have not occurred — see
+   * {@link PendingTest}.
+   */
+  readonly pendingTest: PendingTest | null;
 }
 
 export function initialState(seed: string): GameState {
@@ -596,6 +693,8 @@ export function initialState(seed: string): GameState {
     pendingAttack: null,
     pendingMove: null,
     pendingCasting: null,
+    pendingDamage: null,
+    pendingTest: null,
   };
 }
 
@@ -1153,6 +1252,86 @@ export type GameEvent =
   | {
       readonly type: 'attack-damage-dealt';
       readonly attacker: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * Damage was rolled and somebody may answer it before it lands.
+   *
+   * No hit points move here — that is the point. `damage-settled` closes it and
+   * the ordinary `damage-taken` follows, and the reducer refuses a second one
+   * while it stands.
+   */
+  | { readonly type: 'damage-rolled'; readonly damage: PendingDamage }
+  /**
+   * One offered creature has answered a held damage roll, by reducing it or by
+   * passing.
+   *
+   * `took` is what tells the two apart in a log, exactly as it does on
+   * `opportunity-answered`. The Reaction and the pool use are their own events
+   * beside this one, so this says only that the offer is spent.
+   */
+  | {
+      readonly type: 'damage-reaction-answered';
+      readonly reactor: CharacterId;
+      readonly took: boolean;
+      readonly feature?: string;
+      /** What came off the total, when something did. */
+      readonly reduction?: DamageReduction;
+      readonly command?: CommandStamp;
+    }
+  /** Every offer is settled; what remains is dealt. */
+  | {
+      readonly type: 'damage-settled';
+      readonly target: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A D20 Test landed and somebody may push it before its effects occur.
+   *
+   * Carries the resolved roll, because the die has been thrown and the number
+   * is history — see {@link PendingTest}.
+   */
+  | { readonly type: 'test-rolled'; readonly test: PendingTest }
+  /**
+   * One offered creature has answered a held D20 Test.
+   *
+   * The new result rides on the event rather than being recomputed, for the
+   * same reason every other outcome does: replaying must not reroll. A pass
+   * carries none.
+   */
+  | {
+      readonly type: 'test-reaction-answered';
+      readonly reactor: CharacterId;
+      readonly took: boolean;
+      readonly feature?: string;
+      readonly result?: D20TestResult;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * The test is final.
+   *
+   * Nothing mechanical happens here, and that is the honest record: a
+   * standalone check or save is a number the engine owns and a consequence the
+   * table owns. The window existed so the number could be pushed, not so the
+   * engine could decide what it meant.
+   */
+  | { readonly type: 'test-settled'; readonly who: CharacterId; readonly command?: CommandStamp }
+  /**
+   * A Reaction was taken at a window that holds nothing back.
+   *
+   * `damaged-by-creature` is settled before anybody answers it: the hit points
+   * have already moved and no outcome is waiting. So there is no hold to close
+   * and nothing to record the Reaction except this, which changes no state —
+   * the same shape `roll-recorded` has, and for the same reason. Without it a
+   * log shows an attack taken out of turn and no reason for it.
+   */
+  | {
+      readonly type: 'reaction-taken';
+      readonly reactor: CharacterId;
+      readonly window: ReactionWindow;
+      readonly feature: string;
+      /** The creature it answers. */
+      readonly against: CharacterId;
       readonly command?: CommandStamp;
     }
   /**
@@ -2737,6 +2916,77 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       }
       return { ...next, pendingAttack: null };
     }
+    case 'damage-rolled': {
+      if (state.pendingDamage !== null) {
+        throw new CorruptLogError(event, 'a damage roll is already being held');
+      }
+      return { ...next, pendingDamage: event.damage };
+    }
+    case 'damage-reaction-answered': {
+      const waiting = state.pendingDamage;
+      if (waiting === null) throw new CorruptLogError(event, 'no damage roll is being held');
+      // An answer from somebody who was never offered one is a log and a set of
+      // rules that disagree, not a rules dispute — the same loudness a second
+      // action in one turn gets.
+      if (!waiting.offers.some((o) => o.reactor === event.reactor)) {
+        throw new CorruptLogError(event, `${event.reactor} was not offered this Reaction`);
+      }
+      return {
+        ...next,
+        pendingDamage: {
+          ...waiting,
+          reductions:
+            event.reduction === undefined
+              ? waiting.reductions
+              : [...waiting.reductions, event.reduction],
+          offers: waiting.offers.filter((o) => o.reactor !== event.reactor),
+        },
+      };
+    }
+    case 'damage-settled': {
+      const waiting = state.pendingDamage;
+      if (waiting === null) throw new CorruptLogError(event, 'no damage roll is being held');
+      if (waiting.offers.length > 0) {
+        throw new CorruptLogError(event, 'somebody still owes an answer to this damage');
+      }
+      return { ...next, pendingDamage: null };
+    }
+    case 'test-rolled': {
+      if (state.pendingTest !== null) {
+        throw new CorruptLogError(event, 'a D20 Test is already being held');
+      }
+      return { ...next, pendingTest: event.test };
+    }
+    case 'test-reaction-answered': {
+      const waiting = state.pendingTest;
+      if (waiting === null) throw new CorruptLogError(event, 'no D20 Test is being held');
+      if (!waiting.offers.some((o) => o.reactor === event.reactor)) {
+        throw new CorruptLogError(event, `${event.reactor} was not offered this Reaction`);
+      }
+      return {
+        ...next,
+        pendingTest: {
+          ...waiting,
+          // The pushed roll replaces the old one. The superseded number is on
+          // the result itself, so the log still shows what was given up.
+          ...(event.result === undefined ? {} : { result: event.result }),
+          offers: waiting.offers.filter((o) => o.reactor !== event.reactor),
+        },
+      };
+    }
+    case 'test-settled': {
+      const waiting = state.pendingTest;
+      if (waiting === null) throw new CorruptLogError(event, 'no D20 Test is being held');
+      if (waiting.offers.length > 0) {
+        throw new CorruptLogError(event, 'somebody still owes an answer to this test');
+      }
+      return { ...next, pendingTest: null };
+    }
+    // Changes nothing, like `roll-recorded`. It exists so the log can say why
+    // a creature swung outside its turn, and so the command that did it has a
+    // stamp to ride on.
+    case 'reaction-taken':
+      return next;
     case 'creature-side-declared': {
       const creature = creatureOf(state, event, event.id);
       return withCreature(next, event.id, { side: event.side }, creature);

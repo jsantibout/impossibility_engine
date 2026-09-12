@@ -253,7 +253,11 @@ describe('a feature that claims a pool declares one', () => {
       grant?.kind === 'spells' ||
       // And `recovery`, whose pool holds the one use the feature's own
       // sentence allows it before a Long Rest.
-      grant?.kind === 'recovery';
+      grant?.kind === 'recovery' ||
+      // And `reaction`, which either declares a pool of its own — Indomitable,
+      // Dark One's Own Luck — or spends one another feature declared, as
+      // Cutting Words spends Bardic Inspiration.
+      (grant?.kind === 'reaction' && grant.pool !== undefined);
     expect(declares).toBe(true);
   });
 

@@ -36,14 +36,23 @@ import {
   resolveAttack,
   resolveCast,
   resolveMove,
+  resolveDamage,
   resolveDeclaredCast,
   resolveSpell,
   resolveTurn,
   takeDash,
   takeDisengage,
   takeDodge,
+  declineDamageReaction,
+  declineTestReaction,
+  resolveTest,
+  settleDamage,
+  settleTest,
+  takeDamageReaction,
+  takeDamageResponse,
   takeOpportunityAttack,
   takeReady,
+  takeTestReaction,
   unequipItem,
   useHealingTouch,
   useRecovery,
@@ -317,6 +326,109 @@ const vigorous = (): readonly GameEvent[] => [
   { type: 'damage-taken', id: A, amount: 20, source: 'a trap' },
 ];
 
+/**
+ * A reaction feature built by hand, so the sweep tests the mechanism rather
+ * than the Rogue. Three windows in one sheet, because the guards on all three
+ * commands are the same guard and a table is how that gets said once.
+ */
+const reactive = (): CharacterSheet =>
+  sheet({
+    reactions: [
+      {
+        feature: 'test:blunt',
+        name: 'Blunting',
+        window: 'damage-rolled',
+        costsReaction: true,
+        pool: null,
+        reach: { kind: 'self' },
+        does: { kind: 'reduce-damage', amount: { halve: true }, fromAttackOnly: true },
+      },
+      {
+        feature: 'test:push',
+        name: 'A Nudge From Fate',
+        window: 'test-rolled',
+        costsReaction: false,
+        pool: null,
+        reach: { kind: 'self' },
+        does: {
+          kind: 'intervene',
+          amount: { dice: '1d4' },
+          direction: 'bonus',
+          tests: ['ability-check', 'saving-throw'],
+          outcome: 'either',
+        },
+      },
+      {
+        feature: 'test:riposte',
+        name: 'Riposte',
+        window: 'damaged-by-creature',
+        costsReaction: true,
+        pool: null,
+        reach: { kind: 'self' },
+        does: { kind: 'melee-attack', withinFeet: 5 },
+      },
+    ],
+  });
+
+/** B swings at A, whose Blunting holds the damage open. */
+const blunting = (): readonly GameEvent[] => {
+  const log: readonly GameEvent[] = [
+    ...SETUP.map((e) =>
+      e.type === 'creature-added' && e.id === A ? { ...e, sheet: reactive() } : e,
+    ),
+    {
+      type: 'items-gained',
+      id: B,
+      items: [{ id: 'longsword', quantity: 1 }],
+      source: 'kit',
+    },
+    { type: 'item-equipped', id: B, item: 'longsword' },
+  ];
+  // B's turn, so B may take the Attack action.
+  const turned = [...log, ...unwrap(resolveTurn(fold('s', log), supply()), 'turn').events];
+  const swing = unwrap(
+    resolveAttack(
+      fold('s', turned),
+      B,
+      { target: A, weapon: 'longsword', attackBonuses: [{ source: 'forced', flat: 40 }] },
+      supply(),
+    ),
+    'swing',
+  );
+  return [...turned, ...swing.events];
+};
+
+/** A has rolled a save that A's own feature could push. */
+const tested = (): readonly GameEvent[] => {
+  const log: readonly GameEvent[] = SETUP.map((e) =>
+    e.type === 'creature-added' && e.id === A ? { ...e, sheet: reactive() } : e,
+  );
+  return [
+    ...log,
+    ...unwrap(
+      resolveTest(fold('s', log), A, { kind: 'saving-throw', ability: 'dex', dc: 25 }, supply()),
+      'test',
+    ).events,
+  ];
+};
+
+/** A has just been hurt by B, who is standing next to them. */
+const stung = (): readonly GameEvent[] => {
+  const log: readonly GameEvent[] = [
+    ...SETUP.map((e) =>
+      e.type === 'creature-added' && e.id === A ? { ...e, sheet: reactive() } : e,
+    ),
+    { type: 'items-gained', id: A, items: [{ id: 'mace', quantity: 1 }], source: 'kit' },
+  ];
+  return [
+    ...log,
+    ...unwrap(
+      resolveDamage(fold('s', log), A, { amount: 9, source: 'Longsword', by: B }, supply()),
+      'damage',
+    ).events,
+  ];
+};
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'damageCreature',
@@ -446,6 +558,50 @@ const GUARDED: readonly Guarded[] = [
         supply(),
       ),
   },
+  /**
+   * The reaction windows. Every one of these is a second round trip by
+   * construction, which makes them the most retry-vulnerable commands in the
+   * engine — and each of their guards has to precede the validation that
+   * would otherwise report the world its own first run made.
+   */
+  {
+    name: 'takeDamageReaction',
+    log: blunting(),
+    run: (s, commandId) => takeDamageReaction(s, A, { feature: 'test:blunt', commandId }, supply()),
+  },
+  {
+    name: 'declineDamageReaction',
+    log: blunting(),
+    run: (s, commandId) => declineDamageReaction(s, A, { commandId }),
+  },
+  {
+    name: 'settleDamage',
+    log: blunting(),
+    run: (s, commandId) => settleDamage(s, supply(), { commandId }),
+  },
+  {
+    name: 'resolveTest',
+    log: SETUP,
+    run: (s, commandId) =>
+      resolveTest(s, A, { kind: 'saving-throw', ability: 'dex', dc: 15, commandId }, supply()),
+  },
+  {
+    name: 'takeTestReaction',
+    log: tested(),
+    run: (s, commandId) => takeTestReaction(s, A, { feature: 'test:push', commandId }, supply()),
+  },
+  {
+    name: 'declineTestReaction',
+    log: tested(),
+    run: (s, commandId) => declineTestReaction(s, A, { commandId }),
+  },
+  { name: 'settleTest', log: tested(), run: (s, commandId) => settleTest(s, { commandId }) },
+  {
+    name: 'takeDamageResponse',
+    log: stung(),
+    run: (s, commandId) =>
+      takeDamageResponse(s, A, { feature: 'test:riposte', weapon: 'mace', commandId }, supply()),
+  },
   { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, A, 'rope', 1, commandId) },
   { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, A, 'chain-shirt', commandId) },
   {
@@ -543,6 +699,33 @@ describe('unknown is not no', () => {
     {
       name: 'healing something nobody has declared',
       run: () => healCreature(fold('s', SETUP), id('the-squire'), 5),
+    },
+    {
+      // A Reaction that answers "a creature within 5 feet" needs both
+      // creatures to be standing somewhere. Nobody has placed either, and
+      // where a creature is standing has no right answer until somebody says.
+      name: 'answering damage from somebody nobody has placed',
+      run: () => {
+        const unplaced: readonly GameEvent[] = stung().filter(
+          (e) => !(e.type === 'creature-placed'),
+        );
+        return takeDamageResponse(
+          fold('s', unplaced),
+          A,
+          { feature: 'test:riposte', weapon: 'mace' },
+          supply(),
+        );
+      },
+    },
+    {
+      name: 'rolling a test for somebody nobody has declared',
+      run: () =>
+        resolveTest(
+          fold('s', SETUP),
+          id('the-porter'),
+          { kind: 'saving-throw', ability: 'dex', dc: 12 },
+          supply(),
+        ),
     },
     {
       name: 'moving a creature nobody has placed',

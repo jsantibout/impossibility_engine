@@ -291,8 +291,14 @@ export const PATH_OF_THE_BERSERKER: SubclassDefinition = {
       id: 'berserker:retaliation',
       name: 'Retaliation',
       level: 10,
-      automation: 'manual',
-      note: 'A melee attack as a Reaction after taking damage needs an interrupt the engine does not have.',
+      automation: 'engine',
+      note: 'SRD: "When you take damage from a creature that is within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike." The window is the one *Hellish Rebuke* already answers — damage that has **landed** — so nothing is held open and no pending state exists: everything is settled and the Reaction cannot change it. The target is forced by the trigger, and the swing goes through the ordinary attack command.',
+      grants: {
+        kind: 'reaction',
+        costsReaction: true,
+        reach: { kind: 'self' },
+        does: [{ kind: 'melee-attack', withinFeet: 5 }],
+      },
     },
     {
       id: 'berserker:intimidating-presence',

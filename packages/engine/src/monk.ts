@@ -137,8 +137,23 @@ export const MONK: ClassDefinition = {
       id: 'monk:deflect-attacks',
       name: 'Deflect Attacks',
       level: 3,
-      automation: 'manual',
-      note: 'Reducing damage with a Reaction needs an interrupt the engine does not have; `reduceDamage` exists and nothing triggers it.',
+      automation: 'engine',
+      note: 'SRD: "When an attack roll hits you and its damage includes Bludgeoning, Piercing, or Slashing damage, you can take a Reaction to reduce the attack’s total damage against you. The reduction equals 1d10 plus your Dexterity modifier and Monk level." The Reaction and the reduction are the engine’s; the redirect that follows a reduction to 0 — a Focus Point, a chosen creature, a Dexterity save and damage of the attack’s own type — is not modelled, because nothing chains a second effect onto a reaction.',
+      grants: {
+        kind: 'reaction',
+        costsReaction: true,
+        reach: { kind: 'self' },
+        does: [
+          {
+            kind: 'reduce-damage',
+            amount: { dice: '1d10', plus: ['dex', 'class-level'] },
+            // "**includes** Bludgeoning, Piercing, or Slashing" — one
+            // qualifying type is enough, and Deflect Energy widens this list.
+            damageTypes: ['bludgeoning', 'piercing', 'slashing'],
+            fromAttackOnly: true,
+          },
+        ],
+      },
     },
     {
       id: 'monk:subclass',
@@ -227,15 +242,16 @@ export const MONK: ClassDefinition = {
       id: 'monk:deflect-energy',
       name: 'Deflect Energy',
       level: 13,
-      automation: 'manual',
-      note: 'Deflecting any damage type, for the same reason as Deflect Attacks.',
+      automation: 'engine',
+      note: 'SRD: "You can now use your Deflect Attacks feature against attacks that deal any damage type, not just Bludgeoning, Piercing, or Slashing." It widens the list on Deflect Attacks rather than granting a second Reaction — two grants would offer a Monk 13 two answers to one blow.',
+      grants: { kind: 'widens-reaction', feature: 'monk:deflect-attacks', damageTypes: 'any' },
     },
     {
       id: 'monk:disciplined-survivor',
       name: 'Disciplined Survivor',
       level: 14,
       automation: 'engine',
-      note: 'SRD: "Your physical and mental discipline grant you proficiency in all saving throws." All six are unioned into the sheet. Reroll ing a failed save for a Focus Point is not modelled: rerollTest exists and nothing spends a Monk’s Focus for it.',
+      note: 'SRD: "Your physical and mental discipline grant you proficiency in all saving throws." All six are unioned into the sheet. The second half — "whenever you make a saving throw and fail, you can expend 1 Focus Point to reroll it, and you must use the new roll" — is Indomitable’s shape exactly and would be data, but a feature carries one grant and this one already grants the proficiencies. Blocked on a feature granting two things at once, not on the reroll.',
       grants: { kind: 'save-proficiency', abilities: 'all' },
     },
     {

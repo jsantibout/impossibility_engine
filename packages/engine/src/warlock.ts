@@ -223,8 +223,27 @@ export const FIEND_PATRON: SubclassDefinition = {
       id: 'fiend-patron:dark-ones-own-luck',
       name: "Dark One's Own Luck",
       level: 6,
-      automation: 'manual',
-      note: 'Adding 1d10 to an ability check or save after rolling is `interveneAfterRoll`, which exists; nothing spends a Warlock’s uses for it.',
+      automation: 'engine',
+      note: 'SRD: "When you make an ability check or a saving throw, you can use this feature to add 1d10 to your roll. You can do so **after seeing the roll but before any of the roll’s effects occur**." That clause is the `test-rolled` window written out, which is what makes it a real instant rather than a convenient one. A pool of Charisma-modifier uses, minimum one, and **no Reaction**; "no more than once per roll" falls out of the offer being spent when it is answered.',
+      grants: {
+        kind: 'reaction',
+        costsReaction: false,
+        reach: { kind: 'self' },
+        pool: 'fiend-patron:dark-ones-own-luck',
+        poolLabel: "Dark One's Own Luck",
+        declares: { fromAbilityModifier: 'cha', minimum: 1, recovers: 'long-rest' },
+        does: [
+          {
+            kind: 'intervene',
+            amount: { dice: '1d10' },
+            direction: 'bonus',
+            tests: ['ability-check', 'saving-throw'],
+            // "When you make an ability check or a saving throw" — it says
+            // nothing about the outcome, so either one is answerable.
+            outcome: 'either',
+          },
+        ],
+      },
     },
     {
       id: 'fiend-patron:fiendish-resilience',

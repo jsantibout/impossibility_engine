@@ -81,7 +81,7 @@ export const BARD: ClassDefinition = {
       name: 'Bardic Inspiration',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool of Charisma-modifier uses, minimum one, refilling on a Long Rest — SRD: "a number of times equal to your Charisma modifier (minimum of once)". Handing the die to somebody who has already rolled is interveneAfterRoll, which exists; nothing spends a Bard’s uses for it.',
+      note: 'Declared as a pool of Charisma-modifier uses, minimum one, refilling on a Long Rest — SRD: "a number of times equal to your Charisma modifier (minimum of once)". Cutting Words and Peerless Skill spend those uses now, in the `test-rolled` and `damage-rolled` windows. What is still missing is **conferring** a die: SRD gives the die to another creature, who holds it for an hour and spends it on their own failed D20 Test with no Reaction and no help from the Bard, and nothing models a resource one creature hands to another.',
       grants: {
         kind: 'pool',
         key: 'bardic-inspiration',
@@ -143,7 +143,7 @@ export const BARD: ClassDefinition = {
       name: 'Countercharm',
       level: 7,
       automation: 'manual',
-      note: 'Granting Advantage on a save against Charmed or Frightened as a Reaction needs an interrupt the engine does not have.',
+      note: 'SRD: "If you or a creature within 30 feet of you fails a saving throw against an effect that applies the Charmed or Frightened condition, you can take a Reaction to cause the save to be rerolled, and the new roll has Advantage." The `test-rolled` window and the reroll both exist \u2014 Indomitable uses them. Two things do not: a spell rolls its targets\u2019 saves inside one atomic resolution, so there is no such save to hold open, and nothing records **what a save was against**, which is the whole of the Charmed-or-Frightened clause.',
     },
     {
       id: 'bard:second-expertise',
@@ -204,8 +204,28 @@ export const COLLEGE_OF_LORE: SubclassDefinition = {
       id: 'college-of-lore:cutting-words',
       name: 'Cutting Words',
       level: 3,
-      automation: 'manual',
-      note: 'Subtracting the Bardic Inspiration die from somebody else’s roll is `interveneAfterRoll` with a penalty direction, and `reduceDamage` for a damage roll. Both exist; nothing spends a Bard’s uses for them, and the Reaction timing is not enforced.',
+      automation: 'engine',
+      note: 'SRD: "When a creature that you can see within 60 feet of yourself makes a damage roll or succeeds on an ability check or attack roll, you can take a Reaction to expend one use of your Bardic Inspiration; roll your Bardic Inspiration die, and subtract the number rolled from the creature’s roll." One feature answering two windows, so it declares two effects and is offered at both. The attack-roll branch is not reachable: `resolveAttack` settles its roll in one breath and only its **damage** is held open, so a Bard cuts the blow rather than the swing.',
+      grants: {
+        kind: 'reaction',
+        costsReaction: true,
+        // "a creature that you can see **within 60 feet of yourself**".
+        reach: { kind: 'within', feet: 60 },
+        requiresSight: true,
+        pool: 'bardic-inspiration',
+        does: [
+          { kind: 'reduce-damage', amount: { diceByLevel: BARDIC_DIE } },
+          {
+            kind: 'intervene',
+            amount: { diceByLevel: BARDIC_DIE },
+            direction: 'penalty',
+            // "**succeeds on** an ability check or attack roll" — a failure
+            // is nothing to cut, and the attack-roll half is unreachable.
+            tests: ['ability-check'],
+            outcome: 'success',
+          },
+        ],
+      },
     },
     {
       id: 'college-of-lore:magical-discoveries',
@@ -218,8 +238,24 @@ export const COLLEGE_OF_LORE: SubclassDefinition = {
       id: 'college-of-lore:peerless-skill',
       name: 'Peerless Skill',
       level: 14,
-      automation: 'manual',
-      note: 'Spending Bardic Inspiration on your own failed check or attack is `interveneAfterRoll`; nothing spends the uses.',
+      automation: 'engine',
+      note: 'SRD: "When you make an ability check or attack roll and fail, you can expend one use of Bardic Inspiration; roll the Bardic Inspiration die, and add the number rolled to the d20... **On a failure, the Bardic Inspiration isn’t expended.**" The refund is the point: the only feature here whose cost depends on whether it worked, so the use is spent after the new total is known. It costs no Reaction, which is why the window and the action-economy cost are separate facts. The attack-roll half is unreachable, as for Cutting Words.',
+      grants: {
+        kind: 'reaction',
+        costsReaction: false,
+        reach: { kind: 'self' },
+        pool: 'bardic-inspiration',
+        does: [
+          {
+            kind: 'intervene',
+            amount: { diceByLevel: BARDIC_DIE },
+            direction: 'bonus',
+            tests: ['ability-check'],
+            outcome: 'failure',
+            refundedOnFailure: true,
+          },
+        ],
+      },
     },
   ],
 };

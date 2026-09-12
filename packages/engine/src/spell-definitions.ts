@@ -1,6 +1,7 @@
 import type { Ability, ConditionName, Skill } from '@ie/shared';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { CastingTime } from './spells.js';
+import type { SpellReactionWindow } from './reactions.js';
 
 /**
  * Spells the engine can actually execute.
@@ -151,8 +152,15 @@ export interface SpellCheck {
  * `pendingCasting` holds one open between its declaration and its effects, and
  * the slot the SRD spares is simply not spent until it settles. Feather Fall
  * is the one left — it answers a fall, and nothing falls.
+ *
+ * **These are not the spells' own vocabulary any more.** `ReactionWindow` in
+ * `reactions.ts` names every moment a Reaction can answer, for spells and for
+ * class features alike, and this is the narrowing to the three that SRD spells
+ * use. The narrowing is what keeps `triggerRefusal` exhaustive over exactly
+ * what exists; the sharing is what keeps *Hellish Rebuke* and the Barbarian's
+ * Retaliation from growing two readings of one rule.
  */
-export type ReactionTrigger = 'hit-by-attack' | 'damaged-by-creature' | 'casting-a-spell';
+export type ReactionTrigger = SpellReactionWindow;
 
 /**
  * A second, smaller hit that arrives at a later moment.

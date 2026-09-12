@@ -6,6 +6,7 @@ import type {
   SelfHealFeature,
   StandingEffect,
 } from './standing.js';
+import type { ReactionFeature } from './reactions.js';
 import type { Armor } from '@ie/srd';
 
 /**
@@ -125,6 +126,16 @@ export interface CharacterSheet {
    * what several of them say.
    */
   readonly healingTouch?: readonly HealingTouch[];
+  /**
+   * Reactions this character's features offer, and what each one costs.
+   *
+   * Resolved at creation beside `selfHeals`, because what one is worth is read
+   * off a class table — Deflect Attacks adds the Monk's level, Cutting Words
+   * rolls the Bardic Inspiration die, which is a d6 at Bard 1 and a d12 at 15.
+   * Recomputing a class table to find out whether an attack opens a window is
+   * not a thing to do on every swing.
+   */
+  readonly reactions?: readonly ReactionFeature[];
   /**
    * How many attacks this character's Attack action holds. One, unless a
    * feature says otherwise.

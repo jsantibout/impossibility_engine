@@ -7,6 +7,8 @@ import {
   type Skill,
 } from '@ie/shared';
 import type { ArmorTraining } from './character.js';
+import type { D20TestKind } from './checks.js';
+import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';
 import type { ActivationEnd, StandingGrant, StandingRequirement } from './standing.js';
 
@@ -390,7 +392,118 @@ export type FeatureGrant =
       readonly ability: Ability;
       /** SRD Barbarian: "You can use a Shield and still gain this benefit." */
       readonly shieldAllowed: boolean;
+    }
+  /**
+   * A Reaction the feature takes at one of the engine's named windows — see
+   * `ReactionFeature` in `reactions.ts`.
+   *
+   * Eight features across five classes and three subclasses write this, which
+   * is what makes it a shape rather than one class's quirk. Three details are
+   * declared rather than assumed, because getting any of them wrong makes a
+   * different set of features wrong:
+   *
+   * - **`costsReaction` is per feature.** Uncanny Dodge, Deflect Attacks,
+   *   Cutting Words and Retaliation spend one; Indomitable, Dark One's Own
+   *   Luck and Peerless Skill spend none at all. The window and the
+   *   action-economy cost are two facts and the SRD sets them separately,
+   *   which is the commonest mistake about this corner of the rules.
+   * - **The window is derived from what the effect acts on**, not declared
+   *   beside it. A reduction acts on a damage roll, an intervention or a
+   *   reroll on a D20 Test, a melee attack on damage already taken. A field
+   *   that can disagree with the effect is a field that eventually will.
+   * - **`does` is a list.** Cutting Words answers "a damage roll **or** a
+   *   success on an ability check or attack roll" — one feature, one
+   *   Reaction, two windows — so it declares two effects and creation files
+   *   it under both.
+   */
+  | {
+      readonly kind: 'reaction';
+      readonly costsReaction: boolean;
+      readonly reach: ReactionReach;
+      readonly requiresSight?: true;
+      readonly does: readonly ReactionGrantEffect[];
+      /**
+       * The pool a use comes out of, or absent where the feature is free.
+       *
+       * Naming a key another feature declares is how Cutting Words spends
+       * Bardic Inspiration; `declares` alongside it is how Indomitable gets a
+       * pool of its own.
+       */
+      readonly pool?: string;
+      readonly poolLabel?: string;
+      /** Set when *this* feature is the one that declares the pool. */
+      readonly declares?: PoolSizing & { readonly recovers: Recovery };
+    }
+  /**
+   * SRD Deflect Energy: "You can now use your **Deflect Attacks feature**
+   * against attacks that deal any damage type, not just Bludgeoning, Piercing,
+   * or Slashing."
+   *
+   * A second feature restating the first rather than a second mechanism — the
+   * move Improved Critical already makes on a threshold and Restoring Touch on
+   * a list. Granting a second Reaction instead would give a Monk 13 two offers
+   * against one blow and let them deflect twice.
+   */
+  | {
+      readonly kind: 'widens-reaction';
+      /** The feature whose Reaction this one restates. */
+      readonly feature: string;
+      /** What it widens to. One member, because the SRD writes one sentence. */
+      readonly damageTypes: 'any';
     };
+
+/**
+ * How the SRD sizes a pool, in the three ways it does.
+ *
+ * Named rather than restated because two grants need the same three, and the
+ * one function that reads them — `poolSizeOf` — must read them identically.
+ */
+export interface PoolSizing {
+  /** Uses by class level, straight off the class table. */
+  readonly usesByLevel?: readonly number[];
+  /** SRD Dark One's Own Luck: "equal to your Charisma modifier". */
+  readonly fromAbilityModifier?: Ability;
+  /** The floor that modifier cannot go below: "(minimum of once)". */
+  readonly minimum?: number;
+  /** SRD Lay On Hands: "five times your Paladin level". */
+  readonly perClassLevel?: number;
+}
+
+/**
+ * A reaction's effect as a feature *declares* it, before creation resolves the
+ * class-table numbers in it.
+ *
+ * The difference from `ReactionEffect` is one field: a die a class table sizes
+ * — the Bardic Inspiration die, the Martial Arts die — cannot be written by
+ * the feature, so it names the column and creation reads it at that class's
+ * own level. The same move `HealGrant.diceByLevel` already makes.
+ */
+export type ReactionGrantEffect =
+  | {
+      readonly kind: 'reduce-damage';
+      readonly amount: ReactionGrantAmount;
+      readonly damageTypes?: readonly string[];
+      readonly fromAttackOnly?: true;
+    }
+  | {
+      readonly kind: 'intervene';
+      readonly amount: ReactionGrantAmount;
+      readonly direction: 'bonus' | 'penalty';
+      readonly tests: readonly D20TestKind[];
+      readonly outcome: 'failure' | 'success' | 'either';
+      readonly refundedOnFailure?: true;
+    }
+  | { readonly kind: 'reroll'; readonly bonus?: 'class-level' }
+  | { readonly kind: 'melee-attack'; readonly withinFeet: number };
+
+export interface ReactionGrantAmount {
+  readonly dice?: string;
+  /** A column of the class table: the Bardic Inspiration die, by level. */
+  readonly diceByLevel?: readonly string[];
+  /** Ability modifiers and the class's own level, in the order SRD prints. */
+  readonly plus?: readonly ('class-level' | Ability)[];
+  readonly halve?: true;
+}
 
 export interface ClassLevelRow {
   readonly level: number;

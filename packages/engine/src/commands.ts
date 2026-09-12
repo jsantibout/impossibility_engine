@@ -25,10 +25,13 @@ import {
   meleeReach,
   proficientWith,
   rangeOf,
+  reduceDamage,
   rollAttack,
   rollAttackDamage,
+  type AttackDamage,
   type AttackResult,
   type DamageComponent,
+  type DamageReduction,
   type ExtraDamage,
 } from './attack.js';
 import type { Weapon } from '@ie/srd';
@@ -82,7 +85,26 @@ import {
   standingSaveModes,
   type ActivatedFeature,
 } from './standing.js';
-import { rollAbilityCheck, rollSavingThrow, type D20TestResult } from './checks.js';
+import {
+  interveneAfterRoll,
+  rerollTest,
+  rollAbilityCheck,
+  rollSavingThrow,
+  type D20TestKind,
+  type D20TestResult,
+} from './checks.js';
+import {
+  damageWindowOpen,
+  offersForDamage,
+  offersForTest,
+  reactionAddends,
+  reactionFeatureOf,
+  type ReactionAmount,
+  type ReactionFeature,
+  type ReactionOffer,
+  type ReactionOpportunity,
+  type SpellReactionWindow,
+} from './reactions.js';
 import type { Rng } from './dice.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
 import {
@@ -135,7 +157,9 @@ import {
   type GameState,
   type PendingAttack,
   type PendingCasting,
+  type PendingDamage,
   type PendingMove,
+  type PendingTest,
   type ReadiedAction,
   type ReadiedResponse,
 } from './events.js';
@@ -538,6 +562,30 @@ function settleHoldsInvolving(state: GameState, id: CharacterId): readonly GameE
     events.push({ type: 'attack-damage-dealt', attacker: attack.attacker });
   }
 
+  // A damage roll waiting on Reactions needs somebody to take it. If the
+  // *target* is leaving there is nobody left to hurt, so the window closes
+  // with the damage undealt — the same honest record a held attack gets, and
+  // the log shows exactly that. A departing **bystander** is different: their
+  // offer stays in the record and `settleDamage` records it as passed, so the
+  // blow still lands on whoever it was aimed at.
+  const held = state.pendingDamage;
+  if (held !== null && held.target === id) {
+    for (const offer of held.offers) {
+      events.push({ type: 'damage-reaction-answered', reactor: offer.reactor, took: false });
+    }
+    events.push({ type: 'damage-settled', target: held.target });
+  }
+
+  // A D20 Test whose roller is leaving. Nothing is owed either way — the test
+  // settles nothing by itself — so the window simply closes.
+  const test = state.pendingTest;
+  if (test !== null && test.who === id) {
+    for (const offer of test.offers) {
+      events.push({ type: 'test-reaction-answered', reactor: offer.reactor, took: false });
+    }
+    events.push({ type: 'test-settled', who: test.who });
+  }
+
   const move = state.pendingMove;
   if (move === null) return events;
 
@@ -693,22 +741,24 @@ function triggerRefusal(
     }
 
     case 'damaged-by-creature': {
-      const hurt = state.creatures[casterId]?.lastDamage ?? null;
-      if (hurt === null) {
+      const dealt = state.creatures[casterId]?.lastDamage ?? null;
+      if (dealt === null) {
         return err(
           'no_trigger',
           `${definition.name} is a Reaction taken in response to taking damage from a creature, and nothing in this game has damaged ${casterId}`,
         );
       }
 
-      // The window. "In response to" means immediately, and a turn is the
-      // finest grain the engine has for it — the grain the one-slot-per-turn
-      // rule already uses. Outside combat there are no turns, so the clock
-      // closes it instead. Both facts are already in state.
-      if (hurt.turn !== (state.combat?.turnsTaken ?? null) || hurt.elapsed !== state.elapsed) {
+      // The window, read by the function the Barbarian's Retaliation reads:
+      // "in response to" means immediately, and a turn is the finest grain the
+      // engine has for it — the grain the one-slot-per-turn rule already uses.
+      // Outside combat there are no turns, so the clock closes it instead.
+      // Two clients, one reading; see `reactions.ts`.
+      const hurt = damageWindowOpen(state, casterId);
+      if (hurt === null) {
         return err(
           'no_trigger',
-          `${definition.name} answers damage as it lands, and the moment ${hurt.by} damaged ${casterId} has passed`,
+          `${definition.name} answers damage as it lands, and the moment ${dealt.by} damaged ${casterId} has passed`,
         );
       }
 
@@ -1948,6 +1998,11 @@ function completeIfSettled(state: GameState, answered: readonly GameEvent[]): re
   const after = answered.reduce(applyEvent, state);
   const waiting = after.pendingMove;
   if (waiting === null || waiting.provoked.length > 0) return [];
+  // SRD: "The attack occurs right before the creature leaves your reach." An
+  // Opportunity Attack whose damage a Reaction is answering has not finished
+  // occurring, so the mover has not left yet. `settleDamage` calls this again
+  // once the blow has landed.
+  if (after.pendingDamage !== null) return [];
 
   // The mover may have died to the Opportunity Attack, in which case there is
   // nobody left to move and the declaration is simply closed.
@@ -2046,6 +2101,15 @@ export interface AttackResolution {
   readonly damage?: number;
   /** What the damage did to the target's Concentration, if they had any. */
   readonly concentration?: ConcentrationConsequence;
+  /**
+   * Who may answer the damage roll before it lands.
+   *
+   * Present and non-empty only when the hit opened a `damage-rolled` window,
+   * which is exactly when some creature has a feature that could reduce it.
+   * Then `damage` is absent, because none has been dealt yet and
+   * {@link settleDamage} is what deals it.
+   */
+  readonly reactions?: readonly ReactionOffer[];
   /** True when this command id had already been applied; `events` is empty. */
   readonly duplicate: boolean;
 }
@@ -2092,6 +2156,16 @@ export function resolveAttack(
     return err(
       'attack_pending',
       `${state.pendingAttack.attacker} has a hit whose damage is still unrolled; settle it first`,
+    );
+  }
+
+  // A second swing while the first one's damage is held would roll damage into
+  // a window already holding some, and the reducer refuses a second
+  // `damage-rolled` — better to say so here than to produce a corrupt log.
+  if (state.pendingDamage !== null) {
+    return err(
+      'damage_pending',
+      `damage rolled against ${state.pendingDamage.target} has not been settled; settle it first`,
     );
   }
 
@@ -2314,22 +2388,25 @@ export function resolveAttack(
   }
 
   const after = events.reduce(applyEvent, state);
-  const hurt = dealSpellDamage(
+  const hurt = landDamage(
     after,
     command.target,
     rolled.value.components,
     weapon?.name ?? 'Unarmed Strike',
     supply,
-    { by: id, ...(attack.value.critical ? { critical: true } : {}) },
+    { by: id, fromAttack: true, ...(attack.value.critical ? { critical: true } : {}) },
   );
   if (!hurt.ok) return hurt;
 
   return ok({
     events: [...events, ...hurt.value.events],
     attack: attack.value,
-    damage: hurt.value.amount,
-    concentration: hurt.value.concentration,
-    unverified,
+    ...(hurt.value.amount === undefined ? {} : { damage: hurt.value.amount }),
+    ...(hurt.value.concentration === undefined
+      ? {}
+      : { concentration: hurt.value.concentration }),
+    ...(hurt.value.offers.length === 0 ? {} : { reactions: hurt.value.offers }),
+    unverified: [...unverified, ...hurt.value.unverified],
     duplicate: false,
   });
 }
@@ -2589,22 +2666,25 @@ export function resolveAttackDamage(
   }
 
   const after = events.reduce(applyEvent, state);
-  const hurt = dealSpellDamage(
+  const hurt = landDamage(
     after,
     pending.target,
     rolled.value.components,
     weapon?.name ?? 'Unarmed Strike',
     supply,
-    { by: pending.attacker, ...(pending.critical ? { critical: true } : {}) },
+    { by: pending.attacker, fromAttack: true, ...(pending.critical ? { critical: true } : {}) },
   );
   if (!hurt.ok) return hurt;
 
   return ok({
     events: [...events, ...hurt.value.events],
     attack: null,
-    damage: hurt.value.amount,
-    concentration: hurt.value.concentration,
-    unverified: [],
+    ...(hurt.value.amount === undefined ? {} : { damage: hurt.value.amount }),
+    ...(hurt.value.concentration === undefined
+      ? {}
+      : { concentration: hurt.value.concentration }),
+    ...(hurt.value.offers.length === 0 ? {} : { reactions: hurt.value.offers }),
+    unverified: [...hurt.value.unverified],
     duplicate: false,
   });
 }
@@ -2662,6 +2742,1103 @@ function castOnHit(
       dice: scaledDiceFor(effect.damage, definition.level, attacker.sheet.level, smite.slotLevel),
     },
   });
+}
+
+// — reactions ————————————————————————————————————————————————————————————————
+//
+// Four named windows, two of which are new here, and one shared idea beneath
+// them: **an outcome that is known and has not yet been applied, held open for
+// a finite list of creatures who may spend something to change it.**
+//
+// That shape is not invented. `pendingMove.provoked` has been exactly this
+// since Opportunity Attacks landed — a list of creatures who were offered a
+// Reaction, answered one at a time, with the thing they were holding up
+// happening when the last one answers. What was missing was the two moments
+// class features actually name: a damage roll that has not landed, and a D20
+// Test whose effects have not occurred.
+//
+// See `reactions.ts` for the vocabulary and why it is a table of five members
+// rather than a trigger language.
+
+/** The damage roll waiting on its Reactions, if one is. */
+export function pendingDamageOf(state: GameState): PendingDamage | null {
+  return state.pendingDamage;
+}
+
+/** The D20 Test waiting on its Reactions, if one is. */
+export function pendingTestOf(state: GameState): PendingTest | null {
+  return state.pendingTest;
+}
+
+const rawDamageTotal = (components: readonly DamageComponent[]): number =>
+  components.reduce((sum, c) => sum + Math.max(0, c.total), 0);
+
+/** What the held damage currently comes to, after everything taken off so far. */
+function heldDamageTotal(pending: PendingDamage): number {
+  const taken = pending.reductions.reduce((sum, r) => sum + r.amount, 0);
+  return Math.max(0, rawDamageTotal(pending.components) - taken);
+}
+
+/**
+ * Spread a reduction across the damage types it came off.
+ *
+ * **SRD orders this and does not apportion it.** "Modifiers to damage are
+ * applied in the following order: adjustments such as bonuses, penalties, or
+ * multipliers are applied first; Resistance is applied second" — so a
+ * reduction is an *adjustment* and lands before Resistance, which is
+ * observable: 10 Fire against a fire-resistant target reduced by 7 is 1 in
+ * that order and 0 in the other.
+ *
+ * What the SRD never says is which *type* a reduction comes off when an attack
+ * deals two, because every worked example it gives has one. Uncanny Dodge
+ * halves "the attack's damage", Deflect Attacks reduces "the attack's total
+ * damage" — the total, which `applyDamage` cannot take as one number because
+ * Resistance is per type.
+ *
+ * So the engine chooses, deterministically and in one place: **largest raw
+ * amount first, ties broken by type name.** It is a choice rather than a rule,
+ * which is why it is stated here rather than buried; what it buys is that the
+ * pre-defence total is always right and nothing is ever apportioned into a
+ * fraction.
+ */
+function adjustmentsFor(
+  components: readonly DamageComponent[],
+  reduction: number,
+): Record<string, number> {
+  const rawByType = new Map<string, number>();
+  for (const component of components) {
+    rawByType.set(
+      component.type,
+      (rawByType.get(component.type) ?? 0) + Math.max(0, component.total),
+    );
+  }
+
+  const order = [...rawByType.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  const adjustments: Record<string, number> = {};
+  let left = reduction;
+  for (const [type, raw] of order) {
+    if (left <= 0) break;
+    const off = Math.min(left, raw);
+    adjustments[type] = -off;
+    left -= off;
+  }
+  return adjustments;
+}
+
+/**
+ * Deal damage, unless somebody may answer it first.
+ *
+ * The single funnel for the weapon-attack path, and the one decision that
+ * keeps an ordinary attack an ordinary attack: with no eligible reactor the
+ * damage is dealt in the same breath it was rolled, the same events come out,
+ * and no caller learns that a window exists. That is the rule `pendingMove`
+ * already follows, where a move that provokes nobody simply happens.
+ *
+ * **Spell damage does not come through here**, and that is a stated limit
+ * rather than an oversight: a spell rolls its damage once for every target it
+ * caught, so holding one target's share open would mean holding the whole
+ * casting open per target — a different debt entirely. Cutting Words can
+ * therefore answer a sword and not a Fireball.
+ */
+function landDamage(
+  state: GameState,
+  target: CharacterId,
+  components: readonly DamageComponent[],
+  source: string,
+  supply: ConcentrationSaveSupply,
+  options: {
+    readonly critical?: boolean;
+    readonly by?: CharacterId;
+    readonly fromAttack?: boolean;
+  },
+): Result<{
+  readonly events: readonly GameEvent[];
+  readonly amount?: number;
+  readonly concentration?: ConcentrationConsequence;
+  readonly offers: readonly ReactionOffer[];
+  readonly unverified: readonly string[];
+}> {
+  const possible = offersForDamage(state, {
+    target,
+    by: options.by ?? null,
+    fromAttack: options.fromAttack === true,
+    damageTypes: [...new Set(components.map((c) => c.type))].sort(),
+  });
+
+  if (possible.offers.length === 0) {
+    const dealt = dealSpellDamage(state, target, components, source, supply, options);
+    if (!dealt.ok) return dealt;
+    return ok({
+      events: dealt.value.events,
+      amount: dealt.value.amount,
+      concentration: dealt.value.concentration,
+      offers: [],
+      unverified: possible.unverified,
+    });
+  }
+
+  const damage: PendingDamage = {
+    target,
+    by: options.by ?? null,
+    source,
+    components,
+    critical: options.critical === true,
+    fromAttack: options.fromAttack === true,
+    reductions: [],
+    offers: possible.offers,
+  };
+
+  return ok({
+    events: [{ type: 'damage-rolled', damage }],
+    offers: possible.offers,
+    unverified: possible.unverified,
+  });
+}
+
+/**
+ * Spend what a reaction feature costs, or refuse.
+ *
+ * The Reaction is only spent **in combat** — outside it there is no economy,
+ * the same reading `resolveCast`, `activateFeature` and `useSelfHeal` take.
+ * The pool is spent either way, because a pool is not part of the economy.
+ */
+function spendReactionCost(
+  state: GameState,
+  reactor: CharacterId,
+  creature: CreatureState,
+  feature: ReactionFeature,
+): Result<GameEvent[]> {
+  const events: GameEvent[] = [];
+
+  if (feature.costsReaction) {
+    if (state.combat !== null && state.combat.budgets[reactor] !== undefined) {
+      const spent = spendReaction(state.combat, reactor, creature.conditions);
+      if (!spent.ok) return spent;
+      events.push({ type: 'reaction-spent', id: reactor });
+    } else if (isIncapacitated(creature.conditions)) {
+      // Outside combat there is no Reaction to spend and `spendReaction` is
+      // never asked, but SRD Incapacitated still forbids taking one.
+      return err('incapacitated', `${reactor} is Incapacitated and can't take a Reaction`);
+    }
+  }
+
+  if (feature.pool !== null) {
+    if (remaining(creature.resources, feature.pool) < 1) {
+      return err('exhausted', `${reactor} has no uses of ${feature.name} left`);
+    }
+    events.push({ type: 'resource-spent', id: reactor, key: feature.pool, amount: 1 });
+  }
+
+  return ok(events);
+}
+
+/** Every named contribution a reaction's amount made, for the audit trail. */
+function reactionContributions(
+  amount: ReactionAmount,
+  abilities: Readonly<Record<Ability, number>>,
+  dieTotal: number,
+  halved: number,
+): { readonly source: string; readonly amount: number }[] {
+  const parts: { source: string; amount: number }[] = [];
+  if (amount.dice !== undefined) parts.push({ source: amount.dice, amount: dieTotal });
+  if (amount.halve === true) parts.push({ source: 'halved', amount: halved });
+  for (const addend of amount.plus ?? []) {
+    parts.push({
+      source: addend.label,
+      amount: reactionAddends({ plus: [addend] }, abilities).total,
+    });
+  }
+  return parts;
+}
+
+export interface DamageReactionCommand extends CommandIdentity {
+  readonly feature: string;
+}
+
+export interface ReactionResolution {
+  readonly events: readonly GameEvent[];
+  /** What came off the damage, when something did. */
+  readonly reduction?: DamageReduction;
+  /** True when this command id had already been applied; `events` is empty. */
+  readonly duplicate: boolean;
+}
+
+/**
+ * Take a Reaction against a damage roll that has not landed.
+ *
+ * SRD Uncanny Dodge, Deflect Attacks and Cutting Words. The three differ in
+ * every number and agree on the shape, which is what makes this one command:
+ * spend what the feature costs, roll what it says, and take that off the
+ * total — leaving the damage itself to {@link settleDamage}, so there is
+ * exactly one place that decides what the target finally takes.
+ *
+ * **The amount comes off the total, never off a component.** A reduction is not
+ * damage of any type, and subtracting it from the slashing half of a flaming
+ * sword would give a fire-immune target the wrong answer — the same reasoning
+ * that put `reductions` beside the components rather than inside them.
+ */
+export function takeDamageReaction(
+  state: GameState,
+  reactor: CharacterId,
+  command: DamageReactionCommand,
+  supply: ConcentrationSaveSupply,
+): Result<ReactionResolution> {
+  // Before the offer is checked, exactly as `takeOpportunityAttack` does it: a
+  // retry arrives at a window its own first run has already answered, and
+  // reporting "you were not offered that" for a Reaction that in fact landed
+  // is the confusion command ids exist to prevent.
+  const identity = identify(state, `damage-reaction:${reactor}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok({ events: [], duplicate: true });
+  const stamp = identity.value.stamp;
+
+  const pending = state.pendingDamage;
+  if (pending === null) {
+    return err('no_pending_damage', `no damage roll is waiting for ${reactor} to answer`);
+  }
+  if (!pending.offers.some((o) => o.reactor === reactor && o.feature === command.feature)) {
+    return err('not_offered', `${reactor} was not offered ${command.feature} against this damage`);
+  }
+
+  const feature = reactionFeatureOf(state, reactor, command.feature, 'damage-rolled');
+  if (feature === null || feature.does.kind !== 'reduce-damage') {
+    return err('no_such_feature', `${reactor} has no damage Reaction called ${command.feature}`);
+  }
+
+  const creature = creatureOf(state, reactor);
+  if (creature === null) return unknownCreature(reactor);
+
+  // Nothing is rolled until every refusal has had its say, so a refused
+  // reaction costs neither a use nor a turn of the generator.
+  const spent = spendReactionCost(state, reactor, creature, feature);
+  if (!spent.ok) return spent;
+  const events: GameEvent[] = [...spent.value];
+
+  const issuedBefore = supply.issuer.count;
+  const held: AttackDamage = {
+    components: pending.components,
+    critical: pending.critical,
+    reductions: pending.reductions,
+    total: heldDamageTotal(pending),
+  };
+  const amount = feature.does.amount;
+  const addends = reactionAddends(amount, creature.sheet.abilities);
+  // SRD Uncanny Dodge: "halve the attack's damage against you (**round
+  // down**)". What is taken off is therefore the upper half, which is what
+  // makes an odd total round the target's way.
+  const halved = held.total - Math.floor(held.total / 2);
+  const flat = amount.halve === true ? halved : addends.total;
+
+  const reduced = reduceDamage(supply.issuer, supply.rng, held, {
+    source: feature.name,
+    flat,
+    ...(amount.dice === undefined ? {} : { dice: amount.dice }),
+  });
+  if (!reduced.ok) return reduced;
+
+  const applied = reduced.value.reductions[reduced.value.reductions.length - 1];
+  if (applied === undefined) {
+    throw new Error(`${feature.name} recorded no reduction; reduceDamage always records one`);
+  }
+
+  events.push({
+    type: 'roll-recorded',
+    who: reactor,
+    label: feature.name,
+    natural: applied.roll?.total ?? 0,
+    total: applied.amount,
+    contributions: reactionContributions(
+      amount,
+      creature.sheet.abilities,
+      applied.roll?.total ?? 0,
+      halved,
+    ),
+    outcome: `${applied.amount} damage prevented`,
+  });
+
+  events.push({
+    type: 'damage-reaction-answered',
+    reactor,
+    took: true,
+    feature: feature.feature,
+    reduction: applied,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  if (supply.issuer.count > issuedBefore) {
+    events.push({
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    });
+  }
+
+  return ok({ events, reduction: applied, duplicate: false });
+}
+
+/**
+ * Pass on a Reaction that was offered against a damage roll.
+ *
+ * Costs nothing and keeps the Reaction — SRD is explicit that ignoring a
+ * trigger is free — but the offer is spent, so it cannot be taken later.
+ */
+export function declineDamageReaction(
+  state: GameState,
+  reactor: CharacterId,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  const identity = identify(state, `decline-damage-reaction:${reactor}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
+  const pending = state.pendingDamage;
+  if (pending === null) {
+    return err('no_pending_damage', `no damage roll is waiting for ${reactor} to answer`);
+  }
+  if (!pending.offers.some((o) => o.reactor === reactor)) {
+    return err('not_offered', `${reactor} was not offered a Reaction against this damage`);
+  }
+
+  return ok([
+    {
+      type: 'damage-reaction-answered',
+      reactor,
+      took: false,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+  ]);
+}
+
+export interface SettledDamage {
+  readonly events: readonly GameEvent[];
+  /** What the target actually took, after the reactions and their defences. */
+  readonly amount: number;
+  readonly concentration: ConcentrationConsequence;
+  readonly duplicate: boolean;
+}
+
+/**
+ * Close the window and deal what is left.
+ *
+ * **This is what settles the debt, including when nobody reacts.** Any offer
+ * still outstanding is recorded as passed — the engine does not wait forever
+ * for a decision nobody is going to make, and it does not take the decision
+ * either: whether an NPC wants to spend its Reaction is Maestro's call, and
+ * calling this is how Maestro says "nobody is".
+ *
+ * Settlement is its own command rather than something the last answer does by
+ * itself, which is the opposite choice from `pendingMove` and deliberate: the
+ * damage is a *number* the reactions changed, so there is exactly one place
+ * that computes it, one command id that guards it, and one refusal when the
+ * turn tries to move on without it.
+ */
+export function settleDamage(
+  state: GameState,
+  supply: ConcentrationSaveSupply,
+  command: CommandIdentity = {},
+): Result<SettledDamage> {
+  const identity = identify(state, 'settle-damage', command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    return ok({ events: [], amount: 0, concentration: { kind: 'none' }, duplicate: true });
+  }
+  const stamp = identity.value.stamp;
+
+  const pending = state.pendingDamage;
+  if (pending === null) return err('no_pending_damage', 'no damage roll is waiting to be dealt');
+
+  // Everyone who never answered is recorded as having passed. Their Reaction
+  // is untouched — ignoring a trigger costs nothing.
+  const events: GameEvent[] = pending.offers.map((offer) => ({
+    type: 'damage-reaction-answered' as const,
+    reactor: offer.reactor,
+    took: false,
+  }));
+
+  events.push({
+    type: 'damage-settled',
+    target: pending.target,
+    // The stamp rides here because this event always happens — a settlement
+    // that deals nothing still closes the window, where the damage event that
+    // follows could in principle be a zero nobody notices.
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  const reduction = pending.reductions.reduce((sum, r) => sum + r.amount, 0);
+  const adjustments = adjustmentsFor(pending.components, reduction);
+  const applied = applyDamage(pending.components, defensesOf(state, pending.target), adjustments);
+
+  const dealt = resolveDamage(
+    state,
+    pending.target,
+    {
+      amount: applied.total,
+      source: pending.source,
+      ...(pending.critical ? { critical: true } : {}),
+      ...(pending.by === null ? {} : { by: pending.by }),
+    },
+    supply,
+  );
+  if (!dealt.ok) return dealt;
+
+  const all = [...events, ...dealt.value.events];
+
+  return ok({
+    // A move that was waiting on an Opportunity Attack whose damage was held
+    // can go through now. Nothing else completes it: the command that answered
+    // the Reaction left the damage open, and a mover must not arrive before
+    // the blow aimed at them leaving has landed.
+    events: [...all, ...completeIfSettled(state, all)],
+    amount: applied.total,
+    concentration: dealt.value.concentration,
+    duplicate: false,
+  });
+}
+
+export interface TestCommand extends CommandIdentity {
+  readonly kind: D20TestKind;
+  readonly ability: Ability;
+  readonly skill?: Skill;
+  readonly dc: number;
+  /** What the roll is for, in the caller's words: "vs the pit trap". */
+  readonly label?: string;
+  /** Advantage or Disadvantage the table knows about and the engine cannot see. */
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  readonly bonuses?: readonly Bonus[];
+  /**
+   * Which senses this attempt leans on.
+   *
+   * A fact about the attempt, never a result — SRD Blinded "automatically
+   * fails an ability check that requires sight", and only the table knows
+   * whether this one does. The same field, for the same reason, as
+   * {@link EffectCheckCommand.senses}.
+   */
+  readonly senses?: CheckContext;
+}
+
+export interface TestResolution {
+  readonly events: readonly GameEvent[];
+  /** The roll, or null when this command id had already been applied. */
+  readonly test: D20TestResult | null;
+  /**
+   * Who may push it before its effects occur.
+   *
+   * Empty is the ordinary case, and then the test is final the moment it comes
+   * back: no window was opened and nothing has to be settled.
+   */
+  readonly offers: readonly ReactionOffer[];
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Roll an ability check or a saving throw for a creature.
+ *
+ * `rollAbilityCheck` and `rollSavingThrow` have been complete and correct since
+ * the day they were written and reachable from **no command at all** except
+ * from inside a spell's own resolution — the ninth instance in this codebase of
+ * a pure function nothing calls. A DM asks for a check or a save constantly,
+ * and the engine had no way to be asked.
+ *
+ * Everything derivable is derived: the modifier, proficiency, Expertise, the
+ * armour penalties, the roller's conditions and the automatic failures they
+ * impose, the exhaustion penalty, and the bonuses a feature or a running spell
+ * has put on this creature. What the caller says is what the engine cannot see
+ * — a situational Advantage, a DC, and which senses the attempt uses.
+ *
+ * **It holds the result open when somebody can push it.** SRD Dark One's Own
+ * Luck names the window in one clause — "after seeing the roll but before any
+ * of the roll's effects occur" — and Indomitable, Peerless Skill and Cutting
+ * Words all live in it. With nobody eligible the test is final on return and
+ * no window exists, exactly as an unanswerable damage roll simply lands.
+ *
+ * **What settlement means here is nothing**, deliberately. A standalone test's
+ * consequence belongs to whoever asked for it; the engine owns the number. So
+ * closing the window changes no state, which is the same honest answer
+ * `SpellCheck.onSuccess: 'none'` gives rather than a stub.
+ */
+export function resolveTest(
+  state: GameState,
+  who: CharacterId,
+  command: TestCommand,
+  supply: ConcentrationSaveSupply,
+): Result<TestResolution> {
+  const identity = identify(state, `test:${who}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    return ok({ events: [], test: null, offers: [], unverified: [], duplicate: true });
+  }
+  const stamp = identity.value.stamp;
+
+  const creature = creatureOf(state, who);
+  if (creature === null) return unknownCreature(who);
+
+  if (state.pendingTest !== null) {
+    return err(
+      'test_pending',
+      `${state.pendingTest.who} has a D20 Test whose effects are still unsettled; settle it first`,
+    );
+  }
+
+  if (!Number.isFinite(command.dc)) {
+    return err('bad_dc', `${String(command.dc)} is not a Difficulty Class`);
+  }
+
+  const label =
+    command.label ??
+    `${ABILITY_NAMES[command.ability]} ${command.kind === 'saving-throw' ? 'save' : 'check'}`;
+
+  const issuedBefore = supply.issuer.count;
+
+  // Everything standing on this creature — a Paladin's aura, Bless, the
+  // feature that grants Advantage on this very skill — read rather than
+  // remembered, which is the rule every roll in this engine follows.
+  const rolled =
+    command.kind === 'saving-throw'
+      ? (() => {
+          const support = savingSupport(state, who, creature, command.ability, supply);
+          return rollSavingThrow(supply.issuer, supply.rng, creature.sheet, command.ability, {
+            dc: command.dc,
+            conditions: support.conditions,
+            modes: support.modes,
+            bonuses: support.bonuses,
+          });
+        })()
+      : rollAbilityCheck(supply.issuer, supply.rng, creature.sheet, command.ability, {
+          dc: command.dc,
+          ...(command.skill === undefined ? {} : { skill: command.skill }),
+          conditions: effectiveConditions(state, who),
+          modes: [
+            ...(command.skill === undefined ? [] : standingSkillModes(state, who, command.skill)),
+            ...(command.modes ?? []),
+          ],
+          ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
+          ...(command.bonuses === undefined ? {} : { bonuses: command.bonuses }),
+        });
+  if (!rolled.ok) return rolled;
+
+  const events: GameEvent[] = [
+    {
+      ...recordD20Test(who, label, rolled.value, rolled.value.success ? 'success' : 'failure'),
+      // On the roll, which happens whatever the outcome — the same reasoning
+      // that stamps `resolveAttack` on the roll rather than on the damage a
+      // miss never deals.
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+    { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+  ];
+
+  const possible = offersForTest(state, {
+    who,
+    kind: command.kind,
+    success: rolled.value.success,
+  });
+
+  if (possible.offers.length > 0) {
+    events.push({
+      type: 'test-rolled',
+      test: { who, label, result: rolled.value, offers: possible.offers },
+    });
+  }
+
+  return ok({
+    events,
+    test: rolled.value,
+    offers: possible.offers,
+    unverified: possible.unverified,
+    duplicate: false,
+  });
+}
+
+export interface TestReactionCommand extends CommandIdentity {
+  readonly feature: string;
+}
+
+export interface TestReactionResolution {
+  readonly events: readonly GameEvent[];
+  /** The test as it now stands, or null when this command id had landed. */
+  readonly test: D20TestResult | null;
+  readonly duplicate: boolean;
+}
+
+/**
+ * Push a D20 Test that has landed and not yet had its effects.
+ *
+ * Two shapes, and they are two SRD sentences rather than two designs:
+ *
+ * - **Add or subtract.** Dark One's Own Luck adds 1d10, Cutting Words
+ *   subtracts the Bardic Inspiration die, Peerless Skill adds it to your own.
+ *   One mechanism with a sign — the argument `interveneAfterRoll` already
+ *   settled for itself when Bend Luck showed it could push either way.
+ * - **Reroll.** Indomitable: "You **must use the new roll**", which is not
+ *   take-the-better-of-two. `rerollTest` keeps the superseded number on the
+ *   result, so a log still shows what was given up.
+ *
+ * **Whether it cost a Reaction is the feature's business, not this window's.**
+ * Four of the five features here spend none at all — the SRD grants them as
+ * bare permissions limited by a pool — and treating the window and the
+ * action-economy cost as one thing is the commonest mistake about this corner
+ * of the rules.
+ */
+export function takeTestReaction(
+  state: GameState,
+  reactor: CharacterId,
+  command: TestReactionCommand,
+  supply: ConcentrationSaveSupply,
+): Result<TestReactionResolution> {
+  const identity = identify(state, `test-reaction:${reactor}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok({ events: [], test: null, duplicate: true });
+  const stamp = identity.value.stamp;
+
+  const pending = state.pendingTest;
+  if (pending === null) {
+    return err('no_pending_test', `no D20 Test is waiting for ${reactor} to answer`);
+  }
+  if (!pending.offers.some((o) => o.reactor === reactor && o.feature === command.feature)) {
+    return err('not_offered', `${reactor} was not offered ${command.feature} against this roll`);
+  }
+
+  const feature = reactionFeatureOf(state, reactor, command.feature, 'test-rolled');
+  if (feature === null || (feature.does.kind !== 'intervene' && feature.does.kind !== 'reroll')) {
+    return err('no_such_feature', `${reactor} has no D20 Test Reaction called ${command.feature}`);
+  }
+
+  const creature = creatureOf(state, reactor);
+  if (creature === null) return unknownCreature(reactor);
+
+  const spent = spendReactionCost(state, reactor, creature, feature);
+  if (!spent.ok) return spent;
+  const events: GameEvent[] = [...spent.value];
+
+  const issuedBefore = supply.issuer.count;
+  const does = feature.does;
+
+  let pushed: Result<D20TestResult>;
+  if (does.kind === 'reroll') {
+    const bonus = does.bonus;
+    pushed = rerollTest(
+      supply.issuer,
+      supply.rng,
+      pending.result,
+      bonus === undefined
+        ? undefined
+        : {
+            source: feature.name,
+            flat: bonus.kind === 'level' ? bonus.level : modifierFor(creature.sheet, bonus.ability),
+          },
+    );
+  } else {
+    const addends = reactionAddends(does.amount, creature.sheet.abilities);
+    pushed = interveneAfterRoll(supply.issuer, supply.rng, pending.result, {
+      source: feature.name,
+      direction: does.direction,
+      ...(addends.total === 0 ? {} : { flat: addends.total }),
+      ...(does.amount.dice === undefined ? {} : { dice: does.amount.dice }),
+    });
+  }
+  if (!pushed.ok) return pushed;
+
+  // SRD Peerless Skill: "On a failure, the Bardic Inspiration **isn't
+  // expended**." The only feature here whose cost depends on whether it
+  // worked, which is why the spend is decided after the new total is known.
+  const refunded =
+    does.kind === 'intervene' && does.refundedOnFailure === true && !pushed.value.success;
+  const paid = refunded
+    ? events.filter((e) => !(e.type === 'resource-spent' && e.key === feature.pool))
+    : events;
+
+  paid.push({
+    ...recordD20Test(
+      pending.who,
+      `${pending.label} (${feature.name})`,
+      pushed.value,
+      pushed.value.success ? 'success' : 'failure',
+    ),
+  });
+
+  paid.push({
+    type: 'test-reaction-answered',
+    reactor,
+    took: true,
+    feature: feature.feature,
+    result: pushed.value,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  if (supply.issuer.count > issuedBefore) {
+    paid.push({
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    });
+  }
+
+  return ok({ events: paid, test: pushed.value, duplicate: false });
+}
+
+/** Pass on a Reaction offered against a D20 Test. Costs nothing. */
+export function declineTestReaction(
+  state: GameState,
+  reactor: CharacterId,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  const identity = identify(state, `decline-test-reaction:${reactor}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
+  const pending = state.pendingTest;
+  if (pending === null) {
+    return err('no_pending_test', `no D20 Test is waiting for ${reactor} to answer`);
+  }
+  if (!pending.offers.some((o) => o.reactor === reactor)) {
+    return err('not_offered', `${reactor} was not offered a Reaction against this roll`);
+  }
+
+  return ok([
+    {
+      type: 'test-reaction-answered',
+      reactor,
+      took: false,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+  ]);
+}
+
+export interface SettledTest {
+  readonly events: readonly GameEvent[];
+  /** The final number, which is what the caller asked for in the first place. */
+  readonly test: D20TestResult | null;
+  readonly duplicate: boolean;
+}
+
+/**
+ * Close a D20 Test window; anything still outstanding is recorded as passed.
+ *
+ * **Nothing mechanical happens**, and that is the point rather than a gap: the
+ * engine owned the number and the table owns what it means. The window existed
+ * so the number could be pushed, and it closes so the turn can move on.
+ */
+export function settleTest(
+  state: GameState,
+  command: CommandIdentity = {},
+): Result<SettledTest> {
+  const identity = identify(state, 'settle-test', command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok({ events: [], test: null, duplicate: true });
+  const stamp = identity.value.stamp;
+
+  const pending = state.pendingTest;
+  if (pending === null) return err('no_pending_test', 'no D20 Test is waiting to be settled');
+
+  const events: GameEvent[] = pending.offers.map((offer) => ({
+    type: 'test-reaction-answered' as const,
+    reactor: offer.reactor,
+    took: false,
+  }));
+
+  events.push({
+    type: 'test-settled',
+    who: pending.who,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  return ok({ events, test: pending.result, duplicate: false });
+}
+
+export interface DamageResponseCommand extends CommandIdentity {
+  readonly feature: string;
+  /** The weapon, by catalogue id, or null for an Unarmed Strike. */
+  readonly weapon?: string | null;
+}
+
+/**
+ * Answer damage that has already landed.
+ *
+ * SRD Retaliation: "When you take damage from a creature that is within 5 feet
+ * of you, you can take a Reaction to make one melee attack against that
+ * creature." This is the third timing family and the one that proves the
+ * architectural point in the other direction — **it needs no pending state at
+ * all**. Everything is settled: the damage is applied, the hit points have
+ * moved, and nothing the reactor does can change any of it. There is no
+ * outcome being held open, so there is nothing to hold.
+ *
+ * What the window *is* here is two facts already in state — `lastDamage` and
+ * the clock — read by the same helper that decides whether *Hellish Rebuke*
+ * may be cast. One rule, one reading, a spell and a class feature.
+ *
+ * The attack goes through `resolveAttack` with `free: true`, so cover,
+ * conditions, proficiency, reach and the target's defences all apply because
+ * that command applies them — exactly as an Opportunity Attack does.
+ */
+export function takeDamageResponse(
+  state: GameState,
+  reactor: CharacterId,
+  command: DamageResponseCommand,
+  supply: ConcentrationSaveSupply,
+): Result<AttackResolution> {
+  const identity = identify(state, `damage-response:${reactor}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    return ok({ events: [], attack: null, unverified: [], duplicate: true });
+  }
+  const stamp = identity.value.stamp;
+
+  const feature = reactionFeatureOf(state, reactor, command.feature, 'damaged-by-creature');
+  if (feature === null || feature.does.kind !== 'melee-attack') {
+    return err('no_such_feature', `${reactor} has no Reaction called ${command.feature}`);
+  }
+
+  const creature = creatureOf(state, reactor);
+  if (creature === null) return unknownCreature(reactor);
+
+  // The same window *Hellish Rebuke* opens into, read by the same function.
+  const hurt = damageWindowOpen(state, reactor);
+  if (hurt === null) {
+    return err(
+      'no_trigger',
+      `${feature.name} answers damage as it lands, and nothing has just damaged ${reactor}`,
+    );
+  }
+
+  // SRD: "**that creature**". The target is forced by the trigger, exactly as
+  // Hellish Rebuke's is — aiming it elsewhere is refused rather than quietly
+  // redirected.
+  const apart = state.scene === null ? null : distanceBetween(state.scene, reactor, hurt.by);
+  const unverified: string[] = [];
+  if (apart === null || !apart.ok) {
+    return needsContext(
+      'unplaced',
+      `${feature.name} needs ${reactor} and ${hurt.by} to be standing somewhere before 5 feet means anything`,
+      [
+        {
+          kind: 'position',
+          subject: reactor,
+          need: `where ${reactor} and ${hurt.by} are standing`,
+          because: `${feature.name} answers a creature within ${feature.does.withinFeet} feet`,
+          satisfyWith: 'placeCreature',
+        },
+      ],
+    );
+  }
+  if (apart.value > feature.does.withinFeet) {
+    return err(
+      'out_of_range',
+      `${hurt.by} is ${apart.value} feet away and ${feature.name} reaches ${feature.does.withinFeet}`,
+    );
+  }
+
+  const spent = spendReactionCost(state, reactor, creature, feature);
+  if (!spent.ok) return spent;
+  const events: GameEvent[] = [...spent.value];
+
+  const after = events.reduce(applyEvent, state);
+  // No id of its own: this command owns the guard, and the same id
+  // fingerprinted twice under two kinds would make the retry read as a reused
+  // id. The same split `takeOpportunityAttack` and `releaseReady` make.
+  const swing = resolveAttack(
+    after,
+    reactor,
+    { target: hurt.by, weapon: command.weapon ?? null, free: true },
+    supply,
+  );
+  if (!swing.ok) return swing;
+
+  return ok({
+    ...swing.value,
+    events: [
+      ...events,
+      ...swing.value.events,
+      // A `reaction-taken` rather than a stamp on one of the attack's own
+      // events, for two reasons. The swing may miss, and a missed Reaction
+      // must not be retryable; and this window has no other record that a
+      // Reaction happened at all — no hold opened, nothing was held back —
+      // so without it the log shows an attack out of turn and no reason for
+      // it.
+      {
+        type: 'reaction-taken',
+        reactor,
+        window: 'damaged-by-creature',
+        feature: feature.feature,
+        against: hurt.by,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ],
+    unverified: [...swing.value.unverified, ...unverified],
+  });
+}
+
+/**
+ * Every Reaction a creature could legally take right now, across every open
+ * window.
+ *
+ * This is the half Maestro needs and the engine had none of. The trigger
+ * machinery could *refuse* a Reaction taken at the wrong moment; nothing could
+ * say a moment was open. A model that has to guess whether a *Shield* is
+ * available will either never cast one or will try constantly and be refused,
+ * and neither is a DM.
+ *
+ * **It transfers no mechanical authority.** Every entry is a fact the engine
+ * already holds, and taking the opportunity goes through the command that
+ * checks all of it again — this decides nothing and spends nothing. What it
+ * does is let Maestro make the *choice* the rules give a creature (does this
+ * NPC want to spend its Reaction?) without inventing the *trigger* that would
+ * make the choice legal.
+ *
+ * Five windows, four sources:
+ *
+ * | Window | Where the opportunity comes from |
+ * |---|---|
+ * | `hit-by-attack` | a Reaction spell the target can cast — *Shield* |
+ * | `damage-rolled` | the offers the engine computed when it held the damage |
+ * | `test-rolled` | the offers the engine computed when it held the test |
+ * | `damaged-by-creature` | a feature or a Reaction spell, against `lastDamage` |
+ * | `casting-a-spell` | a Reaction spell somebody else can cast — *Counterspell* |
+ *
+ * Two of those read a list already in state and three derive one, and the
+ * difference is exactly whether the window holds an outcome open. A window
+ * that holds something had to know who could answer before it opened.
+ *
+ * **What it does not check**, and says so rather than over-reporting silently:
+ * *Counterspell*'s 60 feet and line of sight, which `triggerRefusal` does not
+ * check either because the engine has never modelled which castings a creature
+ * perceives. A listed opportunity is legal as far as the engine can see.
+ */
+export function reactionOpportunities(state: GameState): readonly ReactionOpportunity[] {
+  const found: ReactionOpportunity[] = [];
+
+  const canReact = (who: CharacterId): boolean => {
+    const creature = state.creatures[who];
+    if (creature === undefined || creature.vitals.dead) return false;
+    if (isIncapacitated(creature.conditions)) return false;
+    if (state.combat === null) return true;
+    return state.combat.budgets[who]?.reaction !== false;
+  };
+
+  /** Reaction spells this creature could cast for a given window. */
+  const spellsFor = (who: CharacterId, window: SpellReactionWindow): ReactionOpportunity[] => {
+    const creature = state.creatures[who];
+    if (creature === undefined) return [];
+    const known = [
+      ...creature.spellcasting.classes.flatMap((c) => [...c.cantrips, ...c.prepared]),
+      ...creature.spellcasting.granted.map((g) => g.spellId),
+    ];
+    return [...new Set(known)].sort().flatMap((spellId): ReactionOpportunity[] => {
+      const definition = definitionFor(spellId);
+      if (definition?.trigger !== window) return [];
+      return [
+        {
+          window,
+          reactor: who,
+          id: spellId,
+          name: definition.name,
+          kind: 'spell',
+          // SRD writes the casting time as "Reaction, which you take when…",
+          // so the Reaction is always part of the cost.
+          costsReaction: true,
+          pool: null,
+          against: null,
+        },
+      ];
+    });
+  };
+
+  const attack = state.pendingAttack;
+  if (attack !== null && canReact(attack.target)) {
+    for (const chance of spellsFor(attack.target, 'hit-by-attack')) {
+      found.push({ ...chance, against: attack.attacker });
+    }
+  }
+
+  const casting = state.pendingCasting;
+  if (casting !== null) {
+    for (const key of Object.keys(state.creatures).sort()) {
+      const who = key as CharacterId;
+      if (who === casting.caster || !canReact(who)) continue;
+      for (const chance of spellsFor(who, 'casting-a-spell')) {
+        found.push({ ...chance, against: casting.caster });
+      }
+    }
+  }
+
+  // An offer in a pending record is who the engine asked when the window
+  // opened. It can go stale — something else spent that creature's Reaction,
+  // or drained the pool — and the commands re-check, so the query must too:
+  // reporting an opportunity that would be refused is worse than reporting
+  // none.
+  const affordable = (offer: ReactionOffer): boolean => {
+    if (!canReact(offer.reactor)) return false;
+    if (offer.pool === null) return true;
+    const creature = state.creatures[offer.reactor];
+    return creature !== undefined && remaining(creature.resources, offer.pool) >= 1;
+  };
+
+  const damage = state.pendingDamage;
+  if (damage !== null) {
+    for (const offer of damage.offers.filter(affordable)) {
+      found.push({
+        window: 'damage-rolled',
+        reactor: offer.reactor,
+        id: offer.feature,
+        name: offer.name,
+        kind: 'feature',
+        costsReaction: offer.costsReaction,
+        pool: offer.pool,
+        against: damage.by,
+      });
+    }
+  }
+
+  const test = state.pendingTest;
+  if (test !== null) {
+    for (const offer of test.offers.filter(affordable)) {
+      found.push({
+        window: 'test-rolled',
+        reactor: offer.reactor,
+        id: offer.feature,
+        name: offer.name,
+        kind: 'feature',
+        costsReaction: offer.costsReaction,
+        pool: offer.pool,
+        against: test.who,
+      });
+    }
+  }
+
+  // The settled window. Nothing is held open, so the opportunity is derived
+  // from `lastDamage` and the clock — the same two facts `damageWindowOpen`
+  // reads for *Hellish Rebuke*.
+  for (const key of Object.keys(state.creatures).sort()) {
+    const who = key as CharacterId;
+    const hurt = damageWindowOpen(state, who);
+    if (hurt === null || !canReact(who)) continue;
+
+    for (const feature of state.creatures[who]?.sheet.reactions ?? []) {
+      if (feature.window !== 'damaged-by-creature') continue;
+      if (feature.pool !== null && remaining(state.creatures[who]!.resources, feature.pool) < 1) {
+        continue;
+      }
+      found.push({
+        window: 'damaged-by-creature',
+        reactor: who,
+        id: feature.feature,
+        name: feature.name,
+        kind: 'feature',
+        costsReaction: feature.costsReaction,
+        pool: feature.pool,
+        against: hurt.by,
+      });
+    }
+
+    for (const chance of spellsFor(who, 'damaged-by-creature')) {
+      found.push({ ...chance, against: hurt.by });
+    }
+  }
+
+  return found;
 }
 
 // — features a creature switches on ———————————————————————————————————————————
@@ -4060,11 +5237,13 @@ export function resolveDamage(
  * retried command id is a no-op on both halves: it spends no second action any
  * more than it spends a second slot.
  *
- * **Reaction triggers are not enforced.** A spell with a casting time of a
- * Reaction spends the Reaction and is recorded, but the engine has no
- * interrupt mechanism: it does not check that a valid trigger occurred, and it
- * cannot order the casting against the event that triggered it. Counterspell
- * and Shield need that machinery and do not have it.
+ * **Reaction triggers are checked one layer up.** This is the low-level half
+ * — a caller reconstructing a log or scripting a fixture has already accounted
+ * for the moment. `resolveSpell` is where `triggerRefusal` reads the window a
+ * Reaction spell answers, before the Reaction or the slot is spent; see "A
+ * Reaction Is A Window, Not A Trigger" in CLAUDE.md. Same split as
+ * `damageCreature` beneath `resolveDamage`, and the same policy: the low-level
+ * half exists, and Maestro's tool surface does not expose it.
  */
 export function resolveCast(
   state: GameState,
@@ -4563,6 +5742,27 @@ export function resolveTurn(
     return err(
       'attack_pending',
       `${state.pendingAttack.attacker} has a hit whose damage is still unrolled; settle it before the turn moves on`,
+    );
+  }
+
+  // Damage that has been rolled and not dealt is the newest debt of this
+  // shape, and the loudest one to get wrong: advancing past it would leave a
+  // creature un-hit by a blow that had already landed, with the roll sitting
+  // in the log.
+  if (state.pendingDamage !== null) {
+    return err(
+      'damage_pending',
+      `${state.pendingDamage.target} has damage rolled against them that nobody has settled; settle it before the turn moves on`,
+    );
+  }
+
+  // A D20 Test whose effects have not occurred. Nobody is obliged to push it,
+  // but until somebody says so the number is not final — and a turn that moved
+  // on would take the chance to push it with it.
+  if (state.pendingTest !== null) {
+    return err(
+      'test_pending',
+      `${state.pendingTest.who} has a D20 Test whose effects are still unsettled; settle it before the turn moves on`,
     );
   }
 
@@ -5179,6 +6379,24 @@ function castOrRelease(
     return err(
       'saves_pending',
       `${owed.length} turn-boundary save(s) are still owed; resolve them before acting`,
+    );
+  }
+
+  // Same rule, newer debts. A spell cast while a damage roll or a D20 Test is
+  // held open would change the world underneath an outcome nobody has settled
+  // — a Cleric healing the Rogue who is about to be hit by damage already
+  // rolled. `pendingAttack` is deliberately *not* in this list: SRD Divine
+  // Smite is cast into that window on purpose.
+  if (state.pendingDamage !== null) {
+    return err(
+      'damage_pending',
+      `damage rolled against ${state.pendingDamage.target} has not been settled; settle it before acting`,
+    );
+  }
+  if (state.pendingTest !== null) {
+    return err(
+      'test_pending',
+      `the D20 Test ${state.pendingTest.who} rolled has not been settled; settle it before acting`,
     );
   }
 
