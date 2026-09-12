@@ -906,6 +906,11 @@ sprung in this file (`triggerRefusal` and the six unstamped commands were the
 others), and it is always the same shape: *a retry looks at the world its first
 run made*. The duplicate check comes first, always.
 
+**A clause that excludes nothing is documented, not modelled — and this now
+has two users.** Nondetection hides its target from Divination spells, and
+every Divination spell the engine defines is cast at Self or at no creature at
+all, so the clause has no reachable case. Same shape as Counterspell's:
+
 **Counterspell's components clause is not checked, and the reason is in a
 test.** SRD triggers it on "casting a spell with Verbal, Somatic, or Material
 components" — and all 339 SRD 5.2.1 spells have at least one of the three, so
@@ -1521,6 +1526,72 @@ nothing in the engine could check it.
 separate fields rather than one overloaded number, because conflating them is
 exactly the mistake that was made.
 
+### Tracked Is A Claim About The Cost, Not A Half-Finished Execution
+
+Forty-four spells have a definition with `effects: []`. The engine casts every
+one of them for real — the action or Bonus Action, the slot, the Concentration
+it takes and the one it breaks, the deadline on the clock, the range and the
+target count, the command id that makes a retry a no-op — and what the spell
+*does* is the DM's. Disguise Self will never be executed, because what a caster
+looks like is not arithmetic. Refusing the cast outright, which is what the
+engine did before this existed, meant the slot was never spent: a worse answer
+than either.
+
+**`unmodelled` means one thing and must never come to mean the other:**
+
+| | |
+|---|---|
+| ✅ | this part of the spell belongs to the fiction, and the engine should never decide it |
+| ❌ | the engine ought to enforce this and nobody has built it yet |
+
+Those two read identically at the table and only one of them is honest, so the
+line is drawn by a test rather than by review. `spell-tracking.test.ts` reads
+each tracked spell's **own SRD prose** out of the parsed book and scans it for
+thirteen clauses the engine demonstrably owns — dice, a saving throw, an
+ability check, an Armour Class, Hit Points, a Resistance or Immunity, a
+condition, Advantage or Disadvantage, a Speed, a percentage chance, a cost in
+feet of movement, a teleport, extra damage. A hit demands a written
+adjudication, and one that is not `'table'` must name an enumerated missing
+shape. Adding Barkskin to the tracked list therefore means writing `armor-class`
+against a shape id, which is a visible act in a reviewed list rather than a
+sentence in a spell nobody rereads.
+
+It is a **floor, not a proof**: it reads English, so a rule phrased in none of
+those words slips past — Gate and Etherealness move creatures between planes
+and trip nothing. It fires on forty of the forty-five utility spells the audit
+rejected, which is what it is for. Nothing can catch a *false* adjudication
+either; the guard forces the sentence to exist and be specific, and review does
+the rest.
+
+**Which side a clause falls on is decided by the engine's own reach.** It is
+the table's when the engine's resolution path never arrives at it — the
+Disadvantage on a Perception check a DM calls for, the Prone on a creature
+inside an unmodelled demiplane, the damage when a DM rules the stone collapsed.
+It is debt when the path *does* arrive and would silently answer wrongly: Blur,
+because `resolveAttack` rolls every attack; Mage Armor and Barkskin, because
+the engine derives an Armour Class on each one; Death Ward, because the engine
+drops creatures to 0 itself.
+
+**No command teleports.** `moveCreature` charges a movement budget and
+`placeCreature` refuses a creature that already has a position, so a spell that
+relocates somebody has nothing authoritative to call — Misty Step's 30 feet,
+unoccupied space and line of sight all go unchecked. This was misfiled for a
+long time as "a separate placement the caller makes", which reads as a division
+of labour and is a hole. A destination *outside* the scene is different in kind
+and is genuinely the DM's: there is one scene, so Plane Shift and Word of
+Recall have no position to move anybody to.
+
+**"Until dispelled" is the absence of a duration, not a large one.** Arcane
+Lock and Continual Flame carry no `durationSeconds` and schedule no timer.
+Inventing a big number of seconds would be the engine answering a question the
+SRD declined to ask.
+
+**A tracked spell's numbers are as easy to get wrong as an executed one's, and
+less is watching.** `coverage.test.ts` checks name, level, school, casting time
+and Concentration against the parsed book; the *duration* has no automatic
+check, so every one is quoted from the SRD in its docstring and at least one is
+driven past its deadline by a test.
+
 ### What a cast refuses, and what it admits it cannot check
 
 Refused: a spell with no executable definition, a spell the caster has not
@@ -2096,8 +2167,14 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 72 of 339 executable, with the shapes that block the rest counted
-  in `COVERAGE.md`. Areas of effect, healing, saving throws for damage or a
+- M1 spells: 72 of 339 executable and 44 tracked, with the shapes that block
+  the rest counted in `COVERAGE.md` and ranked in `PROGRESS.md`. The utility
+  bucket was audited spell by spell rather than by shape: 30 of the 76 open
+  ones became tracked, 42 carry a rule the engine should own, and 4 depend on
+  a world fact nothing can represent. The highest-leverage shape left is an
+  **ability check inside a spell** — every illusion, Web and Entangle's escape
+  checks, Dispel Magic, and three already-tracked spells wait on it, and
+  `checks.ts` is complete and reached by no casting. Areas of effect, healing, saving throws for damage or a
   condition, Temporary Hit Points, lasting bonuses and an interruptible casting
   all work; summons, long casting times, ongoing effects a later turn acts
   through, and a Reaction that answers a fall do not.

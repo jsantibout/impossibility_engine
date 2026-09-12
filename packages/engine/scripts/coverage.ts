@@ -353,7 +353,8 @@ function render(coverage: SpellCoverage): string {
     heal: '—',
     'temp-hp': '—',
     buff: '—',
-    utility: 'nothing — the effect is the DM’s, and the cost is tracked',
+    utility:
+      'nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class, a Speed, a Resistance, healing',
   };
 
   for (const shape of SHAPES) {

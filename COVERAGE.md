@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 14 (4.1%) | 72 (21.2%) | 46 (13.6%) |
+| 339 | 44 (13.0%) | 72 (21.2%) | 46 (13.6%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -46,7 +46,7 @@ spell, and the area is the part that is missing.
 | Restores Hit Points | 4 | 0 | 3 | — |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 1 | — |
-| Narrative or exploration effect | 91 | 13 | 2 | nothing — the effect is the DM’s, and the cost is tracked |
+| Narrative or exploration effect | 91 | 43 | 2 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class, a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -127,20 +127,50 @@ spell, and the area is the part that is missing.
 
 Cast for real; the effect is narrated. Each says what it leaves to the DM.
 
+- **Arcane Lock** (level 2) — 2 noted
 - **Comprehend Languages** (level 1) — 2 noted
+- **Continual Flame** (level 2) — 3 noted
+- **Create Food and Water** (level 3) — 1 noted
 - **Darkvision** (level 2) — 1 noted
+- **Demiplane** (level 8) — 3 noted
+- **Detect Evil and Good** (level 1) — 3 noted
 - **Detect Magic** (level 1) — 3 noted
+- **Detect Poison and Disease** (level 1) — 3 noted
 - **Disguise Self** (level 1) — 2 noted
+- **Find Traps** (level 2) — 1 noted
+- **Floating Disk** (level 1) — 3 noted
 - **Fly** (level 3) — 2 noted
+- **Gentle Repose** (level 2) — 3 noted
 - **Jump** (level 1) — 1 noted
+- **Knock** (level 2) — 3 noted
 - **Light** (cantrip) — 3 noted
+- **Locate Animals or Plants** (level 2) — 2 noted
+- **Locate Creature** (level 4) — 2 noted
+- **Locate Object** (level 2) — 2 noted
 - **Longstrider** (level 1) — 1 noted
 - **Mage Hand** (cantrip) — 3 noted
+- **Message** (cantrip) — 3 noted
 - **Misty Step** (level 2) — 1 noted
+- **Move Earth** (level 6) — 3 noted
+- **Nondetection** (level 3) — 2 noted
+- **Passwall** (level 5) — 2 noted
+- **Plane Shift** (level 7) — 2 noted
 - **Prestidigitation** (cantrip) — 2 noted
+- **Remove Curse** (level 3) — 2 noted
+- **Rope Trick** (level 2) — 2 noted
+- **See Invisibility** (level 2) — 2 noted
 - **Speak with Animals** (level 1) — 3 noted
+- **Speak with Dead** (level 3) — 2 noted
 - **Spider Climb** (level 2) — 1 noted
+- **Stone Shape** (level 4) — 1 noted
+- **Telepathic Bond** (level 5) — 2 noted
+- **Tongues** (level 3) — 1 noted
+- **Transport via Plants** (level 6) — 2 noted
+- **True Seeing** (level 6) — 2 noted
+- **Wall of Force** (level 5) — 3 noted
 - **Water Breathing** (level 3) — 2 noted
+- **Water Walk** (level 3) — 3 noted
+- **Word of Recall** (level 6) — 2 noted
 
 ## Classes
 

@@ -73,7 +73,8 @@ still Wizard-shaped are named below.
 | Tooling | pnpm → npm workspaces; ESLint 10 | `36016fc`, `5c7e217` |
 | Reaction triggers | A trigger the engine checks; Shield deflects the hit it answered | `a0aca8c` |
 | Hellish Rebuke | Damage names its dealer; a Reaction that answers being hurt | `595e6c6` |
-| Interruptible casting | A casting held between declaration and effect; Counterspell | _this batch_ |
+| Interruptible casting | A casting held between declaration and effect; Counterspell | `6e12880` |
+| Utility audit | 76 spells read one at a time; 30 tracked; `unmodelled` given a guard | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -425,6 +426,88 @@ still Wizard-shaped are named below.
   "survived". Checking that the file actually changed is part of the technique,
   not a formality.
 
+- **`unmodelled` means the fiction's, and it now has a guard that says so.**
+  The tracked shape's one real hazard is that `effects: []` makes every spell
+  castable, so any rule at all can be put in a sentence and the suite stays
+  green. Two readings of the same note are worlds apart — "the DM decides what
+  the badger says" and "the engine ought to floor this Armour Class at 17 and
+  nobody has built it" — and at the table they are indistinguishable. So the
+  line is drawn mechanically: `spell-tracking.test.ts` reads each tracked
+  spell's **own SRD prose** out of the parsed book and scans it for thirteen
+  clauses the engine demonstrably owns — dice, a saving throw, an ability
+  check, an Armour Class, Hit Points, a Resistance or Immunity, a condition,
+  Advantage or Disadvantage, a Speed, a percentage chance, a cost in feet of
+  movement, a teleport, extra damage. A hit demands a written adjudication, and
+  an adjudication that is **not** "the table's" must name an entry in an
+  enumerated `MISSING_SHAPES` map. Tracking Barkskin therefore means writing
+  `armor-class` against a shape id, which is a visible act in a list somebody
+  reviews rather than a sentence in a spell nobody rereads.
+- **The marker test is a floor, not a proof, and it is worth knowing which.**
+  It reads prose, so a rule the SRD phrases in none of those words slips
+  through: Gate and Etherealness move creatures between planes and trip
+  nothing, and Arcanist's Magic Aura changes what other spells think a creature
+  *is* without the word "condition". What it does catch is the easy mistake,
+  which is most of them — it fires on forty of the forty-five utility spells
+  this batch rejected. A test that made a stronger claim would have to parse
+  the SRD's English, and a heuristic that pretended to would be worse than a
+  floor that admits its height.
+- **A written reason is a floor too.** Nothing stops somebody writing
+  `why: 'table'` with a plausible sentence for a rule that is really missing
+  machinery. That cannot be caught mechanically — it is the difference between
+  a true sentence and a false one — so the guard forces the sentence to exist
+  and to be specific, and review does the rest. Stated here rather than left
+  as an implied guarantee.
+- **The audit found exactly one of the original fourteen misfiled, and it was
+  the interesting one.** Misty Step's note said the teleport was "a separate
+  placement the caller makes" — which reads as a division of labour and is
+  really a hole: **no command relocates a creature without charging movement.**
+  `moveCreature` spends a budget and `placeCreature` refuses a creature that
+  already has a position, so the 30 feet, the unoccupied space and the line of
+  sight all go unchecked by anybody. The note now says that, `teleportation` is
+  an enumerated shape, and the batch added no new spells to that debt: Plane
+  Shift and Word of Recall are tracked because their destination is a *second
+  place* the engine has no representation for at all, and Dimension Door and
+  Tree Stride were left out because theirs is a point in this scene.
+- **The distinction that decided every borderline case.** A clause is the
+  table's when the engine's **own** resolution path would never reach it — the
+  Disadvantage on a Perception check the DM calls for, the damage when a DM
+  rules the stone was destroyed, the Prone on a creature inside an unmodelled
+  demiplane. It is mechanical debt when the engine's own path *does* reach it
+  and would silently give the wrong answer: Blur, because `resolveAttack` rolls
+  every attack; Barkskin and Mage Armor, because the engine derives an Armour
+  Class on each one; Death Ward, because the engine drops creatures to 0 itself.
+  That line moved five spells out of the batch and let six awkward ones in.
+- **A rule whose only reachable answer is "not applicable" is documented, not
+  modelled — second user.** Nondetection hides its target from Divination
+  spells, and every Divination spell the engine defines is cast at Self or at
+  no creature at all, so the clause excludes nothing it can be asked about.
+  Same reasoning as Counterspell's components clause, and the generalisation
+  rule's second piece of evidence for it.
+- **"Until dispelled" is not a long duration, it is the absence of one.**
+  Arcane Lock and Continual Flame carry no `durationSeconds`, schedule no
+  timer, and run until something ends them — and nothing does, because Dispel
+  Magic needs an ability check the engine cannot make. Inventing a large number
+  of seconds would have been the engine answering a question the SRD declined
+  to ask.
+- **A tracked spell's numbers are exactly as easy to get wrong as an executed
+  one's, and less is watching.** Nothing downstream notices a duration that is
+  ten minutes instead of an hour, so every one is quoted from the book in the
+  docstring and `coverage.test.ts` checks name, level, school, casting time and
+  Concentration against the parsed SRD. The duration is the field with no
+  automatic check: mutating Tongues from 3,600 seconds to 600 is caught only
+  because a test drives the clock past the deadline.
+- **A mutation that does not apply proves nothing — and the way it fails is
+  always new.** Stripping Find Traps' only `unmodelled` note "survived" the
+  first attempt; the note contains a typographic apostrophe, the patch script
+  read its own source through a Windows console codec, and the replacement
+  silently matched nothing. Same lesson as the indentation slip in the previous
+  batch, different mechanism. Check the file actually changed.
+- **The tracked list is derived, not listed.** `spell-tracking.test.ts` built
+  its fourteen spells by hand, and the fifteenth would have been the one nobody
+  drove. It now reads `effects.length === 0` off the catalogue, which is the
+  same predicate `coverage.ts` counts with — so the spells under test and the
+  number in `COVERAGE.md` cannot disagree.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -508,15 +591,120 @@ Measured, not recalled. The numbers are what the code said on the day.
   Initiative order in progress, and that event does not exist. Named here; it
   is the summons blocker in the list below, not a separate item.
 
+## The utility bucket, audited spell by spell
+
+Ninety-one SRD spells are filed as "narrative or exploration". Fifteen were
+already implemented — thirteen tracked, plus Guidance and Divine Smite, which
+are executed. The remaining **seventy-six were read one at a time against their
+own SRD paragraph**, not filed by shape, and partitioned three ways.
+
+| | | |
+|---|---|---|
+| **A** | everything mechanical is already the engine's; the rest is fiction | **30, all now tracked** |
+| **B** | carries a rule the engine should own, and a shape is missing | 42 |
+| **C** | depends on a world fact nothing can represent, and inventing one is not on | 4 |
+
+Thirty is not a ceiling anybody hit — it is what survived the line drawn under
+"Decisions" above, and the forty-six left out are the map below.
+
+**The four in C**, because they are the only ones whose blocker is not a
+mechanism at all: **Etherealness** and **Gate** (the Ethereal Plane and other
+planes are not represented, and a spell whose whole effect is being somewhere
+else has nothing to be tracked *at*), **Meld into Stone** (every mechanical
+clause it has — 6d6 Force, 50 Force, Disadvantage on Perception, Prone on
+expulsion — hangs off "you are inside a rock", which is a state nothing can
+hold), and **Sending** (SRD prints its range as **Unlimited**, which
+`SpellRange` has no member for, and its recipient is a creature that need not
+be on the scene or on the plane).
+
+Three spells were rejected for a reason worth naming separately, because they
+look like the ones that got in: **Dimension Door** and **Tree Stride** teleport
+to a point *in this scene*, which is a position the engine owns, and
+**Nondetection**'s neighbour **Arcanist's Magic Aura** changes what other
+spells believe a creature's type to be, which `mustBeType` reads on every
+casting.
+
+### The shapes that block the rest, ranked
+
+Measured across all 223 parsed spells the engine has no definition for, not
+just the utility bucket — a shape is worth building for what it unblocks
+everywhere. A spell can need more than one, so the columns do not sum.
+
+| Shape | Open spells | What exists already | Risk |
+|---|---|---|---|
+| An ability check inside a spell | 22 | `checks.ts` entire, save-DC derivation, the turn-hook machinery a repeat *save* uses | low |
+| A standing Advantage or Disadvantage a spell grants | 25 | `ModeSource`, `standingSaveModes`, the merge in `savingSupport` | medium |
+| A condition applied with **no** saving throw | 9 | `applySpellEffect` already applies a condition with a casting link and a deadline | very low |
+| Resistance or Immunity a spell grants | 17 | `defensesOf`, `CreatureState` defences, standing resistances from features | low |
+| Healing that lifts a condition, raises the dead, or raises the maximum | 10 | the `heal` effect, `healCreature`'s refusal of a corpse | low |
+| Teleportation | 13 | positions, occupancy, `placeCreature`'s volume test | medium |
+| Damage with neither an attack roll nor a save | 19 | `rollSpellDice`, `dealSpellDamage` | low |
+| An effect that ends another casting | 15 | `concentration-ended`'s cleanup by casting id | medium |
+| An Armour Class a spell sets or floors | 13 (≈4 real) | Unarmoured Defense already replaces the calculation for a *feature* | low |
+| A random outcome that is not a d20 | 11 | the generator, `parseNotation` | low |
+| Extra damage on the target's later attacks | 7 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes | medium |
+| A Speed a spell changes, and movement modes | 4 printed, far more in play | one `baseSpeed`, no modes | medium |
+| Reads the target's current Hit Points | 3 | vitals | very low |
+
+**1. An ability check inside a spell — and the repo's existing note was right,
+for a reason the note did not give.** It is not the largest bucket and it is
+the one to build first anyway, because of *which* spells it unblocks. Eight of
+the twenty-two are illusions — Silent Image, Minor Illusion, Major Image,
+Phantasmal Force, Seeming, Programmed Illusion, Project Image, Hallucinatory
+Terrain — whose effect is pure fiction and whose **only** mechanical clause is
+the Intelligence (Investigation) check against the caster's save DC. That is
+the tracked bucket's own neighbouring population: one rule each, and the rule
+is this one. Four more are escape checks at a turn boundary (Web, Entangle,
+Spike Growth, Ensnaring Strike), which is `RepeatSave` with a check in place of
+the save rather than a new mechanism. Dispel Magic and Maze are the caster's
+own check against a fixed DC. And three spells *already tracked* name it as
+their blocker — Disguise Self, and Glibness and Maze wait behind it.
+It reaches `checks.ts`, which is complete, tested and unreachable from any
+casting: the fourth instance of "a pure function nothing calls is a rule
+nothing enforces", which this file has now recorded three times before.
+
+**2. A standing Advantage or Disadvantage a spell grants.** The largest count
+and the highest value at a real table — Blur, Haste, Hex, Hunter's Mark,
+Hideous Laughter, Enhance Ability, Beacon of Hope. Second rather than first
+because it needs one genuine design decision that the check shape does not: a
+mode that applies to rolls made **against** the holder rather than by them.
+`BonusApplies` has no such direction, `resolveAttack` does not read the
+defender's stored modes, and picking wrongly there would be a mechanism that
+has to be rebuilt. Evidence first.
+
+**3. A condition with no saving throw.** The smallest thing on this list — one
+`SpellEffect` member, resolving through the same `applySpellEffect` that every
+`save` effect already ends at — and it lands Invisibility and Greater
+Invisibility outright, whose mechanical consequences `conditions.ts` already
+computes context-dependently. Best result for the effort; third only because
+nine spells is nine spells.
+
+**4–6** are three low-risk extensions of shapes that already exist, in the
+order their counts fall: Resistance and Immunity hung on a casting, healing
+that does something besides restore Hit Points, and a `teleportCreature`
+command that relocates without charging a movement budget. The last of those is
+the first *command* on this list rather than an effect kind, and it is the one
+that pays off a debt this batch had to name rather than opening new ground.
+
+**Everything below that is small or rare**, and none of it should jump the
+queue on the strength of a count: Magic Missile's undodgeable darts, Power Word
+Kill's Hit Point threshold, and Teleport's and Divination's percentile tables
+are each one spell's worth of rule wearing a shape's clothes.
+
+Unchanged and still above most of this when measured by spells alone: **areas**
+are done but fifty area spells remain open on *other* shapes, **long casting
+times** block 43, **ongoing effects a later turn acts through** block 18, and
+**summons** block 9. Those four are the standing items below.
+
 ## Next actions, in order
 
-1. **Pour the rest of the utility bucket into the tracked shape.** 14 of 91
-   are done and the mechanism costs nothing per spell: a definition with real
-   metadata, `effects: []`, and an `unmodelled` list naming what the table
-   decides. `coverage.test.ts` refuses a tracked spell that declares nothing.
-   The ones with a *check* in them — Disguise Self's Investigation against the
-   save DC, Dispel Magic's ability check — want a shape of their own, and that
-   is the next real mechanism in this area.
+1. **An ability check inside a spell.** The top of the ranked map above, and
+   the thing the utility audit was for: 22 open spells, three already-tracked
+   spells waiting on it, and a complete `checks.ts` that no casting reaches.
+   Two variants, one mechanism — a creature's check against the caster's spell
+   save DC (every illusion, Maze, Disguise Self) and the caster's own check
+   against a fixed DC (Dispel Magic) — plus the turn-boundary escape check,
+   which is `RepeatSave` with a check where the save is.
 2. **Keep pouring spells into the five working shapes.** Attack, save-damage,
    save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
    spells fit one of them and need only a definition with its SRD quote.
@@ -672,10 +860,10 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells parsed | 339 |
 | Spells executed | 72 |
 | Spells verified end to end | 46 |
-| Spells tracked (cast, effect narrated) | 14 |
+| Spells tracked (cast, effect narrated) | 44 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 61 of 230 |
-| Tests | 2,930 passing, none skipped |
+| Tests | 3,352 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

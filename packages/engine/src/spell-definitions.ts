@@ -3000,7 +3000,7 @@ export const DETECT_MAGIC: SpellDefinition = {
   durationSeconds: 600,
   unmodelled: [
     'sensing magical effects within 30 feet, the Magic action to see an aura, and the school a spell belongs to, are all the DM’s to narrate',
-    'the ritual casting option is not modelled; a casting time of 1 minute or more is refused',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
     'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s',
   ],
 };
@@ -3025,7 +3025,7 @@ export const MAGE_HAND: SpellDefinition = {
   durationSeconds: 60,
   unmodelled: [
     'the hand itself is not a thing in the world: manipulating an object, opening a door, or moving the hand 30 feet on a later turn are the DM’s',
-    'the hand vanishing beyond 30 feet, and a second casting ending the first, are not tracked',
+    'the hand vanishing beyond 30 feet is the DM’s; a second casting ending the first is not the DM’s and is not done either — the engine holds every casting by caster and spell and nothing ends one on that basis',
     'the 10-pound carrying limit and the ban on attacking or activating magic items are the DM’s',
   ],
 };
@@ -3053,7 +3053,7 @@ export const LIGHT: SpellDefinition = {
   unmodelled: [
     'the spell targets an object, and objects are not modelled — which object was touched, and whether it is worn or carried by someone else, are the DM’s',
     'Bright Light in a 20-foot radius and Dim Light beyond it are not modelled; the engine has no lighting',
-    'covering the object, and a second casting ending the first, are not tracked',
+    'covering the object is the DM’s; a second casting ending the first is not the DM’s and is not done either — the engine holds every casting by caster and spell and nothing ends one on that basis',
   ],
 };
 
@@ -3181,7 +3181,7 @@ export const MISTY_STEP: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   unmodelled: [
-    'the teleport itself is not performed: the caster’s position is unchanged, and moving them 30 feet to an unoccupied space they can see is a separate placement the caller makes',
+    'the teleport is not performed, and that is a missing mechanism rather than a judgement: no command relocates a creature without charging movement — moveCreature spends a budget and placeCreature refuses a creature that already has a position — so the 30 feet, the unoccupied space and the line of sight go unchecked',
   ],
 };
 
@@ -3231,7 +3231,7 @@ export const COMPREHEND_LANGUAGES: SpellDefinition = {
   durationSeconds: 3600,
   unmodelled: [
     'understanding a language is the DM’s; the engine records which languages a character knows but nothing reads them in play',
-    'the ritual casting option is not modelled',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -3256,7 +3256,7 @@ export const WATER_BREATHING: SpellDefinition = {
   durationSeconds: 86_400,
   unmodelled: [
     'breathing underwater is the DM’s; suffocation is not modelled',
-    'the ritual casting option is not modelled',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -3283,7 +3283,7 @@ export const SPEAK_WITH_ANIMALS: SpellDefinition = {
   unmodelled: [
     'what a Beast says is the DM’s',
     'the Influence action and its skill options are not modelled',
-    'the ritual casting option is not modelled',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -3335,6 +3335,826 @@ export const PRESTIDIGITATION: SpellDefinition = {
   unmodelled: [
     'every one of the listed effects — a sensory effect, lighting or snuffing a flame, cleaning or soiling an object, chilling or warming, a mark, a trinket — is the DM’s',
     'the limit of three effects at once, and dismissing one as an action, are not tracked',
+  ],
+};
+
+// — the second tracked batch: the rest of the utility bucket that honestly fits —
+//
+// Audited one at a time against the SRD text rather than filed by shape. A
+// spell lands here only when everything mechanically authoritative about it is
+// already the engine's — the action, the slot, Concentration, the deadline,
+// the range and the target count — and everything left over is fiction, an
+// object, a place or a piece of information that the table owns and always
+// will.
+//
+// The ones that did *not* land are the point of the audit. A spell carrying an
+// ability check, a saving throw, damage, healing, an Armour Class, a Speed, a
+// Resistance or a condition is **not** tracked, because putting those in
+// `unmodelled` would be the engine calling a rule the DM's when it is really a
+// shape nobody has built. `spell-tracking.test.ts` holds that line
+// mechanically: it reads each tracked spell's own SRD prose and demands a
+// written adjudication for every mechanical clause it finds there.
+
+/**
+ * SRD Arcane Lock:
+ *
+ * > _Level 2 Abjuration (Wizard)._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Until dispelled.
+ * > "You touch a closed door, window, gate, container, or hatch and magically
+ * > lock it for the duration. This lock can't be unlocked by any nonmagical
+ * > means."
+ */
+export const ARCANE_LOCK: SpellDefinition = {
+  id: 'arcane-lock',
+  name: 'Arcane Lock',
+  level: 2,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the spell locks an object, and objects are not modelled: which door was touched, who may open it despite the lock, and the password are the DM’s',
+    'a duration of “Until dispelled” is no deadline at all, so no timer is scheduled and the casting simply runs; nothing ends it, because Dispel Magic is not executable',
+  ],
+};
+
+/**
+ * SRD Continual Flame:
+ *
+ * > _Level 2 Evocation (Cleric, Druid, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** Until dispelled.
+ * > "A flame springs from an object that you touch. The effect casts Bright
+ * > Light in a 20-foot radius and Dim Light for an additional 20 feet."
+ */
+export const CONTINUAL_FLAME: SpellDefinition = {
+  id: 'continual-flame',
+  name: 'Continual Flame',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the flame springs from an object, and objects are not modelled: which object was touched is the DM’s',
+    'Bright Light in a 20-foot radius and Dim Light beyond it are not applied; the engine has no lighting, exactly as it has none for Light',
+    'a duration of “Until dispelled” is no deadline at all, so no timer is scheduled and the casting simply runs',
+  ],
+};
+
+/**
+ * SRD Create Food and Water:
+ *
+ * > _Level 3 Conjuration (Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Instantaneous.
+ * > "You create 45 pounds of food and 30 gallons of fresh water on the ground
+ * > or in containers within range."
+ */
+export const CREATE_FOOD_AND_WATER: SpellDefinition = {
+  id: 'create-food-and-water',
+  name: 'Create Food and Water',
+  level: 3,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the food and the water are objects, and objects are not modelled; malnutrition, dehydration and the 24 hours after which the food spoils are the DM’s',
+  ],
+};
+
+/**
+ * SRD Demiplane:
+ *
+ * > _Level 8 Conjuration (Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 60 feet. **Duration:** 1 hour.
+ * > "You create a shadowy Medium door on a flat solid surface that you can see
+ * > within range. This door can be opened and closed, and it leads to a
+ * > demiplane that is an empty room 30 feet in each dimension."
+ */
+export const DEMIPLANE: SpellDefinition = {
+  id: 'demiplane',
+  name: 'Demiplane',
+  level: 8,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the door and the room behind it are a second place, and the engine holds one scene: who is inside the demiplane, and what is in it, are the DM’s',
+    'a creature that opts to be shunted out as the door vanishes lands Prone, and the DM applies that with applyConditionTo — nothing in state says who was inside',
+    'connecting the door to a demiplane made by an earlier casting, or by somebody else, is the DM’s',
+  ],
+};
+
+/**
+ * SRD Detect Evil and Good:
+ *
+ * > _Level 1 Divination (Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 10 minutes.
+ * > "For the duration, you sense the location of any Aberration, Celestial,
+ * > Elemental, Fey, Fiend, or Undead within 30 feet of yourself."
+ *
+ * Creature type *is* authoritative state, so the engine could in principle say
+ * which of those are nearby — but what the caster is *told* is information
+ * delivered into the fiction, and the blocking rule is a fact about walls the
+ * engine deliberately does not model.
+ */
+export const DETECT_EVIL_AND_GOOD: SpellDefinition = {
+  id: 'detect-evil-and-good',
+  name: 'Detect Evil and Good',
+  level: 1,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'what the caster senses is narration: the engine knows a creature’s type but reports nothing, and a creature nobody has typed has nothing to report',
+    'sensing whether the Hallow spell is active is the DM’s',
+    'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s, because walls are declared rather than modelled',
+  ],
+};
+
+/**
+ * SRD Detect Poison and Disease:
+ *
+ * > _Level 1 Divination (Ritual) (Cleric, Druid, Paladin, Ranger)._
+ * > **Casting Time:** Action or Ritual. **Range:** Self.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "For the duration, you sense the location of poisons, poisonous or
+ * > venomous creatures, and magical contagions within 30 feet of yourself."
+ */
+export const DETECT_POISON_AND_DISEASE: SpellDefinition = {
+  id: 'detect-poison-and-disease',
+  name: 'Detect Poison and Disease',
+  level: 1,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'poisons, venomous creatures and magical contagions are not modelled, and what the caster senses is narration',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
+    'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s',
+  ],
+};
+
+/**
+ * SRD Find Traps:
+ *
+ * > _Level 2 Divination (Cleric, Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Instantaneous.
+ * > "You sense any trap within range that is within line of sight... This
+ * > spell reveals that a trap is present but not its location."
+ */
+export const FIND_TRAPS: SpellDefinition = {
+  id: 'find-traps',
+  name: 'Find Traps',
+  level: 2,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'traps are not modelled — neither a mechanism nor a Glyph of Warding is a thing in state — so whether one is in range, and the general nature of the danger, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Floating Disk:
+ *
+ * > _Level 1 Conjuration (Ritual) (Wizard)._ **Casting Time:** Action or
+ * > Ritual. **Range:** 30 feet. **Duration:** 1 hour.
+ * > "This spell creates a circular, horizontal plane of force, 3 feet in
+ * > diameter and 1 inch thick, that floats 3 feet above the ground in an
+ * > unoccupied space of your choice that you can see within range."
+ */
+export const FLOATING_DISK: SpellDefinition = {
+  id: 'floating-disk',
+  name: 'Floating Disk',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the disk is an object and objects are not modelled: where it is, the 500 pounds it holds, and what is riding on it are the DM’s',
+    'the disk following the caster within 20 feet, refusing an elevation change of 10 feet or more, and the spell ending beyond 100 feet are all the DM’s',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
+  ],
+};
+
+/**
+ * SRD Gentle Repose:
+ *
+ * > _Level 2 Necromancy (Ritual) (Cleric, Paladin, Wizard)._
+ * > **Casting Time:** Action or Ritual. **Range:** Touch.
+ * > **Duration:** 10 days.
+ * > "You touch a corpse or other remains. For the duration, the target is
+ * > protected from decay and can't become Undead."
+ *
+ * Ten days is 864,000 seconds. The clock counts seconds precisely so that a
+ * duration this long is subtraction rather than a special case.
+ */
+export const GENTLE_REPOSE: SpellDefinition = {
+  id: 'gentle-repose',
+  name: 'Gentle Repose',
+  level: 2,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 864_000,
+  unmodelled: [
+    'the target is a corpse or other remains, which is an object rather than a creature in state: which remains were touched is the DM’s',
+    'decay, becoming Undead, and the time limit this extends on raising the dead are the DM’s — no spell the engine executes raises anybody',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
+  ],
+};
+
+/**
+ * SRD Knock:
+ *
+ * > _Level 2 Transmutation (Bard, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "A target that is held shut by a mundane lock or that is stuck or barred
+ * > becomes unlocked, unstuck, or unbarred."
+ */
+export const KNOCK: SpellDefinition = {
+  id: 'knock',
+  name: 'Knock',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the spell opens an object, and objects are not modelled: which lock, whether it had several, and whether it was barred are the DM’s',
+    'suppressing an Arcane Lock for 10 minutes is the DM’s — that casting is tracked rather than executed, so nothing reads it',
+    'the loud knock audible 300 feet away is the DM’s',
+  ],
+};
+
+/**
+ * SRD Locate Animals or Plants:
+ *
+ * > _Level 2 Divination (Ritual) (Bard, Druid, Ranger)._ **Casting Time:**
+ * > Action or Ritual. **Range:** Self. **Duration:** Instantaneous.
+ * > "Describe or name a specific kind of Beast, Plant creature, or nonmagical
+ * > plant. You learn the direction and distance to the closest creature or
+ * > plant of that kind within 5 miles, if any are present."
+ */
+export const LOCATE_ANIMALS_OR_PLANTS: SpellDefinition = {
+  id: 'locate-animals-or-plants',
+  name: 'Locate Animals or Plants',
+  level: 2,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'what is within 5 miles is the DM’s: the engine holds one scene, and a creature off it is not a creature at a distance',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
+  ],
+};
+
+/**
+ * SRD Locate Creature:
+ *
+ * > _Level 4 Divination (Bard, Cleric, Druid, Paladin, Ranger, Wizard)._
+ * > **Casting Time:** Action. **Range:** Self.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "Describe or name a creature that is familiar to you. You sense the
+ * > direction to the creature's location if that creature is within 1,000 feet
+ * > of you."
+ */
+export const LOCATE_CREATURE: SpellDefinition = {
+  id: 'locate-creature',
+  name: 'Locate Creature',
+  level: 4,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the spell names a creature in prose rather than taking an id, and what the caster senses is narration; once a creature is off the scene, whether it is within 1,000 feet is the DM’s',
+    'the spell failing against a creature in a different form, and being blocked by any thickness of lead, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Locate Object:
+ *
+ * > _Level 2 Divination (Bard, Cleric, Druid, Paladin, Ranger, Wizard)._
+ * > **Casting Time:** Action. **Range:** Self.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "Describe or name an object that is familiar to you. You sense the
+ * > direction to the object's location if that object is within 1,000 feet of
+ * > you."
+ */
+export const LOCATE_OBJECT: SpellDefinition = {
+  id: 'locate-object',
+  name: 'Locate Object',
+  level: 2,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'objects are not modelled and have no position, so where the object is — and whether it is moving — is the DM’s',
+    'being blocked by any thickness of lead is the DM’s',
+  ],
+};
+
+/**
+ * SRD Message:
+ *
+ * > _Transmutation Cantrip (Bard, Druid, Sorcerer, Wizard)._
+ * > **Casting Time:** Action. **Range:** 120 feet. **Duration:** 1 round.
+ * > "You point toward a creature within range and whisper a message. The
+ * > target (and only the target) hears the message and can reply in a whisper
+ * > that only you can hear."
+ *
+ * A round is six seconds — SRD, "A round represents about 6 seconds" — and
+ * that is a span of time rather than a moment in the turn order, so it is a
+ * `durationSeconds` and not a `durationUntil`. The distinction matters
+ * elsewhere and is free here: nothing hangs on the deadline but the casting.
+ */
+export const MESSAGE: SpellDefinition = {
+  id: 'message',
+  name: 'Message',
+  level: 0,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 1 },
+  effects: [],
+  durationSeconds: 6,
+  unmodelled: [
+    'what is said, and what is whispered back, are the DM’s',
+    'SRD lets this one spell be cast through a solid object at a familiar target; the engine refuses a target behind Total Cover as it does for every spell, and the exception is not expressible',
+    'magical silence, and the foot of stone, metal or wood or thin sheet of lead that blocks it, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Move Earth:
+ *
+ * > _Level 6 Transmutation (Druid, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 120 feet. **Duration:** Concentration, up to 2 hours.
+ * > "Choose an area of terrain no larger than 40 feet on a side within range.
+ * > You can reshape dirt, sand, or clay in the area in any manner you choose
+ * > for the duration."
+ */
+export const MOVE_EARTH: SpellDefinition = {
+  id: 'move-earth',
+  name: 'Move Earth',
+  level: 6,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 7200,
+  unmodelled: [
+    'terrain has no elevation in the engine: raising, lowering, trenching and walling the ground, and the 10 minutes the change takes, are all the DM’s',
+    'choosing a new area every 10 minutes of Concentration is the DM’s',
+    'whether a structure the reshaped ground undermines collapses is the DM’s',
+  ],
+};
+
+/**
+ * SRD Nondetection:
+ *
+ * > _Level 3 Abjuration (Bard, Ranger, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** 8 hours.
+ * > "For the duration, you hide a target that you touch from Divination
+ * > spells... The target can't be targeted by any Divination spell or
+ * > perceived through magical scrying sensors."
+ *
+ * The clause that would be a rule excludes nothing the engine can be asked
+ * about: every Divination spell the engine has a definition for is cast at
+ * Self or at no creature at all, so "can't be targeted by any Divination
+ * spell" has no reachable case. Same reasoning as Counterspell's components
+ * clause — a rule whose only answer is "not applicable" is documented rather
+ * than modelled.
+ */
+export const NONDETECTION: SpellDefinition = {
+  id: 'nondetection',
+  name: 'Nondetection',
+  level: 3,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'being hidden from Divination spells excludes nothing the engine can be asked about: every Divination spell it defines is cast at Self or at no creature, so the rule has no reachable case',
+    'scrying sensors are not modelled, and a place or an object as the target is not a creature in state',
+  ],
+};
+
+/**
+ * SRD Passwall:
+ *
+ * > _Level 5 Transmutation (Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** 1 hour.
+ * > "A passage appears at a point that you can see on a wooden, plaster, or
+ * > stone surface (such as a wall, ceiling, or floor) within range and lasts
+ * > for the duration."
+ */
+export const PASSWALL: SpellDefinition = {
+  id: 'passwall',
+  name: 'Passwall',
+  level: 5,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'walls are declared rather than modelled — deliberately, because computing them is where a rules engine becomes a map editor — so the passage and its dimensions are the DM’s',
+    'ejecting whatever is still in the passage when it closes is the DM’s',
+  ],
+};
+
+/**
+ * SRD Plane Shift:
+ *
+ * > _Level 7 Conjuration (Cleric, Druid, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** Instantaneous.
+ * > "You and up to eight willing creatures who link hands in a circle are
+ * > transported to a different plane of existence."
+ *
+ * Eight, not nine: the SRD counts the caster separately, so `self` stays off
+ * and the target rule is the creatures who go with them.
+ */
+export const PLANE_SHIFT: SpellDefinition = {
+  id: 'plane-shift',
+  name: 'Plane Shift',
+  level: 7,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 8 },
+  effects: [],
+  unmodelled: [
+    'planes of existence are not modelled and the engine holds one scene, so nobody is moved: where the party arrives is the DM’s',
+    'arriving at a teleportation circle from its sigil sequence is the DM’s',
+  ],
+};
+
+/**
+ * SRD Remove Curse:
+ *
+ * > _Level 3 Abjuration (Cleric, Paladin, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** Instantaneous.
+ * > "At your touch, all curses affecting one creature or object end."
+ */
+export const REMOVE_CURSE: SpellDefinition = {
+  id: 'remove-curse',
+  name: 'Remove Curse',
+  level: 3,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  unmodelled: [
+    'a curse is not a thing in state — nothing the engine applies is one — so which curses end is the DM’s',
+    'Attunement is not modelled, so breaking it to a cursed magic item is the DM’s',
+  ],
+};
+
+/**
+ * SRD Rope Trick:
+ *
+ * > _Level 2 Transmutation (Wizard)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** 1 hour.
+ * > "You touch a rope... At the rope's upper end, an Invisible 3-foot-by-5-foot
+ * > portal opens to an extradimensional space that lasts until the spell ends."
+ */
+export const ROPE_TRICK: SpellDefinition = {
+  id: 'rope-trick',
+  name: 'Rope Trick',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the rope is an object and the space above it is a second place; the engine holds one scene, so who has climbed in is the DM’s',
+    'the eight Medium creatures it holds, and the rule that attacks and spells cannot cross the portal, are the DM’s',
+  ],
+};
+
+/**
+ * SRD See Invisibility:
+ *
+ * > _Level 2 Divination (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** 1 hour.
+ * > "For the duration, you see creatures and objects that have the Invisible
+ * > condition as if they were visible, and you can see into the Ethereal
+ * > Plane."
+ *
+ * The one clause that touches a modelled rule is the one the engine already
+ * answers the right way round. Sight is **declared pairwise** — `sight[from|to]`
+ * — and the Invisible condition's effect is context-dependent on whether the
+ * observer can see, so a table whose caster can now see an invisible creature
+ * declares that sight and every roll downstream reads it. That is existing
+ * machinery used at the table, not machinery that is missing.
+ */
+export const SEE_INVISIBILITY: SpellDefinition = {
+  id: 'see-invisibility',
+  name: 'See Invisibility',
+  level: 2,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'seeing a creature with the Invisible condition is declared rather than derived: the table declares the caster’s sight of it, and the condition’s own effects read that declaration',
+    'the Ethereal Plane is not modelled, so what appears ghostly there is the DM’s',
+  ],
+};
+
+/**
+ * SRD Speak with Dead:
+ *
+ * > _Level 3 Necromancy (Bard, Cleric, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 10 feet. **Duration:** 10 minutes.
+ * > "You grant the semblance of life to a corpse of your choice within range,
+ * > allowing it to answer questions you pose."
+ */
+export const SPEAK_WITH_DEAD: SpellDefinition = {
+  id: 'speak-with-dead',
+  name: 'Speak with Dead',
+  level: 3,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 10 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the target is a corpse rather than a creature in state: whether it has a mouth, whether the deceased was Undead, and whether it was questioned within the past 10 days are the DM’s',
+    'the five questions and what the corpse says are the DM’s, truthfulness included',
+  ],
+};
+
+/**
+ * SRD Stone Shape:
+ *
+ * > _Level 4 Transmutation (Cleric, Druid, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** Instantaneous.
+ * > "You touch a stone object of Medium size or smaller or a section of stone
+ * > no more than 5 feet in any dimension and form it into any shape you like."
+ */
+export const STONE_SHAPE: SpellDefinition = {
+  id: 'stone-shape',
+  name: 'Stone Shape',
+  level: 4,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'stone objects and stone surfaces are not modelled, so what is shaped, and what the new shape does, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Telepathic Bond:
+ *
+ * > _Level 5 Divination (Ritual) (Bard, Wizard)._ **Casting Time:** Action or
+ * > Ritual. **Range:** 30 feet. **Duration:** 1 hour.
+ * > "You forge a telepathic link among up to eight willing creatures of your
+ * > choice within range, psychically linking each creature to all the others
+ * > for the duration."
+ */
+export const TELEPATHIC_BOND: SpellDefinition = {
+  id: 'telepathic-bond',
+  name: 'Telepathic Bond',
+  level: 5,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 8, self: true },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'what is said through the bond is the DM’s, and the engine records which languages a character knows without reading them in play — so excluding a creature that speaks none is the DM’s too',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
+  ],
+};
+
+/**
+ * SRD Tongues:
+ *
+ * > _Level 3 Divination (Bard, Cleric, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** 1 hour.
+ * > "This spell grants the creature you touch the ability to understand any
+ * > spoken or signed language that it hears or sees."
+ */
+export const TONGUES: SpellDefinition = {
+  id: 'tongues',
+  name: 'Tongues',
+  level: 3,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'understanding and being understood are the DM’s; the engine records which languages a character knows but nothing reads them in play',
+  ],
+};
+
+/**
+ * SRD Transport via Plants:
+ *
+ * > _Level 6 Conjuration (Druid)._ **Casting Time:** Action. **Range:** 10
+ * > feet. **Duration:** 1 minute.
+ * > "This spell creates a magical link between a Large or larger inanimate
+ * > plant within range and another plant, at any distance, on the same plane
+ * > of existence."
+ */
+export const TRANSPORT_VIA_PLANTS: SpellDefinition = {
+  id: 'transport-via-plants',
+  name: 'Transport via Plants',
+  level: 6,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 10 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'both plants are objects and the far one is at any distance — off the scene entirely — so the link, and who steps through it, are the DM’s',
+    'the 5 feet of movement a creature spends to step through is charged by the DM: the engine has no destination to move anybody to',
+  ],
+};
+
+/**
+ * SRD True Seeing:
+ *
+ * > _Level 6 Divination (Bard, Cleric, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** 1 hour.
+ * > "For the duration, the willing creature you touch has Truesight with a
+ * > range of 120 feet."
+ */
+export const TRUE_SEEING: SpellDefinition = {
+  id: 'true-seeing',
+  name: 'True Seeing',
+  level: 6,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'senses are not modelled: Truesight is not a thing a creature carries, and what it pierces — illusions, shapechangers, the Ethereal Plane — is the DM’s',
+    'what the target can see is declared pairwise, so a table granting sight of something hidden declares it exactly as it would without this spell',
+  ],
+};
+
+/**
+ * SRD Wall of Force:
+ *
+ * > _Level 5 Evocation (Wizard)._ **Casting Time:** Action. **Range:** 120
+ * > feet. **Duration:** Concentration, up to 10 minutes.
+ * > "An Invisible wall of force springs into existence at a point you choose
+ * > within range... Nothing can physically pass through the wall."
+ *
+ * Not an `area`: the shapes the engine knows are shapes a spell *catches
+ * creatures in*, and this is a barrier with ten panels, an orientation and a
+ * thickness. Cover and line of sight are declared rather than ray-cast for the
+ * same reason, and that is a boundary the engine keeps on purpose.
+ */
+export const WALL_OF_FORCE: SpellDefinition = {
+  id: 'wall-of-force',
+  name: 'Wall of Force',
+  level: 5,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the wall is a barrier rather than an area that catches creatures, and barriers are not modelled: where it stands, and what it separates, are the DM’s',
+    'nothing being able to pass through it is the DM’s — movement does not consult walls, which is the boundary that keeps this a rules engine rather than a map editor',
+    'pushing a creature whose space the wall cuts through to one side of it is the DM’s',
+  ],
+};
+
+/**
+ * SRD Water Walk:
+ *
+ * > _Level 3 Transmutation (Ritual) (Cleric, Druid, Ranger, Sorcerer)._
+ * > **Casting Time:** Action or Ritual. **Range:** 30 feet.
+ * > **Duration:** 1 hour.
+ * > "Up to ten willing creatures of your choice within range gain this
+ * > ability for the duration."
+ */
+export const WATER_WALK: SpellDefinition = {
+  id: 'water-walk',
+  name: 'Water Walk',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 10, self: true },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'liquid surfaces are not modelled: whether there is water, acid, mud or lava under the party, and what the heat of lava does, are the DM’s',
+    'the Bonus Action a target spends to drop through the surface is charged by the DM, because nothing in state says the target is standing on a liquid',
+    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
+  ],
+};
+
+/**
+ * SRD Word of Recall:
+ *
+ * > _Level 6 Conjuration (Cleric)._ **Casting Time:** Action. **Range:** 5
+ * > feet. **Duration:** Instantaneous.
+ * > "You and up to five willing creatures within 5 feet of you instantly
+ * > teleport to a previously designated sanctuary."
+ *
+ * Range 5 feet, which the engine checks per target like any other: a
+ * companion standing ten feet away is refused. Where they *go* is a second
+ * place and there is one scene, so the arrival is the DM's.
+ */
+export const WORD_OF_RECALL: SpellDefinition = {
+  id: 'word-of-recall',
+  name: 'Word of Recall',
+  level: 6,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 5 },
+  targets: { count: 5 },
+  effects: [],
+  unmodelled: [
+    'the sanctuary is a second place and the engine holds one scene, so nobody is moved: the arrival is the DM’s',
+    'designating a sanctuary by an earlier casting is not recorded, so a casting with no sanctuary prepared is not refused',
   ],
 };
 
@@ -3475,6 +4295,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
   ANIMAL_FRIENDSHIP,
+  ARCANE_LOCK,
   BANE,
   BANISHMENT,
   BEFUDDLEMENT,
@@ -3494,10 +4315,15 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   COMPULSION,
   CONE_OF_COLD,
   CONTAGION,
+  CONTINUAL_FLAME,
   COUNTERSPELL,
+  CREATE_FOOD_AND_WATER,
   CURE_WOUNDS,
   DARKVISION,
+  DEMIPLANE,
+  DETECT_EVIL_AND_GOOD,
   DETECT_MAGIC,
+  DETECT_POISON_AND_DISEASE,
   DISGUISE_SELF,
   DISINTEGRATE,
   DISSONANT_WHISPERS,
@@ -3508,12 +4334,15 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ELDRITCH_BLAST,
   FALSE_LIFE,
   FEAR,
+  FIND_TRAPS,
   FINGER_OF_DEATH,
   FIRE_BOLT,
   FIREBALL,
   FLAME_STRIKE,
+  FLOATING_DISK,
   FLY,
   FREEZING_SPHERE,
+  GENTLE_REPOSE,
   GREASE,
   GUIDANCE,
   GUIDING_BOLT,
@@ -3528,36 +4357,57 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   INFLICT_WOUNDS,
   INSECT_PLAGUE,
   JUMP,
+  KNOCK,
   LIGHT,
   LIGHTNING_BOLT,
+  LOCATE_ANIMALS_OR_PLANTS,
+  LOCATE_CREATURE,
+  LOCATE_OBJECT,
   LONGSTRIDER,
   MAGE_HAND,
   MASS_CURE_WOUNDS,
   MASS_HEALING_WORD,
   MASS_SUGGESTION,
+  MESSAGE,
   MIND_SPIKE,
   MISTY_STEP,
+  MOVE_EARTH,
+  NONDETECTION,
+  PASSWALL,
   PHANTASMAL_KILLER,
+  PLANE_SHIFT,
   POISON_SPRAY,
   PRESTIDIGITATION,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
+  REMOVE_CURSE,
+  ROPE_TRICK,
   SACRED_FLAME,
+  SEE_INVISIBILITY,
   SHATTER,
   SHIELD,
   SHIELD_OF_FAITH,
   SHOCKING_GRASP,
   SPEAK_WITH_ANIMALS,
+  SPEAK_WITH_DEAD,
   SPIDER_CLIMB,
   STARRY_WISP,
+  STONE_SHAPE,
   SUGGESTION,
   SUNBEAM,
   SUNBURST,
+  TELEPATHIC_BOND,
   THUNDERWAVE,
+  TONGUES,
+  TRANSPORT_VIA_PLANTS,
+  TRUE_SEEING,
   VICIOUS_MOCKERY,
   VITRIOLIC_SPHERE,
+  WALL_OF_FORCE,
   WATER_BREATHING,
+  WATER_WALK,
   WEIRD,
+  WORD_OF_RECALL,
 ];
 
 export const definitionFor = (spellId: string): SpellDefinition | null =>
