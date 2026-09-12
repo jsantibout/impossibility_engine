@@ -1584,6 +1584,72 @@ discarding the chosen type passed a whole file of tests.
 **An "Improved X" that only raises a number is the step in the first feature's
 table, not a second grant.** Two grants would stack and deal both.
 
+### A Feature Is Data Once Its Shape Exists — And So Is Its Dishonesty
+
+Four more feature shapes landed after the once-per-turn rider, and the last two
+are worth reading together because one found the other.
+
+**Evasion is named for the SRD rule, not for either class.** The Rogue and the
+Monk have the same feature under the same name, word for word, so the grant is
+`{ kind: 'evasion' }` — the move `{ kind: 'expertise' }` already made. What
+differs is one clause the Monk has and the Rogue does not ("You can't use this
+feature if you have the Incapacitated condition"), and that is an ordinary
+`StandingRequirement` on the feature whose text says it. It bites only where
+the effect already offers half on a success, and it is read off the **target**,
+because the Rogue standing in the Fireball is the one who evades it.
+
+**A Critical Hit carries its own auto-hit.** SRD's glossary binds them in one
+sentence — "you score a Critical Hit, **and the attack hits** regardless of any
+modifiers or the target's AC" — so a Champion's 19 hits an Armour Class it
+could not otherwise reach. The natural 1 is the opposite case and stays pinned
+to the number, because the SRD sets it by naming the face rather than by a rule
+a feature could restate. The threshold lives on the sheet, not in `standing.ts`:
+there is no state of the world in which a Champion's 19 stops being a critical.
+
+**Advantage a feature grants still cancels.** Feral Instinct and Remarkable
+Athlete grant Advantage on Initiative, and a Barbarian with Disadvantage from
+somewhere else rolls *one* die with both sources in `modeSources`. Deduplicated
+by source, so a caller who also knows about the feature does not apply it twice.
+
+**Nine features were counted as executed on the strength of a note.** Bardic
+Inspiration, both Channel Divinities, Wild Shape, Second Wind, Action Surge,
+Monk's Focus, Lay On Hands and Sorcery Points all said "declared as a pool" and
+none was. A Bard had a Hit Die, three slot pools and nowhere to spend an
+inspiration from.
+
+**That is the one failure the coverage table cannot see**: a feature declares
+its own automation, which is what makes the column read rather than guessed —
+and nothing checked the declaration. The guard now lives in
+`class-pools.test.ts`: *a note that claims a pool must be a feature that
+declares one.* A note is prose and cannot be parsed for meaning; what it can be
+checked for is that if it says the word, the feature has the thing. Worth more
+than the nine fixes it forced.
+
+**The SRD sizes a pool three ways**, and each is in `poolSizeOf` because a
+feature uses it: a column of the class table, an ability modifier with a floor
+("equal to your Charisma modifier (minimum of once)"), and a multiple of the
+class level ("five times your Paladin level"). Each read at *that class's* own
+level, so a multiclassed Bard's inspiration does not grow with their Fighter
+levels.
+
+**`recovers` stays honest about what it cannot say.** Monk's Focus and Action
+Surge come back **whole** on a Short Rest and are tagged `short-rest`. Five
+others give back *one* — "You regain one expended use when you finish a Short
+Rest, and you regain all expended uses when you finish a Long Rest" — which is
+`regainsOnShortRest`, and it arrived only once declaring the other pools turned
+Rage's documented quirk into five features saying the same sentence. **The
+evidence arrived before the abstraction**, which is the order the generalization
+rule asks for.
+
+**A guard nothing can reach is not a rule — and a pure function will take a
+fixture that reaches it.** `restoreOn`'s `short-rest` check is unreachable
+through any class, because every feature with a partial rule is also tagged
+`long-rest` and takes the whole-refill branch first; the mutation that removed
+it passed everything. But `restoreOn` is pure over a pool, so a pool that
+recovers at *dawn* and gives one back on a Short Rest can simply be built. That
+is the difference between this and `placeArea`'s dead `no_scene`, which stayed
+dead because nothing could construct its case.
+
 ### A Check A Spell Offers Against What It Is Still Doing
 
 SRD writes this twenty times — see through the illusion, tear free of the
