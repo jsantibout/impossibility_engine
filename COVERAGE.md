@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 44 (13.0%) | 72 (21.2%) | 46 (13.6%) |
+| 339 | 46 (13.6%) | 72 (21.2%) | 47 (13.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -36,7 +36,7 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Tracked | Executed | Blocked on |
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 0 | 23 | — |
+| Area of effect | 73 | 2 | 23 | — |
 | Reaction timing | 4 | 0 | 3 | falling — Counterspell now has a casting it can hold open |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 0 | an effect that a later turn can act through |
@@ -56,7 +56,7 @@ spell, and the area is the part that is missing.
 - **Bane** (level 1) — verified
 - **Banishment** (level 4) — verified
 - **Befuddlement** (level 8) — untested
-- **Black Tentacles** (level 4) — untested
+- **Black Tentacles** (level 4) — verified
 - **Bless** (level 1) — verified
 - **Blight** (level 4) — verified
 - **Blindness/Deafness** (level 2) — verified
@@ -150,6 +150,7 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Longstrider** (level 1) — 1 noted
 - **Mage Hand** (cantrip) — 3 noted
 - **Message** (cantrip) — 3 noted
+- **Minor Illusion** (cantrip) — 4 noted
 - **Misty Step** (level 2) — 1 noted
 - **Move Earth** (level 6) — 3 noted
 - **Nondetection** (level 3) — 2 noted
@@ -159,6 +160,7 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Remove Curse** (level 3) — 2 noted
 - **Rope Trick** (level 2) — 2 noted
 - **See Invisibility** (level 2) — 2 noted
+- **Silent Image** (level 1) — 3 noted
 - **Speak with Animals** (level 1) — 3 noted
 - **Speak with Dead** (level 3) — 2 noted
 - **Spider Climb** (level 2) — 1 noted

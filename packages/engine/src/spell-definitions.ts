@@ -1,4 +1,4 @@
-import type { Ability, ConditionName } from '@ie/shared';
+import type { Ability, ConditionName, Skill } from '@ie/shared';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { CastingTime } from './spells.js';
 
@@ -82,6 +82,57 @@ export interface DiceScaling {
  * value nothing can be written with would be a value nothing reads.
  */
 export type RiderDuration = 'start-of-casters-next-turn' | 'end-of-casters-next-turn';
+
+/**
+ * An ability check a creature may attempt against what the spell is doing.
+ *
+ * SRD writes this twenty times and it is **not** the repeat save it resembles.
+ * A repeat save is raised by the turn boundary and owed whether anybody
+ * remembers it; this is attempted because the fiction says somebody tried, and
+ * no turn waits for it. Both halves of the sentence matter:
+ *
+ * > "A creature Restrained by the webs **can take an action** to make a
+ * > Strength (Athletics) check against your spell save DC."
+ * > "To discern that you are disguised, a creature **must take the Study
+ * > action** to inspect your appearance and succeed on an Intelligence
+ * > (Investigation) check against your spell save DC."
+ *
+ * The table decides *that* somebody looked; the engine owns every number after
+ * that. The check runs through `rollAbilityCheck` like any other, so
+ * proficiency, Expertise, the armour penalties and the roller's conditions
+ * apply because that function applies them rather than because this one
+ * remembered to.
+ *
+ * **`dc` omitted means the caster's own spell save DC**, derived from their
+ * sheet and the route that supplied the spell at the moment of casting. A
+ * printed number — Maze's DC 20 — is stated instead. Either way it is written
+ * down when the effect is created rather than derived when the check is
+ * attempted: an hour later the caster may have levelled, changed route, or
+ * left the game.
+ */
+export interface SpellCheck {
+  readonly ability: Ability;
+  /** The skill the SRD names: "Intelligence (Investigation)". */
+  readonly skill?: Skill;
+  /** A printed DC. Omitted, the caster's own spell save DC. */
+  readonly dc?: number;
+  /**
+   * What a success does.
+   *
+   * `none` is the illusion case, and it is a real answer rather than a stub:
+   * the examiner now knows, and nothing the engine holds has changed. The
+   * number was still the engine's — their Investigation, their Expertise,
+   * their conditions, against the DC the spell was cast at.
+   *
+   * `end-on-target` is Black Tentacles' "ending the condition on itself on a
+   * success", which is the release the repeat save already performs.
+   *
+   * There is deliberately no `end-casting`. SRD writes it — Maze, Phantasmal
+   * Force, Detect Thoughts — and every one of those spells is blocked on
+   * something else, so it would be a value nothing could be written with.
+   */
+  readonly onSuccess: 'none' | 'end-on-target';
+}
 
 /**
  * The moment a Reaction spell is cast in answer to.
@@ -199,6 +250,16 @@ export type SpellEffect =
         readonly name: ConditionName;
         /** Omitted, it lasts as long as the casting does. */
         readonly lasts?: RiderDuration;
+        /**
+         * A check the affected creature may attempt to shake it off.
+         *
+         * SRD Black Tentacles: "A Restrained creature can take an action to
+         * make a Strength (Athletics) check against your spell save DC,
+         * **ending the condition on itself** on a success." On the condition
+         * rather than on the casting, because the condition is what ends — the
+         * tentacles carry on for everybody else standing in them.
+         */
+        readonly check?: SpellCheck;
       };
       /**
        * A second hit at the end of the target's next turn, on a failure only.
@@ -483,6 +544,15 @@ export interface SpellDefinition {
    * definition means one or the other, never both.
    */
   readonly durationUntil?: RiderDuration;
+  /**
+   * A check a creature may attempt against the casting itself.
+   *
+   * The illusions: nothing is on anybody, so what is examined is the spell.
+   * It rides on the casting's own timer, which means a spell with no duration
+   * offers nothing to examine — correct, because there is nothing left
+   * standing there to look at.
+   */
+  readonly check?: SpellCheck;
 }
 
 /**
@@ -2057,14 +2127,20 @@ export const BLACK_TENTACLES: SpellDefinition = {
       damage: { dice: '3d6' },
       damageType: 'bludgeoning',
       onSuccess: 'none',
-      condition: { name: 'restrained' },
+      condition: {
+        name: 'restrained',
+        // SRD: "A Restrained creature can take an action to make a Strength
+        // (Athletics) check against your spell save DC, ending the condition
+        // on itself on a success." On itself: the tentacles carry on for
+        // everybody else standing in them, which is what `end-on-target` means.
+        check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
+      },
     },
   ],
   durationSeconds: 60,
   unmodelled: [
     'the area is Difficult Terrain for the duration',
     'the same save again when a creature enters the area or ends its turn there, once per turn',
-    'the action a Restrained creature takes to make a Strength (Athletics) check against your spell save DC, freeing itself on a success',
   ],
 };
 
@@ -3204,9 +3280,14 @@ export const DISGUISE_SELF: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 3600,
+  // SRD: "To discern that you are disguised, a creature must take the Study
+  // action to inspect your appearance and succeed on an Intelligence
+  // (Investigation) check against your spell save DC." The table decides that
+  // somebody looked closely; the engine owns the roll and the number it beats.
+  check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
   unmodelled: [
-    'what the caster looks like is the DM’s',
-    'the Study action and the Intelligence (Investigation) check against the spell save DC that see through it are not raised by the engine',
+    'what the caster looks like is the DM’s, and so is whether a creature thinks to inspect them',
+    'the illusion failing physical inspection — objects passing through a hat that is not there — is the DM’s',
   ],
 };
 
@@ -4291,6 +4372,78 @@ export const SUNBEAM: SpellDefinition = {
  * mechanical shape. Reordering three thousand lines of them would buy nothing
  * and would itself be an unmergeable change.
  */
+/**
+ * SRD Minor Illusion:
+ *
+ * > _Illusion Cantrip (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 30 feet. **Duration:** 1 minute.
+ * > "You create a sound or an image of an object within range that lasts for
+ * > the duration."
+ * > "If a creature takes a Study action to examine the sound or image, the
+ * > creature can determine that it is an illusion with a successful
+ * > Intelligence (Investigation) check against your spell save DC."
+ *
+ * The whole spell is fiction except one sentence, and that sentence is
+ * arithmetic. So the casting is tracked — the action, the minute on the clock
+ * — and the check the engine owns is offered against it. The cantrip is the
+ * proof that the DC comes off the caster's sheet rather than off a slot: there
+ * is no slot.
+ */
+export const MINOR_ILLUSION: SpellDefinition = {
+  id: 'minor-illusion',
+  name: 'Minor Illusion',
+  level: 0,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
+  unmodelled: [
+    'what the sound or image is, and whether anybody thinks to examine it, are the DM’s',
+    'the image becoming faint to a creature that saw through it is narration; the engine records the roll and nothing else changes',
+    'physical interaction revealing the image, and the 5-foot Cube it fits in, are the DM’s — objects are not modelled',
+    'a second casting ending the first is not done: the engine holds every casting by caster and spell, and nothing ends one on that basis',
+  ],
+};
+
+/**
+ * SRD Silent Image:
+ *
+ * > _Level 1 Illusion (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "You create the image of an object, a creature, or some other visible
+ * > phenomenon that is no larger than a 15-foot Cube."
+ * > "A creature that takes a Study action to examine the image can determine
+ * > that it is an illusion with a successful Intelligence (Investigation)
+ * > check against your spell save DC."
+ *
+ * Minor Illusion's Concentration cousin, and the one that proves a check
+ * survives on a Concentration casting's timer: break the Concentration and the
+ * image — and the check against it — are gone together, because both hang on
+ * the same casting.
+ */
+export const SILENT_IMAGE: SpellDefinition = {
+  id: 'silent-image',
+  name: 'Silent Image',
+  level: 1,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
+  unmodelled: [
+    'what the image is, where it stands, and whether anybody thinks to examine it are the DM’s',
+    'the Magic action that moves the image on a later turn needs an ongoing effect a turn can act through',
+    'seeing through the image is narration; the engine records the roll and nothing else changes',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -4370,6 +4523,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MASS_SUGGESTION,
   MESSAGE,
   MIND_SPIKE,
+  MINOR_ILLUSION,
   MISTY_STEP,
   MOVE_EARTH,
   NONDETECTION,
@@ -4388,6 +4542,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SHIELD,
   SHIELD_OF_FAITH,
   SHOCKING_GRASP,
+  SILENT_IMAGE,
   SPEAK_WITH_ANIMALS,
   SPEAK_WITH_DEAD,
   SPIDER_CLIMB,

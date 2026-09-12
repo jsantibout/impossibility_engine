@@ -1,4 +1,4 @@
-import { err, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
+import { err, ok, type Ability, type CharacterId, type Result, type Skill } from '@ie/shared';
 import type { CombatState, TurnCount } from './combat.js';
 
 /**
@@ -180,11 +180,69 @@ export interface RepeatSave {
   readonly label: string;
 }
 
+/**
+ * An ability check a creature may attempt against an ongoing effect.
+ *
+ * The SRD writes this shape twenty times and it is **not** the repeat save
+ * above it, however similar the words look. A repeat save is an *obligation*
+ * the turn boundary raises whether anybody remembers it or not; this is an
+ * *opportunity* somebody takes when the fiction says they did. Nothing raises
+ * it, nothing owes it, and no turn is blocked waiting for it — which is
+ * precisely why it needs no pending-debt machinery of its own.
+ *
+ * | | Repeat save | This |
+ * |---|---|---|
+ * | Who decides it happens | the turn boundary | the table |
+ * | If forgotten | the turn refuses to advance | nothing; it was never owed |
+ * | What it costs | nothing | the Action, in combat |
+ *
+ * **The DC is written down when the effect is created, not derived later.**
+ * Same rule as {@link RepeatSave.dc}, and for a sharper reason here: the check
+ * can be attempted an hour after the casting, by which time the caster may
+ * have gained a level, changed which grant supplies the spell, or left the
+ * game entirely. The number the spell was cast at is the number it is escaped
+ * at.
+ *
+ * Who may attempt it is **derived from what the timer is on**, not stated: an
+ * effect on a creature is that creature's to shake off, and a casting with no
+ * victim — an illusion — is anybody's to see through. SRD Ensnaring Strike is
+ * the one exception ("the target **or a creature within reach of it**"), and a
+ * field with one user is a guess dressed as a structure; it waits for a
+ * second.
+ */
+export interface EffectCheck {
+  readonly ability: Ability;
+  /** The skill applied, when the SRD names one: "Strength (Athletics)". */
+  readonly skill?: Skill;
+  readonly dc: number;
+  /**
+   * What a success does.
+   *
+   * `none` is the illusion case, and it is a real answer rather than a stub:
+   * SRD Minor Illusion's successful Study "determines that it is an illusion"
+   * and changes nothing the engine holds. The number is still the engine's —
+   * the examiner's Investigation, their Expertise, their conditions, against
+   * the caster's own save DC — and the knowledge is the table's.
+   *
+   * `end-on-target` is Black Tentacles' "ending the condition on itself on a
+   * success", which is the same release the repeat save already performs.
+   *
+   * There is deliberately no `end-casting`: SRD writes it (Maze, Phantasmal
+   * Force, Detect Thoughts) and every one of those spells is blocked on
+   * something else, so it would be a value nothing could be written with.
+   */
+  readonly onSuccess: 'none' | 'end-on-target';
+  /** How the roll reads in the log. */
+  readonly label: string;
+}
+
 export interface TimedEffect {
   readonly target: EffectTarget;
   readonly deadline: Deadline;
   /** A save this effect takes at a turn boundary, if it takes one. */
   readonly repeatSave?: RepeatSave;
+  /** A check a creature may attempt against it, if the spell offers one. */
+  readonly check?: EffectCheck;
 }
 
 /**

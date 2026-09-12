@@ -144,6 +144,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'animal-friendship',
   'bane',
   'banishment',
+  'black-tentacles',
   'bless',
   'blight',
   'blindness-deafness',

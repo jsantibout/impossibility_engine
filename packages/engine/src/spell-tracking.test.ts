@@ -338,8 +338,6 @@ type MarkerId = (typeof MECHANICAL_MARKERS)[number][0];
  * catalogue of good intentions.
  */
 const MISSING_SHAPES = {
-  'check-against-spell-save-dc':
-    'an ability check rolled against the caster’s own spell save DC — Disguise Self’s Investigation, Dispel Magic, Maze, Glibness',
   'speed-and-movement-modes':
     'a Speed a spell changes, and the Fly, Climb and Swim modes the engine does not distinguish — Longstrider, Fly, Spider Climb, Freedom of Movement',
   jumping: 'jumping, which nothing models, so a jump distance has nothing to be measured against',
@@ -350,8 +348,23 @@ const MISSING_SHAPES = {
 type ShapeId = keyof typeof MISSING_SHAPES;
 
 interface Adjudication {
-  /** `'table'`, or the missing shape that blocks it. */
-  readonly why: 'table' | ShapeId;
+  /**
+   * Which of three things this clause is.
+   *
+   * | | |
+   * |---|---|
+   * | `'table'` | fiction; the engine should never decide it |
+   * | `'engine'` | the engine **does** execute it, and nothing is delegated |
+   * | a shape id | mechanical, and this names the shape that blocks it |
+   *
+   * `'engine'` arrived when ability checks became reachable from a spell, and
+   * it is the half that keeps this honest in the other direction. A tracked
+   * spell is not "a spell the engine does nothing about": Disguise Self is
+   * tracked because a disguise is not arithmetic, and the Investigation check
+   * that sees through it *is*, and is rolled. Without this value the only way
+   * to record a solved clause would be to go on calling it missing.
+   */
+  readonly why: 'table' | 'engine' | ShapeId;
   readonly note: string;
 }
 
@@ -368,8 +381,20 @@ const ADJUDICATED: Readonly<
 > = {
   'disguise-self': {
     'ability-check': {
-      why: 'check-against-spell-save-dc',
-      note: 'SRD lets a creature take the Study action and make an Intelligence (Investigation) check against the spell save DC. The DC is derivable and the check is not: nothing raises a check against a casting’s own save DC.',
+      why: 'engine',
+      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against the casting own timer; the table decides only that somebody looked closely.',
+    },
+  },
+  'minor-illusion': {
+    'ability-check': {
+      why: 'engine',
+      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck; a cantrip, so the DC comes off the caster sheet rather than off any slot.',
+    },
+  },
+  'silent-image': {
+    'ability-check': {
+      why: 'engine',
+      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck, against a Concentration casting timer that ends with the Concentration.',
     },
   },
   demiplane: {
@@ -518,8 +543,50 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
   it('names an enumerated shape for every clause that is not the table’s', () => {
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       for (const [marker, entry] of Object.entries(written)) {
-        if (entry.why === 'table') continue;
+        if (entry.why === 'table' || entry.why === 'engine') continue;
         expect(Object.keys(MISSING_SHAPES), `${spellId}/${marker}`).toContain(entry.why);
+      }
+    }
+  });
+
+  /**
+   * A solved shape may not linger in the map pretending to be missing.
+   *
+   * The opposite failure from the dumping ground and just as dishonest: an
+   * ability check against a spell save DC was a named blocker until
+   * `resolveEffectCheck` landed, and a map that still listed it would send the
+   * next reader off to build something that already exists.
+   */
+  it('has retired the shapes that were solved', () => {
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('check-against-spell-save-dc');
+    expect(
+      Object.values(ADJUDICATED).flatMap((w) => Object.values(w).map((e) => e.why)),
+    ).toContain('engine');
+  });
+
+  /**
+   * `'engine'` has to be true, and this is the half that can check it.
+   *
+   * Found by mutation: relabelling Disguise Self's Investigation check as the
+   * table's passed everything, because a written reason is only as honest as
+   * whoever wrote it. But *this* claim is not a matter of opinion — a spell
+   * that executes a check carries one in its definition — so both directions
+   * are asserted. A definition with a check must say `engine`, and a spell
+   * claiming `engine` must have something that actually runs.
+   */
+  it('says engine for exactly the checks the catalogue really executes', () => {
+    for (const spellId of TRACKED) {
+      const executes = definitionFor(spellId)?.check !== undefined;
+      const claimed = ADJUDICATED[spellId]?.['ability-check']?.why === 'engine';
+      expect(claimed, `${spellId}: check=${executes}, claims engine=${claimed}`).toBe(executes);
+    }
+  });
+
+  /** A note that says nothing is a licence, so each must be specific. */
+  it('writes a real sentence for every adjudication', () => {
+    for (const [spellId, written] of Object.entries(ADJUDICATED)) {
+      for (const [marker, entry] of Object.entries(written)) {
+        expect(entry.note.length, `${spellId}/${marker}`).toBeGreaterThan(40);
       }
     }
   });

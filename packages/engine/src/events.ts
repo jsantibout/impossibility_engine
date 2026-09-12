@@ -37,6 +37,7 @@ import {
   type EffectTarget,
   type PendingSave,
   type RepeatSave,
+  type EffectCheck,
   type ScheduledDamage,
   type TimeView,
   type TimedEffect,
@@ -403,6 +404,15 @@ export interface PendingCasting {
    * would wedge the fight.
    */
   readonly deadline?: Deadline;
+  /**
+   * A check the casting's own timer will offer, worked out at declaration.
+   *
+   * Beside the deadline for the same reason: both belong to the timer that
+   * settlement schedules, and both are derived from the caster's sheet as it
+   * stood when the spell was declared. A Silent Image that survives a
+   * Counterspell attempt is seen through at the DC it was cast at.
+   */
+  readonly check?: EffectCheck;
 }
 
 /**
@@ -914,6 +924,28 @@ export type GameEvent =
       readonly deadline: Deadline;
       /** A save this effect takes at a turn boundary, if it takes one. */
       readonly repeatSave?: RepeatSave;
+      /** A check a creature may attempt against it, if the spell offers one. */
+      readonly check?: EffectCheck;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * An ability check somebody attempted against an ongoing effect, and settled.
+   *
+   * The roll itself is recorded separately as `roll-recorded`; this is what the
+   * outcome *did*. On a success the reducer releases the effect on that
+   * creature, so the consequence cannot drift from the roll that caused it —
+   * the same split `effect-save-resolved` already makes.
+   *
+   * Emitted only when the check's success would actually change something. An
+   * illusion seen through changes nothing the engine holds, so that check
+   * leaves `roll-recorded` alone in the log and this event is absent.
+   */
+  | {
+      readonly type: 'effect-check-resolved';
+      readonly effectKey: string;
+      /** Who attempted it. */
+      readonly by: CharacterId;
+      readonly success: boolean;
       readonly command?: CommandStamp;
     }
   /**
@@ -2329,9 +2361,36 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             target: event.target,
             deadline: event.deadline,
             ...(event.repeatSave === undefined ? {} : { repeatSave: event.repeatSave }),
+            ...(event.check === undefined ? {} : { check: event.check }),
           },
         }),
       };
+
+    case 'effect-check-resolved': {
+      const timer = state.timers[event.effectKey];
+      if (timer === undefined) {
+        throw new CorruptLogError(event, `no effect is filed under ${event.effectKey}`);
+      }
+      if (timer.check === undefined) {
+        throw new CorruptLogError(event, `${event.effectKey} offers no check to attempt`);
+      }
+      if (!event.success || timer.check.onSuccess === 'none') return next;
+
+      // The only consequence this union can express, and it is the one the
+      // repeat save already performs: the casting's effect on that creature
+      // ends, and the casting itself carries on for anyone else it caught.
+      if (timer.target.kind !== 'condition') {
+        throw new CorruptLogError(
+          event,
+          `${event.effectKey} ends on its target, but it is not on a creature`,
+        );
+      }
+      const castingId = castingIdOf(timer.target.instance);
+      if (castingId === null) {
+        throw new CorruptLogError(event, `${event.effectKey} belongs to no casting`);
+      }
+      return releaseOnTarget(next, timer.target.on, castingId);
+    }
 
     case 'damage-scheduled': {
       const key = scheduledDamageKey(event.schedule.source, event.schedule.target);

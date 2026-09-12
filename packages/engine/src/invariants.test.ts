@@ -25,6 +25,8 @@ import {
   pendingAttackOf,
   pendingMoveOf,
   removeCreatureEverywhere,
+  availableChecks,
+  resolveEffectCheck,
   endFeature,
   equipItem,
   extendFeature,
@@ -120,7 +122,7 @@ const SETUP: readonly GameEvent[] = [
   {
     type: 'spellcasting-declared',
     id: A,
-    spellcasting: declaredCasting({ ability: 'int', prepared: ['inflict-wounds'] }),
+    spellcasting: declaredCasting({ ability: 'int', prepared: ['inflict-wounds', 'disguise-self'] }),
   },
   { type: 'scene-set', extent: { width: 300, depth: 300, height: 40 } },
   { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
@@ -209,6 +211,27 @@ const declaring = (): readonly GameEvent[] => [
     'declare',
   ).events,
 ];
+
+/**
+ * An illusion standing there for somebody to look at.
+ *
+ * Disguise Self offers a check against its own casting, which is the branch of
+ * `resolveEffectCheck` that emits **no settling event at all** — the stamp
+ * rides on the roll alone. That is exactly the shape the sweep exists to
+ * catch: a guard whose event never happens is a guard that never fires.
+ */
+const illusion = (): readonly GameEvent[] => {
+  const cast = [
+    ...SETUP,
+    ...unwrap(
+      resolveSpell(fold('s', SETUP), A, { spellId: 'disguise-self', targets: [], slotLevel: 1 }, supply()),
+      'disguise',
+    ).events,
+  ];
+  // On to B's turn, because the Study action that examines it is B's to spend
+  // and A's went on the casting.
+  return [...cast, ...unwrap(resolveTurn(fold('s', cast), supply()), 'turn').events];
+};
 
 /** A third creature nobody has typed, so declaring its type says something. */
 const untyped = (): readonly GameEvent[] => [
@@ -314,6 +337,17 @@ const GUARDED: readonly Guarded[] = [
     name: 'resolveDeclaredCast',
     log: declaring(),
     run: (s, commandId) => resolveDeclaredCast(s, supply(), { commandId }),
+  },
+  {
+    name: 'resolveEffectCheck',
+    log: illusion(),
+    run: (s, commandId) =>
+      resolveEffectCheck(
+        s,
+        B,
+        { effectKey: availableChecks(s, B)[0]?.effectKey ?? 'none', commandId },
+        supply(),
+      ),
   },
   { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, A, 'rope', 1, commandId) },
   { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, A, 'chain-shirt', commandId) },

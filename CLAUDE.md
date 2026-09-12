@@ -1526,6 +1526,86 @@ nothing in the engine could check it.
 separate fields rather than one overloaded number, because conflating them is
 exactly the mistake that was made.
 
+### A Check A Spell Offers Against What It Is Still Doing
+
+SRD writes this twenty times — see through the illusion, tear free of the
+tentacles, disbelieve the terrain — and every one of them sat in an `unmodelled`
+note until `resolveEffectCheck`. That was wrong twice over: the check is pure
+arithmetic the engine owns, and `checks.ts` had been complete, correct and
+reachable from **no command at all** since the day it was written.
+
+**It is not the repeat save it resembles**, and collapsing the two would have
+been the mistake:
+
+| | Repeat save | Effect check |
+|---|---|---|
+| Who decides it happens | the turn boundary | the table |
+| If nobody does it | the turn refuses to advance | nothing; it was never owed |
+| Where the debt lives | `pendingSaves` | there is none |
+| What it costs | nothing | the Action, in combat |
+
+A repeat save is an **obligation**; this is an **opportunity**. Nobody is
+obliged to look at an illusion, so nothing raises it and no turn blocks on it —
+which is exactly why it needed no pending-debt machinery.
+
+**The timer is the durable handle, and it already existed.** A check needs its
+DC an hour after the casting, by which time the caster may have levelled,
+changed which grant supplies the spell, or died — so the DC is written down when
+the effect is created, exactly as `RepeatSave.dc` already is. `EffectCheck` sits
+beside it on `TimedEffect`: an illusion hangs on the **casting's** timer, a
+Restrained creature's escape on the **condition's**. No registry, no new state
+container, and `effectKey` is the handle `pendingSaves` has always used.
+
+**Who may attempt it is derived from what the timer sits on** — an effect on a
+creature is that creature's to shake off, a casting with no victim is anybody's
+to see through. `onSuccess` carries `'none'` and `'end-on-target'` and
+deliberately not `end-casting`: the SRD writes it (Maze, Phantasmal Force,
+Detect Thoughts) and every one of those spells is blocked on something else, so
+it would be a value nothing could be written with.
+
+**`'none'` is a real answer, not a stub.** An illusion seen through changes
+nothing the engine holds; the knowledge is the table's and the *number* was the
+engine's. So that branch emits `roll-recorded` and no settling event at all —
+which makes it the shape the idempotency sweep most needed to cover, because a
+guard whose event never happens is a guard that never fires.
+
+**The check costs the Action and no definition says so.** Every SRD instance
+spends one — "can take an action to make a Strength (Athletics) check", "must
+take the Study action" — so it belongs to the mechanism, not to any spell.
+
+**Which senses an attempt leans on is the caller's to state.** Blinded
+"automatically fails an ability check that requires sight", and Minor Illusion
+is why that cannot live on the definition: it creates "a sound **or** an image".
+`senses` is a fact about the attempt, like a situational Advantage, and nothing
+the caller passes reaches the comparison — there is no field for a result, a DC
+or a modifier, and `effect-checks.test.ts` asserts that with `@ts-expect-error`
+rather than a comment.
+
+**An unknown creature is a request; an unknown effect key is a refusal.** The
+engine wrote every timer it holds, so its own ledger is complete knowledge and
+a miss there is genuinely no — there is no fact out in the fiction that would
+make a missing timer exist. A creature nobody has mentioned is the opposite: a
+thin record with a provider that fixes it.
+
+**Dispel Magic is blocked on a fact the engine already emitted and did not
+keep.** SRD 2024 needs "DC 10 plus **that spell's level**", and `GameState`
+holds no record of an ongoing casting beyond a counter, a concentrating
+caster's `{castingId, spell, level}`, and condition sources carrying a name and
+an id. Nothing holds the level of a casting whose caster is not concentrating,
+and nothing enumerates the spells running on a creature. Taking the level from
+the caller was refused rather than built: the engine *emitted* that casting, so
+asking a model for its level is asking fiction to supply established truth.
+
+**A tracked spell may execute part of itself.** Tracked means the engine spends
+the cost and the effect is the table's — it has never meant the engine does
+nothing mechanical. Disguise Self is tracked because a disguise is not
+arithmetic, and the Investigation check that sees through it is, and is rolled.
+`spell-tracking.test.ts`'s adjudication map gained a third value, `'engine'`,
+for exactly this, and asserts it in **both** directions: a definition carrying a
+check must claim `engine`, and a spell claiming `engine` must carry one. That
+second half exists because a mutation proved the first was not enough — a
+written reason is only as honest as its author, but *this* claim is checkable.
+
 ### Tracked Is A Claim About The Cost, Not A Half-Finished Execution
 
 Forty-four spells have a definition with `effects: []`. The engine casts every
@@ -2171,10 +2251,13 @@ null and is reported — it never becomes either.
   the rest counted in `COVERAGE.md` and ranked in `PROGRESS.md`. The utility
   bucket was audited spell by spell rather than by shape: 30 of the 76 open
   ones became tracked, 42 carry a rule the engine should own, and 4 depend on
-  a world fact nothing can represent. The highest-leverage shape left is an
-  **ability check inside a spell** — every illusion, Web and Entangle's escape
-  checks, Dispel Magic, and three already-tracked spells wait on it, and
-  `checks.ts` is complete and reached by no casting. Areas of effect, healing, saving throws for damage or a
+  a world fact nothing can represent. **An ability check a spell offers against
+  its own ongoing effect is now built** — Black Tentacles' escape, and the
+  Investigation check that sees through Disguise Self, Minor Illusion and
+  Silent Image. The highest-leverage shape left is a **durable record of an
+  ongoing casting**: Dispel Magic needs the level of what it is dispelling, 18
+  spells need a casting a later turn can act through, and 17 need to enumerate
+  what is running in order to end it. Areas of effect, healing, saving throws for damage or a
   condition, Temporary Hit Points, lasting bonuses and an interruptible casting
   all work; summons, long casting times, ongoing effects a later turn acts
   through, and a Reaction that answers a fall do not.

@@ -74,7 +74,8 @@ still Wizard-shaped are named below.
 | Reaction triggers | A trigger the engine checks; Shield deflects the hit it answered | `a0aca8c` |
 | Hellish Rebuke | Damage names its dealer; a Reaction that answers being hurt | `595e6c6` |
 | Interruptible casting | A casting held between declaration and effect; Counterspell | `6e12880` |
-| Utility audit | 76 spells read one at a time; 30 tracked; `unmodelled` given a guard | _this batch_ |
+| Utility audit | 76 spells read one at a time; 30 tracked; `unmodelled` given a guard | `5d1dfc4` |
+| Ability checks | A check a spell offers against its own ongoing effect; `checks.ts` reachable | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -508,6 +509,117 @@ still Wizard-shaped are named below.
   same predicate `coverage.ts` counts with — so the spells under test and the
   number in `COVERAGE.md` cannot disagree.
 
+- **"An ability check inside a spell" was three mechanics wearing one phrase,
+  and only one of them was buildable.** The audit was the work; the code is
+  small. Twenty-two SRD spells contain the words, and they split:
+
+  | Shape | Spells | Verdict |
+  |---|---|---|
+  | A creature checks against an ongoing effect — see through it, tear free of it | 20 | **built** |
+  | The caster checks against a DC derived from *another* spell | Dispel Magic | blocked, see below |
+  | A standing modifier on checks the spell did not create | Glibness, Hunter's Mark | not this mechanic at all |
+
+  The third is the giveaway. Glibness replaces a Charisma check's die with a
+  15 and Hunter's Mark grants Advantage on Perception or Survival — neither is
+  a check the *spell* calls for, and generalising all three together would
+  have produced a small programming language for checks instead of a rule.
+- **The repeat save and the escape check look identical and are opposites.**
+  Both name an ability, a DC and a consequence, and both end an effect on a
+  success. What separates them is who decides they happen: a repeat save is an
+  **obligation** the turn boundary raises whether anybody remembers it, and
+  `pendingSaves` exists so that forgetting one stops the game. A check is an
+  **opportunity** the table takes. Nobody is obliged to look at an illusion, so
+  nothing raises it, nothing owes it and no turn blocks on it — which is
+  exactly why it needed no pending-debt machinery and why building it on top of
+  `RepeatSave` would have been wrong.
+
+  | | Repeat save | Effect check |
+  |---|---|---|
+  | Decided by | the turn boundary | the table |
+  | If nobody does it | the turn refuses to advance | nothing; it was never owed |
+  | Costs | nothing | the Action, in combat |
+- **`checks.ts` is reachable, and it was the fourth instance.** `rollAbilityCheck`
+  had been complete, correct, tested and called by **no command at all** since
+  it was written — only by its own unit tests. That is the same failure as
+  `rollAttack` before `resolveAttack`, `moveCreature` before `resolveMove` and
+  `rollDeathSave` before the turn boundary raised one: *a pure function nothing
+  calls is a rule nothing enforces*. `resolveEffectCheck` calls it rather than
+  re-deriving anything, so proficiency, Expertise, the armour penalties, a
+  Blinded creature's automatic failure and the exhaustion penalty all apply
+  because that function applies them. There is one ability-check calculator.
+- **The timer was already the durable handle; nothing new had to be invented.**
+  A check needs the DC an hour after the casting, by which time the caster may
+  have levelled, changed which grant supplies the spell, or died. `RepeatSave`
+  had settled this question already — it writes its DC down when the effect is
+  created — so `EffectCheck` sits beside it on the same `TimedEffect` and is
+  read back by `effectKey`, the handle `pendingSaves` has always used. An
+  illusion hangs on the **casting's** timer; a Restrained creature's escape
+  hangs on the **condition's**. Two placements, no registry, no new state
+  container.
+- **Who may attempt it is derived from what the timer sits on.** An effect on a
+  creature is that creature's to shake off; a casting with no victim — an
+  illusion standing in a corridor — is anybody's to see through. SRD Ensnaring
+  Strike is the one exception ("the target **or a creature within reach of
+  it**") and that spell is blocked on three other things, so the field waits
+  for a second user.
+- **`onSuccess` carries two members because only two can be written.** SRD
+  writes a third — Maze, Phantasmal Force and Detect Thoughts end the whole
+  casting on a successful check — and every one of those spells is blocked on
+  something that is not the check. A value nothing can be written with is a
+  value nothing reads, which is the argument `RiderDuration` already makes.
+- **The check costs the Action, and no definition says so.** Every SRD instance
+  of this shape spends one — "can take an action to make a Strength
+  (Athletics) check", "must take the Study action to inspect your appearance",
+  "must take a Search action" — so it is a property of the mechanism rather
+  than of any spell. Outside combat there is no economy to spend, exactly as
+  with a casting.
+- **Which senses an attempt leans on is the caller's to state and the engine's
+  to charge for.** Blinded "automatically fails an ability check that requires
+  sight", and Minor Illusion is why that cannot live on the definition: it
+  creates "a sound **or** an image", so one definition covers a check a blind
+  creature can make and one it cannot. `senses` is a *fact* about the attempt,
+  in the same category as a situational Advantage — and setting it either way
+  cannot produce a success, because nothing the caller passes reaches the
+  comparison.
+- **An unknown creature is a request; an unknown effect key is a refusal.** The
+  asymmetry is the whole "unknown is not false" rule applied twice in one
+  command. A creature nobody has told the engine about is a thin *record* and
+  there is a provider that fixes it. A timer key the engine has never issued
+  cannot be made to exist by any fact out in the fiction — **the engine wrote
+  every timer it holds**, so its own ledger is complete knowledge and a miss
+  there is genuinely no.
+- **Dispel Magic is blocked, and the blocker is worth the whole audit.** SRD
+  2024: "Any ongoing spell of level 3 or lower on the target ends. For each
+  ongoing spell of level 4 or higher, make an ability check using your
+  spellcasting ability (DC 10 plus **that spell's level**)." The check itself is
+  now trivial. What the engine cannot supply is the **level of the spell being
+  dispelled**: `GameState` keeps no record of an ongoing casting beyond a
+  counter, a concentrating caster's `{castingId, spell, level}`, and condition
+  sources that carry a name and an id. Nothing holds the level of a casting
+  whose caster is not concentrating on it, and nothing enumerates "the spells
+  currently on this creature" with their levels.
+
+  Taking the level from the caller was refused rather than built: the engine
+  *emitted* that casting, so asking a model for its level is asking fiction to
+  supply a fact the engine already established, which is the one thing
+  invariant 6 forbids. The honest answer is a durable ongoing-casting record —
+  and that is the handle the whole "ongoing effects a later turn acts through"
+  bucket needs, so building it inside a batch about ability checks would have
+  been exactly the smuggling this batch was told to avoid. Named, ranked, and
+  left for the batch that does it properly.
+- **A mutation that survives is worth more than nine that bite.** Relabelling
+  Disguise Self's Investigation check as "the table's" passed every test:
+  a written adjudication is only as honest as whoever wrote it, which the
+  previous batch had already documented as this invariant's limit. But *that*
+  claim turned out not to be a matter of opinion — a spell that executes a
+  check carries one in its definition — so the invariant now asserts both
+  directions, and the mutation bites. The limit was real and narrower than it
+  looked.
+- **`git checkout <file>` is not a way to undo a mutation.** It reverts to
+  HEAD, and in a batch that has not committed yet that is every edit in the
+  file, not the mutation. Half an hour of the invariant work went that way and
+  had to be rewritten. Copy the file first; restore from the copy.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -696,15 +808,109 @@ are done but fifty area spells remain open on *other* shapes, **long casting
 times** block 43, **ongoing effects a later turn acts through** block 18, and
 **summons** block 9. Those four are the standing items below.
 
+### Where the twenty-two check-bearing spells stand now
+
+Every spell whose SRD text carries a check the spell itself calls for,
+classified **after** the primitive exists. The point of the column on the
+right is that the check was never the only thing wrong with most of them.
+
+| | Spells |
+|---|---|
+| **Executed, check and all** | Black Tentacles |
+| **Tracked, with the check executed** | Disguise Self, Minor Illusion, Silent Image |
+| **Already executed; check genuinely unreachable** | Freezing Sphere — its Restrained applies to creatures swimming on water the spell froze, and freezing water is not modelled |
+| **Still blocked** | the other seventeen, below |
+
+| Spell | What still blocks it |
+|---|---|
+| Web, Spike Growth, Earthquake, Control Water | an area that acts on later turns — the save fires when a creature *enters* or *ends its turn* there, and nothing raises that |
+| Detect Thoughts, Project Image | an ongoing effect a later turn acts through (a Magic action that drives the spell) |
+| Glyph of Warding, Symbol, Hallucinatory Terrain, Tsunami | a casting time of a minute or more |
+| Maze | a condition applied with **no** saving throw; the check is ready and the banishment is not |
+| Phantasmal Force | a saving throw whose failure creates something that is not a condition, plus damage on the caster's later turns |
+| Ensnaring Strike | cast on a hit, plus damage at the start of each of the target's turns |
+| Entangle | its area excludes the caster — "Each creature (**other than you**) in the area" — and exactly one SRD spell says that, so the field waits for a second user |
+| Major Image | Concentration and duration that **change with the slot level**: "lasts until dispelled, without requiring Concentration, if cast with a level 4+ spell slot", which `SpellDefinition` cannot express |
+| Programmed Illusion | a duration of "Until dispelled", so the casting gets no timer and there is nothing for the check to hang on |
+| Seeming | a saving throw only *unwilling* targets make, and willingness is not modelled |
+| Dispel Magic | the level of the spell being dispelled — see the decisions above |
+
+Four of those blockers are new findings this batch rather than restatements:
+**an area that acts on later turns** is a different thing from an area (the
+area model works; what is missing is a trigger when somebody walks into one),
+**slot-dependent Concentration**, **"Until dispelled" leaves nothing to hang a
+rider on**, and **an area that excludes its caster**.
+
+### The ranked map, recalculated after the batch
+
+Measured across the 221 parsed spells the engine has no definition for. A spell
+can need more than one shape, so the counts do not sum.
+
+| Rank | Shape | Open spells | What exists already | Risk |
+|---|---|---|---|---|
+| 1 | An ongoing effect a later turn acts through, **and the casting record it needs** | 18 + Dispel Magic + 17 "ends another casting" | timers, casting ids, `pendingCasting` | medium |
+| 2 | A standing Advantage or Disadvantage a spell grants | 25 | `ModeSource`, `standingSaveModes`, the merge in `savingSupport` | medium |
+| 3 | An area that acts on later turns | ~12 | areas, positions, turn boundaries, `pendingSaves` | medium |
+| 4 | A condition applied with no saving throw | 9 | `applySpellEffect` entire | very low |
+| 5 | Resistance or Immunity a spell grants | 17 | `defensesOf`, standing resistances from features | low |
+| 6 | Healing that lifts a condition, raises the dead, or raises the maximum | 10 | the `heal` effect | low |
+| 7 | Damage with neither an attack roll nor a save | 19 | `rollSpellDice`, `dealSpellDamage` | low |
+| 8 | Teleportation | 13 | positions, occupancy, `placeCreature` | medium |
+| 9 | An Armour Class a spell sets or floors | ~4 real | Unarmoured Defense already replaces the calculation for a feature | low |
+| 10 | A random outcome that is not a d20 | 11 | the generator | low |
+
+**1. An ongoing casting a later turn can act through — and it moved to the top
+because of what this batch found, not because of its count.** Going in it was
+fourth. Three separate blockers turn out to be the same missing thing: a
+**durable record of a live casting** — its level, its caster, and the route
+that set its DC.
+
+- **Dispel Magic** needs the level of the spell it is dispelling, and nothing
+  holds it.
+- **Spiritual Weapon and Call Lightning** (18 spells) need a casting a later
+  turn can name and spend an action through.
+- **Seventeen spells end another spell** — Dispel Magic, Antimagic Field,
+  Darkness against Daylight — and every one needs to enumerate what is running.
+
+That is three concrete mechanics demanding one primitive, which is precisely
+the evidence the generalization rule asks for before building one. It is also
+the first item on this list whose absence makes the engine *lie by omission*
+rather than merely refuse: a Wizard can already cast Silent Image, and the
+party's Cleric cannot dispel it.
+
+**2. A standing Advantage or Disadvantage a spell grants** keeps the largest
+raw count and the highest table value — Blur, Haste, Hex, Hunter's Mark,
+Hideous Laughter, Enhance Ability, Beacon of Hope — and it now has a second
+argument in its favour: Glibness and Hunter's Mark fell out of *this* batch's
+audit into that bucket, so it is where the ability-check work's leftovers went.
+Second rather than first only because it needs one design decision the check
+shape did not: a mode that applies to rolls made **against** the holder, which
+`BonusApplies` has no direction for and `resolveAttack` does not read.
+
+**3. An area that acts on later turns** is new to this ranking and is the
+reason four check-bearing spells are still blocked. The pieces are unusually
+close: areas resolve, positions are exact, and `pendingSaves` already shows how
+a boundary raises an obligation. What is missing is a *trigger* — "the first
+time a creature enters the webs on a turn or starts its turn there".
+
+**4. A condition with no saving throw** is still the cheapest thing on the
+list — one `SpellEffect` member through machinery that already applies
+conditions with a casting link and a deadline — and it now unblocks Maze
+outright, whose check is built and waiting.
+
+**5–10** are unchanged in character from the previous batch's map and unchanged
+in order except that teleportation slipped: the previous batch had to name it
+as a blocker, and nothing since has made it more pressing.
+
 ## Next actions, in order
 
-1. **An ability check inside a spell.** The top of the ranked map above, and
-   the thing the utility audit was for: 22 open spells, three already-tracked
-   spells waiting on it, and a complete `checks.ts` that no casting reaches.
-   Two variants, one mechanism — a creature's check against the caster's spell
-   save DC (every illusion, Maze, Disguise Self) and the caster's own check
-   against a fixed DC (Dispel Magic) — plus the turn-boundary escape check,
-   which is `RepeatSave` with a check where the save is.
+1. **A durable record of an ongoing casting, and the later turn that acts
+   through it.** The top of the recalculated map above, and the batch this one
+   hands off to: Dispel Magic wants the level of what it is dispelling, 18
+   spells want a casting a later turn can spend an action through, and 17 want
+   to enumerate what is running so they can end it. Three concrete mechanics,
+   one missing primitive — which is the evidence the generalization rule asks
+   for. Deliberately **not** built inside the ability-check batch.
 2. **Keep pouring spells into the five working shapes.** Attack, save-damage,
    save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
    spells fit one of them and need only a definition with its SRD quote.
@@ -859,11 +1065,11 @@ Run `npm run coverage`; these were true at the last commit.
 |---|---|
 | Spells parsed | 339 |
 | Spells executed | 72 |
-| Spells verified end to end | 46 |
-| Spells tracked (cast, effect narrated) | 44 |
+| Spells verified end to end | 47 |
+| Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 61 of 230 |
-| Tests | 3,352 passing, none skipped |
+| Tests | 3,420 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

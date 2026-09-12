@@ -10,6 +10,7 @@ import {
   type Err,
   type Result,
   type RollMode,
+  type Skill,
 } from '@ie/shared';
 import { bonusesFor, type Bonus, type ModeSource } from './bonuses.js';
 import {
@@ -56,6 +57,7 @@ import {
   type DelayedDamage,
   type RiderDuration,
   type SpellArea,
+  type SpellCheck,
   type SpellDefinition,
   type SpellEffect,
   type ReactionTrigger,
@@ -73,7 +75,7 @@ import {
   standingSaveModes,
   type ActivatedFeature,
 } from './standing.js';
-import { rollSavingThrow, type D20TestResult } from './checks.js';
+import { rollAbilityCheck, rollSavingThrow, type D20TestResult } from './checks.js';
 import type { Rng } from './dice.js';
 import type { RollIssuer } from './rolls.js';
 import {
@@ -82,6 +84,7 @@ import {
   hasCondition,
   isIncapacitated,
   reasonsFor,
+  type CheckContext,
   type ConditionState,
 } from './conditions.js';
 import {
@@ -92,10 +95,12 @@ import {
   timeView,
   type Deadline,
   type Duration,
+  type EffectCheck,
   type EffectTarget,
   type PendingSave,
   type RepeatSave,
   type ScheduledDamage,
+  type TimedEffect,
 } from './duration.js';
 import {
   canSpendSpellSlotThisTurn,
@@ -567,6 +572,14 @@ export function applyConditionTo(
   duration?: Duration,
   repeatSave?: RepeatSave,
   command: CommandIdentity = {},
+  /**
+   * A check the affected creature may attempt to shake it off.
+   *
+   * Ninth and last, appended rather than folded into an options object,
+   * because `applyConditionTo` is a DM-facing command whose existing call
+   * sites should not have to move for a field none of them passes.
+   */
+  check?: EffectCheck,
 ): Result<GameEvent[]> {
   // "You are Frightened" is the state change a narrating layer reaches for
   // most, and a retried one was a second Frightened from the same source —
@@ -578,6 +591,7 @@ export function applyConditionTo(
     source,
     ...(duration === undefined ? {} : { duration }),
     ...(repeatSave === undefined ? {} : { repeatSave }),
+    ...(check === undefined ? {} : { check }),
   });
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
@@ -595,13 +609,16 @@ export function applyConditionTo(
   ];
 
   // A hook needs a timer to hang on, even when the effect has no deadline of
-  // its own: an indefinite one is still the thing the boundary looks at.
-  if (duration === undefined && repeatSave !== undefined) {
+  // its own: an indefinite one is still the thing the boundary looks at. A
+  // check is the same — Black Tentacles lasts as long as its casting and has
+  // no deadline of its own, and the escape still has to be attemptable.
+  if (duration === undefined && (repeatSave !== undefined || check !== undefined)) {
     events.push({
       type: 'effect-scheduled',
       target: { kind: 'condition', on: id, instance: conditionInstanceId(condition, source) },
       deadline: { kind: 'indefinite' },
-      repeatSave,
+      ...(repeatSave === undefined ? {} : { repeatSave }),
+      ...(check === undefined ? {} : { check }),
     });
   }
 
@@ -613,6 +630,7 @@ export function applyConditionTo(
       { kind: 'condition', on: id, instance: conditionInstanceId(condition, source) },
       duration,
       repeatSave,
+      check,
     );
     if (!timer.ok) return timer;
     events.push(timer.value);
@@ -814,6 +832,7 @@ function schedule(
   target: EffectTarget,
   duration: Duration,
   repeatSave?: RepeatSave,
+  check?: EffectCheck,
 ): Result<GameEvent> {
   const deadline = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, duration);
   if (!deadline.ok) return deadline;
@@ -822,6 +841,7 @@ function schedule(
     target,
     deadline: deadline.value,
     ...(repeatSave === undefined ? {} : { repeatSave }),
+    ...(check === undefined ? {} : { check }),
   });
 }
 
@@ -2859,6 +2879,21 @@ export interface CastCommand extends CommandIdentity {
    * other's, which is why it arrives as an argument rather than being derived.
    */
   readonly hold?: CastingPlan;
+  /**
+   * A check a creature may later attempt against this casting.
+   *
+   * SRD Minor Illusion: "If a creature takes a Study action to examine the
+   * sound or image, the creature can determine that it is an illusion with a
+   * successful Intelligence (Investigation) check against your spell save DC."
+   * The DC is worked out now, from the caster's sheet and the route that
+   * supplied the spell, because by the time somebody looks closely the caster
+   * may have levelled, changed route, or left.
+   *
+   * It rides on the casting's own timer, so a spell with no duration offers
+   * nothing to examine — which is correct: there is nothing still standing
+   * there.
+   */
+  readonly check?: EffectCheck;
 }
 
 /**
@@ -3058,6 +3093,7 @@ export function castSpell(
         targets: command.hold.targets,
         unverified: command.hold.unverified,
         ...(deadline === undefined ? {} : { deadline }),
+        ...(command.check === undefined ? {} : { check: command.check }),
       },
       ...(stamp === null ? {} : { command: stamp }),
     });
@@ -3083,7 +3119,13 @@ export function castSpell(
   }
 
   if (command.duration !== undefined) {
-    const timer = schedule(state, { kind: 'casting', castingId }, command.duration);
+    const timer = schedule(
+      state,
+      { kind: 'casting', castingId },
+      command.duration,
+      undefined,
+      command.check,
+    );
     if (!timer.ok) return timer;
     events.push(timer.value);
   }
@@ -3131,6 +3173,7 @@ function settlementEvents(pending: PendingCasting, stamp: CommandStamp | null): 
       type: 'effect-scheduled',
       target: { kind: 'casting', castingId: pending.castingId },
       deadline: pending.deadline,
+      ...(pending.check === undefined ? {} : { check: pending.check }),
     });
   }
 
@@ -3195,6 +3238,8 @@ export interface SpellEffectOptions {
   readonly duration?: Duration;
   /** A saving throw this effect takes at a turn boundary. */
   readonly repeatSave?: RepeatSave;
+  /** A check the affected creature may attempt to shake it off. */
+  readonly check?: EffectCheck;
   /**
    * The casting this effect belongs to.
    *
@@ -3234,6 +3279,8 @@ export function applySpellEffect(
     options.immuneTo ?? [],
     options.duration,
     options.repeatSave,
+    {},
+    options.check,
   );
 }
 
@@ -3717,6 +3764,234 @@ function collectDueDamage(
 }
 
 /** Every turn-boundary save still owed, in a stable order. */
+/**
+ * An ability check a spell offers against something it is still doing.
+ *
+ * The SRD writes this twenty times — see through an illusion, tear free of the
+ * tentacles, disbelieve the terrain — and it is a *different* mechanism from
+ * the repeat save beside it, however alike the sentences read. A repeat save
+ * is raised by the turn boundary and owed whether anybody remembers it; this
+ * is attempted because the table said somebody tried. Nothing raises it and no
+ * turn blocks on it, which is the whole reason it needs no pending-debt
+ * machinery.
+ *
+ * **The division of authority is the point.** Maestro decides that a guard
+ * peers at the illusion, or that the Restrained ogre heaves against the
+ * tentacles — that is fiction, and the engine has no business inventing it.
+ * Everything after that is arithmetic the engine owns and the caller may not
+ * supply: which ability, which skill, the proficiency and Expertise on that
+ * skill, the conditions the roller is under, the Advantage and Disadvantage
+ * they carry, the die, and the DC the spell was cast at.
+ */
+export interface AvailableCheck {
+  /** The timer it belongs to, and the handle a caller names it by. */
+  readonly effectKey: string;
+  /** Who may attempt it. */
+  readonly by: CharacterId;
+  readonly ability: Ability;
+  readonly skill: Skill | null;
+  readonly dc: number;
+  readonly onSuccess: 'none' | 'end-on-target';
+  readonly label: string;
+}
+
+/**
+ * Who may attempt a check, derived from what the effect is on.
+ *
+ * An effect sitting on a creature is that creature's to shake off; a casting
+ * with no victim — an illusion standing in a corridor — is anybody's to see
+ * through. Derived rather than declared because every SRD spell the engine can
+ * currently offer a check for reads this way, and a field with one exception
+ * is a guess dressed as a structure.
+ */
+const mayAttempt = (timer: TimedEffect, who: CharacterId): boolean =>
+  timer.target.kind !== 'condition' || timer.target.on === who;
+
+/**
+ * The checks this creature could attempt right now.
+ *
+ * The read side of {@link resolveEffectCheck}, and the same shape as
+ * `eligibleTargets`: a shortlist for the layer that decides *whether* somebody
+ * tries, with every number already worked out so that layer never has to.
+ */
+export function availableChecks(state: GameState, who: CharacterId): readonly AvailableCheck[] {
+  return Object.keys(state.timers)
+    .sort()
+    .flatMap((effectKey): AvailableCheck[] => {
+      const timer = state.timers[effectKey];
+      if (timer?.check === undefined) return [];
+      if (!mayAttempt(timer, who)) return [];
+      return [
+        {
+          effectKey,
+          by: who,
+          ability: timer.check.ability,
+          skill: timer.check.skill ?? null,
+          dc: timer.check.dc,
+          onSuccess: timer.check.onSuccess,
+          label: timer.check.label,
+        },
+      ];
+    });
+}
+
+export interface EffectCheckCommand extends CommandIdentity {
+  /** Which ongoing effect is being tested, from {@link availableChecks}. */
+  readonly effectKey: string;
+  /**
+   * Advantage or Disadvantage the table knows about and the engine does not.
+   *
+   * A mode, never a result. Everything the engine can see — the roller's
+   * conditions, their armour, the features standing on them — it reads for
+   * itself.
+   */
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  /** Named modifiers the table supplies: Guidance's 1d4, a tool's bonus. */
+  readonly bonuses?: readonly Bonus[];
+  /**
+   * Which senses this particular attempt leans on.
+   *
+   * A *fact* about the attempt, not a result: SRD Blinded "automatically fails
+   * an ability check that requires sight", and whether this one does is
+   * something only the table knows. Minor Illusion is the reason it is not a
+   * property of the spell — it creates "a sound **or** an image", so the same
+   * definition covers a check a blind creature can make and one it cannot.
+   *
+   * The caller says which sense; the engine owns what that costs.
+   */
+  readonly senses?: CheckContext;
+}
+
+export interface EffectCheckResolution {
+  readonly events: readonly GameEvent[];
+  /** The roll, or null when this command id had already been applied. */
+  readonly check: D20TestResult | null;
+  readonly success: boolean;
+  /** What the success did, so a narrating layer need not work it out. */
+  readonly onSuccess: 'none' | 'end-on-target';
+  /** True when this command id had already been applied. */
+  readonly duplicate?: boolean;
+}
+
+/**
+ * Attempt the check a spell offers against one of its ongoing effects.
+ *
+ * The caller says *who tries*, and nothing else that matters: the ability, the
+ * skill, the DC, the modifiers and the die are all the engine's, and the
+ * consequence is applied by the reducer from the recorded outcome rather than
+ * by the caller from a number it chose.
+ *
+ * **It goes through `rollAbilityCheck`**, which is the only ability-check
+ * calculator in the engine and was — until this command — reachable from no
+ * command at all. Proficiency, Expertise, the armour penalties, a Blinded
+ * creature's automatic failure on a sight-dependent check and the
+ * exhaustion penalty all apply because that function applies them, not because
+ * this one remembered to.
+ *
+ * **It costs the Action in combat**, because every SRD instance of this shape
+ * says so — "can take an action to make a Strength (Athletics) check", "must
+ * take the Study action to inspect your appearance". Outside combat there is
+ * no economy to spend, exactly as with a casting.
+ */
+export function resolveEffectCheck(
+  state: GameState,
+  who: CharacterId,
+  command: EffectCheckCommand,
+  supply: ConcentrationSaveSupply,
+): Result<EffectCheckResolution> {
+  // Before validation, as always: a retry must report the duplicate rather
+  // than the world its own first run made — a freed creature asking again
+  // would otherwise be told there is nothing to escape from.
+  const identity = identify(state, `effect-check:${who}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    return ok({ events: [], check: null, success: false, onSuccess: 'none', duplicate: true });
+  }
+  const stamp = identity.value.stamp;
+
+  const creature = creatureOf(state, who);
+  if (creature === null) return unknownCreature(who);
+
+  // The engine's own timers are complete knowledge: it wrote every one of
+  // them. So an effect key nobody has heard of is a refusal, not a request —
+  // there is no fact out in the fiction that would make it exist.
+  const timer = state.timers[command.effectKey];
+  if (timer === undefined) {
+    return err('unknown_effect', `nothing ongoing is filed under ${command.effectKey}`);
+  }
+  const check = timer.check;
+  if (check === undefined) {
+    return err('no_check', `${command.effectKey} offers no check to attempt`);
+  }
+  if (!mayAttempt(timer, who)) {
+    return err(
+      'not_yours_to_attempt',
+      `${command.effectKey} is on somebody else, and only they can shake it off`,
+    );
+  }
+
+  // Nothing is rolled until the whole operation is known to be valid, so a
+  // refusal costs neither the Action nor a turn of the generator. Out of
+  // combat there is no economy to spend, exactly as with a casting.
+  const combat = state.combat;
+  const inCombat = combat !== null && combat.budgets[who] !== undefined;
+  if (inCombat) {
+    const spent = spendAction(combat, who, creature.conditions);
+    if (!spent.ok) return spent;
+  }
+
+  const issuedBefore = supply.issuer.count;
+  const rolled = rollAbilityCheck(supply.issuer, supply.rng, creature.sheet, check.ability, {
+    dc: check.dc,
+    ...(check.skill === undefined ? {} : { skill: check.skill }),
+    conditions: effectiveConditions(state, who),
+    ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
+    ...(command.modes === undefined ? {} : { modes: command.modes }),
+    ...(command.bonuses === undefined ? {} : { bonuses: command.bonuses }),
+  });
+  if (!rolled.ok) return rolled;
+
+  const events: GameEvent[] = [
+    { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+  ];
+
+  // The stamp rides on the roll, which happens whether the check succeeds or
+  // fails — the same reasoning that put `resolveAttack`'s stamp on the roll
+  // rather than on the damage a miss never deals.
+  events.push({
+    ...recordD20Test(
+      who,
+      check.label,
+      rolled.value,
+      rolled.value.success ? 'sees through it' : 'no wiser',
+    ),
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  // The Action goes whether or not the check lands: SRD spends it on the
+  // attempt, not on the success.
+  if (inCombat) events.push({ type: 'action-spent', id: who });
+
+  // A check whose success changes nothing the engine holds emits no settling
+  // event: there is no state for one to settle. The knowledge is the table's,
+  // and the roll that produced it is in the log for anybody who asks why.
+  if (check.onSuccess !== 'none') {
+    events.push({
+      type: 'effect-check-resolved',
+      effectKey: command.effectKey,
+      by: who,
+      success: rolled.value.success,
+    });
+  }
+
+  return ok({
+    events,
+    check: rolled.value,
+    success: rolled.value.success,
+    onSuccess: check.onSuccess,
+  });
+}
+
 export function pendingSavesOf(state: GameState): readonly PendingSave[] {
   return Object.keys(state.pendingSaves)
     .sort()
@@ -4275,6 +4550,42 @@ function savingSupport(
     bonuses: [...merged.values()],
     modes: [...bare, ...named.values()],
     conditions: effectiveConditions(state, who),
+  };
+}
+
+/**
+ * A skill's display form, for a log line a person reads.
+ *
+ * Skills are kebab-case slugs because an id is not a display name — the same
+ * rule the equipment catalogue learned the hard way — so the readable half is
+ * derived here rather than stored twice.
+ */
+const skillName = (skill: Skill): string =>
+  skill
+    .split('-')
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(' ');
+
+/**
+ * Turn a definition's check into the one the timer will carry.
+ *
+ * The DC is the caster's spell save DC unless the SRD prints a number, and the
+ * label is derived rather than transcribed so that thirty definitions cannot
+ * disagree about how a roll reads in the log.
+ */
+function effectCheckFrom(
+  check: SpellCheck | undefined,
+  spell: string,
+  sheet: CharacterSheet,
+  route: CastingRoute,
+): EffectCheck | undefined {
+  if (check === undefined) return undefined;
+  return {
+    ability: check.ability,
+    ...(check.skill === undefined ? {} : { skill: check.skill }),
+    dc: check.dc ?? spellSaveDcWith(sheet, route.ability),
+    onSuccess: check.onSuccess,
+    label: `${ABILITY_NAMES[check.ability]}${check.skill === undefined ? '' : ` (${skillName(check.skill)})`} check vs ${spell}`,
   };
 }
 
@@ -4968,6 +5279,11 @@ function resolveOnTargets(
   if (!payment.ok) return payment;
   const freePool = payment.value;
 
+  // The DC a later examiner rolls against, fixed now. `route.ability` is the
+  // *chosen* source's, so a Sage Fighter's Minor Illusion is seen through at
+  // the feat's DC rather than at a class's.
+  const offered = effectCheckFrom(definition.check, definition.name, caster.sheet, route);
+
   const castingId = nextCastingId(state);
 
   if (freePool !== null) {
@@ -5008,6 +5324,7 @@ function resolveOnTargets(
     ...(request.hold === true
       ? { hold: { spellId: request.spellId, targets, unverified } }
       : {}),
+    ...(offered === undefined ? {} : { check: offered }),
   });
   if (!cast.ok) return cast;
   // A retried command: the first run did all of this. The casting id it
@@ -5449,11 +5766,18 @@ function resolveEffects(
         // all on a success, because the condition is on the failure branch of
         // a sentence the damage only half-shares.
         if (effect.condition !== undefined && !save.value.success) {
+          const escape = effectCheckFrom(
+            effect.condition.check,
+            definition.name,
+            caster.sheet,
+            route,
+          );
           const rider = applySpellEffect(current, target, effect.condition.name, casterId, {
             casting: { castingId, spell: definition.name },
             ...(riderDuration(effect.condition.lasts, casterId) === undefined
               ? {}
               : { duration: riderDuration(effect.condition.lasts, casterId)! }),
+            ...(escape === undefined ? {} : { check: escape }),
           });
           if (!rider.ok) return rider;
           events.push(...rider.value);
