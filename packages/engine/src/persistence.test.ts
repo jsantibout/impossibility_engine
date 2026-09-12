@@ -281,6 +281,18 @@ describe('the event vocabulary is a contract', () => {
     expect(added).toEqual([]);
   });
 
+  /**
+   * And in an order two branches can both append to.
+   *
+   * The list above is a migration ledger, and the two tests either side of this
+   * one compare *sets* — so nothing currently notices if a merge reshuffles it.
+   * Sorted, two people each adding an event append in different places instead
+   * of fighting over the same line.
+   */
+  it('is sorted, so appending is a one-line diff', () => {
+    expect(KNOWN_EVENT_TYPES).toEqual([...KNOWN_EVENT_TYPES].sort());
+  });
+
   it('can still fold every type the golden log actually uses', () => {
     const used = [...new Set(GOLDEN.map((e) => e.type))].sort();
     expect(used.filter((t) => !declaredEventTypes().includes(t))).toEqual([]);
