@@ -1203,7 +1203,7 @@ twice: once for a class that casts nothing, and once for the Paladin and Ranger
 both at 2), and SRD's **Multiclass Spellcaster table is identical to every full
 caster's own**, which is why it is read off one rather than transcribed twice.
 
-Class *features* are a different matter from class *tables*: 46 of 230 are
+Class *features* are a different matter from class *tables*: 80 of 230 are
 executed, and every one of the rest carries a note saying what a DM still does.
 `npm run coverage` counts them, because a project that does not count them
 will believe it has twelve working classes when it has twelve validated ones.
@@ -1649,6 +1649,79 @@ it passed everything. But `restoreOn` is pure over a pool, so a pool that
 recovers at *dawn* and gives one back on a Short Rest can simply be built. That
 is the difference between this and `placeArea`'s dead `no_scene`, which stayed
 dead because nothing could construct its case.
+
+### What A Pool Buys, Which Was The Half Nobody Had Built
+
+Every pool in the class tables was declared, sized correctly and refilled on
+the right rest — and almost none of them could be *spent*. A Fighter had two
+uses of Second Wind and no way to gain a hit point from either; a Paladin
+carried five hit points per level and could not give one away; a Sorcerer's
+Sorcery Points came back only at dawn. Four features' worth of arithmetic sat
+in `restore()` and `healCreature`, both correct, both reached by nothing.
+That is the same failure as `rollAttack` and `rollAbilityCheck` before them,
+and it now has a name in this file for the eighth and ninth time: **a pure
+function nothing calls is a rule nothing enforces.**
+
+Three shapes, and what separates them is what the spending buys:
+
+| Shape | Features | Spends | Buys |
+|---|---|---|---|
+| A recovery | Sorcerous Restoration, Magical Cunning, Uncanny Metabolism | one use of a pool of its own | uses of a *different* pool, capped |
+| A self-heal | Second Wind, Wholeness of Body | one use | a die plus something, for the holder |
+| A healing touch | Lay On Hands, Restoring Touch | hit points, one for one | hit points, and conditions at five apiece |
+
+**"Once you use this feature, you can't do so again until you finish a Long
+Rest" is a pool of one.** It is exactly what a pool already says, so it is one
+rather than a second kind of limit sitting beside them.
+
+**A cap is derived at the moment of use, never stored.** A pool's maximum can
+move; a number written on the sheet at creation would go on being the old one.
+The same rule `standing.ts` follows for every conditional benefit.
+
+**"Half your *Sorcerer* level" is that class's level.** Only a multiclassed
+character whose *starting* class is the other one can tell the two numbers
+apart — a mutation returning the character level passed every single-class
+fixture in the file.
+
+**A moment is a fact, not a mechanism**, and the engine records the ones it
+can see. `lastShortRestAt` joins `lastDamage` — the fact Hellish Rebuke's "in
+response to" needed — and holds the benefit the rest *earned*, so an
+interrupted Long Rest that collapsed into a Short one counts, which is what
+the SRD says it is. The window is the Reaction window: the clock has not moved
+since.
+
+Two moments the engine does **not** hold, stated rather than quietly skipped:
+
+- **Magical Cunning's "esoteric rite for 1 minute" is the table's.** No state
+  distinguishes a minute of ritual from a minute of walking, and performing a
+  rite is not arithmetic — the same side of the line a disguise is on.
+- **"When you roll Initiative" is the first turn of the fight.** That is the
+  closest the engine holds, and it is the same window for everyone in the
+  order rather than one that depends on where in it the holder sits. *A turn,
+  not a round*: with one combatant the two are indistinguishable, which is how
+  a mutation reading it as "the first round" passed a whole file.
+
+**"Those points don't also restore Hit Points to the creature"** is why Lay On
+Hands keeps the cost and the healing as two numbers. Five points buy the
+lifting and heal nothing, so a Paladin who draws 3 and lifts Poisoned spends 8
+and the creature gains 3. And the SRD removes *the condition*, not a cause of
+it, so an ally poisoned twice over is not half-cured.
+
+**A touch is five feet, and the number that proves it is ten.** A test at
+twenty cannot tell a touch from a Reach weapon.
+
+**An event that always happens is where a stamp has to ride.** A healing touch
+that only lifts a condition heals nothing and rolls nothing, so `resource-spent`
+carries the command stamp — the lesson an effect check against an illusion
+already taught, in its third instance. TypeScript did not catch the missing
+field, because excess-property checking on a union accepts a property that any
+member of it declares.
+
+**Half a feature is not executed.** Persistent Rage says the same sentence as
+Uncanny Metabolism and is still `manual`, because its other half — a feature
+changing *another* feature's activation — has one user, and an abstraction
+with one user is a guess dressed up as a structure. Its note says which half
+and why, which is the only honest place for that to live.
 
 ### A Check A Spell Offers Against What It Is Still Doing
 
@@ -2366,7 +2439,7 @@ null and is reported — it never becomes either.
   reason it is still open. Equipment closes the loop from a creation choice to
   Armour Class: packages are granted by id, packs are opened, purchases are
   priced in copper, and what is worn is separate from what is carried.
-- M1 leftovers, none of them blocking: **class feature execution** (46 of 230
+- M1 leftovers, none of them blocking: **class feature execution** (80 of 230
   features run; the rest say what a DM still does), the remaining species and
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is

@@ -83,8 +83,33 @@ still Wizard-shaped are named below.
 | Rolls features change | Advantage on Initiative and on a skill; saving throw proficiencies | `92a3c88` |
 | Class pools | Nine features that claimed a pool and had none | `abf6b7b` |
 | Partial refill | One use back on a Short Rest; five features that say it | `cc02125` |
+| Recovery | A feature that gives another pool's uses back; Sorcerous Restoration, Magical Cunning | `00d2e1b` |
+| Self-heal | Spend a use, roll the die, heal; Second Wind, Wholeness of Body | `d3e64e9` |
+| Recovery + heal | Uncanny Metabolism, which the two batches above had already built | `1c1e900` |
+| Healing touch | A pool of hit points spent by touching somebody; Lay On Hands, Restoring Touch | `ec14f10` |
 
 ## Decisions that constrain what comes next
+
+- **A pool that cannot be spent is half a feature.** Every pool in the class
+  tables was declared and sized correctly and almost none could be *spent* —
+  `restore()` and `healCreature` were both correct and reached by nothing.
+  Three spending shapes now exist (a recovery, a self-heal, a healing touch)
+  and they are told apart by what the spending buys, not by which class says
+  it. See CLAUDE.md, "What A Pool Buys".
+- **A limit of "once until you finish a Long Rest" is a pool of one.** Not a
+  second kind of limit; the pool system already says exactly that.
+- **A cap is derived at use, never stored.** A pool's maximum moves, and a
+  number written at creation goes on being the old one.
+- **A moment the engine can see is recorded; one it cannot is the table's, and
+  says so.** `lastShortRestAt` is a fact beside `lastDamage`. Magical
+  Cunning's one-minute rite is fiction — no state tells it from a minute of
+  walking. "When you roll Initiative" is the first turn of the fight, which is
+  the closest the engine holds and the same window for everyone in the order.
+- **Half a feature is not executed, even when the other half is cheap.**
+  Persistent Rage says Uncanny Metabolism's sentence and is still `manual`,
+  because its second clause is a feature changing another feature's activation
+  — one user, and an abstraction with one user is a guess. The note says which
+  half and why.
 
 - **Four states, never conflated**: parsed / tracked / executed / verified.
   **Tracked** is the one added here and it is not a half-finished *executed*:
@@ -1116,89 +1141,77 @@ outright, whose check is built and waiting.
 in order except that teleportation slipped: the previous batch had to name it
 as a blocker, and nothing since has made it more pressing.
 
-## The class-feature map, after the overnight run
+## The class-feature map, after eleven batches
 
-Audited by grouping all 169 non-executed features by the mechanical primitive
-each needs, rather than by class. Seven batches took 61 executed features to
-75 and made nine more of the existing 61 tell the truth. What is left is ranked
-below, and the top three all need a decision that should not be taken while
-nobody is awake to argue with it.
-
-### What was built, and what each shape cost
-
-| Shape | Features | Machinery it needed |
-|---|---|---|
-| Once-per-turn attack damage | Sneak Attack, Colossus Slayer | `featureUsedOnTurn` on the turn budget; a `feature-used` event |
-| The same, with the type chosen at the hit | Divine Strike, Primal Strike, and both "Improved" steps | `featureDamageTypes` on the attack command |
-| Critical range | Improved Critical, Superior Critical | `criticalOn` on the sheet and in `rollAttack` |
-| Evasion | Rogue's, Monk's | one `StandingGrant` member read by the save-for-damage path |
-| Advantage on Initiative and on a skill | Feral Instinct, Remarkable Athlete | two `advantage` members; modes merged in `rollInitiativeFor` |
-| Saving throw proficiencies | Slippery Mind, Disciplined Survivor | a `save-proficiency` grant unioned at creation |
-| A feature that *is* a pool | nine that claimed one and had none | a `pool` grant with three SRD ways of sizing it |
-| One use back on a Short Rest | Rage, both Channel Divinities, Wild Shape, Second Wind | `regainsOnShortRest` in `restoreOn` |
-
-### The ranked map of what is left
+All 150 non-executed features grouped by the mechanical primitive each needs,
+rather than by class. Four more batches took 75 executed features to 80 and
+finally spent pools that had been declared and idle since they landed.
 
 | Rank | Shape | Features | Why it is where it is |
 |---|---|---|---|
 | 1 | A Reaction a feature takes in answer to something | ~8 | the largest coherent bucket left, and the one real D&D misses most |
 | 2 | A turn-scoped stance later rolls read | ~4 | Reckless Attack, and Frenzy waits behind it |
-| 3 | An ability modifier added to spell damage | 3 | small, but the SRD wording is ambiguous on multi-target spells |
-| 4 | A Speed a feature changes | ~5 | blocked on a seam, not on a rule — see below |
-| 5 | An activated recovery: spend a use, regain up to N | 2 | Sorcerous Restoration, Magical Cunning |
-| 6 | Extra attacks inside the Attack action | ~4 | Horde Breaker, Flurry of Blows, Thief's Reflexes |
-| 7 | Transformations | ~6 | Wild Shape's Beast form, Alter Self, Polymorph |
+| 3 | A Speed a feature changes | ~5 | blocked on a module seam, not on a rule |
+| 4 | An ability modifier on spell damage | 3 | small, and the SRD wording is ambiguous on multi-target spells |
+| 5 | An action taken as a Bonus Action | ~4 | Cunning Action, Patient Defense, Step of the Wind, Fleet Step |
+| 6 | Weapon mastery properties | 5 | parsed onto weapons, executed by nothing |
+| 7 | Transformations | ~6 | Wild Shape's Beast form, and every summon |
 
-**1. A Reaction a feature takes in answer to something.** Uncanny Dodge,
-Deflect Attacks, Deflect Energy, Cutting Words, Superior Hunter's Defense,
-Retaliation, Countercharm, Dark One's Own Luck. The engine has *both* halves of
-every one of them already — `reduceDamage`, `interveneAfterRoll`, `rerollTest`
-are written, correct and tested — and nothing fires them, which makes this the
-seventh and largest instance of *a pure function nothing calls is a rule
-nothing enforces*. Damage names its dealer now, so the fact these features need
-is in state. What is missing is a **feature-level trigger** and an ordering of
-the Reaction against the event that provoked it. Spells got theirs
-(`ReactionTrigger`, `pendingAttack`, `pendingCasting`) and the shape is proven;
-whether a feature's trigger is the same mechanism or a second one is exactly
-the architectural question to put to a person.
+**1. A Reaction a feature takes.** Unchanged and still the top of the list.
+Uncanny Dodge, Deflect Attacks, Deflect Energy, Cutting Words, Superior
+Hunter's Defense, Retaliation, Countercharm, Dark One's Own Luck. Both halves
+of every one of them are written — `reduceDamage`, `interveneAfterRoll`,
+`rerollTest` — and nothing fires them. What is missing is a feature-level
+trigger and an ordering of the Reaction against the event that provoked it.
+Spells have theirs; whether a feature's is the same mechanism or a second one
+beside it is the architectural question to put to a person.
 
-**2. A turn-scoped stance later rolls read.** Reckless Attack is the headline —
-"you have Advantage on your attack rolls, and attack rolls against you have
-Advantage until your next turn" — and Frenzy is written in terms of it. Also
-Steady Aim, Studied Attacks, Sacred Weapon. The state is small and the shape is
-clear; what makes it a decision rather than a batch is that "until your next
-turn" is a deadline the duration system already owns, and whether a stance is a
-`TimedEffect`, a standing effect with a turn-anchored requirement, or a third
-thing is a design call with the other three features riding on it.
+**2. A turn-scoped stance.** Reckless Attack, Frenzy, Steady Aim, Studied
+Attacks, Sacred Weapon. "Until your next turn" is a deadline the duration
+system owns; whether a stance is a `TimedEffect`, a standing effect with a
+turn-anchored requirement, or a third thing is a design call with four
+features riding on it.
 
-**3. An ability modifier added to spell damage.** Potent Spellcasting (Cleric),
-Potent Spellcasting (Druid) and Empowered Evocation, which between them would
-finish both halves of Blessed Strikes and Elemental Fury. Held back tonight for
-a reason worth stating: SRD says "add your Wisdom modifier to the damage you
-deal with any Cleric cantrip", and on a cantrip that hits several creatures it
-does not say whether that is once or once per target. Empowered Evocation says
-"one damage roll", which is different again. Guessing would be an
-interpretation with real downstream consequences.
+**3. A Speed a feature changes — a seam, not a rule.** Fast Movement,
+Unarmored Movement, Roving, Second-Story Work, Acrobatic Movement. "+10 feet
+while you aren't wearing armour" is trivial; the blocker is that a combatant's
+Speed is captured into `CombatState` at `combat-started` and `beginTurn`
+refreshes the movement budget from it, while `combat.ts` is deliberately a
+pure module over `CombatState` with no access to creature state. Fixing that
+means passing creature state into the turn boundary or moving Speed out of the
+combat order, and both are decisions about module boundaries.
 
-**4. A Speed a feature changes — blocked on a seam, not on a rule.** Fast
-Movement, Unarmored Movement, Roving, Second-Story Work, Acrobatic Movement.
-The rule is trivial ("+10 feet while you aren't wearing armour") and the
-blocker is structural: a combatant's Speed is captured into `CombatState` at
-`combat-started`, and `beginTurn` refreshes the movement budget from
-`combatant.speed` — so a conditional bonus would have to be read at the refresh,
-and `combat.ts` is deliberately a pure module over `CombatState` with no access
-to creature state. Fixing that means either passing creature state into the
-turn boundary or moving Speed out of the combat order, and both are decisions
-about module boundaries rather than about D&D.
+**4. An ability modifier on spell damage.** Potent Spellcasting (Cleric and
+Druid) and Empowered Evocation. SRD says "add your Wisdom modifier to the
+damage you deal with any Cleric cantrip" and does not say whether that is once
+or once per target on a cantrip that hits several; Empowered Evocation says
+"one damage roll", which is different again.
 
-**5. An activated recovery.** Sorcerous Restoration and Magical Cunning both
-read "you can regain expended X, but no more than half your Y; once you use
-this feature, you can't do so again until you finish a Long Rest" — two users,
-one shape, and the once-per-long-rest limiter is just a one-use pool the
-feature spends. `restore()` in `resources.ts` already gives back N uses of one
-pool and is still reached by no command. This is the smallest item on the list
-and is only below the four above it because it unblocks two features rather
-than eight.
+**5. An action taken as a Bonus Action.** Cunning Action (Dash, Disengage or
+Hide), Patient Defense (Disengage), Step of the Wind (Dash), Fleet Step. The
+economy already distinguishes an Action from a Bonus Action and `takeDash`,
+`takeDisengage` and `takeDodge` all exist; what is missing is a grant saying
+which actions a feature may pay for the other way, and the paid upgrades
+("expend 1 Focus Point to take **both**") are a second shape. **Hide is not an
+action the engine models for anybody**, which is the one thing to settle
+before starting: whether Cunning Action can honestly be called executed while
+one of its three actions does not exist.
+
+**6. Weapon mastery properties.** Cleave, Graze, Nick, Push, Sap, Slow,
+Topple, Vex, wanted by five classes. They are parsed onto the weapons already.
+Each is a small rule and several of them touch the attack pipeline in
+different places, so it is a batch of eight transcriptions rather than one
+primitive — which is why it is below the four above it despite being unblocked.
+
+**Two smaller things noticed in passing and not fixed:**
+
+- **No Epic Boon feat is defined**, so no character above level 18 can be
+  created. Every class's level 19 feature grants one and the feat catalogue has
+  none, and no test builds a character that high, so nothing says so.
+- **Excess-property checking does not protect an event type.** A command
+  emitted `command: stamp` on an event whose type did not declare the field
+  and TypeScript accepted it, because a union accepts a property any member
+  declares. The idempotency sweep is what caught it.
 
 ## Next actions, in order
 
@@ -1372,8 +1385,8 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells verified end to end | 47 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 75 of 230 |
-| Tests | 3,515 passing, none skipped |
+| Class features executed | 80 of 230 |
+| Tests | 3,598 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,
