@@ -2748,6 +2748,143 @@ export function activateFeature(
   return ok(events);
 }
 
+export interface HealingTouchCommand extends CommandIdentity {
+  readonly feature: string;
+  readonly target: CharacterId;
+  /** Hit points to draw. Zero is legal when the touch is only lifting. */
+  readonly hitPoints?: number;
+  /** Conditions to lift, each at the feature's own cost. */
+  readonly lift?: readonly ConditionName[];
+}
+
+/**
+ * Draw on a pool of hit points by touching somebody.
+ *
+ * SRD Lay On Hands: "As a Bonus Action, you can touch a creature (which could
+ * be yourself) and draw power from the pool of healing to restore a number of
+ * Hit Points to that creature, up to the maximum amount remaining in the
+ * pool. You can also expend 5 Hit Points from the pool of healing power to
+ * remove the Poisoned condition from the creature; **those points don't also
+ * restore Hit Points to the creature.**"
+ *
+ * That last clause is the whole reason the cost and the healing are two
+ * numbers. Five points buy the lifting and heal nothing, so a Paladin who
+ * draws 3 and lifts Poisoned spends 8 and the creature gains 3.
+ *
+ * Restoring Touch lengthens the list of conditions and changes nothing else,
+ * which is why it is not a second command: it is the Improved Critical shape,
+ * a later feature restating an earlier one.
+ *
+ * **The whole drawing is validated before any of it is spent**, so a Paladin
+ * who asks for more than the pool holds keeps every point.
+ */
+export function useHealingTouch(
+  state: GameState,
+  id: CharacterId,
+  command: HealingTouchCommand,
+): Result<GameEvent[]> {
+  const identity = identify(state, `healing-touch:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+
+  const definition = (creature.sheet.healingTouch ?? []).find((h) => h.feature === command.feature);
+  if (definition === undefined) {
+    return err('no_such_feature', `${id} has no feature called ${command.feature}`);
+  }
+
+  const target = creatureOf(state, command.target);
+  if (target === null) return unknownCreature(command.target);
+
+  const hitPoints = command.hitPoints ?? 0;
+  if (!Number.isInteger(hitPoints) || hitPoints < 0) {
+    return err('bad_amount', `a drawing is a whole number of hit points, got ${hitPoints}`);
+  }
+
+  const lift = command.lift ?? [];
+  if (new Set(lift).size !== lift.length) {
+    return err('duplicate_condition', 'a condition named twice would be charged for twice');
+  }
+  for (const condition of lift) {
+    if (!definition.lifts.includes(condition)) {
+      return err('cannot_lift', `${definition.name} does not lift the ${condition} condition`);
+    }
+  }
+
+  const drawn = hitPoints + lift.length * definition.costPerCondition;
+  if (drawn < 1) return err('nothing_drawn', `${definition.name} was used to draw nothing`);
+
+  const left = remaining(creature.resources, definition.pool);
+  if (left < drawn) {
+    return err('exhausted', `${definition.name} has ${left} left, and ${drawn} was drawn`);
+  }
+
+  // SRD: "you can touch a creature." A Paladin always reaches themselves; for
+  // anyone else it is the reach a fist has, measured the way everything else
+  // is. The three-valued discipline positioning keeps everywhere: no scene is
+  // a table not using positions and the touch lands, a scene with somebody
+  // unplaced is a gap in a record the table *is* keeping and is asked about.
+  if (command.target !== id && state.scene !== null) {
+    const measured = distanceBetween(state.scene, id, command.target);
+    if (!measured.ok) {
+      const scene = state.scene;
+      const off = [id, command.target].filter((who) => positionOf(scene, who) === null);
+      return needsContext(
+        'unplaced',
+        `nobody has said where ${off.join(' or ')} ${off.length === 1 ? 'is' : 'are'} standing, and ${definition.name} is a touch`,
+        off.map((who) => ({
+          kind: 'position' as const,
+          subject: who,
+          need: `where ${who} is standing`,
+          because: `${definition.name} reaches five feet`,
+          satisfyWith: 'creature-placed',
+        })),
+      );
+    }
+    if (measured.value > 5) {
+      return err(
+        'out_of_reach',
+        `${command.target} is ${measured.value} feet away, and ${definition.name} is a touch`,
+      );
+    }
+  }
+
+  const events: GameEvent[] = [];
+
+  // The action economy only exists in combat; outside it there is nothing to
+  // spend, exactly as every other feature here finds.
+  if (state.combat !== null) {
+    const spent = spendFor(state, id, definition.action);
+    if (!spent.ok) return spent;
+    events.push(spent.value);
+  }
+
+  events.push({
+    type: 'resource-spent',
+    id,
+    key: definition.pool,
+    amount: drawn,
+    ...(stamp === null ? {} : { command: stamp }),
+  });
+
+  if (hitPoints > 0) {
+    const healed = healCreature(state, command.target, hitPoints);
+    if (!healed.ok) return healed;
+    events.push(...healed.value);
+  }
+
+  // SRD removes *the condition*, not a cause of it — so an ally poisoned twice
+  // over is not half-cured. Omitting the source is how the reducer says that.
+  for (const condition of lift) {
+    events.push({ type: 'condition-removed', id: command.target, condition });
+  }
+
+  return ok(events);
+}
+
 export interface UseSelfHealCommand extends CommandIdentity {
   readonly feature: string;
 }

@@ -45,6 +45,7 @@ import {
   takeOpportunityAttack,
   takeReady,
   unequipItem,
+  useHealingTouch,
   useRecovery,
   useSelfHeal,
 } from './commands.js';
@@ -88,6 +89,16 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   weaponProficiencies: ['simple', 'martial'],
   activated: [
     { feature: 'test:stance', name: 'Stance', action: 'bonus-action', pool: null, lasts: 'end-of-next-turn' },
+  ],
+  healingTouch: [
+    {
+      feature: 'test:healing-touch',
+      name: 'A Kindly Hand',
+      action: 'bonus-action',
+      pool: 'test:vigour',
+      lifts: ['poisoned'],
+      costPerCondition: 2,
+    },
   ],
   selfHeals: [
     {
@@ -359,6 +370,15 @@ const GUARDED: readonly Guarded[] = [
       resolveCast(s, A, { spell: 'Inflict Wounds', level: 1, slotLevel: 1, commandId }),
   },
   { name: 'resolveTurn', log: SETUP, run: (s, commandId) => resolveTurn(s, supply(), { commandId }) },
+  {
+    // The touch that only *lifts* a condition heals nothing and rolls
+    // nothing, so the stamp has nowhere to ride but the spend itself — which
+    // is exactly the shape this sweep exists to catch.
+    name: 'useHealingTouch',
+    log: [...vigorous(), { type: 'condition-applied', id: B, condition: 'poisoned', source: 'a spider' }],
+    run: (s, commandId) =>
+      useHealingTouch(s, A, { feature: 'test:healing-touch', target: B, lift: ['poisoned'], commandId }),
+  },
   {
     name: 'useSelfHeal',
     log: vigorous(),

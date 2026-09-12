@@ -1,4 +1,11 @@
-import { err, ok, type Ability, type Result, type Skill } from '@ie/shared';
+import {
+  err,
+  ok,
+  type Ability,
+  type ConditionName,
+  type Result,
+  type Skill,
+} from '@ie/shared';
 import type { ArmorTraining } from './character.js';
 import type { Recovery } from './resources.js';
 import type { ActivationEnd, StandingGrant, StandingRequirement } from './standing.js';
@@ -256,6 +263,22 @@ export type FeatureGrant =
    */
   | { readonly kind: 'critical-range'; readonly on: number }
   /**
+   * More conditions a healing pool can lift.
+   *
+   * SRD Restoring Touch: "When you use Lay On Hands on a creature, you can
+   * also remove one or more of the following conditions... You must expend 5
+   * Hit Points from the healing pool of Lay On Hands for each of these
+   * conditions you remove." It widens a feature it does not own, which is the
+   * shape Improved Critical already has — a second feature restating the
+   * first rather than a second mechanism. What it restates is a list instead
+   * of a number, so the lists are unioned where the thresholds were minimised.
+   */
+  | {
+      readonly kind: 'lifts-conditions';
+      readonly pool: string;
+      readonly conditions: readonly ConditionName[];
+    }
+  /**
    * SRD Slippery Mind: "You gain proficiency in Wisdom and Charisma saving
    * throws"; Disciplined Survivor: "proficiency in all saving throws".
    *
@@ -311,6 +334,22 @@ export type FeatureGrant =
        * wrong.
        */
       readonly heals?: HealGrant & { readonly action: 'action' | 'bonus-action' };
+      /**
+       * A pool measured in **hit points**, and what touching somebody spends
+       * them on.
+       *
+       * SRD Lay On Hands, the only pool in the class tables counted in hit
+       * points rather than in uses — which the pool system carries without
+       * caring, and the spending is the half that had never been wired. The
+       * conditions it lifts are a list because a later feature lengthens it;
+       * the cost is a number because the SRD prints one and then repeats it.
+       */
+      readonly touchHeals?: {
+        readonly action: 'action' | 'bonus-action';
+        /** SRD: "expend 5 Hit Points ... to remove the Poisoned condition". */
+        readonly lifts: readonly ConditionName[];
+        readonly costPerCondition: number;
+      };
     }
   /**
    * A feature that gives a *different* pool's uses back — see

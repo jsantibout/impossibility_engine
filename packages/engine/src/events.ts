@@ -800,6 +800,16 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly key: string;
       readonly amount: number;
+      /**
+       * The command this spend settles, where the spend is the only event a
+       * command always emits.
+       *
+       * Lay On Hands is the case: a touch that only lifts a condition heals
+       * nothing and rolls nothing, so the stamp has nowhere else to ride — and
+       * a guard whose event never happens is a guard that never fires, which
+       * is the lesson an effect check against an illusion already taught.
+       */
+      readonly command?: CommandStamp;
     }
   | { readonly type: 'resources-restored'; readonly id: CharacterId; readonly recovers: Recovery }
   /**

@@ -2,6 +2,7 @@ import {
   ABILITIES,
   ABILITY_NAMES,
   SKILLS,
+  type ConditionName,
   err,
   needsContext,
   ok,
@@ -19,6 +20,7 @@ import {
 import type {
   ActivatedFeature,
   HealAmount,
+  HealingTouch,
   RecoveryFeature,
   SelfHealFeature,
   StandingEffect,
@@ -1854,6 +1856,25 @@ export function planCharacter(
     };
   };
 
+  // A pool of hit points spent by touching somebody. What it can lift is the
+  // union of what every feature says, because Restoring Touch lengthens a list
+  // it does not own — the same move Improved Critical makes on a threshold,
+  // with a union where that one takes a minimum.
+  const healingTouch: HealingTouch[] = [];
+  for (const feature of features) {
+    const grant = feature.grants;
+    if (grant?.kind !== 'pool' || grant.touchHeals === undefined) continue;
+
+    healingTouch.push({
+      feature: feature.id,
+      name: feature.name,
+      action: grant.touchHeals.action,
+      pool: grant.key,
+      lifts: liftsFor(features, grant.key, grant.touchHeals.lifts),
+      costPerCondition: grant.touchHeals.costPerCondition,
+    });
+  }
+
   const selfHeals: SelfHealFeature[] = [];
   for (const feature of features) {
     const grant = feature.grants;
@@ -1996,6 +2017,7 @@ export function planCharacter(
     ...(activated.length === 0 ? {} : { activated }),
     ...(recoveries.length === 0 ? {} : { recoveries }),
     ...(selfHeals.length === 0 ? {} : { selfHeals }),
+    ...(healingTouch.length === 0 ? {} : { healingTouch }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every
@@ -2233,6 +2255,29 @@ function slotPools(plan: CharacterPlan): readonly PoolDeclaration[] {
  * is a resource pool like any other, so it is one.
  */
 export const freeCastPoolKey = (featureId: string): string => `${featureId}:free-cast`;
+
+/**
+ * Every condition a healing pool can lift: its own, plus whatever later
+ * features add to *that* pool.
+ *
+ * Exported because it is the only way to reach the half that matters. There is
+ * exactly one `lifts-conditions` grant in the SRD — Restoring Touch — so a
+ * mutation dropping the pool match changed nothing, and no class can be built
+ * that would catch it. The function is pure over a list of features, so a list
+ * with two healing pools in it can simply be written.
+ */
+export function liftsFor(
+  features: readonly FeatureDefinition[],
+  pool: string,
+  base: readonly ConditionName[],
+): readonly ConditionName[] {
+  const added = features.flatMap((feature) =>
+    feature.grants?.kind === 'lifts-conditions' && feature.grants.pool === pool
+      ? feature.grants.conditions
+      : [],
+  );
+  return [...new Set([...base, ...added])].sort();
+}
 
 /** The pools a character of this class and level has. */
 function poolEvents(

@@ -328,6 +328,25 @@ export interface HealAmount {
   readonly minimum?: number;
 }
 
+/**
+ * A pool of hit points a feature spends by touching somebody.
+ *
+ * SRD Lay On Hands and the Restoring Touch that lengthens its list. Not
+ * `SelfHealFeature`: that spends a *use* on its holder and rolls for the
+ * amount, where this spends the amount itself, on anybody within reach, and
+ * rolls nothing. "Those points don't also restore Hit Points to the creature"
+ * is why the cost and the healing are two numbers rather than one.
+ */
+export interface HealingTouch {
+  readonly feature: string;
+  readonly name: string;
+  readonly action: 'action' | 'bonus-action';
+  readonly pool: string;
+  /** Sorted and deduplicated across every feature that contributes to it. */
+  readonly lifts: readonly ConditionName[];
+  readonly costPerCondition: number;
+}
+
 export interface SelfHealFeature extends HealAmount {
   readonly feature: string;
   readonly name: string;

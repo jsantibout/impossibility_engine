@@ -1,6 +1,7 @@
 import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shared';
 import type {
   ActivatedFeature,
+  HealingTouch,
   RecoveryFeature,
   SelfHealFeature,
   StandingEffect,
@@ -116,6 +117,14 @@ export interface CharacterSheet {
    * die off a class table.
    */
   readonly selfHeals?: readonly SelfHealFeature[];
+  /**
+   * Pools of hit points spent by touching somebody — Lay On Hands, and the
+   * Restoring Touch that lengthens the list of conditions it lifts.
+   *
+   * Resolved at creation, because what one feature can lift is the union of
+   * what several of them say.
+   */
+  readonly healingTouch?: readonly HealingTouch[];
   /**
    * How many attacks this character's Attack action holds. One, unless a
    * feature says otherwise.

@@ -98,13 +98,17 @@ export const PALADIN: ClassDefinition = {
       name: 'Lay On Hands',
       level: 1,
       automation: 'engine',
-      note: 'Declared as a pool of five hit points per Paladin level, refilling on a Long Rest — SRD: "a total number of Hit Points equal to five times your Paladin level". A pool of hit points rather than of uses, which the pool system carries without caring. Spending it to heal, and the 5 points that end the Poisoned condition, are not wired to it.',
+      note: 'Declared as a pool of five hit points per Paladin level, refilling on a Long Rest — SRD: "a total number of Hit Points equal to five times your Paladin level". A pool of hit points rather than of uses, which the pool system carries without caring. Spending it is the engine’s too: a Bonus Action, a touch within five feet, hit points restored one for one, and five more to end the Poisoned condition — "those points don’t also restore Hit Points to the creature".',
       grants: {
         kind: 'pool',
         key: 'lay-on-hands',
         label: 'Lay On Hands',
         perClassLevel: 5,
         recovers: 'long-rest',
+        // SRD: "As a Bonus Action, you can touch a creature (which could be
+        // yourself)... You can also expend 5 Hit Points ... to remove the
+        // Poisoned condition."
+        touchHeals: { action: 'bonus-action', lifts: ['poisoned'], costPerCondition: 5 },
       },
     },
     {
@@ -236,8 +240,13 @@ export const PALADIN: ClassDefinition = {
       id: 'paladin:restoring-touch',
       name: 'Restoring Touch',
       level: 14,
-      automation: 'manual',
-      note: 'Spending Lay On Hands to end a condition is not modelled; the pool exists and what it buys does not.',
+      automation: 'engine',
+      note: 'SRD: "When you use Lay On Hands on a creature, you can also remove one or more of the following conditions from the creature: Blinded, Charmed, Deafened, Frightened, Paralyzed, or Stunned. You must expend 5 Hit Points from the healing pool of Lay On Hands for each of these conditions you remove; those points don’t also restore Hit Points." It lengthens the list Lay On Hands carries and changes nothing else.',
+      grants: {
+        kind: 'lifts-conditions',
+        pool: 'lay-on-hands',
+        conditions: ['blinded', 'charmed', 'deafened', 'frightened', 'paralyzed', 'stunned'],
+      },
     },
     {
       id: 'paladin:aura-expansion',
