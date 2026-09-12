@@ -98,8 +98,16 @@ Other commands:
 ```bash
 npm run typecheck      # tsc for sources and tests
 npm run lint           # ESLint 10
+npm run coverage       # regenerate COVERAGE.md — commit the result
 npm run srd:ingest     # re-parse the vendored SRD and write JSON
+npm run srd:index      # rebuild the typed indexes from that JSON
 ```
+
+`packages/srd/src/generated/` is gitignored, so a fresh clone needs
+`npm run srd:ingest` before `npm test` — one test file reads it at import.
+
+Contributing, and working alongside someone else on it: see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 `srd:ingest` asserts counts rather than only the absence of errors — a parser
 that silently skips everything reports no problems at all.

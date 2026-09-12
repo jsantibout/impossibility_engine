@@ -76,6 +76,37 @@ optional dependency package, so the script is redundant here — vitest resolves
 and runs esbuild without it, and the whole suite passes. Left unrecorded, npm
 warns on every install and in CI.
 
+## Two people work on this repo
+
+**`CONTRIBUTING.md` is the full picture — ownership, the daily loop, and a
+per-file conflict playbook. This is the part that must not be broken by an agent
+that has not read it.**
+
+Work is split by file, not by feature, because files are what git resolves.
+**A owns content** — spell definitions, the registry, `VERIFIED_SPELLS`, the
+spell tests. **B owns mechanism** — `commands.ts`, `events.ts`, the timing and
+positioning modules, and the *type declarations* at the top of
+`spell-definitions.ts`. Stay in your lane; if a change genuinely needs the other
+lane, say so rather than reaching across.
+
+Four rules that a session will otherwise break, all of them learned here:
+
+- **Never regenerate `packages/engine/fixtures/golden-log.json`.** It is frozen
+  on purpose. Regenerating it to make `persistence.test.ts` pass converts a
+  compatibility test into a rubber stamp, which is worse than deleting it.
+- **Always run `npm run coverage`** after touching a spell definition, and
+  commit the result. CI fails on a stale `COVERAGE.md`.
+- **Check the registry before adding a spell.** Two parallel sessions once both
+  wrote Vitriolic Sphere; only a duplicate-symbol error caught it. Grep first.
+- **Rebase on `main` before pushing**, and keep pull requests to one logical
+  change.
+
+Four tracked files are `merge=binary` in `.gitattributes` and will never
+auto-merge: `COVERAGE.md`, `package-lock.json`, `packages/srd/src/*-index.ts`
+and `golden-log.json`. That is deliberate — each is regenerated rather than
+merged, and a text merge of them succeeds while producing something nobody
+computed. `CONTRIBUTING.md` says what to run for each.
+
 ## Architecture
 
 Five layers, strictly one-directional. Nothing below the tool boundary knows an
