@@ -121,6 +121,12 @@ export interface AttackOptions {
   /** The weapon used, or null for an Unarmed Strike. */
   readonly weapon: Weapon | null;
   readonly targetAc: number;
+  /**
+   * The lowest natural d20 that scores a Critical Hit. 20 unless a feature
+   * lowers it — SRD Improved Critical and Superior Critical are the two that
+   * do. Read off the attacker's sheet by `resolveAttack`.
+   */
+  readonly criticalOn?: number;
   /** Whether the attacker is proficient. Defaults to true. */
   readonly proficient?: boolean;
   /** Wielded in two hands, for a Versatile weapon. */
@@ -287,7 +293,19 @@ export function rollAttack(
   // SRD "Rolling 20 or 1": a natural 20 hits regardless of modifiers or AC, and
   // a natural 1 misses regardless. This is the one D20 Test where the die face
   // overrides the total.
-  const hit = roll.isCriticalHit || (!roll.isCriticalMiss && total >= options.targetAc);
+  //
+  // A feature may lower which face scores a Critical Hit — SRD Improved
+  // Critical: "can score a Critical Hit on a roll of 19 or 20" — and the
+  // auto-hit follows it rather than staying pinned to the number 20. The
+  // glossary binds the two in one sentence: "you score a Critical Hit, **and
+  // the attack hits** regardless of any modifiers or the target's AC." So a
+  // Champion's 19 hits an Armour Class it could not otherwise reach.
+  //
+  // A natural 1 is untouched. No SRD feature raises the miss face, and the
+  // sentence that sets it names the number rather than a rule.
+  const criticalOn = options.criticalOn ?? 20;
+  const naturalCritical = roll.natural >= criticalOn && !roll.isCriticalMiss;
+  const hit = naturalCritical || (!roll.isCriticalMiss && total >= options.targetAc);
 
   // SRD Paralyzed and Unconscious: "Any attack roll that hits you is a Critical
   // Hit if the attacker is within 5 feet of you." A hit that was not a natural
@@ -305,7 +323,7 @@ export function rollAttack(
     total,
     targetAc: options.targetAc,
     hit,
-    critical: roll.isCriticalHit || automaticCritical,
+    critical: naturalCritical || automaticCritical,
   });
 }
 

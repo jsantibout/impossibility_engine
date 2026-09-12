@@ -245,8 +245,9 @@ export const CHAMPION: SubclassDefinition = {
       id: 'champion:improved-critical',
       name: 'Improved Critical',
       level: 3,
-      automation: 'manual',
-      note: 'Scoring a critical on a 19 is not applied: `rollAttack` reads a natural 20 and has no threshold to lower.',
+      automation: 'engine',
+      note: 'SRD: "Your attack rolls with weapons and Unarmed Strikes can score a Critical Hit on a roll of 19 or 20 on the d20." The threshold is on the sheet and `rollAttack` reads it, so a 19 doubles the damage dice — and hits, because the glossary binds the two in one sentence: "you score a Critical Hit, and the attack hits regardless of any modifiers or the target’s AC."',
+      grants: { kind: 'critical-range', on: 19 },
     },
     {
       id: 'champion:remarkable-athlete',
@@ -274,8 +275,9 @@ export const CHAMPION: SubclassDefinition = {
       id: 'champion:superior-critical',
       name: 'Superior Critical',
       level: 15,
-      automation: 'manual',
-      note: 'Critical on an 18 or higher, for the same reason as Improved Critical.',
+      automation: 'engine',
+      note: 'SRD: "can now score a Critical Hit on a roll of 18-20 on the d20." The threshold restates the whole rule rather than widening the earlier one, so the lowest grant wins — the same reading Extra Attack takes of its own total.',
+      grants: { kind: 'critical-range', on: 18 },
     },
     {
       id: 'champion:survivor',

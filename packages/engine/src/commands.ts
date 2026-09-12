@@ -2178,6 +2178,11 @@ export function resolveAttack(
     weapon,
     targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
     proficient: proficientWith(attacker.sheet, weapon),
+    // SRD Improved Critical, off the attacker's own sheet rather than the
+    // caller's hand: a Champion's 19 is a critical whoever is narrating.
+    ...(attacker.sheet.criticalOn === undefined
+      ? {}
+      : { criticalOn: attacker.sheet.criticalOn }),
     ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
     ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
     ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),

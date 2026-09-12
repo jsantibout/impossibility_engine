@@ -77,7 +77,8 @@ still Wizard-shaped are named below.
 | Utility audit | 76 spells read one at a time; 30 tracked; `unmodelled` given a guard | `5d1dfc4` |
 | Ability checks | A check a spell offers against its own ongoing effect; `checks.ts` reachable | `e9a323f` |
 | Once per turn | An attack-damage rider with a per-turn allowance; Sneak Attack, Colossus Slayer | `52274c9` |
-| Chosen damage type | A rider whose type the holder names at the hit; Divine Strike, Primal Strike | _this batch_ |
+| Chosen damage type | A rider whose type the holder names at the hit; Divine Strike, Primal Strike | `bae34d8` |
+| Critical range | The die face that scores a Critical Hit, off the sheet; the Champion | _this batch_ |
 
 ## Decisions that constrain what comes next
 
@@ -693,6 +694,31 @@ still Wizard-shaped are named below.
   same validate-before-rolling discipline, and the mutation that moves it after
   the roll fails two tests.
 
+- **A Critical Hit carries its own auto-hit, and the SRD binds them in one
+  sentence.** The glossary: "you score a Critical Hit, **and the attack hits**
+  regardless of any modifiers or the target's AC." So Improved Critical does
+  not merely double dice on a 19 — a Champion's 19 hits an Armour Class it
+  could not otherwise reach. Reading the auto-hit as pinned to the *number* 20
+  rather than to *scoring a critical* is the alternative, and it is the one
+  that contradicts the sentence. Pinned by a test that rolls a 19 against
+  Armour Class 50.
+- **The natural 1 is pinned to the number, and no feature moves it.** SRD sets
+  it by naming the face rather than by a rule a feature could restate, so the
+  threshold check excludes it explicitly. Mutating that guard away lets a
+  threshold of 1 turn a fumble into a critical, which a test catches.
+- **A threshold restates the rule; it does not widen it.** Superior Critical
+  says "on a roll of 18-20" rather than "one lower again", so the lowest grant
+  wins — the same reading Extra Attack already takes of its own total, and for
+  the same reason.
+- **On the sheet, not in `standing.ts`.** There is no state of the world in
+  which a Champion's 19 stops being a critical, so it is an always-on number
+  read off the features at creation, beside `attacksPerAction`. A standing
+  effect would be a conditional benefit with no condition.
+- **A test that depends on a die face should *find* the seed, not hope for
+  one.** The critical-range tests scan seeds for a first natural of 19, 18 and
+  1 and say so. Three earlier tests in this file had been passing on the luck
+  of a shared seed, which is the same failure in a quieter form.
+
 ## Doctrine conformance, and the debts it names
 
 `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` landed as the constitutional document — it outranks `CLAUDE.md`
@@ -1141,8 +1167,8 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells verified end to end | 47 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
-| Class features executed | 67 of 230 |
-| Tests | 3,456 passing, none skipped |
+| Class features executed | 69 of 230 |
+| Tests | 3,460 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

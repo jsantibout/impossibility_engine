@@ -227,6 +227,14 @@ export type FeatureGrant =
    * multiclassing takes the highest rather than adding them up.
    */
   | { readonly kind: 'extra-attack'; readonly attacks: number }
+  /**
+   * SRD Improved Critical: "can score a Critical Hit on a roll of 19 or 20".
+   *
+   * The *threshold* rather than the width, because the Champion's later
+   * feature restates it — "on a roll of 18-20" — rather than widening it
+   * again, exactly as Extra Attack restates a total.
+   */
+  | { readonly kind: 'critical-range'; readonly on: number }
   | {
       readonly kind: 'unarmored-defense';
       readonly ability: Ability;

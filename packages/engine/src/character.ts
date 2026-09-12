@@ -105,6 +105,18 @@ export interface CharacterSheet {
    * sum, and the Fighter's own later features are the ones that say more.
    */
   readonly attacksPerAction?: number;
+  /**
+   * The lowest natural d20 that scores a Critical Hit. 20 unless a feature
+   * lowers it.
+   *
+   * SRD Improved Critical: "Your attack rolls with weapons and Unarmed Strikes
+   * can score a Critical Hit on a roll of 19 or 20 on the d20", and Superior
+   * Critical lowers it again to 18. On the sheet rather than in `standing.ts`
+   * because it is unconditional — there is no state of the world in which a
+   * Champion's 19 stops being a critical — and `attacksPerAction` beside it is
+   * the same kind of always-on number read off the features.
+   */
+  readonly criticalOn?: number;
   /** Set for creatures whose numbers are printed rather than derived. */
   readonly stated?: StatedValues;
 }

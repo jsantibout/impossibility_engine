@@ -7,6 +7,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { resolveAttack, resolveTurn, damageCreature } from './commands.js';
 import { planCharacter, type CharacterChoices } from './creation.js';
 import { SNEAK_ATTACK_DICE } from './rogue.js';
+import { rollAttack } from './attack.js';
 import { DIVINE_STRIKE_DICE } from './cleric.js';
 import { PRIMAL_STRIKE_DICE } from './druid.js';
 import { isErr } from '@ie/shared';
@@ -846,5 +847,128 @@ describe('a feature whose damage type is chosen at the hit', () => {
     );
     expect(spent(first.events, 'cleric:blessed-strikes')).toBe(true);
     expect(spent(second.events, 'cleric:blessed-strikes')).toBe(false);
+  });
+});
+
+describe('a feature that lowers which die face is a Critical Hit', () => {
+
+  const championChoices = (level: number): CharacterChoices => ({
+    ...common,
+    name: 'Bram',
+    classId: 'fighter',
+    level,
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 },
+    },
+    // The Sage background raises Intelligence, Wisdom or Charisma; the Fighter
+    // is built on the same origin as everybody else in this file.
+    abilityIncreases: { int: 2, wis: 1 },
+    classSkills: ['athletics', 'intimidation'],
+    ...(level >= 3 ? { subclassId: 'champion' } : {}),
+    cantrips: [],
+    preparedSpells: [],
+    featureChoices: { 'human:skillful': ['perception'] },
+    feats: {
+      ...common.feats,
+      'fighter:fighting-style': { featId: 'defense' },
+      ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+      ...(level >= 6 ? { 'fighter:ability-score-improvement-2': { featId: 'skilled' } } : {}),
+      ...(level >= 7 ? { 'champion:additional-fighting-style': { featId: 'dueling' } } : {}),
+      ...(level >= 8 ? { 'fighter:ability-score-improvement-3': { featId: 'alert' } } : {}),
+      ...(level >= 12 ? { 'fighter:ability-score-improvement-4': { featId: 'magic-initiate' } } : {}),
+      ...(level >= 14 ? { 'fighter:ability-score-improvement-5': { featId: 'skilled' } } : {}),
+    },
+  });
+
+  /** SRD: 19 at Champion 3, 18 at 15. The lowest threshold wins. */
+  it('puts the threshold on the sheet at the level the feature says', () => {
+    const at = (level: number) => {
+      const plan = planCharacter(championChoices(level));
+      if (!plan.ok) return `err:${plan.code}:${plan.reason}`;
+      return plan.value.sheet.criticalOn ?? 20;
+    };
+    expect(at(1)).toBe(20);
+    expect(at(3)).toBe(19);
+  });
+
+  /**
+   * The behavioural half, and the one that matters: a 19 that the Armour Class
+   * would otherwise turn aside.
+   *
+   * The seed is *found* rather than guessed — scanned for one whose first d20
+   * is a 19 — so the test says what it depends on instead of hoping.
+   */
+  const seedRollingA = (face: number): string => {
+    for (let n = 0; n < 4000; n += 1) {
+      const seed = `crit-${n}`;
+      const out = rollAttack(createRollIssuer('r'), createRng(seed) as Rng, sheet(), {
+        weapon: null,
+        targetAc: 50,
+      });
+      if (out.ok && out.value.roll.natural === face) return seed;
+    }
+    throw new Error(`no seed found rolling a natural ${face}`);
+  };
+
+  it('makes a 19 a Critical Hit, and a hit, only for a Champion', () => {
+    const seed = seedRollingA(19);
+    const swingWith = (criticalOn?: number) =>
+      unwrap(
+        rollAttack(createRollIssuer('r'), createRng(seed) as Rng, sheet(), {
+          weapon: null,
+          // Far above anything the roll could reach, so the only route to a
+          // hit is scoring a Critical Hit.
+          targetAc: 50,
+          ...(criticalOn === undefined ? {} : { criticalOn }),
+        }),
+        'swing',
+      );
+
+    const ordinary = swingWith();
+    expect(ordinary.roll.natural).toBe(19);
+    expect(ordinary.critical).toBe(false);
+    expect(ordinary.hit).toBe(false);
+
+    const champion = swingWith(19);
+    expect(champion.critical).toBe(true);
+    // SRD: "you score a Critical Hit, **and the attack hits** regardless of
+    // any modifiers or the target's AC."
+    expect(champion.hit).toBe(true);
+  });
+
+  /** An 18 is a critical for Superior Critical and not for Improved. */
+  it('reads the threshold rather than widening it twice', () => {
+    const seed = seedRollingA(18);
+    const at = (criticalOn: number) =>
+      unwrap(
+        rollAttack(createRollIssuer('r'), createRng(seed) as Rng, sheet(), {
+          weapon: null,
+          targetAc: 50,
+          criticalOn,
+        }),
+        'swing',
+      ).critical;
+    expect(at(19)).toBe(false);
+    expect(at(18)).toBe(true);
+  });
+
+  /**
+   * SRD "Rolling 20 or 1" pins the natural 1 to the number, and no feature
+   * moves it: a Champion's 1 still misses, and is not a critical however low
+   * the threshold goes.
+   */
+  it('leaves the natural 1 alone', () => {
+    const seed = seedRollingA(1);
+    const out = unwrap(
+      rollAttack(createRollIssuer('r'), createRng(seed) as Rng, sheet(), {
+        weapon: null,
+        targetAc: 1,
+        criticalOn: 1,
+      }),
+      'swing',
+    );
+    expect(out.hit).toBe(false);
+    expect(out.critical).toBe(false);
   });
 });

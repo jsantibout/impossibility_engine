@@ -1827,6 +1827,14 @@ export function planCharacter(
     1,
   );
 
+  // The lowest threshold wins, for the same reason the highest Extra Attack
+  // does: SRD restates the whole rule rather than stacking widenings.
+  const criticalOn = features.reduce(
+    (lowest, feature) =>
+      feature.grants?.kind === 'critical-range' ? Math.min(lowest, feature.grants.on) : lowest,
+    20,
+  );
+
   const alternatives: UnarmoredDefense[] = [];
   for (const feature of features) {
     const grant = feature.grants;
@@ -1872,6 +1880,7 @@ export function planCharacter(
     ...(alternatives.length === 0 ? {} : { unarmoredDefense: alternatives }),
     ...(standing.length === 0 ? {} : { standing }),
     ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
+    ...(criticalOn < 20 ? { criticalOn } : {}),
     ...(activated.length === 0 ? {} : { activated }),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
