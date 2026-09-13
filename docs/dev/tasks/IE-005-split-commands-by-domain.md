@@ -1,12 +1,12 @@
 # IE-005 — Split `commands.ts` by domain, behaviour-preserving
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 2
 parallel-safe: NO beside any mechanism task; YES beside conformance and content, which do not touch the command layer
 depends-on: IE-003
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 2"
 merge-approved: none
 
 ## Brief

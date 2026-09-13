@@ -47,12 +47,12 @@ Owner's words at Gate 1: "APPROVE BATCH"; at Gate 3: "MERGE BOTH".
 
 Both digests, both gate records and both merge records are on the task files.
 
-### Tranche 2 — PROPOSED
+### Tranche 2 — APPROVED 2026-09-13 — "APPROVE TRANCHE 2"
 roster: IE-005, IE-006, IE-002
 
-The first tranche under V2: approving it authorises these three tasks through
+The first tranche under V2: the approval authorises these three tasks through
 implementation, review, ordinary rework, clean auto-merge, push and
-bookkeeping, with no further merge gate.
+bookkeeping, with no further merge gate. Nothing outside this roster moves.
 
 | Role | Task | Lane | Parallel-safe |
 |---|---|---|---|
@@ -90,8 +90,9 @@ TRANCHE 2.
 | [IE-006 — A second frozen event-log fixture](tasks/IE-006-second-frozen-fixture.md) | conformance | YES | 2 |
 | [IE-002 — Pour twelve spells into the shapes that already execute](tasks/IE-002-pour-spells-into-existing-shapes.md) | content | CONDITIONAL | 2 |
 
-All three at `OWNER_APPROVAL_REQUIRED`. No builder is active. Tranche 2 is
-proposed, not approved: nothing may execute.
+All three at `APPROVED_FOR_IMPLEMENTATION` under tranche 2 authority, being
+launched one builder each in its own worktree. Merge order remains IE-006 and
+IE-002 first, IE-005 last, rebased over the registry lines and the prose.
 
 ## NEXT
 
@@ -130,3 +131,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | Gate 3 | IE-003, IE-004 | approved — "MERGE BOTH"; IE-004 merged `0536a2b`, IE-003 merged `5dfbc39`, both gauntlets green on `main`, pushed |
 | 2026-09-13 | Gate 1 | IE-005, IE-006, IE-002 | presented as batch 2 under V1; re-presented as tranche 2 under V2 |
 | 2026-09-13 | workflow change | — | V2: the Opus foreman coordinates, Fable is on call, and the owner's authority moves to the tranche. `docs/dev/WORKFLOW.md` |
+| 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |

@@ -1,12 +1,12 @@
 # IE-002 — Pour twelve spells into the shapes that already execute
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: content
 tranche: 2
 parallel-safe: CONDITIONAL — YES beside one mechanism task provided it uses no kind that task adds; NO beside another content task, which would edit the same registry and list
 depends-on: IE-004
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 2"
 merge-approved: none
 
 ## Audit note (2026-09-13)

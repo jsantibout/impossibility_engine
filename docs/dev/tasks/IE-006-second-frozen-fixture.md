@@ -1,12 +1,12 @@
 # IE-006 — A second frozen event-log fixture
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 2
 parallel-safe: YES — a new fixture, a new scripted scenario and a `.gitattributes` line; no source file changes
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 2"
 merge-approved: none
 
 ## Brief
