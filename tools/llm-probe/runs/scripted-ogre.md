@@ -100,7 +100,7 @@ _Nothing: every rule that applied was applied._
 |---|---|
 | model turns | 34 |
 | model wall-clock | 0.0 s |
-| engine wall-clock | 18 ms |
+| engine wall-clock | 19 ms |
 | prompt tokens | 0 |
 | of which cached | 0 |
 | completion tokens | 0 |

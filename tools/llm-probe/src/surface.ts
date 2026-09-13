@@ -58,6 +58,7 @@ import {
   parseNotation,
   rollRecorded,
   resolveDamage,
+  declareCover,
   declareCreatureType,
   declineOpportunity,
   identify,
@@ -66,12 +67,14 @@ import {
   mayAct,
   placeCreature,
   positionOf,
+  resolveEffectCheck,
   reactionOpportunities,
   resolveAttack,
   resolveMove,
   resolveSpell,
   resolveTest,
   resolveTurn,
+  settleAreaEffects,
   distanceBetween,
   remaining,
   spellSlotKey,
@@ -79,6 +82,7 @@ import {
   takeDisengage,
   takeDodge,
   takeOpportunityAttack,
+  type CoverDegree,
   type GameEvent,
   type GameState,
 } from '@ie/engine';
@@ -88,6 +92,15 @@ import { actionNamesOf, monsterFor, monsterNamed, weaponsOf } from './bestiary.j
 import type { Session } from './session.js';
 
 const CONDITION_NAMES: ReadonlySet<string> = new Set<string>(CONDITIONS);
+
+/**
+ * SRD's three degrees plus "none", which is how a declaration is withdrawn.
+ *
+ * Transcribed from `CoverDegree` rather than imagined: an unknown degree is
+ * malformed input, because the engine applies an exact +2, +5 or a refusal to
+ * each of these and there is no fourth thing it knows how to apply.
+ */
+const COVER_DEGREES: ReadonlySet<string> = new Set(['none', 'half', 'three-quarters', 'total']);
 
 // — the shape of a call, for the model and for the recorder ——————————————————
 
@@ -796,6 +809,108 @@ function run(
       });
     }
 
+    /**
+     * Settle what a persistent area caught somebody doing.
+     *
+     * **The Opportunity Attack deadlock, a second time, found by an audit
+     * rather than by a wedged fight.** `owedAreaEffects` is global engine debt:
+     * `mayAct` refuses every action while one stands, and `resolveTurn`'s own
+     * guard refuses *before* it reaches the settlement it performs internally —
+     * so a creature walking into a Grease with no tool for this can neither act
+     * nor end its turn. The surface previously recorded "no spell on this
+     * surface makes a persistent area" as the reason nothing settled it. That
+     * stopped being true the moment a Wizard with Grease prepared joined the
+     * benchmark, and the only thing still hiding it was the missing `towards`
+     * on `cast_spell` — the two gaps masked each other exactly.
+     *
+     * The engine supplies the save, the DC and the damage, as always. This
+     * command carries no outcome of any kind; it says *settle it now*.
+     */
+    case 'settle_area_effects':
+      return settle(
+        session,
+        settleAreaEffects(state, session.supply(), commandId(input)),
+        (v) => v.events,
+        (v) => ({
+          settled: v.settled.map((owed) => ({
+            casting_id: owed.castingId,
+            target: owed.target,
+            moment: owed.moment,
+          })),
+          outcomes: v.outcomes,
+        }),
+        (v) => v.unverified,
+      );
+
+    /**
+     * Declared cover, which is the model's job by design and had no tool.
+     *
+     * `CLAUDE.md`: "Cover and line of sight stay declared, not ray-cast...
+     * The model says 'behind the bar, three-quarters cover'; the engine applies
+     * exactly +5 AC and +5 to Dexterity saves." The sight half of that sentence
+     * has had `declare_sight` since the first experiment. The cover half had
+     * nothing at all, so every attack in both benchmarks was resolved as though
+     * the mill machinery and the tavern bar were not there.
+     *
+     * Exactness where it is cheap, judgement where geometry is expensive — and
+     * the judgement needs somewhere to land.
+     */
+    case 'declare_cover': {
+      if (state.scene === null) {
+        return {
+          outcome: 'refusal',
+          code: 'no_scene',
+          requestKinds: [],
+          events: 0,
+          unverified: [],
+          body: { status: 'refused', code: 'no_scene', reason: 'no scene has been set; set one first' },
+        };
+      }
+      const from = who(input, 'from');
+      const to = who(input, 'to');
+      const degree = str(input, 'degree');
+      if (!COVER_DEGREES.has(degree)) {
+        throw new BadInput('degree', `degree must be one of ${[...COVER_DEGREES].join(', ')}`);
+      }
+      return declaring(session, declareCover(state.scene, from, to, degree as CoverDegree), {
+        type: 'cover-declared',
+        from,
+        to,
+        degree: degree as CoverDegree,
+      });
+    }
+
+    /**
+     * Attempt a check a running spell offers against its own effect.
+     *
+     * `options` has always reported `checks_available` — the Investigation that
+     * sees through an illusion, the Athletics that tears free of Black
+     * Tentacles — and nothing on this surface could attempt one. A surface that
+     * advertises an action it cannot take is the mild form of the deadlock
+     * above: the DM is told the option exists and then finds it does not.
+     *
+     * The DM supplies which effect and what the attempt leans on; the DC was
+     * written down when the effect was created and the engine still owns it.
+     */
+    case 'attempt_effect_check':
+      return settle(
+        session,
+        resolveEffectCheck(
+          state,
+          who(input, 'who'),
+          { effectKey: str(input, 'effect_key'), ...sensesFrom(input), ...commandId(input) },
+          session.supply(),
+        ),
+        (v) => v.events,
+        (v) => ({
+          natural: v.check?.natural ?? null,
+          total: v.check?.total ?? null,
+          success: v.success,
+          on_success: v.onSuccess,
+          duplicate: v.duplicate ?? false,
+        }),
+      );
+
     case 'declare_creature_type':
       return settle(
         session,
@@ -809,6 +924,16 @@ function run(
     case 'cast_spell': {
       const caster = who(input, 'caster');
       const at = input['at'] === undefined ? undefined : pointFrom(obj(input['at']));
+      // Which way a Cone, Cube or Line points. A *point to aim at*, never an
+      // angle — the engine takes a Point here and `positionOf` turns a creature
+      // or a landmark into one, so the DM keeps speaking in the vocabulary it
+      // speaks everywhere else.
+      //
+      // Tier 2 lost a whole turn to this field's absence. Grease is a Cube, the
+      // engine refused with `no_direction` and said in plain English that it
+      // needed a direction, and the model spent four calls trying to find
+      // somewhere to put a bearing because the schema had nowhere.
+      const towards = towardsFrom(state, input);
       return settle(
         session,
         resolveSpell(
@@ -818,6 +943,7 @@ function run(
             spellId: str(input, 'spell_id'),
             targets: strArray(input, 'targets').map(asCharacterId),
             ...(at === undefined ? {} : { at }),
+            ...(towards === undefined ? {} : { towards }),
             ...(optNum(input, 'slot_level') === undefined ? {} : { slotLevel: optNum(input, 'slot_level')! }),
             ...commandId(input),
           },
@@ -842,6 +968,14 @@ function run(
           {
             target: who(input, 'target'),
             weapon: optStr(input, 'weapon') ?? null,
+            // A Javelin is "Melee or Ranged", and which one it is this time is
+            // the attacker's choice rather than a property of the weapon. The
+            // engine has always taken it — `reachCheck` reads `thrownRange`
+            // instead of reach — and the surface not exposing it is why a Tier
+            // 2 javelin thrown from fifteen feet came back `out_of_reach` and
+            // the DM closed to melee and narrated a thrust instead. A different
+            // mechanic resolved, with prose over the join.
+            ...(input['thrown'] === true ? { thrown: true } : {}),
             ...commandId(input),
           },
           session.supply(),
@@ -955,6 +1089,13 @@ function run(
             ...(skill === undefined ? {} : { skill: skill as never }),
             dc: num(input, 'dc'),
             ...(optStr(input, 'label') === undefined ? {} : { label: optStr(input, 'label')! }),
+            // Which senses the attempt leans on — a fact about *this* attempt,
+            // not about the skill, which is why the engine takes it from the
+            // caller and cannot derive it. A Blinded creature automatically
+            // fails a check that requires sight, and nothing else can tell the
+            // engine that reading the inscription does and shoving the door
+            // does not.
+            ...sensesFrom(input),
             ...commandId(input),
           },
           session.supply(),
@@ -1141,6 +1282,63 @@ function run(
   }
 }
 
+/**
+ * Which way a directional area points, said the way the DM speaks.
+ *
+ * SRD gives a Cone, a Cube and a Line a direction, and `CastSpellRequest`
+ * takes it as **a point to aim at** rather than an angle — deliberately, per
+ * its own docstring: "Maestro speaks in landmarks and creatures, and
+ * `positionOf` turns either into coordinates. An angle would be the model
+ * typing raw geometry, which is the thing that is not allowed."
+ *
+ * So this accepts the same three vocabularies every other spatial field on
+ * this surface accepts — a creature, a landmark, or an explicit point — and
+ * resolves the first two against the scene. A creature or landmark nobody has
+ * placed is malformed input rather than a guessed coordinate.
+ */
+function towardsFrom(
+  state: GameState,
+  input: Record<string, unknown>,
+): { x: number; y: number; z: number } | undefined {
+  const creature = optStr(input, 'towards_creature');
+  if (creature !== undefined) {
+    const at = state.scene === null ? null : positionOf(state.scene, asCharacterId(creature));
+    if (at === null) {
+      throw new BadInput('towards_creature', `${creature} has no position to aim at`);
+    }
+    return { x: at.x, y: at.y, z: at.z };
+  }
+  const landmark = optStr(input, 'towards_landmark');
+  if (landmark !== undefined) {
+    const at = state.scene?.landmarks[landmark];
+    if (at === undefined) throw new BadInput('towards_landmark', `no landmark called ${landmark}`);
+    return { x: at.x, y: at.y, z: at.z };
+  }
+  if (input['towards'] === undefined) return undefined;
+  return pointFrom(obj(input['towards']));
+}
+
+/**
+ * What the attempt leans on, for the two conditions that read it.
+ *
+ * Absent means nobody has said, which is the honest third value: the engine
+ * applies no automatic failure rather than deciding for itself that shoving a
+ * door is a sight-dependent act.
+ */
+function sensesFrom(input: Record<string, unknown>): {
+  senses?: { requiresSight?: boolean; requiresHearing?: boolean };
+} {
+  const sight = input['requires_sight'];
+  const hearing = input['requires_hearing'];
+  if (sight !== true && hearing !== true) return {};
+  return {
+    senses: {
+      ...(sight === true ? { requiresSight: true } : {}),
+      ...(hearing === true ? { requiresHearing: true } : {}),
+    },
+  };
+}
+
 function pointFrom(at: Record<string, unknown>): { x: number; y: number; z: number } {
   return { x: num(at, 'x'), y: num(at, 'y'), z: optNum(at, 'z') ?? 0 };
 }
@@ -1297,6 +1495,50 @@ const DEFINED: readonly ToolSpec[] = [
     mutating: true,
   },
   {
+    name: 'declare_cover',
+    description:
+      'Declare how much cover one creature has from another — the bar it is crouched behind, the millstone between them. The engine applies exactly what the SRD prints (+2 Armour Class and Dexterity saves for Half, +5 for Three-Quarters, cannot be targeted at all through Total) and never works cover out from geometry, because that would mean modelling every wall. Declaring it is your job; applying it is the engine’s. Use ‘none’ to say the line is clear again.',
+    parameters: schema(
+      {
+        from: field('string', 'The attacker’s creature id — whose line to the target this is about.'),
+        to: field('string', 'The creature taking cover.'),
+        degree: {
+          type: 'string',
+          enum: ['none', 'half', 'three-quarters', 'total'],
+          description: 'How much of the target is shielded.',
+        },
+      },
+      ['from', 'to', 'degree'],
+    ),
+    mutating: true,
+  },
+  {
+    name: 'settle_area_effects',
+    description:
+      'Settle what a persistent area — a Grease, a Web, an Insect Plague — has caught somebody doing. The engine rolls the save, reads the DC off the casting and applies whatever the spell says; you supply nothing but the instruction to do it now. Until this is called, every other action refuses with `area_effect_owed`, including ending the turn, so call it as soon as the state shows any owed.',
+    parameters: schema({ command_id: COMMAND_ID }, ['command_id']),
+    mutating: true,
+  },
+  {
+    name: 'attempt_effect_check',
+    description:
+      'Attempt a check a running spell offers against its own effect — the Investigation that sees through an illusion, the Athletics that tears free of Black Tentacles. `options` lists what is available and gives each one its effect_key. Costs the Action in combat. The Difficulty Class was written down when the effect was created and is not yours to set here.',
+    parameters: schema(
+      {
+        who: field('string', 'Creature id making the attempt.'),
+        effect_key: field('string', 'From `options`, which reports checks_available.'),
+        requires_sight: field(
+          'boolean',
+          'True when this attempt cannot be made without seeing — Minor Illusion makes a sound *or* an image, so which it is depends on the illusion.',
+        ),
+        requires_hearing: field('boolean', 'True when the attempt cannot be made without hearing.'),
+        command_id: COMMAND_ID,
+      },
+      ['who', 'effect_key', 'command_id'],
+    ),
+    mutating: true,
+  },
+  {
     name: 'declare_creature_type',
     description:
       'State what kind of creature something is — Humanoid, Fey, Undead. Some spells only touch one type. A type can only be declared once and cannot be changed afterwards, so declare what the creature actually is, not what would be convenient.',
@@ -1408,7 +1650,7 @@ const DEFINED: readonly ToolSpec[] = [
   {
     name: 'cast_spell',
     description:
-      'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration. You name the spell, the targets and the slot.',
+      'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration. You name the spell, the targets and the slot. An area spell takes no targets and picks its own: give it `at` for where it is centred, and — for a Cone, Cube or Line — a `towards_creature`, `towards_landmark` or `towards` saying which way it points.',
     parameters: schema(
       {
         caster: field('string', 'Creature id.'),
@@ -1417,8 +1659,21 @@ const DEFINED: readonly ToolSpec[] = [
         slot_level: field('number', 'Which slot to spend. Omit for a cantrip.'),
         at: {
           type: 'object',
-          description: 'Where an area spell is centred, for a spell that asks for a point.',
+          description:
+            'Where an area spell is centred, for a spell that asks for a point. x and y are required; z defaults to the floor.',
           properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+          required: ['x', 'y'],
+        },
+        towards_creature: field(
+          'string',
+          'Point a Cone, Cube or Line at this creature. Use this, a landmark, or an explicit point — a directional area is refused without one.',
+        ),
+        towards_landmark: field('string', 'Point a Cone, Cube or Line at this landmark instead.'),
+        towards: {
+          type: 'object',
+          description: 'Point a Cone, Cube or Line at this exact spot, if no creature or landmark says it better.',
+          properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+          required: ['x', 'y'],
         },
         command_id: COMMAND_ID,
       },
@@ -1435,6 +1690,10 @@ const DEFINED: readonly ToolSpec[] = [
         attacker: field('string', 'Creature id.'),
         target: field('string', 'Creature id.'),
         weapon: field('string', 'Catalogue id, e.g. scimitar, dagger, quarterstaff. Omit for an Unarmed Strike.'),
+        thrown: field(
+          'boolean',
+          'True when a Melee-or-Ranged weapon is being thrown rather than swung — a Javelin, a Dagger, a Handaxe. Changes which range the engine measures against.',
+        ),
         command_id: COMMAND_ID,
       },
       ['attacker', 'target', 'command_id'],
@@ -1516,6 +1775,11 @@ const DEFINED: readonly ToolSpec[] = [
         skill: field('string', 'Skill id, e.g. athletics, if one applies.'),
         dc: field('number', 'The Difficulty Class you are setting.'),
         label: field('string', 'What the roll is for, for the log.'),
+        requires_sight: field(
+          'boolean',
+          'True when the attempt cannot be made without seeing — reading an inscription, spotting a seam. A Blinded creature fails one of these outright.',
+        ),
+        requires_hearing: field('boolean', 'True when the attempt cannot be made without hearing.'),
         command_id: COMMAND_ID,
       },
       ['who', 'kind', 'ability', 'dc', 'command_id'],

@@ -207,7 +207,12 @@ describe('the surface hands the model no mechanically authoritative number', () 
       'set_scene',
       'add_landmark',
       'place_creature',
+      // Sight and cover are the same shape and the engine takes no command
+      // identity for either: both are pure functions over `PositionState`
+      // keyed by (from, to), so re-declaring the same fact writes the same
+      // value and a retry is a no-op by construction rather than by a stamp.
       'declare_sight',
+      'declare_cover',
     ]);
     for (const tool of TOOLS.filter((t) => t.mutating)) {
       if (KEYED_BY_SUBJECT.has(tool.name)) continue;
@@ -248,6 +253,14 @@ describe('every debt the engine can raise has a way out', () => {
     // rolled by the same call that raised it.
     pending_saves: ['end_turn'],
     turn_start_unsettled: ['end_turn'],
+    // **This entry used to be an excuse, and the excuse went stale.** It read
+    // "no spell on this surface makes a persistent area", which was true until
+    // a Wizard with Grease prepared joined Tier 2 — and the only thing still
+    // hiding it was that `cast_spell` could not point a Cube, so the area
+    // could not be made. Two gaps masking each other. `owedAreaEffects` blocks
+    // every action *including ending the turn*, so nothing but its own command
+    // recovers.
+    owed_area_effects: ['settle_area_effects'],
   };
 
   /**
@@ -260,7 +273,6 @@ describe('every debt the engine can raise has a way out', () => {
     pending_damage: 'only a damage-reducing Reaction opens one; nobody in this fixture has a feature that would',
     pending_test: 'only a test-pushing Reaction opens one; same',
     pending_casting: 'only a held casting opens one, and `hold` is not exposed',
-    owed_area_effects: 'no spell on this surface makes a persistent area',
   };
 
   it('names a settling tool for every debt, or records why it is unreachable', () => {
