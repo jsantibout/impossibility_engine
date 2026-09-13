@@ -1,6 +1,6 @@
 # IE-004 — The honesty guard for executed spells
 
-state: CHANGES_REQUIRED
+state: AWAITING_MERGE_APPROVAL
 lane: conformance
 batch: 1
 parallel-safe: YES — beside IE-003 (no shared source files; `CLAUDE.md` prose and `COVERAGE.md` merge mechanically); CONDITIONAL beside a content task, which edits the same definition region
@@ -167,6 +167,45 @@ Confidence: high
 Recommendation: READY FOR ARCHITECTURAL GATE
 ```
 
+Re-issued 2026-09-13, after the rework the gate returned:
+
+```
+IE-004 — Completion digest
+Approved architectural intent: Extend the honesty guard from the 46 tracked spells to the 82 executed ones — every `unmodelled` clause naming a mechanic the engine owns carries a written adjudication (`table` with a reason, or a named missing shape) — and make "partial" a consequence of carrying a debt adjudication rather than a hand-kept list.
+Builder: COMPLETE
+Worktree: C:\Users\justi\Code\QuestBarrel\ImpossibilityEngine\.claude\worktrees\agent-a4ac40741e133e8a8   Branch: worktree-agent-a4ac40741e133e8a8   Commit: 20f4dcf9f8431aa2fc716f12c4df5d94f763cc4b   Rebased on main at: 31423b48f115db1c1d7a1a70aa7523e296c6ae8b
+Opus review: PASS — rounds: 5 (DEFECTS, DEFECTS, PASS, DEFECTS after the gate returned the CLAUDE.md paragraph, PASS)
+Tests: 5343 passing / 5343 total; new tests: 97 in `spell-honesty.test.ts` (82 per-spell cases plus 15 rules); mutation run: five, each failing the guard and only the guard — (1) an unadjudicated "the target has Resistance to Bludgeoning damage while it is restrained" added to Black Tentacles; (2) Spirit Guardians removed from `PARTIAL_SPELLS`; (3) Black Tentacles' Difficult Terrain adjudication downgraded from its shape to `table`, which moves the derived set and is caught — a debt cannot be relabelled fiction without the published list changing; (4) Chill Touch's SRD quotation loosened by three words, caught by the quotation oracle naming the spell; (5) the new Darkness pin aimed at a spell that does compile, which fails naming the consequence.
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓
+Conformance: PASS. Verified counts: 82 executed definitions, 58 carrying clauses, 103 clauses, 84 tripping a marker across 55 spells; 84 adjudications — 5 `table`, 79 shape over 27 declared shapes, all 27 claimed; 53 partial. COVERAGE.md: Executed 82, of which partial 53, Verified 58.
+Architectural deviations: the three already accepted at the gate — the separate 27-shape enumeration for the executed bucket, the hand list asserted against the derived set in both directions, and partial/verified as two axes with Spirit Guardians in `VERIFIED_SPELLS`. No new ones.
+Foundational primitives touched: none. `spell-definitions.ts` changed two `unmodelled` string literals only.
+New runtime special cases: none. No engine code changed.
+Files outside the brief's surface: none. `docs/dev/QUEUE.md` and the two task files showed as modified in the worktree after main advanced; they were restored from main, not committed.
+Out-of-scope findings (not acted on): (a) `spell-tracking.test.ts:83` still restates the executed predicate as its complement — out of scope, and it currently has all three arms. (b) `coverage.ts` carries an orphaned docstring above `PARTIAL_SPELLS` that documents `VERIFIED_SPELLS`. (c) The marker set has no word for *object*, so Dispel Magic's "one creature, object, or magical effect" clause — a casting on nobody being reachable by no dispel — goes unadjudicated inside the guard's stated floor. (d) The audit's §3.5 pointer to Continual Flame is wrong: only Arcane Lock carried the stale Dispel Magic claim. (e) Builder sessions share one scratchpad path; the IE-003 builder overwrote a file of mine mid-task.
+Unresolved concerns: none.
+Reviewer confidence: high
+Recommendation: READY FOR ARCHITECTURAL GATE
+
+IE-004 — Independent review
+Verdict: PASS
+Commit reviewed: 20f4dcf9f8431aa2fc716f12c4df5d94f763cc4b   Gauntlet re-run: typecheck ✓ lint ✓ test 5343/5343 coverage diff ✓
+Brief compliance: met, and the gate's returned defect is discharged. (1) the clause is the scanned text, not the SRD paragraph; (2) every marker-tripping clause carries one adjudication keyed by clause phrase — `table` with a reason, or one of 27 enumerated shapes; (3) `PARTIAL_SPELLS` kept and asserted equal to the derived set both ways, with the reason the brief anticipated; (4) 84 adjudications over 55 spells, every audit-named debt shape-adjudicated; (5) Arcane Lock reworded, Continual Flame correctly untouched (its clause never made the stale claim), Sunbeam reworded as equally stale; (6) COVERAGE.md regenerated, Executed 82 with partial 53 as a second axis; (7) CLAUDE.md gains the new section and the contradicting paragraph in "Coverage needed a third word" is rewritten.
+Tests: `spell-honesty.test.ts`, 96 tests. Per-spell: exactly one adjudication per mechanical clause, read live off `SPELL_DEFINITIONS`, so a new unadjudicated clause bites; reverse: each entry matches exactly one still-mechanical clause, so a reworded or stale clause bites, and substring collisions fail from both sides. `PARTIAL_SPELLS` equality bites on removing Spirit Guardians and on downgrading a shape to `table` (Black Tentacles carries exactly one entry, so that mutation moves the derived set). The SRD-quotation oracle holds quotes against that spell's own paragraph and caught four wrong quotations during review. Fixtures discriminate: keyed by phrase not index, non-vacuity proved against the two table-only spells, `both` asserted to contain `web` by name, markers pinned with the audit's own six sentences plus the "leaves the fiction alone" direction. Population comes from the single exported `isExecuted`, which removed a copy that had lost the `areaTrigger` arm.
+Regression risk: none. No engine behaviour changed; the only non-test, non-doc edit is two `unmodelled` string literals. golden-log.json, docs/dev, PROGRESS.md and packages/srd/raw untouched; replay, the idempotency sweep and the invariants sweep unaffected; `spell-tracking.test.ts` not touched, as the brief required.
+Conformance: PASS. COVERAGE.md byte-clean against the script. Every `unmodelled` claim I read is either fiction the engine should never decide or a named shape citing CLAUDE.md, PROGRESS.md, the audit or the definition's own clause — three citations verified verbatim by hand.
+Scope creep: none material. `spirit-guardians` added to VERIFIED_SPELLS (57 → 58) and Sunbeam's clause reworded are consequences of the change and honest; both were declared and accepted at the gate. The rework added one test beyond the paragraph the gate asked for (spell-honesty.test.ts:937) — inside the brief's surface, and it makes a `table` claim checkable rather than trusted.
+Architectural violations: none. No spell-name special case reaches the runtime; partial moved from a stored hand list to a derived consequence, which is the right direction.
+Hard-coded or test-specific fixes: none.
+Accidental coupling: `spell-honesty.test.ts` imports `EXECUTED_SPELL_IDS` and `PARTIAL_SPELLS` from `scripts/coverage.ts`; `coverage.test.ts` already imported that module, and centralising `isExecuted` removed two drifting copies. The third copy in `spell-tracking.test.ts:83` is pre-existing and out of scope.
+Foundational primitives touched: none. `spell-definitions.ts` changed two `unmodelled` string literals only, not the type declarations at its head.
+New runtime special cases: none.
+Defects for the builder: none
+Escalation reason: none
+Confidence: high
+Recommendation: READY FOR ARCHITECTURAL GATE
+```
+
 ## Architectural gate
 
 2026-09-13 — **inspected, not lightweight.** Two risk signals: the digest
@@ -215,6 +254,23 @@ audit's §3.5 pointer to Continual Flame was wrong (only Arcane Lock was
 stale; Sunbeam was, and is fixed here); builders share one scratchpad path,
 so `qb-builder.md` should tell them to use unique filenames; the marker set
 has no word for *object*, a stated floor.
+
+**Re-issued digest, 2026-09-13 — lightweight PASS.** The returned paragraph
+is rewritten and no sentence in the branch's `CLAUDE.md` reads verified as
+complete any more (checked by grep at the gate, since it was the gate's own
+finding); the reviewer passed the rework; no new deviation, no primitive, no
+special case. The rework added one test inside the surface that makes a
+`table` claim checkable rather than trusted, which is the guard's own
+direction. Proceeding to the owner merge gate.
+
+**Merge order.** Both batch-1 branches are now at Gate 3 and both sit one or
+two docs-only bookkeeping commits behind `main`, because every gate record
+moves it. Drift consisting solely of commits under `docs/dev/` — files a
+builder is forbidden to touch — cannot conflict with a builder's branch, so
+the architect rebases it at merge time and runs the whole gauntlet on `main`
+before pushing; any other drift, or any conflict, goes back to the builder
+as the procedure says. This one, with the smaller surface and no engine code,
+is recommended first; IE-003 then rebases over disjoint `CLAUDE.md` hunks.
 
 ## Merge record
 

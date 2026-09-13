@@ -47,7 +47,7 @@ both are re-scheduled below, with the reasons in their files.
 | [IE-003 — Close the guard holes and make the guard sweeps mechanical](tasks/IE-003-guard-holes-and-mechanical-sweeps.md) | mechanism | CONDITIONAL | 1 |
 | [IE-004 — The honesty guard for executed spells](tasks/IE-004-honesty-guard-for-executed-spells.md) | conformance | YES | 1 |
 
-IE-003 `AWAITING_MERGE_APPROVAL` since 2026-09-13: reviewer PASS after a fourth round, lightweight architectural gate on the re-issued digest, Gate 3 presented. IE-004 `CHANGES_REQUIRED` with its builder for one doc-only reviewer round. Both builders hold their worktrees (path and branch on each task file). Merge order: whichever the owner approves first; the other rebases over disjoint `CLAUDE.md` hunks.
+Both at `AWAITING_MERGE_APPROVAL` since 2026-09-13 with reviewer PASSes (IE-003 after four rounds, IE-004 after five) and Gate 3 presented for each. Both builders hold their worktrees (path and branch on each task file). Recommended merge order: IE-004 first (smaller surface, no engine code), then IE-003 rebased over disjoint `CLAUDE.md` hunks. Docs-only drift of `main` is rebased by the architect at merge time; anything else goes back to the builder.
 
 ## NEXT
 
