@@ -7,7 +7,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
-import { damageCreature, resolveSpell } from './commands.js';
+import { damageCreature, removeCreatureEverywhere, resolveSpell } from './commands.js';
 import {
   CURE_WOUNDS,
   HEALING_WORD,
@@ -568,6 +568,54 @@ describe('a retry spends nothing twice', () => {
     const different = once(after, 'sacred-flame', GOBLIN);
     expect(isErr(different)).toBe(true);
     if (isErr(different)) expect(different.code).toBe('command_id_reused');
+  });
+
+  /**
+   * And the identity being the wrapper's reaches further than the derived
+   * command's did: two castings of the same spell at the same level differ
+   * only in whom they were aimed at, which never appeared in the `CastCommand`
+   * the fingerprint used to be taken over.
+   */
+  it('refuses the same command id aimed at a different creature', () => {
+    const first = unwrap(once(base(), 'inflict-wounds', GOBLIN, 1), 'first');
+    const after = fold('seed', [...SETUP, ...first.events]);
+
+    const elsewhere = once(after, 'inflict-wounds', ALLY, 1);
+    expect(isErr(elsewhere)).toBe(true);
+    if (isErr(elsewhere)) expect(elsewhere.code).toBe('command_id_reused');
+  });
+
+  /**
+   * **The duplicate check comes first in the wrapper too.**
+   *
+   * `resolveSpell` is the only command that reached its idempotency guard
+   * through half a dozen refusals first — the caster's record, the definition,
+   * the targets, the free casting the first run had already spent. Every one
+   * of those reads a fact the first run can have changed, so a retry was told
+   * about the world instead of about its own command. The eighth instance of
+   * the trap in the engine, and the first in a wrapper.
+   *
+   * The caster leaving is the sharpest case, because it is the one no amount
+   * of re-checking could rescue: the retry has no caster to validate against
+   * and must answer from the ledger alone.
+   */
+  it('answers a retry sent after the caster has left, rather than refusing it', () => {
+    const first = unwrap(once(base(), 'inflict-wounds', GOBLIN, 1), 'first');
+    const applied = [...SETUP, ...first.events];
+    const gone = [
+      ...applied,
+      ...unwrap(removeCreatureEverywhere(fold('seed', applied), CLERIC), 'the cleric leaves'),
+    ];
+    const after = fold('seed', gone);
+    expect(after.creatures.brannor).toBeUndefined();
+
+    const retry = once(after, 'inflict-wounds', GOBLIN, 1);
+    expect(isErr(retry) ? `${retry.code}` : 'ok').toBe('ok');
+    if (isErr(retry)) return;
+    expect(retry.value.events).toEqual([]);
+    // And the casting it already made is still recoverable by name.
+    expect(retry.value.castingId).toBe(first.castingId);
+    expect(fold('seed', [...gone, ...retry.value.events])).toEqual(after);
   });
 });
 

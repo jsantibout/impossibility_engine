@@ -555,6 +555,82 @@ describe('a casting states its convention and keeps it', () => {
     expect(JSON.stringify(cast('space'))).toEqual(JSON.stringify(cast()));
   });
 
+  /**
+   * And the same is true of the casting's **identity**, which is the sharper
+   * half: a fingerprint answers "is this the same command", and a retry that
+   * spells the default out is the same command as the one that left it unsaid.
+   * Telling them apart would refuse an honest retry with `command_id_reused`,
+   * which is the loud version of the silent no-op command ids exist to
+   * prevent — the same reasoning that sorts object keys before hashing them.
+   */
+  it('treats a retry that spells `space` out as the same command', () => {
+    const log = setup();
+    const first = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        WIZARD,
+        { spellId: 'fireball', targets: [], at: CROSSING, slotLevel: 3, commandId: 'c' },
+        supply(),
+      ),
+      'cast',
+    );
+    const applied = [...log, ...first.events];
+    const after = fold('seed', applied);
+
+    const retry = resolveSpell(
+      after,
+      WIZARD,
+      {
+        spellId: 'fireball',
+        targets: [],
+        at: CROSSING,
+        slotLevel: 3,
+        commandId: 'c',
+        anchoring: 'space',
+      },
+      supply(),
+    );
+    expect(isErr(retry) ? retry.code : 'ok').toBe('ok');
+    if (isErr(retry)) return;
+    expect(retry.value.events).toEqual([]);
+    expect(retry.value.castingId).toBe(first.castingId);
+    expect(fold('seed', [...applied, ...retry.value.events])).toEqual(after);
+  });
+
+  /**
+   * The other direction, so the normalisation is not simply "ignore
+   * anchoring": naming the *other* convention is a different command and is
+   * refused rather than swallowed.
+   */
+  it('still refuses a retry that names the other convention', () => {
+    const log = setup();
+    const first = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        WIZARD,
+        { spellId: 'fireball', targets: [], at: CROSSING, slotLevel: 3, commandId: 'c' },
+        supply(),
+      ),
+      'cast',
+    );
+    const after = fold('seed', [...log, ...first.events]);
+
+    const different = resolveSpell(
+      after,
+      WIZARD,
+      {
+        spellId: 'fireball',
+        targets: [],
+        at: CROSSING,
+        slotLevel: 3,
+        commandId: 'c',
+        anchoring: 'intersection',
+      },
+      supply(),
+    );
+    expect(isErr(different) && different.code).toBe('command_id_reused');
+  });
+
   /** A self-origin area is anchored by the caster's own space; there is no choice to make. */
   it('refuses a convention for an area that starts at the caster', () => {
     const result = resolveSpell(

@@ -154,7 +154,6 @@ import {
   castingIdFor,
   wearsHeavyArmor,
   type InventoryLine,
-  type AppliedCommand,
   type CommandStamp,
   type CreatureState,
   type GameEvent,
@@ -168,6 +167,11 @@ import {
   type ReadiedResponse,
 } from './events.js';
 import {
+  commandOutcome,
+  identify,
+  type CommandIdentity,
+} from './idempotency.js';
+import {
   hasPool,
   remaining,
   slotKeyOf,
@@ -177,6 +181,7 @@ import {
 } from './resources.js';
 import {
   castingIdOf,
+  castingNumber,
   castingSource,
   slotFits,
   validateSpellName,
@@ -246,93 +251,6 @@ const unknownCreature = (id: CharacterId, detail = 'is not in this game') =>
       satisfyWith: `a creature-added event for ${id}`,
     },
   ]);
-
-/**
- * An idempotency key.
- *
- * Retry-safety has two halves and only one of them is free. A pure command
- * gives identical events from identical state — but a caller retrying after
- * its batch was already applied is looking at *updated* state, where casting
- * again is a genuine second casting that spends a second slot and rolls a
- * second save. An id is what tells those two situations apart.
- *
- * The same id means the same command, and the engine holds callers to that:
- * the inputs are fingerprinted alongside the id, and reusing an id for
- * different work is refused rather than silently swallowed. A silent no-op
- * there would be the worst of both worlds — the second command never runs and
- * nobody is told.
- */
-export interface CommandIdentity {
-  readonly commandId?: string;
-}
-
-/**
- * Serialise for comparison, with object keys sorted at every level.
- *
- * Two callers building the same command need the same fingerprint whatever
- * order they happened to write the fields in.
- */
-function stableStringify(value: unknown): string {
-  return JSON.stringify(value, (_key, inner: unknown) =>
-    inner !== null && typeof inner === 'object' && !Array.isArray(inner)
-      ? Object.fromEntries(
-          Object.entries(inner as Record<string, unknown>).sort(([a], [b]) =>
-            a < b ? -1 : a > b ? 1 : 0,
-          ),
-        )
-      : inner,
-  );
-}
-
-export type Identified =
-  | { readonly duplicate: true }
-  | { readonly duplicate: false; readonly stamp: CommandStamp | null };
-
-/**
- * Decide whether a command has already landed, and refuse a recycled id.
- *
- * The kind carries both the operation and the creature it acts on, so two
- * commands cannot collide on one id by having the same field names or by
- * being the same command aimed at somebody else. Either collision would
- * silently swallow the second command, which is the outcome this exists to
- * prevent.
- */
-export function identify<T extends CommandIdentity>(
-  state: GameState,
-  kind: string,
-  command: T,
-): Result<Identified> {
-  const id = command.commandId;
-  if (id === undefined) return ok({ duplicate: false, stamp: null });
-
-  const fingerprint = `${kind}|${stableStringify(command)}`;
-  const prior = state.appliedCommands[id];
-
-  if (prior === undefined) return ok({ duplicate: false, stamp: { id, fingerprint } });
-  if (prior.fingerprint !== fingerprint) {
-    return err(
-      'command_id_reused',
-      `command id ${id} has already been applied with different inputs; a command id names one command, not a slot to reuse`,
-    );
-  }
-  return ok({ duplicate: true });
-}
-
-/** Whether a command id has already been applied to this state. */
-export function wasCommandApplied(state: GameState, commandId: string): boolean {
-  return state.appliedCommands[commandId] !== undefined;
-}
-
-/**
- * What a command produced, or null if it has not been applied.
- *
- * A retried casting returns no events, but the caller may still need the
- * casting id to link that spell's effects — so the outcome is recoverable
- * rather than lost with the empty batch.
- */
-export function commandOutcome(state: GameState, commandId: string): AppliedCommand | null {
-  return state.appliedCommands[commandId] ?? null;
-}
 
 export interface DamageCommand extends CommandIdentity {
   readonly amount: number;
@@ -491,7 +409,16 @@ export function setExhaustionLevel(
 export function removeCreatureEverywhere(
   state: GameState,
   id: CharacterId,
+  command: CommandIdentity = {},
 ): Result<GameEvent[]> {
+  // Before the creature is looked up. A retry arrives at a world where the
+  // creature has already gone, and reporting `unknown_creature` for a removal
+  // that succeeded is exactly the confusion command ids exist to prevent.
+  const identity = identify(state, `remove:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
   if (creatureOf(state, id) === null) {
     return unknownCreature(id);
   }
@@ -526,7 +453,10 @@ export function removeCreatureEverywhere(
     );
   }
 
-  events.push({ type: 'creature-removed', id });
+  // The one event this command always emits, whatever the creature was in the
+  // middle of, so the stamp rides here rather than on a hold it happened to
+  // be settling.
+  events.push({ type: 'creature-removed', id, ...(stamp === null ? {} : { command: stamp }) });
   return ok(events);
 }
 
@@ -1042,11 +972,25 @@ export function restoreResourcesOn(
   state: GameState,
   id: CharacterId,
   recovers: Recovery,
+  command: CommandIdentity = {},
 ): Result<GameEvent[]> {
+  // **This is not idempotent by construction**, which is what the idempotency
+  // sweep used to excuse it as. A whole refill applied twice is a whole refill
+  // — but SRD's partial rule is not: "You regain **one** expended use when you
+  // finish a Short Rest" is `regainsOnShortRest`, and `restoreOn` subtracts it
+  // from `spent`, so a retried restoration hands back two uses of Rage, Second
+  // Wind, Channel Divinity, Wild Shape or Bardic Inspiration.
+  const identity = identify(state, `restore:${id}`, { ...command, recovers });
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  const stamp = identity.value.stamp;
+
   if (creatureOf(state, id) === null) {
     return unknownCreature(id);
   }
-  return ok([{ type: 'resources-restored', id, recovers }]);
+  return ok([
+    { type: 'resources-restored', id, recovers, ...(stamp === null ? {} : { command: stamp }) },
+  ]);
 }
 
 // — the actions that change what a turn can do ————————————————————————————————
@@ -4018,9 +3962,6 @@ function byCastingOrder(state: GameState): readonly OngoingSpell[] {
   );
 }
 
-const castingNumber = (castingId: string): number =>
-  Number(castingId.slice('cast:'.length)) || 0;
-
 /**
  * Whether a casting is on its own caster rather than on whom it was aimed at.
  *
@@ -5220,6 +5161,14 @@ export function extendFeature(
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
 
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.** Its four
+  // sibling feature commands have always asked; this one spends a Bonus Action
+  // and a pool use and did not, which is the hole the sweep in
+  // `invariants.test.ts` now makes impossible to reintroduce quietly.
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
+
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id);
   if (!creature.activeFeatures.includes(command.feature)) {
@@ -5450,8 +5399,26 @@ export function castSpell(
   const identity = identify(state, `cast:${id}`, command);
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
-  const stamp = identity.value.stamp;
+  return castSpellWith(state, id, command, identity.value.stamp);
+}
 
+/**
+ * {@link castSpell}, with the command's identity already established.
+ *
+ * Whoever *is* the command owns the identity, and for a spell the engine has a
+ * definition for that is `resolveSpell` rather than this. It holds a
+ * `CastSpellRequest` — the targets, the point, the designations — and this
+ * holds the `CastCommand` derived from it, so two `identify` calls would
+ * fingerprint two different objects under one id and refuse every honest
+ * retry. One identity, established by the outermost command, stamped on the
+ * event that records the casting.
+ */
+function castSpellWith(
+  state: GameState,
+  id: CharacterId,
+  command: CastCommand,
+  stamp: CommandStamp | null,
+): Result<GameEvent[]> {
   const caster = creatureOf(state, id);
   if (caster === null) return unknownCreature(id);
   if (caster.vitals.dead) return err('dead', `${id} is dead and casts nothing`);
@@ -6150,10 +6117,23 @@ export function resolveCast(
   id: CharacterId,
   command: CastCommand,
 ): Result<GameEvent[]> {
-  const cast = castSpell(state, id, command);
+  // Before anything else: a retry of a command that has already landed is a
+  // no-op, and the action it spent stays spent.
+  const identity = identify(state, `cast:${id}`, command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok([]);
+  return resolveCastWith(state, id, command, identity.value.stamp);
+}
+
+/** {@link resolveCast}, with the command's identity already established. */
+function resolveCastWith(
+  state: GameState,
+  id: CharacterId,
+  command: CastCommand,
+  stamp: CommandStamp | null,
+): Result<GameEvent[]> {
+  const cast = castSpellWith(state, id, command, stamp);
   if (!cast.ok) return cast;
-  // A duplicate command id: the first run already spent the action.
-  if (cast.value.length === 0) return ok([]);
 
   const combat = state.combat;
   if (combat === null || combat.budgets[id] === undefined) {
@@ -6573,9 +6553,6 @@ const MOMENT_ORDER: Readonly<Record<AreaMoment, number>> = {
   'start-of-turn': 3,
 };
 
-const castingNumberOf = (castingId: string): number =>
-  Number(castingId.slice('cast:'.length)) || 0;
-
 /** What one settlement did. */
 export interface AreaEffectResolution {
   readonly events: readonly GameEvent[];
@@ -6750,7 +6727,7 @@ function nextOwed(state: GameState): OwedAreaEffect | null {
       best === null ||
       MOMENT_ORDER[owed.moment] < MOMENT_ORDER[best.moment] ||
       (MOMENT_ORDER[owed.moment] === MOMENT_ORDER[best.moment] &&
-        (castingNumberOf(owed.castingId) < castingNumberOf(best.castingId) ||
+        (castingNumber(owed.castingId) < castingNumber(best.castingId) ||
           (owed.castingId === best.castingId && owed.target.localeCompare(best.target) < 0)))
     ) {
       best = owed;
@@ -6776,7 +6753,25 @@ export function pendingSavesOf(state: GameState): readonly PendingSave[] {
 export function resolvePendingSaves(
   state: GameState,
   supply: ConcentrationSaveSupply,
+  command: CommandIdentity = {},
 ): Result<TurnResolution> {
+  // Before the debt is even read. This command **rolls dice**, and the world
+  // it lands in is not the world its first run left: a boundary or two later
+  // the same creature owes the *next* repeat save, and an unidentified retry
+  // would roll that one instead — freeing a creature nobody decided to free.
+  const identity = identify(state, 'pending-saves', command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    // **A retry is not an empty world.** Rolling nothing and emitting nothing
+    // is the guarantee; reporting nothing is a different claim, and a false
+    // one — a retry that lands three boundaries later is looking at a world
+    // that owes the *next* save. So `duplicate` says which of the two empty
+    // answers this is, and `pending` says what is still owed, exactly as it
+    // would to a caller who had never sent the command at all.
+    return ok({ events: [], saves: [], pending: pendingSavesOf(state), duplicate: true });
+  }
+  const stamp = identity.value.stamp;
+
   const owed = pendingSavesOf(state);
   if (owed.length === 0) return ok({ events: [], saves: [], pending: [] });
 
@@ -6824,11 +6819,17 @@ export function resolvePendingSaves(
     });
   }
 
-  // One generator position for the whole boundary, recorded once.
+  // One generator position for the whole boundary, recorded once — and the
+  // stamp rides here, because this is the event the command always emits when
+  // it does anything at all. A save that ends an effect writes
+  // `effect-save-resolved`; one that fails does not, and `roll-recorded` is
+  // per save rather than per command. An event that always happens is where a
+  // stamp has to ride.
   events.splice(0, 0, {
     type: 'rolls-issued',
     count: supply.issuer.count - issuedBefore,
     rng: supply.rng.snapshot(),
+    ...(stamp === null ? {} : { command: stamp }),
   });
 
   return ok({ events, saves, pending: [] });
@@ -7696,6 +7697,21 @@ export function mayAct(state: GameState, who: CharacterId): Err | null {
 }
 
 /**
+ * The request as the engine will remember the casting, for fingerprinting.
+ *
+ * A fingerprint answers "is this the same command", and two spellings of one
+ * command must not become two identities — which is why `stableStringify`
+ * sorts keys rather than treating field order as part of the command.
+ * `anchoring: 'space'` is the same thing one level up: **`space` is the
+ * absence**, normalised away when the ongoing record is built precisely so
+ * that a casting naming it serialises exactly as one that says nothing. An
+ * identity that told them apart would refuse an honest retry that spelled the
+ * default out.
+ */
+const castingIdentity = ({ anchoring, ...rest }: CastSpellRequest): CastSpellRequest =>
+  anchoring === undefined || anchoring === 'space' ? rest : { ...rest, anchoring };
+
+/**
  * A casting that has already been paid for and is waiting to be let go.
  *
  * SRD Ready is the only thing that produces one: the slot went when the spell
@@ -7720,21 +7736,41 @@ function castOrRelease(
   held: HeldCasting | null,
 ): Result<SpellResolution> {
   // **The duplicate check comes first, always.** A retry arrives at whatever
-  // the world has become since its first run — a damage roll somebody else
-  // has since held open, a save the next boundary raised — and every guard
-  // below reports that world instead of the fact that the command already
-  // landed. `resolveCast` owns the identity and answers the retry with an
-  // empty batch; everything between here and there is skipped for one.
-  const replayed = request.commandId !== undefined && wasCommandApplied(state, request.commandId);
+  // the world has become since its first run — the caster removed, the free
+  // casting spent, the targets moved, a save the next boundary raised — and
+  // every guard below reports that world instead of the fact that the command
+  // already landed. This was the engine's one command whose identity was
+  // established *after* half a dozen such refusals, and the caster leaving is
+  // the case no amount of re-checking could rescue: the retry has no caster to
+  // validate against and has to answer from the ledger alone.
+  //
+  // **The identity is the wrapper's, and it is established once.** Two
+  // `identify` calls under one id would fingerprint two different objects —
+  // this request, and the `CastCommand` derived from it — and refuse every
+  // honest retry. So the stamp is made here and carried down to the event that
+  // records the casting.
+  const identity = identify(state, `resolve-spell:${casterId}`, castingIdentity(request));
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    // The casting it already made is the one to report; `nextCastingId` would
+    // name the casting that *would* come next, which is a different spell.
+    const already =
+      request.commandId === undefined ? null : commandOutcome(state, request.commandId);
+    return ok({
+      events: [],
+      castingId: already?.castingId ?? nextCastingId(state),
+      outcomes: [],
+      unverified: [],
+    });
+  }
+  const stamp = identity.value.stamp;
 
   // A turn-boundary save outstanding means somebody may or may not still be
   // Paralyzed, and a damage roll or a D20 Test held open is an outcome nobody
   // has settled; casting into either would change the world underneath it.
   // See `unsettledRefusal`, which `activateSpell` reads too.
-  if (!replayed) {
-    const unsettled = unsettledRefusal(state, casterId);
-    if (unsettled !== null) return unsettled;
-  }
+  const unsettled = unsettledRefusal(state, casterId);
+  if (unsettled !== null) return unsettled;
 
   const caster = creatureOf(state, casterId);
   if (caster === null) return unknownCreature(casterId);
@@ -7756,9 +7792,9 @@ function castOrRelease(
   // **After the duplicate check, never before it.** The first Shield closed
   // the very attack that triggered it, so by the time a retry arrives the
   // trigger is gone — and reporting `no_trigger` for a casting that already
-  // happened is the exact confusion command ids exist to prevent. A retry must
-  // report the duplicate; `resolveCast` below returns the empty batch.
-  if (held === null && !replayed) {
+  // happened is the exact confusion command ids exist to prevent. A retry has
+  // already returned its empty batch above and never reaches here.
+  if (held === null) {
     const refused = triggerRefusal(state, casterId, definition, request);
     if (refused !== null) return refused;
   }
@@ -7773,15 +7809,33 @@ function castOrRelease(
   //
   // **After the duplicate check, never before it** — the same trap the trigger
   // above fell into, and it bites harder here: a retried *declaration* looks
-  // at a window its own first run opened, so an eager guard reports
-  // `casting_pending` for the command that opened it. A retry must report the
-  // duplicate; `resolveCast` below returns the empty batch.
+  // at a window its own first run opened, so an eager guard would report
+  // `casting_pending` for the command that opened it. A retry has already
+  // returned its empty batch above and never reaches here.
   const open = state.pendingCasting;
-  if (open !== null && !replayed && definition.trigger !== 'casting-a-spell') {
+  if (open !== null && definition.trigger !== 'casting-a-spell') {
     return err(
       'casting_pending',
       `${open.caster} is midway through casting ${open.spell}; settle that casting before beginning another`,
     );
+  }
+
+  // **One window at a time, and the refusal is a value.** The exemption above
+  // lets a Reaction *answer* the open casting; it does not let that Reaction
+  // open a second one. A held Counterspell, or one aimed at a casting that is
+  // itself an answer, is the nesting this deliberately does not build — "one
+  // pending casting, no stack" — and the reducer's `CorruptLogError` on a
+  // second `spell-declared` was the only thing saying so. An exception is
+  // reserved for programmer error; a rules refusal is something the DM
+  // narrates around.
+  if (open !== null && definition.trigger === 'casting-a-spell') {
+    const answered = definitionFor(open.spellId);
+    if (request.hold === true || answered?.trigger === 'casting-a-spell') {
+      return err(
+        'casting_pending',
+        `${definition.name} may answer ${open.spell} but may not be held open beside it; one casting is open at a time and a Reaction to a Reaction is not nested`,
+      );
+    }
   }
 
   // SRD gives "until the end of your next turn" no meaning where there are no
@@ -7904,6 +7958,7 @@ function castOrRelease(
     held,
     origin,
     area,
+    stamp,
   });
 }
 
@@ -8536,9 +8591,11 @@ function resolveOnTargets(
       readonly towards?: Point;
       readonly anchoring?: PointAnchoring;
     } | null;
+    /** The identity the wrapper established, stamped on the casting's event. */
+    readonly stamp: CommandStamp | null;
   },
 ): Result<SpellResolution> {
-  const { castLevel, route, targets, unverified, supply, held, origin, area } = context;
+  const { castLevel, route, targets, unverified, supply, held, origin, area, stamp } = context;
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
     // **Three answers, stated rather than inferred.** A Range: Self spell is
@@ -8619,59 +8676,55 @@ function resolveOnTargets(
     events.push({ type: 'resource-spent', id: casterId, key: freePool, amount: 1 });
   }
 
-  const cast = resolveCast(state, casterId, {
-    spell: definition.name,
-    level: definition.level,
-    concentration: definition.concentration,
-    castingTime: definition.castingTime,
-    ...(freePool !== null || definition.level === 0
-      ? { slotless: definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const) }
-      : {
-          slotLevel: castLevel,
-          ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
-        }),
-    route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
-    ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
-    // A span of seconds, or a moment in the turn order. A definition carries
-    // one or the other: Shield's "until the start of your next turn" is not
-    // six seconds, and `resolveDuration` refuses to pretend otherwise where
-    // there are no turns to anchor to.
-    ...(definition.durationSeconds !== undefined
-      ? { duration: { kind: 'seconds' as const, seconds: definition.durationSeconds } }
-      : definition.durationUntil === undefined
-        ? {}
-        : { duration: riderDuration(definition.durationUntil, casterId)! }),
-    ...(request.commandId === undefined ? {} : { commandId: request.commandId }),
-    // The window, and everything settlement will need to finish the job
-    // without the caller getting to restate what the spell was aimed at —
-    // the space it appears in included, for a spell that holds one.
-    ...(request.hold === true
-      ? {
-          hold: {
-            spellId: request.spellId,
-            targets,
-            unverified,
-            ...(origin === null ? {} : { origin }),
-            ...(area === null ? {} : { area }),
-          },
-        }
-      : {}),
-    ...(offered === undefined ? {} : { check: offered }),
-  });
+  // The identity is the wrapper's: `castOrRelease` established it over the
+  // request the caller actually sent, and a second `identify` here would
+  // fingerprint this derived command instead and refuse every honest retry.
+  const cast = resolveCastWith(
+    state,
+    casterId,
+    {
+      spell: definition.name,
+      level: definition.level,
+      concentration: definition.concentration,
+      castingTime: definition.castingTime,
+      ...(freePool !== null || definition.level === 0
+        ? { slotless: definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const) }
+        : {
+            slotLevel: castLevel,
+            ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
+          }),
+      route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
+      ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
+      // A span of seconds, or a moment in the turn order. A definition carries
+      // one or the other: Shield's "until the start of your next turn" is not
+      // six seconds, and `resolveDuration` refuses to pretend otherwise where
+      // there are no turns to anchor to.
+      ...(definition.durationSeconds !== undefined
+        ? { duration: { kind: 'seconds' as const, seconds: definition.durationSeconds } }
+        : definition.durationUntil === undefined
+          ? {}
+          : { duration: riderDuration(definition.durationUntil, casterId)! }),
+      // No `commandId`: the identity was established above and travels as the
+      // stamp. Repeating it here would be a second name for one command.
+      // The window, and everything settlement will need to finish the job
+      // without the caller getting to restate what the spell was aimed at —
+      // the space it appears in included, for a spell that holds one.
+      ...(request.hold === true
+        ? {
+            hold: {
+              spellId: request.spellId,
+              targets,
+              unverified,
+              ...(origin === null ? {} : { origin }),
+              ...(area === null ? {} : { area }),
+            },
+          }
+        : {}),
+      ...(offered === undefined ? {} : { check: offered }),
+    },
+    stamp,
+  );
   if (!cast.ok) return cast;
-  // A retried command: the first run did all of this. The casting id it
-  // allocated is the one to report — `nextCastingId` would name the casting
-  // that *would* come next, which is a different spell entirely.
-  if (cast.value.length === 0) {
-    const already =
-      request.commandId === undefined ? null : commandOutcome(state, request.commandId);
-    return ok({
-      events: [],
-      castingId: already?.castingId ?? castingId,
-      outcomes: [],
-      unverified: [],
-    });
-  }
 
   // SRD Mage Hand: "The hand vanishes ... if you cast this spell again."
   // **After the duplicate check**, so a retried casting does not end the
@@ -8762,7 +8815,10 @@ function scheduleDelayed(
       deadline: deadline.value,
       notation: scaledDiceFor(delayed.damage, definition.level, casterLevel, castLevel),
       damageType: delayed.damageType,
-      source: `${definition.name}#${castingId}`,
+      // Through the canonical encoder, not by hand: `castingIdOf` reads this
+      // back to find the casting, and a second spelling of the link is a
+      // second place for it to drift out of step with the reader.
+      source: castingSource(definition.name, castingId),
       label: `${definition.name} (delayed)`,
     },
   };

@@ -16,9 +16,9 @@ import { declaredCasting } from './spellcasting.js';
 import type { Point } from './positioning.js';
 import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import { areaStampKey, type AreaMoment } from './spells.js';
+import { commandOutcome } from './idempotency.js';
 import {
   activateSpell,
-  commandOutcome,
   endConcentration,
   ongoingSpellOf,
   owedAreaEffectsOf,

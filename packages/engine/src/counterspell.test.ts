@@ -15,6 +15,7 @@ import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
 import { declaredCasting } from './spellcasting.js';
 import {
+  castSpell,
   pendingCastingOf,
   removeCreatureEverywhere,
   resolveDeclaredCast,
@@ -638,6 +639,108 @@ describe('the window is a window, not a standing permission', () => {
       supply(-40),
     );
     expect(isErr(again) && again.code).toBe('casting_pending');
+  });
+
+  /**
+   * **No stack, and the refusal is a value.**
+   *
+   * CLAUDE.md has said since the window landed that "a Counterspell answering
+   * a Counterspell is refused rather than nested". It was — by the reducer
+   * throwing `CorruptLogError` on the second `spell-declared`, which is the
+   * wrong instrument: a rules-legal refusal is a value the DM narrates around,
+   * and an exception is reserved for programmer error.
+   *
+   * The reachable shape of the nesting is a Counterspell that asks to be
+   * **held open** while a casting is already open, because that is the only
+   * way a second window could exist. Answering the open casting outright is
+   * still allowed, and that is the whole point of the exemption.
+   */
+  it('refuses to hold a Counterspell open while a casting is already open', () => {
+    const open = unwrap(declareHoldPerson(TABLE), 'declare');
+    const log = [...TABLE, ...open.events];
+
+    const nested = resolveSpell(
+      fold('s', log),
+      WIZARD,
+      { spellId: 'counterspell', targets: [ENEMY], slotLevel: 3, hold: true },
+      supply(-40),
+    );
+    expect(isErr(nested) && nested.code).toBe('casting_pending');
+    if (isErr(nested)) expect(nested.reason).toContain('Counterspell');
+
+    // Nothing spent, and the window it was aimed at is exactly as it was.
+    const after = fold('s', log);
+    expect(slot3(after, WIZARD)).toBe(4);
+    expect(after.pendingCasting?.castingId).toBe(open.castingId);
+    expect(after.combat?.budgets[WIZARD]?.reaction).toBe(true);
+  });
+
+  /**
+   * The other half of the nesting, and it is reachable rather than defensive.
+   *
+   * `castSpell` is the documented low-level half — a caller reconstructing a
+   * log or scripting a fixture — and it checks no Reaction trigger, so it can
+   * legitimately leave a *Counterspell* open where `resolveSpell` never would.
+   * A second Counterspell aimed at that window is the thing CLAUDE.md has
+   * always said is refused rather than nested, and the refusal has to be a
+   * value there too.
+   */
+  it('refuses a Counterspell aimed at a casting that is itself a Counterspell', () => {
+    // The enemy can answer too, so the refusal below is the nesting guard and
+    // not a caster reaching for a spell they never had.
+    const ARMED: readonly GameEvent[] = TABLE.map((e) =>
+      e.type === 'spellcasting-declared' && e.id === ENEMY
+        ? {
+            ...e,
+            spellcasting: declaredCasting({
+              ability: 'int',
+              cantrips: ['fire-bolt'],
+              prepared: ['hold-person', 'fireball', 'bane', 'counterspell'],
+            }),
+          }
+        : e,
+    );
+    const opened = [
+      ...ARMED,
+      ...unwrap(
+        castSpell(fold('s', ARMED), WIZARD, {
+          spell: 'Counterspell',
+          level: 3,
+          slotLevel: 3,
+          castingTime: 'reaction',
+          route: 'class:innate',
+          hold: { spellId: 'counterspell', targets: [ENEMY], unverified: [] },
+        }),
+        'a Counterspell left open by the low-level half',
+      ),
+    ];
+    const open = fold('s', opened);
+    expect(open.pendingCasting?.spellId).toBe('counterspell');
+
+    const nested = resolveSpell(
+      open,
+      ENEMY,
+      { spellId: 'counterspell', targets: [WIZARD], slotLevel: 3 },
+      supply(-40),
+    );
+    expect(isErr(nested) && nested.code).toBe('casting_pending');
+    // Nothing spent, and the window it was aimed at is exactly as it was.
+    expect(slot3(open, ENEMY)).toBe(4);
+    expect(open.pendingCasting).not.toBeNull();
+  });
+
+  /** And the ordinary answer is untouched: a Counterspell may still answer. */
+  it('still lets a Counterspell answer the casting it was cast to answer', () => {
+    const open = unwrap(declareHoldPerson(TABLE), 'declare');
+    const log = [...TABLE, ...open.events];
+
+    const answered = resolveSpell(
+      fold('s', log),
+      WIZARD,
+      { spellId: 'counterspell', targets: [ENEMY], slotLevel: 3 },
+      supply(-40),
+    );
+    expect(isErr(answered)).toBe(false);
   });
 
   it('refuses to settle when nothing is being cast', () => {

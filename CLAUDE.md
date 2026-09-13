@@ -959,17 +959,28 @@ one-slot-per-turn rule therefore never fired. SRD is plain: "Most spells
 require the Magic action to cast", and two Magic actions on one turn is not a
 turn.
 
-`resolveCast` is the whole operation and the one a tool surface exposes: it
-validates the spell, spends the action, Bonus Action or Reaction the casting
-time names, expends the slot, and moves Concentration — or refuses and changes
-nothing at all. The spell is validated first and the economy second, so a
-refusal on either side leaves slots, Concentration and the budget as they were.
-A retried command id is a no-op on both halves.
+`resolveCast` is the whole cost of a casting: it validates the spell, spends the
+action, Bonus Action or Reaction the casting time names, expends the slot, and
+moves Concentration — or refuses and changes nothing at all. The spell is
+validated first and the economy second, so a refusal on either side leaves
+slots, Concentration and the budget as they were. A retried command id is a
+no-op on both halves.
 
 `castSpell` stays for callers reconstructing a log or scripting a fixture,
 where the economy is already accounted for. Same split as `damageCreature`
 beneath `resolveDamage`, and the same policy: the low-level half exists, and
 Maestro's tool surface does not expose it.
+
+**`resolveCast` is a low-level half too**, and this file said the opposite for
+a while. Its own docstring has always said that a Reaction's trigger "is
+checked one layer up" — `resolveSpell` is where `triggerRefusal` reads the
+window, where `unsettledRefusal` asks whether anybody may act at all, and where
+the targets, the range and the sight lines are checked. So the operation a tool
+surface exposes for a spell the engine has a definition for is `resolveSpell`;
+`resolveCast` is what is left for a spell it has none for, and it is unguarded
+by `mayAct`. That is a **named debt rather than a settled exemption** — the
+action-economy sweep in `invariants.test.ts` carries the sentence — and the
+moment M2 exposes it directly it needs the guard.
 
 Outside combat there is no economy to spend, so `resolveCast` simply casts.
 
@@ -1165,6 +1176,16 @@ framework — one pending casting, no stack, and a Counterspell answering a
 Counterspell is refused rather than nested. And it is not the long-casting-time
 machinery: a casting of a minute or more needs a per-turn obligation the caster
 must keep, which is a state machine, not a window.
+
+**And that refusal is a value, which it was not.** The exemption above lets a
+Reaction *answer* the open casting; nothing said it could not open a second
+one, so a Counterspell asking to be **held** while a casting was already open
+sailed past the guard and produced a `spell-declared` the reducer rejected as a
+corrupt log. The rule was right and the instrument was wrong: an exception is
+reserved for programmer error, and "you may answer this casting but you may not
+hold a second one open beside it" is something a DM narrates around.
+`castOrRelease` returns it, nothing is spent, and the reducer's throw stays
+where it belongs — as the backstop for a log that claims it happened anyway.
 
 ## A Casting Is History; What It Left Behind Is State
 
@@ -2245,12 +2266,35 @@ it.
 
 `mayAct` is the one policy, called by every command that spends an Action, a
 Bonus Action, movement or a feature's use: Dash, Disengage, Dodge, Ready,
-feature activation, the three pool commands, an effect check, an attack, a
-move, a casting, an activation, and the turn. The third whole-engine audit
-(2026-09-13) found no sweep holding that list: the only test is a hand-written
-case list covering nine of sixteen spenders, and `extendFeature` spends a
-Bonus Action with no guard at all. IE-003 makes the sweep mechanical; until
-it lands, a command added without the guard fails in play.
+feature activation and extension, the three pool commands, an effect check, an
+attack, a move, a casting, an activation, and the turn.
+
+**The list is derived, not recalled.** `invariants.test.ts` reads `commands.ts`
+and `rest.ts` and computes the transitive closure of the five action-economy
+primitives in `combat.ts` and the two events whose reducer takes a resource
+away — `resource-spent` for a pool use, `spell-cast` for a slot. Every exported
+declaration in that closure must either be run against a world owing a
+mandatory area effect and be refused `area_effect_owed`, or appear on an
+allowlist with the sentence that exempts it, and never both. A command added
+without the guard is in neither list and fails there rather than in play, which
+is what the third whole-engine audit (2026-09-13) found was not true: the only
+test was a hand-written case list covering nine of sixteen spenders, and
+`extendFeature` spent a Bonus Action with no guard at all.
+
+The allowlist is ten: five Reactions, two settlements of a window the engine is
+already holding open, the two low-level halves beneath `resolveSpell`, and
+`endRest`. That last one is an **open question rather than a decision**. A rest
+is not an action in the turn economy — SRD spends no Action, Bonus Action or
+Reaction on one, and the Hit Dice it spends are the rest's own payout rather
+than something taken during a turn — but whether an outstanding area effect
+should stop a creature ending a rest is a question neither the SRD nor this
+engine has ever asked. It is written down where the next person to read the
+list will meet it.
+
+Both sweeps are driven over a synthetic sample they must catch, so the analysis
+cannot quietly stop seeing anything, and every case is asserted twice — refused
+with the debt outstanding, and *not* refused once it is settled, because a
+fixture in which a command was never reachable would prove nothing.
 
 **An owed area effect is global engine debt, and getting that wrong is
 instructive.** It was per-creature for one commit, on the reasoning that a
@@ -2727,6 +2771,22 @@ folding the log twice raises it once, and the next turn raises it again — whic
 is what "repeats the save" means. An effect that ends first takes its hook and
 any outstanding debt with it, so nothing waits on a save for a spell that is
 already over.
+
+**And a creature who leaves takes its timers with it.** `pendingSaves` was the
+one engine debt of nine with no leaving-creature handling —
+`settleHoldsInvolving` closes a held attack and a declared move, and
+`dropOrphanedAreaEffects` and `dropStrandedDamage` cover theirs. A Paralyzed
+goblin removed mid-fight left its Hold Person timer standing, and
+`dropOrphanedSaves` drops a save only when its *timer* is gone: so the debt
+survived, `resolvePendingSaves` refused `unknown_creature`, `resolveTurn`
+refused `saves_pending`, and **the fight could never advance again**. The
+reducer's `creature-removed` now drops every timer that ends something *on*
+that creature, and only that creature's — a Hold Person holding two is not both
+of them being freed, which is the distinction the casting id was built for,
+applied to the target. A **casting's** timer is untouched, because SRD does not
+end a Grease because somebody walked out of it. Nothing is written for any of
+it: expiry is derived, and nobody decides that a condition on a creature who
+has left the game has stopped.
 
 **A success ends the effect where the hook says.** `end-on-target` is Hold
 Person's "ending the spell **on itself**": that creature is freed, the casting
@@ -3781,7 +3841,16 @@ right to treat it as one.
 
 So commands take an optional `commandId`, the event that results carries it,
 and the fold remembers it. A retry with an id that has already landed returns
-an empty batch. Three details make it actually work:
+an empty batch.
+
+**`idempotency.ts` holds the machinery, below the command layer**, because
+none of it is a rule about any particular operation. `rest.ts` needed
+`identify` and reached *upwards* into `commands.ts` for it — the one import
+that spoiled an otherwise acyclic value graph, and the kind of edge that turns
+into a real cycle the first time the command layer wants something a rest
+knows. Everybody imports downwards now, and a test says so.
+
+Three details make it actually work:
 
 - **The check comes before validation.** Otherwise a retry reports the damage
   the first attempt did — "no level 2 slots left" — rather than reporting that
@@ -3802,22 +3871,77 @@ rather than part of the command's identity, and it carries the operation's kind
 so a damage id and a casting id cannot collide by having similar shapes.
 
 **Every mutating tool on the Maestro surface takes a command id.** That is not
-optional the way it is for the engine's own callers. The sweep in
-`invariants.test.ts` was meant to be the authoritative list of which engine
-commands honour one, and the third whole-engine audit (2026-09-13) found it
-is a hand-maintained array, silent in both directions: five commands call
-`identify` and are absent from it, and seven event-returning exports take no
-id at all — two of them undocumented, `resolvePendingSaves`, which re-rolls
-the turn's saves on a retry, and `removeCreatureEverywhere`. IE-003 derives
-the list from the module's exports. The DM-facing four that were unguarded —
-`applyConditionTo`, `endConcentration`, `setExhaustionLevel`,
-`grantTemporaryHpTo` — are guarded now. A model-driven loop
-retries for reasons that have nothing to do with the game — a `pause_turn`
-resume, a dropped connection, a tool re-invocation after a stream error — and
-an unidentified retry is a second casting that spends a second slot and rolls a
-second save. The id is what makes "did that go through?" answerable rather than
-a guess. The engine keeps it optional because a test fixture or a scripted
-scenario has no such problem; the tool surface has no such excuse.
+optional the way it is for the engine's own callers.
+
+**The sweep in `invariants.test.ts` is authoritative because it is derived.**
+It reads the declared return type of every export of `commands.ts` and
+`rest.ts` and classifies it: `Result<GameEvent[]>`, or a `Result<X>` whose `X`
+carries an `events` field, hands the caller events. Every one of those must be
+run twice under one id — the second run emitting nothing at all — or carry a
+written reason for taking no id. A named return type the classifier cannot
+resolve is reported rather than skipped, because a classifier that silently
+answers "no" to a shape it does not understand reports no problems and checks
+nothing.
+
+It was a hand-maintained array until the third whole-engine audit
+(2026-09-13), and silent in both directions: five commands called `identify`
+and were absent from it — `resolveAttackDamage`, `activateFeature`,
+`castSpell`, `resolveDamage`, `beginRest` — and two event-returning exports
+took no id at all. Both now have one: **`resolvePendingSaves`**, whose stamp
+rides on `rolls-issued` because that is the only event it always emits, and
+**`removeCreatureEverywhere`**, whose stamp rides on `creature-removed` for the
+same reason. The DM-facing four that were unguarded — `applyConditionTo`,
+`endConcentration`, `setExhaustionLevel`, `grantTemporaryHpTo` — were guarded
+earlier.
+
+**A third was exempted with a sentence that was not true**, which is the
+failure a derived sweep is most exposed to: the list is only as good as its
+reasons. `restoreResourcesOn` was excused as "idempotent by construction — a
+pool restored twice is a pool restored", and that is the *whole refill* branch.
+SRD's partial rule is the other one: "you regain **one** expended use when you
+finish a Short Rest" subtracts from `spent`, so a retried restoration hands
+back two uses of Rage, Second Wind, Channel Divinity, Wild Shape or Bardic
+Inspiration. It has an id now, and the fixture that pins it is a pool with that
+rule and two uses gone — a pool declared by hand, because every class carrying
+the rule is also tagged `long-rest` and takes the whole-refill branch first.
+
+`endRest` is the one exemption that is a debt rather than a decision: a retry
+finds nobody resting and is refused, so no Hit Die is rolled twice, but the
+caller cannot tell that from never having rested.
+
+A model-driven loop retries for reasons that have nothing to do with the game —
+a `pause_turn` resume, a dropped connection, a tool re-invocation after a
+stream error — and an unidentified retry is a second casting that spends a
+second slot and rolls a second save. The id is what makes "did that go
+through?" answerable rather than a guess. The engine keeps it optional because
+a test fixture or a scripted scenario has no such problem; the tool surface has
+no such excuse.
+
+### Whoever *is* the command owns the identity
+
+`resolveSpell` was the engine's one command that established its identity
+*after* half a dozen refusals — the caster's record, the definition, the
+targets, the free casting its own first run had already spent. So a retry was
+told about the world instead of about its own command, and a retry sent after
+the caster left the game came back `unknown_creature` for a casting that had
+succeeded. The eighth instance of that trap in this file, and the first in a
+wrapper.
+
+The fix is not an extra check but a single owner. `castOrRelease` calls
+`identify` first, over the `CastSpellRequest` the caller actually sent, and
+carries the resulting stamp down to the event that records the casting;
+`castSpellWith` and `resolveCastWith` are the halves that take an identity
+already established. **Two `identify` calls under one id would be two
+fingerprints of two different objects** — the request, and the `CastCommand`
+derived from it — and would refuse every honest retry.
+
+Fingerprinting the request rather than the derived command is the stricter
+half: a retry naming different targets is now caught, which the derived form
+could not see. It needs one normalisation, and it is a rule the engine already
+had: **`space` is the absence**, so a casting that spells the default out is
+the same command as one that says nothing, exactly as the ongoing record
+already treats it. Field order was the first instance of that idea; this is the
+second.
 
 ## Conditions Close The Loop
 

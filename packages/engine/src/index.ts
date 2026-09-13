@@ -30,6 +30,7 @@ export * from './positioning.js';
 export * from './reactions.js';
 export * from './monster.js';
 export * from './events.js';
+export * from './idempotency.js';
 export * from './commands.js';
 // The effective Armour Class — the one an attack is actually measured against,
 // with a Shield of Faith or a Mage Armor folded in. `standing.ts` is otherwise

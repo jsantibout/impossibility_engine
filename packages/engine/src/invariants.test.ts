@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   asCharacterId,
@@ -15,8 +17,11 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import {
+  activateFeature,
   activateSpell,
+  castSpell,
   applyConditionTo,
+  applySpellEffect,
   damageCreature,
   declareCreatureType,
   declineOpportunity,
@@ -26,6 +31,8 @@ import {
   pendingAttackOf,
   pendingMoveOf,
   removeCreatureEverywhere,
+  resolvePendingSaves,
+  restoreResourcesOn,
   availableChecks,
   resolveEffectCheck,
   endFeature,
@@ -35,6 +42,7 @@ import {
   purchaseItem,
   releaseReady,
   resolveAttack,
+  resolveAttackDamage,
   resolveCast,
   resolveMove,
   resolveDamage,
@@ -60,6 +68,7 @@ import {
   useRecovery,
   useSelfHeal,
 } from './commands.js';
+import { beginRest } from './rest.js';
 
 /**
  * Invariants the whole engine owes, checked as a sweep rather than one command
@@ -219,6 +228,103 @@ const provoking = (): readonly GameEvent[] => {
  * which is exactly why a sweep has to exercise both.
  */
 const CIRCLING = { from: { creature: B }, feet: 5, bearing: 90 } as const;
+
+/**
+ * An attack that has hit and whose damage nobody has rolled.
+ *
+ * The window SRD Divine Smite is cast into, and the state `resolveAttackDamage`
+ * settles. A large bonus settles the attack roll outright, so the fixture is
+ * the held branch every time rather than whichever way the dice fell.
+ */
+const holding = (): readonly GameEvent[] => [
+  ...SETUP,
+  ...unwrap(
+    resolveAttack(
+      fold('s', SETUP),
+      A,
+      {
+        target: B,
+        weapon: 'longsword',
+        hold: true,
+        attackBonuses: [{ source: 'the test insists', flat: 40 }],
+      },
+      supply(),
+    ),
+    'a hit held open',
+  ).events,
+];
+
+/**
+ * A turn-boundary save raised and left unrolled.
+ *
+ * Advancing without a generator is what leaves the debt in state, which is the
+ * whole reason `resolvePendingSaves` exists — and the reason it needs an id:
+ * it is the one settlement a caller comes back to later, from a different
+ * machine, with the world some way further on.
+ */
+const owed = (): readonly GameEvent[] => {
+  const cast = [
+    ...SETUP,
+    ...unwrap(
+      castSpell(fold('s', SETUP), A, {
+        spell: 'Hold Person',
+        level: 1,
+        concentration: true,
+        slotLevel: 1,
+      }),
+      'hold person',
+    ),
+  ];
+  const held = [
+    ...cast,
+    ...unwrap(
+      applySpellEffect(fold('s', cast), B, 'paralyzed', A, {
+        repeatSave: {
+          at: 'end-of-turn',
+          of: B,
+          ability: 'wis',
+          dc: 13,
+          onSuccess: 'end-on-target',
+          label: 'Wisdom save vs Hold Person',
+        },
+      }),
+      'paralysed',
+    ),
+  ];
+  let log: readonly GameEvent[] = held;
+  // A's turn ends, then B's — and the end of B's own turn is what raises it.
+  for (let n = 0; n < 2; n += 1) {
+    log = [...log, ...unwrap(resolveTurn(fold('s', log)), `turn ${n}`).events];
+  }
+  return log;
+};
+
+/**
+ * A pool that gives **one** use back on a Short Rest, with two spent.
+ *
+ * SRD writes that rule five times in the same words — Rage, both Channel
+ * Divinities, Wild Shape, Second Wind. Built by hand rather than from a class
+ * table, because every class that has it is also tagged `long-rest` and takes
+ * the whole-refill branch first; `restoreOn` is pure over a pool, so the
+ * partial branch is reachable by simply declaring one that recovers at dawn.
+ * It is the branch that makes a retried restoration hand back a use nobody
+ * rested for.
+ */
+const partiallySpent = (): readonly GameEvent[] => [
+  ...SETUP,
+  {
+    type: 'resource-pool-declared',
+    id: A,
+    pool: {
+      key: 'test:fury',
+      label: 'a fury of sorts',
+      max: 3,
+      recovers: 'dawn',
+      regainsOnShortRest: 1,
+    },
+  },
+  { type: 'resource-spent', id: A, key: 'test:fury', amount: 2 },
+];
 
 /** A feature already switched on, so ending and extending it are legal. */
 const stanced = (): readonly GameEvent[] => [
@@ -514,12 +620,25 @@ const conjured = (): readonly GameEvent[] => {
 };
 
 /**
- * A creature standing in a Grease it has just walked into.
+ * A creature standing in a Grease it has just walked into, with the save owed.
  *
  * The debt is raised by the fold of `creature-moved` rather than by any
  * command, so the retry that matters is the **settlement**: a second run would
  * roll a second Dexterity save against a slick the first one already dealt
  * with.
+ *
+ * Three details, each of which the fixture was silently wrong about before:
+ *
+ * - **A Cube does not include its point of origin**, so walking to the
+ *   landmark the Grease was cast at enters nothing. Five feet further in is
+ *   what puts a creature in the area, and the earlier fixture's zero-foot walk
+ *   raised no debt at all — the same trap `area-triggers.test.ts` records
+ *   under "a test that passes for the wrong reason".
+ * - **A declared move raises nothing.** Leaving A's reach provokes, and the
+ *   entry comes from the `creature-moved` that completing the move writes.
+ * - **B walks in rather than A**, so the creature that owes the save still has
+ *   an Action, a Bonus Action and a Reaction — which is what lets the `mayAct`
+ *   sweep below say that the debt is the only reason anything was refused.
  */
 const greased = (): readonly GameEvent[] => {
   const armed: readonly GameEvent[] = [
@@ -549,18 +668,20 @@ const greased = (): readonly GameEvent[] => {
       'grease',
     ).events,
   ];
-  return [
-    ...cast,
+  const turned = [...cast, ...unwrap(resolveTurn(fold('s', cast), supply()), 'on to B').events];
+  const declared = [
+    ...turned,
     ...unwrap(
       resolveMove(
-        fold('s', cast),
-        A,
-        { placement: { from: { landmark: 'the slick' }, feet: 0 } },
+        fold('s', turned),
+        B,
+        { placement: { from: { landmark: 'the slick' }, feet: 5, bearing: 90 } },
         supply(),
       ),
       'walking in',
     ).events,
   ];
+  return [...declared, ...unwrap(declineOpportunity(fold('s', declared), A, {}), 'A lets B go')];
 };
 
 const GUARDED: readonly Guarded[] = [
@@ -619,6 +740,66 @@ const GUARDED: readonly Guarded[] = [
     log: SETUP,
     run: (s, commandId) =>
       resolveCast(s, A, { spell: 'Inflict Wounds', level: 1, slotLevel: 1, commandId }),
+  },
+  /**
+   * The five the derived sweep found missing. Each calls `identify` and each
+   * was absent from the hand-written list, which is exactly the silence that
+   * made the list worth deriving: three of them are top-level entry points
+   * with a live guard nothing exercised.
+   */
+  {
+    name: 'castSpell',
+    log: SETUP,
+    run: (s, commandId) =>
+      castSpell(s, A, { spell: 'Inflict Wounds', level: 1, slotLevel: 1, commandId }),
+  },
+  {
+    name: 'activateFeature',
+    log: SETUP,
+    run: (s, commandId) => activateFeature(s, A, { feature: 'test:stance', commandId }),
+  },
+  {
+    name: 'resolveDamage',
+    log: SETUP,
+    run: (s, commandId) => resolveDamage(s, B, { amount: 7, source: 'a trap', commandId }, supply()),
+  },
+  {
+    // A hit whose damage is still to be rolled — the second half of a held
+    // attack, and the most retry-vulnerable shape there is, because the caller
+    // has already been round the loop once to get here.
+    name: 'resolveAttackDamage',
+    log: holding(),
+    run: (s, commandId) => resolveAttackDamage(s, A, { commandId }, supply()),
+  },
+  { name: 'beginRest', log: SETUP, run: (s, commandId) => beginRest(s, A, 'short', commandId) },
+  /**
+   * The two the audit found taking no id at all. One **rolls dice** for
+   * whatever the state happens to owe, and the other takes a creature out of
+   * the game — a retry of which used to report `unknown_creature` for a
+   * removal that had succeeded.
+   */
+  {
+    name: 'resolvePendingSaves',
+    log: owed(),
+    run: (s, commandId) => resolvePendingSaves(s, supply(), { commandId }),
+  },
+  {
+    name: 'removeCreatureEverywhere',
+    log: SETUP,
+    run: (s, commandId) => removeCreatureEverywhere(s, B, { commandId }),
+  },
+  {
+    /**
+     * And the one the sweep had been excusing with a sentence that was not
+     * true. A whole refill applied twice is a whole refill, but SRD's partial
+     * rule is not: "you regain **one** expended use when you finish a Short
+     * Rest" subtracts from `spent`, so the fixture is a pool with that rule
+     * and two uses gone — where a second run gives back a use nobody rested
+     * for.
+     */
+    name: 'restoreResourcesOn',
+    log: partiallySpent(),
+    run: (s, commandId) => restoreResourcesOn(s, A, 'short-rest', { commandId }),
   },
   { name: 'resolveTurn', log: SETUP, run: (s, commandId) => resolveTurn(s, supply(), { commandId }) },
   {
@@ -799,6 +980,12 @@ describe('a retried command changes nothing the first one did not', () => {
       expect(isErr(first) ? `${first.code}: ${first.reason}` : 'ok').toBe('ok');
       if (isErr(first)) return;
 
+      // **And the first run must actually do something.** A fixture in which a
+      // command succeeds by having nothing to do passes both assertions below
+      // while testing neither — which is what `greased()` was silently doing,
+      // by walking to the point a Grease was cast at rather than into it.
+      expect(eventsOf(first.value).length, `${entry.name} did nothing`).toBeGreaterThan(0);
+
       const once = [...entry.log, ...eventsOf(first.value)];
       const after = fold('s', once);
 
@@ -851,6 +1038,440 @@ describe('a retried command changes nothing the first one did not', () => {
     const reused = damageCreature(after, B, { amount: 9, source: 't', commandId: 'x' });
     expect(isErr(reused)).toBe(true);
     if (isErr(reused)) expect(reused.code).toBe('command_id_reused');
+  });
+});
+
+// — the two sweeps that are derived from the module, not recalled ————————————
+
+/**
+ * The engine's own source, read so that a sweep enumerates what is *there*
+ * rather than what somebody remembered to list.
+ *
+ * Both sweeps below were hand-written arrays until the third whole-engine
+ * audit measured them: the `mayAct` list covered nine of sixteen spenders and
+ * `GUARDED` was silent in both directions. A list that has to be maintained by
+ * hand is a list that goes stale between the commit that adds a command and
+ * the play session that finds out. The precedent is `spell-schema.test.ts`'s
+ * special-case scan, and so is the discipline that goes with it: each analysis
+ * is driven over a synthetic sample that it must catch, so the sweep cannot
+ * quietly stop seeing anything.
+ */
+const MODULE_SOURCE: Readonly<Record<string, string>> = Object.fromEntries(
+  ['commands.ts', 'rest.ts'].map((file) => [
+    file,
+    readFileSync(`${fileURLToPath(new URL('.', import.meta.url))}${file}`, 'utf8'),
+  ]),
+);
+
+/**
+ * Every top-level declaration in a module, with the text that follows it.
+ *
+ * A body runs to the next top-level declaration, which is all the call graph
+ * below needs: it asks which *names* a declaration mentions, not where they
+ * sit.
+ *
+ * **Both `function` and `const`**, because the module already contains
+ * function-valued consts (`anchoringFor`) and a classifier that recognised
+ * only one form would answer "not a spender" to a shape it had simply never
+ * heard of — which is what `animals.md` taught and what the two sweeps below
+ * exist to stop happening to guards.
+ */
+const DECLARATION = /^(export )?(?:(?:async )?function|const) (\w+)/gm;
+
+const functionsIn = (
+  source: string,
+): readonly { readonly name: string; readonly exported: boolean; readonly body: string }[] => {
+  DECLARATION.lastIndex = 0;
+  const found: { name: string; exported: boolean; at: number }[] = [];
+  for (let m = DECLARATION.exec(source); m !== null; m = DECLARATION.exec(source)) {
+    found.push({ name: m[2]!, exported: m[1] !== undefined, at: m.index });
+  }
+  return found.map((entry, i) => ({
+    name: entry.name,
+    exported: entry.exported,
+    body: source.slice(entry.at, found[i + 1]?.at ?? source.length),
+  }));
+};
+
+/**
+ * Which functions spend something a creature only has so much of.
+ *
+ * The seeds are the action economy's own primitives in `combat.ts` and the two
+ * events whose reducer takes a resource away — a pool use (`resource-spent`,
+ * which is every feature's uses and a feat's free casting) and a spell slot
+ * (`spell-cast`, where the slot actually goes). Everything else is reached
+ * transitively, because a command that spends through a helper is spending
+ * just the same: `activateFeature` never names `spendBonusAction`, and it
+ * spends one.
+ */
+const ECONOMY = ['spendAction', 'spendBonusAction', 'spendReaction', 'spendMovement', 'spendAttack'];
+const SPENT_EVENTS = ["'resource-spent'", "'spell-cast'"];
+
+const spendersIn = (source: string): ReadonlySet<string> => {
+  const functions = functionsIn(source);
+  const spends = new Set(ECONOMY);
+  for (const fn of functions) {
+    if (SPENT_EVENTS.some((event) => fn.body.includes(event))) spends.add(fn.name);
+  }
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const fn of functions) {
+      if (spends.has(fn.name)) continue;
+      if ([...spends].some((callee) => new RegExp(`\\b${callee}\\s*\\(`).test(fn.body))) {
+        spends.add(fn.name);
+        grew = true;
+      }
+    }
+  }
+  return new Set(functions.filter((fn) => fn.exported && spends.has(fn.name)).map((fn) => fn.name));
+};
+
+/**
+ * One spender, run against a world that owes a mandatory area effect.
+ *
+ * The command's arguments need only be well-formed. `mayAct` is checked
+ * immediately after the duplicate check and before the creature, the feature
+ * or the target is looked up, which is the whole point of it — so a command
+ * naming a feature nobody has is still refused for the debt, and the second
+ * assertion below is what proves the debt is what did it.
+ */
+interface Spender {
+  readonly name: string;
+  readonly run: (state: GameState) => Result<unknown>;
+}
+
+/**
+ * A world with an area effect owed by somebody, and a creature whose turn has
+ * just begun with everything unspent.
+ *
+ * A is the caster and stays clear of the slick; B walks into it on B's own
+ * turn, so B still has an Action, a Bonus Action and a Reaction when the debt
+ * lands. Every refusal below is therefore the debt and nothing else.
+ */
+const owing = greased;
+
+const SPENDERS: readonly Spender[] = [
+  { name: 'takeDash', run: (s) => takeDash(s, B, {}) },
+  { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
+  { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
+  {
+    name: 'takeReady',
+    run: (s) => takeReady(s, B, { trigger: 'when it moves', response: { kind: 'action' } }),
+  },
+  { name: 'resolveMove', run: (s) => resolveMove(s, B, { placement: CIRCLING }, supply()) },
+  { name: 'resolveAttack', run: (s) => resolveAttack(s, B, { target: A, weapon: null }, supply()) },
+  {
+    name: 'activateSpell',
+    run: (s) => activateSpell(s, B, { castingId: 'cast:1', targets: [A] }, supply()),
+  },
+  { name: 'activateFeature', run: (s) => activateFeature(s, B, { feature: 'test:stance' }) },
+  {
+    name: 'useHealingTouch',
+    run: (s) => useHealingTouch(s, B, { feature: 'test:healing-touch', target: A, lift: ['poisoned'] }),
+  },
+  { name: 'useSelfHeal', run: (s) => useSelfHeal(s, B, { feature: 'test:self-heal' }, supply()) },
+  { name: 'useRecovery', run: (s) => useRecovery(s, B, { feature: 'test:recovery' }, supply()) },
+  {
+    name: 'extendFeature',
+    run: (s) => extendFeature(s, B, { feature: 'test:stance', by: 'bonus-action' }),
+  },
+  {
+    name: 'resolveEffectCheck',
+    run: (s) => resolveEffectCheck(s, B, { effectKey: 'condition|b|nothing' }, supply()),
+  },
+  {
+    name: 'resolveSpell',
+    run: (s) => resolveSpell(s, B, { spellId: 'inflict-wounds', targets: [A], slotLevel: 1 }, supply()),
+  },
+];
+
+/**
+ * The spenders that deliberately do **not** consult `mayAct`, each with the
+ * sentence that exempts it. CLAUDE.md states the policy; this is the list it
+ * applies to, so that adding a command to it is a visible act.
+ */
+const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
+  releaseReady:
+    'a Reaction: it answers a window that is already open, and refusing it would strand a legal one',
+  takeOpportunityAttack: 'a Reaction, taken on somebody else’s turn',
+  takeDamageReaction: 'a Reaction, and it closes a window somebody else opened',
+  takeTestReaction: 'a Reaction, and it closes a window somebody else opened',
+  takeDamageResponse: 'a Reaction, and it closes a window somebody else opened',
+  resolveAttackDamage:
+    'the settlement of an attack already made — a guard here would strand the held roll',
+  resolveDeclaredCast:
+    'the settlement of a casting the engine is already holding open; refusing it would deadlock the window',
+  castSpell:
+    'the documented low-level half, for a caller reconstructing a log or scripting a fixture; the economy is already accounted for',
+  resolveCast:
+    'the low-level half beneath resolveSpell, for a spell the engine has no definition for; its own docstring says the trigger is checked one layer up, and `castOrRelease` is where the guard sits for everything the definitions cover — **a named debt rather than a settled exemption**, because the moment M2 exposes this directly it needs the guard',
+  endRest:
+    'not an action in the turn economy: SRD spends no Action, Bonus Action or Reaction on a rest, and the Hit Dice it spends are the rest’s own payout rather than something taken during a turn. Whether an outstanding area effect should block a rest is a question neither the SRD nor this engine has asked; naming it here is how it gets asked',
+};
+
+describe('every command that spends something asks whether it may', () => {
+  // Both modules, because `endRest` spends Hit Dice: a pool use by the sweep's
+  // own definition, in a file the first draft of this did not read at all.
+  const spenders = new Set(
+    Object.values(MODULE_SOURCE).flatMap((source) => [...spendersIn(source)]),
+  );
+
+  /**
+   * The sweep is enumerated from the module, so a command added with a guard
+   * missing has nowhere to hide: it is neither exercised below nor written
+   * into the exemption list, and this fails naming it.
+   */
+  it('accounts for every exported spender, and invents none', () => {
+    const accounted = new Set([...SPENDERS.map((s) => s.name), ...Object.keys(UNGUARDED_ON_PURPOSE)]);
+    expect([...spenders].filter((name) => !accounted.has(name)).sort()).toEqual([]);
+    expect([...accounted].filter((name) => !spenders.has(name)).sort()).toEqual([]);
+  });
+
+  /** And the analysis is not vacuous: it finds a spender it is shown. */
+  it('would find an unguarded spender if one were added', () => {
+    const smuggled = [
+      'export function takeALittleSomething(state: GameState): Result<GameEvent[]> {',
+      '  const spent = spendBonusAction(state.combat, id, undefined);',
+      '  return ok([]);',
+      '}',
+    ].join('\n');
+    expect([...spendersIn(smuggled)]).toEqual(['takeALittleSomething']);
+    // And a command that spends nothing is not swept up with it.
+    expect([...spendersIn('export function lookAtSomething(): number {\n  return 1;\n}')]).toEqual([]);
+  });
+
+  it('really does owe an area effect in this fixture', () => {
+    const state = fold('s', owing());
+    expect(state.owedAreaEffects.length).toBeGreaterThan(0);
+    // And B is the one acting, with a turn they have barely begun to spend.
+    expect(state.combat?.order[state.combat.turnIndex]?.id).toBe(B);
+    expect(state.combat?.budgets[B]?.action).toBe(true);
+    expect(state.combat?.budgets[B]?.bonusAction).toBe(true);
+  });
+
+  for (const spender of SPENDERS) {
+    it(`${spender.name}: refused while an area effect is owed`, () => {
+      const out = spender.run(fold('s', owing()));
+      expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
+    });
+
+    /**
+     * And it is the debt talking, not the fixture. Settling the debt and
+     * running exactly the same command must produce anything *but* that
+     * refusal — otherwise the assertion above would pass for a command that
+     * was never reachable in this world at all.
+     */
+    it(`${spender.name}: and lets it through once the debt is settled`, () => {
+      const log = owing();
+      const settled = [...log, ...unwrap(settleAreaEffects(fold('s', log), supply()), 'settle').events];
+      const out = spender.run(fold('s', settled));
+      expect(isErr(out) ? out.code : 'ok').not.toBe('area_effect_owed');
+    });
+  }
+});
+
+/**
+ * Which exports hand back events, so the idempotency sweep can be told what it
+ * has not covered.
+ *
+ * Read off the declared return type rather than guessed: `Result<GameEvent[]>`
+ * or a `Result<X>` whose `X` carries an `events` field. A named type nothing
+ * declares is reported rather than skipped — a classifier that silently
+ * answers "no" to a shape it does not understand reports no problems and
+ * checks nothing, which is what `animals.md` taught.
+ */
+const DECLARATIONS = readFileSync(
+  `${fileURLToPath(new URL('.', import.meta.url))}commands.ts`,
+  'utf8',
+)
+  .concat(MODULE_SOURCE['rest.ts']!)
+  .concat(
+    ['attack.ts', 'combat.ts', 'duration.ts', 'events.ts', 'positioning.ts', 'resources.ts', 'spells.ts']
+      .map((f) => readFileSync(`${fileURLToPath(new URL('.', import.meta.url))}${f}`, 'utf8'))
+      .join('\n'),
+  );
+
+const returnTypesIn = (
+  source: string,
+): readonly { readonly name: string; readonly returns: string }[] => {
+  const lines = source.split('\n');
+  const found: { name: string; returns: string }[] = [];
+  // Both declaration forms and both signature layouts. A function-valued
+  // export whose shape is matched by none of these comes back with an empty
+  // return type and is reported by the test below, rather than being quietly
+  // classified as "hands the caller no events" — the failure mode `animals.md`
+  // taught and the one these sweeps exist to prevent.
+  const OPENS = [/^export (?:async )?function (\w+)\(/, /^export const (\w+) = (?:async )?\(/];
+  const INLINE = [
+    /^export (?:async )?function \w+\(.*\): (.+) \{$/,
+    /^export const \w+ = (?:async )?\(.*\): (.+?) =>/,
+  ];
+  const CLOSES = [/^\): (.+) \{$/, /^\): (.+?) =>/];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const head = OPENS.map((re) => re.exec(lines[i]!)).find((m) => m !== null);
+    if (head === undefined || head === null) continue;
+    const inline = INLINE.map((re) => re.exec(lines[i]!)).find((m) => m !== null);
+    if (inline !== undefined && inline !== null) {
+      found.push({ name: head[1]!, returns: inline[1]! });
+      continue;
+    }
+    let returns = '';
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const close = CLOSES.map((re) => re.exec(lines[j]!)).find((m) => m !== null);
+      if (close !== undefined && close !== null) {
+        returns = close[1]!;
+        break;
+      }
+      if (/^(export )?(?:(?:async )?function|const) /.test(lines[j]!)) break;
+    }
+    found.push({ name: head[1]!, returns });
+  }
+  return found;
+};
+
+/** Whether a declared return type hands the caller events. */
+const carriesEvents = (returns: string): boolean | 'unresolved' => {
+  const inner = /^Result<([\s\S]*)>$/.exec(returns.trim());
+  if (inner === null) return false;
+  const payload = inner[1]!.trim().replace(/^readonly /, '');
+  if (/^GameEvent\[\]$/.test(payload)) return true;
+  if (/readonly events:/.test(payload)) return true;
+  if (!/^[A-Z]\w*$/.test(payload)) return false;
+  const declared = new RegExp(
+    `export interface ${payload}(?: extends [^{]+)? \\{([\\s\\S]*?)\\n\\}`,
+  ).exec(DECLARATIONS);
+  if (declared === null) return 'unresolved';
+  return /readonly events:/.test(declared[1]!);
+};
+
+/**
+ * Event-returning exports that deliberately take no command id, each with the
+ * reason. CLAUDE.md names four as fixture and log-reconstruction halves; the
+ * rest are pure builders that emit an event without deciding anything.
+ */
+const UNIDENTIFIED_ON_PURPOSE: Readonly<Record<string, string>> = {
+  applySpellEffect:
+    'a builder for a caller reconstructing a log or scripting a fixture; it decides nothing and spends nothing',
+  endSpellEffectOn:
+    'a builder for a caller reconstructing a log or scripting a fixture; it decides nothing and spends nothing',
+  declareResourcePool: 'declaring a pool twice is refused outright, so a retry cannot double one',
+  endRest:
+    'a rest ends once: a retry finds nobody resting and is refused `not_resting`, so no Hit Die is rolled twice — but the caller cannot tell that from never having rested, which is a gap this sweep now names rather than an exemption it endorses',
+};
+
+describe('the idempotency sweep covers every command that hands back events', () => {
+  const eventReturning = ['commands.ts', 'rest.ts'].flatMap((file) =>
+    returnTypesIn(MODULE_SOURCE[file]!).map((entry) => ({ file, ...entry })),
+  );
+
+  it('classifies every export’s return type, resolving every named one', () => {
+    const unresolved = eventReturning
+      .filter((entry) => carriesEvents(entry.returns) === 'unresolved')
+      .map((entry) => `${entry.name}: ${entry.returns}`);
+    expect(unresolved).toEqual([]);
+  });
+
+  /**
+   * And it read a return type off **every** function-valued export, rather
+   * than off the ones whose declaration form it happened to recognise. A
+   * signature laid out in a way the regexes do not know comes back empty here
+   * instead of silently answering "no events", which is the whole difference
+   * between a guard and a guard-shaped thing.
+   */
+  it('reads a return type off every function-valued export', () => {
+    const silent = eventReturning.filter((entry) => entry.returns.trim() === '');
+    expect(silent.map((entry) => `${entry.file}:${entry.name}`)).toEqual([]);
+
+    // And it saw as many exports as the module declares, so a form it does not
+    // open at all cannot go unnoticed either.
+    for (const file of ['commands.ts', 'rest.ts']) {
+      const declared = functionsIn(MODULE_SOURCE[file]!)
+        .filter((fn) => fn.exported && /^(export const \w+ = (?:async )?\(|export (?:async )?function)/m.test(fn.body))
+        .map((fn) => fn.name)
+        .sort();
+      const classified = returnTypesIn(MODULE_SOURCE[file]!)
+        .map((entry) => entry.name)
+        .sort();
+      expect(classified, file).toEqual(declared);
+    }
+  });
+
+  /**
+   * The list `CLAUDE.md` claims is authoritative, made so. Every export whose
+   * return carries events is either run twice under one id above, or written
+   * down here with the reason it is not.
+   */
+  it('leaves no event-returning export unaccounted for', () => {
+    const swept = new Set(GUARDED.map((entry) => entry.name.replace(/ \(.*\)$/, '')));
+    const missing = eventReturning
+      .filter((entry) => carriesEvents(entry.returns) === true)
+      .map((entry) => entry.name)
+      .filter((name) => !swept.has(name) && UNIDENTIFIED_ON_PURPOSE[name] === undefined)
+      .sort();
+    expect(missing).toEqual([]);
+  });
+
+  /** No stale exemptions: a name here must still be an export that returns events. */
+  it('keeps no exemption for a command that no longer needs one', () => {
+    const carriers = new Set(
+      eventReturning.filter((entry) => carriesEvents(entry.returns) === true).map((e) => e.name),
+    );
+    expect(Object.keys(UNIDENTIFIED_ON_PURPOSE).filter((name) => !carriers.has(name))).toEqual([]);
+    expect(Object.values(UNIDENTIFIED_ON_PURPOSE).every((reason) => reason.length > 20)).toBe(true);
+
+    // **And an exemption is not a note.** A command that is in the sweep does
+    // not need excusing from it, and a reason written beside one reads as a
+    // decision when it is a remark — which is how `castSpell` came to sit in
+    // both lists, exempted from a sweep that was already running it.
+    const swept = new Set(GUARDED.map((entry) => entry.name.replace(/ \(.*\)$/, '')));
+    expect(Object.keys(UNIDENTIFIED_ON_PURPOSE).filter((name) => swept.has(name))).toEqual([]);
+  });
+
+  /** The same rule on the other side: a spender is guarded or exempt, never both. */
+  it('leaves no command both swept and exempted in the action-economy list', () => {
+    const run = new Set(SPENDERS.map((entry) => entry.name));
+    expect(Object.keys(UNGUARDED_ON_PURPOSE).filter((name) => run.has(name))).toEqual([]);
+    expect(Object.values(UNGUARDED_ON_PURPOSE).every((reason) => reason.length > 20)).toBe(true);
+  });
+
+  /**
+   * And the idempotency machinery sits **below** the command layer.
+   *
+   * `rest.ts` used to import `identify` from `commands.ts` — one upward edge
+   * in an otherwise acyclic value graph, and the kind that turns into a real
+   * cycle the first time the command layer wants something a rest knows. The
+   * helper is not a rule about any particular command, so it has a module of
+   * its own and everybody imports downwards.
+   */
+  it('keeps the idempotency helper below the commands that use it', () => {
+    expect(/from '\.\/commands\.js'/.test(MODULE_SOURCE['rest.ts']!)).toBe(false);
+    expect(/from '\.\/idempotency\.js'/.test(MODULE_SOURCE['rest.ts']!)).toBe(true);
+    const helper = readFileSync(
+      `${fileURLToPath(new URL('.', import.meta.url))}idempotency.ts`,
+      'utf8',
+    );
+    // And it imports nothing from either of them, so the edge cannot come back.
+    expect(/from '\.\/(commands|rest)\.js'/.test(helper)).toBe(false);
+  });
+
+  /** And the classifier is not vacuous: it finds one it is shown. */
+  it('would find an unguarded event-returning export if one were added', () => {
+    const smuggled = [
+      'export function doSomethingUntracked(',
+      '  state: GameState,',
+      '): Result<GameEvent[]> {',
+      '  return ok([]);',
+      '}',
+      'export function lookSomethingUp(state: GameState): number {',
+      '  return 1;',
+      '}',
+    ].join('\n');
+    const classified = returnTypesIn(smuggled).map((e) => [e.name, carriesEvents(e.returns)]);
+    expect(classified).toEqual([
+      ['doSomethingUntracked', true],
+      ['lookSomethingUp', false],
+    ]);
   });
 });
 

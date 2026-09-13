@@ -6,6 +6,7 @@ import { createRng, restoreRng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
+import { commandOutcome, wasCommandApplied } from './idempotency.js';
 import { castingSource, spellOfSource } from './spells.js';
 import { concentrationSaveDc } from './vitals.js';
 import {
@@ -21,11 +22,9 @@ import {
   nextCastingId,
   endSpellEffectOn,
   removeCreatureEverywhere,
-  commandOutcome,
   resolveDamage,
   restoreResourcesOn,
   setExhaustionLevel,
-  wasCommandApplied,
   whyCondition,
 } from './commands.js';
 

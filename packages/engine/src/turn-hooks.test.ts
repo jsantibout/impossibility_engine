@@ -11,6 +11,7 @@ import {
   castSpell,
   endConcentration,
   pendingSavesOf,
+  removeCreatureEverywhere,
   resolvePendingSaves,
   resolveTurn,
 } from './commands.js';
@@ -334,6 +335,136 @@ describe('the pending save cannot be forgotten', () => {
     const resolved = unwrap(resolvePendingSaves(state, supplyFor(state, CERTAIN)), 'resolve');
     expect(resolved.events).toEqual([]);
     expect(resolved.saves).toEqual([]);
+  });
+
+  /**
+   * A settlement is as retry-vulnerable as any other command, and this one
+   * **rolls dice**: a second run re-rolls the turn's saves and can free a
+   * creature the first run left held. The stamp rides on `rolls-issued`,
+   * because that is the event this command always emits when it does anything
+   * at all — the same rule the healing touch taught.
+   */
+  it('rolls nothing on a retry under the same command id', () => {
+    const first = advanceTo(held(), 1);
+    const deferred = [...first, ...unwrap(resolveTurn(fold('seed', first)), 'turn').events];
+
+    const state = fold('seed', deferred);
+    const resolved = unwrap(
+      resolvePendingSaves(state, supplyFor(state, DOOMED), { commandId: 'saves-1' }),
+      'resolve',
+    );
+    let log = [...deferred, ...resolved.events];
+
+    // The world moves on: three boundaries later the goblin's turn has ended
+    // again and the *next* save is owed. A retry that arrives now — a
+    // `pause_turn` resume, a reconnect — must report its own command, not roll
+    // whatever the state happens to owe at the moment it lands.
+    for (let i = 0; i < 3; i += 1) {
+      log = [...log, ...unwrap(resolveTurn(fold('seed', log)), `turn ${i}`).events];
+    }
+    const later = fold('seed', log);
+    expect(pendingSavesOf(later)).toHaveLength(1);
+
+    const retry = unwrap(
+      resolvePendingSaves(later, supplyFor(later, CERTAIN), { commandId: 'saves-1' }),
+      'retry',
+    );
+    expect(retry.events).toEqual([]);
+    expect(retry.saves).toEqual([]);
+    // The debt the retry did not touch is still owed, and the goblin still held.
+    expect(pendingSavesOf(later)).toHaveLength(1);
+    expect(conditionsOf(later, 'goblin')).toContain('paralyzed');
+
+    // **And an empty batch is two different answers.** "Your command already
+    // landed" and "nothing was owed" both roll nothing and emit nothing, and a
+    // caller that cannot tell them apart is exactly the guess command ids
+    // exist to remove — so the retry says which, and says what the world owes
+    // *now* rather than reporting the empty debt of a world it is not in.
+    expect(retry.duplicate).toBe(true);
+    expect(retry.pending).toEqual(pendingSavesOf(later));
+    expect(retry.pending).toHaveLength(1);
+  });
+});
+
+/**
+ * **A creature takes its obligations with it.**
+ *
+ * `pendingSaves` was the one engine debt of nine with no leaving-creature
+ * handling. `settleHoldsInvolving` closes a held attack and a declared move
+ * when their owner walks out; `dropOrphanedAreaEffects` and `dropStrandedDamage`
+ * do the same for theirs. A repeat save had nothing: its timer survived the
+ * removal, so `dropOrphanedSaves` — which drops a save only when its *timer*
+ * is gone — kept the debt, `resolvePendingSaves` refused `unknown_creature`,
+ * and `resolveTurn` refused `saves_pending` for ever. A fight that cannot
+ * advance is a campaign that cannot continue.
+ *
+ * The fix is in the reducer, because expiry is derived: nobody *decides* that
+ * a condition on a creature who has left the game has stopped, so nothing is
+ * written for it — exactly as nothing is written when a deadline arrives.
+ */
+describe('a removed creature takes its timers with it', () => {
+  /** The goblin's turn has ended and its Hold Person save is owed, unrolled. */
+  const owing = (): GameEvent[] => {
+    const first = advanceTo(held(), 1);
+    return [...first, ...unwrap(resolveTurn(fold('seed', first)), 'turn').events];
+  };
+
+  it('really does owe a save in this fixture', () => {
+    const pending = pendingSavesOf(fold('seed', owing()));
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.target).toBe(id('goblin'));
+  });
+
+  it('does not wedge the fight when the creature owing a save leaves', () => {
+    const log = owing();
+    const gone = [...log, ...unwrap(removeCreatureEverywhere(fold('seed', log), id('goblin')), 'remove')];
+    const after = fold('seed', gone);
+
+    expect(after.creatures.goblin).toBeUndefined();
+    expect(pendingSavesOf(after)).toEqual([]);
+    // And the turn advances again, which is the whole of the wedge.
+    expect(isErr(resolveTurn(after, supplyFor(after, DOOMED)))).toBe(false);
+  });
+
+  it('leaves no timer behind naming the creature that left', () => {
+    const log = owing();
+    const gone = [...log, ...unwrap(removeCreatureEverywhere(fold('seed', log), id('goblin')), 'remove')];
+    expect(Object.keys(fold('seed', gone).timers).filter((k) => k.includes('|goblin|'))).toEqual([]);
+  });
+
+  /**
+   * And it must purge *that* creature's timers and nobody else's. Hold Person
+   * upcast holds two, and one of them leaving the game is not the other one
+   * being freed — the discriminating fixture, without which purging everything
+   * passes just as well.
+   */
+  it('keeps the other target of the same casting held, with its own save', () => {
+    const both = run(held(), (s) =>
+      applySpellEffect(s, id('ogre'), 'paralyzed', id('wizard'), {
+        repeatSave: {
+          at: 'end-of-turn',
+          of: id('ogre'),
+          ability: 'wis',
+          dc: 13,
+          onSuccess: 'end-on-target',
+          label: 'Wisdom save vs Hold Person',
+        },
+      }),
+    );
+    const gone = [...both, ...unwrap(removeCreatureEverywhere(fold('seed', both), id('goblin')), 'remove')];
+    const after = fold('seed', gone);
+
+    expect(conditionsOf(after, 'ogre')).toContain('paralyzed');
+    expect(Object.keys(after.timers).filter((k) => k.includes('|ogre|'))).toHaveLength(1);
+    // The casting is still running, so the wizard is still concentrating.
+    expect(after.creatures.wizard!.concentration).not.toBeNull();
+
+    // And the ogre's own boundary still raises its own save.
+    const rolled = unwrap(resolveTurn(after, supplyFor(after, DOOMED)), 'wizard turn');
+    expect(rolled.saves).toEqual([]);
+    const next = fold('seed', [...gone, ...rolled.events]);
+    const ogres = unwrap(resolveTurn(next, supplyFor(next, DOOMED)), 'ogre turn');
+    expect(ogres.saves.map((s) => s.target)).toEqual([id('ogre')]);
   });
 });
 

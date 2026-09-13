@@ -916,7 +916,11 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly spellcasting: SpellcastingState;
     }
-  | { readonly type: 'creature-removed'; readonly id: CharacterId }
+  | {
+      readonly type: 'creature-removed';
+      readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
 
   // — vitals ——————————————————————————————————————————————————
   /** The amount is already rolled and already reduced by the target's defences. */
@@ -1085,7 +1089,17 @@ export type GameEvent =
        */
       readonly command?: CommandStamp;
     }
-  | { readonly type: 'resources-restored'; readonly id: CharacterId; readonly recovers: Recovery }
+  | {
+      readonly type: 'resources-restored';
+      readonly id: CharacterId;
+      readonly recovers: Recovery;
+      /**
+       * SRD's partial rule makes this anything but idempotent: "you regain
+       * **one** expended use when you finish a Short Rest" subtracts from
+       * `spent`, so a retried restoration gives back two.
+       */
+      readonly command?: CommandStamp;
+    }
   /**
    * Uses given back to **one** pool, by something that is not a rest.
    *
@@ -1739,7 +1753,20 @@ export type GameEvent =
    * Records that rolls happened, so a resumed session picks the generator up
    * where it left off rather than replaying the same numbers.
    */
-  | { readonly type: 'rolls-issued'; readonly count: number; readonly rng: RngState };
+  | {
+      readonly type: 'rolls-issued';
+      readonly count: number;
+      readonly rng: RngState;
+      /**
+       * The command that issued them, for a settlement whose only guaranteed
+       * event this is.
+       *
+       * `resolvePendingSaves` rolls the turn's owed saves and writes nothing
+       * else that always happens — a failed save settles no effect — so this
+       * is where its identity has to ride.
+       */
+      readonly command?: CommandStamp;
+    };
 
 /**
  * A log that cannot be applied is corrupt, not a rules dispute.
@@ -2271,6 +2298,52 @@ function sortedTimers(timers: Readonly<Record<string, TimedEffect>>): Record<str
     if (timer !== undefined) sorted[key] = timer;
   }
   return sorted;
+}
+
+/**
+ * Every timer except the ones that end something on a creature who has left.
+ *
+ * **A creature takes its obligations with it**, which is the rule
+ * `settleHoldsInvolving` already applies to a held attack and a declared move.
+ * `pendingSaves` was the one engine debt of nine with nothing doing it: a
+ * Paralyzed goblin removed mid-fight left its Hold Person timer standing, so
+ * the boundary went on raising a save for a creature nobody could roll for and
+ * `resolveTurn` refused `saves_pending` for ever. A fight that cannot advance
+ * is a campaign that cannot continue.
+ *
+ * **Only the timers that name *that* creature.** A Hold Person upcast holds
+ * two, and one of them leaving is not the other being freed — the whole
+ * distinction the casting id was built for, applied here to the target.
+ *
+ * **A condition's timer and a feature's are both "on" a creature**, and both
+ * go. The audit named the condition, because that is the one that raises a
+ * save and wedges the fight; a Rage whose Barbarian has left is the same shape
+ * with nothing downstream of it — `expireEffects` already checks that the
+ * creature still exists before ending the feature, so this changes no
+ * behaviour and removes the dangling key rather than leaving one kind of
+ * orphan behind because only the other kind had a symptom.
+ *
+ * A **casting's** timer is deliberately untouched: SRD does not end a Grease
+ * because somebody walked out of it, and a casting whose caster leaves is
+ * already handled above by `releaseCasting`.
+ *
+ * Nothing is written for any of it. Expiry is derived — nobody *decides* that
+ * a condition on a creature who is no longer in the game has stopped — which
+ * is the same audit trade a deadline arriving and a broken Concentration both
+ * already make.
+ */
+function timersApartFrom(
+  timers: Readonly<Record<string, TimedEffect>>,
+  who: CharacterId,
+): Record<string, TimedEffect> {
+  const kept: Record<string, TimedEffect> = {};
+  for (const key of Object.keys(timers).sort()) {
+    const timer = timers[key];
+    if (timer === undefined) continue;
+    if (timer.target.kind !== 'casting' && timer.target.on === who) continue;
+    kept[key] = timer;
+  }
+  return kept;
 }
 
 /**
@@ -3322,7 +3395,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       // SRD does not end a Cleric's Bless because one of the blessed walked
       // out — but a name in `on` that no longer belongs to anybody is a
       // dispellable target that does not exist.
-      return withoutTarget({ ...cleaned, creatures }, event.id, null);
+      return withoutTarget(
+        { ...cleaned, creatures, timers: timersApartFrom(cleaned.timers, event.id) },
+        event.id,
+        null,
+      );
     }
 
     case 'damage-taken': {

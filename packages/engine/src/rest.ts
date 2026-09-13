@@ -3,7 +3,7 @@ import { abilityModifier } from './character.js';
 import { HOUR, hours } from './clock.js';
 import type { Rng } from './dice.js';
 import type { GameEvent, GameState } from './events.js';
-import { identify } from './commands.js';
+import { identify } from './idempotency.js';
 import { remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
 

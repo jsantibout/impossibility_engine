@@ -26,6 +26,22 @@ export const CASTING_MARK = '#';
 
 const CASTING_ID = /^cast:\d+$/;
 
+/** What every casting id begins with. One spelling, read and written here. */
+export const CASTING_PREFIX = 'cast:';
+
+/**
+ * The number inside a casting id, for putting castings back in the order they
+ * happened.
+ *
+ * **Numerically, not lexically:** `cast:2` runs before `cast:10`, and a string
+ * sort would put ten first — which would silently reorder the checks Dispel
+ * Magic rolls and make a replay of the same log produce different dice. It was
+ * written out twice in `commands.ts`, byte for byte, which is one copy too
+ * many for a comparison the determinism guarantee rests on.
+ */
+export const castingNumber = (castingId: string): number =>
+  Number(castingId.slice(CASTING_PREFIX.length)) || 0;
+
 /** The source string an effect created by a casting carries. */
 export function castingSource(spell: string, castingId: string): string {
   return `${spell}${CASTING_MARK}${castingId}`;
