@@ -139,6 +139,28 @@ const shapeOf = (spell: ParsedSpell): string =>
  * coverage that nothing checks would be the exact failure this file exists to
  * prevent.
  */
+/**
+ * Spells an integration test drives end to end, and which still carry an
+ * engine-owned clause nobody has built.
+ *
+ * **The third state, and it exists because two could not tell the truth.**
+ * `verified` claims the spell is complete and driven; `untested` says nothing
+ * drives it. Spirit Guardians is neither: its Emanation, its three trigger
+ * clauses, its cap, its save and its damage all run under a suite of their
+ * own, and the halved Speed inside the Emanation is a rule the engine owns and
+ * has not written. Counting it verified would be a green tick on a spell that
+ * does not do everything it prints; counting it untested would be a lie about
+ * the tests.
+ *
+ * Same move `spell-tracking.test.ts`'s adjudication map already made when
+ * `'table'` and a missing shape could not express `'engine'`.
+ *
+ * A spell listed here **must** say in `unmodelled` what it is missing, which
+ * `coverage.test.ts` asserts — otherwise this becomes the place claims come to
+ * be quietly parked.
+ */
+export const PARTIAL_SPELLS: readonly string[] = ['spirit-guardians'];
+
 export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
   'animal-friendship',
@@ -320,6 +342,7 @@ function renderClasses(coverage: ClassCoverage): readonly string[] {
 function render(coverage: SpellCoverage): string {
   const defined = new Set(SPELL_DEFINITIONS.map((d) => d.id));
   const verified = new Set(VERIFIED_SPELLS);
+  const partial = new Set(PARTIAL_SPELLS);
   const pct = (n: number) => `${((n / coverage.total) * 100).toFixed(1)}%`;
 
   const lines: string[] = [
@@ -393,7 +416,11 @@ function render(coverage: SpellCoverage): string {
 
   lines.push('', '### Executed today', '');
   for (const definition of named('executed')) {
-    const mark = verified.has(definition.id) ? 'verified' : 'untested';
+    const mark = verified.has(definition.id)
+      ? 'verified'
+      : partial.has(definition.id)
+        ? 'partial — driven end to end, with a clause still unbuilt'
+        : 'untested';
     const level = definition.level === 0 ? 'cantrip' : `level ${definition.level}`;
     lines.push(`- **${definition.name}** (${level}) — ${mark}`);
   }

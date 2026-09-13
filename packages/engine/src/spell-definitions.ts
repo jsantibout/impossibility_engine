@@ -703,6 +703,35 @@ export interface SpellDefinition {
    */
   readonly areaTrigger?: AreaTrigger;
   /**
+   * SRD "you can designate creatures to be unaffected by it".
+   *
+   * Two spells print it — Spirit Guardians and Alarm — which is what makes it
+   * a transcribed clause rather than a general area filter. The caster names
+   * them at the casting; the engine validates that they exist and remembers
+   * the choice for the spell's whole duration.
+   *
+   * Absent means the spell offers no such choice and naming anybody is
+   * refused, rather than quietly ignored.
+   */
+  readonly designatesUnaffected?: true;
+  /**
+   * The damage types this spell prints, where it prints more than one and
+   * chooses between them on a fact about the caster.
+   *
+   * SRD Spirit Guardians: "3d8 Radiant damage (if you are good or neutral) or
+   * 3d8 Necrotic damage (if you are evil)." The engine holds alignment only
+   * for a character it built from choices, never for a monster or a declared
+   * NPC, and inferring it from side, class or deity would be inventing the
+   * fact rather than reading it. So the casting **states** which, the engine
+   * refuses anything not on this list, and the answer is pinned on the
+   * casting — the discipline declared cover and declared sight already follow.
+   *
+   * Not a *choice*: the SRD decides it, and this records who is entitled to
+   * tell the engine what the SRD decided. One spell, transcribed; a second
+   * would be the evidence that anything here should generalise.
+   */
+  readonly damageTypeStated?: readonly string[];
+  /**
    * An area the targets the caller names must all be standing in.
    *
    * The third way an SRD spell finds its targets, and it is neither of the
@@ -4569,6 +4598,97 @@ export const SPEAK_WITH_DEAD: SpellDefinition = {
  * > no more than 5 feet in any dimension and form it into any shape you like."
  */
 /**
+ * SRD Spirit Guardians:
+ *
+ * > _Level 3 Conjuration (Cleric)._ **Casting Time:** Action. **Range:** Self.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "Protective spirits flit around you in a 15-foot Emanation for the
+ * > duration. ... When you cast this spell, you can designate creatures to be
+ * > unaffected by it. Any other creature's Speed is halved in the Emanation,
+ * > and **whenever the Emanation enters a creature's space** and whenever a
+ * > creature enters the Emanation or ends its turn there, the creature must
+ * > make a Wisdom saving throw. On a failed save, the creature takes 3d8
+ * > Radiant damage (if you are good or neutral) or 3d8 Necrotic damage (if you
+ * > are evil). On a successful save, the creature takes half as much damage. A
+ * > creature makes this save only once per turn."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 3."
+ *
+ * **The spell that proves an area can be carried.** Moonbeam's Cylinder is a
+ * point the casting keeps and a Magic action moves; this Emanation is centred
+ * on the caster and moves because the caster does — which is not a Spirit
+ * Guardians rule at all but the definition of the shape. SRD's glossary: "An
+ * Emanation **moves with the creature or object that is its origin** unless it
+ * is an instantaneous or a stationary effect."
+ *
+ * So nothing here records where the aura is. `area.origin: 'self'` plus the
+ * casting's own `caster` is the whole of it, and membership is asked of the
+ * caster's live position every time — see `creaturesInCastingArea`.
+ *
+ * **There is no initial-appearance clause, and that is the text rather than a
+ * simplification.** Moonbeam prints "When the Cylinder appears, each creature
+ * in it makes a Constitution saving throw" and Cloudkill "Each creature in the
+ * Sphere makes a Constitution saving throw"; Spirit Guardians prints no such
+ * sentence. Its three triggers are the Emanation entering a space, a creature
+ * entering the Emanation, and a creature ending its turn there — so a creature
+ * already standing beside the cleric when the spirits appear takes nothing
+ * until one of those happens, which for a creature that stays put is the end
+ * of its own turn. `effects: []` is that reading, and Web's precedent for it.
+ *
+ * `onEntry: 'every-entry'` is likewise the text: "whenever a creature enters
+ * the Emanation", with no "first time on a turn". The cap that makes it behave
+ * like Insect Plague's is the separate "only once per turn" sentence, which
+ * caps the creature across all three clauses.
+ *
+ * What this definition does **not** do is stated in `unmodelled` and counted
+ * against it: the halved Speed inside the Emanation is a standing spatial
+ * effect rather than a trigger, and needs a primitive the engine has not
+ * built.
+ */
+export const SPIRIT_GUARDIANS: SpellDefinition = {
+  id: 'spirit-guardians',
+  name: 'Spirit Guardians',
+  level: 3,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  area: { kind: 'emanation', distance: 15, origin: 'self' },
+  // "you can designate creatures to be unaffected by it"
+  designatesUnaffected: true,
+  // "3d8 Radiant damage (if you are good or neutral) or 3d8 Necrotic damage
+  // (if you are evil)" — decided by the caster's alignment, which the engine
+  // does not hold for every creature and will not guess.
+  damageTypeStated: ['radiant', 'necrotic'],
+  // The spirits appear and nothing happens yet; every save this spell ever
+  // calls for comes from one of the three clauses below.
+  effects: [],
+  durationSeconds: 600,
+  areaTrigger: {
+    at: 'end-of-turn',
+    onEntry: 'every-entry',
+    onAreaEntry: true,
+    oncePerTurn: true,
+    label: 'Spirit Guardians (the spirits)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'wis',
+        damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
+        damageType: 'radiant',
+        onSuccess: 'half',
+      },
+    ],
+  },
+  unmodelled: [
+    'the halved Speed of every unaffected-list creature inside the Emanation: a standing spatial effect rather than a trigger, and the engine has no primitive that derives a Speed from where a creature is standing',
+    'whether the spirits look angelic, fey or fiendish, which the SRD makes the caster’s choice and is narration',
+  ],
+};
+
+
+/**
  * SRD Spiritual Weapon:
  *
  * > _Level 2 Evocation (Cleric)._ **Casting Time:** Bonus Action.
@@ -5311,6 +5431,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SPEAK_WITH_ANIMALS,
   SPEAK_WITH_DEAD,
   SPIDER_CLIMB,
+  SPIRIT_GUARDIANS,
   SPIRITUAL_WEAPON,
   STARRY_WISP,
   STONE_SHAPE,

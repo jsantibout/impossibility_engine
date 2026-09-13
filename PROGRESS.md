@@ -94,6 +94,7 @@ still Wizard-shaped are named below.
 | Area triggers | A persistent area catches a creature at a boundary or on entering; Insect Plague, Web, Grease, Black Tentacles | `ffd2e44` |
 | Moving areas | An area that arrives at a creature standing still; a route the caller states; Moonbeam | `fa41e34` |
 | Route timing | A route settles as the area reaches each space; `via` is adjudicated, and asking for it is not a refusal | `4dc1086` |
+| Carried areas | An area whose origin is a creature's live position; Spirit Guardians, partial | *(this batch)* |
 
 ## Decisions that constrain what comes next
 
@@ -1425,20 +1426,39 @@ primitive — which is why it is below the four above it despite being unblocked
      settled through the existing `settleAreaEffects`, and only then followed
      by the next.
 
-     What is **not** built, and each is its own *source of area movement*
-     rather than a variant of this one: an area that moves **by itself** at
-     the start of a turn (Cloudkill's deterministic "10 feet away from you",
-     Incendiary Cloud's chosen direction); an area carried by a creature
-     (Spirit Guardians' Emanation, which has no live carrier-origin
-     representation — copying the caster's position into `origin` once at the
-     casting would freeze the aura in place); a path or
+   - ~~**an area carried by a creature**~~ — **built.** See CLAUDE.md, "An
+     Area Can Be Carried, And Then Its Origin Is Not A Point". SRD's glossary
+     is the whole rule — "An Emanation moves with the creature or object that
+     is its origin" — so the carrier-bound origin needed **no new state at
+     all**: `area.origin: 'self'` on the definition plus `caster` on the record
+     were already there, and membership is derived from the caster's live
+     position every time. A copied point would have been a second answer that
+     the first forgotten update leaves stale.
+
+     The detector is the mirror of the creature-side one: same authoritative
+     fact (a position changed), opposite reading of it — a creature that moved
+     has *entered*, and one that stood still has been *entered upon*. It reads
+     whoever actually moved rather than the id on the event, so a cleric on a
+     horse takes their aura along. A carrier move longer than one space asks
+     for its route through the same `needs-context` boundary Moonbeam uses, and
+     **reuses segmented movement rather than adding a route field**, because a
+     creature move is already authoritative and the global debt guard already
+     settles each step before the next.
+
+     **Spirit Guardians is partial, deliberately**, and `COVERAGE.md` now has a
+     third word for that. Its Emanation, three clauses, cap, save, damage,
+     exemptions and upcasting run; the halved Speed inside it is a standing
+     spatial effect (F7) and is named rather than faked.
+
+     What is **not** built: an area that moves **by itself** at the start of a
+     turn (Cloudkill's deterministic "10 feet away from you", Incendiary
+     Cloud's chosen direction); a path or
      a distance travelled (Spike Growth); an aura the holder carries; an
      activation that blasts a chosen point (Call Lightning); a barrier (Wind
      Wall).
 
-     **The next source of area movement should be the carrier-bound Emanation,
-     not automatic drift**, and the reason is which one needs a new temporal
-     primitive. Cloudkill and Incendiary Cloud move "at the start of each of
+     **The carrier-bound Emanation landed first, and automatic drift is what
+     is left**, for the reason it was ranked second: Cloudkill and Incendiary Cloud move "at the start of each of
      your turns", which lands in the middle of the one piece of sequencing this
      engine has most recently had to correct: `pendingTurnStart` exists because
      the end of one turn and the start of the next are ordered *moments*, and
@@ -1449,16 +1469,16 @@ primitive — which is why it is below the four above it despite being unblocked
      command — and a caster with no position has no "away from you" at all.
      None of that is transcription.
 
-     Spirit Guardians moves for a reason the engine already observes: its
-     carrier walked, and `creature-moved` is already an authoritative
-     operation with a detector on it. What it needs is one honest
-     representation — a persistent area whose origin is a creature's **live**
-     position — after which the same F2b consequence follows, from the
-     carrier's own move rather than from `spell-origin-moved`. It is the
-     smaller primitive and it opens every Paladin aura behind it. Its other
-     clauses (designated unaffected creatures, halved Speed inside the
-     Emanation, damage type by the caster's alignment) are independent of the
-     movement and should be costed separately. **Stinking Cloud** is start-of-turn and would be a transcription
+     **Two candidates for the next batch, and the standing effect is the
+     bigger of them.** Spirit Guardians' halved Speed, every Paladin aura and
+     the Aura of Protection all want the same missing primitive: a value
+     derived from *current state plus current geometry*, rather than a
+     modifier toggled by a pair of enter/leave events that have to stay
+     matched. `standing.ts` already derives conditional benefits from state;
+     what it cannot do is ask where a creature is standing. That seam is
+     larger than automatic drift and has far more users behind it.
+
+     **Stinking Cloud** is start-of-turn and would be a transcription
      but for its consequence: "Poisoned **until the end of the current turn**"
      is a deadline shape the engine does not have, and applying it for the
      casting's minute instead would be a wrong number rather than a missing
@@ -1634,12 +1654,12 @@ Run `npm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executed | 78 |
+| Spells executed | 79 (one of them partial) |
 | Spells verified end to end | 54 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 4,130 passing, none skipped |
+| Tests | 4,222 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

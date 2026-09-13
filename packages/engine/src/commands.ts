@@ -53,6 +53,7 @@ import {
   type AreaOrigin,
   type AreaShape,
   type Point,
+  type PositionState,
 } from './positioning.js';
 import {
   DIRECTIONAL_AREAS,
@@ -1744,6 +1745,18 @@ function moveWithin(
 
   // The distance positioning itself measured, on the lattice, between volumes.
   const feet = moved.value.distance;
+
+  // **A carried area sweeps, and a move of more than one space does not say
+  // what it swept.** Checked before any cost, any budget and any Opportunity
+  // Attack, so a move that needs its route stated costs nothing to ask about.
+  const sweeping = sweptRoute(state, state.scene, moved.value.state);
+  if (sweeping.length > 0) {
+    return needsContext(
+      'route_required',
+      `${id} is carrying ${sweeping.length === 1 ? 'an area' : 'areas'} that catch every creature they move into, and a move of ${feet} feet crosses spaces nothing records; send the move again as single 5-foot steps`,
+      sweeping,
+    );
+  }
 
   // SRD: "every foot of movement in that space costs 1 extra foot."
   const difficult = command.difficultFeet ?? 0;
@@ -4342,6 +4355,67 @@ export function activateSpell(
 }
 
 /**
+ * The carried areas this move would sweep across spaces nobody named.
+ *
+ * **The same hole Moonbeam's route had, arriving from the other direction.**
+ * There the caller asked to move an area thirty feet; here they ask to move a
+ * *creature*, and the area comes along because SRD says an Emanation "moves
+ * with the creature or object that is its origin". Either way the engine knows
+ * two endpoints and no route, and either way the creatures who would be caught
+ * are the ones who did nothing.
+ *
+ * So the answer is the same answer: ask. A move of one space has no space in
+ * between to be unknown; anything longer is a `needs-context` naming the
+ * casting, the carrier, both ends and what to send instead. Nothing is spent
+ * while it waits — no Speed, no Opportunity Attack, no die.
+ *
+ * **Reuses the movement the engine already has rather than a route field.** A
+ * creature move is already authoritative, already segmentable, and already
+ * settles what it raised before the next voluntary action — the global
+ * area-debt guard sees to that. A `MovePath` here would have been a second
+ * mechanism for something movement can already express, built for symmetry
+ * with Moonbeam rather than because a rule asked.
+ *
+ * Reads the carrier by **position change**, never by the id on the command: a
+ * cleric carried by their horse moves on an event that names only the horse.
+ */
+function sweptRoute(
+  state: GameState,
+  before: PositionState,
+  after: PositionState,
+): readonly ContextRequest[] {
+  const requests: ContextRequest[] = [];
+
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    if (record === undefined) continue;
+
+    const definition = definitionFor(record.spellId);
+    const area = definition?.area;
+    // Only an area that is carried, and only one a rule watches as it travels.
+    if (area === undefined || area.origin !== 'self') continue;
+    if (definition?.areaTrigger?.onAreaEntry !== true) continue;
+
+    const from = before.positions[record.caster];
+    const to = after.positions[record.caster];
+    if (from === undefined || to === undefined) continue;
+
+    const travelled = distanceBetweenPoints(from, to);
+    if (travelled <= SPACE) continue;
+
+    requests.push({
+      kind: 'route',
+      subject: castingId,
+      need: `which 5-foot spaces ${record.caster} passed through between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) — ${travelled} feet, carrying ${record.spell}`,
+      because: `${record.spell} catches every creature its area moves into, and the spaces between two points are not something the engine may decide`,
+      satisfyWith: `resolveMove again as ${travelled / SPACE} moves of one space each, settling what each raises before the next`,
+    });
+  }
+
+  return requests;
+}
+
+/**
  * One space on the lattice, in feet.
  *
  * SRD: "Each square represents 5 feet." The only thing this is used for here
@@ -6597,7 +6671,7 @@ export function settleAreaEffects(
       supply,
       castingId: record.castingId,
       events: [discharge],
-      effects: trigger.effects,
+      effects: statedDamageType(trigger.effects, record.damageType),
       label: trigger.label,
     });
     if (!resolved.ok) return resolved;
@@ -6609,6 +6683,29 @@ export function settleAreaEffects(
   }
 
   return ok({ events, settled, outcomes, unverified });
+}
+
+/**
+ * A trigger's effects, dealing the damage type this casting was declared with.
+ *
+ * SRD Spirit Guardians prints two and picks between them on the caster's
+ * alignment, which is stated at the casting and pinned there — see
+ * `OngoingSpell.damageType`. The definition carries one of the two so the
+ * shape is well-formed and `spell-catalogue.test.ts` can cast it; the pinned
+ * answer is what actually lands, and it is pinned rather than re-read for the
+ * same reason the save DC is.
+ *
+ * Absent for every other spell, where the printed type is the only type and
+ * this is the identity function.
+ */
+function statedDamageType(
+  effects: readonly SpellEffect[],
+  damageType: string | undefined,
+): readonly SpellEffect[] {
+  if (damageType === undefined) return effects;
+  return effects.map((effect) =>
+    'damageType' in effect && effect.damageType !== undefined ? { ...effect, damageType } : effect,
+  );
 }
 
 /**
@@ -7074,6 +7171,33 @@ export interface CastSpellRequest extends CommandIdentity {
    * classes that both prepared it. `class:<classId>` names one of those.
    */
   readonly source?: string;
+  /**
+   * Creatures this casting designates unaffected, for a spell that offers it.
+   *
+   * SRD Spirit Guardians: "When you cast this spell, you can designate
+   * creatures to be unaffected by it." Alarm prints the same shape. The choice
+   * is the caster's and the engine validates rather than makes it — naming
+   * somebody the engine has never heard of is refused, and naming anybody at
+   * all through a spell that prints no such clause is refused too.
+   *
+   * **Never inferred from allegiance.** A cleric may spare an enemy and may
+   * decline to spare an ally; `side` answers a different question.
+   */
+  readonly unaffected?: readonly CharacterId[];
+  /**
+   * Which of the damage types the spell prints this casting deals.
+   *
+   * SRD Spirit Guardians deals "Radiant damage (if you are good or neutral) or
+   * Necrotic damage (if you are evil)". The engine holds alignment only for a
+   * character it built and never for a monster or a declared NPC, and
+   * inferring it from side, class or deity would be inventing the fact — so
+   * the layer that reads the fiction states it, and the engine refuses
+   * anything the spell does not print.
+   *
+   * Required by a spell that prints more than one and meaningless on every
+   * other, both of which are refusals rather than quiet defaults.
+   */
+  readonly damageType?: string;
   /**
    * How to pay for it.
    *
@@ -7638,6 +7762,16 @@ function castOrRelease(
   ];
   const needs: ContextRequest[] = [];
 
+  // — the two facts the caster states, and the engine will not guess ————————
+  //
+  // Validated here, before a slot or an action is spent, so a casting that
+  // names an unknown creature or a damage type the spell never prints costs
+  // nothing. Both are clauses transcribed from the book, and both refuse to be
+  // used by a spell that does not print them — a field quietly ignored is a
+  // caller who thinks they said something.
+  const declared = declaredFacts(state, definition, request);
+  if (!declared.ok) return declared;
+
   // — targets ————————————————————————————————————————————————————————————
   //
   // Two ways a spell finds its targets, and they do not mix. A named-target
@@ -7711,6 +7845,72 @@ function castOrRelease(
  * a Cone, Cube or Line has to be pointed somewhere — so they live here rather
  * than being written twice and drifting apart.
  */
+/**
+ * The clauses a casting states rather than derives, checked before anything is
+ * spent.
+ *
+ * Two SRD sentences, both about facts the engine cannot see for itself:
+ *
+ * | Clause | Spells | Why the engine will not decide it |
+ * |---|---|---|
+ * | "you can designate creatures to be unaffected by it" | Spirit Guardians, Alarm | it is the caster's choice, and allegiance is a different question |
+ * | "Radiant (if you are good or neutral) or Necrotic (if you are evil)" | Spirit Guardians | alignment is held for a character the engine built and for nobody else |
+ *
+ * **A field a spell does not print is a refusal, not a shrug.** A caller who
+ * designates somebody unaffected by a Fireball has misunderstood something,
+ * and silently dropping it would let them go on believing it.
+ */
+function declaredFacts(
+  state: GameState,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+): Result<null> {
+  const named = request.unaffected ?? [];
+  if (named.length > 0) {
+    if (definition.designatesUnaffected !== true) {
+      return err(
+        'no_designation',
+        `${definition.name} does not let its caster designate creatures unaffected by it`,
+      );
+    }
+    for (const who of named) {
+      if (creatureOf(state, who) === null) return unknownCreature(who);
+    }
+    if (new Set(named).size !== named.length) {
+      return err('duplicate_designation', `${definition.name} may not designate the same creature twice`);
+    }
+  }
+
+  const types = definition.damageTypeStated;
+  if (types === undefined) {
+    if (request.damageType !== undefined) {
+      return err(
+        'damage_type_fixed',
+        `${definition.name} prints one damage type; naming another is not a choice the spell offers`,
+      );
+    }
+    return ok(null);
+  }
+
+  // **Stated or refused, never defaulted.** Picking Radiant because most
+  // clerics are good would be the engine answering a question the SRD asked
+  // about the caster — and a Necrotic-immune Undead is where that answer
+  // shows.
+  if (request.damageType === undefined) {
+    return err(
+      'damage_type_required',
+      `${definition.name} deals ${types.join(' or ')} depending on its caster, and the engine does not hold that; name which`,
+    );
+  }
+  if (!types.includes(request.damageType)) {
+    return err(
+      'unknown_damage_type',
+      `${definition.name} deals ${types.join(' or ')}, not ${request.damageType}`,
+    );
+  }
+  return ok(null);
+}
+
 function placeArea(
   state: GameState,
   casterId: CharacterId,
@@ -8217,6 +8417,14 @@ function resolveOnTargets(
     ...(definition.area === undefined ? {} : { fromArea: true as const }),
     ...(origin === null && area === null ? {} : { origin: origin ?? area!.at }),
     ...(area?.towards === undefined ? {} : { towards: area.towards }),
+    // Two facts the caster stated at the casting, kept because every later
+    // sentence of the spell reads them and neither can be recovered from
+    // anything else. **A carried area records no position**: `caster` and the
+    // definition's `origin: 'self'` already say where it is.
+    ...(request.unaffected === undefined || request.unaffected.length === 0
+      ? {}
+      : { unaffected: [...request.unaffected].sort() }),
+    ...(request.damageType === undefined ? {} : { damageType: request.damageType }),
   });
 
   // — paying for it ——————————————————————————————————————————————————————
@@ -9191,6 +9399,8 @@ function resolveEffects(
               : landedOn(targets, outcomes, becomes.fromArea === true, held),
         ...(becomes.origin === undefined ? {} : { origin: becomes.origin }),
         ...(becomes.towards === undefined ? {} : { towards: becomes.towards }),
+        ...(becomes.unaffected === undefined ? {} : { unaffected: becomes.unaffected }),
+        ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
       },
     });
   }
@@ -9252,6 +9462,10 @@ interface OngoingRecordPlan {
   readonly fromArea?: true;
   readonly origin?: Point;
   readonly towards?: Point;
+  /** Creatures the caster designated unaffected, for a spell that offers it. */
+  readonly unaffected?: readonly string[];
+  /** The damage type the casting was declared with, where the spell prints two. */
+  readonly damageType?: string;
 }
 
 /**

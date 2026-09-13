@@ -221,6 +221,14 @@ const castAt = (
 
   const slotLevel = definition.level === 0 ? undefined : definition.level;
   const towards = { x: 100, y: 200, z: 0 };
+  // A spell that prints two damage types and picks between them on a fact
+  // about its caster is refused until the caster's layer says which — see
+  // `SpellDefinition.damageTypeStated`. The sweep states the first, because
+  // the point here is that every definition casts, not which type it dealt.
+  const stated =
+    definition.damageTypeStated === undefined
+      ? {}
+      : { damageType: definition.damageTypeStated[0]! };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —
   // correct by the rules, and a fixture that looked like a broken spell.
@@ -244,7 +252,7 @@ const castAt = (
     return resolveSpell(
       state,
       CASTER,
-      { spellId, targets, ...placed, ...(slotLevel === undefined ? {} : { slotLevel }) },
+      { spellId, targets, ...placed, ...stated, ...(slotLevel === undefined ? {} : { slotLevel }) },
       supply(seed, bonus),
     );
   }
@@ -258,6 +266,7 @@ const castAt = (
       targets: [],
       ...(definition.area.origin === 'point' ? { at } : {}),
       ...(directional ? { towards } : {}),
+      ...stated,
       ...(slotLevel === undefined ? {} : { slotLevel }),
     },
     supply(seed, bonus),

@@ -424,13 +424,28 @@ describe('only a spell whose area the rules move has an area-entry clause', () =
     },
   );
 
-  /** A clause about an area moving, on an area nothing can move, is dead text. */
+  /**
+   * A clause about an area moving, on an area nothing can move, is dead text —
+   * and the SRD has **three** ways for an area to move, not two:
+   *
+   * | | How it moves | Spell |
+   * |---|---|---|
+   * | An action moves it | `activation.movesArea` | Moonbeam |
+   * | An action moves it as a rider | `origin.movableBy` | *(none with this clause yet)* |
+   * | Its carrier walks | `area.origin === 'self'` | Spirit Guardians |
+   *
+   * The third needs no field at all, which is the whole finding: SRD's
+   * glossary says an Emanation moves with its origin, so a self-origin area
+   * moving is the shape's own definition rather than a permission a spell
+   * grants.
+   */
   it('gives every area-entry clause a way for the area to move', () => {
     const stuck = triggered.filter(
       (d) =>
         d.areaTrigger?.onAreaEntry === true &&
         d.activation?.movesArea === undefined &&
-        d.origin?.movableBy === undefined,
+        d.origin?.movableBy === undefined &&
+        d.area?.origin !== 'self',
     );
     expect(stuck.map((d) => d.id)).toEqual([]);
   });

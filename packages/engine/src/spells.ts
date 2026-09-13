@@ -216,6 +216,45 @@ export interface OngoingSpell {
    * to be wrong about.
    */
   readonly towards?: Point;
+  /**
+   * Creatures the caster declared unaffected when the spell was cast.
+   *
+   * SRD Spirit Guardians: "**When you cast this spell, you can designate
+   * creatures to be unaffected by it.**" Alarm prints the same shape — "you
+   * can designate creatures that won't set off the alarm" — which is what
+   * makes this a transcribed clause rather than a generic filter somebody
+   * invented: two spells, one sentence, and no third use imagined.
+   *
+   * **Chosen once and kept**, because the SRD chooses once: the sentence is
+   * about the casting, not about a moment, so a creature designated at the
+   * cast stays unaffected however far the aura later travels.
+   *
+   * **Explicit, never allegiance.** `side` is a declared fact about who is
+   * fighting whom and the SRD asks for neither side nor alliance here; a
+   * cleric may spare an enemy and may decline to spare an ally. Substituting
+   * allegiance would be the engine answering a question the caster was asked.
+   *
+   * Absent for every spell that prints no such clause, which is all but one of
+   * the ones the engine executes.
+   */
+  readonly unaffected?: readonly string[];
+  /**
+   * The damage type this casting was declared with, for a spell that prints
+   * two and chooses between them on a fact about the caster.
+   *
+   * SRD Spirit Guardians: "3d8 Radiant damage (**if you are good or neutral**)
+   * or 3d8 Necrotic damage (**if you are evil**)." Alignment is a fact about a
+   * character that the engine holds only for characters it built, and never
+   * for a monster or a declared NPC — so the engine does not infer it. The
+   * layer that reads the fiction states it at the casting, the engine refuses
+   * anything but the two the spell prints, and the answer is pinned here for
+   * the same reason {@link CastingNumbers} is: a spell already cast does not
+   * change when its caster does.
+   *
+   * The same three-valued discipline cover and sight already follow — stated,
+   * or asked for, never guessed.
+   */
+  readonly damageType?: string;
 }
 
 /**

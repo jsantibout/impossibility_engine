@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SPELL_INDEX, spellById } from '@ie/srd';
 import { SPELL_DEFINITIONS } from './spell-definitions.js';
-import { VERIFIED_SPELLS } from '../scripts/coverage.js';
+import { PARTIAL_SPELLS, VERIFIED_SPELLS } from '../scripts/coverage.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -114,6 +114,26 @@ describe('the coverage table cannot claim more than the tests prove', () => {
 
   it('names each verified spell once', () => {
     expect(new Set(VERIFIED_SPELLS).size).toBe(VERIFIED_SPELLS.length);
+  });
+
+  /**
+   * **A partial spell has to say what it is missing.** The third state earns
+   * its place only while it names a clause; without that it is a green tick
+   * with a softer word on it, and the table would be back to claiming
+   * something nobody checked.
+   */
+  it('makes every partial spell name the clause it has not built', () => {
+    for (const id of PARTIAL_SPELLS) {
+      const definition = SPELL_DEFINITIONS.find((d) => d.id === id);
+      expect(definition, id).toBeDefined();
+      expect(definition!.unmodelled ?? [], id).not.toEqual([]);
+    }
+  });
+
+  /** And it is one state or the other, never both. */
+  it('keeps partial and verified apart', () => {
+    const both = PARTIAL_SPELLS.filter((id) => VERIFIED_SPELLS.includes(id));
+    expect(both).toEqual([]);
   });
 
   /**

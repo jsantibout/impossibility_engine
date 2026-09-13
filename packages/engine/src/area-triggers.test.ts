@@ -707,12 +707,21 @@ describe('every trigger is a clause the SRD actually prints', () => {
    * kind, and the way that stays true is not a comment: the spell's own
    * printed prose is read out of the parsed book and the definition is held
    * against it.
+   *
+   * **The SRD names the area by its shape as often as by the word "area"**, so
+   * the nouns are listed. The word order is what discriminates: "a creature
+   * enters **the Emanation**" is this clause, and "the Emanation enters a
+   * creature's space" is the other one — same two words, opposite rules, and
+   * only one of them matches here.
    */
   it.each(triggered.map((d) => [d.id, d] as const))(
     'gives %s an entry clause only where the book has one',
     (spellId, definition) => {
       const prose = PROSE.get(spellId) ?? '';
-      const printed = /\benters? (the (spell’s |spell's )?(area|webs))/i.test(prose);
+      const printed =
+        /\benters? the (spell’s |spell's )?(area|webs|emanation|sphere|cylinder|cloud)\b/i.test(
+          prose,
+        );
       expect(definition.areaTrigger?.onEntry !== undefined).toBe(printed);
     },
   );

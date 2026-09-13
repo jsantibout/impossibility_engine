@@ -1181,13 +1181,14 @@ today**, and the honest reason the rest are not is never "it needs a position":
 | A creature that **ends** its turn in an area | Moonbeam, Cloudkill, Incendiary Cloud, Insect Plague (and Grease and Black Tentacles, whose casts already execute) |
 | A creature that **starts** its turn in an area — a different boundary, a round apart | Stinking Cloud, Web, Sleet Storm, Zone of Truth |
 | A creature that **enters** an area, on its own move or a forced one | Web, Grease, Insect Plague, Moonbeam, Cloudkill, Incendiary Cloud, Black Tentacles, Sleet Storm, Zone of Truth |
-| An area that **moves into** a creature's space — printed only by areas that move | Moonbeam (**built**); Cloudkill and Incendiary Cloud, blocked on automatic turn-start drift; Spirit Guardians, blocked on a carrier-bound origin |
+| An area that **moves into** a creature's space — printed only by areas that move | Moonbeam and Spirit Guardians (**built**); Cloudkill and Incendiary Cloud, blocked on automatic turn-start drift |
 | Ending a turn within 5 feet of a point, and a point rolled into a creature's space | Flaming Sphere |
 | Distance travelled inside an area, which no move records | Spike Growth |
 | A wall with a length and a barrier rule, and no later trigger at all | Wind Wall |
 | An activation that resolves an area at a point chosen now | Call Lightning, Storm of Vengeance |
 | A stat block created mid-fight | Unseen Servant, Arcane Hand, the four Conjures, Guardian of Faith, Faithful Hound, Phantom Steed, Summon Dragon, Giant Insect |
 | Walls and barriers as obstacles | Arcane Eye, Passwall, Wall of Stone, Prismatic Wall |
+| A standing effect derived from where a creature is standing | Spirit Guardians' halved Speed, every Paladin aura |
 | Light, which is not modelled | Dancing Lights, Daylight, Darkness |
 | A second location | Project Image, Secret Chest |
 
@@ -2324,6 +2325,117 @@ fixture that lets that happen goes on asserting things about a Moonbeam that is
 no longer there. Half damage on a made save is still damage, and is what those
 tests read instead.
 
+## An Area Can Be Carried, And Then Its Origin Is Not A Point
+
+SRD's glossary settles this in one sentence, and it is not a Spirit Guardians
+rule but the definition of the shape:
+
+> "An Emanation **moves with the creature or object that is its origin** unless
+> it is an instantaneous or a stationary effect."
+
+So a casting's area sits at a point *or* on a creature, and which it is was
+decided at the casting by the definition:
+
+| | `area.origin` | Read from | Spells |
+|---|---|---|---|
+| A point the casting keeps | `point` | `record.origin` | Web, Grease, Insect Plague, Black Tentacles, Moonbeam |
+| The caster, wherever they now are | `self` | `record.caster` | Spirit Guardians |
+
+**`OngoingSpell` needed no new field for this**, and that is the finding. Both
+facts were already there: the definition says `origin: 'self'`, the record says
+who cast it, and `creaturesInArea` has taken `{ creature }` since positioning
+landed. A copied point would have been a second answer to "where is the aura",
+kept in step by remembering to update it — and the first operation that moved
+the caster by a route that forgot would leave the aura frozen where it was.
+Deriving it is not an optimisation; it is the difference between one fact and
+two facts that can disagree.
+
+The same reading is what makes a carrier who *leaves* behave correctly: an
+Emanation whose origin creature has no position catches nobody, rather than
+hanging in the air at the last place they stood.
+
+**An Emanation measures from the whole carrier and excludes it.** Both were
+already true of `creaturesInArea` and both are load-bearing here: a Huge
+carrier's 15-foot Emanation reaches 30 feet from the anchor where a Medium
+carrier's reaches 15, and a cleric is never hurt by the spirits they are
+carrying.
+
+### A carrier walking is the area arriving, not the creature entering
+
+One authoritative fact — a creature's position changed — and two rules read it,
+because the SRD writes two clauses in one sentence: "whenever the **Emanation
+enters a creature's space** and whenever **a creature enters the Emanation**".
+
+| | Whose position changed | Who is caught | Moment |
+|---|---|---|---|
+| `raiseAreaEntries` | the creature that is caught | creatures that moved | `entry` |
+| `raiseCarriedArrivals` | the **carrier** | creatures that did **not** move | `area-moved` |
+
+A creature that moved has entered; a creature that stood still has been entered
+upon. Asking the weaker question — "did membership change somehow" — would pass
+every test in both files and erase the distinction the book drew, and the two
+clauses can be capped differently.
+
+**The carrier is whoever actually moved, never whoever the event names.**
+`moveCreature` carries riders with their mount, so a cleric on a horse takes
+their aura with them on an event that mentions only the horse. Reading
+`event.id` is a bug only a mounted fixture catches — the same lesson the
+creature-side detector already learned, arriving a second time.
+
+### The carrier's route is the same question, from the other side
+
+Moonbeam asks to move an *area* thirty feet; a carrier asks to move a
+*creature*, and the area comes along. Either way the engine holds two endpoints
+and no route, and either way the creatures who would be caught are the ones who
+did nothing. So the answer is the same answer: a move of more than one space
+comes back as `needs-context` with a `route` request naming the casting, the
+carrier, both ends and what to send instead.
+
+**It reuses movement rather than adding a route field**, and that is deliberate.
+A creature move is already authoritative, already segmentable, and the global
+area-debt guard already stops the next voluntary action until what a step
+raised has been settled — so a Maestro-adjudicated sequence of five-foot steps
+already settles as it goes. A `MovePath` here would have been a second
+mechanism for something movement can express, built for symmetry with Moonbeam
+rather than because a rule asked for it.
+
+### Two clauses the geometry must not quietly absorb
+
+**Designating creatures unaffected is a choice, and never allegiance.** SRD:
+"When you cast this spell, you can designate creatures to be unaffected by it."
+Alarm prints the same shape, which is what makes it a transcribed clause rather
+than a general area filter. It is chosen once and kept, so it outlives every
+later move; it is filtered inside `creaturesInCastingArea`, so the one decision
+reaches every sentence that reads the area; and it is **explicit**, because a
+cleric may spare an enemy and may decline to spare an ally. Substituting `side`
+would be the engine answering the question the caster was asked.
+
+**A damage type the SRD decides on a fact the engine does not hold is stated,
+not guessed.** "3d8 Radiant damage (if you are good or neutral) or 3d8 Necrotic
+damage (if you are evil)." Alignment is held for a character the engine built
+from choices and for nobody else — not a monster, not a declared NPC — and
+side, class and deity are none of them alignment. So the casting states which,
+the engine refuses anything the spell does not print, and the answer is pinned
+on the casting exactly as the save DC is. Picking Radiant because most clerics
+are good is where a Necrotic-immune Undead finds the engine out. This is the
+discipline declared cover and declared sight already follow, and it is **not**
+an alignment system: building one needs a second user.
+
+### Coverage needed a third word
+
+`verified` claims a spell is complete and driven; `untested` says nothing
+drives it. Spirit Guardians is neither — its Emanation, three clauses, cap,
+save and damage all run under a suite of their own, and the **halved Speed
+inside the Emanation** is a rule the engine owns and has not written. That is a
+standing spatial effect rather than a trigger: it wants a Speed derived from
+where a creature is standing, and mutating a base Speed on entry and exit would
+be correct only while every enter and leave paired up perfectly.
+
+So `PARTIAL_SPELLS` is the third state, and a spell listed there must say in
+`unmodelled` what it is missing — otherwise it becomes the place claims come to
+be quietly parked. Same move the adjudication map made when `table` and a
+missing shape could not express `engine`.
+
 ## Turn Boundaries Collect What They Are Owed
 
 SRD effects that repeat a save are everywhere — Hold Person, Dominate Person,
@@ -3427,9 +3539,12 @@ null and is reported — it never becomes either.
   area can arrive at a creature standing still** — see "An Area Can Arrive At A
   Creature Standing Still": Moonbeam's Cylinder is moved by a later Magic
   action, along a route the caller states, and catches whoever it comes to.
-  What does not work: summons, long casting times, an area that moves *by
-  itself* at the start of a turn (Cloudkill, Incendiary Cloud) or because its
-  carrier walked (Spirit Guardians), a path or a distance travelled, an
+  **And an area can be carried** — see "An Area Can Be Carried, And Then Its
+  Origin Is Not A Point": Spirit Guardians' Emanation is centred on its caster,
+  moves because the caster does, and catches whoever it arrives on. What does
+  not work: summons, long casting times, an area that moves *by itself* at the
+  start of a turn (Cloudkill, Incendiary Cloud), a standing spatial effect such
+  as the Speed halved inside that Emanation, a path or a distance travelled, an
   activation that resolves an area at a point chosen now, and a Reaction that
   answers a fall.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

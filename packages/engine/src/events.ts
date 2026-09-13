@@ -88,6 +88,7 @@ import {
   placeCreature,
   removeCreature,
   scene,
+  type AreaOrigin,
   type AreaShape,
   type CoverDegree,
   type Placement,
@@ -2243,9 +2244,32 @@ function alsoOn(state: GameState, who: CharacterId, source: string): GameState {
  * ongoing record. There is one area function in this engine and this is a
  * caller of it, not a second one.
  *
+ * **Two origins, both read off facts the engine already had.** SRD's glossary
+ * decides it and says so in one sentence: "An Emanation **moves with the
+ * creature or object that is its origin** unless it is an instantaneous or a
+ * stationary effect." So a casting's area sits at a point *or* on a creature,
+ * and which it is was settled at the casting by the definition:
+ *
+ * | | `area.origin` | Read from | Spells |
+ * |---|---|---|---|
+ * | A point the casting keeps | `point` | `record.origin` | Web, Grease, Insect Plague, Black Tentacles, Moonbeam |
+ * | The caster, wherever they now are | `self` | `record.caster` | Spirit Guardians |
+ *
+ * **Nothing is stored for the second and nothing is synchronised.** A copied
+ * point would be a second answer to "where is the aura", kept in step by
+ * remembering to update it — and the first time anything moved the caster by a
+ * route that forgot, the aura would be frozen where it was. Deriving it is not
+ * an optimisation: it is the difference between one fact and two facts that
+ * can disagree.
+ *
+ * An Emanation measures from the origin creature's **whole occupied volume**
+ * and excludes that creature, both of which `creaturesInArea` has always done.
+ * A Gargantuan carrier's 15-foot Emanation covers vastly more ground than a
+ * Medium one's, and neither includes the carrier.
+ *
  * Null when the casting has no persistent area to ask about — no definition,
- * no area, no trigger, or no point recorded — which is every casting but a
- * handful.
+ * no area, no trigger, or a point-origin area with no point recorded — which
+ * is every casting but a handful.
  */
 function creaturesInCastingArea(
   scene: PositionState,
@@ -2253,14 +2277,28 @@ function creaturesInCastingArea(
 ): ReadonlySet<CharacterId> | null {
   const definition = areaDefinitionOf(record.spellId);
   if (definition === null) return null;
-  const origin = record.origin;
-  if (origin === undefined) return null;
+
+  const origin = originOfCastingArea(definition.area, record);
+  if (origin === null) return null;
 
   const shape = areaShapeOf(definition.area, record.towards);
   if (shape === null) return null;
 
-  const caught = creaturesInArea(scene, { point: origin }, shape);
-  return caught.ok ? new Set(caught.value) : null;
+  const caught = creaturesInArea(scene, origin, shape);
+  if (!caught.ok) return null;
+
+  // SRD Spirit Guardians: "When you cast this spell, you can designate
+  // creatures to be unaffected by it." Filtered here rather than at each
+  // clause, so the one decision reaches every sentence that reads the area —
+  // the damage today, the halved Speed whenever that is built.
+  const spared = record.unaffected;
+  return new Set(spared === undefined ? caught.value : caught.value.filter((id) => !spared.includes(id)));
+}
+
+/** Where this casting's area sits: a point it keeps, or the creature carrying it. */
+function originOfCastingArea(area: SpellArea, record: OngoingSpell): AreaOrigin | null {
+  if (area.origin === 'self') return { creature: record.caster as CharacterId };
+  return record.origin === undefined ? null : { point: record.origin };
 }
 
 /**
@@ -2510,12 +2548,7 @@ function raiseAreaEntries(state: GameState, before: PositionState | null): GameS
   const scene = state.scene;
   if (scene === null || before === null) return state;
 
-  const moved = Object.keys(scene.positions).filter((who) => {
-    const now = scene.positions[who];
-    const then = before.positions[who];
-    if (now === undefined || then === undefined) return false;
-    return now.x !== then.x || now.y !== then.y || now.z !== then.z;
-  }) as CharacterId[];
+  const moved = creaturesThatMoved(before, scene);
   if (moved.length === 0) return state;
 
   let current = state;
@@ -2534,6 +2567,113 @@ function raiseAreaEntries(state: GameState, before: PositionState | null): GameS
       if (was.has(who) || !now.has(who)) continue;
       if (!areaTriggerAllowed(current, castingId, who, definition.trigger, 'entry', turn)) continue;
       current = oweAreaEffect(current, castingId, who, 'entry', turn);
+    }
+  }
+  return current;
+}
+
+/**
+ * What a movement did to every persistent area in play.
+ *
+ * One authoritative fact — a creature's position changed — and two rules read
+ * it, because the SRD writes two clauses. Which one applies depends on *whose*
+ * position moved: see {@link raiseAreaEntries} and {@link raiseCarriedArrivals}.
+ *
+ * The carrier side runs first so the debts are raised in the order settlement
+ * discharges them; the two touch disjoint creatures, so the order changes no
+ * outcome and exists only to keep a fold's list in the order a reader expects.
+ */
+function raiseAfterMovement(state: GameState, before: PositionState | null): GameState {
+  return raiseAreaEntries(raiseCarriedArrivals(state, before), before);
+}
+
+/** Every creature whose authoritative position differs between two scenes. */
+function creaturesThatMoved(before: PositionState, after: PositionState): readonly CharacterId[] {
+  return Object.keys(after.positions).filter((who) => {
+    const now = after.positions[who];
+    const then = before.positions[who];
+    if (now === undefined || then === undefined) return false;
+    return now.x !== then.x || now.y !== then.y || now.z !== then.z;
+  }) as CharacterId[];
+}
+
+/**
+ * The creatures a **carried** area arrived on because its carrier moved.
+ *
+ * SRD's glossary is the whole rule: "An Emanation moves with the creature or
+ * object that is its origin." So a cleric walking across a room takes Spirit
+ * Guardians with them, and a creature the aura sweeps onto has done nothing at
+ * all — which is exactly the clause the spell prints separately from the other
+ * two: "whenever the **Emanation enters a creature's space** and whenever a
+ * creature enters the Emanation or ends its turn there."
+ *
+ * **Same authoritative fact as `raiseAreaEntries`, opposite reading of it.**
+ * Both hang off a creature's position changing; they differ in *whose*
+ * position it was and therefore in what happened:
+ *
+ * | | Whose position changed | Who is caught | Moment |
+ * |---|---|---|---|
+ * | `raiseAreaEntries` | the creature that is caught | creatures that moved | `entry` |
+ * | this | the **carrier** of the area | creatures that **did not** move | `area-moved` |
+ *
+ * The partition is exact and is the reason nothing double-fires: a creature
+ * that moved has entered, and a creature that stood still has been entered
+ * upon. Collapsing the two into "membership changed somehow" would erase the
+ * distinction the SRD drew — and the two clauses can be capped differently.
+ *
+ * **The carrier is whoever actually moved, never whoever the event names.**
+ * `moveCreature` carries riders with their mount, so a cleric riding a horse
+ * takes their aura with them on an event that mentions only the horse. Reading
+ * `event.id` is a bug a mounted fixture is the only thing that catches — the
+ * same lesson the creature-side detector already learned.
+ */
+function raiseCarriedArrivals(state: GameState, before: PositionState | null): GameState {
+  const scene = state.scene;
+  if (scene === null || before === null) return state;
+
+  const moved = new Set(creaturesThatMoved(before, scene));
+  if (moved.size === 0) return state;
+
+  let current = state;
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    if (record === undefined) continue;
+
+    const definition = areaDefinitionOf(record.spellId);
+    if (definition === null || definition.trigger.onAreaEntry !== true) continue;
+    // A point-origin area does not move because anybody walked; Moonbeam's
+    // Cylinder stays exactly where it was put until `spell-origin-moved` says
+    // otherwise. This reads the carrier and nothing else.
+    if (definition.area.origin !== 'self') continue;
+    if (!moved.has(record.caster as CharacterId)) continue;
+
+    const was = creaturesInCastingArea(before, record);
+    const now = creaturesInCastingArea(scene, record);
+    if (was === null || now === null) continue;
+
+    const turn = state.combat?.turnsTaken ?? null;
+    for (const who of [...now].sort()) {
+      // A creature that moved is the entry detector's business, not this
+      // one's.
+      //
+      // **Two of the three conditions on this line are unreachable today, and
+      // are kept as statements of the rule rather than as optimisations.** One
+      // authoritative operation moves one creature plus its riders, and riders
+      // travel rigidly with their mount — so no event can move a carrier and
+      // an independent creature at once, and no point-origin area's membership
+      // can change because somebody walked. A mutation removing either passes
+      // the whole suite; a mutation removing `was.has(who)` does not, because
+      // firing for a creature the aura was already on is observable at once.
+      //
+      // What they buy is that the next operation to move two creatures
+      // independently gets the right answer rather than a double consequence,
+      // and that this function stays about carried areas. Stated here so
+      // neither reads as dead weight to whoever finds them next.
+      if (moved.has(who) || was.has(who)) continue;
+      if (!areaTriggerAllowed(current, castingId, who, definition.trigger, 'area-moved', turn)) {
+        continue;
+      }
+      current = oweAreaEffect(current, castingId, who, 'area-moved', turn);
     }
   }
   return current;
@@ -3858,7 +3998,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       // declared move is an intent an Opportunity Attack can end; this is the
       // creature actually arriving. Forced movement lands here too, because a
       // creature shoved into a Web has entered it.
-      return raiseAreaEntries({ ...next, scene: outcome.state }, state.scene);
+      return raiseAfterMovement({ ...next, scene: outcome.state }, state.scene);
     }
 
     case 'creature-unplaced':
@@ -3982,7 +4122,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     // charges half your Speed for the first — so both are authoritative
     // transitions and both can carry somebody into an area.
     case 'mounted':
-      return raiseAreaEntries(
+      return raiseAfterMovement(
         {
           ...next,
           scene: must(
@@ -3994,7 +4134,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       );
 
     case 'dismounted':
-      return raiseAreaEntries(
+      return raiseAfterMovement(
         {
           ...next,
           scene: must(event, dismount(sceneOf(state, event), event.rider, event.placement)),

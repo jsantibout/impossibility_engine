@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 46 (13.6%) | 78 (23.0%) | 54 (15.9%) |
+| 339 | 46 (13.6%) | 79 (23.3%) | 54 (15.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -36,7 +36,7 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Tracked | Executed | Blocked on |
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 2 | 25 | — |
+| Area of effect | 73 | 2 | 26 | — |
 | Reaction timing | 4 | 0 | 3 | falling — Counterspell now has a casting it can hold open |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 3 | an effect that a later turn can act through |
@@ -117,6 +117,7 @@ spell, and the area is the part that is missing.
 - **Shield** (level 1) — untested
 - **Shield of Faith** (level 1) — untested
 - **Shocking Grasp** (cantrip) — verified
+- **Spirit Guardians** (level 3) — partial — driven end to end, with a clause still unbuilt
 - **Spiritual Weapon** (level 2) — verified
 - **Starry Wisp** (cantrip) — untested
 - **Suggestion** (level 2) — untested
