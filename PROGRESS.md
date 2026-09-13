@@ -94,7 +94,7 @@ still Wizard-shaped are named below.
 | Area triggers | A persistent area catches a creature at a boundary or on entering; Insect Plague, Web, Grease, Black Tentacles | `ffd2e44` |
 | Moving areas | An area that arrives at a creature standing still; a route the caller states; Moonbeam | `fa41e34` |
 | Route timing | A route settles as the area reaches each space; `via` is adjudicated, and asking for it is not a refusal | `4dc1086` |
-| Carried areas | An area whose origin is a creature's live position; Spirit Guardians, partial | *(this batch)* |
+| Carried areas | An area whose origin is a creature's live position; Spirit Guardians, partial | `63d5600` |
 
 ## Decisions that constrain what comes next
 
