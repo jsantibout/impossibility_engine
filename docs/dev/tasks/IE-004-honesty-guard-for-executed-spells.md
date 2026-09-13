@@ -1,6 +1,6 @@
 # IE-004 — The honesty guard for executed spells
 
-state: IMPLEMENTING
+state: CHANGES_REQUIRED
 lane: conformance
 batch: 1
 parallel-safe: YES — beside IE-003 (no shared source files; `CLAUDE.md` prose and `COVERAGE.md` merge mechanically); CONDITIONAL beside a content task, which edits the same definition region
@@ -127,11 +127,94 @@ guard's method, not this one).
 
 ## Completion digest
 
-(none yet)
+Arrived 2026-09-13, from the builder's last message. Sent back once (see the
+architectural gate); the re-issued digest is appended below it when it arrives.
+
+```
+IE-004 — Completion digest
+Approved architectural intent: Extend the honesty guard from the 46 tracked spells to the 82 executed ones — every `unmodelled` clause naming a mechanic the engine owns carries a written adjudication (`table` with a reason, or a named missing shape) — and make "partial" a consequence of carrying a debt adjudication rather than a hand-kept list.
+Builder: COMPLETE
+Worktree: C:\Users\justi\Code\QuestBarrel\ImpossibilityEngine\.claude\worktrees\agent-a4ac40741e133e8a8   Branch: worktree-agent-a4ac40741e133e8a8   Commit: 66b1d9f1e5ef59591752697eb06b0b27939c8f62   Rebased on main at: 3a8ab66271ff26218af02d9ac772ac497fdb329a
+Opus review: PASS — rounds: 3
+Tests: 5342 passing / 5342 total; new tests: 96 (one per executed spell plus 14 invariants), net +97 over the 5245 baseline; mutation run: four, each failing the guard and only the guard — (1) an unadjudicated "the target has Resistance to Bludgeoning damage while it is restrained" added to Black Tentacles, caught by name; (2) Spirit Guardians removed from `PARTIAL_SPELLS`, caught by the derived-set equality; (3) Black Tentacles' Difficult Terrain adjudication downgraded from its shape to `table`, which moves the derived set and is caught — a debt cannot be relabelled fiction without the published list changing; (4) Chill Touch's SRD quotation loosened by three words, caught by the quotation oracle.
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓
+Conformance: PASS. Verified counts: 82 executed definitions, 58 carrying clauses, 103 clauses, 84 tripping a marker across 55 spells; 84 adjudications — 5 `table`, 79 shape over 27 enumerated shapes; 53 partial (55 adjudicated spells minus Cone of Cold and Moonbeam, whose clauses are all table). COVERAGE.md: Executed 82, of which partial 53, Verified 58.
+Architectural deviations: three, each declared. (1) The guard lives in a new `spell-honesty.test.ts` with its own 27-shape `MISSING_SHAPES`, not in the tracked guard's three-id list — that list is documented as tracked-only, and merging them would let one population's "no unclaimed shape" guard pass on the other's claim; `speed-and-movement-modes` is deliberately the same string for the same gap. (2) `PARTIAL_SPELLS` stays a written list asserted against the derived set both ways rather than being replaced by it: `npm run coverage` runs outside vitest, so importing the suite would invert the dependency, and the brief's own mutation presumes the list exists. (3) `coverage.test.ts`'s "keeps partial and verified apart" is inverted to "lets a spell be driven end to end and still carry a debt" — they are two axes once partial is derived, and Web is the discriminating case.
+Foundational primitives touched: none. `spell-definitions.ts` changed two `unmodelled` string literals only, not the type declarations at its head.
+New runtime special cases: none. No engine code changed.
+Files outside the brief's surface: none.
+Out-of-scope findings (not acted on): (a) `spell-tracking.test.ts:83` still restates the executed predicate as its complement — out of scope ("changing how tracked spells are scanned"), and it currently has all three arms. (b) `coverage.ts` carries an orphaned docstring above `PARTIAL_SPELLS` that documents `VERIFIED_SPELLS`. (c) The marker set has no word for *object*, so Dispel Magic's "one creature, object, or magical effect" clause goes unadjudicated — a real engine limitation inside the guard's stated floor. (d) The audit's §3.5 pointer to Continual Flame is wrong: its clauses make no Dispel Magic claim, so only Arcane Lock was stale. (e) Builder sessions share one scratchpad path — the IE-003 builder overwrote a file of mine mid-task; unique filenames are the workaround.
+Unresolved concerns: none.
+Reviewer confidence: high
+Recommendation: READY FOR ARCHITECTURAL GATE
+
+IE-004 — Independent review
+Verdict: PASS
+Commit reviewed: 66b1d9f1e5ef59591752697eb06b0b27939c8f62   Gauntlet re-run: typecheck ✓ lint ✓ test 5342/5342 coverage diff ✓
+Brief compliance: met. (1) clauses are scanned, not the SRD paragraph; (2) every marker-tripping clause carries a keyed adjudication — `table` with a reason or one of 27 enumerated shapes; (3) the hand list was kept and asserted against the derived set in both directions, and the builder says why (the report script runs outside vitest, so importing the suite would invert the dependency); (4) 84 adjudications over 55 spells, every audit-named debt shape-adjudicated; (5) Arcane Lock reworded, Continual Flame correctly untouched because its clause never made the stale claim, Sunbeam reworded as equally stale; (6) COVERAGE.md regenerated and clean against the script; (7) CLAUDE.md gains the section and corrects the PARTIAL_SPELLS paragraph.
+Tests: `spell-honesty.test.ts` (96 tests: one per executed spell plus 14 invariants). The per-spell case asserts exactly one adjudication per mechanical clause and reads `SPELL_DEFINITIONS` live, so a new unadjudicated clause bites; the reverse case asserts each entry matches exactly one still-mechanical clause, so a stale or reworded clause bites; substring collision is caught from the other side. `PARTIAL_SPELLS` is asserted equal to the derived set, so removing Spirit Guardians fails. Fixtures discriminate: the map is keyed by clause phrase rather than index, the partial derivation is proved non-vacuous against the two table-only spells, `both` is asserted to contain `web` by name, and the marker list is pinned with the audit's own six sentences plus the "leaves the fiction alone" direction. `note.length > 60` is the one weak assertion and is honest about being a floor. Population comes from the single exported `isExecuted`, not a hand list.
+Regression risk: none. No engine behaviour changed — the only non-test, non-doc edit is two `unmodelled` strings. golden-log.json, docs/dev, PROGRESS.md and packages/srd/raw are untouched; replay, the idempotency sweep and the invariants sweep are unaffected.
+Conformance: PASS. COVERAGE.md regenerated and byte-clean; Executed stays 82 with partial reported as a second axis rather than subtracted; the three clause-carrying spells left unadjudicated are honest fiction or the acknowledged marker floor; every `unmodelled` claim I read is fiction or a named shape, and every shape cites CLAUDE.md, PROGRESS.md, the audit or a definition's own clause — asserted, not promised.
+Scope creep: none material. `spirit-guardians` added to VERIFIED_SPELLS (headline Verified 57 → 58) and Sunbeam's clause reworded are both outside the brief's letter; each is a consequence of the change and is honest — see deviations above.
+Architectural violations: none. No spell-name special case reaches the runtime; nothing stored that should be derived — partial went the other way, from a hand list to a derived consequence.
+Hard-coded or test-specific fixes: none.
+Accidental coupling: `spell-honesty.test.ts` imports `EXECUTED_SPELL_IDS` and `PARTIAL_SPELLS` from `scripts/coverage.ts`; `coverage.test.ts` already imported that module, and centralising `isExecuted` removes two drifting copies. The remaining copy in `spell-tracking.test.ts:83` is pre-existing and out of scope.
+Foundational primitives touched: none. `spell-definitions.ts` changed only two `unmodelled` string literals, not the type declarations at its head.
+New runtime special cases: none.
+Defects for the builder: none
+Escalation reason: none
+Confidence: high
+Recommendation: READY FOR ARCHITECTURAL GATE
+```
 
 ## Architectural gate
 
-(none yet)
+2026-09-13 — **inspected, not lightweight.** Two risk signals: the digest
+declares three architectural deviations, and the review took three rounds.
+
+Read: `git diff main...worktree-agent-a4ac40741e133e8a8` in full for
+`scripts/coverage.ts`, `coverage.test.ts`, `spell-definitions.ts`,
+`COVERAGE.md` and `CLAUDE.md`; and in `spell-honesty.test.ts` the marker set,
+the 27-shape enumeration with its sources, all five `table` adjudications,
+eight shape adjudications (Blur, Chill Touch, Guidance, Guiding Bolt, Harm,
+Mage Armor, Shield, Web) and every invariant test.
+
+- **Deviation 1 — a separate 27-shape enumeration, not the tracked guard's
+  list: accepted.** The tracked guard asserts "no shape sits unclaimed" over
+  its own population, so one shared list would fail that for whichever bucket
+  stopped needing a shape first. Every id says where the repository already
+  described the gap, a test holds that, and the one id both guards need is
+  deliberately the same string. Two shape vocabularies is a thing for the
+  next whole-engine audit to weigh, not a defect now.
+- **Deviation 2 — the hand list asserted against the derived set both ways:
+  not a deviation.** It is the brief's first option, taken for the reason the
+  brief anticipated: the report generator runs outside vitest and cannot
+  import the suite.
+- **Deviation 3 — partial and verified as two axes, Spirit Guardians added to
+  `VERIFIED_SPELLS`: accepted.** Fifty-three partial spells cannot be
+  described by one state without misreporting either the tests or the debts;
+  Web is the discriminating case and the test names it.
+- The five `table` reasons are genuine fiction (a corpse's appearance, water
+  the world does not hold, a form the engine never held, a Darkness casting
+  that does not exist, whether anyone lights the webs). The spot-checked
+  shapes fit their clauses. The sourcing check and the SRD-quotation oracle
+  are assertions; the oracle caught four wrong quotations during review,
+  which is what the three rounds were.
+
+**Found: one defect, documentation only.** `CLAUDE.md`, "Coverage needed a
+third word" (branch line 2671), still opens "`verified` claims a spell is
+complete and driven ... Spirit Guardians is neither", one paragraph above
+this commit's own edit saying partial is derived and Spirit Guardians has
+fifty-two companions, and beside a new section saying the two are different
+axes. The second-highest source of truth contradicts itself inside one
+section. **Sent back as `CHANGES_REQUIRED`** for that paragraph: fold into the
+one commit, gauntlet re-run, one reviewer round, fresh digest.
+
+Follow-ups for the architect, from the digest's out-of-scope findings: the
+audit's §3.5 pointer to Continual Flame was wrong (only Arcane Lock was
+stale; Sunbeam was, and is fixed here); builders share one scratchpad path,
+so `qb-builder.md` should tell them to use unique filenames; the marker set
+has no word for *object*, a stated floor.
 
 ## Merge record
 

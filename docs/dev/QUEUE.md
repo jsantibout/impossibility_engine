@@ -47,7 +47,7 @@ both are re-scheduled below, with the reasons in their files.
 | [IE-003 — Close the guard holes and make the guard sweeps mechanical](tasks/IE-003-guard-holes-and-mechanical-sweeps.md) | mechanism | CONDITIONAL | 1 |
 | [IE-004 — The honesty guard for executed spells](tasks/IE-004-honesty-guard-for-executed-spells.md) | conformance | YES | 1 |
 
-Both `IMPLEMENTING` since 2026-09-13, one builder each in a worktree under `.claude/worktrees/` (path and branch on each task file). The architect is idle until a completion digest arrives.
+IE-003 `IMPLEMENTING` since 2026-09-13. IE-004 finished the same day; the architectural gate inspected the diff (three declared deviations, all accepted) and sent it back `CHANGES_REQUIRED` for one self-contradicting `CLAUDE.md` paragraph, doc-only, one reviewer round. Both builders hold their worktrees (path and branch on each task file). The architect is idle until a digest arrives.
 
 ## NEXT
 
