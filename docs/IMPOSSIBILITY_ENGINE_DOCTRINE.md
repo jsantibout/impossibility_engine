@@ -29,6 +29,63 @@ it, propose actions, supply missing fictional context, and narrate outcomes.
 The Engine owns mechanically authoritative state and determines what actually
 changes.
 
+## North Star: Authority Without Rigidity
+
+The Impossibility Engine exists to make mechanically reliable play possible
+**without constraining what players or DMs can imagine**.
+
+A safer or more deterministic architecture that makes creative D&D
+substantially harder is **not** a successful architecture. That sentence is the
+whole of this section; everything below is how to apply it.
+
+### The division of authority
+
+| | Owns |
+|---|---|
+| **The Engine** | Established mechanical truth: rules, deterministic resolution, resources, modifiers, positions, conditions, timing, and authoritative state. |
+| **The DM** | Authorship and judgment: world creation, NPC behaviour, interpretation of player intent, DCs and rulings where the rules do not determine an answer, and adjudication of novel actions. |
+| **Both, collaborating** | An action only partially modelled: the DM decides how the situation should be adjudicated, and the Engine deterministically executes the mechanical pieces it knows. |
+
+### The Engine must not require a bespoke command for every imaginable action
+
+A player says *"I swing from the chandelier."* The desired response is **not**
+
+> Unsupported action.
+
+It is: the DM determines an appropriate ruling — say Acrobatics, DC 14 — and
+the Engine resolves the check using authoritative character state and
+deterministic mechanics. The DM chooses the skill and the DC. The Engine
+supplies the modifier, throws the die, and decides the outcome. Neither does
+the other's job.
+
+**The Engine should prevent contradictions of established mechanical truth
+without preventing legitimate DM invention.** Those are different things and
+the difference is the design. Refusing a Hold Person on a creature the SRD
+prints as Fey protects truth. Refusing a chandelier because no
+`SWING_FROM_CHANDELIER` command exists protects nothing.
+
+The goal is not to constrain the DM until the system becomes correct. **The
+goal is to make the rules trustworthy enough that the DM is free to be
+creative.**
+
+### The tie-breaker
+
+When two implementations are mechanically correct, prefer the one that, in
+order:
+
+1. preserves greater player freedom,
+2. preserves greater legitimate DM authorship,
+3. requires fewer model round trips,
+4. exposes fewer Engine implementation details to the DM,
+5. still preserves authoritative mechanical truth and deterministic resolution.
+
+Any proposal that increases rigidity, refusals, required bespoke commands, or
+orchestration burden **must justify that cost against this North Star**. The
+question to ask before adding a refusal, a hard constraint, a required command
+or an extra round trip is: *does this protect established mechanical truth, or
+is it compensating for an inflexible interface?* Only the first is worth
+paying for.
+
 ## Constitutional Invariants
 
 1. **The Engine owns truth.** Authoritative mechanical state must never depend

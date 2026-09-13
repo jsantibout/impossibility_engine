@@ -15,6 +15,25 @@ the doctrine wins and this file is the thing that needs correcting. Its core
 principle is the one line worth carrying everywhere: **AI interprets
 possibility; the Engine adjudicates reality.**
 
+## Architectural North Star
+
+The Impossibility Engine must provide authoritative, deterministic mechanical
+truth **without restricting legitimate player creativity or DM judgment**.
+
+A "safer" architecture that makes creative D&D substantially harder is not a
+successful architecture.
+
+The Engine owns established mechanical truth. The DM owns world authorship and
+adjudication. For novel actions, the DM may invent a ruling and compose
+existing mechanical primitives; the Engine resolves the mechanically knowable
+pieces.
+
+Before introducing a refusal, a hard constraint, a bespoke command requirement,
+or an additional model round trip, ask whether it protects established
+mechanical truth or merely compensates for an inflexible interface.
+
+See `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` for the governing doctrine.
+
 ## The Inviolable Rule
 
 **The model never produces a number.**
