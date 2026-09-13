@@ -67,6 +67,9 @@ const PREPARED = [
   'dispel-magic',
   'vampiric-touch',
   'flame-blade',
+  // Flame Blade's shape at cantrip level — see the block at the end of this
+  // file. A cantrip sits in this list exactly as Fire Bolt does.
+  'produce-flame',
   'minor-illusion',
   'mage-hand',
   'hold-person',
@@ -1316,5 +1319,217 @@ describe('a retried casting reports the duplicate however the world has moved on
     const retry = unwrap(hold(seed!), 'retry');
     expect(retry.events).toEqual([]);
     expect(fold('seed', [...g.log, ...retry.events])).toEqual(before);
+  });
+});
+
+// — a cantrip whose whole content is what it does on later turns ———————————————
+
+/**
+ * SRD Produce Flame:
+ *
+ * > "A flickering flame appears in your hand and remains there for the
+ * > duration... The spell ends if you cast it again.
+ * >
+ * > Until the spell ends, you can take a Magic action to hurl fire at a
+ * > creature or an object within 60 feet of you. Make a ranged spell attack.
+ * > On a hit, the target takes 1d8 Fire damage."
+ * > _Cantrip Upgrade._ "The damage increases by 1d8 when you reach levels 5
+ * > (2d8), 11 (3d8), and 17 (4d8)."
+ *
+ * Flame Blade's shape, one level down, and the two numbers that only a test
+ * casting the spell can read back: the **1d8**, and the fact that it grows
+ * with the *caster* rather than with a slot — which is the exact confusion
+ * that once had a level 3 Wizard throwing Fire Bolt for 2d10, and which a
+ * cantrip with an activation could reintroduce unseen.
+ */
+describe('Produce Flame hurls its fire on later turns', () => {
+  const NOVICE = id('novice');
+  /** Exactly sixty feet from the caster: the furthest the fire is thrown. */
+  const REACHED = id('reached');
+  /** Sixty-five, one cube past it. */
+  const BEYOND = id('beyond');
+
+  /**
+   * The same table, plus a caster below the first Cantrip Upgrade and a pair
+   * standing either side of the throw's own limit.
+   *
+   * **The pair is what makes the sixty feet checkable at all.** The printed
+   * `Range: Self` is oracled against the book; the sixty belong to the
+   * activation and nothing else in the suite reads them, so a fixture whose
+   * every target stands five feet away passes just as happily with a reach of
+   * five. That is the 600-foot-hall lesson: a guard needs a case where it is
+   * the only thing that can refuse.
+   */
+  const FLAME_SETUP: readonly GameEvent[] = [
+    ...SETUP,
+    added(NOVICE, 'party', { level: 4 }),
+    ...casts(NOVICE),
+    added(REACHED, 'foes'),
+    added(BEYOND, 'foes'),
+    {
+      type: 'creature-placed',
+      id: NOVICE,
+      placement: { from: { creature: WIZ }, feet: 10, bearing: 270 },
+    },
+    {
+      type: 'creature-placed',
+      id: REACHED,
+      placement: { from: { creature: WIZ }, feet: 60, bearing: 0 },
+    },
+    {
+      type: 'creature-placed',
+      id: BEYOND,
+      placement: { from: { creature: WIZ }, feet: 65, bearing: 0 },
+    },
+  ];
+
+  /** A bonus large enough that the attack lands, so the dice are what is under test. */
+  const hitting = (seed: string) => ({
+    issuer: createRollIssuer('r'),
+    rng: createRng(seed) as Rng,
+    bonuses: [{ source: 'forced', flat: 40 }],
+  });
+
+  /** Conjure the flame and hand it back unthrown. */
+  const conjureFlame = (who: CharacterId, seed: string) => {
+    const g = new Game([...FLAME_SETUP]);
+    const conjured = unwrap(
+      resolveSpell(g.state, who, { spellId: 'produce-flame', targets: [] }, hitting(seed)),
+      'produce flame',
+    );
+    g.push(conjured.events);
+    return { g, conjured };
+  };
+
+  /** Hurl it without unwrapping: one of these is meant to be refused. */
+  const tryHurl = (who: CharacterId, seed: string, at: CharacterId) => {
+    const { g, conjured } = conjureFlame(who, seed);
+    return {
+      g,
+      conjured,
+      out: activateSpell(
+        g.state,
+        who,
+        { castingId: conjured.castingId, targets: [at] },
+        hitting(seed),
+      ),
+    };
+  };
+
+  /** Conjure the flame, then hurl it; hand back what the hurl did. */
+  const hurl = (who: CharacterId, seed: string, at: CharacterId = FOE) => {
+    const { g, conjured, out } = tryHurl(who, seed, at);
+    const thrown = unwrap(out, 'hurling');
+    g.push(thrown.events);
+    return { g, conjured, thrown };
+  };
+
+  /**
+   * The casting resolves nothing — conjuring a flame is not an attack — and
+   * says so, which is the obligation `spell-catalogue.test.ts` holds every
+   * definition with an empty effect list to.
+   */
+  it('conjures a flame that hurts nobody, and names the light it leaves to the DM', () => {
+    const g = new Game([...FLAME_SETUP]);
+    const out = unwrap(
+      resolveSpell(g.state, WIZ, { spellId: 'produce-flame', targets: [] }, hitting('quiet')),
+      'produce flame',
+    );
+    g.push(out.events);
+
+    expect(out.outcomes).toEqual([]);
+    expect(g.hp(FOE)).toBe(80);
+    expect(out.unverified.join(' ')).toContain('light is not modelled');
+    expect(ongoingSpellOf(g.state, out.castingId)?.spellId).toBe('produce-flame');
+  });
+
+  /** "you can take a Magic action to hurl fire": the Action, and a ranged attack. */
+  it('spends the Magic action and makes a ranged spell attack', () => {
+    const { thrown } = hurl(WIZ, 'hurl');
+    expect(thrown.outcomes[0]?.attack).toBeDefined();
+    expect(thrown.events.some((e) => e.type === 'spell-activated')).toBe(true);
+  });
+
+  /**
+   * **"within 60 feet of you", measured from the caster on every throw.**
+   * Sixty is reached and sixty-five is refused, which is the only pair that can
+   * tell the printed distance from any other — a suite that only ever aims five
+   * feet away is equally happy with a reach of five.
+   */
+  it('throws the fire sixty feet and no further', () => {
+    const reached = hurl(WIZ, 'sixty', REACHED);
+    expect(reached.thrown.outcomes[0]?.attack).toBeDefined();
+    expect(reached.g.hp(REACHED)).toBeLessThan(80);
+
+    const { out } = tryHurl(WIZ, 'sixty', BEYOND);
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('out_of_range');
+  });
+
+  /**
+   * **1d8 at level 4 and 2d8 at level 9.** The Cantrip Upgrade is read off the
+   * caster, so the novice can never exceed 8 on a hit and the wizard sometimes
+   * must. Criticals are skipped rather than bounded, because doubling the dice
+   * would widen the novice's ceiling past the wizard's floor.
+   */
+  it('reads the Cantrip Upgrade off the caster’s level', () => {
+    let novicesBest = 0;
+    let wizardsBest = 0;
+    let counted = 0;
+
+    for (let n = 0; n < 30; n += 1) {
+      for (const [who, cap] of [
+        [NOVICE, 8],
+        [WIZ, 16],
+      ] as const) {
+        const outcome = hurl(who, `flame-${n}`).thrown.outcomes[0];
+        if (outcome?.attack?.hit !== true || outcome.attack.critical) continue;
+        counted += 1;
+
+        const dealt = outcome.damage ?? 0;
+        expect(dealt).toBeGreaterThanOrEqual(1);
+        expect(dealt).toBeLessThanOrEqual(cap);
+        if (who === NOVICE) novicesBest = Math.max(novicesBest, dealt);
+        else wizardsBest = Math.max(wizardsBest, dealt);
+      }
+    }
+
+    expect(counted).toBeGreaterThan(30);
+    // One die cannot beat 8, and the level 9 caster throws two.
+    expect(novicesBest).toBeLessThanOrEqual(8);
+    expect(wizardsBest).toBeGreaterThan(8);
+  });
+
+  /** SRD: "The spell ends if you cast it again." */
+  it('ends its own earlier casting when the caster conjures another flame', () => {
+    const { g, conjured } = hurl(WIZ, 'again');
+    const second = unwrap(
+      resolveSpell(g.state, WIZ, { spellId: 'produce-flame', targets: [] }, hitting('second')),
+      'second flame',
+    );
+    g.push(second.events);
+
+    expect(ongoingSpellOf(g.state, conjured.castingId)).toBeNull();
+    expect(ongoingSpellOf(g.state, second.castingId)).not.toBeNull();
+    expect(ongoingSpellsBy(g.state, WIZ).filter((o) => o.spellId === 'produce-flame')).toHaveLength(
+      1,
+    );
+  });
+
+  /**
+   * **The sixty feet are the activation's, not the spell's.** SRD prints
+   * Range: Self, so the casting aims at nobody; naming a target is refused,
+   * and the distance is checked on each later hurl instead.
+   */
+  it('refuses a casting aimed at somebody, because its Range is Self', () => {
+    const g = new Game([...FLAME_SETUP]);
+    const out = resolveSpell(
+      g.state,
+      WIZ,
+      { spellId: 'produce-flame', targets: [FOE] },
+      hitting('aimed'),
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('takes_no_target');
   });
 });

@@ -232,6 +232,13 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The engine records who dealt the damage and which side they are on, and no casting can ask to be ended when that happens — so the Beast stays friendly for its full day however hard the party hits it.',
     },
   ],
+  'arcane-sword': [
+    {
+      clause: 'to a spot you can see',
+      why: 'table',
+      note: 'SRD: "move the sword up to 30 feet to a spot you can see". Sight here is a declared fact from one creature to another — `sight-declared` names a `from` and a `to`, both creatures — and a destination is a coordinate. There is no pairwise declaration for the relocation to read and nothing it could read instead, so this is the line declared cover and declared sight already draw: the DM says what the caster can see, and the engine measures the thirty feet.',
+    },
+  ],
   banishment: [
     {
       clause: 'leaving the battlefield for a demiplane',

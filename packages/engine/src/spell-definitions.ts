@@ -4933,6 +4933,90 @@ export const SPIRITUAL_WEAPON: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Arcane Sword:
+ *
+ * > _Level 7 Evocation (Bard, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 90 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You create a spectral sword that hovers within range. It lasts for the
+ * > duration.
+ * >
+ * > When the sword appears, you make a melee spell attack against a target
+ * > within 5 feet of the sword. On a hit, the target takes Force damage equal
+ * > to 4d12 plus your spellcasting ability modifier.
+ * >
+ * > On your later turns, you can take a Bonus Action to move the sword up to
+ * > 30 feet to a spot you can see and repeat the attack against the same
+ * > target or a different one."
+ *
+ * **The second user of {@link CastingOrigin}**, and it needed nothing new,
+ * which is what a second user is for. It prints the same three numbers in the
+ * same three places Spiritual Weapon does — the Range that says where the
+ * point may first be put, the reach the attack is measured by, and the
+ * allowance a later turn may move it — and it prints them for a different
+ * caster, a different action and a different die.
+ *
+ * Two differences from Spiritual Weapon are transcription rather than shape,
+ * and both are the sort a neighbouring definition lends by habit:
+ *
+ * - **"you make", not "you can".** Spiritual Weapon's force appears whether or
+ *   not anything is standing beside it, which is exactly what
+ *   {@link TargetRule.optional} is for. This sentence names the attack without
+ *   that word, so the casting takes a target like any other spell.
+ * - **It does not scale.** The SRD prints no *Using a Higher-Level Spell Slot*
+ *   line for this spell at all, so 4d12 cast from a level 9 slot is still
+ *   4d12. A `perSlotLevelAbove` copied from the definition above would be a
+ *   number the book never printed, and nothing but a test comparing two slot
+ *   levels would ever have said so.
+ */
+export const ARCANE_SWORD: SpellDefinition = {
+  id: 'arcane-sword',
+  name: 'Arcane Sword',
+  level: 7,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 90 },
+  // "you **make** a melee spell attack": no `optional`, which is the word
+  // Spiritual Weapon prints and this spell does not.
+  targets: { count: 1 },
+  // "within 5 feet of the sword"; "move the sword up to 30 feet".
+  origin: { reach: 5, movableBy: 30 },
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'melee',
+      // "Force damage equal to 4d12 plus your spellcasting ability modifier",
+      // and no higher-level line, so no `perSlotLevelAbove`.
+      damage: { dice: '4d12' },
+      damageType: 'force',
+      addSpellcastingModifier: true,
+    },
+  ],
+  durationSeconds: 60,
+  activation: {
+    // "you can take a Bonus Action to move the sword ... and repeat the
+    // attack": one action that moves and strikes, which is `origin.movableBy`
+    // rather than `activation.movesArea`.
+    action: 'bonus-action',
+    // No `range`: the five feet are measured from the sword, and `origin.reach`
+    // is where that number lives.
+    label: 'Arcane Sword (again)',
+    effects: [
+      {
+        kind: 'attack',
+        attack: 'melee',
+        damage: { dice: '4d12' },
+        damageType: 'force',
+        addSpellcastingModifier: true,
+      },
+    ],
+  },
+  unmodelled: [
+    'moving the sword "to a spot you can see" is not verified: sight is a declared fact between two creatures, a destination is a coordinate rather than a creature, and whether the caster can see the space is the DM’s',
+  ],
+};
+
 export const STONE_SHAPE: SpellDefinition = {
   id: 'stone-shape',
   name: 'Stone Shape',
@@ -5494,6 +5578,78 @@ export const FLAME_BLADE: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Produce Flame:
+ *
+ * > _Conjuration Cantrip (Druid)._ **Casting Time:** Bonus Action.
+ * > **Range:** Self. **Duration:** 10 minutes.
+ * > "A flickering flame appears in your hand and remains there for the
+ * > duration. While there, the flame emits no heat and ignites nothing, and it
+ * > sheds Bright Light in a 20-foot radius and Dim Light for an additional 20
+ * > feet. The spell ends if you cast it again.
+ * >
+ * > Until the spell ends, you can take a Magic action to hurl fire at a
+ * > creature or an object within 60 feet of you. Make a ranged spell attack.
+ * > On a hit, the target takes 1d8 Fire damage."
+ * > _Cantrip Upgrade._ "The damage increases by 1d8 when you reach levels 5
+ * > (2d8), 11 (3d8), and 17 (4d8)."
+ *
+ * Flame Blade's shape at cantrip level, and the third member of the family:
+ * the casting itself resolves nothing \u2014 conjuring a flame is not an attack \u2014
+ * and every bolt the spell ever throws comes through the activation.
+ *
+ * **The 60 feet are the activation's, not the spell's.** SRD prints
+ * **Range: Self**, because what the casting reaches is the caster's own hand;
+ * the distance belongs to the fire being hurled, which is checked afresh on
+ * each later turn. Putting 60 feet in `range` would let the casting itself be
+ * aimed at somebody, which is not a thing this spell does.
+ *
+ * **And the dice read the caster, never a slot.** A cantrip has no slot to
+ * scale with, so the upgrade is `cantripUpgradesAt` \u2014 the exact confusion that
+ * once had a level 3 Wizard throwing Fire Bolt for 2d10.
+ *
+ * "The spell ends if you cast it again" is the sentence Mage Hand and Minor
+ * Illusion print word for word, which is what makes
+ * {@link SpellDefinition.replacesPriorCasting} a rule rather than a quirk.
+ */
+export const PRODUCE_FLAME: SpellDefinition = {
+  id: 'produce-flame',
+  name: 'Produce Flame',
+  level: 0,
+  school: 'conjuration',
+  castingTime: 'bonus-action',
+  concentration: false,
+  // "Range: Self" \u2014 the flame appears in the caster's hand.
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  // Conjuring the flame is not an attack; the spell's whole content is below.
+  effects: [],
+  // "Duration: 10 minutes."
+  durationSeconds: 600,
+  // "The spell ends if you cast it again."
+  replacesPriorCasting: true,
+  activation: {
+    // "you can take a Magic action to hurl fire".
+    action: 'action',
+    // "at a creature or an object within 60 feet of you" \u2014 measured from the
+    // caster, which is why it is the activation's range rather than an origin.
+    range: { kind: 'ranged', feet: 60 },
+    label: 'Produce Flame (hurl)',
+    effects: [
+      {
+        kind: 'attack',
+        attack: 'ranged',
+        // "1d8 Fire damage", upgraded at character levels 5, 11 and 17.
+        damage: { dice: '1d8', cantripUpgradesAt: [5, 11, 17] },
+        damageType: 'fire',
+      },
+    ],
+  },
+  unmodelled: [
+    'the Bright Light in a 20-foot radius and the Dim Light beyond it are the DM\u2019s; light is not modelled',
+  ],
+};
+
 // — Advantage and Disadvantage a spell grants ————————————————————————————————
 
 /**
@@ -5595,6 +5751,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_SPLASH,
   ANIMAL_FRIENDSHIP,
   ARCANE_LOCK,
+  ARCANE_SWORD,
   BANE,
   BANISHMENT,
   BEACON_OF_HOPE,
@@ -5684,6 +5841,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   PLANE_SHIFT,
   POISON_SPRAY,
   PRESTIDIGITATION,
+  PRODUCE_FLAME,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
   REMOVE_CURSE,

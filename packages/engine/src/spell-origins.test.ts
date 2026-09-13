@@ -74,13 +74,26 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const PREPARED = ['spiritual-weapon', 'bless', 'mage-hand', 'hold-person', 'dispel-magic'];
+const PREPARED = [
+  'spiritual-weapon',
+  // The second user of the same primitive, seven levels up — see the Arcane
+  // Sword block at the end of this file.
+  'arcane-sword',
+  'bless',
+  'mage-hand',
+  'hold-person',
+  'dispel-magic',
+];
 
-const added = (who: CharacterId, side: string): GameEvent => ({
+const added = (
+  who: CharacterId,
+  side: string,
+  over: Partial<CharacterSheet> = {},
+): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
-  sheet: sheet(),
+  sheet: sheet(over),
   maxHp: 80,
   diesAtZero: false,
   creatureType: 'Humanoid',
@@ -93,7 +106,9 @@ const casts = (who: CharacterId): readonly GameEvent[] => [
     id: who,
     spellcasting: declaredCasting({ ability: 'wis', prepared: PREPARED, cantrips: ['mage-hand'] }),
   },
-  ...[1, 2, 3, 4, 5].map(
+  // Up to level 9, because Arcane Sword is a level 7 spell and the test that
+  // pins its *lack* of scaling casts it from a level 9 slot.
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(
     (level): GameEvent => ({
       type: 'resource-pool-declared',
       id: who,
@@ -1278,5 +1293,246 @@ describe('an activation waits on the same debts a casting does', () => {
     const out = activateSpell(g.state, CLERIC, { castingId: casting, targets: [] }, supply());
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('saves_pending');
+  });
+});
+
+// — the second casting that holds a point ——————————————————————————————————————
+
+/**
+ * SRD Arcane Sword, and the evidence that {@link CastingOrigin} is a shape.
+ *
+ * > "You create a spectral sword that hovers within range... When the sword
+ * > appears, you make a melee spell attack against a target within 5 feet of
+ * > the sword. On a hit, the target takes Force damage equal to 4d12 plus your
+ * > spellcasting ability modifier.
+ * >
+ * > On your later turns, you can take a Bonus Action to move the sword up to
+ * > 30 feet to a spot you can see and repeat the attack against the same
+ * > target or a different one."
+ *
+ * Everything the primitive was built for, printed a second time by a different
+ * spell — a Range that places the point, a reach measured from it, and an
+ * allowance a later action may move it — so the definition needed no field
+ * this file's own spell had not already asked for.
+ *
+ * What is pinned here is the half a *fixture* would otherwise supply: 4d12,
+ * the spellcasting modifier beside it, and the absence of any per-slot growth.
+ * The engine knows none of those; the definition does, and nothing but a test
+ * casting the spell reads them back.
+ */
+describe('Arcane Sword strikes from the point it hovers at', () => {
+  /** Wisdom 18 on the fixture's sheet: "plus your spellcasting ability modifier". */
+  const MOD = 4;
+
+  /** A bonus large enough that the attack lands, so the damage is what is under test. */
+  const hitting = (seed: string) => ({
+    issuer: createRollIssuer('r'),
+    rng: createRng(seed) as Rng,
+    bonuses: [{ source: 'forced', flat: 40 }],
+  });
+
+  const conjure = (
+    g: Game,
+    at: Point,
+    targets: readonly CharacterId[],
+    seed = 'sword',
+    slotLevel = 7,
+    who: CharacterId = CLERIC,
+  ) => {
+    const out = unwrap(
+      resolveSpell(
+        g.state,
+        who,
+        { spellId: 'arcane-sword', targets, at, slotLevel },
+        hitting(seed),
+      ),
+      'arcane sword',
+    );
+    g.push(out.events);
+    return out;
+  };
+
+  /** A caster whose Wisdom modifier is +0, so the printed "plus" is visible. */
+  const APPRENTICE = id('apprentice');
+
+  /**
+   * The same table with a second caster of the same spell and a *different*
+   * spellcasting modifier. Wisdom 10 against the Cleric's 18 is a difference of
+   * four, and that difference is the whole of what
+   * `addSpellcastingModifier: true` claims.
+   */
+  const SWORD_SETUP: readonly GameEvent[] = [
+    ...SETUP,
+    added(APPRENTICE, 'party', { abilities: { str: 10, dex: 14, con: 12, int: 10, wis: 10, cha: 10 } }),
+    ...casts(APPRENTICE),
+    {
+      type: 'creature-placed',
+      id: APPRENTICE,
+      placement: { from: { creature: CLERIC }, feet: 5, bearing: 180 },
+    },
+  ];
+
+  /**
+   * The same seam Spiritual Weapon proves, with a spell that reaches further to
+   * put its point down: `FAR` is 65 feet from the Cleric and 5 feet from the
+   * sword. The printed **90 feet** of Range is pinned by the oracle against the
+   * book rather than by this fixture, which puts the sword at 60.
+   */
+  it('reaches a creature beside the sword that the caster cannot reach', () => {
+    const g = new Game();
+    const out = conjure(g, AT_RANGE, [FAR]);
+    expect(ongoingSpellOf(g.state, out.castingId)?.origin).toEqual(AT_RANGE);
+    expect(g.hp(FAR)).toBeLessThan(80);
+  });
+
+  /**
+   * **4d12, and not the neighbouring definition's die.** Every hit lands
+   * between 4 and 48 before the modifier, and at least one of these seeds
+   * clears 36 — which three dice cannot do, however they fall. Criticals are
+   * skipped rather than folded into the bound, because doubling the dice would
+   * widen it far enough to swallow a fifth die.
+   */
+  it('deals 4d12 plus the caster’s spellcasting modifier', () => {
+    let highest = 0;
+    let hits = 0;
+
+    for (let n = 0; n < 40; n += 1) {
+      const g = new Game();
+      const outcome = conjure(g, AT_RANGE, [FAR], `sword-${n}`).outcomes[0];
+      if (outcome?.attack?.hit !== true || outcome.attack.critical) continue;
+      hits += 1;
+
+      const dealt = outcome.damage ?? 0;
+      expect(dealt).toBeGreaterThanOrEqual(4 + MOD);
+      expect(dealt).toBeLessThanOrEqual(48 + MOD);
+      highest = Math.max(highest, dealt);
+    }
+
+    expect(hits).toBeGreaterThan(20);
+    // 3d12 + 4 cannot exceed 40; 4d12 + 4 can.
+    expect(highest).toBeGreaterThan(36 + MOD);
+  });
+
+  /**
+   * **"plus your spellcasting ability modifier" is a printed term**, and a
+   * bound on the total cannot see it: 4d12 spans 4 to 48, so dropping the
+   * modifier moves every number by four and breaks no range anybody would
+   * write. What discriminates it is *two casters*. Wisdom 18 and Wisdom 10 are
+   * four apart, the same seed rolls the same dice for both, and the difference
+   * between what they deal must be exactly that four — nothing else about the
+   * two castings differs.
+   */
+  it('adds the caster’s own spellcasting modifier, and nobody else’s', () => {
+    const clerics = new Game([...SWORD_SETUP]);
+    conjure(clerics, AT_RANGE, [FAR], 'same', 7, CLERIC);
+    const apprentices = new Game([...SWORD_SETUP]);
+    conjure(apprentices, AT_RANGE, [FAR], 'same', 7, APPRENTICE);
+
+    const byCleric = 80 - clerics.hp(FAR);
+    const byApprentice = 80 - apprentices.hp(FAR);
+
+    expect(byApprentice).toBeGreaterThan(0);
+    // Wisdom 18 (+4) against Wisdom 10 (+0), on identical dice.
+    expect(byCleric - byApprentice).toBe(MOD);
+  });
+
+  /**
+   * **It does not scale, and the SRD is why**: Arcane Sword prints no *Using a
+   * Higher-Level Spell Slot* line at all. Spiritual Weapon prints one, which is
+   * exactly how a `perSlotLevelAbove` gets copied across from a neighbour — and
+   * the same seed rolling the same dice is what catches it.
+   */
+  it('rolls the same dice from a level 9 slot as from a level 7 one', () => {
+    const seven = new Game();
+    conjure(seven, AT_RANGE, [FAR], 'same', 7);
+    const nine = new Game();
+    conjure(nine, AT_RANGE, [FAR], 'same', 9);
+
+    expect(80 - nine.hp(FAR)).toBe(80 - seven.hp(FAR));
+    expect(80 - seven.hp(FAR)).toBeGreaterThan(0);
+  });
+
+  /**
+   * SRD writes "you **make** a melee spell attack", where Spiritual Weapon
+   * writes "you **can**". That one word is {@link TargetRule.optional}, and
+   * this spell does not have it: a casting that names nobody is refused rather
+   * than putting a sword up for free.
+   */
+  it('refuses a casting that names nobody, where Spiritual Weapon allows one', () => {
+    const g = new Game();
+    const out = resolveSpell(
+      g.state,
+      CLERIC,
+      { spellId: 'arcane-sword', targets: [], at: AT_RANGE, slotLevel: 7 },
+      hitting('none'),
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('no_targets');
+  });
+
+  /**
+   * "move the sword up to 30 feet ... and repeat the attack against the same
+   * target or a different one."
+   *
+   * The sword goes up beside `MIDDLE`, thirty feet from the Cleric, and the
+   * later Bonus Action carries it thirty feet to `NEAR` — the different one.
+   */
+  const BESIDE_MIDDLE: Point = { x: 200, y: 165, z: 0 };
+  const BESIDE_NEAR: Point = { x: 205, y: 195, z: 0 };
+
+  it('moves thirty feet on a later Bonus Action and strikes again', () => {
+    const g = new Game([...SETUP, ...FIGHT]);
+    const out = conjure(g, BESIDE_MIDDLE, [MIDDLE]);
+    expect(g.hp(MIDDLE)).toBeLessThan(80);
+    g.laterTurn();
+
+    const again = unwrap(
+      activateSpell(
+        g.state,
+        CLERIC,
+        { castingId: out.castingId, targets: [NEAR], to: BESIDE_NEAR },
+        hitting('again'),
+      ),
+      'swinging again',
+    );
+    g.push(again.events);
+
+    expect(g.originOf(out.castingId)).toEqual(BESIDE_NEAR);
+    expect(g.hp(NEAR)).toBeLessThan(80);
+  });
+
+  /** And thirty-five is further than the spell moves it. */
+  it('refuses a move of thirty-five', () => {
+    const g = new Game([...SETUP, ...FIGHT]);
+    const out = conjure(g, BESIDE_MIDDLE, [MIDDLE]);
+    g.laterTurn();
+
+    const far = activateSpell(
+      g.state,
+      CLERIC,
+      { castingId: out.castingId, targets: [MIDDLE], to: { x: 200, y: 130, z: 0 } },
+      hitting('too far'),
+    );
+    expect(isErr(far)).toBe(true);
+    if (isErr(far)) expect(far.code).toBe('origin_too_far');
+  });
+
+  /**
+   * And the same word again, one turn later: an activation that names nobody is
+   * refused, because "repeat the attack" is not optional either.
+   */
+  it('refuses a later Bonus Action that names nobody', () => {
+    const g = new Game([...SETUP, ...FIGHT]);
+    const out = conjure(g, BESIDE_MIDDLE, [MIDDLE]);
+    g.laterTurn();
+
+    const empty = activateSpell(
+      g.state,
+      CLERIC,
+      { castingId: out.castingId, targets: [] },
+      hitting('empty'),
+    );
+    expect(isErr(empty)).toBe(true);
+    if (isErr(empty)) expect(empty.code).toBe('wrong_target_count');
   });
 });

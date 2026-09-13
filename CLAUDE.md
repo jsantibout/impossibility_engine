@@ -1328,6 +1328,17 @@ nothing whatever, so its own effect list is empty and every blow it strikes
 comes through the activation. A spell whose activation the engine resolves is
 therefore **executed, not tracked**, and `coverage.ts` counts it that way.
 
+**Produce Flame is the same shape at cantrip level, and it separates two ranges
+that a single field would have merged.** SRD prints **Range: Self** — what the
+casting reaches is the caster's own hand — and then lets a later Magic action
+hurl the flame "within 60 feet of you". So the sixty feet are
+`activation.range`, checked afresh on every throw, and `range` stays `self`, so
+a casting aimed at somebody is refused. Putting the sixty feet in `range` reads
+fine and makes the spell castable *at* a creature, which it never is. The dice
+follow the same split: a cantrip has no slot, so the growth is
+`cantripUpgradesAt` read off the caster — the one number an activation could
+otherwise carry quietly wrong for ever.
+
 ### The family that works and the family that does not
 
 The twenty-odd spells that act on a later turn split cleanly, and the split is
@@ -1336,8 +1347,8 @@ position**:
 
 | | Spells | Status |
 |---|---|---|
-| A permission the caster exercises | Vampiric Touch, Flame Blade, Expeditious Retreat, Gust of Wind, Telekinesis, Detect Thoughts | the shape built here |
-| A permission exercised **from a point** | Spiritual Weapon | see "A Casting Can Hold A Point" below |
+| A permission the caster exercises | Vampiric Touch, Flame Blade, Produce Flame, Expeditious Retreat, Gust of Wind, Telekinesis, Detect Thoughts | the shape built here |
+| A permission exercised **from a point** | Spiritual Weapon, Arcane Sword | see "A Casting Can Hold A Point" below |
 | A thing with statistics | Unseen Servant, Arcane Hand, Project Image | the **summons** seam |
 | A point whose effect needs a trigger the engine lacks | Flaming Sphere, Call Lightning's cloud, Dancing Lights, Arcane Eye, Mage Hand's hand, Silent Image, Mislead | named, spell by spell, below |
 
@@ -1454,8 +1465,9 @@ doctrine's multiple-scenes seam.
 
 ### Which spells this reaches, and which it does not
 
-Thirty-nine SRD spells keep a place. **One is executable by this primitive
-today**, and the honest reason the rest are not is never "it needs a position":
+Thirty-nine SRD spells keep a place. **Two are executable by this primitive
+today** — Spiritual Weapon and Arcane Sword — and the honest reason the rest are
+not is never "it needs a position":
 
 | Blocked on | Spells |
 |---|---|
@@ -1485,6 +1497,28 @@ cloud is a fixed origin, which is exactly the evidence wanted — but its
 activation aims at a *point* and resolves an area there, which no activation
 does, and its "point you can see" and outdoor-storm damage bonus are facts the
 engine does not hold. It is a new shape, not a transcription.
+
+**Arcane Sword is the second user, and it arrived as data.** SRD prints the
+same three numbers in the same three places — 90 feet of Range to place the
+sword, 5 feet of reach measured from it, 30 feet a later Bonus Action may move
+it — so the definition needed no field and no code, which is what a second user
+is for. It is also where the value of *not* carrying a rule across became
+visible, twice in one paragraph:
+
+- **"you make" is not "you can".** Spiritual Weapon's force appears whether or
+  not there is anything beside it, which is `TargetRule.optional`; Arcane Sword
+  names the attack without that word, so its casting takes a target and an
+  activation naming nobody is refused. One word of SRD, one field.
+- **It prints no *Using a Higher-Level Spell Slot* line at all**, so 4d12 from a
+  level 9 slot is still 4d12. A `perSlotLevelAbove` copied off the neighbouring
+  definition is invisible to every guard, and what catches it is casting the
+  spell from two slot levels under one seed and comparing.
+
+Its one gap is the destination: SRD moves the sword "to a spot you can see", and
+sight here is a declared fact **from one creature to another** while a
+destination is a coordinate. There is no pairwise declaration to read and
+nothing it could read instead, so that is the table's — the line declared cover
+already draws — and it is adjudicated as such rather than left unsaid.
 
 ### Two bugs this found in code that was already there
 
@@ -4142,7 +4176,7 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 82 of 339 executable and 46 tracked, with the shapes that block
+- M1 spells: 84 of 339 executable and 46 tracked, with the shapes that block
   the rest counted in `COVERAGE.md` and ranked in `PROGRESS.md`. The utility
   bucket was audited spell by spell rather than by shape: 30 of the 76 open
   ones became tracked, 42 carry a rule the engine should own, and 4 depend on
@@ -4184,4 +4218,24 @@ null and is reported — it never becomes either.
   as the Speed halved inside that Emanation, a path or a distance travelled, an
   activation that resolves an area at a point chosen now, and a Reaction that
   answers a fall.
+- **The existing shapes are drained, and that is a measured finding rather than
+  a feeling.** "Keep pouring spells into the working shapes" was written when
+  roughly ninety parsed spells were thought to fit one; a spell-by-spell pass
+  over all 211 undefined spells found **two** whose entire printed content the
+  existing effect kinds express — Arcane Sword and Produce Flame, both of them
+  second users of shapes that already had one. Every other candidate is blocked
+  on a *named* mechanic rather than on a definition: three attack rolls from one
+  casting (Scorching Ray), damage with neither an attack roll nor a save (Magic
+  Missile), an outcome-scoped child effect (Ice Knife's explosion, Hideous
+  Laughter's two conditions, Sleet Storm's broken Concentration), a damage type
+  chosen at the casting (Chromatic Orb, Dragon's Breath, Protection from
+  Energy), a condition applied with no saving throw (Invisibility, Greater
+  Invisibility), condition removal (Lesser Restoration, Heal), a Resistance a
+  spell grants (Stoneskin, Protection from Energy), a rider on every weapon
+  attack (Divine Favor, Hex, Hunter's Mark), an area that is several templates
+  or a wall (Fire Storm, every Wall), and a Temporary Hit Point payout that
+  repeats each turn (Heroism). **So the next spell coverage is bought by a
+  mechanism, not by transcription** — which is the opposite of what the "cheapest
+  coverage there is" note assumed, and is worth knowing before the next content
+  task is briefed.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

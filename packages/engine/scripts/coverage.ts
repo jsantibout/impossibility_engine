@@ -225,6 +225,7 @@ export const PARTIAL_SPELLS: readonly string[] = [
 export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
   'animal-friendship',
+  'arcane-sword',
   'bane',
   'banishment',
   'beacon-of-hope',
@@ -269,6 +270,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'mind-spike',
   'moonbeam',
   'poison-spray',
+  'produce-flame',
   'ray-of-frost',
   'ray-of-sickness',
   'sacred-flame',
