@@ -47,7 +47,7 @@ both are re-scheduled below, with the reasons in their files.
 | [IE-003 — Close the guard holes and make the guard sweeps mechanical](tasks/IE-003-guard-holes-and-mechanical-sweeps.md) | mechanism | CONDITIONAL | 1 |
 | [IE-004 — The honesty guard for executed spells](tasks/IE-004-honesty-guard-for-executed-spells.md) | conformance | YES | 1 |
 
-Both at `CHANGES_REQUIRED` since 2026-09-13, each with its builder for one more reviewer round. IE-004: one self-contradicting `CLAUDE.md` paragraph, doc-only. IE-003: stopped at the three-round limit with the two defects the reviewer found in round three unfixed, both on one return statement of `resolvePendingSaves`; the architect inspected the diff, accepted the deviation, the primitive changes and the derived sweeps, and authorised a fourth round for those two lines. Both builders hold their worktrees (path and branch on each task file). The architect is idle until a digest arrives.
+IE-003 `AWAITING_MERGE_APPROVAL` since 2026-09-13: reviewer PASS after a fourth round, lightweight architectural gate on the re-issued digest, Gate 3 presented. IE-004 `CHANGES_REQUIRED` with its builder for one doc-only reviewer round. Both builders hold their worktrees (path and branch on each task file). Merge order: whichever the owner approves first; the other rebases over disjoint `CLAUDE.md` hunks.
 
 ## NEXT
 
@@ -65,7 +65,7 @@ Prepared; none approved. The order is the audit's (§5 of the record).
 |---|---|---|
 | [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | re-brief after IE-005: one `ConditionRider`, the new kind as its fourth consumer |
 | [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | sequential with IE-001 (both in spell resolution and `spells.ts`) |
-| guard `resolveCast` with `mayAct` — the derived sweep found it unguarded and IE-003 named it as a debt rather than widening its brief | mechanism | one line plus a sweep entry; rides with the next mechanism task that touches `commands.ts`, and is needed before M2 exposes `resolveCast` |
+| guard `resolveCast` with `mayAct` — the derived sweep found it unguarded and IE-003 named it as a debt rather than widening its brief | mechanism | one line plus a sweep entry; rides with the next mechanism task that touches `commands.ts`, and is needed before M2 exposes `resolveCast`; in the same pass, `carriesEvents` in `invariants.test.ts` should answer `unresolved` rather than a silent `false` for a `Result<A | B>` payload, and the docstring on `TurnResolution.duplicate` should cover `resolvePendingSaves` |
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a batch has room |
 
 Beyond that, the order is `PROGRESS.md`'s "Next actions, in order" and the

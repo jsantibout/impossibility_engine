@@ -1,6 +1,6 @@
 # IE-003 — Close the guard holes and make the guard sweeps mechanical
 
-state: CHANGES_REQUIRED
+state: AWAITING_MERGE_APPROVAL
 lane: mechanism
 batch: 1
 parallel-safe: CONDITIONAL — beside conformance (IE-004) and content only; it edits `commands.ts`, `events.ts`, `rest.ts`, `spells.ts` and the invariants suite, so no other mechanism task runs beside it
@@ -224,6 +224,45 @@ Confidence: high
 Recommendation: RETURN TO BUILDER
 ```
 
+Re-issued 2026-09-13, after the fourth round:
+
+```
+IE-003 — Completion digest
+Approved architectural intent: Seven measured holes in the engine's guards, each closed behind a reproduction, and the two sweeps that would have caught them made mechanical so the next hole fails in a test rather than in play.
+Builder: COMPLETE
+Worktree: C:\Users\justi\Code\QuestBarrel\ImpossibilityEngine\.claude\worktrees\agent-aa0e7aa939fb1a46a   Branch: worktree-agent-aa0e7aa939fb1a46a   Commit: 621d94cf19ec4560843bd8ba66894c54c7fabc87   Rebased on main at: 31423b48f115db1c1d7a1a70aa7523e296c6ae8b
+Opus review: PASS — rounds: 4
+Tests: 5311 passing / 5311 total (baseline 5245); new tests: 69; mutation run: eight, each failing for its own reason — an unguarded exported spender added beside `mayAct` (both sweeps named it); `timersApartFrom` widened to purge every condition timer (the two-target Hold Person fixture failed, the discriminating case); the Counterspell guard's second disjunct removed (the nested casting succeeded); `castingIdentity` replaced by the identity function (both anchoring tests failed); the stamp taken off `resources-restored` (the partial-refill fixture handed back a use nobody rested for); the arrow-const form dropped from the return-type classifier (the sweep reported `anchoringFor`, the export it had stopped seeing); `duplicate: true` dropped from the pending-saves retry, and separately its `pending` emptied (the three-boundary fixture failed on each).
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓
+Conformance: PASS — COVERAGE.md regenerates byte-identical; golden-log.json untouched and still folds; no spell definition touched.
+Architectural deviations: one, and it is the brief's item 4 read further than its wording, accepted at the gate. "The fingerprint rules stay exactly as they are" cannot hold literally while the identity moves up: `castOrRelease` now fingerprints the `CastSpellRequest` the caller sent rather than the derived `CastCommand`, because two `identify` calls under one id would fingerprint two different objects and refuse every honest retry. `identify` itself is byte-for-byte unchanged and same-id-different-inputs is still refused; the identity is strictly stricter — a retry aimed at a different creature is now caught — and needs one normalisation, `anchoring: 'space'`, which restates the engine's existing "space is the absence" rule and is pinned in both directions.
+Foundational primitives touched: `events.ts` — the `GameEvent` union (`creature-removed`, `resources-restored`, `rolls-issued` each gain an optional `command` stamp) and the reducer's `creature-removed` case (new `timersApartFrom`); `commands.ts` — `extendFeature`, `castOrRelease`, the `castSpell`/`resolveCast` split into private `*With` halves, `resolvePendingSaves`, `removeCreatureEverywhere`, `restoreResourcesOn`; new `idempotency.ts`; `index.ts`; `spells.ts` (`CASTING_PREFIX`, `castingNumber`); `rest.ts`.
+New runtime special cases: two, both keyed on declared data rather than a name — `castingIdentity` normalising `anchoring: 'space'` before fingerprinting, and the Counterspell nesting refusal keyed on `definition.trigger === 'casting-a-spell'`.
+Files outside the brief's surface: `packages/engine/src/spatial-model.test.ts` (pins the `anchoring` normalisation item 4 required, in both directions); `packages/engine/src/area-motion.test.ts` and `packages/engine/src/casting.test.ts` (import-path changes only, forced by item 7's move of `commandOutcome`/`wasCommandApplied` to `idempotency.ts`).
+Out-of-scope findings (not acted on): `resolveCast` spends the action economy with no `mayAct` — a named debt in the sweep's allowlist and in CLAUDE.md, going to the queue as a follow-up per the architect's direction. `endRest` takes no command id: a retry finds nobody resting and is refused, so no Hit Die is rolled twice, but the caller cannot tell that from never having rested. Two residuals the reviewer raised and judged not worth a round: `carriesEvents` answers a silent `false` for a `Result<A | B>` payload (no such export exists in either swept module today, verified), and `TurnResolution.duplicate`'s docstring still reads "had already advanced the turn", which `resolvePendingSaves` does not. A pre-`resolve-spell` command stamp would fingerprint under kind `cast:X` while the new code uses `resolve-spell:X`, so a retry of such an id across this change would be refused `command_id_reused` — no persistence layer exists until M3. Two pre-existing fixture holes were found and fixed inside the surface: `greased()` walked to the space a Grease was cast at, and a Cube excludes its own origin, so the `settleAreaEffects` idempotency entry had been settling nothing since it was written; and `restoreResourcesOn`'s exemption sentence was false for SRD's partial short-rest refill.
+Unresolved concerns: none
+Reviewer confidence: high
+Recommendation: READY FOR ARCHITECTURAL GATE
+
+IE-003 — Independent review
+Verdict: PASS
+Commit reviewed: 621d94cf19ec4560843bd8ba66894c54c7fabc87   Gauntlet re-run: typecheck ✓ lint ✓ test 5311/5311 coverage diff ✓
+Brief compliance: met, all eight items. 1 extendFeature calls mayAct after the duplicate check (commands.ts:5164). 2 both sweeps enumerate from the module source — a transitive closure over the five economy primitives and the two resource-taking events for mayAct, a declared-return-type classifier for GUARDED — each cross-checked in both directions and each driven over a synthetic sample it must catch. 3 castSpell, activateFeature, resolveDamage, resolveAttackDamage and beginRest added to GUARDED; resolvePendingSaves stamped on rolls-issued and removeCreatureEverywhere on creature-removed, both the only event each always emits; restoreResourcesOn given an id after its exemption sentence was found false. 4 castOrRelease calls identify first, over the request, and carries the stamp to castSpellWith/resolveCastWith; the two `replayed`-conditional guards are gone because a retry no longer reaches them. 5 timersApartFrom in the reducer's creature-removed case, condition and feature timers of that creature only. 6 casting_pending returned as a value for both reachable nestings. 7 one castingNumber in spells.ts, castingSource at the delayed-damage site, idempotency.ts with rest.ts importing downwards, index.ts re-exporting. 8 both named sentences replaced. Round four fixed the two returned defects and touched nothing else.
+Tests: round four — turn-hooks.test.ts asserts `duplicate: true` and `pending` equal to the live debt on the fixture that already proves `pendingSavesOf(later)` has 1, so the previous `pending: []` fails it; the mutation (drop either field) bites on that line. Earlier rounds, all re-read: the wedge (save owed, creature removed, pendingSaves empty, resolveTurn advances, no timer keyed to the departed id) with the two-target Hold Person discriminator — ogre keeps its timer, its own boundary save and the wizard's Concentration, so a purge-everything mutation dies; resolvePendingSaves retried three boundaries later, where an unstamped retry would roll the *next* save; counterspell.test.ts drives both branches of the nesting guard plus a negative control that an ordinary answer still resolves; spell-effects.test.ts retries a casting after the caster has left (empty batch, original castingId, byte-identical fold) and pins same-id-different-target as `command_id_reused`; spatial-model.test.ts pins the `space` normalisation in both directions. The sweep now asserts every swept command's first run emits something — which is what found `greased()` walking to a Cube's origin and raising no debt — and asserts every mayAct case twice, refused with the debt and not refused once settled.
+Regression risk: none found. golden-log.json, PROGRESS.md, docs/dev and packages/srd/raw all empty in `git diff main...HEAD`; persistence and scenario suites green; the three GameEvent members gained optional fields only, so every prior log folds unchanged. `resolveCast`'s removal of the `cast.value.length === 0` early return is safe: castSpellWith always emits a spell-cast or spell-declared on success. Two non-blocking residuals for the architect's eye, neither worth a round: (a) invariants.test.ts's `carriesEvents` silently answers `false` for a `Result<A | B>` payload — no such export exists today, verified across both swept modules; (b) `TurnResolution.duplicate`'s docstring (commands.ts:6187) still says "had already advanced the turn", which resolvePendingSaves does not.
+Conformance: PASS — COVERAGE.md regenerates byte-identical, no spell definition touched, no claim moved.
+Scope creep: none. spatial-model.test.ts pins a behaviour this commit introduced; area-motion.test.ts and casting.test.ts are import-path changes forced by item 7. CLAUDE.md carries more than the two named sentences, but every addition documents a behaviour this commit changed.
+Architectural violations: none. The nesting refusal keys on `definition.trigger`, declared data, not a spell name; idempotency.ts is a move, not a second source of truth; castingNumber is one copy where there were two; nothing stored that is derived; every guard sits after the duplicate check.
+Hard-coded or test-specific fixes: none.
+Accidental coupling: none — it removes one. rest.ts no longer imports commands.ts; idempotency.ts imports only types from events.ts, and a test pins both directions.
+Foundational primitives touched: GameEvent union — `creature-removed`, `resources-restored`, `rolls-issued` each gained an optional `command` stamp; the reducer's `creature-removed` case now purges condition and feature timers targeting the departed creature (casting timers untouched, keys iterated sorted). commands.ts — extendFeature, castOrRelease/resolveSpell identity, castSpell/resolveCast split into private *With halves, resolvePendingSaves, removeCreatureEverywhere, restoreResourcesOn. New module idempotency.ts; spells.ts gains CASTING_PREFIX and castingNumber; index.ts re-export.
+New runtime special cases: two, both general — `castingIdentity` normalising `anchoring: 'space'` away before fingerprinting, and the Counterspell nesting refusal keyed on `trigger === 'casting-a-spell'`.
+Defects for the builder: none
+Escalation reason: none
+Confidence: high
+Recommendation: READY FOR ARCHITECTURAL GATE
+```
+
 ## Architectural gate
 
 2026-09-13 — **inspected, at the `ARCHITECTURE_BLOCKED` wake-up.** The block
@@ -280,6 +319,17 @@ samples.
 asserted on the existing three-boundary fixture, each with a mutation. Fold
 into the one commit, gauntlet, one reviewer round, fresh digest with
 `Builder: COMPLETE`.
+
+**Re-issued digest, 2026-09-13 — lightweight PASS.** Implementation matches
+the approved architecture as inspected above, the reviewer passed it after
+round four, and the only change since the inspection is the two-line fix that
+round was for. Two residuals the reviewer raised are recorded as follow-ups
+rather than spent on a fifth round: `carriesEvents` answers a silent `false`
+for a `Result<A | B>` payload where it should answer `'unresolved'` (no such
+export exists in either swept module today, verified by the reviewer), and
+the docstring on `TurnResolution.duplicate` still describes the turn command
+alone. Both go on the queue row beside the `resolveCast` guard. Proceeding to
+the owner merge gate.
 
 ## Merge record
 
