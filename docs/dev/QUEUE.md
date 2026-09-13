@@ -90,9 +90,10 @@ TRANCHE 2.
 | [IE-006 — A second frozen event-log fixture](tasks/IE-006-second-frozen-fixture.md) | conformance | YES | 2 |
 | [IE-002 — Pour twelve spells into the shapes that already execute](tasks/IE-002-pour-spells-into-existing-shapes.md) | content | CONDITIONAL | 2 |
 
-All three at `APPROVED_FOR_IMPLEMENTATION` under tranche 2 authority, being
-launched one builder each in its own worktree. Merge order remains IE-006 and
-IE-002 first, IE-005 last, rebased over the registry lines and the prose.
+All three launched 2026-09-13 under tranche 2 authority, one builder each in
+its own worktree; each task file names its worktree and branch. Merge order
+remains IE-006 and IE-002 first, IE-005 last, rebased over the registry lines
+and the prose.
 
 ## NEXT
 

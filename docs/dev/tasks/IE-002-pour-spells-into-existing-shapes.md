@@ -1,11 +1,11 @@
 # IE-002 — Pour twelve spells into the shapes that already execute
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: content
 tranche: 2
 parallel-safe: CONDITIONAL — YES beside one mechanism task provided it uses no kind that task adds; NO beside another content task, which would edit the same registry and list
 depends-on: IE-004
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a26f07bde8b746dd6 · worktree-agent-a26f07bde8b746dd6
 approved: 2026-09-13 — "APPROVE TRANCHE 2"
 merge-approved: none
 

@@ -1,11 +1,11 @@
 # IE-005 — Split `commands.ts` by domain, behaviour-preserving
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 2
 parallel-safe: NO beside any mechanism task; YES beside conformance and content, which do not touch the command layer
 depends-on: IE-003
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-ab2df59a29d903986 · worktree-agent-ab2df59a29d903986
 approved: 2026-09-13 — "APPROVE TRANCHE 2"
 merge-approved: none
 
