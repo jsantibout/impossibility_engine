@@ -1,13 +1,13 @@
 # IE-004 — The honesty guard for executed spells
 
-state: AWAITING_MERGE_APPROVAL
+state: DONE
 lane: conformance
 batch: 1
 parallel-safe: YES — beside IE-003 (no shared source files; `CLAUDE.md` prose and `COVERAGE.md` merge mechanically); CONDITIONAL beside a content task, which edits the same definition region
 depends-on: none
-worker: qb-builder · .claude/worktrees/agent-a4ac40741e133e8a8 · worktree-agent-a4ac40741e133e8a8
+worker: none
 approved: 2026-09-13 — "APPROVE BATCH"
-merge-approved: none
+merge-approved: 2026-09-13 — "MERGE BOTH"
 
 ## Brief
 
@@ -274,4 +274,10 @@ is recommended first; IE-003 then rebases over disjoint `CLAUDE.md` hunks.
 
 ## Merge record
 
-(none yet)
+2026-09-13 — **merged.** Owner: "MERGE BOTH". Order: first of the two, the
+smaller surface. `main` had moved by three docs-only bookkeeping commits
+(`docs/dev/` only, which a builder may not touch), so the rebase in the
+builder's worktree could not conflict and did not. Fast-forward
+`cefe64d..0536a2b`. Whole gauntlet on `main`: typecheck ✓ lint ✓ tests
+5343/5343 ✓ coverage report byte-identical ✓. Pushed to `origin/main`;
+worktree and branch retired. Commit `0536a2b`.

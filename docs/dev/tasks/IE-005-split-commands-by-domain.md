@@ -1,8 +1,8 @@
 # IE-005 — Split `commands.ts` by domain, behaviour-preserving
 
-state: PROPOSED
+state: OWNER_APPROVAL_REQUIRED
 lane: mechanism
-batch: none
+batch: 2
 parallel-safe: NO beside any mechanism task; YES beside conformance and content, which do not touch the command layer
 depends-on: IE-003
 worker: none
@@ -63,6 +63,13 @@ through `applyEvent`.
    attack sites becomes one helper.
 5. Tests change only in their imports. `golden-log.json` untouched; the
    scripted scenario replays byte-identically; every test passes unchanged.
+6. Two residuals IE-003's reviewer left, both inside files this task rewrites
+   anyway and neither a behaviour change: `carriesEvents` in
+   `invariants.test.ts` answers a silent `false` for a `Result<A | B>`
+   payload and must answer `'unresolved'` instead, so a union-returning
+   export is reported rather than skipped; and the docstring on
+   `TurnResolution.duplicate` describes `resolveTurn` alone and must cover
+   `resolvePendingSaves`, which now sets it too.
 
 ### Architecture constraints
 
@@ -77,7 +84,9 @@ through `applyEvent`.
 1. `commands.ts` is a barrel under a few hundred lines; no domain module
    exceeds about 1,500 lines except spell resolution, which the builder splits
    in two.
-2. The whole gauntlet passes with no test body edited.
+2. The whole gauntlet passes with no test body edited, except the module
+   lists of the sweeps in `invariants.test.ts` and the two residuals in
+   item 6.
 3. `git diff --stat` shows the moves; a spot-check of three helpers confirms
    byte-identical bodies.
 4. The wrapper exists and every command that calls `identify` first uses it.
@@ -87,6 +96,18 @@ through `applyEvent`.
 Existing suites unchanged; the invariants sweeps from IE-003 still enumerate
 every command (they must enumerate across the new modules, so the builder
 updates the enumeration source).
+
+Concretely, after IE-003 landed: `invariants.test.ts` reads `commands.ts` and
+`rest.ts` by file name into `MODULE_SOURCE` for the action-economy closure,
+and the return-type classifier reads a fixed list of declaration files into
+`DECLARATIONS`. Both lists must name every new module under `commands/`; the
+"would find an unguarded spender if one were added" and "would find an
+unguarded event-returning export if one were added" samples must still bite;
+and both allowlists must come out unchanged. A command that vanishes from a
+sweep because its new module was not listed is exactly the silent failure the
+sweeps exist to prevent, so the builder proves the enumeration still sees
+every command it saw before the move (the counts are in the sweeps' own
+assertions).
 
 ### Dependencies
 

@@ -1,13 +1,13 @@
 # IE-003 — Close the guard holes and make the guard sweeps mechanical
 
-state: AWAITING_MERGE_APPROVAL
+state: DONE
 lane: mechanism
 batch: 1
 parallel-safe: CONDITIONAL — beside conformance (IE-004) and content only; it edits `commands.ts`, `events.ts`, `rest.ts`, `spells.ts` and the invariants suite, so no other mechanism task runs beside it
 depends-on: none
-worker: qb-builder · .claude/worktrees/agent-aa0e7aa939fb1a46a · worktree-agent-aa0e7aa939fb1a46a
+worker: none
 approved: 2026-09-13 — "APPROVE BATCH"
-merge-approved: none
+merge-approved: 2026-09-13 — "MERGE BOTH"
 
 ## Brief
 
@@ -333,4 +333,11 @@ the owner merge gate.
 
 ## Merge record
 
-(none yet)
+2026-09-13 — **merged.** Owner: "MERGE BOTH". Order: second, after IE-004.
+`main` had moved by docs-only bookkeeping and by IE-004's merge; the rebase
+in the builder's worktree was conflict-free — the two branches' `CLAUDE.md`
+hunks sit in different sections and nothing else overlapped. Fast-forward
+`0536a2b..5dfbc39`. Whole gauntlet on `main` with both merged: typecheck ✓
+lint ✓ tests 5409/5409 ✓ coverage report byte-identical ✓. Pushed to
+`origin/main`; worktree and branch retired. Commit `5dfbc39`. The audit
+counter moves to 1.

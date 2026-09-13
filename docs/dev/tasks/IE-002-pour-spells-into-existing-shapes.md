@@ -1,8 +1,8 @@
 # IE-002 — Pour twelve spells into the shapes that already execute
 
-state: PROPOSED
+state: OWNER_APPROVAL_REQUIRED
 lane: content
-batch: none
+batch: 2
 parallel-safe: CONDITIONAL — YES beside one mechanism task provided it uses no kind that task adds; NO beside another content task, which would edit the same registry and list
 depends-on: IE-004
 worker: none
@@ -67,6 +67,18 @@ honesty guard would call debt. Prefer lower levels and commonly cast spells.
 Twelve is a cap, not a target: fewer, with a reason each, is a correct
 result.
 
+The honesty guard is on `main` now (`spell-honesty.test.ts`, IE-004,
+`0536a2b`). For every executed definition it scans each `unmodelled` clause
+for the mechanical markers, demands exactly one adjudication per tripping
+clause in `ADJUDICATED` — keyed by a phrase of the clause, `table` with a
+reason or a named missing shape — and derives `PARTIAL_SPELLS` from the shape
+adjudications, asserting the published list equal to the derived set in both
+directions. For this task that means: a new spell's `unmodelled` clauses are
+either marker-free or adjudicated `table` with a reason the reviewer reads; a
+clause that would need a shape adjudication disqualifies the spell, so
+`PARTIAL_SPELLS` does not grow here; and any note that quotes the SRD is held
+against that spell's own paragraph.
+
 For each spell: the definition with SRD quotes for every number (dice, save
 ability, damage type, scaling, range, duration, target count); the registry
 line in id order; and where the spell's numbers are not already pinned by a
@@ -113,7 +125,8 @@ IE-004.
 ### Likely file surface
 
 `packages/engine/src/spell-definitions.ts` (definitions and registry only),
-`packages/engine/scripts/coverage.ts` (`VERIFIED_SPELLS`), one or two spell
+`packages/engine/scripts/coverage.ts` (`VERIFIED_SPELLS`),
+`spell-honesty.test.ts` (`table` adjudications only), one or two spell
 test files, `COVERAGE.md`. Not `CLAUDE.md`, unless a transcription rule worth
 recording was learned.
 

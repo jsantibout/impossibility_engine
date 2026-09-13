@@ -103,6 +103,8 @@ still Wizard-shaped are named below.
 | Validated definitions | A pure schema validator, the SRD as a range/duration oracle, declared area anchoring, and an Armour Class a spell **sets** — Mage Armor | `df6de4c` |
 | Roll modifiers | Advantage as a typed relationship between an effect and a roll; `against-holder`; Blur, Beacon of Hope | `5b32e0c` |
 | Architecture audit III | The fold reads content; guards that were lists; debt hiding as fiction in executed spells; `commands.ts` measured for its split | `588d7a0` |
+| Honesty guard II | Executed spells’ `unmodelled` clauses adjudicated — 84 over 55 spells, 27 sourced shapes; partial derived from the debts, beside verified | `0536a2b` |
+| Guard holes | Both guard sweeps derived from the module; `extendFeature` guarded; a removed creature takes its timers; nested Counterspell a value; identity first in the casting wrapper; `idempotency.ts` | `5dfbc39` |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 
@@ -1566,6 +1568,13 @@ condition-without-a-save family re-briefed around one `ConditionRider`
 (IE-001); then the ongoing record pinning its area so the fold stops reading
 the catalogue (IE-007). The reasons are in
 `docs/architecture/whole-engine-audit-2026-09-13.md`, §4 and §5.
+
+**Batch 1 landed 2026-09-13.** IE-004 (`0536a2b`) and IE-003 (`5dfbc39`)
+are in the Done table. Two things they left behind are queued rather than
+done: the sweep IE-003 built found one more unguarded spender,
+`resolveCast`, recorded as a named debt for the next mechanism task in the
+command layer; and the executed bucket now has a missing-shape vocabulary of
+its own beside the tracked guard's, which the next whole-engine audit weighs.
 
 **Where the definitions pass left the queue.** The comparative audit's §14E
 ordered six changes before the next SRD family. Two are done and the others

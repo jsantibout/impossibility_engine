@@ -1,8 +1,8 @@
 # IE-006 — A second frozen event-log fixture
 
-state: PROPOSED
+state: OWNER_APPROVAL_REQUIRED
 lane: conformance
-batch: none
+batch: 2
 parallel-safe: YES — a new fixture, a new scripted scenario and a `.gitattributes` line; no source file changes
 depends-on: none
 worker: none

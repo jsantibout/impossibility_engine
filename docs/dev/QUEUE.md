@@ -17,56 +17,84 @@ Last whole-engine audit: the third, 2026-09-13 —
 `PROGRESS.md` under "Third architecture audit against the doctrine" and in
 the Done table, commit `588d7a0`.
 
-Engine tasks completed since last audit: 0
+Engine tasks completed since last audit: 1
 Audit due at: 4
+
+The counter counts tasks that changed engine source outside tests and
+definition prose: IE-003 (`5dfbc39`). IE-004 (`0536a2b`) was conformance — a
+guard, a script and two `unmodelled` strings — and is in the merge log below
+but not counted. What it added for the next audit to weigh is on its task
+file: the executed bucket now has a missing-shape vocabulary of its own
+beside the tracked guard's.
 
 ## Batches
 
-### Batch 1 — IMPLEMENTING
+### Batch 1 — DONE, merged 2026-09-13
+
+| Role | Task | Lane | Merged as |
+|---|---|---|---|
+| PARALLEL | IE-004 — The honesty guard for executed spells | conformance | `0536a2b`, first |
+| PRIMARY | IE-003 — Close the guard holes and make the guard sweeps mechanical | mechanism | `5dfbc39`, second, rebased cleanly over the first |
+
+Owner's words at Gate 1: "APPROVE BATCH"; at Gate 3: "MERGE BOTH". Both
+digests, both gate records and both merge records are on the task files.
+
+### Batch 2 — OWNER_APPROVAL_REQUIRED
 
 | Role | Task | Lane | Parallel-safe |
 |---|---|---|---|
-| PRIMARY | IE-003 — Close the guard holes and make the guard sweeps mechanical | mechanism | CONDITIONAL |
-| PARALLEL | IE-004 — The honesty guard for executed spells | conformance | YES |
+| PRIMARY | IE-005 — Split `commands.ts` by domain, behaviour-preserving | mechanism | NO beside mechanism; YES beside these two |
+| PARALLEL | IE-006 — A second frozen event-log fixture | conformance | YES |
+| PARALLEL | IE-002 — Pour twelve spells into the shapes that already execute | content | CONDITIONAL |
 
-Independence check: PASS — IE-003 edits `commands.ts`, `events.ts`,
-`rest.ts`, `spells.ts`, a new `idempotency.ts` and the invariants suite;
-IE-004 edits the tracking suite, the coverage script's `PARTIAL_SPELLS` list
-and `unmodelled` prose in definitions. Shared files: `CLAUDE.md` (prose, both
-sides kept) and `COVERAGE.md` (regenerated). Dependency conflicts: none.
-Maximum concurrent builders: 2. Recommendation: APPROVE BATCH.
-
-This batch replaces the one proposed before the audit (IE-001 + IE-002). The
-audit found IE-001 premature as briefed and IE-002 the wrong first partner;
-both are re-scheduled below, with the reasons in their files.
+Independence check: PASS. IE-005 moves `commands.ts` into `commands/` and
+sends eleven helpers to `attack.ts`, `positioning.ts`, `spell-definitions.ts`
+(the helper region beside its types), `duration.ts` and `checks.ts`; it edits
+test imports, the sweeps' module lists in `invariants.test.ts`, `CLAUDE.md`
+and `CONTRIBUTING.md`. IE-006 adds a fixture, a scenario script, a
+persistence test, a `.gitattributes` line and prose in `CONTRIBUTING.md` and
+`CLAUDE.md`; no source file. IE-002 edits the definitions and registry region
+of `spell-definitions.ts`, `VERIFIED_SPELLS` in the coverage script, spell
+test files, `table` entries in `spell-honesty.test.ts` and `COVERAGE.md`.
+Shared files: `spell-definitions.ts` between IE-005 and IE-002, in different
+regions (helpers beside the types against definitions and the registry; the
+registry merges by keeping both lines in id order); `CLAUDE.md` and
+`CONTRIBUTING.md` prose, both sides kept. Dependencies: IE-005 on IE-003 and
+IE-002 on IE-004, both merged. No design invalidates another: IE-005 changes
+nothing observable, and IE-006's frozen log is exactly the test that would
+say so if it did. Maximum concurrent builders: 3. Merge order: IE-006 and
+IE-002 first (small), IE-005 last, rebased over the registry lines and the
+prose. Recommendation: APPROVE BATCH.
 
 ## CURRENT
 
 | Task | Lane | Parallel-safe | Batch |
 |---|---|---|---|
-| [IE-003 — Close the guard holes and make the guard sweeps mechanical](tasks/IE-003-guard-holes-and-mechanical-sweeps.md) | mechanism | CONDITIONAL | 1 |
-| [IE-004 — The honesty guard for executed spells](tasks/IE-004-honesty-guard-for-executed-spells.md) | conformance | YES | 1 |
+| [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | NO | 2 |
+| [IE-006 — A second frozen event-log fixture](tasks/IE-006-second-frozen-fixture.md) | conformance | YES | 2 |
+| [IE-002 — Pour twelve spells into the shapes that already execute](tasks/IE-002-pour-spells-into-existing-shapes.md) | content | CONDITIONAL | 2 |
 
-Both at `AWAITING_MERGE_APPROVAL` since 2026-09-13 with reviewer PASSes (IE-003 after four rounds, IE-004 after five) and Gate 3 presented for each. Both builders hold their worktrees (path and branch on each task file). Recommended merge order: IE-004 first (smaller surface, no engine code), then IE-003 rebased over disjoint `CLAUDE.md` hunks. Docs-only drift of `main` is rebased by the architect at merge time; anything else goes back to the builder.
+All three at `OWNER_APPROVAL_REQUIRED`. No builder is active.
 
 ## NEXT
 
-Prepared; none approved. The order is the audit's (§5 of the record).
-
 | Task | Lane | Note |
 |---|---|---|
-| [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | batch 2's primary, alone in the mechanism lane; the seam table is measured; its brief must extend the derived sweeps in `invariants.test.ts`, which read `commands.ts` and `rest.ts` by file name |
-| [IE-006 — A second frozen event-log fixture](tasks/IE-006-second-frozen-fixture.md) | conformance | batch 2, beside the split |
-| [IE-002 — Pour twelve spells into the shapes that already execute](tasks/IE-002-pour-spells-into-existing-shapes.md) | content | batch 2, after IE-004 has changed what a new definition must satisfy |
+| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | re-brief after IE-005: one `ConditionRider`, the new kind as its fourth consumer; carries the `resolveCast` guard below |
+| [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | sequential with IE-001 (both in spell resolution and `spells.ts`) |
 
 ## LATER
 
 | Task | Lane | Note |
 |---|---|---|
-| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | re-brief after IE-005: one `ConditionRider`, the new kind as its fourth consumer |
-| [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | sequential with IE-001 (both in spell resolution and `spells.ts`) |
-| guard `resolveCast` with `mayAct` — the derived sweep found it unguarded and IE-003 named it as a debt rather than widening its brief | mechanism | one line plus a sweep entry; rides with the next mechanism task that touches `commands.ts`, and is needed before M2 exposes `resolveCast`; in the same pass, `carriesEvents` in `invariants.test.ts` should answer `unresolved` rather than a silent `false` for a `Result<A | B>` payload, and the docstring on `TurnResolution.duplicate` should cover `resolvePendingSaves` |
+| guard `resolveCast` with `mayAct` — IE-003's derived sweep found it unguarded and named it as a debt rather than widening its brief | mechanism | one line plus a sweep entry; rides with IE-001, the next mechanism task that changes behaviour in the command layer, and is needed before M2 exposes `resolveCast` |
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a batch has room |
+| `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder |
+| the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
+
+IE-005 carries two residuals IE-003's reviewer left, inside files it rewrites
+anyway: `carriesEvents` answering `unresolved` for a union payload, and the
+`TurnResolution.duplicate` docstring.
 
 Beyond that, the order is `PROGRESS.md`'s "Next actions, in order" and the
 ranked map beneath it, which the audit re-confirmed for spells: Resistance or
@@ -80,3 +108,7 @@ standing spatial effect; `cause` on events; summons; long casting times.
 |---|---|---|---|
 | 2026-09-13 | Gate 1 (pre-audit) | IE-001, IE-002 | not approved; the owner asked for the whole-engine audit first, and it replaced the batch |
 | 2026-09-13 | Gate 1 | IE-003, IE-004 | approved — "APPROVE BATCH"; batch 1 launched with two builders |
+| 2026-09-13 | architectural gate | IE-004 | inspected (three declared deviations, accepted); returned once for a self-contradicting `CLAUDE.md` paragraph; lightweight PASS on the rework |
+| 2026-09-13 | architectural gate | IE-003 | `ARCHITECTURE_BLOCKED` at the three-round limit, judged procedural; inspected, all accepted; a fourth round authorised for two lines; lightweight PASS on the re-issue |
+| 2026-09-13 | Gate 3 | IE-003, IE-004 | approved — "MERGE BOTH"; IE-004 merged `0536a2b`, IE-003 merged `5dfbc39`, both gauntlets green on `main`, pushed |
+| 2026-09-13 | Gate 1 | IE-005, IE-006, IE-002 | presented as batch 2 |
