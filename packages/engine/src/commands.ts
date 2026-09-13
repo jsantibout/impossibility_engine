@@ -181,6 +181,7 @@ import {
   slotFits,
   validateSpellName,
   type AreaMoment,
+  type CastingNumbers,
   type CastingTime,
   type ConcentrationCheck,
   type ConcentrationEndReason,
@@ -1064,6 +1065,11 @@ export function takeDash(
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
 
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
+
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
   if (state.combat === null) {
@@ -1097,6 +1103,11 @@ export function takeDisengage(
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
+
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
 
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
@@ -1134,6 +1145,11 @@ export function takeDodge(
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
+
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
 
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
@@ -1224,6 +1240,11 @@ export function takeReady(
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
+
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
 
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
@@ -1690,7 +1711,7 @@ function moveWithin(
   }
   // Walking on out of an area that has already caught you would leave the
   // engine owing a save against a Web the mover is no longer standing in.
-  const owedHere = areaEffectRefusal(state);
+  const owedHere = mayAct(state, id);
   if (owedHere !== null) return owedHere;
 
   const mover = creatureOf(state, id);
@@ -2190,9 +2211,8 @@ export function resolveAttack(
     );
   }
 
-  // And an effect a persistent area owes somebody. One function names the
-  // debts that stop a creature acting, and swinging is acting.
-  const owedHere = areaEffectRefusal(state);
+  // And whatever this attacker has been caught by: swinging is acting.
+  const owedHere = mayAct(state, id);
   if (owedHere !== null) return owedHere;
 
   const attacker = creatureOf(state, id);
@@ -4098,7 +4118,7 @@ export function activateSpell(
   // activation is a Magic action taken into the world exactly as a casting
   // is, and a guard the casting path keeps that this one lacked let Vampiric
   // Touch strike while a damage roll against somebody was still held open.
-  const unsettled = unsettledRefusal(state);
+  const unsettled = unsettledRefusal(state, casterId);
   if (unsettled !== null) return unsettled;
 
   // SRD Counterspell's window: while a casting is in process, the only thing
@@ -4140,11 +4160,10 @@ export function activateSpell(
   }
   const activation = definition.activation;
 
-  // The route the casting was made with, not whichever one happens to supply
-  // the spell now. A Sage Fighter who later learns the spell as a Wizard does
-  // not re-aim a minute-old casting through a better save DC.
-  const chosen = chooseRoute(caster.spellcasting, record.spellId, record.route ?? undefined);
-  if (!chosen.ok) return chosen;
+  // **The numbers the casting was made with**, off the record. Re-deriving
+  // them from the caster's sheet is how a minute-old Vampiric Touch quietly
+  // gets a better attack modifier because the wizard levelled between the
+  // casting and the punch.
 
   const optional = definition.targets.optional === true;
   if (command.targets.length > 1 || (command.targets.length === 0 && !optional)) {
@@ -4215,7 +4234,8 @@ export function activateSpell(
     // The level the casting was made at. A wizard who gained a level since
     // does not upcast a spell already in the air.
     castLevel: record.level,
-    route: chosen.value,
+    route: null,
+    numbers: record.numbers,
     targets: target === null ? [] : [target],
     unverified,
     supply,
@@ -4389,6 +4409,11 @@ export function activateFeature(
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
 
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
+
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id);
 
@@ -4483,6 +4508,11 @@ export function useHealingTouch(
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
+
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
 
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id);
@@ -4617,6 +4647,11 @@ export function useSelfHeal(
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
 
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
+
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id);
 
@@ -4737,6 +4772,11 @@ export function useRecovery(
   if (!identity.ok) return identity;
   if (identity.value.duplicate) return ok([]);
   const stamp = identity.value.stamp;
+
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, id);
+  if (owedHere !== null) return owedHere;
 
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id);
@@ -5411,6 +5451,21 @@ export interface SpellEffectOptions {
    * does not.
    */
   readonly casting?: { readonly castingId: string; readonly spell: string };
+  /**
+   * The casting caused this condition and does not keep it.
+   *
+   * **Causation and ownership are two different links.** The engine has one
+   * mechanism for both — the casting id inside the condition's source — and
+   * that is right for every condition a spell *sustains*: Hold Person's
+   * Paralyzed "for the duration", Web's Restrained "while in the webs", Black
+   * Tentacles' "until the spell ends". SRD Grease sustains nothing: "or have
+   * the Prone condition", and Prone ends when the creature stands up.
+   *
+   * Set, the condition is recorded under the spell's bare name. The log still
+   * says what caused it; nothing can later claim it as the casting's to
+   * remove, and `releaseCasting` walks past it.
+   */
+  readonly unowned?: true;
 }
 
 export function applySpellEffect(
@@ -5420,10 +5475,10 @@ export function applySpellEffect(
   casterId: CharacterId,
   options: SpellEffectOptions = {},
 ): Result<GameEvent[]> {
-  const caster = creatureOf(state, casterId);
-  if (caster === null) return unknownCreature(casterId);
-
-  const casting = options.casting ?? caster.concentration;
+  // The caster is looked up only for the fallback below. A casting that
+  // outlives its caster — SRD Grease runs its minute whether or not the wizard
+  // does — names its own casting and needs no record to hang the condition on.
+  const casting = options.casting ?? creatureOf(state, casterId)?.concentration;
   if (casting === null || casting === undefined) {
     return err(
       'not_concentrating',
@@ -5435,7 +5490,7 @@ export function applySpellEffect(
     state,
     targetId,
     condition,
-    castingSource(casting.spell, casting.castingId),
+    options.unowned === true ? casting.spell : castingSource(casting.spell, casting.castingId),
     options.immuneTo ?? [],
     options.duration,
     options.repeatSave,
@@ -6071,6 +6126,11 @@ export function resolveEffectCheck(
   }
   const stamp = identity.value.stamp;
 
+  // A mandatory effect this creature has been caught by, or a turn whose start
+  // has not arrived. **After the duplicate check, never before it.**
+  const owedHere = mayAct(state, who);
+  if (owedHere !== null) return owedHere;
+
   const creature = creatureOf(state, who);
   if (creature === null) return unknownCreature(who);
 
@@ -6160,6 +6220,21 @@ export function resolveEffectCheck(
   });
 }
 
+/**
+ * Whether resolving this effect needs dice thrown from the caster's own sheet.
+ *
+ * A saving throw does not: the DC is pinned on the casting and the roll is the
+ * *target's*. Everything else does — an attack is the caster's roll, and every
+ * die of damage, healing or Temporary Hit Points goes through the caster's
+ * sheet even when the spell's own dice are all that survive the filter.
+ *
+ * The distinction exists for exactly one case: a non-Concentration area whose
+ * caster has left. SRD Grease is the only registered spell in it and its
+ * trigger is a bare save, so the other branch is unreachable through content
+ * — which is asserted rather than assumed.
+ */
+const needsCasterSheet = (effect: SpellEffect): boolean => effect.kind !== 'save';
+
 /** What the persistent areas currently owe, in the order they were caught. */
 export function owedAreaEffectsOf(state: GameState): readonly OwedAreaEffect[] {
   return state.owedAreaEffects;
@@ -6231,13 +6306,9 @@ export function settleAreaEffects(
   }
   const stamp = identity.value.stamp;
 
-  const queue = [...state.owedAreaEffects].sort(
-    (a, b) =>
-      MOMENT_ORDER[a.moment] - MOMENT_ORDER[b.moment] ||
-      castingNumberOf(a.castingId) - castingNumberOf(b.castingId) ||
-      a.target.localeCompare(b.target),
-  );
-  if (queue.length === 0) return ok({ events: [], settled: [], outcomes: [], unverified: [] });
+  if (state.owedAreaEffects.length === 0) {
+    return ok({ events: [], settled: [], outcomes: [], unverified: [] });
+  }
 
   const events: GameEvent[] = [];
   const settled: OwedAreaEffect[] = [];
@@ -6246,16 +6317,19 @@ export function settleAreaEffects(
   let current = state;
   let first = true;
 
-  for (const owed of queue) {
-    // Re-read, never re-derive: the debt is a fact about a moment that
-    // happened, and the only question now is whether anything has since
-    // forgiven it. An earlier settlement in this very batch can — a failed
-    // Concentration save ends the casting and takes its debts with it.
-    const still = current.owedAreaEffects.some(
-      (o) =>
-        o.castingId === owed.castingId && o.target === owed.target && o.moment === owed.moment,
-    );
-    if (!still) continue;
+  // **The queue is re-read every time, never snapshotted**, and that is the
+  // whole of the temporal guarantee at this end: settling the finishing
+  // creature's end is what *brings about* the next creature's start, so the
+  // start debts do not exist when this command begins. Taking the list once
+  // would settle the end and leave the start standing.
+  //
+  // Bounded because a loop over state that raises state is a loop that has to
+  // be able to stop: each pass discharges one debt and the turn stamp keeps
+  // the same casting from catching the same creature again, so the ceiling is
+  // reached only by a log nothing here could have written.
+  for (let pass = 0; pass < 64; pass += 1) {
+    const owed = nextOwed(current);
+    if (owed === null) break;
 
     const discharge: GameEvent = {
       type: 'area-effect-settled',
@@ -6272,30 +6346,35 @@ export function settleAreaEffects(
     const casterId = (record?.caster ?? null) as CharacterId | null;
     const caster = casterId === null ? null : creatureOf(current, casterId);
 
-    // A non-Concentration area outlives its caster — SRD Grease runs its
-    // minute whether or not the wizard does — and the save DC it would roll
-    // against is derived from a sheet that has left the game. Forgiven and
-    // said out loud rather than rolled against a number nobody has.
-    if (record === undefined || definition === null || trigger === undefined || caster === null) {
-      if (record !== undefined) {
-        unverified.push(
-          `${record.spell} caught ${owed.target} and its caster is no longer here to set the DC; nothing was rolled`,
-        );
-      }
+    // **A casting whose caster has gone still owes what it owes.** SRD Grease
+    // runs its minute whether or not the wizard does, and the DC it rolls
+    // against was pinned when it was conjured — so the save happens. What
+    // cannot happen is an effect that needs the caster's *sheet* to throw
+    // dice, and that is said out loud rather than silently forgiven. No
+    // registered spell can reach it: every non-Concentration area trigger is
+    // a bare saving throw, and the area-trigger suite asserts it.
+    if (record === undefined || definition === null || trigger === undefined) {
+      events.push(discharge);
+      current = applyEvent(current, discharge);
+      settled.push(owed);
+      continue;
+    }
+    if (caster === null && trigger.effects.some(needsCasterSheet)) {
+      unverified.push(
+        `${record.spell} caught ${owed.target}, and resolving it needs dice thrown from a sheet ${record.caster} took with them; nothing was rolled`,
+      );
       events.push(discharge);
       current = applyEvent(current, discharge);
       settled.push(owed);
       continue;
     }
 
-    const chosen = chooseRoute(caster.spellcasting, record.spellId, record.route ?? undefined);
-    if (!chosen.ok) return chosen;
-
     const resolved = resolveEffects(current, casterId!, caster, definition, {
       // Pinned at the casting: a Cleric who levels does not upcast a swarm
       // that has been buzzing since the first round.
       castLevel: record.level,
-      route: chosen.value,
+      route: null,
+      numbers: record.numbers,
       targets: [owed.target as CharacterId],
       unverified,
       supply,
@@ -6313,6 +6392,33 @@ export function settleAreaEffects(
   }
 
   return ok({ events, settled, outcomes, unverified });
+}
+
+/**
+ * The next effect to settle: the earliest moment, then the oldest casting.
+ *
+ * **The previous creature's turn ends before the next one's begins**, and one
+ * `turn-advanced` can leave both owed. That is not a tie the keys may break,
+ * so the moment decides and everything else is only there to make the answer
+ * deterministic where the SRD offers no order at all.
+ *
+ * `entry` sits between them because it is neither — whatever happened in
+ * between — and because no guard lets it stand beside a boundary anyway.
+ */
+function nextOwed(state: GameState): OwedAreaEffect | null {
+  let best: OwedAreaEffect | null = null;
+  for (const owed of state.owedAreaEffects) {
+    if (
+      best === null ||
+      MOMENT_ORDER[owed.moment] < MOMENT_ORDER[best.moment] ||
+      (MOMENT_ORDER[owed.moment] === MOMENT_ORDER[best.moment] &&
+        (castingNumberOf(owed.castingId) < castingNumberOf(best.castingId) ||
+          (owed.castingId === best.castingId && owed.target.localeCompare(best.target) < 0)))
+    ) {
+      best = owed;
+    }
+  }
+  return best;
 }
 
 export function pendingSavesOf(state: GameState): readonly PendingSave[] {
@@ -6960,14 +7066,13 @@ const skillName = (skill: Skill): string =>
 function effectCheckFrom(
   check: SpellCheck | undefined,
   spell: string,
-  sheet: CharacterSheet,
-  route: CastingRoute,
+  saveDc: number,
 ): EffectCheck | undefined {
   if (check === undefined) return undefined;
   return {
     ability: check.ability,
     ...(check.skill === undefined ? {} : { skill: check.skill }),
-    dc: check.dc ?? spellSaveDcWith(sheet, route.ability),
+    dc: check.dc ?? saveDc,
     onSuccess: check.onSuccess,
     label: `${ABILITY_NAMES[check.ability]}${check.skill === undefined ? '' : ` (${skillName(check.skill)})`} check vs ${spell}`,
   };
@@ -7115,7 +7220,7 @@ export function resolveDeclaredCast(
  * between them. It is the same rule that stops the turn advancing, and
  * `resolveTurn` keeps its own wording of it.
  */
-function unsettledRefusal(state: GameState): Err | null {
+function unsettledRefusal(state: GameState, who: CharacterId): Err | null {
   const owed = pendingSavesOf(state);
   if (owed.length > 0) {
     return err(
@@ -7135,29 +7240,55 @@ function unsettledRefusal(state: GameState): Err | null {
       `the D20 Test ${state.pendingTest.who} rolled has not been settled; settle it before acting`,
     );
   }
-  // An effect a persistent area owes somebody. The start-of-turn case is the
-  // one that bites: a creature whose turn has just begun has a fresh budget
-  // and a save it has not made, and spending the first past the second would
-  // let it act out of a Web it may be Restrained by.
-  return areaEffectRefusal(state);
+  // And whatever this creature in particular has been caught by — see
+  // {@link mayAct}, which is the half of this policy that is per-creature.
+  return mayAct(state, who);
 }
 
 /**
- * The area half of {@link unsettledRefusal}, on its own.
+ * Whether this creature may take a voluntary action at all.
  *
- * Attacking and moving keep their own short lists — a held attack stops a
- * second swing, a declared move stops a second move — and neither wants the
- * whole of the casting policy. What every acting command *does* want is this
- * one, so it is one function they all call rather than a sentence each of
- * them writes out again.
+ * **The debt blocks the creature it is owed by, and nobody else.** A Web save
+ * one goblin has not made says nothing about whether the wizard across the
+ * room may cast — and the engine's older debts are global only because they
+ * are: a damage roll held open is a number about to change, and a
+ * turn-boundary save may or may not still be holding somebody Paralyzed, so
+ * *anyone* acting resolves against a world that is not yet decided. This one
+ * is about one creature's own turn.
+ *
+ * Two things stop them, and the second is the half that is easy to miss:
+ *
+ * - an effect a persistent area already owes them
+ * - a turn whose **start has not yet arrived** — see
+ *   {@link GameState.pendingTurnStart}. Their budget has refreshed and the
+ *   moment that may Restrain them has not been determined, so spending the
+ *   first past the second is acting out of a Web before anyone asked whether
+ *   they are in it.
+ *
+ * Reactions are deliberately not routed through this: a Reaction answers a
+ * window that is already open, and a save this creature owes changes nothing
+ * about whether they may answer it.
+ *
+ * One function, called by every command that spends an Action, a Bonus Action,
+ * a Reaction's worth of movement or a feature's use, rather than a sentence
+ * each of them writes out again. `invariants.test.ts` holds the list.
  */
-function areaEffectRefusal(state: GameState): Err | null {
-  const caught = state.owedAreaEffects[0];
-  if (caught === undefined) return null;
-  return err(
-    'area_effect_owed',
-    `${state.owedAreaEffects.length} area effect(s) are owed — ${caught.castingId} has caught ${caught.target} — and must be settled before acting`,
-  );
+export function mayAct(state: GameState, who: CharacterId): Err | null {
+  const owed = state.owedAreaEffects.filter((effect) => effect.target === who);
+  const caught = owed[0];
+  if (caught !== undefined) {
+    return err(
+      'area_effect_owed',
+      `${caught.castingId} has caught ${who} and owes them an effect; settle it before ${who} acts`,
+    );
+  }
+  if (state.pendingTurnStart?.who === who) {
+    return err(
+      'area_effect_owed',
+      `${who}'s turn has begun and the effects its start owes have not been worked out; settle them before ${who} acts`,
+    );
+  }
+  return null;
 }
 
 /**
@@ -7197,7 +7328,7 @@ function castOrRelease(
   // has settled; casting into either would change the world underneath it.
   // See `unsettledRefusal`, which `activateSpell` reads too.
   if (!replayed) {
-    const unsettled = unsettledRefusal(state);
+    const unsettled = unsettledRefusal(state, casterId);
     if (unsettled !== null) return unsettled;
   }
 
@@ -7908,7 +8039,11 @@ function resolveOnTargets(
   // The DC a later examiner rolls against, fixed now. `route.ability` is the
   // *chosen* source's, so a Sage Fighter's Minor Illusion is seen through at
   // the feat's DC rather than at a class's.
-  const offered = effectCheckFrom(definition.check, definition.name, caster.sheet, route);
+  const offered = effectCheckFrom(
+    definition.check,
+    definition.name,
+    spellSaveDcWith(caster.sheet, route.ability),
+  );
 
   const castingId = nextCastingId(state);
 
@@ -8074,11 +8209,22 @@ function scheduleDelayed(
 function resolveEffects(
   state: GameState,
   casterId: CharacterId,
-  caster: CreatureState,
+  /**
+   * Null when the casting has outlived its caster.
+   *
+   * SRD Grease runs its minute whether or not the wizard does, and a save it
+   * calls for afterwards is still owed. Only effects that read nothing off a
+   * sheet can be resolved then, which is checked before this is called —
+   * {@link casterSheet} is the accessor that says so out loud.
+   */
+  caster: CreatureState | null,
   definition: SpellDefinition,
   context: {
     readonly castLevel: number;
-    readonly route: CastingRoute;
+    /** Null for a later use, which rolls with {@link context.numbers}. */
+    readonly route: CastingRoute | null;
+    /** The numbers this casting was made with, for every use after the first. */
+    readonly numbers?: CastingNumbers;
     readonly targets: readonly CharacterId[];
     readonly unverified: string[];
     readonly supply: ConcentrationSaveSupply;
@@ -8127,14 +8273,45 @@ function resolveEffects(
   const running = context.effects ?? definition.effects;
   const label = context.label ?? definition.name;
 
+  /**
+   * The caster's sheet, for the rolls that genuinely need one.
+   *
+   * A casting that outlives its caster keeps its *numbers* and loses its
+   * *sheet*, and the two are not the same thing: a save DC is pinned, while
+   * the dice a caster throws are thrown by a creature. Every effect that needs
+   * this is refused before it gets here — `settleAreaEffects` checks, and a
+   * test asserts no registered spell can reach it — so arriving here with no
+   * caster is a programmer error rather than a rules dispute, and is loud.
+   */
+  const casterSheet = (): CreatureState => {
+    if (caster === null) {
+      throw new Error(
+        `${definition.name} needs its caster's sheet to resolve and ${casterId} has left the game; ` +
+          'the caller should have refused this effect rather than reaching here',
+      );
+    }
+    return caster;
+  };
+
   // — what it does ———————————————————————————————————————————————————————
   let current = events.reduce(applyEvent, state);
   const outcomes: SpellTargetOutcome[] = [];
+  // Whom this casting has left something of its own on — see {@link landedOn}.
+  const held = new Set<CharacterId>();
   const issuedBefore = supply.issuer.count;
 
-  // The *chosen source's* ability, not the class's. A feat brings its own.
-  const attackModifier = spellAttackModifierWith(caster.sheet, route.ability);
-  const saveDc = spellSaveDcWith(caster.sheet, route.ability);
+  // **Derived once, at the casting, and read from the record ever after.**
+  // The *chosen source's* ability, not the class's — a feat brings its own —
+  // and a later use of the same casting takes the numbers it was made with
+  // rather than asking a sheet that may have levelled since.
+  const numbers: CastingNumbers = context.numbers ?? {
+    attackModifier: spellAttackModifierWith(casterSheet().sheet, route!.ability),
+    saveDc: spellSaveDcWith(casterSheet().sheet, route!.ability),
+    spellcastingModifier: modifierFor(casterSheet().sheet, route!.ability),
+    casterLevel: casterSheet().sheet.level,
+  };
+  const attackModifier = numbers.attackModifier;
+  const saveDc = numbers.saveDc;
 
   for (const target of targets) {
     for (const effect of running) {
@@ -8142,13 +8319,13 @@ function resolveEffects(
       if (victim === undefined) continue;
 
       if (effect.kind === 'attack') {
-        const attack = rollAttack(supply.issuer, supply.rng, caster.sheet, {
+        const attack = rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
           weapon: null,
           targetAc: armorClassOf(current, target),
           attackBonuses: [
             { source: `${definition.name} (spell attack)`, flat: attackModifier },
             // Bless is on the caster, not in the caller's head.
-            ...bonusesFor(caster.bonuses, 'attack'),
+            ...bonusesFor((caster?.bonuses ?? []), 'attack'),
             ...(supply.bonuses ?? []),
           ],
           ...(supply.modes === undefined ? {} : { modes: supply.modes }),
@@ -8182,14 +8359,14 @@ function resolveEffects(
           continue;
         }
 
-        const dice = scaledDiceFor(effect.damage, definition.level, caster.sheet.level, castLevel);
+        const dice = scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel);
         // A critical doubles the dice, which is `rollAttackDamage`'s job, so
         // this one call keeps the weapon-shaped signature rather than going
         // through `rollSpellDice`.
         const rolled = rollAttackDamage(
           supply.issuer,
           supply.rng,
-          caster.sheet,
+          casterSheet().sheet,
           {
             weapon: null,
             targetAc: armorClassOf(current, target),
@@ -8209,7 +8386,7 @@ function resolveEffects(
             // own. A flat addend printed beside the dice adds on top of it.
             scaledFlatFor(effect.damage, definition.level, castLevel) +
               (effect.addSpellcastingModifier === true
-                ? modifierFor(caster.sheet, route.ability)
+                ? numbers.spellcastingModifier
                 : 0),
           ),
           definition.name,
@@ -8240,6 +8417,7 @@ function resolveEffects(
         // **and** has the Poisoned condition". The attack roll settled it up
         // there; a miss already returned, so reaching here is the hit.
         if (effect.condition !== undefined) {
+          held.add(target);
           const rider = applySpellEffect(current, target, effect.condition.name, casterId, {
             casting: { castingId, spell: definition.name },
             ...(riderDuration(effect.condition.lasts, casterId) === undefined
@@ -8260,7 +8438,7 @@ function resolveEffects(
             definition,
             castingId,
             castLevel,
-            casterLevel: caster.sheet.level,
+            casterLevel: numbers.casterLevel,
             unverified,
           });
           if (scheduled !== null) {
@@ -8282,13 +8460,13 @@ function resolveEffects(
 
       // Temporary Hit Points. Beside the hit points, never in them.
       if (effect.kind === 'temp-hp') {
-        const dice = scaledDiceFor(effect.amount, definition.level, caster.sheet.level, castLevel);
-        const rolled = rollSpellDice(supply, caster.sheet, definition.name, 'temporary', dice);
+        const dice = scaledDiceFor(effect.amount, definition.level, numbers.casterLevel, castLevel);
+        const rolled = rollSpellDice(supply, casterSheet().sheet, definition.name, 'temporary', dice);
         if (!rolled.ok) return rolled;
 
         const flat = scaledFlatFor(effect.amount, definition.level, castLevel);
         const modifier = effect.addSpellcastingModifier
-          ? modifierFor(caster.sheet, route.ability)
+          ? numbers.spellcastingModifier
           : 0;
         const amount = Math.max(
           0,
@@ -8333,6 +8511,7 @@ function resolveEffects(
         }
 
         // The casting is in the source, so ending the spell ends the bonus.
+        held.add(target);
         events.push({
           type: 'bonus-applied',
           id: target,
@@ -8355,13 +8534,13 @@ function resolveEffects(
       // Hit points restored. No roll to beat and nothing to resist: healing is
       // not damage, and a target at full is a legal target who gains nothing.
       if (effect.kind === 'heal') {
-        const dice = scaledDiceFor(effect.healing, definition.level, caster.sheet.level, castLevel);
-        const rolled = rollSpellDice(supply, caster.sheet, definition.name, 'healing', dice);
+        const dice = scaledDiceFor(effect.healing, definition.level, numbers.casterLevel, castLevel);
+        const rolled = rollSpellDice(supply, casterSheet().sheet, definition.name, 'healing', dice);
         if (!rolled.ok) return rolled;
 
         // SRD: "2d8 plus your spellcasting ability modifier" — and it is the
         // *chosen route's* ability, so a feat's version heals by its own.
-        const bonus = effect.addSpellcastingModifier ? modifierFor(caster.sheet, route.ability) : 0;
+        const bonus = effect.addSpellcastingModifier ? numbers.spellcastingModifier : 0;
         const addend = scaledFlatFor(effect.healing, definition.level, castLevel);
         const amount = Math.max(
           0,
@@ -8437,10 +8616,10 @@ function resolveEffects(
         ];
         const rolledParts: DamageComponent[] = [];
         for (const part of parts) {
-          const dice = scaledDiceFor(part.damage, definition.level, caster.sheet.level, castLevel);
+          const dice = scaledDiceFor(part.damage, definition.level, numbers.casterLevel, castLevel);
           const rolled = rollSpellDice(
             supply,
-            caster.sheet,
+            casterSheet().sheet,
             definition.name,
             part.damageType,
             dice,
@@ -8482,12 +8661,8 @@ function resolveEffects(
         // all on a success, because the condition is on the failure branch of
         // a sentence the damage only half-shares.
         if (effect.condition !== undefined && !save.value.success) {
-          const escape = effectCheckFrom(
-            effect.condition.check,
-            definition.name,
-            caster.sheet,
-            route,
-          );
+          const escape = effectCheckFrom(effect.condition.check, definition.name, saveDc);
+          held.add(target);
           const rider = applySpellEffect(current, target, effect.condition.name, casterId, {
             casting: { castingId, spell: definition.name },
             ...(riderDuration(effect.condition.lasts, casterId) === undefined
@@ -8509,7 +8684,7 @@ function resolveEffects(
             definition,
             castingId,
             castLevel,
-            casterLevel: caster.sheet.level,
+            casterLevel: numbers.casterLevel,
             unverified,
           });
           if (scheduled !== null) {
@@ -8560,9 +8735,13 @@ function resolveEffects(
           continue;
         }
 
-        const shakeOff = effectCheckFrom(effect.check, definition.name, caster.sheet, route);
+        const shakeOff = effectCheckFrom(effect.check, definition.name, saveDc);
+        // A condition the casting causes but does not keep is recorded under
+        // the spell's bare name: legible in the log, and linked to nothing
+        // that could later take it away. See `outlivesCasting`.
         const landed = applySpellEffect(current, target, effect.condition, casterId, {
           casting: { castingId, spell: definition.name },
+          ...(effect.outlivesCasting === true ? { unowned: true as const } : {}),
           ...(shakeOff === undefined ? {} : { check: shakeOff }),
           ...(riderDuration(effect.lasts, casterId) === undefined
             ? {}
@@ -8584,6 +8763,7 @@ function resolveEffects(
 
         events.push(...landed.value);
         current = landed.value.reduce(applyEvent, current);
+        if (effect.outlivesCasting !== true) held.add(target);
         outcomes.push({
           target,
           save: save.value,
@@ -8621,8 +8801,8 @@ function resolveEffects(
             const check = rollAbilityCheck(
               supply.issuer,
               supply.rng,
-              caster.sheet,
-              route.ability,
+              casterSheet().sheet,
+              route!.ability,
               {
                 dc: 10 + spell.level,
                 conditions: effectiveConditions(current, casterId),
@@ -8775,7 +8955,8 @@ function resolveEffects(
         spell: definition.name,
         level: castLevel,
         concentration: definition.concentration,
-        route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
+        route: route === null ? null : route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
+        numbers,
         // **A casting that holds a point is on its point, not on a creature.**
         // The force is not on the goblin it hit, so a Dispel Magic aimed at
         // the goblin must not put it out — and `on: []` is the state the
@@ -8785,7 +8966,7 @@ function resolveEffects(
             ? [casterId]
             : becomes.on === 'point'
               ? []
-              : landedOn(targets, outcomes, becomes.fromArea === true),
+              : landedOn(targets, outcomes, becomes.fromArea === true, held),
         ...(becomes.origin === undefined ? {} : { origin: becomes.origin }),
         ...(becomes.towards === undefined ? {} : { towards: becomes.towards }),
       },
@@ -8810,17 +8991,27 @@ function landedOn(
   targets: readonly CharacterId[],
   outcomes: readonly SpellTargetOutcome[],
   fromArea: boolean,
+  held: ReadonlySet<CharacterId>,
 ): readonly CharacterId[] {
   return [...targets]
     .filter((target) => {
-      const said = outcomes.filter((outcome) => outcome.target === target);
+      // **A casting is on a creature while it has a live effect there that the
+      // casting owns**, which is the same rule `alsoOn` applies when a
+      // triggered effect lands a minute later. One rule, two moments.
+      //
+      // So damage alone is not being *on* somebody — the swarm bit you and is
+      // not carrying anything of yours — and neither is a condition the
+      // casting caused and does not keep: SRD Grease knocks you Prone and
+      // Prone is yours to stand up from, so a Dispel Magic aimed at you finds
+      // no Grease to end.
+      if (held.has(target)) return true;
       // **Standing in an area is not being cast on.** A tracked spell keeps a
       // target it reported nothing about because somebody *aimed* it there —
       // Darkvision is on the creature it was cast on. An area spell aimed at
       // nobody: the geometry found them, and a Web that has done nothing to
       // you yet is not on you.
-      if (said.length === 0) return !fromArea;
-      return said.some((outcome) => outcome.affected);
+      const said = outcomes.filter((outcome) => outcome.target === target);
+      return said.length === 0 && !fromArea;
     })
     .sort();
 }

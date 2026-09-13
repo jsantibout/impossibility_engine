@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -11,6 +11,7 @@ import type { Point } from './positioning.js';
 import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import type { AreaMoment } from './spells.js';
 import {
+  activateFeature,
   declineOpportunity,
   ongoingSpellOf,
   ongoingSpellsOn,
@@ -21,6 +22,10 @@ import {
   resolveSpell,
   resolveTurn,
   settleAreaEffects,
+  takeDash,
+  takeDisengage,
+  takeDodge,
+  takeReady,
 } from './commands.js';
 
 /**
@@ -67,6 +72,9 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   baseSpeed: 30,
   spellcastingAbility: 'wis',
   weaponProficiencies: ['simple', 'martial'],
+  activated: [
+    { feature: 'test:stance', name: 'Stance', action: 'bonus-action', pool: null, lasts: 'end-of-next-turn' },
+  ],
   ...over,
 });
 
@@ -832,15 +840,47 @@ describe('nothing acts past an effect the area is owed', () => {
     if (isErr(out)) expect(out.code).toBe('area_effect_owed');
   });
 
-  it('refuses a cast', () => {
+  it('refuses a cast by the creature it caught', () => {
+    const g = owing();
+    g.push([
+      {
+        type: 'spellcasting-declared',
+        id: MOVER,
+        spellcasting: declaredCasting({ ability: 'wis', prepared: PREPARED }),
+      },
+      {
+        type: 'resource-pool-declared',
+        id: MOVER,
+        pool: { key: 'spell-slot:1', label: 'level 1', max: 4, recovers: 'long-rest' },
+      },
+    ]);
     const out = resolveSpell(
-      owing().state,
-      CASTER,
+      g.state,
+      MOVER,
       { spellId: 'bless', targets: [RIVAL], slotLevel: 1 },
       supply('b'),
     );
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  });
+
+  /**
+   * **The debt blocks the creature it is owed by and nobody else.** A goblin's
+   * unmade Web save says nothing about whether the wizard across the room may
+   * cast, and the engine's older global debts are global because they are:
+   * a damage roll held open is a number about to change, and *anyone* acting
+   * resolves against a world that is not yet decided. This one is about one
+   * creature's own turn.
+   */
+  it('lets an unrelated creature act while somebody else owes one', () => {
+    const g = owing();
+    const out = resolveSpell(
+      g.state,
+      CASTER,
+      { spellId: 'bless', targets: [RIVAL], slotLevel: 1 },
+      supply('b'),
+    );
+    if (isErr(out)) expect(out.code).not.toBe('area_effect_owed');
   });
 
   it('refuses an attack', () => {
@@ -1183,4 +1223,495 @@ describe('replay', () => {
       ]),
     ).toThrow();
   });
+});
+
+// — the two moments are two moments ————————————————————————————————————————————
+
+describe('the start of a turn is determined after the end that preceded it', () => {
+  /**
+   * Settling in order is not enough. What catches a creature **at its start**
+   * has to be *worked out* from the world the previous creature's end left
+   * behind, and the previous implementation computed both memberships in the
+   * same fold — so a Web that the end of the turn destroyed still caught
+   * somebody as their turn began.
+   *
+   * With no generator the engine cannot roll, so it stops between the two
+   * moments and says so: the end is owed, the start has not happened.
+   */
+  it('does not raise a start debt until the end has been settled', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1, seed: 'g' });
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2, seed: 'w' });
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry');
+
+    // Round to the boundary where MOVER's turn ends (Grease) and begins (Web).
+    g.to(MOVER);
+    const advanced = unwrap(resolveTurn(g.state), 'advancing with no generator');
+    g.push(advanced.events);
+
+    // The end is owed; the start has not arrived at all.
+    expect(g.owed().map((d) => d.moment)).toEqual(['end-of-turn']);
+    expect(g.state.pendingTurnStart?.who).toBe(SITTER);
+
+    // And SITTER may not act, though nothing is owed *by them* yet: whether
+    // the Web catches them has not been worked out, and their budget has
+    // already refreshed.
+    expect(g.owed().some((d) => d.target === SITTER)).toBe(false);
+    const dashed = takeDash(g.state, SITTER, {});
+    expect(isErr(dashed)).toBe(true);
+    if (isErr(dashed)) expect(dashed.code).toBe('area_effect_owed');
+
+    // Settling the end is what brings the start about.
+    g.settle('both', undefined, 40);
+    expect(g.state.pendingTurnStart).toBeNull();
+  });
+
+  /**
+   * The causal proof, and the one the correction exists for. A Grease-shaped
+   * end is not enough: the end has to **change whether the start debt should
+   * exist at all**. So the end of MOVER's turn dispels the Web their turn is
+   * about to begin in, and the start debt must never be raised.
+   *
+   * Constructed rather than waited for: no two currently executed spells
+   * naturally produce this, so the fixture uses the engine's own casting
+   * cleanup — the same spell-ended event Dispel Magic emits.
+   */
+  it('never raises a start debt for a casting the end of the turn destroyed', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1, seed: 'g' });
+    const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2, seed: 'w' });
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry');
+
+    g.to(MOVER);
+    g.push(unwrap(resolveTurn(g.state), 'advancing with no generator').events);
+    expect(g.state.pendingTurnStart?.who).toBe(SITTER);
+
+    // The Web goes while the end of the turn is still being resolved.
+    g.push([{ type: 'spell-ended', castingId: web, on: null, reason: 'dispelled' }]);
+    // Still nothing: the end of the turn is owed and has not been settled.
+    expect(g.state.pendingTurnStart?.who).toBe(SITTER);
+
+    const batch = g.settle('end-only');
+    // The Grease's end resolved; the Web's start never existed to resolve.
+    expect(batch.filter((e) => e.type === 'area-effect-settled')).toHaveLength(1);
+    expect(g.state.pendingTurnStart).toBeNull();
+    expect(g.owed()).toEqual([]);
+    expect(g.has(SITTER, 'restrained')).toBe(false);
+  });
+
+  /** And the common case still passes straight through, in one fold. */
+  it('reaches the start inside the same fold when the end owes nothing', () => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    g.to(MOVER);
+    expect(g.state.pendingTurnStart).toBeNull();
+  });
+
+  /** A fight that ends leaves no marker nothing could clear. */
+  it('clears the marker when the combat ends', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry');
+    g.to(MOVER);
+    g.push(unwrap(resolveTurn(g.state), 'advancing').events);
+    expect(g.state.pendingTurnStart).not.toBeNull();
+
+    g.push([{ type: 'combat-ended' }]);
+    expect(g.state.pendingTurnStart).toBeNull();
+  });
+});
+
+// — the numbers the casting was made with ——————————————————————————————————————
+
+describe('a spell already cast does not change when its caster does', () => {
+  /**
+   * The save DC is pinned at the casting. Before the correction, a later
+   * trigger asked chooseRoute against the caster's **current** sheet and
+   * derived the DC again — so a Wizard who re-prepared the spell off a
+   * different ability, or levelled, quietly moved a Web that had been hanging
+   * there for a minute.
+   *
+   * Observed on the escape check the Web hangs, whose DC is the spell save DC
+   * written down when the condition was created.
+   */
+  it('keeps the save DC the Web was conjured with', () => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+
+    // Level 11, Wisdom 18: 8 + 4 + 4.
+    const pinned = 16;
+
+    // The caster's spellcasting is re-declared off a different ability. A DC
+    // re-derived now would be 8 + 4 + 0.
+    g.push([
+      {
+        type: 'spellcasting-declared',
+        id: CASTER,
+        spellcasting: declaredCasting({ ability: 'int', prepared: PREPARED }),
+      },
+    ]);
+
+    g.walk(MOVER, 'inside cube');
+    g.settle('web');
+    expect(g.has(MOVER, 'restrained')).toBe(true);
+
+    const dcs = Object.values(g.state.timers)
+      .map((timer) => timer.check?.dc)
+      .filter((dc): dc is number => dc !== undefined);
+    expect(dcs).toContain(pinned);
+    expect(dcs).not.toContain(12);
+  });
+
+  it('writes those numbers into the record at the casting', () => {
+    const g = new Game();
+    const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    expect(ongoingSpellOf(g.state, web)?.numbers).toEqual({
+      saveDc: 16,
+      attackModifier: 8,
+      spellcastingModifier: 4,
+      casterLevel: 11,
+    });
+  });
+
+  /**
+   * SRD Grease has no Concentration and a duration of a minute: it runs
+   * whether or not the wizard does. A save it calls for afterwards is still
+   * owed, and forgiving it because the DC could not be recovered would be the
+   * engine losing a rule to its own bookkeeping.
+   */
+  it('still rolls a Grease save after its caster has left the game', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.to(MOVER);
+    g.push(unwrap(removeCreatureEverywhere(g.state, CASTER), 'removing the caster'));
+    expect(g.state.creatures[CASTER]).toBeUndefined();
+
+    g.walk(MOVER, 'inside cube');
+    expect(g.owed()).toHaveLength(1);
+
+    const batch = g.settle('orphaned');
+    expect(batch.some((e) => e.type === 'roll-recorded')).toBe(true);
+    expect(g.has(MOVER, 'prone')).toBe(true);
+  });
+
+  /**
+   * And the branch that cannot be resolved without a sheet is unreachable
+   * through content rather than merely unlikely: every area trigger that can
+   * outlive its caster is a bare saving throw.
+   */
+  it('leaves no caster-outliving trigger that needs the caster to roll', () => {
+    const orphanable = SPELL_DEFINITIONS.filter(
+      (d) => d.areaTrigger !== undefined && !d.concentration,
+    );
+    expect(orphanable.length).toBeGreaterThan(0);
+    for (const definition of orphanable) {
+      expect(definition.areaTrigger?.effects.map((e) => e.kind)).toEqual(
+        definition.areaTrigger?.effects.map(() => 'save'),
+      );
+    }
+  });
+});
+
+// — every path that spends something ————————————————————————————————————————————
+
+describe('a creature owing a mandatory effect may take no action at all', () => {
+  /** A creature whose turn has begun inside a Web, with the save unrolled. */
+  const owingAtStart = (): Game => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry', undefined, 40);
+    g.to(CASTER);
+    g.push(unwrap(resolveTurn(g.state), 'advancing with no generator').events);
+    return g;
+  };
+
+  it('really does owe a start-of-turn effect in this fixture', () => {
+    const g = owingAtStart();
+    expect(g.state.combat?.order[g.state.combat.turnIndex]?.id).toBe(MOVER);
+    expect(g.owed().some((d) => d.moment === 'start-of-turn' && d.target === MOVER)).toBe(true);
+  });
+
+  const refuses = (out: Result<unknown>): void => {
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  };
+
+  it('refuses Dash', () => refuses(takeDash(owingAtStart().state, MOVER, {})));
+  it('refuses Disengage', () => refuses(takeDisengage(owingAtStart().state, MOVER, {})));
+  it('refuses Dodge', () => refuses(takeDodge(owingAtStart().state, MOVER, {})));
+  it('refuses Ready', () =>
+    refuses(
+      takeReady(owingAtStart().state, MOVER, { trigger: 'when it moves', response: { kind: 'action' } }),
+    ));
+  it('refuses activating a feature', () =>
+    refuses(activateFeature(owingAtStart().state, MOVER, { feature: 'test:stance' })));
+
+  /**
+   * **After the duplicate check, never before it.** A retry arrives at the
+   * world its own first run made — here, at a Web debt its own move raised —
+   * and must report the duplicate rather than the guard.
+   */
+  it('lets a retried Dash through as a duplicate rather than refusing it', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.to(MOVER);
+    g.push(unwrap(takeDash(g.state, MOVER, { commandId: 'd1' }), 'dashing'));
+    g.walk(MOVER, 'inside cube');
+    expect(g.owed()).toHaveLength(1);
+
+    const retry = takeDash(g.state, MOVER, { commandId: 'd1' });
+    expect(isErr(retry)).toBe(false);
+    if (!isErr(retry)) expect(retry.value).toEqual([]);
+  });
+
+  /** The turn still refuses globally: a debt must not be carried into one. */
+  it('refuses to advance the turn for anybody', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    const out = resolveTurn(g.state, supply('t'));
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  });
+});
+
+// — Grease knocks you down and does not hold you there ————————————————————————
+
+describe('a condition a casting caused and does not keep', () => {
+  /**
+   * SRD Grease: "or have the Prone condition", and nothing more. Prone ends
+   * when the creature stands up — not when the grease dries. Linking it to the
+   * casting made the engine lift it on the casting's own cleanup, which is a
+   * rule the book does not have.
+   */
+  it('leaves the creature Prone after the Grease has ended', () => {
+    const g = new Game();
+    const grease = g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('slip');
+    expect(g.has(MOVER, 'prone')).toBe(true);
+
+    g.push([{ type: 'spell-ended', castingId: grease, on: null, reason: 'dispelled' }]);
+    expect(ongoingSpellOf(g.state, grease)).toBeNull();
+    expect(g.has(MOVER, 'prone')).toBe(true);
+  });
+
+  /** And the Grease is not *on* them, so a Dispel Magic aimed there finds it not. */
+  it('is not on the creature it knocked over', () => {
+    const g = new Game();
+    const grease = g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('slip');
+    expect(g.has(MOVER, 'prone')).toBe(true);
+    expect(ongoingSpellOf(g.state, grease)?.on).toEqual([]);
+    expect(ongoingSpellsOn(g.state, MOVER)).toEqual([]);
+  });
+
+  /**
+   * The casting path as well as the trigger path. Conjuring the grease under
+   * somebody's feet goes through the spell's own effects rather than its area
+   * trigger, and the two must agree about who owns the Prone.
+   */
+  it('leaves a creature Prone when the Grease was conjured under them', () => {
+    const g = new Game([...SETUP, place(RIDER, 'inside cube')], false);
+    const grease = g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    expect(g.has(RIDER, 'prone')).toBe(true);
+
+    // Not on them — Dispel Magic aimed at a greased creature finds no Grease.
+    expect(ongoingSpellOf(g.state, grease)?.on).toEqual([]);
+    expect(ongoingSpellsOn(g.state, RIDER)).toEqual([]);
+
+    g.push([{ type: 'spell-ended', castingId: grease, on: null, reason: 'dispelled' }]);
+    expect(g.has(RIDER, 'prone')).toBe(true);
+  });
+
+  /** The log still says what caused it. */
+  it('records the spell that caused it', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('slip');
+    const instances = g.state.creatures[MOVER]?.conditions.instances ?? [];
+    expect(instances.some((i) => i.source === 'Grease')).toBe(true);
+  });
+
+  /**
+   * And the spells that genuinely *do* sustain their condition are untouched:
+   * Web's Restrained ends with the Web, because SRD says it lasts while you
+   * are in the webs.
+   */
+  it('still takes a Web’s Restrained away with the Web', () => {
+    const g = new Game();
+    const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('web');
+    expect(g.has(MOVER, 'restrained')).toBe(true);
+
+    g.push([{ type: 'spell-ended', castingId: web, on: null, reason: 'dispelled' }]);
+    expect(g.has(MOVER, 'restrained')).toBe(false);
+  });
+});
+
+// — one debt, one discharge ————————————————————————————————————————————————————
+
+describe('a settlement discharges exactly the debt it names', () => {
+  /**
+   * The settlement event names a casting, a creature and a moment, and not
+   * the turn. That is unambiguous because the guards make at most one debt per
+   * (casting, creature, moment) outstanding at a time — a second move is
+   * refused, and the turn cannot advance past one — so two debts that share
+   * all three are two identical debts, and discharging either is discharging
+   * that one.
+   *
+   * Proved by writing the impossible log by hand: two Grease entries with
+   * nothing settled between them, which no command can produce.
+   */
+  it('discharges two identical debts one at a time', () => {
+    const g = new Game([...SETUP], false);
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    for (const to of ['inside cube', 'outside cube', 'inside cube']) {
+      g.push([{ type: 'creature-moved', id: MOVER, placement: { from: { landmark: to }, feet: 0 } }]);
+    }
+    expect(g.owed()).toHaveLength(2);
+
+    const batch = g.settle('both');
+    expect(batch.filter((e) => e.type === 'area-effect-settled')).toHaveLength(2);
+    expect(g.owed()).toEqual([]);
+  });
+
+  /** And a settlement for a debt of a different casting leaves this one alone. */
+  it('discharges only its own casting’s debt', () => {
+    const g = new Game();
+    const grease = g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1, seed: 'g' });
+    const tentacles = g.conjure('black-tentacles', CUBE, {
+      towards: TOWARDS,
+      slotLevel: 4,
+      seed: 'bt',
+    });
+    g.walk(MOVER, 'inside cube');
+    expect(g.owed()).toHaveLength(2);
+
+    g.push([
+      { type: 'spell-ended', castingId: grease, on: null, reason: 'dispelled' },
+    ]);
+    expect([...g.owed()].map((d) => d.castingId)).toEqual([tentacles]);
+  });
+
+  /** A log with two debts in it still folds at every prefix. */
+  it('folds at every prefix with several debts outstanding', () => {
+    const g = new Game([...SETUP], false);
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    for (const to of ['inside cube', 'outside cube', 'inside cube']) {
+      g.push([{ type: 'creature-moved', id: MOVER, placement: { from: { landmark: to }, feet: 0 } }]);
+    }
+    g.settle('both');
+    g.foldsAtEveryPrefix();
+    expect(roundTrip(g.log)).toEqual(g.state);
+  });
+});
+
+// — the corrections, adversarially ————————————————————————————————————————————
+
+describe('a hit still due at the boundary happens before the start is worked out', () => {
+  /**
+   * Scheduled damage is the other end-of-turn consequence the engine holds as
+   * state — SRD Acid Arrow's "2d4 at the end of its next turn" — and it can
+   * kill the very caster whose area the next creature is about to start their
+   * turn in. Reaching the start before collecting it would ask whether
+   * somebody is caught by a Web the boundary was about to destroy.
+   */
+  it('does not reach the start while a scheduled hit is still due', () => {
+    const g = new Game([...SETUP], false);
+    const web = g.conjure('web', CUBE, { by: RIVAL, towards: TOWARDS, slotLevel: 2, seed: 'w' });
+    g.push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: CASTER, initiative: 30, speed: 400 },
+          { id: MOVER, initiative: 20, speed: 400 },
+        ],
+      },
+    ]);
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry', undefined, 40);
+
+    // RIVAL is one hit from dropping, and a hit falls due as CASTER's turn
+    // ends — the same boundary at which MOVER's turn begins inside the Web.
+    g.push([
+      { type: 'damage-taken', id: RIVAL, amount: 299, source: 'the fixture' },
+      {
+        type: 'damage-scheduled',
+        schedule: {
+          target: RIVAL,
+          by: CASTER,
+          deadline: { kind: 'turn-end', of: CASTER, count: 1 },
+          notation: '8d10',
+          damageType: 'acid',
+          source: 'a fixture#cast:99',
+          label: 'the acid',
+        },
+      },
+    ]);
+
+    g.to(CASTER);
+    g.turn('boundary');
+
+    // The acid dropped RIVAL, the Concentration broke, the Web ended — and
+    // MOVER, whose turn began inside it, was never caught.
+    expect(ongoingSpellOf(g.state, web)).toBeNull();
+    expect(g.has(MOVER, 'restrained')).toBe(false);
+    expect(g.owed()).toEqual([]);
+    expect(g.state.pendingTurnStart).toBeNull();
+  });
+});
+
+describe('every guarded command checks the duplicate first', () => {
+  /**
+   * The trap this repository has sprung five times: a state guard above the
+   * replay check tells a retry about the world its own first run made. Every
+   * command that gained the area guard is swept rather than one of them being
+   * spot-checked.
+   */
+  const RETRIES: readonly {
+    readonly name: string;
+    readonly run: (g: Game, commandId: string) => Result<unknown>;
+  }[] = [
+    { name: 'takeDash', run: (g, commandId) => takeDash(g.state, MOVER, { commandId }) },
+    { name: 'takeDisengage', run: (g, commandId) => takeDisengage(g.state, MOVER, { commandId }) },
+    { name: 'takeDodge', run: (g, commandId) => takeDodge(g.state, MOVER, { commandId }) },
+    {
+      name: 'takeReady',
+      run: (g, commandId) =>
+        takeReady(g.state, MOVER, { trigger: 'when it moves', response: { kind: 'action' }, commandId }),
+    },
+    {
+      name: 'activateFeature',
+      run: (g, commandId) => activateFeature(g.state, MOVER, { feature: 'test:stance', commandId }),
+    },
+  ];
+
+  for (const entry of RETRIES) {
+    it(entry.name + ': a retry reports the duplicate rather than the debt it raised', () => {
+      const g = new Game();
+      g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+      g.to(MOVER);
+
+      const first = entry.run(g, 'c1');
+      expect(isErr(first)).toBe(false);
+      if (isErr(first)) return;
+      g.push(first.value as readonly GameEvent[]);
+
+      // The mover then walks into the Grease and owes a save.
+      g.walk(MOVER, 'inside cube');
+      expect(g.owed()).toHaveLength(1);
+
+      const retry = entry.run(g, 'c1');
+      expect(isErr(retry)).toBe(false);
+      if (!isErr(retry)) expect(retry.value).toEqual([]);
+    });
+  }
 });

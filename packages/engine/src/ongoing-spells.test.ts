@@ -404,6 +404,7 @@ describe('the record lives exactly as long as the spell', () => {
             level: 1,
             concentration: true,
             route: null,
+            numbers: { saveDc: 15, attackModifier: 7, spellcastingModifier: 4, casterLevel: 9 },
             on: [ALLY],
           },
         },

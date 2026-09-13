@@ -116,6 +116,26 @@ still Wizard-shaped are named below.
   — one user, and an abstraction with one user is a guess. The note says which
   half and why.
 
+- **Ordering settlements is not ordering moments.** The first version of the
+  area triggers raised the end-of-turn and start-of-turn debts in one fold and
+  sorted them. Whether the next creature is caught at its start is a question
+  about the world the previous creature's end left behind, and sorting does not
+  make that world exist. `pendingTurnStart` is the smallest representation that
+  does: the end is raised, and a derived pass reaches the start once nothing
+  the end owed is outstanding.
+- **A spell already cast does not change when its caster does.** `OngoingSpell`
+  stored a route *name* and every later use re-derived the numbers from the
+  caster's current sheet. Four are pinned instead — save DC, attack modifier,
+  spellcasting modifier, caster level — and a casting can now outlive its
+  caster, which SRD Grease requires and the engine was quietly forgiving.
+- **A guard has to be on every path that spends something.** `mayAct` is the one
+  policy and it is per-creature: the debt blocks the creature it is owed by,
+  the turn still refuses globally, and Reactions are untouched.
+- **Causing a condition and owning it are two different links.** Grease knocks
+  you Prone and the book leaves you to stand up; the engine was lifting it when
+  the grease ended. `outlivesCasting` records the condition under the spell's
+  bare name, and the same change made `on` mean one thing at the cast and at a
+  trigger: a live effect the casting owns.
 - **"An area trigger" is not one mechanic.** A taxonomy audit read the twenty
   spells and found at least eight detections; this batch built two — a turn
   boundary and a creature entering — and named the rest rather than writing a
@@ -1556,7 +1576,7 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 3,950 passing, none skipped |
+| Tests | 3,981 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

@@ -392,6 +392,28 @@ export type SpellEffect =
        * beside it — which is the only reason it was not here already.
        */
       readonly check?: SpellCheck;
+      /**
+       * The condition outlives the casting that caused it.
+       *
+       * **Causing a condition and owning it are two different links**, and the
+       * engine had only one. Web says its Restrained lasts "while in the webs";
+       * Hold Person's Paralyzed lasts "for the duration"; Black Tentacles'
+       * Restrained "until the spell ends". SRD Grease says none of that — it
+       * says "or have the Prone condition", full stop, and Prone ends when the
+       * creature stands up.
+       *
+       * So a casting that ends took Grease's Prone away with it, and a Dispel
+       * Magic aimed at the greased creature stood them up. Set here, the
+       * condition is recorded with the spell's **name** and no casting mark:
+       * the log still says what caused it, the casting's cleanup does not
+       * claim it, and the record does not grow to include somebody the spell is not
+       * on.
+       *
+       * One user, and it is transcribed from one sentence rather than
+       * generalised — but it is the sentence that distinguishes a spell that
+       * *does* something from a spell that *keeps* doing it.
+       */
+      readonly outlivesCasting?: true;
     }
   /**
    * A saving throw that interrupts a casting already in progress.
@@ -3265,7 +3287,10 @@ export const GREASE: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   area: { kind: 'cube', size: 10, origin: 'point' },
-  effects: [{ kind: 'save', ability: 'dex', condition: 'prone' }],
+  // SRD says "or have the Prone condition" and stops there. Prone ends when
+  // the creature stands up, not when the grease does — so the casting caused
+  // it and does not keep it.
+  effects: [{ kind: 'save', ability: 'dex', condition: 'prone', outlivesCasting: true }],
   durationSeconds: 60,
   // "A creature that enters the area or ends its turn there must also succeed
   // on that save or fall Prone." No "first time", no "once per turn" — Grease
@@ -3275,11 +3300,10 @@ export const GREASE: SpellDefinition = {
     at: 'end-of-turn',
     onEntry: 'every-entry',
     label: 'Grease (the slick)',
-    effects: [{ kind: 'save', ability: 'dex', condition: 'prone' }],
+    effects: [{ kind: 'save', ability: 'dex', condition: 'prone', outlivesCasting: true }],
   },
   unmodelled: [
     'the area becoming Difficult Terrain for the duration',
-    'Prone from the grease ends with the casting, where SRD leaves it until the creature stands up',
   ],
 };
 

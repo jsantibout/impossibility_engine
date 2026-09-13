@@ -1928,26 +1928,121 @@ creature that walks in three times owes three.
 ### The two moments in one `turn-advanced` are a round apart
 
 One event carries the finishing creature's end and the next creature's start,
-and they are **not simultaneous**. The order is observable and causal: an
-Insect Plague that drops a caster at the end of one turn ends the Web somebody
-else was about to start their turn in, and the debt goes with the casting.
+and they are **not simultaneous**.
 
-So the *moment* is a field on the debt and settlement sorts by it — end, then
-entry, then start — and every debt is re-read against live state before it is
-resolved, because an earlier settlement in the same batch can forgive a later
-one. An implementation where the key order decided would be a coin toss
-wearing a rule's clothes.
+**Ordering the settlements is not enough**, and the first version of this made
+exactly that mistake: it raised both sets of debts in the same fold and then
+sorted them. Sorting settles them in order; it does not *determine* them in
+order. Whether the next creature is caught at its start is a question about the
+world the previous creature's end left behind — and that world does not exist
+while the end is still owed.
+
+So `turn-advanced` raises the end and records `pendingTurnStart`; a derived
+pass reaches the start once nothing the end owed is outstanding, and raises the
+start debts from *that* state. Derived rather than emitted for the usual
+reason: nobody decides that a moment has arrived. A replay reconstructs both
+because the fold does — the same log leaves the same debts outstanding at the
+same points.
+
+The common case passes straight through inside the fold of `turn-advanced`
+itself, so a boundary that owes nothing behaves exactly as it always did and no
+caller learns there were two moments. A caller with no generator can stop
+between them: the end stays owed, the start has not happened, and the creature
+whose turn it is may not act until both are settled.
+
+Settlement still orders — end, then entry, then start — and re-reads the queue
+on every pass rather than snapshotting it, because settling the end is what
+brings the start about.
 
 **The end of a turn belongs to the turn that is ending**, and `turnsTaken` has
 already moved on by the time the reducer sees the event. Stamping the end with
 the new number put a creature's entry and the end of the very turn it entered
-on into two different turns, and Insect Plague's cap caught it twice. That bug
-existed for about an hour and is the sharpest thing in this batch.
+on into two different turns, and Insect Plague's cap caught it twice.
 
 **Settled before the Death Saving Throw**, deliberately. Both are "at the start
 of your turn" and the SRD orders neither, but only one order leaves room for a
 start-of-turn *heal* to matter — Aura of Life's shape — and an ordering that
 makes a future rule unreachable is the wrong one to pick by accident.
+
+### A spell already cast does not change when its caster does
+
+`OngoingSpell` stored the *route* — a name — and every later use resolved it
+against the caster's **current** sheet and derived the numbers again. A Cleric
+who levelled between conjuring a Web and somebody walking into it moved the
+save DC; so did an Ability Score Improvement, a new proficiency bonus, or
+preparing the same spell through a second class.
+
+So the numbers are pinned at the casting, and there are four of them rather
+than a snapshot of the sheet:
+
+| | Read by |
+|---|---|
+| `saveDc` | every save the spell calls for, and every escape check it offers |
+| `attackModifier` | a later spell attack — Spiritual Weapon, Vampiric Touch, Flame Blade |
+| `spellcastingModifier` | "plus your spellcasting ability modifier" on damage, healing and Temporary Hit Points |
+| `casterLevel` | a cantrip's upgrade steps, read off the caster rather than off the slot |
+
+What goes on being read live is everything about the creature it is happening
+*to*, and everything about the caster that is genuinely current — a Bless on
+them now applies now.
+
+**A casting can outlive its caster, and the pinned numbers are why that works.**
+SRD Grease runs its minute whether or not the wizard does, and a save it calls
+for afterwards is still owed; forgiving it because the DC could not be
+recovered would be the engine losing a rule to its own bookkeeping. What
+genuinely cannot happen is an effect that throws dice *from a sheet that has
+left*, so `resolveEffects` takes a nullable caster and is loud rather than
+quiet about it. A saving throw needs no sheet, and every non-Concentration area
+trigger in the book is a bare saving throw — asserted, not assumed. A
+Concentration spell never reaches the question, because its caster leaving ends
+it.
+
+### A mandatory effect blocks the creature it is owed by, and nobody else
+
+`mayAct` is the one policy, called by every command that spends an Action, a
+Bonus Action, movement or a feature's use: Dash, Disengage, Dodge, Ready,
+feature activation, a pool's use, an effect check, an attack, a move, a casting,
+an activation. The area-trigger suite and `invariants.test.ts` hold the list, so
+a command added without it fails there rather than in play.
+
+**Per-creature, deliberately.** A goblin's unmade Web save says nothing about
+whether the wizard across the room may cast. The engine's older debts are
+global because they *are*: a damage roll held open is a number about to change,
+and a turn-boundary save may still be holding somebody Paralyzed, so anyone
+acting resolves against a world that is not yet decided. This one is about one
+creature's own turn. The *turn* still refuses globally, because a debt must not
+be carried into the next one.
+
+**A turn whose start has not arrived blocks that creature too**, even before
+anybody knows whether it will catch them — their budget has refreshed and the
+moment that may Restrain them has not been worked out.
+
+**Reactions are not routed through it.** A Reaction answers a window that is
+already open, and a save this creature owes changes nothing about whether they
+may answer it.
+
+**After the duplicate check, never before it** — the sixth instance of that trap
+in this file. A retry arrives at the debt its own first run raised.
+
+### Causing a condition and owning it are two different links
+
+The engine had one mechanism for both: the casting id inside the condition's
+source. That is right for every condition a spell *sustains* — Hold Person's
+Paralyzed "for the duration", Web's Restrained "while in the webs", Black
+Tentacles' "until the spell ends". SRD Grease sustains nothing: "or have the
+Prone condition", and Prone ends when the creature stands up.
+
+So the casting ending was lifting a condition the book leaves standing, and a
+Dispel Magic aimed at a greased creature stood them up. `outlivesCasting` on the
+effect records the condition under the spell's **bare name**: the log still says
+what caused it, the casting's cleanup walks past it, and the casting is not
+*on* the creature.
+
+That last part made the two halves of `on` agree at last. **A casting is on a
+creature while it has a live effect there that the casting owns** — the rule
+`alsoOn` already applied when a triggered effect landed a minute later, now
+applied at the cast as well. Damage alone is not being on somebody: the swarm
+bit you and is carrying nothing of yours.
 
 ### Entering is a position that actually changed
 

@@ -33,6 +33,7 @@ import { noSpellcasting, type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind, RestState } from './rest.js';
 import {
   hasExpired,
+  isDue,
   pendingSaveKey,
   scheduledDamageKey,
   timerKey,
@@ -741,6 +742,27 @@ export interface GameState {
    * on how often the area may catch you rather than on how fast anyone rolls.
    */
   readonly areaTriggers: Readonly<Record<string, AreaTriggerStamp>>;
+  /**
+   * A turn that has begun and whose **start has not yet arrived**.
+   *
+   * One `turn-advanced` carries two moments — the finishing creature's end and
+   * the next creature's start — and they are a round apart. Settling them in
+   * order is not enough: what a creature is caught by *at its start* has to be
+   * **determined** from the world the previous creature's end left behind. An
+   * Insect Plague that drops a caster at the end of one turn ends the Web
+   * somebody else was about to start their turn in, and a start debt computed
+   * before that damage landed is a save against a spell the rules had ended.
+   *
+   * So `turn-advanced` raises the end obligations and records this; the start
+   * obligations are raised by a derived pass once nothing the end moment owed
+   * is outstanding. Derived, so a replay rebuilds both moments in the same
+   * order from the log alone, and the creature whose turn it is may not act
+   * while it stands.
+   *
+   * Null is the ordinary state and the common case reaches it inside the same
+   * fold: a boundary that owes nothing passes straight through.
+   */
+  readonly pendingTurnStart: { readonly who: CharacterId; readonly turn: number } | null;
 }
 
 export function initialState(seed: string): GameState {
@@ -766,6 +788,7 @@ export function initialState(seed: string): GameState {
     ongoing: {},
     owedAreaEffects: [],
     areaTriggers: {},
+    pendingTurnStart: null,
   };
 }
 
@@ -2340,16 +2363,14 @@ function oweAreaEffect(
  * *different moments*, and settlement is what keeps them a round apart. See
  * `settleAreaEffects`.
  */
-function raiseAreaBoundaries(
+function raiseAreaBoundary(
   state: GameState,
-  before: CombatState,
-  after: CombatState,
+  moment: 'end-of-turn' | 'start-of-turn',
+  whose: CharacterId | undefined,
+  turn: number,
 ): GameState {
   const scene = state.scene;
-  if (scene === null) return state;
-
-  const ended = before.order[before.turnIndex]?.id;
-  const begun = after.order[after.turnIndex]?.id;
+  if (scene === null || whose === undefined) return state;
 
   let current = state;
   for (const castingId of Object.keys(state.ongoing).sort()) {
@@ -2357,27 +2378,96 @@ function raiseAreaBoundaries(
     if (record === undefined) continue;
     const definition = areaDefinitionOf(record.spellId);
     if (definition === null) continue;
-
-    const at = definition.trigger.at;
-    if (at === undefined) continue;
-    const whose = at === 'end-of-turn' ? ended : begun;
-    if (whose === undefined) continue;
+    if (definition.trigger.at !== moment) continue;
 
     const inside = creaturesInCastingArea(scene, record);
     if (inside === null || !inside.has(whose)) continue;
 
-    // **The end of a turn belongs to the turn that is ending.** One
-    // `turn-advanced` carries both moments and `turnsTaken` has already moved
-    // on by the time the reducer sees it, so stamping the end with the new
-    // number would put the creature's entry and the end of the very turn it
-    // entered on in two different turns — and Insect Plague's "only once per
-    // turn" would catch the same creature twice.
-    const moment: AreaMoment = at === 'end-of-turn' ? 'end-of-turn' : 'start-of-turn';
-    const turn = at === 'end-of-turn' ? before.turnsTaken : after.turnsTaken;
     if (!areaTriggerAllowed(current, castingId, whose, definition.trigger, moment, turn)) continue;
     current = oweAreaEffect(current, castingId, whose, moment, turn);
   }
   return current;
+}
+
+/**
+ * The finishing creature's end, and a note that a start is still to come.
+ *
+ * **The end of a turn belongs to the turn that is ending.** `turnsTaken` has
+ * already moved on by the time the reducer sees `turn-advanced`, so stamping
+ * the end with the new number would put a creature's entry and the end of the
+ * very turn it entered on into two different turns — and Insect Plague's "only
+ * once per turn" would catch it twice.
+ *
+ * The start is **not** raised here. What catches a creature as its turn begins
+ * is a question about the world the previous creature's end left behind, and
+ * that world does not exist yet. See {@link GameState.pendingTurnStart}.
+ */
+function raiseTurnEnd(state: GameState, before: CombatState, after: CombatState): GameState {
+  const ended = raiseAreaBoundary(
+    state,
+    'end-of-turn',
+    before.order[before.turnIndex]?.id,
+    before.turnsTaken,
+  );
+  const begun = after.order[after.turnIndex]?.id;
+  return begun === undefined
+    ? ended
+    : { ...ended, pendingTurnStart: { who: begun, turn: after.turnsTaken } };
+}
+
+/**
+ * The start of the turn, once the end that preceded it has finished happening.
+ *
+ * Derived after every event rather than emitted, for the reason every derived
+ * pass in this file exists: nobody *decides* that a moment has arrived. What
+ * decides it is that the previous moment owes nothing more — no end-of-turn
+ * area effect outstanding, and no scheduled hit still due at that boundary,
+ * because either can end the very casting this moment would catch somebody by.
+ *
+ * A replay reconstructs it because the fold does: the same log leaves the same
+ * debts outstanding at the same points, so the start arrives at the same event
+ * it arrived at live.
+ *
+ * The common case passes straight through inside the fold of `turn-advanced`
+ * itself — a boundary that owes nothing reaches the start at once, and no
+ * caller learns there were two moments.
+ */
+function reachStartOfTurn(state: GameState): GameState {
+  const pending = state.pendingTurnStart;
+  if (pending === null) return state;
+
+  // A fight that has ended has no start left to arrive, and a marker nothing
+  // could clear would refuse every turn for ever.
+  if (state.combat === null) return { ...state, pendingTurnStart: null };
+
+  const owing = state.owedAreaEffects.some((owed) => owed.moment === 'end-of-turn');
+  if (owing) return state;
+
+  // **A hit the boundary still owes is the other end-of-turn consequence the
+  // engine holds as state**, and SRD Acid Arrow's "at the end of its next
+  // turn" can drop the very caster whose area the next creature is about to
+  // begin their turn in.
+  //
+  // Stated honestly: with today's mechanics this half has **no observable
+  // case**. Every end-of-turn consequence the engine can currently produce
+  // either ends the casting — and `releaseCasting` forgives its debts, so the
+  // answer comes out the same whether the debt was never raised or raised and
+  // dropped — or cannot change who is standing where, because nothing at a
+  // boundary moves anybody. A mutation that removes this line survives, and
+  // that is recorded rather than hidden.
+  //
+  // It stays because the *moment* is genuinely later, not because a test
+  // currently fails without it: the first consequence that moves a creature or
+  // moves an area is the one that would otherwise reintroduce the bug this
+  // whole marker exists to fix.
+  const view = { elapsed: state.elapsed, combat: state.combat };
+  const dueDamage = Object.values(state.scheduledDamage).some((hit) => isDue(view, hit.deadline));
+  if (dueDamage) return state;
+
+  return {
+    ...raiseAreaBoundary(state, 'start-of-turn', pending.who, pending.turn),
+    pendingTurnStart: null,
+  };
 }
 
 /**
@@ -2655,13 +2745,15 @@ function expireEffects(state: GameState): GameState {
 
 export function applyEvent(state: GameState, event: GameEvent): GameState {
   const applied = applyOne(state, event);
-  return dropOrphanedAreaEffects(
-    dropStrandedDamage(
-      dropOrphanedSaves(
-        dropLapsedReady(
-          expireEffects(
-            endLostFeatures(
-              breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+  return reachStartOfTurn(
+    dropOrphanedAreaEffects(
+      dropStrandedDamage(
+        dropOrphanedSaves(
+          dropLapsedReady(
+            expireEffects(
+              endLostFeatures(
+                breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+              ),
             ),
           ),
         ),
@@ -3396,7 +3488,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'turn-advanced': {
       const before = combatOf(state, event);
       const after = advanceTurn(before);
-      return raiseAreaBoundaries(
+      return raiseTurnEnd(
         raiseTurnSaves(withCombat(next, state, after), before, after),
         before,
         after,

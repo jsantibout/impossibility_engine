@@ -133,8 +133,22 @@ export interface OngoingSpell {
    */
   readonly level: number;
   readonly concentration: boolean;
-  /** Which grant supplied it, so a later activation rolls the same numbers. */
+  /**
+   * Which grant supplied it, for the log to be able to say so.
+   *
+   * **Not what a later use rolls with** — that is {@link numbers}. A route name
+   * has to be resolved against a sheet to become a number, and the sheet a
+   * minute later is not the sheet the spell was cast from.
+   */
   readonly route: string | null;
+  /**
+   * The numbers this casting was made with — see {@link CastingNumbers}.
+   *
+   * Pinned rather than re-derived, which is the difference between a Web whose
+   * DC is the one it was conjured at and a Web that gets harder every time its
+   * caster levels.
+   */
+  readonly numbers: CastingNumbers;
   /**
    * The creatures this spell is currently on, sorted.
    *
@@ -202,6 +216,38 @@ export interface OngoingSpell {
    * to be wrong about.
    */
   readonly towards?: Point;
+}
+
+/**
+ * The numbers a casting was made with, fixed at the moment it was made.
+ *
+ * **A spell already cast does not change when its caster does.** Before this,
+ * a later use — an activation, an area catching somebody a minute on — asked
+ * `chooseRoute` against the caster's *current* sheet and derived the DC again.
+ * A Cleric who levelled between conjuring a Web and somebody walking into it
+ * moved the save DC; so did an Ability Score Improvement, a new proficiency
+ * bonus, or preparing the same spell through a second class.
+ *
+ * The four are what later resolution genuinely reads, audited rather than
+ * guessed:
+ *
+ * | | Read by |
+ * |---|---|
+ * | `saveDc` | every saving throw the spell calls for, and every escape check it offers |
+ * | `attackModifier` | a later spell attack — Spiritual Weapon, Vampiric Touch, Flame Blade |
+ * | `spellcastingModifier` | "plus your spellcasting ability modifier" on damage, healing and Temporary Hit Points |
+ * | `casterLevel` | a cantrip's upgrade steps, which are read off the caster's level rather than the slot |
+ *
+ * **Not a snapshot of the sheet**, deliberately. What a spell's later use needs
+ * is these numbers; what it must go on reading live is everything about the
+ * creature it is happening *to*, and everything about the caster that is
+ * genuinely current — a Bless on them now applies now.
+ */
+export interface CastingNumbers {
+  readonly saveDc: number;
+  readonly attackModifier: number;
+  readonly spellcastingModifier: number;
+  readonly casterLevel: number;
 }
 
 /**
