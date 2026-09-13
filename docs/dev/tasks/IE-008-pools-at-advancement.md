@@ -1,11 +1,11 @@
 # IE-008 — Every pool a level grants, granted at advancement
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 3
 parallel-safe: YES beside a spell-resolution task — it is `creation.ts` and the resource pools, touching no spell, no event type and no fold; NO beside another task in `creation.ts` or resource authority
 depends-on: none
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-ac397271e5c2f6353 · worktree-agent-ac397271e5c2f6353
 approved: 2026-09-13 — "APPROVE TRANCHE 3"
 merge-approved: none
 

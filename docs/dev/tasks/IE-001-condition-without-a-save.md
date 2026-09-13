@@ -1,11 +1,11 @@
 # IE-001 — A condition applied with no saving throw
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 3
 parallel-safe: CONDITIONAL — YES beside a mechanism task outside spell resolution (IE-008 is `creation.ts`) and beside conformance; NO beside IE-007 or anything else in `commands/spell-resolution.ts` or the `SpellEffect` union
 depends-on: IE-004, IE-005
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-ae9f51fae889d510b · worktree-agent-ae9f51fae889d510b
 approved: 2026-09-13 — "APPROVE TRANCHE 3"
 merge-approved: none
 

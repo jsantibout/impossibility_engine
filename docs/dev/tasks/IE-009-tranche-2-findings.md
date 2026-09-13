@@ -1,11 +1,11 @@
 # IE-009 — Close out tranche 2's four findings
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: conformance
 tranche: 3
 parallel-safe: YES — one spell test assertion, two prose corrections and one recorded finding; no runtime code, no event, no definition semantics
 depends-on: none
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a32bf711366a7dce4 · worktree-agent-a32bf711366a7dce4
 approved: 2026-09-13 — "APPROVE TRANCHE 3"
 merge-approved: none
 
