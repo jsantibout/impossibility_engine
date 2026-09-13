@@ -92,7 +92,7 @@ still Wizard-shaped are named below.
 | Architecture audit II | An offer is a (reactor, feature) pair; the Ready path’s record; activation guards; retry order; scheduled-damage cleanup | `f2512c7` |
 | Spell origins | A casting holds a point; the attack's origin is not its actor; Spiritual Weapon | `adaf5eb` |
 | Area triggers | A persistent area catches a creature at a boundary or on entering; Insect Plague, Web, Grease, Black Tentacles | `ffd2e44` |
-| Moving areas | An area that arrives at a creature standing still; a route the caller states; Moonbeam | *(this batch)* |
+| Moving areas | An area that arrives at a creature standing still; a route the caller states; Moonbeam | `fa41e34` |
 
 ## Decisions that constrain what comes next
 
