@@ -93,49 +93,126 @@ the third audit already measured, and the one structural helper it adds (the
 duplicate-check wrapper) is named in the brief. Recommendation: APPROVE
 TRANCHE 2.
 
+### Tranche 3 — PROPOSED
+roster: IE-008, IE-001, IE-007, IE-009
+
+Re-audited against the repository as it stands at `ceb11e6`, not against the
+ordering tranche 2 left behind. Two items moved and one is new.
+
+| Role | Task | Lane | Parallel-safe |
+|---|---|---|---|
+| PRIMARY | IE-008 — Every pool a level grants, granted at advancement | mechanism | YES beside spell resolution |
+| PRIMARY | IE-001 — A condition applied with no saving throw | mechanism | CONDITIONAL |
+| SEQUENTIAL | IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts | mechanism | NO beside IE-001 |
+| PARALLEL | IE-009 — Close out tranche 2's four findings | conformance | YES |
+
+**What the re-audit changed.**
+
+- **IE-008 is new and outranks IE-001.** `advanceCharacter` emits pool events
+  for hit dice and spell slots and for neither of the other two kinds
+  `poolEvents` declares at creation, so every feature pool is frozen at the
+  level the character was created at. A Paladin advanced 3 → 4 has 15 points
+  of Lay On Hands instead of 20; a Sorcerer has 3 Sorcery Points instead of
+  4. IE-006's builder found the missing-pool half and worked around it; the
+  wrong-maximum half is larger and nothing had noticed it. A silently wrong
+  number in a shipped path outranks a new capability.
+- **The `resolveCast` `mayAct` guard moves from IE-001 to IE-007.** `NEXT`
+  has said since IE-003 that it rides with the next command-layer mechanism
+  task and named IE-001. After the split that is simply wrong:
+  `resolveCast` is `commands/casting.ts:1051`, which IE-001 does not touch
+  and IE-007 does. Moved, and the reason recorded on IE-007.
+- **IE-001's demand is now measured rather than estimated.** Its brief
+  guessed eighteen candidate spells from a prose scan; IE-002's spell-by-spell
+  pass over all 211 undefined spells is better evidence, and the re-brief
+  tells the builder to start there and expect fewer.
+- **IE-001 and IE-008 are both mechanism and may still run together**, which
+  the old one-owner rule would have forbidden. They share no primitive:
+  IE-008 is `creation.ts` and resource authority, IE-001 is the `SpellEffect`
+  union and `commands/spell-resolution.ts`. This is the first tranche to use
+  what IE-005 bought, and it is used across *modules*, which is the narrower
+  claim `WORKFLOW.md` now makes.
+
+Independence check: PASS. IE-008 touches `creation.ts` and its tests; it adds
+no event type and no fold change. IE-001 touches the `SpellEffect` union at
+the top of `spell-definitions.ts`, `spell-schema.ts`,
+`commands/spell-resolution.ts` and `coverage.ts`. IE-007 touches `events.ts`,
+`spells.ts`, `commands/casting.ts`, `commands/spell-resolution.ts` and
+`invariants.test.ts`. IE-009 touches one spell test file and `CLAUDE.md`.
+Shared files: `CLAUDE.md` across all four and `COVERAGE.md` across two — both
+known mechanical collisions, both sides kept, and tranche 2 is the evidence
+that they rebase clean. IE-001 and IE-007 share `commands/spell-resolution.ts`
+and the union, so they are **sequential, never concurrent**. Dependencies:
+IE-001 on IE-004 and IE-005, both merged; IE-007 on IE-005 and on IE-001;
+IE-008 and IE-009 on nothing.
+
+Maximum concurrent builders: **3** (IE-008, IE-001, IE-009), then IE-007
+alone once IE-001 has merged.
+
+Merge order: IE-009 first (smallest, no runtime code), then IE-008, then
+IE-001, then IE-007 rebased over it. The foreman runs every rebase.
+
+Likely Fable involvement: **one plausible YELLOW, named in advance.** IE-007
+item 2 removes two fields from a persisted record and versions the event
+shape so both frozen logs still fold. If the builder finds that the frozen
+logs cannot fold unchanged, that is a persistence-compatibility question and
+it is Fable's, not the foreman's. IE-008 carries a smaller version of the
+same risk — `golden-log-2.json` contains a real advancement — and its brief
+says to stop and report rather than regenerate. Nothing else is foreseen:
+IE-001 is a member added to a union whose three siblings already spell it,
+and IE-009 is tests and prose.
+
+Deliberately deferred, with reasons:
+
+| Not in this tranche | Why |
+|---|---|
+| Outcome-scoped child effects | Still waiting on its second family. IE-001 is the first, and building the vocabulary from one is the guess the decision record refused |
+| The nine unreachable event types | IE-009 **records** the fact; building commands for them is M2's tool-surface work and wants that surface's shape first |
+| A refusal-code sweep, a feature-definition validator, per-event field schemas | Named in the third audit §3.4–3.5, §3.9; real, and none is a wrong number today |
+| Resistance a spell grants; healing that lifts a condition; teleportation | The ranked map below. Each is a new shape, and this tranche already carries one |
+| The whole-engine audit | Counter is 2 of 4. See below |
+
+**The audit is not pulled forward, and the case for pulling it was
+considered.** IE-008 is a correctness bug that three audits did not find,
+which is an argument. It is not enough of one: the bug is a specific
+divergence between two functions that should agree, not a systemic signal,
+and IE-008's own brief closes the class by requiring one shared derivation
+rather than two lists. What *is* accumulating for the next audit is on the
+task files — a command layer that is now twenty-one modules and a barrel, a
+public surface fourteen names wider, `once` making a guard-above-the-check
+structurally impossible, and a second frozen log covering all 91 event types.
+Four engine tasks is the trigger; this tranche's three mechanism tasks reach
+it, so the audit falls due at the end of this tranche rather than inside it.
+
+Recommendation: APPROVE TRANCHE 3.
+
 ## CURRENT
 
-Nothing. **Tranche 2 is complete** and no tranche is approved, so nothing may
-execute. The next tranche is proposed at Gate 1 and waits for the owner.
+Nothing running. **Tranche 3 is proposed, not approved: nothing may execute.**
+All four tasks are at `OWNER_APPROVAL_REQUIRED`.
 
-Tranche 2 merged in the order it planned: IE-002 (`de45194`), IE-006
-(`2915909`), IE-005 (`4f829e9`), each fast-forward, each verified on `main`
-and pushed. The suite went 5409 → 5508 and `COVERAGE.md` is byte-clean.
-
-**What it cost that the plan did not predict.** IE-005 took six review passes
-rather than three: its builder's three ended `DEFECTS` on two stale doc
-comments, the foreman judged that procedural rather than architectural and
-authorised a fourth on the rebased commit, a fifth fixed one orphaned
-paragraph, and a confirmation pass returned the `PASS`. Tranche 1 made the
-same call for IE-003 on the same evidence, which makes this the second
-instance and worth naming as a pattern: **a reviewer that writes "Escalation
-reason: none" and "Confidence: high" while returning ever-smaller defects has
-run out of rounds, not out of agreement.** The three-round cap is a guard
-against a builder redesigning under review; it is not a verdict.
-
-**And a rebase is the foreman's, not the builder's.** The permission
-classifier refuses `git rebase` to a builder — IE-002 established it and
-IE-005 confirmed it — so every rebase in this tranche was run by the foreman.
-The briefs should stop asking builders to rebase.
+| Task | Lane | Parallel-safe | Tranche |
+|---|---|---|---|
+| [IE-008 — Every pool a level grants, granted at advancement](tasks/IE-008-pools-at-advancement.md) | mechanism | YES beside spell resolution | 3 |
+| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | CONDITIONAL | 3 |
+| [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | NO beside IE-001 | 3 |
+| [IE-009 — Close out tranche 2's four findings](tasks/IE-009-tranche-2-findings.md) | conformance | YES | 3 |
 
 ## NEXT
 
-| Task | Lane | Note |
-|---|---|---|
-| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | **re-brief now due** — IE-005 has landed, so the file surface is `commands/spell-resolution.ts` and the types at the top of `spell-definitions.ts`, not `commands.ts`. One `ConditionRider`, the new kind as its fourth consumer; carries the `resolveCast` guard below. IE-002 measured the demand: Invisibility and Greater Invisibility wait on exactly this |
-| [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | sequential with IE-001 (both in spell resolution and `spells.ts`) |
+Nothing queued behind tranche 3. The order beyond it is `PROGRESS.md`'s
+"Next actions" and the ranked map beneath it — Resistance or Immunity a spell
+grants; healing that lifts a condition or raises the dead; damage with
+neither roll nor save; teleportation; automatic area drift; the standing
+spatial effect; `cause` on events; summons; long casting times — with the
+whole-engine audit falling due first, at four engine tasks.
 
 ## LATER
 
 | Task | Lane | Note |
 |---|---|---|
-| guard `resolveCast` with `mayAct` — IE-003's derived sweep found it unguarded and named it as a debt rather than widening its brief | mechanism | one line plus a sweep entry; rides with IE-001, the next mechanism task that changes behaviour in the command layer, and is needed before M2 exposes `resolveCast` |
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a tranche has room |
-| `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder |
+| `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
-| Produce Flame's die **size** is pinned more weakly than its count — `1d8` → `1d6` survives the level-9 test, because the cap the fixture reads is cleared either way | content | IE-002's reviewer, after the PASS; the number is right, the guard is thin. Assert the novice's ceiling as well. Rides with the next spell test |
-| `advanceCharacter` declares hit-dice and slot pools and **not** a feature pool granted at the new level, so a Fighter advanced 8 → 9 has Indomitable on the sheet and no pool to spend it from | mechanism | IE-006's builder, worked around by creating the fighter at level 9. `poolEvents` handles it at creation (`creation.ts:2423`); `advanceCharacter` (`creation.ts:2661`) does not |
-| nine of the 91 event types are emitted by no command anywhere — `creature-side-declared`, `mounted`, `dismounted`, `free-interaction-used`, `initiative-swapped`, `stabilised`, `creature-died`, `items-lost`, `bonus-removed` | mechanism | IE-006's builder. Each is a fact a DM declares and each is hand-written throughout the suite, so it is a shape rather than a hole — but a tool surface cannot reach any of them, which M2 needs to know |
 
 IE-003's two residuals are discharged: `carriesEvents` now answers
 `'unresolved'` for a union payload with a driven non-vacuity case, and the
@@ -160,4 +237,6 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | workflow change | — | V2: the Opus foreman coordinates, Fable is on call, and the owner's authority moves to the tranche. `docs/dev/WORKFLOW.md` |
 | 2026-09-13 | architectural gate | IE-005 | three builder rounds ended `DEFECTS` on two doc comments; judged procedural, the unreviewed delta inspected, a fourth round authorised on the rebased commit, a fifth for one paragraph, `PASS` at the confirmation pass |
 | 2026-09-13 | workflow change | — | `WORKFLOW.md` "Parallel safety": the command layer is no longer one primitive. One module under `commands/` is; two mechanism tasks in different domains may run concurrently, and still collide on the barrel and `invariants.test.ts` |
+| 2026-09-13 | workflow change | — | Two repeated tranche-2 findings folded into the procedure: **round exhaustion is not a failed review** (the foreman may authorise one further bounded pass when findings are strictly shrinking, confidence high, escalation none and the remainder is not architecture — never manufacturing a PASS, never skipping independent review), and **rebases are the foreman's** (builders finish and report a branch; briefs stop asking them to rebase). `WORKFLOW.md`, `qb-builder.md` |
+| 2026-09-13 | Gate 1 | IE-008, IE-001, IE-007, IE-009 | presented as tranche 3 after a re-audit against `ceb11e6`; awaiting the owner |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |

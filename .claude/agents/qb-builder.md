@@ -99,16 +99,20 @@ If you cannot tell GREEN from YELLOW, it is YELLOW.
 
 ## Before review
 
-1. `git rebase main` — the local `main`, which may have moved while you
-   worked. Resolve conflicts per `CONTRIBUTING.md`'s playbook: regenerate
-   `COVERAGE.md`; keep both registry lines in id order; keep both union
-   members and both reducer arms.
-2. The whole gauntlet, every step passing:
+**Do not rebase.** The permission model refuses you `git rebase`, and the
+rebase is the foreman's job in any case. `main` may move while you work; that
+is expected and is not yours to chase. Build on the base your worktree was
+created at, and report your branch and commit in the digest — the foreman
+rebases and integrates before it merges.
+
+1. The whole gauntlet, every step passing:
    `npm run typecheck && npm run lint && npm test && npm run coverage && git diff --exit-code COVERAGE.md`
-3. **One commit for the task.** Title: an imperative sentence in the repo's
+2. **One commit for the task.** Title: an imperative sentence in the repo's
    style. Body: the decisions, the SRD lines they rest on, the mutation you
-   ran. Rework is folded into that one commit (`git reset --soft main` and
-   recommit), so `main` receives a single commit.
+   ran. Rework is folded into that one commit — reset to your own base, not to
+   `main`, which may have moved past it:
+   `git reset --soft $(git merge-base main HEAD)` and recommit, so `main`
+   receives a single commit.
 
 ## Review, and the rework loop
 

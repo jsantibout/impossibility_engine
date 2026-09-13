@@ -1,13 +1,35 @@
 # IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts
 
-state: PROPOSED
+state: OWNER_APPROVAL_REQUIRED
 lane: mechanism
-tranche: none
-parallel-safe: NO beside IE-001 or any task in spell resolution or `spells.ts`; YES beside conformance and content
-depends-on: IE-005
+tranche: 3
+parallel-safe: NO beside IE-001 — both are in `commands/spell-resolution.ts` and the fold; YES beside IE-008 (`creation.ts`) and IE-009 (tests and prose)
+depends-on: IE-005, IE-001
 worker: none
 approved: none
 merge-approved: none
+
+## Re-brief note (2026-09-13, after tranche 2)
+
+Re-checked against `main` at `ceb11e6`. Every claim below still holds:
+`events.ts` still imports `definitionFor` (`:103`) and still calls it through
+`areaDefinitionOf` at **five** sites (`:2479`, `:2635`, `:2768`, `:2852`,
+`:2936`), so the fold still consults the live catalogue; `route` is still
+written by `commands/casting.ts` at `:530`, `:553` and `:596` and still read
+by nobody on the record.
+
+**Two things changed that the brief must now carry.**
+
+- **The `resolveCast` `mayAct` guard rides here, not with IE-001.** The
+  queue has said since IE-003 that it rides with "the next mechanism task in
+  the command layer", and named IE-001. The split settles it differently:
+  `resolveCast` is `commands/casting.ts:1051`, which IE-001 does not touch
+  and this task does. It is one guard plus the allowlist entry in
+  `invariants.test.ts:1249`, whose text already calls itself "**a named debt
+  rather than a settled exemption**".
+- **There is now a second frozen log**, and it is the one with teeth here:
+  `golden-log-2.json` carries five ongoing castings, two origins and eight
+  timers. Item 2's event-shape change is exactly what it exists to catch.
 
 ## Brief
 
@@ -47,6 +69,12 @@ not shrink on expiry; "until dispelled" spells leave no record; a
    check to consult the log; the builder proposes the smaller of the two.
 6. `PendingMove.feet` and `OwedAreaEffect.turn` dropped, or given a reader
    with a reason.
+7. **`resolveCast` is guarded by `mayAct`**, and its entry in
+   `UNGUARDED_ON_PURPOSE` (`invariants.test.ts:1249`) is removed rather than
+   reworded — the sweep asserts the allowlist in both directions, so a stale
+   exemption fails it. The refusal must come **after** the duplicate check,
+   which this file records eight prior instances of getting wrong, and
+   `once` now makes structurally hard: put the guard inside the callback.
 
 ### Architecture constraints
 
@@ -64,7 +92,9 @@ not shrink on expiry; "until dispelled" spells leave no record; a
 
 ### Dependencies
 
-IE-005 (lands in the split layout); sequential with IE-001.
+IE-005 (`4f829e9`, merged — it lands in the split layout). **Sequential
+after IE-001**, which shares `commands/spell-resolution.ts` and the
+`SpellEffect` union; this task rebases over it.
 
 ### Likely file surface
 

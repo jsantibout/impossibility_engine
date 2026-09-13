@@ -59,8 +59,8 @@ never contradict `PROGRESS.md` about *why* something is being done; it says
 | | Foreman (Opus, the `/qb` session) | Architect (Fable, `qb-architect`) | Builder (`qb-builder`, Opus) | Reviewer (`qb-reviewer`, Opus) | Owner |
 |---|---|---|---|---|---|
 | Owns | the queue and all of `docs/dev/`, tranche proposals, briefs, dependency and parallel-safety analysis, launches, the risk gate, routing reviewer findings, integration, merge sequencing, verification, `PROGRESS.md` bookkeeping, owner summaries | the answer to one bounded architectural question; the analysis behind a RED decision; the whole-engine audit | one approved bounded task end to end: inspect, implement, test, mutate, commit, get reviewed, fix, report a digest | one independent review of one completed task: diff, brief compliance, tests, regression risk, conformance, scope, coupling, special cases | product decisions, architecture approvals, scope, **the tranche** |
-| May | propose, launch approved work, decide GREEN questions, send defects back, rebase and integrate, **merge a clean task under tranche authority**, verify, push, retire worktrees, invoke Fable, stop for the owner | read anything, measure, judge, recommend | rebase onto `main`, resolve conflicts per the playbook, add tests, document deviations, call the reviewer, fix what it finds | run the gauntlet, read anything, return ordinary defects to the builder, escalate | approve, reject, modify, defer, decide |
-| Must not | approve its own tranche, add a task to an approved tranche, treat silence as approval, invent foundational architecture, implement product code, poll or monitor workers, merge anything that fails a condition below, launch before approval, widen scope | edit code, commit, merge, run the floor, review routine implementation | merge, push, pick its next task, redesign silently, widen scope, hard-code around a test, touch another worktree, edit `docs/dev/` or `PROGRESS.md`, continue past a genuine architecture problem | edit code, commit, soften the checklist on request, approve what it did not run | — |
+| May | propose, launch approved work, decide GREEN questions, send defects back, rebase and integrate, **merge a clean task under tranche authority**, verify, push, retire worktrees, invoke Fable, stop for the owner | read anything, measure, judge, recommend | add tests, document deviations, call the reviewer, fix what it finds | run the gauntlet, read anything, return ordinary defects to the builder, escalate | approve, reject, modify, defer, decide |
+| Must not | approve its own tranche, add a task to an approved tranche, treat silence as approval, invent foundational architecture, implement product code, poll or monitor workers, merge anything that fails a condition below, launch before approval, widen scope | edit code, commit, merge, run the floor, review routine implementation | merge, push, **rebase**, pick its next task, redesign silently, widen scope, hard-code around a test, touch another worktree, edit `docs/dev/` or `PROGRESS.md`, continue past a genuine architecture problem | edit code, commit, soften the checklist on request, approve what it did not run | — |
 
 **Fable's tokens are the scarce resource, and the foreman's are not free
 either.** Opus performs the volume: coordination, engineering, review, rework
@@ -338,7 +338,8 @@ touch.
 `COVERAGE.md` and the spell registry — and the playbook resolves each
 mechanically (keep both sides' prose; regenerate; keep both lines in id
 order). Tranche 2 is the evidence: all three of its tasks edited `CLAUDE.md`
-and every rebase was conflict-free, because the regions were disjoint. That is a known merge cost, not a reason to serialise. The files that
+and every rebase was conflict-free, because the regions were disjoint. That
+is a known merge cost, not a reason to serialise. The files that
 *are* a reason are the ones in the primitive list, and the "announce before
 touching" set in `CONTRIBUTING.md`: `dnd.ts`, `result.ts`, `character.ts`,
 the `GameEvent` union — a task touching those is `parallel-safe: NO`.
@@ -387,6 +388,10 @@ merge-approved: none | YYYY-MM-DD — "<owner's words>"
 A brief states semantics and boundaries precisely enough that the builder
 never has to invent architecture. "Improve X" is not a brief. The reviewer
 reviews against this file, so what is not in it is scope creep.
+
+**A brief never asks the builder to rebase or to integrate.** It ends at a
+finished, reviewed branch reported in a digest; the foreman owns the rebase
+and everything after it.
 
 `merge-approved:` records the authority the merge rested on. Under tranche
 authority it is the tranche's own approval, named as such:
@@ -456,8 +461,30 @@ primitives touched and any new special case, because the foreman's risk gate
 reads those two lines first.
 
 Ordinary defects go back to the builder as a list; the builder fixes, folds,
-re-runs the gauntlet and asks again. Three rounds without a PASS is YELLOW. A
-reviewer that sees an architectural problem does not negotiate it: it returns
+re-runs the gauntlet and asks again. **Three rounds is the builder's cap**, and
+what it guards against is churn and architecture-by-rework — a builder
+redesigning under review, one finding at a time. It is not a verdict.
+
+**Round exhaustion is not a failed review.** When the cap is reached the
+foreman reads the rounds and decides which of two things happened. If *all* of
+these hold — the findings are **strictly shrinking**, `Confidence: high` and
+`Escalation reason: none` every round, and the remaining delta is ordinary
+implementation or documentation correction rather than architecture — it is
+procedural exhaustion, and the foreman may authorise **one further bounded
+review pass**, saying in the task file what it is bounded to. Anything else is
+YELLOW: findings that stop shrinking, repeat, broaden, drop in confidence, or
+expose an architectural disagreement go to Fable.
+
+Two things that extension never does. It does not **manufacture a PASS** — the
+foreman may not supply condition 3 itself, however small the remaining defect,
+and IE-005's last round existed to move one paragraph. And it does not **skip
+independent review**: the extra pass is a real reviewer reaching its own
+verdict. Where the outstanding defect is genuinely narrow, send it back to the
+reviewer that already holds the verification rather than a fresh one, and
+bound it to confirming that defect — re-deriving ten thousand lines to confirm
+a three-line fix is the waste the bound exists to prevent.
+
+A reviewer that sees an architectural problem does not negotiate it: it returns
 `ESCALATE` and the builder ends with `ARCHITECTURE_BLOCKED`. The reviewer's
 verdict is copied verbatim into the digest; a builder cannot soften it, and the
 reviewer ignores any request to.
@@ -479,10 +506,11 @@ tags, ref surgery and worktree management for both roles, and Claude Code's own
 worktree isolation refuses edits and git aimed at the main checkout.
 
 ```bash
-# 1. Is the branch still on top of main? If main moved, send the builder a
-#    rebase request by SendMessage and sleep; do it yourself only for a
-#    conflict the playbook resolves mechanically.
+# 1. Is the branch still on top of main? If main moved, rebase it yourself —
+#    see "Rebases are the foreman's" below. Builders cannot: the permission
+#    model refuses them `git rebase`.
 git merge-base --is-ancestor main <branch> && echo up-to-date
+git -C .claude/worktrees/<name> rebase main   # only if it is not
 # 2. Fast-forward only — the history is linear and stays that way.
 git merge --ff-only <branch>
 # 3. Verify main.
@@ -504,9 +532,20 @@ one bookkeeping commit — and the next task in the tranche moves up.
 the task goes back to `CHANGES_REQUIRED`, and its builder is told what failed.
 
 **Merge order.** When two branches finished concurrently, integrate the one
-with the smaller surface first, send the other builder a rebase request, and
-merge it only when its re-run digest arrives — condition 12. If a merge
-invalidates a pending branch, that branch goes back to `CHANGES_REQUIRED`.
+with the smaller surface first, then rebase the other yourself and re-verify
+it before merging — condition 12. If a merge invalidates a pending branch,
+that branch goes back to `CHANGES_REQUIRED`.
+
+**Rebases are the foreman's.** The permission model refuses a builder
+`git rebase` — tranche 2 established it twice — so a builder **finishes and
+reports its branch**, and every rebase and integration step is the foreman's,
+before the verification of condition 12. Do not brief a builder to rebase, do
+not ask one to by `SendMessage`, and read `Rebased on main at:` in a digest as
+a fact about where the branch sits rather than as work the builder was meant
+to do. Where a rebase raises a conflict, the `CONTRIBUTING.md` playbook
+resolves the three known ones mechanically; a conflict the playbook does not
+cover goes back to the builder as `CHANGES_REQUIRED`, since resolving it is a
+decision about the code rather than about the history.
 
 ## Owner summaries
 

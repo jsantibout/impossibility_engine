@@ -1,13 +1,42 @@
 # IE-001 — A condition applied with no saving throw
 
-state: PROPOSED
+state: OWNER_APPROVAL_REQUIRED
 lane: mechanism
-tranche: none
-parallel-safe: CONDITIONAL — beside a content task only; NO beside any other mechanism task, because it changes the `SpellEffect` vocabulary and `resolveEffects`
+tranche: 3
+parallel-safe: CONDITIONAL — YES beside a mechanism task outside spell resolution (IE-008 is `creation.ts`) and beside conformance; NO beside IE-007 or anything else in `commands/spell-resolution.ts` or the `SpellEffect` union
 depends-on: IE-004, IE-005
 worker: none
 approved: none
 merge-approved: none
+
+## Re-brief note (2026-09-13, after tranche 2)
+
+**Both dependencies are merged and the audit note's three conditions are
+now met.** What changed in the repository, checked rather than assumed:
+
+- **The three rider blocks are all in one module.** `applySpellEffect` is
+  `commands/casting.ts:711`; its three call sites are
+  `commands/spell-resolution.ts:927`, `:1251` and `:1327` — the `attack`,
+  `save-damage` and `save` riders. The shared `ConditionRider` type and its
+  option-building helper therefore land in one 1,628-line module rather than
+  across a 10,000-line file, which is what the audit note was waiting for.
+- **The honesty guard is on `main`** (`0536a2b`), and `PARTIAL_SPELLS` is
+  derived from shape adjudications rather than kept by hand — so
+  Invisibility's early-end clause must be adjudicated to a named missing
+  shape, and the acceptance criterion that says it lands in `PARTIAL_SPELLS`
+  is now checkable rather than asserted.
+- **The demand is measured.** IE-002 read all 211 undefined SRD spells one at
+  a time and named this shape as the blocker for Invisibility and Greater
+  Invisibility (`de45194`, and `CLAUDE.md`'s drained-shapes bullet). The
+  brief's own "eighteen spells naming a condition with no saving throw" is
+  the older, looser estimate made by prose scan; **IE-002's list is the
+  better evidence and the builder should read it first.** Expect fewer than
+  eighteen and say which, with the clause that blocks each.
+
+One pointer in the brief below is stale and is corrected here rather than
+rewritten in place: where it says the resolution branch is
+`commands.ts:9370-9430`, read `commands/spell-resolution.ts` around the third
+`applySpellEffect` call site (`:1327`).
 
 ## Audit note (2026-09-13)
 
@@ -183,13 +212,17 @@ tracking, coverage and oracle guards run unchanged and must pass.
 
 ### Dependencies
 
-IE-004 and IE-005, per the audit note.
+IE-004 (`0536a2b`) and IE-005 (`4f829e9`), both merged. Nothing in tranche 3
+blocks it; it is sequential with IE-007, which shares the module.
 
 ### Likely file surface
 
 `packages/engine/src/spell-definitions.ts` (the union at the top; new
-definitions and registry lines below), `spell-schema.ts`, the spell-resolution
-module (the `resolveEffects` branch and the three existing rider blocks),
+definitions and registry lines below), `spell-schema.ts`,
+`packages/engine/src/commands/spell-resolution.ts` (the `resolveEffects`
+branch and the three existing rider blocks at `:927`, `:1251`, `:1327`),
+`packages/engine/src/commands/casting.ts` **only if** the shared rider helper
+belongs beside `applySpellEffect` — say which and why,
 `packages/engine/scripts/coverage.ts`, `spell-schema.test.ts`, one new or
 existing spell test file, `spell-tracking.test.ts` only if a tracked spell
 moves, `CLAUDE.md`, `COVERAGE.md`.
