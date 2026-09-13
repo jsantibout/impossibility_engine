@@ -36,3 +36,9 @@ packages/srd/src/*-index.ts   merge=binary linguist-generated=true
 # conflict here means two branches both moved the goalposts, and it should stop
 # somebody rather than merge quietly. Resolve by taking main's copy untouched.
 packages/engine/fixtures/golden-log.json merge=binary linguist-generated=true
+
+# The second one, on the same terms and for the same reason. It exists because
+# the first predates most of the engine: between them the two cover every event
+# type the reducer declares, and `persistence-2.test.ts` names anything they do
+# not. Also never regenerated — resolve by taking main's copy untouched.
+packages/engine/fixtures/golden-log-2.json merge=binary linguist-generated=true

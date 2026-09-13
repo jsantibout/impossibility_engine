@@ -89,9 +89,13 @@ git fetch origin && git rebase origin/main
 
 Five rules, each here because it has already gone wrong:
 
-1. **Never regenerate `packages/engine/fixtures/golden-log.json`.** Its whole
-   value is that nothing regenerates it. Re-running the generator to make
-   `persistence.test.ts` pass turns a compatibility test into a rubber stamp.
+1. **Never regenerate either frozen log** — `packages/engine/fixtures/golden-log.json`
+   or `packages/engine/fixtures/golden-log-2.json`. Their whole value is that
+   nothing regenerates them. Re-running a generator to make
+   `persistence.test.ts` or `persistence-2.test.ts` pass turns a compatibility
+   test into a rubber stamp. The second fixture exists because the first
+   predates most of the engine: between them they cover every event type the
+   reducer declares, and `persistence-2.test.ts` names anything they do not.
 2. **Always regenerate `COVERAGE.md`** before pushing. CI fails otherwise.
 3. **Claim the item before you start.** One GitHub issue per item from
    `PROGRESS.md`, assigned. Two parallel sessions once wrote Vitriolic Sphere
@@ -103,7 +107,7 @@ Five rules, each here because it has already gone wrong:
 
 ## When something conflicts
 
-The right resolution differs per file. Four of them will not auto-merge at all —
+The right resolution differs per file. Five of them will not auto-merge at all —
 `.gitattributes` marks them `merge=binary` deliberately, so that git stops
 rather than producing a plausible wrong answer.
 
@@ -112,7 +116,7 @@ rather than producing a plausible wrong answer.
 | `COVERAGE.md` | Take either side, then `npm run coverage`. Never hand-merge the numbers — a text merge of the totals produces arithmetic nobody computed. |
 | `package-lock.json` | `git checkout --ours package-lock.json && npm install` |
 | `packages/srd/src/*-index.ts` | Take either side, then `npm run srd:ingest && npm run srd:index` |
-| `golden-log.json` | Take `main`'s copy untouched. Never regenerate. |
+| `golden-log.json`, `golden-log-2.json` | Take `main`'s copy untouched. Never regenerate. |
 | `SPELL_DEFINITIONS` | Keep both lines, in id order. Tests catch duplicates, mis-sorting, and an entry dropped while its definition stays. |
 | `KNOWN_EVENT_TYPES` | Keep both, sorted. `persistence.test.ts` compares it against the union both directions. |
 | `GameEvent` union / reducer switch | Keep both members **and both `case` arms**. A missing arm is a compile error. |

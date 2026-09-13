@@ -1,0 +1,359 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { fold, type GameEvent, type GameState } from './events.js';
+
+/**
+ * The second frozen log, and the half of the vocabulary the first one never
+ * reached.
+ *
+ * `golden-log.json` is 93 events across 35 types and was written before most
+ * of this engine existed. The whole-engine audit of 2026-09-13 (§3.5) counted
+ * what that leaves unwatched: **56 of the 91 event types had no compatibility
+ * fixture at all** — every event carrying state a fold reconstructs for the
+ * five reaction windows, the interruptible casting, the ongoing record, a
+ * moved area origin and the area-trigger debt queue. A schema change to any of
+ * them passed the whole suite.
+ *
+ * So this is a *second* fixture rather than a better one. The first is never
+ * regenerated and neither is this: both are logs the engine wrote on the day
+ * and every later version has to keep folding them or say out loud why not.
+ * `scripts/make-golden-log-2.ts` documents how this one was built and is not a
+ * step in the build — re-running it to make this file pass turns a
+ * compatibility test into a rubber stamp.
+ *
+ * **What it is a log of.** One campaign: four characters built from choices
+ * and one of them levelling in play, a purse and a chain shirt put on and
+ * taken off again, a fight of one that ends when its only combatant leaves,
+ * then a long skirmish — Uncanny Dodge answering a held damage roll,
+ * Indomitable answering a held saving throw, Retaliation answering damage
+ * already dealt, a hit held between its two rolls, a Counterspell interrupting
+ * a declared casting and a second declaration that settles, Grease and a Rogue
+ * walking into it, a death save and a stabilisation — then a Short Rest, a
+ * recovery, a Long Rest interrupted by something in the dark and one that runs
+ * its course, and a second fight that is **saved mid-encounter** with a Web, a
+ * Moonbeam swept along a stated route, four separate Concentrations, a
+ * paralysis, two grants and a damage roll made and not applied.
+ *
+ * **It stops in the middle on purpose.** A log that ends tidily folds to an
+ * empty derived state, and an empty derived state is the same under every
+ * expiry rule there has ever been.
+ */
+
+const here = fileURLToPath(new URL('.', import.meta.url));
+
+const read = (name: string): readonly GameEvent[] =>
+  JSON.parse(readFileSync(`${here}../fixtures/${name}`, 'utf8')) as GameEvent[];
+
+const GOLDEN_2: readonly GameEvent[] = read('golden-log-2.json');
+const GOLDEN_1: readonly GameEvent[] = read('golden-log.json');
+
+/** The seed the fixture was written under. */
+const SEED = 'golden-2';
+
+/** Round-trip through the shape Postgres would store and hand back. */
+const throughJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+describe('the second stored log still folds', () => {
+  it('folds at all', () => {
+    expect(() => fold(SEED, GOLDEN_2)).not.toThrow();
+  });
+
+  it('is worth folding: it is a campaign, not a stub', () => {
+    expect(GOLDEN_2.length).toBeGreaterThanOrEqual(400);
+    expect(new Set(GOLDEN_2.map((e) => e.type)).size).toBeGreaterThanOrEqual(80);
+  });
+
+  /**
+   * The authoritative facts, named one at a time rather than snapshotted as a
+   * blob. A blob fails informatively only to whoever wrote it; these say which
+   * rule moved.
+   */
+  it('folds to the state it has always folded to', () => {
+    const state = fold(SEED, GOLDEN_2);
+
+    // The clock: two fights, an hour of Short Rest and a night of Long Rest.
+    expect(state.elapsed).toBe(40_374);
+    expect(state.combat?.round).toBe(5);
+    expect(state.combat?.turnsTaken).toBe(34);
+
+    // The Initiative order the second fight is in, after a combatant left the
+    // first one and Alert swapped two of them in it.
+    expect(state.combat?.order.map((c) => c.id)).toEqual([
+      'mira',
+      'thorn',
+      'thug',
+      'bram',
+      'nyx',
+      'grim',
+      'zel',
+      'vex',
+    ]);
+
+    // Castings are sequential and their ids are load-bearing for every effect
+    // linked to them, so the count is part of the contract.
+    expect(state.castingsBegun).toBe(15);
+
+    // Idempotency keys survive a reload, or a retry after a restart would be a
+    // second casting.
+    expect(Object.keys(state.appliedCommands)).toHaveLength(142);
+
+    // The generator's own bookkeeping, which is what lets a *live* session
+    // resume its sequence rather than start it again.
+    expect(state.rollsIssued).toBe(38);
+    expect(state.rng).not.toBeNull();
+
+    // Hit points, through a halved blow, a held hit, an acid arrow, a beam, a
+    // Second Wind and two rests.
+    expect(state.creatures.nyx?.vitals.hp).toBe(36);
+    expect(state.creatures.grim?.vitals.hp).toBe(82);
+    expect(state.creatures.thug?.vitals.hp).toBe(72);
+
+    // A creature dropped to 0, stabilised, and then killed by something that
+    // was not hit-point loss.
+    expect(state.creatures.rat?.vitals).toMatchObject({ hp: 0, dead: true });
+
+    // Pools: spent, partly given back by a Short Rest, and wholly by a Long one.
+    expect(state.creatures.bram?.resources.pools['fighter:indomitable']?.spent).toBe(1);
+    expect(state.creatures.bram?.resources.pools['second-wind']?.spent).toBe(0);
+    expect(state.creatures.zel?.resources.pools['sorcery-points']?.spent).toBe(0);
+    expect(state.creatures.mira?.resources.pools['spell-slot:2']?.spent).toBe(1);
+
+    // Rests are spans, and the moment each one earned is a fact the engine
+    // keeps: Sorcerous Restoration reads the first, the sixteen-hour cooldown
+    // reads the second.
+    expect(state.creatures.bram?.lastShortRestAt).toBe(3750);
+    expect(state.creatures.mira?.lastLongRestAt).toBe(40_350);
+
+    // Owning is not wearing: the shirt was bought, put on, and taken off, and
+    // one of the two coils of rope was taken away by the DM.
+    expect(state.creatures.mira?.inventory.map((i) => i.id).sort()).toEqual([
+      'chain-shirt',
+      'mace',
+      'rope',
+    ]);
+    expect(state.creatures.mira?.equipped).toEqual([]);
+    expect(state.creatures.mira?.sheet.armor).toBeNull();
+    expect(state.creatures.thug?.equipped).toEqual(['longsword']);
+
+    // Exhaustion is a flat penalty per level and is nowhere near the sixth.
+    expect(state.creatures.grim?.conditions.exhaustion).toBe(2);
+  });
+
+  /**
+   * The reaction windows, which are the reason this fixture exists. The log is
+   * put away with one open: the damage is rolled, typed, attributed to its
+   * dealer, and not applied.
+   */
+  it('folds a damage window that is still open', () => {
+    const pending = fold(SEED, GOLDEN_2).pendingDamage;
+
+    expect(pending).not.toBeNull();
+    expect(pending?.target).toBe('nyx');
+    expect(pending?.by).toBe('thug');
+    expect(pending?.fromAttack).toBe(true);
+    expect(pending?.reductions).toEqual([]);
+    // An offer is a (reactor, feature) pair, never a reactor.
+    expect(pending?.offers.map((o) => [o.reactor, o.feature])).toEqual([
+      ['nyx', 'rogue:uncanny-dodge'],
+    ]);
+    // Damage is typed components with a roll under each, not a number.
+    const components = pending?.components ?? [];
+    expect(components).toHaveLength(1);
+    expect(components[0]?.type).toBe('slashing');
+    expect(components[0]?.total).toBe(4);
+    // And the roll was one the engine issued, which is where the inviolable
+    // rule actually lives: provenance, not purity.
+    expect(components[0]?.roll?.provenance.source).toBe('engine');
+
+    // And the other windows are shut, which is the half that says the reducer
+    // closed them rather than never having opened them.
+    const state = fold(SEED, GOLDEN_2);
+    expect(state.pendingTest).toBeNull();
+    expect(state.pendingAttack).toBeNull();
+    expect(state.pendingCasting).toBeNull();
+    expect(state.pendingMove).toBeNull();
+  });
+
+  /**
+   * The derived passes, which are the half a later engine version can move
+   * without anybody noticing.
+   */
+  it('folds the derived rules to what they have always derived', () => {
+    const state = fold(SEED, GOLDEN_2);
+
+    // Four separate Concentrations, held by four different casters — which
+    // is what a casting id is for.
+    expect(state.creatures.mira?.concentration?.spell).toBe('Web');
+    expect(state.creatures.thorn?.concentration?.spell).toBe('Moonbeam');
+    expect(state.creatures.vex?.concentration?.spell).toBe('Hold Person');
+    expect(state.creatures.zel?.concentration?.spell).toBe('Blur');
+
+    // What each casting left behind, by casting id. An area holds a point; a
+    // spell on a creature holds the creature; the level is why the record
+    // exists at all, because Dispel Magic reads it.
+    expect(
+      Object.fromEntries(
+        Object.entries(state.ongoing).map(([id, o]) => [id, [o.spellId, o.level, [...o.on]]]),
+      ),
+    ).toEqual({
+      'cast:11': ['web', 2, ['nyx', 'thug']],
+      'cast:12': ['moonbeam', 2, []],
+      'cast:13': ['blur', 2, ['zel']],
+      'cast:14': ['mage-armor', 1, ['zel']],
+      'cast:15': ['hold-person', 2, ['grim']],
+    });
+
+    // The Moonbeam's point is where the stated route left it, three five-foot
+    // legs west of where it was conjured; the Web has not moved.
+    expect(state.ongoing['cast:12']?.origin).toEqual({ x: 275, y: 300, z: 0 });
+    expect(state.ongoing['cast:11']?.origin).toEqual({ x: 260, y: 300, z: 0 });
+
+    // Conditions remember why: the paralysis and the two Restrained all carry
+    // the casting that caused them.
+    expect(state.creatures.grim?.conditions.conditions).toEqual(['incapacitated', 'paralyzed']);
+    expect(state.creatures.nyx?.conditions.conditions).toEqual(['restrained']);
+    expect(state.creatures.thug?.conditions.conditions).toEqual(['restrained']);
+    // Grease's Prone outlives its casting, which is why the rat still has it.
+    expect(state.creatures.rat?.conditions.conditions).toEqual(['prone']);
+
+    // A spell that sets an Armour Class, and one that modifies a roll: both
+    // keyed by the casting, both released through the same door a dispel uses.
+    expect(state.creatures.zel?.armorClasses.map((a) => a.source)).toEqual(['Mage Armor#cast:14']);
+    expect(state.creatures.zel?.rollModifiers?.map((r) => r.source)).toEqual(['Blur#cast:13']);
+
+    // Eight deadlines still waiting: five castings and three condition
+    // instances. Expiry is derived, so a change to when any of them fires
+    // changes this list without changing a single event.
+    expect(Object.keys(state.timers).sort()).toEqual([
+      'casting|cast:11',
+      'casting|cast:12',
+      'casting|cast:13',
+      'casting|cast:14',
+      'casting|cast:15',
+      'condition|grim|paralyzed:Hold Person#cast:15',
+      'condition|nyx|restrained:Web#cast:11',
+      'condition|thug|restrained:Web#cast:11',
+    ]);
+
+    // The paralysis repeats its save at the end of each of the target's turns,
+    // and the hook lives on the timer rather than in the caller's head.
+    expect(state.timers['condition|grim|paralyzed:Hold Person#cast:15']?.repeatSave).toMatchObject({
+      ability: 'wis',
+      onSuccess: 'end-on-target',
+    });
+    // The Web offers a check rather than a repeat save, because tearing free
+    // is an opportunity and a repeat save is an obligation.
+    expect(state.timers['condition|thug|restrained:Web#cast:11']?.check).not.toBeUndefined();
+
+    // Nothing is owed: every area effect the fight raised was settled where it
+    // was raised, which is what the global debt guard insists on.
+    expect(Object.keys(state.pendingSaves)).toHaveLength(0);
+    expect(state.owedAreaEffects).toHaveLength(0);
+  });
+
+  it('folds the same way twice', () => {
+    expect(fold(SEED, GOLDEN_2)).toStrictEqual(fold(SEED, GOLDEN_2));
+  });
+
+  /**
+   * The seed is recorded so a *live* session resumes its generator, never so a
+   * replay can roll again — every outcome is already written down.
+   */
+  it('folds the same way under a different seed', () => {
+    expect(fold('somebody-elses-seed', GOLDEN_2)).toStrictEqual({
+      ...fold(SEED, GOLDEN_2),
+      seed: 'somebody-elses-seed',
+    });
+  });
+});
+
+describe('the second log survives the database', () => {
+  it('folds identically after a round trip through JSON', () => {
+    expect(fold(SEED, throughJson(GOLDEN_2))).toStrictEqual(fold(SEED, GOLDEN_2));
+  });
+
+  it('produces a state that is itself JSON, exactly', () => {
+    const state: GameState = fold(SEED, GOLDEN_2);
+    expect(throughJson(state)).toStrictEqual(state);
+  });
+
+  /** And at every prefix, so a partially-written log is not a special case. */
+  it('round-trips at every prefix of the log', () => {
+    for (let n = 0; n <= GOLDEN_2.length; n += 1) {
+      const prefix = GOLDEN_2.slice(0, n);
+      expect(fold(SEED, throughJson(prefix))).toStrictEqual(fold(SEED, prefix));
+    }
+  });
+});
+
+/**
+ * Every event type the reducer declares, read out of the union it is declared
+ * in — the same reading `persistence.test.ts` does, repeated here rather than
+ * imported, because a test that depends on another test file's private helper
+ * is a test that breaks when that file is tidied.
+ */
+function declaredEventTypes(): readonly string[] {
+  const source = readFileSync(`${here}events.ts`, 'utf8');
+  const found = [...source.matchAll(/readonly type: '([a-z-]+)'/g)].map((m) => m[1]!);
+  return [...new Set(found)].sort();
+}
+
+/**
+ * The types no frozen log exercises, named rather than counted.
+ *
+ * Empty today, which is the point: every one of the ninety-one types the
+ * reducer declares is folded by one of the two fixtures, so a schema change to
+ * any of them has something to break. **This list is a ledger, not a
+ * budget** — an addition to it is a deliberate act saying which type a frozen
+ * log stopped covering and why, and the floor below is what stops it growing
+ * quietly.
+ */
+const UNCOVERED_EVENT_TYPES: readonly string[] = [];
+
+/** What the pair must cover between them, whatever else changes. */
+const COVERAGE_FLOOR = 80;
+
+describe('the frozen logs cover the event vocabulary between them', () => {
+  const used = (log: readonly GameEvent[]): ReadonlySet<string> =>
+    new Set(log.map((e) => e.type));
+
+  it('leaves nothing uncovered but what it names', () => {
+    const covered = new Set([...used(GOLDEN_1), ...used(GOLDEN_2)]);
+    const uncovered = declaredEventTypes().filter((t) => !covered.has(t));
+    expect(uncovered).toEqual([...UNCOVERED_EVENT_TYPES]);
+  });
+
+  it('covers at least the floor the pair was frozen to meet', () => {
+    const declared = declaredEventTypes();
+    const covered = new Set([...used(GOLDEN_1), ...used(GOLDEN_2)]);
+    expect(declared.filter((t) => covered.has(t)).length).toBeGreaterThanOrEqual(COVERAGE_FLOOR);
+  });
+
+  /**
+   * And the second fixture earns its place: it is not a re-run of the first.
+   *
+   * Without this, a future edit could quietly narrow it to the 35 types the
+   * first one already had and both tests above would still pass.
+   */
+  it('is not a second copy of the first', () => {
+    const fresh = [...used(GOLDEN_2)].filter((t) => !used(GOLDEN_1).has(t));
+    expect(fresh.length).toBeGreaterThanOrEqual(50);
+  });
+
+  /**
+   * The first fixture is still the authority for what it covers, and three
+   * types live only there — a Concentration ended by command, and the two
+   * halves of a readied action. Naming them is what stops somebody deciding
+   * the second fixture has made the first redundant.
+   */
+  it('still needs the first fixture', () => {
+    const only = [...used(GOLDEN_1)].filter((t) => !used(GOLDEN_2).has(t)).sort();
+    expect(only).toEqual(['concentration-ended', 'readied-declared', 'readied-released']);
+  });
+
+  it('uses no type the reducer has never declared', () => {
+    const declared = declaredEventTypes();
+    expect([...used(GOLDEN_2)].filter((t) => !declared.includes(t)).sort()).toEqual([]);
+  });
+});

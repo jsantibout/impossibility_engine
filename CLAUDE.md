@@ -110,8 +110,9 @@ lane, say so rather than reaching across.
 
 Four rules that a session will otherwise break, all of them learned here:
 
-- **Never regenerate `packages/engine/fixtures/golden-log.json`.** It is frozen
-  on purpose. Regenerating it to make `persistence.test.ts` pass converts a
+- **Never regenerate `packages/engine/fixtures/golden-log.json`** — nor
+  `golden-log-2.json`. Both are frozen on purpose. Regenerating either to make
+  `persistence.test.ts` or `persistence-2.test.ts` pass converts a
   compatibility test into a rubber stamp, which is worse than deleting it.
 - **Always run `npm run coverage`** after touching a spell definition, and
   commit the result. CI fails on a stale `COVERAGE.md`.
@@ -120,11 +121,12 @@ Four rules that a session will otherwise break, all of them learned here:
 - **Rebase on `main` before pushing**, and keep pull requests to one logical
   change.
 
-Four tracked files are `merge=binary` in `.gitattributes` and will never
-auto-merge: `COVERAGE.md`, `package-lock.json`, `packages/srd/src/*-index.ts`
-and `golden-log.json`. That is deliberate — each is regenerated rather than
-merged, and a text merge of them succeeds while producing something nobody
-computed. `CONTRIBUTING.md` says what to run for each.
+Five tracked paths are `merge=binary` in `.gitattributes` and will never
+auto-merge: `COVERAGE.md`, `package-lock.json`, `packages/srd/src/*-index.ts`,
+`golden-log.json` and `golden-log-2.json`. That is deliberate — each is
+regenerated rather than merged, and a text merge of them succeeds while
+producing something nobody computed. `CONTRIBUTING.md` says what to run for
+each.
 
 ## Development workflow: a foreman, builders, a reviewer, an architect on call
 
@@ -257,6 +259,35 @@ means something emitted an event it should never have emitted.
 the goblin die": a roll that Bless lifted and Cutting Words then cut shows all
 three contributions with their sources and signs, rather than one unexplained
 total. Its consequences arrive as their own events.
+
+**Two frozen logs watch the fold, and it took two because one was not enough.**
+`golden-log.json` is 93 events across 35 types, written before most of this
+engine existed — so 56 of the 91 event types had no compatibility fixture at
+all, and a schema change to any of them passed the whole suite. That is every
+event carrying state a fold reconstructs for the five reaction windows, the
+interruptible casting, the ongoing record, a moved area origin and the
+area-trigger debt queue. `golden-log-2.json` is the other half: 551 events
+across 88 types, a campaign with two fights, two rests and a second encounter
+**saved mid-turn** — four Concentrations, five ongoing castings, eight
+deadlines, a paralysis repeating its save and a damage roll made and not
+applied. Between them the pair covers all 91, and `persistence-2.test.ts`
+carries the list of what they do not as a ledger rather than a count.
+
+Neither is ever regenerated, and the second is not a replacement for the
+first: three types live only in the older log, which a test names so nobody
+concludes it has been superseded. The generators —
+`scripts/make-golden-log.ts` and `make-golden-log-2.ts` — exist so each log is
+readable rather than magic, and are not steps in the build.
+
+**Nine of the ninety-one types are emitted by no command**, and the second
+fixture writes them by hand as the rest of the suite does: allegiance,
+mounting and dismounting, the free object interaction, Alert's Initiative
+swap, a stabilisation, death that is not hit-point loss, an item the DM took
+away and a bonus whose source was no casting. Each is a fact somebody declares
+rather than an outcome the engine computes — and each is still a reducer case
+a fold has to keep handling. `creature-added` is not one of them and is
+hand-written for a different reason: `createCharacter` emits one, but only for
+a creature built from choices, and a thug came from no character sheet.
 
 Condition sets are sorted on the way in, so a replay compares byte for byte
 regardless of the order effects were applied.

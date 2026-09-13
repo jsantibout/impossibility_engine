@@ -1,0 +1,6714 @@
+[
+  {
+    "type": "creature-added",
+    "id": "nyx",
+    "name": "Nyx",
+    "sheet": {
+      "level": 4,
+      "abilities": {
+        "str": 8,
+        "dex": 15,
+        "con": 15,
+        "int": 15,
+        "wis": 12,
+        "cha": 10
+      },
+      "skills": {
+        "arcana": "proficient",
+        "history": "proficient",
+        "stealth": "expertise",
+        "sleight-of-hand": "expertise",
+        "acrobatics": "proficient",
+        "investigation": "proficient",
+        "perception": "proficient"
+      },
+      "saveProficiencies": [
+        "dex",
+        "int"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": false,
+        "heavy": false,
+        "shields": false
+      },
+      "baseSpeed": 30,
+      "weaponProficiencies": [
+        "martial-finesse-or-light",
+        "simple"
+      ],
+      "standing": [
+        {
+          "feature": "rogue:sneak-attack",
+          "name": "Sneak Attack",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "attack-damage",
+            "dice": "2d6",
+            "oncePerTurn": true,
+            "finesseOrRangedWeapon": true,
+            "advantageOrAdjacentAlly": true
+          }
+        }
+      ],
+      "spellcastingAbility": null
+    },
+    "maxHp": 31,
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "character-created",
+    "id": "nyx",
+    "spellcasting": {
+      "classes": [],
+      "granted": [
+        {
+          "spellId": "mage-hand",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "light",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "find-familiar",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+          "slotCasting": true
+        }
+      ]
+    },
+    "initiativeBonuses": [
+      {
+        "source": "Alert",
+        "flat": 2
+      }
+    ],
+    "record": {
+      "classId": "rogue",
+      "subclassId": "thief",
+      "speciesId": "human",
+      "backgroundId": "sage",
+      "level": 4,
+      "choices": {
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "languages": [
+          "Dwarvish",
+          "Orc"
+        ],
+        "alignment": "Neutral",
+        "spellbook": [],
+        "backgroundEquipment": "A",
+        "classEquipment": "A",
+        "hitPoints": {
+          "method": "fixed"
+        },
+        "dmGrants": {
+          "items": [],
+          "goldPieces": 0,
+          "magicItems": [],
+          "note": "the standard package"
+        },
+        "cantrips": [],
+        "preparedSpells": [],
+        "name": "Nyx",
+        "classId": "rogue",
+        "level": 4,
+        "abilities": {
+          "method": "standard-array",
+          "assignment": {
+            "str": 8,
+            "dex": 15,
+            "con": 13,
+            "int": 14,
+            "wis": 12,
+            "cha": 10
+          }
+        },
+        "abilityIncreases": {
+          "con": 2,
+          "int": 1
+        },
+        "classSkills": [
+          "stealth",
+          "sleight-of-hand",
+          "acrobatics",
+          "investigation"
+        ],
+        "subclassId": "thief",
+        "equipped": [],
+        "featureChoices": {
+          "human:skillful": [
+            "perception"
+          ],
+          "rogue:expertise": [
+            "stealth",
+            "sleight-of-hand"
+          ]
+        },
+        "feats": {
+          "sage:magic-initiate-wizard": {
+            "featId": "magic-initiate",
+            "spellList": "wizard",
+            "spellcastingAbility": "int",
+            "cantrips": [
+              "mage-hand",
+              "light"
+            ],
+            "levelOneSpell": "find-familiar"
+          },
+          "human:versatile": {
+            "featId": "alert"
+          },
+          "rogue:ability-score-improvement": {
+            "featId": "savage-attacker"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "items-gained",
+    "id": "nyx",
+    "items": [
+      {
+        "id": "arrows",
+        "quantity": 20
+      },
+      {
+        "id": "backpack",
+        "quantity": 1
+      },
+      {
+        "id": "ball-bearings",
+        "quantity": 1
+      },
+      {
+        "id": "bell",
+        "quantity": 1
+      },
+      {
+        "id": "book",
+        "quantity": 1
+      },
+      {
+        "id": "burglars-pack",
+        "quantity": 1
+      },
+      {
+        "id": "calligraphers-supplies",
+        "quantity": 1
+      },
+      {
+        "id": "candle",
+        "quantity": 10
+      },
+      {
+        "id": "crowbar",
+        "quantity": 1
+      },
+      {
+        "id": "dagger",
+        "quantity": 2
+      },
+      {
+        "id": "lantern-hooded",
+        "quantity": 1
+      },
+      {
+        "id": "leather-armor",
+        "quantity": 1
+      },
+      {
+        "id": "oil",
+        "quantity": 7
+      },
+      {
+        "id": "parchment",
+        "quantity": 8
+      },
+      {
+        "id": "quarterstaff",
+        "quantity": 1
+      },
+      {
+        "id": "quiver",
+        "quantity": 1
+      },
+      {
+        "id": "rations",
+        "quantity": 5
+      },
+      {
+        "id": "robe",
+        "quantity": 1
+      },
+      {
+        "id": "rope",
+        "quantity": 1
+      },
+      {
+        "id": "shortbow",
+        "quantity": 1
+      },
+      {
+        "id": "shortsword",
+        "quantity": 1
+      },
+      {
+        "id": "thieves-tools",
+        "quantity": 1
+      },
+      {
+        "id": "tinderbox",
+        "quantity": 1
+      },
+      {
+        "id": "waterskin",
+        "quantity": 1
+      }
+    ],
+    "source": "starting equipment"
+  },
+  {
+    "type": "coins-changed",
+    "id": "nyx",
+    "copper": 1600,
+    "source": "starting money"
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "nyx",
+    "pool": {
+      "key": "hit-die:d8",
+      "label": "Hit Die (d8)",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "nyx",
+    "pool": {
+      "key": "sage:magic-initiate-wizard:free-cast",
+      "label": "free casting of find-familiar",
+      "max": 1,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "creature-added",
+    "id": "bram",
+    "name": "Bram",
+    "sheet": {
+      "level": 9,
+      "abilities": {
+        "str": 15,
+        "dex": 13,
+        "con": 14,
+        "int": 10,
+        "wis": 13,
+        "cha": 10
+      },
+      "skills": {
+        "arcana": "proficient",
+        "history": "proficient",
+        "athletics": "proficient",
+        "intimidation": "proficient",
+        "perception": "proficient"
+      },
+      "saveProficiencies": [
+        "con",
+        "str"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "weaponProficiencies": [
+        "martial",
+        "simple"
+      ],
+      "standing": [
+        {
+          "feature": "champion:remarkable-athlete",
+          "name": "Remarkable Athlete",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "roll-mode",
+            "modifier": {
+              "mode": "advantage",
+              "selector": {
+                "roll": "initiative",
+                "relation": "roller"
+              }
+            }
+          }
+        },
+        {
+          "feature": "champion:remarkable-athlete",
+          "name": "Remarkable Athlete",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "roll-mode",
+            "modifier": {
+              "mode": "advantage",
+              "selector": {
+                "roll": "ability-check",
+                "relation": "roller",
+                "skill": "athletics"
+              }
+            }
+          }
+        }
+      ],
+      "attacksPerAction": 2,
+      "criticalOn": 19,
+      "reactions": [
+        {
+          "feature": "fighter:indomitable",
+          "name": "Indomitable",
+          "window": "test-rolled",
+          "costsReaction": false,
+          "pool": "fighter:indomitable",
+          "reach": {
+            "kind": "self"
+          },
+          "does": {
+            "kind": "reroll",
+            "bonus": {
+              "kind": "level",
+              "level": 9,
+              "label": "Fighter level"
+            }
+          }
+        }
+      ],
+      "selfHeals": [
+        {
+          "feature": "fighter:second-wind",
+          "name": "Second Wind",
+          "action": "bonus-action",
+          "pool": "second-wind",
+          "dice": "1d10",
+          "plus": {
+            "kind": "level",
+            "level": 9,
+            "label": "Fighter level"
+          }
+        }
+      ],
+      "spellcastingAbility": null
+    },
+    "maxHp": 76,
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "character-created",
+    "id": "bram",
+    "spellcasting": {
+      "classes": [],
+      "granted": [
+        {
+          "spellId": "mage-hand",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "light",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "find-familiar",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+          "slotCasting": true
+        }
+      ]
+    },
+    "initiativeBonuses": [
+      {
+        "source": "Alert",
+        "flat": 4
+      }
+    ],
+    "record": {
+      "classId": "fighter",
+      "subclassId": "champion",
+      "speciesId": "human",
+      "backgroundId": "sage",
+      "level": 9,
+      "choices": {
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "languages": [
+          "Dwarvish",
+          "Orc"
+        ],
+        "alignment": "Neutral",
+        "spellbook": [],
+        "backgroundEquipment": "A",
+        "classEquipment": "A",
+        "hitPoints": {
+          "method": "fixed"
+        },
+        "dmGrants": {
+          "items": [],
+          "goldPieces": 0,
+          "magicItems": [],
+          "note": "the standard package"
+        },
+        "cantrips": [],
+        "preparedSpells": [],
+        "name": "Bram",
+        "classId": "fighter",
+        "level": 9,
+        "abilities": {
+          "method": "standard-array",
+          "assignment": {
+            "str": 15,
+            "dex": 13,
+            "con": 14,
+            "int": 8,
+            "wis": 12,
+            "cha": 10
+          }
+        },
+        "abilityIncreases": {
+          "int": 2,
+          "wis": 1
+        },
+        "classSkills": [
+          "athletics",
+          "intimidation"
+        ],
+        "subclassId": "champion",
+        "equipped": [],
+        "featureChoices": {
+          "human:skillful": [
+            "perception"
+          ]
+        },
+        "feats": {
+          "sage:magic-initiate-wizard": {
+            "featId": "magic-initiate",
+            "spellList": "wizard",
+            "spellcastingAbility": "int",
+            "cantrips": [
+              "mage-hand",
+              "light"
+            ],
+            "levelOneSpell": "find-familiar"
+          },
+          "human:versatile": {
+            "featId": "alert"
+          },
+          "fighter:fighting-style": {
+            "featId": "defense"
+          },
+          "champion:additional-fighting-style": {
+            "featId": "archery"
+          },
+          "fighter:ability-score-improvement": {
+            "featId": "savage-attacker"
+          },
+          "fighter:ability-score-improvement-2": {
+            "featId": "savage-attacker"
+          },
+          "fighter:ability-score-improvement-3": {
+            "featId": "savage-attacker"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "items-gained",
+    "id": "bram",
+    "items": [
+      {
+        "id": "backpack",
+        "quantity": 1
+      },
+      {
+        "id": "book",
+        "quantity": 1
+      },
+      {
+        "id": "calligraphers-supplies",
+        "quantity": 1
+      },
+      {
+        "id": "caltrops",
+        "quantity": 1
+      },
+      {
+        "id": "chain-mail",
+        "quantity": 1
+      },
+      {
+        "id": "crowbar",
+        "quantity": 1
+      },
+      {
+        "id": "dungeoneers-pack",
+        "quantity": 1
+      },
+      {
+        "id": "flail",
+        "quantity": 1
+      },
+      {
+        "id": "greatsword",
+        "quantity": 1
+      },
+      {
+        "id": "javelin",
+        "quantity": 8
+      },
+      {
+        "id": "oil",
+        "quantity": 2
+      },
+      {
+        "id": "parchment",
+        "quantity": 8
+      },
+      {
+        "id": "quarterstaff",
+        "quantity": 1
+      },
+      {
+        "id": "rations",
+        "quantity": 10
+      },
+      {
+        "id": "robe",
+        "quantity": 1
+      },
+      {
+        "id": "rope",
+        "quantity": 1
+      },
+      {
+        "id": "tinderbox",
+        "quantity": 1
+      },
+      {
+        "id": "torch",
+        "quantity": 10
+      },
+      {
+        "id": "waterskin",
+        "quantity": 1
+      }
+    ],
+    "source": "starting equipment"
+  },
+  {
+    "type": "coins-changed",
+    "id": "bram",
+    "copper": 1200,
+    "source": "starting money"
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "bram",
+    "pool": {
+      "key": "hit-die:d10",
+      "label": "Hit Die (d10)",
+      "max": 9,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "bram",
+    "pool": {
+      "key": "sage:magic-initiate-wizard:free-cast",
+      "label": "free casting of find-familiar",
+      "max": 1,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "bram",
+    "pool": {
+      "key": "second-wind",
+      "label": "Second Wind",
+      "max": 3,
+      "recovers": "long-rest",
+      "regainsOnShortRest": 1
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "bram",
+    "pool": {
+      "key": "action-surge",
+      "label": "Action Surge",
+      "max": 1,
+      "recovers": "short-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "bram",
+    "pool": {
+      "key": "fighter:indomitable",
+      "label": "Indomitable",
+      "max": 1,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "creature-added",
+    "id": "zel",
+    "name": "Zel",
+    "sheet": {
+      "level": 5,
+      "abilities": {
+        "str": 8,
+        "dex": 14,
+        "con": 15,
+        "int": 13,
+        "wis": 10,
+        "cha": 15
+      },
+      "skills": {
+        "arcana": "proficient",
+        "history": "proficient",
+        "persuasion": "proficient",
+        "perception": "proficient"
+      },
+      "saveProficiencies": [
+        "cha",
+        "con"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": false,
+        "medium": false,
+        "heavy": false,
+        "shields": false
+      },
+      "baseSpeed": 30,
+      "weaponProficiencies": [
+        "simple"
+      ],
+      "unarmoredDefense": [
+        {
+          "source": "draconic-sorcery:draconic-resilience",
+          "ability": "cha",
+          "shieldAllowed": true
+        }
+      ],
+      "recoveries": [
+        {
+          "feature": "sorcerer:sorcerous-restoration",
+          "name": "Sorcerous Restoration",
+          "pool": "sorcerer:sorcerous-restoration",
+          "restores": "sorcery-points",
+          "upTo": "half-class-level",
+          "classLevel": 5,
+          "moment": "short-rest"
+        }
+      ],
+      "spellcastingAbility": "cha"
+    },
+    "maxHp": 32,
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "character-created",
+    "id": "zel",
+    "spellcasting": {
+      "classes": [
+        {
+          "classId": "sorcerer",
+          "ability": "cha",
+          "cantrips": [
+            "fire-bolt",
+            "ray-of-frost",
+            "shocking-grasp",
+            "acid-splash",
+            "light"
+          ],
+          "prepared": [
+            "burning-hands",
+            "charm-person",
+            "thunderwave",
+            "hold-person",
+            "shatter",
+            "mind-spike",
+            "blur",
+            "fireball",
+            "haste",
+            "alter-self",
+            "chromatic-orb",
+            "command",
+            "dragons-breath"
+          ],
+          "slotKind": "spell"
+        }
+      ],
+      "granted": [
+        {
+          "spellId": "mage-hand",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "light",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "find-familiar",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+          "slotCasting": true
+        }
+      ]
+    },
+    "initiativeBonuses": [
+      {
+        "source": "Alert",
+        "flat": 3
+      }
+    ],
+    "record": {
+      "classId": "sorcerer",
+      "subclassId": "draconic-sorcery",
+      "speciesId": "human",
+      "backgroundId": "sage",
+      "level": 5,
+      "choices": {
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "languages": [
+          "Dwarvish",
+          "Orc"
+        ],
+        "alignment": "Neutral",
+        "spellbook": [],
+        "backgroundEquipment": "A",
+        "classEquipment": "A",
+        "hitPoints": {
+          "method": "fixed"
+        },
+        "dmGrants": {
+          "items": [],
+          "goldPieces": 0,
+          "magicItems": [],
+          "note": "the standard package"
+        },
+        "cantrips": [
+          "fire-bolt",
+          "ray-of-frost",
+          "shocking-grasp",
+          "acid-splash",
+          "light"
+        ],
+        "preparedSpells": [
+          "burning-hands",
+          "charm-person",
+          "thunderwave",
+          "hold-person",
+          "shatter",
+          "mind-spike",
+          "blur",
+          "fireball",
+          "haste"
+        ],
+        "name": "Zel",
+        "classId": "sorcerer",
+        "level": 5,
+        "abilities": {
+          "method": "standard-array",
+          "assignment": {
+            "str": 8,
+            "dex": 14,
+            "con": 13,
+            "int": 12,
+            "wis": 10,
+            "cha": 15
+          }
+        },
+        "abilityIncreases": {
+          "con": 2,
+          "int": 1
+        },
+        "classSkills": [
+          "arcana",
+          "persuasion"
+        ],
+        "subclassId": "draconic-sorcery",
+        "equipped": [],
+        "featureChoices": {
+          "human:skillful": [
+            "perception"
+          ],
+          "sorcerer:metamagic": [
+            "Empowered Spell",
+            "Quickened Spell"
+          ]
+        },
+        "feats": {
+          "sage:magic-initiate-wizard": {
+            "featId": "magic-initiate",
+            "spellList": "wizard",
+            "spellcastingAbility": "int",
+            "cantrips": [
+              "mage-hand",
+              "light"
+            ],
+            "levelOneSpell": "find-familiar"
+          },
+          "human:versatile": {
+            "featId": "alert"
+          },
+          "sorcerer:ability-score-improvement": {
+            "featId": "savage-attacker"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "items-gained",
+    "id": "zel",
+    "items": [
+      {
+        "id": "backpack",
+        "quantity": 1
+      },
+      {
+        "id": "book",
+        "quantity": 1
+      },
+      {
+        "id": "calligraphers-supplies",
+        "quantity": 1
+      },
+      {
+        "id": "caltrops",
+        "quantity": 1
+      },
+      {
+        "id": "crowbar",
+        "quantity": 1
+      },
+      {
+        "id": "dagger",
+        "quantity": 2
+      },
+      {
+        "id": "dungeoneers-pack",
+        "quantity": 1
+      },
+      {
+        "id": "oil",
+        "quantity": 2
+      },
+      {
+        "id": "parchment",
+        "quantity": 8
+      },
+      {
+        "id": "quarterstaff",
+        "quantity": 1
+      },
+      {
+        "id": "rations",
+        "quantity": 10
+      },
+      {
+        "id": "robe",
+        "quantity": 1
+      },
+      {
+        "id": "rope",
+        "quantity": 1
+      },
+      {
+        "id": "spear",
+        "quantity": 1
+      },
+      {
+        "id": "tinderbox",
+        "quantity": 1
+      },
+      {
+        "id": "torch",
+        "quantity": 10
+      },
+      {
+        "id": "waterskin",
+        "quantity": 1
+      }
+    ],
+    "source": "starting equipment"
+  },
+  {
+    "type": "coins-changed",
+    "id": "zel",
+    "copper": 3600,
+    "source": "starting money"
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "zel",
+    "pool": {
+      "key": "hit-die:d6",
+      "label": "Hit Die (d6)",
+      "max": 5,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "zel",
+    "pool": {
+      "key": "spell-slot:1",
+      "label": "level 1 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "zel",
+    "pool": {
+      "key": "spell-slot:2",
+      "label": "level 2 spell slot",
+      "max": 3,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "zel",
+    "pool": {
+      "key": "spell-slot:3",
+      "label": "level 3 spell slot",
+      "max": 2,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "zel",
+    "pool": {
+      "key": "sage:magic-initiate-wizard:free-cast",
+      "label": "free casting of find-familiar",
+      "max": 1,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "zel",
+    "pool": {
+      "key": "sorcery-points",
+      "label": "Sorcery Points",
+      "max": 5,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "zel",
+    "pool": {
+      "key": "sorcerer:sorcerous-restoration",
+      "label": "Sorcerous Restoration",
+      "max": 1,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "creature-added",
+    "id": "grim",
+    "name": "Grim",
+    "sheet": {
+      "level": 10,
+      "abilities": {
+        "str": 15,
+        "dex": 14,
+        "con": 15,
+        "int": 8,
+        "wis": 13,
+        "cha": 10
+      },
+      "skills": {
+        "arcana": "proficient",
+        "history": "proficient",
+        "athletics": "proficient",
+        "survival": "proficient",
+        "intimidation": "proficient",
+        "perception": "proficient"
+      },
+      "saveProficiencies": [
+        "con",
+        "str"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": false,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "weaponProficiencies": [
+        "martial",
+        "simple"
+      ],
+      "unarmoredDefense": [
+        {
+          "source": "barbarian:unarmored-defense",
+          "ability": "con",
+          "shieldAllowed": true
+        }
+      ],
+      "standing": [
+        {
+          "feature": "barbarian:danger-sense",
+          "name": "Danger Sense",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "roll-mode",
+            "modifier": {
+              "mode": "advantage",
+              "selector": {
+                "roll": "saving-throw",
+                "relation": "roller",
+                "ability": "dex"
+              }
+            }
+          },
+          "requires": [
+            {
+              "kind": "not-incapacitated"
+            }
+          ]
+        },
+        {
+          "feature": "barbarian:feral-instinct",
+          "name": "Feral Instinct",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "roll-mode",
+            "modifier": {
+              "mode": "advantage",
+              "selector": {
+                "roll": "initiative",
+                "relation": "roller"
+              }
+            }
+          }
+        },
+        {
+          "feature": "berserker:mindless-rage",
+          "name": "Mindless Rage",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "condition-immunity",
+            "condition": "charmed"
+          },
+          "requires": [
+            {
+              "kind": "feature-active",
+              "feature": "barbarian:rage"
+            }
+          ]
+        },
+        {
+          "feature": "berserker:mindless-rage",
+          "name": "Mindless Rage",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "condition-immunity",
+            "condition": "frightened"
+          },
+          "requires": [
+            {
+              "kind": "feature-active",
+              "feature": "barbarian:rage"
+            }
+          ]
+        },
+        {
+          "feature": "barbarian:rage",
+          "name": "Rage",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "damage-resistance",
+            "damageTypes": [
+              "bludgeoning",
+              "piercing",
+              "slashing"
+            ]
+          },
+          "requires": [
+            {
+              "kind": "feature-active",
+              "feature": "barbarian:rage"
+            }
+          ]
+        },
+        {
+          "feature": "barbarian:rage",
+          "name": "Rage",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "roll-mode",
+            "modifier": {
+              "mode": "advantage",
+              "selector": {
+                "roll": "saving-throw",
+                "relation": "roller",
+                "ability": "str"
+              }
+            }
+          },
+          "requires": [
+            {
+              "kind": "feature-active",
+              "feature": "barbarian:rage"
+            }
+          ]
+        },
+        {
+          "feature": "barbarian:rage",
+          "name": "Rage",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "attack-damage",
+            "usingAbility": "str",
+            "flat": 3
+          },
+          "requires": [
+            {
+              "kind": "feature-active",
+              "feature": "barbarian:rage"
+            }
+          ]
+        }
+      ],
+      "attacksPerAction": 2,
+      "activated": [
+        {
+          "feature": "barbarian:rage",
+          "name": "Rage",
+          "action": "bonus-action",
+          "pool": "rage",
+          "lasts": "end-of-next-turn",
+          "capSeconds": 600,
+          "endsOn": [
+            "incapacitated",
+            "heavy-armor"
+          ],
+          "forbidsCasting": true
+        }
+      ],
+      "reactions": [
+        {
+          "feature": "berserker:retaliation",
+          "name": "Retaliation",
+          "window": "damaged-by-creature",
+          "costsReaction": true,
+          "pool": null,
+          "reach": {
+            "kind": "self"
+          },
+          "does": {
+            "kind": "melee-attack",
+            "withinFeet": 5
+          }
+        }
+      ],
+      "spellcastingAbility": null
+    },
+    "maxHp": 95,
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "character-created",
+    "id": "grim",
+    "spellcasting": {
+      "classes": [],
+      "granted": [
+        {
+          "spellId": "mage-hand",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "light",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "find-familiar",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+          "slotCasting": true
+        }
+      ]
+    },
+    "initiativeBonuses": [
+      {
+        "source": "Alert",
+        "flat": 4
+      }
+    ],
+    "record": {
+      "classId": "barbarian",
+      "subclassId": "path-of-the-berserker",
+      "speciesId": "human",
+      "backgroundId": "sage",
+      "level": 10,
+      "choices": {
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "languages": [
+          "Dwarvish",
+          "Orc"
+        ],
+        "alignment": "Neutral",
+        "spellbook": [],
+        "backgroundEquipment": "A",
+        "classEquipment": "A",
+        "hitPoints": {
+          "method": "fixed"
+        },
+        "dmGrants": {
+          "items": [],
+          "goldPieces": 0,
+          "magicItems": [],
+          "note": "the standard package"
+        },
+        "cantrips": [],
+        "preparedSpells": [],
+        "name": "Grim",
+        "classId": "barbarian",
+        "level": 10,
+        "abilities": {
+          "method": "standard-array",
+          "assignment": {
+            "str": 15,
+            "dex": 14,
+            "con": 13,
+            "int": 8,
+            "wis": 12,
+            "cha": 10
+          }
+        },
+        "abilityIncreases": {
+          "con": 2,
+          "wis": 1
+        },
+        "classSkills": [
+          "athletics",
+          "survival"
+        ],
+        "subclassId": "path-of-the-berserker",
+        "equipped": [],
+        "featureChoices": {
+          "human:skillful": [
+            "perception"
+          ],
+          "barbarian:primal-knowledge": [
+            "intimidation"
+          ]
+        },
+        "feats": {
+          "sage:magic-initiate-wizard": {
+            "featId": "magic-initiate",
+            "spellList": "wizard",
+            "spellcastingAbility": "int",
+            "cantrips": [
+              "mage-hand",
+              "light"
+            ],
+            "levelOneSpell": "find-familiar"
+          },
+          "human:versatile": {
+            "featId": "alert"
+          },
+          "barbarian:ability-score-improvement": {
+            "featId": "savage-attacker"
+          },
+          "barbarian:ability-score-improvement-2": {
+            "featId": "savage-attacker"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "items-gained",
+    "id": "grim",
+    "items": [
+      {
+        "id": "backpack",
+        "quantity": 1
+      },
+      {
+        "id": "bedroll",
+        "quantity": 1
+      },
+      {
+        "id": "book",
+        "quantity": 1
+      },
+      {
+        "id": "calligraphers-supplies",
+        "quantity": 1
+      },
+      {
+        "id": "explorers-pack",
+        "quantity": 1
+      },
+      {
+        "id": "greataxe",
+        "quantity": 1
+      },
+      {
+        "id": "handaxe",
+        "quantity": 4
+      },
+      {
+        "id": "oil",
+        "quantity": 2
+      },
+      {
+        "id": "parchment",
+        "quantity": 8
+      },
+      {
+        "id": "quarterstaff",
+        "quantity": 1
+      },
+      {
+        "id": "rations",
+        "quantity": 10
+      },
+      {
+        "id": "robe",
+        "quantity": 1
+      },
+      {
+        "id": "rope",
+        "quantity": 1
+      },
+      {
+        "id": "tinderbox",
+        "quantity": 1
+      },
+      {
+        "id": "torch",
+        "quantity": 10
+      },
+      {
+        "id": "waterskin",
+        "quantity": 1
+      }
+    ],
+    "source": "starting equipment"
+  },
+  {
+    "type": "coins-changed",
+    "id": "grim",
+    "copper": 2300,
+    "source": "starting money"
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "grim",
+    "pool": {
+      "key": "hit-die:d12",
+      "label": "Hit Die (d12)",
+      "max": 10,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "grim",
+    "pool": {
+      "key": "sage:magic-initiate-wizard:free-cast",
+      "label": "free casting of find-familiar",
+      "max": 1,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "grim",
+    "pool": {
+      "key": "rage",
+      "label": "Rage",
+      "max": 4,
+      "recovers": "long-rest",
+      "regainsOnShortRest": 1
+    }
+  },
+  {
+    "type": "hit-point-maximum-raised",
+    "id": "nyx",
+    "amount": 7
+  },
+  {
+    "type": "resource-pool-resized",
+    "id": "nyx",
+    "key": "hit-die:d8",
+    "max": 5
+  },
+  {
+    "type": "character-advanced",
+    "id": "nyx",
+    "sheet": {
+      "level": 5,
+      "abilities": {
+        "str": 8,
+        "dex": 15,
+        "con": 15,
+        "int": 15,
+        "wis": 12,
+        "cha": 10
+      },
+      "skills": {
+        "arcana": "proficient",
+        "history": "proficient",
+        "stealth": "expertise",
+        "sleight-of-hand": "expertise",
+        "acrobatics": "proficient",
+        "investigation": "proficient",
+        "perception": "proficient"
+      },
+      "saveProficiencies": [
+        "dex",
+        "int"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": false,
+        "heavy": false,
+        "shields": false
+      },
+      "baseSpeed": 30,
+      "weaponProficiencies": [
+        "martial-finesse-or-light",
+        "simple"
+      ],
+      "standing": [
+        {
+          "feature": "rogue:sneak-attack",
+          "name": "Sneak Attack",
+          "reach": {
+            "kind": "self"
+          },
+          "grant": {
+            "kind": "attack-damage",
+            "dice": "3d6",
+            "oncePerTurn": true,
+            "finesseOrRangedWeapon": true,
+            "advantageOrAdjacentAlly": true
+          }
+        }
+      ],
+      "reactions": [
+        {
+          "feature": "rogue:uncanny-dodge",
+          "name": "Uncanny Dodge",
+          "window": "damage-rolled",
+          "costsReaction": true,
+          "pool": null,
+          "reach": {
+            "kind": "self"
+          },
+          "requiresSight": true,
+          "does": {
+            "kind": "reduce-damage",
+            "amount": {
+              "halve": true
+            },
+            "fromAttackOnly": true
+          }
+        }
+      ],
+      "spellcastingAbility": null
+    },
+    "spellcasting": {
+      "classes": [],
+      "granted": [
+        {
+          "spellId": "mage-hand",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "light",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": null,
+          "slotCasting": false
+        },
+        {
+          "spellId": "find-familiar",
+          "source": "sage:magic-initiate-wizard",
+          "ability": "int",
+          "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+          "slotCasting": true
+        }
+      ]
+    },
+    "initiativeBonuses": [
+      {
+        "source": "Alert",
+        "flat": 3
+      }
+    ],
+    "record": {
+      "classId": "rogue",
+      "subclassId": "thief",
+      "speciesId": "human",
+      "backgroundId": "sage",
+      "level": 5,
+      "choices": {
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "languages": [
+          "Dwarvish",
+          "Orc"
+        ],
+        "alignment": "Neutral",
+        "spellbook": [],
+        "backgroundEquipment": "A",
+        "classEquipment": "A",
+        "hitPoints": {
+          "method": "fixed"
+        },
+        "dmGrants": {
+          "items": [],
+          "goldPieces": 0,
+          "magicItems": [],
+          "note": "the standard package"
+        },
+        "cantrips": [],
+        "preparedSpells": [],
+        "name": "Nyx",
+        "classId": "rogue",
+        "level": 5,
+        "abilities": {
+          "method": "standard-array",
+          "assignment": {
+            "str": 8,
+            "dex": 15,
+            "con": 13,
+            "int": 14,
+            "wis": 12,
+            "cha": 10
+          }
+        },
+        "abilityIncreases": {
+          "con": 2,
+          "int": 1
+        },
+        "classSkills": [
+          "stealth",
+          "sleight-of-hand",
+          "acrobatics",
+          "investigation"
+        ],
+        "subclassId": "thief",
+        "equipped": [],
+        "featureChoices": {
+          "human:skillful": [
+            "perception"
+          ],
+          "rogue:expertise": [
+            "stealth",
+            "sleight-of-hand"
+          ]
+        },
+        "feats": {
+          "sage:magic-initiate-wizard": {
+            "featId": "magic-initiate",
+            "spellList": "wizard",
+            "spellcastingAbility": "int",
+            "cantrips": [
+              "mage-hand",
+              "light"
+            ],
+            "levelOneSpell": "find-familiar"
+          },
+          "human:versatile": {
+            "featId": "alert"
+          },
+          "rogue:ability-score-improvement": {
+            "featId": "savage-attacker"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "creature-added",
+    "id": "mira",
+    "name": "mira",
+    "sheet": {
+      "level": 9,
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 14,
+        "int": 12,
+        "wis": 18,
+        "cha": 12
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 60,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "party"
+  },
+  {
+    "type": "creature-added",
+    "id": "thorn",
+    "name": "thorn",
+    "sheet": {
+      "level": 9,
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 14,
+        "int": 12,
+        "wis": 18,
+        "cha": 12
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 60,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "party"
+  },
+  {
+    "type": "creature-added",
+    "id": "vex",
+    "name": "vex",
+    "sheet": {
+      "level": 9,
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 14,
+        "int": 12,
+        "wis": 18,
+        "cha": 12
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 60,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "foes"
+  },
+  {
+    "type": "creature-added",
+    "id": "thug",
+    "name": "thug",
+    "sheet": {
+      "level": 9,
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 14,
+        "int": 12,
+        "wis": 18,
+        "cha": 12
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 140,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "foes"
+  },
+  {
+    "type": "creature-added",
+    "id": "rat",
+    "name": "rat",
+    "sheet": {
+      "level": 9,
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 14,
+        "int": 12,
+        "wis": 18,
+        "cha": 12
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 9,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "foes"
+  },
+  {
+    "type": "creature-added",
+    "id": "pony",
+    "name": "pony",
+    "sheet": {
+      "level": 9,
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 14,
+        "int": 12,
+        "wis": 18,
+        "cha": 12
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 60,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 20,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "party"
+  },
+  {
+    "type": "creature-added",
+    "id": "stray",
+    "name": "stray",
+    "sheet": {
+      "level": 9,
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 14,
+        "int": 12,
+        "wis": 18,
+        "cha": 12
+      },
+      "skills": {},
+      "saveProficiencies": [
+        "wis"
+      ],
+      "armor": null,
+      "shield": null,
+      "armorTraining": {
+        "light": true,
+        "medium": true,
+        "heavy": true,
+        "shields": true
+      },
+      "baseSpeed": 30,
+      "spellcastingAbility": "wis",
+      "weaponProficiencies": [
+        "simple",
+        "martial"
+      ]
+    },
+    "maxHp": 12,
+    "diesAtZero": false,
+    "creatureType": "Humanoid",
+    "side": "foes"
+  },
+  {
+    "type": "creature-side-declared",
+    "id": "nyx",
+    "side": "party"
+  },
+  {
+    "type": "creature-side-declared",
+    "id": "bram",
+    "side": "party"
+  },
+  {
+    "type": "creature-side-declared",
+    "id": "zel",
+    "side": "party"
+  },
+  {
+    "type": "creature-side-declared",
+    "id": "grim",
+    "side": "party"
+  },
+  {
+    "type": "spellcasting-declared",
+    "id": "mira",
+    "spellcasting": {
+      "classes": [
+        {
+          "classId": "innate",
+          "ability": "wis",
+          "cantrips": [
+            "sacred-flame"
+          ],
+          "prepared": [
+            "bless",
+            "mage-armor",
+            "dispel-magic",
+            "counterspell",
+            "acid-arrow",
+            "web",
+            "cure-wounds",
+            "healing-word",
+            "black-tentacles"
+          ],
+          "slotKind": "spell"
+        }
+      ],
+      "granted": []
+    }
+  },
+  {
+    "type": "spellcasting-declared",
+    "id": "thorn",
+    "spellcasting": {
+      "classes": [
+        {
+          "classId": "innate",
+          "ability": "wis",
+          "cantrips": [
+            "sacred-flame"
+          ],
+          "prepared": [
+            "moonbeam",
+            "grease"
+          ],
+          "slotKind": "spell"
+        }
+      ],
+      "granted": []
+    }
+  },
+  {
+    "type": "spellcasting-declared",
+    "id": "vex",
+    "spellcasting": {
+      "classes": [
+        {
+          "classId": "innate",
+          "ability": "wis",
+          "cantrips": [
+            "fire-bolt"
+          ],
+          "prepared": [
+            "hold-person",
+            "bane"
+          ],
+          "slotKind": "spell"
+        }
+      ],
+      "granted": []
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "mira",
+    "pool": {
+      "key": "spell-slot:1",
+      "label": "level 1 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "mira",
+    "pool": {
+      "key": "spell-slot:2",
+      "label": "level 2 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "mira",
+    "pool": {
+      "key": "spell-slot:3",
+      "label": "level 3 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "mira",
+    "pool": {
+      "key": "spell-slot:4",
+      "label": "level 4 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "mira",
+    "pool": {
+      "key": "spell-slot:5",
+      "label": "level 5 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "thorn",
+    "pool": {
+      "key": "spell-slot:1",
+      "label": "level 1 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "thorn",
+    "pool": {
+      "key": "spell-slot:2",
+      "label": "level 2 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "thorn",
+    "pool": {
+      "key": "spell-slot:3",
+      "label": "level 3 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "thorn",
+    "pool": {
+      "key": "spell-slot:4",
+      "label": "level 4 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "thorn",
+    "pool": {
+      "key": "spell-slot:5",
+      "label": "level 5 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "vex",
+    "pool": {
+      "key": "spell-slot:1",
+      "label": "level 1 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "vex",
+    "pool": {
+      "key": "spell-slot:2",
+      "label": "level 2 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "vex",
+    "pool": {
+      "key": "spell-slot:3",
+      "label": "level 3 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "vex",
+    "pool": {
+      "key": "spell-slot:4",
+      "label": "level 4 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "resource-pool-declared",
+    "id": "vex",
+    "pool": {
+      "key": "spell-slot:5",
+      "label": "level 5 spell slot",
+      "max": 4,
+      "recovers": "long-rest"
+    }
+  },
+  {
+    "type": "scene-set",
+    "extent": {
+      "width": 900,
+      "depth": 900,
+      "height": 60
+    }
+  },
+  {
+    "type": "landmark-added",
+    "name": "the font",
+    "at": {
+      "x": 200,
+      "y": 300,
+      "z": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "mira",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 200,
+          "y": 300,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "thorn",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 200,
+          "y": 310,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "zel",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 200,
+          "y": 295,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "pony",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 200,
+          "y": 315,
+          "z": 0
+        }
+      },
+      "feet": 0,
+      "size": "large"
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "nyx",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 250,
+          "y": 300,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "thug",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 255,
+          "y": 300,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "rat",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 260,
+          "y": 300,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "bram",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 255,
+          "y": 305,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "grim",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 250,
+          "y": 305,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "vex",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 240,
+          "y": 340,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "creature-placed",
+    "id": "stray",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 300,
+          "y": 340,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "mira",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thorn",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "zel",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "pony",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "nyx",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "thug",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "rat",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "bram",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "grim",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "vex",
+    "to": "stray",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "mira",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "thorn",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "zel",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "pony",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "nyx",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "thug",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "rat",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "bram",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "grim",
+    "seen": true
+  },
+  {
+    "type": "sight-declared",
+    "from": "stray",
+    "to": "vex",
+    "seen": true
+  },
+  {
+    "type": "cover-declared",
+    "from": "thug",
+    "to": "mira",
+    "degree": "half"
+  },
+  {
+    "type": "creature-type-declared",
+    "id": "thug",
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "creature-type-declared",
+    "id": "rat",
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "creature-type-declared",
+    "id": "vex",
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "creature-type-declared",
+    "id": "stray",
+    "creatureType": "Humanoid"
+  },
+  {
+    "type": "items-gained",
+    "id": "thug",
+    "items": [
+      {
+        "id": "longsword",
+        "quantity": 1
+      }
+    ],
+    "source": "the gang"
+  },
+  {
+    "type": "item-equipped",
+    "id": "thug",
+    "item": "longsword"
+  },
+  {
+    "type": "items-gained",
+    "id": "mira",
+    "items": [
+      {
+        "id": "chain-shirt",
+        "quantity": 1
+      },
+      {
+        "id": "mace",
+        "quantity": 1
+      }
+    ],
+    "source": "the vestry"
+  },
+  {
+    "type": "coins-changed",
+    "id": "mira",
+    "copper": 40000,
+    "source": "a patron"
+  },
+  {
+    "type": "items-gained",
+    "id": "mira",
+    "items": [
+      {
+        "id": "rope",
+        "quantity": 2
+      }
+    ],
+    "source": "bought 2 × Rope",
+    "command": {
+      "id": "buy-rope",
+      "fingerprint": "purchase:mira|{\"commandId\":\"buy-rope\",\"itemId\":\"rope\",\"quantity\":2}"
+    }
+  },
+  {
+    "type": "coins-changed",
+    "id": "mira",
+    "copper": -200,
+    "source": "bought Rope"
+  },
+  {
+    "type": "item-equipped",
+    "id": "mira",
+    "item": "chain-shirt",
+    "command": {
+      "id": "wear-shirt",
+      "fingerprint": "equip:mira|{\"commandId\":\"wear-shirt\",\"itemId\":\"chain-shirt\"}"
+    }
+  },
+  {
+    "type": "item-unequipped",
+    "id": "mira",
+    "item": "chain-shirt",
+    "command": {
+      "id": "doff-shirt",
+      "fingerprint": "unequip:mira|{\"commandId\":\"doff-shirt\",\"itemId\":\"chain-shirt\"}"
+    }
+  },
+  {
+    "type": "mounted",
+    "rider": "thorn",
+    "mount": "pony",
+    "willing": true
+  },
+  {
+    "type": "dismounted",
+    "rider": "thorn",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 200,
+          "y": 310,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "combat-started",
+    "combatants": [
+      {
+        "id": "stray",
+        "initiative": 11,
+        "speed": 30
+      }
+    ]
+  },
+  {
+    "type": "creature-unplaced",
+    "id": "stray"
+  },
+  {
+    "type": "combat-ended"
+  },
+  {
+    "type": "creature-removed",
+    "id": "stray",
+    "command": {
+      "id": "stray-goes",
+      "fingerprint": "remove:stray|{\"commandId\":\"stray-goes\"}"
+    }
+  },
+  {
+    "type": "combat-started",
+    "combatants": [
+      {
+        "id": "thug",
+        "initiative": 22,
+        "speed": 30
+      },
+      {
+        "id": "mira",
+        "initiative": 20,
+        "speed": 30
+      },
+      {
+        "id": "bram",
+        "initiative": 18,
+        "speed": 30
+      },
+      {
+        "id": "nyx",
+        "initiative": 16,
+        "speed": 30
+      },
+      {
+        "id": "zel",
+        "initiative": 14,
+        "speed": 30
+      },
+      {
+        "id": "grim",
+        "initiative": 12,
+        "speed": 30
+      },
+      {
+        "id": "thorn",
+        "initiative": 10,
+        "speed": 30
+      },
+      {
+        "id": "vex",
+        "initiative": 8,
+        "speed": 30
+      },
+      {
+        "id": "rat",
+        "initiative": 6,
+        "speed": 20
+      },
+      {
+        "id": "pony",
+        "initiative": 4,
+        "speed": 60
+      }
+    ]
+  },
+  {
+    "type": "free-interaction-used",
+    "id": "thug"
+  },
+  {
+    "type": "initiative-swapped",
+    "a": "nyx",
+    "b": "bram"
+  },
+  {
+    "type": "attack-made",
+    "id": "thug"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Longsword attack",
+    "natural": 5,
+    "total": 50,
+    "contributions": [
+      {
+        "source": "attack",
+        "amount": 45
+      }
+    ],
+    "outcome": "hit",
+    "command": {
+      "id": "swing-1",
+      "fingerprint": "attack:thug|{\"attackBonuses\":[{\"flat\":40,\"source\":\"the fixture insists\"}],\"commandId\":\"swing-1\",\"target\":\"nyx\",\"weapon\":\"longsword\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 2,
+    "rng": [
+      978919521,
+      709479869,
+      488397900,
+      -682465630
+    ]
+  },
+  {
+    "type": "damage-rolled",
+    "damage": {
+      "target": "nyx",
+      "by": "thug",
+      "source": "Longsword",
+      "components": [
+        {
+          "source": "Longsword",
+          "type": "slashing",
+          "roll": {
+            "notation": {
+              "count": 1,
+              "sides": 8,
+              "modifier": 0,
+              "keep": null
+            },
+            "dice": [
+              {
+                "index": 0,
+                "sides": 8,
+                "rolled": 4,
+                "value": 4,
+                "disposition": "counted",
+                "origin": "initial",
+                "cause": null,
+                "replaces": null
+              }
+            ],
+            "modifier": 0,
+            "total": 4,
+            "provenance": {
+              "id": "h:2",
+              "source": "engine",
+              "note": null
+            }
+          },
+          "flat": 1,
+          "total": 5
+        }
+      ],
+      "critical": false,
+      "fromAttack": true,
+      "reductions": [],
+      "offers": [
+        {
+          "reactor": "nyx",
+          "feature": "rogue:uncanny-dodge",
+          "name": "Uncanny Dodge",
+          "costsReaction": true,
+          "pool": null
+        }
+      ]
+    }
+  },
+  {
+    "type": "reaction-spent",
+    "id": "nyx"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "nyx",
+    "label": "Uncanny Dodge",
+    "natural": 0,
+    "total": 3,
+    "contributions": [
+      {
+        "source": "halved",
+        "amount": 3
+      }
+    ],
+    "outcome": "3 damage prevented"
+  },
+  {
+    "type": "damage-reaction-answered",
+    "reactor": "nyx",
+    "took": true,
+    "feature": "rogue:uncanny-dodge",
+    "reduction": {
+      "source": "Uncanny Dodge",
+      "roll": null,
+      "amount": 3
+    },
+    "command": {
+      "id": "dodge-1",
+      "fingerprint": "damage-reaction:nyx|{\"commandId\":\"dodge-1\",\"feature\":\"rogue:uncanny-dodge\"}"
+    }
+  },
+  {
+    "type": "damage-settled",
+    "target": "nyx",
+    "command": {
+      "id": "settle-1",
+      "fingerprint": "settle-damage|{\"commandId\":\"settle-1\"}"
+    }
+  },
+  {
+    "type": "damage-taken",
+    "id": "nyx",
+    "amount": 2,
+    "source": "Longsword",
+    "by": "thug"
+  },
+  {
+    "type": "damage-taken",
+    "id": "grim",
+    "amount": 7,
+    "source": "a backhand",
+    "by": "thug",
+    "command": {
+      "id": "backhand",
+      "fingerprint": "damage:grim|{\"amount\":7,\"by\":\"thug\",\"commandId\":\"backhand\",\"source\":\"a backhand\"}"
+    }
+  },
+  {
+    "type": "reaction-spent",
+    "id": "grim"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "grim",
+    "label": "Unarmed Strike attack",
+    "natural": 5,
+    "total": 11,
+    "contributions": [
+      {
+        "source": "attack",
+        "amount": 6
+      }
+    ],
+    "outcome": "miss"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      710732123,
+      100613804,
+      -981927861,
+      -682465629
+    ]
+  },
+  {
+    "type": "reaction-taken",
+    "reactor": "grim",
+    "window": "damaged-by-creature",
+    "feature": "berserker:retaliation",
+    "against": "thug",
+    "command": {
+      "id": "retaliate",
+      "fingerprint": "damage-response:grim|{\"commandId\":\"retaliate\",\"feature\":\"berserker:retaliation\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-mira-0",
+      "fingerprint": "turn|{\"commandId\":\"to-mira-0\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "mira"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:1",
+    "id": "mira",
+    "spell": "Bless",
+    "level": 1,
+    "slot": {
+      "key": "spell-slot:1",
+      "level": 1
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:innate",
+    "command": {
+      "id": "bless-1",
+      "fingerprint": "resolve-spell:mira|{\"commandId\":\"bless-1\",\"slotLevel\":1,\"spellId\":\"bless\",\"targets\":[\"mira\",\"thorn\",\"zel\"]}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "mira",
+    "castingId": "cast:1",
+    "spell": "Bless",
+    "level": 1
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:1"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 60
+    }
+  },
+  {
+    "type": "bonus-applied",
+    "id": "mira",
+    "bonus": {
+      "source": "Bless#cast:1",
+      "bonus": {
+        "source": "Bless",
+        "dice": "1d4"
+      },
+      "applies": [
+        "attack",
+        "save"
+      ],
+      "direction": "add"
+    }
+  },
+  {
+    "type": "bonus-applied",
+    "id": "thorn",
+    "bonus": {
+      "source": "Bless#cast:1",
+      "bonus": {
+        "source": "Bless",
+        "dice": "1d4"
+      },
+      "applies": [
+        "attack",
+        "save"
+      ],
+      "direction": "add"
+    }
+  },
+  {
+    "type": "bonus-applied",
+    "id": "zel",
+    "bonus": {
+      "source": "Bless#cast:1",
+      "bonus": {
+        "source": "Bless",
+        "dice": "1d4"
+      },
+      "applies": [
+        "attack",
+        "save"
+      ],
+      "direction": "add"
+    }
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:1",
+      "caster": "mira",
+      "spellId": "bless",
+      "spell": "Bless",
+      "level": 1,
+      "concentration": true,
+      "route": "class:innate",
+      "numbers": {
+        "attackModifier": 8,
+        "saveDc": 16,
+        "spellcastingModifier": 4,
+        "casterLevel": 9
+      },
+      "on": [
+        "mira",
+        "thorn",
+        "zel"
+      ]
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-bram-0",
+      "fingerprint": "turn|{\"commandId\":\"to-bram-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-bram-1",
+      "fingerprint": "turn|{\"commandId\":\"to-bram-1\"}"
+    }
+  },
+  {
+    "type": "roll-recorded",
+    "who": "bram",
+    "label": "Dexterity save",
+    "natural": 1,
+    "total": 2,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": 1
+      }
+    ],
+    "outcome": "failure",
+    "command": {
+      "id": "save-1",
+      "fingerprint": "test:bram|{\"ability\":\"dex\",\"commandId\":\"save-1\",\"dc\":40,\"kind\":\"saving-throw\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      100516147,
+      -247416157,
+      287784393,
+      -682465628
+    ]
+  },
+  {
+    "type": "test-rolled",
+    "test": {
+      "who": "bram",
+      "label": "Dexterity save",
+      "result": {
+        "kind": "saving-throw",
+        "ability": "dex",
+        "skill": null,
+        "dc": 40,
+        "mode": "normal",
+        "modeSources": [],
+        "roll": {
+          "rolls": [
+            1
+          ],
+          "natural": 1,
+          "mode": "normal",
+          "modifier": 1,
+          "total": 2,
+          "isCriticalHit": false,
+          "isCriticalMiss": true,
+          "provenance": {
+            "id": "h:4",
+            "source": "engine",
+            "note": null
+          }
+        },
+        "rolls": [
+          1
+        ],
+        "natural": 1,
+        "modifier": 1,
+        "bonuses": [],
+        "total": 2,
+        "autoFailed": null,
+        "success": false,
+        "margin": -38
+      },
+      "offers": [
+        {
+          "reactor": "bram",
+          "feature": "fighter:indomitable",
+          "name": "Indomitable",
+          "costsReaction": false,
+          "pool": "fighter:indomitable"
+        }
+      ]
+    }
+  },
+  {
+    "type": "resource-spent",
+    "id": "bram",
+    "key": "fighter:indomitable",
+    "amount": 1
+  },
+  {
+    "type": "roll-recorded",
+    "who": "bram",
+    "label": "Dexterity save (Indomitable)",
+    "natural": 17,
+    "total": 27,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": 10
+      }
+    ],
+    "outcome": "failure"
+  },
+  {
+    "type": "test-reaction-answered",
+    "reactor": "bram",
+    "took": true,
+    "feature": "fighter:indomitable",
+    "result": {
+      "kind": "saving-throw",
+      "ability": "dex",
+      "skill": null,
+      "dc": 40,
+      "mode": "normal",
+      "modeSources": [],
+      "roll": {
+        "rolls": [
+          17
+        ],
+        "natural": 17,
+        "mode": "normal",
+        "modifier": 10,
+        "total": 27,
+        "isCriticalHit": false,
+        "isCriticalMiss": false,
+        "provenance": {
+          "id": "h:5",
+          "source": "engine",
+          "note": null
+        }
+      },
+      "rolls": [
+        17
+      ],
+      "natural": 17,
+      "modifier": 10,
+      "bonuses": [],
+      "total": 27,
+      "autoFailed": null,
+      "success": false,
+      "margin": -13,
+      "supersedes": {
+        "natural": 1,
+        "total": 2
+      }
+    },
+    "command": {
+      "id": "indom-1",
+      "fingerprint": "test-reaction:bram|{\"commandId\":\"indom-1\",\"feature\":\"fighter:indomitable\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -247981314,
+      -1704907759,
+      -2018310303,
+      -682465627
+    ]
+  },
+  {
+    "type": "test-settled",
+    "who": "bram",
+    "command": {
+      "id": "settle-test-1",
+      "fingerprint": "settle-test|{\"commandId\":\"settle-test-1\"}"
+    }
+  },
+  {
+    "type": "bonus-action-spent",
+    "id": "bram"
+  },
+  {
+    "type": "resource-spent",
+    "id": "bram",
+    "key": "second-wind",
+    "amount": 1
+  },
+  {
+    "type": "roll-recorded",
+    "who": "bram",
+    "label": "Second Wind (1d10)",
+    "natural": 4,
+    "total": 13,
+    "contributions": [
+      {
+        "source": "Fighter level",
+        "amount": 9
+      }
+    ],
+    "outcome": "13 hit points"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -1708385145,
+      -984923543,
+      1327277076,
+      -682465626
+    ]
+  },
+  {
+    "type": "healed",
+    "id": "bram",
+    "amount": 13,
+    "command": {
+      "id": "wind-1",
+      "fingerprint": "self-heal:bram|{\"commandId\":\"wind-1\",\"feature\":\"fighter:second-wind\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "bram"
+  },
+  {
+    "type": "dash-taken",
+    "id": "bram",
+    "command": {
+      "id": "dash-1",
+      "fingerprint": "dash:bram|{\"commandId\":\"dash-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-0",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-1",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-2",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-2\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-3",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-3\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-4",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-4\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-5",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-5\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-6",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-6\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-7",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-7\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-8",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-8\"}"
+    }
+  },
+  {
+    "type": "attack-made",
+    "id": "nyx"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "nyx",
+    "label": "Dagger attack",
+    "natural": 5,
+    "total": 50,
+    "contributions": [
+      {
+        "source": "attack",
+        "amount": 45
+      }
+    ],
+    "outcome": "hit",
+    "command": {
+      "id": "stab-1",
+      "fingerprint": "attack:nyx|{\"attackBonuses\":[{\"flat\":40,\"source\":\"the fixture insists\"}],\"commandId\":\"stab-1\",\"target\":\"thug\",\"weapon\":\"dagger\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 3,
+    "rng": [
+      -1932828773,
+      -211221305,
+      -2049342148,
+      -682465621
+    ]
+  },
+  {
+    "type": "feature-used",
+    "id": "nyx",
+    "feature": "rogue:sneak-attack",
+    "turn": 12
+  },
+  {
+    "type": "damage-taken",
+    "id": "thug",
+    "amount": 9,
+    "source": "Dagger",
+    "by": "nyx"
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-zel-0",
+      "fingerprint": "turn|{\"commandId\":\"to-zel-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-zel-1",
+      "fingerprint": "turn|{\"commandId\":\"to-zel-1\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "zel"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:2",
+    "id": "zel",
+    "spell": "Blur",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:sorcerer",
+    "command": {
+      "id": "blur-1",
+      "fingerprint": "resolve-spell:zel|{\"commandId\":\"blur-1\",\"slotLevel\":2,\"spellId\":\"blur\",\"targets\":[\"zel\"]}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "zel",
+    "castingId": "cast:2",
+    "spell": "Blur",
+    "level": 2
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:2"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 66
+    }
+  },
+  {
+    "type": "roll-modifier-granted",
+    "id": "zel",
+    "modifier": {
+      "source": "Blur#cast:2",
+      "modifier": {
+        "mode": "disadvantage",
+        "selector": {
+          "roll": "attack",
+          "relation": "against-holder"
+        }
+      }
+    }
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:2",
+      "caster": "zel",
+      "spellId": "blur",
+      "spell": "Blur",
+      "level": 2,
+      "concentration": true,
+      "route": "class:sorcerer",
+      "numbers": {
+        "attackModifier": 5,
+        "saveDc": 13,
+        "spellcastingModifier": 2,
+        "casterLevel": 5
+      },
+      "on": [
+        "zel"
+      ]
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-grim-0",
+      "fingerprint": "turn|{\"commandId\":\"to-grim-0\"}"
+    }
+  },
+  {
+    "type": "bonus-action-spent",
+    "id": "grim"
+  },
+  {
+    "type": "resource-spent",
+    "id": "grim",
+    "key": "rage",
+    "amount": 1
+  },
+  {
+    "type": "feature-activated",
+    "id": "grim",
+    "feature": "barbarian:rage",
+    "command": {
+      "id": "rage-1",
+      "fingerprint": "activate:grim|{\"commandId\":\"rage-1\",\"feature\":\"barbarian:rage\"}"
+    }
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "feature",
+      "on": "grim",
+      "feature": "barbarian:rage"
+    },
+    "deadline": {
+      "kind": "turn-end",
+      "of": "grim",
+      "count": 3
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "grim"
+  },
+  {
+    "type": "feature-activated",
+    "id": "grim",
+    "feature": "action:dodge",
+    "command": {
+      "id": "grim-dodge",
+      "fingerprint": "dodge:grim|{\"commandId\":\"grim-dodge\"}"
+    }
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "feature",
+      "on": "grim",
+      "feature": "action:dodge"
+    },
+    "deadline": {
+      "kind": "turn-start",
+      "of": "grim",
+      "count": 3
+    }
+  },
+  {
+    "type": "feature-ended",
+    "id": "grim",
+    "feature": "action:dodge",
+    "reason": "dismissed",
+    "command": {
+      "id": "grim-undodge",
+      "fingerprint": "end-feature:grim|{\"commandId\":\"grim-undodge\",\"feature\":\"action:dodge\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-0",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-0\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "thorn"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:3",
+    "id": "thorn",
+    "spell": "Grease",
+    "level": 1,
+    "slot": {
+      "key": "spell-slot:1",
+      "level": 1
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": false,
+    "route": "class:innate",
+    "command": {
+      "id": "grease-1",
+      "fingerprint": "resolve-spell:thorn|{\"at\":{\"x\":250,\"y\":320,\"z\":0},\"commandId\":\"grease-1\",\"slotLevel\":1,\"spellId\":\"grease\",\"targets\":[],\"towards\":{\"x\":300,\"y\":320,\"z\":0}}"
+    }
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:3"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 66
+    }
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:3",
+      "caster": "thorn",
+      "spellId": "grease",
+      "spell": "Grease",
+      "level": 1,
+      "concentration": false,
+      "route": "class:innate",
+      "numbers": {
+        "attackModifier": 8,
+        "saveDc": 16,
+        "spellcastingModifier": 4,
+        "casterLevel": 9
+      },
+      "on": [],
+      "origin": {
+        "x": 250,
+        "y": 320,
+        "z": 0
+      },
+      "towards": {
+        "x": 300,
+        "y": 320,
+        "z": 0
+      }
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-0",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-0\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "vex"
+  },
+  {
+    "type": "spell-declared",
+    "casting": {
+      "castingId": "cast:4",
+      "caster": "vex",
+      "spellId": "hold-person",
+      "spell": "Hold Person",
+      "level": 2,
+      "slot": {
+        "key": "spell-slot:2",
+        "level": 2
+      },
+      "slotless": null,
+      "castingTime": "action",
+      "concentration": true,
+      "route": "class:innate",
+      "targets": [
+        "nyx"
+      ],
+      "unverified": [],
+      "deadline": {
+        "kind": "elapsed",
+        "at": 66
+      }
+    },
+    "command": {
+      "id": "vex-hold-1",
+      "fingerprint": "resolve-spell:vex|{\"commandId\":\"vex-hold-1\",\"hold\":true,\"slotLevel\":2,\"spellId\":\"hold-person\",\"targets\":[\"nyx\"]}"
+    }
+  },
+  {
+    "type": "reaction-spent",
+    "id": "mira"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:5",
+    "id": "mira",
+    "spell": "Counterspell",
+    "level": 3,
+    "slot": {
+      "key": "spell-slot:3",
+      "level": 3
+    },
+    "slotless": null,
+    "castingTime": "reaction",
+    "concentration": false,
+    "route": "class:innate",
+    "command": {
+      "id": "counter-1",
+      "fingerprint": "resolve-spell:mira|{\"commandId\":\"counter-1\",\"slotLevel\":3,\"spellId\":\"counterspell\",\"targets\":[\"vex\"]}"
+    }
+  },
+  {
+    "type": "roll-recorded",
+    "who": "vex",
+    "label": "Constitution save vs Counterspell",
+    "natural": 7,
+    "total": -31,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "spell-interrupted",
+    "castingId": "cast:4",
+    "id": "vex",
+    "by": "mira",
+    "reason": "countered"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -217010107,
+      -1264210148,
+      -15235523,
+      -682465620
+    ]
+  },
+  {
+    "type": "damage-taken",
+    "id": "rat",
+    "amount": 12,
+    "source": "a thrown flagon",
+    "by": "grim",
+    "command": {
+      "id": "flagon",
+      "fingerprint": "damage:rat|{\"amount\":12,\"by\":\"grim\",\"commandId\":\"flagon\",\"source\":\"a thrown flagon\"}"
+    }
+  },
+  {
+    "type": "condition-applied",
+    "id": "rat",
+    "condition": "unconscious",
+    "source": "zero hit points"
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-the-rat-0",
+      "fingerprint": "turn|{\"commandId\":\"to-the-rat-0\"}"
+    }
+  },
+  {
+    "type": "death-save-recorded",
+    "id": "rat",
+    "natural": 10,
+    "total": 50
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -1258291765,
+      -137119707,
+      1187555581,
+      -682465619
+    ]
+  },
+  {
+    "type": "stabilised",
+    "id": "rat"
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "thug-round-two-first",
+      "fingerprint": "turn|{\"commandId\":\"thug-round-two-first\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "thug-round-two-0",
+      "fingerprint": "turn|{\"commandId\":\"thug-round-two-0\"}"
+    }
+  },
+  {
+    "type": "attack-made",
+    "id": "thug"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Longsword attack",
+    "natural": 11,
+    "total": 56,
+    "contributions": [
+      {
+        "source": "attack",
+        "amount": 45
+      }
+    ],
+    "outcome": "hit",
+    "command": {
+      "id": "held-swing",
+      "fingerprint": "attack:thug|{\"attackBonuses\":[{\"flat\":40,\"source\":\"the fixture insists\"}],\"commandId\":\"held-swing\",\"hold\":true,\"target\":\"grim\",\"weapon\":\"longsword\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -139963911,
+      2098065637,
+      -1546717774,
+      -682465618
+    ]
+  },
+  {
+    "type": "attack-landed",
+    "attack": {
+      "attacker": "thug",
+      "target": "grim",
+      "weapon": "longsword",
+      "twoHanded": false,
+      "thrown": false,
+      "critical": false,
+      "ability": "str",
+      "targetAc": 14,
+      "total": 56,
+      "natural": 11,
+      "mode": "normal"
+    }
+  },
+  {
+    "type": "attack-damage-dealt",
+    "attacker": "thug",
+    "command": {
+      "id": "held-damage",
+      "fingerprint": "attack-damage:thug|{\"commandId\":\"held-damage\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      2100524573,
+      -1035558078,
+      39658346,
+      -682465617
+    ]
+  },
+  {
+    "type": "damage-taken",
+    "id": "grim",
+    "amount": 2,
+    "source": "Longsword",
+    "by": "thug"
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-two-first",
+      "fingerprint": "turn|{\"commandId\":\"round-two-first\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "mira"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:6",
+    "id": "mira",
+    "spell": "Mage Armor",
+    "level": 1,
+    "slot": {
+      "key": "spell-slot:1",
+      "level": 1
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": false,
+    "route": "class:innate",
+    "command": {
+      "id": "mage-armor-1",
+      "fingerprint": "resolve-spell:mira|{\"commandId\":\"mage-armor-1\",\"slotLevel\":1,\"spellId\":\"mage-armor\",\"targets\":[\"zel\"]}"
+    }
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:6"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 28812
+    }
+  },
+  {
+    "type": "armor-class-granted",
+    "id": "zel",
+    "armorClass": {
+      "source": "Mage Armor#cast:6",
+      "base": 13,
+      "plusAbility": null,
+      "shieldAllowed": true
+    }
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:6",
+      "caster": "mira",
+      "spellId": "mage-armor",
+      "spell": "Mage Armor",
+      "level": 1,
+      "concentration": false,
+      "route": "class:innate",
+      "numbers": {
+        "attackModifier": 8,
+        "saveDc": 16,
+        "spellcastingModifier": 4,
+        "casterLevel": 9
+      },
+      "on": [
+        "zel"
+      ]
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-first",
+      "fingerprint": "turn|{\"commandId\":\"round-three-first\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-0",
+      "fingerprint": "turn|{\"commandId\":\"round-three-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-1",
+      "fingerprint": "turn|{\"commandId\":\"round-three-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-2",
+      "fingerprint": "turn|{\"commandId\":\"round-three-2\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-3",
+      "fingerprint": "turn|{\"commandId\":\"round-three-3\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-4",
+      "fingerprint": "turn|{\"commandId\":\"round-three-4\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-5",
+      "fingerprint": "turn|{\"commandId\":\"round-three-5\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-6",
+      "fingerprint": "turn|{\"commandId\":\"round-three-6\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-7",
+      "fingerprint": "turn|{\"commandId\":\"round-three-7\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-three-8",
+      "fingerprint": "turn|{\"commandId\":\"round-three-8\"}"
+    }
+  },
+  {
+    "type": "bonus-action-spent",
+    "id": "mira"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:7",
+    "id": "mira",
+    "spell": "Healing Word",
+    "level": 1,
+    "slot": {
+      "key": "spell-slot:1",
+      "level": 1
+    },
+    "slotless": null,
+    "castingTime": "bonus-action",
+    "concentration": false,
+    "route": "class:innate",
+    "command": {
+      "id": "word-1",
+      "fingerprint": "resolve-spell:mira|{\"commandId\":\"word-1\",\"slotLevel\":1,\"spellId\":\"healing-word\",\"targets\":[\"rat\"]}"
+    }
+  },
+  {
+    "type": "roll-recorded",
+    "who": "mira",
+    "label": "Healing Word healing",
+    "natural": 0,
+    "total": 8,
+    "contributions": [
+      {
+        "source": "spellcasting modifier",
+        "amount": 4
+      }
+    ],
+    "outcome": "healed"
+  },
+  {
+    "type": "healed",
+    "id": "rat",
+    "amount": 8
+  },
+  {
+    "type": "condition-removed",
+    "id": "rat",
+    "condition": "unconscious",
+    "source": "zero hit points"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      357342629,
+      -1535956670,
+      621848342,
+      -682465615
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-first",
+      "fingerprint": "turn|{\"commandId\":\"round-four-first\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-0",
+      "fingerprint": "turn|{\"commandId\":\"round-four-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-1",
+      "fingerprint": "turn|{\"commandId\":\"round-four-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-2",
+      "fingerprint": "turn|{\"commandId\":\"round-four-2\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-3",
+      "fingerprint": "turn|{\"commandId\":\"round-four-3\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-4",
+      "fingerprint": "turn|{\"commandId\":\"round-four-4\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-5",
+      "fingerprint": "turn|{\"commandId\":\"round-four-5\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-6",
+      "fingerprint": "turn|{\"commandId\":\"round-four-6\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-7",
+      "fingerprint": "turn|{\"commandId\":\"round-four-7\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "round-four-8",
+      "fingerprint": "turn|{\"commandId\":\"round-four-8\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "mira"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:8",
+    "id": "mira",
+    "spell": "Acid Arrow",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": false,
+    "route": "class:innate",
+    "command": {
+      "id": "acid-1",
+      "fingerprint": "resolve-spell:mira|{\"commandId\":\"acid-1\",\"slotLevel\":2,\"spellId\":\"acid-arrow\",\"targets\":[\"thug\"]}"
+    }
+  },
+  {
+    "type": "roll-recorded",
+    "who": "mira",
+    "label": "Acid Arrow attack",
+    "natural": 12,
+    "total": 69,
+    "contributions": [
+      {
+        "source": "spell attack",
+        "amount": 8
+      }
+    ],
+    "outcome": "hit"
+  },
+  {
+    "type": "damage-taken",
+    "id": "thug",
+    "amount": 9,
+    "source": "Acid Arrow",
+    "by": "mira"
+  },
+  {
+    "type": "damage-scheduled",
+    "schedule": {
+      "target": "thug",
+      "by": "mira",
+      "deadline": {
+        "kind": "turn-end",
+        "of": "thug",
+        "count": 6
+      },
+      "notation": "2d4",
+      "damageType": "acid",
+      "source": "Acid Arrow#cast:8",
+      "label": "Acid Arrow (delayed)"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 3,
+    "rng": [
+      -450023329,
+      929801897,
+      1373291568,
+      -682465609
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-2-first",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-2-first\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-2-0",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-2-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-2-1",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-2-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-2-2",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-2-2\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-2-3",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-2-3\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-2-4",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-2-4\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "vex"
+  },
+  {
+    "type": "spell-declared",
+    "casting": {
+      "castingId": "cast:9",
+      "caster": "vex",
+      "spellId": "hold-person",
+      "spell": "Hold Person",
+      "level": 2,
+      "slot": {
+        "key": "spell-slot:2",
+        "level": 2
+      },
+      "slotless": null,
+      "castingTime": "action",
+      "concentration": true,
+      "route": "class:innate",
+      "targets": [
+        "bram"
+      ],
+      "unverified": [],
+      "deadline": {
+        "kind": "elapsed",
+        "at": 84
+      }
+    },
+    "command": {
+      "id": "vex-hold-2",
+      "fingerprint": "resolve-spell:vex|{\"commandId\":\"vex-hold-2\",\"hold\":true,\"slotLevel\":2,\"spellId\":\"hold-person\",\"targets\":[\"bram\"]}"
+    }
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:9",
+    "id": "vex",
+    "spell": "Hold Person",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:innate",
+    "command": {
+      "id": "vex-settle-2",
+      "fingerprint": "settle-cast|{\"commandId\":\"vex-settle-2\"}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "vex",
+    "castingId": "cast:9",
+    "spell": "Hold Person",
+    "level": 2
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:9"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 84
+    }
+  },
+  {
+    "type": "roll-recorded",
+    "who": "bram",
+    "label": "Wisdom save vs Hold Person",
+    "natural": 20,
+    "total": -19,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -39
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "bram",
+    "condition": "paralyzed",
+    "source": "Hold Person#cast:9"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "bram",
+      "instance": "paralyzed:Hold Person#cast:9"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "repeatSave": {
+      "at": "end-of-turn",
+      "of": "bram",
+      "ability": "wis",
+      "dc": 16,
+      "onSuccess": "end-on-target",
+      "label": "Wisdom save vs Hold Person"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      930091898,
+      -525277776,
+      2046130455,
+      -682465608
+    ]
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:9",
+      "caster": "vex",
+      "spellId": "hold-person",
+      "spell": "Hold Person",
+      "level": 2,
+      "concentration": true,
+      "route": "class:innate",
+      "numbers": {
+        "attackModifier": 8,
+        "saveDc": 16,
+        "spellcastingModifier": 4,
+        "casterLevel": 9
+      },
+      "on": [
+        "bram"
+      ]
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-mira-4-first",
+      "fingerprint": "turn|{\"commandId\":\"to-mira-4-first\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-mira-4-0",
+      "fingerprint": "turn|{\"commandId\":\"to-mira-4-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-mira-4-1",
+      "fingerprint": "turn|{\"commandId\":\"to-mira-4-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-mira-4-2",
+      "fingerprint": "turn|{\"commandId\":\"to-mira-4-2\"}"
+    }
+  },
+  {
+    "type": "scheduled-damage-collected",
+    "key": "Acid Arrow#cast:8|thug"
+  },
+  {
+    "type": "damage-taken",
+    "id": "thug",
+    "amount": 5,
+    "source": "Acid Arrow (delayed)",
+    "by": "mira"
+  },
+  {
+    "type": "action-spent",
+    "id": "mira"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:10",
+    "id": "mira",
+    "spell": "Dispel Magic",
+    "level": 3,
+    "slot": {
+      "key": "spell-slot:3",
+      "level": 3
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": false,
+    "route": "class:innate",
+    "command": {
+      "id": "dispel-1",
+      "fingerprint": "resolve-spell:mira|{\"commandId\":\"dispel-1\",\"slotLevel\":3,\"spellId\":\"dispel-magic\",\"targets\":[\"zel\"]}"
+    }
+  },
+  {
+    "type": "spell-ended",
+    "castingId": "cast:1",
+    "on": "zel",
+    "reason": "dispelled"
+  },
+  {
+    "type": "spell-ended",
+    "castingId": "cast:2",
+    "on": null,
+    "reason": "dispelled"
+  },
+  {
+    "type": "spell-ended",
+    "castingId": "cast:6",
+    "on": null,
+    "reason": "dispelled"
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-2-first",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-2-first\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "nyx"
+  },
+  {
+    "type": "disengage-taken",
+    "id": "nyx",
+    "command": {
+      "id": "disengage-1",
+      "fingerprint": "disengage:nyx|{\"commandId\":\"disengage-1\"}"
+    }
+  },
+  {
+    "type": "movement-spent",
+    "id": "nyx",
+    "feet": 20
+  },
+  {
+    "type": "creature-moved",
+    "id": "nyx",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 250,
+          "y": 320,
+          "z": 0
+        }
+      },
+      "feet": 0
+    },
+    "command": {
+      "id": "move-1",
+      "fingerprint": "move:nyx|{\"commandId\":\"move-1\",\"placement\":{\"feet\":0,\"from\":{\"point\":{\"x\":250,\"y\":320,\"z\":0}}}}"
+    }
+  },
+  {
+    "type": "creature-unplaced",
+    "id": "pony"
+  },
+  {
+    "type": "combatant-removed",
+    "id": "pony"
+  },
+  {
+    "type": "creature-removed",
+    "id": "pony",
+    "command": {
+      "id": "pony-goes",
+      "fingerprint": "remove:pony|{\"commandId\":\"pony-goes\"}"
+    }
+  },
+  {
+    "type": "items-lost",
+    "id": "mira",
+    "items": [
+      {
+        "id": "rope",
+        "quantity": 1
+      }
+    ],
+    "source": "left in the grease"
+  },
+  {
+    "type": "bonus-applied",
+    "id": "bram",
+    "bonus": {
+      "source": "a whetstone",
+      "bonus": {
+        "source": "a whetstone",
+        "flat": 1
+      },
+      "applies": [
+        "attack"
+      ],
+      "direction": "add"
+    }
+  },
+  {
+    "type": "bonus-removed",
+    "id": "bram",
+    "source": "a whetstone"
+  },
+  {
+    "type": "time-advanced",
+    "seconds": 120,
+    "reason": "the last of them run off"
+  },
+  {
+    "type": "rest-begun",
+    "id": "bram",
+    "kind": "short",
+    "command": {
+      "id": "short-1",
+      "fingerprint": "rest:bram|{\"commandId\":\"short-1\",\"kind\":\"short\"}"
+    }
+  },
+  {
+    "type": "rest-begun",
+    "id": "zel",
+    "kind": "short",
+    "command": {
+      "id": "short-2",
+      "fingerprint": "rest:zel|{\"commandId\":\"short-2\",\"kind\":\"short\"}"
+    }
+  },
+  {
+    "type": "time-advanced",
+    "seconds": 3600,
+    "reason": "an hour in the vestry"
+  },
+  {
+    "type": "resources-restored",
+    "id": "bram",
+    "recovers": "short-rest"
+  },
+  {
+    "type": "resource-spent",
+    "id": "bram",
+    "key": "hit-die:d10",
+    "amount": 1
+  },
+  {
+    "type": "roll-recorded",
+    "who": "bram",
+    "label": "Hit Die (d10)",
+    "natural": 10,
+    "total": 12,
+    "contributions": [
+      {
+        "source": "Constitution",
+        "amount": 2
+      }
+    ],
+    "outcome": "12 hit points"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -524239422,
+      1235304911,
+      308453009,
+      -682465607
+    ]
+  },
+  {
+    "type": "healed",
+    "id": "bram",
+    "amount": 12
+  },
+  {
+    "type": "rest-ended",
+    "id": "bram",
+    "kind": "short",
+    "benefit": "short"
+  },
+  {
+    "type": "resources-restored",
+    "id": "zel",
+    "recovers": "short-rest"
+  },
+  {
+    "type": "rest-ended",
+    "id": "zel",
+    "kind": "short",
+    "benefit": "short"
+  },
+  {
+    "type": "resource-spent",
+    "id": "zel",
+    "key": "sorcery-points",
+    "amount": 2
+  },
+  {
+    "type": "resource-spent",
+    "id": "zel",
+    "key": "sorcerer:sorcerous-restoration",
+    "amount": 1
+  },
+  {
+    "type": "resource-regained",
+    "id": "zel",
+    "key": "sorcery-points",
+    "amount": 2,
+    "command": {
+      "id": "restore-1",
+      "fingerprint": "recovery:zel|{\"commandId\":\"restore-1\",\"feature\":\"sorcerer:sorcerous-restoration\"}"
+    }
+  },
+  {
+    "type": "resources-restored",
+    "id": "grim",
+    "recovers": "short-rest",
+    "command": {
+      "id": "grim-short",
+      "fingerprint": "restore:grim|{\"commandId\":\"grim-short\",\"recovers\":\"short-rest\"}"
+    }
+  },
+  {
+    "type": "temporary-hp-granted",
+    "id": "mira",
+    "amount": 8,
+    "command": {
+      "id": "temp-1",
+      "fingerprint": "temp-hp:mira|{\"amount\":8,\"commandId\":\"temp-1\"}"
+    }
+  },
+  {
+    "type": "rest-begun",
+    "id": "grim",
+    "kind": "long",
+    "command": {
+      "id": "long-1",
+      "fingerprint": "rest:grim|{\"commandId\":\"long-1\",\"kind\":\"long\"}"
+    }
+  },
+  {
+    "type": "time-advanced",
+    "seconds": 7200,
+    "reason": "two hours of sleep"
+  },
+  {
+    "type": "damage-taken",
+    "id": "grim",
+    "amount": 4,
+    "source": "something in the dark",
+    "command": {
+      "id": "bite-1",
+      "fingerprint": "damage:grim|{\"amount\":4,\"commandId\":\"bite-1\",\"source\":\"something in the dark\"}"
+    }
+  },
+  {
+    "type": "time-advanced",
+    "seconds": 600,
+    "reason": "standing about afterwards"
+  },
+  {
+    "type": "resources-restored",
+    "id": "grim",
+    "recovers": "short-rest"
+  },
+  {
+    "type": "rest-ended",
+    "id": "grim",
+    "kind": "long",
+    "benefit": "short",
+    "interrupted": "damage"
+  },
+  {
+    "type": "rest-begun",
+    "id": "mira",
+    "kind": "long",
+    "command": {
+      "id": "long-2",
+      "fingerprint": "rest:mira|{\"commandId\":\"long-2\",\"kind\":\"long\"}"
+    }
+  },
+  {
+    "type": "time-advanced",
+    "seconds": 28800,
+    "reason": "eight hours"
+  },
+  {
+    "type": "temporary-hp-cleared",
+    "id": "mira"
+  },
+  {
+    "type": "resources-restored",
+    "id": "mira",
+    "recovers": "short-rest"
+  },
+  {
+    "type": "resources-restored",
+    "id": "mira",
+    "recovers": "long-rest"
+  },
+  {
+    "type": "rest-ended",
+    "id": "mira",
+    "kind": "long",
+    "benefit": "long"
+  },
+  {
+    "type": "exhaustion-set",
+    "id": "grim",
+    "level": 2,
+    "command": {
+      "id": "exhaust-1",
+      "fingerprint": "exhaustion:grim|{\"commandId\":\"exhaust-1\",\"level\":2}"
+    }
+  },
+  {
+    "type": "combat-started",
+    "combatants": [
+      {
+        "id": "mira",
+        "initiative": 21,
+        "speed": 30
+      },
+      {
+        "id": "thorn",
+        "initiative": 19,
+        "speed": 30
+      },
+      {
+        "id": "thug",
+        "initiative": 17,
+        "speed": 30
+      },
+      {
+        "id": "bram",
+        "initiative": 15,
+        "speed": 30
+      },
+      {
+        "id": "nyx",
+        "initiative": 13,
+        "speed": 30
+      },
+      {
+        "id": "grim",
+        "initiative": 11,
+        "speed": 30
+      },
+      {
+        "id": "zel",
+        "initiative": 9,
+        "speed": 30
+      },
+      {
+        "id": "vex",
+        "initiative": 7,
+        "speed": 30
+      }
+    ]
+  },
+  {
+    "type": "action-spent",
+    "id": "mira"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:11",
+    "id": "mira",
+    "spell": "Web",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:innate",
+    "command": {
+      "id": "web-1",
+      "fingerprint": "resolve-spell:mira|{\"at\":{\"x\":260,\"y\":300,\"z\":0},\"commandId\":\"web-1\",\"slotLevel\":2,\"spellId\":\"web\",\"targets\":[],\"towards\":{\"x\":310,\"y\":300,\"z\":0}}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "mira",
+    "castingId": "cast:11",
+    "spell": "Web",
+    "level": 2
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:11"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 43950
+    }
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:11",
+      "caster": "mira",
+      "spellId": "web",
+      "spell": "Web",
+      "level": 2,
+      "concentration": true,
+      "route": "class:innate",
+      "numbers": {
+        "attackModifier": 8,
+        "saveDc": 16,
+        "spellcastingModifier": 4,
+        "casterLevel": 9
+      },
+      "on": [],
+      "origin": {
+        "x": 260,
+        "y": 300,
+        "z": 0
+      },
+      "towards": {
+        "x": 310,
+        "y": 300,
+        "z": 0
+      }
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-beam-0",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-beam-0\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "thorn"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:12",
+    "id": "thorn",
+    "spell": "Moonbeam",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:innate",
+    "command": {
+      "id": "moonbeam-1",
+      "fingerprint": "resolve-spell:thorn|{\"at\":{\"x\":290,\"y\":300,\"z\":0},\"commandId\":\"moonbeam-1\",\"slotLevel\":2,\"spellId\":\"moonbeam\",\"targets\":[]}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "thorn",
+    "castingId": "cast:12",
+    "spell": "Moonbeam",
+    "level": 2
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:12"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 40410
+    }
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:12",
+      "caster": "thorn",
+      "spellId": "moonbeam",
+      "spell": "Moonbeam",
+      "level": 2,
+      "concentration": true,
+      "route": "class:innate",
+      "numbers": {
+        "attackModifier": 8,
+        "saveDc": 16,
+        "spellcastingModifier": 4,
+        "casterLevel": 9
+      },
+      "on": [],
+      "origin": {
+        "x": 290,
+        "y": 300,
+        "z": 0
+      }
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thug-2-0",
+      "fingerprint": "turn|{\"commandId\":\"to-thug-2-0\"}"
+    }
+  },
+  {
+    "type": "movement-spent",
+    "id": "thug",
+    "feet": 15
+  },
+  {
+    "type": "movement-declared",
+    "move": {
+      "mover": "thug",
+      "placement": {
+        "from": {
+          "point": {
+            "x": 270,
+            "y": 300,
+            "z": 0
+          }
+        },
+        "feet": 0
+      },
+      "destination": {
+        "x": 270,
+        "y": 300,
+        "z": 0
+      },
+      "feet": 15,
+      "provoked": [
+        {
+          "reactor": "bram",
+          "reach": 5
+        },
+        {
+          "reactor": "grim",
+          "reach": 5
+        }
+      ]
+    },
+    "command": {
+      "id": "thug-move",
+      "fingerprint": "move:thug|{\"commandId\":\"thug-move\",\"placement\":{\"feet\":0,\"from\":{\"point\":{\"x\":270,\"y\":300,\"z\":0}}}}"
+    }
+  },
+  {
+    "type": "opportunity-answered",
+    "reactor": "bram",
+    "took": false,
+    "command": {
+      "id": "decline-bram-430",
+      "fingerprint": "decline:bram|{\"commandId\":\"decline-bram-430\"}"
+    }
+  },
+  {
+    "type": "opportunity-answered",
+    "reactor": "grim",
+    "took": false,
+    "command": {
+      "id": "decline-grim-431",
+      "fingerprint": "decline:grim|{\"commandId\":\"decline-grim-431\"}"
+    }
+  },
+  {
+    "type": "movement-completed",
+    "id": "thug"
+  },
+  {
+    "type": "creature-moved",
+    "id": "thug",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 270,
+          "y": 300,
+          "z": 0
+        }
+      },
+      "feet": 0
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:11",
+    "target": "thug",
+    "moment": "entry"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Dexterity save vs Web",
+    "natural": 1,
+    "total": -37,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "thug",
+    "condition": "restrained",
+    "source": "Web#cast:11"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "thug",
+      "instance": "restrained:Web#cast:11"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "check": {
+      "ability": "str",
+      "skill": "athletics",
+      "dc": 16,
+      "onSuccess": "end-on-target",
+      "label": "Strength (Athletics) check vs Web"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      1233490287,
+      -1518890215,
+      -740904291,
+      -682465606
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-2-first",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-2-first\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-2-0",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-2-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-2-1",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-2-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-2-2",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-2-2\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-2-3",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-2-3\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-2-4",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-2-4\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thorn-2-5",
+      "fingerprint": "turn|{\"commandId\":\"to-thorn-2-5\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "thorn"
+  },
+  {
+    "type": "spell-activated",
+    "castingId": "cast:12",
+    "by": "thorn",
+    "command": {
+      "id": "sweep-1",
+      "fingerprint": "activate:thorn|{\"castingId\":\"cast:12\",\"commandId\":\"sweep-1\",\"targets\":[],\"to\":{\"x\":275,\"y\":300,\"z\":0},\"via\":[{\"x\":285,\"y\":300,\"z\":0},{\"x\":280,\"y\":300,\"z\":0}]}"
+    }
+  },
+  {
+    "type": "spell-origin-moved",
+    "castingId": "cast:12",
+    "to": {
+      "x": 285,
+      "y": 300,
+      "z": 0
+    }
+  },
+  {
+    "type": "spell-origin-moved",
+    "castingId": "cast:12",
+    "to": {
+      "x": 280,
+      "y": 300,
+      "z": 0
+    }
+  },
+  {
+    "type": "spell-origin-moved",
+    "castingId": "cast:12",
+    "to": {
+      "x": 275,
+      "y": 300,
+      "z": 0
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:12",
+    "target": "thug",
+    "moment": "area-moved"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Constitution save vs Moonbeam",
+    "natural": 16,
+    "total": -22,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "damage-taken",
+    "id": "thug",
+    "amount": 13,
+    "source": "Moonbeam",
+    "by": "thorn"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 2,
+    "rng": [
+      -366011453,
+      1111481040,
+      1048043549,
+      -682465603
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thug-start-first",
+      "fingerprint": "turn|{\"commandId\":\"to-thug-start-first\"}"
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:11",
+    "target": "thug",
+    "moment": "start-of-turn"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Dexterity save vs Web",
+    "natural": 1,
+    "total": -37,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "thug",
+    "condition": "restrained",
+    "source": "Web#cast:11"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "thug",
+      "instance": "restrained:Web#cast:11"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "check": {
+      "ability": "str",
+      "skill": "athletics",
+      "dc": 16,
+      "onSuccess": "end-on-target",
+      "label": "Strength (Athletics) check vs Web"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      842005109,
+      1118998188,
+      -718734811,
+      -682465601
+    ]
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      1116985323,
+      2121321293,
+      -1863346945,
+      -682465600
+    ]
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Strength (Athletics) check vs Web",
+    "natural": 6,
+    "total": 7,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": 1
+      }
+    ],
+    "outcome": "no wiser",
+    "command": {
+      "id": "escape-1",
+      "fingerprint": "effect-check:thug|{\"commandId\":\"escape-1\",\"effectKey\":\"condition|thug|restrained:Web#cast:11\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "thug"
+  },
+  {
+    "type": "effect-check-resolved",
+    "effectKey": "condition|thug|restrained:Web#cast:11",
+    "by": "thug",
+    "success": false
+  },
+  {
+    "type": "creature-died",
+    "id": "rat",
+    "cause": "the wound never closed"
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-zel-2-0",
+      "fingerprint": "turn|{\"commandId\":\"to-zel-2-0\"}"
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:12",
+    "target": "thug",
+    "moment": "end-of-turn"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Constitution save vs Moonbeam",
+    "natural": 12,
+    "total": -26,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "damage-taken",
+    "id": "thug",
+    "amount": 15,
+    "source": "Moonbeam",
+    "by": "thorn"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 2,
+    "rng": [
+      -84988407,
+      -972906460,
+      -355318887,
+      -682465597
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-zel-2-1",
+      "fingerprint": "turn|{\"commandId\":\"to-zel-2-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-zel-2-2",
+      "fingerprint": "turn|{\"commandId\":\"to-zel-2-2\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-zel-2-3",
+      "fingerprint": "turn|{\"commandId\":\"to-zel-2-3\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "zel"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:13",
+    "id": "zel",
+    "spell": "Blur",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:sorcerer",
+    "command": {
+      "id": "blur-2",
+      "fingerprint": "resolve-spell:zel|{\"commandId\":\"blur-2\",\"slotLevel\":2,\"spellId\":\"blur\",\"targets\":[\"zel\"]}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "zel",
+    "castingId": "cast:13",
+    "spell": "Blur",
+    "level": 2
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:13"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 40416
+    }
+  },
+  {
+    "type": "roll-modifier-granted",
+    "id": "zel",
+    "modifier": {
+      "source": "Blur#cast:13",
+      "modifier": {
+        "mode": "disadvantage",
+        "selector": {
+          "roll": "attack",
+          "relation": "against-holder"
+        }
+      }
+    }
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:13",
+      "caster": "zel",
+      "spellId": "blur",
+      "spell": "Blur",
+      "level": 2,
+      "concentration": true,
+      "route": "class:sorcerer",
+      "numbers": {
+        "attackModifier": 5,
+        "saveDc": 13,
+        "spellcastingModifier": 2,
+        "casterLevel": 5
+      },
+      "on": [
+        "zel"
+      ]
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-mira-armour-first",
+      "fingerprint": "turn|{\"commandId\":\"to-mira-armour-first\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-mira-armour-0",
+      "fingerprint": "turn|{\"commandId\":\"to-mira-armour-0\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "mira"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:14",
+    "id": "mira",
+    "spell": "Mage Armor",
+    "level": 1,
+    "slot": {
+      "key": "spell-slot:1",
+      "level": 1
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": false,
+    "route": "class:innate",
+    "command": {
+      "id": "mage-armor-2",
+      "fingerprint": "resolve-spell:mira|{\"commandId\":\"mage-armor-2\",\"slotLevel\":1,\"spellId\":\"mage-armor\",\"targets\":[\"zel\"]}"
+    }
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:14"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 69162
+    }
+  },
+  {
+    "type": "armor-class-granted",
+    "id": "zel",
+    "armorClass": {
+      "source": "Mage Armor#cast:14",
+      "base": 13,
+      "plusAbility": null,
+      "shieldAllowed": true
+    }
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:14",
+      "caster": "mira",
+      "spellId": "mage-armor",
+      "spell": "Mage Armor",
+      "level": 1,
+      "concentration": false,
+      "route": "class:innate",
+      "numbers": {
+        "attackModifier": 8,
+        "saveDc": 16,
+        "spellcastingModifier": 4,
+        "casterLevel": 9
+      },
+      "on": [
+        "zel"
+      ]
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-3-0",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-3-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-3-1",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-3-1\"}"
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:11",
+    "target": "thug",
+    "moment": "start-of-turn"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Dexterity save vs Web",
+    "natural": 12,
+    "total": -26,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "thug",
+    "condition": "restrained",
+    "source": "Web#cast:11"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "thug",
+      "instance": "restrained:Web#cast:11"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "check": {
+      "ability": "str",
+      "skill": "athletics",
+      "dc": 16,
+      "onSuccess": "end-on-target",
+      "label": "Strength (Athletics) check vs Web"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      1095029329,
+      1737361656,
+      -971384630,
+      -682465595
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-3-2",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-3-2\"}"
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:12",
+    "target": "thug",
+    "moment": "end-of-turn"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Constitution save vs Moonbeam",
+    "natural": 11,
+    "total": -27,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "damage-taken",
+    "id": "thug",
+    "amount": 6,
+    "source": "Moonbeam",
+    "by": "thorn"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 2,
+    "rng": [
+      1700567174,
+      -661900676,
+      -420452563,
+      -682465592
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-3-3",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-3-3\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-3-4",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-3-4\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-3-5",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-3-5\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-vex-3-6",
+      "fingerprint": "turn|{\"commandId\":\"to-vex-3-6\"}"
+    }
+  },
+  {
+    "type": "action-spent",
+    "id": "vex"
+  },
+  {
+    "type": "spell-cast",
+    "castingId": "cast:15",
+    "id": "vex",
+    "spell": "Hold Person",
+    "level": 2,
+    "slot": {
+      "key": "spell-slot:2",
+      "level": 2
+    },
+    "slotless": null,
+    "castingTime": "action",
+    "concentration": true,
+    "route": "class:innate",
+    "command": {
+      "id": "vex-hold-3",
+      "fingerprint": "resolve-spell:vex|{\"commandId\":\"vex-hold-3\",\"slotLevel\":2,\"spellId\":\"hold-person\",\"targets\":[\"grim\"]}"
+    }
+  },
+  {
+    "type": "concentration-started",
+    "id": "vex",
+    "castingId": "cast:15",
+    "spell": "Hold Person",
+    "level": 2
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "casting",
+      "castingId": "cast:15"
+    },
+    "deadline": {
+      "kind": "elapsed",
+      "at": 40422
+    }
+  },
+  {
+    "type": "roll-recorded",
+    "who": "grim",
+    "label": "Wisdom save vs Hold Person",
+    "natural": 2,
+    "total": -41,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -43
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "grim",
+    "condition": "paralyzed",
+    "source": "Hold Person#cast:15"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "grim",
+      "instance": "paralyzed:Hold Person#cast:15"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "repeatSave": {
+      "at": "end-of-turn",
+      "of": "grim",
+      "ability": "wis",
+      "dc": 16,
+      "onSuccess": "end-on-target",
+      "label": "Wisdom save vs Hold Person"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -656378779,
+      510894229,
+      -84406314,
+      -682465591
+    ]
+  },
+  {
+    "type": "spell-ongoing",
+    "casting": {
+      "castingId": "cast:15",
+      "caster": "vex",
+      "spellId": "hold-person",
+      "spell": "Hold Person",
+      "level": 2,
+      "concentration": true,
+      "route": "class:innate",
+      "numbers": {
+        "attackModifier": 8,
+        "saveDc": 16,
+        "spellcastingModifier": 4,
+        "casterLevel": 9
+      },
+      "on": [
+        "grim"
+      ]
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-3-0",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-3-0\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-3-1",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-3-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-3-2",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-3-2\"}"
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:11",
+    "target": "thug",
+    "moment": "start-of-turn"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Dexterity save vs Web",
+    "natural": 16,
+    "total": -22,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "thug",
+    "condition": "restrained",
+    "source": "Web#cast:11"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "thug",
+      "instance": "restrained:Web#cast:11"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "check": {
+      "ability": "str",
+      "skill": "athletics",
+      "dc": 16,
+      "onSuccess": "end-on-target",
+      "label": "Strength (Athletics) check vs Web"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -758000959,
+      364163300,
+      555794256,
+      -682465589
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-3-3",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-3-3\"}"
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:12",
+    "target": "thug",
+    "moment": "end-of-turn"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Constitution save vs Moonbeam",
+    "natural": 15,
+    "total": -23,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "damage-taken",
+    "id": "thug",
+    "amount": 11,
+    "source": "Moonbeam",
+    "by": "thorn"
+  },
+  {
+    "type": "rolls-issued",
+    "count": 2,
+    "rng": [
+      -122036098,
+      697499329,
+      -645359184,
+      -682465586
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-nyx-3-4",
+      "fingerprint": "turn|{\"commandId\":\"to-nyx-3-4\"}"
+    }
+  },
+  {
+    "type": "movement-spent",
+    "id": "nyx",
+    "feet": 20
+  },
+  {
+    "type": "creature-moved",
+    "id": "nyx",
+    "placement": {
+      "from": {
+        "point": {
+          "x": 265,
+          "y": 300,
+          "z": 0
+        }
+      },
+      "feet": 0
+    },
+    "command": {
+      "id": "nyx-closes",
+      "fingerprint": "move:nyx|{\"commandId\":\"nyx-closes\",\"placement\":{\"feet\":0,\"from\":{\"point\":{\"x\":265,\"y\":300,\"z\":0}}}}"
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:11",
+    "target": "nyx",
+    "moment": "entry"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "nyx",
+    "label": "Dexterity save vs Web",
+    "natural": 20,
+    "total": -15,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -35
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "nyx",
+    "condition": "restrained",
+    "source": "Web#cast:11"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "nyx",
+      "instance": "restrained:Web#cast:11"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "check": {
+      "ability": "str",
+      "skill": "athletics",
+      "dc": 16,
+      "onSuccess": "end-on-target",
+      "label": "Strength (Athletics) check vs Web"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      696661950,
+      -1513265360,
+      800749344,
+      -682465585
+    ]
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thug-3-first",
+      "fingerprint": "turn|{\"commandId\":\"to-thug-3-first\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thug-3-0",
+      "fingerprint": "turn|{\"commandId\":\"to-thug-3-0\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -1516273277,
+      -1383190496,
+      -1968440053,
+      -682465584
+    ]
+  },
+  {
+    "type": "roll-recorded",
+    "who": "grim",
+    "label": "Wisdom save vs Hold Person",
+    "natural": 14,
+    "total": -29,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -43
+      }
+    ],
+    "outcome": "still held"
+  },
+  {
+    "type": "effect-save-resolved",
+    "effectKey": "condition|grim|paralyzed:Hold Person#cast:15",
+    "turn": 30,
+    "success": false
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thug-3-1",
+      "fingerprint": "turn|{\"commandId\":\"to-thug-3-1\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thug-3-2",
+      "fingerprint": "turn|{\"commandId\":\"to-thug-3-2\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thug-3-3",
+      "fingerprint": "turn|{\"commandId\":\"to-thug-3-3\"}"
+    }
+  },
+  {
+    "type": "turn-advanced",
+    "command": {
+      "id": "to-thug-3-4",
+      "fingerprint": "turn|{\"commandId\":\"to-thug-3-4\"}"
+    }
+  },
+  {
+    "type": "area-effect-settled",
+    "castingId": "cast:11",
+    "target": "thug",
+    "moment": "start-of-turn"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Dexterity save vs Web",
+    "natural": 4,
+    "total": -34,
+    "contributions": [
+      {
+        "source": "modifier",
+        "amount": -38
+      }
+    ],
+    "outcome": "affected"
+  },
+  {
+    "type": "condition-applied",
+    "id": "thug",
+    "condition": "restrained",
+    "source": "Web#cast:11"
+  },
+  {
+    "type": "effect-scheduled",
+    "target": {
+      "kind": "condition",
+      "on": "thug",
+      "instance": "restrained:Web#cast:11"
+    },
+    "deadline": {
+      "kind": "indefinite"
+    },
+    "check": {
+      "ability": "str",
+      "skill": "athletics",
+      "dc": 16,
+      "onSuccess": "end-on-target",
+      "label": "Strength (Athletics) check vs Web"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 1,
+    "rng": [
+      -528752495,
+      729603458,
+      596689305,
+      -682465582
+    ]
+  },
+  {
+    "type": "attack-made",
+    "id": "thug"
+  },
+  {
+    "type": "roll-recorded",
+    "who": "thug",
+    "label": "Longsword attack",
+    "natural": 18,
+    "total": 63,
+    "contributions": [
+      {
+        "source": "attack",
+        "amount": 45
+      }
+    ],
+    "outcome": "hit",
+    "command": {
+      "id": "swing-2",
+      "fingerprint": "attack:thug|{\"attackBonuses\":[{\"flat\":40,\"source\":\"the fixture insists\"}],\"commandId\":\"swing-2\",\"target\":\"nyx\",\"weapon\":\"longsword\"}"
+    }
+  },
+  {
+    "type": "rolls-issued",
+    "count": 2,
+    "rng": [
+      1077331206,
+      -907260187,
+      578119442,
+      -682465580
+    ]
+  },
+  {
+    "type": "damage-rolled",
+    "damage": {
+      "target": "nyx",
+      "by": "thug",
+      "source": "Longsword",
+      "components": [
+        {
+          "source": "Longsword",
+          "type": "slashing",
+          "roll": {
+            "notation": {
+              "count": 1,
+              "sides": 8,
+              "modifier": 0,
+              "keep": null
+            },
+            "dice": [
+              {
+                "index": 0,
+                "sides": 8,
+                "rolled": 3,
+                "value": 3,
+                "disposition": "counted",
+                "origin": "initial",
+                "cause": null,
+                "replaces": null
+              }
+            ],
+            "modifier": 0,
+            "total": 3,
+            "provenance": {
+              "id": "h:38",
+              "source": "engine",
+              "note": null
+            }
+          },
+          "flat": 1,
+          "total": 4
+        }
+      ],
+      "critical": false,
+      "fromAttack": true,
+      "reductions": [],
+      "offers": [
+        {
+          "reactor": "nyx",
+          "feature": "rogue:uncanny-dodge",
+          "name": "Uncanny Dodge",
+          "costsReaction": true,
+          "pool": null
+        }
+      ]
+    }
+  }
+]
