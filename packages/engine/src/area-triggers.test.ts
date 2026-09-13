@@ -12,7 +12,10 @@ import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import type { AreaMoment } from './spells.js';
 import {
   activateFeature,
+  activateSpell,
+  mayAct,
   declineOpportunity,
+  resolveEffectCheck,
   ongoingSpellOf,
   ongoingSpellsOn,
   owedAreaEffectsOf,
@@ -26,6 +29,9 @@ import {
   takeDisengage,
   takeDodge,
   takeReady,
+  useHealingTouch,
+  useRecovery,
+  useSelfHeal,
 } from './commands.js';
 
 /**
@@ -78,7 +84,7 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const PREPARED = ['insect-plague', 'web', 'grease', 'black-tentacles', 'bless'];
+const PREPARED = ['insect-plague', 'web', 'grease', 'black-tentacles', 'bless', 'hold-person'];
 
 const added = (who: CharacterId): GameEvent => ({
   type: 'creature-added',
@@ -167,6 +173,7 @@ const SETUP: readonly GameEvent[] = [
   spot('mount post', { x: 240, y: 240, z: 0 }),
   spot('threat post', { x: 160, y: 195, z: 0 }),
   spot('beside threat', { x: 160, y: 200, z: 0 }),
+  spot('beside mover', { x: 245, y: 200, z: 0 }),
   place(CASTER, 'the hall'),
   place(RIVAL, 'rival post'),
   place(MOVER, 'outside cube'),
@@ -865,14 +872,12 @@ describe('nothing acts past an effect the area is owed', () => {
   });
 
   /**
-   * **The debt blocks the creature it is owed by and nobody else.** A goblin's
-   * unmade Web save says nothing about whether the wizard across the room may
-   * cast, and the engine's older global debts are global because they are:
-   * a damage roll held open is a number about to change, and *anyone* acting
-   * resolves against a world that is not yet decided. This one is about one
-   * creature's own turn.
+   * **And an unrelated creature is refused too**, because "unrelated" is not a
+   * thing the engine can know: settling the debt can damage its target, break
+   * a Concentration and free somebody two rooms away. See the causal fixture
+   * below, which is why this is global engine debt rather than a courtesy.
    */
-  it('lets an unrelated creature act while somebody else owes one', () => {
+  it('refuses a cast by a creature the area never caught', () => {
     const g = owing();
     const out = resolveSpell(
       g.state,
@@ -880,7 +885,8 @@ describe('nothing acts past an effect the area is owed', () => {
       { spellId: 'bless', targets: [RIVAL], slotLevel: 1 },
       supply('b'),
     );
-    if (isErr(out)) expect(out.code).not.toBe('area_effect_owed');
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
   });
 
   it('refuses an attack', () => {
@@ -1714,4 +1720,322 @@ describe('every guarded command checks the duplicate first', () => {
       if (!isErr(retry)) expect(retry.value).toEqual([]);
     });
   }
+});
+
+// — why the debt is global ————————————————————————————————————————————————————
+
+describe('an owed area effect is unresolved state everybody acts into', () => {
+  /**
+   * The counterexample that made this global, three moves long and every move
+   * an existing mechanic:
+   *
+   * 1. CASTER concentrates on Hold Person, and MOVER is Paralyzed by it.
+   * 2. CASTER walks into RIVAL's Insect Plague and owes its damage.
+   * 3. RIDER attacks MOVER.
+   *
+   * Settling step 2 can drop CASTER, break the Concentration and free MOVER —
+   * so step 3 is an attack against a creature who may already be free.
+   * Attacking a Paralyzed creature within 5 feet is not a small difference:
+   * the roll has Advantage and a hit is an automatic Critical Hit.
+   *
+   * The engine does not work out whether a given action happens to be
+   * independent. It settles the mandatory mechanical fact first.
+   */
+  const entangled = (): Game => {
+    const g = new Game([...SETUP], false);
+    // RIVAL's swarm, conjured before the fight so one slot a turn is not the
+    // thing under test.
+    g.conjure('insect-plague', SPHERE, { by: RIVAL, slotLevel: 5, seed: 'swarm' });
+    g.push([
+      { type: 'sight-declared', from: CASTER, to: MOVER, seen: true },
+      place(RIDER, 'beside mover'),
+      { type: 'items-gained', id: RIDER, items: [{ id: 'dagger', quantity: 1 }], source: 'kit' },
+    ]);
+
+    // CASTER holds MOVER while there are no turns to spend.
+    const held = unwrap(
+      resolveSpell(
+        g.state,
+        CASTER,
+        { spellId: 'hold-person', targets: [MOVER], slotLevel: 2 },
+        supply('hold'),
+      ),
+      'hold person',
+    );
+    g.push(held.events);
+
+    // RIDER goes first, so the creature that owes the swarm is not the
+    // creature trying to act — which is the whole point.
+    g.push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: RIDER, initiative: 30, speed: 30 },
+          { id: CASTER, initiative: 20, speed: 30 },
+          { id: MOVER, initiative: 10, speed: 30 },
+        ],
+      },
+    ]);
+
+    // Something shoves CASTER into the swarm on RIDER's turn. Forced movement
+    // costs no Speed and belongs to nobody's budget, so it lands here.
+    const shoved = unwrap(
+      resolveMove(
+        g.state,
+        CASTER,
+        { placement: { from: { landmark: 'inside sphere' }, feet: 0 }, forced: true },
+        supply('shove'),
+      ),
+      'shoving the caster into the swarm',
+    );
+    g.push(shoved.events);
+    return g;
+  };
+
+  it('sets the fixture up: MOVER is Paralyzed and CASTER owes the swarm', () => {
+    const g = entangled();
+    expect(g.has(MOVER, 'paralyzed')).toBe(true);
+    expect(g.owed().map((d) => d.target)).toEqual([CASTER]);
+  });
+
+  /** Step 3, before settlement: refused, though RIDER owes nothing at all. */
+  it('refuses a third creature’s attack on the creature the Hold Person holds', () => {
+    const g = entangled();
+    expect(g.owed().some((d) => d.target === RIDER)).toBe(false);
+
+    const out = resolveAttack(g.state, RIDER, { target: MOVER, weapon: 'dagger' }, supply('swing'));
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  });
+
+  /**
+   * And the mechanics really do differ, which is the whole point. The same
+   * attack, from the same seed, against the same creature: **Advantage while
+   * the Hold Person holds, and none once the swarm has broken it.**
+   */
+  it('rolls a different attack depending on what settling the debt did', () => {
+    // The Concentration survives: CASTER is at full health and makes the save.
+    const holds = entangled();
+    holds.settle('swarm', undefined, 40);
+    expect(holds.has(MOVER, 'paralyzed')).toBe(true);
+    const withHold = unwrap(
+      resolveAttack(holds.state, RIDER, { target: MOVER, weapon: 'dagger' }, supply('swing')),
+      'attacking a held creature',
+    );
+
+    // The Concentration breaks: CASTER is one hit point from dropping, and the
+    // swarm's 4d10 is certain to take it.
+    const breaks = entangled();
+    breaks.push([{ type: 'damage-taken', id: CASTER, amount: 299, source: 'the fixture' }]);
+    breaks.settle('swarm');
+    expect(breaks.has(MOVER, 'paralyzed')).toBe(false);
+    const without = unwrap(
+      resolveAttack(breaks.state, RIDER, { target: MOVER, weapon: 'dagger' }, supply('swing')),
+      'attacking a freed creature',
+    );
+
+    expect(withHold.attack?.mode).toBe('advantage');
+    expect(without.attack?.mode).toBe('normal');
+  });
+
+  /** Step 7: once settled, the third creature acts against a decided world. */
+  it('lets the attack through once the debt is settled', () => {
+    const g = entangled();
+    g.settle('swarm', undefined, 40);
+    expect(g.owed()).toEqual([]);
+    const out = resolveAttack(g.state, RIDER, { target: MOVER, weapon: 'dagger' }, supply('swing'));
+    expect(isErr(out)).toBe(false);
+  });
+
+  /**
+   * And the settlement itself is never refused by its own guard. A policy that
+   * blocked the command that clears it would be a deadlock wearing a rule's
+   * clothes.
+   */
+  it('never refuses the settlement that clears it', () => {
+    const g = entangled();
+    expect(isErr(settleAreaEffects(g.state, supply('swarm')))).toBe(false);
+  });
+});
+
+// — the audit, enforced ————————————————————————————————————————————————————————
+
+describe('no ordinary voluntary action crosses an outstanding area effect', () => {
+  /**
+   * A sweep rather than a test each, for the reason the idempotency sweep
+   * exists: the point is that **no** command is exempt, so one added without
+   * the guard fails here rather than being found in play.
+   *
+   * Every entry is invoked in a state where a Grease owes MOVER a save. Some
+   * of them would also fail for a second reason — a feature nobody has, a
+   * pool that does not exist — and that is deliberate: the guard sits directly
+   * after the duplicate check and before every lookup, so it is what answers.
+   */
+  const owing = (): GameState => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    expect(g.owed()).toHaveLength(1);
+    return g.state;
+  };
+
+  const ACTING: readonly {
+    readonly name: string;
+    readonly run: (state: GameState) => Result<unknown>;
+  }[] = [
+    {
+      name: 'resolveAttack',
+      run: (state) => resolveAttack(state, MOVER, { target: THREAT, weapon: 'dagger' }, supply('a')),
+    },
+    {
+      name: 'resolveMove',
+      run: (state) =>
+        resolveMove(state, MOVER, { placement: { from: { landmark: 'outside cube' }, feet: 0 } }, supply('m')),
+    },
+    {
+      name: 'resolveSpell',
+      run: (state) =>
+        resolveSpell(state, CASTER, { spellId: 'bless', targets: [RIVAL], slotLevel: 1 }, supply('c')),
+    },
+    {
+      name: 'activateSpell',
+      run: (state) => activateSpell(state, CASTER, { castingId: 'cast:1', targets: [] }, supply('v')),
+    },
+    { name: 'takeDash', run: (state) => takeDash(state, MOVER, {}) },
+    { name: 'takeDisengage', run: (state) => takeDisengage(state, MOVER, {}) },
+    { name: 'takeDodge', run: (state) => takeDodge(state, MOVER, {}) },
+    {
+      name: 'takeReady',
+      run: (state) =>
+        takeReady(state, MOVER, { trigger: 'when it moves', response: { kind: 'action' } }),
+    },
+    {
+      name: 'activateFeature',
+      run: (state) => activateFeature(state, MOVER, { feature: 'test:stance' }),
+    },
+    {
+      name: 'useHealingTouch',
+      run: (state) => useHealingTouch(state, MOVER, { feature: 'test:none', target: THREAT }),
+    },
+    { name: 'useSelfHeal', run: (state) => useSelfHeal(state, MOVER, { feature: 'test:none' }, supply('h')) },
+    { name: 'useRecovery', run: (state) => useRecovery(state, MOVER, { feature: 'test:none' }, supply('r')) },
+    {
+      name: 'resolveEffectCheck',
+      run: (state) => resolveEffectCheck(state, MOVER, { effectKey: 'none' }, supply('e')),
+    },
+    { name: 'resolveTurn', run: (state) => resolveTurn(state, supply('t')) },
+  ];
+
+  for (const entry of ACTING) {
+    it(entry.name + ' refuses while an area effect is owed', () => {
+      const out = entry.run(owing());
+      expect(isErr(out)).toBe(true);
+      if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+    });
+  }
+
+  /**
+   * And the commands that **close** open state are not guarded, or the engine
+   * would deadlock on its own policy: the settlement itself, and the Reaction
+   * answers that close a window somebody else opened.
+   */
+  it('never refuses the settlement that clears the debt', () => {
+    expect(isErr(settleAreaEffects(owing(), supply('s')))).toBe(false);
+  });
+
+  it('lets a declined Opportunity Attack close its window', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'beside threat');
+    const declared = unwrap(
+      resolveMove(
+        g.state,
+        MOVER,
+        { placement: { from: { landmark: 'inside cube' }, feet: 0 } },
+        supply('provoke'),
+      ),
+      'declaring',
+    );
+    g.push(declared.events);
+    // The move landed and raised the debt; the window it opened must still be
+    // answerable, or the fight cannot continue.
+    if (g.state.pendingMove === null) {
+      expect(g.owed()).toHaveLength(1);
+      return;
+    }
+    expect(isErr(declineOpportunity(g.state, THREAT, {}))).toBe(false);
+  });
+});
+
+// — the two halves of the policy are two halves ————————————————————————————————
+
+describe('an un-arrived start blocks its own creature and nobody else', () => {
+  /**
+   * The area debt is global because settling it can change the world anybody
+   * would act into. \`pendingTurnStart\` is **not**, and the difference is that
+   * nothing has been raised yet: what is unresolved is whether *this* creature
+   * is about to be caught, and their budget has already refreshed. No mechanic
+   * makes that somebody else's problem.
+   *
+   * Reaching the state takes a hand-written boundary: the marker only outlives
+   * its own fold while something the end still owes is outstanding, and the
+   * case with no area debt at all is a scheduled hit due at that moment.
+   */
+  const midBoundary = (): GameState => {
+    const g = new Game([...SETUP], false);
+    g.push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: CASTER, initiative: 30, speed: 30 },
+          { id: MOVER, initiative: 20, speed: 30 },
+        ],
+      },
+      {
+        type: 'damage-scheduled',
+        schedule: {
+          target: THREAT,
+          by: CASTER,
+          deadline: { kind: 'turn-end', of: CASTER, count: 1 },
+          notation: '1d4',
+          damageType: 'acid',
+          source: 'a fixture#cast:99',
+          label: 'the acid',
+        },
+      },
+      // Written by hand: advancing properly would collect the hit in the same
+      // breath, and the point is to stand between the two moments.
+      { type: 'turn-advanced' },
+    ]);
+    return g.state;
+  };
+
+  it('holds the start open while a scheduled hit is still due', () => {
+    const state = midBoundary();
+    expect(state.pendingTurnStart?.who).toBe(MOVER);
+    expect(state.owedAreaEffects).toEqual([]);
+  });
+
+  it('refuses the creature whose start has not arrived', () => {
+    const refused = mayAct(midBoundary(), MOVER);
+    expect(refused).not.toBeNull();
+    if (refused !== null) expect(refused.code).toBe('area_effect_owed');
+  });
+
+  it('lets anybody else act', () => {
+    expect(mayAct(midBoundary(), CASTER)).toBeNull();
+    expect(mayAct(midBoundary(), THREAT)).toBeNull();
+  });
+
+  /** And an owed area effect stops all three, which is the other half. */
+  it('stops everybody once an area actually owes something', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    for (const who of [MOVER, CASTER, THREAT]) {
+      const refused = mayAct(g.state, who);
+      expect(refused).not.toBeNull();
+      if (refused !== null) expect(refused.code).toBe('area_effect_owed');
+    }
+  });
 });

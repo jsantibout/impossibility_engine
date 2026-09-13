@@ -128,9 +128,13 @@ still Wizard-shaped are named below.
   caster's current sheet. Four are pinned instead — save DC, attack modifier,
   spellcasting modifier, caster level — and a casting can now outlive its
   caster, which SRD Grease requires and the engine was quietly forgiving.
-- **A guard has to be on every path that spends something.** `mayAct` is the one
-  policy and it is per-creature: the debt blocks the creature it is owed by,
-  the turn still refuses globally, and Reactions are untouched.
+- **A guard has to be on every path that spends something**, and an owed area
+  effect stops **everybody**. Per-creature was wrong and the counterexample is
+  short: settling a Cleric's Insect Plague damage can break their Concentration
+  and free the creature their Hold Person was holding, so a third creature
+  attacking that creature first rolls against an undecided world. The engine
+  does not dependency-analyse; it settles the mandatory fact. An un-arrived
+  turn start stays per-creature, because nothing has been raised yet.
 - **Causing a condition and owning it are two different links.** Grease knocks
   you Prone and the book leaves you to stand up; the engine was lifting it when
   the grease ended. `outlivesCasting` records the condition under the spell's
@@ -1576,7 +1580,7 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 3,981 passing, none skipped |
+| Tests | 4,006 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

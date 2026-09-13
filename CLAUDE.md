@@ -1997,29 +1997,39 @@ trigger in the book is a bare saving throw — asserted, not assumed. A
 Concentration spell never reaches the question, because its caster leaving ends
 it.
 
-### A mandatory effect blocks the creature it is owed by, and nobody else
+### A mandatory effect blocks everybody; an un-arrived start blocks one creature
 
 `mayAct` is the one policy, called by every command that spends an Action, a
 Bonus Action, movement or a feature's use: Dash, Disengage, Dodge, Ready,
-feature activation, a pool's use, an effect check, an attack, a move, a casting,
-an activation. The area-trigger suite and `invariants.test.ts` hold the list, so
-a command added without it fails there rather than in play.
+feature activation, the three pool commands, an effect check, an attack, a
+move, a casting, an activation, and the turn. A sweep holds the list, so a
+command added without the guard fails there rather than in play.
 
-**Per-creature, deliberately.** A goblin's unmade Web save says nothing about
-whether the wizard across the room may cast. The engine's older debts are
-global because they *are*: a damage roll held open is a number about to change,
-and a turn-boundary save may still be holding somebody Paralyzed, so anyone
-acting resolves against a world that is not yet decided. This one is about one
-creature's own turn. The *turn* still refuses globally, because a debt must not
-be carried into the next one.
+**An owed area effect is global engine debt, and getting that wrong is
+instructive.** It was per-creature for one commit, on the reasoning that a
+goblin's unmade Web save says nothing about the wizard across the room. The
+counterexample is three moves long and every move is an existing mechanic:
 
-**A turn whose start has not arrived blocks that creature too**, even before
-anybody knows whether it will catch them — their budget has refreshed and the
-moment that may Restrain them has not been worked out.
+1. a Cleric concentrates on Hold Person, and a goblin is Paralyzed by it;
+2. the Cleric is shoved into an Insect Plague and owes its damage;
+3. a third creature attacks the goblin.
 
-**Reactions are not routed through it.** A Reaction answers a window that is
-already open, and a save this creature owes changes nothing about whether they
-may answer it.
+Settling step 2 can drop the Cleric, break the Concentration and free the
+goblin — so step 3 is an attack against a creature who may already be free, and
+that is not a small difference: Paralyzed within 5 feet is Advantage and an
+automatic Critical Hit. **The engine does not work out which actions happen to
+be independent**, because it does not need to: settle the mandatory mechanical
+fact first. That is exactly why `pendingDamage`, `pendingTest` and
+`pendingSaves` are global, and this belongs with them.
+
+**A turn whose start has not arrived stays per-creature**, and the difference
+is that *nothing has been raised yet*: what is unresolved is whether this
+creature is about to be caught, and their budget has already refreshed. No
+mechanic makes that anybody else's problem, and no evidence says otherwise.
+
+**Reactions are not routed through either**, nor is `settleAreaEffects`, nor
+are the commands that close a window somebody else opened. A guard that refused
+its own settlement would be a deadlock wearing a rule's clothes.
 
 **After the duplicate check, never before it** — the sixth instance of that trap
 in this file. A retry arrives at the debt its own first run raised.

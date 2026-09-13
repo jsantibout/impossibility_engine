@@ -6587,13 +6587,11 @@ export function resolveTurn(
 
   // What a persistent area caught somebody doing, still undealt. Advancing
   // past it would carry the debt into a turn whose boundary may raise another,
-  // and a creature would be two saves behind by the time anybody looked.
-  if (state.owedAreaEffects.length > 0) {
-    return err(
-      'area_effect_owed',
-      `${state.owedAreaEffects.length} area effect(s) are owed; settle them before the turn moves on`,
-    );
-  }
+  // and a creature would be two saves behind by the time anybody looked. The
+  // creature named is the one whose turn is ending, and the area half of the
+  // policy is global anyway.
+  const owedNow = mayAct(state, currentCombatant(state.combat).id);
+  if (owedNow !== null) return owedNow;
 
   const advanced: GameEvent[] = [
     { type: 'turn-advanced', ...(stamp === null ? {} : { command: stamp }) },
@@ -7246,40 +7244,47 @@ function unsettledRefusal(state: GameState, who: CharacterId): Err | null {
 }
 
 /**
- * Whether this creature may take a voluntary action at all.
+ * Whether anybody may take a voluntary action right now, and this creature in
+ * particular.
  *
- * **The debt blocks the creature it is owed by, and nobody else.** A Web save
- * one goblin has not made says nothing about whether the wizard across the
- * room may cast — and the engine's older debts are global only because they
- * are: a damage roll held open is a number about to change, and a
- * turn-boundary save may or may not still be holding somebody Paralyzed, so
- * *anyone* acting resolves against a world that is not yet decided. This one
- * is about one creature's own turn.
+ * **Two policies, and only the second is about the creature named.**
  *
- * Two things stop them, and the second is the half that is easy to miss:
+ * **An owed area effect is global engine debt.** It was per-creature for one
+ * commit, on the reasoning that a goblin's unmade Web save says nothing about
+ * the wizard across the room. That reasoning is wrong, and the counterexample
+ * is three moves long: a Cleric concentrating on Hold Person walks into an
+ * Insect Plague; settling the swarm's damage can drop the Cleric, break the
+ * Concentration and free the creature the Hold Person was holding — so a
+ * third creature attacking *that* creature before the swarm is settled is
+ * rolling against a Paralyzed target who may already be free. Advantage, an
+ * automatic critical, and the whole shape of the attack turn on it.
  *
- * - an effect a persistent area already owes them
- * - a turn whose **start has not yet arrived** — see
- *   {@link GameState.pendingTurnStart}. Their budget has refreshed and the
- *   moment that may Restrain them has not been determined, so spending the
- *   first past the second is acting out of a Web before anyone asked whether
- *   they are in it.
+ * The engine will not dependency-analyse which actions happen to be
+ * independent, because it does not need to: **settle the mandatory mechanical
+ * fact first.** That is precisely why `pendingDamage`, `pendingTest` and
+ * `pendingSaves` are global, and this belongs with them.
  *
- * Reactions are deliberately not routed through this: a Reaction answers a
- * window that is already open, and a save this creature owes changes nothing
- * about whether they may answer it.
+ * **A turn whose start has not arrived is per-creature**, and deliberately
+ * stays so. Nothing has been raised yet, so nothing can mutate: what is
+ * unresolved is whether *this* creature is about to be caught, and their
+ * budget has already refreshed. No mechanic makes that anybody else's problem.
+ *
+ * Reactions are deliberately not routed through either: a Reaction answers a
+ * window that is already open, and refusing it would strand a legal one.
+ * Neither is `settleAreaEffects` itself, or the commands that close an
+ * already-open window — a guard that prevented its own settlement would be a
+ * deadlock rather than a rule.
  *
  * One function, called by every command that spends an Action, a Bonus Action,
- * a Reaction's worth of movement or a feature's use, rather than a sentence
- * each of them writes out again. `invariants.test.ts` holds the list.
+ * movement or a feature's use, rather than a sentence each of them writes out
+ * again.
  */
 export function mayAct(state: GameState, who: CharacterId): Err | null {
-  const owed = state.owedAreaEffects.filter((effect) => effect.target === who);
-  const caught = owed[0];
+  const caught = state.owedAreaEffects[0];
   if (caught !== undefined) {
     return err(
       'area_effect_owed',
-      `${caught.castingId} has caught ${who} and owes them an effect; settle it before ${who} acts`,
+      `${state.owedAreaEffects.length} area effect(s) are owed — ${caught.castingId} has caught ${caught.target} — and settling them can change the world anybody else would act into`,
     );
   }
   if (state.pendingTurnStart?.who === who) {
