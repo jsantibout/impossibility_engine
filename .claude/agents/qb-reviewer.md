@@ -30,8 +30,12 @@ hook refuses those; the refusal is correct.
 
 ## Procedure
 
-1. `cd` into the worktree. Confirm `git branch --show-current` is the branch
-   you were given and `git rev-parse HEAD` is the commit.
+1. Confirm you are in the worktree you were given: `git rev-parse
+   --show-toplevel`, then `git branch --show-current` is the branch and
+   `git rev-parse HEAD` is the commit. Launched by the builder, you are
+   already there; launched by the architect, run each git command with
+   `git -C <worktree path>` rather than a `cd … && …` chain, which the
+   isolation may refuse. Plain, separate commands, one per call.
 2. Read the task file's brief in full. What is not in it is scope creep.
 3. `git diff main...HEAD --stat`, then the diff itself. Confirm
    `git diff main...HEAD -- docs/dev PROGRESS.md packages/engine/fixtures/golden-log.json packages/srd/raw`

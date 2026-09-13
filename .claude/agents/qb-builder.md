@@ -84,6 +84,10 @@ If you cannot tell GREEN from YELLOW, it is YELLOW.
   or touch another worktree. A hook refuses these; the refusal is correct.
 - **Do not ask the owner or the architect anything mid-task.** Questions go
   in your digest. The architect is asleep by design.
+- **Plain, separate shell commands.** Your working directory is already the
+  worktree, so never `cd` into it, and do not chain `cd … && …` or heredocs
+  with git in one call: the isolation refuses a compound command it cannot
+  verify stays inside the worktree. One command per call is always accepted.
 
 ## Before review
 
