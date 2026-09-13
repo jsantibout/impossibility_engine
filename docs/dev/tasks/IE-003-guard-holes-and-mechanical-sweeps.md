@@ -1,11 +1,11 @@
 # IE-003 — Close the guard holes and make the guard sweeps mechanical
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 batch: 1
 parallel-safe: CONDITIONAL — beside conformance (IE-004) and content only; it edits `commands.ts`, `events.ts`, `rest.ts`, `spells.ts` and the invariants suite, so no other mechanism task runs beside it
 depends-on: none
-worker: none
+worker: qb-builder · .claude/worktrees/agent-aa0e7aa939fb1a46a · worktree-agent-aa0e7aa939fb1a46a
 approved: 2026-09-13 — "APPROVE BATCH"
 merge-approved: none
 

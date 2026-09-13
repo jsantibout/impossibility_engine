@@ -22,7 +22,7 @@ Audit due at: 4
 
 ## Batches
 
-### Batch 1 — APPROVED_FOR_IMPLEMENTATION
+### Batch 1 — IMPLEMENTING
 
 | Role | Task | Lane | Parallel-safe |
 |---|---|---|---|
@@ -47,7 +47,7 @@ both are re-scheduled below, with the reasons in their files.
 | [IE-003 — Close the guard holes and make the guard sweeps mechanical](tasks/IE-003-guard-holes-and-mechanical-sweeps.md) | mechanism | CONDITIONAL | 1 |
 | [IE-004 — The honesty guard for executed spells](tasks/IE-004-honesty-guard-for-executed-spells.md) | conformance | YES | 1 |
 
-Both approved 2026-09-13 ("APPROVE BATCH"); builders being launched.
+Both `IMPLEMENTING` since 2026-09-13, one builder each in a worktree under `.claude/worktrees/` (path and branch on each task file). The architect is idle until a completion digest arrives.
 
 ## NEXT
 
