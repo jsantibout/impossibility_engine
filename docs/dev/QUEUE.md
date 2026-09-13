@@ -93,8 +93,12 @@ the third audit already measured, and the one structural helper it adds (the
 duplicate-check wrapper) is named in the brief. Recommendation: APPROVE
 TRANCHE 2.
 
-### Tranche 3 — PROPOSED
+### Tranche 3 — APPROVED 2026-09-13 — "APPROVE TRANCHE 3"
 roster: IE-008, IE-001, IE-007, IE-009
+
+The approval authorises these four tasks through implementation, review,
+ordinary rework, clean auto-merge, push and bookkeeping, with no further
+merge gate. Nothing outside this roster moves.
 
 Re-audited against the repository as it stands at `ceb11e6`, not against the
 ordering tranche 2 left behind. Two items moved and one is new.
@@ -187,8 +191,10 @@ Recommendation: APPROVE TRANCHE 3.
 
 ## CURRENT
 
-Nothing running. **Tranche 3 is proposed, not approved: nothing may execute.**
-All four tasks are at `OWNER_APPROVAL_REQUIRED`.
+Tranche 3 is approved and running. IE-008, IE-001 and IE-009 launched
+2026-09-13, one builder each in its own worktree; **IE-007 is held at
+`APPROVED_FOR_IMPLEMENTATION`** and launches when IE-001 has merged, because
+they share `commands/spell-resolution.ts` and the `SpellEffect` union.
 
 | Task | Lane | Parallel-safe | Tranche |
 |---|---|---|---|
@@ -238,5 +244,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | architectural gate | IE-005 | three builder rounds ended `DEFECTS` on two doc comments; judged procedural, the unreviewed delta inspected, a fourth round authorised on the rebased commit, a fifth for one paragraph, `PASS` at the confirmation pass |
 | 2026-09-13 | workflow change | — | `WORKFLOW.md` "Parallel safety": the command layer is no longer one primitive. One module under `commands/` is; two mechanism tasks in different domains may run concurrently, and still collide on the barrel and `invariants.test.ts` |
 | 2026-09-13 | workflow change | — | Two repeated tranche-2 findings folded into the procedure: **round exhaustion is not a failed review** (the foreman may authorise one further bounded pass when findings are strictly shrinking, confidence high, escalation none and the remainder is not architecture — never manufacturing a PASS, never skipping independent review), and **rebases are the foreman's** (builders finish and report a branch; briefs stop asking them to rebase). `WORKFLOW.md`, `qb-builder.md` |
-| 2026-09-13 | Gate 1 | IE-008, IE-001, IE-007, IE-009 | presented as tranche 3 after a re-audit against `ceb11e6`; awaiting the owner |
+| 2026-09-13 | Gate 1 | IE-008, IE-001, IE-007, IE-009 | approved — "APPROVE TRANCHE 3"; launched with three builders, IE-007 held until IE-001 merges |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |

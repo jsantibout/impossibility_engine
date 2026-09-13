@@ -1,12 +1,12 @@
 # IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 3
 parallel-safe: NO beside IE-001 — both are in `commands/spell-resolution.ts` and the fold; YES beside IE-008 (`creation.ts`) and IE-009 (tests and prose)
 depends-on: IE-005, IE-001
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 3"
 merge-approved: none
 
 ## Re-brief note (2026-09-13, after tranche 2)

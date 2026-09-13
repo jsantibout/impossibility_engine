@@ -1,12 +1,12 @@
 # IE-008 — Every pool a level grants, granted at advancement
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 3
 parallel-safe: YES beside a spell-resolution task — it is `creation.ts` and the resource pools, touching no spell, no event type and no fold; NO beside another task in `creation.ts` or resource authority
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 3"
 merge-approved: none
 
 ## Brief
