@@ -105,6 +105,7 @@ still Wizard-shaped are named below.
 | Architecture audit III | The fold reads content; guards that were lists; debt hiding as fiction in executed spells; `commands.ts` measured for its split | `588d7a0` |
 | Honesty guard II | Executed spells’ `unmodelled` clauses adjudicated — 84 over 55 spells, 27 sourced shapes; partial derived from the debts, beside verified | `0536a2b` |
 | Guard holes | Both guard sweeps derived from the module; `extendFeature` guarded; a removed creature takes its timers; nested Counterspell a value; identity first in the casting wrapper; `idempotency.ts` | `5dfbc39` |
+| Shapes drained | Arcane Sword and Produce Flame poured into the shapes that already execute — 84 of 339; a spell-by-spell pass over all 211 undefined spells found only these two, so the next coverage is bought by a mechanic | `de45194` |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 
@@ -1735,11 +1736,33 @@ needs TypeScript, and that is the honest measure of what this bought.
    it is blocked on light being modelled at all. Adding an index to the event
    and the record later is additive; choosing plurality now would be a shape
    built ahead of any mechanic that could use it.
-2. **Keep pouring spells into the five working shapes.** Attack, save-damage,
-   save-condition, area, buff, heal, temp-hp all work now; roughly 90 parsed
-   spells fit one of them and need only a definition with its SRD quote.
-   `spell-catalogue.test.ts` drives every definition automatically, so the
-   test cost of each new one is zero. This is the cheapest coverage there is.
+2. ~~**Keep pouring spells into the five working shapes.**~~ **The shapes are
+   drained, and that is measured rather than felt.** This item said roughly
+   ninety parsed spells fit one of the working kinds and needed only a
+   definition with its SRD quote — the cheapest coverage there is. IE-002
+   (`de45194`) tested it by reading all 211 undefined SRD spells one at a
+   time, and found **two**: Arcane Sword and Produce Flame, both of them
+   second users of shapes that already had one. The estimate was made by
+   shape and the audit was made by paragraph, which is the whole difference —
+   a spell is disqualified by any one clause, and almost every candidate has
+   one.
+
+   **So the next spell coverage is bought by a mechanic, not by
+   transcription**, and the blockers are named with the spells waiting on
+   them: several attack rolls from one casting (Scorching Ray); damage with
+   neither an attack roll nor a save (Magic Missile); outcome-scoped child
+   effects (Ice Knife, Hideous Laughter, Sleet Storm, Faerie Fire) — already
+   deferred above, and this is the evidence its members were waiting for; a
+   damage type chosen at the casting (Chromatic Orb, Dragon's Breath,
+   Protection from Energy); a condition applied with no saving throw
+   (Invisibility, Greater Invisibility) — IE-001; condition removal (Lesser
+   Restoration, Heal); a Resistance a spell grants (Stoneskin); a standing
+   rider on every weapon attack (Divine Favor, Hex, Hunter's Mark); a
+   multi-template area or a wall (Fire Storm, Meteor Swarm, every Wall); a Hit
+   Point maximum a spell moves (Aid); a repeating Temporary Hit Point payout
+   (Heroism); and Difficult Terrain an area creates (Entangle, Spike Growth).
+   The ranked map below is unchanged by this; what changed is that no cheap
+   content task stands in front of it any more.
 3. **Target-anchored riders**, and the two things each of them also needs.
    `lasts` carries the caster-anchored pair only. Sleep is the nearest
    candidate and wants "each creature of your choice" inside an area — the area

@@ -30,7 +30,10 @@ definition prose: IE-003 (`5dfbc39`). IE-004 (`0536a2b`) was conformance — a
 guard, a script and two `unmodelled` strings — and is in the merge log below
 but not counted. What it added for the next audit to weigh is on its task
 file: the executed bucket now has a missing-shape vocabulary of its own
-beside the tracked guard's.
+beside the tracked guard's. IE-002 (`de45194`) was content — two spell
+definitions, their tests and prose — and is not counted either. What it left
+for the next audit to weigh is on its task file: the existing effect kinds are
+measurably drained, so the next spell coverage is bought by a mechanic.
 
 ## Tranches
 
@@ -54,11 +57,11 @@ The first tranche under V2: the approval authorises these three tasks through
 implementation, review, ordinary rework, clean auto-merge, push and
 bookkeeping, with no further merge gate. Nothing outside this roster moves.
 
-| Role | Task | Lane | Parallel-safe |
-|---|---|---|---|
-| PRIMARY | IE-005 — Split `commands.ts` by domain, behaviour-preserving | mechanism | NO beside mechanism; YES beside these two |
-| PARALLEL | IE-006 — A second frozen event-log fixture | conformance | YES |
-| PARALLEL | IE-002 — Pour twelve spells into the shapes that already execute | content | CONDITIONAL |
+| Role | Task | Lane | Parallel-safe | Merged as |
+|---|---|---|---|---|
+| PRIMARY | IE-005 — Split `commands.ts` by domain, behaviour-preserving | mechanism | NO beside mechanism; YES beside these two | — |
+| PARALLEL | IE-006 — A second frozen event-log fixture | conformance | YES | — |
+| PARALLEL | IE-002 — Pour twelve spells into the shapes that already execute | content | CONDITIONAL | `de45194`, first |
 
 Independence check: PASS. IE-005 moves `commands.ts` into `commands/` and
 sends eleven helpers to `attack.ts`, `positioning.ts`, `spell-definitions.ts`
@@ -88,12 +91,11 @@ TRANCHE 2.
 |---|---|---|---|
 | [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | NO | 2 |
 | [IE-006 — A second frozen event-log fixture](tasks/IE-006-second-frozen-fixture.md) | conformance | YES | 2 |
-| [IE-002 — Pour twelve spells into the shapes that already execute](tasks/IE-002-pour-spells-into-existing-shapes.md) | content | CONDITIONAL | 2 |
 
 All three launched 2026-09-13 under tranche 2 authority, one builder each in
-its own worktree; each task file names its worktree and branch. Merge order
-remains IE-006 and IE-002 first, IE-005 last, rebased over the registry lines
-and the prose.
+its own worktree; each task file names its worktree and branch. IE-002 is
+`DONE` and merged first, as the order said. IE-005 merges last, rebased over
+the prose.
 
 ## NEXT
 
@@ -110,6 +112,9 @@ and the prose.
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a tranche has room |
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
+| Produce Flame's die **size** is pinned more weakly than its count — `1d8` → `1d6` survives the level-9 test, because the cap the fixture reads is cleared either way | content | IE-002's reviewer, after the PASS; the number is right, the guard is thin. Assert the novice's ceiling as well. Rides with the next spell test |
+| `advanceCharacter` declares hit-dice and slot pools and **not** a feature pool granted at the new level, so a Fighter advanced 8 → 9 has Indomitable on the sheet and no pool to spend it from | mechanism | IE-006's builder, worked around by creating the fighter at level 9. `poolEvents` handles it at creation (`creation.ts:2423`); `advanceCharacter` (`creation.ts:2661`) does not |
+| nine of the 91 event types are emitted by no command anywhere — `creature-side-declared`, `mounted`, `dismounted`, `free-interaction-used`, `initiative-swapped`, `stabilised`, `creature-died`, `items-lost`, `bonus-removed` | mechanism | IE-006's builder. Each is a fact a DM declares and each is hand-written throughout the suite, so it is a shape rather than a hole — but a tool surface cannot reach any of them, which M2 needs to know |
 
 IE-005 carries two residuals IE-003's reviewer left, inside files it rewrites
 anyway: `carriesEvents` answering `unresolved` for a union payload, and the
