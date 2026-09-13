@@ -93,6 +93,7 @@ still Wizard-shaped are named below.
 | Spell origins | A casting holds a point; the attack's origin is not its actor; Spiritual Weapon | `adaf5eb` |
 | Area triggers | A persistent area catches a creature at a boundary or on entering; Insect Plague, Web, Grease, Black Tentacles | `ffd2e44` |
 | Moving areas | An area that arrives at a creature standing still; a route the caller states; Moonbeam | `fa41e34` |
+| Route timing | A route settles as the area reaches each space; `via` is adjudicated, and asking for it is not a refusal | *(this batch)* |
 
 ## Decisions that constrain what comes next
 
@@ -1410,8 +1411,19 @@ primitive — which is why it is below the four above it despite being unblocked
      of the batch. Sixty feet is twelve spaces, easily far enough to sweep
      clean over somebody, and two points do not imply the line between them —
      Chebyshev says how far an origin moved, never which way. So each leg is
-     its own relocation, a leg one space long is exact, and any longer leg
-     says in `unverified` that nothing records what it crossed.
+     its own relocation, and a leg longer than one space comes back as a
+     `needs-context` asking for the adjudicated route rather than being
+     executed with the crossed creatures quietly missing. **Maestro chooses
+     the route; the engine validates it** — the same boundary
+     `eligibleTargets` draws for targeting — and the engine is deliberately
+     blind to sides while doing so.
+
+     **And a route settles as it goes.** The save happens "when the spell's
+     area moves into its space", which is a point *inside* the route: a beam
+     walked onto its own concentrating caster can end the spell halfway along,
+     and the waypoints after that must never happen. Each leg is moved,
+     settled through the existing `settleAreaEffects`, and only then followed
+     by the next.
 
      What is **not** built, and each is its own *source of area movement*
      rather than a variant of this one: an area that moves **by itself** at
@@ -1627,7 +1639,7 @@ Run `npm run coverage`; these were true at the last commit.
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 4,101 passing, none skipped |
+| Tests | 4,130 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

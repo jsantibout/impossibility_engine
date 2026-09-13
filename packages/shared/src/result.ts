@@ -48,8 +48,16 @@ export interface ContextRequest {
    * `creature` is the one that was missing for longest: the most common
    * `needs-context` in the engine is a creature it has never been told about,
    * and it carried no request at all.
+   *
+   * `route` is the odd one and worth naming as such: every other kind is
+   * satisfied by **declaring a fact** through some command of its own, and
+   * this one is satisfied by **re-sending the same command with a field
+   * filled in**. `satisfyWith` says which, as it does for all of them. The
+   * fact is still a fact — which spaces a thing passed through is not
+   * something the engine may decide — and the asker is still the orchestrator
+   * rather than a player.
    */
-  readonly kind: 'creature' | 'position' | 'visibility' | 'creature-type' | 'scene';
+  readonly kind: 'creature' | 'position' | 'visibility' | 'creature-type' | 'scene' | 'route';
   /** Who the missing fact is about. */
   readonly subject: string;
   /** What is missing, in plain terms. */

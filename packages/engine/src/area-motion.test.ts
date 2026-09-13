@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+  type CharacterId,
+  type Result,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -10,6 +18,7 @@ import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import { areaStampKey, type AreaMoment } from './spells.js';
 import {
   activateSpell,
+  commandOutcome,
   endConcentration,
   ongoingSpellOf,
   owedAreaEffectsOf,
@@ -17,6 +26,7 @@ import {
   resolveSpell,
   resolveTurn,
   settleAreaEffects,
+  type SpellResolution,
 } from './commands.js';
 
 /**
@@ -42,6 +52,11 @@ import {
  * and "the beam swept over you" are different answers to why a creature is
  * hurt.
  *
+ * **The save happens when the area moves into the space**, which is a point
+ * *inside* the route rather than after it. That is not a nicety: a beam walked
+ * onto its own concentrating caster can end the spell halfway along, and the
+ * waypoints after that must never happen.
+ *
  * Cloudkill, Incendiary Cloud and Spirit Guardians print the same clause about
  * their own areas and are **not** implemented here: their areas move for
  * different reasons, by different causes, at different moments. What this
@@ -61,8 +76,10 @@ const BYSTANDER = id('bystander');
 const STILL = id('still');
 /** Walks into a beam that has not moved — the F2a control. */
 const STEPPER = id('stepper');
+/** Stands beyond the druid, reachable only by the last leg of a sweep. */
+const LATER = id('later');
 
-const PREPARED = ['moonbeam', 'web', 'insect-plague', 'grease'];
+const PREPARED = ['moonbeam', 'web', 'insect-plague', 'grease', 'spiritual-weapon'];
 
 const sheet = (): CharacterSheet => ({
   level: 11,
@@ -106,6 +123,15 @@ const casts = (who: CharacterId): readonly GameEvent[] => [
   ),
 ];
 
+/**
+ * Saves that land where the test wants them.
+ *
+ * The default penalty fails every save, so a trigger that fired is a trigger
+ * that shows — and, when the beam catches its own caster, the Concentration
+ * save fails too and the spell ends mid-route, which is the case this file
+ * exists for. A test that needs the casting to survive passes the bonus the
+ * other way: half damage on a made save is still damage.
+ */
 const supply = (seed = 'beam', flat = -40) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
@@ -120,15 +146,16 @@ const supply = (seed = 'beam', flat = -40) => ({
  * 305} and nothing else. Every coordinate below is chosen so that exactly one
  * membership question is being asked:
  *
- * | | x | In the beam at 300? | At 305? | At 320? |
- * |---|---|---|---|---|
- * | `INSIDE` | 300 | yes | yes | no |
- * | `BYSTANDER` | 310 | no | **yes** | no |
- * | `STILL` | 320 | no | no | **yes** |
+ * | | x | In the beam at 300? | At 305? | At 315? | At 320? |
+ * |---|---|---|---|---|---|
+ * | `INSIDE` | 300 | yes | yes | no | no |
+ * | `BYSTANDER` | 310 | no | **yes** | yes | no |
+ * | `STILL` | 320 | no | no | **yes** | yes |
  *
- * So a single 20-foot step from 300 to 320 **passes over** `BYSTANDER` and
- * leaves them outside at both ends — the adversarial case this batch exists to
- * be honest about.
+ * So the four-step sweep 300 → 305 → 310 → 315 → 320 catches `BYSTANDER` on
+ * its first leg and `STILL` on its third, and a single twenty-foot step from
+ * 300 to 320 would pass over both while leaving one of them outside at each
+ * end — which is why a step that long is a question rather than a move.
  */
 const LANE = 300;
 const DRUID_AT: Point = { x: 200, y: LANE, z: 0 };
@@ -137,20 +164,53 @@ const BEAM_STEP: Point = { x: 305, y: LANE, z: 0 };
 const BEAM_MID: Point = { x: 310, y: LANE, z: 0 };
 const BEAM_NEAR: Point = { x: 315, y: LANE, z: 0 };
 const BEAM_EAST: Point = { x: 320, y: LANE, z: 0 };
+
+/** The waypoints of the four adjacent steps from `BEAM` to `BEAM_EAST`. */
+const SWEEP_EAST: readonly Point[] = [BEAM_STEP, BEAM_MID, BEAM_NEAR];
+
+/**
+ * The same destination by a route that keeps off `BYSTANDER`.
+ *
+ * Eight adjacent steps: south, east along the next lane, then north again.
+ * Legal, longer, and it catches a different set — which is the whole point.
+ * The route is a fact, and two different facts give two different answers.
+ */
+const SWEEP_AROUND: readonly Point[] = [
+  { x: 300, y: LANE - 5, z: 0 },
+  { x: 300, y: LANE - 10, z: 0 },
+  { x: 305, y: LANE - 10, z: 0 },
+  { x: 310, y: LANE - 10, z: 0 },
+  { x: 315, y: LANE - 10, z: 0 },
+  { x: 320, y: LANE - 10, z: 0 },
+  { x: 320, y: LANE - 5, z: 0 },
+];
+
 /** Sixty feet from the beam and a hundred and sixty from the caster. */
 const BEAM_FAR: Point = { x: 360, y: LANE, z: 0 };
 /** A hundred feet from the beam: inside Moonbeam's Range, outside its move. */
 const BEAM_TOO_FAR: Point = { x: 400, y: LANE, z: 0 };
 
-/** Within reach of the lane, so a second beam can be cast over the same spot. */
+/** Out by the east wall, where a legal-length move still leaves the room. */
 const RIVAL_AT: Point = { x: 250, y: LANE + 40, z: 0 };
-
-/** The east wall, where a legal-length move still leaves the room. */
 const WARDEN_AT: Point = { x: 800, y: LANE, z: 0 };
 const EDGE_BEAM: Point = { x: 880, y: LANE, z: 0 };
 const PAST_THE_WALL: Point = { x: 920, y: LANE, z: 0 };
 
-const spot = (name: string, at: Point): GameEvent => ({ type: 'landmark-added', name, at });
+/**
+ * The sweep that walks a beam onto its own caster, and would go on past them.
+ *
+ * Conjured fifteen feet east of the druid and walked west in adjacent steps.
+ * The second leg puts the druid inside; the fourth would put `LATER` inside,
+ * and is the leg that must never happen once the druid's Concentration goes.
+ */
+const SELF_BEAM: Point = { x: 215, y: LANE, z: 0 };
+const SELF_SWEEP: readonly Point[] = [
+  { x: 210, y: LANE, z: 0 },
+  { x: 205, y: LANE, z: 0 }, // the druid, at x = 200, is now inside
+  { x: 200, y: LANE, z: 0 },
+];
+const SELF_END: Point = { x: 195, y: LANE, z: 0 }; // …and `LATER`, at 190, with it
+const LATER_AT: Point = { x: 190, y: LANE, z: 0 };
 
 const place = (who: CharacterId, at: Point): GameEvent => ({
   type: 'creature-placed',
@@ -166,11 +226,11 @@ const SETUP: readonly GameEvent[] = [
   added(BYSTANDER),
   added(STILL),
   added(STEPPER),
+  added(LATER),
   ...casts(DRUID),
   ...casts(RIVAL),
   ...casts(WARDEN),
   { type: 'scene-set', extent: { width: 900, depth: 900, height: 60 } },
-  spot('beam edge', BEAM_STEP),
   place(DRUID, DRUID_AT),
   place(RIVAL, RIVAL_AT),
   place(WARDEN, WARDEN_AT),
@@ -178,6 +238,7 @@ const SETUP: readonly GameEvent[] = [
   place(BYSTANDER, BEAM_MID),
   place(STILL, BEAM_EAST),
   place(STEPPER, { x: 400, y: LANE, z: 0 }),
+  place(LATER, LATER_AT),
 ];
 
 const FIGHT: readonly GameEvent[] = [
@@ -238,7 +299,7 @@ class Game {
     return out.castingId;
   }
 
-  /** Take the Magic action that moves the beam. */
+  /** Take the Magic action that moves the beam, without keeping the result. */
   moveArea(
     castingId: string,
     to: Point,
@@ -247,19 +308,21 @@ class Game {
       readonly via?: readonly Point[];
       readonly commandId?: string;
       readonly seed?: string;
+      readonly flat?: number;
+      readonly targets?: readonly CharacterId[];
     } = {},
-  ) {
+  ): Result<SpellResolution> {
     return activateSpell(
       this.state,
       options.by ?? DRUID,
       {
         castingId,
-        targets: [],
+        targets: options.targets ?? [],
         to,
         ...(options.via === undefined ? {} : { via: options.via }),
         ...(options.commandId === undefined ? {} : { commandId: options.commandId }),
       },
-      supply(options.seed ?? 'move'),
+      supply(options.seed ?? 'move', options.flat ?? -40),
     );
   }
 
@@ -290,19 +353,6 @@ class Game {
     this.push(out.events);
   }
 
-  settle(seed = 'settle', commandId?: string, flat = -40): readonly GameEvent[] {
-    const out = unwrap(
-      settleAreaEffects(
-        this.state,
-        supply(seed, flat),
-        commandId === undefined ? {} : { commandId },
-      ),
-      'settling area effects',
-    );
-    this.push(out.events);
-    return out.events;
-  }
-
   turn(seed = 'turn', flat = -40): readonly GameEvent[] {
     this.fight();
     const out = unwrap(resolveTurn(this.state, supply(seed, flat)), 'advancing the turn');
@@ -312,12 +362,6 @@ class Game {
 
   owed(): readonly { readonly target: string; readonly moment: AreaMoment }[] {
     return owedAreaEffectsOf(this.state);
-  }
-
-  caught(): readonly string[] {
-    return this.owed()
-      .map((o) => o.target)
-      .sort();
   }
 
   originOf(castingId: string): Point | undefined {
@@ -337,7 +381,17 @@ class Game {
   }
 }
 
-/** A game with the beam already up and nobody having settled the cast. */
+/** Who a batch of events says an area arrived on, in the order it reached them. */
+const caughtIn = (events: readonly GameEvent[]): readonly string[] =>
+  events.flatMap((e) =>
+    e.type === 'area-effect-settled' && e.moment === 'area-moved' ? [e.target] : [],
+  );
+
+/** Where a batch of events says the area went, in order. */
+const legsIn = (events: readonly GameEvent[]): readonly Point[] =>
+  events.flatMap((e) => (e.type === 'spell-origin-moved' ? [e.to] : []));
+
+/** A game with the beam already up, on the druid's turn. */
 const withBeam = (): { readonly game: Game; readonly beam: string } => {
   const game = new Game();
   const beam = game.conjure('moonbeam', BEAM);
@@ -428,120 +482,385 @@ describe('a beam that has just appeared has not moved', () => {
 describe('an area that moves onto a creature owes it the spell', () => {
   it('catches the creature the beam arrives on', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    expect(game.owed()).toEqual([
-      expect.objectContaining({ target: STILL, moment: 'area-moved' }),
-    ]);
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    expect(caughtIn(out.events)).toContain(STILL);
   });
 
-  it('owes it once, not once per space crossed', () => {
+  it('catches them once, not once per space crossed', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    expect(game.owed()).toHaveLength(1);
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    expect(caughtIn(out.events).filter((who) => who === STILL)).toHaveLength(1);
   });
 
   it('settles it through the spell the casting was made with', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    const before = game.hp(STILL);
-    game.settle();
-    expect(game.hp(STILL)).toBeLessThan(before);
-    expect(game.owed()).toEqual([]);
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    expect(game.hp(STILL)).toBeLessThan(MAX_HP);
   });
 
   /** Inside before and inside after: the beam did not arrive, it stayed. */
   it('owes nothing to a creature the beam was already on', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_STEP);
-    expect(game.caught()).not.toContain(INSIDE);
+    const out = game.beamTo(beam, BEAM_STEP);
+    expect(caughtIn(out.events)).not.toContain(INSIDE);
   });
 
   /** And leaving is not arriving. */
   it('owes nothing to a creature the beam moved off', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    expect(game.caught()).not.toContain(INSIDE);
+    const hurtByTheCast = game.hp(INSIDE);
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    expect(caughtIn(out.events)).not.toContain(INSIDE);
+    expect(game.hp(INSIDE)).toBe(hurtByTheCast);
   });
 
   it('owes nothing to a creature outside it at both ends', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_STEP);
-    expect(game.caught()).not.toContain(STILL);
+    const out = game.beamTo(beam, BEAM_STEP);
+    expect(caughtIn(out.events)).not.toContain(STILL);
   });
 
   /** A move that changes nobody's membership changes nothing. */
   it('owes nothing when the beam moves through empty air', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, { x: 300, y: LANE - 40, z: 0 });
+    const out = game.beamTo(beam, { x: 300, y: LANE - 5, z: 0 });
+    expect(caughtIn(out.events)).toEqual([]);
+  });
+
+  /** Nothing is left outstanding: the action settles what its own move caused. */
+  it('leaves no debt behind for somebody else to remember', () => {
+    const { game, beam } = withBeam();
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
     expect(game.owed()).toEqual([]);
   });
 });
 
-// — what a leg cannot prove ———————————————————————————————————————————————————
+// — per-leg settlement ————————————————————————————————————————————————————————
 
-describe('the route is the caller’s to state, and the gap is said out loud', () => {
+describe('a stated route settles its consequences as the area reaches them', () => {
   /**
-   * **The adversarial case, and the engine does not pretend.** A beam that
-   * steps twenty feet from x = 300 to x = 320 passes over x = 310 by any route
-   * a person would draw — and the engine has no route. Two points do not imply
-   * the line between them, and drawing one would be exactly the invention this
-   * engine exists to refuse.
+   * **The ordering is the rule, not an implementation detail.** SRD Moonbeam
+   * says the save happens "when the spell's area moves into its space" — at
+   * that point in the route. An implementation that moved the whole way and
+   * then settled everything gives the same answers right up until a
+   * consequence changes what the rest of the route may do, and then it gives
+   * the wrong one silently.
+   */
+  it('interleaves each move with what that move caused', () => {
+    const { game, beam } = withBeam();
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+
+    const shape = out.events
+      .filter((e) => e.type === 'spell-origin-moved' || e.type === 'area-effect-settled')
+      .map((e) => (e.type === 'spell-origin-moved' ? `move ${e.to.x}` : `caught ${e.target}`));
+
+    expect(shape).toEqual([
+      'move 305',
+      `caught ${BYSTANDER}`,
+      'move 310',
+      'move 315',
+      `caught ${STILL}`,
+      'move 320',
+    ]);
+  });
+
+  /** Said the other way: somebody is caught before the last move happens. */
+  it('never leaves every consequence until the sweep is over', () => {
+    const { game, beam } = withBeam();
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    const kinds = out.events
+      .filter((e) => e.type === 'spell-origin-moved' || e.type === 'area-effect-settled')
+      .map((e) => e.type);
+    expect(kinds.indexOf('area-effect-settled')).toBeLessThan(
+      kinds.lastIndexOf('spell-origin-moved'),
+    );
+  });
+
+  it('takes the action once for the whole route', () => {
+    const { game, beam } = withBeam();
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    expect(out.events.filter((e) => e.type === 'action-spent')).toHaveLength(1);
+  });
+
+  /** The action is recorded before its own content, so history reads in order. */
+  it('records the activation before the movement it paid for', () => {
+    const { game, beam } = withBeam();
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    const types = out.events.map((e) => e.type);
+    expect(types.indexOf('spell-activated')).toBeLessThan(types.indexOf('spell-origin-moved'));
+  });
+
+  it('reports what the route caught among the action’s own outcomes', () => {
+    const { game, beam } = withBeam();
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    expect(out.outcomes.map((o) => o.target).sort()).toEqual([BYSTANDER, STILL]);
+  });
+});
+
+// — the casting that ends halfway along its own route ——————————————————————————
+
+describe('a beam walked onto its own caster can end the spell mid-route', () => {
+  /**
+   * **The case that makes per-leg settlement a correctness question.**
    *
-   * So it fires for nobody it cannot prove, and it **says so**.
+   * 1. the druid is concentrating on Moonbeam;
+   * 2. they take the Magic action and sweep it west, four adjacent steps;
+   * 3. the second leg puts the Cylinder on the druid's own space;
+   * 4. the druid makes the Moonbeam save and takes the damage;
+   * 5. the damage forces a Concentration save, which fails;
+   * 6. Moonbeam ends — at that leg;
+   * 7. the third and fourth legs must never happen.
+   *
+   * Every step of that is an existing mechanic. What was wrong before this
+   * correction is only *when* step 4 happened.
    */
-  it('does not fire for a creature outside both ends of a long step', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    expect(game.caught()).not.toContain(BYSTANDER);
+  const sweepOntoSelf = (flat: number) => {
+    const game = new Game();
+    const beam = game.conjure('moonbeam', SELF_BEAM);
+    game.fight().to(DRUID);
+    const out = game.beamTo(beam, SELF_END, { via: SELF_SWEEP, flat });
+    return { game, beam, out };
+  };
+
+  it('catches the caster on the leg that arrives on them', () => {
+    const { out } = sweepOntoSelf(-40);
+    expect(caughtIn(out.events)).toContain(DRUID);
   });
 
-  it('reports the spaces the step crossed as unknown', () => {
-    const { game, beam } = withBeam();
-    const out = game.beamTo(beam, BEAM_EAST);
-    expect(out.unverified.join(' ')).toMatch(/nothing records which spaces it crossed/);
+  it('ends the casting there', () => {
+    const { game, beam } = sweepOntoSelf(-40);
+    expect(ongoingSpellOf(game.state, beam)).toBeNull();
   });
 
-  /** A step to the next space along has nothing in between to be unknown. */
-  it('says nothing about a step of one space', () => {
+  /** The fourth leg is the one that would have caught `LATER`. */
+  it('never writes the legs after it', () => {
+    const { out } = sweepOntoSelf(-40);
+    expect(legsIn(out.events).map((p) => p.x)).toEqual([210, 205]);
+  });
+
+  it('never catches the creature only a later leg could have reached', () => {
+    const { game, out } = sweepOntoSelf(-40);
+    expect(caughtIn(out.events)).not.toContain(LATER);
+    expect(game.hp(LATER)).toBe(MAX_HP);
+  });
+
+  /** A successful action whose spell ended during it. Nothing is rolled back. */
+  it('still spends the action', () => {
+    const { out } = sweepOntoSelf(-40);
+    expect(out.events.some((e) => e.type === 'action-spent')).toBe(true);
+  });
+
+  it('still records that the caster used the spell’s later action', () => {
+    const { out } = sweepOntoSelf(-40);
+    expect(out.events.some((e) => e.type === 'spell-activated')).toBe(true);
+  });
+
+  it('is not reported as an impossible command', () => {
+    const game = new Game();
+    const beam = game.conjure('moonbeam', SELF_BEAM);
+    game.fight().to(DRUID);
+    expect(isErr(game.moveArea(beam, SELF_END, { via: SELF_SWEEP }))).toBe(false);
+  });
+
+  it('leaves nothing of the casting behind', () => {
+    const { game, beam } = sweepOntoSelf(-40);
+    expect(game.owed()).toEqual([]);
+    expect(JSON.stringify(game.state.areaTriggers)).not.toContain(beam);
+  });
+
+  it('folds at every prefix of the log', () => {
+    const { game } = sweepOntoSelf(-40);
+    game.foldsAtEveryPrefix();
+  });
+
+  // — the control, which is what makes all of the above mean anything ————————
+
+  it('walks the whole route when the caster keeps Concentration', () => {
+    const { out } = sweepOntoSelf(40);
+    expect(legsIn(out.events).map((p) => p.x)).toEqual([210, 205, 200, 195]);
+  });
+
+  it('catches the far creature on the last leg', () => {
+    const { game, out } = sweepOntoSelf(40);
+    expect(caughtIn(out.events)).toContain(LATER);
+    expect(game.hp(LATER)).toBeLessThan(MAX_HP);
+  });
+
+  it('leaves the casting running', () => {
+    const { game, beam } = sweepOntoSelf(40);
+    expect(ongoingSpellOf(game.state, beam)).not.toBeNull();
+  });
+});
+
+// — the route the engine will not invent ——————————————————————————————————————
+
+describe('a route with spaces nobody named is a question, not a refusal', () => {
+  /**
+   * **`via` is an adjudicated route, and the engine validates rather than
+   * chooses it.** A player says "move the beam onto the ogre"; deciding which
+   * way it goes — through the other two ogres, around the paladin, straight
+   * there — is judgement about intent and fiction, and that is Maestro's.
+   * What the engine owns is that the decision was *made by somebody*: it will
+   * not draw a line between two points, and it will not execute a move while
+   * silently skipping whoever it crossed.
+   *
+   * So this is a collaboration boundary and not a hard stop, and nothing here
+   * should ever reach a player as "your turn was rejected". Nothing is spent,
+   * no die is thrown, and the same activation sent again with the route filled
+   * in is the activation the caller meant the first time.
+   */
+  const coarse = () => {
     const { game, beam } = withBeam();
-    const out = game.beamTo(beam, BEAM_STEP);
-    expect(out.unverified).toEqual([]);
+    return { game, beam, out: game.moveArea(beam, BEAM_EAST) };
+  };
+
+  it('asks rather than refusing', () => {
+    const { out } = coarse();
+    expect(isNeedsContext(out)).toBe(true);
+  });
+
+  it('names the fact it is missing and how to supply it', () => {
+    const { beam, out } = coarse();
+    const requests = contextRequestsOf(out);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.kind).toBe('route');
+    expect(requests[0]?.subject).toBe(beam);
+    expect(requests[0]?.need).toMatch(/5-foot spaces/);
+    expect(requests[0]?.because).toMatch(/moves into/);
+    expect(requests[0]?.satisfyWith).toMatch(/via/);
+  });
+
+  it('says where the area is, where it was asked to go, and what it may spend', () => {
+    const { out } = coarse();
+    const request = contextRequestsOf(out)[0];
+    expect(request?.need).toMatch(/\(300, 300, 0\)/);
+    expect(request?.need).toMatch(/\(320, 300, 0\)/);
+    expect(request?.need).toMatch(/20 feet, of the 60/);
+  });
+
+  it('asks once per leg it cannot see through', () => {
+    const { game, beam } = withBeam();
+    const out = game.moveArea(beam, BEAM_EAST, { via: [BEAM_MID] });
+    expect(contextRequestsOf(out)).toHaveLength(2);
+  });
+
+  it('asks only about the coarse leg of an otherwise fine route', () => {
+    const { game, beam } = withBeam();
+    const out = game.moveArea(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_NEAR] });
+    expect(contextRequestsOf(out)).toHaveLength(1);
+    expect(contextRequestsOf(out)[0]?.need).toMatch(/\(305, 300, 0\)/);
+  });
+
+  // — and nothing at all is committed while it waits ————————————————————————
+
+  it('spends no action', () => {
+    const { game, beam } = withBeam();
+    const before = JSON.stringify(game.state.combat?.budgets);
+    game.moveArea(beam, BEAM_EAST);
+    expect(JSON.stringify(game.state.combat?.budgets)).toBe(before);
+  });
+
+  it('leaves the area where it was', () => {
+    const { game, beam } = coarse();
+    expect(game.originOf(beam)).toEqual(BEAM);
+  });
+
+  it('raises no debt and hurts nobody', () => {
+    const { game } = coarse();
+    expect(game.owed()).toEqual([]);
+    expect(game.hp(BYSTANDER)).toBe(MAX_HP);
+    expect(game.hp(STILL)).toBe(MAX_HP);
+  });
+
+  it('consumes no randomness', () => {
+    const { game, beam } = withBeam();
+    const rolls = supply();
+    activateSpell(game.state, DRUID, { castingId: beam, targets: [], to: BEAM_EAST }, rolls);
+    expect(rolls.issuer.count).toBe(0);
+  });
+
+  it('writes no events at all', () => {
+    const { game, beam } = withBeam();
+    const before = game.log.length;
+    game.moveArea(beam, BEAM_EAST);
+    expect(game.log).toHaveLength(before);
+  });
+
+  // — and a step with nothing in between needs no route ——————————————————————
+
+  /** Two adjacent cubes have no cube between them; there is nothing to ask. */
+  it('takes an adjacent step without asking anything', () => {
+    const { game, beam } = withBeam();
+    expect(isErr(game.moveArea(beam, BEAM_STEP))).toBe(false);
+  });
+
+  it('takes a route of adjacent steps without asking anything', () => {
+    const { game, beam } = withBeam();
+    expect(isErr(game.moveArea(beam, BEAM_EAST, { via: SWEEP_EAST }))).toBe(false);
+  });
+
+  /** A diagonal neighbour is five feet away, which is what Chebyshev means. */
+  it('takes a diagonal step, which is one space on this lattice', () => {
+    const { game, beam } = withBeam();
+    expect(isErr(game.moveArea(beam, { x: 305, y: LANE + 5, z: 0 }))).toBe(false);
   });
 
   /**
-   * **And a stated route closes the gap.** The same twenty feet, walked as
-   * four adjacent steps, is four authoritative relocations — and the creature
-   * the single step passed over is caught at the first of them.
+   * **Two valid routes to one destination catch different creatures**, which
+   * is the clearest statement that the route is a fact rather than a
+   * formality. Nothing in the engine prefers either: a route that keeps off
+   * the bystander is exactly as legal as one that sweeps through them, and
+   * choosing between them is the judgement this boundary leaves with Maestro.
    */
-  it('catches a creature crossed mid-route when the route is stated', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_MID, BEAM_NEAR] });
-    expect(game.caught()).toContain(BYSTANDER);
+  it('catches different creatures on two legal routes to the same space', () => {
+    const direct = withBeam();
+    const straight = direct.game.beamTo(direct.beam, BEAM_EAST, { via: SWEEP_EAST });
+
+    const detoured = withBeam();
+    const around = detoured.game.beamTo(detoured.beam, BEAM_EAST, { via: SWEEP_AROUND });
+
+    expect(caughtIn(straight.events)).toEqual([BYSTANDER, STILL]);
+    expect(caughtIn(around.events)).toEqual([STILL]);
+    expect(direct.game.originOf(direct.beam)).toEqual(detoured.game.originOf(detoured.beam));
   });
 
-  it('catches the far creature too, at the leg that reaches them', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_MID, BEAM_NEAR] });
-    expect(game.caught()).toEqual([BYSTANDER, STILL]);
+  /**
+   * **The engine is blind to sides, and that is the boundary in one test.**
+   * Keeping a beam off the paladin and sweeping it through the ogres is
+   * exactly the judgement Maestro is for, and exactly what the engine must
+   * not start doing on its own: here the route catches the caster's own party
+   * — the druid themselves — because that is the route it was given. A rule
+   * that spared allies would be the engine overriding the command it was
+   * sent, which is the same failure as aiming a spell at a better target than
+   * the one named.
+   */
+  it('catches the caster’s own side when the route says so', () => {
+    const game = new Game();
+    const beam = game.conjure('moonbeam', SELF_BEAM);
+    game.fight().to(DRUID);
+    const out = game.beamTo(beam, { x: 205, y: LANE, z: 0 }, { via: [{ x: 210, y: LANE, z: 0 }] });
+    expect(game.state.creatures[DRUID]?.side).toBe('party');
+    expect(caughtIn(out.events)).toContain(DRUID);
   });
 
-  it('reports no gap for a route of single steps', () => {
-    const { game, beam } = withBeam();
-    const out = game.beamTo(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_MID, BEAM_NEAR] });
-    expect(out.unverified).toEqual([]);
-  });
-
-  it('writes one relocation per leg, so the fold sees every place it was', () => {
-    const { game, beam } = withBeam();
-    const out = game.beamTo(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_MID, BEAM_NEAR] });
-    expect(out.events.filter((e) => e.type === 'spell-origin-moved')).toHaveLength(4);
-  });
-
-  /** The creature the beam passed *through* is not still owed at the end. */
-  it('leaves the mid-route creature outside when the route is done', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_MID, BEAM_NEAR] });
-    expect(game.originOf(beam)).toEqual(BEAM_EAST);
+  /**
+   * **And the requirement belongs to the spell, not to moving a point.**
+   * Spiritual Weapon's force triggers on nothing as it travels, so no rule
+   * reads what it passed over and there is no fact to go and get. Giving it
+   * this requirement because Moonbeam has it would be a neighbouring spell's
+   * clause lending it a rule again.
+   */
+  it('lets Spiritual Weapon cross twenty feet with no route at all', () => {
+    const game = new Game();
+    const force = game.conjure('spiritual-weapon', { x: 240, y: LANE, z: 0 });
+    game.fight().to(DRUID);
+    const out = activateSpell(
+      game.state,
+      DRUID,
+      { castingId: force, targets: [], to: { x: 260, y: LANE, z: 0 } },
+      supply(),
+    );
+    expect(isErr(out)).toBe(false);
   });
 });
 
@@ -554,6 +873,9 @@ describe('how far the beam may go, and what that is measured between', () => {
    * point within range" and "move the Cylinder up to 60 feet" — and reusing
    * the first as the second would let a beam jump a hundred feet because the
    * caster could have conjured it there.
+   *
+   * Checked before the route is, so a caller who cannot afford the move is
+   * told that rather than being asked for waypoints they would waste.
    */
   it('refuses a move longer than the allowance, though it is inside Range', () => {
     const { game, beam } = withBeam();
@@ -569,7 +891,8 @@ describe('how far the beam may go, and what that is measured between', () => {
    */
   it('allows a move the caster could not have reached at the cast', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_FAR);
+    const steps = Array.from({ length: 11 }, (_, n) => ({ x: 305 + n * 5, y: LANE, z: 0 }));
+    game.beamTo(beam, BEAM_FAR, { via: steps });
     expect(game.originOf(beam)).toEqual(BEAM_FAR);
   });
 
@@ -582,7 +905,9 @@ describe('how far the beam may go, and what that is measured between', () => {
 
   it('allows a route whose legs add up to the allowance', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM, { via: [{ x: 330, y: LANE, z: 0 }] });
+    const there = Array.from({ length: 6 }, (_, n) => ({ x: 305 + n * 5, y: LANE, z: 0 }));
+    const back = Array.from({ length: 5 }, (_, n) => ({ x: 325 - n * 5, y: LANE, z: 0 }));
+    game.beamTo(beam, BEAM, { via: [...there, ...back] });
     expect(game.originOf(beam)).toEqual(BEAM);
   });
 
@@ -625,12 +950,7 @@ describe('moving the beam is the Magic action, not a rider on one', () => {
 
   it('refuses a target, because the beam strikes nobody', () => {
     const { game, beam } = withBeam();
-    const out = activateSpell(
-      game.state,
-      DRUID,
-      { castingId: beam, targets: [STILL], to: BEAM_STEP },
-      supply(),
-    );
+    const out = game.moveArea(beam, BEAM_STEP, { targets: [STILL] });
     expect(isErr(out) ? out.code : 'ok').toBe('wrong_target_count');
   });
 
@@ -696,42 +1016,35 @@ describe('a creature makes this save only once per turn', () => {
    * one global turn**, and that is a fact about the action economy rather than
    * a choice of fixture: one Magic action a turn means the beam moves on the
    * caster's turn, so every other creature meets the area-side clause on a
-   * turn that is not its own. The druid takes the action that brings the beam
-   * onto itself, and then its own turn ends with it still standing in it.
+   * turn that is not its own.
    *
-   * The saves below are made rather than failed (`flat` the other way), for a
-   * reason worth stating: a beam that drops its own caster's Concentration
-   * ends the spell, and every later assertion would then be passing because
-   * the Moonbeam was **gone**. Half damage on a successful save is still
-   * damage, and is what the assertions read.
+   * The saves below are made rather than failed, for a reason worth stating: a
+   * beam that drops its own caster's Concentration ends the spell, and every
+   * later assertion would then be passing because the Moonbeam was **gone**.
    */
-  const beamOntoTheDruid = () => {
+  const beamOntoTheDruid = (flat = 40) => {
     const game = new Game();
-    const beam = game.conjure('moonbeam', { x: 260, y: LANE, z: 0 });
+    const beam = game.conjure('moonbeam', { x: 210, y: LANE, z: 0 });
     game.fight().to(DRUID);
-    game.beamTo(beam, { x: 205, y: LANE, z: 0 });
-    return { game, beam };
+    const out = game.beamTo(beam, { x: 205, y: LANE, z: 0 }, { flat });
+    return { game, beam, out };
   };
 
   it('owes the druid the save when the beam arrives on them', () => {
-    const { game } = beamOntoTheDruid();
-    expect(game.owed()).toEqual([
-      expect.objectContaining({ target: DRUID, moment: 'area-moved' }),
-    ]);
+    const { out } = beamOntoTheDruid();
+    expect(caughtIn(out.events)).toEqual([DRUID]);
   });
 
   it('does not owe it again when that same turn ends with them still in it', () => {
     const { game, beam } = beamOntoTheDruid();
-    game.settle('held', undefined, 40);
     expect(game.originOf(beam)).toBeDefined(); // the spell survived the save
-    game.turn('held-turn', 40);
-    expect(game.caught()).not.toContain(DRUID);
+    const ending = game.turn('held-turn', 40);
+    expect(ending.filter((e) => e.type === 'area-effect-settled')).toEqual([]);
   });
 
   /** And the cap is a turn, so the next one collects. */
   it('owes it again on a later turn', () => {
     const { game } = beamOntoTheDruid();
-    game.settle('held', undefined, 40);
     game.turn('held-turn', 40); // the druid's turn ends, capped
     const before = game.hp(DRUID);
     game.to(DRUID); // round to the druid's next turn
@@ -740,19 +1053,18 @@ describe('a creature makes this save only once per turn', () => {
   });
 
   /**
-   * **One action is one move, so the same-turn repeat is inside a route.** The
-   * caster has one Magic action a turn, so a beam cannot be swung twice by two
-   * activations without a turn passing between them — but a stated route may
-   * pass over a creature, leave, and come back, and that is two arrivals in
-   * one turn.
+   * **One action is one move, so the same-turn repeat lives inside a route.**
+   * The caster has one Magic action a turn, so a beam cannot be swung twice by
+   * two activations without a turn passing between them — but a route may
+   * arrive on a creature, leave, and arrive again.
    */
   it('caps a route that arrives on one creature twice', () => {
     const { game, beam } = withBeam();
     const out = game.beamTo(beam, BEAM_MID, {
-      via: [BEAM_STEP, BEAM_NEAR, BEAM_EAST],
+      via: [BEAM_STEP, BEAM_MID, BEAM_NEAR, BEAM_EAST, BEAM_NEAR],
     });
-    expect(out.events.filter((e) => e.type === 'spell-origin-moved')).toHaveLength(4);
-    expect(game.owed().filter((o) => o.target === BYSTANDER)).toHaveLength(1);
+    expect(legsIn(out.events)).toHaveLength(6);
+    expect(caughtIn(out.events).filter((who) => who === BYSTANDER)).toHaveLength(1);
   });
 });
 
@@ -772,7 +1084,7 @@ describe('an area arriving is not the creature entering', () => {
    */
   it('stamps the turn without recording a creature entry', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
     const stamp = game.state.areaTriggers[areaStampKey(beam, STILL)];
     expect(stamp).toEqual({ turn: expect.any(Number), byCreatureEntry: false });
   });
@@ -789,9 +1101,12 @@ describe('an area arriving is not the creature entering', () => {
 
   it('names the moment for what happened, not for what it resembles', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    const settled = game.settle().filter((e) => e.type === 'area-effect-settled');
-    expect(settled).toEqual([expect.objectContaining({ moment: 'area-moved' })]);
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    const settled = out.events.filter((e) => e.type === 'area-effect-settled');
+    expect(settled).toHaveLength(2);
+    expect(
+      settled.every((e) => e.type === 'area-effect-settled' && e.moment === 'area-moved'),
+    ).toBe(true);
   });
 });
 
@@ -812,8 +1127,6 @@ describe('a beam that has not moved catches people the old ways', () => {
     const game = new Game();
     game.conjure('moonbeam', BEAM);
     game.fight().to(INSIDE);
-    // `resolveTurn` settles what the boundary owes in the same breath, so what
-    // the moment was is read off what it discharged.
     const settled = game.turn().filter((e) => e.type === 'area-effect-settled');
     expect(settled).toEqual([
       expect.objectContaining({ target: INSIDE, moment: 'end-of-turn' }),
@@ -831,8 +1144,11 @@ describe('a beam that has not moved catches people the old ways', () => {
 
   it('does not also call an area move an entry', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    expect(game.owed().filter((o) => o.moment === 'entry')).toEqual([]);
+    const out = game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    const settled = out.events.filter((e) => e.type === 'area-effect-settled');
+    expect(settled.every((e) => e.type === 'area-effect-settled' && e.moment !== 'entry')).toBe(
+      true,
+    );
   });
 });
 
@@ -844,7 +1160,7 @@ describe('two beams are two castings', () => {
     const mine = game.conjure('moonbeam', BEAM, { seed: 'a' });
     const theirs = game.conjure('moonbeam', BEAM, { by: RIVAL, seed: 'b' });
     game.fight().to(DRUID);
-    game.beamTo(mine, BEAM_EAST);
+    game.beamTo(mine, BEAM_EAST, { via: SWEEP_EAST });
     expect(game.originOf(mine)).toEqual(BEAM_EAST);
     expect(game.originOf(theirs)).toEqual(BEAM);
   });
@@ -854,8 +1170,11 @@ describe('two beams are two castings', () => {
     const mine = game.conjure('moonbeam', BEAM, { seed: 'a' });
     game.conjure('moonbeam', BEAM, { by: RIVAL, seed: 'b' });
     game.fight().to(DRUID);
-    game.beamTo(mine, BEAM_EAST);
-    expect(owedAreaEffectsOf(game.state).map((o) => o.castingId)).toEqual([mine]);
+    const out = game.beamTo(mine, BEAM_EAST, { via: SWEEP_EAST });
+    const settled = out.events.filter((e) => e.type === 'area-effect-settled');
+    expect(settled.every((e) => e.type === 'area-effect-settled' && e.castingId === mine)).toBe(
+      true,
+    );
   });
 
   /** Each keeps its own per-turn cap, because the stamp is keyed by casting. */
@@ -864,8 +1183,7 @@ describe('two beams are two castings', () => {
     const mine = game.conjure('moonbeam', BEAM, { seed: 'a' });
     const theirs = game.conjure('moonbeam', BEAM, { by: RIVAL, seed: 'b' });
     game.fight().to(DRUID);
-    game.beamTo(mine, BEAM_EAST);
-    game.settle();
+    game.beamTo(mine, BEAM_EAST, { via: SWEEP_EAST });
     game.push([{ type: 'spell-origin-moved', castingId: theirs, to: BEAM_EAST }]);
     expect(owedAreaEffectsOf(game.state).map((o) => o.castingId)).toEqual([theirs]);
   });
@@ -875,58 +1193,105 @@ describe('two beams are two castings', () => {
 
 describe('a retry changes nothing the first run did not', () => {
   /**
-   * **The first run raises the debt the retry then arrives at**, which is why
-   * the duplicate check has to come before the guard that refuses to act
-   * while a debt stands. The sixth instance of that trap in this engine and
-   * the first where the command's own first run is what springs it.
+   * **The first run raises — and now also settles — what the retry arrives
+   * at**, which is why the duplicate check has to come before every guard. A
+   * route that ended its own casting is the sharpest case: the retry finds no
+   * such casting, and must be told it already acted rather than that the spell
+   * is not running.
    */
   it('does not move the beam twice', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { commandId: 'sweep' });
-    const again = unwrap(game.moveArea(beam, BEAM_EAST, { commandId: 'sweep' }), 'retrying');
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST, commandId: 'sweep' });
+    const again = unwrap(
+      game.moveArea(beam, BEAM_EAST, { via: SWEEP_EAST, commandId: 'sweep' }),
+      'retrying',
+    );
     expect(again.events).toEqual([]);
     expect(game.originOf(beam)).toEqual(BEAM_EAST);
   });
 
-  it('does not raise a second debt', () => {
+  it('does not roll the damage twice', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { commandId: 'sweep' });
-    const before = game.owed().length;
-    game.beamTo(beam, BEAM_EAST, { commandId: 'sweep' });
-    expect(game.owed()).toHaveLength(before);
-  });
-
-  it('reports the duplicate rather than the debt its first run raised', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { commandId: 'sweep' });
-    const again = game.moveArea(beam, BEAM_EAST, { commandId: 'sweep' });
-    expect(isErr(again)).toBe(false);
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST, commandId: 'sweep' });
+    const after = game.hp(STILL);
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST, commandId: 'sweep' });
+    expect(game.hp(STILL)).toBe(after);
   });
 
   it('refuses the same id with a different destination', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { commandId: 'sweep' });
-    const other = game.moveArea(beam, BEAM_STEP, { commandId: 'sweep' });
-    expect(isErr(other)).toBe(true);
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST, commandId: 'sweep' });
+    expect(isErr(game.moveArea(beam, BEAM_STEP, { commandId: 'sweep' }))).toBe(true);
   });
 
   it('refuses the same id with a different route to the same place', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { commandId: 'sweep' });
-    const other = game.moveArea(beam, BEAM_EAST, {
-      commandId: 'sweep',
-      via: [BEAM_STEP, BEAM_MID, BEAM_NEAR],
-    });
-    expect(isErr(other)).toBe(true);
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST, commandId: 'sweep' });
+    expect(
+      isErr(game.moveArea(beam, BEAM_EAST, { via: SWEEP_AROUND, commandId: 'sweep' })),
+    ).toBe(true);
   });
 
-  it('does not roll the settlement twice', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    game.settle('once', 'pay');
-    const after = game.hp(STILL);
-    game.settle('once', 'pay');
-    expect(game.hp(STILL)).toBe(after);
+  // — and the same, after the action ended its own casting ————————————————————
+
+  const endedItself = () => {
+    const game = new Game();
+    const beam = game.conjure('moonbeam', SELF_BEAM);
+    game.fight().to(DRUID);
+    game.beamTo(beam, SELF_END, { via: SELF_SWEEP, commandId: 'sweep' });
+    return { game, beam };
+  };
+
+  it('recognises the duplicate before noticing the casting has gone', () => {
+    const { game, beam } = endedItself();
+    const again = game.moveArea(beam, SELF_END, { via: SELF_SWEEP, commandId: 'sweep' });
+    expect(isErr(again) ? again.code : 'ok').not.toBe('not_ongoing');
+  });
+
+  it('returns no further events', () => {
+    const { game, beam } = endedItself();
+    const again = unwrap(
+      game.moveArea(beam, SELF_END, { via: SELF_SWEEP, commandId: 'sweep' }),
+      'retrying after self-termination',
+    );
+    expect(again.events).toEqual([]);
+  });
+
+  it('advances no randomness', () => {
+    const { game, beam } = endedItself();
+    const rolls = supply();
+    activateSpell(
+      game.state,
+      DRUID,
+      { castingId: beam, targets: [], to: SELF_END, via: SELF_SWEEP, commandId: 'sweep' },
+      rolls,
+    );
+    expect(rolls.issuer.count).toBe(0);
+  });
+
+  /**
+   * **The outcome is recoverable though the casting is not.** `appliedCommands`
+   * records the id that landed — which is what makes the duplicate check work
+   * — and the retry hands the casting back, off the command the caller sent.
+   * The stored `castingId` is deliberately null here: it exists for the ids a
+   * caller *could not* have known, which is a declaration allocating one, and
+   * an activation names a casting the caller already had.
+   */
+  it('keeps the casting recoverable from the command that ended it', () => {
+    const { game, beam } = endedItself();
+    expect(commandOutcome(game.state, 'sweep')).not.toBeNull();
+    const again = unwrap(
+      game.moveArea(beam, SELF_END, { via: SELF_SWEEP, commandId: 'sweep' }),
+      'retrying',
+    );
+    expect(again.castingId).toBe(beam);
+  });
+
+  it('hurts nobody a second time', () => {
+    const { game, beam } = endedItself();
+    const after = game.hp(DRUID);
+    game.moveArea(beam, SELF_END, { via: SELF_SWEEP, commandId: 'sweep' });
+    expect(game.hp(DRUID)).toBe(after);
   });
 });
 
@@ -935,23 +1300,22 @@ describe('a retry changes nothing the first run did not', () => {
 describe('replay', () => {
   it('reconstructs the moved point', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_MID, BEAM_NEAR] });
-    const again = fold('seed', game.log);
-    expect(ongoingSpellOf(again, beam)?.origin).toEqual(BEAM_EAST);
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
+    expect(ongoingSpellOf(fold('seed', game.log), beam)?.origin).toEqual(BEAM_EAST);
   });
 
-  it('reconstructs the debt the move raised', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    const again = fold('seed', game.log);
-    expect(owedAreaEffectsOf(again)).toEqual(owedAreaEffectsOf(game.state));
+  it('reconstructs a casting that ended halfway along its own route', () => {
+    const game = new Game();
+    const beam = game.conjure('moonbeam', SELF_BEAM);
+    game.fight().to(DRUID);
+    game.beamTo(beam, SELF_END, { via: SELF_SWEEP });
+    expect(ongoingSpellOf(fold('seed', game.log), beam)).toBeNull();
   });
 
   /** The seed carries a live generator and nothing else; the rules are the log's. */
   it('reaches the same areas from a different seed', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_MID, BEAM_NEAR] });
-    game.settle();
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
     const area = (s: GameState) => ({
       ongoing: s.ongoing,
       owed: s.owedAreaEffects,
@@ -963,8 +1327,7 @@ describe('replay', () => {
 
   it('folds at every prefix of the log', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST, { via: [BEAM_STEP, BEAM_MID, BEAM_NEAR] });
-    game.settle();
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
     game.turn();
     game.foldsAtEveryPrefix();
   });
@@ -973,35 +1336,38 @@ describe('replay', () => {
 // — cleanup ——————————————————————————————————————————————————————————————————
 
 describe('a casting that ends takes its moved area and its debts with it', () => {
-  it('drops the debt when Concentration ends', () => {
+  const swept = () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    expect(game.owed()).toHaveLength(1);
-
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
     game.push(unwrap(endConcentration(game.state, DRUID, 'voluntary'), 'ending Concentration'));
-    expect(game.owed()).toEqual([]);
-  });
+    return { game, beam };
+  };
 
   it('leaves no beam behind', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    game.push(unwrap(endConcentration(game.state, DRUID, 'voluntary'), 'ending Concentration'));
+    const { game, beam } = swept();
     expect(ongoingSpellOf(game.state, beam)).toBeNull();
   });
 
   /** No stamp belonging to a finished casting survives it. */
   it('leaves no stamp behind', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    game.settle();
-    game.push(unwrap(endConcentration(game.state, DRUID, 'voluntary'), 'ending Concentration'));
+    const { game, beam } = swept();
     expect(JSON.stringify(game.state.areaTriggers)).not.toContain(beam);
   });
 
   it('goes on holding nothing after the whole thing is replayed', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    game.push(unwrap(endConcentration(game.state, DRUID, 'voluntary'), 'ending Concentration'));
+    const { game, beam } = swept();
+    expect(JSON.stringify(fold('seed', game.log))).not.toContain(beam);
+  });
+
+  /**
+   * And the same convergence point does it when the beam ended itself. There
+   * is no Moonbeam-specific cleanup: `releaseCasting` is the one door.
+   */
+  it('cleans up identically when the route is what ended it', () => {
+    const game = new Game();
+    const beam = game.conjure('moonbeam', SELF_BEAM);
+    game.fight().to(DRUID);
+    game.beamTo(beam, SELF_END, { via: SELF_SWEEP });
     expect(JSON.stringify(fold('seed', game.log))).not.toContain(beam);
   });
 });
@@ -1009,36 +1375,40 @@ describe('a casting that ends takes its moved area and its debts with it', () =>
 // — the global debt policy is not special-cased ———————————————————————————————
 
 describe('an area that has arrived is unresolved state everybody acts into', () => {
-  it('refuses an ordinary action while the arrival is owed', () => {
+  /**
+   * The activation settles what its own movement caused, so nothing is left
+   * for the next command to trip over — but a debt raised any other way still
+   * stops everything, which is the policy this correction did not change.
+   */
+  it('leaves nothing owed after the action that caused it', () => {
     const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    const out = resolveMove(
-      game.state,
-      STEPPER,
-      { placement: { from: { point: { x: 405, y: LANE, z: 0 } }, feet: 0 } },
-      supply(),
-    );
-    expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
-  });
-
-  it('refuses the turn to advance past it', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    const out = resolveTurn(game.state, supply());
-    expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
-  });
-
-  /** But the settlement itself is never refused, or the fight would wedge. */
-  it('lets the settlement through', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    expect(isErr(settleAreaEffects(game.state, supply(), {}))).toBe(false);
-  });
-
-  it('lets everything proceed once it is settled', () => {
-    const { game, beam } = withBeam();
-    game.beamTo(beam, BEAM_EAST);
-    game.settle();
+    game.beamTo(beam, BEAM_EAST, { via: SWEEP_EAST });
     expect(isErr(resolveTurn(game.state, supply()))).toBe(false);
+  });
+
+  it('still refuses the turn while a creature-side entry stands unsettled', () => {
+    const game = new Game();
+    game.conjure('moonbeam', BEAM);
+    game.fight();
+    game.walk(STEPPER, BEAM_STEP);
+    expect(isErr(resolveTurn(game.state, supply()))).toBe(true);
+  });
+
+  it('refuses an activation while an unrelated debt stands', () => {
+    const game = new Game();
+    const beam = game.conjure('moonbeam', BEAM);
+    game.fight();
+    game.walk(STEPPER, BEAM_STEP); // raises an entry debt nobody has settled
+    const out = game.moveArea(beam, BEAM_STEP);
+    expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
+  });
+
+  /** And the settlement command itself is never refused, or the fight wedges. */
+  it('lets the settlement through', () => {
+    const game = new Game();
+    game.conjure('moonbeam', BEAM);
+    game.fight();
+    game.walk(STEPPER, BEAM_STEP);
+    expect(isErr(settleAreaEffects(game.state, supply(), {}))).toBe(false);
   });
 });

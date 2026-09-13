@@ -2220,17 +2220,87 @@ of the legs** — which is what "up to 60 feet" measures, so a beam walked round
 three sides of a square has spent all three. With no waypoints there is one
 leg and the sum is the displacement, so every existing caller is untouched.
 
-A leg one space long has nothing in between to be unknown. **Any longer leg
-says so in `unverified`** rather than being answered with a line — and only
-where a rule would read it, since a casting whose area triggers on nothing as
-it travels has no route to be wrong about. That is the whole of the honesty:
-the engine fires for nobody it cannot prove, and names what it could not see.
+A leg one space long has nothing in between to be unknown. **Any longer leg is
+a question**, and asking is the third option that the two obvious ones hide:
+draw a line nobody drew, execute the move while silently skipping whoever it
+crossed, or go and get the fact. The first two are the same failure in
+different clothes.
+
+So a coarse leg comes back as `needs-context` with a `route` request, and
+nothing is spent — no action, no die, no debt, no movement. Only where a rule
+reads the route: a casting whose area triggers on nothing as it travels has no
+route to be wrong about, which is every Spiritual Weapon, and giving it the
+requirement because Moonbeam has it would be a neighbouring spell's clause
+lending it a rule again.
 
 Not a path *finder*. Nothing searches, smooths, or checks that consecutive
-waypoints are adjacent: a waypoint is a fact the caller supplies, and a caller
-who supplies none gets the honest gap instead. Spike Growth's "2d4 for every 5
-feet **it travels**" is a creature's distance and a different primitive, and
-is still not attempted.
+waypoints are adjacent: a waypoint is a fact the caller supplies. Spike
+Growth's "2d4 for every 5 feet **it travels**" is a creature's distance and a
+different primitive, and is still not attempted.
+
+### `via` is adjudicated, and asking for it is not a refusal
+
+A player says "move the beam onto the ogre". Which way it goes — through the
+other two ogres, around the paladin, straight there — is judgement about intent
+and fiction, and **Maestro owns it**, because Maestro is the layer that reads
+the fiction. The engine validates the route and never chooses it: the same
+boundary `eligibleTargets` draws for targeting, where the shortlist is a
+shortlist and never a substitution.
+
+| | |
+|---|---|
+| Maestro decides | which spaces the area passes through, whether to sweep through enemies, whether to keep off allies, what the player's words already settled |
+| The engine decides | that every waypoint is on the lattice and in the scene, that the legs add up to the allowance, who the area arrives on, and what that costs them |
+
+**The engine is blind to sides, deliberately.** A route that catches the
+caster's own party catches them, because that is the route it was given.
+Sparing allies would be the engine overriding the command it was sent, which is
+the targeting failure in another costume.
+
+`route` is a new `ContextRequest.kind` and the odd one in that union: every
+other kind is satisfied by *declaring a fact* through a command of its own, and
+this one by *re-sending the same command with a field filled in*. `satisfyWith`
+says which, as it does for all of them.
+
+**Never describe this as the engine rejecting a turn.** Nothing here reaches a
+player. It is the collaboration boundary the whole `needs-context` channel
+exists to be: the engine refuses to invent the missing fact, Maestro supplies
+the judgement, the engine resumes the action the player meant.
+
+### A route settles as the area reaches each space, not once it is over
+
+SRD Moonbeam: a creature makes the save "when the spell's area moves into its
+space" — at that point in the route. That is not a nicety, and the case that
+proves it is three moves long:
+
+1. the druid is concentrating on Moonbeam and sweeps it onto their own space;
+2. the save lands, the damage lands, the Concentration save fails;
+3. Moonbeam ends — so the waypoints after that **never happen**.
+
+An implementation that emitted every leg and settled afterwards gives the same
+answers right up until a consequence changes what the rest of the route may do,
+and then gives the wrong one silently. So each leg is moved, settled, and only
+then followed by the next: `spell-origin-moved`, the `area-effect-settled` it
+caused, the next `spell-origin-moved`. The settlement is `settleAreaEffects` —
+the same command a turn boundary and a creature's own move already use, reached
+with the generator the action already holds, so there is no second resolver and
+no caller-supplied save, DC, damage or Concentration decision.
+
+**A casting that ends mid-route is a successful action, not an invalid one.**
+Nothing is rolled back: the action was spent, the beam moved, and what it did
+to the caster is why there is nothing left to move. The command returns the
+events that actually occurred, and its identity is recorded so a retry reruns
+neither the movement nor the damage.
+
+**That moved `spell-activated` above its own content.** It used to be written
+after the movement; an event saying the caster took the spell's later action,
+written after the casting it names has gone, is the log arriving in the wrong
+order. The stamp still rides on it, because it still always happens.
+
+**And it sharpened the duplicate check once more.** A retry of a route that
+ended its own casting finds no such casting — so a `not_ongoing` refusal above
+the duplicate check would tell a caller their command was impossible when it
+had in fact succeeded. Seventh instance in this file; same shape every time.
 
 ### Creation is not movement
 
@@ -2917,10 +2987,13 @@ request, and it is the durable-fact case: declaring the same type again emits
 nothing, declaring a *different* one is refused with `type_established`, and
 a log that contradicts itself is corrupt. Sight and cover are momentary facts
 and re-declare freely. `ContextRequest.kind` is the field a tool surface
-branches on — `creature`, `position`, `visibility`, `creature-type`, `scene` —
-and `invariants.test.ts` asserts that no command returns `needs-context`
-without saying which. Pure helpers beneath the commands return the bare kind;
-the command that knows which rule wanted the fact attaches the request.
+branches on — `creature`, `position`, `visibility`, `creature-type`, `scene`,
+`route` — and `invariants.test.ts` asserts that no command returns
+`needs-context` without saying which. Pure helpers beneath the commands return
+the bare kind; the command that knows which rule wanted the fact attaches the
+request. `route` is the one satisfied by re-sending the same command with a
+field filled in rather than by declaring a fact through a command of its own —
+see "`via` is adjudicated, and asking for it is not a refusal".
 
 ### Alert rides on the roll by itself
 
