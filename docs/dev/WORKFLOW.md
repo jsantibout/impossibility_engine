@@ -578,6 +578,24 @@ next, what is parallel-safe, what has been decided (`PROGRESS.md`, "Decisions
 that constrain what comes next"), what each previous builder did (its task
 file's digest), and when the next audit is due.
 
+**Agent definitions are read at session start, and that is a cold-start check
+rather than a fact any one session can prove about itself.** A session that
+*creates or edits* `.claude/agents/*.md` may not be able to launch what it just
+wrote — the type does not resolve, or the old definition is still in force —
+and contorting the architecture to make that session discover its own new
+configuration would be fixing the wrong thing. So whenever a role definition
+changes, the check belongs in the **next** session:
+
+- `/qb` loads, and the injected blocks run.
+- `qb-architect` resolves as a `subagent_type` and routes to Fable — one
+  trivial probe is enough, and it costs almost nothing.
+- `qb-builder` and `qb-reviewer` still resolve.
+
+Until that check has been run once against a changed definition, treat the
+escalation path as unproven and say so rather than assuming it. The
+`general-purpose` + `model: "fable"` fallback above exists for exactly the
+window where it is not yet proven.
+
 ## What is deliberately not automated
 
 - **No work outside an approved tranche**, ever. Not a small fix, not an
