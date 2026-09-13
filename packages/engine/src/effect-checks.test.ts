@@ -665,7 +665,11 @@ describe('the shape stops where the SRD stops being expressible', () => {
    * reads, so the union does not carry one — and these spells are absent from
    * the catalogue rather than approximated into it.
    */
-  it.each([['maze'], ['phantasmal-force'], ['detect-thoughts'], ['web'], ['entangle']])(
+  // Web left this list when persistent areas landed: its escape check is
+  // "no longer Restrained", which is `end-on-target` and always was — what
+  // blocked it was the trigger that hands out the Restrained in the first
+  // place, not the check that takes it away.
+  it.each([['maze'], ['phantasmal-force'], ['detect-thoughts'], ['entangle']])(
     'has not quietly implemented %s',
     (spellId) => {
       expect(definitionFor(spellId)).toBeNull();

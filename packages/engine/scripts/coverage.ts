@@ -177,6 +177,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'hypnotic-pattern',
   'ice-storm',
   'inflict-wounds',
+  'insect-plague',
   'lightning-bolt',
   'mass-cure-wounds',
   'mind-spike',
@@ -191,6 +192,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'vampiric-touch',
   'vicious-mockery',
   'vitriolic-sphere',
+  'web',
 ];
 
 export interface SpellCoverage {
@@ -215,7 +217,9 @@ export interface SpellCoverage {
  * prevent.
  */
 const TRACKED_IDS: ReadonlySet<string> = new Set(
-  SPELL_DEFINITIONS.filter((d) => d.effects.length === 0 && d.activation === undefined).map(
+  SPELL_DEFINITIONS.filter(
+    (d) => d.effects.length === 0 && d.activation === undefined && d.areaTrigger === undefined,
+  ).map(
     (d) => d.id,
   ),
 );

@@ -41,6 +41,7 @@ import {
   resolveDeclaredCast,
   resolveSpell,
   resolveTurn,
+  settleAreaEffects,
   takeDash,
   takeDisengage,
   takeDodge,
@@ -512,7 +513,62 @@ const conjured = (): readonly GameEvent[] => {
   return log;
 };
 
+/**
+ * A creature standing in a Grease it has just walked into.
+ *
+ * The debt is raised by the fold of `creature-moved` rather than by any
+ * command, so the retry that matters is the **settlement**: a second run would
+ * roll a second Dexterity save against a slick the first one already dealt
+ * with.
+ */
+const greased = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['grease'] }),
+    },
+    { type: 'landmark-added', name: 'the slick', at: { x: 120, y: 100, z: 0 } },
+  ];
+  const cast = [
+    ...armed,
+    ...unwrap(
+      resolveSpell(
+        fold('s', armed),
+        A,
+        {
+          spellId: 'grease',
+          targets: [],
+          at: { x: 120, y: 100, z: 0 },
+          towards: { x: 200, y: 100, z: 0 },
+          slotLevel: 1,
+        },
+        supply(),
+      ),
+      'grease',
+    ).events,
+  ];
+  return [
+    ...cast,
+    ...unwrap(
+      resolveMove(
+        fold('s', cast),
+        A,
+        { placement: { from: { landmark: 'the slick' }, feet: 0 } },
+        supply(),
+      ),
+      'walking in',
+    ).events,
+  ];
+};
+
 const GUARDED: readonly Guarded[] = [
+  {
+    name: 'settleAreaEffects',
+    log: greased(),
+    run: (s, commandId) => settleAreaEffects(s, supply(), { commandId }),
+  },
   {
     name: 'damageCreature',
     log: SETUP,

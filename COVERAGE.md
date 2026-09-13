@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 46 (13.6%) | 76 (22.4%) | 51 (15.0%) |
+| 339 | 46 (13.6%) | 77 (22.7%) | 53 (15.6%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -36,7 +36,7 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Tracked | Executed | Blocked on |
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 2 | 23 | — |
+| Area of effect | 73 | 2 | 24 | — |
 | Reaction timing | 4 | 0 | 3 | falling — Counterspell now has a casting it can hold open |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 3 | an effect that a later turn can act through |
@@ -101,7 +101,7 @@ spell, and the area is the part that is missing.
 - **Ice Storm** (level 4) — verified
 - **Incendiary Cloud** (level 8) — untested
 - **Inflict Wounds** (level 1) — verified
-- **Insect Plague** (level 5) — untested
+- **Insect Plague** (level 5) — verified
 - **Lightning Bolt** (level 3) — verified
 - **Mass Cure Wounds** (level 5) — verified
 - **Mass Healing Word** (level 3) — untested
@@ -125,6 +125,7 @@ spell, and the area is the part that is missing.
 - **Vampiric Touch** (level 3) — verified
 - **Vicious Mockery** (cantrip) — verified
 - **Vitriolic Sphere** (level 4) — verified
+- **Web** (level 2) — verified
 - **Weird** (level 9) — untested
 
 ### Tracked today

@@ -1852,6 +1852,176 @@ spell scroll. Copied spells ride along and are preserved across advancement.
 They are still checked: a copied spell must be a real Wizard spell of a level
 the character can prepare, which is what the SRD requires to copy it at all.
 
+## A Persistent Area Catches You At A Moment The Spell Names
+
+Twenty-odd SRD spells fill a patch of ground and then go on doing something to
+whoever is standing in it. A taxonomy audit read them all and found that
+"an area trigger" is **not one mechanic** — it is at least eight, and this
+builds two of them:
+
+| | SRD wording | Detected at |
+|---|---|---|
+| **A turn boundary** | "starts its turn there" / "ends its turn there" | `turn-advanced` |
+| **Entering** | "enters the area" | the creature's own authoritative position change |
+
+Everything else the audit named is out: an area that *moves onto* a creature,
+a path or a distance travelled, an aura the holder carries, an activation that
+blasts a point, a barrier. Each is a different detection with different
+evidence, and one generic "trigger system" would have been a framework built
+from one example.
+
+### The clauses are transcribed, not taxonomised
+
+`AreaTrigger` has three fields and each is one sentence out of the book. The
+three frequency behaviours everyone talks about fall out of the combinations
+rather than being an enum somebody invented:
+
+| Spell | `at` | `onEntry` | `oncePerTurn` | Comes to |
+|---|---|---|---|---|
+| Insect Plague | end | first-per-turn | **yes** | one save a turn, whichever clause reached them |
+| Web | **start** | first-per-turn | — | the entry is capped; the boundary is not |
+| Grease | end | every-entry | — | nothing is capped at all |
+| Black Tentacles | end | every-entry | **yes** | one save a turn |
+
+**Web against Insect Plague is the pair that proves the difference is real.**
+"The first time a creature enters the webs on a turn **or** starts its turn
+there" caps the *entering*; a creature that began its turn in the webs has not
+entered, so tearing free and walking back in is still that turn's first entry
+and saves again. Insect Plague's "a creature makes this save **only once per
+turn**" caps the *creature*. One per-turn stamp serving both would be Insect
+Plague's rule wearing Web's name, and every single-spell fixture passes under
+either reading.
+
+**A cloud next door must not lend a spell a clause it does not print.** The
+guard is not a comment: each definition's own SRD prose is read out of the
+parsed book and the three fields are held against it, the same technique
+`spell-tracking.test.ts` uses. Stinking Cloud names no entry clause; nothing
+can quietly give it one.
+
+### The debt is not a `PendingSave`, and the difference is the rule
+
+`OwedAreaEffect` is the fourth debt of this shape and it was worth not folding
+into the third:
+
+| | `PendingSave` | `OwedAreaEffect` |
+|---|---|---|
+| Presupposes | a condition or timer already on the target | nothing; the target may be untouched |
+| What the roll does | releases an effect that is already running | applies the spell for the first time |
+| On success | the effect ends on that creature | whatever the spell says — often half damage |
+| Keyed by | the timer it belongs to | the casting and the creature |
+
+Forcing Web's "save or be Restrained" into a shape that exists to let a
+Restrained creature *stop* being Restrained would have inverted the rule.
+
+**It holds facts and never behaviour** — a casting id, a creature, a moment, a
+turn. No predicate, no callback, no copy of the spell: settlement looks the
+definition up through the casting's own `spellId` and runs it at the level and
+route the casting was made with, through the same machinery an ordinary
+casting uses. There is no second save calculator and no second damage
+resolver, and the caller supplies no DC, no roll and no outcome.
+
+**A list, not a keyed record**, which is the one place it differs from
+`pendingSaves` in storage as well as meaning: a save is keyed by effect and
+turn so that one boundary raises one of it, while Grease caps nothing and a
+creature that walks in three times owes three.
+
+### The two moments in one `turn-advanced` are a round apart
+
+One event carries the finishing creature's end and the next creature's start,
+and they are **not simultaneous**. The order is observable and causal: an
+Insect Plague that drops a caster at the end of one turn ends the Web somebody
+else was about to start their turn in, and the debt goes with the casting.
+
+So the *moment* is a field on the debt and settlement sorts by it — end, then
+entry, then start — and every debt is re-read against live state before it is
+resolved, because an earlier settlement in the same batch can forgive a later
+one. An implementation where the key order decided would be a coin toss
+wearing a rule's clothes.
+
+**The end of a turn belongs to the turn that is ending**, and `turnsTaken` has
+already moved on by the time the reducer sees the event. Stamping the end with
+the new number put a creature's entry and the end of the very turn it entered
+on into two different turns, and Insect Plague's cap caught it twice. That bug
+existed for about an hour and is the sharpest thing in this batch.
+
+**Settled before the Death Saving Throw**, deliberately. Both are "at the start
+of your turn" and the SRD orders neither, but only one order leaves room for a
+start-of-turn *heal* to matter — Aura of Life's shape — and an ordering that
+makes a future rule unreachable is the wrong one to pick by accident.
+
+### Entering is a position that actually changed
+
+Raised from `creature-moved`, `mounted` and `dismounted` — never from a
+declared move. A declaration is an intent an Opportunity Attack can end, and
+raising there would charge a creature for walking into a Web it never reached.
+
+**Every creature whose position changed, not the one the event names.**
+`moveCreature` carries riders with their mount, so a rider crosses into a Web
+with no event mentioning them at all. Reading `event.id` is a bug only a
+mounted fixture catches.
+
+**Placement is not entry, and that is structural.** A creature being put into
+the scene is not in the previous scene's positions at all, so it has no outside
+to have come from and the diff cannot fire for it. There is no guard saying so
+because there is nothing to guard: a mutation that calls the detector from
+`creature-placed` changes no behaviour. The same goes for an unplaced creature,
+which is in no area.
+
+**Settlement is its own command**, and the reason is `declineOpportunity`: it
+completes somebody else's declared move and has no generator to roll a save
+with. A debt only the moving command could settle would wedge the fight on
+exactly that path.
+
+### What it cannot see, stated rather than guessed
+
+**The path.** Movement records where a move started and where it ended and
+nothing in between, so a creature that walks clean across a Web and out the
+far side transitions outside → outside and nothing fires. Inferring the
+crossing from a straight line between the endpoints would be the engine
+inventing a route nobody took. SRD lets a creature break its movement into
+segments and each segment is a move this *does* see, which is the operational
+answer until movement records a path — and it is why Spike Growth ("2d4 for
+every 5 feet it travels") is not attempted at all.
+
+**Outside combat nothing is capped.** There is no turn to be once-per, so every
+entry fires — the reading the one-slot-per-turn rule and every once-per-turn
+feature already take, preserved rather than invented.
+
+### `OngoingSpell.on` grows, and here is the half that does not
+
+SRD Dispel Magic ends "any ongoing spell ... **on the target**", and `on` was
+written once, at the resolution, because that was the only moment a casting
+could reach anybody. A persistent area breaks that: Web restrains a creature
+that walks in a minute later, and a Dispel Magic aimed at *them* has to find
+it.
+
+So `on` grows, derived, on the link every other cleanup already uses: **a
+casting is on a creature while it has a live effect there that the casting
+owns.** Deliberately not "everyone the area has ever touched" — a creature
+Insect Plague damaged carries nothing of the swarm's, so the swarm is not on
+them.
+
+**The asymmetry is real and is not new.** `on` grows here and still does not
+shrink when an independently-timed condition lapses. That was already an open
+debt; before this, no executed spell reached it, and now Web does. And Web's
+Restrained is worse than that: SRD says it lasts "while in the webs", and a
+condition that ends when its holder walks out of an area has no shape here at
+all — so it runs until the casting ends or the creature breaks free, and the
+definition says so in `unmodelled`.
+
+**One finding worth carrying:** Grease's Prone is linked to its casting, so the
+engine lifts it when the Grease ends. SRD leaves Prone standing until the
+creature gets up. That was true before this batch and `on` growing makes it
+reach further; it is a fix to Grease's definition, not to `on`.
+
+### A test that passes for the wrong reason is what mutation testing is for
+
+"A move that never leaves the area" passed against a *mutation that should have
+broken it*, because the landmark it walked to was outside Grease's Cube —
+Grease is a **10-foot** square and Web a 20-foot one, and a spot chosen for the
+larger left the smaller. The assertion was right, the fixture was wrong, and
+nothing but a deliberate break could have said so.
+
 ## Turn Boundaries Collect What They Are Owed
 
 SRD effects that repeat a save are everywhere — Hold Person, Dominate Person,
@@ -2946,7 +3116,10 @@ null and is reported — it never becomes either.
   appears in a space, strikes from it, and is moved twenty feet on a later
   Bonus Action. Areas of effect, healing, saving throws for damage or a
   condition, Temporary Hit Points, lasting bonuses and an interruptible casting
-  all work; summons, long casting times, an area that acts when a creature
-  enters or ends its turn in it, an activation that resolves an area at a point
-  chosen now, and a Reaction that answers a fall do not.
+  all work. **A persistent area catches a creature at a moment the spell
+  names** — see that section: Insect Plague, Web, Grease and Black Tentacles
+  all trigger on the turn boundary the SRD prints and on entering. What does
+  not work: summons, long casting times, an area that *moves onto* a creature,
+  a path or a distance travelled, an activation that resolves an area at a
+  point chosen now, and a Reaction that answers a fall.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

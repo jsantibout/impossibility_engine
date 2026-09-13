@@ -115,6 +115,26 @@ still Wizard-shaped are named below.
   — one user, and an abstraction with one user is a guess. The note says which
   half and why.
 
+- **"An area trigger" is not one mechanic.** A taxonomy audit read the twenty
+  spells and found at least eight detections; this batch built two — a turn
+  boundary and a creature entering — and named the rest rather than writing a
+  framework from one example. CLAUDE.md, "A Persistent Area Catches You".
+- **The clauses are transcribed, not taxonomised.** `AreaTrigger` has three
+  fields and each is one SRD sentence; the three frequency behaviours everyone
+  names fall out of the combinations. Web caps the *entry* and Insect Plague
+  caps the *creature*, and a single per-turn stamp serving both is Insect
+  Plague's rule wearing Web's name.
+- **The end of a turn belongs to the turn that is ending.** `turnsTaken` has
+  already moved on by the time the reducer sees `turn-advanced`, so stamping
+  an end-of-turn debt with the new number split a creature's entry and the end
+  of the very turn it entered on across two turns. Sharpest bug in the batch.
+- **Settlement orders by the moment, never by the key**, and re-reads each debt
+  against live state — an end-of-turn effect that drops a caster ends the Web
+  a start-of-turn debt was for.
+- **A test can pass against a mutation that should break it.** "A move that
+  never leaves the area" walked to a landmark outside Grease's 10-foot Cube
+  because the spot had been chosen for Web's 20-foot one. The assertion was
+  right and the fixture was wrong; only a deliberate break said so.
 - **A point is a point until a mechanic proves it needs to be more.** The
   spatial primitive is one optional field — `OngoingSpell.origin: Point` — and
   Spiritual Weapon is the adversarial case *for* it: the spell most obviously
@@ -1337,26 +1357,28 @@ primitive — which is why it is below the four above it despite being unblocked
    Three named mechanics now stand between the primitive and the next thirty
    spells, and each is a *trigger* rather than a position:
 
-   - **"a creature that ends its turn in the area"** — Moonbeam, Cloudkill,
-     Incendiary Cloud, Insect Plague, and the already-executed Grease and
-     Black Tentacles. This is item 3 below. **Corrected 2026-09-12 against
-     the SRD text**: Stinking Cloud, Web, Sleet Storm and Zone of
-     Truth fire at the *start* of the creature's turn, which is a different
-     boundary; Flaming Sphere reads "ends its turn within 5 feet of the
-     sphere", a distance from a point rather than membership of an area;
-     Spike Growth has no turn trigger at all ("2d4 Piercing damage for every
-     5 feet it travels" is path-based, and no move records a path); and Wind
-     Wall has no later trigger of any kind — its later clauses are barrier
-     rules.
-   - **"a creature enters the area"** — Web, Grease, Insect Plague, Moonbeam,
-     Cloudkill, Incendiary Cloud, Black Tentacles, Sleet Storm, Zone of
-     Truth; movement would have to raise it. The frequency clause is a
-     per-spell datum with three values: Grease caps nothing, Web caps the
-     entry ("the first time ... on a turn"), Moonbeam caps the creature
-     ("only once per turn", across entry, area movement and end of turn).
-     Every area that *moves* (Moonbeam, Cloudkill, Incendiary Cloud, Spirit
-     Guardians) prints "when the area moves into its space" as a separate
-     clause; no fixed area prints it.
+   - ~~**"a creature that ends its turn in the area"**~~ and
+     ~~**"a creature enters the area"**~~ — **both built.** See CLAUDE.md,
+     "A Persistent Area Catches You At A Moment The Spell Names": a casting
+     keeps its area (the point it already kept, plus the *direction* a
+     directional shape was laid along), the turn boundary and an authoritative
+     position change raise an `OwedAreaEffect`, and `settleAreaEffects` runs
+     the spell's own effects at the level and route the casting was made with.
+     Insect Plague, Web, Grease and Black Tentacles all execute, and no two of
+     them agree about the boundary or the cap — which is why they were the
+     proving set.
+
+     What is **not** built, and each is its own detection rather than a
+     variant: an area that *moves onto* a creature (Moonbeam, Cloudkill,
+     Incendiary Cloud, Spirit Guardians all print "when the area moves into
+     its space" as a separate clause, and no fixed area prints it); a path or
+     a distance travelled (Spike Growth); an aura the holder carries; an
+     activation that blasts a chosen point (Call Lightning); a barrier (Wind
+     Wall). **Stinking Cloud** is start-of-turn and would be a transcription
+     but for its consequence: "Poisoned **until the end of the current turn**"
+     is a deadline shape the engine does not have, and applying it for the
+     casting's minute instead would be a wrong number rather than a missing
+     rule.
    - **an activation that resolves an area at a point chosen now** — Call
      Lightning, Storm of Vengeance. Audited as the candidate second user of the
      primitive and rejected: the cloud is exactly the fixed origin wanted, but
@@ -1528,12 +1550,12 @@ Run `npm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executed | 76 |
-| Spells verified end to end | 51 |
+| Spells executed | 77 |
+| Spells verified end to end | 53 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 3,878 passing, none skipped |
+| Tests | 3,950 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

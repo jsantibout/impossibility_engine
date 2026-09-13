@@ -78,8 +78,12 @@ describe('every executable spell is a spell the SRD actually has', () => {
  * casting.
  */
 describe('a spell the engine tracks says what it does not do', () => {
+  // A spell whose casting resolves nothing is **tracked** only if nothing
+  // else in it resolves either. Flame Blade's every blow comes through its
+  // activation and Web's every save through its area, and neither is a spell
+  // the engine has declined to execute.
   const tracked = SPELL_DEFINITIONS.filter(
-    (d) => d.effects.length === 0 && d.activation === undefined,
+    (d) => d.effects.length === 0 && d.activation === undefined && d.areaTrigger === undefined,
   );
 
   it('has some, so the rule below is not vacuous', () => {

@@ -80,7 +80,7 @@ const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter(
   // A spell whose *activation* the engine resolves is executed, not tracked:
   // Flame Blade's casting evokes a blade and does nothing else, and every blow
   // it strikes comes through machinery the engine owns.
-  (d) => d.effects.length === 0 && d.activation === undefined,
+  (d) => d.effects.length === 0 && d.activation === undefined && d.areaTrigger === undefined,
 )
   .map((d) => d.id)
   .sort();

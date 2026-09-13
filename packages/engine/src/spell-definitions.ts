@@ -383,6 +383,15 @@ export type SpellEffect =
        * spell that made it (Sunbeam).
        */
       readonly lasts?: RiderDuration;
+      /**
+       * A check the affected creature may attempt to shake it off.
+       *
+       * SRD Web: "A creature Restrained by the webs can take an action to make
+       * a Strength (Athletics) check against your spell save DC." The same
+       * sentence Black Tentacles writes, on the effect kind that has no damage
+       * beside it — which is the only reason it was not here already.
+       */
+      readonly check?: SpellCheck;
     }
   /**
    * A saving throw that interrupts a casting already in progress.
@@ -462,6 +471,73 @@ export const DIRECTIONAL_AREAS: ReadonlySet<SpellArea['kind']> = new Set([
   'cube',
   'line',
 ]);
+
+/**
+ * What a persistent area does to a creature it catches after the casting.
+ *
+ * SRD writes this as two or three separate clauses and they are **not** one
+ * rule. Five spells, five different combinations, and no two agree:
+ *
+ * | Spell | The boundary clause | The entry clause | The cap |
+ * |---|---|---|---|
+ * | Insect Plague | "or ends its turn there" | "enters ... for the first time on a turn" | "only once per turn" |
+ * | Web | "or starts its turn there" | "The first time a creature enters the webs on a turn" | — |
+ * | Grease | "or ends its turn there" | "A creature that enters the area" | — |
+ * | Stinking Cloud | "that starts its turn in the Sphere" | *(none)* | — |
+ * | Black Tentacles | "or ends it turn there" | "if it enters the area" | "only once per turn" |
+ *
+ * So each field is one transcribed clause rather than a frequency taxonomy
+ * somebody invented, and the three behaviours the spells actually show fall
+ * out of the combinations:
+ *
+ * - **Grease** caps nothing: every entry, and the boundary besides.
+ * - **Web** caps the entry alone — a creature that *starts* its turn inside
+ *   has not entered, so leaving and coming back is still that turn's first
+ *   entry and saves again.
+ * - **Insect Plague** caps the creature: one save a turn whichever clause
+ *   reached it first.
+ *
+ * **`at` is start or end and never a vague "boundary".** Where the two fall is
+ * a full round apart, and the engine has counted turns begun and turns ended
+ * separately since durations landed precisely so that they cannot be confused.
+ */
+export interface AreaTrigger {
+  /**
+   * SRD "starts its turn there" / "ends its turn there".
+   *
+   * Absent means the spell names no boundary at all — which is a real state,
+   * not an omission: a spell can trigger only on entry.
+   */
+  readonly at?: 'start-of-turn' | 'end-of-turn';
+  /**
+   * SRD "enters the area", and how often it may do so in one turn.
+   *
+   * Absent means entering does nothing, which is Stinking Cloud. A cloud next
+   * door having an entry clause must not lend it one.
+   */
+  readonly onEntry?: 'every-entry' | 'first-per-turn';
+  /**
+   * SRD "A creature makes this save only once per turn."
+   *
+   * Caps the *creature*, across every clause above, for one casting. Distinct
+   * from `onEntry: 'first-per-turn'`, which caps only the entering — and the
+   * difference is observable exactly once: a creature that starts its turn in
+   * a Web and then re-enters it saves twice, where Insect Plague would have
+   * caught it once.
+   */
+  readonly oncePerTurn?: true;
+  /**
+   * What the trigger does, in the same vocabulary the casting itself uses.
+   *
+   * Run through the ordinary spell machinery at the level and route the
+   * casting was made with, so there is no second save calculator and no second
+   * damage resolver. Usually a copy of the spell's own `effects`; Web's is the
+   * only thing Web ever does, because its casting affects nobody.
+   */
+  readonly effects: readonly SpellEffect[];
+  /** How the roll reads in the log: "Insect Plague (the swarm)". */
+  readonly label: string;
+}
 
 /**
  * A point in the scene that the casting keeps, and measures from.
@@ -573,6 +649,15 @@ export interface SpellDefinition {
    * catches. `targets.count` is ignored when this is set.
    */
   readonly area?: SpellArea;
+  /**
+   * What the area goes on doing to creatures after the casting — see
+   * {@link AreaTrigger}.
+   *
+   * Set only alongside `area`, and only for an area that **stays where it was
+   * put**: an area that moves prints "when the area moves into its space" as
+   * its own clause, and nothing here detects that.
+   */
+  readonly areaTrigger?: AreaTrigger;
   /**
    * An area the targets the caller names must all be standing in.
    *
@@ -2164,9 +2249,27 @@ export const INSECT_PLAGUE: SpellDefinition = {
     },
   ],
   durationSeconds: 600,
+  // "A creature also makes this save when it enters the spell's area for the
+  // first time on a turn or ends its turn there. A creature makes this save
+  // only once per turn." The cap is on the *creature*, so entering and then
+  // ending the turn in the swarm is one save, not two.
+  areaTrigger: {
+    at: 'end-of-turn',
+    onEntry: 'first-per-turn',
+    oncePerTurn: true,
+    label: 'Insect Plague (the swarm)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'con',
+        damage: { dice: '4d10', perSlotLevelAbove: '1d10' },
+        damageType: 'piercing',
+        onSuccess: 'half',
+      },
+    ],
+  },
   unmodelled: [
     'the Sphere remains for the duration, its area Lightly Obscured and Difficult Terrain',
-    'the same save again when a creature first enters the area on a turn or ends its turn there, once per turn',
   ],
 };
 
@@ -2301,10 +2404,28 @@ export const BLACK_TENTACLES: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'the area is Difficult Terrain for the duration',
-    'the same save again when a creature enters the area or ends its turn there, once per turn',
-  ],
+  // "A creature also makes that save if it enters the area or ends it turn
+  // there. A creature makes that save only once per turn."
+  areaTrigger: {
+    at: 'end-of-turn',
+    onEntry: 'every-entry',
+    oncePerTurn: true,
+    label: 'Black Tentacles (the tentacles)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'str',
+        damage: { dice: '3d6' },
+        damageType: 'bludgeoning',
+        onSuccess: 'none',
+        condition: {
+          name: 'restrained',
+          check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
+        },
+      },
+    ],
+  },
+  unmodelled: ['the area is Difficult Terrain for the duration'],
 };
 
 /**
@@ -3145,8 +3266,20 @@ export const GREASE: SpellDefinition = {
   targets: { count: 0 },
   area: { kind: 'cube', size: 10, origin: 'point' },
   effects: [{ kind: 'save', ability: 'dex', condition: 'prone' }],
+  durationSeconds: 60,
+  // "A creature that enters the area or ends its turn there must also succeed
+  // on that save or fall Prone." No "first time", no "once per turn" — Grease
+  // caps nothing, and a creature that slips in and out three times falls over
+  // three times.
+  areaTrigger: {
+    at: 'end-of-turn',
+    onEntry: 'every-entry',
+    label: 'Grease (the slick)',
+    effects: [{ kind: 'save', ability: 'dex', condition: 'prone' }],
+  },
   unmodelled: [
-    'the area becoming Difficult Terrain for the duration, and the save a creature makes on entering it later',
+    'the area becoming Difficult Terrain for the duration',
+    'Prone from the grease ends with the casting, where SRD leaves it until the creature stands up',
   ],
 };
 
@@ -3489,6 +3622,66 @@ export const COMPREHEND_LANGUAGES: SpellDefinition = {
  * > "This spell grants up to ten willing creatures of your choice within range
  * > the ability to breathe underwater until the spell ends."
  */
+/**
+ * SRD Web:
+ *
+ * > _Level 2 Conjuration (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 hour.
+ * > "You conjure a mass of sticky webbing at a point within range. The webs
+ * > fill a 20-foot Cube there for the duration."
+ * > "**The first time a creature enters the webs on a turn or starts its turn
+ * > there**, it must succeed on a Dexterity saving throw or have the
+ * > Restrained condition while in the webs or until it breaks free."
+ * > "A creature Restrained by the webs can take an action to make a Strength
+ * > (Athletics) check against your spell save DC. If it succeeds, it is no
+ * > longer Restrained."
+ *
+ * **The casting does nothing at all**, and that is the point of it here: the
+ * webs simply appear, and every save Web ever calls for comes from the
+ * trigger. A creature already standing in the Cube when it is conjured is not
+ * caught by it — nothing in the text says so — which is why `effects` is empty
+ * and the record is on nobody.
+ *
+ * **The cap is on the entry and not on the creature.** "The first time a
+ * creature enters the webs on a turn" bounds entering; starting your turn
+ * there is the other half of the sentence and is not entering, so a creature
+ * that begins its turn in the webs, tears out and walks back in saves twice.
+ * Insect Plague's "only once per turn" is the other reading, and the pair is
+ * the only place the difference is visible.
+ */
+export const WEB: SpellDefinition = {
+  id: 'web',
+  name: 'Web',
+  level: 2,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  area: { kind: 'cube', size: 20, origin: 'point' },
+  effects: [],
+  areaTrigger: {
+    at: 'start-of-turn',
+    onEntry: 'first-per-turn',
+    label: 'Web (the webbing)',
+    effects: [
+      {
+        kind: 'save',
+        ability: 'dex',
+        condition: 'restrained',
+        check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
+      },
+    ],
+  },
+  durationSeconds: 3600,
+  unmodelled: [
+    'Restrained by the webs lasts "while in the webs", and a condition that ends when its holder walks out of an area has no shape here: it runs until the casting ends or the creature breaks free',
+    'the webs are Difficult Terrain and the area within them Lightly Obscured',
+    'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room',
+    'the webs being flammable, and the 2d4 Fire damage a burning cube deals',
+  ],
+};
+
 export const WATER_BREATHING: SpellDefinition = {
   id: 'water-breathing',
   name: 'Water Breathing',
@@ -4961,6 +5154,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   WALL_OF_FORCE,
   WATER_BREATHING,
   WATER_WALK,
+  WEB,
   WEIRD,
   WORD_OF_RECALL,
 ];

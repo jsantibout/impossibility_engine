@@ -302,7 +302,14 @@ describe('every definition in the catalogue actually casts', () => {
     // the deliberate exception — it resolves to a casting and nothing else —
     // and it owes the stronger obligation instead: it must say what the DM is
     // being left to do, or it is a definition that quietly does nothing.
-    if (definitionFor(spellId)!.effects.length === 0) {
+    const definition = definitionFor(spellId)!;
+    if (definition.effects.length === 0 && definition.areaTrigger !== undefined) {
+      // The third case, and it is a spell rather than a stub: SRD Web's webs
+      // simply appear, and every save Web ever calls for comes from a creature
+      // starting its turn in them or walking into them. A casting that
+      // resolves nothing here is correct; the trigger is where the spell is.
+      expect(out.outcomes).toEqual([]);
+    } else if (definition.effects.length === 0) {
       expect(out.outcomes).toEqual([]);
       expect(out.unverified.length).toBeGreaterThan(0);
     } else {

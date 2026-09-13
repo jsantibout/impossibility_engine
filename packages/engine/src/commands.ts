@@ -180,10 +180,12 @@ import {
   castingSource,
   slotFits,
   validateSpellName,
+  type AreaMoment,
   type CastingTime,
   type ConcentrationCheck,
   type ConcentrationEndReason,
   type OngoingSpell,
+  type OwedAreaEffect,
   type SlotlessReason,
 } from './spells.js';
 import {
@@ -1686,6 +1688,10 @@ function moveWithin(
   if (state.pendingAttack !== null) {
     return err('attack_pending', 'a hit is waiting for its damage; settle it first');
   }
+  // Walking on out of an area that has already caught you would leave the
+  // engine owing a save against a Web the mover is no longer standing in.
+  const owedHere = areaEffectRefusal(state);
+  if (owedHere !== null) return owedHere;
 
   const mover = creatureOf(state, id);
   if (mover === null) return unknownCreature(id, 'has no record here yet; add it first');
@@ -2183,6 +2189,11 @@ export function resolveAttack(
       `damage rolled against ${state.pendingDamage.target} has not been settled; settle it first`,
     );
   }
+
+  // And an effect a persistent area owes somebody. One function names the
+  // debts that stop a creature acting, and swinging is acting.
+  const owedHere = areaEffectRefusal(state);
+  if (owedHere !== null) return owedHere;
 
   const attacker = creatureOf(state, id);
   if (attacker === null) return unknownCreature(id, 'has no record here yet; add it first');
@@ -5044,6 +5055,17 @@ export interface CastingPlan {
    * the moment it appears.
    */
   readonly origin?: Point;
+  /**
+   * Where a persistent area sits, for a spell that leaves one behind.
+   *
+   * Kept apart from `origin` rather than folded into it, because the two are
+   * read by different rules: `origin` is where a casting *acts from* and
+   * reaches the attack, while this is a shape's anchor and reaches nothing but
+   * the geometry. A Web declared over the goblins settles over the goblins,
+   * and the direction it was laid along is the one fact about it that cannot
+   * be worked out again.
+   */
+  readonly area?: { readonly at: Point; readonly towards?: Point };
 }
 
 /**
@@ -5228,6 +5250,7 @@ export function castSpell(
         ...(command.route === undefined ? {} : { route: command.route }),
         targets: command.hold.targets,
         ...(command.hold.origin === undefined ? {} : { origin: command.hold.origin }),
+        ...(command.hold.area === undefined ? {} : { area: command.hold.area }),
         unverified: command.hold.unverified,
         ...(deadline === undefined ? {} : { deadline }),
         ...(command.check === undefined ? {} : { check: command.check }),
@@ -6137,6 +6160,161 @@ export function resolveEffectCheck(
   });
 }
 
+/** What the persistent areas currently owe, in the order they were caught. */
+export function owedAreaEffectsOf(state: GameState): readonly OwedAreaEffect[] {
+  return state.owedAreaEffects;
+}
+
+/**
+ * Which of two owed effects is settled first.
+ *
+ * **The previous creature's turn ends before the next one's begins**, and one
+ * `turn-advanced` raises both. That is not a tie the keys may break: an
+ * Insect Plague that drops a caster at the end of one turn ends the Web
+ * somebody else was about to start their turn in, and the engine either gets
+ * that right or settles whichever happened to sort first.
+ *
+ * `entry` sits between them because it is neither — whatever happened in
+ * between — and because no guard lets it stand beside a boundary anyway.
+ */
+const MOMENT_ORDER: Readonly<Record<AreaMoment, number>> = {
+  'end-of-turn': 0,
+  entry: 1,
+  'start-of-turn': 2,
+};
+
+const castingNumberOf = (castingId: string): number =>
+  Number(castingId.slice('cast:'.length)) || 0;
+
+/** What one settlement did. */
+export interface AreaEffectResolution {
+  readonly events: readonly GameEvent[];
+  /** The debts discharged, in the order they were settled. */
+  readonly settled: readonly OwedAreaEffect[];
+  readonly outcomes: readonly SpellTargetOutcome[];
+  /** Checks the rules call for that the engine still cannot make. */
+  readonly unverified: readonly string[];
+}
+
+/**
+ * Deal what the persistent areas owe.
+ *
+ * SRD writes these as clauses on the spell — "ends its turn there", "the first
+ * time a creature enters the webs on a turn" — so what settles is **the spell
+ * itself**, at the level and route the casting was made with, through the same
+ * machinery an ordinary casting runs. There is no second save calculator here
+ * and no second damage resolver, and the caller supplies no DC, no roll and no
+ * outcome: it may only say that an already-owed effect should now be dealt.
+ *
+ * Its own command rather than a step inside the move that caused it, because
+ * the move does not always have a generator: `declineOpportunity` completes
+ * somebody else's declared move and has no dice to roll with. A debt that only
+ * the moving command could settle would wedge the fight on exactly that path.
+ *
+ * Nothing is recomputed. Whether the creature was inside the area was decided
+ * when the moment happened; by now they may have been thrown clear, and a
+ * settlement that asked again would forgive a save the rules had already
+ * called for.
+ */
+export function settleAreaEffects(
+  state: GameState,
+  supply: ConcentrationSaveSupply,
+  command: CommandIdentity = {},
+): Result<AreaEffectResolution> {
+  // Before every guard below, as always: a retry arrives at the world its own
+  // first run made, and reporting "nothing is owed" for a settlement that has
+  // already happened is the confusion command ids exist to prevent.
+  const identity = identify(state, 'settle-area', command);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) {
+    return ok({ events: [], settled: [], outcomes: [], unverified: [] });
+  }
+  const stamp = identity.value.stamp;
+
+  const queue = [...state.owedAreaEffects].sort(
+    (a, b) =>
+      MOMENT_ORDER[a.moment] - MOMENT_ORDER[b.moment] ||
+      castingNumberOf(a.castingId) - castingNumberOf(b.castingId) ||
+      a.target.localeCompare(b.target),
+  );
+  if (queue.length === 0) return ok({ events: [], settled: [], outcomes: [], unverified: [] });
+
+  const events: GameEvent[] = [];
+  const settled: OwedAreaEffect[] = [];
+  const outcomes: SpellTargetOutcome[] = [];
+  const unverified: string[] = [];
+  let current = state;
+  let first = true;
+
+  for (const owed of queue) {
+    // Re-read, never re-derive: the debt is a fact about a moment that
+    // happened, and the only question now is whether anything has since
+    // forgiven it. An earlier settlement in this very batch can — a failed
+    // Concentration save ends the casting and takes its debts with it.
+    const still = current.owedAreaEffects.some(
+      (o) =>
+        o.castingId === owed.castingId && o.target === owed.target && o.moment === owed.moment,
+    );
+    if (!still) continue;
+
+    const discharge: GameEvent = {
+      type: 'area-effect-settled',
+      castingId: owed.castingId,
+      target: owed.target as CharacterId,
+      moment: owed.moment,
+      ...(first && stamp !== null ? { command: stamp } : {}),
+    };
+    first = false;
+
+    const record = current.ongoing[owed.castingId];
+    const definition = record === undefined ? null : definitionFor(record.spellId);
+    const trigger = definition?.areaTrigger;
+    const casterId = (record?.caster ?? null) as CharacterId | null;
+    const caster = casterId === null ? null : creatureOf(current, casterId);
+
+    // A non-Concentration area outlives its caster — SRD Grease runs its
+    // minute whether or not the wizard does — and the save DC it would roll
+    // against is derived from a sheet that has left the game. Forgiven and
+    // said out loud rather than rolled against a number nobody has.
+    if (record === undefined || definition === null || trigger === undefined || caster === null) {
+      if (record !== undefined) {
+        unverified.push(
+          `${record.spell} caught ${owed.target} and its caster is no longer here to set the DC; nothing was rolled`,
+        );
+      }
+      events.push(discharge);
+      current = applyEvent(current, discharge);
+      settled.push(owed);
+      continue;
+    }
+
+    const chosen = chooseRoute(caster.spellcasting, record.spellId, record.route ?? undefined);
+    if (!chosen.ok) return chosen;
+
+    const resolved = resolveEffects(current, casterId!, caster, definition, {
+      // Pinned at the casting: a Cleric who levels does not upcast a swarm
+      // that has been buzzing since the first round.
+      castLevel: record.level,
+      route: chosen.value,
+      targets: [owed.target as CharacterId],
+      unverified,
+      supply,
+      castingId: record.castingId,
+      events: [discharge],
+      effects: trigger.effects,
+      label: trigger.label,
+    });
+    if (!resolved.ok) return resolved;
+
+    events.push(...resolved.value.events);
+    current = resolved.value.events.reduce(applyEvent, current);
+    outcomes.push(...resolved.value.outcomes);
+    settled.push(owed);
+  }
+
+  return ok({ events, settled, outcomes, unverified });
+}
+
 export function pendingSavesOf(state: GameState): readonly PendingSave[] {
   return Object.keys(state.pendingSaves)
     .sort()
@@ -6301,6 +6479,16 @@ export function resolveTurn(
     );
   }
 
+  // What a persistent area caught somebody doing, still undealt. Advancing
+  // past it would carry the debt into a turn whose boundary may raise another,
+  // and a creature would be two saves behind by the time anybody looked.
+  if (state.owedAreaEffects.length > 0) {
+    return err(
+      'area_effect_owed',
+      `${state.owedAreaEffects.length} area effect(s) are owed; settle them before the turn moves on`,
+    );
+  }
+
   const advanced: GameEvent[] = [
     { type: 'turn-advanced', ...(stamp === null ? {} : { command: stamp }) },
   ];
@@ -6324,6 +6512,26 @@ export function resolveTurn(
     if (!collected.ok) return collected;
     advanced.push(...collected.value);
     after = collected.value.reduce(applyEvent, after);
+  }
+
+  // What the boundary's areas owe: the finishing creature's end first, then
+  // the beginning creature's start. `settleAreaEffects` orders by the moment
+  // rather than by anything about how the debts were filed, which is the whole
+  // of the temporal guarantee — an Insect Plague that drops a caster at the
+  // end of one turn ends the Web the next creature was about to start theirs
+  // in, and the debt goes with the casting.
+  //
+  // **Before the Death Saving Throw**, deliberately. Both are "at the start of
+  // your turn" and the SRD orders neither, but only one order leaves room for
+  // a start-of-turn *heal* to matter — Aura of Life's shape — and an ordering
+  // that makes a future rule unreachable is the wrong one to pick by accident.
+  if (after.owedAreaEffects.length > 0) {
+    if (supply !== undefined) {
+      const dealt = settleAreaEffects(after, supply);
+      if (!dealt.ok) return dealt;
+      advanced.push(...dealt.value.events);
+      after = dealt.value.events.reduce(applyEvent, after);
+    }
   }
 
   // SRD: "Whenever you start your turn with 0 Hit Points, you must make a
@@ -6876,8 +7084,16 @@ export function resolveDeclaredCast(
       ? {
           becomesOngoing: {
             spellId: definition.id,
-            onCaster: onCaster(definition),
-            ...(pending.origin === undefined ? {} : { origin: pending.origin }),
+            on: onCaster(definition)
+              ? ('caster' as const)
+              : pending.origin === undefined
+                ? ('targets' as const)
+                : ('point' as const),
+            ...(definition.area === undefined ? {} : { fromArea: true as const }),
+            ...((pending.origin ?? pending.area?.at) === undefined
+              ? {}
+              : { origin: (pending.origin ?? pending.area?.at)! }),
+            ...(pending.area?.towards === undefined ? {} : { towards: pending.area.towards }),
           },
         }
       : {}),
@@ -6919,7 +7135,29 @@ function unsettledRefusal(state: GameState): Err | null {
       `the D20 Test ${state.pendingTest.who} rolled has not been settled; settle it before acting`,
     );
   }
-  return null;
+  // An effect a persistent area owes somebody. The start-of-turn case is the
+  // one that bites: a creature whose turn has just begun has a fresh budget
+  // and a save it has not made, and spending the first past the second would
+  // let it act out of a Web it may be Restrained by.
+  return areaEffectRefusal(state);
+}
+
+/**
+ * The area half of {@link unsettledRefusal}, on its own.
+ *
+ * Attacking and moving keep their own short lists — a held attack stops a
+ * second swing, a declared move stops a second move — and neither wants the
+ * whole of the casting policy. What every acting command *does* want is this
+ * one, so it is one function they all call rather than a sentence each of
+ * them writes out again.
+ */
+function areaEffectRefusal(state: GameState): Err | null {
+  const caught = state.owedAreaEffects[0];
+  if (caught === undefined) return null;
+  return err(
+    'area_effect_owed',
+    `${state.owedAreaEffects.length} area effect(s) are owed — ${caught.castingId} has caught ${caught.target} — and must be settled before acting`,
+  );
 }
 
 /**
@@ -7067,10 +7305,22 @@ function castOrRelease(
     origin = placed.value;
   }
 
+  // Where a **persistent** area sits, kept exactly as `placeArea` resolved it.
+  // The shape and its dimensions are printed and reconstruct themselves; the
+  // point and the direction were decisions taken once, at this casting, and
+  // nothing else in the engine remembers them.
+  let area: { readonly at: Point; readonly towards?: Point } | null = null;
+
   if (definition.area !== undefined) {
     const resolved = areaTargets(state, casterId, definition, definition.area, request, reach);
     if (!resolved.ok) return resolved;
     targets = resolved.value;
+    if (definition.areaTrigger !== undefined && request.at !== undefined) {
+      area = {
+        at: request.at,
+        ...(request.towards === undefined ? {} : { towards: request.towards }),
+      };
+    }
   } else {
     const named = namedTargets(state, casterId, definition, request, castLevel, reach, needs, origin);
     if (!named.ok) return named;
@@ -7093,6 +7343,7 @@ function castOrRelease(
     supply,
     held,
     origin,
+    area,
   });
 }
 
@@ -7599,13 +7850,20 @@ function resolveOnTargets(
     readonly held: HeldCasting | null;
     /** The point this casting keeps, for a spell that holds one. */
     readonly origin: Point | null;
+    /** Where a persistent area sits, for a spell that leaves one behind. */
+    readonly area: { readonly at: Point; readonly towards?: Point } | null;
   },
 ): Result<SpellResolution> {
-  const { castLevel, route, targets, unverified, supply, held, origin } = context;
-  const ongoingWith = (): { readonly spellId: string; readonly onCaster: boolean; readonly origin?: Point } => ({
+  const { castLevel, route, targets, unverified, supply, held, origin, area } = context;
+  const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
-    onCaster: onCaster(definition),
-    ...(origin === null ? {} : { origin }),
+    // **Three answers, stated rather than inferred.** A Range: Self spell is
+    // on its caster; a casting that holds a point is on the point and so on
+    // nobody; everything else is on whoever it actually caught.
+    on: onCaster(definition) ? 'caster' : origin === null ? 'targets' : 'point',
+    ...(definition.area === undefined ? {} : { fromArea: true as const }),
+    ...(origin === null && area === null ? {} : { origin: origin ?? area!.at }),
+    ...(area?.towards === undefined ? {} : { towards: area.towards }),
   });
 
   // — paying for it ——————————————————————————————————————————————————————
@@ -7697,6 +7955,7 @@ function resolveOnTargets(
             targets,
             unverified,
             ...(origin === null ? {} : { origin }),
+            ...(area === null ? {} : { area }),
           },
         }
       : {}),
@@ -7861,12 +8120,7 @@ function resolveEffects(
      * Absent for an activation, which acts through a record that already
      * exists rather than making a second one.
      */
-    readonly becomesOngoing?: {
-      readonly spellId: string;
-      readonly onCaster: boolean;
-      /** The point it keeps, which is also the reason it is on nobody. */
-      readonly origin?: Point;
-    };
+    readonly becomesOngoing?: OngoingRecordPlan;
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, castingId, events } = context;
@@ -8306,8 +8560,10 @@ function resolveEffects(
           continue;
         }
 
+        const shakeOff = effectCheckFrom(effect.check, definition.name, caster.sheet, route);
         const landed = applySpellEffect(current, target, effect.condition, casterId, {
           casting: { castingId, spell: definition.name },
+          ...(shakeOff === undefined ? {} : { check: shakeOff }),
           ...(riderDuration(effect.lasts, casterId) === undefined
             ? {}
             : { duration: riderDuration(effect.lasts, casterId)! }),
@@ -8525,12 +8781,13 @@ function resolveEffects(
         // the goblin must not put it out — and `on: []` is the state the
         // record already has for a spell that caught nobody.
         on:
-          becomes.origin !== undefined
-            ? []
-            : becomes.onCaster
-              ? [casterId]
-              : landedOn(targets, outcomes),
+          becomes.on === 'caster'
+            ? [casterId]
+            : becomes.on === 'point'
+              ? []
+              : landedOn(targets, outcomes, becomes.fromArea === true),
         ...(becomes.origin === undefined ? {} : { origin: becomes.origin }),
+        ...(becomes.towards === undefined ? {} : { towards: becomes.towards }),
       },
     });
   }
@@ -8552,13 +8809,36 @@ function resolveEffects(
 function landedOn(
   targets: readonly CharacterId[],
   outcomes: readonly SpellTargetOutcome[],
+  fromArea: boolean,
 ): readonly CharacterId[] {
   return [...targets]
     .filter((target) => {
       const said = outcomes.filter((outcome) => outcome.target === target);
-      return said.length === 0 || said.some((outcome) => outcome.affected);
+      // **Standing in an area is not being cast on.** A tracked spell keeps a
+      // target it reported nothing about because somebody *aimed* it there —
+      // Darkvision is on the creature it was cast on. An area spell aimed at
+      // nobody: the geometry found them, and a Web that has done nothing to
+      // you yet is not on you.
+      if (said.length === 0) return !fromArea;
+      return said.some((outcome) => outcome.affected);
     })
     .sort();
+}
+
+/**
+ * What a resolution needs to say about the record it is about to create.
+ *
+ * Shared by the three paths that resolve a casting — the ordinary cast, the
+ * settlement of a declared one, and the release of a readied one — so that a
+ * fourth cannot quietly disagree about what a casting ends up on.
+ */
+interface OngoingRecordPlan {
+  readonly spellId: string;
+  readonly on: 'caster' | 'targets' | 'point';
+  /** Set when the geometry chose the targets rather than the caller. */
+  readonly fromArea?: true;
+  readonly origin?: Point;
+  readonly towards?: Point;
 }
 
 /**

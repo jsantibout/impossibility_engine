@@ -46,12 +46,16 @@ import {
   type TimedEffect,
 } from './duration.js';
 import {
+  areaStampKey,
   castingIdOf,
+  type AreaMoment,
+  type AreaTriggerStamp,
   type CastingTime,
   type Concentration,
   type ConcentrationEndReason,
   type OngoingEndReason,
   type OngoingSpell,
+  type OwedAreaEffect,
   type SlotlessReason,
 } from './spells.js';
 import {
@@ -74,6 +78,7 @@ import {
 } from './combat.js';
 import {
   addLandmark,
+  creaturesInArea,
   declareCover,
   declareSight,
   dismount,
@@ -82,12 +87,18 @@ import {
   placeCreature,
   removeCreature,
   scene,
+  type AreaShape,
   type CoverDegree,
   type Placement,
   type PositionState,
   type SceneExtent,
   type Point,
 } from './positioning.js';
+import {
+  definitionFor,
+  type AreaTrigger,
+  type SpellArea,
+} from './spell-definitions.js';
 import {
   applyDamageToVitals,
   grantTemporaryHp,
@@ -427,6 +438,17 @@ export interface PendingCasting {
    * still costs nothing.
    */
   readonly origin?: Point;
+  /**
+   * Where a persistent area sits, for a spell that leaves one behind.
+   *
+   * Kept apart from `origin` rather than folded into it, because the two are
+   * read by different rules: `origin` is where a casting *acts from* and
+   * reaches the attack, while this is a shape's anchor and reaches nothing but
+   * the geometry. A Web declared over the goblins settles over the goblins,
+   * and the direction it was laid along is the one fact about it that cannot
+   * be worked out again.
+   */
+  readonly area?: { readonly at: Point; readonly towards?: Point };
   /** What the definition knowingly leaves out, gathered at declaration. */
   readonly unverified: readonly string[];
   /**
@@ -697,6 +719,28 @@ export interface GameState {
    * removes its conditions.
    */
   readonly ongoing: Readonly<Record<string, OngoingSpell>>;
+  /**
+   * Effects a persistent spell area owes creatures it has caught.
+   *
+   * A list rather than a keyed record, and that is the difference from
+   * `pendingSaves`: a save is keyed by effect and turn so that one boundary
+   * raises one of it, while a Grease caps nothing and a creature that walks in
+   * three times owes three. The fold appends in the order the moments arrived,
+   * which makes replay identical without a key scheme to invent.
+   *
+   * See {@link OwedAreaEffect}. Settlement orders by `moment`, never by
+   * position: the creature that finished its turn is owed before the one
+   * beginning theirs.
+   */
+  readonly owedAreaEffects: readonly OwedAreaEffect[];
+  /**
+   * When each casting's area last caught each creature — see
+   * {@link AreaTriggerStamp}.
+   *
+   * Written when a debt is **raised**, not when it settles, because the cap is
+   * on how often the area may catch you rather than on how fast anyone rolls.
+   */
+  readonly areaTriggers: Readonly<Record<string, AreaTriggerStamp>>;
 }
 
 export function initialState(seed: string): GameState {
@@ -720,6 +764,8 @@ export function initialState(seed: string): GameState {
     pendingDamage: null,
     pendingTest: null,
     ongoing: {},
+    owedAreaEffects: [],
+    areaTriggers: {},
   };
 }
 
@@ -1087,6 +1133,23 @@ export type GameEvent =
       readonly type: 'spell-origin-moved';
       readonly castingId: string;
       readonly to: Point;
+    }
+  /**
+   * An effect a persistent area owed a creature has been dealt.
+   *
+   * Resolved history: the save was rolled and the damage or the condition
+   * landed as their own events beside this one, and this says which debt they
+   * discharge. Its shape is `effect-save-resolved`'s — the same "and that
+   * obligation is now met" the repeat save already writes — and it names the
+   * casting, the creature and the moment rather than a key, because the debt
+   * is identified by what happened rather than by where it was filed.
+   */
+  | {
+      readonly type: 'area-effect-settled';
+      readonly castingId: string;
+      readonly target: CharacterId;
+      readonly moment: AreaMoment;
+      readonly command?: CommandStamp;
     }
   /**
    * A casting begun and held open, so that a Reaction can answer it.
@@ -1727,7 +1790,25 @@ function releaseCasting(
     changed = true;
   }
 
-  return changed ? { ...state, creatures, timers, ongoing, scheduledDamage } : state;
+  // An effect the area owed and the record of who it had already caught this
+  // turn. Both belong to the casting and neither outlives it: a debt against a
+  // Web that has been dispelled is one nothing could settle, and the turn
+  // would refuse to advance past it for ever.
+  const owedAreaEffects = state.owedAreaEffects.filter((owed) => owed.castingId !== castingId);
+  if (owedAreaEffects.length !== state.owedAreaEffects.length) changed = true;
+
+  const areaTriggers: Record<string, AreaTriggerStamp> = {};
+  for (const [key, stamp] of Object.entries(state.areaTriggers)) {
+    if (key.startsWith(`${castingId}|`)) {
+      changed = true;
+      continue;
+    }
+    areaTriggers[key] = stamp;
+  }
+
+  return changed
+    ? { ...state, creatures, timers, ongoing, scheduledDamage, owedAreaEffects, areaTriggers }
+    : state;
 }
 
 /**
@@ -2090,6 +2171,293 @@ function raiseTurnSaves(
   return { ...state, pendingSaves: sortedRecord({ ...state.pendingSaves, ...raised }) };
 }
 
+/**
+ * A casting that has just hung something on a creature is now **on** them.
+ *
+ * `OngoingSpell.on` answers SRD Dispel Magic's "any ongoing spell ... on the
+ * target", and it was written once, at the resolution, because that was the
+ * only moment a casting could reach anybody. A persistent area breaks that:
+ * Web restrains a creature that walks in a minute later, and a Dispel Magic
+ * aimed at *them* has to find it.
+ *
+ * So `on` grows, and the rule is exactly the link every other cleanup already
+ * uses: **a casting is on a creature while it has a live effect there that the
+ * casting owns.** Derived, so no event has to remember to say it, and a no-op
+ * for every spell that reached its targets at the cast.
+ *
+ * **What it deliberately is not** is "everyone the area has ever touched". A
+ * creature Insect Plague damaged is not carrying anything of the swarm's, so
+ * the swarm is not on them and a Dispel Magic pointed their way finds nothing
+ * — which is right, and is why this reads the *condition* rather than the
+ * trigger that produced it.
+ *
+ * The asymmetry, stated rather than discovered: `on` grows here and does not
+ * shrink when an independently-timed condition lapses. That was already true
+ * before persistent areas and is recorded as an open debt in PROGRESS.md;
+ * this widens it from "no executed spell reaches it" to "Web does".
+ */
+function alsoOn(state: GameState, who: CharacterId, source: string): GameState {
+  const castingId = castingIdOf(source);
+  if (castingId === null) return state;
+
+  const record = state.ongoing[castingId];
+  if (record === undefined || record.on.includes(who)) return state;
+
+  return {
+    ...state,
+    ongoing: {
+      ...state.ongoing,
+      [castingId]: { ...record, on: [...record.on, who].sort() },
+    },
+  };
+}
+
+/**
+ * Which placed creatures a persistent casting's area currently holds.
+ *
+ * The geometry is `positioning.ts`'s and is not reimplemented: the shape and
+ * its dimensions come off the definition, the point and the direction off the
+ * ongoing record. There is one area function in this engine and this is a
+ * caller of it, not a second one.
+ *
+ * Null when the casting has no persistent area to ask about — no definition,
+ * no area, no trigger, or no point recorded — which is every casting but a
+ * handful.
+ */
+function creaturesInCastingArea(
+  scene: PositionState,
+  record: OngoingSpell,
+): ReadonlySet<CharacterId> | null {
+  const definition = areaDefinitionOf(record.spellId);
+  if (definition === null) return null;
+  const origin = record.origin;
+  if (origin === undefined) return null;
+
+  const shape = areaShapeOf(definition.area, record.towards);
+  if (shape === null) return null;
+
+  const caught = creaturesInArea(scene, { point: origin }, shape);
+  return caught.ok ? new Set(caught.value) : null;
+}
+
+/**
+ * Turn a definition's area into the geometric template, with its direction.
+ *
+ * The direction is the half that had to be stored: everything else is a
+ * printed dimension and reconstructs itself. A directional shape with no
+ * recorded direction answers null rather than pointing somewhere plausible.
+ */
+function areaShapeOf(area: SpellArea, towards: Point | undefined): AreaShape | null {
+  switch (area.kind) {
+    case 'sphere':
+      return { kind: 'sphere', radius: area.radius };
+    case 'cylinder':
+      return { kind: 'cylinder', radius: area.radius, height: area.height };
+    case 'emanation':
+      return { kind: 'emanation', distance: area.distance };
+    case 'cone':
+      return towards === undefined ? null : { kind: 'cone', length: area.length, towards };
+    case 'cube':
+      return towards === undefined ? null : { kind: 'cube', size: area.size, towards };
+    case 'line':
+      return towards === undefined
+        ? null
+        : { kind: 'line', length: area.length, width: area.width, towards };
+  }
+}
+
+/** A casting whose spell has both an area and something it does to it later. */
+function areaDefinitionOf(
+  spellId: string,
+): { readonly area: SpellArea; readonly trigger: AreaTrigger } | null {
+  const definition = definitionFor(spellId);
+  if (definition?.area === undefined || definition.areaTrigger === undefined) return null;
+  return { area: definition.area, trigger: definition.areaTrigger };
+}
+
+/**
+ * Whether this casting may catch this creature again on this turn.
+ *
+ * SRD writes two different caps and they are not interchangeable — see
+ * {@link AreaTrigger}. `oncePerTurn` bars every clause once anything has
+ * fired; `onEntry: 'first-per-turn'` bars only a second *entry*, which is why
+ * a creature that started its turn in a Web and walked back into it saves
+ * twice.
+ *
+ * Outside combat there is no turn, so nothing is capped — the reading the
+ * one-slot-per-turn rule and every once-per-turn feature already take.
+ */
+function areaTriggerAllowed(
+  state: GameState,
+  castingId: string,
+  target: CharacterId,
+  trigger: AreaTrigger,
+  moment: AreaMoment,
+  turn: number | null,
+): boolean {
+  if (turn === null) return true;
+
+  const stamp = state.areaTriggers[areaStampKey(castingId, target)];
+  if (stamp === undefined || stamp.turn !== turn) return true;
+
+  if (trigger.oncePerTurn === true) return false;
+  return !(moment === 'entry' && trigger.onEntry === 'first-per-turn' && stamp.byEntry);
+}
+
+/** Raise one debt, and stamp the turn it was raised on. */
+function oweAreaEffect(
+  state: GameState,
+  castingId: string,
+  target: CharacterId,
+  moment: AreaMoment,
+  turn: number | null,
+): GameState {
+  const key = areaStampKey(castingId, target);
+  const previous = state.areaTriggers[key];
+
+  return {
+    ...state,
+    owedAreaEffects: [...state.owedAreaEffects, { castingId, target, moment, turn }],
+    areaTriggers:
+      turn === null
+        ? state.areaTriggers
+        : sortedRecord({
+            ...state.areaTriggers,
+            [key]: {
+              turn,
+              byEntry:
+                moment === 'entry' || (previous?.turn === turn && previous.byEntry === true),
+            },
+          }),
+  };
+}
+
+/**
+ * The debts a turn boundary raises: one creature's end, then another's start.
+ *
+ * Both are raised by the same fold of the same `turn-advanced`, because the
+ * reducer cannot roll and raising is derived — but they are stamped with
+ * *different moments*, and settlement is what keeps them a round apart. See
+ * `settleAreaEffects`.
+ */
+function raiseAreaBoundaries(
+  state: GameState,
+  before: CombatState,
+  after: CombatState,
+): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+
+  const ended = before.order[before.turnIndex]?.id;
+  const begun = after.order[after.turnIndex]?.id;
+
+  let current = state;
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    if (record === undefined) continue;
+    const definition = areaDefinitionOf(record.spellId);
+    if (definition === null) continue;
+
+    const at = definition.trigger.at;
+    if (at === undefined) continue;
+    const whose = at === 'end-of-turn' ? ended : begun;
+    if (whose === undefined) continue;
+
+    const inside = creaturesInCastingArea(scene, record);
+    if (inside === null || !inside.has(whose)) continue;
+
+    // **The end of a turn belongs to the turn that is ending.** One
+    // `turn-advanced` carries both moments and `turnsTaken` has already moved
+    // on by the time the reducer sees it, so stamping the end with the new
+    // number would put the creature's entry and the end of the very turn it
+    // entered on in two different turns — and Insect Plague's "only once per
+    // turn" would catch the same creature twice.
+    const moment: AreaMoment = at === 'end-of-turn' ? 'end-of-turn' : 'start-of-turn';
+    const turn = at === 'end-of-turn' ? before.turnsTaken : after.turnsTaken;
+    if (!areaTriggerAllowed(current, castingId, whose, definition.trigger, moment, turn)) continue;
+    current = oweAreaEffect(current, castingId, whose, moment, turn);
+  }
+  return current;
+}
+
+/**
+ * The debts a position change raises: outside → inside, and nothing else.
+ *
+ * **Every creature whose position actually changed**, not the one the event
+ * names. `moveCreature` carries riders with their mount, so a rider crosses
+ * into a Web with no event mentioning them at all — and reading `event.id`
+ * alone is a bug a single-rider fixture is the only thing that catches.
+ *
+ * Only `false → true` fires. Already inside and staying, outside and staying,
+ * and inside to outside are all silent, because none of them is entering.
+ *
+ * **Placement is not entry, and that is structural rather than a guard.** A
+ * creature being put into the scene is not in `before.positions` at all, so it
+ * has no outside to have come from and the diff cannot fire for it — which is
+ * why there is no check here saying so, and why a mutation that calls this
+ * from `creature-placed` changes nothing. An unplaced creature is likewise in
+ * no area, so "unknown is outside" needs no statement either.
+ *
+ * **What this cannot see is the path.** The engine records where a move
+ * started and where it ended and nothing in between, so a creature that walks
+ * clean across a Web from one side to the other transitions outside → outside
+ * and nothing fires. That is a real gap and it is reported rather than
+ * guessed at: inferring the crossing from a straight line between the
+ * endpoints would be the engine inventing a route nobody took. SRD lets a
+ * creature break its movement into segments, and each segment is an
+ * authoritative move that this does see, which is the operational answer until
+ * movement records a path.
+ */
+function raiseAreaEntries(state: GameState, before: PositionState | null): GameState {
+  const scene = state.scene;
+  if (scene === null || before === null) return state;
+
+  const moved = Object.keys(scene.positions).filter((who) => {
+    const now = scene.positions[who];
+    const then = before.positions[who];
+    if (now === undefined || then === undefined) return false;
+    return now.x !== then.x || now.y !== then.y || now.z !== then.z;
+  }) as CharacterId[];
+  if (moved.length === 0) return state;
+
+  let current = state;
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    if (record === undefined) continue;
+    const definition = areaDefinitionOf(record.spellId);
+    if (definition === null || definition.trigger.onEntry === undefined) continue;
+
+    const was = creaturesInCastingArea(before, record);
+    const now = creaturesInCastingArea(scene, record);
+    if (was === null || now === null) continue;
+
+    const turn = state.combat?.turnsTaken ?? null;
+    for (const who of moved) {
+      if (was.has(who) || !now.has(who)) continue;
+      if (!areaTriggerAllowed(current, castingId, who, definition.trigger, 'entry', turn)) continue;
+      current = oweAreaEffect(current, castingId, who, 'entry', turn);
+    }
+  }
+  return current;
+}
+
+/**
+ * Forgive a debt whose subject has left the game or died.
+ *
+ * Derived, like every other lapse: nobody decides that a creature is no longer
+ * there, and a debt addressed to a corpse is one nothing can settle and the
+ * turn would refuse to advance past for ever. A dead creature takes no turns
+ * and enters nothing, so every moment this debt could record is one that can
+ * no longer happen to them.
+ */
+function dropOrphanedAreaEffects(state: GameState): GameState {
+  const live = state.owedAreaEffects.filter((owed) => {
+    const creature = state.creatures[owed.target];
+    return creature !== undefined && !creature.vitals.dead;
+  });
+  return live.length === state.owedAreaEffects.length ? state : { ...state, owedAreaEffects: live };
+}
+
 /** Keys sorted, so state serialises identically however it was reached. */
 function sortedRecord<T>(entries: Readonly<Record<string, T>>): Record<string, T> {
   const sorted: Record<string, T> = {};
@@ -2287,12 +2655,14 @@ function expireEffects(state: GameState): GameState {
 
 export function applyEvent(state: GameState, event: GameEvent): GameState {
   const applied = applyOne(state, event);
-  return dropStrandedDamage(
-    dropOrphanedSaves(
-      dropLapsedReady(
-        expireEffects(
-          endLostFeatures(
-            breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+  return dropOrphanedAreaEffects(
+    dropStrandedDamage(
+      dropOrphanedSaves(
+        dropLapsedReady(
+          expireEffects(
+            endLostFeatures(
+              breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+            ),
           ),
         ),
       ),
@@ -2582,7 +2952,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'condition-applied': {
       const creature = creatureOf(state, event, event.id);
       const conditions = applyCondition(creature.conditions, event.condition, event.source);
-      return withCreature(next, event.id, { conditions }, creature);
+      return alsoOn(
+        withCreature(next, event.id, { conditions }, creature),
+        event.id,
+        event.source,
+      );
     }
 
     case 'condition-removed': {
@@ -2763,6 +3137,27 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     // struck on a turn nobody cast it.
     case 'spell-activated':
       return next;
+    case 'area-effect-settled': {
+      const at = state.owedAreaEffects.findIndex(
+        (owed) =>
+          owed.castingId === event.castingId &&
+          owed.target === event.target &&
+          owed.moment === event.moment,
+      );
+      if (at < 0) {
+        throw new CorruptLogError(
+          event,
+          `${event.castingId} owes ${event.target} nothing at ${event.moment}`,
+        );
+      }
+      return {
+        ...next,
+        owedAreaEffects: [
+          ...state.owedAreaEffects.slice(0, at),
+          ...state.owedAreaEffects.slice(at + 1),
+        ],
+      };
+    }
     case 'spell-origin-moved': {
       const record = state.ongoing[event.castingId];
       if (record === undefined) {
@@ -3001,7 +3396,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'turn-advanced': {
       const before = combatOf(state, event);
       const after = advanceTurn(before);
-      return raiseTurnSaves(withCombat(next, state, after), before, after);
+      return raiseAreaBoundaries(
+        raiseTurnSaves(withCombat(next, state, after), before, after),
+        before,
+        after,
+      );
     }
 
     case 'action-spent':
@@ -3281,7 +3680,11 @@ function applyOne(state: GameState, event: GameEvent): GameState {
           event.forced === undefined ? {} : { forced: event.forced },
         ),
       );
-      return { ...next, scene: outcome.state };
+      // **The authoritative transition, and the only one that is entry.** A
+      // declared move is an intent an Opportunity Attack can end; this is the
+      // creature actually arriving. Forced movement lands here too, because a
+      // creature shoved into a Web has entered it.
+      return raiseAreaEntries({ ...next, scene: outcome.state }, state.scene);
     }
 
     case 'creature-unplaced':
@@ -3401,20 +3804,29 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         scene: must(event, declareCover(sceneOf(state, event), event.from, event.to, event.degree)),
       };
 
+    // Mounting and dismounting move a creature to a space it was not in — SRD
+    // charges half your Speed for the first — so both are authoritative
+    // transitions and both can carry somebody into an area.
     case 'mounted':
-      return {
-        ...next,
-        scene: must(
-          event,
-          mount(sceneOf(state, event), event.rider, event.mount, { willing: event.willing }),
-        ),
-      };
+      return raiseAreaEntries(
+        {
+          ...next,
+          scene: must(
+            event,
+            mount(sceneOf(state, event), event.rider, event.mount, { willing: event.willing }),
+          ),
+        },
+        state.scene,
+      );
 
     case 'dismounted':
-      return {
-        ...next,
-        scene: must(event, dismount(sceneOf(state, event), event.rider, event.placement)),
-      };
+      return raiseAreaEntries(
+        {
+          ...next,
+          scene: must(event, dismount(sceneOf(state, event), event.rider, event.placement)),
+        },
+        state.scene,
+      );
 
     // A record, not a mutation: the consequences arrive as their own events.
     case 'roll-recorded':

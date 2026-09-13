@@ -1,0 +1,1186 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import type { CharacterSheet } from './character.js';
+import { createRng, type Rng } from './dice.js';
+import { createRollIssuer } from './rolls.js';
+import { fold, type GameEvent, type GameState } from './events.js';
+import { declaredCasting } from './spellcasting.js';
+import type { Point } from './positioning.js';
+import { SPELL_DEFINITIONS } from './spell-definitions.js';
+import type { AreaMoment } from './spells.js';
+import {
+  declineOpportunity,
+  ongoingSpellOf,
+  ongoingSpellsOn,
+  owedAreaEffectsOf,
+  removeCreatureEverywhere,
+  resolveAttack,
+  resolveMove,
+  resolveSpell,
+  resolveTurn,
+  settleAreaEffects,
+} from './commands.js';
+
+/**
+ * A persistent spell area that catches a creature at a moment the spell names.
+ *
+ * Two SRD families, and the taxonomy audit that preceded this batch is why
+ * they are two rather than one:
+ *
+ * | | SRD wording | Detected at |
+ * |---|---|---|
+ * | **F1** | "starts its turn there" / "ends its turn there" | the turn boundary |
+ * | **F2a** | "enters the area" | the creature's own authoritative position change |
+ *
+ * The four spells below are chosen because no two of them agree:
+ *
+ * | Spell | Boundary | Entry | Cap |
+ * |---|---|---|---|
+ * | Insect Plague | **end** | first per turn | "only once per turn" — both clauses |
+ * | Web | **start** | first per turn | the entry alone |
+ * | Grease | **end** | every entry | none |
+ * | Black Tentacles | **end** | every entry | "only once per turn" — both clauses |
+ *
+ * An implementation that swapped start for end, or that let one cap stand in
+ * for the other, passes on any one of them and fails on the set.
+ */
+
+const id = (s: string) => asCharacterId(s);
+const CASTER = id('caster');
+const RIVAL = id('rival');
+const MOVER = id('mover');
+const SITTER = id('sitter');
+const MOUNT = id('mount');
+const RIDER = id('rider');
+const THREAT = id('threat'); // stands in reach, so leaving provokes
+
+const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
+  level: 11,
+  abilities: { str: 10, dex: 10, con: 10, int: 18, wis: 18, cha: 10 },
+  skills: {},
+  saveProficiencies: [],
+  armor: null,
+  shield: null,
+  armorTraining: { light: true, medium: true, heavy: true, shields: true },
+  baseSpeed: 30,
+  spellcastingAbility: 'wis',
+  weaponProficiencies: ['simple', 'martial'],
+  ...over,
+});
+
+const PREPARED = ['insect-plague', 'web', 'grease', 'black-tentacles', 'bless'];
+
+const added = (who: CharacterId): GameEvent => ({
+  type: 'creature-added',
+  id: who,
+  name: who,
+  sheet: sheet(),
+  maxHp: 300,
+  diesAtZero: false,
+  creatureType: 'Humanoid',
+  side: who === CASTER || who === RIVAL || who === THREAT ? 'party' : 'foes',
+});
+
+const casts = (who: CharacterId): readonly GameEvent[] => [
+  {
+    type: 'spellcasting-declared',
+    id: who,
+    spellcasting: declaredCasting({ ability: 'wis', prepared: PREPARED }),
+  },
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(
+    (level): GameEvent => ({
+      type: 'resource-pool-declared',
+      id: who,
+      pool: { key: `spell-slot:${level}`, label: `level ${level}`, max: 8, recovers: 'long-rest' },
+    }),
+  ),
+];
+
+/**
+ * Saves that land where the test wants them.
+ *
+ * The default is a penalty large enough that every save fails, so a trigger
+ * that fired is a trigger that shows. A test that needs the creature to stay
+ * on its feet — because a Restrained creature has a Speed of 0 and cannot walk
+ * back in — passes the bonus the other way.
+ */
+const supply = (seed = 'area', flat = -40) => ({
+  issuer: createRollIssuer('r'),
+  rng: createRng(seed) as Rng,
+  bonuses: [{ source: 'the fixture', flat }],
+});
+
+/**
+ * The geometry, worked out once against the engine's own ruler.
+ *
+ * `SPHERE` is 100 feet from the caster — inside Insect Plague's 300 and
+ * outside Web's 60 — so each spell gets its own point. Every `INSIDE` spot is
+ * exactly one cube inside its shape and every `OUTSIDE` one is exactly one
+ * cube beyond, which is the boundary pair every membership test leans on.
+ */
+const HALL: Point = { x: 200, y: 200, z: 0 };
+const SPHERE: Point = { x: 300, y: 200, z: 0 };
+const CUBE: Point = { x: 250, y: 200, z: 0 };
+const TOWARDS: Point = { x: 300, y: 200, z: 0 }; // a Cube is laid along +x
+const AWAY: Point = { x: 200, y: 200, z: 0 }; // …or along -x, which is a different Cube
+
+const spot = (name: string, at: Point): GameEvent => ({ type: 'landmark-added', name, at });
+
+const place = (who: CharacterId, name: string): GameEvent => ({
+  type: 'creature-placed',
+  id: who,
+  placement: { from: { landmark: name }, feet: 0 },
+});
+
+const SETUP: readonly GameEvent[] = [
+  added(CASTER),
+  added(RIVAL),
+  added(MOVER),
+  added(SITTER),
+  added(MOUNT),
+  added(RIDER),
+  added(THREAT),
+  ...casts(CASTER),
+  ...casts(RIVAL),
+  { type: 'scene-set', extent: { width: 900, depth: 900, height: 60 } },
+  spot('the hall', HALL),
+  spot('rival post', { x: 200, y: 240, z: 0 }),
+  spot('inside cube', { x: 260, y: 200, z: 0 }),
+  // Inside **both** Cubes: Grease's is 10 feet and Web's is 20, so the
+  // smaller one is what a shared spot has to fit in. A landmark that fitted
+  // only the larger made 'a move that never leaves the area' pass by leaving
+  // it — which is what the mutation pass found.
+  spot('deeper in cube', { x: 255, y: 200, z: 0 }),
+  spot('outside cube', { x: 240, y: 200, z: 0 }),
+  spot('inside sphere', { x: 320, y: 200, z: 0 }),
+  spot('outside sphere', { x: 340, y: 200, z: 0 }),
+  spot('mount post', { x: 240, y: 240, z: 0 }),
+  spot('threat post', { x: 160, y: 195, z: 0 }),
+  spot('beside threat', { x: 160, y: 200, z: 0 }),
+  place(CASTER, 'the hall'),
+  place(RIVAL, 'rival post'),
+  place(MOVER, 'outside cube'),
+  place(SITTER, 'outside sphere'),
+  {
+    type: 'creature-placed',
+    id: MOUNT,
+    placement: { from: { landmark: 'mount post' }, feet: 0, size: 'large' },
+  },
+  place(THREAT, 'threat post'),
+];
+
+/** Speeds large enough that walking about is never the thing under test. */
+const FIGHT: readonly GameEvent[] = [
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: CASTER, initiative: 30, speed: 30 },
+      { id: MOVER, initiative: 20, speed: 400 },
+      { id: SITTER, initiative: 10, speed: 400 },
+      { id: MOUNT, initiative: 5, speed: 400 },
+      { id: THREAT, initiative: 1, speed: 30 },
+    ],
+  },
+];
+
+/** A log that folds, with the handful of helpers these tests want. */
+class Game {
+  constructor(
+    private readonly events: GameEvent[] = [...SETUP],
+    /** False for the tests that are deliberately outside Initiative. */
+    private readonly fighting = true,
+  ) {}
+
+  get state(): GameState {
+    return fold('seed', this.events);
+  }
+
+  get log(): readonly GameEvent[] {
+    return this.events;
+  }
+
+  push(more: readonly GameEvent[]): this {
+    this.events.push(...more);
+    return this;
+  }
+
+  /** Cast an area spell at a point, and hand back the casting id. */
+  conjure(
+    spellId: string,
+    at: Point,
+    options: {
+      readonly by?: CharacterId;
+      readonly towards?: Point;
+      readonly slotLevel?: number;
+      readonly seed?: string;
+    } = {},
+  ): string {
+    const by = options.by ?? CASTER;
+    const out = unwrap(
+      resolveSpell(
+        this.state,
+        by,
+        {
+          spellId,
+          targets: [],
+          at,
+          ...(options.towards === undefined ? {} : { towards: options.towards }),
+          ...(options.slotLevel === undefined ? {} : { slotLevel: options.slotLevel }),
+        },
+        supply(options.seed ?? spellId),
+      ),
+      `${by} casting ${spellId}`,
+    );
+    this.push(out.events);
+    return out.castingId;
+  }
+
+  /**
+   * Roll Initiative, once, on the first thing that needs a turn order.
+   *
+   * The areas are conjured before the fight rather than during it: SRD allows
+   * one spell slot a turn and several tests want two areas over one square,
+   * and a wizard who set a trap before the door opened is the commoner table
+   * situation anyway.
+   */
+  private fight(): void {
+    if (this.fighting && this.state.combat === null) this.push(FIGHT);
+  }
+
+  /** Round the Initiative order to this creature's turn, settling as it goes. */
+  to(who: CharacterId): this {
+    this.fight();
+    for (let n = 0; n < 12; n += 1) {
+      const combat = this.state.combat;
+      if (combat === null) return this;
+      if (combat.order[combat.turnIndex]?.id === who) return this;
+      this.turn(`to-${who}-${n}`);
+    }
+    throw new Error(`never reached ${who}'s turn`);
+  }
+
+  /** Walk a creature to a named spot on its own turn, settling nothing after. */
+  walk(who: CharacterId, to: string, commandId?: string): void {
+    this.to(who);
+    const out = unwrap(
+      resolveMove(
+        this.state,
+        who,
+        {
+          placement: { from: { landmark: to }, feet: 0 },
+          ...(commandId === undefined ? {} : { commandId }),
+        },
+        supply('move'),
+      ),
+      `${who} walking to ${to}`,
+    );
+    this.push(out.events);
+  }
+
+  /** Settle everything the areas owe, rolling their saves. */
+  settle(seed = 'settle', commandId?: string, flat = -40): readonly GameEvent[] {
+    const out = unwrap(
+      settleAreaEffects(this.state, supply(seed, flat), commandId === undefined ? {} : { commandId }),
+      'settling area effects',
+    );
+    this.push(out.events);
+    return out.events;
+  }
+
+  /** Advance one turn. `resolveTurn` settles whatever the boundary owes. */
+  turn(seed = 'turn', flat = -40): readonly GameEvent[] {
+    this.fight();
+    const out = unwrap(resolveTurn(this.state, supply(seed, flat)), 'advancing the turn');
+    this.push(out.events);
+    return out.events;
+  }
+
+  owed(): readonly { readonly castingId: string; readonly target: string; readonly moment: AreaMoment }[] {
+    return owedAreaEffectsOf(this.state);
+  }
+
+  hp(who: CharacterId): number {
+    const creature = this.state.creatures[who];
+    if (creature === undefined) throw new Error(`${who} is not in the game`);
+    return creature.vitals.hp;
+  }
+
+  has(who: CharacterId, condition: string): boolean {
+    return this.state.creatures[who]?.conditions.conditions.includes(condition as never) ?? false;
+  }
+
+  /** Every roll a settlement recorded, so a test can count what fired. */
+  saves(events: readonly GameEvent[]): number {
+    return events.filter((e) => e.type === 'area-effect-settled').length;
+  }
+
+  foldsAtEveryPrefix(): void {
+    for (let n = 0; n <= this.events.length; n += 1) {
+      expect(() => fold('seed', this.events.slice(0, n))).not.toThrow();
+    }
+  }
+}
+
+/**
+ * Each spell's own printed prose, out of the parsed book.
+ *
+ * The same technique `spell-tracking.test.ts` uses, and for the same reason:
+ * a comment saying a clause is in the SRD is only as honest as whoever wrote
+ * it, while the book can be read.
+ */
+const PROSE: ReadonlyMap<string, string> = new Map(
+  (
+    JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL('../../srd/src/generated/spells.json', import.meta.url)),
+        'utf8',
+      ),
+    ) as readonly { id: string; description: string }[]
+  ).map((spell) => [spell.id, spell.description]),
+);
+
+const roundTrip = (log: readonly GameEvent[]): GameState =>
+  fold('seed', JSON.parse(JSON.stringify(log)) as GameEvent[]);
+
+// — the area survives the casting ——————————————————————————————————————————————
+
+describe('a persistent area is live state, not a number thrown away', () => {
+  it('keeps the point an area spell was centred on', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    expect(ongoingSpellOf(g.state, plague)?.origin).toEqual(SPHERE);
+  });
+
+  /**
+   * The hole the taxonomy audit found: `placeArea` resolved `towards` and threw
+   * it away, so a Cube's direction — chosen once, at the cast, and
+   * unreconstructible from anything else — was gone the moment the spell
+   * landed. Every membership question afterwards would have had to guess.
+   */
+  it('keeps the direction a Cube was laid along', () => {
+    const g = new Game();
+    const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    expect(ongoingSpellOf(g.state, web)?.towards).toEqual(TOWARDS);
+  });
+
+  /**
+   * And it is the *direction* that decides membership, not the point. The two
+   * Cubes below share an origin and point opposite ways, so a replay that lost
+   * the direction would put the same creature in both — or in neither.
+   */
+  it('catches a creature with the Cube laid one way and not the other', () => {
+    const along = new Game();
+    along.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    along.walk(MOVER, 'inside cube');
+    expect(along.owed()).toHaveLength(1);
+
+    const back = new Game();
+    back.conjure('grease', CUBE, { towards: AWAY, slotLevel: 1 });
+    back.walk(MOVER, 'inside cube');
+    expect(back.owed()).toEqual([]);
+  });
+
+  /** A direction lost in the log is a direction lost for ever. */
+  it('reconstructs the exact geometry from the log alone', () => {
+    const g = new Game();
+    const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    g.walk(MOVER, 'inside cube');
+
+    const replayed = roundTrip(g.log);
+    expect(ongoingSpellOf(replayed, web)?.origin).toEqual(CUBE);
+    expect(ongoingSpellOf(replayed, web)?.towards).toEqual(TOWARDS);
+    expect(replayed).toEqual(g.state);
+  });
+
+  /** An area that is not directional keeps no direction to be wrong about. */
+  it('keeps no direction for a Sphere', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    expect(ongoingSpellOf(g.state, plague)?.towards).toBeUndefined();
+  });
+
+  it('takes the area away with the casting', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.push([{ type: 'spell-ended', castingId: plague, on: null, reason: 'dispelled' }]);
+    expect(ongoingSpellOf(g.state, plague)).toBeNull();
+  });
+
+  /**
+   * SRD Web does nothing when it appears — the webs are simply there — so a
+   * creature already standing in the Cube is not caught, and is not on it.
+   */
+  it('leaves a Web on nobody when it is conjured over them', () => {
+    // Placed inside rather than walked in: the webs appear around a creature
+    // that was already standing there, which SRD says does nothing at all.
+    const g = new Game([...SETUP, place(RIDER, 'inside cube')], false);
+    const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    expect(ongoingSpellOf(g.state, web)?.on).toEqual([]);
+    expect(g.owed()).toEqual([]);
+    expect(g.has(RIDER, 'restrained')).toBe(false);
+  });
+});
+
+// — F1: the turn boundary —————————————————————————————————————————————————————
+
+describe('a creature that starts or ends its turn in the area', () => {
+  /**
+   * The discriminating fixture: one creature standing in a start-trigger area
+   * and an end-trigger area at the same spot. A swapped implementation fires
+   * the wrong one at the wrong boundary, and this is the only shape that says
+   * so — either spell alone passes under either reading.
+   */
+  it('tells a start-of-turn area from an end-of-turn one at the same spot', () => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2, seed: 'web' });
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1, seed: 'grease' });
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry');
+
+    const seen: string[] = [];
+    for (let n = 0; n < 8; n += 1) {
+      for (const event of g.turn(`t${n}`)) {
+        if (event.type !== 'area-effect-settled') continue;
+        const spell = ongoingSpellOf(g.state, event.castingId)?.spell ?? 'Web';
+        seen.push(`${spell} @ ${event.moment}`);
+      }
+      g.settle(`s${n}`);
+    }
+
+    expect(seen).toContain('Web @ start-of-turn');
+    expect(seen).toContain('Grease @ end-of-turn');
+    expect(seen).not.toContain('Web @ end-of-turn');
+    expect(seen).not.toContain('Grease @ start-of-turn');
+  });
+
+  it('owes nothing to a creature standing outside the area', () => {
+    const g = new Game();
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    for (let n = 0; n < 8; n += 1) {
+      g.turn(`t${n}`);
+      expect(g.owed()).toEqual([]);
+    }
+  });
+
+  /** Outside combat there are no turns, so no boundary can arrive. */
+  it('raises no boundary debt where there is no Initiative order', () => {
+    const g = new Game([...SETUP], false);
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    g.settle('entry');
+    g.push([{ type: 'time-advanced', seconds: 60, reason: 'a long look round' }]);
+    expect(g.owed()).toEqual([]);
+  });
+});
+
+// — F2a: entering under your own power ————————————————————————————————————————
+
+describe('a creature whose position transitions from outside to inside', () => {
+  it('owes the area’s effect on entering it', () => {
+    const g = new Game();
+    const grease = g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    expect(g.owed()).toEqual([]);
+
+    g.walk(MOVER, 'inside cube');
+    expect(g.owed()).toEqual([
+      { castingId: grease, target: MOVER, moment: 'entry', turn: g.state.combat?.turnsTaken },
+    ]);
+  });
+
+  it('owes nothing for a move that never leaves the area', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('first');
+
+    g.walk(MOVER, 'deeper in cube');
+    expect(g.owed()).toEqual([]);
+  });
+
+  it('owes nothing for leaving, and nothing for staying out', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('first');
+
+    g.walk(MOVER, 'outside cube');
+    expect(g.owed()).toEqual([]);
+
+    g.walk(MOVER, 'beside threat');
+    expect(g.owed()).toEqual([]);
+  });
+
+  /**
+   * **Placement is not entry.** A creature being put into the scene is the
+   * fiction saying where it already was, not a transition into anywhere — and
+   * an engine that fired on it would charge every monster a save for being
+   * narrated into the room the spell is already filling.
+   */
+  it('owes nothing when a creature is placed inside', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.push([added(id('newcomer')), place(id('newcomer'), 'deeper in cube')]);
+    expect(g.owed()).toEqual([]);
+  });
+
+  /**
+   * **Forced movement is still entry.** SRD gives the Opportunity Attack to a
+   * creature's own movement and nothing else, but a shove into a Web puts you
+   * in the Web all the same.
+   */
+  it('owes the effect when somebody is shoved in', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.to(CASTER);
+    const shoved = unwrap(
+      resolveMove(
+        g.state,
+        MOVER,
+        { placement: { from: { landmark: 'inside cube' }, feet: 0 }, forced: true },
+        supply('shove'),
+      ),
+      'shoving the mover in',
+    );
+    g.push(shoved.events);
+    expect(g.owed().map((d) => d.target)).toEqual([MOVER]);
+  });
+});
+
+// — riders ————————————————————————————————————————————————————————————————————
+
+describe('every creature whose position changed, not just the one that moved', () => {
+  /**
+   * `moveCreature` carries riders with their mount, so a rider's authoritative
+   * position transitions with no event naming them. Reading `event.id` alone
+   * misses them entirely — and a rider dragged into a Web is exactly the case
+   * a table would notice.
+   */
+  it('owes a rider their own debt when the mount carries them in', () => {
+    const g = new Game();
+    const grease = g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+
+    g.push([place(RIDER, 'mount post')]);
+    g.push([{ type: 'mounted', rider: RIDER, mount: MOUNT, willing: true }]);
+    if (g.owed().length > 0) g.settle('mounting');
+
+    g.walk(MOUNT, 'inside cube');
+
+    const owed = g.owed();
+    expect(owed.map((d) => d.target).sort()).toEqual([MOUNT, RIDER].sort());
+    expect(owed.every((d) => d.castingId === grease)).toBe(true);
+  });
+});
+
+// — frequency —————————————————————————————————————————————————————————————————
+
+describe('how often one casting may catch one creature in a turn', () => {
+  /**
+   * SRD Insect Plague: "A creature makes this save **only once per turn**."
+   * Entry and the end of the turn are two moments and the cap spans both, so
+   * walking in and then standing there is one save.
+   */
+  it('caps Insect Plague at one save a turn across entry and the boundary', () => {
+    const g = new Game();
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+
+    g.walk(MOVER, 'inside sphere');
+    expect(g.owed()).toHaveLength(1);
+    g.settle('entry');
+    const hurt = g.hp(MOVER);
+    expect(hurt).toBeLessThan(300);
+
+    // Ending that same turn inside owes nothing more.
+    g.turn('end-of-turn');
+    expect(g.hp(MOVER)).toBe(hurt);
+
+    // And the next time round the order it is a new turn, so it fires again.
+    g.to(MOVER);
+    g.turn('next-end');
+    expect(g.hp(MOVER)).toBeLessThan(hurt);
+  });
+
+  /**
+   * SRD Web caps only the **entry**: "The first time a creature enters the
+   * webs on a turn **or** starts its turn there." A creature that starts its
+   * turn inside has not *entered*, so tearing out and walking back in is still
+   * that turn's first entry — and saves again.
+   *
+   * If one per-turn stamp suppressed the second save, the implementation would
+   * be Insect Plague's rule wearing Web's name.
+   */
+  it('lets Web catch a creature at its start and again on its first entry', () => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry', undefined, 40);
+
+    // Round on to the start of MOVER's own turn, which the boundary owes.
+    g.to(CASTER);
+    // The start-of-turn save is **made**, so MOVER is not Restrained and still
+    // has a Speed to walk out with. The save happening is the point; failing
+    // it would only prove that a Restrained creature cannot move.
+    const started = g.turn('mover-start', 40);
+    expect(g.saves(started)).toBe(1);
+    expect(g.state.combat?.order[g.state.combat.turnIndex]?.id).toBe(MOVER);
+    expect(g.has(MOVER, 'restrained')).toBe(false);
+
+    // Same turn: out and back in. The first *entry* of the turn fires.
+    g.walk(MOVER, 'outside cube');
+    expect(g.owed()).toEqual([]);
+    g.walk(MOVER, 'inside cube');
+    expect(g.owed().filter((d) => d.moment === 'entry')).toHaveLength(1);
+    g.settle('re-entry', undefined, 40);
+
+    // And a second re-entry on the same turn does not.
+    g.walk(MOVER, 'outside cube');
+    g.walk(MOVER, 'inside cube');
+    expect(g.owed()).toEqual([]);
+  });
+
+  /** SRD Grease caps nothing: "A creature that enters the area ... must also". */
+  it('lets Grease catch a creature on every entry in one turn', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.to(MOVER);
+
+    let caught = 0;
+    for (let n = 0; n < 3; n += 1) {
+      g.walk(MOVER, 'inside cube');
+      caught += g.owed().filter((d) => d.moment === 'entry').length;
+      g.settle(`s${n}`);
+      g.walk(MOVER, 'outside cube');
+    }
+    expect(caught).toBe(3);
+  });
+
+  /**
+   * Outside combat there is no turn to be once-per, and the engine's standing
+   * convention — the one-slot-per-turn rule, every once-per-turn feature — is
+   * that nothing restricts what has no turn. Preserved rather than invented:
+   * even Insect Plague's cap lapses, because there is nothing to count.
+   */
+  it('caps nothing outside combat, where there are no turns', () => {
+    const g = new Game([...SETUP], false);
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+
+    let caught = 0;
+    for (let n = 0; n < 3; n += 1) {
+      g.walk(MOVER, 'inside sphere');
+      caught += g.owed().length;
+      g.settle(`s${n}`);
+      g.walk(MOVER, 'outside sphere');
+    }
+    expect(caught).toBe(3);
+  });
+});
+
+// — the definitions against the book ——————————————————————————————————————————
+
+describe('every trigger is a clause the SRD actually prints', () => {
+  const triggered = SPELL_DEFINITIONS.filter((d) => d.areaTrigger !== undefined);
+
+  it('has some, so the rules below are not vacuous', () => {
+    expect(triggered.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * **A cloud next door must not lend a spell an entry clause.** Stinking
+   * Cloud names no entry at all and Wind Wall names no later trigger of any
+   * kind, and the way that stays true is not a comment: the spell's own
+   * printed prose is read out of the parsed book and the definition is held
+   * against it.
+   */
+  it.each(triggered.map((d) => [d.id, d] as const))(
+    'gives %s an entry clause only where the book has one',
+    (spellId, definition) => {
+      const prose = PROSE.get(spellId) ?? '';
+      const printed = /\benters? (the (spell’s |spell's )?(area|webs))/i.test(prose);
+      expect(definition.areaTrigger?.onEntry !== undefined).toBe(printed);
+    },
+  );
+
+  it.each(triggered.map((d) => [d.id, d] as const))(
+    'fires %s at the boundary the book names',
+    (spellId, definition) => {
+      const prose = PROSE.get(spellId) ?? '';
+      const starts = /\bstarts its turn\b/i.test(prose);
+      const ends = /\bends? it'?s? turn\b/i.test(prose);
+      expect(definition.areaTrigger?.at).toBe(
+        starts ? 'start-of-turn' : ends ? 'end-of-turn' : undefined,
+      );
+    },
+  );
+
+  it.each(triggered.map((d) => [d.id, d] as const))(
+    'caps %s only where the book says "only once per turn"',
+    (spellId, definition) => {
+      const prose = PROSE.get(spellId) ?? '';
+      expect(definition.areaTrigger?.oncePerTurn === true).toBe(
+        /only once per turn/i.test(prose),
+      );
+    },
+  );
+
+  /** A trigger with no area is a rule with nowhere to happen. */
+  it('gives every trigger an area to be in', () => {
+    expect(triggered.filter((d) => d.area === undefined).map((d) => d.id)).toEqual([]);
+  });
+});
+
+// — temporal order ————————————————————————————————————————————————————————————
+
+describe('the finishing creature ends before the next one begins', () => {
+  /**
+   * The causal proof, which is the one that matters. RIVAL concentrates on a
+   * Web that MOVER is standing in, and RIVAL ends their turn in an Insect
+   * Plague. If the end settles first, the swarm drops RIVAL, the Concentration
+   * breaks, the Web ends and MOVER never rolls. If the start settles first,
+   * MOVER saves against a Web the rules had already ended.
+   */
+  it('lets an end-of-turn effect end the spell a start-of-turn debt was for', () => {
+    const g = new Game([...SETUP], false);
+    const web = g.conjure('web', CUBE, { by: RIVAL, towards: TOWARDS, slotLevel: 2, seed: 'web' });
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5, seed: 'plague' });
+    g.push([
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: RIVAL, initiative: 30, speed: 400 },
+          { id: MOVER, initiative: 20, speed: 400 },
+        ],
+      },
+    ]);
+
+    // MOVER stands in the Web; RIVAL stands in the swarm.
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry');
+    g.push([
+      { type: 'creature-unplaced', id: RIVAL },
+      place(RIVAL, 'inside sphere'),
+    ]);
+
+    // RIVAL is down to a hit point, so the swarm's 4d10 is certain to drop them.
+    g.push([{ type: 'damage-taken', id: RIVAL, amount: 299, source: 'the fixture' }]);
+    expect(ongoingSpellOf(g.state, web)).not.toBeNull();
+
+    // The boundary: RIVAL's turn ends inside the swarm, MOVER's begins inside
+    // the Web. One `turn-advanced`, two moments, and only one order is right.
+    g.to(RIVAL);
+    g.turn('boundary');
+
+    expect(ongoingSpellOf(g.state, web)).toBeNull();
+    expect(g.has(MOVER, 'restrained')).toBe(false);
+    expect(g.owed()).toEqual([]);
+  });
+
+  /**
+   * And the cosmetic half, which catches an implementation that sorts one
+   * dictionary: `cast:1` is the start-of-turn spell and `cast:2` the
+   * end-of-turn one, so casting order and moment order disagree.
+   */
+  it('orders the batch by the moment, not by anything about the key', () => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2, seed: 'web' });
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1, seed: 'grease' });
+
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry');
+
+    // Round to the boundary where MOVER's turn ends (Grease) and SITTER's
+    // begins (Web) — one transition, two moments, and only one order is right.
+    g.walk(SITTER, 'inside cube');
+    g.settle('entry2');
+    g.to(MOVER);
+    const batch = g.turn('boundary');
+
+    const order = batch
+      .filter((e) => e.type === 'area-effect-settled')
+      .map((e) => (e as { readonly moment: AreaMoment }).moment);
+    expect(order.length).toBeGreaterThanOrEqual(2);
+    expect(order[0]).toBe('end-of-turn');
+    expect(order[order.length - 1]).toBe('start-of-turn');
+  });
+});
+
+// — the guards ————————————————————————————————————————————————————————————————
+
+describe('nothing acts past an effect the area is owed', () => {
+  const owing = (): Game => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    return g;
+  };
+
+  it('refuses to advance the turn', () => {
+    const out = resolveTurn(owing().state, supply('t'));
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  });
+
+  it('refuses a second move', () => {
+    const out = resolveMove(
+      owing().state,
+      MOVER,
+      { placement: { from: { landmark: 'outside cube' }, feet: 0 } },
+      supply('m'),
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  });
+
+  it('refuses a cast', () => {
+    const out = resolveSpell(
+      owing().state,
+      CASTER,
+      { spellId: 'bless', targets: [RIVAL], slotLevel: 1 },
+      supply('b'),
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  });
+
+  it('refuses an attack', () => {
+    const out = resolveAttack(owing().state, MOVER, { target: THREAT, weapon: 'dagger' }, supply('a'));
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  });
+
+  /**
+   * The one this batch singled out. A creature whose turn has just begun has a
+   * fresh action budget **and** a save it has not made, and it may not spend
+   * the first past the second: a Web that has caught it may be about to
+   * Restrain it.
+   */
+  it('refuses an attack while the attacker owes a start-of-turn effect', () => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry');
+
+    // Advance to MOVER's turn **without** letting `resolveTurn` settle: the
+    // boundary raised the debt and nobody has rolled it.
+    g.to(CASTER);
+    const advanced = unwrap(resolveTurn(g.state), 'advancing with no generator');
+    g.push(advanced.events);
+
+    expect(g.owed().some((d) => d.moment === 'start-of-turn' && d.target === MOVER)).toBe(true);
+    const out = resolveAttack(g.state, MOVER, { target: THREAT, weapon: 'dagger' }, supply('a'));
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('area_effect_owed');
+  });
+});
+
+// — movement that never lands ————————————————————————————————————————————————
+
+describe('only a position that actually changed is entry', () => {
+  /** A declared move is an intent an Opportunity Attack can end. */
+  const provoking = (): Game => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'beside threat');
+    const declared = unwrap(
+      resolveMove(
+        g.state,
+        MOVER,
+        { placement: { from: { landmark: 'inside cube' }, feet: 0 } },
+        supply('provoke'),
+      ),
+      'declaring the move',
+    );
+    g.push(declared.events);
+    return g;
+  };
+
+  it('owes nothing while the move is only declared', () => {
+    const g = provoking();
+    expect(g.state.pendingMove).not.toBeNull();
+    expect(g.owed()).toEqual([]);
+  });
+
+  /**
+   * And a mover killed in the window never arrives, so the Grease never
+   * catches them: raising at declaration would have charged a creature for
+   * walking into a spell it never reached.
+   */
+  it('owes nothing when the mover is removed before the move completes', () => {
+    const g = provoking();
+    g.push(unwrap(removeCreatureEverywhere(g.state, MOVER), 'removing the mover'));
+    expect(g.owed()).toEqual([]);
+    expect(g.state.pendingMove).toBeNull();
+  });
+
+  /**
+   * The other side: the completion path has **no generator**.
+   * `declineOpportunity` finishes somebody else's declared move and cannot
+   * roll a save, so the debt has to outlive the command that produced it
+   * rather than being resolved on the spot or silently dropped.
+   */
+  it('raises the debt when a declined Opportunity Attack lets the move land', () => {
+    const g = provoking();
+    const grease = Object.keys(g.state.ongoing)[0]!;
+    const declined = unwrap(declineOpportunity(g.state, THREAT, {}), 'declining');
+    g.push(declined);
+
+    expect(g.state.pendingMove).toBeNull();
+    expect(g.owed().map((d) => d.castingId)).toEqual([grease]);
+  });
+});
+
+// — several castings at once ——————————————————————————————————————————————————
+
+describe('castings stay apart', () => {
+  it('owes two debts for two castings of one spell by two casters', () => {
+    const g = new Game();
+    const mine = g.conjure('insect-plague', SPHERE, { slotLevel: 5, seed: 'a' });
+    const theirs = g.conjure('insect-plague', SPHERE, { by: RIVAL, slotLevel: 5, seed: 'b' });
+    expect(mine).not.toBe(theirs);
+
+    g.walk(MOVER, 'inside sphere');
+    expect([...g.owed()].map((d) => d.castingId).sort()).toEqual([mine, theirs].sort());
+  });
+
+  it('settles one without erasing the other', () => {
+    const g = new Game();
+    const mine = g.conjure('insect-plague', SPHERE, { slotLevel: 5, seed: 'a' });
+    const theirs = g.conjure('insect-plague', SPHERE, { by: RIVAL, slotLevel: 5, seed: 'b' });
+    g.walk(MOVER, 'inside sphere');
+
+    const before = g.hp(MOVER);
+    const batch = g.settle('both');
+    expect(g.saves(batch)).toBe(2);
+    expect(g.owed()).toEqual([]);
+    expect(before - g.hp(MOVER)).toBeGreaterThan(0);
+    expect(ongoingSpellOf(g.state, mine)).not.toBeNull();
+    expect(ongoingSpellOf(g.state, theirs)).not.toBeNull();
+  });
+
+  it('keeps two different area spells apart', () => {
+    const g = new Game();
+    const grease = g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1, seed: 'g' });
+    const tentacles = g.conjure('black-tentacles', CUBE, {
+      towards: TOWARDS,
+      slotLevel: 4,
+      seed: 'bt',
+    });
+
+    g.walk(MOVER, 'inside cube');
+    expect([...g.owed()].map((d) => d.castingId).sort()).toEqual([grease, tentacles].sort());
+  });
+});
+
+// — cleanup ———————————————————————————————————————————————————————————————————
+
+describe('a casting that ends takes its debts with it', () => {
+  it('forgives a debt when the casting is dispelled', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    expect(g.owed()).toHaveLength(1);
+
+    g.push([{ type: 'spell-ended', castingId: plague, on: null, reason: 'dispelled' }]);
+    expect(g.owed()).toEqual([]);
+  });
+
+  it('forgives a debt when Concentration breaks', () => {
+    const g = new Game();
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    g.push([{ type: 'condition-applied', id: CASTER, condition: 'stunned', source: 'a blow' }]);
+    expect(g.owed()).toEqual([]);
+  });
+
+  it('forgives a debt when its subject leaves the game', () => {
+    const g = new Game();
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    g.push(unwrap(removeCreatureEverywhere(g.state, MOVER), 'removing'));
+    expect(g.owed()).toEqual([]);
+  });
+
+  it('leaves no frequency stamp behind for an ended casting', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    g.settle('once');
+    expect(JSON.stringify(g.state.areaTriggers)).toContain(plague);
+
+    g.push([{ type: 'spell-ended', castingId: plague, on: null, reason: 'dispelled' }]);
+    expect(g.state.areaTriggers).toEqual({});
+    expect(g.state.owedAreaEffects).toEqual([]);
+  });
+
+  /** And the turn moves on again once the debt is gone. */
+  it('does not wedge the fight when the casting ends mid-debt', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    g.push([{ type: 'spell-ended', castingId: plague, on: null, reason: 'dispelled' }]);
+    expect(() => g.turn('after')).not.toThrow();
+  });
+});
+
+// — what the effect actually does ——————————————————————————————————————————————
+
+describe('settlement runs the spell, not a second copy of the rules', () => {
+  it('deals Insect Plague damage scaled by the slot it was cast with', () => {
+    const low = new Game();
+    low.conjure('insect-plague', SPHERE, { slotLevel: 5, seed: 'same' });
+    low.walk(MOVER, 'inside sphere');
+    low.settle('same');
+
+    const high = new Game();
+    high.conjure('insect-plague', SPHERE, { slotLevel: 8, seed: 'same' });
+    high.walk(MOVER, 'inside sphere');
+    high.settle('same');
+
+    expect(300 - high.hp(MOVER)).toBeGreaterThan(300 - low.hp(MOVER));
+  });
+
+  it('restrains a creature that fails against Web', () => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('web');
+    expect(g.has(MOVER, 'restrained')).toBe(true);
+  });
+
+  /**
+   * SRD Dispel Magic ends "any ongoing spell ... **on the target**", and a
+   * creature the Web caught a minute later is exactly as caught as one it
+   * caught at once. `on` therefore grows when a triggered effect leaves a
+   * linked condition behind — see CLAUDE.md for the half of this that is
+   * still asymmetric.
+   */
+  it('counts a creature the Web restrained later as one the Web is on', () => {
+    const g = new Game();
+    const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    expect(ongoingSpellsOn(g.state, MOVER)).toEqual([]);
+
+    g.walk(MOVER, 'inside cube');
+    g.settle('web');
+    expect(ongoingSpellsOn(g.state, MOVER).map((o) => o.castingId)).toContain(web);
+  });
+
+  /** Black Tentacles' escape check still works on a creature it caught later. */
+  it('offers the escape check to a creature the tentacles caught later', () => {
+    const g = new Game();
+    g.conjure('black-tentacles', CUBE, { towards: TOWARDS, slotLevel: 4 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('tentacles');
+    expect(g.has(MOVER, 'restrained')).toBe(true);
+    expect(
+      Object.values(g.state.timers).some((t) => t.check !== undefined),
+    ).toBe(true);
+  });
+
+  it('names the casting on the event that discharges the debt', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    const settled = g.settle('roll');
+    expect(
+      settled.some(
+        (e) => e.type === 'area-effect-settled' && (e as { castingId: string }).castingId === plague,
+      ),
+    ).toBe(true);
+  });
+});
+
+// — retries ———————————————————————————————————————————————————————————————————
+
+describe('a retry changes nothing the first run did not', () => {
+  it('does not raise a second debt for a retried move', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube', 'm1');
+    const after = g.state;
+
+    const retry = unwrap(
+      resolveMove(
+        g.state,
+        MOVER,
+        { placement: { from: { landmark: 'inside cube' }, feet: 0 }, commandId: 'm1' },
+        supply('move'),
+      ),
+      'retrying the move',
+    );
+    expect(retry.events).toEqual([]);
+    expect(fold('seed', [...g.log, ...retry.events])).toEqual(after);
+    expect(g.owed()).toHaveLength(1);
+  });
+
+  it('does not settle twice', () => {
+    const g = new Game();
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    g.settle('once', 's1');
+    const after = g.state;
+    const hurt = g.hp(MOVER);
+
+    const retry = unwrap(settleAreaEffects(g.state, supply('once'), { commandId: 's1' }), 'retrying');
+    expect(retry.events).toEqual([]);
+    expect(fold('seed', [...g.log, ...retry.events])).toEqual(after);
+    expect(g.hp(MOVER)).toBe(hurt);
+  });
+
+  /** A settlement after the casting ended resurrects nothing. */
+  it('does not resurrect a debt whose casting has gone', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    g.walk(MOVER, 'inside sphere');
+    g.push([{ type: 'spell-ended', castingId: plague, on: null, reason: 'dispelled' }]);
+
+    const out = unwrap(settleAreaEffects(g.state, supply('late')), 'settling nothing');
+    expect(out.events).toEqual([]);
+    expect(out.settled).toEqual([]);
+  });
+
+  it('refuses a settlement id reused for different work', () => {
+    const g = new Game();
+    g.conjure('grease', CUBE, { towards: TOWARDS, slotLevel: 1 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('once', 's1');
+    const hurt = JSON.stringify(g.state.creatures);
+
+    g.walk(MOVER, 'outside cube');
+    g.walk(MOVER, 'inside cube');
+    const again = settleAreaEffects(g.state, supply('again'), { commandId: 's1' });
+    // A duplicate id must never deal a second, different effect under the
+    // first's name — whether it is recognised as a retry or refused outright.
+    if (!isErr(again)) expect(again.value.events).toEqual([]);
+    expect(JSON.stringify(g.state.creatures)).toBe(hurt);
+  });
+});
+
+// — replay ————————————————————————————————————————————————————————————————————
+
+describe('replay', () => {
+  it('folds at every prefix of a fight with areas in it', () => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2, seed: 'web' });
+    g.conjure('insect-plague', SPHERE, { slotLevel: 5, seed: 'plague' });
+    g.walk(MOVER, 'inside cube');
+    g.settle('a');
+    g.turn('t1');
+    g.walk(MOVER, 'inside sphere');
+    g.settle('c');
+    g.foldsAtEveryPrefix();
+    expect(roundTrip(g.log)).toEqual(g.state);
+  });
+
+  /** A log that discharges a debt nobody owes is a log and rules that disagree. */
+  it('refuses a settlement for a debt that was never raised', () => {
+    const g = new Game();
+    const plague = g.conjure('insect-plague', SPHERE, { slotLevel: 5 });
+    expect(() =>
+      fold('seed', [
+        ...g.log,
+        { type: 'area-effect-settled', castingId: plague, target: MOVER, moment: 'entry' },
+      ]),
+    ).toThrow();
+  });
+});

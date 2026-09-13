@@ -179,9 +179,111 @@ export interface OngoingSpell {
    * Absent means this casting holds no point — which is most of them. Not
    * null: "nobody has said where it is" is not a state a spell with an origin
    * can be in, because the space is chosen at the cast or the cast is refused.
+   *
+   * **An area spell's point lives here too**, and for the same reason: Web's
+   * 20-foot Cube is somewhere, and a rule that asks an hour later who is
+   * standing in it has nothing else to read. The two readers differ —
+   * `CastingOrigin.reach` for a spell that acts *from* the point, `SpellArea`
+   * for one that fills a shape around it — and the fact is one fact.
    */
   readonly origin?: Point;
+  /**
+   * Which way a directional area was laid, for a Cone, Cube or Line.
+   *
+   * The one fact about a persistent area that **cannot be reconstructed**. The
+   * shape and its dimensions come off the definition and the origin is
+   * recorded above, but where the caster pointed a 20-foot Cube was a decision
+   * taken once, at the casting, and nothing else remembers it. `placeArea`
+   * resolved it and threw it away, so every later membership question would
+   * have had to guess — which is the shape of every bug this engine exists to
+   * refuse.
+   *
+   * Absent for a Sphere, a Cylinder or an Emanation, which have no direction
+   * to be wrong about.
+   */
+  readonly towards?: Point;
 }
+
+/**
+ * The moment at which a persistent area caught a creature.
+ *
+ * Carried on the debt because settlement has to **order by it** — the creature
+ * finishing its turn and the creature beginning the next one are not
+ * simultaneous, and the debts they raise arrive in one fold of one event. An
+ * implementation that let the key order decide would settle whichever sorted
+ * first, which is a coin toss dressed as a rule.
+ *
+ * `entry` is one value rather than three because the *cause* of a position
+ * change is not a rule: a creature that walked in, was shoved in, or was
+ * carried in by its mount has entered. The causes this batch does **not**
+ * detect — an area that moves onto a creature, an area a creature is carried
+ * by — would raise this same value when they arrive, which is why it is named
+ * for the membership change rather than for walking.
+ */
+export type AreaMoment = 'end-of-turn' | 'entry' | 'start-of-turn';
+
+/**
+ * An effect a persistent spell area owes a creature, and has not yet dealt.
+ *
+ * The fourth debt of this shape in the engine — after `pendingSaves`,
+ * `scheduledDamage` and the Reaction windows — and it is deliberately **not**
+ * a `PendingSave`, which means something else entirely:
+ *
+ * | | `PendingSave` | This |
+ * |---|---|---|
+ * | Presupposes | a condition or timer already on the target | nothing; the target may be untouched |
+ * | What the roll does | releases an effect that is already running | applies the spell for the first time |
+ * | On success | the effect ends on that creature | whatever the spell says, which is often half damage |
+ * | Keyed by | the timer it belongs to | the casting and the creature |
+ *
+ * Forcing Web's "make a save or be Restrained" into a shape that exists to let
+ * a Restrained creature *stop* being Restrained would have inverted the rule.
+ *
+ * **It holds facts, never behaviour.** No predicate, no callback, no copy of
+ * the spell: settlement looks the definition up through the casting's own
+ * `spellId` and runs it at the level and route the casting was made with. What
+ * is authoritative here is that the moment *happened* — settlement never
+ * recomputes whether the creature was inside, because by then it may not be.
+ */
+export interface OwedAreaEffect {
+  /** The casting whose area caught them. Never the spell's name. */
+  readonly castingId: string;
+  readonly target: string;
+  readonly moment: AreaMoment;
+  /**
+   * The global turn it was raised on, or null outside combat.
+   *
+   * Null is a real state and not a gap: outside Initiative there is no turn
+   * for anything to be once-per, which is the reading the one-slot-per-turn
+   * rule and every once-per-turn feature already take.
+   */
+  readonly turn: number | null;
+}
+
+/**
+ * When a casting's area last caught a creature, and how.
+ *
+ * The whole of the frequency machinery. Keyed by casting and creature —
+ * **never by spell name**, because two Insect Plagues over one square are two
+ * castings and each owes its own save.
+ *
+ * Deliberately not `featureUsedOnTurn`, which records what a creature spent on
+ * its own turn budget. This is not the caught creature's budget and not the
+ * caster's: it is a fact about one casting reaching one creature during one
+ * turn of the fight. Same technique — a `turnsTaken` stamp — and different
+ * storage, because a turn budget is refreshed at the start of a turn and this
+ * must not be.
+ */
+export interface AreaTriggerStamp {
+  /** The global turn, from `turnsTaken`. */
+  readonly turn: number;
+  /** Whether an **entry** was among what fired this turn. */
+  readonly byEntry: boolean;
+}
+
+/** The key a stamp is filed under: one casting, one creature. */
+export const areaStampKey = (castingId: string, target: string): string =>
+  `${castingId}|${target}`;
 
 /**
  * Why an ongoing spell stopped, when somebody *decided* it.
