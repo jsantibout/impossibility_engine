@@ -1,0 +1,2923 @@
+{
+  "transcript": [
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "fire-bolt",
+        "targets": [
+          "ogre"
+        ],
+        "command_id": "r1-thessaly-fire-bolt-ogre",
+        "narration": "Thessaly snaps a hand forward, hurling a bright mote of flame toward the ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r1-thessaly-end-turn",
+        "narration": "The bolt bursts against the ogre's hide, leaving a scorched welt as Thessaly holds her ground."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "ilda",
+        "spell_id": "guiding-bolt",
+        "targets": [
+          "ogre"
+        ],
+        "slot_level": 1,
+        "command_id": "r1-ilda-guiding-bolt-ogre",
+        "narration": "Sister Ilda raises her holy symbol, and a spear of sacred radiance lances across the mill toward the ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r1-ilda-end-turn",
+        "narration": "The radiant bolt flashes just wide, searing a bright line through flour-dust and shadow but failing to catch the ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "brannis",
+        "from_creature": "ogre",
+        "feet": 5,
+        "command_id": "r1-brannis-move-between-ogre-thessaly",
+        "narration": "Brannis strides in, setting himself between the ogre and Thessaly with his greatsword rising into guard."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "brannis",
+        "target": "ogre",
+        "weapon": "greatsword",
+        "command_id": "r1-brannis-greatsword-ogre",
+        "narration": "He steps into the ogre's reach and drives the greatsword in a hard two-handed cut."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r1-brannis-end-turn",
+        "narration": "Steel bites deep; Brannis plants his boots before the brute, forcing it to face him first."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "ogre",
+        "target": "brannis",
+        "weapon": "greatclub",
+        "command_id": "r1-ogre-greatclub-brannis",
+        "narration": "Hemmed in by Brannis, the ogre bellows and brings its greatclub crashing down at the armored warrior."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r1-ogre-end-turn",
+        "narration": "The club slams into Brannis with a heavy crack, but he stays on his feet between the brute and Thessaly."
+      },
+      "harness": false
+    },
+    {
+      "tool": "look",
+      "input": {},
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "grease",
+        "targets": [],
+        "slot_level": 1,
+        "command_id": "r2-thessaly-grease-ogre-area",
+        "narration": "Thessaly sketches a slick sigil in the air, conjuring a sudden sheen of magical grease beneath the ogre's feet."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "grease",
+        "targets": [
+          "ogre"
+        ],
+        "slot_level": 1,
+        "at": {
+          "z": 0
+        },
+        "command_id": "r2-thessaly-grease-under-ogre",
+        "narration": "Thessaly sketches a slick sigil in the air, trying to bloom the grease directly beneath the ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "grease",
+        "targets": [
+          "ogre"
+        ],
+        "slot_level": 1,
+        "at": {
+          "x": 25,
+          "y": 20,
+          "z": 0
+        },
+        "command_id": "r2-thessaly-grease-center-ogre",
+        "narration": "Thessaly sketches a slick sigil in the air, and a glossy sheet of magical grease spreads across the floor under the ogre's boots."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "grease",
+        "targets": [],
+        "slot_level": 1,
+        "at": {
+          "x": 25,
+          "y": 20,
+          "z": 0
+        },
+        "command_id": "r2-thessaly-grease-area-25-20",
+        "narration": "Thessaly sketches a slick sigil in the air, and a glossy sheet of magical grease spreads across the floor under the ogre's boots."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "grease",
+        "targets": [],
+        "slot_level": 1,
+        "at": {
+          "x": 25,
+          "y": 20,
+          "z": 0,
+          "bearing": 0
+        },
+        "command_id": "r2-thessaly-grease-area-25-20-north",
+        "narration": "Thessaly sketches a slick sigil in the air, and a glossy sheet of magical grease spreads across the floor under the ogre's boots."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "grease",
+        "targets": [],
+        "slot_level": 1,
+        "at": {
+          "x": 25,
+          "y": 20,
+          "z": 0
+        },
+        "command_id": "r2-thessaly-grease-area-25-20-east",
+        "narration": "Thessaly sketches a slick sigil in the air, and a glossy sheet of magical grease spreads across the floor under the ogre's boots."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "grease",
+        "targets": [],
+        "slot_level": 1,
+        "at": {
+          "x": 25,
+          "y": 20,
+          "z": 0
+        },
+        "direction": {
+          "bearing": 0
+        },
+        "command_id": "r2-thessaly-grease-area-25-20-dir0",
+        "narration": "Thessaly sketches a slick sigil in the air, and a glossy sheet of magical grease spreads across the floor under the ogre's boots."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "harness-5"
+      },
+      "harness": true
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "ilda",
+        "from_creature": "brannis",
+        "feet": 5,
+        "bearing": 180,
+        "command_id": "r2-ilda-move-to-brannis",
+        "narration": "Sister Ilda hurries across the mill floor toward Brannis, closing the distance while keeping her holy symbol raised."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "ilda",
+        "spell_id": "healing-word",
+        "targets": [
+          "brannis"
+        ],
+        "slot_level": 1,
+        "command_id": "r2-ilda-healing-word-brannis",
+        "narration": "Seeing Brannis bloodied worst, Ilda speaks a sharp prayer of mending that rings clear over the churn of the mill."
+      },
+      "harness": false
+    },
+    {
+      "tool": "declare_sight",
+      "input": {
+        "from": "ilda",
+        "to": "brannis",
+        "seen": true,
+        "command_id": "r2-ilda-sight-brannis",
+        "narration": "At arm's length amid the flour haze, Ilda has a clear view of Brannis."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "ilda",
+        "spell_id": "healing-word",
+        "targets": [
+          "brannis"
+        ],
+        "slot_level": 1,
+        "command_id": "r2-ilda-healing-word-brannis-after-sight",
+        "narration": "Seeing Brannis wounded worst, Ilda speaks a sharp prayer of mending that rings clear over the churn of the mill."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r2-ilda-end-turn",
+        "narration": "Warm light closes Brannis's bruises and steadies his stance; Ilda remains beside him with her prayer spent."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "brannis",
+        "from_creature": "ogre",
+        "feet": 15,
+        "bearing": 180,
+        "command_id": "r2-brannis-fall-back-from-ogre",
+        "narration": "Brannis backs away from the ogre, opening enough space to bring a javelin up for a throw."
+      },
+      "harness": false
+    },
+    {
+      "tool": "take_opportunity_attack",
+      "input": {
+        "attacker": "ogre",
+        "weapon": "greatclub",
+        "command_id": "r2-ogre-oa-brannis-greatclub",
+        "narration": "As Brannis withdraws, the ogre lashes out with its greatclub, trying to catch him before he can throw."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "brannis",
+        "target": "ogre",
+        "weapon": "javelin",
+        "command_id": "r2-brannis-javelin-ogre",
+        "narration": "The club whistles past, and Brannis answers by hurling his javelin straight at the ogre's bulk."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "brannis",
+        "from_creature": "ogre",
+        "feet": 5,
+        "bearing": 180,
+        "command_id": "r2-brannis-step-back-in-javelin-range",
+        "narration": "With the throwing line too crowded in the mill's chaos, Brannis surges back in with the javelin leveled."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "brannis",
+        "target": "ogre",
+        "weapon": "javelin",
+        "command_id": "r2-brannis-javelin-ogre-close",
+        "narration": "Brannis drives the javelin forward at close range, turning the retreat into a hard thrust at the ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r2-brannis-end-turn",
+        "narration": "The ogre's parting swing misses, and Brannis's javelin punches into the brute at close quarters."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "ogre",
+        "target": "brannis",
+        "weapon": "greatclub",
+        "command_id": "r2-ogre-greatclub-brannis",
+        "narration": "The ogre snarls at the javelin wound and swings its greatclub in a brutal sideways arc at Brannis."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r2-ogre-end-turn",
+        "narration": "The greatclub connects hard, driving the air from Brannis, while the ogre keeps looming over him."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "thessaly",
+        "from_creature": "ogre",
+        "feet": 30,
+        "bearing": 180,
+        "command_id": "r3-thessaly-back-away-ogre",
+        "narration": "Thessaly retreats farther across the dusty mill floor, putting more space between herself and the looming ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "thessaly",
+        "from_creature": "ogre",
+        "feet": 25,
+        "bearing": 90,
+        "command_id": "r3-thessaly-back-away-ogre-east",
+        "narration": "Thessaly sidesteps back through the dusty mill, keeping distance from the ogre while lining up another spell."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "fire-bolt",
+        "targets": [
+          "ogre"
+        ],
+        "command_id": "r3-thessaly-fire-bolt-ogre",
+        "narration": "Finding no clearer retreat through the mill machinery, Thessaly steadies herself and hurls another bead of flame at the ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r3-thessaly-end-turn",
+        "narration": "The fire bolt strikes true, burning another blackened mark into the ogre's hide."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "ilda",
+        "from_creature": "ogre",
+        "feet": 5,
+        "command_id": "r3-ilda-close-to-ogre",
+        "narration": "Sister Ilda lowers her shoulder and rushes the last few steps into the ogre's space, aiming to drive it toward the turning millstone."
+      },
+      "harness": false
+    },
+    {
+      "tool": "ability_check",
+      "input": {
+        "who": "ilda",
+        "kind": "ability-check",
+        "ability": "str",
+        "skill": "athletics",
+        "dc": 17,
+        "label": "drive the ogre back into the turning millstone",
+        "command_id": "r3-ilda-shoulder-ogre-athletics",
+        "narration": "Ilda slams her shoulder into the ogre's hip, trying to use momentum and faith to force the huge brute backward into the grinding stone."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "ogre",
+        "from_landmark": "the great millstone",
+        "feet": 0,
+        "forced": true,
+        "command_id": "r3-ilda-force-ogre-to-millstone",
+        "narration": "Ilda finds purchase and, with a hard shove, drives the ogre backward into the sweep of the turning millstone."
+      },
+      "harness": false
+    },
+    {
+      "tool": "improvised_damage",
+      "input": {
+        "target": "ogre",
+        "dice": "2d6",
+        "damage_type": "bludgeoning",
+        "ruling": "shoved into the turning millstone",
+        "by": "ilda",
+        "command_id": "r3-ilda-millstone-damage-ogre",
+        "narration": "The millstone grinds against the ogre with a crunch of stone on flesh as Ilda's shove carries it into the turning mechanism."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r3-ilda-end-turn",
+        "narration": "The ogre staggers at the millstone, bruised and grinding against the mechanism, while Ilda holds her ground in the dangerous press."
+      },
+      "harness": false
+    },
+    {
+      "tool": "ability_check",
+      "input": {
+        "who": "brannis",
+        "kind": "ability-check",
+        "ability": "str",
+        "skill": "athletics",
+        "dc": 14,
+        "label": "swing from the hoist rope and drive the grain sack into the ogre",
+        "command_id": "r3-brannis-hoist-rope-athletics",
+        "narration": "Brannis seizes the hoist rope, boots thudding off the millstone housing as he swings out with the suspended grain sack arcing toward the ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "improvised_damage",
+      "input": {
+        "target": "ogre",
+        "dice": "2d6",
+        "damage_type": "bludgeoning",
+        "ruling": "swinging hoisted grain sack",
+        "by": "brannis",
+        "command_id": "r3-brannis-grain-sack-ogre-damage",
+        "narration": "The heavy grain sack swings through the bottom of its arc and slams into the ogre like a pendulum."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r3-brannis-end-turn",
+        "narration": "The sack thumps into the ogre and showers the floor with flour-dust as Brannis swings back down from the rope."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "ogre",
+        "target": "ilda",
+        "weapon": "greatclub",
+        "command_id": "r3-ogre-greatclub-ilda",
+        "narration": "Pinned against the millstone and furious, the ogre twists with a roar and brings its greatclub down at Sister Ilda."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r3-ogre-end-turn",
+        "narration": "The blow lands with a brutal thud, staggering Ilda beside the grinding stone as the ogre drags in a ragged breath."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "thessaly",
+        "spell_id": "fire-bolt",
+        "targets": [
+          "ogre"
+        ],
+        "command_id": "r4-thessaly-fire-bolt-ogre",
+        "narration": "Thessaly gathers another spark between her fingers and sends a fresh lance of fire toward the ogre by the millstone."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r4-thessaly-end-turn",
+        "narration": "The spell strikes dead-on, flaring bright against the ogre and leaving it badly scorched but still standing."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "ilda",
+        "spell_id": "sacred-flame",
+        "targets": [
+          "ogre"
+        ],
+        "command_id": "r4-ilda-sacred-flame-ogre",
+        "narration": "Sister Ilda lifts her holy symbol at point-blank range and calls down a column of searing radiance onto the ogre."
+      },
+      "harness": false
+    },
+    {
+      "tool": "declare_sight",
+      "input": {
+        "from": "ilda",
+        "to": "ogre",
+        "seen": true,
+        "narration": "At such close quarters, Ilda can clearly see the ogre looming over her."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "ilda",
+        "spell_id": "sacred-flame",
+        "targets": [
+          "ogre"
+        ],
+        "command_id": "r4-ilda-sacred-flame-ogre",
+        "narration": "Sacred fire drops onto the ogre in answer to Ilda's prayer."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r4-ilda-end-turn",
+        "narration": "The ogre fails to twist away; sacred flame scorches across its shoulders, leaving it reeling but not yet down."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "brannis",
+        "target": "ogre",
+        "weapon": "greatsword",
+        "command_id": "r4-brannis-greatsword-knee-ogre",
+        "narration": "Brannis steps in low and chops his greatsword toward the ogre's knee, trying to buckle the giant brute."
+      },
+      "harness": false
+    },
+    {
+      "tool": "ability_check",
+      "input": {
+        "who": "ogre",
+        "kind": "saving-throw",
+        "ability": "str",
+        "dc": 13,
+        "label": "keep its feet after Brannis cuts into its knee",
+        "command_id": "r4-ogre-save-vs-knee-cut-prone",
+        "narration": "The blade bites into the ogre's knee; the wounded brute lurches, fighting to keep its footing."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r4-brannis-end-turn",
+        "narration": "Brannis's cut nearly drops the ogre, but the brute catches itself at the last moment and remains standing, barely alive."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "ogre",
+        "target": "ilda",
+        "weapon": "greatclub",
+        "command_id": "r4-ogre-greatclub-ilda",
+        "narration": "Bleeding, burned, and half-crushed against the millstone, the ogre howls and spends its last strength in a desperate greatclub swing at Sister Ilda."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "r4-ogre-end-turn",
+        "narration": "The desperate swing goes wide, smashing into the millwork instead of Ilda. The ogre remains upright by a thread."
+      },
+      "harness": false
+    }
+  ],
+  "log": [
+    {
+      "type": "creature-added",
+      "id": "brannis",
+      "name": "Brannis",
+      "sheet": {
+        "level": 2,
+        "abilities": {
+          "str": 15,
+          "dex": 13,
+          "con": 16,
+          "int": 10,
+          "wis": 13,
+          "cha": 8
+        },
+        "skills": {
+          "arcana": "proficient",
+          "history": "proficient",
+          "athletics": "proficient",
+          "perception": "proficient",
+          "survival": "proficient"
+        },
+        "saveProficiencies": [
+          "con",
+          "str"
+        ],
+        "armor": {
+          "id": "chain-mail",
+          "name": "Chain Mail",
+          "category": "heavy",
+          "baseAc": 16,
+          "acBonus": null,
+          "addsDexModifier": false,
+          "maxDexBonus": null,
+          "strengthRequirement": 13,
+          "stealthDisadvantage": true,
+          "weightLb": 55,
+          "cost": {
+            "amount": 75,
+            "currency": "gp"
+          }
+        },
+        "shield": null,
+        "armorTraining": {
+          "light": true,
+          "medium": true,
+          "heavy": true,
+          "shields": true
+        },
+        "baseSpeed": 30,
+        "weaponProficiencies": [
+          "martial",
+          "simple"
+        ],
+        "selfHeals": [
+          {
+            "feature": "fighter:second-wind",
+            "name": "Second Wind",
+            "action": "bonus-action",
+            "pool": "second-wind",
+            "dice": "1d10",
+            "plus": {
+              "kind": "level",
+              "level": 2,
+              "label": "Fighter level"
+            }
+          }
+        ],
+        "spellcastingAbility": null
+      },
+      "maxHp": 22,
+      "creatureType": "Humanoid"
+    },
+    {
+      "type": "character-created",
+      "id": "brannis",
+      "spellcasting": {
+        "classes": [],
+        "granted": [
+          {
+            "spellId": "ray-of-frost",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "light",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "burning-hands",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+            "slotCasting": true
+          }
+        ]
+      },
+      "initiativeBonuses": [
+        {
+          "source": "Alert",
+          "flat": 2
+        }
+      ],
+      "record": {
+        "classId": "fighter",
+        "subclassId": null,
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "level": 2,
+        "choices": {
+          "name": "Brannis",
+          "classId": "fighter",
+          "level": 2,
+          "speciesId": "human",
+          "backgroundId": "sage",
+          "abilities": {
+            "method": "standard-array",
+            "assignment": {
+              "str": 15,
+              "dex": 13,
+              "con": 14,
+              "int": 10,
+              "wis": 12,
+              "cha": 8
+            }
+          },
+          "abilityIncreases": {
+            "con": 2,
+            "wis": 1
+          },
+          "classSkills": [
+            "athletics",
+            "perception"
+          ],
+          "languages": [
+            "Dwarvish",
+            "Giant"
+          ],
+          "alignment": "Lawful Good",
+          "cantrips": [],
+          "spellbook": [],
+          "preparedSpells": [],
+          "classEquipment": "A",
+          "backgroundEquipment": "A",
+          "equipped": [
+            "chain-mail"
+          ],
+          "hitPoints": {
+            "method": "fixed"
+          },
+          "featureChoices": {
+            "human:skillful": [
+              "survival"
+            ]
+          },
+          "feats": {
+            "fighter:fighting-style": {
+              "featId": "great-weapon-fighting"
+            },
+            "human:versatile": {
+              "featId": "alert"
+            },
+            "sage:magic-initiate-wizard": {
+              "featId": "magic-initiate",
+              "spellList": "wizard",
+              "spellcastingAbility": "int",
+              "cantrips": [
+                "ray-of-frost",
+                "light"
+              ],
+              "levelOneSpell": "burning-hands"
+            }
+          },
+          "dmGrants": {
+            "items": [],
+            "goldPieces": 0,
+            "magicItems": [],
+            "note": "standard package only"
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "brannis",
+      "items": [
+        {
+          "id": "backpack",
+          "quantity": 1
+        },
+        {
+          "id": "book",
+          "quantity": 1
+        },
+        {
+          "id": "calligraphers-supplies",
+          "quantity": 1
+        },
+        {
+          "id": "caltrops",
+          "quantity": 1
+        },
+        {
+          "id": "chain-mail",
+          "quantity": 1
+        },
+        {
+          "id": "crowbar",
+          "quantity": 1
+        },
+        {
+          "id": "dungeoneers-pack",
+          "quantity": 1
+        },
+        {
+          "id": "flail",
+          "quantity": 1
+        },
+        {
+          "id": "greatsword",
+          "quantity": 1
+        },
+        {
+          "id": "javelin",
+          "quantity": 8
+        },
+        {
+          "id": "oil",
+          "quantity": 2
+        },
+        {
+          "id": "parchment",
+          "quantity": 8
+        },
+        {
+          "id": "quarterstaff",
+          "quantity": 1
+        },
+        {
+          "id": "rations",
+          "quantity": 10
+        },
+        {
+          "id": "robe",
+          "quantity": 1
+        },
+        {
+          "id": "rope",
+          "quantity": 1
+        },
+        {
+          "id": "tinderbox",
+          "quantity": 1
+        },
+        {
+          "id": "torch",
+          "quantity": 10
+        },
+        {
+          "id": "waterskin",
+          "quantity": 1
+        }
+      ],
+      "source": "starting equipment"
+    },
+    {
+      "type": "coins-changed",
+      "id": "brannis",
+      "copper": 1200,
+      "source": "starting money"
+    },
+    {
+      "type": "item-equipped",
+      "id": "brannis",
+      "item": "chain-mail"
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "brannis",
+      "pool": {
+        "key": "hit-die:d10",
+        "label": "Hit Die (d10)",
+        "max": 2,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "brannis",
+      "pool": {
+        "key": "sage:magic-initiate-wizard:free-cast",
+        "label": "free casting of burning-hands",
+        "max": 1,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "brannis",
+      "pool": {
+        "key": "second-wind",
+        "label": "Second Wind",
+        "max": 2,
+        "recovers": "long-rest",
+        "regainsOnShortRest": 1
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "brannis",
+      "pool": {
+        "key": "action-surge",
+        "label": "Action Surge",
+        "max": 1,
+        "recovers": "short-rest"
+      }
+    },
+    {
+      "type": "creature-side-declared",
+      "id": "brannis",
+      "side": "party"
+    },
+    {
+      "type": "creature-added",
+      "id": "ilda",
+      "name": "Sister Ilda",
+      "sheet": {
+        "level": 2,
+        "abilities": {
+          "str": 13,
+          "dex": 12,
+          "con": 15,
+          "int": 10,
+          "wis": 17,
+          "cha": 8
+        },
+        "skills": {
+          "arcana": "proficient",
+          "history": "proficient",
+          "medicine": "proficient",
+          "religion": "proficient",
+          "insight": "proficient",
+          "athletics": "proficient",
+          "nature": "proficient",
+          "survival": "proficient"
+        },
+        "saveProficiencies": [
+          "cha",
+          "wis"
+        ],
+        "armor": {
+          "id": "chain-shirt",
+          "name": "Chain Shirt",
+          "category": "medium",
+          "baseAc": 13,
+          "acBonus": null,
+          "addsDexModifier": true,
+          "maxDexBonus": 2,
+          "strengthRequirement": null,
+          "stealthDisadvantage": false,
+          "weightLb": 20,
+          "cost": {
+            "amount": 50,
+            "currency": "gp"
+          }
+        },
+        "shield": {
+          "id": "shield",
+          "name": "Shield",
+          "category": "shield",
+          "baseAc": null,
+          "acBonus": 2,
+          "addsDexModifier": false,
+          "maxDexBonus": null,
+          "strengthRequirement": null,
+          "stealthDisadvantage": false,
+          "weightLb": 6,
+          "cost": {
+            "amount": 10,
+            "currency": "gp"
+          }
+        },
+        "armorTraining": {
+          "light": true,
+          "medium": true,
+          "heavy": false,
+          "shields": true
+        },
+        "baseSpeed": 30,
+        "weaponProficiencies": [
+          "simple"
+        ],
+        "spellcastingAbility": "wis"
+      },
+      "maxHp": 17,
+      "creatureType": "Humanoid"
+    },
+    {
+      "type": "character-created",
+      "id": "ilda",
+      "spellcasting": {
+        "classes": [
+          {
+            "classId": "cleric",
+            "ability": "wis",
+            "cantrips": [
+              "sacred-flame",
+              "light",
+              "guidance"
+            ],
+            "prepared": [
+              "cure-wounds",
+              "healing-word",
+              "guiding-bolt",
+              "bless",
+              "shield-of-faith"
+            ],
+            "slotKind": "spell"
+          }
+        ],
+        "granted": [
+          {
+            "spellId": "ray-of-frost",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "prestidigitation",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "shield",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+            "slotCasting": true
+          }
+        ]
+      },
+      "initiativeBonuses": [],
+      "record": {
+        "classId": "cleric",
+        "subclassId": null,
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "level": 2,
+        "choices": {
+          "name": "Sister Ilda",
+          "classId": "cleric",
+          "level": 2,
+          "speciesId": "human",
+          "backgroundId": "sage",
+          "abilities": {
+            "method": "standard-array",
+            "assignment": {
+              "str": 13,
+              "dex": 12,
+              "con": 14,
+              "int": 10,
+              "wis": 15,
+              "cha": 8
+            }
+          },
+          "abilityIncreases": {
+            "wis": 2,
+            "con": 1
+          },
+          "classSkills": [
+            "medicine",
+            "religion"
+          ],
+          "languages": [
+            "Halfling",
+            "Giant"
+          ],
+          "alignment": "Lawful Neutral",
+          "cantrips": [
+            "sacred-flame",
+            "light",
+            "guidance"
+          ],
+          "spellbook": [],
+          "preparedSpells": [
+            "cure-wounds",
+            "healing-word",
+            "guiding-bolt",
+            "bless",
+            "shield-of-faith"
+          ],
+          "classEquipment": "A",
+          "backgroundEquipment": "A",
+          "equipped": [
+            "chain-shirt",
+            "shield"
+          ],
+          "hitPoints": {
+            "method": "fixed"
+          },
+          "featureChoices": {
+            "human:skillful": [
+              "insight"
+            ],
+            "cleric:divine-order": [
+              "Protector"
+            ]
+          },
+          "feats": {
+            "human:versatile": {
+              "featId": "skilled",
+              "proficiencies": [
+                "athletics",
+                "nature",
+                "survival"
+              ]
+            },
+            "sage:magic-initiate-wizard": {
+              "featId": "magic-initiate",
+              "spellList": "wizard",
+              "spellcastingAbility": "int",
+              "cantrips": [
+                "ray-of-frost",
+                "prestidigitation"
+              ],
+              "levelOneSpell": "shield"
+            }
+          },
+          "dmGrants": {
+            "items": [],
+            "goldPieces": 0,
+            "magicItems": [],
+            "note": "standard package only"
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "ilda",
+      "items": [
+        {
+          "id": "backpack",
+          "quantity": 1
+        },
+        {
+          "id": "blanket",
+          "quantity": 1
+        },
+        {
+          "id": "book",
+          "quantity": 1
+        },
+        {
+          "id": "calligraphers-supplies",
+          "quantity": 1
+        },
+        {
+          "id": "chain-shirt",
+          "quantity": 1
+        },
+        {
+          "id": "holy-symbol",
+          "quantity": 1
+        },
+        {
+          "id": "holy-water",
+          "quantity": 1
+        },
+        {
+          "id": "lamp",
+          "quantity": 1
+        },
+        {
+          "id": "mace",
+          "quantity": 1
+        },
+        {
+          "id": "parchment",
+          "quantity": 8
+        },
+        {
+          "id": "priests-pack",
+          "quantity": 1
+        },
+        {
+          "id": "quarterstaff",
+          "quantity": 1
+        },
+        {
+          "id": "rations",
+          "quantity": 7
+        },
+        {
+          "id": "robe",
+          "quantity": 2
+        },
+        {
+          "id": "shield",
+          "quantity": 1
+        },
+        {
+          "id": "tinderbox",
+          "quantity": 1
+        }
+      ],
+      "source": "starting equipment"
+    },
+    {
+      "type": "coins-changed",
+      "id": "ilda",
+      "copper": 1500,
+      "source": "starting money"
+    },
+    {
+      "type": "item-equipped",
+      "id": "ilda",
+      "item": "chain-shirt"
+    },
+    {
+      "type": "item-equipped",
+      "id": "ilda",
+      "item": "shield"
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "ilda",
+      "pool": {
+        "key": "hit-die:d8",
+        "label": "Hit Die (d8)",
+        "max": 2,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "ilda",
+      "pool": {
+        "key": "spell-slot:1",
+        "label": "level 1 spell slot",
+        "max": 3,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "ilda",
+      "pool": {
+        "key": "sage:magic-initiate-wizard:free-cast",
+        "label": "free casting of shield",
+        "max": 1,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "ilda",
+      "pool": {
+        "key": "channel-divinity",
+        "label": "Channel Divinity",
+        "max": 2,
+        "recovers": "long-rest",
+        "regainsOnShortRest": 1
+      }
+    },
+    {
+      "type": "creature-side-declared",
+      "id": "ilda",
+      "side": "party"
+    },
+    {
+      "type": "creature-added",
+      "id": "thessaly",
+      "name": "Thessaly",
+      "sheet": {
+        "level": 2,
+        "abilities": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 17,
+          "wis": 12,
+          "cha": 10
+        },
+        "skills": {
+          "arcana": "expertise",
+          "history": "proficient",
+          "investigation": "proficient",
+          "insight": "proficient",
+          "perception": "proficient",
+          "stealth": "proficient",
+          "nature": "proficient",
+          "survival": "proficient"
+        },
+        "saveProficiencies": [
+          "int",
+          "wis"
+        ],
+        "armor": null,
+        "shield": null,
+        "armorTraining": {
+          "light": false,
+          "medium": false,
+          "heavy": false,
+          "shields": false
+        },
+        "baseSpeed": 30,
+        "weaponProficiencies": [
+          "simple"
+        ],
+        "spellcastingAbility": "int"
+      },
+      "maxHp": 14,
+      "creatureType": "Humanoid"
+    },
+    {
+      "type": "character-created",
+      "id": "thessaly",
+      "spellcasting": {
+        "classes": [
+          {
+            "classId": "wizard",
+            "ability": "int",
+            "cantrips": [
+              "fire-bolt",
+              "ray-of-frost",
+              "light"
+            ],
+            "prepared": [
+              "burning-hands",
+              "thunderwave",
+              "grease",
+              "shield",
+              "ray-of-sickness"
+            ],
+            "slotKind": "spell"
+          }
+        ],
+        "granted": [
+          {
+            "spellId": "prestidigitation",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "message",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "mage-armor",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+            "slotCasting": true
+          }
+        ]
+      },
+      "initiativeBonuses": [],
+      "record": {
+        "classId": "wizard",
+        "subclassId": null,
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "level": 2,
+        "choices": {
+          "name": "Thessaly",
+          "classId": "wizard",
+          "level": 2,
+          "speciesId": "human",
+          "backgroundId": "sage",
+          "abilities": {
+            "method": "standard-array",
+            "assignment": {
+              "str": 8,
+              "dex": 14,
+              "con": 13,
+              "int": 15,
+              "wis": 12,
+              "cha": 10
+            }
+          },
+          "abilityIncreases": {
+            "int": 2,
+            "con": 1
+          },
+          "classSkills": [
+            "investigation",
+            "insight"
+          ],
+          "languages": [
+            "Draconic",
+            "Giant"
+          ],
+          "alignment": "Neutral Good",
+          "cantrips": [
+            "fire-bolt",
+            "ray-of-frost",
+            "light"
+          ],
+          "spellbook": [
+            {
+              "spellId": "burning-hands",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "thunderwave",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "grease",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "shield",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "ray-of-sickness",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "sleep",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "detect-magic",
+              "acquiredAt": 2,
+              "origin": "level"
+            },
+            {
+              "spellId": "feather-fall",
+              "acquiredAt": 2,
+              "origin": "level"
+            }
+          ],
+          "preparedSpells": [
+            "burning-hands",
+            "thunderwave",
+            "grease",
+            "shield",
+            "ray-of-sickness"
+          ],
+          "classEquipment": "A",
+          "backgroundEquipment": "A",
+          "equipped": [],
+          "hitPoints": {
+            "method": "fixed"
+          },
+          "featureChoices": {
+            "human:skillful": [
+              "perception"
+            ],
+            "wizard:scholar": [
+              "arcana"
+            ]
+          },
+          "feats": {
+            "human:versatile": {
+              "featId": "skilled",
+              "proficiencies": [
+                "stealth",
+                "nature",
+                "survival"
+              ]
+            },
+            "sage:magic-initiate-wizard": {
+              "featId": "magic-initiate",
+              "spellList": "wizard",
+              "spellcastingAbility": "int",
+              "cantrips": [
+                "prestidigitation",
+                "message"
+              ],
+              "levelOneSpell": "mage-armor"
+            }
+          },
+          "dmGrants": {
+            "items": [],
+            "goldPieces": 0,
+            "magicItems": [],
+            "note": "standard package only"
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "thessaly",
+      "items": [
+        {
+          "id": "backpack",
+          "quantity": 1
+        },
+        {
+          "id": "book",
+          "quantity": 2
+        },
+        {
+          "id": "calligraphers-supplies",
+          "quantity": 1
+        },
+        {
+          "id": "dagger",
+          "quantity": 2
+        },
+        {
+          "id": "ink",
+          "quantity": 1
+        },
+        {
+          "id": "ink-pen",
+          "quantity": 1
+        },
+        {
+          "id": "lamp",
+          "quantity": 1
+        },
+        {
+          "id": "oil",
+          "quantity": 10
+        },
+        {
+          "id": "parchment",
+          "quantity": 18
+        },
+        {
+          "id": "quarterstaff",
+          "quantity": 2
+        },
+        {
+          "id": "robe",
+          "quantity": 2
+        },
+        {
+          "id": "scholars-pack",
+          "quantity": 1
+        },
+        {
+          "id": "spellbook",
+          "quantity": 1
+        },
+        {
+          "id": "tinderbox",
+          "quantity": 1
+        }
+      ],
+      "source": "starting equipment"
+    },
+    {
+      "type": "coins-changed",
+      "id": "thessaly",
+      "copper": 1300,
+      "source": "starting money"
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "thessaly",
+      "pool": {
+        "key": "hit-die:d6",
+        "label": "Hit Die (d6)",
+        "max": 2,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "thessaly",
+      "pool": {
+        "key": "spell-slot:1",
+        "label": "level 1 spell slot",
+        "max": 3,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "thessaly",
+      "pool": {
+        "key": "sage:magic-initiate-wizard:free-cast",
+        "label": "free casting of mage-armor",
+        "max": 1,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "thessaly",
+      "pool": {
+        "key": "wizard:arcane-recovery",
+        "label": "Arcane Recovery",
+        "max": 1,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "creature-side-declared",
+      "id": "thessaly",
+      "side": "party"
+    },
+    {
+      "type": "creature-added",
+      "id": "ogre",
+      "name": "Ogre",
+      "maxHp": 68,
+      "diesAtZero": true,
+      "creatureType": "Giant",
+      "defenses": {},
+      "side": "monsters",
+      "sheet": {
+        "level": 1,
+        "abilities": {
+          "str": 19,
+          "dex": 8,
+          "con": 16,
+          "int": 5,
+          "wis": 7,
+          "cha": 7
+        },
+        "skills": {},
+        "saveProficiencies": [],
+        "armor": null,
+        "shield": null,
+        "armorTraining": {
+          "light": true,
+          "medium": true,
+          "heavy": true,
+          "shields": true
+        },
+        "baseSpeed": 40,
+        "spellcastingAbility": null,
+        "stated": {
+          "armorClass": 11,
+          "proficiencyBonus": 2,
+          "initiative": -1,
+          "saves": {
+            "str": 4,
+            "dex": -1,
+            "con": 3,
+            "int": -3,
+            "wis": -2,
+            "cha": -2
+          },
+          "skills": {}
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "ogre",
+      "items": [
+        {
+          "id": "greatclub",
+          "quantity": 1
+        },
+        {
+          "id": "javelin",
+          "quantity": 1
+        }
+      ],
+      "source": "Ogre stat block"
+    },
+    {
+      "type": "scene-set",
+      "extent": {
+        "width": 50,
+        "depth": 40,
+        "height": 20
+      }
+    },
+    {
+      "type": "landmark-added",
+      "name": "the great millstone",
+      "at": {
+        "x": 10,
+        "y": 20,
+        "z": 0
+      }
+    },
+    {
+      "type": "landmark-added",
+      "name": "the hoist rope",
+      "at": {
+        "x": 20,
+        "y": 10,
+        "z": 0
+      }
+    },
+    {
+      "type": "landmark-added",
+      "name": "the grain chute",
+      "at": {
+        "x": 35,
+        "y": 30,
+        "z": 0
+      }
+    },
+    {
+      "type": "landmark-added",
+      "name": "the mill door",
+      "at": {
+        "x": 45,
+        "y": 20,
+        "z": 0
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "ogre",
+      "placement": {
+        "from": {
+          "landmark": "the great millstone"
+        },
+        "feet": 10,
+        "bearing": 90,
+        "size": "large"
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "brannis",
+      "placement": {
+        "from": {
+          "landmark": "the mill door"
+        },
+        "feet": 10,
+        "bearing": 270
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "ilda",
+      "placement": {
+        "from": {
+          "landmark": "the mill door"
+        },
+        "feet": 5,
+        "bearing": 270
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "thessaly",
+      "placement": {
+        "from": {
+          "landmark": "the mill door"
+        },
+        "feet": 0
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        2146365152,
+        -870586958,
+        934856086,
+        932887483
+      ]
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -864163776,
+        -176229818,
+        913082213,
+        932887484
+      ]
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -184267457,
+        -372194675,
+        -432118830,
+        932887485
+      ]
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -375117076,
+        405897826,
+        -1865641131,
+        932887486
+      ]
+    },
+    {
+      "type": "combat-started",
+      "combatants": [
+        {
+          "id": "brannis",
+          "initiative": 6,
+          "speed": 30
+        },
+        {
+          "id": "ilda",
+          "initiative": 12,
+          "speed": 30
+        },
+        {
+          "id": "thessaly",
+          "initiative": 22,
+          "speed": 30
+        },
+        {
+          "id": "ogre",
+          "initiative": 1,
+          "speed": 40
+        }
+      ]
+    },
+    {
+      "type": "action-spent",
+      "id": "thessaly"
+    },
+    {
+      "type": "spell-cast",
+      "castingId": "cast:1",
+      "id": "thessaly",
+      "spell": "Fire Bolt",
+      "level": 0,
+      "slot": null,
+      "slotless": "cantrip",
+      "castingTime": "action",
+      "concentration": false,
+      "route": "class:wizard",
+      "command": {
+        "id": "r1-thessaly-fire-bolt-ogre",
+        "fingerprint": "cast:thessaly|{\"castingTime\":\"action\",\"commandId\":\"r1-thessaly-fire-bolt-ogre\",\"concentration\":false,\"level\":0,\"route\":\"class:wizard\",\"slotless\":\"cantrip\",\"spell\":\"Fire Bolt\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "thessaly",
+      "label": "Fire Bolt attack",
+      "natural": 5,
+      "total": 11,
+      "contributions": [
+        {
+          "source": "spell attack",
+          "amount": 5
+        }
+      ],
+      "outcome": "hit"
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 5,
+      "source": "Fire Bolt",
+      "by": "thessaly"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        389723499,
+        -986278002,
+        -1159853905,
+        932887488
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r1-thessaly-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r1-thessaly-end-turn\"}"
+      }
+    },
+    {
+      "type": "action-spent",
+      "id": "ilda"
+    },
+    {
+      "type": "spell-cast",
+      "castingId": "cast:2",
+      "id": "ilda",
+      "spell": "Guiding Bolt",
+      "level": 1,
+      "slot": {
+        "key": "spell-slot:1",
+        "level": 1
+      },
+      "slotless": null,
+      "castingTime": "action",
+      "concentration": false,
+      "route": "class:cleric",
+      "command": {
+        "id": "r1-ilda-guiding-bolt-ogre",
+        "fingerprint": "cast:ilda|{\"castingTime\":\"action\",\"commandId\":\"r1-ilda-guiding-bolt-ogre\",\"concentration\":false,\"level\":1,\"route\":\"class:cleric\",\"slotLevel\":1,\"spell\":\"Guiding Bolt\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ilda",
+      "label": "Guiding Bolt attack",
+      "natural": 2,
+      "total": 10,
+      "contributions": [
+        {
+          "source": "spell attack",
+          "amount": 5
+        }
+      ],
+      "outcome": "miss"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -984347451,
+        -1848750553,
+        704865402,
+        932887489
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r1-ilda-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r1-ilda-end-turn\"}"
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "brannis",
+      "feet": 15
+    },
+    {
+      "type": "creature-moved",
+      "id": "brannis",
+      "placement": {
+        "from": {
+          "creature": "ogre"
+        },
+        "feet": 5
+      },
+      "command": {
+        "id": "r1-brannis-move-between-ogre-thessaly",
+        "fingerprint": "move:brannis|{\"commandId\":\"r1-brannis-move-between-ogre-thessaly\",\"placement\":{\"feet\":5,\"from\":{\"creature\":\"ogre\"}}}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "brannis"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "brannis",
+      "label": "Greatsword attack",
+      "natural": 12,
+      "total": 16,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "r1-brannis-greatsword-ogre",
+        "fingerprint": "attack:brannis|{\"commandId\":\"r1-brannis-greatsword-ogre\",\"target\":\"ogre\",\"weapon\":\"greatsword\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        236062054,
+        1501632518,
+        1788354343,
+        932887492
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 9,
+      "source": "Greatsword",
+      "by": "brannis"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r1-brannis-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r1-brannis-end-turn\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "ogre"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "Greatclub attack",
+      "natural": 13,
+      "total": 19,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 6
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "r1-ogre-greatclub-brannis",
+        "fingerprint": "attack:ogre|{\"commandId\":\"r1-ogre-greatclub-brannis\",\"target\":\"brannis\",\"weapon\":\"greatclub\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -1090079533,
+        -1527476789,
+        -686673901,
+        932887494
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "brannis",
+      "amount": 7,
+      "source": "Greatclub",
+      "by": "ogre"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r1-ogre-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r1-ogre-end-turn\"}"
+      }
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "harness-5",
+        "fingerprint": "turn|{\"commandId\":\"harness-5\"}"
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "ilda",
+      "feet": 20
+    },
+    {
+      "type": "creature-moved",
+      "id": "ilda",
+      "placement": {
+        "from": {
+          "creature": "brannis"
+        },
+        "feet": 5,
+        "bearing": 180
+      },
+      "command": {
+        "id": "r2-ilda-move-to-brannis",
+        "fingerprint": "move:ilda|{\"commandId\":\"r2-ilda-move-to-brannis\",\"placement\":{\"bearing\":180,\"feet\":5,\"from\":{\"creature\":\"brannis\"}}}"
+      }
+    },
+    {
+      "type": "sight-declared",
+      "from": "ilda",
+      "to": "brannis",
+      "seen": true
+    },
+    {
+      "type": "bonus-action-spent",
+      "id": "ilda"
+    },
+    {
+      "type": "spell-cast",
+      "castingId": "cast:3",
+      "id": "ilda",
+      "spell": "Healing Word",
+      "level": 1,
+      "slot": {
+        "key": "spell-slot:1",
+        "level": 1
+      },
+      "slotless": null,
+      "castingTime": "bonus-action",
+      "concentration": false,
+      "route": "class:cleric",
+      "command": {
+        "id": "r2-ilda-healing-word-brannis-after-sight",
+        "fingerprint": "cast:ilda|{\"castingTime\":\"bonus-action\",\"commandId\":\"r2-ilda-healing-word-brannis-after-sight\",\"concentration\":false,\"level\":1,\"route\":\"class:cleric\",\"slotLevel\":1,\"spell\":\"Healing Word\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ilda",
+      "label": "Healing Word healing",
+      "natural": 0,
+      "total": 8,
+      "contributions": [
+        {
+          "source": "spellcasting modifier",
+          "amount": 3
+        }
+      ],
+      "outcome": "healed"
+    },
+    {
+      "type": "healed",
+      "id": "brannis",
+      "amount": 8
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1880858253,
+        -1902647814,
+        -2126961125,
+        932887496
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r2-ilda-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r2-ilda-end-turn\"}"
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "brannis",
+      "feet": 10
+    },
+    {
+      "type": "movement-declared",
+      "move": {
+        "mover": "brannis",
+        "placement": {
+          "from": {
+            "creature": "ogre"
+          },
+          "feet": 15,
+          "bearing": 180
+        },
+        "destination": {
+          "x": 20,
+          "y": 5,
+          "z": 0
+        },
+        "feet": 10,
+        "provoked": [
+          {
+            "reactor": "ogre",
+            "reach": 5
+          }
+        ]
+      },
+      "command": {
+        "id": "r2-brannis-fall-back-from-ogre",
+        "fingerprint": "move:brannis|{\"commandId\":\"r2-brannis-fall-back-from-ogre\",\"placement\":{\"bearing\":180,\"feet\":15,\"from\":{\"creature\":\"ogre\"}}}"
+      }
+    },
+    {
+      "type": "reaction-spent",
+      "id": "ogre"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "Greatclub attack",
+      "natural": 7,
+      "total": 13,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 6
+        }
+      ],
+      "outcome": "miss"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1898926584,
+        -1962780941,
+        428288601,
+        932887497
+      ]
+    },
+    {
+      "type": "opportunity-answered",
+      "reactor": "ogre",
+      "took": true,
+      "command": {
+        "id": "r2-ogre-oa-brannis-greatclub",
+        "fingerprint": "opportunity:ogre|{\"commandId\":\"r2-ogre-oa-brannis-greatclub\",\"weapon\":\"greatclub\"}"
+      }
+    },
+    {
+      "type": "movement-completed",
+      "id": "brannis"
+    },
+    {
+      "type": "creature-moved",
+      "id": "brannis",
+      "placement": {
+        "from": {
+          "creature": "ogre"
+        },
+        "feet": 15,
+        "bearing": 180
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "brannis",
+      "feet": 10
+    },
+    {
+      "type": "creature-moved",
+      "id": "brannis",
+      "placement": {
+        "from": {
+          "creature": "ogre"
+        },
+        "feet": 5,
+        "bearing": 180
+      },
+      "command": {
+        "id": "r2-brannis-step-back-in-javelin-range",
+        "fingerprint": "move:brannis|{\"commandId\":\"r2-brannis-step-back-in-javelin-range\",\"placement\":{\"bearing\":180,\"feet\":5,\"from\":{\"creature\":\"ogre\"}}}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "brannis"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "brannis",
+      "label": "Javelin attack",
+      "natural": 7,
+      "total": 11,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "r2-brannis-javelin-ogre-close",
+        "fingerprint": "attack:brannis|{\"commandId\":\"r2-brannis-javelin-ogre-close\",\"target\":\"ogre\",\"weapon\":\"javelin\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -441279201,
+        -2129101071,
+        -573136159,
+        932887499
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 6,
+      "source": "Javelin",
+      "by": "brannis"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r2-brannis-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r2-brannis-end-turn\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "ogre"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "Greatclub attack",
+      "natural": 13,
+      "total": 19,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 6
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "r2-ogre-greatclub-brannis",
+        "fingerprint": "attack:ogre|{\"commandId\":\"r2-ogre-greatclub-brannis\",\"target\":\"brannis\",\"weapon\":\"greatclub\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -856818635,
+        -810670041,
+        -612451147,
+        932887501
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "brannis",
+      "amount": 9,
+      "source": "Greatclub",
+      "by": "ogre"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r2-ogre-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r2-ogre-end-turn\"}"
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "thessaly",
+      "feet": 0
+    },
+    {
+      "type": "creature-moved",
+      "id": "thessaly",
+      "placement": {
+        "from": {
+          "creature": "ogre"
+        },
+        "feet": 25,
+        "bearing": 90
+      },
+      "command": {
+        "id": "r3-thessaly-back-away-ogre-east",
+        "fingerprint": "move:thessaly|{\"commandId\":\"r3-thessaly-back-away-ogre-east\",\"placement\":{\"bearing\":90,\"feet\":25,\"from\":{\"creature\":\"ogre\"}}}"
+      }
+    },
+    {
+      "type": "action-spent",
+      "id": "thessaly"
+    },
+    {
+      "type": "spell-cast",
+      "castingId": "cast:4",
+      "id": "thessaly",
+      "spell": "Fire Bolt",
+      "level": 0,
+      "slot": null,
+      "slotless": "cantrip",
+      "castingTime": "action",
+      "concentration": false,
+      "route": "class:wizard",
+      "command": {
+        "id": "r3-thessaly-fire-bolt-ogre",
+        "fingerprint": "cast:thessaly|{\"castingTime\":\"action\",\"commandId\":\"r3-thessaly-fire-bolt-ogre\",\"concentration\":false,\"level\":0,\"route\":\"class:wizard\",\"slotless\":\"cantrip\",\"spell\":\"Fire Bolt\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "thessaly",
+      "label": "Fire Bolt attack",
+      "natural": 17,
+      "total": 23,
+      "contributions": [
+        {
+          "source": "spell attack",
+          "amount": 5
+        }
+      ],
+      "outcome": "hit"
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 8,
+      "source": "Fire Bolt",
+      "by": "thessaly"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -1221650420,
+        -1031483392,
+        -1092174936,
+        932887503
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r3-thessaly-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r3-thessaly-end-turn\"}"
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "ilda",
+      "feet": 10
+    },
+    {
+      "type": "creature-moved",
+      "id": "ilda",
+      "placement": {
+        "from": {
+          "creature": "ogre"
+        },
+        "feet": 5
+      },
+      "command": {
+        "id": "r3-ilda-close-to-ogre",
+        "fingerprint": "move:ilda|{\"commandId\":\"r3-ilda-close-to-ogre\",\"placement\":{\"feet\":5,\"from\":{\"creature\":\"ogre\"}}}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ilda",
+      "label": "drive the ogre back into the turning millstone",
+      "natural": 14,
+      "total": 17,
+      "contributions": [
+        {
+          "source": "modifier",
+          "amount": 3
+        }
+      ],
+      "outcome": "success",
+      "command": {
+        "id": "r3-ilda-shoulder-ogre-athletics",
+        "fingerprint": "test:ilda|{\"ability\":\"str\",\"commandId\":\"r3-ilda-shoulder-ogre-athletics\",\"dc\":17,\"kind\":\"ability-check\",\"label\":\"drive the ogre back into the turning millstone\",\"skill\":\"athletics\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1025142168,
+        -1239639832,
+        644251826,
+        932887504
+      ]
+    },
+    {
+      "type": "creature-moved",
+      "id": "ogre",
+      "placement": {
+        "from": {
+          "landmark": "the great millstone"
+        },
+        "feet": 0,
+        "size": "large"
+      },
+      "forced": true,
+      "command": {
+        "id": "r3-ilda-force-ogre-to-millstone",
+        "fingerprint": "move:ogre|{\"commandId\":\"r3-ilda-force-ogre-to-millstone\",\"forced\":true,\"placement\":{\"feet\":0,\"from\":{\"landmark\":\"the great millstone\"},\"size\":\"large\"}}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        1505118977,
+        -34647184,
+        -980044563,
+        932887506
+      ]
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "2d6 bludgeoning — shoved into the turning millstone",
+      "natural": 5,
+      "total": 7,
+      "contributions": [
+        {
+          "source": "DM ruling: shoved into the turning millstone",
+          "amount": 7
+        }
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 7,
+      "source": "DM ruling: shoved into the turning millstone",
+      "by": "ilda",
+      "command": {
+        "id": "r3-ilda-millstone-damage-ogre",
+        "fingerprint": "damage:ogre|{\"amount\":7,\"by\":\"ilda\",\"commandId\":\"r3-ilda-millstone-damage-ogre\",\"source\":\"DM ruling: shoved into the turning millstone\"}"
+      }
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r3-ilda-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r3-ilda-end-turn\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "brannis",
+      "label": "swing from the hoist rope and drive the grain sack into the ogre",
+      "natural": 12,
+      "total": 16,
+      "contributions": [
+        {
+          "source": "modifier",
+          "amount": 4
+        }
+      ],
+      "outcome": "success",
+      "command": {
+        "id": "r3-brannis-hoist-rope-athletics",
+        "fingerprint": "test:brannis|{\"ability\":\"str\",\"commandId\":\"r3-brannis-hoist-rope-athletics\",\"dc\":14,\"kind\":\"ability-check\",\"label\":\"swing from the hoist rope and drive the grain sack into the ogre\",\"skill\":\"athletics\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -40786727,
+        -230466475,
+        754519289,
+        932887507
+      ]
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1802824581,
+        -79676110,
+        1122992443,
+        932887509
+      ]
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "2d6 bludgeoning — swinging hoisted grain sack",
+      "natural": 1,
+      "total": 6,
+      "contributions": [
+        {
+          "source": "DM ruling: swinging hoisted grain sack",
+          "amount": 6
+        }
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 6,
+      "source": "DM ruling: swinging hoisted grain sack",
+      "by": "brannis",
+      "command": {
+        "id": "r3-brannis-grain-sack-ogre-damage",
+        "fingerprint": "damage:ogre|{\"amount\":6,\"by\":\"brannis\",\"commandId\":\"r3-brannis-grain-sack-ogre-damage\",\"source\":\"DM ruling: swinging hoisted grain sack\"}"
+      }
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r3-brannis-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r3-brannis-end-turn\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "ogre"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "Greatclub attack",
+      "natural": 16,
+      "total": 22,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 6
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "r3-ogre-greatclub-ilda",
+        "fingerprint": "attack:ogre|{\"commandId\":\"r3-ogre-greatclub-ilda\",\"target\":\"ilda\",\"weapon\":\"greatclub\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        1514585814,
+        1698809602,
+        -73286174,
+        932887511
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "ilda",
+      "amount": 9,
+      "source": "Greatclub",
+      "by": "ogre"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r3-ogre-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r3-ogre-end-turn\"}"
+      }
+    },
+    {
+      "type": "action-spent",
+      "id": "thessaly"
+    },
+    {
+      "type": "spell-cast",
+      "castingId": "cast:5",
+      "id": "thessaly",
+      "spell": "Fire Bolt",
+      "level": 0,
+      "slot": null,
+      "slotless": "cantrip",
+      "castingTime": "action",
+      "concentration": false,
+      "route": "class:wizard",
+      "command": {
+        "id": "r4-thessaly-fire-bolt-ogre",
+        "fingerprint": "cast:thessaly|{\"castingTime\":\"action\",\"commandId\":\"r4-thessaly-fire-bolt-ogre\",\"concentration\":false,\"level\":0,\"route\":\"class:wizard\",\"slotless\":\"cantrip\",\"spell\":\"Fire Bolt\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "thessaly",
+      "label": "Fire Bolt attack",
+      "natural": 20,
+      "total": 26,
+      "contributions": [
+        {
+          "source": "spell attack",
+          "amount": 5
+        }
+      ],
+      "outcome": "hit"
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 9,
+      "critical": true,
+      "source": "Fire Bolt",
+      "by": "thessaly"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        1337960740,
+        -952743671,
+        -2145554789,
+        932887514
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r4-thessaly-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r4-thessaly-end-turn\"}"
+      }
+    },
+    {
+      "type": "sight-declared",
+      "from": "ilda",
+      "to": "ogre",
+      "seen": true
+    },
+    {
+      "type": "action-spent",
+      "id": "ilda"
+    },
+    {
+      "type": "spell-cast",
+      "castingId": "cast:6",
+      "id": "ilda",
+      "spell": "Sacred Flame",
+      "level": 0,
+      "slot": null,
+      "slotless": "cantrip",
+      "castingTime": "action",
+      "concentration": false,
+      "route": "class:cleric",
+      "command": {
+        "id": "r4-ilda-sacred-flame-ogre",
+        "fingerprint": "cast:ilda|{\"castingTime\":\"action\",\"commandId\":\"r4-ilda-sacred-flame-ogre\",\"concentration\":false,\"level\":0,\"route\":\"class:cleric\",\"slotless\":\"cantrip\",\"spell\":\"Sacred Flame\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "Dexterity save vs Sacred Flame",
+      "natural": 7,
+      "total": 6,
+      "contributions": [
+        {
+          "source": "modifier",
+          "amount": -1
+        }
+      ],
+      "outcome": "affected"
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 4,
+      "source": "Sacred Flame",
+      "by": "ilda"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -2125961470,
+        839270228,
+        -1233276527,
+        932887516
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r4-ilda-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r4-ilda-end-turn\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "brannis"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "brannis",
+      "label": "Greatsword attack",
+      "natural": 19,
+      "total": 23,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "r4-brannis-greatsword-knee-ogre",
+        "fingerprint": "attack:brannis|{\"commandId\":\"r4-brannis-greatsword-knee-ogre\",\"target\":\"ogre\",\"weapon\":\"greatsword\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        102945224,
+        -1703957377,
+        -251875929,
+        932887519
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "ogre",
+      "amount": 11,
+      "source": "Greatsword",
+      "by": "brannis"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "keep its feet after Brannis cuts into its knee",
+      "natural": 17,
+      "total": 21,
+      "contributions": [
+        {
+          "source": "modifier",
+          "amount": 4
+        }
+      ],
+      "outcome": "success",
+      "command": {
+        "id": "r4-ogre-save-vs-knee-cut-prone",
+        "fingerprint": "test:ogre|{\"ability\":\"str\",\"commandId\":\"r4-ogre-save-vs-knee-cut-prone\",\"dc\":13,\"kind\":\"saving-throw\",\"label\":\"keep its feet after Brannis cuts into its knee\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1709007959,
+        2028083935,
+        -1926538821,
+        932887520
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r4-brannis-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r4-brannis-end-turn\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "ogre"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "ogre",
+      "label": "Greatclub attack",
+      "natural": 6,
+      "total": 12,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 6
+        }
+      ],
+      "outcome": "miss",
+      "command": {
+        "id": "r4-ogre-greatclub-ilda",
+        "fingerprint": "attack:ogre|{\"commandId\":\"r4-ogre-greatclub-ilda\",\"target\":\"ilda\",\"weapon\":\"greatclub\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        2027842514,
+        -158980205,
+        -2112809005,
+        932887521
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "r4-ogre-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"r4-ogre-end-turn\"}"
+      }
+    }
+  ]
+}

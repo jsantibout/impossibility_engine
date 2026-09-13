@@ -16,7 +16,8 @@
 
 import { readFileSync } from 'node:fs';
 import type { CharacterId } from '@ie/shared';
-import { distanceBetween, type GameState } from '@ie/engine';
+import { carrying, distanceBetween, footprintOf, itemFor, type GameState } from '@ie/engine';
+import type { Encounter } from './encounter.js';
 import type { ToolSpec } from './surface.js';
 
 export interface ToolCall {
@@ -128,17 +129,37 @@ PRACTICALITIES:
  * the engine refuses because a 2024 Goblin Warrior is Fey.
  */
 export function createScriptedDriver(
-  wizard: CharacterId,
-  goblins: readonly CharacterId[],
+  encounter: Encounter,
+  casters: ReadonlySet<CharacterId>,
 ): ModelDriver {
   let step = 0;
   let triedHoldPerson = false;
 
-  const living = (state: GameState): CharacterId[] =>
-    goblins.filter((g) => {
+  /** Whoever is on a side this creature is not on. Apparatus, not tactics. */
+  const opponentsOf = (who: CharacterId): readonly CharacterId[] =>
+    encounter.sides.filter((side) => !side.includes(who)).flat();
+
+  const living = (state: GameState, who: CharacterId): CharacterId[] =>
+    opponentsOf(who).filter((g) => {
       const c = state.creatures[g];
       return c !== undefined && !c.vitals.dead && c.vitals.hp > 0;
     });
+
+  /**
+   * The first thing in a creature's pack that is actually a weapon.
+   *
+   * `resolveAttack` refuses a weapon its wielder does not own, so the stand-in
+   * reads the inventory rather than naming one. That is also what lets the same
+   * eight lines drive a goblin with a scimitar, a Fighter with a greatsword and
+   * an Ogre with a greatclub without learning any of their names.
+   */
+  const weaponOf = (state: GameState, who: CharacterId): string | null =>
+    carrying(state, who)
+      .map((line) => line.id)
+      .find((id) => {
+        const item = itemFor(id);
+        return item !== null && item.weapon !== null && item.weapon !== undefined;
+      }) ?? null;
 
   const turn = (calls: readonly ToolCall[]): DriverTurn => ({
     calls,
@@ -175,42 +196,52 @@ export function createScriptedDriver(
     const budget = combat?.budgets[active];
     if (budget === undefined || !budget.action) return endTurn();
 
-    if (active === wizard) {
-      const target = living(state)[0];
-      if (target === undefined) return endTurn();
+    const target = living(state, active)[0];
+    if (target === undefined) return endTurn();
+
+    if (casters.has(active)) {
       // The deliberate mistake, made once: a 2024 Goblin Warrior is Fey, so
       // the engine refuses, and the next exchange has to find another action.
       if (!triedHoldPerson) {
         triedHoldPerson = true;
         return [
           call('cast_spell', {
-            caster: wizard,
+            caster: active,
             spell_id: 'hold-person',
             targets: [target],
             slot_level: 2,
           }),
         ];
       }
-      return [call('cast_spell', { caster: wizard, spell_id: 'fire-bolt', targets: [target] })];
+      return [call('cast_spell', { caster: active, spell_id: 'fire-bolt', targets: [target] })];
     }
 
-    // A goblin with a Scimitar has five feet of reach and starts fifteen away,
-    // so it closes first. Without this the stand-in would never exercise
-    // `move` and would collect nothing but `out_of_reach`.
+    // Five feet of reach and further away than that, so it closes first.
+    // Without this the stand-in would never exercise `move` and would collect
+    // nothing but `out_of_reach`.
     const scene = state.scene;
-    const apart = scene === null ? null : distanceBetween(scene, active, wizard);
+    const apart = scene === null ? null : distanceBetween(scene, active, target);
     const feetAway = apart !== null && apart.ok ? apart.value : null;
     if (feetAway !== null && feetAway > 5 && budget.movementRemaining >= feetAway - 5) {
+      const side = encounter.sides.find((s) => s.includes(active)) ?? [];
+      // A placement is measured from the target's *anchor*, and a creature
+      // occupies volume from that anchor outward — so standing five feet from
+      // a Large creature's anchor is standing inside it, and the engine says
+      // `occupied`. The Tier 1 goblins never found this out because everything
+      // in that fight was Medium and a Medium footprint is five feet.
+      const width = footprintOf(scene?.sizes[target] ?? 'medium');
       return [
         call('move', {
           who: active,
-          from_creature: wizard,
-          feet: 5,
-          bearing: active === goblins[0] ? 0 : 90,
+          from_creature: target,
+          feet: width,
+          bearing: side.indexOf(active) === 0 ? 0 : 90,
         }),
       ];
     }
-    return [call('attack', { attacker: active, target: wizard, weapon: 'scimitar' })];
+    const weapon = weaponOf(state, active);
+    if (weapon === null) return endTurn();
+    return [call('attack', { attacker: active, target, weapon })];
   };
 
   return {

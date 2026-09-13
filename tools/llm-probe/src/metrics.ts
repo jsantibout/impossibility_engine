@@ -17,6 +17,8 @@ import type { CallOutcome } from './surface.js';
 export interface CallRecord {
   /** Which beat of the fight this call belongs to. */
   readonly beat: number;
+  /** Which combat round that beat fell in. */
+  readonly round: number;
   /** Whose turn it was, as far as the engine was concerned. */
   readonly turnOf: string | null;
   readonly tool: string;
@@ -33,6 +35,7 @@ export interface CallRecord {
 
 export interface ModelTurnRecord {
   readonly beat: number;
+  readonly round: number;
   readonly ms: number;
   readonly promptTokens: number | null;
   readonly completionTokens: number | null;
@@ -43,9 +46,9 @@ export interface ModelTurnRecord {
 }
 
 export interface Recorder {
-  beat(n: number): void;
-  call(record: Omit<CallRecord, 'beat'>): void;
-  modelTurn(record: Omit<ModelTurnRecord, 'beat'>): void;
+  beat(n: number, round: number): void;
+  call(record: Omit<CallRecord, 'beat' | 'round'>): void;
+  modelTurn(record: Omit<ModelTurnRecord, 'beat' | 'round'>): void;
   readonly calls: readonly CallRecord[];
   readonly turns: readonly ModelTurnRecord[];
 }
@@ -54,15 +57,22 @@ export function createRecorder(): Recorder {
   const calls: CallRecord[] = [];
   const turns: ModelTurnRecord[] = [];
   let current = 0;
+  // The round is stamped on the way in rather than worked out afterwards. With
+  // four actors a round is four beats, with three it is three, and with a
+  // creature dropping mid-fight it is neither — so dividing the beat number by
+  // a roster length would be arithmetic that quietly stops being true exactly
+  // when the fight gets interesting.
+  let round = 1;
   return {
-    beat(n) {
+    beat(n, at) {
       current = n;
+      round = at;
     },
     call(record) {
-      calls.push({ ...record, beat: current });
+      calls.push({ ...record, beat: current, round });
     },
     modelTurn(record) {
-      turns.push({ ...record, beat: current });
+      turns.push({ ...record, beat: current, round });
     },
     calls,
     turns,
@@ -112,10 +122,53 @@ export interface BeatSummary {
   readonly completed: boolean;
   /** A refusal on a mechanic the engine does not model, never recovered from. */
   readonly deadEnd: boolean;
+  readonly round: number;
+  /** What this one turn cost the model, in tokens and in wall-clock. */
+  readonly promptTokens: number;
+  readonly completionTokens: number;
+  readonly cachedTokens: number;
+  readonly modelMs: number;
+  readonly engineMs: number;
+  readonly modelTurns: number;
+}
+
+/** A whole round of the initiative order, which is what a table experiences. */
+export interface RoundSummary {
+  readonly round: number;
+  readonly beats: number;
+  readonly calls: number;
+  readonly promptTokens: number;
+  readonly completionTokens: number;
+  readonly modelMs: number;
+}
+
+/**
+ * Whether a longer fight costs more per turn, or only more turns.
+ *
+ * The distinction is the whole of the Tier 2 performance question. A driver
+ * that appends to one conversation pays for every earlier turn again on the
+ * next request, so per-beat prompt tokens rising *linearly* is the expected
+ * and survivable shape — it is what "the context grows by one turn" looks
+ * like. What would not be survivable is the rise accelerating, which is what
+ * `superlinear` names.
+ *
+ * Reported with the raw series beside it, because a three-word classification
+ * of sixteen numbers is a summary and the reader should be able to check it.
+ */
+export interface GrowthReport {
+  /** Prompt tokens for each beat, in order. */
+  readonly promptPerBeat: readonly number[];
+  readonly firstHalfMean: number;
+  readonly secondHalfMean: number;
+  /** Least-squares tokens added per additional beat. */
+  readonly slopePerBeat: number;
+  readonly shape: 'flat' | 'linear' | 'superlinear' | 'insufficient-data';
 }
 
 export interface Analysis {
   readonly beats: readonly BeatSummary[];
+  readonly rounds: readonly RoundSummary[];
+  readonly growth: GrowthReport;
   /** Every call in order, so a reader can see what the prose was built on. */
   readonly calls: readonly CallRecord[];
   readonly totalCalls: number;
@@ -161,12 +214,79 @@ const tally = (values: readonly string[]): ReadonlyMap<string, number> => {
   return new Map([...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])));
 };
 
+/**
+ * Classify a per-beat prompt-token series.
+ *
+ * Deliberately crude and deliberately stated: two halves and a least-squares
+ * slope, no curve fitting. The question being asked is not "what function is
+ * this" but "is the per-turn bill stable enough that a longer fight is only a
+ * longer fight", and three coarse answers are enough to decide that. The raw
+ * series is reported alongside so the classification can be disagreed with.
+ *
+ * A run with no token counts at all — the offline stand-in — is
+ * `insufficient-data` rather than `flat`, because zero growth measured from
+ * zero data is not a finding.
+ */
+export function growthOf(promptPerBeat: readonly number[]): GrowthReport {
+  const empty = promptPerBeat.every((n) => n === 0);
+  if (promptPerBeat.length < 4 || empty) {
+    return {
+      promptPerBeat,
+      firstHalfMean: 0,
+      secondHalfMean: 0,
+      slopePerBeat: 0,
+      shape: 'insufficient-data',
+    };
+  }
+
+  const mean = (xs: readonly number[]): number =>
+    xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length;
+  const half = Math.floor(promptPerBeat.length / 2);
+  const firstHalfMean = mean(promptPerBeat.slice(0, half));
+  const secondHalfMean = mean(promptPerBeat.slice(half));
+
+  // Least squares over (index, tokens).
+  const n = promptPerBeat.length;
+  const meanX = (n - 1) / 2;
+  const meanY = mean(promptPerBeat);
+  let num = 0;
+  let den = 0;
+  promptPerBeat.forEach((y, i) => {
+    num += (i - meanX) * (y - meanY);
+    den += (i - meanX) ** 2;
+  });
+  const slopePerBeat = den === 0 ? 0 : num / den;
+
+  // Does the *rise* itself rise? Compare the slope of each half. A conversation
+  // that appends one turn per beat rises by a roughly constant amount; one that
+  // re-sends a growing state on top of a growing conversation does not.
+  const slopeOf = (xs: readonly number[]): number =>
+    xs.length < 2 ? 0 : (xs[xs.length - 1]! - xs[0]!) / (xs.length - 1);
+  const early = slopeOf(promptPerBeat.slice(0, half));
+  const late = slopeOf(promptPerBeat.slice(half));
+
+  let shape: GrowthReport['shape'];
+  if (firstHalfMean > 0 && secondHalfMean / firstHalfMean <= 1.25) shape = 'flat';
+  else if (early > 0 && late > early * 1.5) shape = 'superlinear';
+  else shape = 'linear';
+
+  return { promptPerBeat, firstHalfMean, secondHalfMean, slopePerBeat, shape };
+}
+
 export function analyse(recorder: Recorder): Analysis {
   const calls = recorder.calls;
-  const beatNumbers = [...new Set(calls.map((c) => c.beat))].sort((a, b) => a - b);
 
-  const beats: BeatSummary[] = beatNumbers.map((beat) => {
+  // Beats with no call at all still happened and still cost a model turn, so
+  // the beat list is the union of what was called and what was asked — not the
+  // calls alone. A turn the model spent thinking and then ended by saying
+  // nothing is exactly the beat a cost measurement must not drop.
+  const allBeats = [
+    ...new Set([...calls.map((c) => c.beat), ...recorder.turns.map((t) => t.beat)]),
+  ].sort((a, b) => a - b);
+
+  const beats: BeatSummary[] = allBeats.map((beat) => {
     const own = calls.filter((c) => c.beat === beat);
+    const asked = recorder.turns.filter((t) => t.beat === beat);
     const completed = own.some((c) => c.tool === 'end_turn' && c.outcome === 'ok');
     const unmodelled = own.filter(
       (c) => c.outcome !== 'ok' && c.code !== null && UNMODELLED_CODES.has(c.code),
@@ -187,8 +307,29 @@ export function analyse(recorder: Recorder): Analysis {
       invalid: own.filter((c) => c.outcome === 'invalid').length,
       completed,
       deadEnd: unmodelled.length > 0 && !recovered,
+      round: own[0]?.round ?? asked[0]?.round ?? 0,
+      promptTokens: asked.reduce((n, t) => n + (t.promptTokens ?? 0), 0),
+      completionTokens: asked.reduce((n, t) => n + (t.completionTokens ?? 0), 0),
+      cachedTokens: asked.reduce((n, t) => n + (t.cachedTokens ?? 0), 0),
+      modelMs: asked.reduce((n, t) => n + t.ms, 0),
+      engineMs: own.reduce((n, c) => n + c.ms, 0),
+      modelTurns: asked.length,
     };
   });
+
+  const rounds: RoundSummary[] = [...new Set(beats.map((b) => b.round))]
+    .sort((a, b) => a - b)
+    .map((round) => {
+      const own = beats.filter((b) => b.round === round);
+      return {
+        round,
+        beats: own.length,
+        calls: own.reduce((n, b) => n + b.calls, 0),
+        promptTokens: own.reduce((n, b) => n + b.promptTokens, 0),
+        completionTokens: own.reduce((n, b) => n + b.completionTokens, 0),
+        modelMs: own.reduce((n, b) => n + b.modelMs, 0),
+      };
+    });
 
   // A retry: the same tool with byte-identical arguments, sent again. Some are
   // legitimate (the engine makes them no-ops by command id); all of them cost
@@ -224,6 +365,8 @@ export function analyse(recorder: Recorder): Analysis {
 
   return {
     beats,
+    rounds,
+    growth: growthOf(beats.map((b) => b.promptTokens)),
     calls,
     totalCalls: calls.length,
     mutatingCalls: calls.filter((c) => c.mutating).length,
@@ -258,6 +401,52 @@ export function analyse(recorder: Recorder): Analysis {
       cached: recorder.turns.reduce((s, t) => s + (t.cachedTokens ?? 0), 0),
     },
     latency: { modelMs, engineMs, modelTurns: recorder.turns.length },
+  };
+}
+
+
+// — money ——————————————————————————————————————————————————————————————————
+
+/**
+ * What a token costs, in US dollars per million.
+ *
+ * **A parameter, never a constant.** The probe cannot know what the account
+ * was billed and a hard-coded rate would turn a stale price into a finding.
+ * Every report states the rate it used beside the number it produced, so a
+ * reader with a different rate can rescale the whole table and a reader with
+ * none can ignore it and read the token counts instead.
+ */
+export interface Pricing {
+  readonly inputPerMTok: number;
+  /** A cached prompt token is billed at a discount by every provider here. */
+  readonly cachedInputPerMTok: number;
+  readonly outputPerMTok: number;
+}
+
+export interface Cost {
+  readonly total: number;
+  readonly perCompletedBeat: number;
+  readonly perRound: number;
+  readonly pricing: Pricing;
+}
+
+export function costOf(analysis: Analysis, pricing: Pricing): Cost {
+  // Cached tokens are billed *instead of*, not on top of, so the uncached
+  // remainder is what the full rate applies to. Counting the prompt total at
+  // full rate and adding the cached ones again would bill the same token twice.
+  const cached = analysis.tokens.cached;
+  const fresh = Math.max(0, analysis.tokens.prompt - cached);
+  const total =
+    (fresh * pricing.inputPerMTok +
+      cached * pricing.cachedInputPerMTok +
+      analysis.tokens.completion * pricing.outputPerMTok) /
+    1_000_000;
+  const completed = analysis.beats.filter((b) => b.completed).length;
+  return {
+    total,
+    perCompletedBeat: completed === 0 ? 0 : total / completed,
+    perRound: analysis.rounds.length === 0 ? 0 : total / analysis.rounds.length,
+    pricing,
   };
 }
 
@@ -340,7 +529,11 @@ export function report(
   title: string,
   analysis: Analysis,
   determinism: DeterminismReport,
-  extras: { readonly model: string; readonly events: number },
+  extras: {
+    readonly model: string;
+    readonly events: number;
+    readonly pricing?: Pricing | undefined;
+  },
 ): string {
   const checks = verdicts(analysis, determinism);
   const lines: string[] = [];
@@ -357,12 +550,29 @@ export function report(
     '',
   );
 
-  lines.push('## Calls per player turn', '');
+  lines.push('## Calls per actor turn', '');
   lines.push(
     table([
-      ['Beat', 'Turn of', 'Calls', 'Mutating', 'Queries', 'Narration', 'Refusals', 'needs-context', 'Invalid', 'Turn ended'],
+      [
+        'Beat',
+        'Round',
+        'Turn of',
+        'Calls',
+        'Mutating',
+        'Queries',
+        'Narration',
+        'Refusals',
+        'needs-context',
+        'Invalid',
+        'Prompt tok',
+        'Cached',
+        'Out tok',
+        'Model s',
+        'Turn ended',
+      ],
       ...analysis.beats.map((b) => [
         String(b.beat),
+        String(b.round),
         b.turnOf ?? '-',
         String(b.calls),
         String(b.mutating),
@@ -371,6 +581,10 @@ export function report(
         String(b.refusals),
         String(b.needsContext),
         String(b.invalid),
+        String(b.promptTokens),
+        String(b.cachedTokens),
+        String(b.completionTokens),
+        (b.modelMs / 1000).toFixed(1),
         b.completed ? 'yes' : `**no**${b.deadEnd ? ' (dead end)' : ''}`,
       ]),
     ]),
@@ -381,6 +595,59 @@ export function report(
       `Median ${analysis.callsPerBeat.median} per beat, mean ${analysis.callsPerBeat.mean.toFixed(1)}, max ${analysis.callsPerBeat.max}.`,
     '',
   );
+
+  lines.push('## Per combat round', '');
+  lines.push(
+    table([
+      ['Round', 'Actor turns', 'Calls', 'Calls/turn', 'Prompt tok', 'Out tok', 'Model s'],
+      ...analysis.rounds.map((r) => [
+        String(r.round),
+        String(r.beats),
+        String(r.calls),
+        r.beats === 0 ? '-' : (r.calls / r.beats).toFixed(1),
+        String(r.promptTokens),
+        String(r.completionTokens),
+        (r.modelMs / 1000).toFixed(1),
+      ]),
+    ]),
+    '',
+  );
+
+  // The Tier 2 question, and the reason the series is printed rather than
+  // summarised: whether a longer fight costs more per turn or only more turns.
+  lines.push('## Does the per-turn bill grow?', '');
+  const g = analysis.growth;
+  lines.push(
+    table([
+      ['Measure', 'Value'],
+      ['prompt tokens per beat', g.promptPerBeat.join(', ')],
+      ['mean over the first half', g.firstHalfMean.toFixed(0)],
+      ['mean over the second half', g.secondHalfMean.toFixed(0)],
+      ['least-squares tokens added per beat', g.slopePerBeat.toFixed(0)],
+      ['shape', `**${g.shape}**`],
+    ]),
+    '',
+  );
+
+  if (extras.pricing !== undefined) {
+    const money = costOf(analysis, extras.pricing);
+    const completed = analysis.beats.filter((b) => b.completed).length;
+    lines.push('## Cost in money', '');
+    lines.push(
+      table([
+        ['Measure', 'Value'],
+        ['total', `$${money.total.toFixed(4)}`],
+        [`per completed actor turn (${completed})`, `$${money.perCompletedBeat.toFixed(4)}`],
+        [`per combat round (${analysis.rounds.length})`, `$${money.perRound.toFixed(4)}`],
+      ]),
+      '',
+    );
+    lines.push(
+      `At $${extras.pricing.inputPerMTok.toFixed(2)} / $${extras.pricing.cachedInputPerMTok.toFixed(2)} / $${extras.pricing.outputPerMTok.toFixed(2)} per million input / cached input / output tokens. ` +
+        'That rate is an input to this report, not a fact it discovered — rescale from the token counts above if it is wrong.',
+      '',
+    );
+  }
 
   lines.push('## Refusals', '');
   lines.push(

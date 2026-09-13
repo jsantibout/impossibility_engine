@@ -13,22 +13,15 @@
  * is counted and reported; it is a measurement, not a rescue.
  */
 
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { expect as unwrap, type CharacterId } from '@ie/shared';
 import {
   fold,
   rollInitiativeFor,
+  speed,
   type GameEvent,
   type GameState,
 } from '@ie/engine';
-import {
-  GOBLIN_A,
-  GOBLIN_B,
-  INTENT_SCRIPTS,
-  WIZARD,
-  prelude,
-  type FixtureVariant,
-  type IntentScript,
-} from './fixture.js';
+import type { Encounter } from './encounter.js';
 import { createSession, type Session } from './session.js';
 import { analyse, createRecorder, type Analysis, type DeterminismReport } from './metrics.js';
 import { MUTATING_TOOLS, dispatch, observe, type CallResult } from './surface.js';
@@ -53,13 +46,10 @@ export interface RunOutcome {
 }
 
 export interface RunOptions {
-  readonly seed: string;
-  readonly variant: FixtureVariant;
+  readonly encounter: Encounter;
   readonly rounds: number;
   /** How many model exchanges one beat may take before the harness steps in. */
   readonly maxExchangesPerBeat: number;
-  /** Which scripted player to put in the chair. */
-  readonly intents: IntentScript;
 }
 
 /**
@@ -78,7 +68,17 @@ function beginCombat(session: Session, order: readonly CharacterId[]): void {
     const before = issuer.count;
     const roll = unwrap(rollInitiativeFor(session.state(), who, issuer, rng), 'initiative');
     session.push([{ type: 'rolls-issued', count: issuer.count - before, rng: rng.snapshot() }]);
-    return { id: who, initiative: roll.total, speed: 30 };
+    // Read off the creature, never assumed. A flat 30 was correct for every
+    // combatant in the tavern and is wrong for the first thing that is not a
+    // person: an SRD Ogre walks at 40, and a harness that told the engine 30
+    // would have quietly given every later Tier 2 measurement a monster that
+    // could not reach where it was trying to go.
+    const sheet = session.state().creatures[who]?.sheet;
+    return {
+      id: who,
+      initiative: roll.total,
+      speed: sheet === undefined ? 30 : speed(sheet),
+    };
   });
   session.push([{ type: 'combat-started', combatants }]);
 }
@@ -115,10 +115,14 @@ function promptFor(state: GameState, who: CharacterId, intent: string | undefine
   const combat = state.combat;
   const round = combat?.round ?? 1;
   const ground = `Authoritative state:\n${JSON.stringify(observe(state))}`;
-  if (who === WIZARD) {
-    return `Round ${round}. It is Kessa's turn (id \`${WIZARD}\`).\n\nThe player says: "${intent ?? 'I attack the nearest enemy.'}"\n\n${ground}\n\nResolve Kessa's turn, then end it.`;
-  }
   const name = state.creatures[who]?.name ?? who;
+  // A scripted line is what makes this a player's beat; its absence is what
+  // makes it the DM's. That is the whole of the distinction, and it scales
+  // from one player character to three without the harness knowing anything
+  // about classes, sides or who is a monster.
+  if (intent !== undefined) {
+    return `Round ${round}. It is ${name}'s turn (id \`${who}\`).\n\nThe player says: "${intent}"\n\n${ground}\n\nResolve ${name}'s turn, then end it.`;
+  }
   return `Round ${round}. It is ${name}'s turn (id \`${who}\`). You are running the monsters. Take its turn, then end it.\n\n${ground}`;
 }
 
@@ -126,8 +130,9 @@ export async function runExperiment(
   driver: ModelDriver,
   options: RunOptions,
 ): Promise<RunOutcome> {
-  const session = createSession(options.seed, prelude(options.variant));
-  beginCombat(session, [WIZARD, GOBLIN_A, GOBLIN_B]);
+  const encounter = options.encounter;
+  const session = createSession(encounter.seed, encounter.prelude);
+  beginCombat(session, encounter.roster);
   const opening = session.log();
 
   const recorder = createRecorder();
@@ -160,22 +165,29 @@ export async function runExperiment(
   };
 
   let beat = 0;
-  let intentIndex = 0;
-  const totalBeats = options.rounds * 3;
+  // One cursor per scripted player, so three players each say their own next
+  // line. A single index shared across them would hand the Cleric the
+  // Fighter's words the moment initiative put them in a different order.
+  const intentCursor = new Map<CharacterId, number>();
+  const totalBeats = options.rounds * encounter.roster.length;
 
   while (beat < totalBeats) {
     const state = session.state();
     const who = activeIn(state);
     if (who === null) break;
-    // The fight is over when one side has nobody left standing.
-    if (!alive(state, WIZARD)) break;
-    if (!alive(state, GOBLIN_A) && !alive(state, GOBLIN_B)) break;
+    // The fight is over when any side has nobody left standing.
+    if (encounter.sides.some((side) => !side.some((member) => alive(state, member)))) break;
 
     beat += 1;
-    recorder.beat(beat);
+    recorder.beat(beat, state.combat?.round ?? 1);
 
-    const intent = who === WIZARD ? INTENT_SCRIPTS[options.intents][intentIndex] : undefined;
-    if (who === WIZARD) intentIndex += 1;
+    const script = encounter.intents.get(who);
+    let intent: string | undefined;
+    if (script !== undefined) {
+      const at = intentCursor.get(who) ?? 0;
+      intent = script[at];
+      intentCursor.set(who, at + 1);
+    }
 
     const turnsBefore = state.combat?.turnsTaken ?? 0;
     let turn = await driver.beat(promptFor(state, who, intent), state);
@@ -217,6 +229,30 @@ export async function runExperiment(
       });
     }
 
+    // The cap bounds a *beat*, not a conversation. A batch the loop stopped
+    // before dispatching is still an assistant message with tool calls on it,
+    // and leaving those unanswered makes every later request malformed — the
+    // provider rejects the *next* beat with an error about a message thirty
+    // turns back. Tier 1 never used all eight exchanges and so never found
+    // this; Tier 2's first live run died on it inside round one.
+    //
+    // They are answered and **not** executed. The harness has already decided
+    // this beat is over, and running one more mutation after deciding that
+    // would be the apparatus taking a turn.
+    if (turn.calls.length > 0) {
+      await driver.replies(
+        turn.calls.map((call) => ({
+          id: call.id,
+          content: JSON.stringify({
+            outcome: 'not-dispatched',
+            reason: 'the harness ended this beat at its exchange cap; this call was not executed',
+          }),
+        })),
+        session.state(),
+        false,
+      );
+    }
+
     // Unfinished: the model stopped, or ran out of exchanges, without ending
     // the turn. Recorded as such — `analyse` sees no successful `end_turn` for
     // this beat — and then moved past so the rest of the run is still measured.
@@ -231,7 +267,7 @@ export async function runExperiment(
   }
 
   const log = session.log();
-  const determinism = checkDeterminism(options.seed, log, opening, transcript, narration);
+  const determinism = checkDeterminism(encounter.seed, log, opening, transcript, narration);
 
   return {
     analysis: analyse(recorder),
@@ -240,7 +276,7 @@ export async function runExperiment(
     transcript,
     narration,
     interventions,
-    finalState: fold(options.seed, log),
+    finalState: fold(encounter.seed, log),
   };
 }
 
@@ -294,5 +330,3 @@ export function replay(
   }
   return session.log();
 }
-
-export const CAST = { WIZARD, GOBLIN_A, GOBLIN_B, id: asCharacterId } as const;

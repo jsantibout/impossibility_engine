@@ -31,6 +31,7 @@ import { monsterFor, weaponsOf } from './bestiary.js';
 import { levelGrantedSpells, type SpellbookEntry } from '@ie/engine';
 import { expect as unwrap } from '@ie/shared';
 import type { GameEvent } from '@ie/engine';
+import type { Encounter } from './encounter.js';
 
 export const SEED = 'tavern-brawl';
 
@@ -242,3 +243,23 @@ export const INTENT_SCRIPTS: Readonly<Record<IntentScript, readonly string[]>> =
 };
 
 export const PLAYER_INTENTS = STANDARD_INTENTS;
+
+/**
+ * Tier 1 as an `Encounter`.
+ *
+ * Everything above is untouched and this is a description of it, so the six
+ * recorded Tier 1 runs still replay and the pre/post numbers in
+ * `llm-boundary-hardening-2026-09-13.md` still mean what they said. The roster
+ * order is the order Initiative was rolled in when those runs were made, and
+ * changing it would change the fight.
+ */
+export function tavernEncounter(variant: FixtureVariant, script: IntentScript): Encounter {
+  return {
+    id: `tavern-${variant}-${script}`,
+    seed: SEED,
+    prelude: prelude(variant),
+    roster: [WIZARD, GOBLIN_A, GOBLIN_B],
+    sides: [[WIZARD], [GOBLIN_A, GOBLIN_B]],
+    intents: new Map([[WIZARD, INTENT_SCRIPTS[script]]]),
+  };
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { asCharacterId } from '@ie/shared';
 import { carrying, fold, remaining, spellSlotKey } from '@ie/engine';
-import { GOBLIN_A, GOBLIN_B, SEED, WIZARD, prelude } from './fixture.js';
+import { GOBLIN_A, GOBLIN_B, SEED, WIZARD, prelude, tavernEncounter } from './fixture.js';
 import { createScriptedDriver } from './drivers.js';
 import { runExperiment } from './harness.js';
 import { TOOLS, dispatch, observe } from './surface.js';
@@ -20,11 +20,9 @@ import { createSession } from './session.js';
  */
 
 const run = () =>
-  runExperiment(createScriptedDriver(WIZARD, [GOBLIN_A, GOBLIN_B]), {
-    seed: SEED,
-    variant: 'established',
+  runExperiment(createScriptedDriver(tavernEncounter('established', 'standard'), new Set([WIZARD])), {
+    encounter: tavernEncounter('established', 'standard'),
     rounds: 4,
-    intents: 'standard',
     maxExchangesPerBeat: 8,
   });
 
