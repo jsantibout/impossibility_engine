@@ -1,12 +1,12 @@
 # IE-004 — The honesty guard for executed spells
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 batch: 1
 parallel-safe: YES — beside IE-003 (no shared source files; `CLAUDE.md` prose and `COVERAGE.md` merge mechanically); CONDITIONAL beside a content task, which edits the same definition region
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE BATCH"
 merge-approved: none
 
 ## Brief

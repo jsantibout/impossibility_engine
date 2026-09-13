@@ -22,7 +22,7 @@ Audit due at: 4
 
 ## Batches
 
-### Batch 1 — OWNER_APPROVAL_REQUIRED
+### Batch 1 — APPROVED_FOR_IMPLEMENTATION
 
 | Role | Task | Lane | Parallel-safe |
 |---|---|---|---|
@@ -47,7 +47,7 @@ both are re-scheduled below, with the reasons in their files.
 | [IE-003 — Close the guard holes and make the guard sweeps mechanical](tasks/IE-003-guard-holes-and-mechanical-sweeps.md) | mechanism | CONDITIONAL | 1 |
 | [IE-004 — The honesty guard for executed spells](tasks/IE-004-honesty-guard-for-executed-spells.md) | conformance | YES | 1 |
 
-Both at `OWNER_APPROVAL_REQUIRED`. No builder is active.
+Both approved 2026-09-13 ("APPROVE BATCH"); builders being launched.
 
 ## NEXT
 
@@ -78,3 +78,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | Date | Gate | Task(s) | Owner's decision |
 |---|---|---|---|
 | 2026-09-13 | Gate 1 (pre-audit) | IE-001, IE-002 | not approved; the owner asked for the whole-engine audit first, and it replaced the batch |
+| 2026-09-13 | Gate 1 | IE-003, IE-004 | approved — "APPROVE BATCH"; batch 1 launched with two builders |
