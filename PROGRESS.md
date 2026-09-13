@@ -107,6 +107,7 @@ still Wizard-shaped are named below.
 | Guard holes | Both guard sweeps derived from the module; `extendFeature` guarded; a removed creature takes its timers; nested Counterspell a value; identity first in the casting wrapper; `idempotency.ts` | `5dfbc39` |
 | Shapes drained | Arcane Sword and Produce Flame poured into the shapes that already execute — 84 of 339; a spell-by-spell pass over all 211 undefined spells found only these two, so the next coverage is bought by a mechanic | `de45194` |
 | Second frozen log | `golden-log-2.json` — 551 events over 88 types, a campaign saved mid-turn; with the first, all 91 types the reducer declares now have a compatibility fixture | `2915909` |
+| Command layer split | `commands.ts` 10,149 lines → 21 domain modules under `commands/` and a 158-line enumerating barrel, behaviour-preserving; `once` makes the duplicate check structural | `4f829e9` |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 
@@ -1571,13 +1572,19 @@ condition-without-a-save family re-briefed around one `ConditionRider`
 the catalogue (IE-007). The reasons are in
 `docs/architecture/whole-engine-audit-2026-09-13.md`, §4 and §5.
 
-**Tranche 2's first two landed 2026-09-13.** IE-002 (`de45194`) and IE-006
-(`2915909`) are in the Done table; IE-005, the split of `commands.ts`, is
-still building. Three findings they made outside their briefs are in
+**Tranche 2 landed 2026-09-13**, all three tasks: IE-002 (`de45194`),
+IE-006 (`2915909`) and IE-005 (`4f829e9`). The comparative audit's #7 — split
+`commands.ts` — is now **done**, which leaves #4 (outcome-scoped child
+effects) and #14 (`cause` on events) as the open items from that list.
+
+Three findings the builders made outside their briefs are in
 `docs/dev/QUEUE.md`'s `LATER` rather than fixed: a thin pin on Produce
 Flame's die size, a feature pool `advanceCharacter` never declares at the new
 level, and nine event types no command emits — which M2's tool surface needs
-to know, because it cannot reach any of them.
+to know, because it cannot reach any of them. A fourth is IE-005's own:
+`spell-definitions.ts` now holds seven functions beside its data, which
+softens this repository's "`spell-definitions.ts` was never code" framing
+about that file.
 
 **Batch 1 landed 2026-09-13.** IE-004 (`0536a2b`) and IE-003 (`5dfbc39`)
 are in the Done table. Two things they left behind are queued rather than
@@ -1595,7 +1602,7 @@ have moved:
 | #3 definitions as validated data | **done**, and it was the validator rather than the file format — see `docs/architecture/spell-definitions-as-validated-data-2026-09-13.md` |
 | #6 an SRD oracle | **done** for range and duration; casting time and Concentration were already oracled. Area, dice and save ability are prose and stay prose |
 | #4 outcome-scoped child effects | **deferred deliberately**, with the reason in the decisions above. It wants a restricted child vocabulary, and the evidence for its members is the next two families |
-| #7 split `commands.ts` | untouched; this pass added ~40 lines to it and removed the need for none |
+| #7 split `commands.ts` | **done** — IE-005 (`4f829e9`), 21 domain modules under `commands/` behind an enumerating barrel, behaviour-preserving and verified declaration by declaration |
 | #5 roll-modification keys for "against the holder" | **done** — `RollSelector` in `roll-modifiers.ts`, one predicate shared by class features and spells; see CLAUDE.md, "Advantage Is A Property Of A Roll, Not Of A Creature" |
 | #14 `cause` on events | unchanged |
 

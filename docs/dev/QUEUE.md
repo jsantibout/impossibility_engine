@@ -22,18 +22,24 @@ Last whole-engine audit: the third, 2026-09-13 —
 `PROGRESS.md` under "Third architecture audit against the doctrine" and in
 the Done table, commit `588d7a0`.
 
-Engine tasks completed since last audit: 1
+Engine tasks completed since last audit: 2
 Audit due at: 4
 
 The counter counts tasks that changed engine source outside tests and
-definition prose: IE-003 (`5dfbc39`). IE-004 (`0536a2b`) was conformance — a
+definition prose: IE-003 (`5dfbc39`) and IE-005 (`4f829e9`). IE-004 (`0536a2b`) was conformance — a
 guard, a script and two `unmodelled` strings — and is in the merge log below
 but not counted. What it added for the next audit to weigh is on its task
 file: the executed bucket now has a missing-shape vocabulary of its own
 beside the tracked guard's. IE-002 (`de45194`) was content — two spell
 definitions, their tests and prose — and IE-006 (`2915909`) was conformance —
 a frozen fixture, its generator and one test file, with no engine source
-touched at all. Neither is counted. What it left
+touched at all. Neither is counted. IE-005 is: it moved the whole command layer, added
+`once` to `idempotency.ts` and sent thirteen helpers to five modules — all
+behaviour-preserving, which is not the same as not counting. What it leaves
+the next audit to weigh is on its task file: twenty-one modules and a barrel
+where there was one file, a public surface fourteen names wider, and a
+duplicate-check wrapper that makes a guard-above-the-check structurally
+impossible for the first time in eight recorded instances. What it left
 for the next audit to weigh is on its task file: the existing effect kinds are
 measurably drained, so the next spell coverage is bought by a mechanic.
 
@@ -52,7 +58,7 @@ Owner's words at Gate 1: "APPROVE BATCH"; at Gate 3: "MERGE BOTH".
 
 Both digests, both gate records and both merge records are on the task files.
 
-### Tranche 2 — APPROVED 2026-09-13 — "APPROVE TRANCHE 2"
+### Tranche 2 — COMPLETE 2026-09-13 — "APPROVE TRANCHE 2"
 roster: IE-005, IE-006, IE-002
 
 The first tranche under V2: the approval authorises these three tasks through
@@ -61,7 +67,7 @@ bookkeeping, with no further merge gate. Nothing outside this roster moves.
 
 | Role | Task | Lane | Parallel-safe | Merged as |
 |---|---|---|---|---|
-| PRIMARY | IE-005 — Split `commands.ts` by domain, behaviour-preserving | mechanism | NO beside mechanism; YES beside these two | — |
+| PRIMARY | IE-005 — Split `commands.ts` by domain, behaviour-preserving | mechanism | NO beside mechanism; YES beside these two | `4f829e9`, third |
 | PARALLEL | IE-006 — A second frozen event-log fixture | conformance | YES | `2915909`, second |
 | PARALLEL | IE-002 — Pour twelve spells into the shapes that already execute | content | CONDITIONAL | `de45194`, first |
 
@@ -89,49 +95,34 @@ TRANCHE 2.
 
 ## CURRENT
 
-| Task | Lane | Parallel-safe | Tranche |
-|---|---|---|---|
-| [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | NO | 2 |
+Nothing. **Tranche 2 is complete** and no tranche is approved, so nothing may
+execute. The next tranche is proposed at Gate 1 and waits for the owner.
 
-IE-002 (`de45194`) and IE-006 (`2915909`) are `DONE` and merged in that
-order, as the plan said. **IE-005 is the tranche's last task and is at
-`CHANGES_REQUIRED`.**
+Tranche 2 merged in the order it planned: IE-002 (`de45194`), IE-006
+(`2915909`), IE-005 (`4f829e9`), each fast-forward, each verified on `main`
+and pushed. The suite went 5409 → 5508 and `COVERAGE.md` is byte-clean.
 
-Its three builder-launched review rounds ended `DEFECTS` rather than `PASS`,
-on two stale doc comments the builder then fixed. The foreman judged that
-procedural rather than architectural — each round's findings were strictly
-smaller and the reviewer recorded "Escalation reason: none" and
-"Confidence: high" every time — inspected the unreviewed delta (three comment
-lines, no code), rebased the branch onto `ef3ce71` over both merges, and
-authorised a **fourth round** on the rebased commit `c96d0ed`. That is the
-same judgement, on the same grounds, that tranche 1 made for IE-003.
+**What it cost that the plan did not predict.** IE-005 took six review passes
+rather than three: its builder's three ended `DEFECTS` on two stale doc
+comments, the foreman judged that procedural rather than architectural and
+authorised a fourth on the rebased commit, a fifth fixed one orphaned
+paragraph, and a confirmation pass returned the `PASS`. Tranche 1 made the
+same call for IE-003 on the same evidence, which makes this the second
+instance and worth naming as a pattern: **a reviewer that writes "Escalation
+reason: none" and "Confidence: high" while returning ever-smaller defects has
+run out of rounds, not out of agreement.** The three-round cap is a guard
+against a builder redesigning under review; it is not a verdict.
 
-The fourth round verified rather than merely passed: all 194 old declarations
-accounted for, 115 error codes and 66 event-type literals at identical counts,
-the barrel publishing the same 118 names by set comparison, the value-level
-import graph acyclic, both frozen logs byte-identical, all four re-pointed
-source sweeps still biting, gauntlet 5508/5508. **One defect: an orphaned
-paragraph in `CLAUDE.md`** — no code, no test. A fifth round is authorised for
-it; the builder fixes and reports, and the foreman takes it back to the same
-reviewer rather than a fresh one, which still holds the verification.
-
-**A debt this leaves the foreman**, to be discharged at merge: the task
-rewrites `CLAUDE.md`'s one-owner-per-primitive bullet to permit two mechanism
-tasks in *different* command domains to run concurrently — which is the
-brief's own stated rationale, so it is inside the approved intent.
-`docs/dev/WORKFLOW.md`'s "Parallel safety" section carries the same rule
-naming the command layer as one indivisible primitive, and the two now
-disagree. Builders are rightly forbidden from editing `docs/dev/`, so it is
-the foreman's to reconcile — and with a more precise claim than the bullet
-makes: two tasks in different domains still both touch the barrel whenever
-either adds or removes a command, which is a mechanical conflict rather than a
-licence to ignore ordering.
+**And a rebase is the foreman's, not the builder's.** The permission
+classifier refuses `git rebase` to a builder — IE-002 established it and
+IE-005 confirmed it — so every rebase in this tranche was run by the foreman.
+The briefs should stop asking builders to rebase.
 
 ## NEXT
 
 | Task | Lane | Note |
 |---|---|---|
-| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | re-brief after IE-005: one `ConditionRider`, the new kind as its fourth consumer; carries the `resolveCast` guard below |
+| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | **re-brief now due** — IE-005 has landed, so the file surface is `commands/spell-resolution.ts` and the types at the top of `spell-definitions.ts`, not `commands.ts`. One `ConditionRider`, the new kind as its fourth consumer; carries the `resolveCast` guard below. IE-002 measured the demand: Invisibility and Greater Invisibility wait on exactly this |
 | [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | sequential with IE-001 (both in spell resolution and `spells.ts`) |
 
 ## LATER
@@ -146,9 +137,9 @@ licence to ignore ordering.
 | `advanceCharacter` declares hit-dice and slot pools and **not** a feature pool granted at the new level, so a Fighter advanced 8 → 9 has Indomitable on the sheet and no pool to spend it from | mechanism | IE-006's builder, worked around by creating the fighter at level 9. `poolEvents` handles it at creation (`creation.ts:2423`); `advanceCharacter` (`creation.ts:2661`) does not |
 | nine of the 91 event types are emitted by no command anywhere — `creature-side-declared`, `mounted`, `dismounted`, `free-interaction-used`, `initiative-swapped`, `stabilised`, `creature-died`, `items-lost`, `bonus-removed` | mechanism | IE-006's builder. Each is a fact a DM declares and each is hand-written throughout the suite, so it is a shape rather than a hole — but a tool surface cannot reach any of them, which M2 needs to know |
 
-IE-005 carries two residuals IE-003's reviewer left, inside files it rewrites
-anyway: `carriesEvents` answering `unresolved` for a union payload, and the
-`TurnResolution.duplicate` docstring.
+IE-003's two residuals are discharged: `carriesEvents` now answers
+`'unresolved'` for a union payload with a driven non-vacuity case, and the
+`TurnResolution.duplicate` docstring covers `resolvePendingSaves`.
 
 Beyond that, the order is `PROGRESS.md`'s "Next actions, in order" and the
 ranked map beneath it, which the audit re-confirmed for spells: Resistance or
@@ -167,4 +158,6 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | Gate 3 | IE-003, IE-004 | approved — "MERGE BOTH"; IE-004 merged `0536a2b`, IE-003 merged `5dfbc39`, both gauntlets green on `main`, pushed |
 | 2026-09-13 | Gate 1 | IE-005, IE-006, IE-002 | presented as batch 2 under V1; re-presented as tranche 2 under V2 |
 | 2026-09-13 | workflow change | — | V2: the Opus foreman coordinates, Fable is on call, and the owner's authority moves to the tranche. `docs/dev/WORKFLOW.md` |
+| 2026-09-13 | architectural gate | IE-005 | three builder rounds ended `DEFECTS` on two doc comments; judged procedural, the unreviewed delta inspected, a fourth round authorised on the rebased commit, a fifth for one paragraph, `PASS` at the confirmation pass |
+| 2026-09-13 | workflow change | — | `WORKFLOW.md` "Parallel safety": the command layer is no longer one primitive. One module under `commands/` is; two mechanism tasks in different domains may run concurrently, and still collide on the barrel and `invariants.test.ts` |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |

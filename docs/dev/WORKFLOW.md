@@ -310,12 +310,23 @@ the merge-conflict surface; whether either waits on an owner decision; whether
 both alter the same authority boundary or state representation.
 
 **One owner per primitive.** At most one builder at a time may change any of:
-the `GameEvent` union and reducer (`events.ts`), the command layer
-(`commands.ts`), the type declarations at the top of `spell-definitions.ts`,
+the `GameEvent` union and reducer (`events.ts`), **one module under
+`commands/`**, the type declarations at the top of `spell-definitions.ts`,
 roll resolution, Advantage semantics, the action economy, conditions,
 durations and deadlines, the spatial model, target resolution, save and attack
 resolution, resource authority, persistence and the fold. Two tasks that share
 one of these run **sequentially**, whatever their counts say.
+
+**The command layer stopped being one primitive on 2026-09-13** (IE-005,
+`4f829e9`): it is twenty-one domain modules under `packages/engine/src/commands/`
+with `commands.ts` as an enumerating barrel, so two mechanism tasks in
+*different* domains may now run beside each other. That is what splitting the
+file bought, and it is narrower than it sounds — **they still collide on the
+barrel** whenever either adds or removes a command, and on
+`invariants.test.ts`, whose sweeps read the directory. Both are mechanical, of
+the spell registry's kind: keep both lines. So concurrency across domains is a
+real saving on the *serialisation*, not on the merge, and the eight questions
+above are still answered for the pair rather than assumed.
 
 What is parallel-safe beside one mechanism task: content (definitions and the
 registry, the `VERIFIED_SPELLS` list, spell tests — lane A in
@@ -326,7 +337,8 @@ touch.
 **Every engine task collides on three files anyway** — `CLAUDE.md`,
 `COVERAGE.md` and the spell registry — and the playbook resolves each
 mechanically (keep both sides' prose; regenerate; keep both lines in id
-order). That is a known merge cost, not a reason to serialise. The files that
+order). Tranche 2 is the evidence: all three of its tasks edited `CLAUDE.md`
+and every rebase was conflict-free, because the regions were disjoint. That is a known merge cost, not a reason to serialise. The files that
 *are* a reason are the ones in the primitive list, and the "announce before
 touching" set in `CONTRIBUTING.md`: `dnd.ts`, `result.ts`, `character.ts`,
 the `GameEvent` union — a task touching those is `parallel-safe: NO`.
