@@ -106,6 +106,7 @@ still Wizard-shaped are named below.
 | Honesty guard II | Executed spells’ `unmodelled` clauses adjudicated — 84 over 55 spells, 27 sourced shapes; partial derived from the debts, beside verified | `0536a2b` |
 | Guard holes | Both guard sweeps derived from the module; `extendFeature` guarded; a removed creature takes its timers; nested Counterspell a value; identity first in the casting wrapper; `idempotency.ts` | `5dfbc39` |
 | Shapes drained | Arcane Sword and Produce Flame poured into the shapes that already execute — 84 of 339; a spell-by-spell pass over all 211 undefined spells found only these two, so the next coverage is bought by a mechanic | `de45194` |
+| Second frozen log | `golden-log-2.json` — 551 events over 88 types, a campaign saved mid-turn; with the first, all 91 types the reducer declares now have a compatibility fixture | `2915909` |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 
@@ -1569,6 +1570,14 @@ condition-without-a-save family re-briefed around one `ConditionRider`
 (IE-001); then the ongoing record pinning its area so the fold stops reading
 the catalogue (IE-007). The reasons are in
 `docs/architecture/whole-engine-audit-2026-09-13.md`, §4 and §5.
+
+**Tranche 2's first two landed 2026-09-13.** IE-002 (`de45194`) and IE-006
+(`2915909`) are in the Done table; IE-005, the split of `commands.ts`, is
+still building. Three findings they made outside their briefs are in
+`docs/dev/QUEUE.md`'s `LATER` rather than fixed: a thin pin on Produce
+Flame's die size, a feature pool `advanceCharacter` never declares at the new
+level, and nine event types no command emits — which M2's tool surface needs
+to know, because it cannot reach any of them.
 
 **Batch 1 landed 2026-09-13.** IE-004 (`0536a2b`) and IE-003 (`5dfbc39`)
 are in the Done table. Two things they left behind are queued rather than

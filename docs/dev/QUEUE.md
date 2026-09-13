@@ -31,7 +31,9 @@ guard, a script and two `unmodelled` strings — and is in the merge log below
 but not counted. What it added for the next audit to weigh is on its task
 file: the executed bucket now has a missing-shape vocabulary of its own
 beside the tracked guard's. IE-002 (`de45194`) was content — two spell
-definitions, their tests and prose — and is not counted either. What it left
+definitions, their tests and prose — and IE-006 (`2915909`) was conformance —
+a frozen fixture, its generator and one test file, with no engine source
+touched at all. Neither is counted. What it left
 for the next audit to weigh is on its task file: the existing effect kinds are
 measurably drained, so the next spell coverage is bought by a mechanic.
 
@@ -60,7 +62,7 @@ bookkeeping, with no further merge gate. Nothing outside this roster moves.
 | Role | Task | Lane | Parallel-safe | Merged as |
 |---|---|---|---|---|
 | PRIMARY | IE-005 — Split `commands.ts` by domain, behaviour-preserving | mechanism | NO beside mechanism; YES beside these two | — |
-| PARALLEL | IE-006 — A second frozen event-log fixture | conformance | YES | — |
+| PARALLEL | IE-006 — A second frozen event-log fixture | conformance | YES | `2915909`, second |
 | PARALLEL | IE-002 — Pour twelve spells into the shapes that already execute | content | CONDITIONAL | `de45194`, first |
 
 Independence check: PASS. IE-005 moves `commands.ts` into `commands/` and
@@ -90,12 +92,13 @@ TRANCHE 2.
 | Task | Lane | Parallel-safe | Tranche |
 |---|---|---|---|
 | [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | NO | 2 |
-| [IE-006 — A second frozen event-log fixture](tasks/IE-006-second-frozen-fixture.md) | conformance | YES | 2 |
 
 All three launched 2026-09-13 under tranche 2 authority, one builder each in
-its own worktree; each task file names its worktree and branch. IE-002 is
-`DONE` and merged first, as the order said. IE-005 merges last, rebased over
-the prose.
+its own worktree. IE-002 (`de45194`) and IE-006 (`2915909`) are `DONE` and
+merged in that order, as the plan said. **IE-005 is the tranche's last task
+and is still building.** It merges over both, and its rebase crosses two
+`CLAUDE.md` edits and one `CONTRIBUTING.md` edit — the known collisions, kept
+both sides, per the playbook.
 
 ## NEXT
 
