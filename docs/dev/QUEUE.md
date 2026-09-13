@@ -47,7 +47,7 @@ both are re-scheduled below, with the reasons in their files.
 | [IE-003 — Close the guard holes and make the guard sweeps mechanical](tasks/IE-003-guard-holes-and-mechanical-sweeps.md) | mechanism | CONDITIONAL | 1 |
 | [IE-004 — The honesty guard for executed spells](tasks/IE-004-honesty-guard-for-executed-spells.md) | conformance | YES | 1 |
 
-IE-003 `IMPLEMENTING` since 2026-09-13. IE-004 finished the same day; the architectural gate inspected the diff (three declared deviations, all accepted) and sent it back `CHANGES_REQUIRED` for one self-contradicting `CLAUDE.md` paragraph, doc-only, one reviewer round. Both builders hold their worktrees (path and branch on each task file). The architect is idle until a digest arrives.
+Both at `CHANGES_REQUIRED` since 2026-09-13, each with its builder for one more reviewer round. IE-004: one self-contradicting `CLAUDE.md` paragraph, doc-only. IE-003: stopped at the three-round limit with the two defects the reviewer found in round three unfixed, both on one return statement of `resolvePendingSaves`; the architect inspected the diff, accepted the deviation, the primitive changes and the derived sweeps, and authorised a fourth round for those two lines. Both builders hold their worktrees (path and branch on each task file). The architect is idle until a digest arrives.
 
 ## NEXT
 
@@ -55,7 +55,7 @@ Prepared; none approved. The order is the audit's (§5 of the record).
 
 | Task | Lane | Note |
 |---|---|---|
-| [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | batch 2's primary, alone in the mechanism lane; the seam table is measured |
+| [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | batch 2's primary, alone in the mechanism lane; the seam table is measured; its brief must extend the derived sweeps in `invariants.test.ts`, which read `commands.ts` and `rest.ts` by file name |
 | [IE-006 — A second frozen event-log fixture](tasks/IE-006-second-frozen-fixture.md) | conformance | batch 2, beside the split |
 | [IE-002 — Pour twelve spells into the shapes that already execute](tasks/IE-002-pour-spells-into-existing-shapes.md) | content | batch 2, after IE-004 has changed what a new definition must satisfy |
 
@@ -65,6 +65,7 @@ Prepared; none approved. The order is the audit's (§5 of the record).
 |---|---|---|
 | [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | re-brief after IE-005: one `ConditionRider`, the new kind as its fourth consumer |
 | [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | sequential with IE-001 (both in spell resolution and `spells.ts`) |
+| guard `resolveCast` with `mayAct` — the derived sweep found it unguarded and IE-003 named it as a debt rather than widening its brief | mechanism | one line plus a sweep entry; rides with the next mechanism task that touches `commands.ts`, and is needed before M2 exposes `resolveCast` |
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a batch has room |
 
 Beyond that, the order is `PROGRESS.md`'s "Next actions, in order" and the
