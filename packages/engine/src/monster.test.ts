@@ -325,3 +325,44 @@ describe('printed initiative survives adaptation and resolution', () => {
     }
   });
 });
+
+/**
+ * A creature type is authoritative content, not something to be asked for.
+ *
+ * The live LLM boundary experiment (`docs/architecture/llm-boundary-experiment-2026-09-13.md`)
+ * found the engine asking a language model what a Goblin Warrior is. The model
+ * answered "Humanoid" — which is what made its own Hold Person legal — and
+ * `type_established` then made that permanent.
+ *
+ * The fact was never missing. `parseMonsters` has read `Small Fey (Goblinoid)`
+ * off the stat block since the bestiary was ingested; **this adapter dropped
+ * it**, so every creature built from an SRD stat block reached the game with no
+ * type at all. The doctrine's rule is that a caller may be asked for what
+ * nobody knows and never for what the SRD prints, and this is the test that
+ * keeps the adapter honest about it.
+ */
+describe('a stat block carries what the creature is', () => {
+  /** SRD 2024: "Small Fey (Goblinoid)". The 2014 Humanoid is gone. */
+  it('makes a Goblin Warrior Fey, which is why Hold Person cannot touch one', () => {
+    const goblin = adapt('goblin-warrior');
+    expect(goblin.creatureType).toBe('Fey');
+    expect(goblin.subtype).toBe('Goblinoid');
+  });
+
+  it('carries a null subtype where the stat block prints none', () => {
+    expect(adapt('ogre').creatureType).toBe('Giant');
+    expect(adapt('ogre').subtype).toBeNull();
+  });
+
+  /**
+   * Every one of them, because the whole point is that no stat block reaches
+   * the game without the fact a targeting rule reads.
+   */
+  it('carries a creature type for the whole bestiary', () => {
+    for (const m of bestiary) {
+      const adapted = adaptMonster(m, asCharacterId(m.id));
+      expect(adapted.creatureType, m.name).toBe(m.type);
+      expect(adapted.creatureType.length, m.name).toBeGreaterThan(0);
+    }
+  });
+});

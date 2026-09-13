@@ -15,7 +15,13 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/*/src/**/*.test.ts', 'packages/*/scripts/**/*.test.ts'],
+    include: [
+      'packages/*/src/**/*.test.ts',
+      'packages/*/scripts/**/*.test.ts',
+      // The LLM probe is an experiment, not a package, but its harness is
+      // tested offline for the same reason everything else is.
+      'tools/*/src/**/*.test.ts',
+    ],
     environment: 'node',
     coverage: {
       provider: 'v8',

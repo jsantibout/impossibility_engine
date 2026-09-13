@@ -11,5 +11,5 @@
       "@ie/engine": ["./packages/engine/src/index.ts"]
     }
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/scripts/**/*.ts"]
+  "include": ["packages/*/src/**/*.ts", "packages/*/scripts/**/*.ts", "tools/*/src/**/*.ts"]
 }

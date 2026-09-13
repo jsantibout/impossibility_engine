@@ -1,0 +1,16 @@
+{
+  "name": "@ie/llm-probe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An experiment: can a real LLM drive the Impossibility Engine? Not Maestro, not production.",
+  "scripts": {
+    "probe": "tsx src/run.ts"
+  },
+  "dependencies": {
+    "@ie/engine": "*",
+    "@ie/shared": "*",
+    "@ie/srd": "*",
+    "openai": "^6.9.0"
+  }
+}

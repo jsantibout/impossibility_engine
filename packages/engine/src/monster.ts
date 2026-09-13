@@ -72,6 +72,23 @@ export interface AdaptedMonster {
   readonly sheet: CharacterSheet;
   readonly vitals: Vitals;
   readonly defenses: MonsterDefenses;
+  /**
+   * What the stat block says this creature **is** — `Fey`, `Giant`, `Undead`.
+   *
+   * Carried because a rule reads it: Hold Person says "Choose a Humanoid", and
+   * a Goblin Warrior is `Small Fey (Goblinoid)` in 2024. The parser has held
+   * this since the bestiary was first ingested and this adapter dropped it, so
+   * a creature built from an SRD stat block reached `creature-added` with no
+   * type at all — and the engine then had to *ask* whoever was driving it for
+   * a fact it had already parsed and thrown away.
+   *
+   * That is the failure this field exists to make impossible. An authoritative
+   * fact the Engine holds must reach the creature record; a caller may be
+   * asked for what nobody knows, never for what the SRD prints.
+   */
+  readonly creatureType: string;
+  /** The parenthesised tag — `Goblinoid`. Narrative; no rule reads it yet. */
+  readonly subtype: string | null;
   readonly size: CreatureSize;
   readonly speed: Monster['speed'];
   /** The stat block's Initiative modifier, for rolling or for a passive score. */
@@ -227,6 +244,8 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // SRD: "A monster dies the instant it drops to 0 Hit Points."
     vitals: vitals(monster.hp.average, { diesAtZero: true }),
     defenses,
+    creatureType: monster.type,
+    subtype: monster.subtype,
     size: monster.size,
     speed: monster.speed,
     initiativeModifier: monster.initiative,
