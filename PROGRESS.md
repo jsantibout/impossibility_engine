@@ -95,6 +95,59 @@ still Wizard-shaped are named below.
 | Moving areas | An area that arrives at a creature standing still; a route the caller states; Moonbeam | `fa41e34` |
 | Route timing | A route settles as the area reaches each space; `via` is adjudicated, and asking for it is not a refusal | `4dc1086` |
 | Carried areas | An area whose origin is a creature's live position; Spirit Guardians, partial | `63d5600` |
+| North Star | Authority Without Rigidity, as permanent doctrine | `3e4c0f4` |
+| LLM boundary I | The Tier 1 experiment, and hardening the boundary in both directions | `190fc1e` |
+| LLM boundary II | Tier 2: three level 2 characters and one Ogre; the harness generalised to N actors | `85f72a8` |
+| Surface parity | Every engine request parameter published or explained, with a test that reads the engine's own source | `cac086d` |
+
+## The LLM boundary checkpoint: validated, and what it does not cover
+
+**Status: sufficiently validated for continued engine development.** Three live
+experiments against `gpt-5.5` — Tier 1 before hardening, Tier 1 after, and
+Tier 2 at four actors — plus a surface parity audit. Engine development does
+not need to wait on this any longer, and the next benchmark is a measurement
+rather than a gate.
+
+What the evidence says, in one table:
+
+| Question | Answer | Where |
+|---|---|---|
+| Can a model operate the boundary at all? | Yes. 2 calls per turn at Tier 1, 3–4 at Tier 2 | `llm-boundary-experiment-2026-09-13.md` |
+| Does it invent mechanical facts? | No, once content stopped being asked to. 1 → 0 | `llm-boundary-hardening-2026-09-13.md` |
+| Does authority hold under improvisation? | Yes. Every DM ruling waited for the engine's verdict before applying a consequence | `llm-boundary-tier2-2026-09-13.md` |
+| Does it scale to four actors? | Yes. 16 of 16 turns, 0 interventions, cost per turn stable | same |
+| Does cost run away as initiative grows? | No. Billable tokens per turn rose 1.3×, not the 5× the raw count suggests; per-round growth decelerating by round 3 | same |
+| Is the engine the bottleneck? | No. 50 ms of engine time across a whole benchmark | same |
+
+**The failure mode that actually recurs is not a rules failure.** Twice the
+worst turn in a benchmark was an engine capability the tool surface had not
+published — `MoveCommand.forced` at Tier 1, `CastSpellRequest.towards` at Tier
+2 — and each time the engine's refusal was correct and named the missing thing
+in plain English while the caller had no field to send it in. That class is now
+guarded structurally: `tools/llm-probe/src/parity.test.ts` reads the engine's
+own source for every request type the surface wraps and fails when a parameter
+is neither published nor explained. **A new command parameter should expect to
+fail that test and be decided about.**
+
+### Preserved as a future benchmark gap, not a blocker
+
+**Unconsciousness, death saving throws and healing a downed character are
+unmeasured at any tier.** Not because they are unsupported — the engine
+executes all three — but because no benchmark fight has gone there: Tier 1's
+goblins died and Tier 2's Ogre finished on 3 of 68 with the party bruised and
+standing. Forcing it would mean choosing the fight to suit the answer, which
+is the thing these experiments exist not to do.
+
+The honest way to close it is a Tier 3 designed around a longer or harder
+encounter and then *letting it happen*. Until then, treat the death-save path
+as engine-tested and boundary-untested, and do not claim otherwise in a report.
+
+Three smaller gaps ride along with it, each recorded where it was found:
+`pendingAttack`, `pendingDamage`, `pendingTest` and `pendingCasting` are
+reachable only through `hold`, which is deliberately unpublished because
+nothing on the surface settles those windows; a stat block's printed Multiattack
+is still unread; and no benchmark has yet wanted an improvised *attack roll*,
+so no primitive has been built for one.
 
 ## Decisions that constrain what comes next
 

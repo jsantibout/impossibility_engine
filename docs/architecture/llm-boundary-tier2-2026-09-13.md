@@ -5,6 +5,11 @@
 **Artifacts:** `tools/llm-probe/runs/tier2-ogre.{md,json}`
 **Engine changes made for this tier:** none
 
+> **Status: the LLM-boundary checkpoint is validated for continued engine
+> development.** Sections 1–9 are the Tier 2 run as it happened; §10 is the
+> parity audit its findings prompted, and §11 is the checkpoint verdict and the
+> gaps it deliberately leaves open.
+
 Tier 1 asked whether a model could operate the Impossibility Engine's boundary
 at all. Tier 2 asks a different question:
 
@@ -298,3 +303,190 @@ Three defects were found by building this, all in apparatus:
   rounds of four; nothing here says where it stops.
 - **The Ogre prints no Multiattack**, so the stat-block-action gap Tier 1 left
   open is still open and still untested.
+
+---
+
+## 10. The parity audit, and the deadlock it found before a fight did
+
+Added after the run above, on the evidence of §4. `packages/engine` is still
+untouched.
+
+§4 recommended auditing engine command parameters against what the surface
+actually publishes, on the grounds that two benchmarks had now lost their worst
+turn to the same class of gap. The audit found four things the benchmarks
+needed and two more that nothing could reach — and one of the four was worse
+than a lost turn.
+
+### The two gaps that were hiding each other
+
+`owedAreaEffects` is global engine debt. `mayAct` refuses every action while one
+stands, and `resolveTurn`'s own guard refuses **before** it reaches the
+settlement it would otherwise perform internally. So a creature that walks into
+a Grease can neither act nor end its turn, and the only command that settles it
+— `settleAreaEffects` — was not on the surface.
+
+The surface knew, and had written down a reason that had gone stale:
+
+> `owed_area_effects: 'no spell on this surface makes a persistent area'`
+
+True when written. False from the moment a Wizard with Grease prepared joined
+Tier 2 — and the only thing still hiding it was that `cast_spell` could not
+point a Cube, so the area could not be made in the first place.
+
+**Fixing `towards` alone would have wedged the Tier 2 rerun.** The two gaps
+masked each other exactly, which is the argument for auditing a surface rather
+than patching the case in front of you.
+
+### What is now published
+
+| Field or tool | Why it was required | Evidence |
+|---|---|---|
+| `cast_spell.towards` (+ `towards_creature`, `towards_landmark`) | a Cone, Cube or Line has to be pointed somewhere | §4, the lost turn |
+| `cast_spell.at` coordinates now required | a `{ z: 0 }` reached the engine as malformed input | §4 |
+| `attack.thrown` | a Javelin is "Melee or Ranged"; without it the engine measured melee reach | §6, the silent substitution |
+| `settle_area_effects` | the deadlock above | this section |
+| `declare_cover` | the model's job since positioning landed, with no tool at all | audit |
+| `ability_check.senses` | a fact about the attempt, which the engine cannot derive | audit |
+
+`declare_cover` is the one worth dwelling on: `CLAUDE.md` has said since
+positioning landed that "the model says 'behind the bar, three-quarters cover';
+the engine applies exactly +5 AC", and there was no tool. **Every attack in both
+benchmarks resolved as though the tavern bar and the mill machinery were not
+there.** Nothing failed, nobody noticed, and the fights were quietly easier than
+the fiction described — which is the failure mode a refusal at least makes
+visible.
+
+### What is deliberately withheld
+
+Every remaining parameter is named with its reason in `parity.test.ts`. Three
+reasons recur:
+
+- **A number that would decide an outcome** — `attackBonuses`, `damageBonuses`,
+  `bonuses`. The Inviolable Rule; these can never be published.
+- **A debt with no settlement** — `hold` on an attack or a casting opens
+  `pendingAttack` / `pendingCasting`, and nothing here closes either window.
+  Publishing one without the other is how a fight wedges, which is the mistake
+  this section exists to have stopped repeating. They are a *paired* change.
+- **No reachable user** — `slotKind`, `slotless`, `unaffected`, `damageType`,
+  `twoHanded`, `finesseAbility`, `extraDamage`, `featureDamageTypes`.
+
+Two were **measured rather than assumed**, and the measurement changed the
+answer. `payment` and `source` both looked reachable: all three Tier 2
+characters carry a Magic Initiate free daily casting *and* spell slots, which
+is exactly the ambiguity `payment_required` exists for. Driven through the
+engine, neither fires — Shield refuses on its Reaction trigger first, and Mage
+Armor has no executable definition. They stay withheld with that written down,
+and go in the moment a route actually collides.
+
+`modes` — a DM granting Advantage by fiat — is the one judgement call left open
+on purpose. It is a real DM power and the engine already derives every
+conditional source itself, so what is left changes an outcome and deserves its
+own evidence rather than a parity tidy-up.
+
+### The test that makes this durable
+
+`tools/llm-probe/src/parity.test.ts` reads `packages/engine/src/commands.ts`
+and extracts the fields of every request type the surface wraps, then holds each
+against a decision: the tool property that carries it, or a written reason. A
+parameter added to the engine is in neither list, so the test fails the day it
+is added and somebody decides.
+
+The same technique `spell-tracking.test.ts` uses on SRD prose and `bestiary.ts`
+uses on stat blocks: **the authority is the artefact, not a list maintained
+beside it.** Both halves are mutation-checked — removing `towards` from the map
+fails, and claiming a tool property that does not exist fails.
+
+A second block covers whole commands rather than parameters, and asserts the
+engine functions it names are really exported, so the map cannot drift into
+guarding nothing.
+
+### Live reruns
+
+Same model, same configuration, same seeds.
+
+| | Tier 2 before parity | Tier 2 after |
+|---|---|---|
+| Pre-registered criteria | 5 of 6 | **6 of 6** |
+| Actor turns completed | 15 of 16 | **16 of 16** |
+| Harness interventions | 1 | **0** |
+| Total calls | 55 | 53 |
+| Refusals | 8 | **2** |
+| Malformed calls | 1 | **0** |
+| Cost | $0.4640 | **$0.4295** |
+| Deterministic replay | PASS | PASS |
+
+The Grease turn, which had been eight calls and six refusals ending in a lost
+turn, became four calls: `look` → `cast_spell` refused `no_direction` once →
+`cast_spell` with the direction → `end_turn`. The model read the refusal and
+answered it in one round trip, which is what that refusal was always trying to
+ask for.
+
+**Every new field was used unprompted**, and the shape of the use is the
+evidence that the design was right:
+
+- `towards_creature: "ogre"` — it aimed the Cube at a *creature*, not at
+  coordinates. That vocabulary is what the engine's own docstring asks for.
+- `thrown: true` — Brannis threw the javelin instead of closing to melee, and
+  the narration reads "snaps a javelin overhand at the fallen ogre", the Ogre
+  being Prone because the Grease had landed.
+- `settle_area_effects` — at beat 15 a Fighter stepped into the slick and the
+  model settled the debt in the same turn, with no prompting and no wedge.
+
+Tier 1 was rerun as a regression check and is **unchanged**: 18 calls, median 2,
+zero refusals, zero `needs-context`, 49.6 s against 50.5 s. The larger surface —
+three more tools and six more fields — cost it nothing.
+
+---
+
+## 11. Checkpoint: the boundary is validated for continued engine development
+
+Three live experiments and a parity audit are enough. The boundary is not the
+risk any more, and engine work should not wait on it.
+
+What that does **not** mean, stated so nobody reads it as more than it is:
+
+- **Unconsciousness, death saves and healing a downed character remain
+  unmeasured at every tier.** The engine executes all three; no benchmark fight
+  has gone there. Tier 1's goblins died and Tier 2's Ogre finished on 3 of 68
+  with the party bruised and upright. Forcing it would mean choosing the fight
+  to suit the answer. **Recorded as a future benchmark gap, not a blocker** —
+  the honest close is a Tier 3 built around a longer encounter that is then
+  allowed to happen.
+- `pendingAttack`, `pendingDamage`, `pendingTest` and `pendingCasting` are
+  reachable only through `hold`, which stays unpublished until something
+  settles those windows.
+- A stat block's printed Multiattack is still unread, and the Ogre does not
+  print one.
+- No benchmark has wanted an improvised **attack roll**, so no primitive exists
+  for one. Two creative beats and a third invented ruling all composed out of
+  `ability_check`, `improvised_damage`, `apply_ruled_condition` and
+  `move forced`.
+
+### One engine finding, reported and not fixed
+
+Raised while building the parity fixtures, and outside this pass's remit.
+
+**A radius centred on a space is one cube wider than the tabletop convention.**
+The engine models a point as a *space* — deliberately, and `CLAUDE.md` explains
+why: "a stored coordinate is always one the engine could have produced itself".
+But a radius measured from a space is symmetric about that space, so it covers
+an odd number of cubes. Measured: **a 20-foot-radius Sphere catches 9 cubes
+across — 45 feet, not 40.**
+
+`CLAUDE.md` states the other number: "every cube within 20 feet of a point forms
+a 40-foot square". The code and the document disagree, and the document is the
+one describing the tabletop convention, where a blast is aimed at an
+*intersection* and a 20-foot radius covers an even 8×8.
+
+This decides whether a Fireball catches two goblins or three, which is the call
+`CLAUDE.md` itself names as the most consequential positional judgement in the
+game — so it wants a deliberate answer rather than a silent one. Nothing here
+changed it.
+
+A second, smaller oddity in the same area: a directional shape's axis is
+computed as `unit(subtract(cubeCentre(shape.towards), origin))` — `cubeCentre`
+applied to the target but not to the origin, which bakes a fixed half-cube skew
+into the direction. It is negligible when the aiming point is far away and
+tilts the axis noticeably (including into `+z`) when it is close. That is the
+practical reason `towards_creature` and `towards_landmark` are the vocabulary
+this surface encourages: both name something a useful distance off.
