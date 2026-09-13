@@ -102,6 +102,7 @@ still Wizard-shaped are named below.
 | Spatial model | A coordinate says *where*, never *what*; `AreaPoint` and explicit anchoring | `81112d1` |
 | Validated definitions | A pure schema validator, the SRD as a range/duration oracle, declared area anchoring, and an Armour Class a spell **sets** — Mage Armor | `df6de4c` |
 | Roll modifiers | Advantage as a typed relationship between an effect and a roll; `against-holder`; Blur, Beacon of Hope | `5b32e0c` |
+| Architecture audit III | The fold reads content; guards that were lists; debt hiding as fiction in executed spells; `commands.ts` measured for its split | `588d7a0` |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 

@@ -15,7 +15,7 @@ batches, the gate log, and the audit counter.
 Last whole-engine audit: the third, 2026-09-13 —
 `docs/architecture/whole-engine-audit-2026-09-13.md`, recorded in
 `PROGRESS.md` under "Third architecture audit against the doctrine" and in
-the Done table (the commit hash is in that row).
+the Done table, commit `588d7a0`.
 
 Engine tasks completed since last audit: 0
 Audit due at: 4
