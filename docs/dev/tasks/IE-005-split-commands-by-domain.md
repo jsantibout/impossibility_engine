@@ -1,6 +1,6 @@
 # IE-005 — Split `commands.ts` by domain, behaviour-preserving
 
-state: IMPLEMENTING
+state: CHANGES_REQUIRED
 lane: mechanism
 tranche: 2
 parallel-safe: NO beside any mechanism task; YES beside conformance and content, which do not touch the command layer

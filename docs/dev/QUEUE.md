@@ -93,12 +93,39 @@ TRANCHE 2.
 |---|---|---|---|
 | [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | NO | 2 |
 
-All three launched 2026-09-13 under tranche 2 authority, one builder each in
-its own worktree. IE-002 (`de45194`) and IE-006 (`2915909`) are `DONE` and
-merged in that order, as the plan said. **IE-005 is the tranche's last task
-and is still building.** It merges over both, and its rebase crosses two
-`CLAUDE.md` edits and one `CONTRIBUTING.md` edit — the known collisions, kept
-both sides, per the playbook.
+IE-002 (`de45194`) and IE-006 (`2915909`) are `DONE` and merged in that
+order, as the plan said. **IE-005 is the tranche's last task and is at
+`CHANGES_REQUIRED`.**
+
+Its three builder-launched review rounds ended `DEFECTS` rather than `PASS`,
+on two stale doc comments the builder then fixed. The foreman judged that
+procedural rather than architectural — each round's findings were strictly
+smaller and the reviewer recorded "Escalation reason: none" and
+"Confidence: high" every time — inspected the unreviewed delta (three comment
+lines, no code), rebased the branch onto `ef3ce71` over both merges, and
+authorised a **fourth round** on the rebased commit `c96d0ed`. That is the
+same judgement, on the same grounds, that tranche 1 made for IE-003.
+
+The fourth round verified rather than merely passed: all 194 old declarations
+accounted for, 115 error codes and 66 event-type literals at identical counts,
+the barrel publishing the same 118 names by set comparison, the value-level
+import graph acyclic, both frozen logs byte-identical, all four re-pointed
+source sweeps still biting, gauntlet 5508/5508. **One defect: an orphaned
+paragraph in `CLAUDE.md`** — no code, no test. A fifth round is authorised for
+it; the builder fixes and reports, and the foreman takes it back to the same
+reviewer rather than a fresh one, which still holds the verification.
+
+**A debt this leaves the foreman**, to be discharged at merge: the task
+rewrites `CLAUDE.md`'s one-owner-per-primitive bullet to permit two mechanism
+tasks in *different* command domains to run concurrently — which is the
+brief's own stated rationale, so it is inside the approved intent.
+`docs/dev/WORKFLOW.md`'s "Parallel safety" section carries the same rule
+naming the command layer as one indivisible primitive, and the two now
+disagree. Builders are rightly forbidden from editing `docs/dev/`, so it is
+the foreman's to reconcile — and with a more precise claim than the bullet
+makes: two tasks in different domains still both touch the barrel whenever
+either adds or removes a command, which is a mechanical conflict rather than a
+licence to ignore ordering.
 
 ## NEXT
 
