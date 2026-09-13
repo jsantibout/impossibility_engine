@@ -1181,7 +1181,7 @@ today**, and the honest reason the rest are not is never "it needs a position":
 | A creature that **ends** its turn in an area | Moonbeam, Cloudkill, Incendiary Cloud, Insect Plague (and Grease and Black Tentacles, whose casts already execute) |
 | A creature that **starts** its turn in an area — a different boundary, a round apart | Stinking Cloud, Web, Sleet Storm, Zone of Truth |
 | A creature that **enters** an area, on its own move or a forced one | Web, Grease, Insect Plague, Moonbeam, Cloudkill, Incendiary Cloud, Black Tentacles, Sleet Storm, Zone of Truth |
-| An area that **moves into** a creature's space — printed only by areas that move | Moonbeam, Cloudkill, Incendiary Cloud, Spirit Guardians |
+| An area that **moves into** a creature's space — printed only by areas that move | Moonbeam (**built**); Cloudkill and Incendiary Cloud, blocked on automatic turn-start drift; Spirit Guardians, blocked on a carrier-bound origin |
 | Ending a turn within 5 feet of a point, and a point rolled into a creature's space | Flaming Sphere |
 | Distance travelled inside an area, which no move records | Spike Growth |
 | A wall with a length and a barrier rule, and no later trigger at all | Wind Wall |
@@ -1864,11 +1864,12 @@ builds two of them:
 | **A turn boundary** | "starts its turn there" / "ends its turn there" | `turn-advanced` |
 | **Entering** | "enters the area" | the creature's own authoritative position change |
 
-Everything else the audit named is out: an area that *moves onto* a creature,
-a path or a distance travelled, an aura the holder carries, an activation that
-blasts a point, a barrier. Each is a different detection with different
-evidence, and one generic "trigger system" would have been a framework built
-from one example.
+An area that *moves onto* a creature is a third, and is built — see "An Area
+Can Arrive At A Creature Standing Still". Everything else the audit named is
+still out: a path or a distance travelled, an aura the holder carries, an
+activation that blasts a point, a barrier. Each is a different detection with
+different evidence, and one generic "trigger system" would have been a
+framework built from one example.
 
 ### The clauses are transcribed, not taxonomised
 
@@ -2126,6 +2127,132 @@ broken it*, because the landmark it walked to was outside Grease's Cube —
 Grease is a **10-foot** square and Web a 20-foot one, and a spot chosen for the
 larger left the smaller. The assertion was right, the fixture was wrong, and
 nothing but a deliberate break could have said so.
+
+## An Area Can Arrive At A Creature Standing Still
+
+SRD Moonbeam writes three trigger clauses in one sentence, and the first is
+not a way of saying the other two:
+
+> "A creature also makes this save **when the spell's area moves into its
+> space** and when it enters the spell's area or ends its turn there. A
+> creature makes this save only once per turn."
+
+| | SRD wording | The authoritative operation |
+|---|---|---|
+| **A turn boundary** | "ends its turn there" | `turn-advanced` |
+| **A creature entering** | "enters the spell's area" | the creature's own position change |
+| **An area arriving** | "the spell's area moves into its space" | the **area's** position change |
+
+Cloudkill, Incendiary Cloud and Spirit Guardians print the same pair; Insect
+Plague, Web, Grease and Black Tentacles print no such clause and their areas
+never move. **A neighbouring spell's moving-area sentence lends a fixed area
+nothing**, so the clause is a field on the trigger, checked against the spell's
+own prose out of the parsed book.
+
+### The operation says what changed; nothing asks whether membership did
+
+`creature-moved` means a creature's membership may have changed;
+`spell-origin-moved` means *this casting's area* moved. Two detectors, each
+answering the operation that raised it. The weaker question — "did membership
+change somehow" — would pass every test in both files and would have erased
+the distinction the book drew, which is observable in two places: the caps can
+differ, and the log has to say which clause caught somebody.
+
+**The event needed no extension at all.** One casting had one point, and now
+that point is somewhere else — which is what `spell-origin-moved` already
+said. The detector hangs off its reducer case, derived like every other
+consequence, so a replay reconstructs both the point and the debt.
+
+### `area-moved` is a fourth moment, not a fourth cause of `entry`
+
+`entry` is deliberately one value for walking in, being shoved in and being
+carried in by a mount, because the SRD writes one clause for all three. An
+area arriving is a *different clause*, and two things follow that a shared
+value gets wrong:
+
+- **The entry cap must not be spent by it.** `onEntry: 'first-per-turn'` is
+  Web's cap on *entering*, and a beam sliding onto a creature standing still
+  is not that creature's first entry of the turn. So the stamp field is
+  `byCreatureEntry` — named for the cause, because the shorter `byEntry` read
+  as true of both — and an area's arrival never sets it.
+- **The history must say which happened.** "You walked into the beam" and
+  "the beam swept over you" are different answers to why a creature is hurt.
+
+No registered spell prints both clauses today, which is exactly when the narrow
+reading is cheap to write down and impossible to reconstruct later. What the
+two *share* is the consequence: one `OwedAreaEffect`, one queue, one
+settlement, no second save calculator.
+
+### The movement allowance is the action, not a rider on one
+
+Two SRD sentences, two fields, and collapsing them would make a movement-only
+action indistinguishable from a rider that was declined:
+
+| | SRD | Field |
+|---|---|---|
+| Spiritual Weapon | "move the force up to 20 feet **and** repeat the attack" | `CastingOrigin.movableBy` |
+| Moonbeam | "take a **Magic action** ... to move the Cylinder up to 60 feet" | `SpellActivation.movesArea` |
+
+So Moonbeam's activation carries no range, no effects and no targets, and a
+caller who names a destination is required rather than optional — a Magic
+action spent moving nothing is not something the spell offers. Giving it a
+`CastingOrigin.reach` instead would have been inventing a distance the book
+never prints, purely to make it fit the other spell's shape.
+
+**Range is where an area may first be put; the allowance is how far it then
+travels.** Moonbeam reaches 120 feet and moves 60, from wherever the beam now
+is — so a beam walked steadily away ends up further from its caster than the
+spell's Range, and re-checking against the caster would wrongly forbid it.
+
+### Two points do not imply the line between them
+
+**This is the part that could not be hand-waved.** A beam that steps twenty
+feet passes over the space in between by any route a person would draw, and
+the engine has no route: Chebyshev distance says how far an origin moved, never
+which way it went. Drawing a straight line would be the same invention
+`raiseAreaEntries` already refuses about a creature's own movement, and a
+displacement is in any case only a *lower bound* on the distance travelled.
+
+So the route is the caller's to state. `ActivateSpellCommand.via` carries the
+spaces the area passed through, each consecutive pair is one authoritative
+relocation with its own `spell-origin-moved`, and the allowance caps the **sum
+of the legs** — which is what "up to 60 feet" measures, so a beam walked round
+three sides of a square has spent all three. With no waypoints there is one
+leg and the sum is the displacement, so every existing caller is untouched.
+
+A leg one space long has nothing in between to be unknown. **Any longer leg
+says so in `unverified`** rather than being answered with a line — and only
+where a rule would read it, since a casting whose area triggers on nothing as
+it travels has no route to be wrong about. That is the whole of the honesty:
+the engine fires for nobody it cannot prove, and names what it could not see.
+
+Not a path *finder*. Nothing searches, smooths, or checks that consecutive
+waypoints are adjacent: a waypoint is a fact the caller supplies, and a caller
+who supplies none gets the honest gap instead. Spike Growth's "2d4 for every 5
+feet **it travels**" is a creature's distance and a different primitive, and
+is still not attempted.
+
+### Creation is not movement
+
+A casting's first record says where its area is and raises nothing: the
+creatures standing there are caught by "when the Cylinder appears", which is
+the casting's own effect. Only a move of an area that already exists reaches
+the detector, and that is structural rather than guarded — `spell-origin-moved`
+throws for a casting that holds no point.
+
+### One action is one move, which is why the same-turn repeat lives in a route
+
+The caster has one Magic action a turn, so a beam cannot be swung twice by two
+activations without a turn passing between them — and the cap is per turn. The
+creature that *can* meet two clauses inside one global turn is therefore the
+caster itself: it moves the beam onto itself, and then its own turn ends with
+it still standing in it. A stated route is the other case, because a route may
+arrive on a creature, leave, and arrive again.
+
+**A beam that drops its own caster's Concentration ends the spell**, and a
+fixture that lets that happen goes on asserting things about a Moonbeam that is
+no longer there. Half damage on a made save is still damage, and is what those
+tests read instead.
 
 ## Turn Boundaries Collect What They Are Owed
 
@@ -3223,8 +3350,13 @@ null and is reported — it never becomes either.
   condition, Temporary Hit Points, lasting bonuses and an interruptible casting
   all work. **A persistent area catches a creature at a moment the spell
   names** — see that section: Insect Plague, Web, Grease and Black Tentacles
-  all trigger on the turn boundary the SRD prints and on entering. What does
-  not work: summons, long casting times, an area that *moves onto* a creature,
-  a path or a distance travelled, an activation that resolves an area at a
-  point chosen now, and a Reaction that answers a fall.
+  all trigger on the turn boundary the SRD prints and on entering. **And an
+  area can arrive at a creature standing still** — see "An Area Can Arrive At A
+  Creature Standing Still": Moonbeam's Cylinder is moved by a later Magic
+  action, along a route the caller states, and catches whoever it comes to.
+  What does not work: summons, long casting times, an area that moves *by
+  itself* at the start of a turn (Cloudkill, Incendiary Cloud) or because its
+  carrier walked (Spirit Guardians), a path or a distance travelled, an
+  activation that resolves an area at a point chosen now, and a Reaction that
+  answers a fall.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 46 (13.6%) | 77 (22.7%) | 53 (15.6%) |
+| 339 | 46 (13.6%) | 78 (23.0%) | 54 (15.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -36,7 +36,7 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Tracked | Executed | Blocked on |
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 2 | 24 | — |
+| Area of effect | 73 | 2 | 25 | — |
 | Reaction timing | 4 | 0 | 3 | falling — Counterspell now has a casting it can hold open |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 3 | an effect that a later turn can act through |
@@ -107,6 +107,7 @@ spell, and the area is the part that is missing.
 - **Mass Healing Word** (level 3) — untested
 - **Mass Suggestion** (level 6) — untested
 - **Mind Spike** (level 2) — verified
+- **Moonbeam** (level 2) — verified
 - **Phantasmal Killer** (level 4) — untested
 - **Poison Spray** (cantrip) — verified
 - **Ray of Frost** (cantrip) — verified

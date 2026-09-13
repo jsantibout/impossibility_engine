@@ -92,6 +92,7 @@ still Wizard-shaped are named below.
 | Architecture audit II | An offer is a (reactor, feature) pair; the Ready path’s record; activation guards; retry order; scheduled-damage cleanup | `f2512c7` |
 | Spell origins | A casting holds a point; the attack's origin is not its actor; Spiritual Weapon | `adaf5eb` |
 | Area triggers | A persistent area catches a creature at a boundary or on entering; Insect Plague, Web, Grease, Black Tentacles | `ffd2e44` |
+| Moving areas | An area that arrives at a creature standing still; a route the caller states; Moonbeam | *(this batch)* |
 
 ## Decisions that constrain what comes next
 
@@ -1393,13 +1394,59 @@ primitive — which is why it is below the four above it despite being unblocked
      them agree about the boundary or the cap — which is why they were the
      proving set.
 
-     What is **not** built, and each is its own detection rather than a
-     variant: an area that *moves onto* a creature (Moonbeam, Cloudkill,
-     Incendiary Cloud, Spirit Guardians all print "when the area moves into
-     its space" as a separate clause, and no fixed area prints it); a path or
+   - ~~**"the spell's area moves into its space"**~~ — **built.** See
+     CLAUDE.md, "An Area Can Arrive At A Creature Standing Still". The
+     authoritative operation is the one the engine already had:
+     `spell-origin-moved` says this casting's point is somewhere else, and its
+     reducer case asks who the area arrived on. `AreaMoment` gained a fourth
+     value rather than reusing `entry`, because Web's entry cap must not be
+     spent by a beam sliding overhead and because the log has to say which
+     clause caught somebody. Moonbeam proves it end to end: 5-foot Cylinder,
+     moved up to 60 feet by a later **Magic action** (`activation.movesArea`,
+     which is not Spiritual Weapon's rider), along a route the caller states
+     as waypoints, with the allowance charged on the sum of the legs.
+
+     **The route had to become a first-class fact**, and that is the finding
+     of the batch. Sixty feet is twelve spaces, easily far enough to sweep
+     clean over somebody, and two points do not imply the line between them —
+     Chebyshev says how far an origin moved, never which way. So each leg is
+     its own relocation, a leg one space long is exact, and any longer leg
+     says in `unverified` that nothing records what it crossed.
+
+     What is **not** built, and each is its own *source of area movement*
+     rather than a variant of this one: an area that moves **by itself** at
+     the start of a turn (Cloudkill's deterministic "10 feet away from you",
+     Incendiary Cloud's chosen direction); an area carried by a creature
+     (Spirit Guardians' Emanation, which has no live carrier-origin
+     representation — copying the caster's position into `origin` once at the
+     casting would freeze the aura in place); a path or
      a distance travelled (Spike Growth); an aura the holder carries; an
      activation that blasts a chosen point (Call Lightning); a barrier (Wind
-     Wall). **Stinking Cloud** is start-of-turn and would be a transcription
+     Wall).
+
+     **The next source of area movement should be the carrier-bound Emanation,
+     not automatic drift**, and the reason is which one needs a new temporal
+     primitive. Cloudkill and Incendiary Cloud move "at the start of each of
+     your turns", which lands in the middle of the one piece of sequencing this
+     engine has most recently had to correct: `pendingTurnStart` exists because
+     the end of one turn and the start of the next are ordered *moments*, and
+     an automatic move has to happen **before** the start-of-turn clauses are
+     determined, since it is what decides whether the cloud is on anybody. It
+     also needs a direction — Cloudkill's is derived from the caster's position
+     and Incendiary Cloud's is *chosen*, so the two do not even share a
+     command — and a caster with no position has no "away from you" at all.
+     None of that is transcription.
+
+     Spirit Guardians moves for a reason the engine already observes: its
+     carrier walked, and `creature-moved` is already an authoritative
+     operation with a detector on it. What it needs is one honest
+     representation — a persistent area whose origin is a creature's **live**
+     position — after which the same F2b consequence follows, from the
+     carrier's own move rather than from `spell-origin-moved`. It is the
+     smaller primitive and it opens every Paladin aura behind it. Its other
+     clauses (designated unaffected creatures, halved Speed inside the
+     Emanation, damage type by the caster's alignment) are independent of the
+     movement and should be costed separately. **Stinking Cloud** is start-of-turn and would be a transcription
      but for its consequence: "Poisoned **until the end of the current turn**"
      is a deadline shape the engine does not have, and applying it for the
      casting's minute instead would be a wrong number rather than a missing
@@ -1575,12 +1622,12 @@ Run `npm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executed | 77 |
-| Spells verified end to end | 53 |
+| Spells executed | 78 |
+| Spells verified end to end | 54 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 4,006 passing, none skipped |
+| Tests | 4,101 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,

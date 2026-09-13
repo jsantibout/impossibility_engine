@@ -539,6 +539,21 @@ export interface AreaTrigger {
    */
   readonly onEntry?: 'every-entry' | 'first-per-turn';
   /**
+   * SRD "when the spell's area moves into its space".
+   *
+   * The area arrives; the creature has not moved. Four spells print it —
+   * Moonbeam, Cloudkill, Incendiary Cloud and Spirit Guardians — and every one
+   * of them is a spell whose area the rules go on to move. **Absent is the
+   * ordinary case and must stay that way**: Insect Plague, Web, Grease and
+   * Black Tentacles print no such clause, their areas never move, and a
+   * neighbouring spell's moving-area sentence lends a fixed area nothing.
+   *
+   * Deliberately not implied by {@link onEntry}. They are two clauses in one
+   * SRD sentence, they can be capped differently, and conflating them is how
+   * Web's entry cap would come to be spent by a beam sliding overhead.
+   */
+  readonly onAreaEntry?: true;
+  /**
    * SRD "A creature makes this save only once per turn."
    *
    * Caps the *creature*, across every clause above, for one casting. Distinct
@@ -546,6 +561,12 @@ export interface AreaTrigger {
    * difference is observable exactly once: a creature that starts its turn in
    * a Web and then re-enters it saves twice, where Insect Plague would have
    * caught it once.
+   *
+   * Moonbeam is the spell that proves the cap really does span every clause:
+   * "A creature also makes this save when the spell's area moves into its
+   * space and when it enters the spell's area or ends its turn there. A
+   * creature makes this save **only once per turn**." One sentence names three
+   * clauses and the next caps the creature across all of them.
    */
   readonly oncePerTurn?: true;
   /**
@@ -675,9 +696,10 @@ export interface SpellDefinition {
    * What the area goes on doing to creatures after the casting — see
    * {@link AreaTrigger}.
    *
-   * Set only alongside `area`, and only for an area that **stays where it was
-   * put**: an area that moves prints "when the area moves into its space" as
-   * its own clause, and nothing here detects that.
+   * Set only alongside `area`. An area that the rules later move prints "when
+   * the area moves into its space" as its own clause and states it in
+   * {@link AreaTrigger.onAreaEntry}; an area that stays where it was put
+   * leaves that absent.
    */
   readonly areaTrigger?: AreaTrigger;
   /**
@@ -819,9 +841,36 @@ export interface SpellActivation {
    * to get one sentence wrong, and `spell-catalogue.test.ts` pins it.
    */
   readonly range?: SpellRange;
+  /**
+   * How far this action may move the spell's own persistent area, in feet.
+   *
+   * SRD Moonbeam writes the action and the allowance as one clause — "you can
+   * take a **Magic action** on later turns to **move the Cylinder up to 60
+   * feet**" — and that clause is the entire content of the action. There is
+   * no attack, no target and no effect of its own: what the move may cause is
+   * the spell's own area-entry clause catching whoever the beam arrives on,
+   * and that is {@link AreaTrigger.onAreaEntry}, not something listed here.
+   *
+   * **Not {@link CastingOrigin.movableBy}, and the SRD separates them.**
+   * Spiritual Weapon's is a rider on an action that also strikes — "move the
+   * force up to 20 feet **and** repeat the attack" — so the move is optional
+   * and something else is the point of the Bonus Action. Here the move *is*
+   * the action, so a caller who names no destination has spent a Magic action
+   * on nothing and is refused. Two sentences, two fields; one field would have
+   * made a movement-only action indistinguishable from a rider that was
+   * declined.
+   */
+  readonly movesArea?: number;
   /** How the log reads: "Vampiric Touch (again)". */
   readonly label: string;
-  /** What it does, run with the level and route pinned at the casting. */
+  /**
+   * What it does, run with the level and route pinned at the casting.
+   *
+   * Empty for an activation whose whole content is moving the area — see
+   * {@link movesArea}. That is not a stub: Moonbeam's later Magic action
+   * resolves nothing directly, and every creature it catches is caught by the
+   * spell's own trigger through the ordinary debt.
+   */
   readonly effects: readonly SpellEffect[];
 }
 
@@ -2378,6 +2427,106 @@ export const INCENDIARY_CLOUD: SpellDefinition = {
     'the same save again when the Sphere moves into a creature\u2019s space, or when it enters the Sphere or ends its turn there, once per turn',
     'the cloud moving 10 feet away from you, in a direction you choose, at the start of each of your turns',
     'a strong wind disperses the cloud and ends the spell',
+  ],
+};
+
+/**
+ * SRD Moonbeam:
+ *
+ * > _Level 2 Evocation (Druid)._ **Casting Time:** Action. **Range:** 120
+ * > feet. **Duration:** Concentration, up to 1 minute.
+ * > "A silvery beam of pale light shines down in a 5-foot-radius, 40-foot-high
+ * > Cylinder centered on a point within range. Until the spell ends, Dim Light
+ * > fills the Cylinder, and you can take a Magic action on later turns to move
+ * > the Cylinder up to 60 feet."
+ * > "When the Cylinder appears, each creature in it makes a Constitution
+ * > saving throw. On a failed save, a creature takes 2d10 Radiant damage, and
+ * > if the creature is shape-shifted ... it reverts to its true form and can't
+ * > shape-shift until it leaves the Cylinder. On a successful save, a creature
+ * > takes half as much damage only. A creature also makes this save **when the
+ * > spell's area moves into its space** and when it enters the spell's area or
+ * > ends its turn there. A creature makes this save only once per turn."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d10 for each
+ * > spell slot level above 2."
+ *
+ * **The spell that proves an area can arrive at a creature standing still.**
+ * Every other persistent area in the catalogue is conjured somewhere and stays
+ * there, so membership changed only when a creature changed its position.
+ * Moonbeam prints three trigger clauses in one sentence and the first of them
+ * is the beam's own motion — see {@link AreaTrigger.onAreaEntry}.
+ *
+ * Four sentences, four fields, and none of them invented:
+ *
+ * | SRD | Where |
+ * |---|---|
+ * | "a 5-foot-radius, 40-foot-high Cylinder centered on a point" | `area` |
+ * | "within range" — 120 feet, measured from the caster at the cast | `range` |
+ * | "take a Magic action ... to move the Cylinder up to 60 feet" | `activation.movesArea` |
+ * | "when the spell's area moves into its space" | `areaTrigger.onAreaEntry` |
+ *
+ * **The 120 feet is not the allowance.** Range governs where the beam may
+ * first be put down; the 60 feet governs how far it travels afterwards, from
+ * wherever it now is. A beam walked steadily away ends up further from its
+ * caster than the spell's Range, which is what the two separate sentences say.
+ *
+ * `onEntry: 'every-entry'` is the text and not a shortcut: Moonbeam writes
+ * "when it enters the spell's area" with no "for the first time on a turn",
+ * unlike Insect Plague. The cap that makes the two behave alike is the
+ * separate "only once per turn" sentence, which is a cap on the *creature*
+ * across all three clauses.
+ */
+export const MOONBEAM: SpellDefinition = {
+  id: 'moonbeam',
+  name: 'Moonbeam',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  area: { kind: 'cylinder', radius: 5, height: 40, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'con',
+      damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
+      damageType: 'radiant',
+      onSuccess: 'half',
+    },
+  ],
+  durationSeconds: 60,
+  // "A creature also makes this save when the spell's area moves into its
+  // space and when it enters the spell's area or ends its turn there. A
+  // creature makes this save only once per turn." Three clauses, one save, one
+  // cap on the creature that spans all three.
+  areaTrigger: {
+    at: 'end-of-turn',
+    onEntry: 'every-entry',
+    onAreaEntry: true,
+    oncePerTurn: true,
+    label: 'Moonbeam (the beam)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'con',
+        damage: { dice: '2d10', perSlotLevelAbove: '1d10' },
+        damageType: 'radiant',
+        onSuccess: 'half',
+      },
+    ],
+  },
+  // "you can take a Magic action on later turns to move the Cylinder up to 60
+  // feet." The action's entire content, which is why it carries no effects and
+  // aims at nobody.
+  activation: {
+    action: 'action',
+    movesArea: 60,
+    label: 'Moonbeam (the beam moves)',
+    effects: [],
+  },
+  unmodelled: [
+    'the Dim Light that fills the Cylinder for the duration; light is not modelled',
+    'a shape-shifted creature reverting to its true form on a failed save, and being unable to shape-shift until it leaves the Cylinder: shape-shifting is not modelled',
   ],
 };
 
@@ -5140,6 +5289,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MIND_SPIKE,
   MINOR_ILLUSION,
   MISTY_STEP,
+  MOONBEAM,
   MOVE_EARTH,
   NONDETECTION,
   PASSWALL,

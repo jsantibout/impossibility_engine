@@ -717,6 +717,37 @@ describe('every trigger is a clause the SRD actually prints', () => {
     },
   );
 
+  /**
+   * **And caps the entering only where the book caps the entering.** Two
+   * different sentences, which is the whole reason `onEntry` has two values:
+   *
+   * | Spell | The clause | Reading |
+   * |---|---|---|
+   * | Insect Plague | "enters the spell's area **for the first time on a turn**" | `first-per-turn` |
+   * | Web | "**The first time** a creature enters the webs on a turn" | `first-per-turn` |
+   * | Moonbeam | "when it enters the spell's area" | `every-entry` |
+   * | Grease | "A creature that enters the area" | `every-entry` |
+   *
+   * Moonbeam's own "only once per turn" sentence is a cap on the **creature**
+   * and lives in `oncePerTurn`; writing it a second time here would be one
+   * rule in two fields. A mutation that read Moonbeam's entry clause as Insect
+   * Plague's survived a whole suite before this test existed, because
+   * `oncePerTurn` bars the second entry first and hides the difference — a
+   * transcription nothing can check is only as good as whoever typed it.
+   */
+  it.each(triggered.map((d) => [d.id, d] as const))(
+    'caps %s at the entering only where the book caps the entering',
+    (spellId, definition) => {
+      const prose = PROSE.get(spellId) ?? '';
+      const onEntry = definition.areaTrigger?.onEntry;
+      if (onEntry === undefined) return;
+      const capped =
+        /first time (a creature )?enters?/i.test(prose) ||
+        /enters?[^.]*for the first time on a turn/i.test(prose);
+      expect(onEntry).toBe(capped ? 'first-per-turn' : 'every-entry');
+    },
+  );
+
   it.each(triggered.map((d) => [d.id, d] as const))(
     'fires %s at the boundary the book names',
     (spellId, definition) => {
@@ -736,6 +767,33 @@ describe('every trigger is a clause the SRD actually prints', () => {
       expect(definition.areaTrigger?.oncePerTurn === true).toBe(
         /only once per turn/i.test(prose),
       );
+    },
+  );
+
+  /**
+   * **And an area-side clause only where the book moves the area onto people.**
+   * Four SRD spells print it and every one of them is a spell whose area the
+   * rules go on to move: "when the spell's **area moves into its space**"
+   * (Moonbeam), "when the **Sphere moves into its space**" (Cloudkill,
+   * Incendiary Cloud), "whenever the **Emanation enters a creature's space**"
+   * (Spirit Guardians). The last is the same mechanic in the opposite word
+   * order, which is exactly why the regex reads both.
+   *
+   * The four fixed areas here print nothing of the kind, and the way that
+   * stays true is the spell's own prose rather than a comment.
+   */
+  it.each(triggered.map((d) => [d.id, d] as const))(
+    'gives %s an area-side clause only where the book has one',
+    (spellId, definition) => {
+      const prose = PROSE.get(spellId) ?? '';
+      const printed =
+        /\b(area|sphere|cloud|cylinder|emanation)\s+moves into\s+(its|a creature(’|')s)\s+space/i.test(
+          prose,
+        ) ||
+        /\b(area|sphere|cloud|cylinder|emanation)\s+enters\s+a creature(’|')s\s+space/i.test(
+          prose,
+        );
+      expect(definition.areaTrigger?.onAreaEntry === true).toBe(printed);
     },
   );
 

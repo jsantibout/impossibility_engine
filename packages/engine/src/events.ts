@@ -2324,7 +2324,14 @@ function areaTriggerAllowed(
   if (stamp === undefined || stamp.turn !== turn) return true;
 
   if (trigger.oncePerTurn === true) return false;
-  return !(moment === 'entry' && trigger.onEntry === 'first-per-turn' && stamp.byEntry);
+
+  // **Only a creature's own entry spends the entry cap.** SRD Web caps "the
+  // first time a creature **enters** the webs on a turn", and an area that
+  // slid onto a creature standing still was not entered by it. No registered
+  // spell prints both clauses, so nothing observes this today — which is
+  // precisely why the narrow reading is the one to write down now, while the
+  // sentence that decides it is still in front of us.
+  return !(moment === 'entry' && trigger.onEntry === 'first-per-turn' && stamp.byCreatureEntry);
 }
 
 /** Raise one debt, and stamp the turn it was raised on. */
@@ -2348,8 +2355,9 @@ function oweAreaEffect(
             ...state.areaTriggers,
             [key]: {
               turn,
-              byEntry:
-                moment === 'entry' || (previous?.turn === turn && previous.byEntry === true),
+              byCreatureEntry:
+                moment === 'entry' ||
+                (previous?.turn === turn && previous.byCreatureEntry === true),
             },
           }),
   };
@@ -2527,6 +2535,73 @@ function raiseAreaEntries(state: GameState, before: PositionState | null): GameS
       if (!areaTriggerAllowed(current, castingId, who, definition.trigger, 'entry', turn)) continue;
       current = oweAreaEffect(current, castingId, who, 'entry', turn);
     }
+  }
+  return current;
+}
+
+/**
+ * The creatures a casting's area has just arrived on.
+ *
+ * SRD Moonbeam: "A creature also makes this save **when the spell's area moves
+ * into its space**." Cloudkill, Incendiary Cloud and Spirit Guardians print
+ * the same clause about their own areas. It is not the entry clause wearing a
+ * different coat: nobody moved, and a creature that did not move has not
+ * entered anything.
+ *
+ * **The authoritative operation says what changed, and that is the whole of
+ * the design.** `creature-moved` means a creature's membership may have
+ * changed and `raiseAreaEntries` answers it; `spell-origin-moved` means *this
+ * casting's* area moved and this answers that. Nothing anywhere asks the
+ * weaker question "did membership change somehow", because the SRD wrote two
+ * clauses and an engine that could not tell them apart would have to guess
+ * which one it was obeying.
+ *
+ * So this compares one casting's area at two points and every creature in the
+ * scene, where the entry detector compares every casting against the creatures
+ * that moved. Outside-before and inside-after is the only transition that
+ * fires: inside → inside is a creature the beam was already on, inside →
+ * outside is one it left, and outside → outside is dealt with above the
+ * reducer — see `relocateOrigin`, which says out loud when a leg was long
+ * enough to have passed over somebody unseen.
+ *
+ * **Creation is not movement.** A casting's first `spell-ongoing` records
+ * where the area is and raises nothing here; the creatures standing in it are
+ * caught by the spell's own casting effect, which is the sentence "when the
+ * Cylinder appears" and is resolved at the cast. Only a *move* of an area that
+ * already exists reaches this function, which is structural rather than
+ * guarded: `spell-origin-moved` throws for a casting that holds no point.
+ */
+function raiseAreaArrivals(
+  state: GameState,
+  castingId: string,
+  from: Point,
+  to: Point,
+): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+
+  const record = state.ongoing[castingId];
+  if (record === undefined) return state;
+
+  const definition = areaDefinitionOf(record.spellId);
+  // **A fixed area gains nothing from a neighbour's moving one.** Web's Cube
+  // stays where it was conjured, and a hand-built log that moved its point
+  // anyway must not make it start catching people on a clause it never printed.
+  if (definition === null || definition.trigger.onAreaEntry !== true) return state;
+
+  const was = creaturesInCastingArea(scene, { ...record, origin: from });
+  const now = creaturesInCastingArea(scene, { ...record, origin: to });
+  if (was === null || now === null) return state;
+
+  const turn = state.combat?.turnsTaken ?? null;
+
+  let current = state;
+  for (const who of [...now].sort()) {
+    if (was.has(who)) continue;
+    if (!areaTriggerAllowed(current, castingId, who, definition.trigger, 'area-moved', turn)) {
+      continue;
+    }
+    current = oweAreaEffect(current, castingId, who, 'area-moved', turn);
   }
   return current;
 }
@@ -3258,13 +3333,20 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       // A casting that never held a point cannot have moved one. The command
       // refuses this; a hand-built log that does it anyway is a log and a set
       // of rules that disagree, which is loud rather than absorbed.
-      if (record.origin === undefined) {
+      const from = record.origin;
+      if (from === undefined) {
         throw new CorruptLogError(event, `${event.castingId} holds no point to move`);
       }
-      return {
+      // The point moves, and then the area it defines is asked who it arrived
+      // on. Derived rather than carried on the event for the reason every
+      // other consequence in this file is derived: nobody *decides* that a
+      // beam swept over somebody, and a replay reconstructs it because the
+      // fold does.
+      const moved: GameState = {
         ...next,
         ongoing: { ...state.ongoing, [event.castingId]: { ...record, origin: event.to } },
       };
+      return raiseAreaArrivals(moved, event.castingId, from, event.to);
     }
     case 'spell-interrupted': {
       const waiting = state.pendingCasting;

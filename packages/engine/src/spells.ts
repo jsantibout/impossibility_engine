@@ -259,14 +259,32 @@ export interface CastingNumbers {
  * implementation that let the key order decide would settle whichever sorted
  * first, which is a coin toss dressed as a rule.
  *
- * `entry` is one value rather than three because the *cause* of a position
- * change is not a rule: a creature that walked in, was shoved in, or was
- * carried in by its mount has entered. The causes this batch does **not**
- * detect — an area that moves onto a creature, an area a creature is carried
- * by — would raise this same value when they arrive, which is why it is named
- * for the membership change rather than for walking.
+ * `entry` is one value rather than three because the *cause* of a creature's
+ * position change is not a rule: a creature that walked in, was shoved in, or
+ * was carried in by its mount has entered, and the SRD writes one clause for
+ * all three.
+ *
+ * **`area-moved` is a fourth value and not a fourth cause of `entry`**, and
+ * the SRD is why. Moonbeam: "A creature also makes this save **when the
+ * spell's area moves into its space** and when it enters the spell's area or
+ * ends its turn there." Two clauses in one sentence, and Cloudkill, Incendiary
+ * Cloud and Spirit Guardians all print the same pair. A creature that has not
+ * moved has not entered anything — the beam arrived — and two consequences
+ * follow that a shared value would have got wrong:
+ *
+ * - **The entry cap must not be spent by it.** `onEntry: 'first-per-turn'` is
+ *   Web's cap on *entering*; an area sliding onto a creature is not that
+ *   creature's first entry of the turn and must not consume it. No registered
+ *   spell prints both clauses today, which is exactly when the distinction is
+ *   cheap to keep and impossible to reconstruct later.
+ * - **The history must say which happened.** `area-effect-settled` carries the
+ *   moment, and "the beam swept over you" and "you walked into the beam" are
+ *   different answers to why a creature took radiant damage.
+ *
+ * What the two share is the *consequence*: one debt, one queue, one
+ * settlement. The cause is distinguished; the machinery is not duplicated.
  */
-export type AreaMoment = 'end-of-turn' | 'entry' | 'start-of-turn';
+export type AreaMoment = 'end-of-turn' | 'area-moved' | 'entry' | 'start-of-turn';
 
 /**
  * An effect a persistent spell area owes a creature, and has not yet dealt.
@@ -323,8 +341,18 @@ export interface OwedAreaEffect {
 export interface AreaTriggerStamp {
   /** The global turn, from `turnsTaken`. */
   readonly turn: number;
-  /** Whether an **entry** was among what fired this turn. */
-  readonly byEntry: boolean;
+  /**
+   * Whether a **creature-side entry** was among what fired this turn.
+   *
+   * Named for the cause rather than for the membership change, because one
+   * cap in the book reads exactly that narrowly: Web's "**The first time a
+   * creature enters** the webs on a turn". An area that slides onto a
+   * standing creature has not been entered by it, so `area-moved` never sets
+   * this and is never barred by it — see {@link AreaMoment}. The shorter name
+   * `byEntry` was the same field before an area could move, and it would have
+   * read as true of both.
+   */
+  readonly byCreatureEntry: boolean;
 }
 
 /** The key a stamp is filed under: one casting, one creature. */

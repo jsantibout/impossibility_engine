@@ -4062,8 +4062,36 @@ export interface ActivateSpellCommand extends CommandIdentity {
    * "Up to 20 feet" includes none of them, so it is optional. The engine owns
    * the allowance, the geometry and the identity of what is being moved; the
    * caller owns the destination.
+   *
+   * **Required** where the activation's whole content is the move — see
+   * {@link SpellActivation.movesArea} — because a Magic action spent moving
+   * nothing is not a thing SRD Moonbeam offers.
    */
   readonly to?: Point;
+  /**
+   * The spaces a moving **area** passed through on the way, in order.
+   *
+   * SRD Moonbeam moves its Cylinder "up to 60 feet" and makes every creature
+   * the area arrives on save. Twelve spaces is far enough to pass clean over
+   * somebody, and **the engine has no route to read**: two points do not imply
+   * the line between them, and drawing one would be the engine inventing a
+   * path nobody took — the same refusal `raiseAreaEntries` already makes about
+   * a creature's own movement.
+   *
+   * So the route is the caller's to state, at whatever fidelity the fiction
+   * has. Each consecutive pair is one authoritative relocation, written as its
+   * own `spell-origin-moved`, and each is asked who the area arrived on. The
+   * allowance caps the **sum** of the legs, which is what "up to 60 feet"
+   * measures: a beam walked round three sides of a square has travelled all
+   * three, however near where it started it ends up.
+   *
+   * Absent is one leg, which is exact when it is one space long and otherwise
+   * says so in `unverified`. Not a path *finder*: nothing here searches,
+   * smooths, interpolates or validates that consecutive waypoints are
+   * adjacent — a waypoint is an authoritative fact the caller supplies, and a
+   * caller who supplies none gets the honest gap instead.
+   */
+  readonly via?: readonly Point[];
 }
 
 /**
@@ -4165,12 +4193,26 @@ export function activateSpell(
   // gets a better attack modifier because the wizard levelled between the
   // casting and the punch.
 
-  const optional = definition.targets.optional === true;
-  if (command.targets.length > 1 || (command.targets.length === 0 && !optional)) {
-    return err(
-      'wrong_target_count',
-      `${record.spell} strikes one creature at a time, got ${command.targets.length}`,
-    );
+  // **An activation that only moves the area aims at nobody.** Not
+  // `targets.optional`, which is Spiritual Weapon's "you **can** make one
+  // melee spell attack" — a target that may be declined. Moonbeam's later
+  // Magic action has no attack to decline, so a named target is a caller
+  // asking the beam to do something it does not do.
+  if (activation.movesArea !== undefined) {
+    if (command.targets.length > 0) {
+      return err(
+        'wrong_target_count',
+        `${record.spell}'s later action moves the area and strikes nobody, got ${command.targets.length} target(s)`,
+      );
+    }
+  } else {
+    const optional = definition.targets.optional === true;
+    if (command.targets.length > 1 || (command.targets.length === 0 && !optional)) {
+      return err(
+        'wrong_target_count',
+        `${record.spell} strikes one creature at a time, got ${command.targets.length}`,
+      );
+    }
   }
   const target = command.targets[0] ?? null;
   if (target !== null && creatureOf(state, target) === null) return unknownCreature(target);
@@ -4183,9 +4225,10 @@ export function activateSpell(
   // attack against a creature within 5 feet of it" — so a move that brings the
   // force into reach is the whole point of the action. Validated before
   // anything is spent, like everything else.
-  const moved = relocateOrigin(state, record, definition, command.to);
+  const moved = relocateOrigin(state, record, definition, command, unverified);
   if (!moved.ok) return moved;
-  const origin = moved.value;
+  const legs = moved.value;
+  const origin = legs[legs.length - 1] ?? record.origin ?? null;
 
   // Checked afresh: the creature that was in reach a minute ago may not be.
   if (target !== null) {
@@ -4214,11 +4257,17 @@ export function activateSpell(
     );
   }
 
-  // Resolved history: the point is somewhere else now, and the Bonus Action
-  // above is what put it there. Its own event because the move is optional and
-  // the activation is not — one event, one thing.
-  if (command.to !== undefined && origin !== null) {
-    events.push({ type: 'spell-origin-moved', castingId: record.castingId, to: origin });
+  // Resolved history: the point is somewhere else now, and the action above is
+  // what put it there. Its own event because the move is optional and the
+  // activation is not — one event, one thing.
+  //
+  // **One event per leg**, which is what makes a stated route authoritative
+  // rather than decorative: the fold sees the area at each place it was, and
+  // asks at each of them who it arrived on. A route needed no new event and no
+  // new field, because the engine already had an event for one move and a
+  // route is a sequence of those.
+  for (const space of legs) {
+    events.push({ type: 'spell-origin-moved', castingId: record.castingId, to: space });
   }
 
   // The stamp rides here because this event always happens: the attack it runs
@@ -4248,7 +4297,17 @@ export function activateSpell(
 }
 
 /**
- * Where the casting's point is once this activation has moved it, or null.
+ * One space on the lattice, in feet.
+ *
+ * SRD: "Each square represents 5 feet." The only thing this is used for here
+ * is deciding whether a leg of an area's route had anything *between* its
+ * endpoints: a step to an adjacent space has no cube in between and is exact,
+ * and anything longer does.
+ */
+const SPACE = 5;
+
+/**
+ * Every place the casting's point was during this activation, in order.
  *
  * **A spell-origin move is not creature movement, and nothing here makes it
  * one.** The rules a creature's move obeys are absent because the SRD never
@@ -4262,21 +4321,51 @@ export function activateSpell(
  * inside; and the identity of the casting being moved, which the caller named
  * and the command has already checked belongs to them.
  *
- * Returns null when this casting holds no point at all — an ordinary
- * later-turn spell like Vampiric Touch — which is what tells the reach check
- * above to measure from the caster instead.
+ * **A list rather than a destination, because a moving *area* makes the route
+ * observable.** Twenty feet of beam passes over the space in between, and two
+ * points do not imply the line between them — so each leg the caller states is
+ * an authoritative relocation of its own, and a leg the caller did not break
+ * up says in `unverified` that nothing records what it crossed. For a point
+ * nothing triggers on, the route is unobservable and one leg is the whole
+ * answer, which is every Spiritual Weapon and why nothing there changed.
+ *
+ * Empty when this activation moved nothing — an ordinary later-turn spell like
+ * Vampiric Touch — which leaves the reach check measuring from the caster.
  */
 function relocateOrigin(
   state: GameState,
   record: OngoingSpell,
   definition: SpellDefinition,
-  to: Point | undefined,
-): Result<Point | null> {
+  command: ActivateSpellCommand,
+  unverified: string[],
+): Result<readonly Point[]> {
   const current = record.origin ?? null;
 
-  if (to === undefined) return ok(current);
+  // **Two sentences, two allowances.** Spiritual Weapon's is a rider on a
+  // Bonus Action that also strikes, so declining it is legal; Moonbeam's is
+  // the Magic action's entire content, so declining it spends an action on
+  // nothing. Which one this is decides both the number and whether `to` may
+  // be left out.
+  const asAction = definition.activation?.movesArea;
+  const asRider = definition.origin?.movableBy;
+  const allowance = asAction ?? asRider;
 
-  const allowance = definition.origin?.movableBy;
+  if (command.to === undefined) {
+    if (asAction !== undefined) {
+      return err(
+        'destination_required',
+        `${record.spell}'s later action is moving the area; name where it goes`,
+      );
+    }
+    if (command.via !== undefined && command.via.length > 0) {
+      return err(
+        'destination_required',
+        `${record.spell} was given a route with nowhere to end`,
+      );
+    }
+    return ok([]);
+  }
+
   if (current === null || allowance === undefined) {
     return err(
       'not_movable',
@@ -4287,27 +4376,60 @@ function relocateOrigin(
     return err('no_scene', `${record.spell} needs a scene to be moved about in`);
   }
 
-  const space = snapToSpace(to);
-  if (!isInsideScene(state.scene, space)) {
-    return err(
-      'outside_scene',
-      `${record.spell} cannot be moved to (${space.x}, ${space.y}, ${space.z}); that is outside this scene`,
-    );
+  const legs = [...(command.via ?? []), command.to].map(snapToSpace);
+
+  for (const space of legs) {
+    if (!isInsideScene(state.scene, space)) {
+      return err(
+        'outside_scene',
+        `${record.spell} cannot be moved to (${space.x}, ${space.y}, ${space.z}); that is outside this scene`,
+      );
+    }
   }
 
   // From where it is, not from where it started and not from the caster. A
   // force may be walked steadily further away than the spell's own Range,
   // which is exactly what "move the force up to 20 feet" says and what a
   // re-check against the caster would wrongly forbid.
-  const travelled = distanceBetweenPoints(current, space);
+  //
+  // **The sum of the legs, not the displacement.** "Up to 60 feet" is a
+  // distance travelled, so a route that doubles back spends what it walked
+  // rather than what it achieved. With no waypoints the two are the same
+  // number and every existing caller is untouched.
+  let travelled = 0;
+  let at = current;
+  for (const space of legs) {
+    travelled += distanceBetweenPoints(at, space);
+    at = space;
+  }
   if (travelled > allowance) {
     return err(
       'origin_too_far',
-      `${record.spell} moves up to ${allowance} feet; that space is ${travelled} away`,
+      `${record.spell} moves up to ${allowance} feet; that route is ${travelled} long`,
     );
   }
 
-  return ok(space);
+  // **What a leg cannot prove.** The engine knows the area was here and then
+  // there; it does not know what it passed over, and a leg longer than one
+  // space has spaces in between that no fact in the log names. Said out loud
+  // rather than answered with a straight line — and only where a rule would
+  // read it: a casting whose area triggers on nothing as it travels has no
+  // route to be wrong about, which is every Spiritual Weapon.
+  const watched = definition.areaTrigger?.onAreaEntry === true;
+  if (watched) {
+    let previous = current;
+    for (const space of legs) {
+      const leg = distanceBetweenPoints(previous, space);
+      if (leg > SPACE) {
+        unverified.push(
+          `${record.spell}'s area moved ${leg} feet from (${previous.x}, ${previous.y}, ${previous.z}) to (${space.x}, ${space.y}, ${space.z}) in one step, and nothing records which spaces it crossed; any creature it passed over was not caught`,
+        );
+      }
+      previous = space;
+    }
+  }
+
+  return ok(legs);
 }
 
 /** An ordinary later-turn spell: the caster's own reach, checked afresh. */
@@ -6254,8 +6376,14 @@ export function owedAreaEffectsOf(state: GameState): readonly OwedAreaEffect[] {
  */
 const MOMENT_ORDER: Readonly<Record<AreaMoment, number>> = {
   'end-of-turn': 0,
-  entry: 1,
-  'start-of-turn': 2,
+  // Both are things that happened between the boundaries, and the SRD orders
+  // neither against the other. The area's own move is the authoritative
+  // operation that raised its debt, and a creature cannot move while that debt
+  // stands, so the two only ever meet in a log nothing here would write — an
+  // order is given so that log still folds the same way twice.
+  'area-moved': 1,
+  entry: 2,
+  'start-of-turn': 3,
 };
 
 const castingNumberOf = (castingId: string): number =>

@@ -181,6 +181,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'lightning-bolt',
   'mass-cure-wounds',
   'mind-spike',
+  'moonbeam',
   'poison-spray',
   'ray-of-frost',
   'ray-of-sickness',

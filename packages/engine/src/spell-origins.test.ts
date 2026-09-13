@@ -1094,11 +1094,53 @@ describe('a definition says where its reach is measured from, once', () => {
     expect(both.map((d) => d.id)).toEqual([]);
   });
 
-  it('gives every activation without an origin a range of its own', () => {
+  /**
+   * **An activation that aims at somebody needs a reach**, and until Moonbeam
+   * every activation aimed at somebody. The exception is not an exemption: an
+   * action whose whole content is moving the spell's own area has no target
+   * to be within anything of, and the distance it *does* own — how far the
+   * area may travel — is `movesArea` and is measured between two points of
+   * the area's own rather than from the caster.
+   */
+  it('gives every activation that aims at somebody a range of its own', () => {
     const missing = SPELL_DEFINITIONS.filter(
-      (d) => d.activation !== undefined && d.origin === undefined && d.activation.range === undefined,
+      (d) =>
+        d.activation !== undefined &&
+        d.activation.movesArea === undefined &&
+        d.origin === undefined &&
+        d.activation.range === undefined,
     );
     expect(missing.map((d) => d.id)).toEqual([]);
+  });
+
+  /** And an activation that only moves an area aims at nobody, so it has none. */
+  it('gives a movement-only activation no range and no effects', () => {
+    const wrong = SPELL_DEFINITIONS.filter(
+      (d) =>
+        d.activation?.movesArea !== undefined &&
+        (d.activation.range !== undefined || d.activation.effects.length > 0),
+    );
+    expect(wrong.map((d) => d.id)).toEqual([]);
+  });
+
+  /**
+   * The two allowances are two SRD sentences and a definition has one.
+   * `CastingOrigin.movableBy` is a rider on an action that also does
+   * something; `SpellActivation.movesArea` is the action itself.
+   */
+  it('states an area’s movement allowance or a point’s, never both', () => {
+    const both = SPELL_DEFINITIONS.filter(
+      (d) => d.activation?.movesArea !== undefined && d.origin?.movableBy !== undefined,
+    );
+    expect(both.map((d) => d.id)).toEqual([]);
+  });
+
+  /** An area that can be moved has to be an area. */
+  it('gives every movable area an area to move', () => {
+    const orphaned = SPELL_DEFINITIONS.filter(
+      (d) => d.activation?.movesArea !== undefined && d.area === undefined,
+    );
+    expect(orphaned.map((d) => d.id)).toEqual([]);
   });
 
   /** And a point that can be steered needs an activation to steer it in. */
