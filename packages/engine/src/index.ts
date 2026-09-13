@@ -13,6 +13,12 @@ export * from './origins.js';
 export * from './spellbook.js';
 export * from './spellcasting.js';
 export * from './spell-definitions.js';
+// The definition validator. Exported because the point of it is that a
+// definition does not have to have come through the compiler: whatever layer
+// supplies one — a loader, a tool surface, a future authoring path — validates
+// it here rather than writing its own checks, the way `author_creature`'s
+// hand-written accessors had to.
+export * from './spell-schema.js';
 export * from './creation.js';
 export * from './spells.js';
 export * from './character.js';

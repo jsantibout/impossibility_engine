@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import { declaredCasting } from './spellcasting.js';
@@ -6,7 +8,12 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
-import { resolveSpell } from './commands.js';
+import { anchoringFor, resolveSpell } from './commands.js';
+import {
+  SPELL_DEFINITIONS,
+  definitionFor,
+  type SpellDefinition,
+} from './spell-definitions.js';
 import {
   addLandmark,
   anchoringOf,
@@ -565,5 +572,77 @@ describe('a casting states its convention and keeps it', () => {
     );
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('area_starts_at_caster');
+  });
+});
+
+/**
+ * Which convention a casting reads its footprint under, and who decides.
+ *
+ * Three sources, in one order, resolved in one function so that the geometry
+ * and the ongoing record cannot disagree: **the request, then the definition,
+ * then `space`.** The request path is driven end to end above; this pins the
+ * precedence itself, which is the half no SRD content exercises.
+ */
+describe('a spell may declare the footprint its template wants', () => {
+  const fireball = definitionFor('fireball')!;
+
+  const declaring = (anchoring: 'space' | 'intersection'): SpellDefinition => ({
+    ...fireball,
+    anchoring,
+  });
+
+  it('falls back to a space when neither says', () => {
+    expect(anchoringFor(fireball, {})).toBe('space');
+  });
+
+  it('takes the definition’s when the caster says nothing', () => {
+    expect(anchoringFor(declaring('intersection'), {})).toBe('intersection');
+    expect(anchoringFor(declaring('space'), {})).toBe('space');
+  });
+
+  /**
+   * The caster keeps the last word, because `CastSpellRequest.anchoring`
+   * exists precisely so a caster who wants the other convention can ask for
+   * it. The definition replaces the hard-coded default underneath, not the
+   * caster’s choice on top.
+   */
+  it('lets the caster override it either way', () => {
+    expect(anchoringFor(declaring('space'), { anchoring: 'intersection' })).toBe('intersection');
+    expect(anchoringFor(declaring('intersection'), { anchoring: 'space' })).toBe('space');
+  });
+
+  /**
+   * One resolver, both readers. The geometry builds the template with it and
+   * the ongoing record stores it for every later trigger; if either re-derived
+   * it, a footprint a spell declared would survive to one and not the other.
+   */
+  it('is the only place the runtime decides', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./commands.ts', import.meta.url)),
+      'utf8',
+    );
+    // Two call sites and the declaration itself.
+    expect(source.split('anchoringFor(').length - 1).toBe(3);
+    expect(source).not.toContain("request.anchoring ?? 'space'");
+  });
+
+  /**
+   * **No SRD spell declares one**, and that is a decision rather than a gap.
+   *
+   * SRD 5.2.1 mandates no convention — its "Playing on a Grid" sidebar covers
+   * squares, Speed, entering a square, corners and ranges and says nothing
+   * whatever about areas of effect, and the intersection convention comes from
+   * a 2014 optional rule. Declaring one per spell would be the engine choosing
+   * a rule the book declined to give, and doing it inside a definitions pass
+   * would change thirteen spells’ footprints behind a migration.
+   *
+   * The field exists so a deliberate geometry pass, or an author of content
+   * the SRD never printed, says it in data instead of in runtime logic. This
+   * test is what makes that claim fail the day somebody changes it silently.
+   */
+  it('is declared by no spell in the catalogue', () => {
+    expect(SPELL_DEFINITIONS.filter((d) => d.anchoring !== undefined).map((d) => d.id)).toEqual(
+      [],
+    );
   });
 });

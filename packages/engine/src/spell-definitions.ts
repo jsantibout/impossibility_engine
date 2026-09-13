@@ -1,5 +1,6 @@
 import type { Ability, ConditionName, Skill } from '@ie/shared';
 import type { Bonus, BonusApplies } from './bonuses.js';
+import type { PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 
@@ -449,6 +450,59 @@ export type SpellEffect =
    * them would be a second place to get Dispel Magic wrong.
    */
   | { readonly kind: 'dispel' }
+  /**
+   * A **base** Armour Class the spell supplies, in place of the one the target
+   * would otherwise calculate.
+   *
+   * SRD Mage Armor: "the target's **base AC becomes 13 plus its Dexterity
+   * modifier**." That is not a bonus and modelling it as one is wrong twice
+   * over, silently:
+   *
+   * - it would stack on a Barbarian's Unarmoured Defense, and SRD
+   *   Multiclassing says "If you have multiple ways to calculate your Armor
+   *   Class, you can benefit from only one at a time";
+   * - it would stack on worn armour, which the spell's own sentence forbids.
+   *
+   * A flat `+3` is arithmetically identical for an ordinary unarmoured
+   * creature, which is exactly why it is the tempting answer and exactly why
+   * it is the dangerous one.
+   *
+   * **It is the shape Unarmoured Defense already is** — an alternative base
+   * calculation competing with `10 + Dexterity`, the best applicable one
+   * winning — so `armorClassCalculation` runs the same comparison over both
+   * rather than growing a second mechanism. Two concrete mechanics asking for
+   * one primitive is the evidence the generalization rule wants.
+   *
+   * The SRD's "while not wearing armour" needs no field: the comparison lives
+   * in the unarmoured branch, so a grant is simply inert while armour is worn.
+   * What a spell *does* need to say is that it may not be **cast** on an
+   * armoured creature, and that is {@link TargetRule.mustBeUnarmored}.
+   *
+   * Deliberately not Barkskin: "an Armor Class of 17 if its AC is lower than
+   * that" is a floor on the *total*, a different rule, and one spell is not
+   * evidence for building it.
+   */
+  | {
+      readonly kind: 'armor-class';
+      /** The number Dexterity is added to: SRD Mage Armor's "13". */
+      readonly base: number;
+      /**
+       * A **second** ability added alongside Dexterity, or null for none.
+       *
+       * Dexterity is in every base Armour Class calculation the SRD writes, so
+       * "13 plus its Dexterity modifier" is `base: 13` and no second ability.
+       * See {@link GrantedArmorClass.plusAbility}.
+       */
+      readonly plusAbility: Ability | null;
+      /**
+       * Whether a Shield still adds on top.
+       *
+       * True for Mage Armor: a Shield is not body armour, and the sheet has
+       * held the two apart since equipment landed. The Monk's version of the
+       * same shape says no, which is why this is stated rather than assumed.
+       */
+      readonly shieldAllowed: boolean;
+    }
   | {
       readonly kind: 'interrupt-casting';
       readonly ability: Ability;
@@ -644,6 +698,21 @@ export interface TargetRule {
    * something it could not see.
    */
   readonly mustBeType?: string;
+  /**
+   * SRD Mage Armor: "You touch a willing creature **who isn't wearing armor**."
+   *
+   * A clause about who may be targeted, so it lives beside {@link mustBeType}
+   * where the target rules are, rather than on the effect. Distinct from the
+   * effect being inert while armour is worn — that is the Armour Class coming
+   * out right; this is the casting being refused rather than spending a slot
+   * on a creature the spell cannot touch.
+   *
+   * Checked only where a caller **names** targets, which is every spell that
+   * prints the clause. An area filters rather than refuses and no area spell
+   * says this, so there is no branch there: a guard nothing can reach is not a
+   * rule.
+   */
+  readonly mustBeUnarmored?: true;
   /** Whether the caster may pick themselves. */
   readonly self?: boolean;
   /**
@@ -751,6 +820,36 @@ export interface SpellDefinition {
    * says the geometry bounds a choice.
    */
   readonly targetsWithin?: SpellArea;
+  /**
+   * Which convention this spell's template footprint is read under.
+   *
+   * A coordinate cannot say whether it names a 5-foot space or the lattice
+   * intersection four spaces share — they are the same three numbers — so the
+   * thing holding it says, and for an area of effect that thing is either the
+   * casting or the spell. `CastSpellRequest.anchoring` is the casting's say;
+   * this is the spell's, and the precedence is
+   * **request, then definition, then `space`**. The caster keeps the last word
+   * because that field exists precisely so a caster who wants the other can
+   * ask for it; this replaces the hard-coded default underneath.
+   *
+   * Absent on both, nothing changes at all: `space` is still normalised away
+   * when the ongoing record is built, so every log written before this folds
+   * byte for byte.
+   *
+   * **No SRD spell declares one, and that is a decision rather than a gap.**
+   * SRD 5.2.1 mandates no convention — its "Playing on a Grid" sidebar covers
+   * squares, Speed, entering a square, corners and ranges and says nothing
+   * whatever about areas of effect, and the intersection convention comes from
+   * a 2014 optional rule. Declaring one per spell would be the engine choosing
+   * a rule the book declined to give. The field exists so that a deliberate
+   * geometry pass, or an author of content the SRD never printed, says it in
+   * data instead of in runtime logic.
+   *
+   * Refused without a template, and refused for a template that starts at the
+   * caster: a `self` origin is a creature's own space, and a creature does not
+   * stand on an intersection.
+   */
+  readonly anchoring?: PointAnchoring;
   /**
    * A point in the scene this casting keeps — see {@link CastingOrigin}.
    *
@@ -3580,6 +3679,41 @@ export const DETECT_MAGIC: SpellDefinition = {
 };
 
 /**
+ * SRD Mage Armor:
+ *
+ * > _Level 1 Abjuration._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** 8 hours.
+ * > "You touch a willing creature who isn't wearing armor. Until the spell
+ * > ends, the target's base AC becomes 13 plus its Dexterity modifier. The
+ * > spell ends early if the target dons armor."
+ *
+ * The first spell to **replace** an Armour Class calculation rather than add
+ * to one — see the `armor-class` effect for why a `+3` bonus is the wrong
+ * answer even though it is usually the same number.
+ */
+export const MAGE_ARMOR: SpellDefinition = {
+  id: 'mage-armor',
+  name: 'Mage Armor',
+  level: 1,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true, mustBeUnarmored: true },
+  effects: [
+    // "13 plus its Dexterity modifier": Dexterity is already in the formula,
+    // so the base is the whole of what the spell states. A Shield still helps
+    // — it is not body armour, and "isn't wearing armor" is the body slot.
+    { kind: 'armor-class', base: 13, plusAbility: null, shieldAllowed: true },
+  ],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'the spell ends early if the target dons armor: the Armour Class is right either way, because the calculation is inert while armour is worn, but the casting goes on running and stays dispellable',
+    'whether the target is willing is not modelled; willingness is fiction',
+  ],
+};
+
+/**
  * SRD Mage Hand:
  *
  * > _Conjuration Cantrip._ **Casting Time:** Action. **Range:** 30 feet.
@@ -5401,6 +5535,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   LOCATE_CREATURE,
   LOCATE_OBJECT,
   LONGSTRIDER,
+  MAGE_ARMOR,
   MAGE_HAND,
   MASS_CURE_WOUNDS,
   MASS_HEALING_WORD,

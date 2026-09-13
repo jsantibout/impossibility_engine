@@ -1,5 +1,5 @@
 import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
-import type { CharacterSheet } from './character.js';
+import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { ROUND } from './clock.js';
 import type { RngState } from './dice.js';
 import {
@@ -239,6 +239,22 @@ export interface CreatureState {
    * `castingSource` was built for.
    */
   readonly bonuses: readonly ActiveBonus[];
+  /**
+   * Alternative base Armour Class calculations a running effect has supplied.
+   *
+   * SRD Mage Armor's "the target's base AC becomes 13 plus its Dexterity
+   * modifier" — a **replacement**, not an addition, which is why it is not in
+   * {@link bonuses}: a bonus adds to whatever the creature already calculates,
+   * and adding three to a Barbarian's Unarmoured Defense is the one thing SRD
+   * Multiclassing forbids.
+   *
+   * Kept beside the bonuses and linked the same way — the casting is in the
+   * `source` — so `releaseCasting` ends these with the spell through machinery
+   * that already existed. Read only by `armorClassOf`, and only in the
+   * unarmoured branch, so a grant is inert while armour is worn rather than
+   * needing a field to say so.
+   */
+  readonly armorClasses: readonly GrantedArmorClass[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *
@@ -834,6 +850,24 @@ export type GameEvent =
       readonly bonus: ActiveBonus;
     }
   | { readonly type: 'bonus-removed'; readonly id: CharacterId; readonly source: string }
+
+  /**
+   * An ongoing effect supplies an alternative **base** Armour Class.
+   *
+   * Its own event rather than a `bonus-applied` with a flag, because it is its
+   * own rule: a bonus adds to whatever the creature already calculates and
+   * this replaces the calculation, competing with every other way of arriving
+   * at one. SRD Multiclassing: "If you have multiple ways to calculate your
+   * Armor Class, you can benefit from only one at a time."
+   *
+   * Ended by the casting in its `source`, exactly as a bonus is, so there is
+   * no removal event: `releaseCasting` is the one door.
+   */
+  | {
+      readonly type: 'armor-class-granted';
+      readonly id: CharacterId;
+      readonly armorClass: GrantedArmorClass;
+    }
 
   /**
    * What a creature can cast, declared rather than derived.
@@ -1782,6 +1816,16 @@ function releaseCasting(
       updated = { ...updated, bonuses: survivors };
     }
 
+    // An Armour Class the casting supplied is linked the same way and goes the
+    // same way. A convergence point that forgot one kind of debt is the hole
+    // `releaseOnTarget`’s bonuses were.
+    const calculations = creature.armorClasses.filter(
+      (granted) => castingIdOf(granted.source) !== castingId,
+    );
+    if (calculations.length !== creature.armorClasses.length) {
+      updated = { ...updated, armorClasses: calculations };
+    }
+
     if (key === casterId && updated.concentration?.castingId === castingId) {
       updated = { ...updated, concentration: null };
     }
@@ -1950,7 +1994,18 @@ function releaseOnTarget(
     (instance) => castingIdOf(instance.source) === castingId,
   );
   const survivors = creature.bonuses.filter((bonus) => castingIdOf(bonus.source) !== castingId);
-  if (doomed.length === 0 && survivors.length === creature.bonuses.length) return base;
+  // And the Armour Class it supplied. Same link, same door: a Mage Armor
+  // dispelled on one creature stops being that creature’s calculation.
+  const calculations = creature.armorClasses.filter(
+    (granted) => castingIdOf(granted.source) !== castingId,
+  );
+  if (
+    doomed.length === 0 &&
+    survivors.length === creature.bonuses.length &&
+    calculations.length === creature.armorClasses.length
+  ) {
+    return base;
+  }
 
   let conditions = creature.conditions;
   for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
@@ -1979,7 +2034,10 @@ function releaseOnTarget(
     // Person, Black Tentacles. Dispel Magic is the first thing to release a
     // spell that hung a bonus, and a Bless the rules had ended went on adding
     // its d4.
-    creatures: { ...base.creatures, [targetId]: { ...creature, conditions, bonuses: survivors } },
+    creatures: {
+      ...base.creatures,
+      [targetId]: { ...creature, conditions, bonuses: survivors, armorClasses: calculations },
+    },
   };
 }
 
@@ -3179,6 +3237,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             readied: null,
             lastDamage: null,
             bonuses: [],
+            armorClasses: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
@@ -4091,6 +4150,18 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         event.bonus,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { bonuses }, creature);
+    }
+
+    case 'armor-class-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces it rather than stacking, the
+      // same rule `bonus-applied` follows: a second Mage Armor from the same
+      // casting is the same Mage Armor.
+      const armorClasses = [
+        ...creature.armorClasses.filter((held) => held.source !== event.armorClass.source),
+        event.armorClass,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { armorClasses }, creature);
     }
 
     case 'bonus-removed': {

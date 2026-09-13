@@ -192,6 +192,7 @@ function declaredEventTypes(): readonly string[] {
 const KNOWN_EVENT_TYPES: readonly string[] = [
   'action-spent',
   'area-effect-settled',
+  'armor-class-granted',
   'attack-damage-dealt',
   'attack-landed',
   'attack-made',

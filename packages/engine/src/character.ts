@@ -248,6 +248,54 @@ export interface UnarmoredDefense {
   readonly shieldAllowed: boolean;
 }
 
+/**
+ * An alternative base Armour Class an **ongoing effect** supplies.
+ *
+ * SRD Mage Armor: "the target's base AC becomes 13 plus its Dexterity
+ * modifier." That is the same shape {@link UnarmoredDefense} is — a base
+ * calculation that replaces `10 + Dexterity` while the wearer is unarmoured,
+ * competing with every other such calculation for the best applicable one —
+ * and it differs in exactly two ways, which is why it is a second type rather
+ * than a reuse of the first:
+ *
+ * - **the base is not 10.** Every class feature starts from the ordinary base
+ *   and adds a second ability; Mage Armor states its own number and adds no
+ *   second ability at all;
+ * - **it is not on the sheet.** A feature is part of what a creature *is*; a
+ *   spell's grant is part of what is currently happening to it, so it lives on
+ *   `CreatureState` and carries the casting inside its `source` — the same
+ *   link `ActiveBonus` uses, which is what ends it when the casting does.
+ *
+ * The comparison itself is shared: {@link armorClassCalculation} folds both
+ * sources into one "best applicable" pass, because SRD Multiclassing settles
+ * that question once for all of them — "If you have multiple ways to calculate
+ * your Armor Class, you can benefit from only one at a time."
+ */
+export interface GrantedArmorClass {
+  /** What granted it, carrying the casting: `Mage Armor#cast:3`. */
+  readonly source: string;
+  /**
+   * The number Dexterity is added to: SRD Mage Armor's "13".
+   *
+   * 10 for every class feature, because every one of them is written as an
+   * addition to the ordinary base. Mage Armor is the reason this is a field.
+   */
+  readonly base: number;
+  /**
+   * A **second** ability added alongside Dexterity, or null for none.
+   *
+   * Dexterity is in every base Armour Class calculation the SRD writes, so it
+   * is in the formula rather than in this field — which is what the field
+   * being null means for Mage Armor. "13 plus its Dexterity modifier" is
+   * `base: 13, plusAbility: null`; a Barbarian's is `base: 10,
+   * plusAbility: 'con'`. Naming this `ability` reads as though Mage Armor
+   * should name Dexterity, and adds it twice.
+   */
+  readonly plusAbility: Ability | null;
+  /** Whether a Shield still adds on top. */
+  readonly shieldAllowed: boolean;
+}
+
 /** How a creature's Armour Class was arrived at, and by which rule. */
 export interface ArmorClassCalculation {
   /** The base before a Shield: 10 + Dexterity, armour's own, or a feature's. */
@@ -276,8 +324,17 @@ export interface ArmorClassCalculation {
  * up nothing — so the best *applicable* calculation is taken and recorded,
  * rather than asking a question whose answer is arithmetic. It is also why a
  * feature never lowers the number: 10 + Dexterity is itself one of the ways.
+ *
+ * `granted` is the same question asked by an ongoing effect rather than by a
+ * feature — see {@link GrantedArmorClass}. It joins the same comparison rather
+ * than being applied afterwards, which is what keeps Mage Armor from stacking
+ * with a Barbarian's Unarmoured Defense, and it is consulted in the unarmoured
+ * branch only, which is what keeps it from applying through plate.
  */
-export function armorClassCalculation(sheet: CharacterSheet): ArmorClassCalculation {
+export function armorClassCalculation(
+  sheet: CharacterSheet,
+  granted: readonly GrantedArmorClass[] = [],
+): ArmorClassCalculation {
   const stated = sheet.stated?.armorClass;
   if (stated !== undefined) {
     return { base: stated, shield: 0, source: null, total: stated };
@@ -302,10 +359,23 @@ export function armorClassCalculation(sheet: CharacterSheet): ArmorClassCalculat
     base = 10 + dex;
     // Every alternative reads Dexterity too, so they differ only in the second
     // ability — but the comparison is on the whole number, because a future
-    // feature need not be shaped that way.
-    for (const alternative of sheet.unarmoredDefense ?? []) {
+    // feature need not be shaped that way. Mage Armor is the proof of that:
+    // it states its own base and adds no second ability.
+    const alternatives: readonly GrantedArmorClass[] = [
+      ...(sheet.unarmoredDefense ?? []).map((feature) => ({
+        source: feature.source,
+        base: 10,
+        plusAbility: feature.ability as Ability | null,
+        shieldAllowed: feature.shieldAllowed,
+      })),
+      ...granted,
+    ];
+    for (const alternative of alternatives) {
       if (shield !== null && !alternative.shieldAllowed) continue;
-      const theirs = 10 + dex + modifierFor(sheet, alternative.ability);
+      const theirs =
+        alternative.base +
+        dex +
+        (alternative.plusAbility === null ? 0 : modifierFor(sheet, alternative.plusAbility));
       if (theirs > base) {
         base = theirs;
         source = alternative.source;
@@ -324,8 +394,11 @@ export function armorClassCalculation(sheet: CharacterSheet): ArmorClassCalculat
   return { base, shield: shieldBonus, source, total: base + shieldBonus };
 }
 
-export function armorClass(sheet: CharacterSheet): number {
-  return armorClassCalculation(sheet).total;
+export function armorClass(
+  sheet: CharacterSheet,
+  granted: readonly GrantedArmorClass[] = [],
+): number {
+  return armorClassCalculation(sheet, granted).total;
 }
 
 /**

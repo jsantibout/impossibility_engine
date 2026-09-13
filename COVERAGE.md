@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 46 (13.6%) | 79 (23.3%) | 54 (15.9%) |
+| 339 | 46 (13.6%) | 80 (23.6%) | 55 (16.2%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -46,7 +46,7 @@ spell, and the area is the part that is missing.
 | Restores Hit Points | 4 | 0 | 3 | — |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 1 | — |
-| Narrative or exploration effect | 91 | 43 | 3 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class, a Speed, a Resistance, healing |
+| Narrative or exploration effect | 91 | 43 | 4 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -103,6 +103,7 @@ spell, and the area is the part that is missing.
 - **Inflict Wounds** (level 1) — verified
 - **Insect Plague** (level 5) — verified
 - **Lightning Bolt** (level 3) — verified
+- **Mage Armor** (level 1) — verified
 - **Mass Cure Wounds** (level 5) — verified
 - **Mass Healing Word** (level 3) — untested
 - **Mass Suggestion** (level 6) — untested

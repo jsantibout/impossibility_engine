@@ -7104,6 +7104,15 @@ export interface SpellTargetOutcome {
    * asking why Hold Person never landed wants `cast:3`, not `true`.
    */
   readonly interrupted?: string;
+  /**
+   * The target’s Armour Class after a spell supplied a new calculation.
+   *
+   * The resulting number rather than the definition’s base, because the base
+   * only wins if it beats what the creature already had — SRD Multiclassing
+   * lets a creature benefit from one calculation at a time, and Mage Armor on
+   * a Barbarian may well be the one that loses.
+   */
+  readonly armorClass?: number;
   /** Whether the effect actually landed on this target. */
   readonly affected: boolean;
 }
@@ -7839,9 +7848,14 @@ function castOrRelease(
         // `space` *is* the absence, so a casting that names it explicitly
         // serialises exactly as one that says nothing. Two records that mean
         // the same thing have to fold to the same bytes.
-        ...(request.anchoring === undefined || request.anchoring === 'space'
+        //
+        // Resolved the same way `placeArea` resolves it — request, then
+        // definition, then `space` — because the record is what every later
+        // trigger reads, and a footprint the spell declared must survive to
+        // them rather than being re-derived from a request that said nothing.
+        ...(anchoringFor(definition, request) === 'space'
           ? {}
-          : { anchoring: request.anchoring }),
+          : { anchoring: anchoringFor(definition, request) }),
       };
     }
   } else {
@@ -7869,6 +7883,18 @@ function castOrRelease(
     area,
   });
 }
+
+/**
+ * Which convention this casting’s template footprint is read under.
+ *
+ * **Request, then definition, then `space`.** One function, because two places
+ * need the answer and they must not disagree: `placeArea` builds the geometry
+ * with it, and the ongoing record stores it for every later trigger.
+ */
+export const anchoringFor = (
+  definition: SpellDefinition,
+  request: { readonly anchoring?: PointAnchoring },
+): PointAnchoring => request.anchoring ?? definition.anchoring ?? 'space';
 
 /**
  * Where a spell's area sits and what shape it is.
@@ -7969,7 +7995,13 @@ function placeArea(
   // cannot pick up a half-space tilt. A self-origin area is anchored by the
   // caster's own space, so there is no convention left to choose and naming
   // one is refused rather than ignored.
-  const anchoring: PointAnchoring = request.anchoring ?? 'space';
+  //
+  // **Request, then definition, then `space`.** The definition supplies the
+  // footprint the spell wants — which no SRD spell states, because SRD 5.2.1
+  // gives no rule for areas on a grid — and the caster keeps the last word,
+  // because `CastSpellRequest.anchoring` exists precisely so a caster who
+  // wants the other convention can ask for it.
+  const anchoring: PointAnchoring = anchoringFor(definition, request);
   let origin: AreaOrigin;
   if (area.origin === 'self') {
     if (request.at !== undefined) {
@@ -7978,7 +8010,11 @@ function placeArea(
         `${definition.name} originates from you; it cannot be placed elsewhere`,
       );
     }
-    if (request.anchoring !== undefined && request.anchoring !== 'space') {
+    // The effective one, not the request’s: a definition that declared an
+    // intersection for an area the SRD starts at the caster is refused here as
+    // well as by `checkSpellDefinition`, so an unvalidated definition cannot
+    // slip a convention past the geometry.
+    if (anchoring !== 'space') {
       return err(
         'area_starts_at_caster',
         `${definition.name} originates from you; its area is anchored by your own space`,
@@ -8337,6 +8373,20 @@ function namedTargets(
         return err(
           'wrong_creature_type',
           `${definition.name} may only target a ${wanted}; ${target} is ${actual}`,
+        );
+      }
+    }
+
+    // SRD Mage Armor: "a willing creature who isn’t wearing armor". Unlike a
+    // creature type this needs nothing declared — what is worn is already
+    // authoritative state, and a creature wearing nothing is a plain no rather
+    // than an unknown.
+    if (definition.targets.mustBeUnarmored === true) {
+      const worn = state.creatures[target]?.sheet.armor ?? null;
+      if (worn !== null) {
+        return err(
+          'target_wearing_armor',
+          `${definition.name} is cast on a creature who is not wearing armor; ${target} is wearing ${worn.name}`,
         );
       }
     }
@@ -9017,6 +9067,31 @@ function resolveEffects(
           ...(save === null ? {} : { save }),
           affected: true,
         });
+        continue;
+      }
+
+      // A base Armour Class the spell supplies, in place of the one the
+      // target would otherwise calculate. Nothing is rolled and nothing is
+      // resisted: SRD Mage Armor asks for no save and touches a willing
+      // creature.
+      if (effect.kind === 'armor-class') {
+        held.add(target);
+        events.push({
+          type: 'armor-class-granted',
+          id: target,
+          armorClass: {
+            source: castingSource(definition.name, castingId),
+            base: effect.base,
+            plusAbility: effect.plusAbility,
+            shieldAllowed: effect.shieldAllowed,
+          },
+        });
+        current = events.slice(-1).reduce(applyEvent, current);
+        // Reported after the grant, because the number is the comparison’s
+        // answer rather than the definition’s: a Barbarian whose Unarmoured
+        // Defense already beats 13 + Dexterity keeps their own calculation,
+        // and the outcome should say what their Armour Class actually is.
+        outcomes.push({ target, armorClass: armorClassOf(current, target), affected: true });
         continue;
       }
 

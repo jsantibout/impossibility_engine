@@ -2568,6 +2568,201 @@ up its timer by rebuilding a key from the first doomed condition instance — an
 timer, left the real one running, and the hook fired again on a spell that had
 ended. Filtering the timers rather than guessing a key is what fixed it.
 
+## A Definition Is Validated Data, And The SRD Is Its Oracle
+
+`spell-definitions.ts` was never code. All 125 definitions are pure declarative
+data — closed typed unions, no expression, no hook — and the runtime holds no
+spell-name special case anywhere, which is asserted rather than assumed. So the
+comparative audit's "move definitions out of TypeScript" named the wrong half
+of the problem. **What was missing was the validator, not the format**: the
+compiler was the only guard, so a definition that did not arrive through `tsc`
+had nothing to check it at all.
+
+Three questions, three places, and conflating any two is how "valid" comes to
+mean "official":
+
+| | Asks | Applies to |
+|---|---|---|
+| `spell-schema.ts` | is this definition **coherent** | any definition, SRD or homebrew |
+| `scripts/spell-oracle.ts` | does it **agree with the printed spell** | only a definition whose id is in the book |
+| `commands.ts` | may **this casting** happen, here, now | every cast |
+
+A DM's invented spell is valid engine data and is not SRD-conformant, and both
+halves of that sentence are load-bearing. `spell-schema.test.ts` drives one
+through the validator and asserts it is not in the parsed book.
+
+**`checkSpellDefinition` returns every problem, with a path on each**, which is
+the `checkCharacter` shape for the `checkCharacter` reason: an author does not
+want to be told about one mistake at a time. `parseSpellDefinition` takes
+`unknown` and is the `Result` half, so a definition may come from a file, a
+loader or a tool rather than from a compilation.
+
+**Every rule was run against all 125 definitions before it was written, and
+none of them fires.** These are the rules the catalogue already obeys, moved to
+where a *new* definition meets them rather than being discovered by a sweep
+test casting the spell and finding nothing happened. Several were previously
+enforced in four different test files or nowhere at all. The ones worth naming:
+
+- a **`#` in a spell name forges a casting link** — `castingSource` writes
+  `Hold Person#cast:3` and `castingIdOf` reads it back, so a name carrying one
+  could attach its effects to somebody else's casting, or detach its own from
+  cleanup. Refused at cast time already; now refused at authoring.
+- **slot scaling on a cantrip, and a Cantrip Upgrade on a levelled spell.**
+  `scaledDiceFor` takes one branch or the other and silently ignores the field
+  belonging to the one it did not take. This is the exact confusion that had a
+  level 3 Wizard throwing Fire Bolt for 2d10.
+- a **rolled bonus aimed at an Armour Class.** `armorClassOf` reads the flat
+  half and nothing else, because a standing number has no moment at which a die
+  could be thrown for it — so a rolled one is data nothing can apply.
+- **a definition that resolves nothing and declares nothing.** The tracked rule,
+  and the easiest mistake in the format to make, because it compiles.
+
+**A field the engine does not know is not an error.** A definition written
+against a later version is data this one does not understand rather than data
+that is wrong; refusing it would make every schema addition a breaking change
+for stored content.
+
+**`checkShape` is the one place a runtime value restates the effect union**, and
+the way that rots is a member added to the type and not to the set. The whole
+catalogue is driven through `parseSpellDefinition`, so it fails the day that
+happens rather than the day somebody loads a file.
+
+### Range and duration had no oracle, and that was the named blind spot
+
+`coverage.test.ts` has held every definition against the book for name, level,
+school, casting time and Concentration. Two printed fields were never checked,
+and this file already said so: *"the duration is the field with no automatic
+check"*. Between them they are 250 numbers nobody was watching, and the class
+of bug is the one this repository has had twice — Fire Bolt at 2d10, Finger of
+Death dropping its flat 30.
+
+Both turn out to be **structured in practice**. Across all 339 parsed spells
+there are eighteen distinct range strings and twenty-four distinct duration
+strings, and every one fits a three-line grammar. So they are parsed, and the
+grammar is asserted to cover the *whole book* rather than the corner the
+catalogue uses — a parser that silently returns null for a wording it does not
+know reports no problems and checks nothing, which is what `animals.md` taught.
+
+**The prose is deliberately untouched.** Damage dice, save abilities, area
+shapes and sizes, conditions and scaling all live in the description; SRD 5.2.1
+prints plain ranges (`Self`, `120 feet`) with the template in the sentence.
+Anything claiming to oracle an area would be parsing English and calling the
+result data. `spell-tracking.test.ts` scans that prose for *markers* and demands
+a written adjudication, which is what prose honestly supports.
+
+**One definition disagrees with the book, and the number is not the thing to
+change.** Guiding Bolt prints `Duration: 1 round`, and the whole of what that
+round bounds is its one `unmodelled` clause — the Advantage the next attacker
+gets. Giving it six seconds would schedule a timer for a casting with nothing
+to expire and make an ongoing record for a spell that is on nobody. So it takes
+a **written exemption**, in the same shape the prose adjudications use: an
+exemption must be needed, must still be needed, and must say something, and
+each of those three is a test.
+
+**The engine definition remains authoritative for execution.** The oracle can
+say a definition disagrees with the book; it can never say what the spell does.
+
+### An Armour Class a spell sets is not one it adds to
+
+SRD Mage Armor: "the target's **base AC becomes 13 plus its Dexterity
+modifier**." A flat `+3` on `ac` gives exactly the same number for an ordinary
+unarmoured creature, which is what makes it the tempting answer and the
+dangerous one. Two cases separate them and both fail silently:
+
+- it would stack on a Barbarian's Unarmoured Defense, and SRD Multiclassing
+  says "If you have multiple ways to calculate your Armor Class, you can
+  benefit from only one at a time";
+- it would stack on worn armour, which the spell's own sentence forbids.
+
+**It is the shape Unarmoured Defense already is** — an alternative base
+calculation, applying while unarmoured, the best applicable one winning — so
+`armorClassCalculation` folds both sources into one comparison rather than
+growing a second mechanism. Two concrete mechanics asking for one primitive is
+the evidence the generalization rule wants.
+
+`GrantedArmorClass` lives on `CreatureState` beside `bonuses` and carries the
+casting in its `source`, so `releaseCasting` and `releaseOnTarget` end it with
+the spell through machinery that already existed — a dispel, a broken
+Concentration, the eight hours running out, the caster leaving, all one door.
+
+Three details that are the SRD rather than the shape:
+
+- **Dexterity is in the formula, not in the field.** Every base Armour Class
+  calculation the book writes includes it, so `plusAbility` is the *second*
+  ability — `null` for Mage Armor, `con` for a Barbarian. Naming it `ability`
+  reads as though Mage Armor should name Dexterity, and adds it twice; it did,
+  for one commit.
+- **"while not wearing armour" needs no field.** The comparison lives in the
+  unarmoured branch, so a grant is simply inert while armour is worn.
+- **"a willing creature who isn't wearing armor" is a targeting clause**, so it
+  is `TargetRule.mustBeUnarmored`, beside `mustBeType` where the target rules
+  are, and refuses the casting rather than spending a slot on a creature the
+  spell cannot touch.
+
+`unmodelled` carries the half that is missing: **the spell does not end when
+the target dons armour.** The Armour Class is right either way; what goes on
+running is the casting, which is observable through `ongoing` and Dispel Magic.
+
+Barkskin is deliberately *not* included: "an Armor Class of 17 if its AC is
+lower than that" is a floor on the **total**, a different rule, and one spell is
+not evidence for building it.
+
+### A spell may declare the footprint its template wants
+
+`SpellDefinition.anchoring` is the geometry pass's one bit of information, in
+data. Precedence is **request, then definition, then `space`**, resolved by one
+function so the geometry and the ongoing record cannot disagree; the caster
+keeps the last word, because `CastSpellRequest.anchoring` exists precisely so a
+caster who wants the other convention can ask for it. Absent on both, nothing
+changes — `space` is still normalised away when the record is built.
+
+**No SRD spell declares one, and that is a decision rather than a gap.** SRD
+5.2.1 mandates no convention: its "Playing on a Grid" sidebar covers squares,
+Speed, entering a square, corners and ranges and says nothing whatever about
+areas of effect, and the intersection convention comes from a 2014 optional
+rule. Declaring one per spell would be the engine choosing a rule the book
+declined to give, and doing it inside a definitions pass would change thirteen
+spells' footprints behind a migration. A test pins that nothing declares one,
+so it cannot change silently.
+
+The evidence a deliberate geometry pass would want is recorded in
+`docs/architecture/spell-definitions-as-validated-data-2026-09-13.md` rather
+than acted on: under a space origin every printed dimension comes out one space
+wide, because the origin's own space is counted on both sides — a 20-foot Cube
+covers 25 feet, a 20-foot-radius Sphere 45 — while a 5-foot-wide Line is
+already right, which is what the geometry note predicted. Every point-origin
+template in the catalogue is an even-space footprint; every `self`-origin one
+cannot take an intersection at all, because the origin is a creature's space.
+
+### What this deliberately did not build
+
+**Definitions do not live in `GameState`.** Making `definitionFor` read authored
+definitions out of state is what would let a homebrew spell actually be *cast*,
+and it is twelve call sites, two helpers inside the fold (`areaDefinitionOf`,
+`creaturesInCastingArea`), one event, one state field and one validating
+command. Its only user is authorship. One user is not evidence, so it is a seam
+with a name and a cost rather than a mechanism — and the consequence is stated
+plainly: **a non-SRD definition can be validated today and cannot be cast
+today.**
+
+**Outcome-scoped child effects are deferred**, and not because they are large.
+The rider fields are not free child effects: `plus` shares one saving throw
+*and* one damage application, `condition` shares the same save, and `delayed`
+is a debt rather than an effect. A naive `onFail: SpellEffect[]` would let an
+author nest a saving throw inside a failed saving throw, which is the
+definition becoming a miniature untyped program. The branch lists need their
+own restricted child vocabulary, and the evidence for which members it needs is
+what the next two families produce — a condition with no saving throw, and a
+standing Advantage a spell grants. The validator makes that migration safer
+when it comes, because the invariants that must survive it are now in one place
+instead of inferred from four test files.
+
+**`SpellEffect.damageType` stays `string`.** Narrowing it to `DamageType`
+ripples through `damageTypeStated`, `applyDamage`'s keys and the monster
+adapter, which is a typing pass rather than a definitions pass. The validator
+checks the value instead, at the same place a homebrew definition would get it
+wrong.
+
 ## Spells The Engine Executes
 
 `@ie/srd` parses every spell's id, level, school, class list and prose. None of
@@ -3594,7 +3789,7 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 75 of 339 executable and 46 tracked, with the shapes that block
+- M1 spells: 80 of 339 executable and 46 tracked, with the shapes that block
   the rest counted in `COVERAGE.md` and ranked in `PROGRESS.md`. The utility
   bucket was audited spell by spell rather than by shape: 30 of the 76 open
   ones became tracked, 42 carry a rule the engine should own, and 4 depend on
@@ -3617,8 +3812,16 @@ null and is reported — it never becomes either.
   action, along a route the caller states, and catches whoever it comes to.
   **And an area can be carried** — see "An Area Can Be Carried, And Then Its
   Origin Is Not A Point": Spirit Guardians' Emanation is centred on its caster,
-  moves because the caster does, and catches whoever it arrives on. What does
-  not work: summons, long casting times, an area that moves *by itself* at the
+  moves because the caster does, and catches whoever it arrives on. **And a
+  spell can set an Armour Class rather than adding to one** — see "An Armour
+  Class a spell sets is not one it adds to": Mage Armor replaces the target's
+  base calculation, competes with Unarmoured Defense instead of stacking with
+  it, and ends with the casting through the door every other effect uses.
+  **Definitions are validated data** — see "A Definition Is Validated Data,
+  And The SRD Is Its Oracle": a pure validator any definition passes through,
+  SRD or homebrew, and a conformance oracle over the printed range and
+  duration. What does not work: casting a definition the catalogue does not
+  compile in, summons, long casting times, an area that moves *by itself* at the
   start of a turn (Cloudkill, Incendiary Cloud), a standing spatial effect such
   as the Speed halved inside that Emanation, a path or a distance travelled, an
   activation that resolves an area at a point chosen now, and a Reaction that

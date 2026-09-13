@@ -724,7 +724,11 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   const creature = state.creatures[who];
   if (creature === undefined) return 0;
 
-  let total = armorClass(creature.sheet);
+  // The base calculation first, with any an ongoing effect supplied competing
+  // in the same pass as the creature’s own features — SRD Multiclassing settles
+  // that once for all of them, and `armorClassCalculation` is where it is
+  // settled. Only then the flat bonuses, which genuinely do add.
+  let total = armorClass(creature.sheet, creature.armorClasses);
   for (const active of creature.bonuses) {
     if (!active.applies.includes('ac')) continue;
     const flat = active.bonus.flat ?? 0;

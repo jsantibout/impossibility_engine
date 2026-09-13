@@ -201,6 +201,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'inflict-wounds',
   'insect-plague',
   'lightning-bolt',
+  'mage-armor',
   'mass-cure-wounds',
   'mind-spike',
   'moonbeam',
@@ -398,7 +399,7 @@ function render(coverage: SpellCoverage): string {
     'temp-hp': '—',
     buff: '—',
     utility:
-      'nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class, a Speed, a Resistance, healing',
+      'nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing',
   };
 
   for (const shape of SHAPES) {

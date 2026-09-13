@@ -99,6 +99,8 @@ still Wizard-shaped are named below.
 | LLM boundary I | The Tier 1 experiment, and hardening the boundary in both directions | `190fc1e` |
 | LLM boundary II | Tier 2: three level 2 characters and one Ogre; the harness generalised to N actors | `85f72a8` |
 | Surface parity | Every engine request parameter published or explained, with a test that reads the engine's own source | `cac086d` |
+| Spatial model | A coordinate says *where*, never *what*; `AreaPoint` and explicit anchoring | `81112d1` |
+| Validated definitions | A pure schema validator, the SRD as a range/duration oracle, declared area anchoring, and an Armour Class a spell **sets** — Mage Armor | — |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 
@@ -150,6 +152,75 @@ is still unread; and no benchmark has yet wanted an improvised *attack roll*,
 so no primitive has been built for one.
 
 ## Decisions that constrain what comes next
+
+- **The definitions were never code, and the audit named the wrong half.** All
+  125 `SpellDefinition` constants are pure declarative data with no expression
+  and no hook, and the runtime holds no spell-name special case anywhere — both
+  measured, the second now asserted by a test. What was missing was the
+  **validator**: the compiler was the only guard, so a definition that did not
+  arrive through `tsc` had nothing to check it at all. Converting the file to
+  JSON would have moved the same data into a format that cannot hold the SRD
+  quotation each definition is transcribed from, which is its provenance.
+- **Schema validity and SRD conformance are different questions**, in different
+  files, on purpose. A DM's invented spell is valid engine data and is not
+  SRD-conformant; a layer that answered both at once would make "valid" mean
+  "official", which is the one thing a definition format must not do.
+  `spell-schema.test.ts` drives a homebrew definition through the validator and
+  asserts it is absent from the parsed book.
+- **Every validator rule was run against all 125 definitions before it was
+  written, and none fires.** They are the rules the catalogue already obeys,
+  moved to where a *new* definition meets them instead of being discovered by a
+  sweep test casting the spell and finding nothing happened.
+- **Range and duration had no oracle, and this file had already said so.** Both
+  are structured in practice — eighteen distinct range strings and twenty-four
+  distinct duration strings across all 339 spells — so both are now parsed and
+  every definition is held against them. The grammar is asserted to cover the
+  **whole book**, not the corner the catalogue uses: a parser that silently
+  returns null reports no problems and checks nothing, which is what
+  `animals.md` taught.
+- **The oracle found exactly one disagreement, and the number was not the thing
+  to change.** Guiding Bolt prints "1 round" and the whole of what that round
+  bounds is its one `unmodelled` clause. Six seconds would schedule a timer for
+  a casting with nothing to expire and make an ongoing record for a spell that
+  is on nobody. A written exemption instead, held to the three rules the prose
+  adjudications already obey: needed, still needed, and says something.
+- **An Armour Class a spell *sets* is not one it adds to**, and a flat `+3`
+  gives the same number in every case but the two that matter — a Barbarian's
+  Unarmoured Defense, which SRD Multiclassing forbids stacking with, and worn
+  armour, which Mage Armor's own sentence forbids. Two mechanics wanting one
+  base calculation is the evidence the generalization rule asks for, so
+  `armorClassCalculation` folds both sources into one comparison.
+- **Dexterity is in the formula, not in the field.** `GrantedArmorClass.
+  plusAbility` is the *second* ability, because every base Armour Class
+  calculation the SRD writes already includes Dexterity. Called `ability`, Mage
+  Armor names Dexterity and gets it twice — which it did, for one commit, and
+  eight tests said so at once.
+- **Definitions deliberately do not live in `GameState`.** Letting
+  `definitionFor` read authored definitions out of state is what would make a
+  homebrew spell *castable*, and it is twelve call sites, two helpers inside
+  the fold, one event, one state field and one validating command. Its only
+  user is authorship, which this pass was told not to expose. One user is not
+  evidence. Consequence stated rather than implied: **a non-SRD definition can
+  be validated today and cannot be cast today.**
+- **Outcome-scoped child effects are deferred with a reason, not with a
+  shrug.** The rider fields are not free child effects — `plus` shares one
+  saving throw *and* one damage application, `condition` shares the same save,
+  `delayed` is a debt — so a naive `onFail: SpellEffect[]` would let an author
+  nest a saving throw inside a failed saving throw. The branch lists need their
+  own restricted child vocabulary, and the evidence for its members is what the
+  next two families produce.
+- **A spell may declare the footprint its template wants, and no SRD spell
+  does.** SRD 5.2.1 mandates no convention for areas on a grid, so choosing one
+  per spell would be the engine answering a question the book declined to ask,
+  and doing it inside a definitions pass would change thirteen footprints
+  behind a migration. The slot exists so the geometry pass, or an author, says
+  it in data rather than in runtime logic; a test pins that nothing declares
+  one.
+- **A heuristic that scans source for spell names collides with English.**
+  `shield` is a spell and an armour category, so the anti-special-casing sweep
+  needs both a sharper predicate — a spell id compared against a **literal** —
+  and one named, reviewed exclusion. The loose version failed on four lines of
+  equipment code.
 
 - **A pool that cannot be spent is half a feature.** Every pool in the class
   tables was declared and sized correctly and almost none could be *spent* —
@@ -1276,7 +1347,7 @@ can need more than one shape, so the counts do not sum.
 | 6 | Healing that lifts a condition, raises the dead, or raises the maximum | 10 | the `heal` effect | low |
 | 7 | Damage with neither an attack roll nor a save | 19 | `rollSpellDice`, `dealSpellDamage` | low |
 | 8 | Teleportation | 13 | positions, occupancy, `placeCreature` | medium |
-| 9 | An Armour Class a spell sets or floors | ~4 real | Unarmoured Defense already replaces the calculation for a feature | low |
+| 9 | An Armour Class a spell **sets** (**built** — Mage Armor) or **floors** (~3 left: Barkskin's "if its AC is lower") | ~3 real | the base-calculation comparison now takes a granted source alongside Unarmoured Defense | low |
 | 10 | A random outcome that is not a d20 | 11 | the generator | low |
 
 **1. An ongoing casting a later turn can act through — and it moved to the top
@@ -1409,6 +1480,26 @@ primitive — which is why it is below the four above it despite being unblocked
   declares. The idempotency sweep is what caught it.
 
 ## Next actions, in order
+
+**Where the definitions pass left the queue.** The comparative audit's §14E
+ordered six changes before the next SRD family. Two are done and the others
+have moved:
+
+| Audit item | Status |
+|---|---|
+| #3 definitions as validated data | **done**, and it was the validator rather than the file format — see `docs/architecture/spell-definitions-as-validated-data-2026-09-13.md` |
+| #6 an SRD oracle | **done** for range and duration; casting time and Concentration were already oracled. Area, dice and save ability are prose and stay prose |
+| #4 outcome-scoped child effects | **deferred deliberately**, with the reason in the decisions above. It wants a restricted child vocabulary, and the evidence for its members is the next two families |
+| #7 split `commands.ts` | untouched; this pass added ~40 lines to it and removed the need for none |
+| #5 roll-modification keys for "against the holder" | unchanged, and still what the standing-Advantage family needs first |
+| #14 `cause` on events | unchanged |
+
+The one thing the definitions pass changed about the queue: **a new effect kind
+now costs less**, because its invariants go in `checkSpellDefinition` once and
+the sweep holds all 125 existing definitions to them for free, and because a
+new definition's range and duration are checked against the book rather than
+against nobody. It does **not** make a new *mechanic* cheaper — Blur still
+needs TypeScript, and that is the honest measure of what this bought.
 
 1. ~~**A spell-created thing with a position of its own.**~~ **Done.** The
    primitive is `OngoingSpell.origin: Point` — one optional field, a
