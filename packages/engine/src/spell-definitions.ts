@@ -1,5 +1,6 @@
 import type { Ability, ConditionName, Skill } from '@ie/shared';
 import type { Bonus, BonusApplies } from './bonuses.js';
+import type { RollModifier } from './roll-modifiers.js';
 import type { PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
@@ -328,6 +329,39 @@ export type SpellEffect =
       readonly bonus: Bonus;
       readonly applies: readonly BonusApplies[];
       readonly direction: 'add' | 'subtract';
+    }
+  /**
+   * Advantage or Disadvantage on a kind of roll, for as long as the spell runs.
+   *
+   * The other half of what `buff` does, and **not** a `buff` with a flag on
+   * it. A bonus is arithmetic that adds and stacks; a mode is presence that
+   * cancels, so three sources of Advantage against one Disadvantage is a
+   * normal roll and no amount of arithmetic says that. And a bonus is always
+   * the holder's own, where a mode may belong to rolls made **against** them:
+   * Blur is on the wizard and changes the goblin's attack roll, which
+   * `BonusApplies` has no axis to express.
+   *
+   * What the modifier reaches is {@link RollModifier} — the same selector a
+   * class feature's grant uses, matched by the same predicate, so Dodge and
+   * Blur are one mechanic with two lifetimes rather than two mechanisms that
+   * could disagree.
+   */
+  | {
+      readonly kind: 'roll-mode';
+      /**
+       * A saving throw the target makes first, affected only on a failure.
+       *
+       * Bane's shape, on the effect that is Bless's other half — and named
+       * `save` rather than `ability` even though `buff` above calls it that,
+       * because this effect carries a *second* ability two levels down
+       * (`modifier.selector.ability`, the rolls the mode picks out) and one
+       * field called `ability` beside another called `ability` meaning
+       * something else is a trap worth one word of asymmetry to avoid.
+       *
+       * Absent is Bless's shape: nobody resists a blessing.
+       */
+      readonly save?: Ability;
+      readonly modifier: RollModifier;
     }
   /**
    * Hit points restored, with the caster's spellcasting modifier where the
@@ -5460,6 +5494,102 @@ export const FLAME_BLADE: SpellDefinition = {
   ],
 };
 
+// — Advantage and Disadvantage a spell grants ————————————————————————————————
+
+/**
+ * SRD Blur:
+ *
+ * > _Level 2 Illusion (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 minute.
+ * > "Your body becomes blurred. For the duration, **any creature has
+ * > Disadvantage on attack rolls against you**. An attacker is immune to this
+ * > effect if it perceives you with Blindsight or Truesight."
+ *
+ * The spell the `against-holder` relation exists for, and the reason the
+ * comparative audit named a roll-modification target key as what the standing
+ * Advantage family needed first. Everything else Blur wants the engine has had
+ * for a long time: a Concentration casting, a minute on the clock, a durable
+ * effect linked to the casting, and one final rule that settles modes. What it
+ * had no way to say is that the mode belongs to somebody **else's** roll.
+ *
+ * Note what is *not* here: no number, no target list, no per-attacker
+ * bookkeeping. "Any creature" is every creature, which is what a selector with
+ * no filter on the roller means.
+ */
+export const BLUR: SpellDefinition = {
+  id: 'blur',
+  name: 'Blur',
+  level: 2,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'disadvantage',
+        selector: { roll: 'attack', relation: 'against-holder' },
+      },
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'an attacker that perceives the target with Blindsight or Truesight is immune to the effect; the engine models no senses beyond declared sight, so every attacker rolls at Disadvantage',
+  ],
+};
+
+/**
+ * SRD Beacon of Hope:
+ *
+ * > _Level 3 Abjuration (Cleric)._ **Casting Time:** Action. **Range:** 30
+ * > feet. **Duration:** Concentration, up to 1 minute.
+ * > "Choose any number of creatures within range. For the duration, each
+ * > target has **Advantage on Wisdom saving throws and Death Saving Throws**
+ * > and regains the maximum number of Hit Points possible from any healing."
+ *
+ * Two effects for one sentence, and the sentence is why: a Death Saving Throw
+ * is not a Wisdom saving throw and is not a saving throw of any ability at all
+ * — "Unlike other saving throws, this one isn't tied to an ability score." One
+ * ability-keyed grant covering both would either miss the death save or, keyed
+ * loosely enough to catch it, catch every save in the game.
+ *
+ * It is therefore the spell that proves `death-save` is its own roll family
+ * rather than a tidiness, and the mirror of Enhance Ability on the other side:
+ * Advantage on Wisdom **saves** touches no Wisdom **check**.
+ *
+ * "Choose any number of creatures" names no count, which is what
+ * `unlimited` says — range still bounds it, as it does for Compulsion.
+ */
+export const BEACON_OF_HOPE: SpellDefinition = {
+  id: 'beacon-of-hope',
+  name: 'Beacon of Hope',
+  level: 3,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0, unlimited: true, self: true },
+  effects: [
+    {
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'advantage',
+        selector: { roll: 'saving-throw', relation: 'roller', ability: 'wis' },
+      },
+    },
+    {
+      kind: 'roll-mode',
+      modifier: { mode: 'advantage', selector: { roll: 'death-save', relation: 'roller' } },
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'each target regains the maximum number of Hit Points possible from any healing; healing rolls its dice and nothing reads a maximise instruction, so a Cure Wounds on a target of this spell heals its rolled amount',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -5467,11 +5597,13 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ARCANE_LOCK,
   BANE,
   BANISHMENT,
+  BEACON_OF_HOPE,
   BEFUDDLEMENT,
   BLACK_TENTACLES,
   BLESS,
   BLIGHT,
   BLINDNESS_DEAFNESS,
+  BLUR,
   BURNING_HANDS,
   CHAIN_LIGHTNING,
   CHARM_MONSTER,

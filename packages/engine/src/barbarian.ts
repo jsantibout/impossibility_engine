@@ -96,7 +96,7 @@ export const BARBARIAN: ClassDefinition = {
         forbidsCasting: true,
         whileActive: [
           { kind: 'damage-resistance', damageTypes: ['bludgeoning', 'piercing', 'slashing'] },
-          { kind: 'advantage', on: 'save', ability: 'str' },
+          { kind: 'roll-mode', modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' } } },
           // SRD: "a bonus to the damage" — the weapon's own type, so a target
           // resisting the sword resists this with it. The amount is a column.
           { kind: 'attack-damage', usingAbility: 'str' },
@@ -128,7 +128,9 @@ export const BARBARIAN: ClassDefinition = {
       grants: {
         kind: 'standing',
         reach: 'self',
-        effects: [{ kind: 'advantage', on: 'save', ability: 'dex' }],
+        effects: [
+          { kind: 'roll-mode', modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } } },
+        ],
         requires: [{ kind: 'not-incapacitated' }],
       },
     },
@@ -189,7 +191,11 @@ export const BARBARIAN: ClassDefinition = {
       level: 7,
       automation: 'engine',
       note: 'SRD: "Your instincts are so honed that you have Advantage on Initiative rolls." Applied by rollInitiativeFor, off the creature’s own features rather than out of a caller’s hand — the same rule Alert’s Proficiency Bonus already follows.',
-      grants: { kind: 'standing', reach: 'self', effects: [{ kind: 'advantage', on: 'initiative' }] },
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'roll-mode', modifier: { mode: 'advantage', selector: { roll: 'initiative', relation: 'roller' } } }],
+      },
     },
     {
       id: 'barbarian:instinctive-pounce',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, expect as unwrap, type Ability, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { damageCreature } from './commands.js';
@@ -9,9 +9,17 @@ import {
   standingFor,
   standingSaveBonuses,
   standingDefenses,
-  standingSaveModes,
+  rollModesFor,
   suppressedConditions,
 } from './standing.js';
+
+/**
+ * The Advantage and Disadvantage reaching a saving throw, read the way every
+ * roll in the engine now reads it: one query, one gatherer, one predicate.
+ */
+const saveModes = (state: GameState, who: CharacterId, ability: Ability) =>
+  rollModesFor(state, { family: 'saving-throw', roller: who, ability }).modes;
+
 
 /**
  * Modifiers a class feature grants for as long as its rule holds.
@@ -82,7 +90,13 @@ const dangerSense = {
   feature: 'barbarian:danger-sense',
   name: 'Danger Sense',
   reach: { kind: 'self' as const },
-  grant: { kind: 'advantage' as const, on: 'save' as const, ability: 'dex' as const },
+  grant: {
+    kind: 'roll-mode' as const,
+    modifier: {
+      mode: 'advantage' as const,
+      selector: { roll: 'saving-throw' as const, relation: 'roller' as const, ability: 'dex' as const },
+    },
+  },
   requires: [{ kind: 'not-incapacitated' as const }],
 };
 
@@ -258,13 +272,13 @@ describe('Danger Sense is conditional on the creature that has it', () => {
 
   /** SRD: "Advantage on Dexterity saving throws". */
   it('grants Advantage on a Dexterity save', () => {
-    expect(standingSaveModes(raging(), id('grum'), 'dex')).toEqual([
+    expect(saveModes(raging(), id('grum'), 'dex')).toEqual([
       { source: 'Danger Sense', mode: 'advantage' },
     ]);
   });
 
   it('grants nothing on any other save', () => {
-    expect(standingSaveModes(raging(), id('grum'), 'wis')).toEqual([]);
+    expect(saveModes(raging(), id('grum'), 'wis')).toEqual([]);
   });
 
   /** SRD: "unless you have the Incapacitated condition". */
@@ -273,7 +287,7 @@ describe('Danger Sense is conditional on the creature that has it', () => {
       added(id('grum'), { standing: [dangerSense] }, 'party'),
       { type: 'condition-applied', id: id('grum'), condition: 'stunned', source: 'a spell' },
     ]);
-    expect(standingSaveModes(stunned, id('grum'), 'dex')).toEqual([]);
+    expect(saveModes(stunned, id('grum'), 'dex')).toEqual([]);
   });
 
   /** It reaches nobody else, however close they stand. */
@@ -286,7 +300,7 @@ describe('Danger Sense is conditional on the creature that has it', () => {
       { type: 'creature-placed', id: KESS, placement: { from: { landmark: 'here' }, feet: 0 } },
       at(ALLY, 5, 0),
     ]);
-    expect(standingSaveModes(pair, ALLY, 'dex')).toEqual([]);
+    expect(saveModes(pair, ALLY, 'dex')).toEqual([]);
   });
 });
 
@@ -415,7 +429,7 @@ describe('a feature can grant Resistance, on its own terms', () => {
       added(id('grum'), { standing: [dangerSense] }, 'party'),
       { type: 'condition-applied', id: id('grum'), condition: 'stunned', source: 'a spell' },
     ]);
-    expect(standingSaveModes(stunned, id('grum'), 'dex')).toEqual([]);
+    expect(saveModes(stunned, id('grum'), 'dex')).toEqual([]);
   });
 
   /**

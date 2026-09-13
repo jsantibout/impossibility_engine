@@ -478,6 +478,127 @@ Elvenkind is in play is a question about feats and inventory, which the engine
 does not model; the layer that knows passes them in, and the engine applies
 them correctly.
 
+## Advantage Is A Property Of A Roll, Not Of A Creature
+
+`combineRollModes` has settled a list of modes correctly since the day it was
+written, and `ModeSource` has attributed each one. What sat between them was
+nothing: a mode reached a roll through a hard-coded reader that knew **one
+question** — `standingSaveModes` could answer about a save, `standingSkillModes`
+about a skill check, `standingInitiativeModes` about Initiative, and
+`attackedWithDisadvantage` about a weapon attack. Four readers, four grant
+kinds, and no way for a fifth question to be asked at all. So the twenty-odd
+SRD spells that grant a standing Advantage or Disadvantage had nowhere to be
+written down, and Blur — "any creature has Disadvantage on attack rolls
+**against you**" — could not be said in the vocabulary even in principle.
+
+`roll-modifiers.ts` is one question asked once:
+
+> **Does this source modify THIS roll?**
+
+Four fields answer it, all closed unions naming rules the engine already
+resolves. There is no expression, no callback and no string to interpret; a
+definition that cannot be said in this vocabulary is a shape that has not been
+built, which is the honest answer and what the coverage tables are for.
+
+| | |
+|---|---|
+| `roll` | `attack`, `ability-check`, `saving-throw`, `initiative`, `death-save` |
+| `relation` | `roller`, or `against-holder` |
+| `ability` | narrows a check or a save; absent means the whole family |
+| `skill` | narrows a check; absent means the whole family |
+
+**`relation` is the bit that was missing, and it is one bit wide.** These are
+different rules about the same creature, and before this the second could only
+be expressed as a grant kind of its own:
+
+| | |
+|---|---|
+| `roller` | "The affected creature has Disadvantage on attack rolls." |
+| `against-holder` | "Attack rolls against the affected creature have Advantage." |
+
+**`against-holder` is legal only on an attack**, and that is a rule rather than
+a simplification: an attack roll is the one D20 Test the engine records a
+second participant for. A saving throw knows its DC and not who set it — the
+gap this file has recorded since Countercharm — so an `against-holder` selector
+on a save would match every save ever rolled. The validator refuses it.
+
+**Two roll families exist because the SRD insists on them.** `initiative` is
+not `ability-check`, because Feral Instinct grants Advantage on "Initiative
+rolls" and does not help a Barbarian pick a lock. `death-save` is not
+`saving-throw`, because a death save is "not tied to an ability score" and an
+ability-keyed grant would either miss every one or catch every save in the
+game. Beacon of Hope names both in one sentence and means two different things.
+
+**There is deliberately no member for "D20 Tests".** Three SRD spells write the
+phrase — Foresight, Resurrection, Ray of Enfeeblement — and every one is
+blocked on something else: a casting time of a minute, a penalty linked to no
+casting, a repeat save that ends a spell hanging no condition. A vocabulary
+member no definition can use is a guess, and the phrase does not even mean "all
+five of these": a death save is a D20 Test, and Initiative is one already
+counted as a check.
+
+### One vocabulary, two lifetimes
+
+A class feature's grant and a spell's grant are the same mechanic and differ
+only in how long they live, so they share the selector and the predicate:
+
+| | Stored where | Ends how |
+|---|---|---|
+| A feature, or an action anybody can take | nowhere — derived from the world on every read | when its own requirement stops holding |
+| A spell's grant | `CreatureState.rollModifiers`, by `roll-modifier-granted` | `releaseCasting` / `releaseOnTarget`, through the casting in its `source` |
+
+`StandingGrant` lost four members and gained one, which is what made Dodge
+expressible as a mode rather than as a mechanism. `rollModesFor` is the one
+gatherer: it reads the roller's standing effects, the *target's* standing
+effects, and both creatures' durable grants, deduplicates by source, and hands
+the list to `combineRollModes` — which is still the only thing in the engine
+that decides an outcome. No subsystem rolls its own cancellation.
+
+**Both ends of an attack are asked, which removed a fork nothing was comparing.**
+`resolveAttack` read the defender's standing effects and the spell attack
+inside `resolveEffects` read nothing about the defender at all, so a **Dodging
+creature was easier to hit with a Fire Bolt than with a club** — silently,
+because each path was correct on its own terms. SRD Dodge says "any attack roll
+made against you"; it does not say "with a weapon".
+
+**A durable grant's identity is the source *and the rolls it reaches*.**
+`bonus-applied` and `armor-class-granted` both key on the source alone, which
+is right for them and wrong here: Beacon of Hope grants "Advantage on Wisdom
+saving throws **and Death Saving Throws**" — one casting, one source string,
+two modifiers. Keyed by source, the second silently replaced the first and the
+spell lost half its own sentence between the definition and the state.
+`rollModifierKey` is that identity; re-granting the *same* rolls from the same
+casting still replaces rather than stacks, which is what those two events were
+protecting.
+
+**A mode is not a bonus, and folding them together would have made Blur a
+negative number.** A bonus is arithmetic that adds and stacks; a mode is
+presence that cancels, so three Advantages against one Disadvantage is a
+*normal* roll and no arithmetic says that. And `BonusApplies` has no relation
+axis at all.
+
+### What this deliberately does not reach
+
+Each is a named missing piece with the spells that want it, rather than a
+vague edge:
+
+| Missing | Spells |
+|---|---|
+| An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse |
+| A filter on the *attacker's* creature type | Protection from Evil and Good, Dispel Evil and Good, Magic Circle |
+| A sight clause read from the **attacker's** side | Faerie Fire |
+| The effect's *source* as a participant — "against **you**", meaning the caster | Bestow Curse |
+| A grant conditioned on proximity, or carried by an aura | Holy Aura, Conjure Animals |
+| A save keyed to a named **condition** rather than an ability | Protection from Poison |
+| "D20 Tests", and "Strength-based D20 Tests" | Foresight, Resurrection, Ray of Enfeeblement |
+
+**A one-shot mode is a different mechanic, not a short-lived one.** Guiding
+Bolt's "the **next** attack roll against it", Vicious Mockery's "the next
+attack roll it makes" and Ray of Enfeeblement's success branch all need a
+modifier that is **consumed** by the roll it changes. Nothing here consumes
+anything — a durable grant applies until its casting ends — so those stay in
+`unmodelled` where they were.
+
 ## Damage Is Typed Components, Not A Number
 
 An attack produces a list of `DamageComponent`s, each with its own type and a
@@ -3789,7 +3910,7 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 80 of 339 executable and 46 tracked, with the shapes that block
+- M1 spells: 82 of 339 executable and 46 tracked, with the shapes that block
   the rest counted in `COVERAGE.md` and ranked in `PROGRESS.md`. The utility
   bucket was audited spell by spell rather than by shape: 30 of the 76 open
   ones became tracked, 42 carry a rule the engine should own, and 4 depend on
@@ -3820,7 +3941,12 @@ null and is reported — it never becomes either.
   **Definitions are validated data** — see "A Definition Is Validated Data,
   And The SRD Is Its Oracle": a pure validator any definition passes through,
   SRD or homebrew, and a conformance oracle over the printed range and
-  duration. What does not work: casting a definition the catalogue does not
+  duration. **And Advantage is a property of a roll rather than of a
+  creature** — see "Advantage Is A Property Of A Roll, Not Of A Creature":
+  Blur puts Disadvantage on attacks *against* the creature it is on, Beacon of
+  Hope puts Advantage on the two rolls it names and on no neighbouring one, and
+  a class feature's grant and a spell's now share one selector and one
+  predicate. What does not work: casting a definition the catalogue does not
   compile in, summons, long casting times, an area that moves *by itself* at the
   start of a turn (Cloudkill, Incendiary Cloud), a standing spatial effect such
   as the Speed halved inside that Emanation, a path or a distance travelled, an

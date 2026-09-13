@@ -1,12 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
+import {
+  asCharacterId,
+  isErr,
+  expect as unwrap,
+  type Ability,
+  type CharacterId,
+} from '@ie/shared';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining } from './resources.js';
 import { activateFeature, endFeature, extendFeature, resolveTurn, castSpell } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
-import { defensesOf, effectiveConditions, standingSaveModes } from './standing.js';
+import { defensesOf, effectiveConditions, rollModesFor } from './standing.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
+
+/**
+ * The Advantage and Disadvantage reaching a saving throw, read the way every
+ * roll in the engine now reads it: one query, one gatherer, one predicate.
+ */
+const saveModes = (state: GameState, who: CharacterId, ability: Ability) =>
+  rollModesFor(state, { family: 'saving-throw', roller: who, ability }).modes;
+
 
 /**
  * Rage: a feature a creature turns on, pays for, and can lose.
@@ -186,16 +200,16 @@ describe('what Rage does, it does only while it is running', () => {
   /** SRD: "You have Advantage on Strength checks and Strength saving throws." */
   it('grants Advantage on Strength saves and on nothing else', () => {
     const during = fold('seed', raging());
-    expect(standingSaveModes(during, GRUM, 'str')).toEqual([{ source: 'Rage', mode: 'advantage' }]);
-    expect(standingSaveModes(during, GRUM, 'dex')).toHaveLength(1); // Danger Sense, at level 3
-    expect(standingSaveModes(during, GRUM, 'wis')).toEqual([]);
+    expect(saveModes(during, GRUM, 'str')).toEqual([{ source: 'Rage', mode: 'advantage' }]);
+    expect(saveModes(during, GRUM, 'dex')).toHaveLength(1); // Danger Sense, at level 3
+    expect(saveModes(during, GRUM, 'wis')).toEqual([]);
   });
 
   it('takes all of it away again when it ends', () => {
     const log = raging();
     const ended = [...log, ...unwrap(endFeature(fold('seed', log), GRUM, { feature: RAGE }), 'end')];
     expect(defensesOf(fold('seed', ended), GRUM).bludgeoning).toBeUndefined();
-    expect(standingSaveModes(fold('seed', ended), GRUM, 'str')).toEqual([]);
+    expect(saveModes(fold('seed', ended), GRUM, 'str')).toEqual([]);
   });
 
   /** SRD: "You can't maintain Concentration, and you can't cast spells." */

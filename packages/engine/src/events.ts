@@ -1,5 +1,6 @@
 import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
+import { rollModifierKey, type ActiveRollModifier } from './roll-modifiers.js';
 import { ROUND } from './clock.js';
 import type { RngState } from './dice.js';
 import {
@@ -255,6 +256,22 @@ export interface CreatureState {
    * needing a field to say so.
    */
   readonly armorClasses: readonly GrantedArmorClass[];
+  /**
+   * Advantage and Disadvantage a running effect has hung on this creature.
+   *
+   * The third member of the family `bonuses` and `armorClasses` already form,
+   * and the one that needed a new axis rather than a new field: a bonus and an
+   * Armour Class are always the holder's own, while a mode may belong to
+   * **rolls made against them**. Blur is stored on the wizard and changes the
+   * goblin's attack roll, which is why {@link ActiveRollModifier} carries a
+   * relation and `ActiveBonus` does not.
+   *
+   * Linked by the casting in its `source` exactly as the other two are, so
+   * `releaseCasting` and `releaseOnTarget` end it with the spell — a broken
+   * Concentration, a deadline, a dispel and a caster leaving all converge on
+   * the door that already existed.
+   */
+  readonly rollModifiers: readonly ActiveRollModifier[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *
@@ -867,6 +884,23 @@ export type GameEvent =
       readonly type: 'armor-class-granted';
       readonly id: CharacterId;
       readonly armorClass: GrantedArmorClass;
+    }
+
+  /**
+   * An ongoing effect grants Advantage or Disadvantage on a kind of roll.
+   *
+   * Its own event rather than a `bonus-applied` carrying a mode, because a
+   * mode is not a bonus: a bonus adds and stacks, a mode is presence and
+   * cancels, and — the part no bonus can express — a mode may attach to rolls
+   * made **against** the creature holding it rather than by them.
+   *
+   * Ended by the casting in its `source`, exactly as a bonus and an Armour
+   * Class are, so there is no removal event: `releaseCasting` is the one door.
+   */
+  | {
+      readonly type: 'roll-modifier-granted';
+      readonly id: CharacterId;
+      readonly modifier: ActiveRollModifier;
     }
 
   /**
@@ -1826,6 +1860,16 @@ function releaseCasting(
       updated = { ...updated, armorClasses: calculations };
     }
 
+    // And the Advantage or Disadvantage it granted. Same link, same door: a
+    // Blur whose Concentration broke stops making the wizard hard to hit, and
+    // a modifier that outlived its casting would be a rule nothing could end.
+    const modes = creature.rollModifiers.filter(
+      (held) => castingIdOf(held.source) !== castingId,
+    );
+    if (modes.length !== creature.rollModifiers.length) {
+      updated = { ...updated, rollModifiers: modes };
+    }
+
     if (key === casterId && updated.concentration?.castingId === castingId) {
       updated = { ...updated, concentration: null };
     }
@@ -1999,10 +2043,18 @@ function releaseOnTarget(
   const calculations = creature.armorClasses.filter(
     (granted) => castingIdOf(granted.source) !== castingId,
   );
+  // And the roll modifiers, for the same reason the bonuses are here: a
+  // Dispel Magic aimed at one blurred creature must stop attacks against
+  // *that* creature being made at Disadvantage, and leave the rest of the
+  // casting alone.
+  const modes = creature.rollModifiers.filter(
+    (held) => castingIdOf(held.source) !== castingId,
+  );
   if (
     doomed.length === 0 &&
     survivors.length === creature.bonuses.length &&
-    calculations.length === creature.armorClasses.length
+    calculations.length === creature.armorClasses.length &&
+    modes.length === creature.rollModifiers.length
   ) {
     return base;
   }
@@ -2036,7 +2088,13 @@ function releaseOnTarget(
     // its d4.
     creatures: {
       ...base.creatures,
-      [targetId]: { ...creature, conditions, bonuses: survivors, armorClasses: calculations },
+      [targetId]: {
+        ...creature,
+        conditions,
+        bonuses: survivors,
+        armorClasses: calculations,
+        rollModifiers: modes,
+      },
     },
   };
 }
@@ -3238,6 +3296,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             lastDamage: null,
             bonuses: [],
             armorClasses: [],
+            rollModifiers: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
@@ -4162,6 +4221,27 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         event.armorClass,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { armorClasses }, creature);
+    }
+
+    case 'roll-modifier-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting the same rolls from the same source replaces rather than
+      // stacks — the rule `bonus-applied` and `armor-class-granted` follow —
+      // but **the source alone is not the identity here**, because one casting
+      // can grant two: Beacon of Hope's Wisdom saves and Death Saving Throws
+      // are one sentence and two modifiers. See `rollModifierKey`.
+      const key = rollModifierKey(event.modifier.source, event.modifier.modifier.selector);
+      const rollModifiers = [
+        ...creature.rollModifiers.filter(
+          (held) => rollModifierKey(held.source, held.modifier.selector) !== key,
+        ),
+        event.modifier,
+      ].sort((a, b) => {
+        const left = rollModifierKey(a.source, a.modifier.selector);
+        const right = rollModifierKey(b.source, b.modifier.selector);
+        return left < right ? -1 : left > right ? 1 : 0;
+      });
+      return withCreature(next, event.id, { rollModifiers }, creature);
     }
 
     case 'bonus-removed': {

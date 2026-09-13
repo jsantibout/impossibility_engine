@@ -210,7 +210,7 @@ describe('a feature that grants Advantage on Initiative', () => {
     expect(roll(champion).roll.rolls).toHaveLength(2);
     expect(
       (champion.standing ?? []).filter(
-        (e) => e.grant.kind === 'advantage' && e.grant.on === 'skill',
+        (e) => e.grant.kind === 'roll-mode' && e.grant.modifier.selector.skill === 'athletics',
       ),
     ).toHaveLength(1);
   });

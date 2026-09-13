@@ -6,9 +6,14 @@ import {
   type ConditionName,
   type Result,
   type RollMode,
-  type Skill,
 } from '@ie/shared';
 import type { Bonus, ModeSource } from './bonuses.js';
+import {
+  grantedRollModes,
+  selectorMatches,
+  type RollModifier,
+  type RollQuery,
+} from './roll-modifiers.js';
 import { UNIVERSAL_ACTION_EFFECTS } from './actions.js';
 import {
   conditionSpeed,
@@ -65,25 +70,42 @@ export type StandingReach =
 
 /** What a standing benefit does. */
 export type StandingGrant =
-  /** SRD Danger Sense: "Advantage on Dexterity saving throws". */
-  | { readonly kind: 'advantage'; readonly on: 'save'; readonly ability: Ability }
   /**
-   * SRD Feral Instinct: "you have Advantage on Initiative rolls."
+   * Advantage or Disadvantage on a kind of roll — see {@link RollModifier}.
    *
-   * Its own member rather than a save with a Dexterity ability, because
-   * Initiative is an ability check and the two are rolled by different
-   * functions — and because the SRD says "Initiative rolls" rather than
-   * "Dexterity checks", which are not the same set.
-   */
-  | { readonly kind: 'advantage'; readonly on: 'initiative' }
-  /**
-   * SRD Remarkable Athlete: "Advantage on ... Strength (Athletics) checks."
+   * **One member where there were four.** Danger Sense's "Advantage on
+   * Dexterity saving throws", Feral Instinct's "Advantage on Initiative
+   * rolls", Remarkable Athlete's "Advantage on Strength (Athletics) checks"
+   * and Dodge's "any attack roll made against you has Disadvantage" were four
+   * separate grant kinds with four separate readers, because there was no key
+   * that could say *which* roll a mode reached — and in particular no way at
+   * all to say that a mode belongs to rolls made **against** its holder, which
+   * is why Dodge's was a grant kind of its own rather than a mode.
    *
-   * Named by skill rather than by ability, because that is how the SRD writes
-   * it and because a skill check and a bare ability check of the same ability
-   * are different rolls.
+   * A spell that grants a standing mode needs exactly the same vocabulary, so
+   * the two sit on one selector and one predicate rather than on two
+   * parallel mechanisms that could disagree. What still differs is the
+   * *lifetime*: a feature's grant is derived from the world on every read and
+   * stored nowhere, while a spell's is durable state linked to its casting.
    */
-  | { readonly kind: 'advantage'; readonly on: 'skill'; readonly skill: Skill }
+  | {
+      readonly kind: 'roll-mode';
+      readonly modifier: RollModifier;
+      /**
+       * SRD Dodge: "...has Disadvantage **if you can see the attacker**".
+       *
+       * The holder's view of whoever is rolling, which is the opposite
+       * direction from the sight every other rule reads — and three-valued,
+       * like every declared fact. A clause nobody has settled is applied and
+       * reported rather than dropped, the direction an Opportunity Attack
+       * already takes.
+       *
+       * Declared per effect because it is that feature's own sentence: Danger
+       * Sense says nothing of the kind, and applying Dodge's clause to
+       * everything would quietly rewrite it.
+       */
+      readonly ifSeen?: boolean;
+    }
   /**
    * SRD Aura of Protection: "a bonus to saving throws equal to your Charisma
    * modifier (minimum bonus of +1)" — the *holder's* modifier, read off their
@@ -123,15 +145,6 @@ export type StandingGrant =
    * attack "using Strength", Radiant Strikes one "using a Melee weapon or an
    * Unarmed Strike".
    */
-  /**
-   * SRD Dodge: "any attack roll made against you has Disadvantage if you can
-   * see the attacker."
-   *
-   * Read at the attack rather than at a save, which is why it is its own kind
-   * — and `ifSeen` carries the clause, because sight here is the *target's* of
-   * the attacker, not the other way round.
-   */
-  | { readonly kind: 'attacked-with-disadvantage'; readonly ifSeen: boolean }
   /**
    * SRD Evasion, which the Rogue and the Monk both have under that name:
    *
@@ -608,49 +621,73 @@ export function standingSaveBonuses(
   return [...best.values()];
 }
 
-/** Advantage or disadvantage this creature's standing effects impose on a save. */
-export function standingSaveModes(
-  state: GameState,
-  who: CharacterId,
-  ability: Ability,
-): readonly ModeSource[] {
-  const modes: ModeSource[] = [];
-
-  for (const { effect } of standingFor(state, who)) {
-    if (effect.grant.kind !== 'advantage') continue;
-    if (effect.grant.on !== 'save') continue;
-    if (effect.grant.ability !== ability) continue;
-    modes.push({ source: effect.name, mode: 'advantage' });
-  }
-
-  return modes;
-}
-
 /**
- * Whether attacks against this creature are made at Disadvantage right now.
+ * Every Advantage and Disadvantage that reaches this roll, from anywhere.
  *
- * `seen` is the *target's* view of the attacker — SRD Dodge says "if you can
- * see the attacker" — and is three-valued like every other declared fact. A
- * benefit whose clause nobody has settled is applied and reported rather than
- * dropped, which is the same direction an Opportunity Attack takes.
+ * **The one gatherer.** A class feature's derived grant and a spell's durable
+ * one are two lifetimes of the same mechanic, and before this they were read
+ * by four functions that each knew one question — so a spell could not ask the
+ * question Dodge answered, and Dodge could not be asked about a spell attack.
+ * Both now go through the same {@link selectorMatches} predicate, and what
+ * comes back is a list of attributed modes that {@link combineRollModes}
+ * settles exactly as it settles every other mode in the engine. Nothing here
+ * decides an outcome; the SRD's presence rule is still the only rule that
+ * does, and it is still in one place.
+ *
+ * Deduplicated by source, so a caller who also knows about Danger Sense does
+ * not apply it twice — the rule `savingSupport` and `rollInitiativeFor` were
+ * already following, hoisted to where every family benefits from it.
+ *
+ * `seen` is the **holder's** view of whoever is rolling, for the one clause
+ * that asks: SRD Dodge's "if you can see the attacker". Three-valued, and an
+ * undeclared sight line applies the benefit and says so rather than silently
+ * dropping it — the direction an Opportunity Attack already takes.
  */
-export function attackedWithDisadvantage(
+export function rollModesFor(
   state: GameState,
-  who: CharacterId,
-  seen: boolean | null,
+  query: RollQuery,
+  options: { readonly seenByHolder?: boolean | null } = {},
 ): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
   const modes: ModeSource[] = [];
   const unverified: string[] = [];
+  const seen = new Set<string>();
 
-  for (const { effect } of standingFor(state, who)) {
-    if (effect.grant.kind !== 'attacked-with-disadvantage') continue;
-    if (effect.grant.ifSeen && seen === false) continue;
-    if (effect.grant.ifSeen && seen === null) {
-      unverified.push(
-        `nobody has said whether ${who} can see their attacker, and ${effect.name} needs that; the benefit was applied rather than withheld`,
-      );
+  const push = (source: string, mode: RollMode): void => {
+    if (seen.has(source)) return;
+    seen.add(source);
+    modes.push({ source, mode });
+  };
+
+  // A feature's grant is read from whoever holds it, and which creature that
+  // is depends on the relation: a mode on the roller comes off the roller's
+  // own sheet, while one on rolls *against* somebody comes off the creature
+  // being rolled against. So both ends are asked, and the predicate decides.
+  const holders: CharacterId[] = [query.roller];
+  const against = query.against ?? null;
+  if (against !== null && against !== query.roller) holders.push(against);
+
+  for (const holder of holders) {
+    for (const { effect } of standingFor(state, holder)) {
+      if (effect.grant.kind !== 'roll-mode') continue;
+      if (!selectorMatches(effect.grant.modifier.selector, holder, query)) continue;
+
+      if (effect.grant.ifSeen === true) {
+        const sight = options.seenByHolder ?? null;
+        if (sight === false) continue;
+        if (sight === null) {
+          unverified.push(
+            `nobody has said whether ${holder} can see the creature rolling, and ${effect.name} needs that; the benefit was applied rather than withheld`,
+          );
+        }
+      }
+
+      push(effect.name, effect.grant.modifier.mode);
     }
-    modes.push({ source: effect.name, mode: 'disadvantage' });
+  }
+
+  // And the durable half: what a running spell has hung on a creature.
+  for (const granted of grantedRollModes(state, query)) {
+    push(granted.source, granted.mode);
   }
 
   return { modes, unverified };
@@ -848,35 +885,6 @@ function adjacentAllyOf(
  * Asked of the *target* rather than the caster, which is what makes it a
  * defence: the Rogue standing in the Fireball is the one who evades it.
  */
-/**
- * Advantage on Initiative this creature's features grant.
- *
- * Attributed, like every other mode, because Advantage cancels rather than
- * stacks and a roll that came out normal should still be able to say what
- * cancelled what.
- */
-export function standingInitiativeModes(state: GameState, who: CharacterId): ModeSource[] {
-  return standingFor(state, who)
-    .filter(({ effect }) => effect.grant.kind === 'advantage' && effect.grant.on === 'initiative')
-    .map(({ effect }) => ({ source: effect.name, mode: 'advantage' as const }));
-}
-
-/** Advantage on a named skill's checks, from the same place. */
-export function standingSkillModes(
-  state: GameState,
-  who: CharacterId,
-  skill: Skill,
-): ModeSource[] {
-  return standingFor(state, who)
-    .filter(
-      ({ effect }) =>
-        effect.grant.kind === 'advantage' &&
-        effect.grant.on === 'skill' &&
-        effect.grant.skill === skill,
-    )
-    .map(({ effect }) => ({ source: effect.name, mode: 'advantage' as const }));
-}
-
 export function evadesHalfDamage(
   state: GameState,
   who: CharacterId,

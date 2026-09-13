@@ -52,7 +52,11 @@ export const DODGE_EFFECTS: readonly StandingEffect[] = [
     feature: DODGE,
     name: 'Dodge',
     reach: { kind: 'self' },
-    grant: { kind: 'attacked-with-disadvantage', ifSeen: true },
+    grant: {
+      kind: 'roll-mode',
+      modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'against-holder' } },
+      ifSeen: true,
+    },
     requires: [
       { kind: 'feature-active', feature: DODGE },
       { kind: 'not-incapacitated' },
@@ -63,7 +67,7 @@ export const DODGE_EFFECTS: readonly StandingEffect[] = [
     feature: DODGE,
     name: 'Dodge',
     reach: { kind: 'self' },
-    grant: { kind: 'advantage', on: 'save', ability: 'dex' },
+    grant: { kind: 'roll-mode', modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } } },
     requires: [
       { kind: 'feature-active', feature: DODGE },
       { kind: 'not-incapacitated' },

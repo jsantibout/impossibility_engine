@@ -77,19 +77,16 @@ import { routesFor, type CastingRoute, type SpellcastingState } from './spellcas
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from './actions.js';
 import {
   armorClassOf,
-  attackedWithDisadvantage,
   defensesOf,
   effectiveConditions,
   checkFeatureDamageTypes,
   evadesHalfDamage,
   recoveryCap,
+  rollModesFor,
   selfHealAddend,
   type HealAmount,
   standingAttackDamage,
-  standingInitiativeModes,
-  standingSkillModes,
   standingSaveBonuses,
-  standingSaveModes,
   type ActivatedFeature,
 } from './standing.js';
 import {
@@ -2305,13 +2302,16 @@ export function resolveAttack(
   const nearby = enemyWithinFiveFeet(state, id);
   unverified.push(...nearby.unverified);
 
-  // SRD Dodge and anything else that makes attacks against the target harder.
-  // The sight clause is the *target's* view of the attacker, and undeclared is
-  // not the same as blind.
-  const defending = attackedWithDisadvantage(
+  // SRD Dodge, Blur, and anything else standing that reaches this roll —
+  // whether it sits on the attacker or on the creature being attacked. One
+  // gatherer, one predicate; the sight clause is the *target's* view of the
+  // attacker, and undeclared is not the same as blind.
+  const defending = rollModesFor(
     state,
-    command.target,
-    state.scene === null ? null : sightBetween(state.scene, command.target, id),
+    { family: 'attack', roller: id, against: command.target },
+    {
+      seenByHolder: state.scene === null ? null : sightBetween(state.scene, command.target, id),
+    },
   );
   unverified.push(...defending.unverified);
 
@@ -3406,7 +3406,15 @@ export function resolveTest(
   const rolled =
     command.kind === 'saving-throw'
       ? (() => {
-          const support = savingSupport(state, who, creature, command.ability, supply);
+          // The command's own modes and bonuses, alongside the operation's.
+          // They were dropped here — `TestCommand` declares both, the ability
+          // check branch below honours both, and the saving throw branch
+          // handed `savingSupport` the *supply* and nothing else. A DM
+          // imposing Disadvantage on one save was silently ignored.
+          const support = savingSupport(state, who, creature, command.ability, {
+            modes: [...(supply.modes ?? []), ...(command.modes ?? [])],
+            bonuses: [...(supply.bonuses ?? []), ...(command.bonuses ?? [])],
+          });
           return rollSavingThrow(supply.issuer, supply.rng, creature.sheet, command.ability, {
             dc: command.dc,
             conditions: support.conditions,
@@ -3419,7 +3427,12 @@ export function resolveTest(
           ...(command.skill === undefined ? {} : { skill: command.skill }),
           conditions: effectiveConditions(state, who),
           modes: [
-            ...(command.skill === undefined ? [] : standingSkillModes(state, who, command.skill)),
+            ...rollModesFor(state, {
+              family: 'ability-check',
+              roller: who,
+              ability: command.ability,
+              ...(command.skill === undefined ? {} : { skill: command.skill }),
+            }).modes,
             ...(command.modes ?? []),
           ],
           ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
@@ -6458,8 +6471,12 @@ export function resolveEffectCheck(
   // A feature that grants Advantage on this very skill — SRD Remarkable
   // Athlete: "Advantage on ... Strength (Athletics) checks", which is exactly
   // what tearing free of Black Tentacles asks for.
-  const fromFeatures =
-    check.skill === undefined ? [] : standingSkillModes(state, who, check.skill);
+  const fromFeatures = rollModesFor(state, {
+    family: 'ability-check',
+    roller: who,
+    ability: check.ability,
+    ...(check.skill === undefined ? {} : { skill: check.skill }),
+  }).modes;
 
   const rolled = rollAbilityCheck(supply.issuer, supply.rng, creature.sheet, check.ability, {
     dc: check.dc,
@@ -7027,8 +7044,12 @@ function rollTheDeathSave(
   if (creature === undefined) return unknownCreature(who, 'has no record here');
 
   const issuedBefore = supply.issuer.count;
+  // SRD Beacon of Hope grants Advantage on Death Saving Throws by name, and a
+  // death save is its own roll family precisely because it is tied to no
+  // ability — so an ability-keyed grant on saving throws must not reach it.
+  const standing = rollModesFor(state, { family: 'death-save', roller: who }).modes;
   const rolled = rollDeathSave(supply.issuer, supply.rng, creature.vitals, {
-    ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+    modes: [...standing, ...(supply.modes ?? [])],
     ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
   });
   if (!rolled.ok) return rolled;
@@ -7401,7 +7422,9 @@ function savingSupport(
   // about Danger Sense applying it twice.
   const named = new Map<string, ModeSource>();
   const bare: RollMode[] = [];
-  for (const mode of standingSaveModes(state, who, ability)) named.set(mode.source, mode);
+  for (const mode of rollModesFor(state, { family: 'saving-throw', roller: who, ability }).modes) {
+    named.set(mode.source, mode);
+  }
   for (const mode of supply.modes ?? []) {
     if (typeof mode === 'string') bare.push(mode);
     else named.set(mode.source, mode);
@@ -8858,16 +8881,32 @@ function resolveEffects(
       if (victim === undefined) continue;
 
       if (effect.kind === 'attack') {
+        // **A spell attack is an attack roll.** SRD Dodge says "any attack
+        // roll made against you" and Blur says "attack rolls against you";
+        // neither says "with a weapon". This path never read the defender's
+        // standing effects at all, so a Dodging target was easier to hit with
+        // a Fire Bolt than with a dagger — one gatherer removes the fork
+        // rather than copying the weapon path's version of it.
+        const defending = rollModesFor(
+          current,
+          { family: 'attack', roller: casterId, against: target },
+          {
+            seenByHolder:
+              current.scene === null ? null : sightBetween(current.scene, target, casterId),
+          },
+        );
+        unverified.push(...defending.unverified);
+
         const attack = rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
           weapon: null,
           targetAc: armorClassOf(current, target),
+          modes: [...defending.modes, ...(supply.modes ?? [])],
           attackBonuses: [
             { source: `${definition.name} (spell attack)`, flat: attackModifier },
             // Bless is on the caster, not in the caller's head.
             ...bonusesFor((caster?.bonuses ?? []), 'attack'),
             ...(supply.bonuses ?? []),
           ],
-          ...(supply.modes === undefined ? {} : { modes: supply.modes }),
           // A condition a feature has suppressed gives an attacker nothing:
           // SRD Aura of Courage says the condition "has no effect on that ally
           // while there", and being easier to hit is an effect.
@@ -9059,6 +9098,60 @@ function resolveEffects(
             bonus: { ...effect.bonus, source: definition.name },
             applies: effect.applies,
             direction: effect.direction,
+          },
+        });
+        current = events.slice(-1).reduce(applyEvent, current);
+        outcomes.push({
+          target,
+          ...(save === null ? {} : { save }),
+          affected: true,
+        });
+        continue;
+      }
+
+      // Advantage or Disadvantage for as long as the spell runs. Bane's
+      // shape when the spell offers a save, Bless's when it does not — the
+      // same fork the bonus above takes, because it is the same sentence
+      // shape with presence in place of arithmetic.
+      if (effect.kind === 'roll-mode') {
+        let save: D20TestResult | null = null;
+        if (effect.save !== undefined) {
+          const support = savingSupport(current, target, victim, effect.save, supply);
+          const rolled = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.save, {
+            dc: saveDc,
+            conditions: support.conditions,
+            modes: support.modes,
+            bonuses: support.bonuses,
+          });
+          if (!rolled.ok) return rolled;
+          save = rolled.value;
+
+          events.push(
+            recordD20Test(
+              target,
+              `${ABILITY_NAMES[effect.save]} save vs ${definition.name}`,
+              save,
+              save.success ? 'resisted' : 'affected',
+            ),
+          );
+
+          if (save.success) {
+            outcomes.push({ target, save, affected: false });
+            continue;
+          }
+        }
+
+        // The casting is in the source, so every door that ends the spell —
+        // a broken Concentration, the minute running out, a dispel, the
+        // caster leaving — ends this too, through machinery that already
+        // existed rather than a lifecycle of its own.
+        held.add(target);
+        events.push({
+          type: 'roll-modifier-granted',
+          id: target,
+          modifier: {
+            source: castingSource(definition.name, castingId),
+            modifier: effect.modifier,
           },
         });
         current = events.slice(-1).reduce(applyEvent, current);
@@ -9864,7 +9957,9 @@ export function rollInitiativeFor(
   // already follows. Deduplicated by source, so a caller who also knows about
   // the feature does not apply it twice.
   const named = new Map<string, ModeSource>();
-  for (const mode of standingInitiativeModes(state, id)) named.set(mode.source, mode);
+  for (const mode of rollModesFor(state, { family: 'initiative', roller: id }).modes) {
+    named.set(mode.source, mode);
+  }
   const bare: (RollMode | ModeSource)[] = [];
   for (const mode of options.modes ?? []) {
     if (typeof mode === 'string') bare.push(mode);

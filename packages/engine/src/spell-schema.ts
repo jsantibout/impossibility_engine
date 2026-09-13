@@ -1,10 +1,16 @@
 import {
+  ABILITIES,
   CONDITIONS,
   DAMAGE_TYPES,
   err,
   ok,
+  SKILL_ABILITY,
+  SKILLS,
+  type Ability,
   type Result,
+  type Skill,
 } from '@ie/shared';
+import { rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
 import type {
   DiceScaling,
@@ -76,6 +82,16 @@ const CASTING_TIMES: ReadonlySet<string> = new Set([
   'bonus-action',
   'reaction',
   'long',
+]);
+const ABILITY_NAMES_SET: ReadonlySet<Ability> = new Set(ABILITIES);
+const SKILL_NAMES: ReadonlySet<Skill> = new Set(SKILLS);
+/** Every kind of roll a granted mode can pick out — see `RollFamily`. */
+const ROLL_FAMILIES: ReadonlySet<string> = new Set([
+  'attack',
+  'ability-check',
+  'saving-throw',
+  'initiative',
+  'death-save',
 ]);
 const AREA_KINDS: ReadonlySet<string> = new Set([
   'sphere',
@@ -252,6 +268,74 @@ function checkEffect(
         });
       }
       return;
+
+    case 'roll-mode': {
+      // The selector's own coherence — an ability on a roll made with none, a
+      // skill on a roll that uses none, a skill and an ability that disagree,
+      // or "against the holder" on a roll the engine records no target for.
+      // Every one of these compiles and then matches nothing for ever, or
+      // matches far more than the spell says, which is what makes them worth
+      // a refusal at authoring rather than a surprise at the table.
+      const selector = effect.modifier.selector;
+      if (!ROLL_FAMILIES.has(selector.roll)) {
+        found.push({
+          field: `${path}.modifier.selector.roll`,
+          code: 'bad_roll_family',
+          reason: `"${String(selector.roll)}" is not a kind of roll the engine makes`,
+        });
+      }
+      if (selector.relation !== 'roller' && selector.relation !== 'against-holder') {
+        found.push({
+          field: `${path}.modifier.selector.relation`,
+          code: 'bad_roll_relation',
+          reason: `"${String(selector.relation)}" is not a relation; a mode is the roller's or it is on rolls against the holder`,
+        });
+      }
+      if (effect.modifier.mode !== 'advantage' && effect.modifier.mode !== 'disadvantage') {
+        found.push({
+          field: `${path}.modifier.mode`,
+          code: 'bad_roll_mode',
+          reason: 'a granted mode is Advantage or Disadvantage; "normal" grants nothing',
+        });
+      }
+      if (selector.ability !== undefined && !ABILITY_NAMES_SET.has(selector.ability)) {
+        found.push({
+          field: `${path}.modifier.selector.ability`,
+          code: 'bad_ability',
+          reason: `"${String(selector.ability)}" is not an ability`,
+        });
+      }
+      if (selector.skill !== undefined && !SKILL_NAMES.has(selector.skill)) {
+        found.push({
+          field: `${path}.modifier.selector.skill`,
+          code: 'bad_skill',
+          reason: `"${String(selector.skill)}" is not a skill`,
+        });
+      }
+      if (effect.save !== undefined && !ABILITY_NAMES_SET.has(effect.save)) {
+        found.push({
+          field: `${path}.save`,
+          code: 'bad_ability',
+          reason: `"${String(effect.save)}" is not an ability`,
+        });
+      }
+      // Only once the vocabulary is known good: the combination rules read
+      // the values, and reading a value that is not an ability at all would
+      // report a second, less useful problem about the first one.
+      if (
+        ROLL_FAMILIES.has(selector.roll) &&
+        (selector.ability === undefined || ABILITY_NAMES_SET.has(selector.ability)) &&
+        (selector.skill === undefined || SKILL_NAMES.has(selector.skill))
+      ) {
+        for (const problem of rollSelectorProblems(
+          selector,
+          (skill: Skill) => SKILL_ABILITY[skill],
+        )) {
+          found.push({ field: `${path}.modifier.selector`, ...problem });
+        }
+      }
+      return;
+    }
 
     case 'armor-class':
       if (!Number.isInteger(effect.base) || effect.base < 1) {
@@ -765,4 +849,5 @@ const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'dispel',
   'interrupt-casting',
   'armor-class',
+  'roll-mode',
 ]);

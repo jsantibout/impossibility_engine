@@ -1,12 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import {
+  asCharacterId,
+  isErr,
+  expect as unwrap,
+  type Ability,
+  type CharacterId,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { resolveAttack, resolveSpell, resolveTurn, takeDodge } from './commands.js';
 import { declaredCasting } from './spellcasting.js';
-import { standingSaveModes } from './standing.js';
+import { rollModesFor } from './standing.js';
+
+/**
+ * The Advantage and Disadvantage reaching a saving throw, read the way every
+ * roll in the engine now reads it: one query, one gatherer, one predicate.
+ */
+const saveModes = (state: GameState, who: CharacterId, ability: Ability) =>
+  rollModesFor(state, { family: 'saving-throw', roller: who, ability }).modes;
 
 /**
  * Dodge, which is the one common action whose benefit outlives the turn.
@@ -145,13 +158,13 @@ describe('Dodge makes an attack against you harder', () => {
 describe('Dodge helps a Dexterity saving throw and nothing else', () => {
   /** SRD: "you make Dexterity saving throws with Advantage." */
   it('grants Advantage on Dexterity saves', () => {
-    expect(standingSaveModes(fold('seed', dodging()), ROGUE, 'dex')).toEqual([
+    expect(saveModes(fold('seed', dodging()), ROGUE, 'dex')).toEqual([
       { source: 'Dodge', mode: 'advantage' },
     ]);
   });
 
   it('grants nothing on any other save', () => {
-    expect(standingSaveModes(fold('seed', dodging()), ROGUE, 'wis')).toEqual([]);
+    expect(saveModes(fold('seed', dodging()), ROGUE, 'wis')).toEqual([]);
   });
 
   /** And it reaches a save the engine rolls, without anybody passing it. */
@@ -189,6 +202,65 @@ describe('Dodge helps a Dexterity saving throw and nothing else', () => {
   });
 });
 
+/**
+ * **A spell attack is an attack roll, and this used to be a fork.**
+ *
+ * SRD Dodge says "any attack roll made against you"; it does not say "with a
+ * weapon". `resolveAttack` read the target's standing effects and the spell
+ * attack inside `resolveEffects` read nothing about the defender at all, so a
+ * Dodging rogue was easier to hit with a Fire Bolt than with a club — silently,
+ * because each path was correct on its own terms and nothing compared them.
+ *
+ * One gatherer serving both ends of every attack is what removes the fork; this
+ * is the assertion that says so, and it fails if either path grows its own
+ * answer again.
+ */
+describe('Dodge reaches a spell attack, not only a weapon', () => {
+  const casting: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'resource-pool-declared',
+      id: OGRE,
+      pool: { key: 'spell-slot:1', label: 'level 1 spell slot', max: 2, recovers: 'long-rest' },
+    },
+    {
+      type: 'spellcasting-declared',
+      id: OGRE,
+      spellcasting: declaredCasting({ ability: 'int', cantrips: ['fire-bolt'], prepared: [] }),
+    },
+    { type: 'sight-declared', from: OGRE, to: ROGUE, seen: true },
+  ];
+
+  const bolt = (log: readonly GameEvent[]) =>
+    unwrap(
+      resolveSpell(
+        fold('seed', log),
+        OGRE,
+        { spellId: 'fire-bolt', targets: [ROGUE] },
+        supply('bolt'),
+      ),
+      'fire-bolt',
+    ).outcomes.find((o) => o.target === ROGUE)?.attack;
+
+  it('gives the caster Disadvantage on the spell attack roll', () => {
+    expect(bolt(waiting(casting))?.mode).toBe('normal');
+    expect(bolt(waiting(casting))?.roll.rolls).toHaveLength(1);
+
+    const hampered = bolt(dodging(casting));
+    expect(hampered?.mode).toBe('disadvantage');
+    expect(hampered?.roll.rolls).toHaveLength(2);
+  });
+
+  /** And the sight clause is the same clause, read from the same place. */
+  it('gives nothing against a caster the dodger cannot see', () => {
+    const blind: readonly GameEvent[] = [
+      ...casting.filter((e) => !(e.type === 'sight-declared' && e.from === ROGUE)),
+      { type: 'sight-declared', from: ROGUE, to: OGRE, seen: false },
+    ];
+    expect(bolt(dodging(blind))?.mode).toBe('normal');
+  });
+});
+
 describe('Dodge ends when the SRD says it ends', () => {
   /** SRD: "until the start of your next turn." */
   it('lapses at the start of the dodger’s next turn', () => {
@@ -213,7 +285,7 @@ describe('Dodge ends when the SRD says it ends', () => {
     expect(fold('seed', ownTurn).combat?.order[fold('seed', ownTurn).combat!.turnIndex]?.id).toBe(
       ROGUE,
     );
-    expect(standingSaveModes(fold('seed', ownTurn), ROGUE, 'dex')).toEqual([]);
+    expect(saveModes(fold('seed', ownTurn), ROGUE, 'dex')).toEqual([]);
   });
 
   /** SRD: "You lose these benefits if you have the Incapacitated condition." */
@@ -232,7 +304,7 @@ describe('Dodge ends when the SRD says it ends', () => {
       { type: 'condition-applied', id: ROGUE, condition: 'grappled', source: 'the ogre' },
     ];
     expect(swungAt(held).attack!.mode).toBe('normal');
-    expect(standingSaveModes(fold('seed', held), ROGUE, 'dex')).toEqual([]);
+    expect(saveModes(fold('seed', held), ROGUE, 'dex')).toEqual([]);
   });
 });
 

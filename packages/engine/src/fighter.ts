@@ -306,8 +306,8 @@ export const CHAMPION: SubclassDefinition = {
         kind: 'standing',
         reach: 'self',
         effects: [
-          { kind: 'advantage', on: 'initiative' },
-          { kind: 'advantage', on: 'skill', skill: 'athletics' },
+          { kind: 'roll-mode', modifier: { mode: 'advantage', selector: { roll: 'initiative', relation: 'roller' } } },
+          { kind: 'roll-mode', modifier: { mode: 'advantage', selector: { roll: 'ability-check', relation: 'roller', skill: 'athletics' } } },
         ],
       },
     },

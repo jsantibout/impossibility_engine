@@ -20,7 +20,7 @@ spell is unsupported.
 
 | Parsed | Tracked | Executed | Verified |
 |---|---|---|---|
-| 339 | 46 (13.6%) | 80 (23.6%) | 55 (16.2%) |
+| 339 | 46 (13.6%) | 82 (24.2%) | 57 (16.8%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -42,11 +42,11 @@ spell, and the area is the part that is missing.
 | An ongoing effect that acts on later turns | 18 | 1 | 3 | an effect that a later turn can act through |
 | Spell attack roll | 16 | 0 | 10 | — |
 | Saving throw for damage | 30 | 0 | 13 | — |
-| Saving throw for a condition | 43 | 0 | 16 | — |
+| Saving throw for a condition | 43 | 0 | 17 | — |
 | Restores Hit Points | 4 | 0 | 3 | — |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 1 | — |
-| Narrative or exploration effect | 91 | 43 | 4 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
+| Narrative or exploration effect | 91 | 43 | 5 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -55,11 +55,13 @@ spell, and the area is the part that is missing.
 - **Animal Friendship** (level 1) — verified
 - **Bane** (level 1) — verified
 - **Banishment** (level 4) — verified
+- **Beacon of Hope** (level 3) — verified
 - **Befuddlement** (level 8) — untested
 - **Black Tentacles** (level 4) — verified
 - **Bless** (level 1) — verified
 - **Blight** (level 4) — verified
 - **Blindness/Deafness** (level 2) — verified
+- **Blur** (level 2) — verified
 - **Burning Hands** (level 1) — verified
 - **Chain Lightning** (level 6) — untested
 - **Charm Monster** (level 4) — verified

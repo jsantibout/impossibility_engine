@@ -259,6 +259,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'resources-restored',
   'rest-begun',
   'rest-ended',
+  'roll-modifier-granted',
   'roll-recorded',
   'rolls-issued',
   'scene-set',

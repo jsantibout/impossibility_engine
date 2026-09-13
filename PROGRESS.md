@@ -101,6 +101,7 @@ still Wizard-shaped are named below.
 | Surface parity | Every engine request parameter published or explained, with a test that reads the engine's own source | `cac086d` |
 | Spatial model | A coordinate says *where*, never *what*; `AreaPoint` and explicit anchoring | `81112d1` |
 | Validated definitions | A pure schema validator, the SRD as a range/duration oracle, declared area anchoring, and an Armour Class a spell **sets** — Mage Armor | — |
+| Roll modifiers | Advantage as a typed relationship between an effect and a roll; `against-holder`; Blur, Beacon of Hope | — |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 
@@ -1491,7 +1492,7 @@ have moved:
 | #6 an SRD oracle | **done** for range and duration; casting time and Concentration were already oracled. Area, dice and save ability are prose and stay prose |
 | #4 outcome-scoped child effects | **deferred deliberately**, with the reason in the decisions above. It wants a restricted child vocabulary, and the evidence for its members is the next two families |
 | #7 split `commands.ts` | untouched; this pass added ~40 lines to it and removed the need for none |
-| #5 roll-modification keys for "against the holder" | unchanged, and still what the standing-Advantage family needs first |
+| #5 roll-modification keys for "against the holder" | **done** — `RollSelector` in `roll-modifiers.ts`, one predicate shared by class features and spells; see CLAUDE.md, "Advantage Is A Property Of A Roll, Not Of A Creature" |
 | #14 `cause` on events | unchanged |
 
 The one thing the definitions pass changed about the queue: **a new effect kind
@@ -1791,6 +1792,69 @@ What remains in the class system, in likely order:
   chosen at those levels. Not modelled, and the reason a Warlock here has no
   slots above level 5.
 
+## The standing-Advantage family, recounted after the mechanic exists
+
+The ranked map above put this second with a count of **25**, and named the one
+design decision it needed that the ability-check shape did not: *a mode that
+applies to rolls made **against** the holder*. That is built — `RollSelector`
+with a `relation`, one predicate, one gatherer — and the honest question now is
+how much of the 25 it actually unblocked.
+
+**Measured, not estimated.** Thirty-nine parsed spells name Advantage or
+Disadvantage in their prose; ten already had definitions. The other twenty-nine
+were read one at a time against their own SRD paragraph.
+
+| | Spells | |
+|---|---|---|
+| **Not this mechanic at all** | Ensnaring Strike, Hideous Laughter, Modify Memory, Wish | a size- or damage-conditioned save at the moment it is rolled, and a reroll |
+| **Not any mechanic** | Meld into Stone | every clause hangs off being inside a rock |
+| **Clause now expressible, spell executed** | **Blur, Beacon of Hope** | built this batch |
+| **Clause now expressible, spell blocked elsewhere** | Enlarge/Reduce, Gaseous Form, Haste, Heat Metal, Hunter's Mark, Irresistible Dance, Shining Smite, Symbol, Thaumaturgy | 9 |
+| **Clause still not expressible** | the 13 below | |
+
+So of the 25: **11 spells' roll-mode clauses are now sayable with no further
+engine primitive**, and 9 of those 11 are blocked on something that has nothing
+to do with Advantage — which is the number worth reading. The mechanic was
+worth building and it was never the *only* thing wrong with most of the bucket,
+exactly as the ability-check batch found.
+
+**What blocks the other 13, named rather than vague.** Each is a filter or a
+reach the selector deliberately does not have, and each has its spells:
+
+| Missing | Spells |
+|---|---|
+| An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse |
+| A filter on the **attacker's** creature type | Protection from Evil and Good, Dispel Evil and Good, Magic Circle |
+| A sight clause read from the **attacker's** side | Faerie Fire |
+| The effect's **source** as a participant — "against *you*", the caster | Bestow Curse |
+| A grant conditioned on proximity, or carried by an aura | Holy Aura, Conjure Animals |
+| A save keyed to a named **condition** rather than an ability | Protection from Poison |
+| "D20 Tests", and "Strength-based D20 Tests" | Foresight, Resurrection, Ray of Enfeeblement |
+
+Two of those are cheap and neither was built, for the same reason: **one
+mechanic is not evidence.** A per-casting ability choice has three users and is
+a `CastSpellRequest` primitive rather than a roll one; an attacker-type filter
+has three and needs a decision about what an *undeclared* attacker type means
+in the middle of a roll, where asking is expensive. Both are named here so the
+next batch has the count in front of it.
+
+**And one clause is a different mechanic wearing this one's clothes.** Guiding
+Bolt's "the **next** attack roll against it", Vicious Mockery's "the next
+attack roll it makes" and Ray of Enfeeblement's success branch all need a
+modifier **consumed by the roll it changes**. Nothing here consumes anything.
+Those three stay in `unmodelled`, where they already were.
+
+### Where this leaves the ranked map
+
+| Rank | Shape | Open spells | Change |
+|---|---|---|---|
+| 1 | A condition applied with no saving throw | 9 | unchanged, and still the cheapest thing on the list |
+| 2 | Resistance or Immunity a spell grants | 17 | unchanged — and it is the family the deferred child-effect vocabulary is waiting on |
+| 3 | Healing that lifts a condition, raises the dead, or raises the maximum | 10 | unchanged |
+| 4 | Damage with neither an attack roll nor a save | 19 | unchanged |
+| 5 | Teleportation | 13 | unchanged |
+| — | A standing Advantage or Disadvantage a spell grants | **11 of 25 unblocked** | the selector is built; the remainder is 6 named filters |
+
 ## Where the numbers stand
 
 Run `npm run coverage`; these were true at the last commit.
@@ -1798,12 +1862,12 @@ Run `npm run coverage`; these were true at the last commit.
 | | |
 |---|---|
 | Spells parsed | 339 |
-| Spells executed | 79 (one of them partial) |
-| Spells verified end to end | 54 |
+| Spells executed | 82 (one of them partial) |
+| Spells verified end to end | 57 |
 | Spells tracked (cast, effect narrated) | 46 |
 | Classes | 12 of 12, each with its SRD subclass, levels 1–20 |
 | Class features executed | 88 of 230 |
-| Tests | 4,222 passing, none skipped |
+| Tests | 5,245 passing, none skipped |
 
 The two numbers worth reading together are the last two. Every class is
 **validated** — creation and advancement check scores, skills, feats,
