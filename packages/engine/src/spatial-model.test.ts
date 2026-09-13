@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
@@ -693,10 +693,14 @@ describe('a spell may declare the footprint its template wants', () => {
    * it, a footprint a spell declared would survive to one and not the other.
    */
   it('is the only place the runtime decides', () => {
-    const source = readFileSync(
-      fileURLToPath(new URL('./commands.ts', import.meta.url)),
-      'utf8',
-    );
+    // The whole command layer, because `commands.ts` is a barrel and the
+    // declaration and its callers now sit in different modules under
+    // `commands/`. Reading the barrel would count zero and pass vacuously.
+    const dir = fileURLToPath(new URL('./commands/', import.meta.url));
+    const source = readdirSync(dir)
+      .filter((file) => file.endsWith('.ts'))
+      .map((file) => readFileSync(`${dir}${file}`, 'utf8'))
+      .join('\n');
     // Two call sites and the declaration itself.
     expect(source.split('anchoringFor(').length - 1).toBe(3);
     expect(source).not.toContain("request.anchoring ?? 'space'");

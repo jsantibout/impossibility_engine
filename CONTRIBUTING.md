@@ -40,7 +40,7 @@ Builds the shapes and the engine underneath them. Owns:
 
 | Path | Notes |
 |---|---|
-| `packages/engine/src/commands.ts` | |
+| `packages/engine/src/commands/` | Twenty-one domain modules; `commands.ts` beside them is a re-export barrel and nothing else |
 | `packages/engine/src/events.ts` | The union, the reducer, `GameState` |
 | `duration.ts`, `standing.ts`, `positioning.ts`, `combat.ts`, `conditions.ts` | |
 | `spell-definitions.ts` — **the type declarations only** | `SpellEffect`, `SpellDefinition`, `ReactionTrigger`, `DiceScaling`, at the top of the file |

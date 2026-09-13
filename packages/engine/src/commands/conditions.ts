@@ -1,0 +1,138 @@
+/**
+ * Applying a condition, and giving a timed effect a moment to stop at.
+ *
+ * `schedule` is here rather than in its own module because everything it
+ * schedules is one of two things: a condition instance on a creature, or the
+ * casting that hung one. It is the other half of applying a timed effect, and
+ * `applyConditionTo` is the first half.
+ */
+
+import { type CharacterId, type ConditionName, err, ok, type Result } from '@ie/shared';
+import { conditionInstanceId, reasonsFor } from '../conditions.js';
+import {
+  type Duration,
+  type EffectCheck,
+  type EffectTarget,
+  type RepeatSave,
+  resolveDuration,
+} from '../duration.js';
+import { type GameEvent, type GameState } from '../events.js';
+import { type CommandIdentity, once } from '../idempotency.js';
+import { creatureOf, unknownCreature } from './command.js';
+
+/**
+ * Apply a condition, refusing one the creature cannot receive.
+ *
+ * Immunity is a rules-legal refusal rather than a silent no-op, so the DM can
+ * narrate it: the spell lands and does nothing.
+ */
+export function applyConditionTo(
+  state: GameState,
+  id: CharacterId,
+  condition: ConditionName,
+  source: string,
+  immuneTo: readonly ConditionName[] = [],
+  duration?: Duration,
+  repeatSave?: RepeatSave,
+  command: CommandIdentity = {},
+  /**
+   * A check the affected creature may attempt to shake it off.
+   *
+   * Ninth and last, appended rather than folded into an options object,
+   * because `applyConditionTo` is a DM-facing command whose existing call
+   * sites should not have to move for a field none of them passes.
+   */
+  check?: EffectCheck,
+): Result<GameEvent[]> {
+  // "You are Frightened" is the state change a narrating layer reaches for
+  // most, and a retried one was a second Frightened from the same source —
+  // harmless to the condition set, which keys by source, but a second
+  // `effect-scheduled` that reset its deadline.
+  return once(state, `condition:${id}`, {
+    ...command,
+    condition,
+    source,
+    ...(duration === undefined ? {} : { duration }),
+    ...(repeatSave === undefined ? {} : { repeatSave }),
+    ...(check === undefined ? {} : { check }),
+  }, () => [], (stamp) => {
+    if (creatureOf(state, id) === null) {
+      return unknownCreature(id);
+    }
+    if (immuneTo.includes(condition)) {
+      return err('immune', `${id} is immune to the ${condition} condition`);
+    }
+
+    const events: GameEvent[] = [
+      { type: 'condition-applied', id, condition, source, ...(stamp === null ? {} : { command: stamp }) },
+    ];
+
+    // A hook needs a timer to hang on, even when the effect has no deadline of
+    // its own: an indefinite one is still the thing the boundary looks at. A
+    // check is the same — Black Tentacles lasts as long as its casting and has
+    // no deadline of its own, and the escape still has to be attemptable.
+    if (duration === undefined && (repeatSave !== undefined || check !== undefined)) {
+      events.push({
+        type: 'effect-scheduled',
+        target: { kind: 'condition', on: id, instance: conditionInstanceId(condition, source) },
+        deadline: { kind: 'indefinite' },
+        ...(repeatSave === undefined ? {} : { repeatSave }),
+        ...(check === undefined ? {} : { check }),
+      });
+    }
+
+    if (duration !== undefined) {
+      // Validate the duration before emitting anything: an unanswerable one must
+      // not leave the condition applied with no way for it to end.
+      const timer = schedule(
+        state,
+        { kind: 'condition', on: id, instance: conditionInstanceId(condition, source) },
+        duration,
+        repeatSave,
+        check,
+      );
+      if (!timer.ok) return timer;
+      events.push(timer.value);
+    }
+
+    return ok(events);
+  });
+}
+
+/**
+ * The event that gives an effect a moment to stop at.
+ *
+ * The duration is resolved here rather than in the reducer, so a relative
+ * duration that cannot be answered — "the start of your next turn", asked
+ * outside combat — is a refusal the caller sees, not a deadline the log cannot
+ * evaluate later.
+ */
+export function schedule(
+  state: GameState,
+  target: EffectTarget,
+  duration: Duration,
+  repeatSave?: RepeatSave,
+  check?: EffectCheck,
+): Result<GameEvent> {
+  const deadline = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, duration);
+  if (!deadline.ok) return deadline;
+  return ok({
+    type: 'effect-scheduled',
+    target,
+    deadline: deadline.value,
+    ...(repeatSave === undefined ? {} : { repeatSave }),
+    ...(check === undefined ? {} : { check }),
+  });
+}
+
+/** Every distinct reason a creature currently has a condition. */
+export function whyCondition(
+  state: GameState,
+  id: CharacterId,
+  condition: ConditionName,
+): readonly string[] {
+  const creature = creatureOf(state, id);
+  if (creature === null) return [];
+  return reasonsFor(creature.conditions, condition).map((i) => i.source);
+}
+

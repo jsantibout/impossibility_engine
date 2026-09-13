@@ -246,6 +246,18 @@ export interface TimedEffect {
 }
 
 /**
+ * Who may attempt a check, derived from what the effect is on.
+ *
+ * An effect sitting on a creature is that creature's to shake off; a casting
+ * with no victim — an illusion standing in a corridor — is anybody's to see
+ * through. Derived rather than declared because every SRD spell the engine can
+ * currently offer a check for reads this way, and a field with one exception
+ * is a guess dressed as a structure.
+ */
+export const mayAttempt = (timer: TimedEffect, who: CharacterId): boolean =>
+  timer.target.kind !== 'condition' || timer.target.on === who;
+
+/**
  * A save a turn boundary raised and nobody has rolled yet.
  *
  * Persisted in state rather than handed back in a return value, which is the

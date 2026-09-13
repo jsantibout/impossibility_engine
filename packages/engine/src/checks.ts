@@ -34,6 +34,19 @@ import {
  */
 
 /**
+ * A skill's display form, for a log line a person reads.
+ *
+ * Skills are kebab-case slugs because an id is not a display name — the same
+ * rule the equipment catalogue learned the hard way — so the readable half is
+ * derived here rather than stored twice.
+ */
+export const skillName = (skill: Skill): string =>
+  skill
+    .split('-')
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(' ');
+
+/**
  * SRD: "A roll can't be affected by more than one Advantage, and Advantage and
  * Disadvantage on the same roll cancel each other."
  *

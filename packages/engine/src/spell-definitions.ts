@@ -1,4 +1,5 @@
-import type { Ability, ConditionName, Skill } from '@ie/shared';
+import type { Ability, CharacterId, ConditionName, Skill } from '@ie/shared';
+import { endOfNextTurn, startOfNextTurn, type Duration } from './duration.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { PointAnchoring } from './positioning.js';
@@ -1034,6 +1035,117 @@ export interface SpellActivation {
    * spell's own trigger through the ordinary debt.
    */
   readonly effects: readonly SpellEffect[];
+}
+
+// — reading a definition ——————————————————————————————————————————————————————
+//
+// Seven questions about a definition, each answered by reading one field of
+// it. They lived in `commands.ts` until the command layer was split by domain,
+// where they were four regions apart and none of them was about a command:
+// every one is a property of the spell as written, so it belongs beside the
+// type that declares the field it reads.
+
+/**
+ * Whether a casting is on its own caster rather than on whom it was aimed at.
+ *
+ * The SRD keeps Range and target apart and so does this. A Range: Self spell
+ * is on its caster however far its effects reach — Vampiric Touch attacks
+ * somebody new every turn and is on the wizard the whole time. Dispel Magic
+ * reads the result, so getting this backwards would let a fighter end the
+ * wizard's Vampiric Touch by standing still and being punched.
+ */
+export function onCaster(definition: SpellDefinition): boolean {
+  return definition.range.kind === 'self';
+}
+
+/**
+ * Whether this casting leaves anything running.
+ *
+ * A duration or a Concentration, which is what "ongoing" means in the SRD's
+ * own Duration line. Instantaneous spells leave nothing and get no record —
+ * Fireball is history the moment it lands.
+ */
+export function persists(definition: SpellDefinition): boolean {
+  return (
+    definition.concentration ||
+    definition.durationSeconds !== undefined ||
+    definition.durationUntil !== undefined
+  );
+}
+
+/** How far a range reaches in feet, or null where it is not a distance at all. */
+export const ranged = (range: SpellRange): number | null =>
+  range.kind === 'ranged' ? range.feet : range.kind === 'touch' ? 5 : null;
+
+/**
+ * Whether resolving this effect needs dice thrown from the caster's own sheet.
+ *
+ * A saving throw does not: the DC is pinned on the casting and the roll is the
+ * *target's*. Everything else does — an attack is the caster's roll, and every
+ * die of damage, healing or Temporary Hit Points goes through the caster's
+ * sheet even when the spell's own dice are all that survive the filter.
+ *
+ * The distinction exists for exactly one case: a non-Concentration area whose
+ * caster has left. SRD Grease is the only registered spell in it and its
+ * trigger is a bare save, so the other branch is unreachable through content
+ * — which is asserted rather than assumed.
+ */
+export const needsCasterSheet = (effect: SpellEffect): boolean => effect.kind !== 'save';
+
+/**
+ * A trigger's effects, dealing the damage type this casting was declared with.
+ *
+ * SRD Spirit Guardians prints two and picks between them on the caster's
+ * alignment, which is stated at the casting and pinned there — see
+ * `OngoingSpell.damageType`. The definition carries one of the two so the
+ * shape is well-formed and `spell-catalogue.test.ts` can cast it; the pinned
+ * answer is what actually lands, and it is pinned rather than re-read for the
+ * same reason the save DC is.
+ *
+ * Absent for every other spell, where the printed type is the only type and
+ * this is the identity function.
+ */
+export function statedDamageType(
+  effects: readonly SpellEffect[],
+  damageType: string | undefined,
+): readonly SpellEffect[] {
+  if (damageType === undefined) return effects;
+  return effects.map((effect) =>
+    'damageType' in effect && effect.damageType !== undefined ? { ...effect, damageType } : effect,
+  );
+}
+
+/** The deadline a rider clause names, anchored to the caster's own turn. */
+export function riderDuration(
+  lasts: RiderDuration | undefined,
+  casterId: CharacterId,
+): Duration | undefined {
+  if (lasts === undefined) return undefined;
+  return lasts === 'end-of-casters-next-turn'
+    ? endOfNextTurn(casterId)
+    : startOfNextTurn(casterId);
+}
+
+/**
+ * Every rider deadline a casting of this spell is going to need.
+ *
+ * Gathered so they can be checked before anything is spent. A turn-anchored
+ * rider cannot be pinned outside combat, and finding that out at the moment
+ * the condition lands is too late: the saving throw has already been rolled,
+ * and the caller's generator has already moved for a cast that never happened.
+ */
+export function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
+  const found: RiderDuration[] = [];
+  for (const effect of definition.effects) {
+    if (effect.kind === 'save' && effect.lasts !== undefined) found.push(effect.lasts);
+    if (effect.kind === 'attack' && effect.condition?.lasts !== undefined) {
+      found.push(effect.condition.lasts);
+    }
+    if (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined) {
+      found.push(effect.condition.lasts);
+    }
+  }
+  return found;
 }
 
 /**

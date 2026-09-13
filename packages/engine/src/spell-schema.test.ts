@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isErr } from '@ie/shared';
@@ -553,7 +553,28 @@ describe('a definition is told everything that is wrong with it at once', () => 
  */
 describe('no spell is special-cased in the runtime', () => {
   const here = fileURLToPath(new URL('.', import.meta.url));
-  const RUNTIME = ['commands.ts', 'events.ts', 'spells.ts', 'spellcasting.ts', 'standing.ts'];
+
+  /**
+   * Every file a special case could be written in, named one at a time so a
+   * failure says which.
+   *
+   * **The command layer is a directory listing, not `commands.ts`.** That file
+   * is a re-export barrel now: naming it would scan a hundred-odd lines of
+   * `export { … } from` and pass over the ten thousand where
+   * `if (spellId === 'fireball')` would actually be written — a sweep still
+   * green over an empty population, which is the `animals.md` failure mode
+   * arriving in the sweep that names it. A listing also means a module added
+   * tomorrow is scanned without anybody remembering to add it.
+   */
+  const RUNTIME = [
+    ...readdirSync(`${here}commands`)
+      .filter((file) => file.endsWith('.ts'))
+      .map((file) => `commands/${file}`),
+    'events.ts',
+    'spells.ts',
+    'spellcasting.ts',
+    'standing.ts',
+  ];
   const source = (file: string): string => readFileSync(`${here}${file}`, 'utf8');
 
   /**

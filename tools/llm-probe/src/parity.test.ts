@@ -26,7 +26,7 @@
  * authority is the artefact, not a list somebody maintained beside it.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { expect as unwrap } from '@ie/shared';
@@ -35,9 +35,24 @@ import { TOOLS, dispatch } from './surface.js';
 import { createSession, type Session } from './session.js';
 import { CLERIC, FIGHTER, MAGE, OGRE, OGRE_SEED, ogreEncounter } from './ogre.js';
 
-const COMMANDS = fileURLToPath(
-  new URL('../../../packages/engine/src/commands.ts', import.meta.url),
+/**
+ * The command layer's own source, read whole.
+ *
+ * `commands.ts` is a barrel and the commands live in `commands/`, so the
+ * artefact this reads is the directory rather than the file. Reading the
+ * barrel would find no interface and no function at all, and every assertion
+ * below would then be checking nothing — which is the failure mode this whole
+ * file exists to prevent, arriving in its own machinery.
+ */
+const COMMANDS_DIR = fileURLToPath(
+  new URL('../../../packages/engine/src/commands/', import.meta.url),
 );
+
+const commandSource = (): string =>
+  readdirSync(COMMANDS_DIR)
+    .filter((file) => file.endsWith('.ts'))
+    .map((file) => readFileSync(`${COMMANDS_DIR}${file}`, 'utf8'))
+    .join('\n');
 
 /**
  * The fields an engine request interface declares, read off its own source.
@@ -190,7 +205,7 @@ const AUDIT: readonly {
 ];
 
 describe('every engine parameter is either published or explained', () => {
-  const source = readFileSync(COMMANDS, 'utf8');
+  const source = commandSource();
 
   for (const entry of AUDIT) {
     describe(`${entry.request} → ${entry.tool}`, () => {
@@ -271,7 +286,7 @@ describe('every engine command the benchmarks can reach has a tool', () => {
    * removed, and would then go on passing while guarding nothing.
    */
   it('names engine commands that exist', () => {
-    const source = readFileSync(COMMANDS, 'utf8');
+    const source = commandSource();
     const positioning = readFileSync(
       fileURLToPath(new URL('../../../packages/engine/src/positioning.ts', import.meta.url)),
       'utf8',

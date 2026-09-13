@@ -103,7 +103,7 @@ that has not read it.**
 
 Work is split by file, not by feature, because files are what git resolves.
 **A owns content** — spell definitions, the registry, `VERIFIED_SPELLS`, the
-spell tests. **B owns mechanism** — `commands.ts`, `events.ts`, the timing and
+spell tests. **B owns mechanism** — `commands/`, `events.ts`, the timing and
 positioning modules, and the *type declarations* at the top of
 `spell-definitions.ts`. Stay in your lane; if a change genuinely needs the other
 lane, say so rather than reaching across.
@@ -181,9 +181,11 @@ not get wrong.
   `git merge` and ref surgery, and Claude Code's own isolation that refuses
   edits and git aimed at the main checkout. Rework goes builder ↔ reviewer
   without the foreman, and the foreman merges only under tranche authority.
-- **One owner per primitive.** Two tasks that both change `events.ts`,
-  `commands.ts`, the types at the top of `spell-definitions.ts` or any other
-  foundational primitive run one after the other, never concurrently.
+- **One owner per primitive.** Two tasks that both change `events.ts`, the same
+  module under `commands/`, the types at the top of `spell-definitions.ts` or
+  any other foundational primitive run one after the other, never concurrently.
+  Two that change *different* command domains may run beside each other, which
+  is what splitting that file bought.
   Content, conformance, tooling and docs run beside a mechanism task.
 - **Builders never edit `PROGRESS.md` or `docs/dev/`.** The foreman is the only
   writer there; the Done row is recorded at merge, as it always was.
@@ -654,6 +656,15 @@ inside `resolveEffects` read nothing about the defender at all, so a **Dodging
 creature was easier to hit with a Fire Bolt than with a club** — silently,
 because each path was correct on its own terms. SRD Dodge says "any attack roll
 made against you"; it does not say "with a weapon".
+
+**And the two paths now share the gatherer rather than a shape.** They were
+identical blocks in one file, which is how the fork happened the first time and
+is worse once the command layer is a directory: the copies sit in
+`commands/attacks.ts` and `commands/spell-resolution.ts`, where neither
+author sees the other. `defendingModes` in `commands/rolls.ts` is the one
+function both call — a mutation that empties it fails a weapon-attack test
+*and* a spell-attack test, which is the evidence that it is one gatherer and
+not two spelled alike.
 
 **A durable grant's identity is the source *and the rolls it reaches*.**
 `bonus-applied` and `armor-class-granted` both key on the source alone, which
@@ -2352,8 +2363,9 @@ Bonus Action, movement or a feature's use: Dash, Disengage, Dodge, Ready,
 feature activation and extension, the three pool commands, an effect check, an
 attack, a move, a casting, an activation, and the turn.
 
-**The list is derived, not recalled.** `invariants.test.ts` reads `commands.ts`
-and `rest.ts` and computes the transitive closure of the five action-economy
+**The list is derived, not recalled.** `invariants.test.ts` reads every module
+under `commands/` and `rest.ts` — as one string, because the closure crosses
+them — and computes the transitive closure of the five action-economy
 primitives in `combat.ts` and the two events whose reducer takes a resource
 away — `resource-spent` for a pool use, `spell-cast` for a slot. Every exported
 declaration in that closure must either be run against a world owing a
@@ -2902,7 +2914,7 @@ mean "official":
 |---|---|---|
 | `spell-schema.ts` | is this definition **coherent** | any definition, SRD or homebrew |
 | `scripts/spell-oracle.ts` | does it **agree with the printed spell** | only a definition whose id is in the book |
-| `commands.ts` | may **this casting** happen, here, now | every cast |
+| `commands/` | may **this casting** happen, here, now | every cast |
 
 A DM's invented spell is valid engine data and is not SRD-conformant, and both
 halves of that sentence are load-bearing. `spell-schema.test.ts` drives one
@@ -3900,8 +3912,8 @@ Exhaustion 6 kills. Leaving those follow-ups to the caller meant relying on a
 language model to remember bookkeeping the rules already mandate — and damage
 alone left characters at 0 hit points and wide awake.
 
-`commands.ts` produces these as coherent batches: validation lives there, the
-reducer stays pure replay. That split is deliberate — commands answer "may
+The command layer produces these as coherent batches: validation lives there,
+the reducer stays pure replay. That split is deliberate — commands answer "may
 this happen and what else follows", the reducer answers "what does the record
 mean".
 
@@ -3912,6 +3924,82 @@ points and stays asleep.
 Death that is not hit-point loss gets its own event. Damage is the wrong
 instrument — a healthy creature taking exactly its maximum in damage drops to
 0, it does not die.
+
+### The command layer is a directory, and `commands.ts` is its barrel
+
+It was one 10,149-line module with thirteen regions by its own banners, and the
+third whole-engine audit (2026-09-13, §3.2) measured what that cost: one region
+was 28% of the file, fifteen helpers crossed regions, four were filed where
+nothing called them, and **every task that touched a mechanism collided in this
+one file** — which is what the workflow's one-owner-per-primitive rule
+serialises. Two mechanism tasks in different domains can now run beside each
+other.
+
+**The modules form a DAG, and that was not obvious in advance.** The
+declaration-level value graph inside the old file turned out to have no cycles
+at all — 148 value declarations, 148 strongly connected components — so an
+acyclic module layout existed; the work was finding boundaries that respect a
+topological order rather than the banners, which do not. Three modules are
+where the difference shows:
+
+| | |
+|---|---|
+| `commands/command.ts` | the creature reader and the stranger refusal, called from all thirteen old regions — so leaving them in any domain would have made that domain a dependency of every other |
+| `commands/holds.ts` | every engine debt — a declared move, a held attack, a damage roll or test awaiting Reactions, a pending casting, owed saves, owed area effects — with `mayAct` and `unsettledRefusal`, which read them. A debt is read by the commands that did **not** create it |
+| `commands/damage.ts` | damage that has been rolled and not yet applied. A weapon attack and a spell both reach it, and both are above the Reactions that reduce it, so it sits under `attacks.ts` and `reactions.ts` and over `casting.ts` |
+
+Two more are worth naming because the single file had hidden them:
+`commands/activation.ts` sits at the *top* of the stack rather than beside the
+ongoing-spell queries, because acting through a spell resolves effects *and*
+settles what they owe; and `rollInitiativeFor` turned out to be filed at the end
+of the spell region, where nothing about it belonged, and is now
+`commands/initiative.ts`.
+
+**The barrel enumerates rather than stars**, and that is the whole point of the
+file. A helper is `export`ed in its own module so a sibling can call it, and is
+*not* a command — before the split those were the same word, because there was
+one file, and `export *` would have made `landDamage` and `castOrRelease` part
+of `@ie/engine`. `commands.ts` is where the two are told apart, `index.ts`
+exposes the same 118 names it exposed before, and **`invariants.test.ts` reads
+that list** to know which of the modules' exports its sweeps are about.
+
+**A sweep over several modules reads them as one string.** The action-economy
+closure is transitive — `resolveAttack` spends through `damage.ts` and
+`casting.ts` — so asking each module on its own stops the walk at the import
+that carries it, and four spenders vanish for no better reason than which file
+they came to live in. The module list itself is a directory listing rather than
+an array, because a hand-maintained list of modules is the hand-maintained list
+of commands these sweeps were written to replace, arriving one level up.
+
+### `once` makes "the duplicate check comes first" structural
+
+This file records **eight** occasions on which a guard was written above the
+duplicate check and a retry was told about the world its own first run made:
+`triggerRefusal`, six unstamped commands, the `casting_pending` guard, the
+`damage_pending`/`test_pending` pair, `resolveSpell`'s half-dozen refusals, and
+the `not_ongoing` refusal a route that ended its own casting met. Every one is
+the same shape, and every one was caught by review rather than by the code.
+
+`once(state, kind, inputs, replayed, run)` closes it: the body is a callback,
+so there is nowhere above the duplicate check to write a guard. Every command
+that called `identify` first now goes through it — forty-six of them, and
+`beginRest`.
+
+**It lives in `idempotency.ts`, not in `commands/`**, for the reason that
+module exists at all: `rest.ts` needs it, and `rest.ts` reaching up into the
+command layer is the one upward edge IE-003 removed. `once` is not a rule about
+any particular operation, so it sits beside `identify` and everybody imports
+downwards — which `invariants.test.ts` still asserts.
+
+**Both callbacks are `NoInfer`**, so `R` comes from the command's own declared
+return type. Inferring from the arguments instead would let the replay answer
+and the resolved answer settle on two different shapes and check each against
+itself, which is the opposite of what a command's signature is for: the two
+answers a caller may receive are the same type, or the command is lying about
+one of them.
+
+`replayed` is a thunk rather than a value because two commands recover their
+replay answer from `commandOutcome` — the casting id a retry still needs.
 
 ### Retry-safety has two halves, and only one is free
 
@@ -3957,11 +4045,13 @@ so a damage id and a casting id cannot collide by having similar shapes.
 optional the way it is for the engine's own callers.
 
 **The sweep in `invariants.test.ts` is authoritative because it is derived.**
-It reads the declared return type of every export of `commands.ts` and
-`rest.ts` and classifies it: `Result<GameEvent[]>`, or a `Result<X>` whose `X`
-carries an `events` field, hands the caller events. Every one of those must be
-run twice under one id — the second run emitting nothing at all — or carry a
-written reason for taking no id. A named return type the classifier cannot
+It reads the declared return type of every command `commands.ts` publishes and
+every export of `rest.ts`, and classifies it: `Result<GameEvent[]>`, or a
+`Result<X>` whose `X` carries an `events` field, hands the caller events. Every
+one of those must be run twice under one id — the second run emitting nothing at
+all — or carry a written reason for taking no id. A **union** payload is
+reported rather than classified, because one arm may carry events and another
+may not. A named return type the classifier cannot
 resolve is reported rather than skipped, because a classifier that silently
 answers "no" to a shape it does not understand reports no problems and checks
 nothing.

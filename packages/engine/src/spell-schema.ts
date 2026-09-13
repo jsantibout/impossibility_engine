@@ -36,7 +36,7 @@ import type {
  * |---|---|
  * | **schema validity** (here) | the shape is coherent: closed vocabularies, dice that parse, combinations that mean something. True of homebrew as readily as of the book |
  * | **SRD conformance** (`scripts/spell-oracle.ts`) | this definition agrees with the spell the book prints. Only applies to a definition whose id *is* a printed spell |
- * | **this casting** (`commands.ts`) | range, slot, sight, creature type, action economy — the world, not the definition |
+ * | **this casting** (`commands/`) | range, slot, sight, creature type, action economy — the world, not the definition |
  *
  * Conflating the first two is how "valid" comes to mean "official", which is
  * the one thing a definition layer must not do: a DM's invented spell is valid

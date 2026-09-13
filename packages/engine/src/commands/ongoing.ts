@@ -1,0 +1,420 @@
+/**
+ * What a casting left behind, read back.
+ *
+ * A casting is history; what it left behind is live state. `state.ongoing`
+ * holds the second — see `OngoingSpell` in `spells.ts` for why each field is
+ * there and why none of the others are. This is the read side of it, together
+ * with the geometry of a casting that holds a point: where the force is, how
+ * far it may be moved, and what a route through the lattice costs.
+ *
+ * Acting *through* one of these records is `activation.ts`, which sits at the
+ * top of the stack because it resolves a spell's effects and settles what they
+ * owe. This module is underneath everything and resolves nothing.
+ */
+
+import {
+  type CharacterId,
+  type ContextRequest,
+  err,
+  type Err,
+  needsContext,
+  ok,
+  type Result,
+} from '@ie/shared';
+import { type GameEvent, type GameState } from '../events.js';
+import {
+  distanceBetween,
+  distanceBetweenPoints,
+  distanceToPoint,
+  isInsideScene,
+  type Point,
+  type PositionState,
+  snapToSpace,
+} from '../positioning.js';
+import {
+  definitionFor,
+  ranged,
+  type SpellActivation,
+  type SpellDefinition,
+} from '../spell-definitions.js';
+import { castingNumber, type OngoingSpell } from '../spells.js';
+import { type ActivateSpellCommand } from './activation.js';
+
+/**
+ * The spells currently running on a creature, oldest casting first.
+ *
+ * SRD Dispel Magic's actual question: "Any ongoing spell ... **on the
+ * target**". Sorted by casting id so two readers of the same state agree about
+ * the order, which matters because Dispel Magic walks the list rolling checks.
+ *
+ * A pure query over live state: it looks nothing up in the log, searches no
+ * history, and answers only what the rules ask for.
+ */
+export function ongoingSpellsOn(
+  state: GameState,
+  who: CharacterId,
+): readonly OngoingSpell[] {
+  return byCastingOrder(state).filter((record) => record.on.includes(who));
+}
+
+/** The spells this creature cast that are still running, oldest first. */
+export function ongoingSpellsBy(
+  state: GameState,
+  caster: CharacterId,
+): readonly OngoingSpell[] {
+  return byCastingOrder(state).filter((record) => record.caster === caster);
+}
+
+/** One ongoing spell by the casting that made it, or null if it has ended. */
+export function ongoingSpellOf(state: GameState, castingId: string): OngoingSpell | null {
+  return state.ongoing[castingId] ?? null;
+}
+
+/**
+ * Every ongoing spell, in the order the castings happened.
+ *
+ * Numerically, not lexically: `cast:2` runs before `cast:10`, and a string
+ * sort would put ten first — which would silently reorder the checks Dispel
+ * Magic rolls and make a replay of the same log produce different dice.
+ */
+function byCastingOrder(state: GameState): readonly OngoingSpell[] {
+  return Object.values(state.ongoing).sort(
+    (a, b) => castingNumber(a.castingId) - castingNumber(b.castingId),
+  );
+}
+
+/**
+ * SRD Mage Hand: "The hand vanishes ... if you cast this spell again."
+ *
+ * The same caster, the same spell. A lookup over the live records rather than
+ * a search through history, which is the difference the ongoing record makes:
+ * before it, obeying this sentence meant scanning the log for a `spell-cast`
+ * and then proving nothing had ended it since.
+ */
+export function replacedCastings(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+): readonly GameEvent[] {
+  if (definition.replacesPriorCasting !== true) return [];
+  return ongoingSpellsBy(state, casterId)
+    .filter((record) => record.spellId === definition.id)
+    .map((record) => ({
+      type: 'spell-ended' as const,
+      castingId: record.castingId,
+      on: null,
+      reason: 'recast' as const,
+    }));
+}
+
+/**
+ * The carried areas this move would sweep across spaces nobody named.
+ *
+ * **The same hole Moonbeam's route had, arriving from the other direction.**
+ * There the caller asked to move an area thirty feet; here they ask to move a
+ * *creature*, and the area comes along because SRD says an Emanation "moves
+ * with the creature or object that is its origin". Either way the engine knows
+ * two endpoints and no route, and either way the creatures who would be caught
+ * are the ones who did nothing.
+ *
+ * So the answer is the same answer: ask. A move of one space has no space in
+ * between to be unknown; anything longer is a `needs-context` naming the
+ * casting, the carrier, both ends and what to send instead. Nothing is spent
+ * while it waits — no Speed, no Opportunity Attack, no die.
+ *
+ * **Reuses the movement the engine already has rather than a route field.** A
+ * creature move is already authoritative, already segmentable, and already
+ * settles what it raised before the next voluntary action — the global
+ * area-debt guard sees to that. A `MovePath` here would have been a second
+ * mechanism for something movement can already express, built for symmetry
+ * with Moonbeam rather than because a rule asked.
+ *
+ * Reads the carrier by **position change**, never by the id on the command: a
+ * cleric carried by their horse moves on an event that names only the horse.
+ */
+export function sweptRoute(
+  state: GameState,
+  before: PositionState,
+  after: PositionState,
+): readonly ContextRequest[] {
+  const requests: ContextRequest[] = [];
+
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    if (record === undefined) continue;
+
+    const definition = definitionFor(record.spellId);
+    const area = definition?.area;
+    // Only an area that is carried, and only one a rule watches as it travels.
+    if (area === undefined || area.origin !== 'self') continue;
+    if (definition?.areaTrigger?.onAreaEntry !== true) continue;
+
+    const from = before.positions[record.caster];
+    const to = after.positions[record.caster];
+    if (from === undefined || to === undefined) continue;
+
+    const travelled = distanceBetweenPoints(from, to);
+    if (travelled <= SPACE) continue;
+
+    requests.push({
+      kind: 'route',
+      subject: castingId,
+      need: `which 5-foot spaces ${record.caster} passed through between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) — ${travelled} feet, carrying ${record.spell}`,
+      because: `${record.spell} catches every creature its area moves into, and the spaces between two points are not something the engine may decide`,
+      satisfyWith: `resolveMove again as ${travelled / SPACE} moves of one space each, settling what each raises before the next`,
+    });
+  }
+
+  return requests;
+}
+
+/**
+ * One space on the lattice, in feet.
+ *
+ * SRD: "Each square represents 5 feet." The only thing this is used for here
+ * is deciding whether a leg of an area's route had anything *between* its
+ * endpoints: a step to an adjacent space has no cube in between and is exact,
+ * and anything longer does.
+ */
+const SPACE = 5;
+
+/**
+ * Every place the casting's point was during this activation, in order.
+ *
+ * **A spell-origin move is not creature movement, and nothing here makes it
+ * one.** The rules a creature's move obeys are absent because the SRD never
+ * applies them to the force: no Speed is spent, no Difficult Terrain is
+ * charged, no Opportunity Attack is provoked, no space is occupied and nothing
+ * ends up Prone for sharing one. Routing it through `moveCreature` to reuse
+ * the geometry would have imported every one of those.
+ *
+ * What the engine does own is the whole of what SRD prints: the allowance in
+ * feet, measured from where the point is **now**; the scene it has to stay
+ * inside; and the identity of the casting being moved, which the caller named
+ * and the command has already checked belongs to them.
+ *
+ * **A list rather than a destination, because a moving *area* makes the route
+ * observable.** Twenty feet of beam passes over the space in between, and two
+ * points do not imply the line between them — so each leg the caller states is
+ * an authoritative relocation of its own, and a leg the caller did not break
+ * up says in `unverified` that nothing records what it crossed. For a point
+ * nothing triggers on, the route is unobservable and one leg is the whole
+ * answer, which is every Spiritual Weapon and why nothing there changed.
+ *
+ * Empty when this activation moved nothing — an ordinary later-turn spell like
+ * Vampiric Touch — which leaves the reach check measuring from the caster.
+ */
+export function relocateOrigin(
+  state: GameState,
+  record: OngoingSpell,
+  definition: SpellDefinition,
+  command: ActivateSpellCommand,
+): Result<readonly Point[]> {
+  const current = record.origin ?? null;
+
+  // **Two sentences, two allowances.** Spiritual Weapon's is a rider on a
+  // Bonus Action that also strikes, so declining it is legal; Moonbeam's is
+  // the Magic action's entire content, so declining it spends an action on
+  // nothing. Which one this is decides both the number and whether `to` may
+  // be left out.
+  const asAction = definition.activation?.movesArea;
+  const asRider = definition.origin?.movableBy;
+  const allowance = asAction ?? asRider;
+
+  if (command.to === undefined) {
+    if (asAction !== undefined) {
+      return err(
+        'destination_required',
+        `${record.spell}'s later action is moving the area; name where it goes`,
+      );
+    }
+    if (command.via !== undefined && command.via.length > 0) {
+      return err(
+        'destination_required',
+        `${record.spell} was given a route with nowhere to end`,
+      );
+    }
+    return ok([]);
+  }
+
+  if (current === null || allowance === undefined) {
+    return err(
+      'not_movable',
+      `${record.spell} holds nothing its caster can move`,
+    );
+  }
+  if (state.scene === null) {
+    return err('no_scene', `${record.spell} needs a scene to be moved about in`);
+  }
+
+  const legs = [...(command.via ?? []), command.to].map(snapToSpace);
+
+  for (const space of legs) {
+    if (!isInsideScene(state.scene, space)) {
+      return err(
+        'outside_scene',
+        `${record.spell} cannot be moved to (${space.x}, ${space.y}, ${space.z}); that is outside this scene`,
+      );
+    }
+  }
+
+  // From where it is, not from where it started and not from the caster. A
+  // force may be walked steadily further away than the spell's own Range,
+  // which is exactly what "move the force up to 20 feet" says and what a
+  // re-check against the caster would wrongly forbid.
+  //
+  // **The sum of the legs, not the displacement.** "Up to 60 feet" is a
+  // distance travelled, so a route that doubles back spends what it walked
+  // rather than what it achieved. With no waypoints the two are the same
+  // number and every existing caller is untouched.
+  let travelled = 0;
+  let at = current;
+  for (const space of legs) {
+    travelled += distanceBetweenPoints(at, space);
+    at = space;
+  }
+  if (travelled > allowance) {
+    return err(
+      'origin_too_far',
+      `${record.spell} moves up to ${allowance} feet; that route is ${travelled} long`,
+    );
+  }
+
+  // **What a leg cannot prove, and why that is a question rather than a
+  // warning.** The engine knows the area was here and then there; it does not
+  // know what it passed over. A leg longer than one space has spaces in
+  // between that no fact in the log names, and there are only three things to
+  // do about that: draw a line the engine was never told about, execute the
+  // move while silently skipping whoever it crossed, or **ask**.
+  //
+  // The first two are the same failure in different clothes — the engine
+  // answering a question nobody asked it. So this asks, through the mechanism
+  // the engine already has for a thin record: nothing is spent, no die is
+  // thrown, and the same activation sent again with the route filled in is the
+  // activation the caller meant the first time.
+  //
+  // Only where a rule reads the route. A casting whose area triggers on
+  // nothing as it travels has no route to be wrong about, which is every
+  // Spiritual Weapon — and giving it this requirement because Moonbeam has it
+  // would be a neighbouring spell's clause lending it a rule again.
+  if (definition.areaTrigger?.onAreaEntry === true) {
+    const coarse: ContextRequest[] = [];
+    let previous = current;
+    for (const space of legs) {
+      const leg = distanceBetweenPoints(previous, space);
+      if (leg > SPACE) coarse.push(routeRequest(record, previous, space, leg, allowance));
+      previous = space;
+    }
+    if (coarse.length > 0) {
+      return needsContext(
+        'route_required',
+        `${record.spell}'s area triggers on the creatures it moves into, and ${coarse.length === 1 ? 'one leg of' : `${coarse.length} legs of`} the requested route ${coarse.length === 1 ? 'crosses' : 'cross'} spaces nothing records; send the activation again with \`via\` naming each 5-foot step`,
+        coarse,
+      );
+    }
+  }
+
+  return ok(legs);
+}
+
+/**
+ * The route fact the engine will not invent, addressed to the orchestrator.
+ *
+ * **`via` is an adjudicated route, not player micromanagement.** A player says
+ * "move the beam onto the ogre"; somebody then decides which way it goes, and
+ * that decision is judgement rather than arithmetic — whether to sweep it
+ * through the other two ogres, whether to keep it off the paladin, whether the
+ * player said anything that settles it. Maestro owns that call, because
+ * Maestro is the layer that reads the fiction. **The engine validates the
+ * route and never chooses it**, which is the same boundary `eligibleTargets`
+ * draws for targeting: a shortlist, not a substitution.
+ *
+ * So this is not a refusal and must never be described as one. The action is
+ * mechanically possible; one fact it needs has not been supplied yet.
+ */
+function routeRequest(
+  record: OngoingSpell,
+  from: Point,
+  to: Point,
+  leg: number,
+  allowance: number,
+): ContextRequest {
+  return {
+    kind: 'route',
+    subject: record.castingId,
+    need: `which 5-foot spaces ${record.spell}'s area crossed between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) — ${leg} feet, of the ${allowance} it may move`,
+    because: `${record.spell} catches every creature its area moves into, and the spaces between two points are not something the engine may decide`,
+    satisfyWith: `activateSpell again with \`via\` listing each space the area passes through, one 5-foot step at a time`,
+  };
+}
+
+/** An ordinary later-turn spell: the caster's own reach, checked afresh. */
+export function reachFromCaster(
+  state: GameState,
+  casterId: CharacterId,
+  target: CharacterId,
+  record: OngoingSpell,
+  activation: SpellActivation,
+  unverified: string[],
+): Err | null {
+  const reach = activation.range === undefined ? null : ranged(activation.range);
+  if (reach === null) return null;
+
+  if (state.scene === null) {
+    unverified.push(
+      `no scene is set, so ${record.spell} could not check that ${target} is within ${reach} feet`,
+    );
+    return null;
+  }
+
+  const apart = distanceBetween(state.scene, casterId, target);
+  if (!apart.ok) {
+    unverified.push(
+      `nobody has said where ${casterId} and ${target} are standing, so ${record.spell}'s ${reach}-foot reach went unchecked`,
+    );
+    return null;
+  }
+  if (apart.value > reach) {
+    return err(
+      'out_of_range',
+      `${target} is ${apart.value} feet away and ${record.spell} reaches ${reach}`,
+    );
+  }
+  return null;
+}
+
+/** And the other half of the seam: reach measured from the point it holds. */
+export function reachFromOrigin(
+  state: GameState,
+  target: CharacterId,
+  origin: Point,
+  record: OngoingSpell,
+  definition: SpellDefinition,
+  unverified: string[],
+): Err | null {
+  const reach = definition.origin?.reach;
+  if (reach === undefined) return null;
+
+  if (state.scene === null) {
+    unverified.push(
+      `no scene is set, so ${record.spell} could not check that ${target} is within ${reach} feet of it`,
+    );
+    return null;
+  }
+
+  const apart = distanceToPoint(state.scene, target, origin);
+  if (!apart.ok) {
+    unverified.push(
+      `nobody has said where ${target} is standing, so ${record.spell}'s ${reach}-foot reach went unchecked`,
+    );
+    return null;
+  }
+  if (apart.value > reach) {
+    return err(
+      'out_of_range',
+      `${target} is ${apart.value} feet from ${record.spell} and it reaches ${reach}`,
+    );
+  }
+  return null;
+}
+

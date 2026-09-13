@@ -1,5 +1,8 @@
 import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared';
 import type { CreatureSize } from '@ie/srd';
+// Type-only, and deliberately: `events.ts` reads this module's geometry at
+// value level, so a value edge back would be a real cycle.
+import type { GameState } from './events.js';
 
 /**
  * Where things are.
@@ -668,6 +671,45 @@ export function distanceToPoint(
  */
 export function distanceBetweenPoints(a: Point, b: Point): number {
   return chebyshev(pointBox(a), pointBox(b));
+}
+
+/**
+ * How far apart two creatures are, or null where nobody has said.
+ *
+ * Null is a real answer rather than a failure: positions are declared, so an
+ * unplaced creature is one nobody has placed, not one standing nowhere. Every
+ * rule that reads a distance has to decide what to do with the third case, and
+ * none of them may decide it by assuming.
+ */
+export function apartFrom(state: GameState, a: CharacterId, b: CharacterId): number | null {
+  if (state.scene === null) return null;
+  const measured = distanceBetween(state.scene, a, b);
+  return measured.ok ? measured.value : null;
+}
+
+/**
+ * How far a target is from where the attack actually comes from.
+ *
+ * **Actor and spatial origin are two different things**, and Spiritual Weapon
+ * is the first mechanic in the engine that separates them: the Cleric rolls
+ * and the force is what is standing next to the goblin. Given a point, that
+ * point is the ruler's end; given none, the actor is, which is every other
+ * attack in the book.
+ *
+ * The alternative — moving the caster to the force, or making the force a
+ * creature — would have been two lies in state to avoid one optional
+ * argument.
+ */
+export function apartFromSource(
+  state: GameState,
+  from: Point | undefined,
+  actor: CharacterId,
+  target: CharacterId,
+): number | null {
+  if (from === undefined) return apartFrom(state, actor, target);
+  if (state.scene === null) return null;
+  const measured = distanceToPoint(state.scene, target, from);
+  return measured.ok ? measured.value : null;
 }
 
 /**

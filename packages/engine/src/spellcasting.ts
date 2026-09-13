@@ -151,8 +151,8 @@ export function routesFor(
  *
  * A Wizard who has Fire Bolt both as a class cantrip and from Magic Initiate
  * casts it as a Wizard. Where two *classes* both supply it the first is not
- * automatically right — see `chooseRoute` in `commands.ts`, which refuses
- * rather than picking.
+ * automatically right — see `chooseRoute` in `commands/casting.ts`, which
+ * refuses rather than picking.
  */
 export function routeFor(
   spellcasting: SpellcastingState,

@@ -3,7 +3,7 @@ import { abilityModifier } from './character.js';
 import { HOUR, hours } from './clock.js';
 import type { Rng } from './dice.js';
 import type { GameEvent, GameState } from './events.js';
-import { identify } from './idempotency.js';
+import { once } from './idempotency.js';
 import { remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
 
@@ -128,34 +128,31 @@ export function beginRest(
   // rests differing only in kind must not share an id.
   const inputs: { commandId?: string; kind: RestKind } =
     commandId === undefined ? { kind } : { commandId, kind };
-  const identity = identify(state, `rest:${id}`, inputs);
-  if (!identity.ok) return identity;
-  if (identity.value.duplicate) return ok([]);
-  const stamp = identity.value.stamp;
-
-  const creature = creatureOf(state, id);
-  if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
-  if (creature.vitals.dead) return err('dead', `${id} is dead and is past resting`);
-  if (creature.vitals.hp < 1) {
-    return err('no_hit_points', `${id} needs at least 1 hit point to start a rest`);
-  }
-  if (creature.resting !== null) {
-    return err('already_resting', `${id} is already taking a ${creature.resting.kind} rest`);
-  }
-
-  if (kind === 'long' && creature.lastLongRestAt !== null) {
-    const since = state.elapsed - creature.lastLongRestAt;
-    if (since < LONG_REST_COOLDOWN) {
-      return err(
-        'too_soon',
-        `${id} finished a Long Rest ${since} seconds ago and must wait ${LONG_REST_COOLDOWN}`,
-      );
+  return once(state, `rest:${id}`, inputs, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return needsContext('unknown_creature', `${id} is not in this game`);
+    if (creature.vitals.dead) return err('dead', `${id} is dead and is past resting`);
+    if (creature.vitals.hp < 1) {
+      return err('no_hit_points', `${id} needs at least 1 hit point to start a rest`);
     }
-  }
+    if (creature.resting !== null) {
+      return err('already_resting', `${id} is already taking a ${creature.resting.kind} rest`);
+    }
 
-  return ok([
-    { type: 'rest-begun', id, kind, ...(stamp === null ? {} : { command: stamp }) },
-  ]);
+    if (kind === 'long' && creature.lastLongRestAt !== null) {
+      const since = state.elapsed - creature.lastLongRestAt;
+      if (since < LONG_REST_COOLDOWN) {
+        return err(
+          'too_soon',
+          `${id} finished a Long Rest ${since} seconds ago and must wait ${LONG_REST_COOLDOWN}`,
+        );
+      }
+    }
+
+    return ok([
+      { type: 'rest-begun', id, kind, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
 }
 
 /** One Hit Die spent, and what it gave back. */

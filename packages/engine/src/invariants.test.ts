@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -1055,13 +1055,56 @@ describe('a retried command changes nothing the first one did not', () => {
  * special-case scan, and so is the discipline that goes with it: each analysis
  * is driven over a synthetic sample that it must catch, so the sweep cannot
  * quietly stop seeing anything.
+ *
+ * **The enumeration is a directory listing, not a list of file names**, and
+ * that is the whole of what the domain split changed here. A hard-coded list
+ * of the modules under `commands/` would be the hand-maintained array these
+ * sweeps were written to replace, arriving one level up: a domain module added
+ * and not listed is a command that silently leaves both sweeps, which is
+ * exactly the silence they exist to prevent.
  */
+const SRC = fileURLToPath(new URL('.', import.meta.url));
+
+const COMMAND_MODULES = readdirSync(`${SRC}commands`)
+  .filter((file) => file.endsWith('.ts'))
+  .map((file) => `commands/${file}`);
+
 const MODULE_SOURCE: Readonly<Record<string, string>> = Object.fromEntries(
-  ['commands.ts', 'rest.ts'].map((file) => [
-    file,
-    readFileSync(`${fileURLToPath(new URL('.', import.meta.url))}${file}`, 'utf8'),
-  ]),
+  [...COMMAND_MODULES, 'rest.ts'].map((file) => [file, readFileSync(`${SRC}${file}`, 'utf8')]),
 );
+
+/**
+ * The command layer's public surface, read off the barrel.
+ *
+ * A helper is `export`ed in its own module so a sibling may call it, and is
+ * **not** a command. Before the split those were the same word because there
+ * was one file, and `export` alone meant "reachable from outside the command
+ * layer"; `commands.ts` is now where the two are told apart, so it is what the
+ * sweeps read to know which of the modules' exports they are about.
+ *
+ * Without this both sweeps would widen to every cross-module helper —
+ * `landDamage`, `moveWithin`, `castOrRelease` — and demand a `mayAct` guard or
+ * a command id from functions that are halves of a command rather than
+ * commands, which is a different claim from the one they are making.
+ */
+const PUBLIC_COMMANDS: readonly string[] = [
+  ...readFileSync(`${SRC}commands.ts`, 'utf8').matchAll(/^export (?!type )\{([\s\S]*?)\} from/gm),
+]
+  .flatMap((match) => match[1]!.split(','))
+  .map((name) => name.trim())
+  .filter((name) => name.length > 0);
+
+/**
+ * Everything the sweeps below are about: the command layer's public surface,
+ * plus `rest.ts`, which has no barrel of its own and whose exports therefore
+ * still mean what `export` used to mean in `commands.ts`.
+ */
+const COMMAND_SURFACE: ReadonlySet<string> = new Set([
+  ...PUBLIC_COMMANDS,
+  ...[
+    ...MODULE_SOURCE['rest.ts']!.matchAll(/^export (?:(?:async )?function|const) (\w+)/gm),
+  ].map((match) => match[1]!),
+]);
 
 /**
  * Every top-level declaration in a module, with the text that follows it.
@@ -1210,10 +1253,17 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
 };
 
 describe('every command that spends something asks whether it may', () => {
-  // Both modules, because `endRest` spends Hit Dice: a pool use by the sweep's
-  // own definition, in a file the first draft of this did not read at all.
+  // Every module at once, because the closure crosses them: `resolveAttack`
+  // lands its damage through `damage.ts` and casts through `casting.ts`, and
+  // asking each module on its own would stop the transitive walk at the
+  // import that carries it — a spender would then be invisible for no better
+  // reason than which file it came to live in. `rest.ts` is in the same
+  // string, because `endRest` spends Hit Dice: a pool use by the sweep's own
+  // definition, in a file the first draft of this did not read at all.
   const spenders = new Set(
-    Object.values(MODULE_SOURCE).flatMap((source) => [...spendersIn(source)]),
+    [...spendersIn(Object.values(MODULE_SOURCE).join('\n'))].filter((name) =>
+      COMMAND_SURFACE.has(name),
+    ),
   );
 
   /**
@@ -1280,14 +1330,11 @@ describe('every command that spends something asks whether it may', () => {
  * answers "no" to a shape it does not understand reports no problems and
  * checks nothing, which is what `animals.md` taught.
  */
-const DECLARATIONS = readFileSync(
-  `${fileURLToPath(new URL('.', import.meta.url))}commands.ts`,
-  'utf8',
-)
-  .concat(MODULE_SOURCE['rest.ts']!)
+const DECLARATIONS = Object.values(MODULE_SOURCE)
+  .join('\n')
   .concat(
     ['attack.ts', 'combat.ts', 'duration.ts', 'events.ts', 'positioning.ts', 'resources.ts', 'spells.ts']
-      .map((f) => readFileSync(`${fileURLToPath(new URL('.', import.meta.url))}${f}`, 'utf8'))
+      .map((f) => readFileSync(`${SRC}${f}`, 'utf8'))
       .join('\n'),
   );
 
@@ -1330,11 +1377,32 @@ const returnTypesIn = (
   return found;
 };
 
+/**
+ * Whether a type expression has a `|` at its own level, rather than inside a
+ * type argument, an object or a tuple.
+ */
+const isUnion = (payload: string): boolean => {
+  let depth = 0;
+  for (const character of payload) {
+    if ('<{(['.includes(character)) depth += 1;
+    else if ('>})]'.includes(character)) depth -= 1;
+    else if (character === '|' && depth === 0) return true;
+  }
+  return false;
+};
+
 /** Whether a declared return type hands the caller events. */
 const carriesEvents = (returns: string): boolean | 'unresolved' => {
   const inner = /^Result<([\s\S]*)>$/.exec(returns.trim());
   if (inner === null) return false;
   const payload = inner[1]!.trim().replace(/^readonly /, '');
+  // **A union is not a shape this can classify**, and answering `false` was
+  // the silence the whole classifier exists to prevent: one arm may carry
+  // events and another may not, so `Result<A | B>` needs a person to look
+  // rather than a regex that has quietly decided. IE-003's reviewer left this
+  // as the one place the classifier still answered "no" to something it had
+  // simply never heard of.
+  if (isUnion(payload)) return 'unresolved';
   if (/^GameEvent\[\]$/.test(payload)) return true;
   if (/readonly events:/.test(payload)) return true;
   if (!/^[A-Z]\w*$/.test(payload)) return false;
@@ -1361,8 +1429,14 @@ const UNIDENTIFIED_ON_PURPOSE: Readonly<Record<string, string>> = {
 };
 
 describe('the idempotency sweep covers every command that hands back events', () => {
-  const eventReturning = ['commands.ts', 'rest.ts'].flatMap((file) =>
-    returnTypesIn(MODULE_SOURCE[file]!).map((entry) => ({ file, ...entry })),
+  // Every module, and only the exports the barrel publishes as commands: a
+  // cross-module helper is `export`ed so a sibling can call it, and demanding
+  // a command id from half a command is a different claim from the one this
+  // sweep makes.
+  const eventReturning = Object.keys(MODULE_SOURCE).flatMap((file) =>
+    returnTypesIn(MODULE_SOURCE[file]!)
+      .filter((entry) => COMMAND_SURFACE.has(entry.name))
+      .map((entry) => ({ file, ...entry })),
   );
 
   it('classifies every export’s return type, resolving every named one', () => {
@@ -1383,14 +1457,16 @@ describe('the idempotency sweep covers every command that hands back events', ()
     const silent = eventReturning.filter((entry) => entry.returns.trim() === '');
     expect(silent.map((entry) => `${entry.file}:${entry.name}`)).toEqual([]);
 
-    // And it saw as many exports as the module declares, so a form it does not
-    // open at all cannot go unnoticed either.
-    for (const file of ['commands.ts', 'rest.ts']) {
+    // And it saw as many commands as the modules declare, so a form it does
+    // not open at all cannot go unnoticed either.
+    for (const file of Object.keys(MODULE_SOURCE)) {
       const declared = functionsIn(MODULE_SOURCE[file]!)
-        .filter((fn) => fn.exported && /^(export const \w+ = (?:async )?\(|export (?:async )?function)/m.test(fn.body))
+        .filter((fn) => fn.exported && COMMAND_SURFACE.has(fn.name))
+        .filter((fn) => /^(export const \w+ = (?:async )?\(|export (?:async )?function)/m.test(fn.body))
         .map((fn) => fn.name)
         .sort();
       const classified = returnTypesIn(MODULE_SOURCE[file]!)
+        .filter((entry) => COMMAND_SURFACE.has(entry.name))
         .map((entry) => entry.name)
         .sort();
       expect(classified, file).toEqual(declared);
@@ -1466,11 +1542,19 @@ describe('the idempotency sweep covers every command that hands back events', ()
       'export function lookSomethingUp(state: GameState): number {',
       '  return 1;',
       '}',
+      // And a union, which no export declares today: one arm may carry events
+      // and another may not, so the honest answer is that a person has to
+      // look. Answering `false` was the last place this classifier still said
+      // "no" to a shape it had simply never heard of.
+      'export function answerOneWayOrAnother(state: GameState): Result<SettledDamage | number> {',
+      '  return ok(1);',
+      '}',
     ].join('\n');
     const classified = returnTypesIn(smuggled).map((e) => [e.name, carriesEvents(e.returns)]);
     expect(classified).toEqual([
       ['doSomethingUntracked', true],
       ['lookSomethingUp', false],
+      ['answerOneWayOrAnother', 'unresolved'],
     ]);
   });
 });

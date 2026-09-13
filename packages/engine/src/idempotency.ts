@@ -97,3 +97,45 @@ export function wasCommandApplied(state: GameState, commandId: string): boolean 
 export function commandOutcome(state: GameState, commandId: string): AppliedCommand | null {
   return state.appliedCommands[commandId] ?? null;
 }
+
+/**
+ * Run a command's body once, however many times the command is sent.
+ *
+ * **The duplicate check comes first**, and this is that sentence made
+ * structural. It had been discipline: every command opened with `identify`,
+ * a refusal written above it read perfectly well, and this file records eight
+ * separate occasions on which one was — `triggerRefusal`, six unstamped
+ * commands, the `casting_pending` guard, the `damage_pending` and
+ * `test_pending` pair, `resolveSpell`'s half-dozen refusals, and the
+ * `not_ongoing` refusal a route that ended its own casting met. Every one is
+ * the same shape: *a retry looks at the world its first run made*, and is told
+ * about that world instead of being told its command already landed.
+ *
+ * A guard cannot be written above the duplicate check here, because there is
+ * nowhere above it to write one: the body does not run at all until `identify`
+ * has answered, and the answer a replay gets is the one written beside the
+ * identity rather than a hundred lines further down.
+ *
+ * `replayed` is a thunk rather than a value so that a command whose replay
+ * answer has to be recovered — the casting id `commandOutcome` remembers —
+ * builds it only when it is wanted.
+ *
+ * **Both callbacks are `NoInfer`**, so `R` comes from the command's own
+ * declared return type and neither branch can quietly widen it. Inferring
+ * from the arguments instead would let the replay answer and the resolved
+ * answer settle on two different shapes and check each against itself, which
+ * is the opposite of what a command's signature is for: the two answers a
+ * caller may receive are the same type or the command is lying about one.
+ */
+export function once<T extends CommandIdentity, R>(
+  state: GameState,
+  kind: string,
+  inputs: T,
+  replayed: () => NoInfer<R>,
+  run: (stamp: CommandStamp | null) => Result<NoInfer<R>>,
+): Result<R> {
+  const identity = identify(state, kind, inputs);
+  if (!identity.ok) return identity;
+  if (identity.value.duplicate) return ok(replayed());
+  return run(identity.value.stamp);
+}
