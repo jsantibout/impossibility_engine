@@ -1,10 +1,16 @@
-# How development runs: a foreman and builders
+# How development runs: an architect, builders and a reviewer
 
-One Fable session is the **foreman** — principal engineer, architect,
-scheduler and reviewer. It delegates approved, bounded implementation tasks
-to one to three **builders**, each an Opus subagent in its own git worktree.
-The **owner** decides what gets built and what gets merged, and nothing else
-has to pass through them.
+One Fable session is the **architect** — principal engineer and final
+technical judgment. It is **event-driven**: it wakes to plan and propose,
+launches approved work, and then ends its turn. Opus does the volume: one to
+three **builders** implement in isolated git worktrees, an independent Opus
+**reviewer** checks each result, and the two fix ordinary defects between
+themselves. Fable wakes again only for a completion digest, an escalation, an
+owner decision, or the periodic whole-engine audit. The **owner** decides what
+gets built and what gets merged.
+
+> Fable thinks → delegates → sleeps. Opus works → Opus reviews → Opus fixes.
+> Fable wakes for exceptions and gates.
 
 This file is the procedure. `docs/dev/QUEUE.md` is the live state, one file
 per task under `docs/dev/tasks/` is the record of each task, and
@@ -35,15 +41,16 @@ never contradict `PROGRESS.md` about *why* something is being done; it says
 
 ## Roles
 
-| | Foreman (Fable, the primary session) | Builder (`qb-builder`, Opus) | Owner |
-|---|---|---|---|
-| Owns | architecture, prioritisation, dependency analysis, decomposition, briefs, review, conformance review, merge ordering, the queue, owner summaries | one approved bounded task, end to end: inspect, implement, test, mutate, fix, commit, report | product decisions, architecture approvals, scope, merge approval |
-| May | investigate, prepare future tasks, launch approved work, send ordinary rework back to a builder, integrate an approved merge, run the whole-engine audit | rebase onto `main`, resolve conflicts per the playbook, add tests, document deviations | approve, reject, modify, defer, decide |
-| Must not | approve its own proposal, implement product code instead of delegating, decide a material product or architecture question alone, merge without approval, launch before approval, widen scope, keep builders busy for the sake of it | merge, push, pick its next task, redesign silently, widen scope, hard-code around a test, touch another worktree, continue past a genuine architecture problem | — |
+| | Architect (Fable) | Builder (`qb-builder`, Opus) | Reviewer (`qb-reviewer`, Opus) | Owner |
+|---|---|---|---|---|
+| Owns | architecture, prioritisation, dependency analysis, decomposition, briefs, merge ordering, the queue, owner summaries, the architectural gate, the whole-engine audit | one approved bounded task end to end: inspect, implement, test, mutate, commit, get reviewed, fix, report a digest | one independent review of one completed task: diff, brief compliance, tests, regression risk, conformance, scope, coupling, special cases | product decisions, architecture approvals, scope, merge approval |
+| May | propose, launch approved work, integrate an approved merge, inspect deeply when a risk signal says so | rebase onto `main`, resolve conflicts per the playbook, add tests, document deviations, call the reviewer, fix what it finds | run the gauntlet, read anything, return ordinary defects to the builder, escalate | approve, reject, modify, defer, decide |
+| Must not | approve its own proposal, implement product code, poll or monitor builders, reread work the reviewer already checked without a reason, do speculative architecture while idle, decide a material question alone, merge without approval, launch before approval, widen scope | merge, push, pick its next task, redesign silently, widen scope, hard-code around a test, touch another worktree, edit `docs/dev/` or `PROGRESS.md`, continue past a genuine architecture problem | edit code, commit, soften the checklist on request, approve what it did not run | — |
 
-The foreman does not write engine code. The one exception is a merge-time
-conflict resolution that the playbook already prescribes mechanically
-(regenerate `COVERAGE.md`; keep both registry lines in id order).
+**Fable's tokens are the scarce resource.** Fable makes the few high-leverage
+decisions; Opus performs the large volume of engineering, review and rework.
+Fable does not write engine code (the one exception is a merge-time conflict
+the playbook already resolves mechanically), and it does not supervise.
 
 ## Task states
 
@@ -51,57 +58,106 @@ Ten states, closed. `check-queue.mjs` refuses any other word.
 
 | State | Meaning | Who moves it out |
 |---|---|---|
-| `PROPOSED` | identified, not yet briefed | foreman |
+| `PROPOSED` | identified, not yet briefed | architect |
 | `OWNER_APPROVAL_REQUIRED` | briefed and presented; **Gate 1** | owner |
-| `APPROVED_FOR_IMPLEMENTATION` | approved, not yet launched | foreman |
-| `IMPLEMENTING` | a builder holds it | builder |
-| `ARCHITECTURE_BLOCKED` | the builder found the approved design does not cover it | foreman |
-| `AWAITING_ARCHITECT_REVIEW` | builder reported complete | foreman |
-| `CHANGES_REQUIRED` | ordinary rework sent back | builder |
-| `OWNER_DECISION_REQUIRED` | a material question; **Gate 2** | owner |
-| `AWAITING_MERGE_APPROVAL` | review passed; **Gate 3** | owner |
+| `APPROVED_FOR_IMPLEMENTATION` | approved, not yet launched | architect |
+| `IMPLEMENTING` | a builder holds it — building, being reviewed, fixing | builder |
+| `ARCHITECTURE_BLOCKED` | the builder or reviewer escalated (YELLOW) | architect |
+| `AWAITING_ARCHITECT_REVIEW` | a digest with a reviewer PASS has arrived; the architectural gate | architect |
+| `CHANGES_REQUIRED` | the architect sent it back (rare: builder ↔ reviewer rework never reaches this) | builder |
+| `OWNER_DECISION_REQUIRED` | a material question (RED); **Gate 2** | owner |
+| `AWAITING_MERGE_APPROVAL` | the architectural gate passed; **Gate 3** | owner |
 | `DONE` | merged to `main`, verified, recorded | — |
 
 A task's state lives in **its own file**, on the `state:` line. `QUEUE.md`
-indexes tasks; it does not hold a second copy of their state.
+indexes tasks; it does not hold a second copy of their state. State is written
+at the moments Fable is awake anyway — launch, digest, merge — never as a
+running status.
 
-## The three gates
+## The three owner gates, and the architectural gate
 
-These are authority boundaries. The foreman may recommend; only the owner's
-words in the conversation move a task across one, and the words are quoted
-in the task file's `approved:` or `merge-approved:` line with the date.
+The owner gates are authority boundaries. Fable may recommend; only the
+owner's words in the conversation move a task across one, and the words are
+quoted in the task file's `approved:` or `merge-approved:` line with the date.
 
 - **Gate 1 — work approval.** `OWNER_APPROVAL_REQUIRED` →
   `APPROVED_FOR_IMPLEMENTATION` needs explicit approval. One approval of a
   batch approves every task listed in it and nothing else.
-- **Gate 2 — owner decision.** Any material question of architecture, product
-  behaviour, an authority boundary, foundational state representation, scope
-  or a meaningful trade-off stops at `OWNER_DECISION_REQUIRED` with options,
-  trade-offs and a recommendation. The foreman does not resolve it quietly.
+- **Gate 2 — owner decision.** Any RED question stops at
+  `OWNER_DECISION_REQUIRED` with options, trade-offs and a recommendation.
 - **Gate 3 — merge approval.** `AWAITING_MERGE_APPROVAL` → merged needs
   explicit approval. "MERGE" means: fast-forward `main`, verify, push.
 
-Ordinary implementation corrections are not a gate. The foreman sends them
-straight back to the builder.
+**The architectural gate** sits between the reviewer's PASS and Gate 3 and is
+Fable's. It is **intentionally lightweight by default**: Fable reads the
+completion digest, not the diff. If the digest reports no deviation, no
+foundational primitive touched, no new special case, no reviewer concern and
+a PASS, the gate is one sentence — *"Implementation matches the approved
+architecture, the reviewer passed it, no deviations reported. Proceeding to
+the owner merge gate."* — and Gate 3 follows. Fable inspects the actual diff
+only when a **risk signal** is present:
 
-## The loop
+`ARCHITECTURE_BLOCKED` · an architectural deviation · a foundational primitive
+changed · a new abstraction introduced · reviewer uncertainty or a
+builder/reviewer disagreement · tests and stated semantics disagree · an
+unexplained special case · an authority-boundary change · a state
+representation change · a persistence or event-fold change · substantial
+cross-system coupling · the periodic audit · an unusually high-risk task.
 
-1. The foreman audits where things stand (`/qb` injects it) and proposes the
-   next task or batch, briefed to the format below.
-2. **Gate 1.** Stop and ask.
-3. On approval: commit the task file(s) with `state:
-   APPROVED_FOR_IMPLEMENTATION` and the quoted approval, then launch one
-   builder per parallel-safe task (protocol below).
-4. While builders run, the foreman investigates and prepares future work.
-   Prepared is not approved.
-5. Each builder reports. The foreman reviews independently (checklist below),
-   sends ordinary rework back, or escalates to **Gate 2**.
-6. **Gate 3** per task, not per batch. One task passing review neither
-   approves nor merges another.
-7. On approval: integrate (procedure below), verify `main`, record the Done
-   row in `PROGRESS.md`, mark `DONE`, count it toward the audit.
-8. After 3–5 meaningful engine tasks, `WHOLE_ENGINE_AUDIT_DUE`: the foreman
-   runs the audit before proposing further mechanics.
+## Escalation levels
+
+| Level | Examples | Handled by | Mechanism |
+|---|---|---|---|
+| **GREEN** | implementation details, ordinary defects, test failures, straightforward extensions of an approved pattern, documentation, mechanical refactors, ordinary review findings | builder and reviewer, between themselves | the rework loop; Fable never hears of it except as a line in the digest |
+| **YELLOW** | an unclear architectural pattern, a new reusable abstraction, a repeated special case, a subsystem collision, authority or state-ownership ambiguity, a builder/reviewer architectural disagreement, three review rounds without a PASS | Fable | the builder or reviewer ends with `ARCHITECTURE_BLOCKED`; that completion wakes Fable |
+| **RED** | a product-behaviour decision, a major rewrite, a foundational authority change, a broad scope change, a decision that could invalidate completed systems, North-Star implications | Fable and the owner | Fable stops at `OWNER_DECISION_REQUIRED` with options and a recommendation |
+
+An Opus agent that cannot tell GREEN from YELLOW treats it as YELLOW. The cost
+of a needless wake-up is small; the cost of an invented architecture is not.
+
+## The loop, event by event
+
+1. **Owner starts a session with `/qb`.** Fable reads the injected state,
+   runs the whole-engine audit if it is due, proposes the next task or a
+   parallel-safe batch (briefs below), presents **Gate 1**, and ends its turn.
+2. **Owner approves.** Fable records the approval in the task file(s),
+   launches one `qb-builder` per approved parallel-safe task, records each
+   worker, commits that one bookkeeping change, tells the owner what is
+   running, and **ends its turn**. It is now idle and costs nothing.
+3. **Builders work.** Each sets up its worktree, implements test-first,
+   passes the gauntlet, makes its one commit, and launches `qb-reviewer` on
+   its own branch. The reviewer returns a verdict. Ordinary defects go
+   straight back to the builder, which fixes them, folds them into the
+   commit, re-runs the gauntlet and asks for review again — up to three
+   rounds. A PASS ends in a **completion digest**; a YELLOW ends in
+   `ARCHITECTURE_BLOCKED`. Either way the builder finishes, and its finishing
+   is the event.
+4. **Fable is woken by the completion notification.** It reads the digest and
+   applies the risk-signal test: no signal → the one-sentence architectural
+   gate, then the **Gate 3** summary; a signal → inspect the diff in the
+   builder's worktree as deeply as the signal warrants, then Gate 3, or
+   `CHANGES_REQUIRED` back to the builder by `SendMessage`, or Gate 2. Then
+   it ends its turn.
+5. **Owner approves the merge.** Fable integrates (procedure below), verifies
+   `main`, pushes, records the Done row in `PROGRESS.md`, marks `DONE`,
+   advances the audit counter, and — if nothing else is running and the
+   next proposal is ready — presents the next Gate 1. Then it ends its turn.
+6. **Audit due.** When the counter reaches its threshold, the next wake-up
+   that would propose a mechanic runs the whole-engine audit first.
+
+If the session was closed while builders ran, nothing is lost: each builder's
+commit is on its `worktree-*` branch under `.claude/worktrees/`, and `/qb`
+shows them. Fable reviews their digests from the branch (the digest is the
+last message of the agent's transcript, and `git log main..<branch>` plus the
+task file say the rest) and continues from step 4.
+
+## While builders run, Fable does not
+
+Poll them, ask whether they are finished, inspect intermediate commits,
+maintain a running status, narrate progress, review minor implementation
+decisions, or do speculative architecture because it happens to be awake.
+Preparing the *next* proposal is done when Fable is woken for a gate, not in
+the gap. Completion notifications are the mechanism; nothing else is needed.
 
 ## Parallel safety
 
@@ -134,6 +190,8 @@ touching" set in `CONTRIBUTING.md`: `dnd.ts`, `result.ts`, `character.ts`,
 the `GameEvent` union — a task touching those is `parallel-safe: NO`.
 
 Classify every task `YES`, `NO` or `CONDITIONAL`, and say why in one line.
+Zero, one, two or three builders are all normal states; there is no
+utilisation target.
 
 ## The brief
 
@@ -165,95 +223,90 @@ merge-approved: none | YYYY-MM-DD — "<owner's words>"
 ### Out of scope
 ### Known risks
 
-## Completion report                    (the builder's, pasted by the foreman)
-## Architect review
+## Completion digest                    (pasted by the architect when it arrives)
+## Architectural gate
 ## Merge record
 ```
 
 A brief states semantics and boundaries precisely enough that the builder
-never has to invent architecture. "Improve X" is not a brief.
+never has to invent architecture. "Improve X" is not a brief. The reviewer
+reviews against this file, so what is not in it is scope creep.
 
 ## Launch protocol
 
 Preconditions: the task file is committed to `main` with
-`state: APPROVED_FOR_IMPLEMENTATION`; the foreman's working tree is clean;
-`main` is where the builder should branch from (`.claude/settings.json` sets
-`worktree.baseRef: head`, so a worktree branches from the local `main`, not
-from the remote).
+`state: APPROVED_FOR_IMPLEMENTATION` and the quoted approval; Fable's working
+tree is clean; `main` is where the builder should branch from
+(`.claude/settings.json` sets `worktree.baseRef: head`, so a worktree
+branches from the local `main`, not from the remote).
 
-Launch with the Agent tool: `subagent_type: "qb-builder"`, run in the
-background, `description: "IE-NNN <title>"`. The prompt carries the whole
-brief verbatim plus the builder rules below; the agent definition carries the
-worktree isolation, the model, the effort and the guard hook. Then record the
-worker on the task file (`git worktree list` shows the path and branch), set
-`state: IMPLEMENTING`, and commit that bookkeeping change.
+Launch with the Agent tool: `subagent_type: "qb-builder"`, in the background,
+`description: "IE-NNN <title>"`. The prompt names the task file path and
+carries the brief verbatim; the agent definition carries the worktree
+isolation, the model, the effort, the guard hook, the review loop and the
+digest format. Then record the worker on the task file (`git worktree list`
+shows the path and branch), set `state: IMPLEMENTING`, commit that
+bookkeeping change once for the whole batch, and **end the turn**.
 
-Builders are told, every time:
+## The completion digest
 
-- **Setup, in the worktree**: `npm ci`, then `npm run srd:ingest && npm run
-  srd:index` (the generated SRD data is gitignored, so a fresh checkout has
-  none). Then `npm test` to confirm a green baseline before touching anything.
-- **Work** test-first, as `CLAUDE.md` requires; verify rules against
-  `packages/srd/raw/`; mutate the implementation to prove the new tests bite.
-- **Never edit** `PROGRESS.md`, anything under `docs/dev/`,
-  `packages/engine/fixtures/golden-log.json`, or `packages/srd/raw/`. Do edit
-  `CLAUDE.md` for what was built — that is the codebase's own rule — and
-  commit a regenerated `COVERAGE.md`.
-- **Before reporting**: `git rebase main` (the local branch), resolve per the
-  playbook, then the whole gauntlet — `npm run typecheck && npm run lint &&
-  npm test && npm run coverage && git diff --exit-code COVERAGE.md`.
-- **One commit per task**, message in the repo's style (an imperative
-  sentence), body explaining the decisions. Rework is folded into that
-  commit, not stacked on it.
-- **Report** in the format below, and stop. Do not pick up anything else.
-- **`ARCHITECTURE_BLOCKED`** the moment the approved design does not cleanly
-  cover something: stop making architectural changes and report the exact
-  problem, the evidence (file:line), why the design does not cover it, the
-  viable options with trade-offs, and a recommendation.
-
-### Completion report format
+The builder's last message, in this shape; Fable pastes it into the task file
+when it arrives. Nothing else about the implementation is reread unless a
+risk signal says so.
 
 ```
-IE-NNN — <title>
-Result: COMPLETE | ARCHITECTURE_BLOCKED
+IE-NNN — Completion digest
+Approved architectural intent: <one or two lines from the brief>
+Builder: COMPLETE | ARCHITECTURE_BLOCKED
 Worktree: <path>   Branch: <name>   Commit: <sha>   Rebased on main at: <sha>
-What was built:            (three to eight lines)
-Tests added:               (files, and what each pins; the mutation you ran)
-Gauntlet:                  typecheck / lint / test (N passing) / coverage diff
-Deviations from the brief: none | …
-Out-of-scope findings:     none | … (not acted on)
-Open questions:            none | …
+Opus review: PASS | ESCALATE — rounds: N
+Tests: <N passing> / <N total>; new tests: <k>; mutation run: <what and that it failed>
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓
+Conformance: PASS | <what is off>
+Architectural deviations: none | <each, with why>
+Foundational primitives touched: none | <list>
+New runtime special cases: none | <list>
+Files outside the brief's surface: none | <list, with why>
+Out-of-scope findings (not acted on): none | <list>
+Unresolved concerns: none | <list>
+Reviewer confidence: high | medium | low
+Recommendation: READY FOR ARCHITECTURAL GATE | ESCALATE
 ```
 
-## Review checklist
+## Review, and the rework loop
 
-The foreman reviews in the builder's worktree, reading the diff
-(`git diff main...<branch>`) and re-running the gauntlet there. Against:
+The reviewer is launched by the builder once its gauntlet passes and its
+commit exists, with the task file path, the worktree path and the branch. It
+runs in that worktree, reads `git diff main...<branch>`, the brief and the
+tests, re-runs the gauntlet, and returns a structured verdict against: brief
+compliance; tests (the failing test came first, a mutation was run, fixtures
+discriminate, numbers quote their SRD line); regression risk (`golden-log.json`
+untouched, replay determinism); conformance (`COVERAGE.md`, `unmodelled`
+honesty, `PARTIAL`, the tracking guard); scope creep; obvious architectural
+violations (the doctrine's invariants, a new special case by name, a second
+source of truth, something derived that is stored); hard-coded or
+test-specific fixes; accidental coupling; and it lists the foundational
+primitives touched and any new special case, because Fable's gate reads those
+two lines first.
 
-1. **The brief** — every acceptance criterion met; nothing beyond it.
-2. **Architecture** — the doctrine's invariants; no new special case by name;
-   no second source of truth; derived where it should be derived; the
-   generalisation rule (a second user before an abstraction).
-3. **Tests** — the failing test came first; a mutation was run; fixtures that
-   discriminate (the multiclass, the resistant Rogue); numbers quoted from the
-   SRD line they came from.
-4. **Conformance** — `COVERAGE.md` and any `unmodelled` claims honest;
-   `PARTIAL` used where it applies; the tracking guard satisfied.
-5. **Scope and coupling** — no drive-by refactors; no reach into another
-   lane's files without the brief saying so.
-6. **Regression risk** — `golden-log.json` untouched; replay determinism
-   asserted where the change could affect it.
+Ordinary defects go back to the builder as a list; the builder fixes, folds,
+re-runs the gauntlet and asks again. Three rounds without a PASS is YELLOW.
+A reviewer that sees an architectural problem does not negotiate it: it
+returns `ESCALATE` and the builder ends with `ARCHITECTURE_BLOCKED`. The
+reviewer's verdict is copied verbatim into the digest; a builder cannot
+soften it, and the reviewer ignores any request to.
 
-Outcome: `AWAITING_MERGE_APPROVAL` with the review written into the task
-file; or `CHANGES_REQUIRED`, sent to the builder by name with SendMessage
-(its context is intact, and the send resumes it if it has finished); or
-`OWNER_DECISION_REQUIRED`.
+If a builder cannot launch the reviewer (the launch fails), it reports its
+digest with `Opus review: NOT RUN` and Fable launches `qb-reviewer` itself,
+once, in that worktree — the only case where Fable is woken twice for one
+task.
 
 ## Merge procedure (after Gate 3)
 
 ```bash
-# 1. Is the branch still on top of main? If main moved, ask the builder to
-#    rebase and re-run the gauntlet, or do it for a trivial conflict.
+# 1. Is the branch still on top of main? If main moved, send the builder a
+#    rebase request by SendMessage and sleep; do it yourself only for a
+#    conflict the playbook resolves mechanically.
 git merge-base --is-ancestor main <branch> && echo up-to-date
 # 2. Fast-forward only — the history is linear and stays that way.
 git merge --ff-only <branch>
@@ -266,15 +319,15 @@ git worktree remove .claude/worktrees/<name>
 git branch -d <branch>
 ```
 
-Then: the Done row in `PROGRESS.md` (the existing convention — a bookkeeping
-commit of its own), `state: DONE` with the quoted approval, the audit counter
-in `QUEUE.md`, and the next task moves up.
+Then: the Done row in `PROGRESS.md` (the existing convention), `state: DONE`
+with the quoted approval, the audit counter in `QUEUE.md` — one bookkeeping
+commit — and the next task moves up.
 
 **Merge order.** When two branches finished concurrently, integrate the one
-with the smaller surface first, rebase the other on the result, re-run its
-gauntlet, re-review anything the rebase touched, and only then present its
-Gate 3. If a merge invalidates a pending branch, that branch goes back to
-`CHANGES_REQUIRED` before its merge approval is requested.
+with the smaller surface first, send the other builder a rebase request,
+and present its Gate 3 only when its re-run digest arrives. If a merge
+invalidates a pending branch, that branch goes back to `CHANGES_REQUIRED`
+before its merge approval is requested.
 
 ## Owner summaries
 
@@ -291,12 +344,12 @@ Per task: why now · proposed architecture · what changes · dependencies ·
 Recommendation: APPROVE BATCH | APPROVE IE-NNN ONLY | MODIFY | DEFER
 ```
 
-At **Gate 3**:
+At **Gate 3**, the digest's lines plus:
 
 ```
 IE-NNN — title — AWAITING_MERGE_APPROVAL
-Implementation · Tests · Architecture review: PASS/FAIL · Conformance
-review: PASS/FAIL · Deviations · Remaining risks · Merge-order concerns
+Architectural gate: lightweight PASS | inspected: <why, and what was found>
+Merge-order concerns: none | …
 Recommendation: MERGE | DO NOT MERGE
 ```
 
@@ -305,10 +358,14 @@ Detail lives in the task file. The summary is what the owner reads.
 ## The whole-engine audit
 
 Due after every 3–5 meaningful engine tasks; `QUEUE.md` keeps the count and
-`check-queue.mjs` prints `WHOLE_ENGINE_AUDIT_DUE` when it is reached. The
-audit is the foreman's own read-only work and needs no approval to run; its
-*findings* become proposals that pass Gate 1 like anything else. It does not
-launch rewrites.
+`check-queue.mjs` prints `WHOLE_ENGINE_AUDIT_DUE` when it is reached. It is
+Fable-level work by design — it is the one time Fable reads the engine
+broadly — and it runs at the next wake-up that would otherwise propose a
+mechanic, not in an idle gap. It needs no approval to run; its *findings*
+become proposals that pass Gate 1 like anything else. It does not launch
+rewrites. Its measurement legwork (counting call sites, listing special
+cases, mapping coupling) may be delegated to an Opus subagent; the judgment
+is not.
 
 It covers what the two previous audits covered (`PROGRESS.md`, "Architecture
 audit against the doctrine"): duplicated primitives, accidental coupling,
@@ -316,9 +373,9 @@ inconsistent authority boundaries, missing validation and conformance, drift,
 abstractions grown too broad, repeated needs that now justify one, runtime
 special cases by name, test blind spots, hidden cross-subsystem assumptions,
 state that should be derived, duplicated sources of truth, and complexity
-recent work introduced. Measured, not recalled — the numbers are what the code
-says on the day. It is recorded where the previous ones were: a section in
-`PROGRESS.md`, and a design record under `docs/architecture/` if it is long.
+recent work introduced. Measured, not recalled. It is recorded where the
+previous ones were: a section in `PROGRESS.md`, and a design record under
+`docs/architecture/` if it is long.
 
 ## Resuming in a fresh session
 
@@ -327,19 +384,16 @@ worktrees and the recent log. From those, a cold session answers: what is
 being implemented, which builders are active, what awaits approval, review or
 merge, what is blocked, what comes next, what is parallel-safe, what has been
 decided (`PROGRESS.md`, "Decisions that constrain what comes next"), what each
-previous builder did (its task file), and when the next audit is due.
-
-A builder that was running when the previous session ended is still on disk:
-its worktree is under `.claude/worktrees/`, its branch holds whatever it
-committed, and its task file says what it was asked. Re-launch with the same
-brief and the instruction to continue from that branch.
+previous builder did (its task file's digest), and when the next audit is
+due.
 
 ## What is deliberately not automated
 
 - **No merge without a human**, ever, including trivial ones. The gate is the
   product.
-- **No self-approval.** A proposal the foreman wrote is not approved until the
+- **No self-approval.** A proposal Fable wrote is not approved until the
   owner says so, however obvious.
-- **No autonomous scheduling.** Builders are launched by the foreman in
-  response to an approval, not by a timer or a queue drain.
+- **No autonomous scheduling and no polling.** Builders are launched in
+  response to an approval; Fable is woken by completions, not by timers,
+  loops or status checks.
 - **No utilisation target.** Zero active builders is a normal state.

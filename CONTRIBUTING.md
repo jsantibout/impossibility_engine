@@ -140,9 +140,11 @@ Worth knowing, so you trust them the right amount:
 ## AI builders
 
 AI implementation runs the same way, with the roles split by authority rather
-than by lane: a foreman session prepares briefs and reviews, Opus builders
-implement one approved task each in a worktree under `.claude/worktrees/`,
-and the owner approves work and merges. Builders obey every rule on this page
-— the lanes, the five daily rules, the playbook — and one more: they never
-merge, push, or edit `PROGRESS.md` or `docs/dev/`. The procedure is
+than by lane: an architect session (Fable) prepares briefs and holds the
+architectural gate, Opus builders implement one approved task each in a
+worktree under `.claude/worktrees/`, an independent Opus reviewer checks each
+result and returns ordinary defects to the builder, and the owner approves
+work and merges. Builders and reviewers obey every rule on this page — the
+lanes, the five daily rules, the playbook — and one more: they never merge,
+push, or edit `PROGRESS.md` or `docs/dev/`. The procedure is
 `docs/dev/WORKFLOW.md`; the live state is `docs/dev/QUEUE.md`.

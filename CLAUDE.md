@@ -126,14 +126,20 @@ and `golden-log.json`. That is deliberate — each is regenerated rather than
 merged, and a text merge of them succeeds while producing something nobody
 computed. `CONTRIBUTING.md` says what to run for each.
 
-## Development workflow: a foreman and builders
+## Development workflow: an architect, builders and a reviewer
 
-Development runs as one Fable session — the **foreman**: principal engineer,
-architect, scheduler and reviewer — delegating approved, bounded tasks to one
-to three Opus **builders**, each in its own git worktree, with the owner
-deciding what is built and what is merged. `docs/dev/WORKFLOW.md` is the
-procedure; this is the part a session must not get wrong.
+Development runs as one Fable session — the **architect**: principal engineer
+and final technical judgment — delegating approved, bounded tasks to one to
+three Opus **builders**, each in its own git worktree and each checked by an
+independent Opus **reviewer**, with the owner deciding what is built and what
+is merged. `docs/dev/WORKFLOW.md` is the procedure; this is the part a
+session must not get wrong.
 
+- **Fable is event-driven.** It thinks, delegates, and ends its turn; it is
+  woken by a builder's completion notification, an escalation, an owner
+  decision or the periodic audit. It does not poll, monitor, narrate progress
+  or do speculative architecture while builders run. Fable's tokens are the
+  scarce resource; Opus does the volume, including review and rework.
 - **Start with `/qb`.** It injects the live queue, the validator's summary and
   the git state, so a fresh session resumes from the repository alone.
 - **Sources of truth, highest first:** the doctrine; this file; `PROGRESS.md`;
@@ -143,20 +149,25 @@ procedure; this is the part a session must not get wrong.
 - **Three owner gates, none optional:** work approval
   (`OWNER_APPROVAL_REQUIRED`), a material decision
   (`OWNER_DECISION_REQUIRED`) and merge approval (`AWAITING_MERGE_APPROVAL`).
-  The foreman recommends; only the owner's words in the conversation move a
-  task across one, and they are quoted in the task file. The foreman never
-  approves its own proposal and never merges unasked.
-- **The foreman does not write engine code; builders do not merge.** A builder
-  is `qb-builder`: Opus, `isolation: worktree`, a hook that refuses `git
-  push`, `git merge` and ref surgery, and Claude Code's own isolation that
-  refuses edits and git aimed at the main checkout. Ordinary rework goes back
-  to the builder by `SendMessage`; architecture questions come to the owner.
+  Fable recommends; only the owner's words in the conversation move a task
+  across one, and they are quoted in the task file. Fable never approves its
+  own proposal and never merges unasked.
+- **The architectural gate is lightweight by default.** Fable reads the
+  completion digest — builder result, reviewer verdict, tests, conformance,
+  deviations, primitives touched, special cases — and inspects the diff only
+  when a risk signal in it says so. GREEN stays between builder and reviewer;
+  YELLOW wakes Fable as `ARCHITECTURE_BLOCKED`; RED goes to the owner.
+- **Fable does not write engine code; builders and reviewers do not merge.**
+  `qb-builder` and `qb-reviewer` are Opus, the builder `isolation: worktree`,
+  both behind a hook that refuses `git push`, `git merge` and ref surgery, and
+  Claude Code's own isolation that refuses edits and git aimed at the main
+  checkout. Rework goes builder ↔ reviewer without Fable.
 - **One owner per primitive.** Two tasks that both change `events.ts`,
   `commands.ts`, the types at the top of `spell-definitions.ts` or any other
   foundational primitive run one after the other, never concurrently.
   Content, conformance, tooling and docs run beside a mechanism task.
-- **Builders never edit `PROGRESS.md` or `docs/dev/`.** The foreman is the
-  only writer there; the Done row is recorded at merge, as it always was.
+- **Builders never edit `PROGRESS.md` or `docs/dev/`.** Fable is the only
+  writer there; the Done row is recorded at merge, as it always was.
 - **`WHOLE_ENGINE_AUDIT_DUE`** after every 3–5 engine tasks; `QUEUE.md`
   counts, and the audit is recorded where the previous ones were.
 
