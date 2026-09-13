@@ -1,13 +1,35 @@
 # IE-001 — A condition applied with no saving throw
 
-state: OWNER_APPROVAL_REQUIRED
+state: PROPOSED
 lane: mechanism
-batch: 1
-parallel-safe: CONDITIONAL — beside a content task only (IE-002); NO beside any other mechanism task, because it changes the `SpellEffect` vocabulary and `resolveEffects`
-depends-on: none
+batch: none
+parallel-safe: CONDITIONAL — beside a content task only; NO beside any other mechanism task, because it changes the `SpellEffect` vocabulary and `resolveEffects`
+depends-on: IE-004, IE-005
 worker: none
 approved: none
 merge-approved: none
+
+## Audit note (2026-09-13)
+
+Presented at Gate 1 before the third whole-engine audit and withdrawn by it
+(`docs/architecture/whole-engine-audit-2026-09-13.md`, §3.1 and §4). Three
+findings change the brief below, and it is to be re-briefed on those terms
+before it is presented again:
+
+- **One `ConditionRider`, not a fourth spelling.** The union already spells a
+  condition rider three ways — on `attack`, on `save-damage`, and on `save` —
+  with three near-identical resolution blocks (`commands.ts:8999`, `:9323`,
+  `:9399`). The new kind is the fourth consumer of one shared rider type
+  `{ name, lasts?, check?, outlivesCasting? }` and one option-building
+  helper, and the three existing riders adopt it in the same task. The
+  outcome-scoped child vocabulary stays deferred; this is one rider.
+- **After the honesty guard (IE-004).** Invisibility's early-end clause is a
+  debt adjudication, and partial is derived from it; the brief's claim about
+  `PARTIAL_SPELLS` is checkable only once that guard exists.
+- **After the split (IE-005).** It lands in the spell-resolution module,
+  not in a 10,000-line file another task may be in.
+
+The brief as it stood follows, for the record.
 
 ## Brief
 
@@ -161,16 +183,16 @@ tracking, coverage and oracle guards run unchanged and must pass.
 
 ### Dependencies
 
-None.
+IE-004 and IE-005, per the audit note.
 
 ### Likely file surface
 
 `packages/engine/src/spell-definitions.ts` (the union at the top; new
-definitions and registry lines below), `spell-schema.ts`, `commands.ts`
-(the `resolveEffects` branch only), `packages/engine/scripts/coverage.ts`,
-`spell-schema.test.ts`, one new or existing spell test file,
-`spell-tracking.test.ts` only if a tracked spell moves, `CLAUDE.md`,
-`COVERAGE.md`.
+definitions and registry lines below), `spell-schema.ts`, the spell-resolution
+module (the `resolveEffects` branch and the three existing rider blocks),
+`packages/engine/scripts/coverage.ts`, `spell-schema.test.ts`, one new or
+existing spell test file, `spell-tracking.test.ts` only if a tracked spell
+moves, `CLAUDE.md`, `COVERAGE.md`.
 
 ### Out of scope
 
@@ -186,14 +208,14 @@ outcome-scoped child effects; any change to how `conditions.ts` reads
   quoted from the SRD line, and the oracle checks two of the three.
 - The tracking guard: a spell moved from tracked to executed may still carry
   prose markers needing adjudication.
-- The registry conflict with IE-002 at integration is mechanical (both lines,
-  id order); `COVERAGE.md` is regenerated.
+- The registry conflict with a content task at integration is mechanical
+  (both lines, id order); `COVERAGE.md` is regenerated.
 
-## Completion report
+## Completion digest
 
 (none yet)
 
-## Architect review
+## Architectural gate
 
 (none yet)
 

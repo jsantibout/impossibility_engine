@@ -1,13 +1,23 @@
 # IE-002 — Pour twelve spells into the shapes that already execute
 
-state: OWNER_APPROVAL_REQUIRED
+state: PROPOSED
 lane: content
-batch: 1
-parallel-safe: CONDITIONAL — YES beside one mechanism task (IE-001) provided it uses no kind that task adds; NO beside another content task, which would edit the same registry and list
-depends-on: none
+batch: none
+parallel-safe: CONDITIONAL — YES beside one mechanism task provided it uses no kind that task adds; NO beside another content task, which would edit the same registry and list
+depends-on: IE-004
 worker: none
 approved: none
 merge-approved: none
+
+## Audit note (2026-09-13)
+
+Presented at Gate 1 before the third whole-engine audit and re-scheduled by it
+(`docs/architecture/whole-engine-audit-2026-09-13.md`, §4): the honesty
+guard (IE-004) changes what a new executed definition must satisfy — every
+`unmodelled` clause that trips a mechanical marker needs an adjudication, and
+a debt adjudication makes the spell partial — so twelve definitions poured
+before it lands are rework. The task itself is unchanged and follows IE-004,
+in batch 2 beside the split.
 
 ## Brief
 
@@ -27,7 +37,8 @@ working shapes… roughly 90 parsed spells fit one of them and need only a
 definition with its SRD quote. `spell-catalogue.test.ts` drives every
 definition automatically, so the test cost of each new one is zero. This is
 the cheapest coverage there is." It is lane A in `CONTRIBUTING.md`, which
-"never waits on the mechanism lane" — the point of running it beside IE-001.
+"never waits on the mechanism lane" — the point of running it beside a
+mechanism task.
 
 ### Current relevant architecture
 
@@ -42,8 +53,9 @@ the cheapest coverage there is." It is lane A in `CONTRIBUTING.md`, which
 - Guards: `spell-catalogue.test.ts` (every definition cast), `coverage.test.ts`
   (name, level, school, casting time, Concentration against the parsed book),
   the range and duration oracle (`scripts/spell-oracle.ts`),
-  `spell-tracking.test.ts` (prose markers demand adjudication),
-  `spell-schema.test.ts` (validator).
+  `spell-tracking.test.ts` (prose markers demand adjudication — extended to
+  executed spells' `unmodelled` clauses by IE-004), `spell-schema.test.ts`
+  (validator).
 - The measurement: `packages/engine/scripts/coverage.ts`, `VERIFIED_SPELLS`.
 
 ### Required behaviour
@@ -51,7 +63,7 @@ the cheapest coverage there is." It is lane A in `CONTRIBUTING.md`, which
 Selection rule: a parsed spell with no definition whose **entire** mechanical
 content is expressed by one existing kind (plus `area`, `targets` or
 `targetsWithin`, scaling, and the existing rider fields) with no clause the
-tracking guard would call debt. Prefer lower levels and commonly cast spells.
+honesty guard would call debt. Prefer lower levels and commonly cast spells.
 Twelve is a cap, not a target: fewer, with a reason each, is a correct
 result.
 
@@ -64,12 +76,12 @@ nothing checks).
 
 ### Architecture constraints
 
-- Content lane only: no change to any type declaration, `commands.ts`,
+- Content lane only: no change to any type declaration, the command layer,
   `events.ts`, `spell-schema.ts`, `conditions.ts` or any test that is not a
   spell test. A spell that needs a new kind or field is left out and named in
   the report.
 - Do not use any effect kind that does not exist on `main` at the moment the
-  worktree was created (IE-001 may add one concurrently; it is not yours).
+  worktree was created.
 - No `unmodelled` claim that is really debt: if a clause is a rule the engine
   should own, the spell does not qualify for this task.
 
@@ -90,13 +102,13 @@ nothing checks).
 ### Tests and conformance
 
 `spell-catalogue.test.ts` (automatic), `coverage.test.ts` (automatic), the
-oracle (automatic), and one assertion per spell whose numbers are not
-otherwise pinned, in the existing spell test files.
+oracle (automatic), the honesty guard (automatic once IE-004 lands), and one
+assertion per spell whose numbers are not otherwise pinned, in the existing
+spell test files.
 
 ### Dependencies
 
-None. Runs beside IE-001; the two meet only in the registry (mechanical
-resolution) and `COVERAGE.md` (regenerated).
+IE-004.
 
 ### Likely file surface
 
@@ -117,14 +129,14 @@ oracle or the guards.
   the pinning works.
 - Selection creep: a spell that "almost" fits gets a rider it should not; the
   rule is that the whole paragraph fits or the spell is left out.
-- Merge with IE-001: both append registry lines and regenerate `COVERAGE.md`;
-  the playbook resolves both mechanically.
+- Merge with a concurrent mechanism task: both may append registry lines and
+  regenerate `COVERAGE.md`; the playbook resolves both mechanically.
 
-## Completion report
+## Completion digest
 
 (none yet)
 
-## Architect review
+## Architectural gate
 
 (none yet)
 

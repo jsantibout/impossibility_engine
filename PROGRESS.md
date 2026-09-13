@@ -100,8 +100,8 @@ still Wizard-shaped are named below.
 | LLM boundary II | Tier 2: three level 2 characters and one Ogre; the harness generalised to N actors | `85f72a8` |
 | Surface parity | Every engine request parameter published or explained, with a test that reads the engine's own source | `cac086d` |
 | Spatial model | A coordinate says *where*, never *what*; `AreaPoint` and explicit anchoring | `81112d1` |
-| Validated definitions | A pure schema validator, the SRD as a range/duration oracle, declared area anchoring, and an Armour Class a spell **sets** — Mage Armor | — |
-| Roll modifiers | Advantage as a typed relationship between an effect and a roll; `against-holder`; Blur, Beacon of Hope | — |
+| Validated definitions | A pure schema validator, the SRD as a range/duration oracle, declared area anchoring, and an Armour Class a spell **sets** — Mage Armor | `df6de4c` |
+| Roll modifiers | Advantage as a typed relationship between an effect and a roll; `against-holder`; Blur, Beacon of Hope | `5b32e0c` |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 
@@ -1195,6 +1195,79 @@ Measured, not recalled. The numbers are what the code said on the day.
   Initiative order in progress, and that event does not exist. Named here; it
   is the summons blocker in the list below, not a separate item.
 
+### Third architecture audit against the doctrine
+
+Run on 2026-09-13 before the first batch under the new development workflow,
+because five engine batches had landed since the second audit. Measured by
+four read-only sweeps and the architect's own checks; the full record with
+file:line evidence is `docs/architecture/whole-engine-audit-2026-09-13.md`.
+Nothing was implemented. The numbers are what the code said at `5ff287c`.
+
+- **Recent work closed what it claimed.** The roll-modifier gatherer removed
+  the four ad-hoc readers and both attack paths read the defender; the
+  spatial pass closed both geometry findings the boundary experiment
+  reported; the validator drives all 128 definitions; Grease's Prone is
+  `outlivesCasting`. Half-closed: the Evoker seam consumes only the `fixed`
+  arm of `grants: { kind: 'spells' }`; the chosen arm still branches on the
+  feature id in `creation.ts`.
+- **The value-level import graph is acyclic** — 44 modules, 126 value edges,
+  zero cycles; the 31-module knot in the raw graph is type imports. One
+  upward import: `rest.ts` takes `identify` from the command layer.
+- **The fold reads content.** `events.ts` calls `definitionFor` at five sites
+  for a casting's area and trigger clauses, and `itemFor` at two for worn
+  armour. `OngoingSpell` pins the numbers and the origin, not the shape or
+  the clauses, so a replay consults the catalogue of the day and a
+  transcription fix changes which debts a historical fold raises. Pin the
+  area at the cast, as the numbers are pinned.
+- **Two `CLAUDE.md` sentences are false.** No sweep holds the `mayAct` list —
+  the only test is a hand-written `it` list covering nine of sixteen
+  spenders — and `GUARDED` is a hand-maintained array silent in both
+  directions: five commands call `identify` and are absent, seven
+  event-returning exports take no id, and two of those are undocumented —
+  `resolvePendingSaves`, which re-rolls the turn's saves on a retry, and
+  `removeCreatureEverywhere`. Both sentences corrected in this commit.
+- **Four correctness holes.** `extendFeature` spends a Bonus Action with no
+  guard; the casting wrapper refuses `unknown_creature` and four other stable
+  facts before the duplicate check (the eighth instance of the trap, the
+  first in a wrapper); a creature removed while owing a repeat save wedges
+  the fight, because `creature-removed` leaves its timers and both
+  settlement paths then refuse; Counterspell on Counterspell is refused by a
+  reducer throw rather than a value.
+- **Debt can hide as fiction in the executed population.** The tracking guard
+  scans the 46 tracked spells; 58 of the 82 executed spells carry
+  `unmodelled` clauses no guard reads, among them Chill Touch's healing ban,
+  the "Advantage if you or your allies are fighting the target" clause on
+  five spells, Harm's maximum reduction, Guiding Bolt's next-attack
+  Advantage and three Difficult Terrain areas. `PARTIAL_SPELLS` is a hand
+  list of one.
+- **The frozen log protects 35 of 91 event types.** Nothing since the
+  reaction windows has a compatibility fixture. The rule "never regenerate"
+  stands; the answer is a second frozen fixture.
+- **Three spellings of a condition rider**, with three near-identical
+  resolution blocks; the next family would add a fourth. One `ConditionRider`
+  is now justified. The outcome-scoped child vocabulary stays deferred.
+- **Smaller.** 46 of 162 refusal codes asserted by no test, `forged_provenance`
+  among them; feature definitions have no validator (ten `engine` features
+  with no hook, three `manual` ones with a grant, all by unchecked
+  convention); the special-case guard scans five files for spell ids only
+  while `creation.ts` branches on six feature and class literals; two
+  identical `castingNumber` helpers and one hand-written casting source;
+  `OngoingSpell.concentration` and `.route`, `PendingMove.feet` and
+  `OwedAreaEffect.turn` have no reader; the reducer accepts a
+  `spell-ongoing` for an ended casting; Arcane Lock and Continual Flame still
+  say Dispel Magic is not executable.
+- **`commands.ts` measured for the split**: 10,149 lines (the second audit's
+  "5,400" was wrong on the day it was written; the file was 8,632), 13
+  regions, spell resolution 28% of the file, 15 cross-region helpers, four
+  helpers filed where nothing calls them, and the seam table recorded. The
+  comparative audit's #7 is affirmed, with the workflow reason added: every
+  mechanism task collides here, and the split is what lets two run at once.
+- **The ranked spell map is unchanged and correct for spells; it is no longer
+  the whole queue.** Engine integrity comes first: the guard holes and the
+  mechanical sweeps, the honesty guard, the split, the second fixture; then
+  the condition-without-a-save family re-briefed around one rider; then the
+  ongoing-record hygiene. `docs/dev/QUEUE.md` holds the order.
+
 ## The utility bucket, audited spell by spell
 
 Ninety-one SRD spells are filed as "narrative or exploration". Fifteen were
@@ -1481,6 +1554,17 @@ primitive — which is why it is below the four above it despite being unblocked
   declares. The idempotency sweep is what caught it.
 
 ## Next actions, in order
+
+**Where the third whole-engine audit left the queue (2026-09-13).** The
+ranked map below is unchanged for spells. Ahead of it now stand the audit's
+integrity items, in `docs/dev/QUEUE.md` as tasks: the guard holes and the two
+mechanical sweeps (IE-003); the honesty guard over executed spells'
+`unmodelled` clauses (IE-004); the split of `commands.ts` along the measured
+seams (IE-005); a second frozen event-log fixture (IE-006); then the
+condition-without-a-save family re-briefed around one `ConditionRider`
+(IE-001); then the ongoing record pinning its area so the fold stops reading
+the catalogue (IE-007). The reasons are in
+`docs/architecture/whole-engine-audit-2026-09-13.md`, §4 and §5.
 
 **Where the definitions pass left the queue.** The comparative audit's §14E
 ordered six changes before the next SRD family. Two are done and the others

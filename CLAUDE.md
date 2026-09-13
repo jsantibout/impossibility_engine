@@ -2246,8 +2246,11 @@ it.
 `mayAct` is the one policy, called by every command that spends an Action, a
 Bonus Action, movement or a feature's use: Dash, Disengage, Dodge, Ready,
 feature activation, the three pool commands, an effect check, an attack, a
-move, a casting, an activation, and the turn. A sweep holds the list, so a
-command added without the guard fails there rather than in play.
+move, a casting, an activation, and the turn. The third whole-engine audit
+(2026-09-13) found no sweep holding that list: the only test is a hand-written
+case list covering nine of sixteen spenders, and `extendFeature` spends a
+Bonus Action with no guard at all. IE-003 makes the sweep mechanical; until
+it lands, a command added without the guard fails in play.
 
 **An owed area effect is global engine debt, and getting that wrong is
 instructive.** It was per-creature for one commit, on the reasoning that a
@@ -3763,10 +3766,15 @@ so a damage id and a casting id cannot collide by having similar shapes.
 
 **Every mutating tool on the Maestro surface takes a command id.** That is not
 optional the way it is for the engine's own callers. The sweep in
-`invariants.test.ts` is the authoritative list of which engine commands honour
-one; a command absent from it is unguarded, and the DM-facing four that were —
+`invariants.test.ts` was meant to be the authoritative list of which engine
+commands honour one, and the third whole-engine audit (2026-09-13) found it
+is a hand-maintained array, silent in both directions: five commands call
+`identify` and are absent from it, and seven event-returning exports take no
+id at all — two of them undocumented, `resolvePendingSaves`, which re-rolls
+the turn's saves on a retry, and `removeCreatureEverywhere`. IE-003 derives
+the list from the module's exports. The DM-facing four that were unguarded —
 `applyConditionTo`, `endConcentration`, `setExhaustionLevel`,
-`grantTemporaryHpTo` — are there now. A model-driven loop
+`grantTemporaryHpTo` — are guarded now. A model-driven loop
 retries for reasons that have nothing to do with the game — a `pause_turn`
 resume, a dropped connection, a tool re-invocation after a stream error — and
 an unidentified retry is a second casting that spends a second slot and rolls a

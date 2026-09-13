@@ -1,7 +1,7 @@
 # Development queue
 
 The in-flight state of the work. `PROGRESS.md` says what and why; this says
-where each task stands right now. The foreman is the only writer of this
+where each task stands right now. The architect is the only writer of this
 file and of everything under `docs/dev/`. The rules are in
 `docs/dev/WORKFLOW.md`; `node docs/dev/check-queue.mjs` validates this file
 and every task file, and prints the summary a fresh session reads first.
@@ -12,19 +12,13 @@ batches, the gate log, and the audit counter.
 
 ## Audit counter
 
-Last whole-engine audit: `f2512c7` (2026-09-12) — the second architecture
-audit against the doctrine, recorded in `PROGRESS.md` under "Architecture
-audit against the doctrine". The comparative audit (`5cdf785`, 2026-09-13)
-was a design audit against other engines, not a code audit.
+Last whole-engine audit: the third, 2026-09-13 —
+`docs/architecture/whole-engine-audit-2026-09-13.md`, recorded in
+`PROGRESS.md` under "Third architecture audit against the doctrine" and in
+the Done table (the commit hash is in that row).
 
-Engine tasks completed since last audit: 5
+Engine tasks completed since last audit: 0
 Audit due at: 4
-
-Counted: the LLM-boundary hardening (`190fc1e`), the capabilities publish
-(`cac086d`), the spatial-model pass (`81112d1`), the definitions validator
-(`df6de4c`) and roll modifiers (`5b32e0c`). So the audit is **due now**. The
-foreman runs it while batch 1 builds; its findings arrive as proposals at
-Gate 1, and the counter resets when the audit is recorded.
 
 ## Batches
 
@@ -32,45 +26,55 @@ Gate 1, and the counter resets when the audit is recorded.
 
 | Role | Task | Lane | Parallel-safe |
 |---|---|---|---|
-| PRIMARY | IE-001 — A condition applied with no saving throw | mechanism | CONDITIONAL |
-| PARALLEL | IE-002 — Pour twelve spells into the shapes that already execute | content | CONDITIONAL |
+| PRIMARY | IE-003 — Close the guard holes and make the guard sweeps mechanical | mechanism | CONDITIONAL |
+| PARALLEL | IE-004 — The honesty guard for executed spells | conformance | YES |
 
-Independence check: PASS — IE-001 changes the effect vocabulary and its
-resolution; IE-002 adds definitions using only the kinds that exist today and
-touches no type, command or schema. Shared files: the registry in
-`spell-definitions.ts` (both append; keep both lines in id order) and
-`COVERAGE.md` (regenerate). Dependency conflicts: none. Maximum concurrent
-builders: 2. Recommendation: APPROVE BATCH.
+Independence check: PASS — IE-003 edits `commands.ts`, `events.ts`,
+`rest.ts`, `spells.ts`, a new `idempotency.ts` and the invariants suite;
+IE-004 edits the tracking suite, the coverage script's `PARTIAL_SPELLS` list
+and `unmodelled` prose in definitions. Shared files: `CLAUDE.md` (prose, both
+sides kept) and `COVERAGE.md` (regenerated). Dependency conflicts: none.
+Maximum concurrent builders: 2. Recommendation: APPROVE BATCH.
+
+This batch replaces the one proposed before the audit (IE-001 + IE-002). The
+audit found IE-001 premature as briefed and IE-002 the wrong first partner;
+both are re-scheduled below, with the reasons in their files.
 
 ## CURRENT
 
 | Task | Lane | Parallel-safe | Batch |
 |---|---|---|---|
-| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | CONDITIONAL | 1 |
-| [IE-002 — Pour twelve spells into the shapes that already execute](tasks/IE-002-pour-spells-into-existing-shapes.md) | content | CONDITIONAL | 1 |
+| [IE-003 — Close the guard holes and make the guard sweeps mechanical](tasks/IE-003-guard-holes-and-mechanical-sweeps.md) | mechanism | CONDITIONAL | 1 |
+| [IE-004 — The honesty guard for executed spells](tasks/IE-004-honesty-guard-for-executed-spells.md) | conformance | YES | 1 |
 
 Both at `OWNER_APPROVAL_REQUIRED`. No builder is active.
 
 ## NEXT
 
-Prepared or being prepared; none approved.
+Prepared; none approved. The order is the audit's (§5 of the record).
 
-| Candidate | Source | Note |
+| Task | Lane | Note |
 |---|---|---|
-| Resistance or Immunity a spell grants (17 spells) | `PROGRESS.md`, ranked map rank 2 | the family the deferred child-effect vocabulary is waiting on; brief after IE-001 lands, because both add an effect kind |
-| Whole-engine audit follow-ups | the audit due now | proposals, not tasks, until Gate 1 |
+| [IE-005 — Split `commands.ts` by domain, behaviour-preserving](tasks/IE-005-split-commands-by-domain.md) | mechanism | batch 2's primary, alone in the mechanism lane; the seam table is measured |
+| [IE-006 — A second frozen event-log fixture](tasks/IE-006-second-frozen-fixture.md) | conformance | batch 2, beside the split |
+| [IE-002 — Pour twelve spells into the shapes that already execute](tasks/IE-002-pour-spells-into-existing-shapes.md) | content | batch 2, after IE-004 has changed what a new definition must satisfy |
 
 ## LATER
 
-The order is `PROGRESS.md`'s "Next actions, in order" and the ranked map
-beneath it; this list does not restate them. Named there and not yet briefed:
-healing that lifts a condition or raises the dead; damage with neither roll
-nor save; teleportation; automatic area drift (Cloudkill); the standing
-spatial effect (Spirit Guardians' Speed, the Paladin auras); splitting
-`commands.ts`; `cause` on events; summons; long casting times.
+| Task | Lane | Note |
+|---|---|---|
+| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | re-brief after IE-005: one `ConditionRider`, the new kind as its fourth consumer |
+| [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | sequential with IE-001 (both in spell resolution and `spells.ts`) |
+| a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a batch has room |
+
+Beyond that, the order is `PROGRESS.md`'s "Next actions, in order" and the
+ranked map beneath it, which the audit re-confirmed for spells: Resistance or
+Immunity a spell grants; healing that lifts a condition or raises the dead;
+damage with neither roll nor save; teleportation; automatic area drift; the
+standing spatial effect; `cause` on events; summons; long casting times.
 
 ## Gate log
 
 | Date | Gate | Task(s) | Owner's decision |
 |---|---|---|---|
-| — | — | — | none yet |
+| 2026-09-13 | Gate 1 (pre-audit) | IE-001, IE-002 | not approved; the owner asked for the whole-engine audit first, and it replaced the batch |
