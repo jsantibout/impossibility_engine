@@ -1178,8 +1178,13 @@ today**, and the honest reason the rest are not is never "it needs a position":
 
 | Blocked on | Spells |
 |---|---|
-| A creature that ends its turn in an area | Flaming Sphere, Moonbeam, Spike Growth, Cloudkill, Stinking Cloud, Incendiary Cloud, Insect Plague |
-| A creature that **enters** an area | Web, Grease, Wind Wall, Spike Growth |
+| A creature that **ends** its turn in an area | Moonbeam, Cloudkill, Incendiary Cloud, Insect Plague (and Grease and Black Tentacles, whose casts already execute) |
+| A creature that **starts** its turn in an area — a different boundary, a round apart | Stinking Cloud, Web, Sleet Storm, Zone of Truth |
+| A creature that **enters** an area, on its own move or a forced one | Web, Grease, Insect Plague, Moonbeam, Cloudkill, Incendiary Cloud, Black Tentacles, Sleet Storm, Zone of Truth |
+| An area that **moves into** a creature's space — printed only by areas that move | Moonbeam, Cloudkill, Incendiary Cloud, Spirit Guardians |
+| Ending a turn within 5 feet of a point, and a point rolled into a creature's space | Flaming Sphere |
+| Distance travelled inside an area, which no move records | Spike Growth |
+| A wall with a length and a barrier rule, and no later trigger at all | Wind Wall |
 | An activation that resolves an area at a point chosen now | Call Lightning, Storm of Vengeance |
 | A stat block created mid-fight | Unseen Servant, Arcane Hand, the four Conjures, Guardian of Faith, Faithful Hound, Phantom Steed, Summon Dragon, Giant Insect |
 | Walls and barriers as obstacles | Arcane Eye, Passwall, Wall of Stone, Prismatic Wall |

@@ -1337,12 +1337,26 @@ primitive — which is why it is below the four above it despite being unblocked
    Three named mechanics now stand between the primitive and the next thirty
    spells, and each is a *trigger* rather than a position:
 
-   - **"a creature that ends its turn within the area"** — Flaming Sphere,
-     Moonbeam, Cloudkill, Stinking Cloud, Spike Growth, Insect Plague,
-     Incendiary Cloud. This is item 3 below.
-   - **"the first time a creature enters the area on a turn"** — Web, Grease,
-     Wind Wall. The same shape with a different moment, and movement would have
-     to raise it.
+   - **"a creature that ends its turn in the area"** — Moonbeam, Cloudkill,
+     Incendiary Cloud, Insect Plague, and the already-executed Grease and
+     Black Tentacles. This is item 3 below. **Corrected 2026-09-12 against
+     the SRD text**: Stinking Cloud, Web, Sleet Storm and Zone of
+     Truth fire at the *start* of the creature's turn, which is a different
+     boundary; Flaming Sphere reads "ends its turn within 5 feet of the
+     sphere", a distance from a point rather than membership of an area;
+     Spike Growth has no turn trigger at all ("2d4 Piercing damage for every
+     5 feet it travels" is path-based, and no move records a path); and Wind
+     Wall has no later trigger of any kind — its later clauses are barrier
+     rules.
+   - **"a creature enters the area"** — Web, Grease, Insect Plague, Moonbeam,
+     Cloudkill, Incendiary Cloud, Black Tentacles, Sleet Storm, Zone of
+     Truth; movement would have to raise it. The frequency clause is a
+     per-spell datum with three values: Grease caps nothing, Web caps the
+     entry ("the first time ... on a turn"), Moonbeam caps the creature
+     ("only once per turn", across entry, area movement and end of turn).
+     Every area that *moves* (Moonbeam, Cloudkill, Incendiary Cloud, Spirit
+     Guardians) prints "when the area moves into its space" as a separate
+     clause; no fixed area prints it.
    - **an activation that resolves an area at a point chosen now** — Call
      Lightning, Storm of Vengeance. Audited as the candidate second user of the
      primitive and rejected: the cloud is exactly the fixed origin wanted, but
