@@ -7,6 +7,8 @@ export default tseslint.config(
       '**/coverage/**',
       '**/generated/**',
       'packages/srd/raw/**',
+      // Builders' worktrees are separate checkouts; linting them from here is wrong.
+      '.claude/worktrees/**',
     ],
   },
   ...tseslint.configs.recommended,

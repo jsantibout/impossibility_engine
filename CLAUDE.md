@@ -126,6 +126,40 @@ and `golden-log.json`. That is deliberate — each is regenerated rather than
 merged, and a text merge of them succeeds while producing something nobody
 computed. `CONTRIBUTING.md` says what to run for each.
 
+## Development workflow: a foreman and builders
+
+Development runs as one Fable session — the **foreman**: principal engineer,
+architect, scheduler and reviewer — delegating approved, bounded tasks to one
+to three Opus **builders**, each in its own git worktree, with the owner
+deciding what is built and what is merged. `docs/dev/WORKFLOW.md` is the
+procedure; this is the part a session must not get wrong.
+
+- **Start with `/qb`.** It injects the live queue, the validator's summary and
+  the git state, so a fresh session resumes from the repository alone.
+- **Sources of truth, highest first:** the doctrine; this file; `PROGRESS.md`;
+  the task file and `docs/dev/QUEUE.md`; `COVERAGE.md`. A task's state lives
+  on the `state:` line of its own file under `docs/dev/tasks/`, and
+  `node docs/dev/check-queue.mjs` refuses any state outside the closed set.
+- **Three owner gates, none optional:** work approval
+  (`OWNER_APPROVAL_REQUIRED`), a material decision
+  (`OWNER_DECISION_REQUIRED`) and merge approval (`AWAITING_MERGE_APPROVAL`).
+  The foreman recommends; only the owner's words in the conversation move a
+  task across one, and they are quoted in the task file. The foreman never
+  approves its own proposal and never merges unasked.
+- **The foreman does not write engine code; builders do not merge.** A builder
+  is `qb-builder`: Opus, `isolation: worktree`, a hook that refuses `git
+  push`, `git merge` and ref surgery, and Claude Code's own isolation that
+  refuses edits and git aimed at the main checkout. Ordinary rework goes back
+  to the builder by `SendMessage`; architecture questions come to the owner.
+- **One owner per primitive.** Two tasks that both change `events.ts`,
+  `commands.ts`, the types at the top of `spell-definitions.ts` or any other
+  foundational primitive run one after the other, never concurrently.
+  Content, conformance, tooling and docs run beside a mechanism task.
+- **Builders never edit `PROGRESS.md` or `docs/dev/`.** The foreman is the
+  only writer there; the Done row is recorded at merge, as it always was.
+- **`WHOLE_ENGINE_AUDIT_DUE`** after every 3–5 engine tasks; `QUEUE.md`
+  counts, and the audit is recorded where the previous ones were.
+
 ## Architecture
 
 Five layers, strictly one-directional. Nothing below the tool boundary knows an
