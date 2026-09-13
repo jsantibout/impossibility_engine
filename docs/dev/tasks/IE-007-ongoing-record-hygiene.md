@@ -2,7 +2,7 @@
 
 state: PROPOSED
 lane: mechanism
-batch: none
+tranche: none
 parallel-safe: NO beside IE-001 or any task in spell resolution or `spells.ts`; YES beside conformance and content
 depends-on: IE-005
 worker: none

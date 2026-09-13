@@ -2,7 +2,7 @@
 
 state: OWNER_APPROVAL_REQUIRED
 lane: mechanism
-batch: 2
+tranche: 2
 parallel-safe: NO beside any mechanism task; YES beside conformance and content, which do not touch the command layer
 depends-on: IE-003
 worker: none

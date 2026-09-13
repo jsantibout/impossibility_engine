@@ -2,7 +2,7 @@
 
 state: DONE
 lane: mechanism
-batch: 1
+tranche: 1
 parallel-safe: CONDITIONAL — beside conformance (IE-004) and content only; it edits `commands.ts`, `events.ts`, `rest.ts`, `spells.ts` and the invariants suite, so no other mechanism task runs beside it
 depends-on: none
 worker: none

@@ -9,6 +9,14 @@
  * line — nothing can — but it makes every gate record visible and every
  * malformed one loud.
  *
+ * Since V2 it also checks the thing that replaced the per-task merge button:
+ * the **tranche roster**. The owner approves a bounded set of tasks once, and
+ * that approval is the merge authority for exactly those tasks. So a task may
+ * not execute unless it is on the roster of an approved tranche, a roster
+ * entry may not name a task that does not exist, and the two may not disagree
+ * about which tranche a task is in. Adding a task to an approved tranche is
+ * the one way autonomy could quietly widen, and it is now loud.
+ *
  *   node docs/dev/check-queue.mjs
  *
  * Prints the summary a fresh session reads first, lists every problem with
@@ -28,7 +36,7 @@ const STATES = [
   'APPROVED_FOR_IMPLEMENTATION',
   'IMPLEMENTING',
   'ARCHITECTURE_BLOCKED',
-  'AWAITING_ARCHITECT_REVIEW',
+  'AWAITING_FOREMAN_REVIEW',
   'CHANGES_REQUIRED',
   'OWNER_DECISION_REQUIRED',
   'AWAITING_MERGE_APPROVAL',
@@ -38,11 +46,12 @@ const BEFORE_GATE_1 = new Set(['PROPOSED', 'OWNER_APPROVAL_REQUIRED']);
 const HELD_BY_A_BUILDER = new Set([
   'IMPLEMENTING',
   'ARCHITECTURE_BLOCKED',
-  'AWAITING_ARCHITECT_REVIEW',
+  'AWAITING_FOREMAN_REVIEW',
   'CHANGES_REQUIRED',
 ]);
 const LANES = new Set(['mechanism', 'content', 'conformance', 'tooling', 'docs']);
-const FIELDS = ['state', 'lane', 'batch', 'parallel-safe', 'depends-on', 'worker', 'approved', 'merge-approved'];
+const FIELDS = ['state', 'lane', 'tranche', 'parallel-safe', 'depends-on', 'worker', 'approved', 'merge-approved'];
+const TRANCHE_STATES = ['PROPOSED', 'APPROVED', 'COMPLETE'];
 const DATE = /\b\d{4}-\d{2}-\d{2}\b/;
 const QUOTED = /"[^"]+"/;
 const ID = /\bIE-\d{3}\b/g;
@@ -76,6 +85,9 @@ function checkTask(task, known) {
   if (fields.lane !== undefined && !LANES.has(fields.lane)) {
     problem(name, `lane "${fields.lane}" is not one of ${[...LANES].join(', ')}`);
   }
+  if (fields.tranche !== undefined && !/^(none|\d+)$/.test(fields.tranche)) {
+    problem(name, `tranche "${fields.tranche}" must be "none" or a number`);
+  }
   if (fields['parallel-safe'] !== undefined && !/^(YES|NO|CONDITIONAL)\b/.test(fields['parallel-safe'])) {
     problem(name, 'parallel-safe must start with YES, NO or CONDITIONAL');
   }
@@ -90,7 +102,10 @@ function checkTask(task, known) {
     }
   }
   if (state === 'DONE' && (!DATE.test(mergeApproved) || !QUOTED.test(mergeApproved))) {
-    problem(name, 'DONE needs "merge-approved: YYYY-MM-DD — \\"<owner\'s words>\\"" (Gate 3)');
+    problem(
+      name,
+      'DONE needs "merge-approved: YYYY-MM-DD — \\"<owner\'s words>\\"" — the tranche approval it merged under, or an exceptional Gate 3',
+    );
   }
   if (state !== 'DONE' && mergeApproved !== 'none') {
     problem(name, `state ${state} but a merge approval is recorded`);
@@ -107,6 +122,100 @@ function checkTask(task, known) {
       if (!known.has(dep)) problem(name, `depends on ${dep}, which has no task file`);
     }
     if ((deps.match(ID) ?? []).length === 0) problem(name, 'depends-on must be "none" or a list of IE-NNN ids');
+  }
+}
+
+/**
+ * Tranches live in QUEUE.md, because no task file can hold what the owner
+ * approved as one act. The shape is a heading and a roster line:
+ *
+ *   ### Tranche 2 — APPROVED 2026-09-14 — "APPROVE TRANCHE 2"
+ *   roster: IE-005, IE-006, IE-002
+ */
+function parseTranches(queue) {
+  const tranches = new Map();
+  let current = null;
+  for (const line of queue.split('\n')) {
+    const heading = line.match(/^###\s+Tranche\s+(\d+)\s+—\s+(\S+)(.*)$/);
+    if (heading !== null) {
+      const n = Number(heading[1]);
+      if (tranches.has(n)) problem('docs/dev/QUEUE.md', `two headings claim tranche ${n}`);
+      current = { n, status: heading[2], authority: heading[3].trim(), roster: [], sawRoster: false };
+      tranches.set(n, current);
+      continue;
+    }
+    if (/^##\s/.test(line)) current = null;
+    if (current === null) continue;
+    const roster = line.match(/^roster:\s*(.*)$/);
+    if (roster !== null) {
+      current.sawRoster = true;
+      current.roster = roster[1].match(ID) ?? [];
+    }
+  }
+  return tranches;
+}
+
+function checkTranches(tranches, tasks, known) {
+  const byId = new Map(tasks.filter((t) => t.id !== undefined).map((t) => [t.id, t]));
+  for (const tranche of tranches.values()) {
+    const where = `docs/dev/QUEUE.md (tranche ${tranche.n})`;
+    if (!TRANCHE_STATES.includes(tranche.status)) {
+      problem(where, `status "${tranche.status}" is not one of ${TRANCHE_STATES.join(', ')}`);
+    }
+    if (tranche.status === 'APPROVED' || tranche.status === 'COMPLETE') {
+      if (!DATE.test(tranche.authority) || !QUOTED.test(tranche.authority)) {
+        problem(where, `${tranche.status} needs the owner's words: "— ${tranche.status} YYYY-MM-DD — \\"<owner's words>\\""`);
+      }
+    } else if (DATE.test(tranche.authority) && QUOTED.test(tranche.authority)) {
+      problem(where, 'PROPOSED but an approval is recorded — a gate was crossed on paper');
+    }
+    if (!tranche.sawRoster) problem(where, 'needs a "roster: IE-NNN, …" line naming exactly the tasks it authorises');
+    else if (tranche.roster.length === 0) problem(where, 'roster is empty');
+    for (const id of tranche.roster) {
+      if (!known.has(id)) {
+        problem(where, `roster names ${id}, which has no task file`);
+        continue;
+      }
+      const claimed = byId.get(id)?.fields.tranche;
+      if (claimed !== String(tranche.n)) {
+        problem(where, `roster names ${id}, whose task file says "tranche: ${claimed}"`);
+      }
+    }
+  }
+
+  for (const task of tasks) {
+    if (task.id === undefined) continue;
+    const state = task.fields.state ?? '';
+    const claimed = task.fields.tranche ?? 'none';
+    if (claimed === 'none') {
+      if (!BEFORE_GATE_1.has(state) && STATES.includes(state)) {
+        problem(task.name, `state ${state} but "tranche: none" — nothing executes outside an approved tranche`);
+      }
+      if (state === 'OWNER_APPROVAL_REQUIRED') {
+        problem(task.name, 'OWNER_APPROVAL_REQUIRED but "tranche: none" — a task is presented as part of a tranche');
+      }
+      continue;
+    }
+    const tranche = tranches.get(Number(claimed));
+    if (tranche === undefined) {
+      problem(task.name, `claims tranche ${claimed}, which QUEUE.md does not define`);
+      continue;
+    }
+    if (!tranche.roster.includes(task.id)) {
+      problem(
+        task.name,
+        `claims tranche ${claimed} but is not on its roster — a task may not be added to a tranche the owner approved`,
+      );
+    }
+    if (state === 'PROPOSED') {
+      problem(task.name, `PROPOSED but rostered in tranche ${claimed} — a rostered task is briefed and presented`);
+    }
+    if (state === 'OWNER_APPROVAL_REQUIRED' && tranche.status !== 'PROPOSED') {
+      problem(task.name, `OWNER_APPROVAL_REQUIRED but tranche ${claimed} is ${tranche.status}`);
+    }
+    if (!BEFORE_GATE_1.has(state) && STATES.includes(state) && tranche.status === 'PROPOSED') {
+      problem(task.name, `state ${state} but tranche ${claimed} has not been approved — that is the merge authority`);
+    }
   }
 }
 
@@ -138,6 +247,8 @@ function main() {
       problem('docs/dev/QUEUE.md', `does not mention ${task.id} (${task.fields.state})`);
     }
   }
+  const tranches = parseTranches(queue);
+  checkTranches(tranches, tasks, known);
   const since = queue.match(/^Engine tasks completed since last audit:\s*(\d+)/m);
   const dueAt = queue.match(/^Audit due at:\s*(\d+)/m);
   if (since === null || dueAt === null) {
@@ -146,11 +257,13 @@ function main() {
 
   // The summary a fresh session reads first.
   const byState = new Map(STATES.map((s) => [s, []]));
+  const stateOf = new Map();
   for (const task of tasks) {
     if (task.id === undefined) continue;
     const list = byState.get(task.fields.state) ?? [];
     list.push(task);
     byState.set(task.fields.state, list);
+    stateOf.set(task.id, task.fields.state);
   }
   console.log(`Development queue — ${tasks.length} task file(s)`);
   for (const state of STATES) {
@@ -158,9 +271,26 @@ function main() {
     if (list.length === 0) continue;
     for (const task of list) {
       const f = task.fields;
-      console.log(`  ${state.padEnd(27)} ${task.id}  ${task.title}  [batch ${f.batch}, ${f.lane}, ${f['parallel-safe']?.split(' ')[0]}]`);
+      console.log(`  ${state.padEnd(27)} ${task.id}  ${task.title}  [tranche ${f.tranche}, ${f.lane}, ${f['parallel-safe']?.split(' ')[0]}]`);
     }
   }
+
+  // The tranche is the unit of owner authority, so it is printed as one.
+  let authority = 'none — no approved tranche; nothing may execute';
+  for (const tranche of [...tranches.values()].sort((a, b) => a.n - b.n)) {
+    const outstanding = tranche.roster.filter((id) => stateOf.get(id) !== 'DONE');
+    const roster = tranche.roster.map((id) => `${id} (${stateOf.get(id) ?? 'no task file'})`).join(', ');
+    const tail =
+      tranche.status !== 'APPROVED'
+        ? ''
+        : outstanding.length === 0
+          ? '  → TRANCHE_COMPLETE'
+          : `  → ${outstanding.length} outstanding`;
+    console.log(`  Tranche ${tranche.n}  ${tranche.status.padEnd(9)} ${roster}${tail}`);
+    if (tranche.status === 'APPROVED') authority = `tranche ${tranche.n} ${tranche.authority}`;
+  }
+  console.log(`Merge authority in force: ${authority}`);
+
   const active = tasks.filter((t) => HELD_BY_A_BUILDER.has(t.fields.state));
   console.log(
     active.length === 0

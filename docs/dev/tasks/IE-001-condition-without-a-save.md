@@ -2,7 +2,7 @@
 
 state: PROPOSED
 lane: mechanism
-batch: none
+tranche: none
 parallel-safe: CONDITIONAL — beside a content task only; NO beside any other mechanism task, because it changes the `SpellEffect` vocabulary and `resolveEffects`
 depends-on: IE-004, IE-005
 worker: none

@@ -2,7 +2,7 @@
 
 state: OWNER_APPROVAL_REQUIRED
 lane: content
-batch: 2
+tranche: 2
 parallel-safe: CONDITIONAL — YES beside one mechanism task provided it uses no kind that task adds; NO beside another content task, which would edit the same registry and list
 depends-on: IE-004
 worker: none
@@ -17,7 +17,7 @@ guard (IE-004) changes what a new executed definition must satisfy — every
 `unmodelled` clause that trips a mechanical marker needs an adjudication, and
 a debt adjudication makes the spell partial — so twelve definitions poured
 before it lands are rework. The task itself is unchanged and follows IE-004,
-in batch 2 beside the split.
+in tranche 2 beside the split.
 
 ## Brief
 

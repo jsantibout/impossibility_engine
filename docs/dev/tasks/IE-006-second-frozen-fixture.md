@@ -2,7 +2,7 @@
 
 state: OWNER_APPROVAL_REQUIRED
 lane: conformance
-batch: 2
+tranche: 2
 parallel-safe: YES — a new fixture, a new scripted scenario and a `.gitattributes` line; no source file changes
 depends-on: none
 worker: none

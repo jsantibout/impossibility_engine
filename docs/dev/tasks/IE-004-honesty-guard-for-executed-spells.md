@@ -2,7 +2,7 @@
 
 state: DONE
 lane: conformance
-batch: 1
+tranche: 1
 parallel-safe: YES — beside IE-003 (no shared source files; `CLAUDE.md` prose and `COVERAGE.md` merge mechanically); CONDITIONAL beside a content task, which edits the same definition region
 depends-on: none
 worker: none
