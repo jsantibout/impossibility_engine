@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@ie/shared';
-import type { Point } from './positioning.js';
+import type { Point, PointAnchoring } from './positioning.js';
 
 /**
  * Casting: what a spell costs, who is concentrating on what, and which effects
@@ -216,6 +216,21 @@ export interface OngoingSpell {
    * to be wrong about.
    */
   readonly towards?: Point;
+  /**
+   * Which convention `origin` and `towards` are read under.
+   *
+   * A coordinate cannot say whether it names a space or the intersection
+   * four spaces meet at, and that bit decides whether the footprint comes out
+   * odd or even — nine spaces across for a 20-foot radius on a space, eight
+   * for the same radius on an intersection. The caster chose it at the casting and
+   * every later membership question has to read the same one, or a Web would
+   * catch a different set of creatures an hour later than it caught at the
+   * cast.
+   *
+   * **Absent means `space`**, which is what every casting written before
+   * intersections existed meant, so an old log folds to exactly the same state.
+   */
+  readonly anchoring?: PointAnchoring;
   /**
    * Creatures the caster declared unaffected when the spell was cast.
    *

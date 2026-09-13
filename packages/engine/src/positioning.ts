@@ -912,21 +912,103 @@ export function canBeTargeted(degree: CoverDegree): boolean {
   return degree !== 'total';
 }
 
+/**
+ * Which convention a coordinate is read under.
+ *
+ * A lattice corner and a space's minimum corner are the same three numbers, so
+ * a coordinate on its own cannot say which of the two it is — and that one bit
+ * decides every footprint the game cares about. A 20-foot radius centred on a
+ * *space* reaches nine spaces across; the same radius centred on the *corner*
+ * between four of them reaches eight.
+ *
+ * Neither is wrong, and the SRD picks neither: its "Playing on a Grid" sidebar
+ * gives rules for squares, Speed, entering a square, corners and ranges, and
+ * says nothing whatever about areas of effect on a grid. The 8-square
+ * convention most tables use comes from a 2014 optional rule. So the engine
+ * does not choose — the caster does, and the log records which they chose.
+ */
+export type PointAnchoring = 'space' | 'intersection';
+
+/**
+ * Where a geometric origin or target sits.
+ *
+ * `space` names the 5-foot space with this minimum corner — the same
+ * coordinate a creature's position is — and resolves to that space's centre.
+ *
+ * `intersection` names the vertical edge four spaces share, which is exactly
+ * what a table means by an intersection of squares, and resolves to the point
+ * on that edge at the mid-height of the space the coordinate names. **It is
+ * horizontal, and deliberately so.** The convention it transcribes is about
+ * squares on a map; nothing in the SRD, and nothing in the 2014 optional rule
+ * it comes from, gives a vertical stack an intersection. Reading the
+ * coordinate's `z` as a floor *plane* rather than as a space would drop every
+ * origin half a space below every creature standing on that floor, which for
+ * a 5-foot-wide Line is the whole of its half-width. A three-dimensional
+ * corner is a third member if a rule ever asks for one; none does.
+ *
+ * The rule that falls out, with no spell named anywhere: **an even-space
+ * footprint wants an intersection, an odd-space footprint wants a space.** A
+ * 20-foot radius is 8 spaces (even) and a 5-foot-wide Line is 1 space (odd).
+ */
+export type AreaPoint =
+  | { readonly space: Point }
+  | { readonly intersection: Point };
+
+/** An {@link AreaPoint} from a coordinate and the convention to read it under. */
+export function areaPointAt(at: Point, anchoring: PointAnchoring = 'space'): AreaPoint {
+  return anchoring === 'intersection' ? { intersection: at } : { space: at };
+}
+
+/** Which convention an {@link AreaPoint} was written under. */
+export function anchoringOf(where: AreaPoint): PointAnchoring {
+  return 'space' in where ? 'space' : 'intersection';
+}
+
+/** The bare coordinate inside an {@link AreaPoint}, whichever it names. */
+export function coordinateOf(where: AreaPoint): Point {
+  return 'space' in where ? where.space : where.intersection;
+}
+
+/**
+ * The world point an {@link AreaPoint} denotes.
+ *
+ * The one conversion between the lattice and geometry. Every predicate below
+ * consumes what this returns and nothing else, so an origin and the point it
+ * is aimed at are always in the same frame *by construction* rather than
+ * because one call site remembered to centre both.
+ *
+ * Snapped on the way through: a space that is not on the lattice is not a
+ * space, and a corner that is not on the lattice is not a corner.
+ */
+function worldPointOf(where: AreaPoint): Point {
+  if ('space' in where) return cubeCentre(snapPoint(where.space));
+  // Horizontally the shared edge; vertically the mid-height of the space named,
+  // for the reason set out on {@link AreaPoint}.
+  const on = snapPoint(where.intersection);
+  return { x: on.x, y: on.y, z: on.z + CUBE / 2 };
+}
+
 export type AreaShape =
   /** SRD: radius from the origin, which is included. */
   | { readonly kind: 'sphere'; readonly radius: number }
   /** SRD: radius of the base plus a height; the origin is included. */
   | { readonly kind: 'cylinder'; readonly radius: number; readonly height: number }
   /** SRD: width at any point equals that point's distance from the origin. */
-  | { readonly kind: 'cone'; readonly length: number; readonly towards: Point }
-  | { readonly kind: 'cube'; readonly size: number; readonly towards: Point }
-  | { readonly kind: 'line'; readonly length: number; readonly width: number; readonly towards: Point }
+  | { readonly kind: 'cone'; readonly length: number; readonly towards: AreaPoint }
+  | { readonly kind: 'cube'; readonly size: number; readonly towards: AreaPoint }
+  | {
+      readonly kind: 'line';
+      readonly length: number;
+      readonly width: number;
+      readonly towards: AreaPoint;
+    }
   /** SRD: extends from a creature in all directions; that creature is excluded. */
   | { readonly kind: 'emanation'; readonly distance: number };
 
-export type AreaOrigin =
-  | { readonly point: Point }
-  | { readonly creature: CharacterId };
+/** A shape that has to be pointed somewhere. */
+type DirectionalShape = Extract<AreaShape, { readonly towards: AreaPoint }>;
+
+export type AreaOrigin = AreaPoint | { readonly creature: CharacterId };
 
 export interface AreaOptions {
   /**
@@ -950,48 +1032,80 @@ function unit(v: Point): Point | null {
 const perpendicular = (offset: Point, axis: Point, along: number): number =>
   magnitude(subtract(offset, { x: axis.x * along, y: axis.y * along, z: axis.z * along }));
 
-function inShape(origin: Point, shape: AreaShape, p: Point): boolean {
+/**
+ * Whether a directional template laid from `origin` towards `towards` covers
+ * the world point `p`.
+ *
+ * **Both endpoints are world points and neither is converted here.** The axis
+ * is the difference of two coordinates in one frame, so it cannot acquire a
+ * half-space tilt from one side being centred and the other not — which is
+ * what happens the moment a function takes one already-resolved point and one
+ * raw lattice coordinate and is held together by a single call site.
+ */
+function inDirectional(
+  origin: Point,
+  towards: Point,
+  shape: DirectionalShape,
+  p: Point,
+): boolean {
+  const axis = unit(subtract(towards, origin));
+  if (axis === null) return false;
+
   const offset = subtract(p, origin);
+  const along = dot(offset, axis);
 
   switch (shape.kind) {
-    case 'sphere':
-      return magnitude(offset) <= shape.radius;
-
-    case 'emanation':
-      return magnitude(offset) <= shape.distance;
-
-    case 'cylinder': {
-      const horizontal = Math.sqrt(offset.x ** 2 + offset.y ** 2);
-      return horizontal <= shape.radius && offset.z >= 0 && offset.z <= shape.height;
-    }
-
-    case 'cone': {
-      const axis = unit(subtract(cubeCentre(shape.towards), origin));
-      if (axis === null) return false;
-      const along = dot(offset, axis);
+    case 'cone':
       if (along < 0 || along > shape.length) return false;
       // SRD: the Cone's width at distance `along` equals `along`, so its radius
       // there is half that.
       return perpendicular(offset, axis, along) <= along / 2;
-    }
 
-    case 'line': {
-      const axis = unit(subtract(cubeCentre(shape.towards), origin));
-      if (axis === null) return false;
-      const along = dot(offset, axis);
+    case 'line':
       if (along < 0 || along > shape.length) return false;
       return perpendicular(offset, axis, along) <= shape.width / 2;
-    }
 
-    case 'cube': {
-      const axis = unit(subtract(cubeCentre(shape.towards), origin));
-      if (axis === null) return false;
-      const along = dot(offset, axis);
+    case 'cube':
       if (along < 0 || along > shape.size) return false;
       return perpendicular(offset, axis, along) <= shape.size / 2;
-    }
   }
 }
+
+/**
+ * Chebyshev distance along one axis from a world coordinate to the nearest
+ * space centre a span covers.
+ *
+ * This is the arithmetic that makes a radial area read the same as the ruler.
+ * For an origin sitting at a *space centre* it agrees exactly with
+ * {@link chebyshev} between that space and the span — touching spans give 0,
+ * adjacent spans give 5, a gap of `g` gives `g + 5` — so moving the radial
+ * shapes onto it changes no answer. What it adds is an origin that is *not* a
+ * space centre: from a corner the nearest centres are 2.5 feet away instead of
+ * 0, and the footprint comes out even.
+ */
+const axisGap = (from: number, lo: number, hi: number): number => {
+  const first = lo + CUBE / 2;
+  const last = hi - CUBE / 2;
+  if (from <= first) return first - from;
+  if (from >= last) return from - last;
+  return Math.abs(first + Math.round((from - first) / CUBE) * CUBE - from);
+};
+
+/** Chebyshev distance from a world point to the nearest space a volume occupies. */
+const pointToVolume = (from: Point, box: Box): number =>
+  Math.max(
+    axisGap(from.x, box.min.x, box.max.x),
+    axisGap(from.y, box.min.y, box.max.y),
+    axisGap(from.z, box.min.z, box.max.z),
+  );
+
+/** Whether any space centre in a span falls within `[from, to]`. */
+const spanHoldsCentre = (lo: number, hi: number, from: number, to: number): boolean => {
+  for (let centre = lo + CUBE / 2; centre < hi; centre += CUBE) {
+    if (centre >= from && centre <= to) return true;
+  }
+  return false;
+};
 
 /**
  * Whether an area of effect catches any cube a creature occupies.
@@ -1001,8 +1115,23 @@ function inShape(origin: Point, shape: AreaShape, p: Point): boolean {
  * so a blast at head height catches its upper cubes and misses its feet.
  */
 function boxInShape(
+  /** The origin, already resolved to a world point. */
   origin: Point,
-  originBox: Box,
+  /**
+   * The origin's coordinate on the lattice, for the one rule that reads a
+   * plane rather than a point.
+   *
+   * SRD: a Cylinder's "point of origin located at the center of the circular
+   * top or bottom" — horizontally central, vertically on a *face*. So its
+   * height is measured from the lattice plane the origin sits on, never from
+   * a space's mid-height, which would leave a 40-foot Cylinder straddling
+   * space boundaries and covering seven of them instead of eight.
+   */
+  anchor: Point,
+  /** The origin creature's volume, for an Emanation. Null for a bare point. */
+  originBox: Box | null,
+  /** Where a directional shape points, already resolved to a world point. */
+  towards: Point | null,
   shape: AreaShape,
   box: Box,
 ): boolean {
@@ -1010,40 +1139,41 @@ function boxInShape(
     // A Sphere is centred on a *point*, so a large creature at its centre
     // does not widen it.
     case 'sphere':
-      return chebyshev(pointBox(origin), box) <= shape.radius;
+      return pointToVolume(origin, box) <= shape.radius;
 
     // SRD: an Emanation "extends in straight lines from a creature or an
     // object in all directions" — from the creature, not from a point inside
     // it. So it starts at the boundary: a 10-foot Emanation around a
     // Gargantuan creature covers far more ground than one around a Medium,
     // and is not skewed toward the corner the creature is anchored at.
+    //
+    // An Emanation asked for from a bare point has no creature to start at, so
+    // it measures like a Sphere.
     case 'emanation':
-      return chebyshev(originBox, box) <= shape.distance;
+      return originBox === null
+        ? pointToVolume(origin, box) <= shape.distance
+        : chebyshev(originBox, box) <= shape.distance;
 
     // A Cylinder's radius and its height are separate constraints. Folding the
     // height into the one metric would let a creature hovering just above a
     // short cylinder count as inside its radius.
     case 'cylinder': {
-      const column: Box = {
-        min: { x: origin.x, y: origin.y, z: box.min.z },
-        max: { x: origin.x + CUBE, y: origin.y + CUBE, z: box.max.z },
-      };
-      const withinRadius = chebyshev(column, box) <= shape.radius;
-      const withinHeight = box.min.z < origin.z + shape.height && box.max.z > origin.z;
-      return withinRadius && withinHeight;
+      const withinRadius =
+        Math.max(
+          axisGap(origin.x, box.min.x, box.max.x),
+          axisGap(origin.y, box.min.y, box.max.y),
+        ) <= shape.radius;
+      return (
+        withinRadius && spanHoldsCentre(box.min.z, box.max.z, anchor.z, anchor.z + shape.height)
+      );
     }
 
     // Cone, Line and Cube are directional, and a direction has no Chebyshev
     // shorthand. These resolve geometrically against the centre of each cube
     // the creature occupies — the way a grid adjudicates a template — and are
     // the one approximation in this module rather than an exact answer.
-    default: {
-      // Creatures are sampled at their cube centres, so the origin has to be
-      // the centre of *its* cube too. Measuring from a lattice corner made a
-      // Line drawn along a row of cubes miss every one of them.
-      const from = cubeCentre(origin);
-      return cubeCentres(box).some((p) => inShape(from, shape, p));
-    }
+    default:
+      return towards !== null && cubeCentres(box).some((p) => inDirectional(origin, towards, shape, p));
   }
 }
 
@@ -1063,7 +1193,20 @@ export function creaturesInArea(
   shape: AreaShape,
   options: AreaOptions = {},
 ): Result<CharacterId[]> {
-  let at: Point;
+  let world: Point;
+  /** The origin's coordinate on the lattice, which the Cylinder's height reads. */
+  let anchor: Point;
+  /** The origin creature's volume, for an Emanation. */
+  let originBox: Box | null = null;
+  /**
+   * The space the origin sits in, when it sits in one at all.
+   *
+   * A corner is not a space, so nobody can be standing on it — which is why
+   * this is null there rather than the coordinate. The exclusion below asks
+   * "is this creature standing *on* the point of origin", and for a corner the
+   * honest answer is nobody.
+   */
+  let originSpace: Point | null = null;
   let originCreature: CharacterId | null = null;
 
   if ('creature' in origin) {
@@ -1071,16 +1214,18 @@ export function creaturesInArea(
     if (found === undefined) {
       return needsContext('unplaced', `${origin.creature} needs placing before its area can be resolved`);
     }
-    at = found;
     originCreature = origin.creature;
+    originSpace = found;
+    anchor = found;
+    world = cubeCentre(found);
+    originBox = boxOf(state, origin.creature);
   } else {
-    at = origin.point;
+    anchor = snapPoint(coordinateOf(origin));
+    world = worldPointOf(origin);
+    if ('space' in origin) originSpace = anchor;
   }
 
-  // An Emanation measures from the whole creature; every other shape measures
-  // from a point.
-  const originBox =
-    originCreature === null ? pointBox(at) : (boxOf(state, originCreature) ?? pointBox(at));
+  const towards = 'towards' in shape ? worldPointOf(shape.towards) : null;
 
   const includeOrigin = options.includeOrigin ?? ORIGIN_INCLUDED_BY_DEFAULT.has(shape.kind);
 
@@ -1090,13 +1235,20 @@ export function creaturesInArea(
     const box = boxOf(state, id);
     if (box === null) continue;
 
-    if (!boxInShape(at, originBox, shape, box)) continue;
+    if (!boxInShape(world, anchor, originBox, towards, shape, box)) continue;
 
     // The origin creature of an Emanation, or anything standing exactly on the
     // point of origin, is excluded unless the caster says otherwise.
     if (!includeOrigin) {
       if (originCreature !== null && id === originCreature) continue;
-      if (p.x === at.x && p.y === at.y && p.z === at.z) continue;
+      if (
+        originSpace !== null &&
+        p.x === originSpace.x &&
+        p.y === originSpace.y &&
+        p.z === originSpace.z
+      ) {
+        continue;
+      }
     }
 
     caught.push(id);

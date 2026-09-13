@@ -79,6 +79,7 @@ import {
 } from './combat.js';
 import {
   addLandmark,
+  areaPointAt,
   creaturesInArea,
   declareCover,
   declareSight,
@@ -91,6 +92,7 @@ import {
   type AreaOrigin,
   type AreaShape,
   type CoverDegree,
+  type PointAnchoring,
   type Placement,
   type PositionState,
   type SceneExtent,
@@ -450,7 +452,17 @@ export interface PendingCasting {
    * and the direction it was laid along is the one fact about it that cannot
    * be worked out again.
    */
-  readonly area?: { readonly at: Point; readonly towards?: Point };
+  readonly area?: {
+    readonly at: Point;
+    readonly towards?: Point;
+    /**
+     * Whether `at` and `towards` name spaces or grid intersections.
+     *
+     * Absent means `space`, so a declaration written before intersections existed
+     * folds to exactly the state it always did.
+     */
+    readonly anchoring?: PointAnchoring;
+  };
   /** What the definition knowingly leaves out, gathered at declaration. */
   readonly unverified: readonly string[];
   /**
@@ -2281,7 +2293,7 @@ function creaturesInCastingArea(
   const origin = originOfCastingArea(definition.area, record);
   if (origin === null) return null;
 
-  const shape = areaShapeOf(definition.area, record.towards);
+  const shape = areaShapeOf(definition.area, record.towards, record.anchoring ?? 'space');
   if (shape === null) return null;
 
   const caught = creaturesInArea(scene, origin, shape);
@@ -2298,7 +2310,9 @@ function creaturesInCastingArea(
 /** Where this casting's area sits: a point it keeps, or the creature carrying it. */
 function originOfCastingArea(area: SpellArea, record: OngoingSpell): AreaOrigin | null {
   if (area.origin === 'self') return { creature: record.caster as CharacterId };
-  return record.origin === undefined ? null : { point: record.origin };
+  return record.origin === undefined
+    ? null
+    : areaPointAt(record.origin, record.anchoring ?? 'space');
 }
 
 /**
@@ -2308,7 +2322,14 @@ function originOfCastingArea(area: SpellArea, record: OngoingSpell): AreaOrigin 
  * printed dimension and reconstructs itself. A directional shape with no
  * recorded direction answers null rather than pointing somewhere plausible.
  */
-function areaShapeOf(area: SpellArea, towards: Point | undefined): AreaShape | null {
+function areaShapeOf(
+  area: SpellArea,
+  towards: Point | undefined,
+  anchoring: PointAnchoring,
+): AreaShape | null {
+  // The direction is read under the casting's own anchoring, the same one its
+  // origin was written with, so the axis between them stays in one frame.
+  const aim = towards === undefined ? null : areaPointAt(towards, anchoring);
   switch (area.kind) {
     case 'sphere':
       return { kind: 'sphere', radius: area.radius };
@@ -2317,13 +2338,13 @@ function areaShapeOf(area: SpellArea, towards: Point | undefined): AreaShape | n
     case 'emanation':
       return { kind: 'emanation', distance: area.distance };
     case 'cone':
-      return towards === undefined ? null : { kind: 'cone', length: area.length, towards };
+      return aim === null ? null : { kind: 'cone', length: area.length, towards: aim };
     case 'cube':
-      return towards === undefined ? null : { kind: 'cube', size: area.size, towards };
+      return aim === null ? null : { kind: 'cube', size: area.size, towards: aim };
     case 'line':
-      return towards === undefined
+      return aim === null
         ? null
-        : { kind: 'line', length: area.length, width: area.width, towards };
+        : { kind: 'line', length: area.length, width: area.width, towards: aim };
   }
 }
 

@@ -104,6 +104,9 @@ const AUDIT: readonly {
       // landmark or a spot — because that is what the engine takes and because
       // an angle would be the model typing raw geometry.
       towards: expose('towards'),
+      anchoring: because(
+        'whether an area is centred on a space or on the intersection between four of them, which decides whether its footprint comes out odd or even. A real tactical choice and not a number that decides an outcome — but which of the two a given spell wants is a property of the spell (a 20-foot radius wants an intersection, a 5-foot-wide Line wants a space), so it belongs to the definition rather than to a per-cast decision the DM makes afresh each time. Publish it if and when a definition cannot say',
+      ),
       slotLevel: expose('slot_level'),
       slotKind: because(
         'Pact Magic beside Spellcasting slots, which only a Warlock multiclassed into a full caster has; no creature in either benchmark does, and creation refuses two casting classes anyway',

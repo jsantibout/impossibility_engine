@@ -588,13 +588,70 @@ has a position — that is what `moveCreature` is for, and movement is spent.
 Otherwise a stray placement teleports something mid-combat.
 
 **One metric, used everywhere — so a radius is a square.** That is not a
-simplification, it is what Chebyshev means: every cube within 20 feet of a
-point forms a 40-foot square. Measuring areas geometrically while measuring
-distance by the grid would let a creature be 20 feet from a blast by one rule
-and outside its 20-foot radius by another. Two metrics is how a system ends up
-contradicting itself. Cone, Line and Cube are directional, have no Chebyshev
-shorthand, and are the one approximation here: they resolve against cube
-centres.
+simplification, it is what Chebyshev means. Measuring areas geometrically while
+measuring distance by the grid would let a creature be 20 feet from a blast by
+one rule and outside its 20-foot radius by another. Two metrics is how a system
+ends up contradicting itself. Cone, Line and Cube are directional, have no
+Chebyshev shorthand, and are the one approximation here: they resolve against
+cube centres.
+
+**How wide that square is depends on where the origin sits, and the engine will
+not choose for you.** An earlier version of this line claimed a 20-foot radius
+formed a 40-foot square; it forms a *45*-foot one, nine cubes across, because
+the origin was always read as a cube. That is not a bug — it is one of two
+right answers, and the code was silently picking one while this file described
+the other.
+
+A coordinate cannot say which it is: the lattice corner and the cube's minimum
+corner are the same three numbers. So the *thing holding* the coordinate says,
+and `AreaPoint` is that one bit:
+
+| | Resolves to | A 20-foot radius | A 5-foot-wide Line |
+|---|---|---|---|
+| `{ space: p }` | the cube's centre | 9 cubes, 45 feet | 1 cube wide |
+| `{ intersection: p }` | the edge four cubes share | **8 cubes, 40 feet** | 2 cubes wide |
+
+The rule that falls out is general and names no spell: **an even-cube footprint
+wants an intersection, an odd-cube footprint wants a cube.** SRD 5.2.1 mandates
+neither — its "Playing on a Grid" sidebar covers squares, Speed, entering a
+square, corners and ranges and says nothing whatever about areas of effect, and
+the intersection convention comes from a 2014 optional rule. So `space` is the
+default because that is what every casting already meant, `CastSpellRequest`
+carries `anchoring` for a caster who wants the other, and `OngoingSpell` keeps
+it so a Web catches the same creatures an hour later that it caught at the cast.
+Absent means `space`, which is why every log written before this folds
+unchanged.
+
+**An intersection is horizontal, deliberately.** It is the vertical edge four
+cubes share, taken at the mid-height of the cube the coordinate names. The
+convention it transcribes is about squares on a map, and nothing gives a
+vertical stack an intersection. Reading the `z` as a floor *plane* instead
+would drop every origin half a cube below every creature standing on that
+floor — which for a 5-foot-wide Line is the whole of its half-width. A
+three-dimensional corner is a third member if a rule ever asks for one; none
+does.
+
+**Both ends of a directional template are read in one frame.** `inShape` used
+to take an origin its one caller had already centred and a `towards` it centred
+itself — correct, and correct only because there was exactly one caller. The
+moment a second origin convention existed that became a 2.5-foot-per-axis tilt,
+which at five feet is 26 degrees. Both endpoints are now resolved by the same
+function before any predicate sees them, and `placeArea` reads a single
+anchoring for the whole shape, so the axis is always the difference of two
+coordinates written the same way.
+
+**The radial shapes measure to cube centres, and that changed no answer.** For
+an origin on a cube, "Chebyshev from that cube's centre to the nearest centre
+of the target's volume" and the old box-to-box Chebyshev are the same number:
+touching spans give 0 by both, adjacent spans 5, a gap of `g` gives `g + 5`. A
+box is a product of intervals and Chebyshev is a max, so the per-axis minima
+compose. The whole suite passes unchanged, which is the evidence.
+
+A Cylinder is the exception that proves the origin is not simply a point: SRD
+puts its origin "at the center of the circular top or bottom" — horizontally
+central, vertically on a **face**. So its height is measured from the lattice
+plane the origin sits on, never from a cube's mid-height, which would leave a
+40-foot Cylinder straddling cube boundaries and covering seven of them.
 
 **An Emanation radiates from the creature, not from a point inside it.** SRD:
 it "extends in straight lines from a creature or an object in all directions",

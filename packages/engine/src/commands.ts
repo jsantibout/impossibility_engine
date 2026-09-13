@@ -37,6 +37,7 @@ import {
 import type { Weapon } from '@ie/srd';
 import { expandPack, itemFor, type CatalogueItem, type ItemKind } from './catalogue.js';
 import {
+  areaPointAt,
   canBeTargeted,
   coverAcBonus,
   coverBetween,
@@ -53,6 +54,7 @@ import {
   type AreaOrigin,
   type AreaShape,
   type Point,
+  type PointAnchoring,
   type PositionState,
 } from './positioning.js';
 import {
@@ -5390,7 +5392,12 @@ export interface CastingPlan {
    * and the direction it was laid along is the one fact about it that cannot
    * be worked out again.
    */
-  readonly area?: { readonly at: Point; readonly towards?: Point };
+  readonly area?: {
+    readonly at: Point;
+    readonly towards?: Point;
+    /** Absent means `space`, so a log written before intersections existed folds unchanged. */
+    readonly anchoring?: PointAnchoring;
+  };
 }
 
 /**
@@ -7150,6 +7157,22 @@ export interface CastSpellRequest extends CommandIdentity {
    * be the model typing raw geometry, which is the thing that is not allowed.
    */
   readonly towards?: Point;
+  /**
+   * Whether `at` and `towards` name a space or a grid intersection —
+   * the vertical edge four spaces share. Defaults to `space`.
+   *
+   * The bit that decides whether a footprint comes out odd or even. A 20-foot
+   * radius centred on a space reaches nine spaces across; centred on the
+   * intersection four spaces meet at, it reaches eight — the footprint most tables
+   * expect, and the one a 2014 optional rule prints. SRD 5.2.1 gives no grid
+   * rule for areas of effect at all, so the engine declines to pick: the
+   * caster says, and the casting records which they said.
+   *
+   * One value for the whole template, so the origin and the point a
+   * directional shape is aimed at are always read in the same frame. Refused
+   * for a `self`-origin area, which is anchored by the caster's own space.
+   */
+  readonly anchoring?: PointAnchoring;
   /** The slot to spend. Omitted for a cantrip or a free casting. */
   readonly slotLevel?: number;
   /**
@@ -7538,6 +7561,9 @@ export function resolveDeclaredCast(
               ? {}
               : { origin: (pending.origin ?? pending.area?.at)! }),
             ...(pending.area?.towards === undefined ? {} : { towards: pending.area.towards }),
+            ...(pending.area?.anchoring === undefined
+              ? {}
+              : { anchoring: pending.area.anchoring }),
           },
         }
       : {}),
@@ -7796,7 +7822,11 @@ function castOrRelease(
   // The shape and its dimensions are printed and reconstruct themselves; the
   // point and the direction were decisions taken once, at this casting, and
   // nothing else in the engine remembers them.
-  let area: { readonly at: Point; readonly towards?: Point } | null = null;
+  let area: {
+    readonly at: Point;
+    readonly towards?: Point;
+    readonly anchoring?: PointAnchoring;
+  } | null = null;
 
   if (definition.area !== undefined) {
     const resolved = areaTargets(state, casterId, definition, definition.area, request, reach);
@@ -7806,6 +7836,12 @@ function castOrRelease(
       area = {
         at: request.at,
         ...(request.towards === undefined ? {} : { towards: request.towards }),
+        // `space` *is* the absence, so a casting that names it explicitly
+        // serialises exactly as one that says nothing. Two records that mean
+        // the same thing have to fold to the same bytes.
+        ...(request.anchoring === undefined || request.anchoring === 'space'
+          ? {}
+          : { anchoring: request.anchoring }),
       };
     }
   } else {
@@ -7926,12 +7962,26 @@ function placeArea(
 
   // Where it starts. `self` means the caster and refuses to be moved; `point`
   // must be given and must be within the spell's range.
+  //
+  // **One anchoring for the whole template.** The origin and the point a
+  // directional shape is aimed at are read under the same convention, so the
+  // axis between them is the difference of two coordinates in one frame and
+  // cannot pick up a half-space tilt. A self-origin area is anchored by the
+  // caster's own space, so there is no convention left to choose and naming
+  // one is refused rather than ignored.
+  const anchoring: PointAnchoring = request.anchoring ?? 'space';
   let origin: AreaOrigin;
   if (area.origin === 'self') {
     if (request.at !== undefined) {
       return err(
         'area_starts_at_caster',
         `${definition.name} originates from you; it cannot be placed elsewhere`,
+      );
+    }
+    if (request.anchoring !== undefined && request.anchoring !== 'space') {
+      return err(
+        'area_starts_at_caster',
+        `${definition.name} originates from you; its area is anchored by your own space`,
       );
     }
     origin = { creature: casterId };
@@ -7949,7 +7999,7 @@ function placeArea(
         );
       }
     }
-    origin = { point: request.at };
+    origin = areaPointAt(request.at, anchoring);
   }
 
   // A Cone, Cube or Line has to be pointed somewhere.
@@ -7964,6 +8014,10 @@ function placeArea(
     return err('not_directional', `a ${area.kind} has no direction to point`);
   }
 
+  // A self-origin area is anchored by the caster's space, so its direction is
+  // read the same way; otherwise the origin's own convention carries.
+  const aim = areaPointAt(towards ?? placed, area.origin === 'self' ? 'space' : anchoring);
+
   let shape: AreaShape;
   switch (area.kind) {
     case 'sphere':
@@ -7976,13 +8030,13 @@ function placeArea(
       shape = { kind: 'emanation', distance: area.distance };
       break;
     case 'cone':
-      shape = { kind: 'cone', length: area.length, towards: towards ?? placed };
+      shape = { kind: 'cone', length: area.length, towards: aim };
       break;
     case 'cube':
-      shape = { kind: 'cube', size: area.size, towards: towards ?? placed };
+      shape = { kind: 'cube', size: area.size, towards: aim };
       break;
     case 'line':
-      shape = { kind: 'line', length: area.length, width: area.width, towards: towards ?? placed };
+      shape = { kind: 'line', length: area.length, width: area.width, towards: aim };
       break;
   }
 
@@ -8404,7 +8458,11 @@ function resolveOnTargets(
     /** The point this casting keeps, for a spell that holds one. */
     readonly origin: Point | null;
     /** Where a persistent area sits, for a spell that leaves one behind. */
-    readonly area: { readonly at: Point; readonly towards?: Point } | null;
+    readonly area: {
+      readonly at: Point;
+      readonly towards?: Point;
+      readonly anchoring?: PointAnchoring;
+    } | null;
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, held, origin, area } = context;
@@ -8417,6 +8475,7 @@ function resolveOnTargets(
     ...(definition.area === undefined ? {} : { fromArea: true as const }),
     ...(origin === null && area === null ? {} : { origin: origin ?? area!.at }),
     ...(area?.towards === undefined ? {} : { towards: area.towards }),
+    ...(area?.anchoring === undefined ? {} : { anchoring: area.anchoring }),
     // Two facts the caster stated at the casting, kept because every later
     // sentence of the spell reads them and neither can be recovered from
     // anything else. **A carried area records no position**: `caster` and the
@@ -9399,6 +9458,7 @@ function resolveEffects(
               : landedOn(targets, outcomes, becomes.fromArea === true, held),
         ...(becomes.origin === undefined ? {} : { origin: becomes.origin }),
         ...(becomes.towards === undefined ? {} : { towards: becomes.towards }),
+        ...(becomes.anchoring === undefined ? {} : { anchoring: becomes.anchoring }),
         ...(becomes.unaffected === undefined ? {} : { unaffected: becomes.unaffected }),
         ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
       },
@@ -9462,6 +9522,8 @@ interface OngoingRecordPlan {
   readonly fromArea?: true;
   readonly origin?: Point;
   readonly towards?: Point;
+  /** Which convention `origin` and `towards` are read under. Absent means `space`. */
+  readonly anchoring?: PointAnchoring;
   /** Creatures the caster designated unaffected, for a spell that offers it. */
   readonly unaffected?: readonly string[];
   /** The damage type the casting was declared with, where the spell prints two. */

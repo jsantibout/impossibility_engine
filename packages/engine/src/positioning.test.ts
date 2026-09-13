@@ -306,7 +306,7 @@ describe('areas of effect', () => {
   // SRD Sphere: "A Sphere's point of origin is included in the Sphere's area."
   it('catches everything inside a sphere', () => {
     const caught = unwrap(
-      creaturesInArea(goblins(), { point: at(20) }, { kind: 'sphere', radius: 20 }),
+      creaturesInArea(goblins(), { space: at(20) }, { kind: 'sphere', radius: 20 }),
       'fireball',
     );
     expect(caught.sort()).toEqual([id('goblin-a'), id('goblin-b')].sort());
@@ -317,11 +317,11 @@ describe('areas of effect', () => {
     // is four squares on (20 feet). Every boundary lands on a multiple of 5,
     // and a radius is a square under the same metric distance uses.
     const shortOfB = unwrap(
-      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 15 }),
+      creaturesInArea(goblins(), { space: at(10) }, { kind: 'sphere', radius: 15 }),
       'short',
     );
     const reachesB = unwrap(
-      creaturesInArea(goblins(), { point: at(10) }, { kind: 'sphere', radius: 20 }),
+      creaturesInArea(goblins(), { space: at(10) }, { kind: 'sphere', radius: 20 }),
       'reaches',
     );
     expect(shortOfB).toEqual([id('goblin-a')]);
@@ -333,7 +333,7 @@ describe('areas of effect', () => {
   // and it should not be a judgement.
   it('catches all three from a point that reaches them', () => {
     const caught = unwrap(
-      creaturesInArea(goblins(), { point: at(25) }, { kind: 'sphere', radius: 30 }),
+      creaturesInArea(goblins(), { space: at(25) }, { kind: 'sphere', radius: 30 }),
       'wide',
     );
     expect(caught).toHaveLength(3);
@@ -341,7 +341,7 @@ describe('areas of effect', () => {
 
   it('returns the same set when nothing has moved', () => {
     const state = goblins();
-    const origin = { point: at(20) };
+    const origin = { space: at(20) };
     const shape = { kind: 'sphere', radius: 20 } as const;
     expect(unwrap(creaturesInArea(state, origin, shape), 'a')).toEqual(
       unwrap(creaturesInArea(state, origin, shape), 'b'),
@@ -350,7 +350,7 @@ describe('areas of effect', () => {
 
   it('changes only when something actually moves', () => {
     let state = goblins();
-    const origin = { point: at(20) };
+    const origin = { space: at(20) };
     const shape = { kind: 'sphere', radius: 20 } as const;
     const before = unwrap(creaturesInArea(state, origin, shape), 'before');
 
@@ -372,11 +372,11 @@ describe('areas of effect', () => {
       'bat',
     );
     const low = unwrap(
-      creaturesInArea(state, { point: at(15) }, { kind: 'cylinder', radius: 20, height: 10 }),
+      creaturesInArea(state, { space: at(15) }, { kind: 'cylinder', radius: 20, height: 10 }),
       'low',
     );
     const high = unwrap(
-      creaturesInArea(state, { point: at(15) }, { kind: 'cylinder', radius: 20, height: 20 }),
+      creaturesInArea(state, { space: at(15) }, { kind: 'cylinder', radius: 20, height: 20 }),
       'high',
     );
     expect(low).not.toContain(id('bat'));
@@ -392,7 +392,7 @@ describe('areas of effect', () => {
     state = unwrap(placeCreature(state, id('aside'), { from: { landmark: 'the bar' }, feet: 18, bearing: 0 }), 'aside');
 
     const caught = unwrap(
-      creaturesInArea(state, { point: at(10) }, { kind: 'cone', length: 40, towards: at(60) }),
+      creaturesInArea(state, { space: at(10) }, { kind: 'cone', length: 40, towards: { space: at(60) } }),
       'breath',
     );
     expect(caught).toContain(id('ahead'));
@@ -401,7 +401,7 @@ describe('areas of effect', () => {
 
   it('stops a cone at its length', () => {
     const caught = unwrap(
-      creaturesInArea(goblins(), { point: at(10) }, { kind: 'cone', length: 20, towards: at(60) }),
+      creaturesInArea(goblins(), { space: at(10) }, { kind: 'cone', length: 20, towards: { space: at(60) } }),
       'short',
     );
     expect(caught).not.toContain(id('goblin-c'));
@@ -412,7 +412,7 @@ describe('areas of effect', () => {
     let state = goblins();
     state = unwrap(placeCreature(state, id('offset'), { from: { landmark: 'the bar' }, feet: 20, bearing: 0 }), 'offset');
     const caught = unwrap(
-      creaturesInArea(state, { point: at(0) }, { kind: 'line', length: 60, width: 5, towards: at(60) }),
+      creaturesInArea(state, { space: at(0) }, { kind: 'line', length: 60, width: 5, towards: { space: at(60) } }),
       'lightning',
     );
     expect(caught).toContain(id('goblin-b'));
@@ -448,12 +448,12 @@ describe('areas of effect', () => {
     const onTheSpot = positionOf(state, id('goblin-a'))!;
 
     expect(
-      unwrap(creaturesInArea(state, { point: onTheSpot }, { kind: 'sphere', radius: 10 }), 'sphere'),
+      unwrap(creaturesInArea(state, { space: onTheSpot }, { kind: 'sphere', radius: 10 }), 'sphere'),
     ).toContain(id('goblin-a'));
 
     expect(
       unwrap(
-        creaturesInArea(state, { point: onTheSpot }, { kind: 'cone', length: 30, towards: at(60) }),
+        creaturesInArea(state, { space: onTheSpot }, { kind: 'cone', length: 30, towards: { space: at(60) } }),
         'cone',
       ),
     ).not.toContain(id('goblin-a'));
@@ -467,7 +467,7 @@ describe('areas of effect', () => {
 
   it('ignores unplaced creatures rather than guessing where they are', () => {
     const caught = unwrap(
-      creaturesInArea(goblins(), { point: at(20) }, { kind: 'sphere', radius: 500 }),
+      creaturesInArea(goblins(), { space: at(20) }, { kind: 'sphere', radius: 500 }),
       'huge',
     );
     expect(caught).toHaveLength(3);
@@ -882,7 +882,7 @@ describe('creatures occupy volume', () => {
       // A 20-foot Sphere centred 40 feet up reaches down to 20 feet, which is
       // inside a 30-foot dragon standing on the floor.
       const caught = unwrap(
-        creaturesInArea(state, { point: { x: 100, y: 100, z: 40 } }, { kind: 'sphere', radius: 20 }),
+        creaturesInArea(state, { space: { x: 100, y: 100, z: 40 } }, { kind: 'sphere', radius: 20 }),
         'high',
       );
       expect(caught).toContain(id('dragon'));
@@ -893,7 +893,7 @@ describe('creatures occupy volume', () => {
       // Centred 60 feet up, a 20-foot Sphere reaches down to 40 — clear of a
       // 30-foot dragon.
       const caught = unwrap(
-        creaturesInArea(state, { point: { x: 100, y: 100, z: 60 } }, { kind: 'sphere', radius: 20 }),
+        creaturesInArea(state, { space: { x: 100, y: 100, z: 60 } }, { kind: 'sphere', radius: 20 }),
         'clear',
       );
       expect(caught).toEqual([]);
@@ -904,7 +904,7 @@ describe('creatures occupy volume', () => {
       // blast 40 feet up misses it entirely.
       const flat = withDragon({ height: 0 });
       const caught = unwrap(
-        creaturesInArea(flat, { point: { x: 100, y: 100, z: 40 } }, { kind: 'sphere', radius: 20 }),
+        creaturesInArea(flat, { space: { x: 100, y: 100, z: 40 } }, { kind: 'sphere', radius: 20 }),
         'flat',
       );
       expect(caught).toEqual([]);
@@ -915,7 +915,7 @@ describe('creatures occupy volume', () => {
     it('catches the edge of a wide creature', () => {
       const state = withDragon();
       const caught = unwrap(
-        creaturesInArea(state, { point: { x: 112, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
+        creaturesInArea(state, { space: { x: 112, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
         'flank',
       );
       expect(caught).toContain(id('dragon'));
@@ -924,7 +924,7 @@ describe('creatures occupy volume', () => {
     it('still misses when the blast clears the whole footprint', () => {
       const state = withDragon();
       const caught = unwrap(
-        creaturesInArea(state, { point: { x: 130, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
+        creaturesInArea(state, { space: { x: 130, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
         'wide',
       );
       expect(caught).toEqual([]);
@@ -935,7 +935,7 @@ describe('creatures occupy volume', () => {
       const low = unwrap(
         creaturesInArea(
           state,
-          { point: { x: 100, y: 100, z: 50 } },
+          { space: { x: 100, y: 100, z: 50 } },
           { kind: 'cylinder', radius: 20, height: 5 },
         ),
         'low',
@@ -943,7 +943,7 @@ describe('creatures occupy volume', () => {
       const tall = unwrap(
         creaturesInArea(
           state,
-          { point: { x: 100, y: 100, z: 20 } },
+          { space: { x: 100, y: 100, z: 20 } },
           { kind: 'cylinder', radius: 20, height: 40 },
         ),
         'tall',
@@ -958,7 +958,7 @@ describe('creatures occupy volume', () => {
       // 5-foot footprint, so a blast 10 feet away still misses with radius 5.
       expect(
         unwrap(
-          creaturesInArea(state, { point: { x: 110, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
+          creaturesInArea(state, { space: { x: 110, y: 100, z: 0 } }, { kind: 'sphere', radius: 5 }),
           'near',
         ),
       ).toEqual([]);
@@ -1054,7 +1054,7 @@ describe('height is declared, not inferred', () => {
   });
 
   it('catches the giraffe overhead but not the hippo', () => {
-    const overhead = { point: { x: 100, y: 100, z: 15 } };
+    const overhead = { space: { x: 100, y: 100, z: 15 } };
     const shape = { kind: 'sphere', radius: 3 } as const;
 
     expect(unwrap(creaturesInArea(beast('giraffe', 'large', 18), overhead, shape), 'g')).toEqual([
