@@ -2668,18 +2668,23 @@ an alignment system: building one needs a second user.
 
 ### Coverage needed a third word
 
-`verified` claims a spell is complete and driven; `untested` says nothing
-drives it. Spirit Guardians is neither — its Emanation, three clauses, cap,
-save and damage all run under a suite of their own, and the **halved Speed
-inside the Emanation** is a rule the engine owns and has not written. That is a
-standing spatial effect rather than a trigger: it wants a Speed derived from
-where a creature is standing, and mutating a base Speed on entry and exit would
-be correct only while every enter and leave paired up perfectly.
+`verified` says a test drives the spell end to end; `untested` says nothing
+does. **Neither word says whether the spell finishes**, and Spirit Guardians is
+where that stopped being a distinction nobody needed: its Emanation, three
+clauses, cap, save and damage all run under a suite of their own, and the
+**halved Speed inside the Emanation** is a rule the engine owns and has not
+written. That is a standing spatial effect rather than a trigger: it wants a
+Speed derived from where a creature is standing, and mutating a base Speed on
+entry and exit would be correct only while every enter and leave paired up
+perfectly.
 
 So `PARTIAL_SPELLS` is the third state, and a spell listed there must say in
 `unmodelled` what it is missing — otherwise it becomes the place claims come to
 be quietly parked. Same move the adjudication map made when `table` and a
-missing shape could not express `engine`.
+missing shape could not express `engine`. It is no longer kept by hand: every
+entry is *derived* from a clause adjudicated to a missing shape — see "The same
+guard, pointed at the spells the engine executes" — and Spirit Guardians turned
+out to have fifty-two companions.
 
 ## Turn Boundaries Collect What They Are Owed
 
@@ -3379,6 +3384,38 @@ less is watching.** `coverage.test.ts` checks name, level, school, casting time
 and Concentration against the parsed book; the *duration* has no automatic
 check, so every one is quoted from the SRD in its docstring and at least one is
 driven past its deadline by a test.
+
+### The same guard, pointed at the spells the engine executes
+
+The tracked bucket was never where most of the `unmodelled` prose lived.
+**Fifty-eight of the eighty-two executed definitions carry clauses and nothing
+read one**, so a frozen statue and a puff of dust sat beside "the target cannot
+regain Hit Points", "the save has Advantage if you or your allies are fighting
+the target", a Hit Point maximum reduction and three Difficult Terrain areas —
+every one a rule the engine owns, filed as narration. `spell-honesty.test.ts`
+is the same guard reaching that population, and it differs in exactly one way
+that matters: **the text scanned is the clause, not the SRD paragraph.** An
+executed spell's paragraph is mostly executed, so scanning it would demand an
+adjudication for the very dice the engine rolls; what is a *claim* is the
+sentence the definition wrote about itself. The markers are correspondingly
+wider — the book says "Advantage on" and a note about a gap says "has
+Advantage if", and the narrow phrase let the audit's own examples through.
+
+**Partial stopped being a list and became a consequence.** A spell is partial
+because one of its clauses is adjudicated to a named missing shape rather than
+to the table, and `PARTIAL_SPELLS` is asserted against that derived set in both
+directions — one entry when it was kept by hand, fifty-three now. Two things fell
+out of deriving it. **Partial and verified are different axes**: Web is driven
+end to end *and* leaves its Difficult Terrain unbuilt, and the report used to
+print only the tick. And each of the twenty-seven missing shapes an
+adjudication may name has to say **where this repository already described
+it** — this file, `PROGRESS.md`'s ranked map, the audit, or the definition's
+own clause — because a shape invented in a note is an architecture decision
+smuggled past review, which is the failure the guard exists to stop wearing its
+other face. That is asserted rather than promised, and so is the other claim a
+note can quietly get wrong: **where a note quotes the SRD it is held against
+that spell's own paragraph**, because four of them quoted a sentence the book
+does not print and one of those was a neighbouring spell's.
 
 ### What a cast refuses, and what it admits it cannot check
 

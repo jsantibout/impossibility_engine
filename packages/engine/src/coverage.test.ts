@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SPELL_INDEX, spellById } from '@ie/srd';
 import { SPELL_DEFINITIONS } from './spell-definitions.js';
-import { PARTIAL_SPELLS, VERIFIED_SPELLS } from '../scripts/coverage.js';
+import { PARTIAL_SPELLS, VERIFIED_SPELLS, isExecuted } from '../scripts/coverage.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -81,10 +81,10 @@ describe('a spell the engine tracks says what it does not do', () => {
   // A spell whose casting resolves nothing is **tracked** only if nothing
   // else in it resolves either. Flame Blade's every blow comes through its
   // activation and Web's every save through its area, and neither is a spell
-  // the engine has declined to execute.
-  const tracked = SPELL_DEFINITIONS.filter(
-    (d) => d.effects.length === 0 && d.activation === undefined && d.areaTrigger === undefined,
-  );
+  // the engine has declined to execute. `isExecuted` is imported rather than
+  // restated: this file held two copies of it, and the second had lost the
+  // `areaTrigger` arm.
+  const tracked = SPELL_DEFINITIONS.filter((d) => !isExecuted(d));
 
   it('has some, so the rule below is not vacuous', () => {
     expect(tracked.length).toBeGreaterThan(0);
@@ -99,9 +99,7 @@ describe('a spell the engine tracks says what it does not do', () => {
 
   /** And an executed spell is still allowed to have nothing to declare. */
   it('does not demand a note from a spell that does everything it says', () => {
-    const executed = SPELL_DEFINITIONS.filter(
-    (d) => d.effects.length > 0 || d.activation !== undefined,
-  );
+    const executed = SPELL_DEFINITIONS.filter(isExecuted);
     expect(executed.some((d) => (d.unmodelled ?? []).length === 0)).toBe(true);
   });
 });
@@ -130,10 +128,27 @@ describe('the coverage table cannot claim more than the tests prove', () => {
     }
   });
 
-  /** And it is one state or the other, never both. */
-  it('keeps partial and verified apart', () => {
+  /**
+   * **Partial and verified are two axes, not two values of one.**
+   *
+   * They were kept apart while `PARTIAL_SPELLS` held one spell that no test
+   * drove end to end, and that reading does not survive the honesty guard
+   * reaching the executed bucket: partial now means *a clause of this spell is
+   * adjudicated to a missing shape*, and a spell can be driven end to end and
+   * still leave one unbuilt. Web is exactly that — every save its webs call
+   * for is raised and resolved, and crossing them costs the same as crossing
+   * an empty floor. Rendering only the tick would be the green tick this third
+   * state was invented to prevent, so the report says both.
+   */
+  it('lets a spell be driven end to end and still carry a debt', () => {
     const both = PARTIAL_SPELLS.filter((id) => VERIFIED_SPELLS.includes(id));
-    expect(both).toEqual([]);
+    expect(both.length).toBeGreaterThan(0);
+    expect(both).toContain('web');
+  });
+
+  /** And in the order two branches can both append to, as the neighbours are. */
+  it('names the partial spells in an order two branches can both append to', () => {
+    expect(PARTIAL_SPELLS).toEqual([...PARTIAL_SPELLS].sort());
   });
 
   /**

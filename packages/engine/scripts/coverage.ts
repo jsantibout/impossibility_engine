@@ -32,7 +32,7 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { SPELL_DEFINITIONS } from '../src/spell-definitions.js';
+import { SPELL_DEFINITIONS, type SpellDefinition } from '../src/spell-definitions.js';
 import { allClasses, allSubclasses } from '../src/creation.js';
 
 interface ParsedSpell {
@@ -140,26 +140,87 @@ const shapeOf = (spell: ParsedSpell): string =>
  * prevent.
  */
 /**
- * Spells an integration test drives end to end, and which still carry an
- * engine-owned clause nobody has built.
+ * Executed spells that still carry an engine-owned clause nobody has built.
  *
  * **The third state, and it exists because two could not tell the truth.**
- * `verified` claims the spell is complete and driven; `untested` says nothing
- * drives it. Spirit Guardians is neither: its Emanation, its three trigger
+ * `verified` claims a spell is driven end to end; `untested` says nothing
+ * drives it. Spirit Guardians was neither: its Emanation, its three trigger
  * clauses, its cap, its save and its damage all run under a suite of their
  * own, and the halved Speed inside the Emanation is a rule the engine owns and
- * has not written. Counting it verified would be a green tick on a spell that
- * does not do everything it prints; counting it untested would be a lie about
- * the tests.
+ * has not written.
  *
- * Same move `spell-tracking.test.ts`'s adjudication map already made when
- * `'table'` and a missing shape could not express `'engine'`.
+ * **It is no longer a hand list, and that is the point.** A spell is here
+ * because one of its `unmodelled` clauses is adjudicated in
+ * `spell-honesty.test.ts` to a named missing shape rather than to the table —
+ * so the claim is a consequence of the debts rather than of somebody's memory.
+ * That test asserts this list against the derived set in both directions, so
+ * the two cannot drift; the list stays written down here because
+ * `npm run coverage` runs outside vitest and a report generator that imported
+ * the test suite would have the dependency backwards.
+ *
+ * **Partial and verified are different axes.** Web is driven end to end *and*
+ * leaves its Difficult Terrain unbuilt, and saying only the first would be the
+ * green tick this state was invented to prevent.
  *
  * A spell listed here **must** say in `unmodelled` what it is missing, which
  * `coverage.test.ts` asserts — otherwise this becomes the place claims come to
  * be quietly parked.
  */
-export const PARTIAL_SPELLS: readonly string[] = ['spirit-guardians'];
+export const PARTIAL_SPELLS: readonly string[] = [
+  'acid-arrow',
+  'animal-friendship',
+  'banishment',
+  'beacon-of-hope',
+  'befuddlement',
+  'black-tentacles',
+  'blight',
+  'blindness-deafness',
+  'blur',
+  'chain-lightning',
+  'charm-monster',
+  'charm-person',
+  'chill-touch',
+  'cloudkill',
+  'compulsion',
+  'contagion',
+  'disintegrate',
+  'dissonant-whispers',
+  'divine-smite',
+  'dominate-beast',
+  'dominate-monster',
+  'dominate-person',
+  'eldritch-blast',
+  'fear',
+  'finger-of-death',
+  'flame-blade',
+  'freezing-sphere',
+  'grease',
+  'guidance',
+  'guiding-bolt',
+  'harm',
+  'hypnotic-pattern',
+  'ice-storm',
+  'incendiary-cloud',
+  'insect-plague',
+  'mage-armor',
+  'mass-suggestion',
+  'mind-spike',
+  'phantasmal-killer',
+  'ray-of-frost',
+  'shatter',
+  'shield',
+  'shocking-grasp',
+  'spirit-guardians',
+  'starry-wisp',
+  'suggestion',
+  'sunbeam',
+  'sunburst',
+  'thunderwave',
+  'vampiric-touch',
+  'vicious-mockery',
+  'web',
+  'weird',
+];
 
 export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
@@ -213,6 +274,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'sacred-flame',
   'shatter',
   'shocking-grasp',
+  // Driven end to end by `carrier-areas.test.ts`, and partial as well: the two
+  // are different axes, and while they were one state this spell could only be
+  // recorded as the second. Saying "untested" of a spell with its own suite
+  // would be the same report telling a different lie.
+  'spirit-guardians',
   'spiritual-weapon',
   'thunderwave',
   'vampiric-touch',
@@ -227,6 +293,8 @@ export interface SpellCoverage {
   readonly executed: number;
   /** Definitions the engine casts but whose effect is the DM's. */
   readonly tracked: number;
+  /** Executed definitions carrying a clause adjudicated to a missing shape. */
+  readonly partial: number;
   readonly verified: number;
   readonly byShape: ReadonlyMap<string, { total: number; executed: number; tracked: number }>;
   readonly spells: readonly ParsedSpell[];
@@ -236,18 +304,29 @@ export interface SpellCoverage {
  * A definition the engine resolves nothing of is tracked; one it resolves
  * something of is executed.
  *
- * "Something" is the spell's own effects **or its activation**: Flame Blade
- * evokes a blade and does nothing else at the moment of casting, and every
- * blow it ever strikes is machinery the engine owns. Counting it as tracked
- * would understate the engine in exactly the direction this file exists to
- * prevent.
+ * "Something" is the spell's own effects **or its activation or its area
+ * trigger**: Flame Blade evokes a blade and does nothing else at the moment of
+ * casting, and every blow it ever strikes is machinery the engine owns.
+ * Counting it as tracked would understate the engine in exactly the direction
+ * this file exists to prevent.
+ *
+ * **Exported because three other places had written it out**, and one of the
+ * copies had already lost the `areaTrigger` arm. The honesty guard's whole
+ * population is this predicate, so a drifting copy would silently stop
+ * covering Web, Grease and Insect Plague with nothing going red.
  */
+export const isExecuted = (definition: SpellDefinition): boolean =>
+  definition.effects.length > 0 ||
+  definition.activation !== undefined ||
+  definition.areaTrigger !== undefined;
+
+/** Every definition the engine resolves something of, by id. */
+export const EXECUTED_SPELL_IDS: ReadonlySet<string> = new Set(
+  SPELL_DEFINITIONS.filter(isExecuted).map((d) => d.id),
+);
+
 const TRACKED_IDS: ReadonlySet<string> = new Set(
-  SPELL_DEFINITIONS.filter(
-    (d) => d.effects.length === 0 && d.activation === undefined && d.areaTrigger === undefined,
-  ).map(
-    (d) => d.id,
-  ),
+  SPELL_DEFINITIONS.filter((d) => !isExecuted(d)).map((d) => d.id),
 );
 
 export function auditSpells(): SpellCoverage {
@@ -272,6 +351,7 @@ export function auditSpells(): SpellCoverage {
     total: spells.length,
     executed: defined.size - TRACKED_IDS.size,
     tracked: TRACKED_IDS.size,
+    partial: PARTIAL_SPELLS.length,
     verified: VERIFIED_SPELLS.length,
     byShape,
     spells,
@@ -354,7 +434,7 @@ function render(coverage: SpellCoverage): string {
     '> Generated by `npm run coverage`. Do not edit by hand — edit the script,',
     '> or better, make the number go up.',
     '',
-'Four states, and the middle two are different claims that are never added',
+'Five states, and the middle ones are different claims that are never added',
     'together:',
     '',
     '| | Means |',
@@ -362,16 +442,24 @@ function render(coverage: SpellCoverage): string {
     '| **Parsed** | `@ie/srd` has the record: id, level, school, class list, prose |',
     '| **Tracked** | the engine casts it for real — action, slot, Concentration, duration — and says what the DM adjudicates |',
     '| **Executed** | a definition whose effects the engine resolves: dice, saves, targets, scaling |',
+    '| **Partial** | executed, and one of its `unmodelled` clauses is a rule the engine owns and has not built |',
     '| **Verified** | an integration test drives it end to end through the public API |',
     '',
     'A catalogue entry is not an implementation. Neither is a refusal saying the',
     'spell is unsupported.',
     '',
+    '**Partial and verified are different axes**, so a spell can be both: Web is',
+    'driven end to end and still leaves its Difficult Terrain unbuilt. Partial is',
+    'not a hand list either — a spell is partial because one of its `unmodelled`',
+    'clauses is adjudicated in `spell-honesty.test.ts` to a named missing shape',
+    'rather than to the table, and that guard holds this list against the derived',
+    'set in both directions.',
+    '',
     '## Spells',
     '',
-    `| Parsed | Tracked | Executed | Verified |`,
-    `|---|---|---|---|`,
-    `| ${coverage.total} | ${coverage.tracked} (${pct(coverage.tracked)}) | ${coverage.executed} (${pct(coverage.executed)}) | ${coverage.verified} (${pct(coverage.verified)}) |`,
+    `| Parsed | Tracked | Executed | of which partial | Verified |`,
+    `|---|---|---|---|---|`,
+    `| ${coverage.total} | ${coverage.tracked} (${pct(coverage.tracked)}) | ${coverage.executed} (${pct(coverage.executed)}) | ${coverage.partial} | ${coverage.verified} (${pct(coverage.verified)}) |`,
     '',
     'A **tracked** spell is not a half-finished executed one. Disguise Self will',
     'never be executed, because what the caster looks like is not arithmetic;',
@@ -419,11 +507,12 @@ function render(coverage: SpellCoverage): string {
 
   lines.push('', '### Executed today', '');
   for (const definition of named('executed')) {
-    const mark = verified.has(definition.id)
-      ? 'verified'
-      : partial.has(definition.id)
-        ? 'partial — driven end to end, with a clause still unbuilt'
-        : 'untested';
+    // Two axes, so both are said: whether a test drives it, and whether it
+    // finishes. A verified spell carrying a debt used to print only the tick.
+    const driven = verified.has(definition.id) ? 'verified' : 'untested';
+    const mark = partial.has(definition.id)
+      ? `${driven}, partial — a clause the engine owns is still unbuilt`
+      : driven;
     const level = definition.level === 0 ? 'cantrip' : `level ${definition.level}`;
     lines.push(`- **${definition.name}** (${level}) — ${mark}`);
   }

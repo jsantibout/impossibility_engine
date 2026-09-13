@@ -4185,7 +4185,7 @@ export const ARCANE_LOCK: SpellDefinition = {
   effects: [],
   unmodelled: [
     'the spell locks an object, and objects are not modelled: which door was touched, who may open it despite the lock, and the password are the DM’s',
-    'a duration of “Until dispelled” is no deadline at all, so no timer is scheduled and the casting simply runs; nothing ends it, because Dispel Magic is not executable',
+    'a duration of “Until dispelled” is no deadline at all, so no timer is scheduled and the casting simply runs; Dispel Magic executes, and cannot reach this one, because it ends an ongoing spell **on a target** and this casting is on a door',
   ],
 };
 
@@ -5250,7 +5250,7 @@ export const SUNBEAM: SpellDefinition = {
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the Magic action that creates a new Line on a later turn, which needs an ongoing effect a turn can act through',
+    'the Magic action that creates a new Line on a later turn: an activation resolves an attack at a named target and moves an area along a stated route, and resolving a **fresh** area in a direction chosen now is the shape Call Lightning waits on too',
     'the mote of radiance that sheds sunlight for the duration',
   ],
 };
