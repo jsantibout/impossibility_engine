@@ -73,6 +73,16 @@ The last one is the one this experiment adds. Folding a log twice only proves
 the reducer is a function. Re-dispatching the *model's calls* proves the tool
 surface introduced no decision of its own between the model and the engine.
 
+> **Superseded in part.** The findings below are the *pre-hardening* run and
+> are kept because the hardening pass is only legible beside them. For what
+> changed and what it measured, see
+> `docs/architecture/llm-boundary-hardening-2026-09-13.md`. Headlines: the
+> Goblin/Humanoid lever is gone (creature facts come from the stat block),
+> improvised actions are now composed from DM ruling primitives rather than
+> silently substituted (11 substitutions → 0), and round trips fell by a third
+> to a half. The `runs/live-*.json` artifacts are the pre-hardening record;
+> `runs/post-*.json` are the post-hardening ones.
+
 ## Results
 
 Three live runs against `gpt-5.5`, plus the offline stand-in. Artifacts in

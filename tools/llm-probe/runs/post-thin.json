@@ -1,0 +1,1321 @@
+{
+  "transcript": [
+    {
+      "tool": "set_scene",
+      "input": {
+        "width": 40,
+        "depth": 40,
+        "height": 12,
+        "narration": "The fight is in a cramped root-cellar, forty feet square, lit by a guttering green lantern."
+      },
+      "harness": false
+    },
+    {
+      "tool": "add_landmark",
+      "input": {
+        "name": "green lantern",
+        "x": 20,
+        "y": 20,
+        "z": 6,
+        "narration": "A green lantern hangs from the low rafters at the room's center."
+      },
+      "harness": false
+    },
+    {
+      "tool": "place_creature",
+      "input": {
+        "who": "kessa",
+        "from_landmark": "green lantern",
+        "feet": 10,
+        "bearing": 180,
+        "narration": "Kessa stands beneath the cellar's hanging shadows, ten feet south of the green lantern."
+      },
+      "harness": false
+    },
+    {
+      "tool": "place_creature",
+      "input": {
+        "who": "goblin-b",
+        "from_landmark": "green lantern",
+        "feet": 10,
+        "bearing": 0,
+        "narration": "One goblin crouches directly ahead across the lantern's sickly light."
+      },
+      "harness": false
+    },
+    {
+      "tool": "place_creature",
+      "input": {
+        "who": "goblin-a",
+        "from_landmark": "green lantern",
+        "feet": 15,
+        "bearing": 45,
+        "narration": "A second goblin lurks off to the northeast among stacked root crates."
+      },
+      "harness": false
+    },
+    {
+      "tool": "declare_sight",
+      "input": {
+        "from": "kessa",
+        "to": "goblin-b",
+        "seen": true,
+        "narration": "Kessa has a clear line on the goblin directly ahead in the lanternlight."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "kessa",
+        "spell_id": "hold-person",
+        "targets": [
+          "goblin-b"
+        ],
+        "slot_level": 2,
+        "command_id": "kessa-hold-person-goblin-b-r1",
+        "narration": "Kessa raises her hand and speaks the binding word, trying to lock the goblin in place."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-kessa-r1-after-invalid-hold",
+        "narration": "The binding word finds no humanoid body to seize—the goblin's fey nature slips through the spell's grasp, and no paralysis takes hold. Kessa's turn ends."
+      },
+      "harness": false
+    },
+    {
+      "tool": "declare_sight",
+      "input": {
+        "from": "goblin-b",
+        "to": "kessa",
+        "seen": true,
+        "narration": "The nearer goblin squints through the green lanternlight and fixes on Kessa."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-b",
+        "target": "kessa",
+        "weapon": "shortbow",
+        "command_id": "goblin-b-shortbow-kessa-r1",
+        "narration": "The goblin snarls at the failed enchantment, snaps up its shortbow, and looses an arrow at Kessa."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-goblin-b-r1",
+        "narration": "The arrow strikes Kessa for 4 piercing damage. The goblin holds its ground, chittering triumphantly as its turn ends."
+      },
+      "harness": false
+    },
+    {
+      "tool": "declare_sight",
+      "input": {
+        "from": "goblin-a",
+        "to": "kessa",
+        "seen": true,
+        "narration": "From the northeast crates, the second goblin peers past the swaying green lantern and sights Kessa."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-a",
+        "target": "kessa",
+        "weapon": "shortbow",
+        "command_id": "goblin-a-shortbow-kessa-r1",
+        "narration": "The second goblin bares needle teeth, draws its shortbow, and fires across the cellar at Kessa."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-goblin-a-r1",
+        "narration": "The arrow hits, dealing 4 piercing damage. The goblin stays by the crates with its bow raised, and its turn ends."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "kessa",
+        "spell_id": "fire-bolt",
+        "targets": [
+          "goblin-b"
+        ],
+        "command_id": "kessa-fire-bolt-goblin-b-r2",
+        "narration": "Kessa snaps a hand toward the nearer goblin and hurls a bright mote of flame across the cellar."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-kessa-r2",
+        "narration": "The mote of flame strikes the nearer goblin, scorching it for 5 fire damage. Kessa's turn ends."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-b",
+        "target": "kessa",
+        "weapon": "shortbow",
+        "command_id": "goblin-b-shortbow-kessa-r2",
+        "narration": "Burned and hissing, the nearer goblin staggers back into its stance and sends another arrow at Kessa."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-goblin-b-r2",
+        "narration": "The goblin's arrow hits hard, dealing 8 piercing damage. Kessa reels but remains standing, and the goblin's turn ends."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-a",
+        "target": "kessa",
+        "weapon": "shortbow",
+        "command_id": "goblin-a-shortbow-kessa-r2",
+        "narration": "Seeing Kessa stagger, the goblin by the crates gives a cruel little laugh and looses another arrow across the green-lit cellar."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-goblin-a-r2",
+        "narration": "The arrow hits for 3 piercing damage. Kessa is left barely standing at 1 hit point as the goblin's turn ends."
+      },
+      "harness": false
+    },
+    {
+      "tool": "add_landmark",
+      "input": {
+        "name": "the bar",
+        "x": 5,
+        "y": 5,
+        "z": 0,
+        "narration": "Against the southwest wall stands a battered cellar bar, its counter scarred by old knife marks."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "kessa",
+        "from_landmark": "the bar",
+        "feet": 5,
+        "bearing": 90,
+        "command_id": "kessa-move-to-bar-r3",
+        "narration": "Bleeding and unsteady, Kessa backs toward the battered bar along the southwest wall."
+      },
+      "harness": false
+    },
+    {
+      "tool": "declare_sight",
+      "input": {
+        "from": "kessa",
+        "to": "goblin-b",
+        "seen": true,
+        "narration": "From beside the bar, Kessa can still see the scorched nearer goblin in the lanternlight."
+      },
+      "harness": false
+    },
+    {
+      "tool": "cast_spell",
+      "input": {
+        "caster": "kessa",
+        "spell_id": "fire-bolt",
+        "targets": [
+          "goblin-b"
+        ],
+        "command_id": "kessa-fire-bolt-goblin-b-r3",
+        "narration": "She flings another mote of fire at the wounded goblin."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-kessa-r3",
+        "narration": "The fire bolt hits the wounded goblin for 5 fire damage, and it collapses dead in the cellar gloom. Kessa steadies herself beside the bar, barely standing, as her turn ends."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-dead-goblin-b-r3",
+        "narration": "The scorched goblin lies motionless where it fell; it takes no action, and its turn passes."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-a",
+        "target": "kessa",
+        "weapon": "shortbow",
+        "command_id": "goblin-a-shortbow-kessa-r3",
+        "narration": "The remaining goblin sees Kessa wavering beside the bar, draws its shortbow to the cheek, and fires through the green lanternlight."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "end-goblin-a-r3",
+        "narration": "The arrow hits Kessa for 4 piercing damage. She drops beside the bar, unconscious and prone, while the last goblin keeps its bow trained on her. The goblin's turn ends."
+      },
+      "harness": false
+    }
+  ],
+  "log": [
+    {
+      "type": "creature-added",
+      "id": "kessa",
+      "name": "Kessa",
+      "sheet": {
+        "level": 3,
+        "abilities": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 17,
+          "wis": 12,
+          "cha": 10
+        },
+        "skills": {
+          "arcana": "expertise",
+          "history": "proficient",
+          "investigation": "proficient",
+          "insight": "proficient",
+          "perception": "proficient",
+          "stealth": "proficient",
+          "nature": "proficient",
+          "survival": "proficient"
+        },
+        "saveProficiencies": [
+          "int",
+          "wis"
+        ],
+        "armor": null,
+        "shield": null,
+        "armorTraining": {
+          "light": false,
+          "medium": false,
+          "heavy": false,
+          "shields": false
+        },
+        "baseSpeed": 30,
+        "weaponProficiencies": [
+          "simple"
+        ],
+        "spellcastingAbility": "int"
+      },
+      "maxHp": 20,
+      "creatureType": "Humanoid"
+    },
+    {
+      "type": "character-created",
+      "id": "kessa",
+      "spellcasting": {
+        "classes": [
+          {
+            "classId": "wizard",
+            "ability": "int",
+            "cantrips": [
+              "fire-bolt",
+              "light",
+              "prestidigitation"
+            ],
+            "prepared": [
+              "magic-missile",
+              "shield",
+              "mage-armor",
+              "hold-person",
+              "burning-hands",
+              "scorching-ray"
+            ],
+            "slotKind": "spell"
+          }
+        ],
+        "granted": [
+          {
+            "spellId": "mage-hand",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "ray-of-frost",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "find-familiar",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+            "slotCasting": true
+          }
+        ]
+      },
+      "initiativeBonuses": [],
+      "record": {
+        "classId": "wizard",
+        "subclassId": "evoker",
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "level": 3,
+        "choices": {
+          "name": "Kessa",
+          "classId": "wizard",
+          "level": 3,
+          "speciesId": "human",
+          "backgroundId": "sage",
+          "abilities": {
+            "method": "standard-array",
+            "assignment": {
+              "str": 8,
+              "dex": 14,
+              "con": 13,
+              "int": 15,
+              "wis": 12,
+              "cha": 10
+            }
+          },
+          "abilityIncreases": {
+            "int": 2,
+            "con": 1
+          },
+          "classSkills": [
+            "investigation",
+            "insight"
+          ],
+          "languages": [
+            "Draconic",
+            "Elvish"
+          ],
+          "alignment": "Chaotic Good",
+          "subclassId": "evoker",
+          "cantrips": [
+            "fire-bolt",
+            "light",
+            "prestidigitation"
+          ],
+          "spellbook": [
+            {
+              "spellId": "magic-missile",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "shield",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "detect-magic",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "feather-fall",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "mage-armor",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "sleep",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "thunderwave",
+              "acquiredAt": 2,
+              "origin": "level"
+            },
+            {
+              "spellId": "hold-person",
+              "acquiredAt": 2,
+              "origin": "level"
+            },
+            {
+              "spellId": "misty-step",
+              "acquiredAt": 3,
+              "origin": "level"
+            },
+            {
+              "spellId": "web",
+              "acquiredAt": 3,
+              "origin": "level"
+            }
+          ],
+          "preparedSpells": [
+            "magic-missile",
+            "shield",
+            "mage-armor",
+            "hold-person",
+            "burning-hands",
+            "scorching-ray"
+          ],
+          "classEquipment": "A",
+          "backgroundEquipment": "A",
+          "equipped": [],
+          "hitPoints": {
+            "method": "fixed"
+          },
+          "featureChoices": {
+            "wizard:scholar": [
+              "arcana"
+            ],
+            "human:skillful": [
+              "perception"
+            ],
+            "evoker:evocation-savant": [
+              "burning-hands",
+              "scorching-ray"
+            ]
+          },
+          "feats": {
+            "sage:magic-initiate-wizard": {
+              "featId": "magic-initiate",
+              "spellList": "wizard",
+              "spellcastingAbility": "int",
+              "cantrips": [
+                "mage-hand",
+                "ray-of-frost"
+              ],
+              "levelOneSpell": "find-familiar"
+            },
+            "human:versatile": {
+              "featId": "skilled",
+              "proficiencies": [
+                "stealth",
+                "nature",
+                "survival"
+              ]
+            }
+          },
+          "dmGrants": {
+            "items": [],
+            "goldPieces": 0,
+            "magicItems": [],
+            "note": "standard package only"
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "kessa",
+      "items": [
+        {
+          "id": "backpack",
+          "quantity": 1
+        },
+        {
+          "id": "book",
+          "quantity": 2
+        },
+        {
+          "id": "calligraphers-supplies",
+          "quantity": 1
+        },
+        {
+          "id": "dagger",
+          "quantity": 2
+        },
+        {
+          "id": "ink",
+          "quantity": 1
+        },
+        {
+          "id": "ink-pen",
+          "quantity": 1
+        },
+        {
+          "id": "lamp",
+          "quantity": 1
+        },
+        {
+          "id": "oil",
+          "quantity": 10
+        },
+        {
+          "id": "parchment",
+          "quantity": 18
+        },
+        {
+          "id": "quarterstaff",
+          "quantity": 2
+        },
+        {
+          "id": "robe",
+          "quantity": 2
+        },
+        {
+          "id": "scholars-pack",
+          "quantity": 1
+        },
+        {
+          "id": "spellbook",
+          "quantity": 1
+        },
+        {
+          "id": "tinderbox",
+          "quantity": 1
+        }
+      ],
+      "source": "starting equipment"
+    },
+    {
+      "type": "coins-changed",
+      "id": "kessa",
+      "copper": 1300,
+      "source": "starting money"
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "hit-die:d6",
+        "label": "Hit Die (d6)",
+        "max": 3,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "spell-slot:1",
+        "label": "level 1 spell slot",
+        "max": 4,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "spell-slot:2",
+        "label": "level 2 spell slot",
+        "max": 2,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "sage:magic-initiate-wizard:free-cast",
+        "label": "free casting of find-familiar",
+        "max": 1,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "wizard:arcane-recovery",
+        "label": "Arcane Recovery",
+        "max": 1,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "creature-side-declared",
+      "id": "kessa",
+      "side": "party"
+    },
+    {
+      "type": "creature-added",
+      "id": "goblin-a",
+      "name": "Goblin Warrior",
+      "maxHp": 10,
+      "diesAtZero": true,
+      "creatureType": "Fey",
+      "defenses": {},
+      "side": "goblins",
+      "sheet": {
+        "level": 1,
+        "abilities": {
+          "str": 8,
+          "dex": 15,
+          "con": 10,
+          "int": 10,
+          "wis": 8,
+          "cha": 8
+        },
+        "skills": {},
+        "saveProficiencies": [],
+        "armor": null,
+        "shield": null,
+        "armorTraining": {
+          "light": true,
+          "medium": true,
+          "heavy": true,
+          "shields": true
+        },
+        "baseSpeed": 30,
+        "spellcastingAbility": null,
+        "stated": {
+          "armorClass": 15,
+          "proficiencyBonus": 2,
+          "initiative": 2,
+          "saves": {
+            "str": -1,
+            "dex": 2,
+            "con": 0,
+            "int": 0,
+            "wis": -1,
+            "cha": -1
+          },
+          "skills": {
+            "stealth": 6
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "goblin-a",
+      "items": [
+        {
+          "id": "scimitar",
+          "quantity": 1
+        },
+        {
+          "id": "shortbow",
+          "quantity": 1
+        }
+      ],
+      "source": "Goblin Warrior stat block"
+    },
+    {
+      "type": "creature-added",
+      "id": "goblin-b",
+      "name": "Goblin Warrior",
+      "maxHp": 10,
+      "diesAtZero": true,
+      "creatureType": "Fey",
+      "defenses": {},
+      "side": "goblins",
+      "sheet": {
+        "level": 1,
+        "abilities": {
+          "str": 8,
+          "dex": 15,
+          "con": 10,
+          "int": 10,
+          "wis": 8,
+          "cha": 8
+        },
+        "skills": {},
+        "saveProficiencies": [],
+        "armor": null,
+        "shield": null,
+        "armorTraining": {
+          "light": true,
+          "medium": true,
+          "heavy": true,
+          "shields": true
+        },
+        "baseSpeed": 30,
+        "spellcastingAbility": null,
+        "stated": {
+          "armorClass": 15,
+          "proficiencyBonus": 2,
+          "initiative": 2,
+          "saves": {
+            "str": -1,
+            "dex": 2,
+            "con": 0,
+            "int": 0,
+            "wis": -1,
+            "cha": -1
+          },
+          "skills": {
+            "stealth": 6
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "goblin-b",
+      "items": [
+        {
+          "id": "scimitar",
+          "quantity": 1
+        },
+        {
+          "id": "shortbow",
+          "quantity": 1
+        }
+      ],
+      "source": "Goblin Warrior stat block"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1748698689,
+        2044844644,
+        -631280115,
+        1539807141
+      ]
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        2044537481,
+        -1386553739,
+        791263157,
+        1539807142
+      ]
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1391693030,
+        -1468566179,
+        2040890842,
+        1539807143
+      ]
+    },
+    {
+      "type": "combat-started",
+      "combatants": [
+        {
+          "id": "kessa",
+          "initiative": 19,
+          "speed": 30
+        },
+        {
+          "id": "goblin-a",
+          "initiative": 11,
+          "speed": 30
+        },
+        {
+          "id": "goblin-b",
+          "initiative": 13,
+          "speed": 30
+        }
+      ]
+    },
+    {
+      "type": "scene-set",
+      "extent": {
+        "width": 40,
+        "depth": 40,
+        "height": 12
+      }
+    },
+    {
+      "type": "landmark-added",
+      "name": "green lantern",
+      "at": {
+        "x": 20,
+        "y": 20,
+        "z": 6
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "kessa",
+      "placement": {
+        "from": {
+          "landmark": "green lantern"
+        },
+        "feet": 10,
+        "bearing": 180
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "goblin-b",
+      "placement": {
+        "from": {
+          "landmark": "green lantern"
+        },
+        "feet": 10,
+        "bearing": 0,
+        "size": "small"
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "goblin-a",
+      "placement": {
+        "from": {
+          "landmark": "green lantern"
+        },
+        "feet": 15,
+        "bearing": 45,
+        "size": "small"
+      }
+    },
+    {
+      "type": "sight-declared",
+      "from": "kessa",
+      "to": "goblin-b",
+      "seen": true
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-kessa-r1-after-invalid-hold",
+        "fingerprint": "turn|{\"commandId\":\"end-kessa-r1-after-invalid-hold\"}"
+      }
+    },
+    {
+      "type": "sight-declared",
+      "from": "goblin-b",
+      "to": "kessa",
+      "seen": true
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-b"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-b",
+      "label": "Shortbow attack",
+      "natural": 14,
+      "total": 18,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "goblin-b-shortbow-kessa-r1",
+        "fingerprint": "attack:goblin-b|{\"commandId\":\"goblin-b-shortbow-kessa-r1\",\"target\":\"kessa\",\"weapon\":\"shortbow\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        1190321264,
+        -781165762,
+        -460706161,
+        1539807145
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 4,
+      "source": "Shortbow",
+      "by": "goblin-b"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-goblin-b-r1",
+        "fingerprint": "turn|{\"commandId\":\"end-goblin-b-r1\"}"
+      }
+    },
+    {
+      "type": "sight-declared",
+      "from": "goblin-a",
+      "to": "kessa",
+      "seen": true
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-a"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-a",
+      "label": "Shortbow attack",
+      "natural": 10,
+      "total": 14,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "goblin-a-shortbow-kessa-r1",
+        "fingerprint": "attack:goblin-a|{\"commandId\":\"goblin-a-shortbow-kessa-r1\",\"target\":\"kessa\",\"weapon\":\"shortbow\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        148885206,
+        2002937212,
+        1229251248,
+        1539807147
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 4,
+      "source": "Shortbow",
+      "by": "goblin-a"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-goblin-a-r1",
+        "fingerprint": "turn|{\"commandId\":\"end-goblin-a-r1\"}"
+      }
+    },
+    {
+      "type": "action-spent",
+      "id": "kessa"
+    },
+    {
+      "type": "spell-cast",
+      "castingId": "cast:1",
+      "id": "kessa",
+      "spell": "Fire Bolt",
+      "level": 0,
+      "slot": null,
+      "slotless": "cantrip",
+      "castingTime": "action",
+      "concentration": false,
+      "route": "class:wizard",
+      "command": {
+        "id": "kessa-fire-bolt-goblin-b-r2",
+        "fingerprint": "cast:kessa|{\"castingTime\":\"action\",\"commandId\":\"kessa-fire-bolt-goblin-b-r2\",\"concentration\":false,\"level\":0,\"route\":\"class:wizard\",\"slotless\":\"cantrip\",\"spell\":\"Fire Bolt\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "kessa",
+      "label": "Fire Bolt attack",
+      "natural": 18,
+      "total": 24,
+      "contributions": [
+        {
+          "source": "spell attack",
+          "amount": 5
+        }
+      ],
+      "outcome": "hit"
+    },
+    {
+      "type": "damage-taken",
+      "id": "goblin-b",
+      "amount": 5,
+      "source": "Fire Bolt",
+      "by": "kessa"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -1826468404,
+        -1029007007,
+        -105666936,
+        1539807149
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-kessa-r2",
+        "fingerprint": "turn|{\"commandId\":\"end-kessa-r2\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-b"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-b",
+      "label": "Shortbow attack",
+      "natural": 14,
+      "total": 18,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "goblin-b-shortbow-kessa-r2",
+        "fingerprint": "attack:goblin-b|{\"commandId\":\"goblin-b-shortbow-kessa-r2\",\"target\":\"kessa\",\"weapon\":\"shortbow\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -952929627,
+        -1739497538,
+        -1883990759,
+        1539807151
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 8,
+      "source": "Shortbow",
+      "by": "goblin-b"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-goblin-b-r2",
+        "fingerprint": "turn|{\"commandId\":\"end-goblin-b-r2\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-a"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-a",
+      "label": "Shortbow attack",
+      "natural": 15,
+      "total": 19,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "goblin-a-shortbow-kessa-r2",
+        "fingerprint": "attack:goblin-a|{\"commandId\":\"goblin-a-shortbow-kessa-r2\",\"target\":\"kessa\",\"weapon\":\"shortbow\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        224366975,
+        1383163332,
+        365567086,
+        1539807153
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 3,
+      "source": "Shortbow",
+      "by": "goblin-a"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-goblin-a-r2",
+        "fingerprint": "turn|{\"commandId\":\"end-goblin-a-r2\"}"
+      }
+    },
+    {
+      "type": "landmark-added",
+      "name": "the bar",
+      "at": {
+        "x": 5,
+        "y": 5,
+        "z": 0
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "kessa",
+      "feet": 10
+    },
+    {
+      "type": "creature-moved",
+      "id": "kessa",
+      "placement": {
+        "from": {
+          "landmark": "the bar"
+        },
+        "feet": 5,
+        "bearing": 90
+      },
+      "command": {
+        "id": "kessa-move-to-bar-r3",
+        "fingerprint": "move:kessa|{\"commandId\":\"kessa-move-to-bar-r3\",\"placement\":{\"bearing\":90,\"feet\":5,\"from\":{\"landmark\":\"the bar\"}}}"
+      }
+    },
+    {
+      "type": "sight-declared",
+      "from": "kessa",
+      "to": "goblin-b",
+      "seen": true
+    },
+    {
+      "type": "action-spent",
+      "id": "kessa"
+    },
+    {
+      "type": "spell-cast",
+      "castingId": "cast:2",
+      "id": "kessa",
+      "spell": "Fire Bolt",
+      "level": 0,
+      "slot": null,
+      "slotless": "cantrip",
+      "castingTime": "action",
+      "concentration": false,
+      "route": "class:wizard",
+      "command": {
+        "id": "kessa-fire-bolt-goblin-b-r3",
+        "fingerprint": "cast:kessa|{\"castingTime\":\"action\",\"commandId\":\"kessa-fire-bolt-goblin-b-r3\",\"concentration\":false,\"level\":0,\"route\":\"class:wizard\",\"slotless\":\"cantrip\",\"spell\":\"Fire Bolt\"}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "kessa",
+      "label": "Fire Bolt attack",
+      "natural": 15,
+      "total": 21,
+      "contributions": [
+        {
+          "source": "spell attack",
+          "amount": 5
+        }
+      ],
+      "outcome": "hit"
+    },
+    {
+      "type": "damage-taken",
+      "id": "goblin-b",
+      "amount": 5,
+      "source": "Fire Bolt",
+      "by": "kessa"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -998706527,
+        -1808430609,
+        2032410735,
+        1539807155
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-kessa-r3",
+        "fingerprint": "turn|{\"commandId\":\"end-kessa-r3\"}"
+      }
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-dead-goblin-b-r3",
+        "fingerprint": "turn|{\"commandId\":\"end-dead-goblin-b-r3\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-a"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-a",
+      "label": "Shortbow attack",
+      "natural": 15,
+      "total": 19,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "goblin-a-shortbow-kessa-r3",
+        "fingerprint": "attack:goblin-a|{\"commandId\":\"goblin-a-shortbow-kessa-r3\",\"target\":\"kessa\",\"weapon\":\"shortbow\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        1113850230,
+        -712048897,
+        1266981741,
+        1539807157
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 4,
+      "source": "Shortbow",
+      "by": "goblin-a"
+    },
+    {
+      "type": "condition-applied",
+      "id": "kessa",
+      "condition": "unconscious",
+      "source": "zero hit points"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "end-goblin-a-r3",
+        "fingerprint": "turn|{\"commandId\":\"end-goblin-a-r3\"}"
+      }
+    },
+    {
+      "type": "death-save-recorded",
+      "id": "kessa",
+      "natural": 10
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -706463360,
+        -1482066219,
+        -513537859,
+        1539807158
+      ]
+    }
+  ]
+}

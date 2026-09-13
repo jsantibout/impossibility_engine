@@ -1,0 +1,1356 @@
+{
+  "transcript": [
+    {
+      "tool": "add_landmark",
+      "input": {
+        "name": "the hearth",
+        "x": 30,
+        "y": 34,
+        "z": 0,
+        "narration": "Behind the bar, the tavern hearth glows red-orange, close enough that a body slammed into it would meet hot brick and coals."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "kessa",
+        "from_creature": "goblin-b",
+        "feet": 5,
+        "bearing": 180,
+        "command_id": "kessa-r1-charge-close-goblin-b",
+        "narration": "Kessa drops her shoulder and rushes the nearer goblin by the bar."
+      },
+      "harness": false
+    },
+    {
+      "tool": "ability_check",
+      "input": {
+        "who": "kessa",
+        "kind": "ability-check",
+        "ability": "str",
+        "skill": "athletics",
+        "dc": 13,
+        "label": "shoulder-charge the goblin into the hearth",
+        "command_id": "kessa-r1-athletics-shove-goblin-b",
+        "narration": "Kessa crashes shoulder-first into the goblin, trying to drive it backward into the glowing hearth behind the bar."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "goblin-b",
+        "from_landmark": "the hearth",
+        "feet": 0,
+        "bearing": 0,
+        "forced": true,
+        "command_id": "kessa-r1-force-goblin-b-hearth",
+        "narration": "The shove lands: the goblin is driven bodily backward into the hearth."
+      },
+      "harness": false
+    },
+    {
+      "tool": "improvised_damage",
+      "input": {
+        "target": "goblin-b",
+        "dice": "1d6",
+        "damage_type": "fire",
+        "ruling": "shoved into the hot hearth",
+        "by": "kessa",
+        "command_id": "kessa-r1-hearth-fire-goblin-b",
+        "narration": "Hot brick and scattered coals flare against the goblin as it hits the hearth."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "kessa-r1-end-turn",
+        "narration": "Kessa ends her rush near the bar as the singed goblin reels by the hearth."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "goblin-b",
+        "from_landmark": "the hearth",
+        "feet": 5,
+        "bearing": 180,
+        "command_id": "goblin-b-r1-scramble-from-hearth",
+        "narration": "Smoke curling from its scorched jerkin, the goblin scrambles out of the hearth and snaps its bow up toward Kessa."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-b",
+        "target": "kessa",
+        "weapon": "shortbow",
+        "command_id": "goblin-b-r1-shortbow-kessa",
+        "narration": "The goblin looses a spiteful arrow at Kessa from beside the bar."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "goblin-b-r1-end-turn",
+        "narration": "The arrow bites into Kessa, and the singed goblin keeps low beside the bar, chittering in triumph."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "goblin-a",
+        "from_creature": "kessa",
+        "feet": 5,
+        "bearing": 270,
+        "command_id": "goblin-a-r1-close-kessa",
+        "narration": "The other goblin darts around the edge of the bar, blade out, rushing in at Kessa’s flank."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-a",
+        "target": "kessa",
+        "weapon": "scimitar",
+        "command_id": "goblin-a-r1-scimitar-kessa",
+        "narration": "It slashes at Kessa with its scimitar."
+      },
+      "harness": false
+    },
+    {
+      "tool": "take_action",
+      "input": {
+        "who": "goblin-a",
+        "kind": "disengage",
+        "command_id": "goblin-a-r1-nimble-escape-disengage",
+        "narration": "With a wicked cackle, the goblin twists away from Kessa’s reach."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "goblin-a-r1-end-turn",
+        "narration": "The goblin’s scimitar opens a fresh cut on Kessa, and it stays close, grinning up at her from knife range."
+      },
+      "harness": false
+    },
+    {
+      "tool": "add_landmark",
+      "input": {
+        "name": "a bar stool",
+        "x": 27,
+        "y": 20,
+        "z": 0,
+        "narration": "A heavy bar stool lies within easy reach, one leg cracked but still solid enough to swing."
+      },
+      "harness": false
+    },
+    {
+      "tool": "move",
+      "input": {
+        "who": "kessa",
+        "from_creature": "goblin-b",
+        "feet": 5,
+        "bearing": 180,
+        "command_id": "kessa-r2-move-to-goblin-b-with-stool",
+        "narration": "Kessa snatches up the bar stool and barrels past the scimitar-wielding goblin toward the singed one by the hearth."
+      },
+      "harness": false
+    },
+    {
+      "tool": "take_opportunity_attack",
+      "input": {
+        "attacker": "goblin-a",
+        "weapon": "scimitar",
+        "command_id": "goblin-a-r2-oa-kessa",
+        "narration": "As Kessa rushes away with the stool, the goblin at her flank lashes out with its scimitar."
+      },
+      "harness": false
+    },
+    {
+      "tool": "ability_check",
+      "input": {
+        "who": "kessa",
+        "kind": "ability-check",
+        "ability": "str",
+        "skill": "athletics",
+        "dc": 14,
+        "label": "swing a bar stool low to knock goblin-b off its feet",
+        "command_id": "kessa-r2-stool-sweep-goblin-b",
+        "narration": "Bleeding badly but still moving, Kessa whips the heavy stool in a low arc at the singed goblin’s legs."
+      },
+      "harness": false
+    },
+    {
+      "tool": "apply_ruled_condition",
+      "input": {
+        "who": "goblin-b",
+        "condition": "prone",
+        "ruling": "legs swept out by Kessa's bar-stool swing",
+        "command_id": "kessa-r2-prone-goblin-b",
+        "narration": "The stool catches the goblin low and its feet fly out from under it."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "kessa-r2-end-turn",
+        "narration": "Kessa remains barely on her feet after the parting slash, but the singed goblin is sprawled prone beside her."
+      },
+      "harness": false
+    },
+    {
+      "tool": "options",
+      "input": {
+        "who": "goblin-b"
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-b",
+        "target": "kessa",
+        "weapon": "scimitar",
+        "command_id": "goblin-b-r2-prone-scimitar-kessa",
+        "narration": "Still sprawled on the floor, the singed goblin snarls and hacks upward at Kessa’s legs with its scimitar."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "goblin-b-r2-end-turn",
+        "narration": "The blade scrapes sparks from the floorboards instead of finding Kessa. The goblin remains sprawled and furious at her feet."
+      },
+      "harness": false
+    },
+    {
+      "tool": "attack",
+      "input": {
+        "attacker": "goblin-a",
+        "target": "kessa",
+        "weapon": "shortbow",
+        "command_id": "goblin-a-r2-shortbow-kessa",
+        "narration": "Seeing Kessa stagger, the second goblin plants its feet and fires across the tavern at her."
+      },
+      "harness": false
+    },
+    {
+      "tool": "end_turn",
+      "input": {
+        "command_id": "goblin-a-r2-end-turn",
+        "narration": "The arrow drops Kessa hard to the floorboards. The goblin lowers its bow with a sharp, victorious yelp as she lies unconscious near the prone, singed goblin."
+      },
+      "harness": false
+    }
+  ],
+  "log": [
+    {
+      "type": "creature-added",
+      "id": "kessa",
+      "name": "Kessa",
+      "sheet": {
+        "level": 3,
+        "abilities": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 17,
+          "wis": 12,
+          "cha": 10
+        },
+        "skills": {
+          "arcana": "expertise",
+          "history": "proficient",
+          "investigation": "proficient",
+          "insight": "proficient",
+          "perception": "proficient",
+          "stealth": "proficient",
+          "nature": "proficient",
+          "survival": "proficient"
+        },
+        "saveProficiencies": [
+          "int",
+          "wis"
+        ],
+        "armor": null,
+        "shield": null,
+        "armorTraining": {
+          "light": false,
+          "medium": false,
+          "heavy": false,
+          "shields": false
+        },
+        "baseSpeed": 30,
+        "weaponProficiencies": [
+          "simple"
+        ],
+        "spellcastingAbility": "int"
+      },
+      "maxHp": 20,
+      "creatureType": "Humanoid"
+    },
+    {
+      "type": "character-created",
+      "id": "kessa",
+      "spellcasting": {
+        "classes": [
+          {
+            "classId": "wizard",
+            "ability": "int",
+            "cantrips": [
+              "fire-bolt",
+              "light",
+              "prestidigitation"
+            ],
+            "prepared": [
+              "magic-missile",
+              "shield",
+              "mage-armor",
+              "hold-person",
+              "burning-hands",
+              "scorching-ray"
+            ],
+            "slotKind": "spell"
+          }
+        ],
+        "granted": [
+          {
+            "spellId": "mage-hand",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "ray-of-frost",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": null,
+            "slotCasting": false
+          },
+          {
+            "spellId": "find-familiar",
+            "source": "sage:magic-initiate-wizard",
+            "ability": "int",
+            "freeCastPool": "sage:magic-initiate-wizard:free-cast",
+            "slotCasting": true
+          }
+        ]
+      },
+      "initiativeBonuses": [],
+      "record": {
+        "classId": "wizard",
+        "subclassId": "evoker",
+        "speciesId": "human",
+        "backgroundId": "sage",
+        "level": 3,
+        "choices": {
+          "name": "Kessa",
+          "classId": "wizard",
+          "level": 3,
+          "speciesId": "human",
+          "backgroundId": "sage",
+          "abilities": {
+            "method": "standard-array",
+            "assignment": {
+              "str": 8,
+              "dex": 14,
+              "con": 13,
+              "int": 15,
+              "wis": 12,
+              "cha": 10
+            }
+          },
+          "abilityIncreases": {
+            "int": 2,
+            "con": 1
+          },
+          "classSkills": [
+            "investigation",
+            "insight"
+          ],
+          "languages": [
+            "Draconic",
+            "Elvish"
+          ],
+          "alignment": "Chaotic Good",
+          "subclassId": "evoker",
+          "cantrips": [
+            "fire-bolt",
+            "light",
+            "prestidigitation"
+          ],
+          "spellbook": [
+            {
+              "spellId": "magic-missile",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "shield",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "detect-magic",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "feather-fall",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "mage-armor",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "sleep",
+              "acquiredAt": 1,
+              "origin": "level"
+            },
+            {
+              "spellId": "thunderwave",
+              "acquiredAt": 2,
+              "origin": "level"
+            },
+            {
+              "spellId": "hold-person",
+              "acquiredAt": 2,
+              "origin": "level"
+            },
+            {
+              "spellId": "misty-step",
+              "acquiredAt": 3,
+              "origin": "level"
+            },
+            {
+              "spellId": "web",
+              "acquiredAt": 3,
+              "origin": "level"
+            }
+          ],
+          "preparedSpells": [
+            "magic-missile",
+            "shield",
+            "mage-armor",
+            "hold-person",
+            "burning-hands",
+            "scorching-ray"
+          ],
+          "classEquipment": "A",
+          "backgroundEquipment": "A",
+          "equipped": [],
+          "hitPoints": {
+            "method": "fixed"
+          },
+          "featureChoices": {
+            "wizard:scholar": [
+              "arcana"
+            ],
+            "human:skillful": [
+              "perception"
+            ],
+            "evoker:evocation-savant": [
+              "burning-hands",
+              "scorching-ray"
+            ]
+          },
+          "feats": {
+            "sage:magic-initiate-wizard": {
+              "featId": "magic-initiate",
+              "spellList": "wizard",
+              "spellcastingAbility": "int",
+              "cantrips": [
+                "mage-hand",
+                "ray-of-frost"
+              ],
+              "levelOneSpell": "find-familiar"
+            },
+            "human:versatile": {
+              "featId": "skilled",
+              "proficiencies": [
+                "stealth",
+                "nature",
+                "survival"
+              ]
+            }
+          },
+          "dmGrants": {
+            "items": [],
+            "goldPieces": 0,
+            "magicItems": [],
+            "note": "standard package only"
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "kessa",
+      "items": [
+        {
+          "id": "backpack",
+          "quantity": 1
+        },
+        {
+          "id": "book",
+          "quantity": 2
+        },
+        {
+          "id": "calligraphers-supplies",
+          "quantity": 1
+        },
+        {
+          "id": "dagger",
+          "quantity": 2
+        },
+        {
+          "id": "ink",
+          "quantity": 1
+        },
+        {
+          "id": "ink-pen",
+          "quantity": 1
+        },
+        {
+          "id": "lamp",
+          "quantity": 1
+        },
+        {
+          "id": "oil",
+          "quantity": 10
+        },
+        {
+          "id": "parchment",
+          "quantity": 18
+        },
+        {
+          "id": "quarterstaff",
+          "quantity": 2
+        },
+        {
+          "id": "robe",
+          "quantity": 2
+        },
+        {
+          "id": "scholars-pack",
+          "quantity": 1
+        },
+        {
+          "id": "spellbook",
+          "quantity": 1
+        },
+        {
+          "id": "tinderbox",
+          "quantity": 1
+        }
+      ],
+      "source": "starting equipment"
+    },
+    {
+      "type": "coins-changed",
+      "id": "kessa",
+      "copper": 1300,
+      "source": "starting money"
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "hit-die:d6",
+        "label": "Hit Die (d6)",
+        "max": 3,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "spell-slot:1",
+        "label": "level 1 spell slot",
+        "max": 4,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "spell-slot:2",
+        "label": "level 2 spell slot",
+        "max": 2,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "sage:magic-initiate-wizard:free-cast",
+        "label": "free casting of find-familiar",
+        "max": 1,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "resource-pool-declared",
+      "id": "kessa",
+      "pool": {
+        "key": "wizard:arcane-recovery",
+        "label": "Arcane Recovery",
+        "max": 1,
+        "recovers": "long-rest"
+      }
+    },
+    {
+      "type": "creature-side-declared",
+      "id": "kessa",
+      "side": "party"
+    },
+    {
+      "type": "creature-added",
+      "id": "goblin-a",
+      "name": "Goblin Warrior",
+      "maxHp": 10,
+      "diesAtZero": true,
+      "creatureType": "Fey",
+      "defenses": {},
+      "side": "goblins",
+      "sheet": {
+        "level": 1,
+        "abilities": {
+          "str": 8,
+          "dex": 15,
+          "con": 10,
+          "int": 10,
+          "wis": 8,
+          "cha": 8
+        },
+        "skills": {},
+        "saveProficiencies": [],
+        "armor": null,
+        "shield": null,
+        "armorTraining": {
+          "light": true,
+          "medium": true,
+          "heavy": true,
+          "shields": true
+        },
+        "baseSpeed": 30,
+        "spellcastingAbility": null,
+        "stated": {
+          "armorClass": 15,
+          "proficiencyBonus": 2,
+          "initiative": 2,
+          "saves": {
+            "str": -1,
+            "dex": 2,
+            "con": 0,
+            "int": 0,
+            "wis": -1,
+            "cha": -1
+          },
+          "skills": {
+            "stealth": 6
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "goblin-a",
+      "items": [
+        {
+          "id": "scimitar",
+          "quantity": 1
+        },
+        {
+          "id": "shortbow",
+          "quantity": 1
+        }
+      ],
+      "source": "Goblin Warrior stat block"
+    },
+    {
+      "type": "creature-added",
+      "id": "goblin-b",
+      "name": "Goblin Warrior",
+      "maxHp": 10,
+      "diesAtZero": true,
+      "creatureType": "Fey",
+      "defenses": {},
+      "side": "goblins",
+      "sheet": {
+        "level": 1,
+        "abilities": {
+          "str": 8,
+          "dex": 15,
+          "con": 10,
+          "int": 10,
+          "wis": 8,
+          "cha": 8
+        },
+        "skills": {},
+        "saveProficiencies": [],
+        "armor": null,
+        "shield": null,
+        "armorTraining": {
+          "light": true,
+          "medium": true,
+          "heavy": true,
+          "shields": true
+        },
+        "baseSpeed": 30,
+        "spellcastingAbility": null,
+        "stated": {
+          "armorClass": 15,
+          "proficiencyBonus": 2,
+          "initiative": 2,
+          "saves": {
+            "str": -1,
+            "dex": 2,
+            "con": 0,
+            "int": 0,
+            "wis": -1,
+            "cha": -1
+          },
+          "skills": {
+            "stealth": 6
+          }
+        }
+      }
+    },
+    {
+      "type": "items-gained",
+      "id": "goblin-b",
+      "items": [
+        {
+          "id": "scimitar",
+          "quantity": 1
+        },
+        {
+          "id": "shortbow",
+          "quantity": 1
+        }
+      ],
+      "source": "Goblin Warrior stat block"
+    },
+    {
+      "type": "scene-set",
+      "extent": {
+        "width": 60,
+        "depth": 40,
+        "height": 20
+      }
+    },
+    {
+      "type": "landmark-added",
+      "name": "the bar",
+      "at": {
+        "x": 10,
+        "y": 10,
+        "z": 0
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "kessa",
+      "placement": {
+        "from": {
+          "landmark": "the bar"
+        },
+        "feet": 0
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "goblin-a",
+      "placement": {
+        "from": {
+          "creature": "kessa"
+        },
+        "feet": 15,
+        "bearing": 0
+      }
+    },
+    {
+      "type": "creature-placed",
+      "id": "goblin-b",
+      "placement": {
+        "from": {
+          "creature": "kessa"
+        },
+        "feet": 15,
+        "bearing": 90
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1748698689,
+        2044844644,
+        -631280115,
+        1539807141
+      ]
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        2044537481,
+        -1386553739,
+        791263157,
+        1539807142
+      ]
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1391693030,
+        -1468566179,
+        2040890842,
+        1539807143
+      ]
+    },
+    {
+      "type": "combat-started",
+      "combatants": [
+        {
+          "id": "kessa",
+          "initiative": 19,
+          "speed": 30
+        },
+        {
+          "id": "goblin-a",
+          "initiative": 11,
+          "speed": 30
+        },
+        {
+          "id": "goblin-b",
+          "initiative": 13,
+          "speed": 30
+        }
+      ]
+    },
+    {
+      "type": "landmark-added",
+      "name": "the hearth",
+      "at": {
+        "x": 30,
+        "y": 34,
+        "z": 0
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "kessa",
+      "feet": 15
+    },
+    {
+      "type": "creature-moved",
+      "id": "kessa",
+      "placement": {
+        "from": {
+          "creature": "goblin-b"
+        },
+        "feet": 5,
+        "bearing": 180
+      },
+      "command": {
+        "id": "kessa-r1-charge-close-goblin-b",
+        "fingerprint": "move:kessa|{\"commandId\":\"kessa-r1-charge-close-goblin-b\",\"placement\":{\"bearing\":180,\"feet\":5,\"from\":{\"creature\":\"goblin-b\"}}}"
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "kessa",
+      "label": "shoulder-charge the goblin into the hearth",
+      "natural": 14,
+      "total": 13,
+      "contributions": [
+        {
+          "source": "modifier",
+          "amount": -1
+        }
+      ],
+      "outcome": "success",
+      "command": {
+        "id": "kessa-r1-athletics-shove-goblin-b",
+        "fingerprint": "test:kessa|{\"ability\":\"str\",\"commandId\":\"kessa-r1-athletics-shove-goblin-b\",\"dc\":13,\"kind\":\"ability-check\",\"label\":\"shoulder-charge the goblin into the hearth\",\"skill\":\"athletics\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1474081049,
+        1188148394,
+        1822078158,
+        1539807144
+      ]
+    },
+    {
+      "type": "creature-moved",
+      "id": "goblin-b",
+      "placement": {
+        "from": {
+          "landmark": "the hearth"
+        },
+        "feet": 0,
+        "bearing": 0,
+        "size": "small"
+      },
+      "forced": true,
+      "command": {
+        "id": "kessa-r1-force-goblin-b-hearth",
+        "fingerprint": "move:goblin-b|{\"commandId\":\"kessa-r1-force-goblin-b-hearth\",\"forced\":true,\"placement\":{\"bearing\":0,\"feet\":0,\"from\":{\"landmark\":\"the hearth\"},\"size\":\"small\"}}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        1190321264,
+        -781165762,
+        -460706161,
+        1539807145
+      ]
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-b",
+      "label": "1d6 fire — shoved into the hot hearth",
+      "natural": 2,
+      "total": 2,
+      "contributions": [
+        {
+          "source": "DM ruling: shoved into the hot hearth",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "goblin-b",
+      "amount": 2,
+      "source": "DM ruling: shoved into the hot hearth",
+      "by": "kessa",
+      "command": {
+        "id": "kessa-r1-hearth-fire-goblin-b",
+        "fingerprint": "damage:goblin-b|{\"amount\":2,\"by\":\"kessa\",\"commandId\":\"kessa-r1-hearth-fire-goblin-b\",\"source\":\"DM ruling: shoved into the hot hearth\"}"
+      }
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "kessa-r1-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"kessa-r1-end-turn\"}"
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "goblin-b",
+      "feet": 5
+    },
+    {
+      "type": "creature-moved",
+      "id": "goblin-b",
+      "placement": {
+        "from": {
+          "landmark": "the hearth"
+        },
+        "feet": 5,
+        "bearing": 180,
+        "size": "small"
+      },
+      "command": {
+        "id": "goblin-b-r1-scramble-from-hearth",
+        "fingerprint": "move:goblin-b|{\"commandId\":\"goblin-b-r1-scramble-from-hearth\",\"placement\":{\"bearing\":180,\"feet\":5,\"from\":{\"landmark\":\"the hearth\"},\"size\":\"small\"}}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-b"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-b",
+      "label": "Shortbow attack",
+      "natural": 10,
+      "total": 14,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "goblin-b-r1-shortbow-kessa",
+        "fingerprint": "attack:goblin-b|{\"commandId\":\"goblin-b-r1-shortbow-kessa\",\"target\":\"kessa\",\"weapon\":\"shortbow\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        148885206,
+        2002937212,
+        1229251248,
+        1539807147
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 4,
+      "source": "Shortbow",
+      "by": "goblin-b"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "goblin-b-r1-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"goblin-b-r1-end-turn\"}"
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "goblin-a",
+      "feet": 20
+    },
+    {
+      "type": "creature-moved",
+      "id": "goblin-a",
+      "placement": {
+        "from": {
+          "creature": "kessa"
+        },
+        "feet": 5,
+        "bearing": 270,
+        "size": "small"
+      },
+      "command": {
+        "id": "goblin-a-r1-close-kessa",
+        "fingerprint": "move:goblin-a|{\"commandId\":\"goblin-a-r1-close-kessa\",\"placement\":{\"bearing\":270,\"feet\":5,\"from\":{\"creature\":\"kessa\"},\"size\":\"small\"}}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-a"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-a",
+      "label": "Scimitar attack",
+      "natural": 18,
+      "total": 22,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "goblin-a-r1-scimitar-kessa",
+        "fingerprint": "attack:goblin-a|{\"commandId\":\"goblin-a-r1-scimitar-kessa\",\"target\":\"kessa\",\"weapon\":\"scimitar\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -1826468404,
+        -1029007007,
+        -105666936,
+        1539807149
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 5,
+      "source": "Scimitar",
+      "by": "goblin-a"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "goblin-a-r1-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"goblin-a-r1-end-turn\"}"
+      }
+    },
+    {
+      "type": "landmark-added",
+      "name": "a bar stool",
+      "at": {
+        "x": 27,
+        "y": 20,
+        "z": 0
+      }
+    },
+    {
+      "type": "movement-spent",
+      "id": "kessa",
+      "feet": 20
+    },
+    {
+      "type": "movement-declared",
+      "move": {
+        "mover": "kessa",
+        "placement": {
+          "from": {
+            "creature": "goblin-b"
+          },
+          "feet": 5,
+          "bearing": 180
+        },
+        "destination": {
+          "x": 30,
+          "y": 25,
+          "z": 0
+        },
+        "feet": 20,
+        "provoked": [
+          {
+            "reactor": "goblin-a",
+            "reach": 5
+          }
+        ]
+      },
+      "command": {
+        "id": "kessa-r2-move-to-goblin-b-with-stool",
+        "fingerprint": "move:kessa|{\"commandId\":\"kessa-r2-move-to-goblin-b-with-stool\",\"placement\":{\"bearing\":180,\"feet\":5,\"from\":{\"creature\":\"goblin-b\"}}}"
+      }
+    },
+    {
+      "type": "reaction-spent",
+      "id": "goblin-a"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-a",
+      "label": "Scimitar attack",
+      "natural": 14,
+      "total": 18,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit"
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -952929627,
+        -1739497538,
+        -1883990759,
+        1539807151
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 8,
+      "source": "Scimitar",
+      "by": "goblin-a"
+    },
+    {
+      "type": "opportunity-answered",
+      "reactor": "goblin-a",
+      "took": true,
+      "command": {
+        "id": "goblin-a-r2-oa-kessa",
+        "fingerprint": "opportunity:goblin-a|{\"commandId\":\"goblin-a-r2-oa-kessa\",\"weapon\":\"scimitar\"}"
+      }
+    },
+    {
+      "type": "movement-completed",
+      "id": "kessa"
+    },
+    {
+      "type": "creature-moved",
+      "id": "kessa",
+      "placement": {
+        "from": {
+          "creature": "goblin-b"
+        },
+        "feet": 5,
+        "bearing": 180
+      }
+    },
+    {
+      "type": "roll-recorded",
+      "who": "kessa",
+      "label": "swing a bar stool low to knock goblin-b off its feet",
+      "natural": 15,
+      "total": 14,
+      "contributions": [
+        {
+          "source": "modifier",
+          "amount": -1
+        }
+      ],
+      "outcome": "success",
+      "command": {
+        "id": "kessa-r2-stool-sweep-goblin-b",
+        "fingerprint": "test:kessa|{\"ability\":\"str\",\"commandId\":\"kessa-r2-stool-sweep-goblin-b\",\"dc\":14,\"kind\":\"ability-check\",\"label\":\"swing a bar stool low to knock goblin-b off its feet\",\"skill\":\"athletics\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        -1742899439,
+        223952353,
+        1585340580,
+        1539807152
+      ]
+    },
+    {
+      "type": "condition-applied",
+      "id": "goblin-b",
+      "condition": "prone",
+      "source": "DM ruling: legs swept out by Kessa's bar-stool swing",
+      "command": {
+        "id": "kessa-r2-prone-goblin-b",
+        "fingerprint": "condition:goblin-b|{\"commandId\":\"kessa-r2-prone-goblin-b\",\"condition\":\"prone\",\"source\":\"DM ruling: legs swept out by Kessa's bar-stool swing\"}"
+      }
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "kessa-r2-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"kessa-r2-end-turn\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-b"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-b",
+      "label": "Scimitar attack",
+      "natural": 1,
+      "total": 5,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "miss",
+      "command": {
+        "id": "goblin-b-r2-prone-scimitar-kessa",
+        "fingerprint": "attack:goblin-b|{\"commandId\":\"goblin-b-r2-prone-scimitar-kessa\",\"target\":\"kessa\",\"weapon\":\"scimitar\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        1381522806,
+        -1004863522,
+        1230719031,
+        1539807154
+      ]
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "goblin-b-r2-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"goblin-b-r2-end-turn\"}"
+      }
+    },
+    {
+      "type": "attack-made",
+      "id": "goblin-a"
+    },
+    {
+      "type": "roll-recorded",
+      "who": "goblin-a",
+      "label": "Shortbow attack",
+      "natural": 9,
+      "total": 13,
+      "contributions": [
+        {
+          "source": "attack",
+          "amount": 4
+        }
+      ],
+      "outcome": "hit",
+      "command": {
+        "id": "goblin-a-r2-shortbow-kessa",
+        "fingerprint": "attack:goblin-a|{\"commandId\":\"goblin-a-r2-shortbow-kessa\",\"target\":\"kessa\",\"weapon\":\"shortbow\"}"
+      }
+    },
+    {
+      "type": "rolls-issued",
+      "count": 2,
+      "rng": [
+        -1803578581,
+        1111827431,
+        -1033553721,
+        1539807156
+      ]
+    },
+    {
+      "type": "damage-taken",
+      "id": "kessa",
+      "amount": 7,
+      "source": "Shortbow",
+      "by": "goblin-a"
+    },
+    {
+      "type": "condition-applied",
+      "id": "kessa",
+      "condition": "unconscious",
+      "source": "zero hit points"
+    },
+    {
+      "type": "turn-advanced",
+      "command": {
+        "id": "goblin-a-r2-end-turn",
+        "fingerprint": "turn|{\"commandId\":\"goblin-a-r2-end-turn\"}"
+      }
+    },
+    {
+      "type": "death-save-recorded",
+      "id": "kessa",
+      "natural": 4
+    },
+    {
+      "type": "rolls-issued",
+      "count": 1,
+      "rng": [
+        1113850230,
+        -712048897,
+        1266981741,
+        1539807157
+      ]
+    }
+  ]
+}
