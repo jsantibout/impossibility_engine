@@ -552,9 +552,17 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged: IE-020, IE-025, IE-028, IE-027** — 4 of 18, all 13/13. `main` at
-`71bf406`, **6767 tests across 105 files**, both frozen logs untouched,
-`COVERAGE.md` byte-clean, pushed after every merge.
+**Merged: IE-020, IE-025, IE-028, IE-027, IE-026, IE-022, IE-023** — 7 of 18,
+every one 13/13. `main` at `024c8fd`, **6796 tests across 108 files**, both
+frozen logs untouched, `COVERAGE.md` byte-clean, pushed after every merge.
+**Wave 1 is complete** and wave 2 is one task from it.
+
+**The instruments the delta audit called broken are repaired and two of them
+have already fired.** IE-022's citation guard found five real misquotes on its
+first run, three of them counts quoted from a `PROGRESS.md` since re-derived;
+IE-023's C0 sweep caught the stray character that had made the audit flag
+unfireable, and then caught the same class **in its own source** before it was
+committed. IE-021, the third, is still building.
 
 **IE-024's YELLOW is answered, and the first rework came back `ESCALATE` on
 *authority* with no defect reported — because of a process failure of the
@@ -764,3 +772,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | merge (tranche authority) | IE-026 | merged `dd97c84` on **round six**, 13/13, risk gate inspected (the `moveWithin` control-flow branch) and GREEN. Seventeen requests now name a command; a derived sweep over the barrel keeps it so; the one exemption's claim is checked three ways. The loop's cost was real and its lesson is recorded: **every round passed the implementation and failed on prose**, and the same false symmetric claim was written three times before two independent readers cleared it |
 | 2026-09-14 | merge (tranche authority) | IE-022 | merged `c0d4ca9`, 13/13, risk gate lightweight. The guard resolves a citation by **naming** and found **five real misquotes** on its first run — three of them counts quoted from a `PROGRESS.md` since re-derived, which is the stale-source class the audit flag was raised over, caught mechanically for the first time. The `CLAUDE.md` paragraph was added by the foreman at integration, because **my brief's "Out of scope: editing `CLAUDE.md`" was ambiguous** and the builder correctly flagged rather than decided — the third ambiguous or mistaken brief line of this tranche |
 | 2026-09-14 | process defect (foreman) | IE-024 | a reviewer reviews against the brief **on disk in the builder's worktree**, and a Fable decision relayed by `SendMessage` reaches the builder and nobody else — so the rework's review returned `ESCALATE` on authority with **no defect found**. Corrected by recording the decision, **striking the superseded constraints in place where a reviewer reads them**, and rebasing the worktree; `WORKFLOW.md` now states that answering a YELLOW is three acts, not one. No code changed; the review is being re-run on the same commit |
+| 2026-09-14 | merge (tranche authority) | IE-023 | merged `024c8fd`, 13/13, risk gate lightweight. **Wave 1 complete.** The mutation that matters is the original defect restored: the stray character after `RECOMMENDED` silences the `Audit:` line while the exit code stays 0, and now fails a test — the guard seeing the failure it was written for. And the guard **caught the task that built it**: the file-writing tool decoded its `\uXXXX` escapes into six real control characters, invisible while untracked, named the instant they were staged. **The foreman decided against a `CLAUDE.md` paragraph** — the rule is mechanically enforced and not easy to get wrong, the guard's docstring carries the reasoning, and three integration prose additions in one night is itself a pattern |
