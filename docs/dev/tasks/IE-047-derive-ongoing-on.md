@@ -1,13 +1,13 @@
 # IE-047 — Derive `OngoingSpell.on`, and three tests the suite was missing
 
-state: ARCHITECTURE_BLOCKED
+state: DONE
 lane: conformance
 tranche: 6
 parallel-safe: CONDITIONAL — `fold/release`, `fold/expiry`, `commands/ongoing.ts`, `persistence-2.test.ts`; not beside IE-042 or IE-048
 depends-on: IE-039
-worker: qb-builder in .claude/worktrees/agent-ab80818a8141ed9a6, branch worktree-agent-ab80818a8141ed9a6
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 6." (re-scoped: the measurement and the tests; the removal is a later tranche)
 
 ## Brief
 
@@ -110,3 +110,150 @@ mutations, and Fable refused the refactor on that evidence.
 Low-medium, and the risk is exactly one thing: a reader that wanted the stored
 value's *history* rather than the present truth. None was found; the gate test
 is what proves it over 869 checkpoints rather than by reading.
+
+## Completion digest
+
+```
+IE-047 — Completion digest
+Builder: ARCHITECTURE_BLOCKED
+Commit: 58c8626 (reviewed at 9b84c35; replayed onto main as 62cb640)
+Opus review: ESCALATE — rounds: 1, confidence high. Three ordinary defects raised and fixed
+  after the verdict; the ESCALATE stands, because the fix addressed prose accuracy and not the
+  blocking question.
+Tests: 8413 / 8413 on the branch (baseline 8403); new: 10. On main after the replay: 8433
+  across 122 files.
+Mutations, four, each against the WHOLE suite: (1) Dispel's inner `continue` → `return
+  ok(current)` — 1 failure, the new one; (2) the effect loop's `current = done.value` commented
+  out — 1, the new one; (3) `from` dropped from EffectContext — 1, the new one; (4) `derivedOn`'s
+  holdsNothingOf predicate inverted — the gate's 869-checkpoint assertion and all three
+  counterexamples. **The first three each previously survived the entire suite.**
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓; both frozen logs run explicitly.
+Conformance: PASS — COVERAGE.md byte-clean; both frozen logs fold unchanged; **no `src/` file
+  changed at all.**
+Architectural deviations: the removal was not performed, which is the brief's own instruction
+  when the gate fails. Required behaviour 2 and acceptance criteria 2 and 5 are not met.
+Foundational primitives touched: none. fold/release.ts, fold/expiry.ts and commands/ongoing.ts
+  are untouched.
+Reviewer confidence: high
+Recommendation: ESCALATE
+```
+
+## Risk gate
+
+**Inspected, and there was little to inspect**: no `src/` file is in the diff.
+What merged is two new test files, one extended, `persistence-2.test.ts`
+rewritten linear, and `CLAUDE.md`.
+
+**The three defects the reviewer raised were fixed after its verdict and I
+checked them myself**, since that delta was not re-reviewed: no unregenerated
+count survives in the prose (the reviewer's first defect was arithmetic in
+`CLAUDE.md` that did not sum and that nothing regenerates — this repository's
+signature failure); the `grants` finding now states its latency in as many words
+rather than reading as a live Dispel Magic bug; and the characterisation test
+carries the sentence the next person needs — *"whoever fixes `fold/expiry.ts`
+should expect this to go red, and that is the test doing its job rather than a
+regression."*
+
+**Fable's one merge condition is satisfied by that same sentence**, and is
+recorded here as it asked: the gate's third case **asserts the disagreement**,
+and the task that fixes `fold/expiry.ts` must **flip** it, never delete it.
+
+Classification: **GREEN** for what merged; the blocked half is re-scoped below.
+
+## Architecture decision — YELLOW, answered by Fable
+
+**Decision: yes, derive it — option 1, restated by provenance — and not in this
+tranche.**
+
+`on` is **two facts of different provenance in one list**, and the split is
+*store what only the cast knows, derive what the world already holds*:
+
+| Bucket | Provenance | Disposition |
+|---|---|---|
+| the caster of a Range: Self spell | a cast-time declaration | **stored** |
+| targets the casting reported nothing about, and the geometry did not choose | a cast-time declaration — the tracked-spell case | **stored** |
+| whoever the casting hung a live effect on (`held`) | a world fact `holdsNothingOf` answers at every read | **derived** |
+
+So the stored subset is `on \ held` at the cast, under a **new name** — `aimed`
+or similar, so no reader can mistake it for "on now" — and "on now" is that
+subset ∪ {creatures for which `holdsNothingOf` is false}.
+
+**Why the gate measured what it did.** Its `derivedOn` reads the caster half
+*off the stored list*, so it derives bucket 3 and half of bucket 1 and cannot see
+bucket 2 at all — which is exactly why it reproduced 869/0 and exactly why it
+fails on tracked spells. The seeded alternative fails in the other direction
+because it keeps bucket 3 stored. **Neither is the derivation.**
+
+**Two latent asymmetries are ended by construction rather than by a fourth hand
+pass**, and they are why option 4 was rejected as an end state:
+
+- growth is `alsoOn` with **one** call site, `condition-applied` — none of the
+  five grant events grows `on`;
+- expiry shrink is the **condition** branch only — the `grants` branch releases
+  and does not shrink.
+
+Both are the same defect from two directions: *a discipline over six grant
+families and four timer kinds with no enumerator behind it* — precisely the
+shape IE-028 replaced for the release walks. Option 4 keeps a maintained copy of
+a derivable fact that has drifted once (CLAUDE.md's stale-name bug), is stale
+again now, and would be stale a third time the first time an area trigger or
+activation carries a `modifiers` rider.
+
+**The version hazard is real and is one line, independent of all this.**
+`upgradeOngoing`'s catalogue fill is keyed `casting.version !== ONGOING_RECORD_VERSION`,
+so *any* future bump routes every version 2 record through the catalogue fill —
+the exact hazard that file's own docstring names, one constant edit away
+regardless of this task. The fix is to key it on `version === undefined`.
+
+**Rejected, with reasons**: a second field beside `on` (option 1 with the
+derivable half still stored, so it still drifts); deriving growth and keeping
+both shrinks (the grants expiry must still hand-edit, so it does not remove the
+defect it was measured against); leaving it (above); and making `holdsNothingOf`
+count "ever touched" (inventing a rule — CLAUDE.md already decided Insect Plague
+is not on the creature it bit).
+
+## Merge record — re-scoped
+
+**Re-scoped by the foreman under tranche authority, on Fable's decision and with
+the reviewer's explicit consent** — it wrote that the delivered parts "could land
+as a task in their own right, but that re-scoping is the foreman's to declare,
+not mine to grant." What landed is the measurement and the tests; the removal is
+briefed into a later tranche and is **not** this tranche's to build.
+
+Replayed onto `main` as `62cb640`. `main` verified after the merge: typecheck ✓,
+lint ✓, **8,433 tests across 122 files** ✓, both frozen logs, the scenario
+determinism and the new gate run explicitly ✓, `COVERAGE.md` byte-clean ✓, tree
+clean.
+
+**What it bought, none of which depends on the derivation:**
+
+- **The three mutations CLAUDE.md records as surviving the whole suite now have
+  fixtures** — Dispel's inner `continue`, the effect-loop state threading, and
+  the `from` wiring. That file has named them as a known hole since IE-027.
+- `persistence-2.test.ts` is linear over the same 552 points; the 30-second
+  timeout and the paragraph explaining it are gone.
+- The gate itself is the **acceptance criterion** for the later task, and the
+  instrument that found the blindness in the first place.
+
+## For the later tranche, as Fable specified it
+
+**One mechanism task, one builder, running alone** — it touches `events.ts` and
+the fold, so it runs beside no other mechanism task. It owns `spells.ts`
+(`OngoingSpell`), the `spell-ongoing` payload, `ongoing-compatibility.ts`,
+`fold/release.ts`, `fold/expiry.ts`, `fold/apply.ts` and the four reader sites.
+
+Compatibility is **two steps and the order matters**: key `upgradeOngoing`'s
+catalogue fill on `version === undefined` and nothing else; *then*, for a record
+below the new version, compute the stored subset **in the `spell-ongoing`
+reducer case**, because it reads state — and it is correct there because the
+record is written last in every resolution path, so everything held is already
+on the creatures.
+
+Acceptance: the existing gate at 869/0 with the engine's own function
+substituted for the test-local one; **the third case flipped rather than
+deleted**; and a hand-built version 2 record with a pinned area folded through
+the bump and asserted untouched.
+
+`alsoOn` is deleted, the expiry condition-branch shrink is deleted,
+`withoutTarget` is **kept** — a dispelled Darkvision must still leave the stored
+list. `holdsNothingOf`'s reading does not change: scheduled damage stays out.

@@ -551,7 +551,7 @@ first item: a 4,800-line split would stall every mechanism task behind it.
 
 Recommendation: APPROVE TRANCHE 5.
 
-### Tranche 6 — APPROVED 2026-09-14 — "APPROVE TRANCHE 6."
+### Tranche 6 — COMPLETE 2026-09-14 — "APPROVE TRANCHE 6."
 
 roster: IE-036, IE-038, IE-039, IE-040, IE-041, IE-042, IE-043, IE-044, IE-045, IE-046, IE-047, IE-048, IE-049
 
@@ -690,36 +690,31 @@ Recommendation: APPROVE TRANCHE 6.
 
 ## CURRENT
 
-**Tranche 6 is APPROVED and running. Wave 1 is launched.****
+**Tranche 6 is complete and no tranche is approved. Nothing executes.**
 
-`main` is at `7f503c2` — **7,812 tests across 116 files**, both frozen logs
-untouched, `COVERAGE.md` byte-clean, tree clean, everything pushed. Tranche 5
-is complete; its one deferred task, IE-036, is re-rostered into tranche 6's
-wave 2 and its file records the move.
+Thirteen of thirteen delivered — twelve as briefed, one (**IE-047**) re-scoped by
+the foreman on Fable’s decision to the measurement and the tests it produced,
+with its removal briefed for a later tranche. One YELLOW, no RED, and the owner
+was not interrupted once after the approval.
 
-The post-tranche-5 simplification and optimisation audit was run by Fable in a
-separate session and is recorded at
-`docs/architecture/post-tranche-5-simplification-audit-2026-09-14.md`. Tranche
-6 above is that audit operationalised: its premises verified against `main`,
-two of its concurrency claims corrected, two of its bundles split, two of its
-simplifications deferred with reasons, and one owner decision — turn-anchored
-riders outside combat — added as IE-046.
+`main` is at `62cb640` — **8,433 tests across 122 files**, both frozen logs
+untouched and folding, `COVERAGE.md` byte-clean, the fold graph acyclic,
+everything pushed. `main` was verified green after **every** merge.
 
-**Wave 1 (launched 2026-09-14): IE-038, IE-043, IE-044.** The foreman is
-event-driven from here: it is woken by a completion notification, an
-escalation or an owner decision, runs the risk gate and the thirteen
-conditions, merges what is clean under tranche authority, and launches the
-next wave. It stops at `TRANCHE_COMPLETE` or RED.
+**The next three things are the owner’s, in this order:**
 
-**The owner's approval carries IE-038's revised architecture explicitly**
-(`73a3d1e`): casting id is the pending-casting identity boundary; no global and
-no per-caster uniqueness invariant; several pending castings may belong to one
-caster where the rules permit; legality is enforced by the action-economy,
-slot, Concentration and long-casting primitives rather than by uniqueness of
-pending state; an ambiguous casting reference resolves to a casting id rather
-than being guessed. **The answer-to-answer and held-answer limits remain
-explicitly non-SRD engine debt**, pending the deferred settle-order question,
-and this tranche may not be broadened to solve it.
+1. **Derive `OngoingSpell.on`**, as Fable specified it in the gate log — one
+   mechanism task running alone, owning the record, the payload, the version and
+   the four readers. It fixes the `grants` defect by deleting the branch a hand
+   fix would edit, and its acceptance criterion already exists on `main`.
+2. **Acid Arrow outside combat** — a genuine product question IE-046 surfaced
+   and deliberately did not answer. Today the casting succeeds and the second
+   hit is forgiven with an `unverified` line; the alternative is a pre-flight
+   that makes the spell **uncastable outside combat**. Neither is obviously
+   right; the engine currently does the first.
+3. **The next tranche**, whose obvious first item is the one the fold split did
+   not buy: dispatch `applyOne` by domain, each partial switch keeping its own
+   `never` default, so two reducer tasks can finally run beside each other.
 
 ## NEXT
 
@@ -918,3 +913,7 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | `ARCHITECTURE_BLOCKED` → YELLOW | IE-047 | **The gate the brief ordered first falsified the premise the removal rests on, and the builder stopped rather than forcing it.** `OngoingSpell.on` cannot be derived from `holdsNothingOf` plus the caster half: a **tracked** spell resolves nothing, so it owns nothing on its target ever and the rule answers *nobody* — Darkvision stops being dispellable — while a target the casting was **released on** is correctly gone under the rule and a cast-time seed, which is what would rescue the first case, **puts them back**. The missing fact is *has this casting ever owned anything on this creature*, and no field holds it. Fable's audit number is reproduced **exactly** — 869 checkpoints, 0 mismatches on `golden-log-2.json` — and was insufficient because that fixture contains **no tracked spell cast at a target**. A reader sweep confirms the brief in one direction and falsifies it in the other: all four genuine readers want *on now*, and the derivation computes the wrong *on now* for a tracked spell. Escalated to Fable as a bounded question over four options, three of which change the `spell-ongoing` payload or the record version |
 | 2026-09-14 | finding (IE-047) | — | **`fold/expiry.ts`'s `grants` branch does not shrink `on`** where the condition branch does — so a `grants` deadline leaves a stale name in the list `ongoingSpellsOn` reads, which is the exact bug CLAUDE.md says the shrink exists to prevent, arriving through the fourth `EffectTarget` member. **Latent, not live**: the only runtime writer of a `grants` timer is fed by `speed-change.lasts` and its only definition is Ray of Frost, a cantrip that leaves no ongoing record. Characterised by a test rather than corrected, because the fix changes what the Dispel readers answer — and the reviewer judges that the same question as the derivation. Carried into the YELLOW |
 | 2026-09-14 | measurement worth keeping (IE-047) | — | **A 869-checkpoint agreement over one fixture is not a proof about the engine.** The builder wired the equality comparison into `applyEvent` itself so that all 8,403 tests checked it after every event, and that is what found the disagreement the two frozen logs could not: `golden-log-2.json` has no tracked spell cast at a target, so the population was blind rather than the measurement wrong. The technique — a candidate derivation asserted against the stored value across the **whole suite**, not the fixtures — is the durable lesson, and it is the second time this tranche a guard's *population* rather than its logic was the thing at fault |
+| 2026-09-14 | YELLOW answered | IE-047 | **Fable, high confidence: derive it — option 1 restated by provenance — and not in this tranche.** `on` is two facts of different provenance in one list, and the split is *store what only the cast knows, derive what the world already holds*: the caster of a Range: Self spell and the targets the casting reported nothing about are **cast-time declarations** no state can recover; whoever the casting hung a live effect on is a **world fact** `holdsNothingOf` already answers. So store `on \ held` under a new name — so no reader mistakes it for "on now" — and derive the rest. **The gate's own `derivedOn` reads the caster half off the stored list**, which is exactly why it reproduced 869/0 and exactly why it fails on tracked spells; neither it nor the seeded alternative is the derivation. Option 4 rejected as an end state because it keeps a maintained copy of a derivable fact that has drifted once, is stale again now, and would be stale a third time the first time an area trigger carries a `modifiers` rider |
+| 2026-09-14 | merge (re-scoped, tranche authority) | IE-047 | merged `62cb640`. **Re-scoped by the foreman to the measurement and the tests**, on Fable's decision and with the reviewer's explicit consent — it wrote that the delivered parts "could land as a task in their own right, but that re-scoping is the foreman's to declare, not mine to grant." No `src/` file in the diff. What it bought is independent of the derivation: **fixtures for the three mutations CLAUDE.md records as surviving the whole suite** — Dispel's inner `continue`, the effect-loop state threading and the `from` wiring — plus a linear `persistence-2` over the same 552 points with its 30-second timeout gone, and the gate itself, which is the later task's acceptance criterion. Fable's one merge condition is recorded: the gate's third case **asserts the disagreement** and the task that fixes `fold/expiry.ts` must **flip** it, never delete it |
+| 2026-09-14 | NEXT (from IE-047, Fable-specified) | — | **Derive `OngoingSpell.on`** — one mechanism task, one builder, running alone because it touches `events.ts` and the fold. Owns `spells.ts`, the `spell-ongoing` payload, `ongoing-compatibility.ts`, `fold/release.ts`, `fold/expiry.ts`, `fold/apply.ts` and the four reader sites. Compatibility is two steps in order: key `upgradeOngoing`'s catalogue fill on `version === undefined` and nothing else — **the hazard its own docstring names is one constant edit away regardless of this task** — then compute the stored subset in the `spell-ongoing` reducer case, which is correct there because the record is written last in every resolution path. Acceptance: the existing gate at 869/0 with the engine's own function substituted, the third case flipped, and a hand-built version 2 record with a pinned area folded through the bump and asserted untouched. It fixes the `grants` defect **by** deleting the branch a hand fix would edit; `alsoOn` goes, `withoutTarget` stays |
+| 2026-09-14 | `TRANCHE_COMPLETE` | IE-036, IE-038 … IE-049 | **Thirteen of thirteen delivered; twelve as briefed and one re-scoped on an architect's decision.** One YELLOW, no RED, no owner interruption. Tests 7,812 → **8,433** across 122 files; `events.ts` 5,363 lines → 1,180 with a `fold/` behind it; executed 96 → 97, tracked 45 → 57; the largest blocker in the book closed end to end. `main` verified green after **every** merge — both frozen logs, the scenario determinism and `COVERAGE.md` byte-clean each time, and neither fixture regenerated once. **Eight foreman brief errors, every one caught by a builder or a reviewer reading the source, none reaching `main`** |
