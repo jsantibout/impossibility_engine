@@ -425,6 +425,48 @@ describe('the attack comes from the force and the roll comes from the caster', (
     expect(g.hp(FAR)).toBeLessThan(80);
   });
 
+  /**
+   * **And the Prone rule is measured from the force too**, which is the half
+   * of that seam nothing had a fixture for.
+   *
+   * SRD Prone is asymmetric — "An attack roll against you has Advantage if the
+   * attacker is within 5 feet of you. **Otherwise, that attack roll has
+   * Disadvantage**" — and the attacker here is the force. `FAR` is 5 feet from
+   * `AT_RANGE` and 65 feet from the Cleric, so the two readings give opposite
+   * answers on the same swing: Advantage from the force, Disadvantage from the
+   * caster.
+   *
+   * CLAUDE.md records the `from` wiring as one of three mutations that
+   * survived the whole suite — never setting `EffectContext.from` passed every
+   * test in the repository, because the seam was pinned only by the *range*
+   * check, which is answered before the effects run and by a different path.
+   * A mode is decided by the geometry rather than by the dice, so this turns
+   * on the wiring and on nothing seeded.
+   */
+  it('reads Prone from the force rather than from the caster', () => {
+    const g = new Game().push([
+      { type: 'condition-applied', id: FAR, condition: 'prone', source: 'a shove' },
+    ]);
+
+    const out = unwrap(
+      resolveSpell(
+        g.state,
+        CLERIC,
+        { spellId: 'spiritual-weapon', targets: [FAR], at: AT_RANGE, slotLevel: 2 },
+        supply(),
+      ),
+      'Spiritual Weapon at a prone creature',
+    );
+
+    const attack = out.outcomes[0]?.attack;
+    expect(attack).toBeDefined();
+    expect(attack?.mode).toBe('advantage');
+    // Two dice were thrown and the higher counted, which is what Advantage is
+    // rather than a label on the result.
+    expect(attack?.roll.rolls).toHaveLength(2);
+    expect(attack?.roll.natural).toBe(Math.max(...(attack?.roll.rolls ?? [])));
+  });
+
   /** And the other direction: adjacency to the caster buys nothing. */
   it('refuses a creature beside the caster and far from the force', () => {
     const g = new Game();

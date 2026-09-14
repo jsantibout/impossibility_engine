@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { fold, type GameEvent, type GameState } from './events.js';
+import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 
 /**
  * The second frozen log, and the half of the vocabulary the first one never
@@ -326,26 +326,35 @@ describe('the second log survives the database', () => {
   /**
    * And at every prefix, so a partially-written log is not a special case.
    *
-   * **Given a timeout it can actually meet.** This folds 551 events at 552
-   * prefixes and serialises each result — around 150,000 event applications,
-   * which is a second and a half alone and was measured at 2.2 seconds inside
-   * a full parallel run, against the default five. That is not margin: it made
-   * the suite's only frozen-log-at-every-prefix assertion fail intermittently
-   * whenever anything else in the suite grew, which is the worst possible
-   * thing for a compatibility test to do — a red build that says nothing about
-   * compatibility teaches everyone to re-run it. The test asserts a fold and
-   * not a speed, so the number is generous on purpose.
+   * **The same property at the same 552 points, in one pass.** `fold` is
+   * `events.reduce(applyEvent, …)` and `applyEvent` is a pure function of the
+   * state and the event it is given, so folding every prefix from scratch
+   * computes the same 552 pairs of states as carrying two accumulators
+   * forward — and the second does it in 1,102 event applications where the
+   * first did it in about 150,000. Round-tripping each event is the same
+   * operation as round-tripping the prefix it ends, because a JSON round trip
+   * of a list is the list of its round-tripped members.
+   *
+   * It used to carry a 30-second timeout, given after it failed
+   * intermittently: it was 5 seconds of the suite's file time on its own and
+   * was measured at 2.2 seconds inside a full parallel run, against Vitest's
+   * default five. A compatibility test that goes red without saying anything
+   * about compatibility teaches everyone to re-run it — so the quadratic was
+   * the thing to remove rather than the clock to loosen, and the timeout went
+   * with it. **Both accumulators are compared after every event**, so the
+   * first prefix at which a divergence appears is still the one that fails.
    */
-  it(
-    'round-trips at every prefix of the log',
-    () => {
-      for (let n = 0; n <= GOLDEN_2.length; n += 1) {
-        const prefix = GOLDEN_2.slice(0, n);
-        expect(fold(SEED, throughJson(prefix))).toStrictEqual(fold(SEED, prefix));
-      }
-    },
-    30_000,
-  );
+  it('round-trips at every prefix of the log', () => {
+    let plain = fold(SEED, []);
+    let stored = fold(SEED, []);
+    expect(stored).toStrictEqual(plain);
+
+    for (const event of GOLDEN_2) {
+      plain = applyEvent(plain, event);
+      stored = applyEvent(stored, throughJson(event));
+      expect(stored).toStrictEqual(plain);
+    }
+  });
 });
 
 /**

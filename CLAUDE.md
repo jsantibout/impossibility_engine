@@ -307,15 +307,28 @@ concludes it has been superseded. The generators —
 `scripts/make-golden-log.ts` and `make-golden-log-2.ts` — exist so each log is
 readable rather than magic, and are not steps in the build.
 
-**A compatibility test needs a timeout it can meet.** The second log is folded
-at *every* prefix — 551 events, 552 prefixes, some 150,000 event applications
-— which is a second and a half on its own and was measured at 2.2 seconds
-inside a full parallel run, against Vitest's default five. That is not margin:
-it made the suite's only fold-at-every-prefix assertion fail intermittently
-whenever anything else in the suite grew, and a red build that says nothing
-about compatibility teaches everyone to re-run it. It carries 30 seconds now.
-The test asserts a fold and not a speed, so the number is generous on purpose,
-and the next task to add a few hundred cases should not have to discover this.
+**A compatibility test that needs a timeout is usually asking the same
+question too many times.** The second log was folded at *every* prefix by
+re-folding each one from the beginning — 551 events, 552 prefixes, some
+150,000 event applications — which was five seconds of the suite's file time
+on its own and was measured at 2.2 seconds inside a full parallel run, against
+Vitest's default five. That is not margin: it made the suite's only
+fold-at-every-prefix assertion fail intermittently whenever anything else in
+the suite grew, and a red build that says nothing about compatibility teaches
+everyone to re-run it. It was given 30 seconds; what it wanted was the
+quadratic taken out.
+
+`fold` is `events.reduce(applyEvent, …)` and `applyEvent` is a pure function of
+the state and the event, so **carrying two accumulators forward computes the
+same 552 pairs of states in 1,102 applications** — and a JSON round trip of a
+list is the list of its round-tripped members, so round-tripping each event is
+round-tripping the prefix it ends. The two are compared after every event, so
+the first prefix at which anything diverges is still the one that fails. The
+timeout went with the quadratic, and the file now runs in well under a second.
+
+The rule worth carrying: **a property asserted at every prefix is a property
+asserted at every step**, and the second spelling is linear. The first task to
+meet this wrote a bigger number beside it; the number was never the problem.
 
 **Every one of the types the union declares is emitted by engine code now**, and the
 second fixture still writes several of them by hand, as the rest of the suite
@@ -4111,6 +4124,77 @@ creature breaks free, and the definition says so in `unmodelled`.
 engine lifts it when the Grease ends. SRD leaves Prone standing until the
 creature gets up. That was true before this batch and `on` growing makes it
 reach further; it is a fix to Grease's definition, not to `on`.
+
+#### And it cannot be derived from that rule alone, which is a measurement
+
+`on` is a **stored derivation kept in step by three passes** — written at the
+cast, grown by `alsoOn`, shrunk by `expireEffects`, edited by `withoutTarget` —
+and that is the shape this file keeps finding wrong. The rule is one sentence
+and `holdsNothingOf` already computes it, so replacing the three passes with a
+question asked of the world reads like the obvious move.
+
+**It is not, and `derived-on.test.ts` is the gate that says so.** Written
+before anything was removed, which is the whole of why the answer is worth
+anything: it folds a log one event at a time and compares the stored value
+against the derivation at every live record.
+
+| | |
+|---|---|
+| `golden-log-2.json` | **869 checkpoints, 0 mismatches** |
+| `golden-log.json` | **0 checkpoints** — it predates the record and holds none |
+| the suite, with the comparison wired into `applyEvent` | **disagreements, in two populations** |
+
+The second row is why the first is not evidence on its own, and it is pinned
+rather than left as a green tick beside its neighbour: two passing assertions
+there are one piece of evidence, not two.
+
+**No count is given for the third row, and that is deliberate.** It was one
+instrumented run of a probe that is not in the tree, so a digit here would be a
+number nothing regenerates — this file's own most-repeated finding — and it
+would be worse than merely stale: the two subsets below are counted under
+*different* derivations, so they do not add up to anything. What is durable is
+the **shapes**, and those are three fixtures in `derived-on.test.ts` rather
+than a total.
+
+**Two populations disagree, and they pull in opposite directions.**
+
+| | What the stored value says | What the rule alone says |
+|---|---|---|
+| A **tracked** spell cast at a creature — Darkvision, Fly, Tongues, Jump, Message, Spider Climb, Water Walk, Water Breathing, True Seeing, Telepathic Bond, Nondetection | on them, which is how Darkvision stays dispellable | **nobody** — it resolves nothing, so it owns nothing there, for ever |
+| A target the casting was **released on** — Bless, Hold Person, Black Tentacles, Charm Person, Suggestion, Hypnotic Pattern, Stoneskin, Sunbeam | gone | gone — and a derivation seeded from the *cast-time* list, which is what would rescue the row above, puts them back |
+
+So neither reading is available: the cast-time list is necessary for the first
+row and wrong for the second. **What separates them is a fact nothing in state
+holds** — whether the casting has *ever* owned anything on that creature — and
+recovering it means either a second field on the record or a different value
+written at the cast, both of which change what `spell-ongoing` carries and need
+a compatibility story for two frozen logs. That is a decision rather than an
+implementation detail, so the removal stopped here.
+
+**And the gate found the bug it was written to prevent, already live.**
+`expireEffects` shrinks `on` in its **condition** branch and in no other — so a
+`grants` deadline arriving takes the Resistance off the creature and leaves the
+casting claiming to be on them. `holdsNothingOf` says otherwise in the same
+breath, and `ongoingSpellsOn` reports a Stoneskin that a Dispel Magic aimed at
+that fighter would then end. It is the same stale name this section says the
+shrink exists to remove, arriving through the fourth `EffectTarget` member,
+which was built after the shrink was written and threaded into none of it.
+
+**It is latent, and saying so is the difference between a finding and an
+alarm.** A `grants` timer has exactly one runtime writer — the `speed-change`
+rider's own `lasts`, scheduled beside the grant — and the only definition in
+the catalogue that writes one is Ray of Frost, a **cantrip**, whose casting is
+over the instant it resolves and which therefore leaves no ongoing record for
+a name to go stale in. So no registered spell can reach it today and the
+fixture hand-writes the `effect-scheduled`. What makes it worth recording is
+that the next `speed-change` rider on a spell that *does* run — or any second
+writer of a `grants` deadline — arrives into a shrink that cannot see it.
+
+It is **characterised rather than corrected**, because the correction changes
+what the Dispel readers answer and which mechanism should own that answer is
+the question the measurement has opened. What the test asserts is the
+*disagreement* — two parts of the engine giving different answers to one
+question — rather than either answer being right.
 
 ### A test that passes for the wrong reason is what mutation testing is for
 
@@ -7986,29 +8070,51 @@ from, line for line. It does, for all thirteen — 730 body lines in total. That
 check is what a "no behaviour change" claim should rest on, because the suite
 turns out **not** to be strong enough to carry it alone.
 
-**Three mutations survive the whole suite**, and they are recorded here rather
-than fixed, because a behaviour-preserving refactor whose diff also contains a
-fix cannot be verified by its own oracle:
+**Three mutations survived the whole suite**, and they were recorded here
+rather than fixed, because a behaviour-preserving refactor whose diff also
+contains a fix cannot be verified by its own oracle. **All three have a fixture
+now**, and each is caught by exactly one test — measured by running the whole
+suite under each mutation in turn, which is the claim worth making rather than
+"the new test goes red":
 
 - **The one `continue` that was deliberately *not* rewritten.** Dispel Magic's
   resolver has an inner `for (const spell of running)`, and the `continue` in
   its failed-check branch belongs to *that* loop. Rewriting it the way the
-  other twenty-two were would stop a Dispel Magic at the first spell whose
-  check it failed, and no test says so — because no fixture aims one at a
-  target carrying **two** ongoing spells and fails the first check. That line is
-  now the most dangerous one in the file: it looks exactly like the lines
-  around it and means something else.
-- **The state threading.** Commenting out `current = done.value;` passes
-  everything. Effects on one target are near-enough independent in every
-  registered definition, so nothing yet reads the world a previous effect left.
-- **The `from` wiring.** Never setting it passes everything: the Prone rule
-  read from a casting's held point — Spiritual Weapon's seam — has no fixture
-  with a prone target.
+  other twenty-two were stops a Dispel Magic at the first spell whose check it
+  failed, and nothing said so — because no fixture aimed one at a target
+  carrying **two** ongoing spells and failed the first check. The fixture is
+  True Seeing and Stoneskin on one creature, both above a level 3 slot, so the
+  Dispel has to roll for each; the seed is chosen so the first check misses its
+  DC 16 and the second makes its DC 14. That line is still the most dangerous
+  one in the file — it looks exactly like the lines around it and means
+  something else — and it is no longer unguarded.
+- **The state threading.** Commenting out `current = done.value;` passed
+  everything, because effects on one target are near-enough independent in
+  **every registered definition**: no catalogue spell asks a question the
+  effect before it answered. So the fixture is a *definition* rather than a
+  spell — `resolveEffects` is pure over the definition it is handed and never
+  consults the catalogue, which is the move `restoreOn`'s dawn-recovering pool
+  and Alarm's 660 seconds already make. Two effects, a condition imposed and
+  then ended, with **no die thrown on either side**, so the assertion turns on
+  the threading and nothing else.
+- **The `from` wiring.** Never setting it passed everything, and the reason is
+  worth stating: the Spiritual Weapon seam *was* pinned — by the **range**
+  check, which is answered before the effects run and by another path
+  altogether. What nothing reached was the Prone rule. SRD Prone is asymmetric,
+  so a creature five feet from the force and sixty-five from the Cleric gets
+  Advantage under one reading and Disadvantage under the other, on the same
+  swing; a mode is decided by the geometry rather than by the dice, so the
+  fixture is deterministic.
 
-What the suite *does* cover is the context itself: a save DC wired one point
+The lesson the three share is the one the split already knew and could not
+act on: **a guard that is reachable by two paths is only tested on the path a
+fixture happens to take.** Each of these was a second path nobody had a case
+for, and each case is one prone target, one extra spell, or one pair of
+effects.
+
+What the suite already covered is the context itself: a save DC wired one point
 high fails three tests in three files, across both the atomic and the settled
-path. So the shared context is guarded and three of the things it carries are
-not, which is a more useful thing to know than "the suite passed".
+path.
 
 ### Setting The Stage Is A Command Like Any Other
 
