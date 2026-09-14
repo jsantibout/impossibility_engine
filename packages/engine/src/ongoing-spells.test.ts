@@ -20,6 +20,7 @@ import {
   resolveSpell,
   resolveTest,
   resolveTurn,
+  settleAreaEffects,
   takeReady,
 } from './commands.js';
 
@@ -1613,10 +1614,10 @@ describe('a casting pins its area and the clauses that fire in it', () => {
     expect(record?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
     // SRD Web: "The first time a creature enters the webs on a turn or starts
     // its turn there, it must succeed on a Dexterity saving throw." The clause
-    // is recorded whole, as cast. What the *fold* reads off it is the four
-    // fields that decide who is caught and when — `at`, `onEntry`,
-    // `onAreaEntry`, `oncePerTurn`; `settleAreaEffects` still resolves the
-    // effects through the catalogue, which this pins nothing about.
+    // is recorded whole, as cast, and every field of it is now read off the
+    // record: the *fold* reads the four that decide who is caught and when —
+    // `at`, `onEntry`, `onAreaEntry`, `oncePerTurn` — and `settleAreaEffects`
+    // reads `effects` and `label`, which decide what it costs them.
     expect(record?.areaTrigger).toEqual(definitionFor('web')?.areaTrigger);
     expect(record?.areaTrigger).toMatchObject({ at: 'start-of-turn', onEntry: 'first-per-turn' });
   });
@@ -1665,6 +1666,53 @@ describe('a casting pins its area and the clauses that fire in it', () => {
 
     expect(fold('seed', log).owedAreaEffects).toHaveLength(1);
     expect(fold('seed', shrunk).owedAreaEffects).toHaveLength(0);
+  });
+
+  /**
+   * And the half the fold did not reach: **settling** the debt.
+   *
+   * IE-007 pinned `area` and `areaTrigger` on the record and pointed every
+   * *detector* at them, and said so in as many words — "`settleAreaEffects`
+   * still resolves the effects through the catalogue, which this pins nothing
+   * about". So the four fields that decide **who** is caught came off the
+   * record and the two that decide **what it costs them** did not, and a
+   * correction to Web's saving throw reached a debt raised before it. That is
+   * the same hazard from the other end: history rewritten by data.
+   *
+   * The mutation is one a transcription fix would make — the save that the
+   * webs call for — because that is exactly the edit that could move an
+   * already-owed settlement. The definition is restored whatever happens, so
+   * no other test can see it.
+   */
+  it('settles the debt from the record after the definition is corrected under it', () => {
+    const log = walked();
+    const state = fold('seed', log);
+    expect(state.owedAreaEffects).toHaveLength(1);
+
+    const before = unwrap(settleAreaEffects(state, supply('settle')), 'settle');
+    // Not vacuous: the settlement really resolves the trigger rather than
+    // discharging the debt in silence.
+    expect(before.events.some((event) => event.type === 'roll-recorded')).toBe(true);
+
+    const web = definitionFor('web');
+    if (web === null) throw new Error('Web has no definition');
+    const mutable = web as { areaTrigger?: unknown };
+    const original = mutable.areaTrigger;
+    try {
+      mutable.areaTrigger = {
+        at: 'start-of-turn',
+        onEntry: 'first-per-turn',
+        label: 'Web (corrected)',
+        effects: [{ kind: 'save', ability: 'str', condition: 'blinded' }],
+      };
+      // The catalogue really did change, or the assertion below proves nothing.
+      expect(definitionFor('web')?.areaTrigger?.label).toBe('Web (corrected)');
+      expect(
+        unwrap(settleAreaEffects(fold('seed', log), supply('settle')), 'settle').events,
+      ).toStrictEqual(before.events);
+    } finally {
+      mutable.areaTrigger = original;
+    }
   });
 });
 

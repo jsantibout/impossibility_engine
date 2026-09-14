@@ -486,7 +486,19 @@ export function settleAreaEffects(
 
       const record = current.ongoing[owed.castingId];
       const definition = record === undefined ? null : definitionFor(record.spellId);
-      const trigger = definition?.areaTrigger;
+      // **The clause is the record's, not the book's**, which is the same rule
+      // the detectors have followed since the casting began pinning its area:
+      // a spell already cast does not change when the catalogue does. This read
+      // was the half IE-007 left behind — `areaTrigger.effects` and `.label`
+      // were pinned and nothing read them — so a correction to Web's saving
+      // throw reached a debt that had already been raised, which is history
+      // rewritten through data.
+      //
+      // Nothing can be owed that the record cannot answer: `areaDefinitionOf`
+      // raises a debt only where the record carries both an area and a clause,
+      // and `upgradeOngoing` fills both from the catalogue for a pre-versioned
+      // record as it enters the fold. So this is the fact the detector used.
+      const trigger = record?.areaTrigger;
       const casterId = (record?.caster ?? null) as CharacterId | null;
       const caster = casterId === null ? null : creatureOf(current, casterId);
 

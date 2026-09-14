@@ -323,13 +323,29 @@ describe('the second log survives the database', () => {
     expect(throughJson(state)).toStrictEqual(state);
   });
 
-  /** And at every prefix, so a partially-written log is not a special case. */
-  it('round-trips at every prefix of the log', () => {
-    for (let n = 0; n <= GOLDEN_2.length; n += 1) {
-      const prefix = GOLDEN_2.slice(0, n);
-      expect(fold(SEED, throughJson(prefix))).toStrictEqual(fold(SEED, prefix));
-    }
-  });
+  /**
+   * And at every prefix, so a partially-written log is not a special case.
+   *
+   * **Given a timeout it can actually meet.** This folds 551 events at 552
+   * prefixes and serialises each result — around 150,000 event applications,
+   * which is a second and a half alone and was measured at 2.2 seconds inside
+   * a full parallel run, against the default five. That is not margin: it made
+   * the suite's only frozen-log-at-every-prefix assertion fail intermittently
+   * whenever anything else in the suite grew, which is the worst possible
+   * thing for a compatibility test to do — a red build that says nothing about
+   * compatibility teaches everyone to re-run it. The test asserts a fold and
+   * not a speed, so the number is generous on purpose.
+   */
+  it(
+    'round-trips at every prefix of the log',
+    () => {
+      for (let n = 0; n <= GOLDEN_2.length; n += 1) {
+        const prefix = GOLDEN_2.slice(0, n);
+        expect(fold(SEED, throughJson(prefix))).toStrictEqual(fold(SEED, prefix));
+      }
+    },
+    30_000,
+  );
 });
 
 /**

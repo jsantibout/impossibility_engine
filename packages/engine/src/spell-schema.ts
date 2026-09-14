@@ -17,6 +17,7 @@ import type {
   ConditionRider,
   DiceScaling,
   SpellArea,
+  SpellCheck,
   SpellDefinition,
   SpellEffect,
 } from './spell-definitions.js';
@@ -190,6 +191,74 @@ function checkCondition(
 }
 
 /**
+ * A check a spell offers, wherever it sits.
+ *
+ * Three places carry one — the definition's own `check`, a condition rider's,
+ * and the flat `check` on a `save` — and until now **no field of any of them
+ * was checked at all**, which the fourth whole-engine audit (2026-09-13, §3.3)
+ * named: a check keyed to a skill of the wrong ability compiled and validated.
+ *
+ * What the existing vocabulary can answer is checked and nothing else. The
+ * ability and the skill are closed sets the engine already holds, the pairing
+ * between them is `SKILL_ABILITY`, and the outcome is the two values
+ * {@link SpellCheck.onSuccess} declares. A printed DC is a whole number worth
+ * beating, because `EffectCheck.dc` is compared against a total.
+ *
+ * **The pairing is the rule worth having.** SRD always prints a check as
+ * "Intelligence (Investigation)" — the ability the skill belongs to, in front
+ * of the skill — and a pair that disagrees rolls one ability's modifier
+ * against the other's proficiency. Nothing downstream would notice:
+ * `rollAbilityCheck` reads `ability` for the modifier and `skill` for
+ * proficiency and is right to trust both.
+ */
+function checkSpellCheck(
+  check: SpellCheck,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const ability = check.ability as unknown as string;
+  if (!ABILITY_NAMES_SET.has(check.ability)) {
+    found.push({
+      field: `${path}.ability`,
+      code: 'bad_ability',
+      reason: `"${ability}" is not an ability`,
+    });
+  }
+
+  if (check.skill !== undefined) {
+    if (!SKILL_NAMES.has(check.skill)) {
+      found.push({
+        field: `${path}.skill`,
+        code: 'bad_skill',
+        reason: `"${String(check.skill)}" is not a skill`,
+      });
+    } else if (ABILITY_NAMES_SET.has(check.ability) && SKILL_ABILITY[check.skill] !== check.ability) {
+      found.push({
+        field: `${path}.skill`,
+        code: 'skill_ability_mismatch',
+        reason: `SRD writes a check as "Intelligence (Investigation)"; ${String(check.skill)} is a ${SKILL_ABILITY[check.skill]} skill and this names ${ability}`,
+      });
+    }
+  }
+
+  if (check.dc !== undefined && (!Number.isInteger(check.dc) || check.dc < 1)) {
+    found.push({
+      field: `${path}.dc`,
+      code: 'bad_check_dc',
+      reason: 'a printed DC is a whole number a creature could roll against',
+    });
+  }
+
+  if (check.onSuccess !== 'none' && check.onSuccess !== 'end-on-target') {
+    found.push({
+      field: `${path}.onSuccess`,
+      code: 'bad_check_outcome',
+      reason: `"${String(check.onSuccess)}" is not something succeeding at a check does; a check changes nothing or ends the effect on its own attempter`,
+    });
+  }
+}
+
+/**
  * A condition rider, wherever an effect carries one.
  *
  * One function for the four kinds that impose a condition, because they carry
@@ -200,22 +269,23 @@ function checkCondition(
  * `rider` is optional and read through `?.` because this also meets untyped
  * input: `checkShape` establishes the effect's `kind` and nothing below it, so
  * a `condition` effect whose rider is missing outright must be *reported*
- * rather than throw. What is not checked is the `check`, which is what `save`
- * already did not check — the SRD fields inside a `SpellCheck` have no
- * validator anywhere, and inventing one here would be a rule this task did not
- * measure.
+ * rather than throw.
  *
- * **The caller supplies the whole path**, rather than this appending `.name`,
- * because `save` holds its condition flat: a problem reported against
- * `effects[0].condition.name` on a definition whose field is
- * `effects[0].condition` points at nothing an author can fix.
+ * **The caller supplies both whole paths**, rather than this appending `.name`
+ * and `.check`, because `save` holds its rider flat: a problem reported
+ * against `effects[0].condition.name` on a definition whose field is
+ * `effects[0].condition` points at nothing an author can fix, and the same
+ * goes for the check, which `save` writes at `effects[0].check` and every
+ * other carrier at `effects[0].condition.check`.
  */
 function checkConditionRider(
   rider: ConditionRider | undefined,
   namePath: string,
+  checkPath: string,
   found: SpellDefinitionProblem[],
 ): void {
   checkCondition(String(rider?.name), namePath, found);
+  if (rider?.check !== undefined) checkSpellCheck(rider.check, checkPath, found);
 }
 
 /** One effect, wherever it was found: the spell's own list, an activation, a trigger. */
@@ -230,7 +300,12 @@ function checkEffect(
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
       if (effect.condition !== undefined) {
-        checkConditionRider(effect.condition, `${path}.condition.name`, found);
+        checkConditionRider(
+          effect.condition,
+          `${path}.condition.name`,
+          `${path}.condition.check`,
+          found,
+        );
       }
       if (effect.delayed !== undefined) {
         checkScaling(effect.delayed.damage, level, `${path}.delayed.damage`, found);
@@ -246,7 +321,12 @@ function checkEffect(
         checkDamageType(extra.damageType, `${path}.plus[${i}].damageType`, found);
       });
       if (effect.condition !== undefined) {
-        checkConditionRider(effect.condition, `${path}.condition.name`, found);
+        checkConditionRider(
+          effect.condition,
+          `${path}.condition.name`,
+          `${path}.condition.check`,
+          found,
+        );
       }
       if (effect.delayed !== undefined) {
         checkScaling(effect.delayed.damage, level, `${path}.delayed.damage`, found);
@@ -264,11 +344,21 @@ function checkEffect(
     // each names the field its own author wrote, which is the whole reason the
     // path is the caller's to supply.
     case 'save':
-      checkConditionRider(conditionRiderOf(effect), `${path}.condition`, found);
+      checkConditionRider(
+        conditionRiderOf(effect),
+        `${path}.condition`,
+        `${path}.check`,
+        found,
+      );
       return;
 
     case 'condition':
-      checkConditionRider(effect.condition, `${path}.condition.name`, found);
+      checkConditionRider(
+        effect.condition,
+        `${path}.condition.name`,
+        `${path}.condition.check`,
+        found,
+      );
       return;
 
     case 'heal':
@@ -389,6 +479,77 @@ function checkEffect(
     case 'dispel':
     case 'interrupt-casting':
       return;
+  }
+}
+
+/**
+ * What a grant needs from the casting it hangs on.
+ *
+ * Four things a definition can leave standing after it resolves, and every one
+ * of them is removed by `releaseCasting` or `releaseOnTarget` when the casting
+ * ends: a `buff`, a granted `roll-mode`, an `armor-class`, and a condition
+ * whose rider says neither `lasts` nor `outlivesCasting` and therefore "lasts
+ * as long as the casting does". An **Instantaneous** casting is over the
+ * moment it resolves, so each of those is a grant with no moment that could
+ * ever end it — a Bless adding its d4 for ever, or a paralysis with nothing to
+ * lift it.
+ *
+ * The two escapes are the two the SRD writes and the rider already carries.
+ * Color Spray is Instantaneous and blinds "until the end of your next turn",
+ * which is a deadline of the rider's own; Grease's Prone outlives the Grease,
+ * because Prone ends when the creature stands up. So the rule reads the rider
+ * rather than the effect kind.
+ *
+ * **No definition in the catalogue violates it** — all of them were driven
+ * through before it was written, as every rule in this file was — which is
+ * what makes it a guard against the next one rather than a fix for this lot.
+ */
+function checkGrantLifetimes(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const persists = lasts || definition.untilDispelled === true || definition.concentration;
+  if (persists) return;
+
+  const everywhere: (readonly [string, readonly SpellEffect[]])[] = [
+    ['effects', definition.effects],
+    ...(definition.areaTrigger === undefined
+      ? []
+      : ([['areaTrigger.effects', definition.areaTrigger.effects]] as const)),
+    ...(definition.activation === undefined
+      ? []
+      : ([['activation.effects', definition.activation.effects]] as const)),
+  ];
+
+  for (const [where, effects] of everywhere) {
+    effects.forEach((effect, i) => {
+      const carries = grantCarried(effect);
+      if (carries === null) return;
+      found.push({
+        field: `${where}[${i}]`,
+        code: 'grant_without_lifetime',
+        reason: `${carries} lasts as long as the casting, and this casting is over the moment it resolves; give the spell a duration, or the rider a deadline of its own`,
+      });
+    });
+  }
+}
+
+/** What this effect leaves standing, or null if it leaves nothing. */
+function grantCarried(effect: SpellEffect): string | null {
+  switch (effect.kind) {
+    case 'buff':
+      return 'a bonus';
+    case 'roll-mode':
+      return 'a granted Advantage or Disadvantage';
+    case 'armor-class':
+      return 'a base Armour Class';
+    default: {
+      const rider = conditionRiderOf(effect);
+      if (rider === undefined) return null;
+      if (rider.lasts !== undefined || rider.outlivesCasting === true) return null;
+      return `the ${String(rider.name)} condition`;
+    }
   }
 }
 
@@ -616,12 +777,15 @@ export function checkSpellDefinition(
 
   // SRD hangs the check on the casting's own timer, so a spell with no
   // duration leaves nothing standing there to be examined.
-  if (definition.check !== undefined && !lasts) {
-    found.push({
-      field: 'check',
-      code: 'check_without_duration',
-      reason: 'a check against the casting rides on its timer; an instantaneous spell has none',
-    });
+  if (definition.check !== undefined) {
+    if (!lasts) {
+      found.push({
+        field: 'check',
+        code: 'check_without_duration',
+        reason: 'a check against the casting rides on its timer; an instantaneous spell has none',
+      });
+    }
+    checkSpellCheck(definition.check, 'check', found);
   }
 
   // — the Reaction clause ——————————————————————————————————————————————————
@@ -722,6 +886,12 @@ export function checkSpellDefinition(
       });
     }
   }
+
+  // — a grant with nothing to hang on ——————————————————————————————————————
+  //
+  // Last of the structural rules, so an effect's own problems are reported at
+  // its own path first and this cross-check reads as the cross-check it is.
+  checkGrantLifetimes(definition, lasts, found);
 
   /**
    * The tracked rule, and the reason it belongs here rather than in a test.

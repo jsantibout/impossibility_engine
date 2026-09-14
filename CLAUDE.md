@@ -286,6 +286,16 @@ concludes it has been superseded. The generators —
 `scripts/make-golden-log.ts` and `make-golden-log-2.ts` — exist so each log is
 readable rather than magic, and are not steps in the build.
 
+**A compatibility test needs a timeout it can meet.** The second log is folded
+at *every* prefix — 551 events, 552 prefixes, some 150,000 event applications
+— which is a second and a half on its own and was measured at 2.2 seconds
+inside a full parallel run, against Vitest's default five. That is not margin:
+it made the suite's only fold-at-every-prefix assertion fail intermittently
+whenever anything else in the suite grew, and a red build that says nothing
+about compatibility teaches everyone to re-run it. It carries 30 seconds now.
+The test asserts a fold and not a speed, so the number is generous on purpose,
+and the next task to add a few hundred cases should not have to discover this.
+
 **Nine of the ninety-one types are emitted by no engine code at all**, and the
 second fixture writes them by hand as the rest of the suite does. It was
 seventeen, in two families, and the second family has been closed — see
@@ -1316,15 +1326,21 @@ through rules, in the one place this file says it must not.
 now applies to both halves: *pinned for the casting, read live for the creature
 it is happening to.*
 
-**What that reaches is the fold, and the other half is named rather than
-fixed.** Four fields of the clause decide who is caught and when — `at`,
-`onEntry`, `onAreaEntry`, `oncePerTurn` — and those are the ones the reducer
-reads off the record. `settleAreaEffects` still resolves the trigger's
-*effects* through `definitionFor`, so a correction to Web's saving throw does
-reach a debt raised before it. Moving settlement onto the record is a second
-change with a compatibility question of its own — a pre-versioned record has no
-effects to restore — and the clause is stored whole meanwhile, because
-`AreaTrigger` is one value the SRD writes as one sentence.
+**Both halves of the clause are read off the record now, and the second half
+took a task of its own.** Four fields decide *who* is caught and when — `at`,
+`onEntry`, `onAreaEntry`, `oncePerTurn` — and the reducer has read those off
+the record since they were pinned. The other two decide *what it costs them*:
+`effects` and `label`, which `settleAreaEffects` went on resolving through
+`definitionFor`, so a correction to Web's saving throw reached a debt raised
+before it — the same hazard from the other end, history rewritten by data.
+
+The compatibility question that was left open turned out to be already
+answered. `upgradeOngoing` fills the clause **whole** for a pre-versioned
+record as it enters the fold, and `areaDefinitionOf` raises a debt only where
+the record carries both an area and a clause — so nothing can be owed that the
+record cannot settle, and the settlement reads exactly the fact the detector
+used. The clause is stored whole because `AreaTrigger` is one value the SRD
+writes as one sentence; it is read whole for the same reason.
 
 **Two fields came off in the same pass, and they had no readers at all.**
 `concentration` restated a fact the creature holds — whoever is concentrating
@@ -2720,6 +2736,17 @@ Grease is a **10-foot** square and Web a 20-foot one, and a spot chosen for the
 larger left the smaller. The assertion was right, the fixture was wrong, and
 nothing but a deliberate break could have said so.
 
+**And a fixture that enumerates what the runtime derives will drift.**
+`spell-catalogue.test.ts` decided whether to drive a spell in combat by listing
+the effect kinds that can carry a turn-anchored rider — `save`, `attack`,
+`save-damage` — where `riderDurations` is the derivation the command layer
+already uses to answer the same question. It had missed `condition`, which has
+carried a rider since the standalone kind landed, so a definition of that shape
+with a turn-anchored rider would have been driven *outside* combat and refused
+for a reason belonging to the fixture rather than to the spell. The list is the
+derivation now. Nothing was wrong in the catalogue; the next definition is what
+it would have been wrong about.
+
 ## An Area Can Arrive At A Creature Standing Still
 
 SRD Moonbeam writes three trigger clauses in one sentence, and the first is
@@ -3133,18 +3160,44 @@ was never true: four of the readers were already in it on the day the sentence
 was written. The distinction it was reaching for is the one worth keeping, so
 it is stated rather than deleted — **a definition is data, and a function that
 reads a definition is not a definition.** The rule those readers obey is that
-one branches on a *field* and never on a spell's name, and every one does; what
-does **not** hold them to it is `spell-schema.test.ts`'s runtime sweep, whose
-file list is `commands/`, `events.ts`, `spells.ts`, `spellcasting.ts` and
-`standing.ts`. IE-005 moved seven of the readers out of that population and
-nothing said so.
+one branches on a *field* and never on a spell's name, and every one does —
+and **what holds them to it now is the sweep itself**, which reads every
+non-test source file under `src`. It used to read `commands/`, `events.ts`,
+`spells.ts`, `spellcasting.ts` and `standing.ts`; IE-005 moved seven of the
+readers out of that population into this very file, and `spell-schema.ts`,
+`duration.ts`, `attack.ts`, `positioning.ts` and `checks.ts` had never been in
+it at all. No special case was found in any of them: a hole closed, not a
+breach.
 
-Half of that is unfixable rather than unfixed, which is why it is written here:
-the sweep's second half asks that a file name no catalogue id, and a file of
-definitions names every one of its own — which is true at any size, so the
-argument needs no count either. Its *first* half — a `spellId === '…'`
-comparison against a literal — has no such problem and is simply not pointed
-here. Left as a named gap rather than closed inside a docs task.
+**The half that was called unfixable was not.** The argument was that the
+sweep's second half asks a file to name no catalogue id, and a file of
+definitions names every one of its own. True — and a definition's own `id:`
+line is a *reviewed construct*, not an unavoidable smear: allow that one line
+shape and nothing else in the catalogue names a spell at all. One other
+construct needed the same reading, and it is data for the same reason: a
+subclass's `grants: { kind: 'spells', fixed: [...] }` is the class table
+saying which spells it grants, and nothing about a list of ids can branch on
+one. So the allowance is two constructs rather than a few files waved through,
+and everything else on every line of every file still counts.
+
+**Excuse a construct, never a file — and never a list of files.** The first
+version of that allowance was written as a line shape and described in prose as
+"`cleric.ts`, `paladin.ts` and `warlock.ts`". It was wrong twice over in the
+same sentence: `ranger.ts` writes the same grant *inline* on one line and
+`sorcerer.ts` was simply left out, and both passed anyway because none of their
+ids has a definition yet. So the sweep would have stayed green until a content
+task defined Hunter's Mark and then failed for a reason with nothing to do with
+that task. The claim is checked now instead of written down — every
+`fixed: [...]` grant in the engine is asserted to be one the allowance reaches,
+so a grant in a shape it cannot see fails where the message is about the
+allowance rather than in the sweep.
+
+Two words are excluded because the engine uses them for something else —
+`shield` is an armour category and `light` is a weapon property — and one
+comparison is allowlisted by its exact text in its exact file: `creation.ts`
+asks which of a character's classes is the Wizard, which matches the shape and
+is a **class** definition's id. Removing that belongs to the
+feature-definition validator, not to this sweep.
 
 So the comparative audit's "move definitions out of TypeScript" named the wrong
 half of the problem. **What was missing was the validator, not the format**:
@@ -3203,6 +3256,87 @@ for stored content.
 the way that rots is a member added to the type and not to the set. The whole
 catalogue is driven through `parseSpellDefinition`, so it fails the day that
 happens rather than the day somebody loads a file.
+
+### Nothing could see a member nobody used, and that was the structural gap
+
+`checkSpellDefinition` asks whether **one definition** is coherent. Nothing
+asked the other direction — whether every member of the *format* is written by
+at least one definition — so speculative shape accumulated in silence, which is
+the exact failure the doctrine's generalization rule exists to prevent. The
+fourth whole-engine audit (2026-09-13, §3.1) counted three: `roll-mode.save`,
+`SpellCheck.dc`, and `'end-casting'` as a `save.repeats.onSuccess` value. Each
+was written for a spell blocked on something else.
+
+The guard already existed one vocabulary over — `spell-honesty.test.ts` asserts
+that no entry in `MISSING_SHAPES` sits unclaimed — so this is that sweep,
+pointed at the format. **It is derived rather than listed**, for the reason
+every sweep here is: the members are read out of the declarations in
+`spell-definitions.ts` and the users are read out of `SPELL_DEFINITIONS`, so a
+member added to a type and not to a list is a case that cannot arise.
+
+**It reports names, never a count.** A count would need maintaining by whoever
+next changed the format, and would pass for the wrong reason the moment two
+changes cancelled.
+
+**An exemption is the only alternative to a user, and inventing a user is
+forbidden.** Four members are exempt, each with the pinned fact that would end
+the exemption — the move `spell-honesty.test.ts` makes for Sunburst's dispel
+clause:
+
+| Member | Why it stays | What ends it |
+|---|---|---|
+| `SpellDefinition.anchoring` | SRD mandates no footprint convention; the field exists so a geometry pass or non-SRD content says it in data | a spell declaring one |
+| `SpellCheck.dc` | SRD Maze prints "a DC 20 Intelligence (Investigation) check"; Maze is blocked on a demiplane | a `maze` definition |
+| `save.repeats.onSuccess: 'end-casting'` | **not speculative** — `RepeatSave` and `PendingSave` carry the value, the reducer branches on it, and `turn-hooks.test.ts` drives that branch | the engine ceasing to resolve it |
+| `roll-mode.save` | a handover, not a decision: it really has no user, and removing it is IE-010's, which owns the union | the field's removal |
+
+The last is the interesting shape. A task that may not change the format cannot
+*fix* a zero-user member; what it can do is refuse to let one pass unrecorded.
+So the exemption names the task that removes it, and the rule that **an
+exemption must name a member the format still declares** is what turns that
+removal into a one-line deletion rather than a search.
+
+**The probe is coarser than the member, and that is the sound choice.** A
+member is looked up by field name and value, not by the type that declared it,
+because the usage walk reads *values* and values carry no types. The arm-aware
+alternative was written and measured and is worse: a `DiceScaling` nested
+inside an `attack` effect inherits the effect's arm, so `DiceScaling.flat?`
+comes back unwritten while False Life writes it — four false positives, which
+is the one thing a guard must not have. What the coarseness costs is pinned
+rather than hidden: the collisions are asserted as a list, and the one that
+genuinely masks something is named in it. `AreaTrigger.at` and a repeat save's
+`at` share two values, Web writes `start-of-turn` as an area boundary, and no
+definition repeats a save at the start of a turn — so that combination is
+unwritten and this sweep cannot see it. A limit of the instrument, not a
+decision about the format.
+
+### Two rules the validator did not have
+
+**`grant_without_lifetime` is a guard with no fix attached.** A `buff`, a
+granted `roll-mode` and an `armor-class` are all removed by `releaseCasting` or
+`releaseOnTarget` when the casting ends, and a condition rider that says
+neither `lasts` nor `outlivesCasting` "lasts as long as the casting does". An
+**Instantaneous** casting is over the moment it resolves, so each of those on
+such a spell is a grant with no moment that could ever end it. No definition
+violates it — all of them were driven through before it was written, as every
+rule here was — which means the only way to know it is a guard at all is a
+hand-built definition that fails it, and that is what its test does.
+
+The two escapes are the two the SRD writes and the rider already carries: Color
+Spray is Instantaneous and blinds "until the end of your next turn", and
+Grease's Prone outlives the Grease. So the rule reads the **rider**, not the
+effect kind.
+
+**A `SpellCheck` had no field checked at all**, which is how a check naming a
+skill of the wrong ability compiled and validated. What the existing vocabulary
+can answer is now answered and nothing more: the ability and the skill are
+closed sets the engine holds, a printed DC is a whole number worth beating, and
+the outcome is one of the two values the type declares. The pairing is the rule
+worth having — SRD always prints "Intelligence (Investigation)", the ability
+the skill belongs to in front of the skill, and a pair that disagrees rolls one
+ability's modifier against the other's proficiency. Nothing downstream would
+notice: `rollAbilityCheck` reads `ability` for the modifier and `skill` for
+proficiency and is right to trust both.
 
 ### Range and duration had no oracle, and that was the named blind spot
 

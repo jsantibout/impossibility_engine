@@ -391,6 +391,7 @@ describe('each rule refuses something', () => {
   it('refuses a bonus that applies to no roll', () => {
     expect(
       only({
+        durationSeconds: 60,
         effects: [
           {
             kind: 'buff',
@@ -413,6 +414,7 @@ describe('each rule refuses something', () => {
   it('refuses a rolled bonus to an Armour Class', () => {
     expect(
       only({
+        durationSeconds: 60,
         effects: [
           {
             kind: 'buff',
@@ -494,10 +496,312 @@ describe('each rule refuses something', () => {
   it('refuses a base Armour Class that is not a number a creature could have', () => {
     expect(
       only({
+        durationSeconds: 60,
         effects: [{ kind: 'armor-class', base: 0, plusAbility: 'dex', shieldAllowed: true }],
       }),
     ).toEqual(['bad_armor_class']);
   });
+
+  // — a grant with no lifetime ————————————————————————————————————————————
+  //
+  // See the `describe` below: driven one carrier at a time, because the rule
+  // is about four different things a definition can hang on a casting.
+
+  // — what a check may say ————————————————————————————————————————————————
+
+  /**
+   * Each of these names the field it belongs to, not merely the spell.
+   *
+   * A `SpellCheck` is four fields two and three deep, and a code with no path
+   * points an author at a definition rather than at a line — the reason
+   * `SpellDefinitionProblem` carries one at all. Which *carrier's* path is a
+   * separate rule and is driven in its own block below.
+   */
+  const checkProblem = (check: unknown): readonly [string, string] => {
+    const found = checkSpellDefinition({
+      ...FIRE_DART,
+      durationSeconds: 60,
+      check,
+    } as SpellDefinition);
+    expect(found).toHaveLength(1);
+    return [found[0]!.code, found[0]!.field];
+  };
+
+  it('refuses a check keyed to something that is not an ability', () => {
+    expect(checkProblem({ ability: 'luck', onSuccess: 'none' })).toEqual([
+      'bad_ability',
+      'check.ability',
+    ]);
+  });
+
+  it('refuses a check naming a skill the game does not have', () => {
+    expect(checkProblem({ ability: 'int', skill: 'lockpicking', onSuccess: 'none' })).toEqual([
+      'bad_skill',
+      'check.skill',
+    ]);
+  });
+
+  /**
+   * The one that could be written and could not be right.
+   *
+   * SRD always prints a check as "Intelligence (Investigation)" — the ability
+   * the skill belongs to, in front of the skill. A pair that disagrees rolls
+   * one ability's modifier against the other's proficiency, which is not a
+   * check the book has, and nothing downstream would notice: `rollAbilityCheck`
+   * reads `ability` for the modifier and `skill` for proficiency and is right
+   * to trust both.
+   */
+  it('refuses a skill that does not belong to the ability beside it', () => {
+    expect(checkProblem({ ability: 'int', skill: 'athletics', onSuccess: 'none' })).toEqual([
+      'skill_ability_mismatch',
+      'check.skill',
+    ]);
+  });
+
+  it('refuses a check whose success does something the engine cannot do', () => {
+    expect(checkProblem({ ability: 'int', onSuccess: 'end-casting' })).toEqual([
+      'bad_check_outcome',
+      'check.onSuccess',
+    ]);
+  });
+
+  /**
+   * A printed DC is a number a creature could roll against. Zero is not one,
+   * and a fraction is not one either — `EffectCheck.dc` is compared against a
+   * total, so a DC of 12.5 is a threshold no die can land on.
+   */
+  it('refuses a printed DC that is not a whole number worth beating', () => {
+    expect(checkProblem({ ability: 'int', dc: 0, onSuccess: 'none' })).toEqual([
+      'bad_check_dc',
+      'check.dc',
+    ]);
+    expect(checkProblem({ ability: 'int', dc: 12.5, onSuccess: 'none' })).toEqual([
+      'bad_check_dc',
+      'check.dc',
+    ]);
+  });
+
+  /** And SRD Maze's own numbers pass, which is what the rule has to allow. */
+  it('accepts the check SRD Maze prints', () => {
+    expect(
+      only({
+        durationSeconds: 600,
+        check: { ability: 'int', skill: 'investigation', dc: 20, onSuccess: 'none' },
+      }),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * A check is checked wherever it sits, and **the path says which spelling**.
+ *
+ * Three places carry a {@link SpellCheck} and the definition's own is the
+ * *rarest*: every check in the catalogue today is a rider's — Web's and Black
+ * Tentacles' escape, Disguise Self's Investigation. Driving only
+ * `definition.check` would leave the reader that matters untested, and
+ * deleting the rider's call would pass a whole suite.
+ *
+ * And the path is half the rule. `save` writes its rider flat, so its check is
+ * at `effects[0].check`; every other carrier nests it at
+ * `effects[0].condition.check`. A problem reported at the wrong one points an
+ * author at a field their definition does not have, which is the exact reason
+ * `checkConditionRider` takes both paths from its caller rather than appending
+ * a suffix of its own.
+ */
+describe('a check is checked wherever a definition writes one', () => {
+  const problems = (effect: unknown): readonly SpellDefinitionProblem[] =>
+    checkSpellDefinition({
+      ...FIRE_DART,
+      durationSeconds: 60,
+      effects: [effect],
+    } as SpellDefinition);
+
+  // One bad check, written into each of the three carriers that nest a rider
+  // and the one that spells it flat.
+  const BAD = { ability: 'int', skill: 'athletics', onSuccess: 'none' } as const;
+
+  it.each([
+    [
+      'a condition rider',
+      { kind: 'condition', condition: { name: 'restrained', check: BAD } },
+      'effects[0].condition.check.skill',
+    ],
+    [
+      "an attack's rider",
+      {
+        kind: 'attack',
+        attack: 'ranged',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        condition: { name: 'restrained', check: BAD },
+      },
+      'effects[0].condition.check.skill',
+    ],
+    [
+      "a save-damage's rider",
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'none',
+        condition: { name: 'restrained', check: BAD },
+      },
+      'effects[0].condition.check.skill',
+    ],
+    [
+      "a save's flat check",
+      { kind: 'save', ability: 'dex', condition: 'restrained', check: BAD },
+      'effects[0].check.skill',
+    ],
+  ] as const)('refuses a mismatched skill on %s, at the path that carrier wrote', (
+    _where,
+    effect,
+    field,
+  ) => {
+    expect(problems(effect)).toEqual([
+      {
+        field,
+        code: 'skill_ability_mismatch',
+        reason:
+          'SRD writes a check as "Intelligence (Investigation)"; athletics is a str skill and this names int',
+      },
+    ]);
+  });
+
+  /** And every field of the rule reaches a rider, not merely the mismatch. */
+  it.each([
+    ['an ability the game does not have', { ability: 'luck', onSuccess: 'none' }, 'bad_ability'],
+    ['a skill it does not have', { ability: 'int', skill: 'lockpicking', onSuccess: 'none' }, 'bad_skill'],
+    ['a DC nothing could beat', { ability: 'int', dc: 0, onSuccess: 'none' }, 'bad_check_dc'],
+    ['an outcome it cannot do', { ability: 'int', onSuccess: 'end-casting' }, 'bad_check_outcome'],
+  ] as const)('refuses %s on a rider’s check', (_what, check, code) => {
+    expect(
+      codes(problems({ kind: 'condition', condition: { name: 'restrained', check } })),
+    ).toEqual([code]);
+  });
+
+  /** The definition's own check reports at its own path too. */
+  it('points at the definition’s own check when that is where it sits', () => {
+    const found = checkSpellDefinition({
+      ...FIRE_DART,
+      durationSeconds: 60,
+      check: { ability: 'int', skill: 'athletics', onSuccess: 'none' },
+    } as SpellDefinition);
+    expect(found.map((p) => p.field)).toEqual(['check.skill']);
+  });
+
+  /** And the rider checks the catalogue really writes are all still fine. */
+  it('accepts every check the catalogue writes', () => {
+    for (const definition of SPELL_DEFINITIONS) {
+      expect(
+        checkSpellDefinition(definition).filter((p) => p.field.includes('check')),
+        definition.id,
+      ).toEqual([]);
+    }
+  });
+});
+
+/**
+ * A grant the casting cannot hold up, which is the rule with no fix attached.
+ *
+ * **No definition in the catalogue violates it** — every one was driven
+ * through before the rule was written, exactly as the rules above it were. So
+ * it is a guard against the *next* definition rather than a bug being fixed,
+ * and the only way to know it is a guard at all is to build something that
+ * fails it by hand.
+ *
+ * What it protects is the link every durable effect hangs on. A `buff`, a
+ * `roll-mode` and an `armor-class` are all removed by `releaseCasting` or
+ * `releaseOnTarget` when the casting ends, and a condition rider with neither
+ * `lasts` nor `outlivesCasting` "lasts as long as the casting does". An
+ * Instantaneous spell's casting is over the moment it resolves, so each of
+ * those is a grant with nothing to end it — a Bless that adds its d4 for ever,
+ * or a condition the rules have no moment for lifting.
+ */
+describe('a grant needs a casting that outlasts it', () => {
+  const only = (over: Partial<Record<string, unknown>>): readonly string[] =>
+    codes(checkSpellDefinition({ ...FIRE_DART, ...over } as SpellDefinition));
+
+  const BUFF = {
+    kind: 'buff',
+    bonus: { source: 'Fire Dart', flat: 1 },
+    applies: ['attack'],
+    direction: 'add',
+  } as const;
+  const MODE = {
+    kind: 'roll-mode',
+    modifier: {
+      source: 'Fire Dart',
+      mode: 'advantage',
+      selector: { roll: 'attack', relation: 'roller' },
+    },
+  } as const;
+  const AC = { kind: 'armor-class', base: 13, plusAbility: null, shieldAllowed: true } as const;
+  const HELD = { kind: 'save', ability: 'wis', condition: 'paralyzed' } as const;
+
+  it.each([
+    ['a bonus', BUFF],
+    ['a granted mode', MODE],
+    ['a base Armour Class', AC],
+    ['a condition that lasts as long as the casting', HELD],
+  ] as const)('refuses %s on a spell that is over as soon as it resolves', (_what, effect) => {
+    const problems = checkSpellDefinition({
+      ...FIRE_DART,
+      effects: [effect],
+    } as unknown as SpellDefinition);
+    expect(codes(problems)).toEqual(['grant_without_lifetime']);
+    expect(problems.map((p) => p.field)).toEqual(['effects[0]']);
+  });
+
+  /** Any of the four ways a casting can go on running is enough. */
+  it.each([
+    ['a span of seconds', { durationSeconds: 60 }],
+    ['a moment in the turn order', { durationUntil: 'start-of-casters-next-turn' }],
+    ['no deadline at all', { untilDispelled: true }],
+    ['Concentration on a span', { concentration: true, durationSeconds: 60 }],
+  ] as const)('accepts one on a casting that lasts %s', (_what, lifetime) => {
+    expect(only({ ...lifetime, effects: [BUFF] })).toEqual([]);
+  });
+
+  /**
+   * And a rider that carries its **own** deadline needs no casting to hang on.
+   *
+   * SRD Color Spray is Instantaneous and blinds "until the end of your next
+   * turn"; SRD Grease's Prone outlives the Grease, because Prone ends when the
+   * creature stands up. Both are the reason the rule reads the rider rather
+   * than the effect kind.
+   */
+  it.each([
+    ['a deadline of its own', { lasts: 'end-of-casters-next-turn' }],
+    ['a life beyond the casting', { outlivesCasting: true }],
+  ] as const)('accepts a condition with %s on an Instantaneous spell', (_what, rider) => {
+    expect(only({ effects: [{ ...HELD, ...rider }] })).toEqual([]);
+  });
+
+  /** The trigger's effects and the activation's are held to the same rule. */
+  it('reaches an effect wherever a definition hangs one', () => {
+    const problems = checkSpellDefinition({
+      ...FIRE_DART,
+      targets: { count: 0 },
+      area: { kind: 'cube', size: 20, origin: 'point' },
+      areaTrigger: { at: 'end-of-turn', label: 'Fire Dart (the embers)', effects: [BUFF] },
+      effects: [],
+    } as unknown as SpellDefinition);
+    expect(codes(problems)).toEqual(['grant_without_lifetime']);
+    expect(problems.map((p) => p.field)).toEqual(['areaTrigger.effects[0]']);
+  });
+
+  /** Every definition the engine ships already obeys it. */
+  it.each(SPELL_DEFINITIONS.map((d) => [d.id, d] as const))(
+    'is already true of %s',
+    (id, definition) => {
+      expect(
+        checkSpellDefinition(definition).filter((p) => p.code === 'grant_without_lifetime'),
+        id,
+      ).toEqual([]);
+    },
+  );
 });
 
 /**
@@ -511,8 +815,15 @@ describe('each rule refuses something', () => {
  * not have.
  */
 describe('a condition rider is checked the same way wherever it sits', () => {
+  // A minute on the clock, because a condition that lasts as long as the
+  // casting needs the casting to last — see "a grant needs a casting that
+  // outlasts it" above. What is under test here is the rider's own fields.
   const problems = (effect: unknown): readonly SpellDefinitionProblem[] =>
-    checkSpellDefinition({ ...FIRE_DART, effects: [effect] } as SpellDefinition);
+    checkSpellDefinition({
+      ...FIRE_DART,
+      durationSeconds: 60,
+      effects: [effect],
+    } as SpellDefinition);
 
   it.each([
     [
@@ -562,6 +873,7 @@ describe('a condition rider is checked the same way wherever it sits', () => {
   it('accepts a condition applied with no saving throw', () => {
     const spell = {
       ...FIRE_DART,
+      durationSeconds: 60,
       effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
     };
     expect(checkSpellDefinition(spell as SpellDefinition)).toEqual([]);
@@ -576,7 +888,11 @@ describe('a condition rider is checked the same way wherever it sits', () => {
    * the input it exists to judge has judged nothing.
    */
   it('reports a condition effect whose rider is missing', () => {
-    const parsed = parseSpellDefinition({ ...FIRE_DART, effects: [{ kind: 'condition' }] });
+    const parsed = parseSpellDefinition({
+      ...FIRE_DART,
+      durationSeconds: 60,
+      effects: [{ kind: 'condition' }],
+    });
     expect(isErr(parsed)).toBe(true);
     if (isErr(parsed)) expect(parsed.code).toBe('unknown_condition');
   });
@@ -624,6 +940,402 @@ describe('a definition is told everything that is wrong with it at once', () => 
   });
 });
 
+// — the format, held against the content that is supposed to use it ————————
+//
+// Everything from here to the special-case sweep is one question the
+// repository could not previously ask.
+
+/**
+ * A member of the definition format, derived from the declarations.
+ *
+ * `label` is what a person reads — `SpellCheck.dc?`, `AreaTrigger.at=…` — and
+ * `probe` is the key it is looked up by in the catalogue's usage. They differ
+ * because the probe is deliberately **coarser**; see the collision guard below
+ * for what that costs and why it is the sound choice.
+ */
+interface FormatMember {
+  readonly label: string;
+  readonly probe: string;
+}
+
+const withoutComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+/**
+ * The source text of one exported declaration, comments stripped.
+ *
+ * Stripped because a docstring in this catalogue routinely *names* the values
+ * it is talking about — `SpellCheck`'s says "There is deliberately no
+ * `end-casting`" — and a scan that read those would derive members out of
+ * prose explaining that they do not exist.
+ *
+ * **Throws for a name it cannot find**, which is the `animals.md` lesson: a
+ * reader that silently returns nothing for a declaration that has been renamed
+ * reports no problems and checks nothing.
+ */
+const regionOf = (source: string, name: string): string => {
+  const lines = source.split('\n');
+  const start = lines.findIndex(
+    (line) =>
+      line.startsWith(`export interface ${name} `) || line.startsWith(`export type ${name} =`),
+  );
+  if (start < 0) throw new Error(`the definition format declares no ${name}`);
+  const isInterface = lines[start]!.startsWith('export interface');
+  const out: string[] = [];
+  for (let i = start; i < lines.length; i += 1) {
+    out.push(lines[i]!);
+    if (isInterface) {
+      if (i > start && lines[i] === '}') break;
+      continue;
+    }
+    // A union ends at the first `;` that is not inside a nested object type.
+    if (!/;\s*$/.test(lines[i]!) || lines[i]!.trim().startsWith('*')) continue;
+    const stripped = withoutComments(out.join('\n'));
+    const depth = [...stripped].reduce(
+      (d, ch) => (ch === '{' ? d + 1 : ch === '}' ? d - 1 : d),
+      0,
+    );
+    if (depth === 0) break;
+  }
+  return withoutComments(out.join('\n'));
+};
+
+/** A type whose whole right-hand side is string literals, or one field's. */
+const LITERAL_UNION = /^(?:'[a-z0-9-]+'\s*\|\s*)*'[a-z0-9-]+'$/;
+
+/**
+ * Every optional field and every closed-union value one declaration writes.
+ *
+ * Derived from the source rather than listed, for the reason every sweep in
+ * this repository is: a hand-kept list is a second place to record the format,
+ * and the way it rots is a member added to the type and not to the list.
+ */
+const membersOf = (source: string, name: string): readonly FormatMember[] => {
+  const region = regionOf(source, name);
+  const found = new Map<string, FormatMember>();
+  const add = (label: string, probe: string): void => {
+    found.set(label, { label, probe });
+  };
+
+  // `export type RiderDuration = 'a' | 'b';` — the union *is* the members, and
+  // they are written as somebody's field value rather than under a name of
+  // their own, so the probe matches a value wherever it was written.
+  const top = /^export type \w+ =([\s\S]*);\s*$/.exec(region.trim());
+  if (top !== null) {
+    const rhs = top[1]!.replace(/\s+/g, ' ').trim();
+    if (LITERAL_UNION.test(rhs)) {
+      for (const literal of rhs.split('|')) {
+        const value = literal.trim().slice(1, -1);
+        add(`${name}='${value}'`, `*='${value}'`);
+      }
+      return [...found.values()];
+    }
+  }
+
+  const field = /readonly (\w+)(\?)?:\s*([^;}\n]*)/g;
+  let match: RegExpExecArray | null;
+  while ((match = field.exec(region)) !== null) {
+    const [, key, optional, raw] = match;
+    const type = raw!.replace(/\s+/g, ' ').trim();
+    if (optional === '?') add(`${name}.${key}?`, `${key}?`);
+    if (LITERAL_UNION.test(type)) {
+      for (const literal of type.split('|')) {
+        const value = literal.trim().slice(1, -1);
+        add(`${name}.${key}='${value}'`, `${key}='${value}'`);
+      }
+    }
+  }
+  return [...found.values()];
+};
+
+/** Every field written, and every string value written to it, by any definition. */
+const written = (definitions: readonly SpellDefinition[]): ReadonlySet<string> => {
+  const keys = new Set<string>();
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (typeof node !== 'object' || node === null) return;
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (value === undefined) continue;
+      keys.add(`${key}?`);
+      if (typeof value === 'string') {
+        keys.add(`${key}='${value}'`);
+        keys.add(`*='${value}'`);
+      }
+      walk(value);
+    }
+  };
+  definitions.forEach(walk);
+  return keys;
+};
+
+/**
+ * The whole definition format, by name.
+ *
+ * The brief for this sweep named seven; the other six are here because they
+ * are the same format, the rule over them is the same rule, and leaving them
+ * out would reinstate the blind spot on a smaller surface. `DelayedDamage`
+ * contributes nothing — it declares two required fields and no closed union —
+ * which is a measured fact rather than a gap, and the vacuity guard below is
+ * what says so.
+ */
+const FORMAT_TYPES = [
+  'SpellEffect',
+  'SpellDefinition',
+  'TargetRule',
+  'SpellArea',
+  'AreaTrigger',
+  'RiderDuration',
+  'SpellCheck',
+  'ConditionRider',
+  'DelayedDamage',
+  'DiceScaling',
+  'CastingOrigin',
+  'SpellActivation',
+  'SpellRange',
+] as const;
+
+/**
+ * A member no definition writes, and the written reason it stays anyway.
+ *
+ * The shape `MISSING_SHAPES` takes in `spell-honesty.test.ts` and that
+ * `definition.anchoring` already took in `spatial-model.test.ts` — and it is
+ * held to the same two rules: **an exemption must be needed**, so one whose
+ * member has acquired a user fails, and one whose member no longer exists
+ * fails too. Each also has a test of its own below that pins the fact making
+ * it true, because a written reason is only as honest as its author.
+ *
+ * **An exemption is never a user.** The fourth whole-engine audit (2026-09-13,
+ * §3.1) is what this sweep exists to answer, and its finding is that
+ * speculative shape accumulates silently. Inventing a definition to give a
+ * member a user would be the loudest possible way of not answering it.
+ */
+const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
+  'SpellDefinition.anchoring?':
+    'SRD 5.2.1 mandates no footprint convention for an area of effect — its "Playing on a Grid" sidebar covers squares, Speed, entering a square, corners and ranges and says nothing about areas, and the intersection convention comes from a 2014 optional rule. Declaring one per spell would be the engine choosing a rule the book declined to give. The field exists so a deliberate geometry pass, or an author of content the SRD never printed, says it in data rather than in runtime logic, and `spatial-model.test.ts` drives both precedence branches through `anchoringFor`.',
+  "SpellEffect.save?":
+    'The `roll-mode` effect\'s optional saving throw — Bane\'s shape on Bless\'s other half. It has never had a definition: Bane itself is a `buff`, and the audit named it as the first of the three zero-user members. **Its removal is IE-010\'s**, which owns the `SpellEffect` union; this task may not change the format, so the honest answer here is to record it rather than to invent a user for it. When the field goes, this entry must go with it — the rule below that every exemption names a live member is what will say so.',
+  "SpellEffect.onSuccess='end-casting'":
+    'The value a repeat save\'s success may take: not "the spell ends on me" but "the spell ends". No definition writes it, and it is **not** speculative shape — `RepeatSave.onSuccess` and `PendingSave.onSuccess` in `duration.ts` carry the same two values, the reducer branches on it, and `turn-hooks.test.ts` drives that branch with a hand-built hook. So it is the authoring spelling of a mechanic that is built and exercised, and removing it would leave a definition unable to say something the engine resolves.',
+  'SpellCheck.dc?':
+    'SRD Maze prints "a DC 20 Intelligence (Investigation) check", which is exactly this field, and Maze has no definition because it is blocked on a demiplane the engine does not model. The reader is live on every executed check — `effectCheckFrom` writes `check.dc ?? saveDc` — so what is absent is a definition, not a use. The pin below is the one Sunburst\'s dispel clause already takes: the day Maze gets a definition it must write the number the book prints, and this fails rather than going on excusing a field that now has a user.',
+};
+
+/**
+ * **Nothing in this repository could see a member that nobody uses.**
+ *
+ * `checkSpellDefinition` asks whether one definition is coherent. Nothing
+ * asked the other direction — whether every member of the format is written by
+ * at least one definition — and the fourth whole-engine audit (2026-09-13,
+ * §3.1) measured what that cost: three members existed with no user at all,
+ * each written for a spell blocked on something else. That is exactly the
+ * accumulation the doctrine's generalization rule exists to prevent, and the
+ * guard for it already existed one vocabulary over: `spell-honesty.test.ts`
+ * asserts that no entry in `MISSING_SHAPES` sits unclaimed.
+ *
+ * This is the same sweep, over the format.
+ */
+describe('every member of the definition format has a user or a written exemption', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('./spell-definitions.ts', import.meta.url)),
+    'utf8',
+  );
+
+  const members = FORMAT_TYPES.flatMap((type) => membersOf(source, type));
+  const used = written(SPELL_DEFINITIONS);
+  const unused = members.filter((member) => !used.has(member.probe));
+
+  /**
+   * The finding itself, and it **reports what it finds** rather than counting.
+   *
+   * A count would have to be maintained by whichever task next adds or removes
+   * a member, and would pass for the wrong reason the moment two changes
+   * cancelled. The names are the evidence.
+   */
+  it('writes every member from some definition, or says why not', () => {
+    expect(unused.map((member) => member.label).filter((label) => !(label in FORMAT_EXEMPTIONS)))
+      .toEqual([]);
+  });
+
+  /** And an exemption for a member that has since found a user is a stale licence. */
+  it('keeps no exemption for a member something now writes', () => {
+    const zero = new Set(unused.map((member) => member.label));
+    expect(Object.keys(FORMAT_EXEMPTIONS).filter((label) => !zero.has(label))).toEqual([]);
+  });
+
+  /**
+   * And one for a member that no longer exists is worse: it is a claim about
+   * a format that has moved on. This is what will fail the day IE-010 removes
+   * `roll-mode.save`, which is the intended way to find out.
+   */
+  it('names a member the format still declares', () => {
+    const declared = new Set(members.map((member) => member.label));
+    expect(Object.keys(FORMAT_EXEMPTIONS).filter((label) => !declared.has(label))).toEqual([]);
+  });
+
+  /** A reason that says nothing is a licence, so each must be a real sentence. */
+  it('writes a real sentence for every exemption', () => {
+    for (const [label, reason] of Object.entries(FORMAT_EXEMPTIONS)) {
+      expect(reason.length, label).toBeGreaterThan(120);
+    }
+  });
+
+  /**
+   * The sweep is not vacuous, driven rather than trusted.
+   *
+   * Two halves, because the sweep has two. The reader really does derive
+   * members from a declaration — asserted over synthetic source, so no
+   * catalogue number is pinned here — and the usage walk really does find a
+   * member unwritten when nothing writes it.
+   */
+  it('derives an optional field and a closed union from a declaration', () => {
+    const synthetic = [
+      'export interface Widget {',
+      '  readonly kind: string;',
+      "  /** A docstring naming 'a-value-that-is-only-prose'. */",
+      "  readonly mood?: 'sullen' | 'merry';",
+      '  readonly size: number;',
+      '}',
+    ].join('\n');
+    expect(membersOf(synthetic, 'Widget').map((m) => m.label)).toEqual([
+      'Widget.mood?',
+      "Widget.mood='sullen'",
+      "Widget.mood='merry'",
+    ]);
+  });
+
+  it('throws rather than reporting nothing for a declaration it cannot find', () => {
+    expect(() => membersOf(source, 'NoSuchMember')).toThrow(/declares no NoSuchMember/);
+  });
+
+  /**
+   * And the violation: hold the real format against a catalogue of one
+   * minimal spell, and members the whole catalogue does write come back
+   * unwritten. A sweep that could not report a member is a sweep that reports
+   * nothing.
+   */
+  it('reports a member as unwritten when the content stops writing it', () => {
+    const thin = written([FIRE_DART]);
+    const missing = members
+      .filter((member) => !thin.has(member.probe))
+      .map((member) => member.label);
+
+    // Real members, written by the catalogue and not by Fire Dart alone.
+    expect(missing).toContain("SpellEffect.kind='heal'");
+    expect(missing).toContain('SpellDefinition.areaTrigger?');
+    expect(missing).toContain('TargetRule.mustBeType?');
+    expect(missing).toContain("SpellArea.kind='emanation'");
+    // And the sweep over the real catalogue does not report them.
+    expect(unused.map((member) => member.label)).not.toContain("SpellEffect.kind='heal'");
+  });
+
+  /**
+   * **The probe is coarser than the label, and that is the sound choice.**
+   *
+   * A member is looked up by field name and value, not by which type declared
+   * it, because the usage walk reads *values* and values carry no types. The
+   * arm-aware alternative was written and measured and is worse: a
+   * `DiceScaling` nested inside an `attack` effect inherits the effect's arm,
+   * so `DiceScaling.flat?` comes back unwritten when False Life writes it —
+   * four false positives, which is the failure mode a guard must not have.
+   *
+   * What the coarseness costs is stated rather than hidden: where two members
+   * share a probe, one can be reported as written because the other is. The
+   * list is pinned so that a new collision is a reviewed change, and the one
+   * that actually masks something is named.
+   */
+  it('names every place two members share a probe', () => {
+    const byProbe = new Map<string, string[]>();
+    for (const member of members) {
+      byProbe.set(member.probe, [...(byProbe.get(member.probe) ?? []), member.label]);
+    }
+    const shared = [...byProbe.values()]
+      .filter((labels) => labels.length > 1)
+      .map((labels) => labels.join(' + '))
+      .sort();
+
+    expect(shared).toEqual([
+      // **The pair that masks.** `AreaTrigger.at` and a repeat save's `at` are
+      // different clauses with the same two values, and Web writes
+      // `start-of-turn` as an area boundary while no definition repeats a save
+      // at the start of a turn. So `save.repeats.at: 'start-of-turn'` is
+      // unwritten and this sweep cannot see it. Recorded here rather than
+      // exempted, because it is a limit of the instrument and not a decision
+      // about the format.
+      "SpellEffect.at='end-of-turn' + AreaTrigger.at='end-of-turn'",
+      "SpellEffect.at='start-of-turn' + AreaTrigger.at='start-of-turn'",
+      // `save` spells its rider flat and every other carrier nests it —
+      // `conditionRiderOf` is the view that makes them one vocabulary. These
+      // three collisions are two spellings of one field and mask nothing.
+      'SpellEffect.check? + SpellDefinition.check? + ConditionRider.check?',
+      'SpellEffect.lasts? + ConditionRider.lasts?',
+      // A save-damage's success and a check's success are different fields
+      // that happen to share two words; both values are written by both.
+      "SpellEffect.onSuccess='end-on-target' + SpellCheck.onSuccess='end-on-target'",
+      "SpellEffect.onSuccess='none' + SpellCheck.onSuccess='none'",
+      'SpellEffect.outlivesCasting? + ConditionRider.outlivesCasting?',
+    ]);
+  });
+});
+
+/**
+ * The three exemptions that pin a fact rather than assert an intention.
+ *
+ * `spell-honesty.test.ts` pins the fact that makes Sunburst's dispel clause
+ * the table's — "no Darkness definition compiles in" — so that the day it
+ * stops being true the claim fails rather than going quietly on. Each of these
+ * is the same move, and between them they are what makes the exemptions above
+ * more than prose.
+ */
+describe('a format exemption says something that can stop being true', () => {
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const read = (file: string): string => readFileSync(`${here}${file}`, 'utf8');
+
+  /**
+   * `SpellCheck.dc` is a field SRD Maze writes and this catalogue cannot.
+   *
+   * Maze is blocked on a labyrinthine demiplane, which is not a place the
+   * engine has. The day it gets a definition — tracked or executed — it must
+   * carry the number the book prints, the field has a user, and the exemption
+   * above fails as a stale licence.
+   */
+  it('pins that the spell printing a DC has no definition', () => {
+    expect(SPELL_DEFINITIONS.filter((d) => d.id === 'maze')).toEqual([]);
+
+    const book = JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL('../../srd/src/generated/spells.json', import.meta.url)),
+        'utf8',
+      ),
+    ) as readonly { id: string; description: string }[];
+    const maze = book.find((spell) => spell.id === 'maze');
+    expect(maze?.description).toContain('DC 20 Intelligence (Investigation) check');
+  });
+
+  /**
+   * `'end-casting'` is built and driven; what it lacks is a definition, and
+   * that is a different thing from speculative shape. If the engine ever
+   * stopped resolving it, the exemption's reason would be false and this says
+   * so.
+   */
+  it('pins that the engine resolves a repeat save that ends the casting', () => {
+    expect(read('duration.ts')).toContain("readonly onSuccess: 'end-on-target' | 'end-casting'");
+    expect(read('events.ts')).toContain("pending.onSuccess === 'end-casting'");
+    expect(read('turn-hooks.test.ts')).toContain("onSuccess: 'end-casting'");
+  });
+
+  /**
+   * `roll-mode.save` is the one exemption that is a handover rather than a
+   * decision, so what it pins is the handover: the field is still there, and
+   * `spell-resolution.ts` still reads it. IE-010 removes both.
+   */
+  it('pins that the member IE-010 removes is still there to be removed', () => {
+    expect(read('spell-definitions.ts')).toContain('readonly save?: Ability;');
+  });
+});
+
 /**
  * The rule the whole architecture rests on, asserted rather than assumed.
  *
@@ -632,82 +1344,216 @@ describe('a definition is told everything that is wrong with it at once', () => 
  * being the description of the spell and become a hint, which is the failure
  * mode the comparative audit found in one reference implementation and warned
  * against in the other.
+ *
+ * **It reads every source file in the engine now**, which is the correction
+ * the fourth whole-engine audit (2026-09-13, §3.5) asked for. The list used to
+ * name `commands/`, `events.ts`, `spells.ts`, `spellcasting.ts` and
+ * `standing.ts` — and IE-005 moved seven readers of definitions out of that
+ * population into `spell-definitions.ts` itself, while `spell-schema.ts`,
+ * `duration.ts`, `attack.ts`, `positioning.ts` and `checks.ts` had never been
+ * in it at all. No special case was found in any of them; this is a hole
+ * closed rather than a breach.
+ *
+ * A file listing rather than an array, for the reason the command layer's
+ * already was: a hand-kept list of modules is the thing these sweeps exist to
+ * replace, arriving one level up.
  */
 describe('no spell is special-cased in the runtime', () => {
   const here = fileURLToPath(new URL('.', import.meta.url));
 
-  /**
-   * Every file a special case could be written in, named one at a time so a
-   * failure says which.
-   *
-   * **The command layer is a directory listing, not `commands.ts`.** That file
-   * is a re-export barrel now: naming it would scan a hundred-odd lines of
-   * `export { … } from` and pass over the ten thousand where
-   * `if (spellId === 'fireball')` would actually be written — a sweep still
-   * green over an empty population, which is the `animals.md` failure mode
-   * arriving in the sweep that names it. A listing also means a module added
-   * tomorrow is scanned without anybody remembering to add it.
-   */
-  const RUNTIME = [
-    ...readdirSync(`${here}commands`)
-      .filter((file) => file.endsWith('.ts'))
-      .map((file) => `commands/${file}`),
-    'events.ts',
-    'spells.ts',
-    'spellcasting.ts',
-    'standing.ts',
-  ];
+  /** Every non-test source file under `src`, at any depth. */
+  const sourcesUnder = (dir: string, prefix = ''): readonly string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory()
+        ? sourcesUnder(`${dir}${entry.name}/`, `${prefix}${entry.name}/`)
+        : entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')
+          ? [`${prefix}${entry.name}`]
+          : [],
+    );
+
+  const RUNTIME = sourcesUnder(here);
   const source = (file: string): string => readFileSync(`${here}${file}`, 'utf8');
+  const IDS = SPELL_DEFINITIONS.map((d) => d.id);
 
   /**
    * Ids that are also ordinary engine vocabulary.
    *
-   * `shield` is a spell and an armour category, and `category === 'shield'`
-   * is equipment code that has nothing to do with the spell. Named rather than
-   * matched loosely, so the exclusion is one reviewed word instead of a
+   * `shield` is a spell and an armour category; `light` is a spell and a
+   * weapon property, and `weapon.properties.includes('light')` in `attack.ts`
+   * has nothing to do with the cantrip. Named one word at a time rather than
+   * matched loosely, so each exclusion is reviewed instead of being a
    * heuristic that quietly stops catching things.
    */
-  const ALSO_VOCABULARY: ReadonlySet<string> = new Set(['shield']);
+  const ALSO_VOCABULARY: ReadonlySet<string> = new Set(['shield', 'light']);
 
-  it.each(RUNTIME.map((file) => [file] as const))(
-    '%s branches on no spell id',
-    (file) => {
-      // The direct shape: a spell id compared against a **literal**. Two
-      // spell ids compared with each other is ordinary lookup and is not this.
-      const compared = /(spellId|definition\.id|record\.spellId|spell\.id)\s*[=!]==\s*['"]/.exec(
-        source(file),
-      );
-      expect(compared?.[0] ?? null, file).toBeNull();
-    },
-  );
+  /**
+   * Where naming a spell is **data** rather than a branch.
+   *
+   * Two constructs, and they are excused as *constructs* rather than as lines
+   * or as files. That distinction earned itself immediately: written as a line
+   * shape, this named `cleric.ts`, `paladin.ts` and `warlock.ts` and silently
+   * did not cover `ranger.ts`, which writes the same grant inline on one line,
+   * nor `sorcerer.ts`, which was simply left out of the sentence. Both were
+   * excused anyway — by the accident that none of their ids has a definition
+   * yet — so the enumeration was a claim waiting to stop being true.
+   *
+   * - `ID_LINE`: a definition's own `id:`, in the catalogue. A file of
+   *   definitions names every spell it defines, which is true at any size and
+   *   is the reason this half of the sweep could not simply be pointed at
+   *   `spell-definitions.ts`.
+   * - `SPELL_GRANT`: `fixed: ['bless', …]` — a subclass's fixed spell grant,
+   *   wherever it is written. A Life Domain granting Bless is the class table
+   *   saying which spells it grants, and nothing about a list of ids can
+   *   branch on one. Matched only as an array of bare slugs, so any other use
+   *   of the word `fixed` is untouched.
+   *
+   * Everything else on every line of every file still counts, which is what
+   * keeps this from being a handful of files waved through.
+   */
+  const ID_LINE = /^\s*id: '[a-z0-9-]+',\s*$/;
+  const SPELL_GRANT = /fixed: \['[a-z0-9-]+'(?:,\s*'[a-z0-9-]+')*\]/g;
 
-  it.each(RUNTIME.map((file) => [file] as const))(
-    '%s names no spell of the catalogue',
-    (file) => {
-      const text = source(file);
-      const named = SPELL_DEFINITIONS.map((d) => d.id)
-        .filter((id) => !ALSO_VOCABULARY.has(id))
-        .filter((id) => text.includes(`'${id}'`) || text.includes(`"${id}"`));
-      expect(named, file).toEqual([]);
-    },
-  );
+  const COMPARISON =
+    /(spellId|definition\.id|record\.spellId|spell\.id)\s*[=!]==\s*['"]([a-z0-9-]+)['"]/g;
 
-  it('would find one if there were one, so the sweep is not vacuous', () => {
-    const ids = SPELL_DEFINITIONS.map((d) => d.id);
-    expect(ids).toContain('fireball');
-    expect(ids).toContain('mage-armor');
-    // Driven rather than trusted: the same predicate, over a line that does
-    // exactly what the rule forbids.
-    const smuggled = "if (request.spellId === 'fireball') return err('no');";
-    expect(/(spellId|definition\.id|record\.spellId|spell\.id)\s*[=!]==\s*['"]/.test(smuggled)).toBe(
-      true,
+  /** Every `<something>.id === '<literal>'` a file writes, as written. */
+  const comparedIn = (text: string): readonly string[] =>
+    [...text.matchAll(COMPARISON)].map((match) => match[0]);
+
+  /** A file's text with the two data constructs removed. */
+  const proseOf = (text: string): string =>
+    text
+      .split('\n')
+      .filter((line) => !ID_LINE.test(line))
+      .join('\n')
+      .replace(SPELL_GRANT, 'fixed: []');
+
+  /** Every catalogue id a file names outside those constructs. */
+  const namedIn = (text: string): readonly string[] => {
+    const prose = proseOf(text);
+    return IDS.filter((id) => !ALSO_VOCABULARY.has(id)).filter(
+      (id) => prose.includes(`'${id}'`) || prose.includes(`"${id}"`),
     );
-    expect(ids.filter((id) => smuggled.includes(`'${id}'`))).toEqual(['fireball']);
+  };
+
+  /**
+   * The one comparison in the engine that matches the shape and is not one.
+   *
+   * `creation.ts` asks which of a character's classes is the Wizard, because
+   * the Evoker's free spells go in the Wizard's book and nowhere else — a
+   * **class** definition's id, in a file that holds no spell definitions at
+   * all. It is unchanged since the third whole-engine audit and is recorded
+   * rather than removed, because removing it belongs to the feature-definition
+   * validator and not to this sweep.
+   *
+   * Allowlisted as the exact text in the exact file, so a genuine
+   * `definition.id === 'fireball'` in `creation.ts` still fails.
+   */
+  const ALLOWED_COMPARISONS: Readonly<Record<string, readonly string[]>> = {
+    'creation.ts': ["definition.id === 'wizard'"],
+  };
+
+  it.each(RUNTIME.map((file) => [file] as const))('%s branches on no spell id', (file) => {
+    // The direct shape: an id compared against a **literal**. Two ids compared
+    // with each other is ordinary lookup and is not this.
+    const allowed = ALLOWED_COMPARISONS[file] ?? [];
+    expect(comparedIn(source(file)).filter((match) => !allowed.includes(match)), file).toEqual([]);
   });
 
-  /** And the exclusion is real rather than a blanket: `shield` is equipment. */
-  it('excludes only a word the engine uses for something else', () => {
-    expect([...ALSO_VOCABULARY]).toEqual(['shield']);
+  it.each(RUNTIME.map((file) => [file] as const))('%s names no spell of the catalogue', (file) => {
+    expect(namedIn(source(file)), file).toEqual([]);
+  });
+
+  /**
+   * The sweep is not vacuous, and the mutation is driven against **every**
+   * file it covers rather than against a string written in this test.
+   *
+   * That is the half the widening turns on: a file newly brought into the
+   * population must be one that a smuggled special case actually fails, by
+   * name. A file whose real text somehow excused the smuggled line would be a
+   * file the widening did not really cover.
+   */
+  it.each(RUNTIME.map((file) => [file] as const))(
+    '%s would fail if a special case were smuggled into it',
+    (file) => {
+      const smuggled = `${source(file)}\nif (request.spellId === 'fireball') return err('no');\n`;
+      expect(comparedIn(smuggled), file).toContain("spellId === 'fireball'");
+      expect(namedIn(smuggled), file).toContain('fireball');
+    },
+  );
+
+  it('has a population and a catalogue worth sweeping', () => {
+    expect(RUNTIME).toContain('spell-schema.ts');
+    expect(RUNTIME).toContain('spell-definitions.ts');
+    expect(RUNTIME).toContain('commands/turns.ts');
+    expect(RUNTIME.filter((file) => file.endsWith('.test.ts'))).toEqual([]);
+    expect(IDS).toContain('fireball');
+    expect(IDS).toContain('mage-armor');
+  });
+
+  /**
+   * And the allowances are real rather than blankets.
+   *
+   * Each is asserted to be *needed* — the construct it excuses is really
+   * there — and to be *narrow*: a spell id written anywhere but that construct
+   * still fails, in the same file as readily as anywhere else.
+   */
+  it('excludes only words the engine uses for something else', () => {
+    expect([...ALSO_VOCABULARY].sort()).toEqual(['light', 'shield']);
     expect(source('events.ts')).toContain("category === 'shield'");
+    expect(source('attack.ts')).toContain("weapon.properties.includes('light')");
+  });
+
+  it('allows the two data constructs and nothing around them', () => {
+    // Each is needed: the catalogue really writes its ids that way, and the
+    // class tables really write their grants that way, or it excuses nothing.
+    expect(source('spell-definitions.ts').split('\n').filter((line) => ID_LINE.test(line)).length)
+      .toBeGreaterThan(100);
+    expect([...source('cleric.ts').matchAll(SPELL_GRANT)]).not.toEqual([]);
+
+    // Each is narrow: a spell named anywhere else on the same line, or in a
+    // construct that merely looks like one, still counts.
+    expect(namedIn("const x = 'bless';")).toEqual(['bless']);
+    expect(ID_LINE.test("  if (x) id: 'fire-bolt',")).toBe(false);
+    expect(namedIn("fixed: ['bless'] as const; const y = 'bless';")).toEqual(['bless']);
+    expect(namedIn("const fixed: string[] = ['bless'];")).toEqual(['bless']);
+  });
+
+  /**
+   * **Every spell grant in the engine is one the allowance reaches**, derived
+   * rather than enumerated.
+   *
+   * The first version of this named three files in prose and covered neither
+   * `ranger.ts`, which writes the same grant inline on one line, nor
+   * `sorcerer.ts`, which was left out of the sentence. Both passed anyway,
+   * because none of their ids has a definition yet — so the sweep would have
+   * gone green until a content task defined Hunter's Mark or Chromatic Orb and
+   * then failed for a reason with nothing to do with that task.
+   *
+   * So the claim is checked instead of written down: whatever `grants: { kind:
+   * 'spells' }` a class file holds, the ids inside it are excused, and a grant
+   * written in a shape the allowance cannot see fails **here** — where the
+   * message is about the allowance — rather than in the sweep.
+   */
+  it('reaches every fixed spell grant the class tables write', () => {
+    const grants = RUNTIME.flatMap((file) =>
+      [...source(file).matchAll(/fixed: \[[^\]]*\]/g)].map((match) => [file, match[0]] as const),
+    );
+    // Not vacuous: the class tables really do grant spells this way.
+    expect(grants.length).toBeGreaterThan(3);
+    for (const [file, grant] of grants) {
+      expect(proseOf(grant), `${file}: ${grant}`).toBe('fixed: []');
+    }
+  });
+
+  it('allowlists a comparison that is needed and no wider', () => {
+    for (const [file, matches] of Object.entries(ALLOWED_COMPARISONS)) {
+      for (const match of matches) {
+        expect(comparedIn(source(file)), file).toContain(match);
+        // Not a spell id, which is the whole reason it is allowed.
+        const literal = /'([a-z0-9-]+)'$/.exec(match)?.[1];
+        expect(IDS, match).not.toContain(literal);
+      }
+    }
   });
 });

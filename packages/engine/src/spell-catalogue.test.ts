@@ -7,7 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { resolveSpell } from './commands.js';
-import { SPELL_DEFINITIONS, definitionFor } from './spell-definitions.js';
+import { SPELL_DEFINITIONS, definitionFor, riderDurations } from './spell-definitions.js';
 
 /**
  * The spells poured into the shapes, driven rather than inspected.
@@ -122,14 +122,17 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   // the engine refuses rather than inventing six seconds, so a spell carrying
   // one is driven in a fight. Not an excuse for the spell: the refusal is
   // asserted on its own in `turn-anchored-riders.test.ts`.
+  //
+  // **Which effects carry one is `riderDurations`' answer, not this file's.**
+  // The kinds were enumerated by hand here, and that list is the thing the
+  // command layer already derives — so it could disagree, and did: it named
+  // `save`, `attack` and `save-damage` and not `condition`, which has carried
+  // a rider since the standalone kind landed. A definition of that shape with
+  // a turn-anchored rider would have been driven outside combat and refused
+  // for a reason that was the fixture's rather than the spell's.
   const anchored =
     definition?.durationUntil !== undefined ||
-    (definition?.effects ?? []).some(
-      (effect) =>
-        (effect.kind === 'save' && effect.lasts !== undefined) ||
-        (effect.kind === 'attack' && effect.condition?.lasts !== undefined) ||
-        (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined),
-    );
+    (definition !== null && riderDurations(definition).length > 0);
 
   // A Reaction is cast in answer to something, and the engine now checks that
   // the something happened. Same principle as the creature type above: the
