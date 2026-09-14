@@ -1,13 +1,13 @@
 # IE-051 — Move the per-kind resolvers out of `commands/spell-resolution.ts`
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 7
 parallel-safe: NO — it *is* `commands/spell-resolution.ts`
 depends-on: none
-worker: qb-builder, launched 2026-09-14 from `f00742a` (wave 1)
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 7."
 
 ## Brief
 
@@ -109,3 +109,80 @@ a resolver does. The `spell-definitions.ts` split, which is IE-058.
 Low with the oracle. The one thing to watch is `invariants.test.ts`'s module
 populations, which are directory listings rather than hand lists precisely so a
 move like this is safe — confirm that in the digest rather than assuming it.
+
+## Completion digest
+
+**Merged `402ecf4`**, 13/13 auto-merge conditions, reviewer PASS at high
+confidence on the **first** round. `commands/spell-resolution.ts` 3,043 → 1,485
+lines; sixteen resolvers into eight sibling modules under `commands/`.
+
+**The oracle held, and the foreman verified it independently.** Of the 22
+top-level declarations in the eight new files, **22 are byte-identical** to a
+run in `main`'s `spell-resolution.ts` after removing exactly one `export `
+keyword — the single mechanical transformation, and the only one. The builder
+and the reviewer each proved this separately; this is a third, mechanical check
+run in the main checkout against `git show main:`.
+
+The value graph was run **both ways** — against the unsplit file and against the
+split — and prints the same 35 declarations and the same module graph, ACYCLIC
+both times. The anticipated YELLOW (a cycle in the value graph) did not arrive.
+
+**Two mutations, both reverted:** turning off halving on a successful save in
+the moved `resolveSaveDamageEffect` reddened 5 tests across 4 files; inverting
+`outlivesCasting` in the moved `resolveConditionEffect` reddened 7 in
+`casting-end-triggers.test.ts`.
+
+**The brief said "thirteen resolvers" and there are sixteen** — a stale IE-027
+count carried forward, not a scope change. All sixteen dispatch arms moved.
+
+### Acceptance criterion 4, answered — and the residual
+
+The three would-be colliders land in three different modules, none shared:
+
+| Task | Lands in |
+|---|---|
+| IE-053 (`OngoingSpell.on` readers) | `commands/spell-effect-magic.ts` |
+| IE-054 (Acid Arrow pre-flight) | `commands/spell-effect-riders.ts` |
+| IE-042 (a `condition-immunity` resolver) | `commands/spell-effect-grants.ts` |
+
+**But all three still need a small edit in `commands/spell-resolution.ts`
+itself** — `landedOn`, `castOrRelease`'s pre-flight, and one `case` line in
+`resolveOneEffect`: three non-adjacent declarations of a now-1,485-line file.
+Read at **file** granularity the one-owner-per-primitive rule still serialises
+all three; read at **declaration** granularity it does not. The builder raised
+this as the foreman's call rather than deciding it, which is correct.
+
+**The foreman's ruling: nothing changes in tranche 7, and no rule is loosened.**
+The approved wave plan already places those three tasks in three *different*
+waves — IE-053 in wave 2, IE-042 in wave 3, IE-054 in wave 4 — so they never run
+concurrently under the roster the owner approved, and the question is moot for
+this tranche. Loosening "one owner per primitive" from module to declaration
+granularity is a **workflow** change, not an engine one; it wants its own
+evidence and its own gate, and making it here to solve a problem this tranche
+does not have would be exactly the improvisation the owner's approval forbade.
+Recorded as evidence for the next cycle's planning.
+
+### Reported, not acted on
+
+1. **Neither frozen log caught either mutation.** They exercise no halved
+   save-damage branch and no Concentration-owned condition's `held`. The logs
+   fold byte-identically, which is the acceptance criterion — but their coverage
+   of the resolvers is thinner than "the frozen logs are the conformance"
+   implies. The honest disclosure is the valuable half of this digest.
+2. An **orphaned docstring** sits at the old lines 986–993 of
+   `spell-resolution.ts` — "What a spell does, once it has been paid for",
+   attached to no declaration. Left exactly where it is: moving or deleting it
+   is not byte-identity.
+3. `invariants.test.ts`'s `COMMAND_MODULES` is a **non-recursive**
+   `readdirSync`, so any future `commands/` subdirectory leaves both sweeps
+   silently. This is why the new modules are flat siblings rather than
+   `commands/spell-effects/`.
+
+### Outside the brief's surface, each with its reason
+
+`turn-context.test.ts` — one `EXEMPT` key, which is `"<file>: <code line>"` and
+therefore follows `scheduleDelayed` to its new file; IE-046's reason text is
+unchanged verbatim. `CLAUDE.md` — **one router row**, now naming
+`commands/spell-effect-*.ts`; no subsystem architecture written back into it,
+which is the discipline the refactor was for. `docs/design/casting.md` — the
+document the router points at, gaining the module map.
