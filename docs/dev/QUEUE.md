@@ -694,11 +694,11 @@ overrun, where the chain and not the pool was the wall clock.
 
 Recommendation: APPROVE TRANCHE 6.
 
-### Tranche 7 — PROPOSED
+### Tranche 7 — APPROVED 2026-09-14 — "APPROVE TRANCHE 7."
 
 roster: IE-042, IE-050, IE-051, IE-052, IE-053, IE-054, IE-055, IE-056, IE-057, IE-058
 
-**Nine tasks, four waves, planned from tranche 6's own evidence** rather than
+**Ten tasks, four waves, planned from tranche 6's own evidence** rather than
 from the audit's roster — the post-tranche-5 simplification audit remains the
 architecture baseline, and no new audit was run. Every premise below was checked
 against `main` at `b806ef7` first, and three of them were wrong.
@@ -813,21 +813,39 @@ options for filling the gap were padding or briefing families nobody has read �
 the second being precisely what the instrument was built to stop. IE-056 spends
 the slack on making the *next* cycle briefable instead.
 
-Recommendation: APPROVE TRANCHE 7.
+**Approved 2026-09-14** — "APPROVE TRANCHE 7. Launch the tranche under the
+existing foreman/builder protocol." The owner's conditions, recorded because
+they bind this tranche's execution and not only its roster:
+
+- **The roster and the collision structure are preserved as approved.** No task
+  is added, removed, combined or substituted. Ten tasks, four waves.
+- **`CLAUDE.md` is the constitution and the router**, and each builder loads the
+  authoritative subsystem document its brief names before implementing.
+- **Every returned diff is reviewed against the acceptance criteria and the
+  design documents**, not against a green suite. Work that makes tests pass
+  while violating architecture is rejected or corrected, not merged.
+- **Closure is derived from the machine state**, per IE-058 — not from memory
+  and not from a hand-kept checklist. This is the correction tranche 6 earned.
+- **A genuine architectural ambiguity stops its task and escalates.** No task
+  improvises a new design, and no task silently changes its approved scope.
 
 ## CURRENT
 
-**Tranche 7 is PROPOSED and awaits the owner. Nothing executes.**
+**Tranche 7 is APPROVED and running.** Ten tasks, four waves, merge authority
+in force for exactly this roster.
 
-`main` is at `b806ef7` — **8,433 tests across 122 files**, both frozen logs
+`main` is at `239076a` — **8,433 tests across 122 files**, both frozen logs
 untouched, `COVERAGE.md` byte-clean, the fold graph acyclic, tree clean.
+`CLAUDE.md` is now the constitution and the router; the subsystem architecture
+lives under `docs/design/` and `docs/rules/`, and every builder is pointed at
+the document its surface belongs to.
 
 Tranche 6 is closed at **twelve of thirteen**, corrected: IE-042 was never
-launched and is re-rostered into tranche 7. No new audit was run — the
-post-tranche-5 simplification audit remains the architecture baseline, and
-tranche 7 is planned from tranche 6’s own measurements.
+launched and is re-rostered here. No new audit was run — the post-tranche-5
+simplification audit remains the architecture baseline, and tranche 7 is
+planned from tranche 6’s own measurements.
 
-**Awaiting: `DEVELOPMENT TRANCHE 7 — OWNER_APPROVAL_REQUIRED`.**
+**Wave 1 launched:** IE-050, IE-051, IE-052.
 
 ## NEXT
 
@@ -1031,3 +1049,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | NEXT (from IE-047, Fable-specified) | — | **Derive `OngoingSpell.on`** — one mechanism task, one builder, running alone because it touches `events.ts` and the fold. Owns `spells.ts`, the `spell-ongoing` payload, `ongoing-compatibility.ts`, `fold/release.ts`, `fold/expiry.ts`, `fold/apply.ts` and the four reader sites. Compatibility is two steps in order: key `upgradeOngoing`'s catalogue fill on `version === undefined` and nothing else — **the hazard its own docstring names is one constant edit away regardless of this task** — then compute the stored subset in the `spell-ongoing` reducer case, which is correct there because the record is written last in every resolution path. Acceptance: the existing gate at 869/0 with the engine's own function substituted, the third case flipped, and a hand-built version 2 record with a pinned area folded through the bump and asserted untouched. It fixes the `grants` defect **by** deleting the branch a hand fix would edit; `alsoOn` goes, `withoutTarget` stays |
 | 2026-09-14 | `TRANCHE_COMPLETE` (corrected) | IE-036, IE-038 … IE-049 | **Twelve of thirteen delivered; eleven as briefed and one re-scoped on an architect's decision. IE-042 was never launched — see the correction row below.** One YELLOW, no RED, no owner interruption. Tests 7,812 → **8,433** across 122 files; `events.ts` 5,363 lines → 1,180 with a `fold/` behind it; executed 96 → 97, tracked 45 → 57; the largest blocker in the book closed end to end. `main` verified green after **every** merge — both frozen logs, the scenario determinism and `COVERAGE.md` byte-clean each time, and neither fixture regenerated once. **Eight foreman brief errors, every one caught by a builder or a reviewer reading the source, none reaching `main`** |
 | 2026-09-14 | **correction to the `TRANCHE_COMPLETE` report** | IE-042 | **The report said "thirteen of thirteen delivered". It was twelve.** `IE-042 — A condition immunity a spell grants` was never launched and is still `APPROVED_FOR_IMPLEMENTATION` on tranche 6's roster. It was correctly held out of two waves — it collides with IE-046 on `commands/spell-resolution.ts` and with IE-047 on `fold/release.ts` — and then never picked back up, and the tranche was closed over it. **The validator printed it in every summary the foreman ran**, on its own line and again on the tranche line; the foreman read past it twelve times. The lesson is not "check the roster at the end" but that a closing report must be **derived from the validator's own state** rather than written from memory of what was merged. Found while verifying tranche 6 against `main` before planning tranche 7 — by the owner's instruction to verify rather than inherit |
+| 2026-09-14 | Gate 1 (tranche) | IE-042, IE-050 … IE-058 | approved — "APPROVE TRANCHE 7. Launch the tranche under the existing foreman/builder protocol." Ten tasks, four waves, the roster and the collision structure preserved as approved — nothing added, removed, combined or substituted. The owner bound four things beyond the roster: each builder loads the authoritative `docs/design/` document for its surface, every returned diff is reviewed against the acceptance criteria and those documents rather than against a green suite, closure is derived from the machine state per IE-058 rather than from a checklist, and a genuine architectural ambiguity stops its task and escalates instead of improvising a design |

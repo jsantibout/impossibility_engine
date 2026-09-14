@@ -1,12 +1,12 @@
 # IE-051 — Move the per-kind resolvers out of `commands/spell-resolution.ts`
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 7
 parallel-safe: NO — it *is* `commands/spell-resolution.ts`
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 
 ## Brief

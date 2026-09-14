@@ -1,12 +1,12 @@
 # IE-054 — A consequence that needs a turn timeline asks for one, before anything is spent
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 7
 parallel-safe: CONDITIONAL — the `castOrRelease` pre-flight and `riderDurations`; not beside IE-042, IE-051 or IE-053
 depends-on: IE-051
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 
 ## Brief

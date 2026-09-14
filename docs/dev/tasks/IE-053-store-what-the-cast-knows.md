@@ -1,12 +1,12 @@
 # IE-053 — `OngoingSpell.on`: store what the cast knows, derive what the world holds
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 7
 parallel-safe: NO — `events.ts`, `spells.ts`, the fold and four readers
 depends-on: IE-050, IE-051
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 
 ## Brief
