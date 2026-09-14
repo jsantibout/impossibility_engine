@@ -1,13 +1,13 @@
 # IE-037 — Teleportation inside the scene
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 5
 parallel-safe: NO — a union task touching `spell-resolution.ts` and the movement surface; the tranche's tail, and deferrable
 depends-on: IE-035
-worker: qb-builder · .claude/worktrees/agent-ac3fdf6399f0ad81b · worktree-agent-ac3fdf6399f0ad81b
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -111,10 +111,89 @@ This is the tranche's tail and may be deferred by the foreman on evidence, with
 the reason recorded and reported at `TRANCHE_COMPLETE`. If deferred, the
 `sceneFor` hoist goes with it — do not split it out as a consolation.
 
+
 ## Completion digest
+
+Builder **COMPLETE**, reviewer **PASS at high confidence**, two rounds. Branch
+`worktree-agent-ac3fdf6399f0ad81b`, commit `95b0805`, rebased to `062441c`.
+Tests **7736 → 7812 on `main`**, 76 new across 116 files. Gauntlet green;
+`COVERAGE.md` byte-clean, **executed 94 → 96, verified 72 → 74**.
+
+Misty Step moves from tracked to executed; Dimension Door and Tree Stride leave
+the undefined population.
+
+**The discriminating fixture the brief demanded is the one that earned its
+keep.** Disabling the scene check in `choosePoint` reddens **exactly the
+40-foot-closet case and nothing else** — a room barely larger than a 30-foot
+spell. In the 600-foot hall the range check answers first and the scene check
+hides behind it permanently, which is the lesson this repository has now
+recorded three times over three different guards.
+
+**`sceneFor` has one home at last.** It existed identically in
+`commands/scene.ts` and `commands/movement.ts`, prose included; IE-016's builder
+and reviewer both said a third copy was the moment to hoist it, and this was the
+third copy. Emptying the hoisted function now reddens the scene, movement **and**
+teleport families together — the evidence that it is one function rather than
+three that agreed.
+
+**No new event type and no reducer branch.** `PendingCasting.teleportTo` is
+optional and absent from every pre-existing log, so both frozen logs fold
+unchanged and `persistence-2.test.ts`'s uncovered-type ledger needed no entry.
+It is the **fourth member of an already-documented pattern** — `damageType`,
+`unaffected`, `fought`, and now this.
+
+The `teleportation` shape id is **retired with every claimant re-read
+individually and three different destinations**, which is an honest three-way
+split rather than a rename.
+
+One literalism the reviewer raised and dismissed, correctly: criterion 3 asked
+for the codes pinned "in `refusals.test.ts`" and they are pinned in
+`teleport.test.ts` — which *is* the population `refusal-sweep.test.ts` reads,
+and this repository's own note warns that demanding a second assertion for a
+rule already pinned teaches people to write redundant tests. Satisfied in
+substance.
+
+Out-of-scope findings: `state.riding` is not cleared when a rider changes
+position independently of their mount — true of `moveCreature` before this and
+reachable the same way through `relocateCreature`; it is `positioning.ts`, which
+the brief keeps out of scope. And `destination_required` now has three voices,
+all meaning "name where it goes" — one rule rather than IE-029's conflation, but
+worth a look if that code is audited.
 
 ## Risk gate
 
+**Inspected.** Foundational primitives are touched, but narrowly and in
+already-established shapes: one optional field on `PendingCasting`, one member
+on the `SpellEffect` union, and the `sceneFor` hoist the brief asked for.
+`positioning.ts`, `moveCreature`, the action economy, conditions, durations and
+persistence are untouched.
+
+I confirmed the hoist myself — `commands/command.ts` holds the only
+`function sceneFor` in the command layer — and ran both frozen logs and
+`scenario.test.ts` explicitly, 53 tests, as on every fold-adjacent merge this
+tranche.
+
+Classification: **GREEN**.
+
 ## Architecture decision
 
+None. No Fable involvement.
+
 ## Merge record
+
+Merged to `main` as `062441c`, fast-forward, pushed. Rebased by the foreman;
+clean. **The last merge of tranche 5.**
+
+`main` verified after the merge: typecheck ✓, lint ✓, **7812 tests across 116
+files** ✓, both frozen logs and the scenario determinism explicitly ✓,
+`COVERAGE.md` byte-clean ✓, tree clean.
+
+Thirteen conditions: **1** inside the brief; **2** `COMPLETE`; **3** `PASS` at
+high confidence; **4** defects resolved; **5** gauntlet green; **6**
+conformance, with the retired shape's claimants re-read one at a time; **7** no
+blocker; **8** no deviation; **9** the primitives are the brief's; **10** files
+outside the surface are each compelled by a derived sweep that fails until the
+new command and the new stated fact are accounted for; **11** clean rebase;
+**12** re-verified on `main`; **13** risk gate inspected, GREEN.
+
+**Wave 8 complete, and with it tranche 5.**

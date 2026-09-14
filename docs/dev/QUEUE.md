@@ -389,7 +389,7 @@ foreman.
 
 Recommendation: APPROVE TRANCHE 4.
 
-### Tranche 5 — APPROVED 2026-09-14 — "APPROVE TRANCHE 5"
+### Tranche 5 — COMPLETE 2026-09-14 — "APPROVE TRANCHE 5"
 roster: IE-020, IE-021, IE-022, IE-023, IE-024, IE-025, IE-026, IE-027, IE-028, IE-029, IE-030, IE-031, IE-032, IE-033, IE-034, IE-035, IE-036, IE-037
 
 **Eighteen tasks, eight waves, operationalised from the post-tranche-4 delta
@@ -546,293 +546,31 @@ Recommendation: APPROVE TRANCHE 5.
 
 ## CURRENT
 
-**Tranche 5 is approved and running.** Owner's words at Gate 1, 2026-09-14:
-"APPROVE TRANCHE 5". That approval is the merge authority for exactly the
-eighteen tasks on its roster, through implementation, review, rework, clean
-auto-merge, push, bookkeeping **and later waves as their dependencies are
-satisfied** — with no gate between waves and nothing else.
+**Tranche 5 is complete and no tranche is approved. Nothing executes.**
 
-**Merged: 16 of 18** — IE-020 through IE-035. `main` at `fbc7e31`, **7736
-tests across 115 files**, both frozen logs untouched and run explicitly on
-every fold-touching merge, `COVERAGE.md` byte-clean. **Waves 1–7 complete**;
-IE-037 is running as wave 8 and is the tranche's last task. **IE-036 is
-deferred to tranche 6.**
+Seventeen of eighteen tasks merged; **IE-036 is deferred**, on its file with
+the reason, and stays on tranche 5's roster with the owner's approval intact.
+`main` is at `062441c` — **7,812 tests across 116 files**, both frozen logs
+untouched, `COVERAGE.md` byte-clean, everything pushed.
 
-### The derived map's *finishes* column has now been wrong five spells over
-three tasks
+**The next three things are the owner's, in this order:**
 
-Every one was a "this shape finishes X outright" claim in a foreman brief,
-taken from `consumersOf`, and every one was falsified by a builder reading the
-paragraph:
-
-| Task | Spell | What the SRD says |
-|---|---|---|
-| IE-030 | Enthrall | an automatic **success**, not Advantage, plus a −10 narrowed to one skill |
-| IE-032 | Mislead | ends the **invisibility**, not the casting — and the entry never recorded the illusory double |
-| IE-035 | True Strike | Instantaneous, and it **makes** the attack rather than riding a later one |
-| IE-035 | Magic Weapon | a flat bonus reaching the **attack roll**, not extra typed damage |
-| IE-035 | Major Image | a slot changing **what kind** of duration a spell has |
-
-**And IE-035 caught a sixth before it happened.** Hex prints Hunter's Mark's
-"drops to 0 Hit Points" sentence word for word; filing one end only would have
-moved a shape's `unblocks` from 0 to 1 **on the strength of a spell printing
-the same rule**. The reviewer caught it in round 2 and both ends were filed in
-one pass.
-
-**The map is sound about what *blocks*. Its *finishes* column inherits every
-incomplete adjudication beneath it, and no derivation can see a clause nobody
-wrote down.** The rule stands and is now confirmed three times: **a brief may
-not quote a `finishes` figure without reading the spell's own paragraph.** That
-is the single most important thing this tranche produced about its own
-instruments, and it belongs in tranche 6's briefing procedure rather than in
-anybody's memory.
-
-Coverage stands at **45 tracked / 92 executed / 46 partial / 70 verified**, and
-every one of those numbers is derived rather than written.
-
-### The derived map has been wrong twice, and that is a finding about the
-instrument
-
-Two "this shape finishes X outright" claims in foreman briefs, both taken from
-`consumersOf`, have been falsified by a builder reading the paragraph:
-
-| Spell | The map said | The SRD says |
-|---|---|---|
-| Enthrall (IE-030) | finished by `a-fact-only-the-table-can-declare` | prints an automatic **success**, not Advantage, plus a −10 narrowed to one skill and Passive Perception |
-| Mislead (IE-032) | finished by `a-casting-ended-by-a-trigger` | ends the **invisibility**, not the casting — and the entry never recorded the illusory double at all |
-
-**The map is sound about what blocks; its *finishes* column inherits any
-adjudication that is incomplete.** A clause omitted from an entry makes a spell
-look finishable when it is not, and no derivation can see a clause nobody
-wrote down. IE-015 made the count a query so that no hand-written number would
-be trusted; the residual risk moved from the number to the adjudications
-beneath it, and **a brief should not quote a `finishes` figure without reading
-the spell's own paragraph.** That is the rule for the next tranche's briefs.
-
-**IE-031 found a wrong number that was already shipped**, which is the payoff
-of Fable's decision arriving within the hour. `action-economy.test.ts`
-asserted a Fighter with Exhaustion 3 who Dashes has **45** feet **while its own
-comment beside the assertion said 30** — and the comment and the SRD were
-right. A remainder seeded at the un-reduced Speed and raised by the reduced one
-gives a number the book never prints. A stored remainder is a derived quantity
-frozen at its seed, and this one had been frozen at the wrong number.
-
-**All four instruments the delta audit called broken are repaired, and every
-one of them has fired on a real defect.** IE-022's citation guard found five
-misquotes, three of them counts quoted from a `PROGRESS.md` since re-derived.
-IE-023's C0 sweep caught the character that made the audit flag unfireable —
-and then caught the same class **in its own source** before it was committed.
-IE-024's validator found the rider-is-a-leaf denylist reaching one effect list
-of three, which `CLAUDE.md` claimed was closed. And IE-021 closed the one that
-was measurably broken: **a line appended to `COVERAGE.md` now survives a full
-`npm test`**, verified on `main` by the foreman rather than taken on a digest's
-word. Until that merge, every "`COVERAGE.md` byte-clean" in this file was true
-for the wrong reason.
-
-**Condition 12 earned its place on IE-021.** Its sweep was defined over every
-script in `packages/engine/scripts/`, and IE-023 put two *tests* in that
-directory while it was building — so the branch that had passed review failed
-on the rebase, on a test writing fixtures rather than a script writing at
-import time. Returned, fixed, re-reviewed. The fix holds both ends of the
-tension the foreman put to it: the exclusion is asserted to admit **only** test
-files, and the floor asserts the three known writers are still in the
-population **and still contain a write**.
-
-**IE-024's YELLOW is answered, and the first rework came back `ESCALATE` on
-*authority* with no defect reported — because of a process failure of the
-foreman's.** Fable chose **option (a)**: `checkShape` walks every effect list
-through one enumeration, applying the per-entry rules the file already has.
-The `??` question is settled as one rule: `undefined` is absent, anything else
-including `null` is `malformed_field`.
-
-**The escalation found a live hole nobody was looking for.** The
-**rider-is-a-leaf denylist reached one list of three** — `checkNoNestedEffect`
-is entered only from the top-level walk — so `CLAUDE.md`'s "three places
-enforce that a rider is a leaf" was two places plus a test, and the catalogue
-is clean only because the *test* sweep walks all three. The foreman's own
-preference was the builder's option (c), **which does not close it**. That is
-the argument for escalating rather than deciding locally, and it is only
-visible in hindsight.
-
-**Then the review of the rework escalated, correctly, on evidence it could not
-have had.** A reviewer reviews against the brief **on disk in the builder's
-worktree**; builders may not edit `docs/dev/`; so the decision reached the
-builder by message and nobody else, while the brief it read still forbade the
-two things the decision authorised. The reviewer's own words: *"I am
-escalating the authority to take it, not disputing its merit."* Fixed three
-ways — the decision recorded, **the superseded lines struck in place where a
-reviewer reads them**, and the worktree rebased so the brief is the decided
-one — and `WORKFLOW.md` now says answering a YELLOW is those three acts rather
-than one. The code was not touched and the review is being run again.
-
-**IE-026 merged on round six** (`dd97c84`), and the pattern is the finding
-rather than the defect. Every round passed the *implementation* at high
-confidence and every round returned defects on **documentation prose**, after
-which the fix went unreviewed — so condition 3 was false three separate times
-for one structural reason: no reviewer had seen the commit that would be
-merged. **The same false claim was written three times in three places**, each
-to justify a conclusion true for a *directional* reason.
-
-What the fifth round bought was worth the whole loop: it **re-derived every
-number** rather than trusting five prior passes — 18 offenders on `main`
-against 1 on the branch, so the sweep genuinely fails without the change; 28
-extracted literals against 28 `satisfyWith:` sites, exact; 91 barrel names with
-exactly three nested pairs, so the boundary fixture discriminates. Three
-procedural calls are recorded on the task file, each of which could have gone
-otherwise.
-
-**Two mistaken acceptance criteria of mine, both caught by builders and
-confirmed by reviewers.** IE-025's rule 5 asserted a rules fact SRD Fiend
-Spells contradicts; IE-028's criterion 1 described a test outcome the design it
-asked for cannot produce, because dropping a family from a *derived* list is a
-compile error rather than a test failure. The pattern is that each was written
-by analogy to a precedent without checking the analogy held in the new design.
-The system caught both, which is the point of it; the brief-writing is mine to
-correct.
-
-**IE-031's YELLOW is answered, and Fable chose a fourth option — the delta
-audit's original, which the foreman's brief correction had overridden.**
-`TurnBudget` stores `movementSpent` and `movementGained`, and the allowance is
-derived at every read as `max(0, speedOf + gained − spent)` **by the command
-and by the fold alike**. `movedSoFar` and the `min()` clamp are deleted rather
-than re-based. No event shape changes.
-
-**The general rule, which is what the next brief needs:** *store what happened,
-derive what is left.* A stored remainder is a derived quantity frozen at its
-seed, sound only while the allowance moves in the direction a cap can express.
-**A working live cap is not evidence that a live allowance exists** — the test
-is whether the stored number can represent an allowance *larger than its seed*.
-The foreman's correction was wrong in kind and not merely wrong for grants that
-raise.
-
-**And the fold's guard was the right shape with the wrong inputs.** A reducer
-backstop is honest only when it is the command's own check with the command's
-own inputs: `events.ts:4360` already passes `sheet.attacksPerAction` and
-`:4371` passes conditions, while `:4388` called the same function with
-*different* inputs and measured against a number the command never used. **That
-is a fork — the Dodge-versus-Fire-Bolt shape this repository already records —
-and it is why a green suite folded a corrupt log.** Calling `speedOf` on the
-fold path opens no catalogue: every input is log-held, so the fence around
-`upgradeOngoing` stands.
-
-**Sequenced, not widened.** The surface gains two reducer lines in `events.ts`,
-which is IE-030's primitive, and Fable ruled the task stays inside its approved
-brief — the objective is unchanged and the same change simply has to reach its
-second caller. The rework launches when IE-030 merges. The brief's superseded
-paragraph is **struck in place where a reviewer reads it**, which is the lesson
-IE-024 cost a round to learn.
-
-**IE-030 escalated too, and the foreman decided it GREEN rather than sending a
-second question to Fable.** `CastSpellRequest.fought` was briefed as one
-**boolean per casting**, and SRD keys the clause **per target** — "if you or
-your allies are fighting **it**". Charm Person and Charm Monster both carry
-`extraPerSlotLevelAbove: 1`, so an upcast casting names several creatures and
-every one of them got the same answer, with the `unmodelled` clause that had
-admitted the gap removed: **a wrong number with no symptom in a reachable
-path**. Decided: `fought?: readonly CharacterId[]`, which is `unaffected`'s
-existing shape for the neighbouring clause in the same paragraph of the same
-spells — already validated against the world, already carried on the pending
-record. It invents nothing, so it is the foreman's to take, and the brief's
-prescribed arity is recorded as an **approved deviation**. One detail that must
-not be copied from the neighbour: an empty list means *fighting none of them*
-and is not absence, so it may not be elided the way `unaffected` is.
-
-**And the derived map was wrong about Enthrall, which is the finding worth more
-than the task.** The brief said this shape finishes Enthrall outright, quoting
-`consumersOf`. SRD Enthrall prints "automatically **succeeds**", not
-Advantage, plus a −10 narrowed to Wisdom (Perception) and Passive Perception —
-so it is blocked on an `autoSucceed` `checks.ts` does not have and a
-skill-narrowed bonus `BonusApplies` cannot express, neither of which the map
-had ever recorded. IE-015 made the consumer count a query so that nobody would
-trust a hand-written number; **a query is still only as good as the
-adjudications beneath it**, and this is the first time one of them has been
-caught wrong by a builder reading the paragraph.
-
-**Both wave-3 tasks escalated, and both trace to briefs of mine** — a wrong
-arity here, a wrong correction about the movement seed in IE-031. Four
-substantive brief errors this tranche, every one caught by a builder or a
-reviewer, none reaching `main`.
-
-**IE-033's confirming review returned `PASS`**, and it verified all three of
-round 3's fixes **by mutation rather than by reading** — including the dead
-branch that had left 7,316 tests green when neutered, which is now pinned by a
-case asserting its code **by name** on a fixture built so nothing
-short-circuits first. It found no false sentence and no two that disagree,
-which is what three rounds of prose had been about.
-
-**Ray of Frost's narrowing is filed for the owner, with the honest fix named.**
-The refusal is correct — inventing six seconds is what the engine exists not to
-do, and silently skipping the rider drops a rule with no `unverified` line —
-but this is **the first time it reaches a cantrip, and the shape of the cost
-inverts**. Color Spray's whole printed content *is* its rider; Ray of Frost's
-is 1d8 Cold damage with the slow incidental, so the refusal denies the player
-the part they asked for to protect the part they did not. **The fix is a
-`RiderDuration` member for a moment that does not exist outside combat — the
-same missing `Duration` member Superior Hunter's Defense wants** — in a task
-of its own.
-
-**IE-034's YELLOW is answered, and the answer is larger than its brief — so
-the narrow half ships with a named debt and the shape change goes to the
-owner.**
-
-**The measured fact that reframed it:** `unsettledRefusal` has **never**
-contained `pendingCasting`. While a Counterspell window is open, a fighter
-attacks and a rogue moves; only three commands read the record at all. So the
-guard was never "a casting in process freezes the world" — **its entire
-content is refusing the second declaration the reducer would throw on**, a
-structural fact leaking out as a rules refusal, invisible only because its one
-user was an instant. **IE-034 did not break the guard; it exposed that the
-single slot was an accident of its first user.**
-
-Fable's decision: replace the slot with a record **keyed by casting id**,
-enforcing **one open casting per caster** — a second user of the shape
-`ongoing` already has, since every reducer path already addresses by casting
-id. The rite's own caster is refused a Magic action and **permitted a Reaction
-and a Bonus Action**, because SRD commits the Magic action and nothing else.
-**Option (a) is refused under any sequencing**: it keeps the accident and
-re-issues it as a rule, so two party members riting in the same ruin are still
-refused.
-
-**Fable's own line is "Stays inside the approved brief: NO."** The owner's
-standing instruction is that a YELLOW *"may continue only if the answer stays
-inside approved scope"* — so the foreman is **not** building it. IE-034 reworks
-three GREEN items instead (a vacuous test, a one-sentence-two-ways refusal, and
-the debt named **and pinned by a test** that a cleric's Fire Bolt during a rite
-is refused and costs nothing), and the record's shape is proposed as tranche
-6's first task.
-
-**IE-036 is deferred behind it**, on Fable's evidence rather than the
-foreman's preference: it writes twelve ritual definitions with their fixtures,
-and *"the shape change becomes the task in front of IE-036, not behind it. The
-one thing that may not happen is the guard changing meaning twice."* It stays
-on the owner's roster with its approval intact — a deferral is a decision not
-to launch, not a withdrawal, and the validator refuses a roster that quietly
-loses a task.
-
-**Running:** IE-021, IE-022, IE-023 (wave 1), IE-026's confirming review, and
-Fable on IE-024.
-
-**Blocked on file ownership rather than on its dependency:** IE-030's brief
-depends only on IE-028, which has merged — but it edits `spell-schema.ts`
-(IE-024's), `commands/targeting.ts` (IE-026's) and `missing-shapes.ts`
-descriptions (IE-022's), all three in flight. **The dependency graph I wrote
-tracked semantics and the real constraint is file ownership**, which is a
-planning lesson worth more than the delay: IE-030 waits for IE-024 and IE-026
-to resolve.
-
-All nineteen tasks to date are `DONE` and merged; tranche 4 shipped ten of ten,
-nine of them without owner involvement. `main` carries **6,696 tests across 103
-files**, both frozen fixtures untouched.
-
-The eighteen tranche 5 briefs are written and committed at
-`state: OWNER_APPROVAL_REQUIRED`. The next thing that happens is the owner's
-word at Gate 1. Until then the foreman launches nothing, and `check-queue.mjs`
-refuses any task that tries to execute outside an approved tranche.
-
-The audit flag raised after tranche 4 is **answered** — see "The flag raised
-after tranche 4" above — and the next audit this repository should run is the
-**simplification and optimisation pass**, recommended at tranche 5's
-`TRANCHE_COMPLETE` rather than a fifth retrospective.
+1. **`pendingCastings`, keyed by casting id.** Fable's decision from IE-034's
+   YELLOW, and explicitly outside that task's brief, so it was not built. The
+   engine currently refuses **every other creature's** casting while one rite
+   is open — a debt that ships **pinned by three tests** rather than described
+   in a comment, so the task that fixes it deletes tests. This is tranche 6's
+   first task and IE-036 sits behind it.
+2. **IE-036**, re-proposed behind that change, so twelve ritual definitions are
+   written once against a record whose shape has stopped moving.
+3. **The Fable non-semantic simplification and optimisation audit** — recorded
+   as a checkpoint *before* this tranche began and now due. The delta audit
+   asked that it measure the engine **after** IE-027 and IE-028 landed rather
+   than recommend them; both landed. `resolveEffects` is 214 lines where it was
+   1,008, and the grant families are enumerated once where they were walked by
+   hand in five places — so the two largest items it would have named are
+   already closed, and what it should measure is what tranche 5 *added*.
+   **Not a fifth retrospective.**
 
 ## NEXT
 
@@ -995,3 +733,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | LATER (from IE-034) | — | `long-casting.test.ts:318` asserts `expect(world()).toEqual(before)` where `before = world()` — two identical pure computations, so **that assertion cannot fail**. The block's load-bearing `isErr` assertion can, and duplicates the `it.each` above it. The builder declined to edit after a PASS so the reviewed commit stayed the merged commit, which is right; a vacuous assertion *beside* a working one is a tidy rather than a correctness risk. One line for whoever next opens that file |
 | 2026-09-14 | merge (tranche authority) | IE-035 | merged `fbc7e31`, 13/13, risk gate inspected. Four declared deviations, all accepted: **three acceptance criteria corrected against the SRD** (verified by the foreman personally, the third such task tonight), Hex keeping a second blocker, a fourth review round declared rather than hidden, and a **population floor that failed by succeeding** — `> 200` against a map of exactly 201, so defining two spells broke a guard *because it worked*. The sixth sourced grant cost **exactly one line** in the enumerator, which is IE-028's derived guard measured a second time |
 | 2026-09-14 | LATER (from IE-035) | — | **A readied spell cannot state a stated fact.** `ReadiedResponse` carries a spell id, a casting id and a level and nothing else, so the three Dominates are refused `fought_fact_required` on the readied path and **cannot be readied at all** — and the same will hold for any future spell stating a damage type. This is IE-030's stated facts meeting the Ready path, and **neither task could have seen it alone**. Also: a population floor is itself a hand-kept number, and this one was set one above the live value; deriving it would be better than lowering it again |
+| 2026-09-14 | merge (tranche authority) | IE-037 | merged `062441c`, 13/13, risk gate inspected. **The last merge of tranche 5.** The discriminating fixture is a **40-foot room with a 30-foot spell** — disabling the scene check reddens exactly that case and nothing else, where a 600-foot hall would have hidden it for ever. `sceneFor` has one home on its third copy, and emptying it now reddens the scene, movement and teleport families together. No new event type, so both frozen logs fold unchanged |
+| 2026-09-14 | `TRANCHE_COMPLETE` | IE-020 … IE-037 | **17 of 18 shipped, 1 deferred.** Three YELLOWs — one predicted and resolved cleanly, two unforeseen, all three answered by Fable and one of those routed onward to the owner. Four brief errors of the foreman's, every one caught by a builder or reviewer and none reaching `main`. Tests 6,696 → 7,812; executed 91 → 96; `resolveEffects` 1,008 lines → 214. `main` verified green after every merge |
