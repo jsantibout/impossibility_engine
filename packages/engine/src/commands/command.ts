@@ -47,16 +47,23 @@ export const creatureOf = (state: GameState, id: CharacterId) => state.creatures
  * `combat.ts`) return the bare kind and leave the request to the command that
  * knows which rule wanted the fact.
  *
- * **This is the one request that names an event rather than a command, and it
- * is deliberate.** Every other one names something a caller can send, because
- * a tool surface calls commands and never appends events — appending one is
- * how the model would assert a mechanical fact directly. Adding a creature has
- * no such command: `createCharacter` in `creation.ts` emits `creature-added`,
- * predates the command layer, takes no `CommandIdentity` and is not published
- * through the `commands.ts` barrel. Naming a command that does not exist would
- * be worse than naming the event, so the honest answer stands and
- * `invariants.test.ts` carries it as a written exemption whose claim it
- * checks. A barrel command that adds a creature is what would end it.
+ * **This was the one request that named an event rather than a command**, and
+ * it is not any more. Every other one names something a caller can send,
+ * because a tool surface calls commands and never appends events — appending
+ * one is how the model would assert a mechanical fact directly. Adding a
+ * creature genuinely had no command: `createCharacter` in `creation.ts` emits
+ * `creature-added`, predates the command layer, takes no `CommandIdentity` and
+ * is not published through the `commands.ts` barrel, so this said "a
+ * creature-added event" and `invariants.test.ts` carried a written exemption
+ * saying that a barrel command adding a creature was what would end it.
+ * `addCreature` is that command, and the exemption was deleted rather than
+ * reworded — which is what an exemption naming the fact that would end it is
+ * for.
+ *
+ * It names `addCreature` rather than `createCharacter` because the creature
+ * the engine is asked about mid-fight is a monster far more often than a
+ * character sheet, and a request has to name one thing. A caller whose missing
+ * creature is a player character builds it the way every character is built.
  */
 export const unknownCreature = (id: CharacterId, detail = 'is not in this game') =>
   needsContext('unknown_creature', `${id} ${detail}`, [
@@ -65,7 +72,7 @@ export const unknownCreature = (id: CharacterId, detail = 'is not in this game')
       subject: id,
       need: `a record for ${id}`,
       because: 'the command names a creature the engine has never been told about',
-      satisfyWith: `a creature-added event for ${id}`,
+      satisfyWith: `an addCreature command for ${id}`,
     },
   ]);
 

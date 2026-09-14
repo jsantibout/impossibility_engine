@@ -552,6 +552,9 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             spellcasting: noSpellcasting(),
             creatureType: event.creatureType ?? null,
             defenses: event.defenses ?? {},
+            // Absent means none, which is what every log written before this
+            // field existed says — so both frozen fixtures fold unchanged.
+            conditionImmunities: event.conditionImmunities ?? [],
             side: event.side ?? null,
             activeFeatures: [],
             readied: null,

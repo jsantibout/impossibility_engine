@@ -55,13 +55,14 @@ export {
 } from './commands/holds.js';
 export { recordD20Test } from './commands/rolls.js';
 export {
+  addCreature,
   damageCreature,
   grantTemporaryHpTo,
   healCreature,
   removeCreatureEverywhere,
   setExhaustionLevel,
 } from './commands/creatures.js';
-export type { DamageCommand } from './commands/creatures.js';
+export type { AddCreatureOutcome, DamageCommand } from './commands/creatures.js';
 export { applyConditionTo, whyCondition } from './commands/conditions.js';
 export { declareCreatureType } from './commands/facts.js';
 export {

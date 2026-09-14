@@ -1144,6 +1144,38 @@ function riderOptions(
 }
 
 /**
+ * Land a condition a casting imposes, or report that the target is immune.
+ *
+ * **An immune creature is unaffected by that clause; the casting still
+ * happens.** `applyConditionTo` refuses with `immune`, which is the right
+ * answer to a DM who has said "make this creature Poisoned" — it is a verdict
+ * they asked for, and the spell lands and does nothing. Inside a casting it is
+ * not a verdict about the casting: SRD Ray of Sickness aimed at a Zombie still
+ * rolls its attack and deals its (immune, therefore zero) Poison damage, and a
+ * whole spell refused because one of its clauses could not touch one target
+ * would be a rules bug in the other direction — worse, one that also left the
+ * generator advanced with no events emitted.
+ *
+ * So the *decision* stays in one place, `applyConditionTo` reading the one
+ * gatherer, and this reads its answer. Two condition sites reach it — an
+ * outcome's riders and the standalone `condition` kind — and they go through
+ * one function rather than each interpreting the code, which is the fork
+ * `defendingModes` closed on the defensive side.
+ */
+function imposeCondition(
+  state: GameState,
+  target: CharacterId,
+  rider: ConditionRider,
+  casterId: CharacterId,
+  options: SpellEffectOptions,
+): Result<{ readonly events: readonly GameEvent[]; readonly landed: boolean }> {
+  const out = applySpellEffect(state, target, rider.name, casterId, options);
+  if (out.ok) return ok({ events: out.value, landed: true });
+  if (out.code === 'immune') return ok({ events: [], landed: false });
+  return out;
+}
+
+/**
  * Everything one settled outcome carries with it, applied in one place.
  *
  * Three host branches used to do this inline and each knew a different subset:
@@ -1195,14 +1227,10 @@ function applyRiders(
   let current = state;
 
   for (const rider of riders.conditions ?? []) {
-    // A condition the casting causes and does not keep is recorded under the
-    // spell's bare name, linked to nothing that could later take it away — so
-    // it does not put the casting *on* the target either.
-    if (rider.outlivesCasting !== true) held.add(target);
-    const landed = applySpellEffect(
+    const landed = imposeCondition(
       current,
       target,
-      rider.name,
+      rider,
       casterId,
       riderOptions(rider, {
         castingId,
@@ -1214,8 +1242,16 @@ function applyRiders(
       }),
     );
     if (!landed.ok) return landed;
-    events.push(...landed.value);
-    current = landed.value.reduce(applyEvent, current);
+    // **After the attempt, not before it.** A condition the target is immune
+    // to put nothing on them, so the casting is not holding anything there and
+    // must not claim to be — `OngoingSpell.on` is what Dispel Magic reads. And
+    // a condition the casting *causes and does not keep* is recorded under the
+    // spell's bare name, linked to nothing that could later take it away, so
+    // it does not put the casting on the target either.
+    if (!landed.value.landed) continue;
+    if (rider.outlivesCasting !== true) held.add(target);
+    events.push(...landed.value.events);
+    current = landed.value.events.reduce(applyEvent, current);
     conditions.push(rider.name);
   }
 
@@ -2255,10 +2291,10 @@ function resolveConditionEffect(
   // effect and there is exactly one of it. `conditionRiderOf` types that
   // as a non-empty list, which is why the first element is not a guess.
   const [rider] = conditionRiderOf(effect);
-  const landed = applySpellEffect(
+  const landed = imposeCondition(
     current,
     target,
-    rider.name,
+    rider,
     casterId,
     riderOptions(rider, {
       castingId,
@@ -2271,8 +2307,18 @@ function resolveConditionEffect(
   );
   if (!landed.ok) return landed;
 
-  events.push(...landed.value);
-  current = landed.value.reduce(applyEvent, current);
+  // A target immune to the one condition this kind imposes is **unaffected**,
+  // which is a real outcome and not an error — the reading `end-condition`
+  // already takes for a spell that finds nothing to cure. `conditions` is
+  // absent rather than empty, so a reader asking whether a condition was
+  // imposed asks one question.
+  if (!landed.value.landed) {
+    outcomes.push({ target, affected: false });
+    return ok(current);
+  }
+
+  events.push(...landed.value.events);
+  current = landed.value.events.reduce(applyEvent, current);
   if (rider.outlivesCasting !== true) held.add(target);
   outcomes.push({ target, conditions: [rider.name], affected: true });
   return ok(current);

@@ -335,14 +335,17 @@ fold events nothing wrote.
 
 `creature-added` was never among the seventeen: `createCharacter` emits one,
 and the second fixture hand-writes one anyway for a thug who came from no
-character sheet.
+character sheet. **A command emits it now as well** — `addCreature`, which is
+how a monster enters a game — and that is a different claim from the one the
+seventeen were about: what the sweep below measures is whether anything writes
+a type, and a second writer changes no answer.
 
 **The claim is a derived sweep rather than a count in this file.**
 `invariants.test.ts` reads the union and every runtime module under `src/`, and
 fails naming any declared type nothing writes — driven over a synthetic type it
 must catch, so the analysis cannot quietly stop seeing anything. It asserts the
 narrower reading too: taken as *the command layer* — every module under
-`commands/`, plus `rest.ts` — five types come back, and each carries a written
+`commands/`, plus `rest.ts` — four types come back, and each carries a written
 exemption naming `creation.ts` as its emitter, which the test then checks. See
 "Known Pending Work" for why that mattered before M2 rather than during it.
 
@@ -7426,15 +7429,19 @@ whatever could then be written in a `route` request — so the test pins the
 other direction too, with a route-shaped string that names no command and is
 caught.
 
-**One request names an event on purpose, and inventing a command would have
-been worse than leaving it.** `unknownCreature` says "a creature-added event
-for …" because adding a creature has no command: `createCharacter` in
-`creation.ts` emits it, predates the command layer, takes no `CommandIdentity`
-and reaches the outside through `index.ts` rather than through the barrel. It
-is a written exemption in the shape the five event-type exemptions beside it
-already use — naming the fact that would end it, with the test checking the
-claim rather than taking it on its word. **A barrel command that adds a
-creature is what ends it.**
+**Every request names a command now, and the one exemption fell rather than
+being reworded.** `unknownCreature` said "a creature-added event for …" because
+adding a creature genuinely had no command — `createCharacter` in `creation.ts`
+emits it, predates the command layer, takes no `CommandIdentity` and reaches the
+outside through `index.ts` rather than through the barrel — and it carried a
+written exemption ending "a barrel command that adds a creature is what would
+end this exemption". `addCreature` is that command, so the entry was **deleted**
+and `NAMES_AN_EVENT_ON_PURPOSE` is empty. A guard whose exemption list empties
+is the one that was worth writing; `dash`'s single-reader exemption was the
+first to go that way and this is the second. The request names `addCreature`
+rather than `createCharacter` because the creature the engine is asked about
+mid-fight is a monster far more often than a character sheet, and a request has
+to name one thing.
 
 **And `resolveMove` answered `no_scene` with a bare refusal**, carrying no
 request at all, while the `sceneFor` helper further down its own module had
@@ -7593,6 +7600,143 @@ automatic tables and `conditionApplicability` returns one of three answers —
 Three outcomes rather than a boolean, because they mean different things
 upstream: proceed, refuse, or ask. Collapsing the third into either of the
 others is exactly how a conditional immunity becomes an absolute one.
+
+### A monster enters through a command, and its printed immunities arrive with it
+
+**`adaptMonster` had no caller outside its own test**, and `conditionApplicability`
+had none either — which is the fourteenth recorded instance of this repository's
+most persistent finding, and it cost two things at once. Nothing above the
+engine could put a monster into a game without folding a `creature-added` by
+hand, which is narration writing straight to truth; and the condition half of
+the run a stat block prints in one line reached nothing at all, so **a Zombie
+was Poisoned by Ray of Sickness like anybody** — a wrong number with no symptom,
+which is the class of failure this file calls its worst.
+
+`addCreature` in `commands/creatures.ts` is the command. It **wraps**
+`adaptMonster` and computes nothing of its own: the printed Armour Class, the
+stated saves and skills, the average hit points, "a monster dies the instant it
+drops to 0", the creature type the parser has read since `Small Fey
+(Goblinoid)`, and both halves of the defence run.
+
+**It takes the parsed `Monster` rather than an id, and that is the parser
+rather than a decision.** `@ie/srd` ships no monster index — `generated/monsters.json`
+is untracked and nothing consumes it — so there is nothing for an "unknown stat
+block" refusal to refuse, and a guard nothing can reach is not a rule. For the
+same reason it **declares no spellcasting**: a stat block prints its spells as
+English prose in a trait and `Monster` carries no ability, no list and no slots,
+so reading one out would be the engine deciding a fact the SRD wrote for a
+person. `declareSpellcasting` states it, and `declareCreatureSide` states the
+allegiance, each in a second command — which is what those commands are, and a
+second way to say either would be two answers to one question.
+
+**It refuses exactly what the reducer would call corrupt and nothing more** — a
+creature already in the game — and the refusal sits *below* the duplicate check,
+because the command's own first run is what makes the world answer
+`already_present`. `once` is why there is nowhere above it to write one.
+
+**It spends nothing, so `mayAct` is not consulted**, and `DECLARED_NOT_ACTED` is
+where that is written down and checked. `commands/creatures.ts` joined
+`DECLARING_MODULES` on that sweep's own rule — *a module joins only when every
+public command in it declares rather than acts* — so the five commands beside it
+are accounted for too: damage, healing, an Exhaustion level, Temporary Hit
+Points and a creature leaving are every one of them the **outcome** of something
+that spent its own cost through its own command, which is `stabiliseCreature`'s
+reading applied to the module. Filing `addCreature` there alone was not an
+option; the scope is the module.
+
+**`conditionImmunitiesOf` is the one gatherer, in `defensesOf`'s shape and
+beside it**, and `applyConditionTo` reads it. That parameter used to be the
+*caller's* to supply and **no caller in the engine ever supplied one** — every
+call site passed the empty list. It survives as a caller's *addition*, unioned
+rather than overriding: a caller may know an immunity the record does not hold
+and none may take one away that it does. Removing it outright was the preference
+and would have meant editing `commands/casting.ts`, which another builder held
+in the same tranche; `SpellEffectOptions.immuneTo` beneath it has zero writers
+and is the one-line deletion left.
+
+**Suppression is deliberately not folded in.** SRD Aura of Courage says a
+Frightened ally's condition "has no effect on that ally while there" — the
+condition is still on them and comes back when they leave, which is what
+`suppressedConditions` and `effectiveConditions` are for. An immunity refuses the
+condition outright; a suppression lets it land and does nothing with it, and
+merging them would get both wrong.
+
+**An *implied* condition is not checked against the immunity, and that is a
+residue rather than a decision.** `applyCondition` expands SRD's implication
+table — Unconscious carries Incapacitated and Prone — in the **fold**, after
+the command has asked about the condition the caller *named*. So a creature
+immune to Prone and Incapacitated but not to Unconscious acquires both the
+moment something makes it Unconscious, and the witness is a real stat block:
+SRD's Swarm of Crawling Claws prints eleven conditions including Incapacitated
+and Prone and **not** Unconscious. It is written down rather than fixed because
+the book does not settle it — Unconscious "includes" the other two and nothing
+says what an immunity to one of them does to that sentence, so filtering the
+implications would be the engine answering a question the rules declined to
+ask, and **a test freezing today's answer would be the same mistake in the
+other direction**. The reading `TurnBudget.movementGained` already takes of an
+open question. What is pinned instead is the *witness*: the stat block's list
+and the implication edge that meets it, so the residue cannot quietly stop
+being about a live case. It is narrow in practice — a monster `diesAtZero`, so
+the hit-point route to Unconscious is mostly closed and what is reachable is
+`applyConditionTo` and a `condition` effect naming it directly — and a ruling,
+from errata or from the table, is what would end it.
+
+**Inside a casting an immune creature is unaffected; the casting still
+happens.** `applyConditionTo` refuses with `immune`, which is the right answer to
+a DM who has said "make this creature Poisoned" — a verdict they asked for, the
+spell lands and does nothing. It is *not* a verdict about the casting: Ray of
+Sickness aimed at a Zombie still rolls its attack and deals its (immune,
+therefore zero) Poison damage, and a whole spell refused because one clause could
+not touch one target would be a rules bug in the other direction — worse, one
+that also left the generator advanced with no events emitted. So the *decision*
+stays in one place and `imposeCondition` in `commands/spell-resolution.ts` reads
+its answer, for both condition sites, rather than each interpreting the code.
+`held` is added **after** the attempt, because a condition that never landed put
+nothing there for `OngoingSpell.on` to claim.
+
+**A qualified entry is withheld and reported, and this command is the only thing
+that ever sees one.** "Charmed (except from its vampire master)" as a flat
+immunity makes the vampire unable to charm the one creature the entry exists to
+let it charm — so it stays out of `conditionImmunities`, the condition is
+`allowed`, and the qualification comes back in `AddCreatureOutcome.unverified`
+verbatim, beside any defence entry the adapter could classify as neither a damage
+type nor a condition. It is reported at the moment the creature arrives rather
+than carried in state, because the qualification is a rule the engine cannot
+evaluate and has no business holding as though it could; carrying it so a later
+casting can say so is a named next step rather than a gap left unsaid.
+
+**The event field is optional and absent means none**, so both frozen logs fold
+unchanged and neither fixture was regenerated — and a `conditionImmunities` an
+*effect* grants is the seventh sourced-grant family, which belongs beside
+`grantedDefenses` and not in this table, which is the creature's own and never
+grows.
+
+**`conditionApplicability` and `monsterCanReceive` still have no runtime
+caller, and that is the honest residue rather than a half-finished job.** Both
+take an `AdaptedMonster`, which is what the *adapter* returns and not what
+state holds: a creature record carries the classification's **answers** —
+`defenses` and `conditionImmunities` — and never the stat block it came from.
+So the route a running game takes is `conditionImmunitiesOf`, and a second
+reader that first re-adapted the monster would be the fold consulting the
+bestiary, which is the fence `upgradeOngoing` stands behind. What `addCreature`
+uses of the adapter is the whole classification — the two tables and the
+qualified entries — where `conditionApplicability` answers about one condition
+at a time. The three-valued answer it gives is therefore preserved by *where
+each entry goes* rather than by that function being called: unconditional
+entries into state, qualified ones into `unverified`, and nothing invented for
+either. The day something holds an `AdaptedMonster` at the point of a
+question — a summon, or a stat block a tool surface is inspecting before it
+commits — is the day that function gets its caller.
+
+**And two exemptions fell rather than being reworded**, which is what an
+exemption naming the fact that would end it is for. `unknownCreature`'s request
+said "a creature-added event for …" under a written reason ending "a barrel
+command that adds a creature is what would end this exemption"; it names
+`addCreature` now and `NAMES_AN_EVENT_ON_PURPOSE` is **empty**, so every context
+request in the engine names a command a caller can send. And
+`OUTSIDE_THE_COMMAND_LAYER` is four rather than five: `creation.ts` still emits
+a `creature-added` too, and an event type is emitted once *something* writes it,
+so a second writer neither adds nor removes an exemption.
 
 ## Conditions Remember Why
 
@@ -7985,14 +8129,19 @@ Both halves are driven over synthetic sources they must catch.
 
 **Where the command layer is drawn changes the answer, so the sweep names it
 rather than assuming it.** Read as the other sweeps read it — every module
-under `commands/`, plus `rest.ts` — five types come back: `creature-added`,
-`character-created`, `character-advanced`, `hit-point-maximum-raised` and
-`resource-pool-resized`. Every one is emitted by `creation.ts`, which predates
+under `commands/`, plus `rest.ts` — four types come back: `character-created`,
+`character-advanced`, `hit-point-maximum-raised` and `resource-pool-resized`.
+Every one is emitted by `creation.ts`, which predates
 the command layer, takes no `CommandIdentity` and is not published through the
 `commands.ts` barrel — so it is a question about where a command lives rather
 than about whether one exists. Each carries a written exemption, and the test
 checks the exemption's *claim* rather than taking it on its word: `creation.ts`
-really does emit all five.
+really does emit all four.
+
+**It was five, and `creature-added` left**, which is the shape an exemption is
+written to have: `addCreature` emits it from `commands/creatures.ts`, so the
+entry fell rather than being reworded. `createCharacter` still emits one too,
+and that changes nothing — a type is emitted once something writes it.
 
 **Every event a command stamps declares that it may carry one — and it reads
 the stamp rather than the module.** That is what let the sweep become a
@@ -8757,10 +8906,13 @@ null and is reported — it never becomes either.
   and three fragments of prose. And the answer moves with where the command
   layer is drawn, so the boundary is **named rather than assumed and asserted
   rather than described**: taking it as the other sweeps do — every module under
-  `commands/`, **plus `rest.ts`** — five types come back, every one of them
+  `commands/`, **plus `rest.ts`** — four types come back, every one of them
   emitted by `creation.ts`, whose two entry points predate the command layer,
   take no `CommandIdentity` and are not published through the `commands.ts`
-  barrel. Each carries a written exemption and the test checks its claim.
+  barrel. Each carries a written exemption and the test checks its claim. It
+  was five until `addCreature` landed, and `creature-added`'s exemption fell
+  rather than being reworded — `createCharacter` emitting one as well changes
+  no answer, because a type is emitted once something writes it.
   Dropping `rest.ts` from that reading adds three more — `rest-begun`,
   `rest-ended` and `temporary-hp-cleared` — which is why that is the wrong line
   to draw.

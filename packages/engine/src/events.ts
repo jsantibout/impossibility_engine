@@ -130,8 +130,30 @@ export type GameEvent =
       readonly creatureType?: string;
       /** What this creature resists, is immune to, or is vulnerable to. */
       readonly defenses?: Readonly<Record<string, DamageDefenses>>;
+      /**
+       * Conditions this creature's stat block says it cannot be given at all.
+       *
+       * The other half of the run a stat block prints in one line: a Zombie's
+       * "Immunities Poison; Exhaustion, Poisoned" is one damage type and two
+       * conditions, and the engine treats the two completely differently. The
+       * damage half has reached `defenses` since defences landed; this half
+       * reached nothing, so a Zombie was Poisoned by Ray of Sickness like
+       * anybody.
+       *
+       * **Optional, and absent means none.** Every log written before this
+       * carries no such field and means exactly what it always meant, which is
+       * why both frozen fixtures fold unchanged and neither was regenerated.
+       *
+       * Unconditional entries only, exactly as `defenses` is. "Charmed (except
+       * from its vampire master)" is a restriction no boolean captures, and
+       * treating it as absolute makes the vampire unable to charm the one
+       * creature the entry exists to let it charm — so it is withheld and
+       * reported rather than written here.
+       */
+      readonly conditionImmunities?: readonly ConditionName[];
       /** Which side of the fight this creature is on. See {@link CreatureState.side}. */
       readonly side?: string;
+      readonly command?: CommandStamp;
     }
   /**
    * A named bonus starts or stops applying to a creature's rolls.

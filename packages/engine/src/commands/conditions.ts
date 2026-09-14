@@ -18,6 +18,7 @@ import {
 } from '../duration.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { conditionImmunitiesOf } from '../standing.js';
 import { creatureOf, unknownCreature } from './command.js';
 
 /**
@@ -25,6 +26,19 @@ import { creatureOf, unknownCreature } from './command.js';
  *
  * Immunity is a rules-legal refusal rather than a silent no-op, so the DM can
  * narrate it: the spell lands and does nothing.
+ *
+ * **What the creature is immune to is read off the creature.** It used to be
+ * the *caller's* to supply, and no caller ever supplied one — every call site
+ * in the engine passed the empty list, so a Zombie's printed "Immunities …
+ * Exhaustion, Poisoned" reached nothing and it was Poisoned by Ray of Sickness
+ * like anybody. {@link conditionImmunitiesOf} is the one gatherer and this is
+ * where it is read, which is the shape `defensesOf` already has on the damage
+ * side of the same printed line.
+ *
+ * `immuneTo` survives as a caller's **addition**, unioned rather than
+ * overriding: a caller may know an immunity the engine's record does not hold,
+ * and none may take one away that it does. Nothing in the engine passes it
+ * today.
  */
 export function applyConditionTo(
   state: GameState,
@@ -59,7 +73,7 @@ export function applyConditionTo(
     if (creatureOf(state, id) === null) {
       return unknownCreature(id);
     }
-    if (immuneTo.includes(condition)) {
+    if (immuneTo.includes(condition) || conditionImmunitiesOf(state, id).includes(condition)) {
       return err('immune', `${id} is immune to the ${condition} condition`);
     }
 

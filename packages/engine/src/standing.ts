@@ -823,6 +823,64 @@ export function defensesOf(
 }
 
 /**
+ * Conditions this creature cannot be given at all.
+ *
+ * **The one gatherer**, in {@link defensesOf}'s shape and beside it, because
+ * it answers the other half of the run a stat block prints in one line: a
+ * Zombie's "Immunities Poison; Exhaustion, Poisoned" is one damage type and
+ * two conditions. The damage half has had a reader since defences reached
+ * state; this half had none, so `adaptMonster` produced the list and nothing
+ * whatever consulted it.
+ *
+ * One input today — the creature's own printed entries — and it is a gatherer
+ * rather than a field read because a condition immunity an **effect** grants
+ * is the next thing to arrive, and it joins here rather than at the caller.
+ * Reading `creature.conditionImmunities` at `applyConditionTo` would be the
+ * second place the question is answered, which is what this repository keeps
+ * recording going wrong.
+ *
+ * **Suppression is deliberately not folded in.** SRD Aura of Courage says a
+ * Frightened ally's condition "has no effect on that ally while there" — the
+ * condition is still on them and comes back the moment they leave, which is
+ * what {@link suppressedConditions} and {@link effectiveConditions} are for.
+ * An immunity refuses the condition outright; a suppression lets it land and
+ * does nothing with it, and merging the two would get both wrong.
+ *
+ * **An *implied* condition is not checked against this, and that is a residue
+ * rather than a decision.** `applyCondition` expands SRD's implication table —
+ * Unconscious carries Incapacitated and Prone — and it does so in the fold,
+ * after the command has asked this about the condition the caller **named**.
+ * So a creature immune to Prone and Incapacitated but not to Unconscious
+ * acquires both the moment something makes it Unconscious. The witness is
+ * real: SRD's Swarm of Crawling Claws prints "Charmed, Exhaustion, Frightened,
+ * Grappled, Incapacitated, Paralyzed, Petrified, Poisoned, Prone, Restrained,
+ * Stunned" and not Unconscious, and `monster-command.test.ts` pins that fact —
+ * the stat block's list and the implication edge it meets — so this sentence
+ * cannot quietly stop being about a real case.
+ *
+ * It is written down rather than fixed because **the SRD does not settle it**:
+ * the book says Unconscious "includes" the other two and says nothing about
+ * what an immunity to one of them does to that sentence, so filtering the
+ * implications would be the engine answering a question the rules declined to
+ * ask — and so would leaving a test that froze today's answer. The same shape
+ * as `TurnBudget.movementGained`'s open reading. What narrows it in practice
+ * is that a monster `diesAtZero`, so the hit-point route to Unconscious is
+ * mostly closed; what is reachable is `applyConditionTo` and a `condition`
+ * effect naming Unconscious directly. A ruling, from the errata or from the
+ * table, is what would end this.
+ *
+ * Sorted and deduplicated, so the answer cannot depend on the order the inputs
+ * were read in.
+ */
+export function conditionImmunitiesOf(
+  state: GameState,
+  who: CharacterId,
+): readonly ConditionName[] {
+  const own = state.creatures[who]?.conditionImmunities ?? [];
+  return [...new Set(own)].sort();
+}
+
+/**
  * A creature's Armour Class, with whatever is currently raising it.
  *
  * `armorClass` reads a sheet: armour, Dexterity, a shield, or the number a

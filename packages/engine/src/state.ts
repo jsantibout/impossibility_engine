@@ -13,7 +13,7 @@
  * for `AppliedCommand`, and the union's module re-exports these — so the edge
  * is erased and the cycle is a cycle in nothing that runs.
  */
-import type { Ability, CharacterId, RollMode } from '@ie/shared';
+import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import type { RngState } from './dice.js';
@@ -107,6 +107,28 @@ export interface CreatureState {
    * end and this table has no source on it to end by.
    */
   readonly defenses: Readonly<Record<string, DamageDefenses>>;
+  /**
+   * Conditions this creature's stat block says it cannot be given at all.
+   *
+   * The other half of the run a stat block prints in one line — a Zombie's
+   * "Immunities Poison; Exhaustion, Poisoned" is one damage type and two
+   * conditions — and the half that reached nothing. `adaptMonster` has read it
+   * since the adapter landed and `conditionApplicability` has answered three
+   * ways about it, and every caller of either was a test: so a Zombie was
+   * Poisoned by Ray of Sickness like anybody, silently, which is the class of
+   * failure this repository calls its worst.
+   *
+   * **The creature's own, and it never grows**, exactly as {@link defenses} is
+   * and for its reason: there is no source on it to end it by. A condition
+   * immunity an *effect* grants is the seventh member of the sourced-grant
+   * family and belongs beside {@link grantedDefenses}, not here.
+   *
+   * Unconditional entries only. A qualified one — "Charmed (except from its
+   * vampire master)" — is withheld and reported, because applying it as
+   * absolute makes the vampire unable to charm the one creature the entry
+   * exists to let it charm.
+   */
+  readonly conditionImmunities: readonly ConditionName[];
   /**
    * Which side of the fight this creature is on, or null if nobody has said.
    *

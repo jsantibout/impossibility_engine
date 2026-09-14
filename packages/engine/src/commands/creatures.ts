@@ -1,20 +1,149 @@
 /**
- * Hit points, Exhaustion, and a creature leaving the game.
+ * A creature entering the game, hit points, Exhaustion, and a creature leaving
+ * it.
  *
  * The batches this file was named for. Dropping to 0 hit points makes a
  * creature Unconscious; healing from 0 lifts *that* unconsciousness and
  * nothing else; Exhaustion 6 kills. Leaving those follow-ups to the caller
  * meant relying on a language model to remember bookkeeping the rules already
  * mandate.
+ *
+ * **Nothing in it is an action in the turn economy**, which is a claim about
+ * the whole module rather than about `addCreature` alone, and it is the reason
+ * this file joins `commands/scene.ts` and `commands/declarations.ts` in
+ * `DECLARED_NOT_ACTED`. Damage, healing, an Exhaustion level, Temporary Hit
+ * Points and a creature leaving are every one of them the *outcome* of
+ * something that spent its own cost through its own command — the reading
+ * `stabiliseCreature` already takes — and a monster walking through the door
+ * spends nobody anything. None of them consults `mayAct`, and the sweep checks
+ * that against the code rather than against this sentence.
  */
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import type { Monster } from '@ie/srd';
 import { hasCondition } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { adaptMonster } from '../monster.js';
 import { applyDamageToVitals, isDown } from '../vitals.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { settleHoldsInvolving } from './holds.js';
+
+export interface AddCreatureOutcome {
+  readonly events: readonly GameEvent[];
+  /**
+   * Facts the engine could not check — see `AttackResolution.unverified`.
+   *
+   * A stat block's *qualified* defences land here and nowhere else: this
+   * command is the only thing that ever sees them, because the qualification
+   * is a rule the engine cannot evaluate and therefore has no business
+   * carrying in state as though it could.
+   */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Put a monster into the game, with the numbers and defences it prints.
+ *
+ * **The fourteenth instance of this repository's most persistent finding**, and
+ * the largest since the scene commands: `adaptMonster` has turned a parsed stat
+ * block into something the engine can fight since the bestiary landed, and
+ * every caller of it was a test. So nothing above the engine could put a
+ * monster into a game without folding a `creature-added` by hand — which is
+ * narration writing straight to truth, the first thing the doctrine forbids,
+ * and which `unknownCreature`'s own context request had to tell a caller to
+ * do.
+ *
+ * It **wraps** `adaptMonster` and computes nothing of its own. Every number in
+ * the event is the adapter's: the printed Armour Class, the stated saves and
+ * skills, the average hit points, "a monster dies the instant it drops to 0",
+ * the creature type the parser has read since `Small Fey (Goblinoid)`, and the
+ * two halves of the defence run a stat block prints in one line.
+ *
+ * **It takes the parsed `Monster` rather than an id**, because there is no
+ * monster catalogue to look one up in: `@ie/srd` ships no monster index, and
+ * `generated/monsters.json` is untracked and unconsumed. So there is nothing
+ * for an "unknown stat block" refusal to refuse, and a guard nothing can reach
+ * is not a rule.
+ *
+ * **It does not declare what the creature casts**, and that is the parser
+ * rather than a gap: a stat block prints its spellcasting as English prose in
+ * a trait, and `Monster` carries no ability, no list and no slots. Reading one
+ * out of that prose would be the engine deciding a fact the SRD wrote for a
+ * person; `declareSpellcasting` is the command that states it, and an NPC who
+ * casts takes two commands exactly as `scene-commands.test.ts`'s priest does.
+ * `declareCreatureSide` is the same answer for allegiance, which changes in
+ * play and therefore cannot be a property of arriving.
+ *
+ * **It refuses exactly what the reducer would call corrupt, and nothing
+ * more** — a creature already in the game — which is the rule the scene
+ * commands settled. And the refusal is *below* the duplicate check, because
+ * this command's own first run is what makes the world answer it: `once` is
+ * why there is nowhere above to write one.
+ */
+export function addCreature(
+  state: GameState,
+  id: CharacterId,
+  monster: Monster,
+  command: CommandIdentity = {},
+): Result<AddCreatureOutcome> {
+  // The stat block's **id** rather than the whole of it: a fingerprint is
+  // stored in state for as long as the game lasts, and a parsed monster is
+  // kilobytes of JSON. The id is the stat block's identity — the parser
+  // assigns one per entry — and the kind already carries the creature being
+  // added, so the only thing this reading cannot tell apart is two different
+  // stat blocks filed under one id, which the bestiary cannot produce.
+  return once(
+    state,
+    `add-creature:${id}`,
+    { ...command, monster: monster.id },
+    () => ({ events: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      if (creatureOf(state, id) !== null) {
+        return err('already_present', `${id} is already in this game`);
+      }
+
+      const adapted = adaptMonster(monster, id);
+      const { byDamageType, conditionImmunities, qualified } = adapted.defenses;
+
+      return ok({
+        events: [
+          {
+            type: 'creature-added',
+            id,
+            name: adapted.name,
+            sheet: adapted.sheet,
+            maxHp: adapted.vitals.hpMax,
+            diesAtZero: adapted.vitals.diesAtZero,
+            creatureType: adapted.creatureType,
+            defenses: byDamageType,
+            ...(conditionImmunities.length === 0 ? {} : { conditionImmunities }),
+            ...(stamp === null ? {} : { command: stamp }),
+          },
+        ],
+        // **Withheld and reported, never applied.** "Charmed (except from its
+        // vampire master)" as a flat immunity makes the vampire unable to
+        // charm the one creature the entry exists to let it charm, which is
+        // the documented wrong answer and the reason
+        // `conditionApplicability` answers three ways rather than two. The
+        // entries the adapter could classify as neither a damage type nor a
+        // condition come back for the same reason: the engine read them and
+        // could do nothing with them.
+        unverified: [
+          ...qualified.map(
+            (entry) =>
+              `${id}: ${entry.printed} — the engine cannot evaluate "${entry.qualification}", so the ${entry.kind} is not applied`,
+          ),
+          ...adapted.caveats.map(
+            (printed) => `${id}: ${printed} — a defence the engine does not recognise`,
+          ),
+        ],
+        duplicate: false,
+      });
+    },
+  );
+}
 
 export interface DamageCommand extends CommandIdentity {
   readonly amount: number;

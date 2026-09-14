@@ -446,7 +446,7 @@ describe('a scene command refuses exactly what the reducer would call corrupt', 
       name: 'spellcasting for a creature nobody has mentioned',
       code: 'unknown_creature',
       homework: true,
-      wants: { kind: 'creature', subject: PRIEST, satisfiedBy: /creature-added event/ },
+      wants: { kind: 'creature', subject: PRIEST, satisfiedBy: /addCreature command/ },
       log: cast,
       run: (s) => declareSpellcasting(s, PRIEST, declaredCasting({ ability: 'wis' })),
       forged: () => ({

@@ -10,6 +10,7 @@ import {
   type CharacterId,
   type Result,
 } from '@ie/shared';
+import { parseMonsters, type Monster } from '@ie/srd';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -19,6 +20,7 @@ import { declaredCasting } from './spellcasting.js';
 import {
   activateFeature,
   activateSpell,
+  addCreature,
   addSceneLandmark,
   advanceTime,
   beginCombat,
@@ -806,11 +808,33 @@ const reciting = (): readonly GameEvent[] => {
 const RECITING = reciting();
 const RITE = Object.keys(fold('s', RECITING).pendingCastings)[0]!;
 
+/**
+ * A parsed stat block, for the one command that takes one.
+ *
+ * `addCreature` wraps `adaptMonster` and there is no monster catalogue to look
+ * an id up in, so the `Monster` is the argument — which means this sweep has
+ * to read the bestiary the way `monster.test.ts` does.
+ */
+const ZOMBIE: Monster = (() => {
+  const bestiary = parseMonsters(
+    readFileSync(fileURLToPath(new URL('../../srd/raw/monsters-A-Z.md', import.meta.url)), 'utf8'),
+    'monsters-A-Z.md',
+  ).items;
+  const found = bestiary.find((m) => m.id === 'zombie');
+  if (found === undefined) throw new Error('no zombie in the bestiary');
+  return found;
+})();
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'settleAreaEffects',
     log: greased(),
     run: (s, commandId) => settleAreaEffects(s, supply(), { commandId }),
+  },
+  {
+    name: 'addCreature',
+    log: SETUP,
+    run: (s, commandId) => addCreature(s, id('a-zombie'), ZOMBIE, { commandId }),
   },
   {
     name: 'continueCasting',
@@ -1778,8 +1802,22 @@ describe('every command that spends something asks whether it may', () => {
  * here. Filing them together would have forced this list to be filtered by the
  * spender analysis, and the filter would have made "none of these spends" true
  * by construction instead of by test.
+ *
+ * **`commands/creatures.ts` joined on that rule rather than for
+ * `addCreature`'s sake**, and the consequence is the five entries beside it. A
+ * monster walking through the door spends nobody anything; so does damage,
+ * healing, an Exhaustion level, Temporary Hit Points and a creature leaving,
+ * every one of which is the *outcome* of something that spent its own cost
+ * through its own command — `stabiliseCreature`'s reading, applied to the
+ * module `addCreature` belongs to. Filing `addCreature` here without the other
+ * five was not an option: the scope is the module, and a module that is in it
+ * makes the claim about all of its commands.
  */
-const DECLARING_MODULES = ['commands/scene.ts', 'commands/declarations.ts'];
+const DECLARING_MODULES = [
+  'commands/scene.ts',
+  'commands/declarations.ts',
+  'commands/creatures.ts',
+];
 
 const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
   setScene:
@@ -1810,6 +1848,18 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: a thief in the night, a mimic, a DM’s ruling — SRD spends nothing when something is taken away from you',
   removeBonusFrom:
     'not an action in the turn economy: a bonus stopping is the end of something, and nobody spends anything to have an effect wear off',
+  addCreature:
+    'not an action in the turn economy: a monster walking through the door is a fact the DM declares, and SRD spends nothing on anybody’s turn to have one arrive',
+  damageCreature:
+    'not an action in the turn economy: damage is the outcome of an attack, a spell or a trap, each of which spent its own cost through its own command',
+  healCreature:
+    'not an action in the turn economy: the spell, the potion or the feature that healed spent its own cost, and this records what reached the hit points',
+  setExhaustionLevel:
+    'not an action in the turn economy: an Exhaustion level is set by a march, a rule or a DM’s ruling, and none of them is a turn’s Action to spend',
+  grantTemporaryHpTo:
+    'not an action in the turn economy: whatever granted them spent its own cost, and receiving Temporary Hit Points costs the receiver nothing',
+  removeCreatureEverywhere:
+    'not an action in the turn economy: a creature leaving the game is bookkeeping about the cast, and nobody spends a turn’s budget to have somebody gone',
 };
 
 describe('the DM-declared commands declare facts rather than taking actions', () => {
@@ -1886,6 +1936,14 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
       run: (s) => loseItems(s, A, [{ id: 'longsword', quantity: 1 }], 'a thief'),
     },
     { name: 'removeBonusFrom', run: (s) => removeBonusFrom(s, A, 'a quiet word') },
+    { name: 'addCreature', run: (s) => addCreature(s, id('a-latecomer'), ZOMBIE) },
+    // C is the creature on the floor at 0 hit points, so healing has something
+    // to do and a removal has somebody to remove; A is whole, so damage does.
+    { name: 'damageCreature', run: (s) => damageCreature(s, A, { amount: 5, source: 'a trap' }) },
+    { name: 'healCreature', run: (s) => healCreature(s, C, 3) },
+    { name: 'setExhaustionLevel', run: (s) => setExhaustionLevel(s, A, 2) },
+    { name: 'grantTemporaryHpTo', run: (s) => grantTemporaryHpTo(s, A, 4) },
+    { name: 'removeCreatureEverywhere', run: (s) => removeCreatureEverywhere(s, C) },
   ];
 
   /**
@@ -2352,20 +2410,17 @@ describe('every context request names the command that satisfies it', () => {
   );
 
   /**
-   * The one genuine exception, in the shape this file already exempts five
-   * event types with: the reason names the fact that would end it, and the
-   * test below checks the claim rather than taking it on its word.
+   * **There is no longer any exception**, and the empty list is the point.
    *
-   * **Do not invent a command to close this.** Adding a creature is
-   * `createCharacter`'s, in `creation.ts`, which predates the command layer,
-   * takes no `CommandIdentity` and reaches the outside through `index.ts`
-   * rather than through the barrel — so there is no command a caller could be
-   * told to send, and naming one would be worse than naming the event.
+   * One request named an event rather than a command — `unknownCreature`'s "a
+   * creature-added event for …" — under a written exemption saying that "a
+   * barrel command that adds a creature is what would end this exemption".
+   * `addCreature` is that command, so the entry was deleted rather than
+   * reworded: a guard whose exemption list empties is the one that was worth
+   * writing, which is the second time that has happened here (`dash`'s
+   * single-reader exemption was the first).
    */
-  const NAMES_AN_EVENT_ON_PURPOSE: Readonly<Record<string, string>> = {
-    'a creature-added event for ${id}':
-      'no command adds a creature: `createCharacter` in `creation.ts` emits `creature-added`, predates the command layer, takes no CommandIdentity and is not published through the `commands.ts` barrel. A barrel command that adds a creature is what would end this exemption',
-  };
+  const NAMES_AN_EVENT_ON_PURPOSE: Readonly<Record<string, string>> = {};
 
   /**
    * Not vacuous. An extractor that matched nothing would report no problems
@@ -2501,14 +2556,22 @@ describe('every context request names the command that satisfies it', () => {
     ).toEqual(['send it again with `via` filled in']);
   });
 
-  /** And the exemption's claim is checked rather than taken on its word. */
-  it('and there really is no command that adds a creature', () => {
-    // `creation.ts` emits it...
-    const creation = { 'creation.ts': readFileSync(`${SRC}creation.ts`, 'utf8') };
-    expect(emittedNowhere(['creature-added'], creation)).toEqual([]);
-    // ...nothing in the command layer does...
-    expect(emittedNowhere(['creature-added'], REQUESTING_MODULES)).toEqual(['creature-added']);
-    // ...and the barrel publishes no `createCharacter` for a caller to send.
+  /**
+   * And the exemption that stood here is gone, which is the other half of the
+   * rule an exemption is written under.
+   *
+   * It said, in its own words, that "a barrel command that adds a creature is
+   * what would end this exemption". `addCreature` is that command, so the
+   * entry was **deleted rather than reworded** and `unknownCreature` names it.
+   * The assertion inverts what the exemption used to check: the command layer
+   * emits `creature-added` now, and the barrel publishes the command a request
+   * can point a caller at.
+   */
+  it('and the command that ended the exemption really exists', () => {
+    expect(emittedNowhere(['creature-added'], REQUESTING_MODULES)).toEqual([]);
+    expect(PUBLIC_COMMANDS).toContain('addCreature');
+    // `createCharacter` is still not a command, which is why the request names
+    // the one that is.
     expect(PUBLIC_COMMANDS).not.toContain('createCharacter');
   });
 });
@@ -3122,17 +3185,24 @@ describe('every declared event type is reachable from a command', () => {
   /**
    * **Where the command layer is drawn changes the answer, so it is named
    * rather than assumed.** Read as the sweeps above read it — every module
-   * under `commands/`, plus `rest.ts` — five types come back, and every one of
+   * under `commands/`, plus `rest.ts` — four types come back, and every one of
    * them is emitted by `creation.ts`. That is a question about where a command
    * lives rather than about whether one exists, and it is the only such
    * question left: `createCharacter` and `advanceCharacter` predate the command
    * layer, take no `CommandIdentity`, and are not in `commands.ts`'s barrel, so
    * the sweeps that read that barrel do not see them either.
+   *
+   * **It was five, and `creature-added` left.** `addCreature` in
+   * `commands/creatures.ts` emits it — a barrel command, through `once`,
+   * wrapping `adaptMonster` — so the exemption fell rather than being
+   * reworded, which is what an exemption naming the fact that would end it is
+   * for. `createCharacter` still emits one too, and an event type is *emitted*
+   * once something writes it; a second writer neither adds nor removes an
+   * exemption.
    */
   const OUTSIDE_THE_COMMAND_LAYER: Readonly<Record<string, string>> = {
-    'creature-added':
+    'character-created':
       'emitted by `createCharacter` in `creation.ts`, which predates the command layer, takes no CommandIdentity and is not published through the `commands.ts` barrel',
-    'character-created': 'emitted by `createCharacter` in `creation.ts`, for the same reason',
     'character-advanced': 'emitted by `advanceCharacter` in `creation.ts`, for the same reason',
     'hit-point-maximum-raised':
       'emitted by `advanceCharacter` in `creation.ts`, which pays out the hit points a level granted',
@@ -3140,7 +3210,7 @@ describe('every declared event type is reachable from a command', () => {
       'emitted by `advanceCharacter` in `creation.ts`, which grows a pool the level made bigger',
   };
 
-  it('names the five that `creation.ts` emits and no command does', () => {
+  it('names the four that `creation.ts` emits and no command does', () => {
     const commandLayer = Object.fromEntries(
       [...COMMAND_MODULES, 'rest.ts'].map((file) => [file, MODULE_SOURCE[file]!]),
     );
