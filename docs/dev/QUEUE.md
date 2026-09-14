@@ -319,7 +319,7 @@ merge — **no owner gate between waves**; the tranche is the autonomy boundary.
 
 | Wave | Task | Lane |
 |---|---|---|
-| 1 | [IE-010 — Outcome riders, and the two `on` rules made one](tasks/IE-010-outcome-riders.md) | mechanism — **`CHANGES_REQUIRED`: the re-review found a regression 6,079 tests could not see** |
+| 1 | [IE-010 — Outcome riders, and the two `on` rules made one](tasks/IE-010-outcome-riders.md) | mechanism — **both guards fixed; confirmation pass running with the reviewer that found them** |
 | 2 | [IE-014 — A spell that takes a condition away](tasks/IE-014-condition-removal.md) | mechanism |
 | 2 | [IE-015 — `BLOCKED_ON` derived blocker map](tasks/IE-015-blocked-on-map.md) | conformance |
 | 2 | [IE-016 — The other nine facts a DM declares](tasks/IE-016-declared-fact-commands.md) | mechanism — **launched on IE-012's merge** |
