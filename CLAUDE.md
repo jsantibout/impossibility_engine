@@ -5371,6 +5371,99 @@ they came to live in. The module list itself is a directory listing rather than
 an array, because a hand-maintained list of modules is the hand-maintained list
 of commands these sweeps were written to replace, arriving one level up.
 
+### One Resolver Per Effect Kind, Over One Named Context
+
+`resolveEffects` was **1,008 lines** — a pre-flight, a loop over targets and
+effects, and fourteen `if (effect.kind === …)` branches inside it — and it had
+grown by 94 lines during the tranche in which the audit that named it was
+recommending the opposite. Five more effect kinds were queued behind it. Each
+would have added a branch to the same function, and each would have made every
+other mechanism task wait on the same file, which is what the workflow's
+one-owner-per-primitive rule serialises.
+
+It is now the pre-flight, the loop and a dispatch — **214 lines, 63 of which
+are the signature and its documentation** — plus thirteen resolvers, one per
+kind, over an `EffectContext`. The sum of the parts is no smaller and was never
+meant to be; what got smaller is the thing every future kind has to be added
+to.
+
+**The context names what was already closed over, and nothing else.** Every
+branch reached the same dozen bindings out of the enclosing scope, so naming
+them once is what lets each kind be its own function without any of them
+growing a parameter list. The payoff was not obvious in advance: because a
+resolver destructures exactly what its rule reads, **the difference between two
+kinds is now visible in one line**. `resolveEndConditionEffect` reads `events`
+and `outcomes` and nothing else; `resolveAttackEffect` reads sixteen bindings.
+That is a fact about the rules that the single function could not state.
+
+**`resolveDispelEffect` takes no `effect` at all**, and that is the sharpest
+instance of it. This file has said since Dispel Magic landed that its
+"definition therefore carries **no numbers at all**" — every one of them is a
+fact the engine holds. The split is what turned that sentence into something
+the compiler checks: `noUnusedParameters` refused the parameter, because there
+is genuinely nothing on the effect to read.
+
+**The world is deliberately not on the context.** Each resolver takes the state
+its predecessors left and returns the state it leaves, because the order effects
+are applied in is the loop's business, and a mutable `current` on a shared
+object would hide it. `events`, `outcomes`, `held` and `unverified` *are* on
+it and *are* mutable, because that is exactly what they were as closed-over
+locals — the resolution's running record, read afterwards by the
+`spell-ongoing` record and the return. A split that changed either would be a
+behaviour change wearing a refactor's clothes.
+
+**The dispatch is a `switch` and not a lookup table**, and the reason is the
+`never` binding in its default: a record keyed by `kind` would be satisfied by
+a partial one, where the switch makes a kind added to the union and not to the
+dispatch a compile error rather than a wrong answer in a fight. That guarantee
+is the whole of what the old fall-through chain bought, kept.
+
+**The rider order did not move.** Conditions, then modifiers, then delayed, is
+still decided in `applyRiders` and nowhere else — which is the point of that
+function, and the one thing a split into thirteen pieces could most easily have
+scattered.
+
+#### The oracle was byte-identity, not the test suite alone
+
+Every one of the thirteen bodies is the original text, and that is checked
+rather than claimed. Exactly three transformations were applied, all
+mechanical:
+
+| | |
+|---|---|
+| six spaces of indentation | the branch body sat inside two `for`s and an `if` |
+| `continue;` → `return ok(current);` | the effect loop's `continue` is a resolver's return |
+| `context.from` → `from` | a field read off the enclosing parameter is a destructured binding |
+
+Reverse those three and each resolver's body must equal the branch it came
+from, line for line. It does, for all thirteen — 730 body lines in total. That
+check is what a "no behaviour change" claim should rest on, because the suite
+turns out **not** to be strong enough to carry it alone.
+
+**Three mutations survive the whole suite**, and they are recorded here rather
+than fixed, because a behaviour-preserving refactor whose diff also contains a
+fix cannot be verified by its own oracle:
+
+- **The one `continue` that was deliberately *not* rewritten.** Dispel Magic's
+  resolver has an inner `for (const spell of running)`, and the `continue` in
+  its failed-check branch belongs to *that* loop. Rewriting it the way the
+  other twenty-two were would stop a Dispel Magic at the first spell whose
+  check it failed, and no test says so — because no fixture aims one at a
+  target carrying **two** ongoing spells and fails the first check. That line is
+  now the most dangerous one in the file: it looks exactly like the lines
+  around it and means something else.
+- **The state threading.** Commenting out `current = done.value;` passes
+  everything. Effects on one target are near-enough independent in every
+  registered definition, so nothing yet reads the world a previous effect left.
+- **The `from` wiring.** Never setting it passes everything: the Prone rule
+  read from a casting's held point — Spiritual Weapon's seam — has no fixture
+  with a prone target.
+
+What the suite *does* cover is the context itself: a save DC wired one point
+high fails three tests in three files, across both the atomic and the settled
+path. So the shared context is guarded and three of the things it carries are
+not, which is a more useful thing to know than "the suite passed".
+
 ### Setting The Stage Is A Command Like Any Other
 
 **Nothing above the engine could start an encounter.** `placeCreature`,

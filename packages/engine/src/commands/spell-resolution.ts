@@ -990,6 +990,1119 @@ function applyRiders(
   return ok({ events, conditions });
 }
 
+/**
+ * Everything a per-kind resolver reads, gathered once before the loop.
+ *
+ * `resolveEffects` was one function with a branch per effect kind, and every
+ * branch reached the same dozen bindings out of the enclosing scope. Naming
+ * them once is what lets each kind be its own function without any of them
+ * growing a parameter list of its own — and what makes the *difference*
+ * between two kinds visible, because a resolver destructures exactly what its
+ * rule reads and nothing else.
+ *
+ * **The three mutable members are mutable on purpose.** `events`, `outcomes`
+ * and `held` are the resolution’s running record, appended to by whichever
+ * kind is being resolved and read afterwards by the `spell-ongoing` record and
+ * the return; `unverified` is the same thing for what the casting could not
+ * check. They are shared arrays rather than returned values because that is
+ * exactly what they were as closed-over locals, and a split that changed it
+ * would be a behaviour change wearing a refactor’s clothes.
+ *
+ * **The world is not in here.** It is threaded through the loop instead — each
+ * resolver takes the state its predecessors left and returns the state it
+ * leaves — because the order effects are applied in is the loop’s business and
+ * a mutable `current` on a shared object would hide it.
+ */
+interface EffectContext {
+  readonly casterId: CharacterId;
+  /** Null when the casting has outlived its caster. */
+  readonly caster: CreatureState | null;
+  /** The caster’s sheet, loud rather than absent when there is none. */
+  readonly casterSheet: () => CreatureState;
+  readonly definition: SpellDefinition;
+  readonly castLevel: number;
+  /** Null for a later use, which rolls with {@link EffectContext.numbers}. */
+  readonly route: CastingRoute | null;
+  /** The numbers this casting was made with, pinned at the cast. */
+  readonly numbers: CastingNumbers;
+  readonly attackModifier: number;
+  readonly saveDc: number;
+  readonly supply: ConcentrationSaveSupply;
+  readonly castingId: string;
+  /** How the log reads, when an activation wants its own wording. */
+  readonly label: string;
+  /** Where the spell acts **from**, when that is not the caster’s own space. */
+  readonly from?: Point;
+  /** What the casting could not check, appended to as it resolves. */
+  readonly unverified: string[];
+  /** The batch being built. Appended to by every resolver. */
+  readonly events: GameEvent[];
+  /** What the casting did, target by target. */
+  readonly outcomes: SpellTargetOutcome[];
+  /** Whom this casting has left something of its own on — see `landedOn`. */
+  readonly held: Set<CharacterId>;
+}
+
+/** One arm of the effect union, by its `kind`. */
+type EffectOfKind<K extends SpellEffect['kind']> = Extract<SpellEffect, { kind: K }>;
+
+/**
+ * A spell attack roll, the damage a hit deals, and the riders it carries.
+ *
+ * The longest of the thirteen because it is three resolutions in one: the
+ * attack, the miss branch SRD Acid Arrow prints, and the hit.
+ */
+function resolveAttackEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'attack'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const {
+    casterId,
+    caster,
+    casterSheet,
+    definition,
+    castLevel,
+    numbers,
+    supply,
+    castingId,
+    label,
+    unverified,
+    events,
+    outcomes,
+    held,
+    attackModifier,
+    saveDc,
+    from,
+  } = ctx;
+  let current = world;
+
+  // **A spell attack is an attack roll.** SRD Dodge says "any attack
+  // roll made against you" and Blur says "attack rolls against you";
+  // neither says "with a weapon". This path never read the defender's
+  // standing effects at all, so a Dodging target was easier to hit with
+  // a Fire Bolt than with a dagger — the same gatherer the weapon attack
+  // uses removes the fork rather than copying its version of it.
+  const defending = defendingModes(current, casterId, target);
+  unverified.push(...defending.unverified);
+
+  const attack = rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
+    weapon: null,
+    targetAc: armorClassOf(current, target),
+    modes: [...defending.modes, ...(supply.modes ?? [])],
+    attackBonuses: [
+      { source: `${definition.name} (spell attack)`, flat: attackModifier },
+      // Bless is on the caster, not in the caller's head.
+      ...bonusesFor((caster?.bonuses ?? []), 'attack'),
+      ...(supply.bonuses ?? []),
+    ],
+    // A condition a feature has suppressed gives an attacker nothing:
+    // SRD Aura of Courage says the condition "has no effect on that ally
+    // while there", and being easier to hit is an effect.
+    targetConditions: effectiveConditions(current, target),
+    // Prone reads the distance, and a spell attack is measured the same
+    // way a weapon's is — **from where the attack comes from**, which
+    // for a casting that holds a point is that point rather than the
+    // caster. Absent where nobody has placed them, so the rule gives no
+    // answer rather than a guessed one.
+    ...(apartFromSource(current, from, casterId, target) === null
+      ? {}
+      : { withinFiveFeet: apartFromSource(current, from, casterId, target)! <= 5 }),
+  });
+  if (!attack.ok) return attack;
+
+  events.push({
+    type: 'roll-recorded',
+    who: casterId,
+    label: `${label} attack`,
+    natural: attack.value.roll.natural,
+    total: attack.value.total,
+    contributions: [{ source: 'spell attack', amount: attackModifier }],
+    outcome: attack.value.hit ? 'hit' : 'miss',
+  });
+
+  if (!attack.value.hit) {
+    // SRD Acid Arrow: "On a miss, the arrow splashes the target with
+    // acid for half as much of the initial damage **only**." *Only* is
+    // the whole of the branch: the riders are the hit's, and a miss owes
+    // neither the condition nor the later hit. Halved before the
+    // target's own defences, exactly as a made saving throw is —
+    // "half the damage that would be dealt" is half of what the *spell*
+    // deals, and Resistance then halves that again.
+    if (effect.onMiss !== 'half') {
+      outcomes.push({ target, attack: attack.value, affected: false });
+      return ok(current);
+    }
+
+    const splash = rollSpellDice(
+      supply,
+      casterSheet().sheet,
+      definition.name,
+      effect.damageType,
+      scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
+    );
+    if (!splash.ok) return splash;
+
+    const splashed = dealSpellDamage(
+      current,
+      target,
+      withFlatAddend(
+        splash.value,
+        scaledFlatFor(effect.damage, definition.level, castLevel) +
+          (effect.addSpellcastingModifier === true ? numbers.spellcastingModifier : 0),
+      ).map((component) => ({ ...component, total: Math.floor(component.total / 2) })),
+      definition.name,
+      supply,
+      { by: casterId },
+    );
+    if (!splashed.ok) return splashed;
+
+    events.push(...splashed.value.events);
+    current = splashed.value.events.reduce(applyEvent, current);
+    outcomes.push({
+      target,
+      attack: attack.value,
+      damage: splashed.value.amount,
+      concentration: splashed.value.concentration,
+      // The attack missed. A spell that still splashes has not *affected*
+      // the target in the sense every other outcome uses the word —
+      // the same answer `save-damage` gives a creature that saved and
+      // took half anyway.
+      affected: false,
+    });
+    return ok(current);
+  }
+
+  const dice = scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel);
+  // A critical doubles the dice, which is `rollAttackDamage`'s job, so
+  // this one call keeps the weapon-shaped signature rather than going
+  // through `rollSpellDice`.
+  const rolled = rollAttackDamage(
+    supply.issuer,
+    supply.rng,
+    casterSheet().sheet,
+    {
+      weapon: null,
+      targetAc: armorClassOf(current, target),
+      extraDamage: [{ source: definition.name, type: effect.damageType, dice }],
+    },
+    attack.value.critical,
+  );
+  if (!rolled.ok) return rolled;
+
+  const hurt = dealSpellDamage(
+    current,
+    target,
+    withFlatAddend(
+      rolled.value.components.filter((c) => c.source === definition.name),
+      // SRD Flame Blade: "3d6 **plus your spellcasting ability
+      // modifier**" — the chosen route's, so a feat's version adds its
+      // own. A flat addend printed beside the dice adds on top of it.
+      scaledFlatFor(effect.damage, definition.level, castLevel) +
+        (effect.addSpellcastingModifier === true
+          ? numbers.spellcastingModifier
+          : 0),
+    ),
+    definition.name,
+    supply,
+    { by: casterId, ...(attack.value.critical ? { critical: true } : {}) },
+  );
+  if (!hurt.ok) return hurt;
+
+  events.push(...hurt.value.events);
+  current = hurt.value.events.reduce(applyEvent, current);
+
+  // SRD Vampiric Touch: "you regain Hit Points equal to **half the
+  // amount of Necrotic damage dealt**." Half of what actually landed, so
+  // a resistant target heals the caster for less — which is why it reads
+  // the damage taken rather than the dice thrown. Rounding is the SRD's
+  // usual: down, and a single point heals nothing.
+  if (effect.healsCasterForHalf === true && hurt.value.amount > 0) {
+    const back = Math.floor(hurt.value.amount / 2);
+    if (back > 0) {
+      const drained = healCreature(current, casterId, back);
+      if (!drained.ok) return drained;
+      events.push(...drained.value);
+      current = drained.value.reduce(applyEvent, current);
+    }
+  }
+
+  // SRD Ray of Sickness: "On a hit, the target takes 2d8 Poison damage
+  // **and** has the Poisoned condition", and Acid Arrow's "and 2d4 Acid
+  // damage at the end of its next turn". The attack roll settled it up
+  // there and a miss already returned, so reaching here **is** the
+  // affirmative outcome — which is why the riders need no branch of
+  // their own. An attack rolls no saving throw, so nothing it hangs has
+  // one to repeat.
+  const riders = applyRiders(current, target, outcomeRidersOf(effect), {
+    definition,
+    castingId,
+    casterId,
+    saveDc,
+    castLevel,
+    casterLevel: numbers.casterLevel,
+    unverified,
+    held,
+    saveAbility: null,
+  });
+  if (!riders.ok) return riders;
+  events.push(...riders.value.events);
+  current = riders.value.events.reduce(applyEvent, current);
+
+  outcomes.push({
+    target,
+    attack: attack.value,
+    damage: hurt.value.amount,
+    concentration: hurt.value.concentration,
+    ...(riders.value.conditions.length === 0
+      ? {}
+      : { conditions: riders.value.conditions }),
+    affected: true,
+  });
+  return ok(current);
+}
+
+/**
+ * Temporary Hit Points. Beside the hit points, never in them.
+ */
+function resolveTempHpEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'temp-hp'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { casterSheet, definition, castLevel, numbers, supply, events, outcomes } = ctx;
+  let current = world;
+
+  const dice = scaledDiceFor(effect.amount, definition.level, numbers.casterLevel, castLevel);
+  const rolled = rollSpellDice(supply, casterSheet().sheet, definition.name, 'temporary', dice);
+  if (!rolled.ok) return rolled;
+
+  const flat = scaledFlatFor(effect.amount, definition.level, castLevel);
+  const modifier = effect.addSpellcastingModifier
+    ? numbers.spellcastingModifier
+    : 0;
+  const amount = Math.max(
+    0,
+    rolled.value.reduce((sum, c) => sum + c.total, 0) + flat + modifier,
+  );
+
+  const granted = grantTemporaryHpTo(current, target, amount);
+  if (!granted.ok) return granted;
+  events.push(...granted.value);
+  current = granted.value.reduce(applyEvent, current);
+  outcomes.push({ target, temporaryHp: amount, affected: true });
+  return ok(current);
+}
+
+/**
+ * A named bonus later rolls will read. Bane saves first; Bless does not.
+ */
+function resolveBuffEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'buff'>,
+  target: CharacterId,
+  victim: CreatureState,
+  world: GameState,
+): Result<GameState> {
+  const { definition, supply, castingId, events, outcomes, held, saveDc } = ctx;
+  let current = world;
+
+  let save: D20TestResult | null = null;
+  if (effect.ability !== undefined) {
+    const support = savingSupport(current, target, victim, effect.ability, supply);
+    const rolled = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+      dc: saveDc,
+      conditions: support.conditions,
+      modes: support.modes,
+      bonuses: support.bonuses,
+    });
+    if (!rolled.ok) return rolled;
+    save = rolled.value;
+
+    events.push(
+      recordD20Test(
+        target,
+        `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+        save,
+        save.success ? 'resisted' : 'affected',
+      ),
+    );
+
+    if (save.success) {
+      outcomes.push({ target, save, affected: false });
+      return ok(current);
+    }
+  }
+
+  // The casting is in the source, so ending the spell ends the bonus.
+  held.add(target);
+  events.push({
+    type: 'bonus-applied',
+    id: target,
+    bonus: {
+      source: castingSource(definition.name, castingId),
+      bonus: { ...effect.bonus, source: definition.name },
+      applies: effect.applies,
+      direction: effect.direction,
+    },
+  });
+  current = events.slice(-1).reduce(applyEvent, current);
+  outcomes.push({
+    target,
+    ...(save === null ? {} : { save }),
+    affected: true,
+  });
+  return ok(current);
+}
+
+/**
+ * Advantage or Disadvantage for as long as the spell runs. Bane's
+ * shape when the spell offers a save, Bless's when it does not — the
+ * same fork the bonus above takes, because it is the same sentence
+ * shape with presence in place of arithmetic.
+ */
+function resolveRollModeEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'roll-mode'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { definition, castingId, events, outcomes, held } = ctx;
+  let current = world;
+
+  // **Nothing is resisted here**, and that is the effect rather than an
+  // omission: Blur and Beacon of Hope ask nobody to save, and the
+  // speculative `save` field that used to sit on this kind had no user
+  // in the catalogue from the day it was written. A spell that *does*
+  // make a roll first says so with a host, and hangs this as a
+  // `modifiers` rider on the outcome — one roll, shared.
+  //
+  // The casting is in the source, so every door that ends the spell —
+  // a broken Concentration, the minute running out, a dispel, the
+  // caster leaving — ends this too, through machinery that already
+  // existed rather than a lifecycle of its own.
+  held.add(target);
+  events.push({
+    type: 'roll-modifier-granted',
+    id: target,
+    modifier: {
+      source: castingSource(definition.name, castingId),
+      modifier: effect.modifier,
+    },
+  });
+  current = events.slice(-1).reduce(applyEvent, current);
+  outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
+ * A base Armour Class the spell supplies, in place of the one the
+ * target would otherwise calculate. Nothing is rolled and nothing is
+ * resisted: SRD Mage Armor asks for no save and touches a willing
+ * creature.
+ */
+function resolveArmorClassEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'armor-class'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { definition, castingId, events, outcomes, held } = ctx;
+  let current = world;
+
+  held.add(target);
+  events.push({
+    type: 'armor-class-granted',
+    id: target,
+    armorClass: {
+      source: castingSource(definition.name, castingId),
+      base: effect.base,
+      plusAbility: effect.plusAbility,
+      shieldAllowed: effect.shieldAllowed,
+    },
+  });
+  current = events.slice(-1).reduce(applyEvent, current);
+  // Reported after the grant, because the number is the comparison’s
+  // answer rather than the definition’s: a Barbarian whose Unarmoured
+  // Defense already beats 13 + Dexterity keeps their own calculation,
+  // and the outcome should say what their Armour Class actually is.
+  outcomes.push({ target, armorClass: armorClassOf(current, target), affected: true });
+  return ok(current);
+}
+
+/**
+ * Resistance, Immunity or Vulnerability, for as long as the spell runs.
+ * SRD Stoneskin touches a willing creature and Protection from Energy
+ * does the same, so nothing is rolled and nothing is resisted — the same
+ * shape the Armour Class above takes, on the other half of what a
+ * defence is.
+ *
+ * The casting is in the source, so `releaseCasting` ends it with the
+ * spell; a `grants` timer is what could end it sooner, and no SRD spell
+ * asks for one.
+ */
+function resolveDamageDefenseEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'damage-defense'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { definition, castingId, events, outcomes, held } = ctx;
+  let current = world;
+
+  held.add(target);
+  events.push({
+    type: 'damage-defense-granted',
+    id: target,
+    defense: {
+      source: castingSource(definition.name, castingId),
+      damageTypes: effect.damageTypes,
+      defense: effect.defense,
+    },
+  });
+  current = events.slice(-1).reduce(applyEvent, current);
+  outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
+ * Hit points restored. No roll to beat and nothing to resist: healing is
+ * not damage, and a target at full is a legal target who gains nothing.
+ */
+function resolveHealEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'heal'>,
+  target: CharacterId,
+  victim: CreatureState,
+  world: GameState,
+): Result<GameState> {
+  const { casterId, casterSheet, definition, castLevel, numbers, supply, events, outcomes } = ctx;
+  let current = world;
+
+  const dice = scaledDiceFor(effect.healing, definition.level, numbers.casterLevel, castLevel);
+  const rolled = rollSpellDice(supply, casterSheet().sheet, definition.name, 'healing', dice);
+  if (!rolled.ok) return rolled;
+
+  // SRD: "2d8 plus your spellcasting ability modifier" — and it is the
+  // *chosen route's* ability, so a feat's version heals by its own.
+  const bonus = effect.addSpellcastingModifier ? numbers.spellcastingModifier : 0;
+  const addend = scaledFlatFor(effect.healing, definition.level, castLevel);
+  const amount = Math.max(
+    0,
+    rolled.value.reduce((sum, c) => sum + c.total, 0) + bonus + addend,
+  );
+
+  events.push({
+    type: 'roll-recorded',
+    who: casterId,
+    label: `${definition.name} healing`,
+    natural: 0,
+    total: amount,
+    contributions: [{ source: 'spellcasting modifier', amount: bonus }],
+    outcome: 'healed',
+  });
+
+  // `healCreature` refuses a corpse and refuses nothing-at-all, and it
+  // lifts exactly the unconsciousness that having no hit points caused.
+  // The cap at the maximum is `heal`'s, in vitals, where it always was.
+  const before = victim.vitals.hp;
+  const healed = healCreature(current, target, Math.max(1, amount));
+  if (!healed.ok) return healed;
+
+  events.push(...healed.value);
+  current = healed.value.reduce(applyEvent, current);
+  outcomes.push({
+    target,
+    healed: (current.creatures[target]?.vitals.hp ?? before) - before,
+    affected: true,
+  });
+  return ok(current);
+}
+
+/**
+ * A saving throw that deals damage, with what a success buys stated.
+ */
+function resolveSaveDamageEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'save-damage'>,
+  target: CharacterId,
+  victim: CreatureState,
+  world: GameState,
+): Result<GameState> {
+  const {
+    casterId,
+    casterSheet,
+    definition,
+    castLevel,
+    numbers,
+    supply,
+    castingId,
+    unverified,
+    events,
+    outcomes,
+    held,
+    saveDc,
+  } = ctx;
+  let current = world;
+
+  const support = savingSupport(current, target, victim, effect.ability, supply);
+  // SRD singles a creature type out twice, and both sentences are about
+  // this save: Blight's "A Plant creature automatically fails the save"
+  // and Shatter's "A Construct has Disadvantage on the save". The type
+  // is known — `creatureTypeNeeds` asked for it above, before a die —
+  // so the only question left is which of the two the spell printed.
+  const singled =
+    effect.againstType !== undefined &&
+    effect.againstType.types.some((named) =>
+      isCreatureType(victim.creatureType, named),
+    )
+      ? effect.againstType.outcome
+      : null;
+  const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+    dc: saveDc,
+    conditions: support.conditions,
+    // Presence, not arithmetic: it goes in as a named source and
+    // `combineRollModes` decides, so a Construct that is somehow also
+    // helped rolls a normal save rather than a net-negative one.
+    modes: [
+      ...support.modes,
+      ...(singled === 'disadvantage'
+        ? [{ source: `${definition.name} (${victim.creatureType})`, mode: 'disadvantage' as const }]
+        : []),
+    ],
+    bonuses: support.bonuses,
+    // The die is still thrown and recorded; the total is overridden, so
+    // no bonus applied afterwards rescues it — the reading `checks.ts`
+    // has taken for a condition's automatic failure since it was written.
+    ...(singled === 'automatic-failure'
+      ? {
+          autoFail: `${definition.name}: a ${victim.creatureType} creature automatically fails the save`,
+        }
+      : {}),
+  });
+  if (!save.ok) return save;
+
+  events.push(
+    recordD20Test(
+      target,
+      `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+      save.value,
+      save.value.success ? 'resisted' : 'affected',
+    ),
+  );
+
+  // SRD Evasion: a successful Dexterity save against an effect that
+  // would have halved the damage takes **none** of it, and a failed one
+  // takes half. Read off the *target's* features, because it is a
+  // defence rather than something the caster does.
+  const evading = evadesHalfDamage(current, target, effect.ability, effect.onSuccess === 'half');
+
+  // Nothing at all on a success means no damage roll either: the spell
+  // did nothing, and rolling would move the generator for no reason.
+  // Evasion reaches the same place from the other direction.
+  if (save.value.success && (effect.onSuccess === 'none' || evading)) {
+    outcomes.push({ target, save: save.value, damage: 0, affected: false });
+    return ok(current);
+  }
+
+  // One save, and every damage type the spell names under it. Each
+  // type rolls and scales separately; the save was already made once.
+  const parts = [
+    { damage: effect.damage, damageType: effect.damageType },
+    ...(effect.plus ?? []),
+  ];
+  const rolledParts: DamageComponent[] = [];
+  for (const part of parts) {
+    const dice = scaledDiceFor(part.damage, definition.level, numbers.casterLevel, castLevel);
+    const rolled = rollSpellDice(
+      supply,
+      casterSheet().sheet,
+      definition.name,
+      part.damageType,
+      dice,
+    );
+    if (!rolled.ok) return rolled;
+    rolledParts.push(
+      ...withFlatAddend(
+        rolled.value,
+        scaledFlatFor(part.damage, definition.level, castLevel),
+      ),
+    );
+  }
+
+  // SRD: "The halved damage is equal to half the damage that would be
+  // dealt on a failed save." Half of what the spell deals, therefore
+  // *before* the target's own Resistance — which then halves again.
+  // Without Evasion the success is halved; with it the *failure* is,
+  // and the success took nothing at all above.
+  const halve = evading ? !save.value.success : save.value.success;
+  const components = halve
+    ? rolledParts.map((c) => ({ ...c, total: Math.floor(c.total / 2) }))
+    : rolledParts;
+
+  const hurt = dealSpellDamage(
+    current,
+    target,
+    components,
+    definition.name,
+    supply,
+    { by: casterId },
+  );
+  if (!hurt.ok) return hurt;
+
+  events.push(...hurt.value.events);
+  current = hurt.value.events.reduce(applyEvent, current);
+
+  // SRD Sunbeam: "takes 6d8 Radiant damage **and** has the Blinded
+  // condition"; Vitriolic Sphere: "On a successful save, a creature
+  // takes half the initial damage **only**." A failed save is the
+  // affirmative outcome and the riders are all on it — a success buys
+  // whatever `onSuccess` says about the *damage* and nothing else,
+  // however much of it still landed.
+  let imposed: readonly ConditionName[] = [];
+  if (!save.value.success) {
+    const riders = applyRiders(current, target, outcomeRidersOf(effect), {
+      definition,
+      castingId,
+      casterId,
+      saveDc,
+      castLevel,
+      casterLevel: numbers.casterLevel,
+      unverified,
+      held,
+      // SRD Sunburst: "another Constitution saving throw" — the one this
+      // host just rolled, which is why a repeat save names no ability of
+      // its own.
+      saveAbility: effect.ability,
+    });
+    if (!riders.ok) return riders;
+    events.push(...riders.value.events);
+    current = riders.value.events.reduce(applyEvent, current);
+    imposed = riders.value.conditions;
+  }
+
+  outcomes.push({
+    target,
+    save: save.value,
+    damage: hurt.value.amount,
+    concentration: hurt.value.concentration,
+    ...(imposed.length === 0 ? {} : { conditions: imposed }),
+    affected: !save.value.success,
+  });
+  return ok(current);
+}
+
+/**
+ * A saving throw, and whatever a failure carries.
+ */
+function resolveSaveEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'save'>,
+  target: CharacterId,
+  victim: CreatureState,
+  world: GameState,
+): Result<GameState> {
+  const {
+    casterId,
+    definition,
+    castLevel,
+    numbers,
+    supply,
+    castingId,
+    unverified,
+    events,
+    outcomes,
+    held,
+    saveDc,
+  } = ctx;
+  let current = world;
+
+  // A saving throw, and a condition on a failure.
+  const support = savingSupport(current, target, victim, effect.ability, supply);
+  const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+    dc: saveDc,
+    conditions: support.conditions,
+    modes: support.modes,
+    bonuses: support.bonuses,
+  });
+  if (!save.ok) return save;
+
+  events.push(
+    recordD20Test(
+      target,
+      `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+      save.value,
+      save.value.success ? 'resisted' : 'affected',
+    ),
+  );
+
+  if (save.value.success) {
+    outcomes.push({ target, save: save.value, affected: false });
+    return ok(current);
+  }
+
+  // `save` writes its first rider flat; `conditionRiderOf` is the one
+  // place that knows, so from here the four kinds that impose a
+  // condition are reading one shape — including the flat `repeats`,
+  // which belongs to the saving throw this host just made rather than to
+  // any one of the conditions the failure imposed.
+  const landed = applyRiders(current, target, outcomeRidersOf(effect), {
+    definition,
+    castingId,
+    casterId,
+    saveDc,
+    castLevel,
+    casterLevel: numbers.casterLevel,
+    unverified,
+    held,
+    saveAbility: effect.ability,
+  });
+  if (!landed.ok) return landed;
+
+  events.push(...landed.value.events);
+  current = landed.value.events.reduce(applyEvent, current);
+  outcomes.push({
+    target,
+    save: save.value,
+    conditions: landed.value.conditions,
+    affected: true,
+  });
+  return ok(current);
+}
+
+/**
+ * SRD Greater Invisibility: "A creature you touch has the Invisible
+ * condition until the spell ends." The `save` branch above, minus the
+ * roll — no die, no `roll-recorded`, and the generator does not move,
+ * because the spell asked for nothing to be thrown.
+ */
+function resolveConditionEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'condition'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { casterId, definition, castingId, events, outcomes, held, saveDc } = ctx;
+  let current = world;
+
+  // **Not a rider host**, because it has no outcome: there is no roll
+  // whose affirmative branch anything could ride, so the rider *is* the
+  // effect and there is exactly one of it. `conditionRiderOf` types that
+  // as a non-empty list, which is why the first element is not a guess.
+  const [rider] = conditionRiderOf(effect);
+  const landed = applySpellEffect(
+    current,
+    target,
+    rider.name,
+    casterId,
+    riderOptions(rider, {
+      castingId,
+      spell: definition.name,
+      casterId,
+      saveDc,
+      target,
+      saveAbility: null,
+    }),
+  );
+  if (!landed.ok) return landed;
+
+  events.push(...landed.value);
+  current = landed.value.reduce(applyEvent, current);
+  if (rider.outlivesCasting !== true) held.add(target);
+  outcomes.push({ target, conditions: [rider.name], affected: true });
+  return ok(current);
+}
+
+/**
+ * SRD Lesser Restoration: "You touch a creature and end one condition on
+ * it: Blinded, Deafened, Paralyzed, or Poisoned." The `condition` branch
+ * above, inverted — and inverted is the only thing it shares, because a
+ * removal has no rider: no deadline, no escape check, no repeat save, and
+ * nothing for the casting to own. Nothing is rolled and the generator
+ * does not move; the spell asked for nothing to be thrown.
+ */
+function resolveEndConditionEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'end-condition'>,
+  target: CharacterId,
+  victim: CreatureState,
+  world: GameState,
+): Result<GameState> {
+  const { events, outcomes } = ctx;
+  let current = world;
+
+  // **Ask what there is to remove, of the thing the removal acts on.**
+  // `removeCondition` works over the instances, so the instances are what
+  // decide whether anything happens. `conditions.conditions` is derived
+  // from exactly those and agrees with this today — but `hasCondition`,
+  // the other reader to hand, does **not**: it special-cases Exhaustion,
+  // which is a level rather than an instance, so it would report a
+  // removal for an Exhaustion that `removeCondition` could never take
+  // away. No registered spell ends Exhaustion; that is a reason to write
+  // the direct question down rather than to rely on the agreement.
+  const present = effect.conditions.filter(
+    (condition) => reasonsFor(victim.conditions, condition).length > 0,
+  );
+
+  // **Nothing to cure is not an error, and it is not an event either.**
+  // The casting happened and the slot went; what the log must not carry
+  // is a `condition-removed` for a condition that was never there, which
+  // would be a record of something that did not happen.
+  if (present.length === 0) {
+    outcomes.push({ target, affected: false });
+    return ok(current);
+  }
+
+  // One removal, shared with `useHealingTouch` — see `endConditionsOn`
+  // for why the source is omitted and what that means.
+  const lifted = endConditionsOn(target, present);
+  events.push(...lifted);
+  current = lifted.reduce(applyEvent, current);
+  outcomes.push({ target, ended: present, affected: true });
+  return ok(current);
+}
+
+/**
+ * SRD Dispel Magic, against whatever is running on the target.
+ *
+ * **It takes no `effect`**, which is the shape of the spell rather than an
+ * omission: every number Dispel Magic needs — the threshold, the DC, the
+ * ability — is a fact the engine already holds, so the definition carries none
+ * and there is nothing here to read off one.
+ */
+function resolveDispelEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { casterId, casterSheet, definition, castLevel, route, supply, events, outcomes } = ctx;
+  let current = world;
+
+  // SRD Dispel Magic: "Any ongoing spell of level 3 or lower **on the
+  // target** ends." What is on the target is live state, and before the
+  // ongoing record the engine could not have answered it: a spell's
+  // level lived in the log and on a concentrating caster, and neither is
+  // a thing a later spell can ask about.
+  const running = ongoingSpellsOn(current, target);
+  if (running.length === 0) {
+    outcomes.push({ target, affected: false });
+    return ok(current);
+  }
+
+  for (const spell of running) {
+    // SRD "Using a Higher-Level Spell Slot": "You automatically end a
+    // spell on the target if the spell's level is equal to or less than
+    // the level of the spell slot you use." Dispel Magic is level 3, so
+    // the printed "level 3 or lower" is the same sentence read at the
+    // spell's own level — one rule, not two.
+    const automatic = spell.level <= castLevel;
+    let rolled: D20TestResult | undefined;
+
+    if (!automatic) {
+      // "make an ability check using your spellcasting ability (DC 10
+      // plus that spell's level)" — a bare ability check, no skill and
+      // no proficiency, through the one calculator the engine has.
+      const check = rollAbilityCheck(
+        supply.issuer,
+        supply.rng,
+        casterSheet().sheet,
+        route!.ability,
+        {
+          dc: 10 + spell.level,
+          conditions: effectiveConditions(current, casterId),
+          ...(supply.modes === undefined ? {} : { modes: supply.modes }),
+          ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+        },
+      );
+      if (!check.ok) return check;
+
+      events.push(
+        recordD20Test(
+          casterId,
+          `${definition.name} vs ${spell.spell} (level ${spell.level})`,
+          check.value,
+          check.value.success ? 'dispelled' : 'held',
+        ),
+      );
+
+      if (!check.value.success) {
+        // A failed check changes nothing at all. The spell runs on, the
+        // slot is still spent, and the log says which.
+        outcomes.push({ target, check: check.value, affected: false });
+        continue;
+      }
+      rolled = check.value;
+    }
+
+    // Whether the whole casting ends or only its hold on this creature
+    // is the distinction SRD draws by letting Dispel Magic target "one
+    // creature, object, or magical effect": a spell that is on this
+    // creature and nobody else has nothing left to be, so it ends, while
+    // one that caught three creatures loses only this one.
+    const whole = spell.on.length <= 1;
+    const ended: GameEvent = {
+      type: 'spell-ended',
+      castingId: spell.castingId,
+      on: whole ? null : target,
+      reason: 'dispelled',
+    };
+    events.push(ended);
+    current = applyEvent(current, ended);
+
+    outcomes.push({
+      target,
+      // Present only when the spell was high enough to need one, which
+      // is the difference between the two halves of the SRD's sentence.
+      ...(rolled === undefined ? {} : { check: rolled }),
+      dispelled: spell.castingId,
+      affected: true,
+    });
+  }
+  return ok(current);
+}
+
+/**
+ * SRD Counterspell: the save that decides whether a casting dissipates.
+ */
+function resolveInterruptCastingEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'interrupt-casting'>,
+  target: CharacterId,
+  victim: CreatureState,
+  world: GameState,
+): Result<GameState> {
+  const { casterId, definition, supply, events, outcomes, saveDc } = ctx;
+  let current = world;
+
+  // SRD Counterspell: "The creature makes a Constitution saving throw.
+  // On a failed save, the spell dissipates with no effect."
+  //
+  // The window was proved open by the trigger before anything was spent.
+  // It is read again here because the events emitted since — the
+  // Counterspell's own casting — have been folded in, and reading the
+  // stale copy would be reading a different game than the one being
+  // changed.
+  const open = current.pendingCasting;
+  if (open === null) {
+    return err(
+      'nothing_to_interrupt',
+      `${definition.name} found no casting in progress to interrupt`,
+    );
+  }
+
+  const support = savingSupport(current, target, victim, effect.ability, supply);
+  const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+    dc: saveDc,
+    conditions: support.conditions,
+    modes: support.modes,
+    bonuses: support.bonuses,
+  });
+  if (!save.ok) return save;
+
+  events.push(
+    recordD20Test(
+      target,
+      `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+      save.value,
+      save.value.success ? 'resisted' : 'affected',
+    ),
+  );
+
+  // A success buys the caster nothing beyond their spell going ahead —
+  // the SRD states no other consequence, so neither does this.
+  if (save.value.success) {
+    outcomes.push({ target, save: save.value, affected: false });
+    return ok(current);
+  }
+
+  const interrupted: GameEvent = {
+    type: 'spell-interrupted',
+    castingId: open.castingId,
+    id: open.caster,
+    by: casterId,
+    reason: 'countered',
+  };
+  events.push(interrupted);
+  current = applyEvent(current, interrupted);
+
+  outcomes.push({
+    target,
+    save: save.value,
+    affected: true,
+    interrupted: open.castingId,
+  });
+  return ok(current);
+}
+
+/**
+ * Which rule resolves this effect.
+ *
+ * The whole of the branching, in one place, over a union the compiler closes:
+ * the `never` binding in the default is what makes a kind added to the union
+ * and not to this switch a compile error rather than a wrong answer in a
+ * fight. That guarantee is the reason the dispatch is a `switch` and not a
+ * lookup table — a record keyed by `kind` would be satisfied by a partial one.
+ */
+function resolveOneEffect(
+  ctx: EffectContext,
+  effect: SpellEffect,
+  target: CharacterId,
+  victim: CreatureState,
+  world: GameState,
+): Result<GameState> {
+  switch (effect.kind) {
+    case 'attack':
+      return resolveAttackEffect(ctx, effect, target, world);
+    case 'temp-hp':
+      return resolveTempHpEffect(ctx, effect, target, world);
+    case 'buff':
+      return resolveBuffEffect(ctx, effect, target, victim, world);
+    case 'roll-mode':
+      return resolveRollModeEffect(ctx, effect, target, world);
+    case 'armor-class':
+      return resolveArmorClassEffect(ctx, effect, target, world);
+    case 'damage-defense':
+      return resolveDamageDefenseEffect(ctx, effect, target, world);
+    case 'heal':
+      return resolveHealEffect(ctx, effect, target, victim, world);
+    case 'save-damage':
+      return resolveSaveDamageEffect(ctx, effect, target, victim, world);
+    case 'save':
+      return resolveSaveEffect(ctx, effect, target, victim, world);
+    case 'condition':
+      return resolveConditionEffect(ctx, effect, target, world);
+    case 'end-condition':
+      return resolveEndConditionEffect(ctx, effect, target, victim, world);
+    case 'dispel':
+      return resolveDispelEffect(ctx, target, world);
+    case 'interrupt-casting':
+      return resolveInterruptCastingEffect(ctx, effect, target, victim, world);
+
+    // An on-hit spell never reaches here: `resolveSpell` refuses one up
+    // front, because the attack it rides on is not this command's to give.
+    case 'attack-damage':
+      return ok(world);
+
+    default: {
+      // A branch for every kind, and the `never` binding is what keeps that
+      // true. Until now the last kind was an unguarded fall-through, so
+      // an effect this chain had no rule for was read as a saving throw: it
+      // took `effect.ability` off a definition that has none and rolled
+      // against a DC of NaN. A definition and its resolver disagreeing is a
+      // bug in this repo rather than a rules dispute, so it is loud — and,
+      // more to the point, a merge that drops one of these branches now
+      // fails to compile instead of failing in a fight.
+      const unhandled: never = effect;
+      throw new Error(
+        `no spell-effect rule for ${(unhandled as SpellEffect).kind}; ` +
+          'the definition and the resolver disagree',
+      );
+    }
+  }
+}
+
 export function resolveEffects(
   state: GameState,
   casterId: CharacterId,
@@ -1094,8 +2207,6 @@ export function resolveEffects(
     spellcastingModifier: modifierFor(casterSheet().sheet, route!.ability),
     casterLevel: casterSheet().sheet.level,
   };
-  const attackModifier = numbers.attackModifier;
-  const saveDc = numbers.saveDc;
 
   // **Before the first die, and on every path into here.** `castOrRelease`
   // asks the same question earlier so an ordinary casting never reaches this
@@ -1113,829 +2224,37 @@ export function resolveEffects(
     );
   }
 
+  // Named once, for thirteen resolvers that used to read them out of this
+  // function's scope. Nothing here is derived: every field is a binding the
+  // branches already had, under the name they already had it under.
+  const ctx: EffectContext = {
+    casterId,
+    caster,
+    casterSheet,
+    definition,
+    castLevel,
+    route,
+    numbers,
+    attackModifier: numbers.attackModifier,
+    saveDc: numbers.saveDc,
+    supply,
+    castingId,
+    label,
+    unverified,
+    events,
+    outcomes,
+    held,
+    ...(context.from === undefined ? {} : { from: context.from }),
+  };
+
   for (const target of targets) {
     for (const effect of running) {
       const victim = current.creatures[target];
       if (victim === undefined) continue;
 
-      if (effect.kind === 'attack') {
-        // **A spell attack is an attack roll.** SRD Dodge says "any attack
-        // roll made against you" and Blur says "attack rolls against you";
-        // neither says "with a weapon". This path never read the defender's
-        // standing effects at all, so a Dodging target was easier to hit with
-        // a Fire Bolt than with a dagger — the same gatherer the weapon attack
-        // uses removes the fork rather than copying its version of it.
-        const defending = defendingModes(current, casterId, target);
-        unverified.push(...defending.unverified);
-
-        const attack = rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
-          weapon: null,
-          targetAc: armorClassOf(current, target),
-          modes: [...defending.modes, ...(supply.modes ?? [])],
-          attackBonuses: [
-            { source: `${definition.name} (spell attack)`, flat: attackModifier },
-            // Bless is on the caster, not in the caller's head.
-            ...bonusesFor((caster?.bonuses ?? []), 'attack'),
-            ...(supply.bonuses ?? []),
-          ],
-          // A condition a feature has suppressed gives an attacker nothing:
-          // SRD Aura of Courage says the condition "has no effect on that ally
-          // while there", and being easier to hit is an effect.
-          targetConditions: effectiveConditions(current, target),
-          // Prone reads the distance, and a spell attack is measured the same
-          // way a weapon's is — **from where the attack comes from**, which
-          // for a casting that holds a point is that point rather than the
-          // caster. Absent where nobody has placed them, so the rule gives no
-          // answer rather than a guessed one.
-          ...(apartFromSource(current, context.from, casterId, target) === null
-            ? {}
-            : { withinFiveFeet: apartFromSource(current, context.from, casterId, target)! <= 5 }),
-        });
-        if (!attack.ok) return attack;
-
-        events.push({
-          type: 'roll-recorded',
-          who: casterId,
-          label: `${label} attack`,
-          natural: attack.value.roll.natural,
-          total: attack.value.total,
-          contributions: [{ source: 'spell attack', amount: attackModifier }],
-          outcome: attack.value.hit ? 'hit' : 'miss',
-        });
-
-        if (!attack.value.hit) {
-          // SRD Acid Arrow: "On a miss, the arrow splashes the target with
-          // acid for half as much of the initial damage **only**." *Only* is
-          // the whole of the branch: the riders are the hit's, and a miss owes
-          // neither the condition nor the later hit. Halved before the
-          // target's own defences, exactly as a made saving throw is —
-          // "half the damage that would be dealt" is half of what the *spell*
-          // deals, and Resistance then halves that again.
-          if (effect.onMiss !== 'half') {
-            outcomes.push({ target, attack: attack.value, affected: false });
-            continue;
-          }
-
-          const splash = rollSpellDice(
-            supply,
-            casterSheet().sheet,
-            definition.name,
-            effect.damageType,
-            scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
-          );
-          if (!splash.ok) return splash;
-
-          const splashed = dealSpellDamage(
-            current,
-            target,
-            withFlatAddend(
-              splash.value,
-              scaledFlatFor(effect.damage, definition.level, castLevel) +
-                (effect.addSpellcastingModifier === true ? numbers.spellcastingModifier : 0),
-            ).map((component) => ({ ...component, total: Math.floor(component.total / 2) })),
-            definition.name,
-            supply,
-            { by: casterId },
-          );
-          if (!splashed.ok) return splashed;
-
-          events.push(...splashed.value.events);
-          current = splashed.value.events.reduce(applyEvent, current);
-          outcomes.push({
-            target,
-            attack: attack.value,
-            damage: splashed.value.amount,
-            concentration: splashed.value.concentration,
-            // The attack missed. A spell that still splashes has not *affected*
-            // the target in the sense every other outcome uses the word —
-            // the same answer `save-damage` gives a creature that saved and
-            // took half anyway.
-            affected: false,
-          });
-          continue;
-        }
-
-        const dice = scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel);
-        // A critical doubles the dice, which is `rollAttackDamage`'s job, so
-        // this one call keeps the weapon-shaped signature rather than going
-        // through `rollSpellDice`.
-        const rolled = rollAttackDamage(
-          supply.issuer,
-          supply.rng,
-          casterSheet().sheet,
-          {
-            weapon: null,
-            targetAc: armorClassOf(current, target),
-            extraDamage: [{ source: definition.name, type: effect.damageType, dice }],
-          },
-          attack.value.critical,
-        );
-        if (!rolled.ok) return rolled;
-
-        const hurt = dealSpellDamage(
-          current,
-          target,
-          withFlatAddend(
-            rolled.value.components.filter((c) => c.source === definition.name),
-            // SRD Flame Blade: "3d6 **plus your spellcasting ability
-            // modifier**" — the chosen route's, so a feat's version adds its
-            // own. A flat addend printed beside the dice adds on top of it.
-            scaledFlatFor(effect.damage, definition.level, castLevel) +
-              (effect.addSpellcastingModifier === true
-                ? numbers.spellcastingModifier
-                : 0),
-          ),
-          definition.name,
-          supply,
-          { by: casterId, ...(attack.value.critical ? { critical: true } : {}) },
-        );
-        if (!hurt.ok) return hurt;
-
-        events.push(...hurt.value.events);
-        current = hurt.value.events.reduce(applyEvent, current);
-
-        // SRD Vampiric Touch: "you regain Hit Points equal to **half the
-        // amount of Necrotic damage dealt**." Half of what actually landed, so
-        // a resistant target heals the caster for less — which is why it reads
-        // the damage taken rather than the dice thrown. Rounding is the SRD's
-        // usual: down, and a single point heals nothing.
-        if (effect.healsCasterForHalf === true && hurt.value.amount > 0) {
-          const back = Math.floor(hurt.value.amount / 2);
-          if (back > 0) {
-            const drained = healCreature(current, casterId, back);
-            if (!drained.ok) return drained;
-            events.push(...drained.value);
-            current = drained.value.reduce(applyEvent, current);
-          }
-        }
-
-        // SRD Ray of Sickness: "On a hit, the target takes 2d8 Poison damage
-        // **and** has the Poisoned condition", and Acid Arrow's "and 2d4 Acid
-        // damage at the end of its next turn". The attack roll settled it up
-        // there and a miss already returned, so reaching here **is** the
-        // affirmative outcome — which is why the riders need no branch of
-        // their own. An attack rolls no saving throw, so nothing it hangs has
-        // one to repeat.
-        const riders = applyRiders(current, target, outcomeRidersOf(effect), {
-          definition,
-          castingId,
-          casterId,
-          saveDc,
-          castLevel,
-          casterLevel: numbers.casterLevel,
-          unverified,
-          held,
-          saveAbility: null,
-        });
-        if (!riders.ok) return riders;
-        events.push(...riders.value.events);
-        current = riders.value.events.reduce(applyEvent, current);
-
-        outcomes.push({
-          target,
-          attack: attack.value,
-          damage: hurt.value.amount,
-          concentration: hurt.value.concentration,
-          ...(riders.value.conditions.length === 0
-            ? {}
-            : { conditions: riders.value.conditions }),
-          affected: true,
-        });
-        continue;
-      }
-
-      // Temporary Hit Points. Beside the hit points, never in them.
-      if (effect.kind === 'temp-hp') {
-        const dice = scaledDiceFor(effect.amount, definition.level, numbers.casterLevel, castLevel);
-        const rolled = rollSpellDice(supply, casterSheet().sheet, definition.name, 'temporary', dice);
-        if (!rolled.ok) return rolled;
-
-        const flat = scaledFlatFor(effect.amount, definition.level, castLevel);
-        const modifier = effect.addSpellcastingModifier
-          ? numbers.spellcastingModifier
-          : 0;
-        const amount = Math.max(
-          0,
-          rolled.value.reduce((sum, c) => sum + c.total, 0) + flat + modifier,
-        );
-
-        const granted = grantTemporaryHpTo(current, target, amount);
-        if (!granted.ok) return granted;
-        events.push(...granted.value);
-        current = granted.value.reduce(applyEvent, current);
-        outcomes.push({ target, temporaryHp: amount, affected: true });
-        continue;
-      }
-
-      // A named bonus later rolls will read. Bane saves first; Bless does not.
-      if (effect.kind === 'buff') {
-        let save: D20TestResult | null = null;
-        if (effect.ability !== undefined) {
-          const support = savingSupport(current, target, victim, effect.ability, supply);
-          const rolled = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
-            dc: saveDc,
-            conditions: support.conditions,
-            modes: support.modes,
-            bonuses: support.bonuses,
-          });
-          if (!rolled.ok) return rolled;
-          save = rolled.value;
-
-          events.push(
-            recordD20Test(
-              target,
-              `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
-              save,
-              save.success ? 'resisted' : 'affected',
-            ),
-          );
-
-          if (save.success) {
-            outcomes.push({ target, save, affected: false });
-            continue;
-          }
-        }
-
-        // The casting is in the source, so ending the spell ends the bonus.
-        held.add(target);
-        events.push({
-          type: 'bonus-applied',
-          id: target,
-          bonus: {
-            source: castingSource(definition.name, castingId),
-            bonus: { ...effect.bonus, source: definition.name },
-            applies: effect.applies,
-            direction: effect.direction,
-          },
-        });
-        current = events.slice(-1).reduce(applyEvent, current);
-        outcomes.push({
-          target,
-          ...(save === null ? {} : { save }),
-          affected: true,
-        });
-        continue;
-      }
-
-      // Advantage or Disadvantage for as long as the spell runs. Bane's
-      // shape when the spell offers a save, Bless's when it does not — the
-      // same fork the bonus above takes, because it is the same sentence
-      // shape with presence in place of arithmetic.
-      if (effect.kind === 'roll-mode') {
-        // **Nothing is resisted here**, and that is the effect rather than an
-        // omission: Blur and Beacon of Hope ask nobody to save, and the
-        // speculative `save` field that used to sit on this kind had no user
-        // in the catalogue from the day it was written. A spell that *does*
-        // make a roll first says so with a host, and hangs this as a
-        // `modifiers` rider on the outcome — one roll, shared.
-        //
-        // The casting is in the source, so every door that ends the spell —
-        // a broken Concentration, the minute running out, a dispel, the
-        // caster leaving — ends this too, through machinery that already
-        // existed rather than a lifecycle of its own.
-        held.add(target);
-        events.push({
-          type: 'roll-modifier-granted',
-          id: target,
-          modifier: {
-            source: castingSource(definition.name, castingId),
-            modifier: effect.modifier,
-          },
-        });
-        current = events.slice(-1).reduce(applyEvent, current);
-        outcomes.push({ target, affected: true });
-        continue;
-      }
-
-      // A base Armour Class the spell supplies, in place of the one the
-      // target would otherwise calculate. Nothing is rolled and nothing is
-      // resisted: SRD Mage Armor asks for no save and touches a willing
-      // creature.
-      if (effect.kind === 'armor-class') {
-        held.add(target);
-        events.push({
-          type: 'armor-class-granted',
-          id: target,
-          armorClass: {
-            source: castingSource(definition.name, castingId),
-            base: effect.base,
-            plusAbility: effect.plusAbility,
-            shieldAllowed: effect.shieldAllowed,
-          },
-        });
-        current = events.slice(-1).reduce(applyEvent, current);
-        // Reported after the grant, because the number is the comparison’s
-        // answer rather than the definition’s: a Barbarian whose Unarmoured
-        // Defense already beats 13 + Dexterity keeps their own calculation,
-        // and the outcome should say what their Armour Class actually is.
-        outcomes.push({ target, armorClass: armorClassOf(current, target), affected: true });
-        continue;
-      }
-
-      // Resistance, Immunity or Vulnerability, for as long as the spell runs.
-      // SRD Stoneskin touches a willing creature and Protection from Energy
-      // does the same, so nothing is rolled and nothing is resisted — the same
-      // shape the Armour Class above takes, on the other half of what a
-      // defence is.
-      //
-      // The casting is in the source, so `releaseCasting` ends it with the
-      // spell; a `grants` timer is what could end it sooner, and no SRD spell
-      // asks for one.
-      if (effect.kind === 'damage-defense') {
-        held.add(target);
-        events.push({
-          type: 'damage-defense-granted',
-          id: target,
-          defense: {
-            source: castingSource(definition.name, castingId),
-            damageTypes: effect.damageTypes,
-            defense: effect.defense,
-          },
-        });
-        current = events.slice(-1).reduce(applyEvent, current);
-        outcomes.push({ target, affected: true });
-        continue;
-      }
-
-      // Hit points restored. No roll to beat and nothing to resist: healing is
-      // not damage, and a target at full is a legal target who gains nothing.
-      if (effect.kind === 'heal') {
-        const dice = scaledDiceFor(effect.healing, definition.level, numbers.casterLevel, castLevel);
-        const rolled = rollSpellDice(supply, casterSheet().sheet, definition.name, 'healing', dice);
-        if (!rolled.ok) return rolled;
-
-        // SRD: "2d8 plus your spellcasting ability modifier" — and it is the
-        // *chosen route's* ability, so a feat's version heals by its own.
-        const bonus = effect.addSpellcastingModifier ? numbers.spellcastingModifier : 0;
-        const addend = scaledFlatFor(effect.healing, definition.level, castLevel);
-        const amount = Math.max(
-          0,
-          rolled.value.reduce((sum, c) => sum + c.total, 0) + bonus + addend,
-        );
-
-        events.push({
-          type: 'roll-recorded',
-          who: casterId,
-          label: `${definition.name} healing`,
-          natural: 0,
-          total: amount,
-          contributions: [{ source: 'spellcasting modifier', amount: bonus }],
-          outcome: 'healed',
-        });
-
-        // `healCreature` refuses a corpse and refuses nothing-at-all, and it
-        // lifts exactly the unconsciousness that having no hit points caused.
-        // The cap at the maximum is `heal`'s, in vitals, where it always was.
-        const before = victim.vitals.hp;
-        const healed = healCreature(current, target, Math.max(1, amount));
-        if (!healed.ok) return healed;
-
-        events.push(...healed.value);
-        current = healed.value.reduce(applyEvent, current);
-        outcomes.push({
-          target,
-          healed: (current.creatures[target]?.vitals.hp ?? before) - before,
-          affected: true,
-        });
-        continue;
-      }
-
-      // A saving throw that deals damage, with what a success buys stated.
-      if (effect.kind === 'save-damage') {
-        const support = savingSupport(current, target, victim, effect.ability, supply);
-        // SRD singles a creature type out twice, and both sentences are about
-        // this save: Blight's "A Plant creature automatically fails the save"
-        // and Shatter's "A Construct has Disadvantage on the save". The type
-        // is known — `creatureTypeNeeds` asked for it above, before a die —
-        // so the only question left is which of the two the spell printed.
-        const singled =
-          effect.againstType !== undefined &&
-          effect.againstType.types.some((named) =>
-            isCreatureType(victim.creatureType, named),
-          )
-            ? effect.againstType.outcome
-            : null;
-        const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
-          dc: saveDc,
-          conditions: support.conditions,
-          // Presence, not arithmetic: it goes in as a named source and
-          // `combineRollModes` decides, so a Construct that is somehow also
-          // helped rolls a normal save rather than a net-negative one.
-          modes: [
-            ...support.modes,
-            ...(singled === 'disadvantage'
-              ? [{ source: `${definition.name} (${victim.creatureType})`, mode: 'disadvantage' as const }]
-              : []),
-          ],
-          bonuses: support.bonuses,
-          // The die is still thrown and recorded; the total is overridden, so
-          // no bonus applied afterwards rescues it — the reading `checks.ts`
-          // has taken for a condition's automatic failure since it was written.
-          ...(singled === 'automatic-failure'
-            ? {
-                autoFail: `${definition.name}: a ${victim.creatureType} creature automatically fails the save`,
-              }
-            : {}),
-        });
-        if (!save.ok) return save;
-
-        events.push(
-          recordD20Test(
-            target,
-            `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
-            save.value,
-            save.value.success ? 'resisted' : 'affected',
-          ),
-        );
-
-        // SRD Evasion: a successful Dexterity save against an effect that
-        // would have halved the damage takes **none** of it, and a failed one
-        // takes half. Read off the *target's* features, because it is a
-        // defence rather than something the caster does.
-        const evading = evadesHalfDamage(current, target, effect.ability, effect.onSuccess === 'half');
-
-        // Nothing at all on a success means no damage roll either: the spell
-        // did nothing, and rolling would move the generator for no reason.
-        // Evasion reaches the same place from the other direction.
-        if (save.value.success && (effect.onSuccess === 'none' || evading)) {
-          outcomes.push({ target, save: save.value, damage: 0, affected: false });
-          continue;
-        }
-
-        // One save, and every damage type the spell names under it. Each
-        // type rolls and scales separately; the save was already made once.
-        const parts = [
-          { damage: effect.damage, damageType: effect.damageType },
-          ...(effect.plus ?? []),
-        ];
-        const rolledParts: DamageComponent[] = [];
-        for (const part of parts) {
-          const dice = scaledDiceFor(part.damage, definition.level, numbers.casterLevel, castLevel);
-          const rolled = rollSpellDice(
-            supply,
-            casterSheet().sheet,
-            definition.name,
-            part.damageType,
-            dice,
-          );
-          if (!rolled.ok) return rolled;
-          rolledParts.push(
-            ...withFlatAddend(
-              rolled.value,
-              scaledFlatFor(part.damage, definition.level, castLevel),
-            ),
-          );
-        }
-
-        // SRD: "The halved damage is equal to half the damage that would be
-        // dealt on a failed save." Half of what the spell deals, therefore
-        // *before* the target's own Resistance — which then halves again.
-        // Without Evasion the success is halved; with it the *failure* is,
-        // and the success took nothing at all above.
-        const halve = evading ? !save.value.success : save.value.success;
-        const components = halve
-          ? rolledParts.map((c) => ({ ...c, total: Math.floor(c.total / 2) }))
-          : rolledParts;
-
-        const hurt = dealSpellDamage(
-          current,
-          target,
-          components,
-          definition.name,
-          supply,
-          { by: casterId },
-        );
-        if (!hurt.ok) return hurt;
-
-        events.push(...hurt.value.events);
-        current = hurt.value.events.reduce(applyEvent, current);
-
-        // SRD Sunbeam: "takes 6d8 Radiant damage **and** has the Blinded
-        // condition"; Vitriolic Sphere: "On a successful save, a creature
-        // takes half the initial damage **only**." A failed save is the
-        // affirmative outcome and the riders are all on it — a success buys
-        // whatever `onSuccess` says about the *damage* and nothing else,
-        // however much of it still landed.
-        let imposed: readonly ConditionName[] = [];
-        if (!save.value.success) {
-          const riders = applyRiders(current, target, outcomeRidersOf(effect), {
-            definition,
-            castingId,
-            casterId,
-            saveDc,
-            castLevel,
-            casterLevel: numbers.casterLevel,
-            unverified,
-            held,
-            // SRD Sunburst: "another Constitution saving throw" — the one this
-            // host just rolled, which is why a repeat save names no ability of
-            // its own.
-            saveAbility: effect.ability,
-          });
-          if (!riders.ok) return riders;
-          events.push(...riders.value.events);
-          current = riders.value.events.reduce(applyEvent, current);
-          imposed = riders.value.conditions;
-        }
-
-        outcomes.push({
-          target,
-          save: save.value,
-          damage: hurt.value.amount,
-          concentration: hurt.value.concentration,
-          ...(imposed.length === 0 ? {} : { conditions: imposed }),
-          affected: !save.value.success,
-        });
-        continue;
-      }
-
-      // An on-hit spell never reaches here: `resolveSpell` refuses one up
-      // front, because the attack it rides on is not this command's to give.
-      if (effect.kind === 'attack-damage') continue;
-
-      if (effect.kind === 'save') {
-        // A saving throw, and a condition on a failure.
-        const support = savingSupport(current, target, victim, effect.ability, supply);
-        const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
-          dc: saveDc,
-          conditions: support.conditions,
-          modes: support.modes,
-          bonuses: support.bonuses,
-        });
-        if (!save.ok) return save;
-
-        events.push(
-          recordD20Test(
-            target,
-            `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
-            save.value,
-            save.value.success ? 'resisted' : 'affected',
-          ),
-        );
-
-        if (save.value.success) {
-          outcomes.push({ target, save: save.value, affected: false });
-          continue;
-        }
-
-        // `save` writes its first rider flat; `conditionRiderOf` is the one
-        // place that knows, so from here the four kinds that impose a
-        // condition are reading one shape — including the flat `repeats`,
-        // which belongs to the saving throw this host just made rather than to
-        // any one of the conditions the failure imposed.
-        const landed = applyRiders(current, target, outcomeRidersOf(effect), {
-          definition,
-          castingId,
-          casterId,
-          saveDc,
-          castLevel,
-          casterLevel: numbers.casterLevel,
-          unverified,
-          held,
-          saveAbility: effect.ability,
-        });
-        if (!landed.ok) return landed;
-
-        events.push(...landed.value.events);
-        current = landed.value.events.reduce(applyEvent, current);
-        outcomes.push({
-          target,
-          save: save.value,
-          conditions: landed.value.conditions,
-          affected: true,
-        });
-        continue;
-      }
-
-      // SRD Greater Invisibility: "A creature you touch has the Invisible
-      // condition until the spell ends." The `save` branch above, minus the
-      // roll — no die, no `roll-recorded`, and the generator does not move,
-      // because the spell asked for nothing to be thrown.
-      if (effect.kind === 'condition') {
-        // **Not a rider host**, because it has no outcome: there is no roll
-        // whose affirmative branch anything could ride, so the rider *is* the
-        // effect and there is exactly one of it. `conditionRiderOf` types that
-        // as a non-empty list, which is why the first element is not a guess.
-        const [rider] = conditionRiderOf(effect);
-        const landed = applySpellEffect(
-          current,
-          target,
-          rider.name,
-          casterId,
-          riderOptions(rider, {
-            castingId,
-            spell: definition.name,
-            casterId,
-            saveDc,
-            target,
-            saveAbility: null,
-          }),
-        );
-        if (!landed.ok) return landed;
-
-        events.push(...landed.value);
-        current = landed.value.reduce(applyEvent, current);
-        if (rider.outlivesCasting !== true) held.add(target);
-        outcomes.push({ target, conditions: [rider.name], affected: true });
-        continue;
-      }
-
-      // SRD Lesser Restoration: "You touch a creature and end one condition on
-      // it: Blinded, Deafened, Paralyzed, or Poisoned." The `condition` branch
-      // above, inverted — and inverted is the only thing it shares, because a
-      // removal has no rider: no deadline, no escape check, no repeat save, and
-      // nothing for the casting to own. Nothing is rolled and the generator
-      // does not move; the spell asked for nothing to be thrown.
-      if (effect.kind === 'end-condition') {
-        // **Ask what there is to remove, of the thing the removal acts on.**
-        // `removeCondition` works over the instances, so the instances are what
-        // decide whether anything happens. `conditions.conditions` is derived
-        // from exactly those and agrees with this today — but `hasCondition`,
-        // the other reader to hand, does **not**: it special-cases Exhaustion,
-        // which is a level rather than an instance, so it would report a
-        // removal for an Exhaustion that `removeCondition` could never take
-        // away. No registered spell ends Exhaustion; that is a reason to write
-        // the direct question down rather than to rely on the agreement.
-        const present = effect.conditions.filter(
-          (condition) => reasonsFor(victim.conditions, condition).length > 0,
-        );
-
-        // **Nothing to cure is not an error, and it is not an event either.**
-        // The casting happened and the slot went; what the log must not carry
-        // is a `condition-removed` for a condition that was never there, which
-        // would be a record of something that did not happen.
-        if (present.length === 0) {
-          outcomes.push({ target, affected: false });
-          continue;
-        }
-
-        // One removal, shared with `useHealingTouch` — see `endConditionsOn`
-        // for why the source is omitted and what that means.
-        const lifted = endConditionsOn(target, present);
-        events.push(...lifted);
-        current = lifted.reduce(applyEvent, current);
-        outcomes.push({ target, ended: present, affected: true });
-        continue;
-      }
-
-      if (effect.kind === 'dispel') {
-        // SRD Dispel Magic: "Any ongoing spell of level 3 or lower **on the
-        // target** ends." What is on the target is live state, and before the
-        // ongoing record the engine could not have answered it: a spell's
-        // level lived in the log and on a concentrating caster, and neither is
-        // a thing a later spell can ask about.
-        const running = ongoingSpellsOn(current, target);
-        if (running.length === 0) {
-          outcomes.push({ target, affected: false });
-          continue;
-        }
-
-        for (const spell of running) {
-          // SRD "Using a Higher-Level Spell Slot": "You automatically end a
-          // spell on the target if the spell's level is equal to or less than
-          // the level of the spell slot you use." Dispel Magic is level 3, so
-          // the printed "level 3 or lower" is the same sentence read at the
-          // spell's own level — one rule, not two.
-          const automatic = spell.level <= castLevel;
-          let rolled: D20TestResult | undefined;
-
-          if (!automatic) {
-            // "make an ability check using your spellcasting ability (DC 10
-            // plus that spell's level)" — a bare ability check, no skill and
-            // no proficiency, through the one calculator the engine has.
-            const check = rollAbilityCheck(
-              supply.issuer,
-              supply.rng,
-              casterSheet().sheet,
-              route!.ability,
-              {
-                dc: 10 + spell.level,
-                conditions: effectiveConditions(current, casterId),
-                ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-                ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
-              },
-            );
-            if (!check.ok) return check;
-
-            events.push(
-              recordD20Test(
-                casterId,
-                `${definition.name} vs ${spell.spell} (level ${spell.level})`,
-                check.value,
-                check.value.success ? 'dispelled' : 'held',
-              ),
-            );
-
-            if (!check.value.success) {
-              // A failed check changes nothing at all. The spell runs on, the
-              // slot is still spent, and the log says which.
-              outcomes.push({ target, check: check.value, affected: false });
-              continue;
-            }
-            rolled = check.value;
-          }
-
-          // Whether the whole casting ends or only its hold on this creature
-          // is the distinction SRD draws by letting Dispel Magic target "one
-          // creature, object, or magical effect": a spell that is on this
-          // creature and nobody else has nothing left to be, so it ends, while
-          // one that caught three creatures loses only this one.
-          const whole = spell.on.length <= 1;
-          const ended: GameEvent = {
-            type: 'spell-ended',
-            castingId: spell.castingId,
-            on: whole ? null : target,
-            reason: 'dispelled',
-          };
-          events.push(ended);
-          current = applyEvent(current, ended);
-
-          outcomes.push({
-            target,
-            // Present only when the spell was high enough to need one, which
-            // is the difference between the two halves of the SRD's sentence.
-            ...(rolled === undefined ? {} : { check: rolled }),
-            dispelled: spell.castingId,
-            affected: true,
-          });
-        }
-        continue;
-      }
-
-      if (effect.kind === 'interrupt-casting') {
-        // SRD Counterspell: "The creature makes a Constitution saving throw.
-        // On a failed save, the spell dissipates with no effect."
-        //
-        // The window was proved open by the trigger before anything was spent.
-        // It is read again here because the events emitted since — the
-        // Counterspell's own casting — have been folded in, and reading the
-        // stale copy would be reading a different game than the one being
-        // changed.
-        const open = current.pendingCasting;
-        if (open === null) {
-          return err(
-            'nothing_to_interrupt',
-            `${definition.name} found no casting in progress to interrupt`,
-          );
-        }
-
-        const support = savingSupport(current, target, victim, effect.ability, supply);
-        const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
-          dc: saveDc,
-          conditions: support.conditions,
-          modes: support.modes,
-          bonuses: support.bonuses,
-        });
-        if (!save.ok) return save;
-
-        events.push(
-          recordD20Test(
-            target,
-            `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
-            save.value,
-            save.value.success ? 'resisted' : 'affected',
-          ),
-        );
-
-        // A success buys the caster nothing beyond their spell going ahead —
-        // the SRD states no other consequence, so neither does this.
-        if (save.value.success) {
-          outcomes.push({ target, save: save.value, affected: false });
-          continue;
-        }
-
-        const interrupted: GameEvent = {
-          type: 'spell-interrupted',
-          castingId: open.castingId,
-          id: open.caster,
-          by: casterId,
-          reason: 'countered',
-        };
-        events.push(interrupted);
-        current = applyEvent(current, interrupted);
-
-        outcomes.push({
-          target,
-          save: save.value,
-          affected: true,
-          interrupted: open.castingId,
-        });
-        continue;
-      }
-
-      // A branch for every kind, and the `never` binding is what keeps that
-      // true. Until now the last kind was an unguarded fall-through, so
-      // an effect this chain had no rule for was read as a saving throw: it
-      // took `effect.ability` off a definition that has none and rolled
-      // against a DC of NaN. A definition and its resolver disagreeing is a
-      // bug in this repo rather than a rules dispute, so it is loud — and,
-      // more to the point, a merge that drops one of these branches now
-      // fails to compile instead of failing in a fight.
-      const unhandled: never = effect;
-      throw new Error(
-        `no spell-effect rule for ${(unhandled as SpellEffect).kind}; ` +
-          'the definition and the resolver disagree',
-      );
+      const done = resolveOneEffect(ctx, effect, target, victim, current);
+      if (!done.ok) return done;
+      current = done.value;
     }
   }
 
