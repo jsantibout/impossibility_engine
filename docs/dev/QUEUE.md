@@ -25,6 +25,16 @@ the Done table, commit `588d7a0`.
 Engine tasks completed since last audit: 5
 Audit due at: 4 — **reached; the gate is chartered and running**
 
+**The fourth whole-engine audit is running.** The owner accepted the scoped
+gate as recorded, declined to reset the counter — correctly, since a scoped
+gate is not the sweep it was counting toward — and asked for the due broad
+coherence audit under the standing charter, with the outcome-rider decision
+included as *current* architecture rather than as its subject. The foreman
+did the measurement legwork first, as the charter requires, and handed it
+over as evidence. **The counter resets only when that sweep has actually
+happened**, and its findings may reorder or re-scope tranche 4, which Opus
+prepares from the post-audit state and presents at Gate 1.
+
 **The gate is answered** — `docs/architecture/outcome-scoped-child-effects-2026-09-13.md`, `APPROVE, narrowed`: outcome **riders**, not child effects, and `onFail: SpellEffect[]` rejected on evidence. **Tranche 4 is not reordered.** The counter is left standing rather than reset, because a scoped gate is not the whole-engine sweep it was counting toward; see below.
 
 **The gate was scoped, at the owner's instruction** (2026-09-13): Fable is
