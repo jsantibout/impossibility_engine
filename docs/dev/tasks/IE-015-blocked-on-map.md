@@ -1,6 +1,6 @@
 # IE-015 — `BLOCKED_ON`: derive the blockers instead of counting them by hand
 
-state: IMPLEMENTING
+state: CHANGES_REQUIRED
 lane: conformance
 tranche: 4
 parallel-safe: YES — a derived map and its guard; no engine source, no effect kind, no event
