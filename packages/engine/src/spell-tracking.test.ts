@@ -10,6 +10,12 @@ import { resolveSpell } from './commands.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { SPELL_DEFINITIONS, definitionFor } from './spell-definitions.js';
+import {
+  MECHANICAL_MARKERS,
+  MISSING_SHAPES,
+  TRACKED_ADJUDICATED as ADJUDICATED,
+  type MarkerId,
+} from '../scripts/missing-shapes.js';
 
 /**
  * Spells the engine **tracks** without **executing**.
@@ -274,195 +280,19 @@ describe('a tracked spell is retried and replayed like any other', () => {
 });
 
 /**
- * The guard that keeps `unmodelled` from becoming a dumping ground.
+ * The markers, the vocabulary and the adjudications, all moved out.
  *
- * `unmodelled` means exactly one thing: **this part of the spell belongs to
- * the fiction, and the engine should never decide it**. It must never come to
- * mean "the engine ought to enforce this and nobody has built it yet", because
- * those two read identically at the table and only one of them is honest. A
- * tracked spell is the easiest place in the codebase to blur them: its
- * `effects` list is empty by design, so any rule at all can be dropped into a
- * sentence and the suite stays green.
+ * They live in `scripts/missing-shapes.ts` with the executed and undefined
+ * populations' maps, because a shape all three name — `speed-and-movement-modes`
+ * is the one — counted three spells short while this map was private. Every
+ * guard over the tracked bucket is still here; the one that could not stay,
+ * "no shape sits unclaimed", is in `blocked-on.test.ts`, because asked of this
+ * map alone it would delete every shape only the other two populations name.
  *
- * So the line is drawn mechanically rather than by review. Each tracked spell
- * is read back out of the **parsed SRD** — its own printed prose, not a
- * summary anyone wrote here — and scanned for clauses that name something the
- * engine demonstrably owns: dice, a saving throw, an ability check, an Armour
- * Class, Hit Points, a Resistance or Immunity, a condition, Advantage or
- * Disadvantage, a Speed, a percentage chance, a cost in feet of movement, or
- * extra damage. A spell whose text contains one of those may still be tracked,
- * but somebody has to write down *why* — and the why is one of two kinds:
- *
- * | | |
- * |---|---|
- * | `'table'` | the clause fires on a fictional trigger the engine cannot see, and the DM raises it through commands that already exist |
- * | a shape id | the clause is genuinely mechanical and a named, enumerated shape is missing |
- *
- * The second kind must name an entry in {@link MISSING_SHAPES}, which is the
- * architecture map as data. That is the part that bites: adding Barkskin to
- * the tracked list means writing `armor-class` against a shape id, and either
- * the shape is already named — in which case the debt was already public — or
- * a new one has to be added to a list somebody reviews.
- *
- * **What this does not do.** It is a floor, not a proof. It reads prose, so a
- * rule the SRD phrases without any of these words slips through: Gate and
- * Etherealness both move creatures between planes and trip nothing, and
- * Arcanist's Magic Aura changes what other spells think a creature *is*
- * without using the word "condition". Those are caught by reading the spell,
- * which is what the audit in `PROGRESS.md` is. This catches the ones that are
- * easy to wave through, which is most of them: of the forty-five utility
- * spells this batch rejected, it fires on forty.
+ * The two ids this bucket used to own privately, `jumping` and
+ * `teleportation`, are in the shared vocabulary now and each still says where
+ * this repository already described the gap.
  */
-const MECHANICAL_MARKERS = [
-  ['dice', /\b\d+d\d+\b/],
-  ['saving-throw', /saving throw/i],
-  [
-    'ability-check',
-    /\b(ability|Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)\b[^.]{0,40}\bcheck\b/,
-  ],
-  ['armor-class', /\bArmor Class\b|\bAC\b/],
-  ['hit-points', /\bHit Points?\b/],
-  ['defence', /\b(Resistance|Immunity|Vulnerability) to\b/],
-  ['condition', /\bcondition\b/i],
-  ['roll-mode', /\b(Advantage|Disadvantage) on\b/],
-  ['speed', /\bSpeed\b/],
-  ['chance', /\bpercent chance\b/i],
-  ['movement-cost', /\b\d+ (feet|foot) of movement\b/i],
-  ['teleport', /\bteleport/i],
-  ['extra-damage', /\bextra\b[^.]{0,30}\bdamage\b/i],
-] as const satisfies readonly (readonly [string, RegExp])[];
-
-type MarkerId = (typeof MECHANICAL_MARKERS)[number][0];
-
-/**
- * The mechanical shapes that stand between a tracked spell and an executed one.
- *
- * Only shapes that a *tracked* spell actually leans on: this is the list the
- * adjudications below are allowed to name, not the whole architecture map. A
- * shape nothing names is removed by the test, so the list cannot rot into a
- * catalogue of good intentions.
- */
-const MISSING_SHAPES = {
-  'speed-and-movement-modes':
-    'a Speed a spell changes, and the Fly, Climb and Swim modes the engine does not distinguish — Longstrider, Fly, Spider Climb, Freedom of Movement',
-  jumping: 'jumping, which nothing models, so a jump distance has nothing to be measured against',
-  'teleportation':
-    'relocating a creature without spending movement: `moveCreature` charges a budget and `placeCreature` refuses a creature that already has a position, so no command performs a teleport — Misty Step, Dimension Door, Tree Stride',
-} as const;
-
-type ShapeId = keyof typeof MISSING_SHAPES;
-
-interface Adjudication {
-  /**
-   * Which of three things this clause is.
-   *
-   * | | |
-   * |---|---|
-   * | `'table'` | fiction; the engine should never decide it |
-   * | `'engine'` | the engine **does** execute it, and nothing is delegated |
-   * | a shape id | mechanical, and this names the shape that blocks it |
-   *
-   * `'engine'` arrived when ability checks became reachable from a spell, and
-   * it is the half that keeps this honest in the other direction. A tracked
-   * spell is not "a spell the engine does nothing about": Disguise Self is
-   * tracked because a disguise is not arithmetic, and the Investigation check
-   * that sees through it *is*, and is rolled. Without this value the only way
-   * to record a solved clause would be to go on calling it missing.
-   */
-  readonly why: 'table' | 'engine' | ShapeId;
-  readonly note: string;
-}
-
-/**
- * Why each mechanical clause in a tracked spell's own SRD text is not executed.
- *
- * Every entry was written by reading that spell's paragraph in
- * `packages/srd/raw/spells.md`. Eight spells out of forty-four need one, which
- * is the measure of how well the tracked bucket was chosen: the other
- * thirty-six contain no mechanical clause at all.
- */
-const ADJUDICATED: Readonly<
-  Record<string, Partial<Record<MarkerId, Adjudication>>>
-> = {
-  'disguise-self': {
-    'ability-check': {
-      why: 'engine',
-      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against the casting own timer; the table decides only that somebody looked closely.',
-    },
-  },
-  'minor-illusion': {
-    'ability-check': {
-      why: 'engine',
-      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck; a cantrip, so the DC comes off the caster sheet rather than off any slot.',
-    },
-  },
-  'silent-image': {
-    'ability-check': {
-      why: 'engine',
-      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck, against a Concentration casting timer that ends with the Concentration.',
-    },
-  },
-  demiplane: {
-    condition: {
-      why: 'table',
-      note: 'a creature shunted out as the door vanishes lands Prone — but who is inside an unmodelled demiplane is a fiction the engine cannot see, and the DM applies the condition with applyConditionTo.',
-    },
-  },
-  fly: {
-    speed: {
-      why: 'speed-and-movement-modes',
-      note: 'a Fly Speed of 60 feet and hovering: the engine tracks one Speed and no movement modes.',
-    },
-  },
-  jump: {
-    'movement-cost': {
-      why: 'jumping',
-      note: '"jump up to 30 feet by spending 10 feet of movement" — the movement is spendable, the jump is not, so charging the 10 feet alone would be half a rule.',
-    },
-  },
-  longstrider: {
-    speed: {
-      why: 'speed-and-movement-modes',
-      note: '"the target’s Speed increases by 10 feet" — Speed comes from the species and nothing modifies it.',
-    },
-  },
-  'see-invisibility': {
-    condition: {
-      why: 'table',
-      note: 'seeing through the Invisible condition is declared, not derived: sight is a pairwise declaration and the condition’s own effects already read it, so the table declares the sight this spell grants.',
-    },
-  },
-  'spider-climb': {
-    speed: {
-      why: 'speed-and-movement-modes',
-      note: 'a Climb Speed equal to its Speed, and walls and ceilings: the engine tracks one Speed and no movement modes.',
-    },
-  },
-  'misty-step': {
-    teleport: {
-      why: 'teleportation',
-      note: '"you teleport up to 30 feet to an unoccupied space you can see" — the destination is a point in this scene, which the engine owns, and no command puts a creature at one without charging movement.',
-    },
-  },
-  'plane-shift': {
-    teleport: {
-      why: 'table',
-      note: 'the destination is a different plane of existence and the engine holds one scene, so there is no position to move anybody to: where the party arrives is the DM’s.',
-    },
-  },
-  'word-of-recall': {
-    teleport: {
-      why: 'table',
-      note: 'the sanctuary is a second place and the engine holds one scene, so the arrival is the DM’s — unlike Misty Step, no coordinate in this scene would be the right answer.',
-    },
-  },
-  'transport-via-plants': {
-    'movement-cost': {
-      why: 'table',
-      note: 'the 5 feet a creature spends stepping through is charged by the DM, because the far plant is at any distance — off the scene entirely — and there is no destination to move anybody to.',
-    },
-  },
-};
 
 /**
  * The SRD's own prose for every spell.
@@ -596,16 +426,21 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     }
   });
 
-  /** No shape may sit in the map unclaimed, or the map becomes a wish list. */
-  it('keeps no shape nothing is blocked on', () => {
-    const claimed = new Set(
-      Object.values(ADJUDICATED).flatMap((written) =>
-        Object.values(written).map((entry) => entry.why),
-      ),
-    );
-    expect(Object.keys(MISSING_SHAPES).filter((shape) => !claimed.has(shape as ShapeId))).toEqual(
-      [],
-    );
+  /**
+   * "No shape sits unclaimed" is in `blocked-on.test.ts` now, over all three
+   * populations at once. Asked of this map alone it would delete every shape
+   * only an executed or an undefined spell names, which is all but three.
+   * What stays is the half about *this* map: a shape it names is one the
+   * vocabulary has.
+   */
+  it('names no shape the vocabulary does not have', () => {
+    const known = new Set<string>(Object.keys(MISSING_SHAPES));
+    for (const [spellId, written] of Object.entries(ADJUDICATED)) {
+      for (const [marker, entry] of Object.entries(written)) {
+        if (entry.why === 'table' || entry.why === 'engine') continue;
+        expect(known.has(entry.why), `${spellId}/${marker}`).toBe(true);
+      }
+    }
   });
 });
 

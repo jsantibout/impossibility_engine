@@ -1641,11 +1641,22 @@ not is never "it needs a position":
 | Distance travelled inside an area, which no move records | Spike Growth |
 | A wall with a length and a barrier rule, and no later trigger at all | Wind Wall |
 | An activation that resolves an area at a point chosen now | Call Lightning, Storm of Vengeance |
-| A stat block created mid-fight | Unseen Servant, Arcane Hand, the four Conjures, Guardian of Faith, Faithful Hound, Phantom Steed, Summon Dragon, Giant Insect |
+| A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect, Find Familiar, Find Steed, Animate Dead, Create Undead, Animate Objects, Planar Ally, Simulacrum |
 | Walls and barriers as obstacles | Arcane Eye, Passwall, Wall of Stone, Prismatic Wall |
 | A standing effect derived from where a creature is standing | Spirit Guardians' halved Speed, every Paladin aura |
 | Light, which is not modelled | Dancing Lights, Daylight, Darkness |
 | A second location | Project Image, Secret Chest |
+
+**Three spells left the stat-block row when it was read against the book**, and
+the correction is recorded rather than made quietly. It used to say "the four
+Conjures, Guardian of Faith, Faithful Hound"; SRD 5.2.1 rewrote the Conjure
+family as **spirits** — a pack, a pillar of light, an Emanation, a point you
+strike from — and none of the six prints an Armour Class, Hit Points or a turn,
+any more than Guardian of Faith or Faithful Hound does. Conjure Fey turns out
+to be Spiritual Weapon's shape exactly and is blocked on nothing at all. What
+is in the row now is the spells that genuinely print a stat block, and
+`blocked-on.test.ts` asserts both halves so the row cannot drift back. See "A
+Consumer Count Is A Query".
 
 **One origin per casting, and Dancing Lights is the reason that is a decision.**
 It is the only SRD spell that makes several independently placed things from
@@ -4564,6 +4575,189 @@ note can quietly get wrong: **where a note quotes the SRD it is held against
 that spell's own paragraph**, because four of them quoted a sentence the book
 does not print and one of those was a neighbouring spell's.
 
+### A Consumer Count Is A Query, Because Three Documents Gave Three Answers
+
+`PROGRESS.md`'s ranked map said a granted Resistance was **17** open spells;
+the leverage audit said **4**; Fable's re-derivation from the SRD text found
+**2 whole and 1 partial**. Three documents, one family, and **none of the three
+was derived** — so every tranche planned from any of them inherited the error,
+which is the fourth whole-engine audit's fourth finding.
+
+`PARTIAL_SPELLS` stopped being a hand list when it became a consequence of the
+adjudication map. `packages/engine/scripts/missing-shapes.ts` is the other half
+of that derivation, and it is one file because the question is one question:
+
+| Population | Map | An entry means |
+|---|---|---|
+| executed | `ADJUDICATED` | a definition the engine drives, carrying a clause it does not finish |
+| tracked | `TRACKED_ADJUDICATED` | a definition the engine casts and resolves nothing of |
+| undefined | `BLOCKED_ON` | a parsed spell with no definition at all — every one read against its own SRD paragraph |
+
+**One vocabulary, three populations, and that is a correction.** The executed
+and tracked lists were separate, with `speed-and-movement-modes` deliberately
+spelled twice, and the docstring that apologised for it was right about the
+hazard and wrong about the fix: kept apart, that shape counted **three spells
+short**, which is the same class of wrong number the whole file exists to end.
+The guards stay per-population — each still asks its own map its own
+questions — and the one guard that cannot be asked per population, *no shape
+sits unclaimed*, moved to `blocked-on.test.ts` where it can ask all three.
+Asked of one map it would delete every shape only the others name.
+
+**Two numbers, not one, and the difference is the finding.** `blocks` is every
+spell a shape touches; `unblocks` is the spells it is the **only** blocker
+for — the ones building it would finish. Reporting only the first is how 17, 4
+and 2 came to be three answers to one question. **Neither figure is written
+down here**, and that is deliberate: a per-shape count in prose that nothing
+regenerates is the thing this section is about. `COVERAGE.md`'s "What blocks
+the rest" prints both for every shape.
+
+### The query predicted a build, and the build corrected the query
+
+Before IE-017 existed, this map said a granted defence was the only blocker for
+exactly two spells — **Stoneskin and Mind Blank** — which is Fable's "2 whole,
+1 partial" reproduced from data rather than quoted. IE-017 then built that
+shape, independently. The result is the strongest evidence the derivation is
+worth trusting and the sharpest correction in it:
+
+| Predicted | What happened |
+|---|---|
+| Stoneskin finished | **defined and verified** — right |
+| Mind Blank finished | still undefined — *wrong* |
+| Protection from Energy partial | **defined and verified** — also wrong |
+
+**Both misses are one mistake, and it is a bundle in this very vocabulary.**
+`a-defence-a-spell-grants` claimed condition Immunity was "the same storage and
+the same sentence shape"; IE-017 built `CreatureState.defenses` a third input
+and touched `conditionApplicability` not at all — the line this file already
+draws everywhere else, where a stat block "prints damage types and conditions
+in one run ... which the engine treats completely differently". So Mind Blank's
+"Immunity to Psychic damage **and the Charmed condition**" kept half a blocker,
+and the half is now `a-condition-immunity-a-spell-grants`. And Protection from
+Energy's chosen damage type turned out to be expressible already, because
+IE-017 gave `damageTypeStated` the second user its own docstring had asked for.
+
+A count is only as good as the shape it counts, and the way to find out which
+shapes are bundles is to build one. That is the same lesson the audit drew from
+three rankings disagreeing, arriving from the other direction.
+
+**A shape being built is content work on this map, not a merge.** Three
+landed in one tranche and every one needed the entries re-read rather than
+find-and-replaced:
+
+| Built | What it reached | What was left |
+|---|---|---|
+| IE-014's `end-condition` | a printed list of condition names | Greater Restoration's "1 Exhaustion level" — a level is not a condition, so `an-exhaustion-level-a-spell-changes` |
+| IE-017's `damage-defense` | damage Resistance, Immunity, Vulnerability | condition Immunity, which is a different table |
+| IE-019's `againstType` | a save's automatic failure or Disadvantage, and extra attack dice | an automatic **success**, a filter on the *attacker's* type, and a type predicate an area reads |
+
+Each retired its bundle id and left a narrower one behind, and in each case the
+narrower id is the honest residue rather than a rename: the guards name the
+entries, and reading them is the hour that separates the two.
+
+**Where the prose and the SRD disagreed, the SRD won.** Three claims in this
+file did not survive reading the paragraph, and the largest is a whole row.
+
+**No 2024 Conjure spell prints a stat block.** This file's "A stat block
+created mid-fight" row said "the four Conjures" — and there are six of them,
+Animals, Celestial, Elemental, Fey, Minor Elementals and Woodland Beings, not
+one of which prints an Armour Class, Hit Points or a turn. 2024 rewrote the family
+as *spirits*: a pack, a pillar of light, an Emanation, a point you strike
+from. So the row is wrong about all six, and **Conjure Fey is blocked on
+nothing at all** — it appears at a point, makes one melee spell attack from
+it, and moves thirty feet on a later Bonus Action, which is Spiritual Weapon's
+shape exactly. It is the only undefined spell in the book the existing kinds
+fully express. The other five are blocked, but never on a stat block: Conjure
+Animals and Conjure Celestial want an area that comes along when the caster
+walks, Conjure Elemental a save the trigger gates on the spell's own state,
+Conjure Minor Elementals a rider on the caster's attacks, and Conjure Woodland
+Beings an action a spell grants. The row is right about Unseen Servant, Arcane
+Hand, Phantom Steed, Summon Dragon and Giant Insect, every one of which prints
+an Armour Class and Hit Points.
+
+**Faithful Hound is in that row too, and is also a point** — "intangible and
+invulnerable"; what blocks it is the bite at the start of each of the
+*caster's* turns and the ending when the two drift 300 feet apart.
+
+**And the ranked map's smallest entry is one short.** "Reads the target's
+current Hit Points | 3" comes out at **four**: Aura of Life is the fourth,
+and it is in that map's own population. A three-spell family counted by hand
+was still wrong.
+
+**The largest blocker in the book is a casting time**, and it is also the shape
+that **finishes** the most — more than any other, by a wide margin. A casting
+of a minute or more is refused, so those spells cannot be cast at all, and for
+a good many of them that is the only thing standing in the way. None of the
+three rankings had that, and none of them would have predicted it. The two
+figures are in `COVERAGE.md`'s table and not here, for the reason the section
+opened with; `blocked-on.test.ts` pins the *rank*, which is the claim this
+paragraph is actually making.
+
+**Three bundle ids are gone.** The audit found that
+`outcome-scoped-child-effects`, `a-mode-on-the-save-a-spell-forces` and
+`a-repeat-save-beyond-the-turn-hook` were not shapes but bundles. IE-010
+removed the first when the rider vocabulary it named was built — and **removed
+it rather than renaming it**, because re-filing its last claimant left a shape
+nothing was blocked on, which the guard deletes. The other two are split here:
+
+| Bundle | Became |
+|---|---|
+| `a-repeat-save-beyond-the-turn-hook` (11 adjudications over 9 spells) | a save on the clock, a save counted to a tally, a save whose **failure** branch acts, and a save raised by a trigger |
+| `a-mode-on-the-save-a-spell-forces` (6) | five clauses to `a-fact-only-the-table-can-declare`, one to `an-outcome-that-varies-by-creature-type`, and the id kept for the clause that genuinely needs a save to remember its provenance |
+
+**The split is checked as arithmetic, because the complaint was arithmetic.**
+`SPLIT_BUNDLES` records the exact `[spellId, clause, wentTo]` triples each
+bundle held, and a test looks every one up in the map as it stands and asserts
+it is still filed where the split put it. A re-filing that lost one, or that
+quietly re-worded a clause to duck the question, fails. The audit called the
+first bundle "a shape with eight"; it is **nine** spells, and that one-off is
+the finding in miniature.
+
+**A held clause may leave the map, and there is exactly one honest reason.**
+IE-019 built `an-outcome-that-varies-by-creature-type` and executed Shatter
+with it, so that clause is no longer an adjudication at all — which is not a
+lost fact but the destination having been *built*. The test takes that branch
+only when the shape is gone from the vocabulary: a clause that vanished while
+its shape still stands is a silent loss and fails. Recording where each clause
+*went* rather than a list of destinations beside them is what makes that
+checkable, and is the same rule as everywhere else here — a second list is a
+second place for one fact to be wrong.
+
+**`a-mode-on-the-save-a-spell-forces` survived with zero executed claimants**,
+and would have been deleted by the guard if the undefined population had not
+claimed it. Protection from Evil and Good is what keeps it: "the target has
+Advantage on any new saving throw against the relevant effect" needs a save
+that remembers what it was against, which is the sentence that has blocked
+Countercharm since it was written. The five Charm and Dominate clauses that
+used to sit there want a *fact* instead — "if you or your allies are fighting
+it" — which is exactly why the audit found C2 made zero consumers whole.
+
+**An empty list is an answer.** A spell blocked on nothing the engine owns is
+recorded as `[]` rather than omitted: it says the engine could take that spell
+today, tracked at least, and nobody has written it down. `blocked-on.test.ts`
+pins that set **by name rather than by size**, because a count in prose is what
+this section is about — and because the names are what a reader wants:
+Conjure Fey, Create or Destroy Water, Dancing Lights, Darkness, Daylight,
+Druidcraft, Elementalism, Fog Cloud, Programmed Illusion, Purify Food and
+Drink, and Zone of Truth. Light, obscurement and a fiction trigger are why
+most of them are there — all three are clauses the guard's own marker list
+already leaves alone by name.
+
+**A spell offering a choice of branches is in that set only while every branch
+is fiction**, and the pair that draws the line is Druidcraft against
+Thaumaturgy. Both pick one of several minor wonders; not one of Druidcraft's
+is arithmetic, so the choice decides nothing the engine would have to record.
+Thaumaturgy's *Booming Voice* grants Advantage on Charisma (Intimidation)
+checks, which `roll-modifiers.ts` expresses exactly — so **its** choice does
+decide something, and the spell is not in the set. That was got wrong once and
+is written down for it.
+
+**The completeness guard is driven by a synthetic case.** `coverageGaps` takes
+the parsed list and the defined set as arguments rather than reading them, so
+the test can hand it a catalogue containing a spell nobody has read and assert
+it is reported. A guard that can only be run against the data it already agrees
+with is not a guard — the lesson `animals.md` taught the parsers and
+`invariants.test.ts` applies to every sweep.
+
 ### What a cast refuses, and what it admits it cannot check
 
 Refused: a spell with no executable definition, a spell the caster has not
@@ -5660,6 +5854,19 @@ null and is reported — it never becomes either.
   mechanism, not by transcription** — which is the opposite of what the "cheapest
   coverage there is" note assumed, and is worth knowing before the next content
   task is briefed.
+
+  **That list is now data, and four of its rows have since been built.** Every
+  blocker above is a shape id in `missing-shapes.ts` and every spell above is an
+  entry in `BLOCKED_ON`, so the count is a query rather than this paragraph —
+  see "A Consumer Count Is A Query". The re-reading found **Conjure Fey** needs
+  no mechanism at all, which makes it three spells the existing kinds express
+  rather than two; and one tranche later **condition removal**, **a granted
+  Resistance**, **a damage type chosen at the casting** and **an outcome that
+  varies by creature type** are all built, so Lesser Restoration, Protection
+  from Poison, Stoneskin, Protection from Energy, Blight, Shatter and Divine
+  Smite have all left the undefined and partial populations. Do not count from
+  this bullet at all; it is the prose the map replaced, kept because several
+  shape descriptions still cite it.
 - **Every one of the event types the union declares is now emitted by a command**, so a
   Maestro tool surface can reach all of them. It was seventeen with no producer,
   in two families: the eight that set up a world for the rules to run in — see

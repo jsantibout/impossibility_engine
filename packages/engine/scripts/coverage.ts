@@ -34,6 +34,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS, type SpellDefinition } from '../src/spell-definitions.js';
 import { allClasses, allSubclasses } from '../src/creation.js';
+import { allShapeConsumers } from './missing-shapes.js';
 
 interface ParsedSpell {
   readonly id: string;
@@ -454,6 +455,54 @@ function renderClasses(coverage: ClassCoverage): readonly string[] {
   return lines;
 }
 
+/**
+ * What blocks the rest, counted rather than estimated.
+ *
+ * The repository carried **three** rankings of one family and they disagreed by
+ * four times, because none of them was derived. `missing-shapes.ts` holds the
+ * vocabulary and every spell blocked on it across all three populations, so
+ * this table is a query.
+ *
+ * **Two columns, and the difference is the point.** *Blocks* is every spell a
+ * shape touches; *finishes* is the spells it is the only blocker for — the ones
+ * building it would complete. A granted defence finishes exactly two and
+ * touches several times that many, and reporting only the second number is how
+ * 17, 4 and 2 came to be three answers to one question. Neither figure is
+ * written down here: the table below prints both, which is the whole point.
+ */
+function renderBlockers(): readonly string[] {
+  const rows = allShapeConsumers();
+  const lines = [
+    '',
+    '## What blocks the rest',
+    '',
+    'Derived from `packages/engine/scripts/missing-shapes.ts`, which holds one',
+    'missing-shape vocabulary and every spell blocked on it — the executed',
+    'definitions carrying a clause they do not finish, the tracked ones, and all',
+    'the parsed spells with no definition at all.',
+    '',
+    '**Blocks** is every spell a shape touches. **Finishes** is the spells it is',
+    'the *only* blocker for — the ones building it would complete. Those are',
+    'different numbers, and reporting only the first is how one family came to be',
+    'ranked at 17, at 4 and at 2 in three different documents.',
+    '',
+    '| Shape | Blocks | Finishes | Executed | Tracked | Undefined |',
+    '|---|---|---|---|---|---|',
+  ];
+  for (const row of rows) {
+    lines.push(
+      `| \`${row.shape}\` | ${row.blocks.length} | ${row.unblocks.length} | ${row.executed.length} | ${row.tracked.length} | ${row.undefined.length} |`,
+    );
+  }
+  lines.push(
+    '',
+    'A spell can need more than one shape, so the columns do not sum to the',
+    'population. A spell blocked on **nothing** — genuinely the table’s, and the',
+    'engine could take it today — is recorded as such rather than omitted.',
+  );
+  return lines;
+}
+
 function render(coverage: SpellCoverage): string {
   const defined = new Set(SPELL_DEFINITIONS.map((d) => d.id));
   const verified = new Set(VERIFIED_SPELLS);
@@ -567,6 +616,7 @@ function render(coverage: SpellCoverage): string {
     lines.push('', `**Inconsistent:** verified but not executable: ${missing.join(', ')}`);
   }
 
+  lines.push(...renderBlockers());
   lines.push(...renderClasses(auditClasses()));
 
   return `${lines.join('\n')}\n`;

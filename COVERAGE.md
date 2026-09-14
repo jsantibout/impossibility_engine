@@ -202,6 +202,109 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Water Walk** (level 3) — 3 noted
 - **Word of Recall** (level 6) — 2 noted
 
+## What blocks the rest
+
+Derived from `packages/engine/scripts/missing-shapes.ts`, which holds one
+missing-shape vocabulary and every spell blocked on it — the executed
+definitions carrying a clause they do not finish, the tracked ones, and all
+the parsed spells with no definition at all.
+
+**Blocks** is every spell a shape touches. **Finishes** is the spells it is
+the *only* blocker for — the ones building it would complete. Those are
+different numbers, and reporting only the first is how one family came to be
+ranked at 17, at 4 and at 2 in three different documents.
+
+| Shape | Blocks | Finishes | Executed | Tracked | Undefined |
+|---|---|---|---|---|---|
+| `a-long-casting-time` | 54 | 12 | 0 | 0 | 54 |
+| `a-stat-block-created-mid-fight` | 15 | 4 | 1 | 0 | 14 |
+| `an-action-a-spell-compels-or-forbids` | 26 | 3 | 9 | 0 | 17 |
+| `a-rider-on-a-later-weapon-attack` | 10 | 3 | 0 | 0 | 10 |
+| `a-second-place-to-put-a-creature` | 17 | 2 | 1 | 0 | 16 |
+| `a-target-rule-the-format-cannot-state` | 13 | 2 | 0 | 0 | 13 |
+| `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 10 |
+| `teleportation` | 9 | 2 | 0 | 1 | 8 |
+| `a-casting-ended-by-a-trigger` | 29 | 1 | 8 | 0 | 21 |
+| `a-random-outcome-that-is-not-a-d20` | 19 | 1 | 0 | 0 | 19 |
+| `difficult-terrain-an-area-creates` | 18 | 1 | 5 | 0 | 13 |
+| `a-barrier-that-blocks-passage` | 12 | 1 | 0 | 0 | 12 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 11 | 1 | 1 | 0 | 10 |
+| `a-condition-immunity-a-spell-grants` | 10 | 1 | 0 | 0 | 10 |
+| `a-duration-the-slot-changes` | 10 | 1 | 4 | 0 | 6 |
+| `a-spells-effects-applied-to-different-targets` | 10 | 1 | 0 | 0 | 10 |
+| `a-fact-only-the-table-can-declare` | 9 | 1 | 5 | 0 | 4 |
+| `what-a-creature-is-holding` | 9 | 1 | 3 | 0 | 6 |
+| `a-repeat-save-that-does-something-on-a-failure` | 8 | 1 | 2 | 0 | 6 |
+| `a-flat-amount-with-no-dice` | 6 | 1 | 0 | 0 | 6 |
+| `healing-that-raises-the-dead` | 6 | 1 | 0 | 0 | 6 |
+| `a-hit-point-maximum-a-spell-moves` | 5 | 1 | 1 | 0 | 4 |
+| `a-spell-that-answers-a-later-attack` | 5 | 1 | 0 | 0 | 5 |
+| `an-activation-that-forces-a-saving-throw` | 5 | 1 | 0 | 0 | 5 |
+| `an-area-trigger-measured-from-a-point` | 3 | 1 | 0 | 0 | 3 |
+| `falling` | 3 | 1 | 0 | 0 | 3 |
+| `several-attack-rolls-from-one-casting` | 3 | 1 | 1 | 0 | 2 |
+| `a-creature-fact-an-effect-overrides` | 2 | 1 | 0 | 0 | 2 |
+| `a-die-behaviour-a-spell-asks-for` | 2 | 1 | 0 | 0 | 2 |
+| `a-roll-result-an-effect-replaces` | 2 | 1 | 0 | 0 | 2 |
+| `a-reduction-an-effect-applies-to-damage` | 1 | 1 | 0 | 0 | 1 |
+| `a-second-roll-sequenced-after-the-first` | 1 | 1 | 0 | 0 | 1 |
+| `a-world-fact-nothing-can-represent` | 1 | 1 | 0 | 0 | 1 |
+| `an-armor-class-a-spell-floors` | 1 | 1 | 0 | 0 | 1 |
+| `an-effect-that-intercepts-dropping-to-0` | 1 | 1 | 0 | 0 | 1 |
+| `a-choice-made-at-the-casting` | 24 | 0 | 4 | 0 | 20 |
+| `speed-and-movement-modes` | 16 | 0 | 2 | 3 | 11 |
+| `forced-movement-a-spell-causes` | 12 | 0 | 1 | 0 | 11 |
+| `an-effect-that-suppresses-other-magic` | 9 | 0 | 0 | 0 | 9 |
+| `a-repeat-save-raised-by-a-trigger` | 7 | 0 | 6 | 0 | 1 |
+| `a-deadline-anchored-to-a-rest` | 6 | 0 | 0 | 0 | 6 |
+| `an-activation-that-resolves-an-area` | 6 | 0 | 1 | 0 | 5 |
+| `an-area-that-filters-its-catch` | 6 | 0 | 1 | 0 | 5 |
+| `a-creature-type-predicate-an-area-reads` | 5 | 0 | 0 | 0 | 5 |
+| `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 5 |
+| `an-effect-that-fires-when-the-casting-ends` | 5 | 0 | 0 | 0 | 5 |
+| `damage-with-neither-an-attack-roll-nor-a-save` | 5 | 0 | 1 | 0 | 4 |
+| `a-casting-that-casts-another-spell` | 4 | 0 | 0 | 0 | 4 |
+| `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 4 |
+| `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 2 | 0 | 2 |
+| `a-repeat-save-counted-to-a-tally` | 4 | 0 | 1 | 0 | 3 |
+| `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 4 |
+| `an-ability-score-a-spell-changes` | 4 | 0 | 0 | 0 | 4 |
+| `an-outcome-that-reads-the-targets-hit-points` | 4 | 0 | 0 | 0 | 4 |
+| `a-casting-dismissed-early` | 3 | 0 | 0 | 0 | 3 |
+| `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 |
+| `a-one-shot-roll-modifier` | 3 | 0 | 2 | 0 | 1 |
+| `a-payout-at-a-turn-boundary` | 3 | 0 | 0 | 0 | 3 |
+| `a-success-branch-that-does-something` | 3 | 0 | 0 | 0 | 3 |
+| `an-area-that-moves-by-itself` | 3 | 0 | 2 | 0 | 1 |
+| `senses-beyond-declared-sight` | 3 | 0 | 1 | 0 | 2 |
+| `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 0 | 1 | 0 | 1 |
+| `a-rest-an-effect-gives-or-denies` | 2 | 0 | 0 | 0 | 2 |
+| `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 | 0 | 0 | 2 |
+| `an-area-moved-by-the-casters-own-movement` | 2 | 0 | 0 | 0 | 2 |
+| `an-exhaustion-level-a-spell-changes` | 2 | 0 | 0 | 0 | 2 |
+| `an-outcome-that-breaks-concentration` | 2 | 0 | 0 | 0 | 2 |
+| `healing-modified-by-an-effect` | 2 | 0 | 2 | 0 | 0 |
+| `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 2 | 0 | 0 |
+| `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 |
+| `a-damage-penalty-a-spell-grants` | 1 | 0 | 0 | 0 | 1 |
+| `a-dc-the-caster-does-not-set` | 1 | 0 | 0 | 0 | 1 |
+| `a-distance-a-creature-travels-inside-an-area` | 1 | 0 | 0 | 0 | 1 |
+| `a-mode-on-the-save-a-spell-forces` | 1 | 0 | 0 | 0 | 1 |
+| `a-range-that-scales-with-caster-level` | 1 | 0 | 0 | 0 | 1 |
+| `a-repeat-save-on-the-clock` | 1 | 0 | 1 | 0 | 0 |
+| `a-save-keyed-to-a-condition` | 1 | 0 | 1 | 0 | 0 |
+| `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 1 |
+| `an-automatic-success-by-creature-type` | 1 | 0 | 0 | 0 | 1 |
+| `an-effect-that-stabilises-a-dying-creature` | 1 | 0 | 0 | 0 | 1 |
+| `an-outcome-of-a-spells-own-damage` | 1 | 0 | 1 | 0 | 0 |
+| `an-outcome-that-reads-the-targets-defences` | 1 | 0 | 0 | 0 | 1 |
+| `jumping` | 1 | 0 | 0 | 1 | 0 |
+| `the-effects-source-as-a-participant` | 1 | 0 | 0 | 0 | 1 |
+
+A spell can need more than one shape, so the columns do not sum to the
+population. A spell blocked on **nothing** — genuinely the table’s, and the
+engine could take it today — is recorded as such rather than omitted.
+
 ## Classes
 
 | Classes | Subclasses | Features | Executed by the engine |
