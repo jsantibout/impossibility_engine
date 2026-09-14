@@ -67,12 +67,19 @@ function renderClasses(coverage: ClassCoverage): readonly string[] {
  * vocabulary and every spell blocked on it across all three populations, so
  * this table is a query.
  *
- * **Two columns, and the difference is the point.** *Blocks* is every spell a
- * shape touches; *finishes* is the spells it is the only blocker for — the ones
- * building it would complete. A granted defence finishes exactly two and
+ * **Three columns, and each difference is a finding.** *Blocks* is every spell
+ * a shape touches; *finishes* is the spells it is the only blocker for — the
+ * ones building it would complete. A granted defence finishes exactly two and
  * touches several times that many, and reporting only the second number is how
- * 17, 4 and 2 came to be three answers to one question. Neither figure is
- * written down here: the table below prints both, which is the whole point.
+ * 17, 4 and 2 came to be three answers to one question.
+ *
+ * And *finishes* is itself two numbers, because an entry that names one blocker
+ * for a spell printing three used to pass every guard. IE-044 gave the
+ * undefined map the clause-anchored entry type the executed one always had, so
+ * a spell whose paragraph somebody has read sentence by sentence is now
+ * distinguishable from one nobody has — and every wrong prediction this map has
+ * made was an unread sentence rather than a wrong entry. No figure is written
+ * down here: the table below prints all three, which is the whole point.
  */
 function renderBlockers(): readonly string[] {
   const rows = allShapeConsumers();
@@ -90,12 +97,31 @@ function renderBlockers(): readonly string[] {
     'different numbers, and reporting only the first is how one family came to be',
     'ranked at 17, at 4 and at 2 in three different documents.',
     '',
-    '| Shape | Blocks | Finishes | Executed | Tracked | Undefined |',
-    '|---|---|---|---|---|---|',
+    '**Finishes is split in two**, and that difference is the second finding.',
+    '*Read* counts the spells whose SRD paragraph has been read sentence by',
+    'sentence — every sentence tripping one of the guard’s mechanical markers',
+    'carries a written clause saying which of four things it is. *Unread* counts',
+    'the rest, whose entry names a blocker and says nothing about the sentences',
+    'beside it. Every wrong prediction this map has made — Mind Blank, Protection',
+    'from Energy, Enthrall, Magic Weapon, True Strike — was an unread sentence',
+    'rather than a wrong entry, so the first column is what a tranche may be',
+    'planned from and the second is what it may be planned from once somebody',
+    'reads it.',
+    '',
+    '*Read* is a **floor, not a proof.** The markers read English, so a rule the',
+    'SRD phrases in none of their words trips nothing and is demanded of nobody —',
+    'Gaseous Form’s "can enter and occupy the space of another creature" is one,',
+    'and is recorded because somebody read the paragraph rather than because the',
+    'guard asked. What the column promises is that every sentence the markers can',
+    'see has an answer, which is the same promise the tracked bucket’s guard has',
+    'always made in the same words.',
+    '',
+    '| Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | Undefined |',
+    '|---|---|---|---|---|---|---|',
   ];
   for (const row of rows) {
     lines.push(
-      `| \`${row.shape}\` | ${row.blocks.length} | ${row.unblocks.length} | ${row.executed.length} | ${row.tracked.length} | ${row.undefined.length} |`,
+      `| \`${row.shape}\` | ${row.blocks.length} | ${row.unblocksRead.length} | ${row.unblocksUnread.length} | ${row.executed.length} | ${row.tracked.length} | ${row.undefined.length} |`,
     );
   }
   lines.push(

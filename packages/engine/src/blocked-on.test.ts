@@ -4,15 +4,29 @@ import { describe, expect, it } from 'vitest';
 import {
   ADJUDICATED,
   BLOCKED_ON,
+  MAX_SENTENCE,
   MISSING_SHAPES,
   SPLIT_BUNDLES,
+  SentenceSplitError,
   TRACKED_ADJUDICATED,
   allShapeConsumers,
+  blockersIn,
+  blockersOf,
   claimedShapes,
+  clausesIn,
   consumersOf,
+  flatten,
   coverageGaps,
+  isSentenceComplete,
+  markersIn,
   parsedSpellIds,
+  printedUnitsOf,
+  sentenceGaps,
+  sentencesOf,
+  splitSentences,
+  unanchoredClauses,
   DEFINED_SPELL_IDS,
+  type BlockedEntry,
   type ShapeId,
 } from '../scripts/missing-shapes.js';
 
@@ -32,6 +46,29 @@ import {
 
 const PARSED = parsedSpellIds();
 const HERE = fileURLToPath(new URL('.', import.meta.url));
+
+/**
+ * Where in a spell's printed entry a clause phrase sits, as one number.
+ *
+ * The unit it lies in, then its offset inside that unit — so ordering a spell's
+ * clauses by this is ordering them by the book. A phrase the entry does not
+ * contain is `-1`, which sorts first and reports itself.
+ *
+ * **It normalises through `flatten`**, which is the anchoring check's own
+ * function rather than a second spelling of it. The two agreed while they
+ * differed only over smart quotes and the parsed corpus has none — which is
+ * exactly the shape of agreement this repository keeps finding wrong, so one of
+ * them asks the other.
+ */
+const printedOrder = (spellId: string, phrase: string): number => {
+  const wanted = flatten(phrase);
+  const units = printedUnitsOf(spellId);
+  for (let unit = 0; unit < units.length; unit += 1) {
+    const within = units[unit]!.indexOf(wanted);
+    if (within >= 0) return unit * 10_000 + within;
+  }
+  return -1;
+};
 
 describe('the blocked-on map covers the undefined population', () => {
   /**
@@ -83,20 +120,41 @@ describe('the blocked-on map covers the undefined population', () => {
 
   it('names only shapes the vocabulary has', () => {
     const known = new Set<string>(Object.keys(MISSING_SHAPES));
-    for (const [spellId, shapes] of Object.entries(BLOCKED_ON)) {
-      for (const shape of shapes) {
+    for (const [spellId, entry] of Object.entries(BLOCKED_ON)) {
+      for (const shape of blockersIn(entry)) {
         expect(known.has(shape), `${spellId} names ${shape}`).toBe(true);
       }
     }
   });
 
-  /** In an order two branches can both append to, like every other list here. */
+  /**
+   * In an order two branches can both append to, and the order is the data's.
+   *
+   * A grandfathered entry sorts its shape ids and repeats none, which is what
+   * it always did. A clause-anchored one is in the order of the spell's own
+   * printed entry — its fields, then its sentences, then position within the
+   * sentence — which buys the same property for the same reason: where a new
+   * entry goes is decided by the book rather than by whoever wrote it, so two
+   * branches cannot put one line in two places.
+   */
   it('names them in an order two branches can both append to', () => {
     const ids = Object.keys(BLOCKED_ON);
     expect(ids).toEqual([...ids].sort());
-    for (const [spellId, shapes] of Object.entries(BLOCKED_ON)) {
-      expect([...shapes], spellId).toEqual([...shapes].sort());
-      expect(new Set(shapes).size, `${spellId} repeats a shape`).toBe(shapes.length);
+    for (const [spellId, entry] of Object.entries(BLOCKED_ON)) {
+      const clauses = clausesIn(entry);
+      if (clauses.length === 0) {
+        const shapes = entry as readonly ShapeId[];
+        expect([...shapes], spellId).toEqual([...shapes].sort());
+        expect(new Set(shapes).size, `${spellId} repeats a shape`).toBe(shapes.length);
+        continue;
+      }
+      // An entry is one kind or the other: half a reading is what the second
+      // `finishes` number exists to keep out of the first.
+      expect(clauses.length, `${spellId} mixes bare shape ids with clauses`).toBe(entry.length);
+      const at = clauses.map((clause) => printedOrder(spellId, clause.clause));
+      expect(at, `${spellId} names its clauses out of the book's order`).toEqual(
+        [...at].sort((a, b) => a - b),
+      );
     }
   });
 
@@ -111,7 +169,8 @@ describe('the blocked-on map covers the undefined population', () => {
    * reading somebody changed, and it should have to say so here.
    *
    * Light, obscurement and a fiction trigger are why most of them are here.
-   * All three are clauses `spell-honesty.test.ts`'s marker list already leaves
+   * All three are clauses `CLAUSE_MARKERS` — the honesty guard's list, now
+   * shared with the sentence-coverage guard below — already leaves
    * alone by name, so calling them fiction is the line this repository already
    * draws rather than a new one.
    *
@@ -123,10 +182,19 @@ describe('the blocked-on map covers the undefined population', () => {
    * which `roll-modifiers.ts` expresses exactly — so its choice does decide
    * something, and it is *not* here. That is the whole of the difference, and
    * it was worth getting wrong once to write down.
+   *
+   * **The set is derived through `blockersIn` rather than from the entry's
+   * length**, which is what lets one of these be *read*. A clause-anchored
+   * entry naming nothing but the table's sentences and the expressible ones
+   * blocks nothing and belongs here, and is sentence-complete besides — where
+   * an entry of length zero records no reading at all and never can. That is
+   * the honest shape of this claim: "blocked on nothing" is the strongest thing
+   * the map says about a spell, so it is the one most worth being able to show
+   * somebody read the paragraph for.
    */
   it('records a spell blocked on nothing rather than omitting it', () => {
     const free = Object.entries(BLOCKED_ON)
-      .filter(([, shapes]) => shapes.length === 0)
+      .filter(([, entry]) => blockersIn(entry).length === 0)
       .map(([id]) => id);
     expect(free).toEqual([
       'conjure-fey',
@@ -158,10 +226,433 @@ describe('the blocked-on map covers the undefined population', () => {
     expect(consumersOf('a-range-that-scales-with-caster-level').blocks).toEqual([
       'spare-the-dying',
     ]);
-    expect(BLOCKED_ON['spare-the-dying']).toEqual([
+    expect(blockersOf('spare-the-dying')).toEqual([
       'a-range-that-scales-with-caster-level',
       'an-effect-that-stabilises-a-dying-creature',
     ]);
+  });
+});
+
+/**
+ * Splitting prose is approximate, so it fails **loud** or it checks nothing.
+ *
+ * Under-splitting is the one failure a quiet splitter has and the one the
+ * coverage guard below cannot see: a run of text returned whole is a run one
+ * adjudication covers, and the guard then reports nothing while checking
+ * nothing. Over-splitting reports itself, because a phrase that straddles the
+ * seam matches no unit and the anchoring guard says so.
+ */
+describe('the sentence splitter divides the book, or says it could not', () => {
+  it('divides every paragraph in the book', () => {
+    for (const id of PARSED) expect(() => sentencesOf(id), id).not.toThrow();
+  });
+
+  /**
+   * And the bound is not vacuous: the longest sentence the book prints sits
+   * comfortably under it, so the guard measures punctuation the splitter does
+   * not know rather than prose style.
+   */
+  it('leaves room between the longest sentence in the book and the bound', () => {
+    const longest = Math.max(...PARSED.flatMap((id) => sentencesOf(id).map((s) => s.length)));
+    expect(longest).toBeGreaterThan(200);
+    expect(longest).toBeLessThan(MAX_SENTENCE);
+  });
+
+  /** The synthetic it must catch: a paragraph divided by punctuation it has no rule for. */
+  it('refuses a paragraph it cannot divide rather than returning it whole', () => {
+    const undivided = `${'a creature within the area is affected; '.repeat(12)}and so on`;
+    expect(() => splitSentences(undivided)).toThrow(SentenceSplitError);
+  });
+
+  /** And the one it must pass, because a splitter that refused everything would too. */
+  it('accepts ordinary prose', () => {
+    expect(splitSentences('It takes 2d6 damage. Then it is Prone.')).toEqual([
+      'It takes 2d6 damage.',
+      'Then it is Prone.',
+    ]);
+  });
+
+  /**
+   * Three rules and no more, each transcribed from what the book does.
+   *
+   * The label rule is the one that earns its place: `**Resistance.**` on its own
+   * trips the defence marker and names no rule, so a splitter that stood it
+   * alone would demand an adjudication of Hallow's typography.
+   */
+  it('ends a sentence at a line break, at a terminator, and never at a label', () => {
+    expect(splitSentences('- It is Charmed.\n- It is Frightened.')).toHaveLength(2);
+    expect(splitSentences('It said "go now." Then it left.')).toEqual([
+      'It said "go now."',
+      'Then it left.',
+    ]);
+    expect(splitSentences('**Resistance.** It has Resistance to Fire damage.')).toEqual([
+      '**Resistance.** It has Resistance to Fire damage.',
+    ]);
+  });
+});
+
+/**
+ * A clause is anchored to one sentence the spell prints, or it is anchored to
+ * nothing.
+ *
+ * The phrase must occur **exactly once** across the spell's printed fields and
+ * the sentences of its prose. Zero is a phrase reworded, mistyped, or assembled
+ * across two of the book's sentences; more than one is a phrase that would
+ * silently take a neighbouring sentence's licence — which is the failure
+ * `Adjudication.clause` has guarded in the executed population since it was
+ * written, arriving in the undefined one.
+ */
+describe('a clause names one thing the spell prints', () => {
+  /** The synthetic it must catch, in the direction that reads as harmless. */
+  it('reports a phrase the spell prints more than once', () => {
+    const ambiguous: readonly BlockedEntry[] = [
+      { clause: 'the creature', why: 'table', note: 'a synthetic entry, built to be caught.' },
+    ];
+    const found = unanchoredClauses('calm-emotions', ambiguous);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.matches).toBeGreaterThan(1);
+  });
+
+  /** And the other direction, which is a clause written about the old sentence. */
+  it('reports a phrase the spell prints nowhere', () => {
+    const reworded: readonly BlockedEntry[] = [
+      {
+        clause: 'a sentence this spell does not print',
+        why: 'table',
+        note: 'a synthetic entry, built to be caught.',
+      },
+    ];
+    expect(unanchoredClauses('mind-blank', reworded)).toEqual([
+      { spell: 'mind-blank', clause: 'a sentence this spell does not print', matches: 0 },
+    ]);
+  });
+
+  /** And it passes a phrase that is one sentence of the spell, so it is not vacuous. */
+  it('accepts a phrase the spell prints once', () => {
+    const anchored: readonly BlockedEntry[] = [
+      {
+        clause: 'Immunity to Psychic damage',
+        why: 'expressible',
+        note: 'a synthetic entry, built to pass.',
+      },
+    ];
+    expect(unanchoredClauses('mind-blank', anchored)).toEqual([]);
+  });
+
+  /** The real thing. */
+  it('anchors every clause in the map', () => {
+    expect(Object.keys(BLOCKED_ON).flatMap((id) => [...unanchoredClauses(id)])).toEqual([]);
+  });
+});
+
+/**
+ * Every sentence that names a mechanic says which of four things it is.
+ *
+ * Modelled, the table's, deliberately unsupported, or blocked on a named
+ * shape — derived from the book rather than from a list. **This is the guard
+ * the whole instrument is for**: every wrong prediction this map has made was
+ * an *omission*, and an entry naming one blocker for a spell that prints three
+ * passed every other guard here.
+ */
+describe('a read entry answers every sentence that names a mechanic', () => {
+  /** The synthetic it must catch: a sentence the engine owns, with nothing written. */
+  it('reports a marker sentence no clause answers', () => {
+    const gaps = sentenceGaps('mind-blank', []);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]!.sentence).toContain('Immunity to Psychic damage');
+    expect(gaps[0]!.markers).toContain('defence');
+  });
+
+  /** And the one it must pass, because a guard that reported everything would too. */
+  it('reports nothing once that sentence is answered', () => {
+    expect(sentenceGaps('mind-blank')).toEqual([]);
+  });
+
+  /**
+   * An entry that names no clause is never complete, however quiet its prose.
+   *
+   * "No sentence names a mechanic" is a conclusion somebody has to have
+   * reached, and an entry with no clause records no reading — so the two are
+   * told apart by the clause rather than by the silence.
+   */
+  it('does not call a grandfathered entry read', () => {
+    expect(isSentenceComplete('mind-blank')).toBe(true);
+    expect(isSentenceComplete('aid')).toBe(false);
+    expect(clausesIn(BLOCKED_ON['aid'] ?? [])).toEqual([]);
+  });
+
+  /** And the real map: a clause-anchored entry answers every sentence of its spell. */
+  it('has no gap in any entry that names a clause', () => {
+    const read = Object.keys(BLOCKED_ON).filter(
+      (id) => clausesIn(BLOCKED_ON[id] ?? []).length > 0,
+    );
+    expect(read.flatMap((id) => [...sentenceGaps(id)])).toEqual([]);
+  });
+
+  /** A note that says nothing is a licence, so each must be a real sentence. */
+  it('writes a real sentence for every clause', () => {
+    for (const [spellId, entry] of Object.entries(BLOCKED_ON)) {
+      for (const clause of clausesIn(entry)) {
+        expect(clause.note.length, `${spellId}/${clause.clause}`).toBeGreaterThan(60);
+      }
+    }
+  });
+
+  /** And a `why` is one of the two words or a shape the vocabulary has. */
+  it('names an enumerated shape for every clause that is neither', () => {
+    const known = new Set<string>(Object.keys(MISSING_SHAPES));
+    for (const [spellId, entry] of Object.entries(BLOCKED_ON)) {
+      for (const clause of clausesIn(entry)) {
+        if (clause.why === 'table' || clause.why === 'expressible') continue;
+        expect(known.has(clause.why), `${spellId}/${clause.clause}`).toBe(true);
+      }
+    }
+  });
+
+  /**
+   * And where a note quotes the book, it quotes **this** spell's paragraph.
+   *
+   * `spell-honesty.test.ts` holds the executed map's notes to the same rule,
+   * after four of them were found attributing to the SRD a sentence it does not
+   * print and one of those was a neighbouring spell's. A note about an
+   * undefined spell is a claim about a paragraph nobody has written a
+   * definition against, which is if anything the easier one to get wrong.
+   */
+  it('quotes the SRD exactly, and quotes the right spell', () => {
+    for (const [spellId, entry] of Object.entries(BLOCKED_ON)) {
+      const printed = normaliseProse(sentencesOf(spellId).join(' '));
+      for (const clause of clausesIn(entry)) {
+        if (!clause.note.includes('SRD')) continue;
+        for (const quoted of clause.note.match(/"[^"]{8,}"/g) ?? []) {
+          const fragment = normaliseProse(quoted.slice(1, -1));
+          expect(
+            printed.includes(fragment),
+            `${spellId} quotes "${fragment}", which its SRD paragraph does not print`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+});
+
+/**
+ * The family IE-044 backfilled, and what reading ten paragraphs found.
+ *
+ * `a-condition-immunity-a-spell-grants` is the shape IE-042 is briefed from, so
+ * it is the family whose entries had to stop being bare lists first. Backfilling
+ * is deliberately family by family: two hundred paragraphs in one commit is how
+ * a reviewer stops reading, and the second `finishes` number is what makes the
+ * rest honest in the meantime.
+ *
+ * **Five blockers came out of the reading that no entry had recorded**, which
+ * is the instrument doing exactly what it exists for — each is a sentence the
+ * spell prints and nobody had written down, and each an existing shape id
+ * rather than a new one:
+ *
+ * | | |
+ * |---|---|
+ * | Freedom of Movement | "spells and other magical effects can neither reduce the target's Speed" — an effect refusing another effect, where the entry had recorded only the condition half of the same sentence |
+ * | Magic Circle | "Choose one or more of the following types of creatures" — a choice made at the casting, which **Hallow states in different words** ("Choose any of these creature types") and had recorded |
+ * | Wind Walk | reverting to and from cloud form, which is a later action the *target* takes through the casting |
+ * | Hallow | "the spell fails if the radius includes an area already under the effect of _Hallow_" — a cap of one read over ground rather than over a caster |
+ * | Gaseous Form | "The target can enter and occupy the space of another creature" — an override of occupancy, which the engine owns outright |
+ *
+ * **The last two trip no marker**, and an independent review found them by
+ * reading the paragraphs. That is the floor working as a floor: a clause may be
+ * written for any sentence, and what the guard promises is that every sentence
+ * it can see has an answer.
+ */
+describe('the condition-immunity family is read sentence by sentence', () => {
+  /** Which shapes each of the ten names now, pinned so the backfill is checkable. */
+  const BACKFILLED: readonly (readonly [string, readonly ShapeId[]])[] = [
+    [
+      'calm-emotions',
+      ['a-condition-immunity-a-spell-grants', 'a-spells-effects-applied-to-different-targets'],
+    ],
+    [
+      'freedom-of-movement',
+      [
+        'a-condition-immunity-a-spell-grants',
+        'an-activation-taken-by-somebody-other-than-the-caster',
+        'an-effect-that-suppresses-other-magic',
+        'difficult-terrain-an-area-creates',
+        'movement-modes',
+      ],
+    ],
+    [
+      'gaseous-form',
+      [
+        'a-casting-dismissed-early',
+        'a-casting-ended-by-a-trigger',
+        'a-condition-immunity-a-spell-grants',
+        'a-creature-fact-an-effect-overrides',
+        'an-action-a-spell-compels-or-forbids',
+        'movement-modes',
+        'what-a-creature-is-holding',
+      ],
+    ],
+    [
+      'hallow',
+      [
+        'a-barrier-that-blocks-passage',
+        'a-cap-on-how-many-castings-run-at-once',
+        'a-choice-made-at-the-casting',
+        'a-condition-immunity-a-spell-grants',
+        'a-creature-type-predicate-an-area-reads',
+        'a-long-casting-time',
+        'a-standing-effect-derived-from-where-a-creature-stands',
+        'an-effect-that-suppresses-other-magic',
+      ],
+    ],
+    [
+      'heroes-feast',
+      [
+        'a-condition-immunity-a-spell-grants',
+        'a-hit-point-maximum-a-spell-moves',
+        'a-long-casting-time',
+      ],
+    ],
+    ['heroism', ['a-condition-immunity-a-spell-grants', 'a-payout-at-a-turn-boundary']],
+    [
+      'magic-circle',
+      [
+        'a-barrier-that-blocks-passage',
+        'a-choice-made-at-the-casting',
+        'a-condition-immunity-a-spell-grants',
+        'a-filter-on-the-attackers-creature-type',
+        'a-long-casting-time',
+        'an-effect-that-suppresses-other-magic',
+      ],
+    ],
+    ['mind-blank', ['a-condition-immunity-a-spell-grants']],
+    [
+      'protection-from-evil-and-good',
+      [
+        'a-condition-immunity-a-spell-grants',
+        'a-filter-on-the-attackers-creature-type',
+        'a-mode-on-the-save-a-spell-forces',
+      ],
+    ],
+    [
+      'wind-walk',
+      [
+        'a-condition-immunity-a-spell-grants',
+        'a-long-casting-time',
+        'an-action-a-spell-compels-or-forbids',
+        'an-activation-taken-by-somebody-other-than-the-caster',
+        'falling',
+        'movement-modes',
+      ],
+    ],
+  ];
+
+  it.each(BACKFILLED)('reads every sentence of %s', (spellId, shapes) => {
+    expect(isSentenceComplete(spellId)).toBe(true);
+    expect(blockersOf(spellId)).toEqual(shapes);
+  });
+
+  /** And the family is exactly these ten, so the claim above is about all of them. */
+  it('covers every spell the shape blocks', () => {
+    expect(consumersOf('a-condition-immunity-a-spell-grants').undefined).toEqual(
+      BACKFILLED.map(([id]) => id),
+    );
+  });
+
+  /**
+   * The sentences nobody had written down, asserted by the clause that records
+   * each — because "the backfill found something" is only a claim until the
+   * something is named.
+   *
+   * **The last two are the floor's own counterexamples**, and an independent
+   * review found them by reading the paragraphs rather than by running
+   * anything: neither sentence trips a marker, so neither was demanded, and a
+   * clause may be written for any sentence precisely so that a reader who sees
+   * one can record it. Hallow's refusal and Gaseous Form's occupancy override
+   * are each an existing shape a sentence had never been filed under.
+   */
+  it('records the five blockers the bare lists had missed', () => {
+    const filed = (spellId: string, phrase: string) =>
+      clausesIn(BLOCKED_ON[spellId] ?? []).find((clause) => clause.clause === phrase)?.why;
+    expect(filed('freedom-of-movement', "can neither reduce the target's Speed")).toBe(
+      'an-effect-that-suppresses-other-magic',
+    );
+    expect(filed('magic-circle', 'Choose one or more of the following types of creatures')).toBe(
+      'a-choice-made-at-the-casting',
+    );
+    expect(
+      filed('wind-walk', 'Reverting takes 1 minute, during which the target has the Stunned condition'),
+    ).toBe('an-activation-taken-by-somebody-other-than-the-caster');
+    expect(
+      filed('hallow', 'the spell fails if the radius includes an area already under the effect of'),
+    ).toBe('a-cap-on-how-many-castings-run-at-once');
+    expect(filed('gaseous-form', 'The target can enter and occupy the space of another creature')).toBe(
+      'a-creature-fact-an-effect-overrides',
+    );
+    // And the marker list really cannot see those two, which is what makes them
+    // the floor's counterexamples rather than a guard that fired and was obeyed.
+    for (const [spellId, phrase] of [
+      ['hallow', 'the spell fails if the radius includes an area already under the effect of'],
+      ['gaseous-form', 'The target can enter and occupy the space of another creature'],
+      ['magic-circle', 'cause its magic to operate in the reverse direction'],
+    ] as const) {
+      const sentence = sentencesOf(spellId).find((text) => text.includes(phrase));
+      expect(markersIn(sentence ?? ''), `${spellId}: ${phrase}`).toEqual([]);
+    }
+  });
+
+  /**
+   * And Mind Blank stays the shape's one `finishes` — now in the column that
+   * says somebody read it.
+   *
+   * That spell is this map's sharpest correction: the query said IE-017 would
+   * finish it and the build did not, because the entry recorded the damage half
+   * of a sentence and not the condition half. It is now the sentence that
+   * records both.
+   */
+  it('reports the one spell it finishes as read rather than merely counted', () => {
+    const immunity = consumersOf('a-condition-immunity-a-spell-grants');
+    expect(immunity.unblocks).toEqual(['mind-blank']);
+    expect(immunity.unblocksRead).toEqual(['mind-blank']);
+    expect(immunity.unblocksUnread).toEqual([]);
+  });
+});
+
+/**
+ * Two `finishes` numbers, and the difference is the finding — exactly as
+ * `blocks` against `unblocks` was.
+ */
+describe('what a shape finishes is two numbers', () => {
+  it('partitions the spells a shape finishes, losing none', () => {
+    for (const row of allShapeConsumers()) {
+      expect([...row.unblocksRead, ...row.unblocksUnread].sort(), row.shape).toEqual([
+        ...row.unblocks,
+      ]);
+      expect(row.unblocksRead.filter((id) => row.unblocksUnread.includes(id))).toEqual([]);
+      for (const id of row.unblocksRead) expect(isSentenceComplete(id), id).toBe(true);
+      for (const id of row.unblocksUnread) expect(isSentenceComplete(id), id).toBe(false);
+    }
+  });
+
+  /**
+   * And neither column is vacuous, which is what makes printing both worth
+   * anything: one shape's finishes have been read, and most have not.
+   */
+  it('has some of each, so the report says something', () => {
+    const rows = allShapeConsumers();
+    expect(rows.filter((row) => row.unblocksRead.length > 0).length).toBeGreaterThan(0);
+    expect(rows.filter((row) => row.unblocksUnread.length > 0).length).toBeGreaterThan(0);
+  });
+
+  /** A grandfathered spell is counted, and counted in the column that says so. */
+  it('still counts a spell nobody has read', () => {
+    expect(consumersOf('an-armor-class-a-spell-floors').unblocksUnread).toEqual(['barkskin']);
+    expect(consumersOf('an-armor-class-a-spell-floors').unblocksRead).toEqual([]);
+  });
+
+  /** And the markers the coverage guard reads are the honesty guard's, not a second list. */
+  it('reads one marker list rather than two spelled alike', () => {
+    expect(markersIn('it has Immunity to the Charmed condition')).toContain('defence');
+    expect(markersIn('the mote of radiance that sheds sunlight for the duration')).toEqual([]);
   });
 });
 
@@ -352,10 +843,14 @@ function citedProse(): Array<readonly [string, string]> {
     ...Object.entries(ADJUDICATED).flatMap(([spellId, entries]) =>
       entries.map((entry) => [`${spellId}: ${entry.clause}`, entry.note] as const),
     ),
-    ...Object.entries(TRACKED_ADJUDICATED).flatMap(([spellId, markers]) =>
-      Object.entries(markers).flatMap(([marker, entry]) =>
-        entry === undefined ? [] : [[`${spellId}: ${marker}`, entry.note] as const],
-      ),
+    ...Object.entries(TRACKED_ADJUDICATED).flatMap(([spellId, written]) =>
+      written.map((entry) => [`${spellId}: ${entry.marker}`, entry.note] as const),
+    ),
+    // The undefined population's clause notes, once an entry has any: they cite
+    // this repository exactly as the other two maps' notes do, and a guard that
+    // read two of the three maps would be narrower than it reads.
+    ...Object.entries(BLOCKED_ON).flatMap(([spellId, entry]) =>
+      clausesIn(entry).map((clause) => [`${spellId}: ${clause.clause}`, clause.note] as const),
     ),
   ];
 }
@@ -618,16 +1113,16 @@ describe('the split bundles add back up', () => {
     // The tracked map is keyed by *marker*, a closed union, so the lookup goes
     // through its entries rather than by index: a recorded triple is history
     // and may name a marker the vocabulary has since dropped.
-    const tracked = Object.entries(TRACKED_ADJUDICATED[spellId] ?? {}).find(
-      ([marker]) => marker === clause,
-    )?.[1];
+    const tracked = (TRACKED_ADJUDICATED[spellId] ?? []).find(
+      (entry) => entry.marker === clause,
+    );
     if (tracked !== undefined) return tracked.why;
     // An undefined spell's entry is a bare shape id, so the question it can
     // answer is whether the destination is on that spell's list now. That is
     // weaker than the clause lookup above and it is the strongest thing a list
     // with no clauses in it supports — and it still catches the loss, because
     // a destination quietly dropped takes the branch below.
-    return (BLOCKED_ON[spellId] ?? []).find((shape) => shape === wentTo);
+    return blockersOf(spellId).find((shape) => shape === wentTo);
   };
 
   it.each(Object.keys(SPLIT_BUNDLES))('accounts for every adjudication %s held', (bundle) => {
@@ -747,7 +1242,7 @@ describe('the fought fact is a second build that corrected the query', () => {
       expect(shapes, id).not.toContain('a-fact-only-the-table-can-declare');
     }
     // And Modify Memory, which prints the same rule in different words.
-    expect(BLOCKED_ON['modify-memory']).toEqual(['a-casting-ended-by-a-trigger']);
+    expect(blockersOf('modify-memory')).toEqual(['a-casting-ended-by-a-trigger']);
   });
 
   /**
@@ -758,7 +1253,7 @@ describe('the fought fact is a second build that corrected the query', () => {
    * the fact at all and which the entry had never recorded.
    */
   it('leaves Enthrall blocked, on the outcome and on the penalty', () => {
-    expect(BLOCKED_ON['enthrall']).toEqual([
+    expect(blockersOf('enthrall')).toEqual([
       'a-bonus-narrowed-to-a-skill',
       'a-fact-only-the-table-can-declare',
     ]);
@@ -820,7 +1315,7 @@ describe('a consumer count is a query', () => {
     expect(BLOCKED_ON['protection-from-energy']).toBeUndefined();
 
     // The wrong half, and where it went.
-    expect(BLOCKED_ON['mind-blank']).toEqual(['a-condition-immunity-a-spell-grants']);
+    expect(blockersOf('mind-blank')).toEqual(['a-condition-immunity-a-spell-grants']);
     expect(consumersOf('a-condition-immunity-a-spell-grants').unblocks).toEqual(['mind-blank']);
   });
 
@@ -843,12 +1338,13 @@ describe('a consumer count is a query', () => {
       'sorcerous-burst',
       'true-strike',
     ]) {
-      expect(BLOCKED_ON[id], id).not.toContain('a-choice-made-at-the-casting');
+      expect(blockersOf(id), id).not.toContain('a-choice-made-at-the-casting');
     }
     // And still blocks one whose choice is anything else: an ability, a
     // condition, one of six wonders, which of five effects to remove.
     for (const id of ['hex', 'blindness-deafness', 'thaumaturgy', 'greater-restoration']) {
-      const shapes = BLOCKED_ON[id] ?? ADJUDICATED[id]?.map((e) => e.why) ?? [];
+      const shapes =
+        BLOCKED_ON[id] === undefined ? (ADJUDICATED[id]?.map((e) => e.why) ?? []) : blockersOf(id);
       expect(shapes, id).toContain('a-choice-made-at-the-casting');
     }
   });
@@ -873,8 +1369,8 @@ describe('a consumer count is a query', () => {
     // Guardian of Faith and Faithful Hound are the pair that proves the row was
     // read rather than copied: both are invulnerable spectral things, and only
     // one of the two is a creature — neither, as it turns out.
-    expect(BLOCKED_ON['faithful-hound']).not.toContain('a-stat-block-created-mid-fight');
-    expect(BLOCKED_ON['guardian-of-faith']).not.toContain('a-stat-block-created-mid-fight');
+    expect(blockersOf('faithful-hound')).not.toContain('a-stat-block-created-mid-fight');
+    expect(blockersOf('guardian-of-faith')).not.toContain('a-stat-block-created-mid-fight');
   });
 
   /**
@@ -933,7 +1429,7 @@ describe('a consumer count is a query', () => {
     for (const row of allShapeConsumers()) {
       for (const id of row.unblocks) {
         expect(row.undefined, row.shape).toContain(id);
-        expect(BLOCKED_ON[id]).toEqual([row.shape]);
+        expect(blockersOf(id)).toEqual([row.shape]);
       }
     }
   });
@@ -993,7 +1489,7 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    * very shape in `ADJUDICATED`.
    */
   it('does not call Magic Missile finished by one shape', () => {
-    expect(BLOCKED_ON['magic-missile']).toEqual([
+    expect(blockersOf('magic-missile')).toEqual([
       'a-spells-effects-applied-to-different-targets',
       'damage-with-neither-an-attack-roll-nor-a-save',
     ]);
@@ -1035,7 +1531,7 @@ describe('a spell with one blocker is the leverage the map is for', () => {
   ];
 
   it.each(SOLE)('%s is blocked on %s and nothing else', (spellId, shape) => {
-    expect(BLOCKED_ON[spellId]).toEqual([shape]);
+    expect(blockersOf(spellId)).toEqual([shape]);
   });
 });
 
@@ -1058,15 +1554,15 @@ describe('a shape that gets built is content work, not a merge', () => {
   // Heal ends "the Blinded, Deafened, and Poisoned conditions" — a printed
   // list, so the removal is done and the flat 70 is all that is left.
   it('finishes the removal half of Heal', () => {
-    expect(BLOCKED_ON['heal']).toEqual(['a-flat-amount-with-no-dice']);
+    expect(blockersOf('heal')).toEqual(['a-flat-amount-with-no-dice']);
   });
 
   // Greater Restoration removes "one of the following", and one of them is
   // "1 Exhaustion level" — a level rather than a condition, which a list of
   // condition names cannot say.
   it('keeps what a list of condition names cannot remove', () => {
-    expect(BLOCKED_ON['greater-restoration']).toContain('an-exhaustion-level-a-spell-changes');
-    expect(BLOCKED_ON['greater-restoration']).toContain('a-choice-made-at-the-casting');
+    expect(blockersOf('greater-restoration')).toContain('an-exhaustion-level-a-spell-changes');
+    expect(blockersOf('greater-restoration')).toContain('a-choice-made-at-the-casting');
     expect(consumersOf('an-exhaustion-level-a-spell-changes').blocks).toEqual([
       'greater-restoration',
       'wish',
@@ -1076,7 +1572,7 @@ describe('a shape that gets built is content work, not a merge', () => {
   // Calm Emotions *suppresses* a condition it did not cause and restores it
   // when the spell ends, which is the granted Immunity rather than a removal.
   it('reads suppression as the granted immunity it is', () => {
-    expect(BLOCKED_ON['calm-emotions']).toEqual([
+    expect(blockersOf('calm-emotions')).toEqual([
       'a-condition-immunity-a-spell-grants',
       'a-spells-effects-applied-to-different-targets',
     ]);
@@ -1111,15 +1607,15 @@ describe('a shape that gets built is content work, not a merge', () => {
 
     // A ward against arriving is suppression, not teleportation.
     for (const id of ['forbiddance', 'magic-circle', 'hallow']) {
-      expect(BLOCKED_ON[id], id).toContain('an-effect-that-suppresses-other-magic');
+      expect(blockersOf(id), id).toContain('an-effect-that-suppresses-other-magic');
     }
     // A destination off the scene is the second place, which one of the two
     // already named and the other had never recorded at all.
     for (const id of ['teleport', 'teleportation-circle']) {
-      expect(BLOCKED_ON[id], id).toContain('a-second-place-to-put-a-creature');
+      expect(blockersOf(id), id).toContain('a-second-place-to-put-a-creature');
     }
     // And Blink keeps the two halves this build does not reach.
-    expect(BLOCKED_ON['blink']).toEqual([
+    expect(blockersOf('blink')).toEqual([
       'a-random-outcome-that-is-not-a-d20',
       'a-second-place-to-put-a-creature',
     ]);
@@ -1232,13 +1728,13 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
    * in the blocked-on-nothing set that a naive removal would have put it in.
    */
   it('does not call Mislead finished, and records the blocker the entry had missed', () => {
-    expect(BLOCKED_ON['mislead']).toEqual([
+    expect(blockersOf('mislead')).toEqual([
       'a-casting-ended-by-a-trigger',
       'a-second-place-to-put-a-creature',
     ]);
-    expect(BLOCKED_ON['project-image']).toContain('a-second-place-to-put-a-creature');
+    expect(blockersOf('project-image')).toContain('a-second-place-to-put-a-creature');
     const free = Object.entries(BLOCKED_ON)
-      .filter(([, shapes]) => shapes.length === 0)
+      .filter(([, entry]) => blockersIn(entry).length === 0)
       .map(([id]) => id);
     expect(free).not.toContain('mislead');
   });
@@ -1251,11 +1747,11 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
   it('clears it from the two undefined spells that print one of the five', () => {
     // "The awakened target has the Charmed condition for 30 days **or until
     // you or your allies deal damage to it**."
-    expect(BLOCKED_ON['awaken']).not.toContain('a-casting-ended-by-a-trigger');
-    expect(BLOCKED_ON['awaken']).toContain('a-long-casting-time');
+    expect(blockersOf('awaken')).not.toContain('a-casting-ended-by-a-trigger');
+    expect(blockersOf('awaken')).toContain('a-long-casting-time');
     // "The spell ends if the warded creature makes an attack roll, casts a
     // spell, or deals damage." — Invisibility's three, word for word.
-    expect(BLOCKED_ON['sanctuary']).toEqual(['a-spell-that-answers-a-later-attack']);
+    expect(blockersOf('sanctuary')).toEqual(['a-spell-that-answers-a-later-attack']);
   });
 
   /** And the shape is still claimed, so the unclaimed-shape guard keeps it. */

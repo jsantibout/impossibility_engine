@@ -6399,6 +6399,125 @@ down here**, and that is deliberate: a per-shape count in prose that nothing
 regenerates is the thing this section is about. `COVERAGE.md`'s "What blocks
 the rest" prints both for every shape.
 
+### A blocker is anchored to a sentence, or it is anchored to nothing
+
+**Every wrong prediction this map has made was an omission, and never a wrong
+entry.** Mind Blank, Protection from Energy, Enthrall, Magic Weapon and True
+Strike were each predicted finished by a shape and were not; Hex's third
+sentence and Mislead's double were blockers found only by somebody reading the
+paragraph. Seven misses, one cause: a `BLOCKED_ON` entry was a bare list of
+shape ids, anchored to nothing, so an entry naming one blocker for a spell that
+prints three passed every guard here — and a tranche is planned from what those
+entries say a shape **finishes**.
+
+The instrument was already in the file, one population over.
+`Adjudication.clause` is a distinctive phrase that must match **exactly one**
+clause of a text, asserted in both directions, so a reworded sentence has to be
+read again rather than keeping a licence written about the old one. A
+`BLOCKED_ON` entry may now be that same `{ clause, why, note }`, pointed at the
+text an undefined spell actually has: its printed SRD entry.
+
+**`why` gains a third value, and it is the tracked map's `'engine'` under the
+name that fits a spell with no definition.** An executed definition's clause is
+a sentence somebody here wrote about a gap, so it is the table's or a shape; the
+book's own sentence may be a third thing — a rule the existing effect kinds
+already say, which is why nobody has written the definition rather than why they
+cannot. `'expressible'` is that, and without it the only way to record a
+sentence that is not a blocker would be to leave it out, which is
+indistinguishable from not having read it.
+
+**The guard is per sentence, which is what makes it a coverage claim rather
+than a spot check.** The prose is split into sentences; every sentence that
+trips one of the markers must carry a clause. That is the four-state claim —
+modelled, the table's, deliberately unsupported, or blocked on a named shape —
+derived from the book rather than from a list. **Sentence-completeness requires
+a clause and not merely silence**: "no sentence names a mechanic" is a
+conclusion somebody has to reach, and an entry with no clause records no
+reading.
+
+**And it is a floor, not a proof**, in exactly the words the tracked guard has
+always used of the same technique: it reads English, so a rule the SRD phrases
+in none of the markers' words trips nothing and is demanded of nobody. Three of
+the ten paragraphs backfilled here carry such a sentence — Hallow's "the spell
+fails if the radius includes an area already under the effect of *Hallow*",
+Gaseous Form's "can enter and occupy the space of another creature", Magic
+Circle's reversed Cylinder — and each is recorded because somebody read the
+paragraph rather than because the guard asked. A clause may therefore be written
+for **any** sentence, marker or none; what "read" promises is that every
+sentence the markers can see has an answer, and an independent review found all
+three of those on the first pass, which is the honest measure of what the floor
+leaves to a reader.
+
+**A clause may name a printed field as well as a sentence**, because the
+largest blocker in the book appears in no paragraph: a casting time of a minute
+or more is a field the SRD prints above one. The fields and the sentences are
+kept apart because only the sentences are a *claim* — `Range: Touch` would
+otherwise trip the range marker for every spell in the book and demand an
+adjudication of every entry for saying where it reaches.
+
+**And the splitter fails loud.** Prose splitting is approximate, and
+under-splitting is the one failure a quiet splitter has that nothing else
+catches: a run returned whole is a run one clause covers, so the coverage guard
+reports nothing while checking nothing. Over-splitting reports itself, because a
+phrase that straddles the seam matches no unit. So `splitSentences` throws above
+a generous bound — the whole book's longest sentence is Confusion's, comfortably
+under it — and a test asserts both that the bound is not vacuous and that every
+paragraph in the book divides. Three rules and no more, each transcribed from
+what the book does: a line break ends a sentence, a terminator followed by
+whitespace ends one with a closing quotation mark allowed between, and a
+**label** — `**Fear.**`, `**Resistance.**` — joins the sentence after it rather
+than standing as one, because it is typography and because `**Resistance.**`
+alone trips a marker and names no rule. Representing those boundaries in the
+parser was considered and refused: it would be a data model with one consumer.
+
+**`CLAUSE_MARKERS` moved rather than being copied.** It was
+`spell-honesty.test.ts`'s on the stated grounds that nothing else read it, and
+that stopped being true the day the report had to ask whether a paragraph had
+been read. It is the same list of mechanics pointed at a second population, so
+it lives beside the maps and that guard imports it — two copies of one question
+being the failure this file keeps naming.
+
+**The tracked map took the same entry type, and that lifted a cap nobody had
+noticed.** `TRACKED_ADJUDICATED` was a record keyed by *marker*, so a spell
+could carry one adjudication per mechanic — and the SRD does not oblige: Tree
+Stride spends 5 feet of movement in three sentences and Plane Shift teleports
+two different ways. The cap was a property of the storage rather than of the
+book. It is a list now, the marker is a field, and every entry names the
+sentence it answers; `SPLIT_BUNDLES` still resolves this population by marker,
+which is what its historical record holds and what nobody may rewrite. The
+anchoring rule is one implementation for all three maps, and this one carries a
+rule more, because a marker-keyed adjudication can afford it: **the sentence the
+phrase sits in must trip the marker beside it**, so an adjudication cannot be
+written about a neighbouring clause.
+
+**So `finishes` is two numbers, and the difference is the same finding one
+level down.** `COVERAGE.md` prints what a shape finishes among the entries
+somebody has read and among the rest: the first is what a tranche may be planned
+from, the second is what it may be planned from *after* somebody reads it.
+**Backfilling is family by family**, because two hundred paragraphs in one
+commit is how a reviewer stops reading — the shape a task is briefed from is the
+family that task's predecessor backfills, and everything else is grandfathered
+into the second column, which is what that column is for.
+
+**Reading ten paragraphs found five blockers no entry had recorded**, which is
+the instrument doing exactly what it was built for. Freedom of Movement's
+"spells and other magical effects can neither reduce the target's Speed" is an
+effect refusing another effect, where the entry had recorded only the condition
+half of that same sentence; Magic Circle's "Choose one or more of the following
+types of creatures" is a choice made at the casting, which **Hallow states in
+different words** — "Choose any of these creature types" — and had recorded,
+which is why the map is keyed by shape and not by sentence; Wind Walk's
+reverting to and from cloud form is a later action the *target* takes through
+the casting; Hallow's "the spell fails if the radius includes an area already
+under the effect of *Hallow*" is a cap of one read over ground rather than over
+a caster; and Gaseous Form's "The target can enter and occupy the space of
+another creature" overrides an occupancy rule the engine owns outright. None is
+a new shape — every one is an existing id a sentence had never been filed under,
+which is the difference between reading a paragraph and skimming a list. **The
+last two trip no marker and were found by an independent review reading the
+book**, which is the floor being a floor and the reason a clause may be written
+for any sentence rather than only for one the guard demands.
+
 ### The query predicted a build, and the build corrected the query
 
 Before IE-017 existed, this map said a granted defence was the only blocker for

@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { EXECUTED_SPELL_IDS, PARTIAL_SPELLS } from '../scripts/coverage-data.js';
 import {
   ADJUDICATED,
   MISSING_SHAPES,
+  markersIn,
+  sentencesOf,
   type Adjudication,
 } from '../scripts/missing-shapes.js';
 import { SPELL_DEFINITIONS } from './spell-definitions.js';
@@ -60,105 +60,17 @@ import { SPELL_DEFINITIONS } from './spell-definitions.js';
  */
 const EXECUTED: readonly string[] = [...EXECUTED_SPELL_IDS].sort();
 
-/** The SRD condition names, which a clause names directly far more often than it says "condition". */
-const CONDITIONS =
-  'Blinded|Charmed|Deafened|Exhaustion|Frightened|Grappled|Incapacitated|Invisible|Paralyzed|Petrified|Poisoned|Prone|Restrained|Stunned|Unconscious';
-
 /**
- * The mechanics the engine demonstrably owns, as patterns over a clause.
+ * The markers, the vocabulary and the executed population's adjudications all
+ * live in `scripts/missing-shapes.ts` now, and the guards stay here.
  *
- * Wider than the tracked guard's thirteen, and deliberately: that one reads
- * the book's careful prose, this one reads a sentence somebody here wrote
- * about a gap, and a gap is described in whatever words fit. "The save has
- * Advantage if you or your allies are fighting the target" carries no
- * "Advantage on", and the audit names it as debt — so the pattern is the word
- * rather than the book's phrase.
- *
- * Every entry names something the engine resolves today: the generator and
- * typed damage, vitals, `rollSavingThrow` and `rollAbilityCheck`,
- * `resolveAttack`, `armorClassOf`, `applyConditionTo`, `defensesOf`,
- * `combineRollModes`, Speed and the movement budget, declared Difficult
- * Terrain, forced movement, positions, the action economy and `mayAct`,
- * `mustBeType`, the ruler, declared sight, resource pools, Concentration,
- * `releaseCasting`, death, and what a creature owns and wears. A clause naming
- * none of them is left alone, and nineteen are: light, obscurement, a strong
- * wind, what a weapon looks like, whether a suggestion sounds achievable.
+ * `CLAUSE_MARKERS` and `markersIn` moved for the reason the two maps did:
+ * `npm run coverage` runs outside vitest, and IE-044 made the report ask
+ * whether an undefined spell's paragraph had been read sentence by sentence —
+ * which is this same list of mechanics, pointed at a second population. Two
+ * copies of one question is the failure this file's own subject keeps naming,
+ * so there is one list and this guard imports it.
  */
-const CLAUSE_MARKERS = [
-  ['dice', /\b\d+d\d+\b/],
-  ['damage', /\bdamage(d|s)?\b/i],
-  ['hit-points', /\bHit Points?\b/],
-  ['saving-throw', /\bsav(e|es|ing throw)s?\b/i],
-  ['ability-check', /\bcheck\b/i],
-  ['attack-roll', /\battack(s|ed|ing)?\b/i],
-  ['armor-class', /\bArmou?r Class\b|\bAC\b/],
-  ['condition', new RegExp(`\\bcondition\\b|\\b(${CONDITIONS})\\b`, 'i')],
-  ['defence', /\b(Resistance|Immunity|Vulnerability|immune)\b/i],
-  ['roll-mode', /\b(Advantage|Disadvantage)\b/],
-  ['speed', /\bSpeed\b/],
-  ['difficult-terrain', /\bDifficult Terrain\b/i],
-  ['forced-movement', /\bpush(ed|es)?\b/i],
-  ['teleport', /\bteleport/i],
-  [
-    'action-economy',
-    /\b(Reaction|Bonus Action|Magic action|Study action|Opportunity Attacks?|Dash(es)?)\b/,
-  ],
-  [
-    'creature-type',
-    /\b(Aberration|Beast|Celestial|Construct|Dragon|Elemental|Fey|Fiend|Giant|Humanoid|Monstrosity|Ooze|Plant|Undead|Zombie)s?\b/,
-  ],
-  ['range', /\bwithin \d+ (feet|foot)\b|\breach\b|\brange\b/i],
-  ['senses', /\b(see|sees|seen|sight|perceives|Blindsight|Truesight|hidden)\b/i],
-  ['spell-slot', /\bslot\b/i],
-  ['concentration', /\bConcentration\b/],
-  ['movement', /\bmovement\b|\bmoves?\b|\bmoving\b/i],
-  ['death', /\b(kill(ed|s)?|dies|died|dead)\b/i],
-  ['dispel', /\bdispel/i],
-  ['equipment', /\b(holding|carries|carrying|wearing|dons|equipped)\b/i],
-] as const satisfies readonly (readonly [string, RegExp])[];
-
-type MarkerId = (typeof CLAUSE_MARKERS)[number][0];
-
-/**
- * The vocabulary, the executed population's adjudications, and the guards.
- *
- * **The data moved and the guards did not.** `MISSING_SHAPES` and
- * `ADJUDICATED` now live in `scripts/missing-shapes.ts` beside the same
- * vocabulary's other two populations, because a shape's consumer count has to
- * be countable over all three and `npm run coverage` runs outside vitest —
- * the same reason `PARTIAL_SPELLS` has always lived in `coverage.ts`. Every
- * assertion over the executed map is still here.
- *
- * **The list is no longer this bucket's own**, and the docstring that used to
- * apologise for repeating `speed-and-movement-modes` is obsolete: one
- * vocabulary serves the executed, tracked and undefined populations, and the
- * "no shape sits unclaimed" guard moved to `blocked-on.test.ts`, where it can
- * ask all three at once. Keeping it here would have deleted every shape only
- * an undefined spell is blocked on.
- */
-
-/**
- * The SRD's own prose for every spell, read off disk.
- *
- * The same reader `spell-tracking.test.ts` and `coverage.test.ts` use, for the
- * same reason: `SPELL_INDEX` carries a spell's id, level, school and class list
- * and deliberately not its description, because the engine is pure and cannot
- * read a file at runtime. A test can, and what is being checked is the book.
- */
-const PROSE: ReadonlyMap<string, string> = new Map(
-  (
-    JSON.parse(
-      readFileSync(
-        fileURLToPath(new URL('../../srd/src/generated/spells.json', import.meta.url)),
-        'utf8',
-      ),
-    ) as readonly { id: string; description: string; higherLevel?: string }[]
-  ).map((spell) => [spell.id, `${spell.description}\n${spell.higherLevel ?? ''}`]),
-);
-
-/** The mechanics this clause names. */
-const markersIn = (clause: string): readonly MarkerId[] =>
-  CLAUSE_MARKERS.filter(([, pattern]) => pattern.test(clause)).map(([marker]) => marker);
 
 const clausesOf = (spellId: string): readonly string[] =>
   SPELL_DEFINITIONS.find((d) => d.id === spellId)?.unmodelled ?? [];
@@ -359,7 +271,7 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
         .trim();
 
     for (const [spellId, entries] of Object.entries(ADJUDICATED)) {
-      const printed = normalise(PROSE.get(spellId) ?? '');
+      const printed = normalise(sentencesOf(spellId).join(' '));
       expect(printed.length, `${spellId} is not in the parsed SRD`).toBeGreaterThan(0);
       for (const entry of entries) {
         if (!entry.note.includes('SRD')) continue;

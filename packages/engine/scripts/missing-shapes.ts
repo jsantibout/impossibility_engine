@@ -18,9 +18,12 @@
  *
  * The rule is **what the query reads**. `ADJUDICATED` and `BLOCKED_ON` are both
  * populations the query counts, so both are here; `MECHANICAL_MARKERS` is here
- * only because it types the tracked map's keys. `spell-honesty.test.ts`'s
- * `CLAUSE_MARKERS` stays with that guard, because nothing but that guard reads
- * it.
+ * only because it types the tracked map's keys. {@link CLAUSE_MARKERS} was
+ * `spell-honesty.test.ts`'s, on the stated grounds that nothing but that guard
+ * read it — and that stopped being true the day the query needed to know
+ * whether a spell's paragraph had been read sentence by sentence. It is the
+ * same rule pointed at a second population, so it is one list rather than two
+ * spelled alike, and that guard imports it.
  *
  * This is not a test file, for the same reason `PARTIAL_SPELLS` is not:
  * `npm run coverage` runs outside vitest, and a report generator that imported
@@ -117,7 +120,7 @@ export const MISSING_SHAPES = {
   'a-target-rule-the-format-cannot-state':
     '`TargetRule` in spell-definitions.ts selects by creature type and by whether armour is worn, and by nothing else. The SRD also selects by **size**, by **Challenge Rating** and by an **ability score**, and shapes outcomes by the same three facts. Size is held and CLAUDE.md records the only rules that read it — sharing a space, passing through, and the volume a template tests; an ability score is held and read by nothing here; a Challenge Rating is not held at all. One missing reader, three facts, and the description says which is which.',
   'a-creature-fact-an-effect-overrides':
-    'an effect that changes what **other** rules believe about a creature. PROGRESS.md names it: "Arcanist’s Magic Aura changes what other spells believe a creature’s type to be, which `mustBeType` reads on every casting." Type and size are facts the engine holds authoritatively, and nothing may write over them for the duration of a spell.',
+    'an effect that changes what **other** rules believe about a creature. PROGRESS.md names it: "Arcanist’s Magic Aura changes what other spells believe a creature’s type to be, which `mustBeType` reads on every casting." Type and size are facts the engine holds authoritatively, and nothing may write over them for the duration of a spell. IE-044 read a third fact of the same shape off SRD Gaseous Form — "The target can enter and occupy the space of another creature", where what the other rule believes is that a creature holds its space against a willing mover.',
   'an-ability-score-a-spell-changes':
     'CLAUDE.md, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." A score is set at creation and by advancement; no effect moves one, and nothing puts one back.',
   'a-stat-block-created-mid-fight':
@@ -201,7 +204,7 @@ export const MISSING_SHAPES = {
   'a-barrier-that-blocks-passage':
     'CLAUDE.md: "Walls and barriers as obstacles | Arcane Eye, Passwall, Wall of Stone, Prismatic Wall", and the reason it stays out — "Cover and line of sight stay declared, not ray-cast ... that is where a rules engine becomes a VTT." A shape that stops a creature crossing it is the geometry’s missing half, distinct from the template that describes it.',
   'an-effect-that-suppresses-other-magic':
-    'PROGRESS.md files it among the rows "gone because the shape was built" — "an effect that ends another casting (Dispel Magic)" — and `spell-ended` is what built it. **Suppression is the half that is not**: an ongoing spell that does not function while its time goes on running has no state to sit in, and an area that stops a spell being cast into it reads a casting the engine resolves elsewhere.',
+    'PROGRESS.md files it among the rows "gone because the shape was built" — "an effect that ends another casting (Dispel Magic)" — and `spell-ended` is what built it. **Suppression is the half that is not**: an ongoing spell that does not function while its time goes on running has no state to sit in, and an area that stops a spell being cast into it reads a casting the engine resolves elsewhere. IE-044 read a third sentence of the same shape from the *target*’s side — SRD Freedom of Movement’s "spells and other magical effects can neither reduce the target’s Speed" — where what refuses the effect is a creature rather than an area; `speedOf` reads every grant a source hung and has no notion of one being refused, which is the same missing state arriving at a different holder.',
   'a-casting-that-casts-another-spell':
     'CLAUDE.md, on the interrupted casting: "It is not a general interruption framework — there is **no stack**, and a Counterspell answering a Counterspell is refused rather than nested." A spell that casts another as part of itself, stores one to go off later, or duplicates one of a lower level needs exactly the stack that was declined. Several castings may be open at once now, keyed by casting id — but that is several *independent* castings rather than one nested inside another, and the two relationship rules that refuse the nesting still stand.',
   'a-spell-that-answers-a-later-attack':
@@ -1002,6 +1005,27 @@ export type MarkerId = (typeof MECHANICAL_MARKERS)[number][0];
 
 export interface TrackedAdjudication {
   /**
+   * Which mechanic in the spell's prose this answers.
+   *
+   * It was the **key** of a record until IE-044, which capped a spell at one
+   * adjudication per marker — and the SRD does not: Tree Stride spends 5 feet
+   * of movement in three different sentences and Plane Shift teleports two
+   * different ways. Keeping it as a field lifts the cap and keeps the lookup
+   * `SPLIT_BUNDLES` records for this population, whose middle slot is a marker
+   * key and whose whole value is that it is history nobody may rewrite.
+   */
+  readonly marker: MarkerId;
+  /**
+   * A distinctive phrase from the spell's printed SRD entry.
+   *
+   * {@link Adjudication.clause} and {@link BlockedClause.clause}'s rule, and
+   * one implementation: the phrase must occur **exactly once**, and it must sit
+   * in a sentence that trips the marker above it — so an adjudication cannot
+   * drift onto a neighbouring sentence and cannot be written about a rule the
+   * spell states somewhere else.
+   */
+  readonly clause: string;
+  /**
    * Which of three things this clause is.
    *
    * | | |
@@ -1025,88 +1049,169 @@ export interface TrackedAdjudication {
  * Why each mechanical clause in a tracked spell's own SRD text is not executed.
  *
  * Every entry was written by reading that spell's paragraph in
- * `packages/srd/raw/spells.md`. Eight spells out of forty-four need one, which
- * is the measure of how well the tracked bucket was chosen: the other
- * thirty-six contain no mechanical clause at all.
+ * `packages/srd/raw/spells.md`, and most of the tracked bucket needs none at
+ * all, which is the measure of how well it was chosen.
+ *
+ * **A list rather than a record keyed by marker**, which is IE-044 pointing the
+ * clause-anchored entry type at this population too. The record capped a spell
+ * at one adjudication per marker and the SRD does not — Tree Stride spends 5
+ * feet of movement in three sentences, Plane Shift teleports two different ways
+ * — so the cap was a property of the storage rather than of the book. The
+ * marker is a field now and the clause says **which sentence**, which is the
+ * rule {@link Adjudication} has always obeyed and {@link BlockedClause} now
+ * does: the phrase occurs exactly once in the spell's printed entry, and it
+ * sits in a sentence that trips the marker beside it.
  */
-export const TRACKED_ADJUDICATED: Readonly<
-  Record<string, Partial<Record<MarkerId, TrackedAdjudication>>>
-> = {
-  'disguise-self': {
-    'ability-check': {
+export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudication[]>> = {
+  'disguise-self': [
+    {
+      marker: 'ability-check',
+      clause: 'succeed on an Intelligence (Investigation) check against your spell save DC',
       why: 'engine',
       note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against the casting own timer; the table decides only that somebody looked closely.',
     },
-  },
-  'minor-illusion': {
-    'ability-check': {
+  ],
+  'minor-illusion': [
+    {
+      marker: 'ability-check',
+      clause: 'determine that it is an illusion with a successful Intelligence (Investigation) check',
       why: 'engine',
       note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck; a cantrip, so the DC comes off the caster sheet rather than off any slot.',
     },
-  },
-  'silent-image': {
-    'ability-check': {
+  ],
+  'silent-image': [
+    {
+      marker: 'ability-check',
+      clause: 'determine that it is an illusion with a successful Intelligence (Investigation) check',
       why: 'engine',
       note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck, against a Concentration casting timer that ends with the Concentration.',
     },
-  },
-  demiplane: {
-    condition: {
+  ],
+  demiplane: [
+    {
+      marker: 'condition',
+      clause: 'landing with the Prone condition',
       why: 'table',
       note: 'a creature shunted out as the door vanishes lands Prone — but who is inside an unmodelled demiplane is a fiction the engine cannot see, and the DM applies the condition with applyConditionTo.',
     },
-  },
-  fly: {
-    speed: {
+  ],
+  fly: [
+    {
+      marker: 'speed',
+      clause: 'a Fly Speed of 60 feet and can hover',
       why: 'movement-modes',
       note: 'a Fly Speed of 60 feet and hovering: the engine tracks one Speed and no movement modes.',
     },
-  },
-  jump: {
-    'movement-cost': {
+  ],
+  jump: [
+    {
+      marker: 'movement-cost',
+      clause: 'jump up to 30 feet by spending 10 feet of movement',
       why: 'jumping',
       note: '"jump up to 30 feet by spending 10 feet of movement" — the movement is spendable, the jump is not, so charging the 10 feet alone would be half a rule.',
     },
-  },
-  'see-invisibility': {
-    condition: {
+  ],
+  'see-invisibility': [
+    {
+      marker: 'condition',
+      clause: 'creatures and objects that have the Invisible condition as if they were visible',
       why: 'table',
       note: 'seeing through the Invisible condition is declared, not derived: sight is a pairwise declaration and the condition’s own effects already read it, so the table declares the sight this spell grants.',
     },
-  },
-  'spider-climb': {
-    speed: {
+  ],
+  'spider-climb': [
+    {
+      marker: 'speed',
+      clause: 'a Climb Speed equal to its Speed',
       why: 'movement-modes',
       note: 'a Climb Speed equal to its Speed, and walls and ceilings: the engine tracks one Speed and no movement modes.',
     },
-  },
-  'plane-shift': {
-    teleport: {
+  ],
+  'plane-shift': [
+    {
+      marker: 'teleport',
+      clause: 'the sigil sequence of a teleportation circle on another plane of existence',
       why: 'table',
       note: 'the destination is a different plane of existence and the engine holds one scene, so there is no position to move anybody to: where the party arrives is the DM’s.',
     },
-  },
-  'word-of-recall': {
-    teleport: {
+  ],
+  'word-of-recall': [
+    {
+      marker: 'teleport',
+      clause: 'instantly teleport to a previously designated sanctuary',
       why: 'table',
       note: 'the sanctuary is a second place and the engine holds one scene, so the arrival is the DM’s — unlike Misty Step, no coordinate in this scene would be the right answer.',
     },
-  },
-  'tree-stride': {
-    'movement-cost': {
+  ],
+  'tree-stride': [
+    {
+      marker: 'movement-cost',
+      clause: 'You must use 5 feet of movement to enter a tree',
       why: 'a-world-fact-nothing-can-represent',
       note: 'the 5 feet spent entering a tree is not charged, because there is no tree: every clause of the ability hangs on being *inside* one, which is a state the world model has no room for — the same place Meld into Stone’s whole paragraph hangs from — so the step it pays for has no representation to cost anything.',
     },
-  },
-  'transport-via-plants': {
-    'movement-cost': {
+  ],
+  'transport-via-plants': [
+    {
+      marker: 'movement-cost',
+      clause: 'exit from the destination plant by using 5 feet of movement',
       why: 'table',
       note: 'the 5 feet a creature spends stepping through is charged by the DM, because the far plant is at any distance — off the scene entirely — and there is no destination to move anybody to.',
     },
-  },
+  ],
 };
 
 // — the undefined population —————————————————————————————————————————————————
+
+/**
+ * One sentence of an undefined spell's printed entry, and what stands in its
+ * way.
+ *
+ * {@link Adjudication}'s shape, with one value more. An executed definition's
+ * clause is a sentence somebody here wrote about a gap, so it is either the
+ * table's or a named shape; an undefined spell's clause is the **book's** own
+ * sentence, and the third thing it may be is a rule the existing effect kinds
+ * already say — which is why nobody has written the definition rather than why
+ * they cannot.
+ *
+ * | | |
+ * |---|---|
+ * | `'table'` | fiction; the engine's resolution path never arrives at it |
+ * | `'expressible'` | the existing kinds already express it; it blocks nothing |
+ * | a shape id | mechanical, and this names the shape that blocks it |
+ *
+ * `'expressible'` is `TRACKED_ADJUDICATED`'s `'engine'` under the name that
+ * fits a spell with no definition: that value says the engine *does* resolve
+ * the clause, and here there is nothing to resolve it with yet. Both exist for
+ * the same reason — without them the only way to record a sentence that is not
+ * a blocker would be to leave it unrecorded, and an unrecorded sentence is
+ * indistinguishable from one nobody read.
+ */
+export interface BlockedClause {
+  /**
+   * A distinctive phrase from this spell's printed SRD entry.
+   *
+   * Not an index and not a summary: it must occur **exactly once** across the
+   * spell's printed fields and the sentences of its prose, which is what makes
+   * a reworded sentence something somebody has to read again. A phrase that
+   * straddles two sentences occurs nowhere and is reported, because a clause
+   * assembled out of two of the book's sentences is not one of them.
+   */
+  readonly clause: string;
+  readonly why: 'table' | 'expressible' | ShapeId;
+  readonly note: string;
+}
+
+/**
+ * A blocker, anchored or not.
+ *
+ * A bare shape id is the **grandfathered** form: it says which shape blocks the
+ * spell and nothing about which sentence, which is the form every entry had
+ * before clauses existed and the form most of them still have. Mixing the two
+ * within one entry is refused by the guard rather than by the type — half a
+ * reading is what the second `finishes` number exists to keep out of the first.
+ */
+export type BlockedEntry = ShapeId | BlockedClause;
 
 /**
  * What stands between every **undefined** SRD spell and a definition.
@@ -1173,8 +1278,33 @@ export const TRACKED_ADJUDICATED: Readonly<
  *   Hit Points starts its turn in the aura" — is the fourth, and is in that
  *   map's own population. A three-spell family counted by hand was still
  *   wrong, which is the argument for deriving even the small ones.
+ *
+ * ### An entry is a bare shape id, or a clause that says which sentence
+ *
+ * Every wrong prediction this map has made was an **omission** — Mind Blank,
+ * Protection from Energy, Enthrall, Magic Weapon, True Strike, and the two
+ * sentences found only by reading, Hex's third and Mislead's double. Not one
+ * was a wrong entry. A list of shape ids is anchored to nothing, so an entry
+ * naming one blocker for a spell that prints three passes every guard here,
+ * and a tranche is planned from what that entry says a shape **finishes**.
+ *
+ * So an entry may be a {@link BlockedClause} instead: the entry type
+ * {@link ADJUDICATED} has always had, pointed at the text an undefined spell
+ * actually has. The phrase must occur **exactly once** in that spell's printed
+ * entry, so a reworded sentence has to be read again rather than keeping an
+ * adjudication written about the old one; and every sentence of the prose that
+ * names a mechanic the engine owns must have one, which is the four-state claim
+ * per sentence — modelled, the table's, deliberately unsupported, or blocked on
+ * a named shape — derived from the book rather than from a list.
+ *
+ * **Backfilling is family by family, and the rest are grandfathered.** Reading
+ * two hundred paragraphs in one commit is how a reviewer stops reading; so a
+ * shape's consumers are backfilled by the task briefed from them, and
+ * {@link consumersOf} reports what a shape finishes **twice** — among the
+ * entries somebody has read, and among the rest. The difference is the finding,
+ * exactly as `blocks` against `unblocks` was.
  */
-export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
+export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   aid: ['a-hit-point-maximum-a-spell-moves'],
   alarm: ['a-long-casting-time'],
   'alter-self': [
@@ -1242,9 +1372,31 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   'blade-barrier': ['a-wall-or-several-templates-in-one-area', 'difficult-terrain-an-area-creates'],
   blink: ['a-random-outcome-that-is-not-a-d20', 'a-second-place-to-put-a-creature'],
   'call-lightning': ['a-fact-only-the-table-can-declare', 'an-activation-that-resolves-an-area'],
+  // — read sentence by sentence, with the nine below it: IE-044 backfilled the
+  // ten spells `a-condition-immunity-a-spell-grants` blocks, because that is
+  // the shape the next tranche is briefed from and a bare list of ids says
+  // nothing about which sentences anybody read.
   'calm-emotions': [
-    'a-condition-immunity-a-spell-grants',
-    'a-spells-effects-applied-to-different-targets',
+    {
+      clause: 'choose for each creature',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'SRD: "must succeed on a Charisma saving throw or be affected by one of the following effects (choose for each creature)". A casting applies one effect list to every target it caught, so a spell picking a different one per creature has nowhere to record which.',
+    },
+    {
+      clause: 'Immunity to the Charmed and Frightened conditions',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'IE-017 gave `CreatureState.defenses` a third input and touched `conditionApplicability` not at all, so an Immunity to a condition has nowhere to live. The area, the Charisma save and the duration are all expressible; this sentence is the whole of what is not.',
+    },
+    {
+      clause: 'those conditions are suppressed for the duration',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'SRD: "If the creature was already Charmed or Frightened, those conditions are suppressed for the duration." Suppression hands the condition back when the spell ends, so it is not `end-condition` however much it reads like one — it is the same missing storage read over a condition that is already there.',
+    },
+    {
+      clause: 'This indifference ends if the target takes damage',
+      why: 'table',
+      note: 'The indifference is an attitude, which the engine does not hold and should never decide; a trigger that ends a fact the engine is not keeping belongs to the table for the same reason, and the damage marker fires on the trigger rather than on any damage the spell deals.',
+    },
   ],
   'chromatic-orb': ['a-die-behaviour-a-spell-asks-for', 'several-attack-rolls-from-one-casting'],
   clairvoyance: ['a-long-casting-time'],
@@ -1385,18 +1537,93 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   ],
   foresight: ['a-long-casting-time', 'a-selector-for-every-d20-test'],
   'freedom-of-movement': [
-    'a-condition-immunity-a-spell-grants',
-    'an-activation-taken-by-somebody-other-than-the-caster',
-    'difficult-terrain-an-area-creates',
-    'movement-modes',
+    {
+      clause: 'unaffected by Difficult Terrain',
+      why: 'difficult-terrain-an-area-creates',
+      note: 'Difficult Terrain is charged exactly and declared by the foot on the move that crosses it, so a creature excused from it has nothing to be excused from: `MoveCommand.difficultFeet` is the caller\'s statement and the engine has no record of which ground was difficult.',
+    },
+    {
+      clause: "can neither reduce the target's Speed",
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'A blocker the bare list had missed. `speedOf` reads every grant a source hung and has no notion of a creature that refuses one, so this half is an effect stopping another effect from landing — the suppression shape read from the target\'s side rather than from an area\'s.',
+    },
+    {
+      clause: 'nor cause the target to have the Paralyzed or Restrained conditions',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'The condition half of the same sentence, and the half this entry already named: an Immunity to a named condition has nowhere to live, and applying Paralyzed to this creature would simply work.',
+    },
+    {
+      clause: 'a Swim Speed equal to its Speed',
+      why: 'movement-modes',
+      note: 'Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it, which is the refusal CLAUDE.md makes by name.',
+    },
+    {
+      clause: 'spend 5 feet of movement to automatically escape from nonmagical restraints',
+      why: 'an-activation-taken-by-somebody-other-than-the-caster',
+      note: 'A later action through the spell, taken by the target rather than by the caster — and `SpellActivation` pins the caster because nobody else may act through a casting, which is exactly the rule this sentence inverts.',
+    },
+    {
+      clause: 'one additional creature for each spell slot level above 4',
+      why: 'expressible',
+      note: '`TargetRule.extraPerSlotLevelAbove` is this sentence, and thirty definitions already write it. Recorded rather than left out, because a sentence nobody wrote down is indistinguishable from a sentence nobody read.',
+    },
   ],
   'gaseous-form': [
-    'a-casting-dismissed-early',
-    'a-casting-ended-by-a-trigger',
-    'a-condition-immunity-a-spell-grants',
-    'an-action-a-spell-compels-or-forbids',
-    'movement-modes',
-    'what-a-creature-is-holding',
+    {
+      clause: "along with everything it's wearing and carrying",
+      why: 'table',
+      note: 'What a creature looks like after it turns into mist is narration, and nothing mechanical follows from the gear coming along: the engine holds an inventory and an equipped set and has no transformed state for either to be in.',
+    },
+    {
+      clause: 'if it drops to 0 Hit Points',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'IE-032 built five transcribed causes and each hangs on a consequence event; dropping to 0 Hit Points is not one of the five, and `CastingEndTrigger` has no member for it.',
+    },
+    {
+      clause: 'takes a Magic action to end the spell on itself',
+      why: 'a-casting-dismissed-early',
+      note: 'A non-Concentration ongoing spell cannot be dismissed early: `endConcentration` is about Concentration, and there is no command for a target ending a casting that is on it.',
+    },
+    {
+      clause: 'a Fly Speed of 10 feet',
+      why: 'movement-modes',
+      note: 'The engine tracks one Speed and no movement modes, so a form whose only movement is flight has no way to say that walking is gone and flying is not.',
+    },
+    {
+      clause: 'The target can enter and occupy the space of another creature',
+      why: 'a-creature-fact-an-effect-overrides',
+      note: 'Occupancy is a rule the engine owns outright — a willing move may not end in an occupied space, and whether one creature may pass through another reads size and allegiance — so the resolution path arrives here and answers wrongly. Nothing lets an effect say "this one may share", which is what other rules believing something different about a creature means. Recorded although the sentence trips no marker.',
+    },
+    {
+      clause: 'Resistance to Bludgeoning, Piercing, and Slashing damage',
+      why: 'expressible',
+      note: 'IE-017 built the granted damage defence, and this is Stoneskin\'s sentence word for word — a `damage-defense` effect naming three types and one answer, ended by the casting through the door every other grant leaves by.',
+    },
+    {
+      clause: 'Immunity to the Prone condition',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'The condition half of the same sentence, and the one the damage half\'s build deliberately did not reach: `conditionApplicability` answers from a stat block and nothing an effect hangs reaches it.',
+    },
+    {
+      clause: 'Advantage on Strength, Dexterity, and Constitution saving throws',
+      why: 'expressible',
+      note: 'Three `roll-mode` effects, each a saving throw narrowed by ability — which is what Beacon of Hope already writes twice in one definition, so a sentence naming three abilities is three entries in one effect list.',
+    },
+    {
+      clause: "any objects it was carrying or holding can't be dropped",
+      why: 'what-a-creature-is-holding',
+      note: '`inventory` and `equipped` are real and only armour and weapons have a slot, so what a creature has in its hands is not a fact the engine holds and a rule forbidding it to let go has nothing to read.',
+    },
+    {
+      clause: "the target can't attack or cast spells",
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'The action economy is the engine\'s and the only lever a spell has on it is a condition the engine names; forbidding two actions and leaving the rest is a rider nothing expresses.',
+    },
+    {
+      clause: 'one additional creature for each spell slot level above 3',
+      why: 'expressible',
+      note: '`TargetRule.extraPerSlotLevelAbove`, which is what every upcast target count in the catalogue already writes.',
+    },
   ],
   gate: ['a-second-place-to-put-a-creature'],
   geas: ['a-casting-ended-by-a-trigger', 'a-duration-the-slot-changes', 'a-long-casting-time'],
@@ -1436,13 +1663,71 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'forced-movement-a-spell-causes',
   ],
   hallow: [
-    'a-barrier-that-blocks-passage',
-    'a-choice-made-at-the-casting',
-    'a-condition-immunity-a-spell-grants',
-    'a-creature-type-predicate-an-area-reads',
-    'a-long-casting-time',
-    'a-standing-effect-derived-from-where-a-creature-stands',
-    'an-effect-that-suppresses-other-magic',
+    {
+      clause: 'Casting Time: 24 hours',
+      why: 'a-long-casting-time',
+      note: 'A printed field rather than a sentence, which is why a clause may name one: the largest blocker in the book appears in no paragraph. IE-034 built the out-of-combat half and the per-turn Magic action SRD requires in combat is what is left.',
+    },
+    {
+      clause: 'the spell fails if the radius includes an area already under the effect of',
+      why: 'a-cap-on-how-many-castings-run-at-once',
+      note: 'A cap of one, read over ground rather than over a caster: `replacesPriorCasting` ends a prior casting and nothing refuses a new one, and `state.ongoing` holds every area a casting keeps without anything asking whether two of them overlap. Recorded although the sentence trips no marker, because the refusal is one the engine would have to make at the cast.',
+    },
+    {
+      clause: 'Choose any of these creature types',
+      why: 'a-choice-made-at-the-casting',
+      note: 'A casting has nowhere to record a choice made when it was made — the gap Blindness/Deafness carries from the other side — and this one is read by every clause below it.',
+    },
+    {
+      clause: 'Creatures of the chosen types',
+      why: 'a-creature-type-predicate-an-area-reads',
+      note: '`designatesUnaffected` is the one filter an area has and it is explicit ids chosen once; a predicate over a creature *type* is a different question, and IE-019 answered it for an outcome rather than for who is caught.',
+    },
+    {
+      clause: "can't willingly enter the area",
+      why: 'a-barrier-that-blocks-passage',
+      note: 'Cover and line of sight stay declared rather than ray-cast, and a shape that stops a creature crossing it is the geometry\'s missing half — nothing in the mover\'s path may refuse it.',
+    },
+    {
+      clause: "isn't possessed, Charmed, or Frightened by them while in the area",
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'An Immunity to a named condition, which `conditionApplicability` answers from a stat block and no effect may hang. Possession is not modelled at all, and the two conditions beside it are what makes this sentence debt rather than fiction.',
+    },
+    {
+      clause: "can't gain the Frightened condition while in the area",
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'Courage, which is the same missing storage as the Hallowed Ward above it — an Immunity granted by a running effect rather than printed on a stat block.',
+    },
+    {
+      clause: "Dead bodies interred in the area can't be turned into Undead",
+      why: 'table',
+      note: 'Nothing is interred and no corpse becomes a creature: Animate Dead is undefined and a body in the ground is not a record the engine holds, so a prohibition on raising one reaches nothing it could refuse.',
+    },
+    {
+      clause: "can't enter or exit the area using teleportation",
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'IE-037 built the teleport and this is the ward against arriving — an area that stops a spell working inside it, which reads a casting the engine resolves elsewhere and has no state to sit in.',
+    },
+    {
+      clause: 'have the Frightened condition while in the area',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'Fear, and it is a value derived from current geometry rather than from a pair of enter-and-leave events that have to stay matched — the shape Spirit Guardians\' halved Speed already names.',
+    },
+    {
+      clause: 'have Resistance to one damage type of your choice',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'A granted Resistance is built and a Resistance that holds only while a creature stands somewhere is not: `defensesOf` reads a grant keyed by source, and nothing re-derives one from where the creature now is.',
+    },
+    {
+      clause: 'No sound can emanate from within the area',
+      why: 'table',
+      note: 'Sound is not modelled, and the range marker fires here on "reach into it" rather than on any distance the engine measures — which is the marker list being a floor and the written sentence being what the floor is for.',
+    },
+    {
+      clause: 'have Vulnerability to one damage type of your choice',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'The same standing spatial effect as Resistance above it, on the other end of `applyDefenses`, and blocked on the same missing derivation rather than on the defence.',
+    },
   ],
   'hallucinatory-terrain': ['a-long-casting-time'],
   haste: [
@@ -1453,11 +1738,45 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   heal: ['a-flat-amount-with-no-dice'],
   'heat-metal': ['damage-with-neither-an-attack-roll-nor-a-save', 'what-a-creature-is-holding'],
   'heroes-feast': [
-    'a-condition-immunity-a-spell-grants',
-    'a-hit-point-maximum-a-spell-moves',
-    'a-long-casting-time',
+    {
+      clause: 'Casting Time: 10 minutes',
+      why: 'a-long-casting-time',
+      note: 'The printed field, not a sentence: the hour the feast takes to consume is the spell\'s own prose and this is the casting, which in combat is still refused on the per-turn Magic action IE-034 deferred.',
+    },
+    {
+      clause: 'Resistance to Poison damage',
+      why: 'expressible',
+      note: 'IE-017\'s `damage-defense` effect, which Protection from Energy and Stoneskin already write; the 24 hours it lasts is an ordinary `durationSeconds`.',
+    },
+    {
+      clause: 'Immunity to the Frightened and Poisoned conditions',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'One sentence, two tables: the Resistance beside it is built and the condition Immunity is the half `conditionApplicability` never gained, which is exactly the bundle IE-017 left behind.',
+    },
+    {
+      clause: 'Its Hit Point maximum also increases by 2d10',
+      why: 'a-hit-point-maximum-a-spell-moves',
+      note: 'The maximum is set when a creature is added and by advancement, and no effect moves one — so the Hit Points gained with it would be capped at a maximum the spell was supposed to have raised.',
+    },
   ],
-  heroism: ['a-condition-immunity-a-spell-grants', 'a-payout-at-a-turn-boundary'],
+  heroism: [
+    {
+      clause: 'immune to the Frightened condition',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'The spell\'s whole first half, and the shape this entry is filed under: an Immunity a running effect grants has nowhere to live, so a Frightened applied to this creature would simply land.',
+    },
+    {
+      clause:
+        'gains Temporary Hit Points equal to your spellcasting ability modifier at the start of each of its turns',
+      why: 'a-payout-at-a-turn-boundary',
+      note: 'A turn boundary raises saves and pays nothing out: `grantTemporaryHpTo` exists and no effect reaches it on a schedule, so Temporary Hit Points every turn for the duration have no hook.',
+    },
+    {
+      clause: 'one additional creature for each spell slot level above 1',
+      why: 'expressible',
+      note: '`TargetRule.extraPerSlotLevelAbove`, which is what Bless and every other upcast target count already writes.',
+    },
+  ],
   // **Both of IE-035's shapes reached it**, which is what that task was for:
   // the extra 1d6 Necrotic "to the target whenever you hit it with an attack
   // roll" is `attack-rider` word for word, and "level 2 (up to 4 hours), 3–4
@@ -1499,11 +1818,51 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'movement-modes',
   ],
   'magic-circle': [
-    'a-barrier-that-blocks-passage',
-    'a-condition-immunity-a-spell-grants',
-    'a-filter-on-the-attackers-creature-type',
-    'a-long-casting-time',
-    'an-effect-that-suppresses-other-magic',
+    {
+      clause: 'Casting Time: 1 minute',
+      why: 'a-long-casting-time',
+      note: 'The printed field. The prose says "1 minute" nowhere, which is why the phrase carries the field\'s own label: a bare "1 minute" would be unique here and is not in Wind Walk, and one convention that works for both is the one worth having.',
+    },
+    {
+      clause: 'a 10-foot-radius, 20-foot-tall Cylinder of magical energy',
+      why: 'expressible',
+      note: 'A `cylinder` area with a radius and a height, anchored at a point — which Sleet Storm and Moonbeam already write, and which the geometry tests exactly rather than by sampling.',
+    },
+    {
+      clause: 'Choose one or more of the following types of creatures',
+      why: 'a-choice-made-at-the-casting',
+      note: 'A blocker the bare list had missed. Hallow states the same rule in different words — "Choose any of these creature types" — and had recorded it, which is the re-file-both-ends-of-a-shared-rule discipline arriving between two spells rather than inside one, and the reason the id is a shape rather than a sentence.',
+    },
+    {
+      clause: "can't willingly enter the Cylinder by nonmagical means",
+      why: 'a-barrier-that-blocks-passage',
+      note: 'Nothing in a mover\'s path may refuse it: cover and line of sight stay declared rather than ray-cast, and a shape that stops a creature crossing it is the geometry\'s missing half.',
+    },
+    {
+      clause: 'use teleportation or interplanar travel',
+      why: 'an-effect-that-suppresses-other-magic',
+      note: 'The ward against arriving, which IE-037 did not build when it built the teleport: an area that stops a spell working inside it reads a casting the engine resolves elsewhere.',
+    },
+    {
+      clause: 'Disadvantage on attack rolls against targets within the Cylinder',
+      why: 'a-filter-on-the-attackers-creature-type',
+      note: 'A `RollSelector` narrows by roll family, relation, ability and skill and has no type axis at either end, so "creatures of the chosen types have Disadvantage" cannot be said even in principle.',
+    },
+    {
+      clause: "can't be possessed by or gain the Charmed or Frightened condition from the creature",
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'An Immunity narrowed to a source, which is narrower still than the one this shape names: `conditionApplicability` holds a stat block\'s qualified entries and no effect may add one.',
+    },
+    {
+      clause: 'cause its magic to operate in the reverse direction',
+      why: 'a-choice-made-at-the-casting',
+      note: 'A second choice made at the casting, beside the creature types: the same Cylinder read outwards, keeping the chosen types in rather than out. The barrier it inverts is this entry\'s own first blocker, so no count moves — what was missing was the sentence, which trips no marker and had nothing written for it.',
+    },
+    {
+      clause: 'The duration increases by 1 hour for each spell slot level above 3',
+      why: 'expressible',
+      note: 'IE-035\'s `durationAtSlot` is a table of slot level to whole seconds and the SRD\'s arithmetic transcribes into one: a band per level from 4 upward, each longer than the one below it, which is what the validator asks of it.',
+    },
   ],
   'magic-jar': [
     'a-long-casting-time',
@@ -1526,7 +1885,21 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   'meld-into-stone': ['a-world-fact-nothing-can-represent'],
   mending: ['a-long-casting-time'],
   'meteor-swarm': ['a-wall-or-several-templates-in-one-area'],
-  'mind-blank': ['a-condition-immunity-a-spell-grants'],
+  // The spell the query predicted IE-017 would finish and did not — the
+  // sharpest correction this map has made, and the reason its entry is the
+  // first anybody should be able to read back.
+  'mind-blank': [
+    {
+      clause: 'Immunity to Psychic damage',
+      why: 'expressible',
+      note: 'IE-017 built exactly this half: a `damage-defense` effect naming a type and an answer, ended by the casting through the door every other grant leaves by.',
+    },
+    {
+      clause: 'the Charmed condition',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'And this is the half it did not, which the retired bundle had claimed was "the same storage and the same sentence shape". The storage is different — a stat block prints damage types and conditions in one run and the engine treats them completely differently — and one sentence of one spell is the whole of what is left.',
+    },
+  ],
   'mirage-arcane': ['a-long-casting-time', 'difficult-terrain-an-area-creates'],
   'mirror-image': [
     'a-random-outcome-that-is-not-a-d20',
@@ -1593,9 +1966,26 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   'programmed-illusion': [],
   'project-image': ['a-casting-ended-by-a-trigger', 'a-second-place-to-put-a-creature'],
   'protection-from-evil-and-good': [
-    'a-condition-immunity-a-spell-grants',
-    'a-filter-on-the-attackers-creature-type',
-    'a-mode-on-the-save-a-spell-forces',
+    {
+      clause: 'protected against creatures that are Aberrations, Celestials, Elementals, Fey, Fiends, or Undead',
+      why: 'a-filter-on-the-attackers-creature-type',
+      note: 'The clause CLAUDE.md names verbatim with this spell among its consumers: every other creature-type rule in the book is about the target, and IE-019 built that one. A type read off the *attacker* has no axis on any selector.',
+    },
+    {
+      clause: 'Creatures of those types have Disadvantage on attack rolls',
+      why: 'a-filter-on-the-attackers-creature-type',
+      note: 'The same filter, arriving as a mode rather than as a targeting rule: `rollModesFor` asks both ends of an attack and neither end may ask what the attacker is.',
+    },
+    {
+      clause: 'gain the Charmed or Frightened conditions from them',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'An Immunity to two named conditions, narrowed to a source, which is the storage `conditionApplicability` holds for a stat block and no effect may add to.',
+    },
+    {
+      clause: 'Advantage on any new saving throw against the relevant effect',
+      why: 'a-mode-on-the-save-a-spell-forces',
+      note: 'The one clause that genuinely needs a save to remember what it was against — the sentence that has blocked Countercharm since it was written, and the only claimant keeping this shape in the vocabulary after IE-030 took the other five.',
+    },
   ],
   'purify-food-and-drink': [],
   'raise-dead': [
@@ -1748,11 +2138,56 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-standing-effect-derived-from-where-a-creature-stands',
   ],
   'wind-walk': [
-    'a-condition-immunity-a-spell-grants',
-    'a-long-casting-time',
-    'an-action-a-spell-compels-or-forbids',
-    'falling',
-    'movement-modes',
+    {
+      clause: 'Casting Time: 1 minute',
+      why: 'a-long-casting-time',
+      note: 'The printed field, and the spell that made the label part of the convention: this paragraph says "1 minute" three times and none of them is the casting.',
+    },
+    {
+      clause: 'up to ten willing creatures of your choice within range',
+      why: 'expressible',
+      note: 'A `targets` rule with a count and a range, checked against every id the caller names before a slot is spent.',
+    },
+    {
+      clause: 'a Fly Speed of 300 feet',
+      why: 'movement-modes',
+      note: 'The engine tracks one Speed and no movement modes, so a form that flies and cannot walk has no way to say which of the two it has.',
+    },
+    {
+      clause: 'Immunity to the Prone condition',
+      why: 'a-condition-immunity-a-spell-grants',
+      note: 'Gaseous Form prints the same clause and both are blocked on the same half of the same bundle: the damage defence beside it is built and the condition Immunity is not.',
+    },
+    {
+      clause: 'Resistance to Bludgeoning, Piercing, and Slashing damage',
+      why: 'expressible',
+      note: 'IE-017\'s `damage-defense` effect, one clause naming three types and one answer, which is Stoneskin\'s sentence word for word.',
+    },
+    {
+      clause: 'The only actions a target can take in this form',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'The action economy is the engine\'s and the only lever a spell has on it is a condition the engine names; permitting exactly two actions and forbidding the rest is a rider nothing expresses.',
+    },
+    {
+      clause: 'Reverting takes 1 minute, during which the target has the Stunned condition',
+      why: 'an-activation-taken-by-somebody-other-than-the-caster',
+      note: 'A blocker the bare list had missed. The Stunned is an ordinary condition with a deadline; what has no shape is the moment that starts it — a later action the *target* takes through the casting, where `SpellActivation` pins the caster.',
+    },
+    {
+      clause: 'the target can revert to cloud form',
+      why: 'an-activation-taken-by-somebody-other-than-the-caster',
+      note: 'The same action in the other direction, and the reason the spell needs two of them: each is a Magic action spent by a creature who is not the caster.',
+    },
+    {
+      clause: 'the target descends 60 feet per round',
+      why: 'falling',
+      note: 'Nothing drops, nothing takes fall damage, and no rate of descent has anything to be measured against — the one Reaction trigger CLAUDE.md names as left after Counterspell.',
+    },
+    {
+      clause: 'it falls the remaining distance',
+      why: 'falling',
+      note: 'The other half of the same paragraph, and the half that would deal damage: a fall is not modelled at all, so the distance is a number with nothing to convert it.',
+    },
   ],
   'wind-wall': ['a-barrier-that-blocks-passage', 'a-wall-or-several-templates-in-one-area'],
   wish: [
@@ -1772,23 +2207,337 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
 /** Every definition the engine resolves something of, by id. */
 const DEFINED: ReadonlySet<string> = new Set(SPELL_DEFINITIONS.map((d) => d.id));
 
+/** As much of a parsed spell as a blocker may be anchored to. */
+interface ParsedSpell {
+  readonly id: string;
+  readonly castingTime: string;
+  readonly range: string;
+  readonly duration: string;
+  readonly description: string;
+  readonly higherLevel?: string;
+}
+
+let parsed: readonly ParsedSpell[] | undefined;
+
 /**
- * Every parsed spell id, read off disk.
+ * The book, read off disk once.
  *
  * The same reader the guards use, for the same reason: `SPELL_INDEX` carries a
  * spell's id, level, school and class list and deliberately not its
  * description, because the engine is pure and cannot read a file at runtime.
  * This is not the engine.
  */
-export const parsedSpellIds = (): readonly string[] =>
-  (
-    JSON.parse(
-      readFileSync(
-        fileURLToPath(new URL('../../srd/src/generated/spells.json', import.meta.url)),
-        'utf8',
+const parsedSpells = (): readonly ParsedSpell[] => {
+  parsed ??= JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../srd/src/generated/spells.json', import.meta.url)),
+      'utf8',
+    ),
+  ) as readonly ParsedSpell[];
+  return parsed;
+};
+
+export const parsedSpellIds = (): readonly string[] => parsedSpells().map((spell) => spell.id);
+
+/** The SRD condition names, which a sentence names directly far more often than it says "condition". */
+const CONDITIONS =
+  'Blinded|Charmed|Deafened|Exhaustion|Frightened|Grappled|Incapacitated|Invisible|Paralyzed|Petrified|Poisoned|Prone|Restrained|Stunned|Unconscious';
+
+/**
+ * The mechanics the engine demonstrably owns, as patterns over one sentence.
+ *
+ * `spell-honesty.test.ts` wrote these to read a sentence **somebody here wrote
+ * about a gap**, which is why they are wider than {@link MECHANICAL_MARKERS}:
+ * a gap is described in whatever words fit, so "the save has Advantage if you
+ * or your allies are fighting the target" carries no "Advantage on" and the
+ * pattern is the word rather than the book's phrase. Pointed at the book's own
+ * sentences they are wider still, and that is the right way round for a floor —
+ * an over-firing marker costs a written sentence, and an under-firing one costs
+ * a blocker nobody records.
+ *
+ * Every entry names something the engine resolves today: the generator and
+ * typed damage, vitals, `rollSavingThrow` and `rollAbilityCheck`,
+ * `resolveAttack`, `armorClassOf`, `applyConditionTo`, `defensesOf`,
+ * `combineRollModes`, Speed and the movement budget, declared Difficult
+ * Terrain, forced movement, positions, the action economy and `mayAct`,
+ * `mustBeType`, the ruler, declared sight, resource pools, Concentration,
+ * `releaseCasting`, death, and what a creature owns and wears. A sentence
+ * naming none of them is left alone.
+ */
+export const CLAUSE_MARKERS = [
+  ['dice', /\b\d+d\d+\b/],
+  ['damage', /\bdamage(d|s)?\b/i],
+  ['hit-points', /\bHit Points?\b/],
+  ['saving-throw', /\bsav(e|es|ing throw)s?\b/i],
+  ['ability-check', /\bcheck\b/i],
+  ['attack-roll', /\battack(s|ed|ing)?\b/i],
+  ['armor-class', /\bArmou?r Class\b|\bAC\b/],
+  ['condition', new RegExp(`\\bcondition\\b|\\b(${CONDITIONS})\\b`, 'i')],
+  ['defence', /\b(Resistance|Immunity|Vulnerability|immune)\b/i],
+  ['roll-mode', /\b(Advantage|Disadvantage)\b/],
+  ['speed', /\bSpeed\b/],
+  ['difficult-terrain', /\bDifficult Terrain\b/i],
+  ['forced-movement', /\bpush(ed|es)?\b/i],
+  ['teleport', /\bteleport/i],
+  [
+    'action-economy',
+    /\b(Reaction|Bonus Action|Magic action|Study action|Opportunity Attacks?|Dash(es)?)\b/,
+  ],
+  [
+    'creature-type',
+    /\b(Aberration|Beast|Celestial|Construct|Dragon|Elemental|Fey|Fiend|Giant|Humanoid|Monstrosity|Ooze|Plant|Undead|Zombie)s?\b/,
+  ],
+  ['range', /\bwithin \d+ (feet|foot)\b|\breach\b|\brange\b/i],
+  ['senses', /\b(see|sees|seen|sight|perceives|Blindsight|Truesight|hidden)\b/i],
+  ['spell-slot', /\bslot\b/i],
+  ['concentration', /\bConcentration\b/],
+  ['movement', /\bmovement\b|\bmoves?\b|\bmoving\b/i],
+  ['death', /\b(kill(ed|s)?|dies|died|dead)\b/i],
+  ['dispel', /\bdispel/i],
+  ['equipment', /\b(holding|carries|carrying|wearing|dons|equipped)\b/i],
+] as const satisfies readonly (readonly [string, RegExp])[];
+
+export type ClauseMarkerId = (typeof CLAUSE_MARKERS)[number][0];
+
+/** The mechanics this sentence names. */
+export const markersIn = (text: string): readonly ClauseMarkerId[] =>
+  CLAUSE_MARKERS.filter(([, pattern]) => pattern.test(text)).map(([marker]) => marker);
+
+/**
+ * Emphasis is kept and smart quotes and wrapping are not: the wording is the
+ * claim and the typesetting is not, so both sides of every comparison here go
+ * through this.
+ *
+ * Exported because a guard that normalised a phrase differently from the
+ * anchoring check would be two spellings of one question — which is what
+ * `printedOrder` in `blocked-on.test.ts` was, harmlessly, until it asked for
+ * this one.
+ */
+export const flatten = (text: string): string =>
+  text
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * The longest sentence the splitter may return before it has plainly failed.
+ *
+ * The whole book's longest is Confusion's 298 characters, so this is generous
+ * on purpose: it does not measure prose style, it catches a paragraph whose
+ * punctuation the splitter does not know. **That is the one failure mode a
+ * quiet splitter has** — under-splitting returns a run of text whole, one
+ * adjudication covers all of it, and the coverage guard reports nothing while
+ * checking nothing. Over-splitting reports itself, because a phrase that
+ * straddles the seam then matches no unit.
+ */
+export const MAX_SENTENCE = 400;
+
+/** A paragraph the splitter could not divide, which is loud rather than quiet. */
+export class SentenceSplitError extends Error {}
+
+/** A run of bold or italic on its own is a label the book prints, not a sentence. */
+const HEADING = /^[*_]{1,3}[^*_]+[*_]{1,3}$/;
+
+/**
+ * SRD prose, divided into sentences.
+ *
+ * Approximate, and it says so by failing rather than by shrugging. Three rules
+ * and no more, each transcribed from what the book does: a line break ends a
+ * sentence, because the book's bullets and headed paragraphs are lines; a
+ * terminator followed by whitespace ends one, with a closing quotation mark
+ * allowed between them, which is the only place in the corpus a terminator is
+ * not the last character; and a **label** — `**Fear.**`, `**Resistance.**` —
+ * joins the sentence after it rather than standing as one, because it is
+ * typography and because `**Resistance.**` alone trips a marker and names no
+ * rule.
+ *
+ * Representing these boundaries in the parser was considered and refused: it
+ * would be a data model with one consumer. This is a test-time read over prose
+ * the repository already parses.
+ */
+export function splitSentences(text: string): readonly string[] {
+  const sentences: string[] = [];
+  for (const line of text.split(/\n+/)) {
+    let label = '';
+    for (const piece of line
+      .split(/(?<=[.!?]["'”’)]?)\s+/)
+      .map(flatten)
+      .filter((part) => part.length > 0)) {
+      if (HEADING.test(piece)) {
+        label = label === '' ? piece : `${label} ${piece}`;
+        continue;
+      }
+      sentences.push(label === '' ? piece : `${label} ${piece}`);
+      label = '';
+    }
+    if (label !== '') sentences.push(label);
+  }
+  for (const sentence of sentences) {
+    if (sentence.length > MAX_SENTENCE) {
+      throw new SentenceSplitError(
+        `a sentence of ${sentence.length} characters is a paragraph the splitter could not divide: "${sentence.slice(0, 80)}…"`,
+      );
+    }
+  }
+  return sentences;
+}
+
+const spellByIdOrThrow = (spellId: string): ParsedSpell => {
+  const spell = parsedSpells().find((entry) => entry.id === spellId);
+  if (spell === undefined) throw new Error(`${spellId} is not a parsed SRD spell`);
+  return spell;
+};
+
+/**
+ * The printed facts no sentence of a spell's prose states.
+ *
+ * A casting time of a minute or more is the largest blocker in the book and it
+ * appears nowhere in any paragraph — it is a field the SRD prints above one. So
+ * a clause may name a field as well as a sentence, and the two are kept apart
+ * because only the sentences are a **claim**: `Range: Touch` would otherwise
+ * trip the range marker for every spell in the book and demand an adjudication
+ * of every entry for saying where it reaches.
+ */
+export const printedFieldsOf = (spellId: string): readonly string[] => {
+  const spell = spellByIdOrThrow(spellId);
+  return [
+    `Casting Time: ${spell.castingTime}`,
+    `Range: ${spell.range}`,
+    `Duration: ${spell.duration}`,
+  ];
+};
+
+/** A spell's own prose, as sentences — the text that carries its claims. */
+export const sentencesOf = (spellId: string): readonly string[] => {
+  const spell = spellByIdOrThrow(spellId);
+  return splitSentences(`${spell.description}\n${spell.higherLevel ?? ''}`);
+};
+
+/** Everything a clause may be anchored to: the printed fields, then the prose. */
+export const printedUnitsOf = (spellId: string): readonly string[] => [
+  ...printedFieldsOf(spellId),
+  ...sentencesOf(spellId),
+];
+
+/** The clauses an entry names, which for a grandfathered entry is none. */
+export const clausesIn = (entry: readonly BlockedEntry[]): readonly BlockedClause[] =>
+  entry.filter((blocker): blocker is BlockedClause => typeof blocker !== 'string');
+
+/**
+ * The shapes an entry names, however it names them.
+ *
+ * Deduplicated and sorted, because two sentences of one spell may be blocked on
+ * one shape — Hallow prints three standing effects — and a shape a spell needs
+ * twice is not a spell that needs two shapes.
+ */
+export const blockersIn = (entry: readonly BlockedEntry[]): readonly ShapeId[] =>
+  [
+    ...new Set(
+      entry.flatMap((blocker) =>
+        typeof blocker === 'string'
+          ? [blocker]
+          : blocker.why === 'table' || blocker.why === 'expressible'
+            ? []
+            : [blocker.why],
       ),
-    ) as readonly { id: string }[]
-  ).map((spell) => spell.id);
+    ),
+  ].sort();
+
+/** The shapes blocking one spell, by id. */
+export const blockersOf = (spellId: string): readonly ShapeId[] =>
+  blockersIn(BLOCKED_ON[spellId] ?? []);
+
+/** A sentence naming a mechanic the engine owns that no clause answers. */
+export interface SentenceGap {
+  readonly spell: string;
+  readonly sentence: string;
+  readonly markers: readonly ClauseMarkerId[];
+}
+
+/**
+ * The sentences of a spell's prose that name a mechanic and carry no clause.
+ *
+ * Parameterised over the entry for the reason {@link coverageGaps} is: a guard
+ * that can only be run against the data it already agrees with is not a guard,
+ * so the tests drive this with an entry built to be caught before running it on
+ * the real map.
+ */
+export const sentenceGaps = (
+  spellId: string,
+  entry: readonly BlockedEntry[] = BLOCKED_ON[spellId] ?? [],
+): readonly SentenceGap[] => {
+  const phrases = clausesIn(entry).map((blocker) => flatten(blocker.clause));
+  return sentencesOf(spellId)
+    .filter((sentence) => markersIn(sentence).length > 0)
+    .filter((sentence) => !phrases.some((phrase) => sentence.includes(phrase)))
+    .map((sentence) => ({ spell: spellId, sentence, markers: markersIn(sentence) }));
+};
+
+/** A clause phrase the spell's printed entry does not say exactly once. */
+export interface UnanchoredClause {
+  readonly spell: string;
+  readonly clause: string;
+  /** How many times the phrase occurs across the printed units. */
+  readonly matches: number;
+}
+
+const occurrences = (text: string, phrase: string): number => {
+  let count = 0;
+  for (let at = text.indexOf(phrase); at >= 0; at = text.indexOf(phrase, at + phrase.length)) {
+    count += 1;
+  }
+  return count;
+};
+
+/**
+ * The phrases the spell's printed entry does not say exactly once.
+ *
+ * Zero matches is a phrase that was reworded, mistyped, or assembled across two
+ * of the book's sentences; more than one is a phrase that would silently take a
+ * neighbouring sentence's licence. Both are the same defect — *this clause does
+ * not name one thing the spell prints* — so both are reported here with the
+ * count, which is what tells the reader which of the two it is.
+ *
+ * Over bare phrases rather than over one map's entries, because two of the
+ * three populations anchor a clause this way and the third always did: one
+ * question, one implementation.
+ */
+export const unanchoredPhrases = (
+  spellId: string,
+  phrases: readonly string[],
+): readonly UnanchoredClause[] => {
+  const units = printedUnitsOf(spellId);
+  return phrases.flatMap((clause) => {
+    const phrase = flatten(clause);
+    const matches = units.reduce((total, unit) => total + occurrences(unit, phrase), 0);
+    return matches === 1 ? [] : [{ spell: spellId, clause, matches }];
+  });
+};
+
+/** The same, asked of a {@link BLOCKED_ON} entry. */
+export const unanchoredClauses = (
+  spellId: string,
+  entry: readonly BlockedEntry[] = BLOCKED_ON[spellId] ?? [],
+): readonly UnanchoredClause[] =>
+  unanchoredPhrases(
+    spellId,
+    clausesIn(entry).map((blocker) => blocker.clause),
+  );
+
+/**
+ * Has somebody read this spell's paragraph sentence by sentence?
+ *
+ * Two things, and the first is why an entry that names no clause can never be
+ * complete however quiet its prose: an entry with no clause records no reading,
+ * and "no sentence names a mechanic" is a *conclusion* somebody has to have
+ * reached rather than the absence of one. So a clause is required, and then
+ * every sentence that names a mechanic must carry one.
+ */
+export const isSentenceComplete = (spellId: string): boolean => {
+  const entry = BLOCKED_ON[spellId] ?? [];
+  return clausesIn(entry).length > 0 && sentenceGaps(spellId, entry).length === 0;
+};
 
 /**
  * Parsed spells with no definition at all — the population {@link BLOCKED_ON}
@@ -1814,7 +2563,7 @@ export const undefinedSpells = (
 export const coverageGaps = (
   parsed: readonly string[],
   defined: ReadonlySet<string>,
-  blockedOn: Readonly<Record<string, readonly string[]>> = BLOCKED_ON,
+  blockedOn: Readonly<Record<string, readonly unknown[]>> = BLOCKED_ON,
 ): { readonly unrecorded: readonly string[]; readonly stale: readonly string[] } => {
   const open = new Set(undefinedSpells(parsed, defined));
   return {
@@ -1845,6 +2594,21 @@ export interface ShapeConsumers {
    * population, where "one blocker" means "write the definition".
    */
   readonly unblocks: readonly string[];
+  /**
+   * Of those, the ones whose paragraph somebody has read sentence by sentence.
+   *
+   * **The two halves of `unblocks` are a different claim each, and that is the
+   * whole of why they are reported apart.** A sentence-complete entry says: I
+   * read every sentence this spell prints, and this shape is the only one it
+   * needs. An entry that is not says: nobody has recorded reading it, and every
+   * wrong prediction this map has made was a sentence nobody had read — Mind
+   * Blank's condition half, Enthrall's automatic success, Hex's third
+   * paragraph. The first number is what a tranche may be planned from; the
+   * second is what a tranche may be planned from *after somebody reads it*.
+   */
+  readonly unblocksRead: readonly string[];
+  /** And the ones still grandfathered, which is most of them. */
+  readonly unblocksUnread: readonly string[];
 }
 
 const sorted = (ids: Iterable<string>): readonly string[] => [...new Set(ids)].sort();
@@ -1858,21 +2622,24 @@ export function consumersOf(shape: ShapeId): ShapeConsumers {
   );
   const tracked = sorted(
     Object.entries(TRACKED_ADJUDICATED)
-      .filter(([, entries]) => Object.values(entries).some((entry) => entry?.why === shape))
+      .filter(([, entries]) => entries.some((entry) => entry.why === shape))
       .map(([id]) => id),
   );
   const open = sorted(
     Object.entries(BLOCKED_ON)
-      .filter(([, shapes]) => shapes.includes(shape))
+      .filter(([, entry]) => blockersIn(entry).includes(shape))
       .map(([id]) => id),
   );
+  const unblocks = open.filter((id) => blockersOf(id).length === 1);
   return {
     shape,
     executed,
     tracked,
     undefined: open,
     blocks: sorted([...executed, ...tracked, ...open]),
-    unblocks: open.filter((id) => (BLOCKED_ON[id] ?? []).length === 1),
+    unblocks,
+    unblocksRead: unblocks.filter(isSentenceComplete),
+    unblocksUnread: unblocks.filter((id) => !isSentenceComplete(id)),
   };
 }
 
@@ -1898,14 +2665,13 @@ export function allShapeConsumers(): readonly ShapeConsumers[] {
 export function claimedShapes(): ReadonlySet<string> {
   const claims: readonly (string | undefined)[] = [
     ...Object.values(ADJUDICATED).flatMap((entries) => entries.map((entry) => entry.why)),
-    ...Object.values(TRACKED_ADJUDICATED).flatMap((entries) =>
-      Object.values(entries).map((entry) => entry?.why),
-    ),
-    ...Object.values(BLOCKED_ON).flat(),
+    ...Object.values(TRACKED_ADJUDICATED).flatMap((entries) => entries.map((entry) => entry.why)),
+    ...Object.values(BLOCKED_ON).flatMap((entry) => blockersIn(entry)),
   ];
   return new Set(
     claims.filter(
-      (why): why is string => why !== undefined && why !== 'table' && why !== 'engine',
+      (why): why is string =>
+        why !== undefined && why !== 'table' && why !== 'engine' && why !== 'expressible',
     ),
   );
 }

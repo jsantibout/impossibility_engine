@@ -14,7 +14,10 @@ import {
   MECHANICAL_MARKERS,
   MISSING_SHAPES,
   TRACKED_ADJUDICATED as ADJUDICATED,
+  sentencesOf,
+  unanchoredPhrases,
   type MarkerId,
+  type TrackedAdjudication,
 } from '../scripts/missing-shapes.js';
 
 /**
@@ -345,9 +348,9 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'has a written adjudication for every mechanical clause in %s',
     (spellId) => {
       const found = markersIn(spellId);
-      const written = ADJUDICATED[spellId] ?? {};
+      const written = ADJUDICATED[spellId] ?? [];
       for (const marker of found) {
-        const entry = written[marker];
+        const entry = written.find((written_) => written_.marker === marker);
         expect(entry, `${spellId} has a ${marker} clause with no adjudication`).toBeDefined();
         expect(entry?.note.length ?? 0).toBeGreaterThan(40);
       }
@@ -361,7 +364,10 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
   it('carries no adjudication for a clause the book does not contain', () => {
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       const found = new Set<string>(markersIn(spellId));
-      expect(Object.keys(written).filter((marker) => !found.has(marker)), spellId).toEqual([]);
+      expect(
+        written.map((entry) => entry.marker).filter((marker) => !found.has(marker)),
+        spellId,
+      ).toEqual([]);
     }
   });
 
@@ -371,15 +377,83 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
   });
 
   /**
+   * A clause names one sentence the spell prints, and that sentence names the
+   * mechanic beside it.
+   *
+   * This map was keyed by marker until IE-044 and so said *which mechanic* and
+   * never *which sentence* — one adjudication per marker, anchored to the
+   * paragraph as a whole. That is the same defect the undefined population had:
+   * a licence written about a rule the spell states somewhere, with nothing
+   * saying where. The phrase is held to `Adjudication.clause`'s rule through
+   * the same implementation, and to one rule more, because a marker-keyed map
+   * can afford it: the sentence the phrase sits in must trip that marker, so an
+   * adjudication cannot be written about a neighbouring clause.
+   */
+  it('anchors every adjudication to a sentence that names its marker', () => {
+    for (const [spellId, written] of Object.entries(ADJUDICATED)) {
+      expect(
+        unanchoredPhrases(
+          spellId,
+          written.map((entry) => entry.clause),
+        ),
+        spellId,
+      ).toEqual([]);
+      for (const entry of written) {
+        const sentence = sentencesOf(spellId).find((text) => text.includes(entry.clause));
+        expect(sentence, `${spellId}: "${entry.clause}" is in no sentence of the prose`).toBeDefined();
+        const named = MECHANICAL_MARKERS.filter(([, pattern]) => pattern.test(sentence ?? '')).map(
+          ([marker]) => marker,
+        );
+        expect(named, `${spellId}/${entry.marker}`).toContain(entry.marker);
+      }
+    }
+  });
+
+  /**
+   * And the cap the record imposed is gone rather than merely unused: the type
+   * permits a spell two adjudications for one marker, which the SRD asks for —
+   * Tree Stride spends 5 feet of movement in three sentences and Plane Shift
+   * teleports two different ways. Nothing writes a second one yet, so the claim
+   * is that the storage allows it rather than that something uses it.
+   */
+  it('permits a spell more than one adjudication for one marker', () => {
+    const doubled: Readonly<Record<string, readonly TrackedAdjudication[]>> = {
+      'tree-stride': [
+        {
+          marker: 'movement-cost',
+          clause: 'You must use 5 feet of movement to enter a tree',
+          why: 'table',
+          note: 'a synthetic entry: the storage the record could not hold.',
+        },
+        {
+          marker: 'movement-cost',
+          clause: 'using another 5 feet of movement',
+          why: 'table',
+          note: 'the second sentence of the same paragraph spending the same feet.',
+        },
+      ],
+    };
+    expect(doubled['tree-stride']).toHaveLength(2);
+    // And both are real sentences of that spell, so the case is one the book
+    // asks for rather than one invented to make the type look wider.
+    expect(
+      unanchoredPhrases(
+        'tree-stride',
+        (doubled['tree-stride'] ?? []).map((entry) => entry.clause),
+      ),
+    ).toEqual([]);
+  });
+
+  /**
    * The half that makes this more than a comment box: a clause that is *not*
    * the table's must name an enumerated missing shape. Adding one means adding
    * to a list, which is the visible act this test exists to force.
    */
   it('names an enumerated shape for every clause that is not the table’s', () => {
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
-      for (const [marker, entry] of Object.entries(written)) {
+      for (const entry of written) {
         if (entry.why === 'table' || entry.why === 'engine') continue;
-        expect(Object.keys(MISSING_SHAPES), `${spellId}/${marker}`).toContain(entry.why);
+        expect(Object.keys(MISSING_SHAPES), `${spellId}/${entry.marker}`).toContain(entry.why);
       }
     }
   });
@@ -395,7 +469,7 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
   it('has retired the shapes that were solved', () => {
     expect(Object.keys(MISSING_SHAPES)).not.toContain('check-against-spell-save-dc');
     expect(
-      Object.values(ADJUDICATED).flatMap((w) => Object.values(w).map((e) => e.why)),
+      Object.values(ADJUDICATED).flatMap((written) => written.map((entry) => entry.why)),
     ).toContain('engine');
   });
 
@@ -412,7 +486,9 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
   it('says engine for exactly the checks the catalogue really executes', () => {
     for (const spellId of TRACKED) {
       const executes = definitionFor(spellId)?.check !== undefined;
-      const claimed = ADJUDICATED[spellId]?.['ability-check']?.why === 'engine';
+      const claimed =
+        (ADJUDICATED[spellId] ?? []).find((entry) => entry.marker === 'ability-check')?.why ===
+        'engine';
       expect(claimed, `${spellId}: check=${executes}, claims engine=${claimed}`).toBe(executes);
     }
   });
@@ -420,8 +496,8 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
   /** A note that says nothing is a licence, so each must be specific. */
   it('writes a real sentence for every adjudication', () => {
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
-      for (const [marker, entry] of Object.entries(written)) {
-        expect(entry.note.length, `${spellId}/${marker}`).toBeGreaterThan(40);
+      for (const entry of written) {
+        expect(entry.note.length, `${spellId}/${entry.marker}`).toBeGreaterThan(40);
       }
     }
   });
@@ -436,9 +512,9 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
   it('names no shape the vocabulary does not have', () => {
     const known = new Set<string>(Object.keys(MISSING_SHAPES));
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
-      for (const [marker, entry] of Object.entries(written)) {
+      for (const entry of written) {
         if (entry.why === 'table' || entry.why === 'engine') continue;
-        expect(known.has(entry.why), `${spellId}/${marker}`).toBe(true);
+        expect(known.has(entry.why), `${spellId}/${entry.marker}`).toBe(true);
       }
     }
   });

@@ -219,93 +219,112 @@ the *only* blocker for — the ones building it would complete. Those are
 different numbers, and reporting only the first is how one family came to be
 ranked at 17, at 4 and at 2 in three different documents.
 
-| Shape | Blocks | Finishes | Executed | Tracked | Undefined |
-|---|---|---|---|---|---|
-| `a-long-casting-time` | 54 | 12 | 0 | 0 | 54 |
-| `a-stat-block-created-mid-fight` | 15 | 4 | 1 | 0 | 14 |
-| `an-action-a-spell-compels-or-forbids` | 26 | 2 | 10 | 0 | 16 |
-| `a-second-place-to-put-a-creature` | 19 | 2 | 1 | 0 | 18 |
-| `a-target-rule-the-format-cannot-state` | 13 | 2 | 0 | 0 | 13 |
-| `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 10 |
-| `a-rider-on-a-later-weapon-attack` | 7 | 2 | 0 | 0 | 7 |
-| `a-spell-that-answers-a-later-attack` | 5 | 2 | 0 | 0 | 5 |
-| `a-casting-ended-by-a-trigger` | 21 | 1 | 2 | 0 | 19 |
-| `a-random-outcome-that-is-not-a-d20` | 19 | 1 | 0 | 0 | 19 |
-| `difficult-terrain-an-area-creates` | 19 | 1 | 5 | 0 | 14 |
-| `a-barrier-that-blocks-passage` | 12 | 1 | 0 | 0 | 12 |
-| `a-spells-effects-applied-to-different-targets` | 11 | 1 | 1 | 0 | 10 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 11 | 1 | 1 | 0 | 10 |
-| `a-condition-immunity-a-spell-grants` | 10 | 1 | 0 | 0 | 10 |
-| `what-a-creature-is-holding` | 9 | 1 | 3 | 0 | 6 |
-| `a-repeat-save-that-does-something-on-a-failure` | 8 | 1 | 2 | 0 | 6 |
-| `a-flat-amount-with-no-dice` | 6 | 1 | 0 | 0 | 6 |
-| `an-outcome-that-reads-the-targets-hit-points` | 6 | 1 | 1 | 0 | 5 |
-| `healing-that-raises-the-dead` | 6 | 1 | 0 | 0 | 6 |
-| `a-hit-point-maximum-a-spell-moves` | 5 | 1 | 1 | 0 | 4 |
-| `an-activation-that-forces-a-saving-throw` | 5 | 1 | 0 | 0 | 5 |
-| `a-duration-the-slot-changes` | 4 | 1 | 0 | 0 | 4 |
-| `an-area-trigger-measured-from-a-point` | 3 | 1 | 0 | 0 | 3 |
-| `falling` | 3 | 1 | 0 | 0 | 3 |
-| `several-attack-rolls-from-one-casting` | 3 | 1 | 1 | 0 | 2 |
-| `a-creature-fact-an-effect-overrides` | 2 | 1 | 0 | 0 | 2 |
-| `a-die-behaviour-a-spell-asks-for` | 2 | 1 | 0 | 0 | 2 |
-| `a-roll-result-an-effect-replaces` | 2 | 1 | 0 | 0 | 2 |
-| `a-world-fact-nothing-can-represent` | 2 | 1 | 0 | 1 | 1 |
-| `a-reduction-an-effect-applies-to-damage` | 1 | 1 | 0 | 0 | 1 |
-| `a-second-roll-sequenced-after-the-first` | 1 | 1 | 0 | 0 | 1 |
-| `an-armor-class-a-spell-floors` | 1 | 1 | 0 | 0 | 1 |
-| `an-effect-that-intercepts-dropping-to-0` | 1 | 1 | 0 | 0 | 1 |
-| `a-choice-made-at-the-casting` | 24 | 0 | 4 | 0 | 20 |
-| `an-effect-that-suppresses-other-magic` | 12 | 0 | 0 | 0 | 12 |
-| `forced-movement-a-spell-causes` | 12 | 0 | 1 | 0 | 11 |
-| `movement-modes` | 8 | 0 | 0 | 2 | 6 |
-| `a-repeat-save-raised-by-a-trigger` | 7 | 0 | 6 | 0 | 1 |
-| `a-deadline-anchored-to-a-rest` | 6 | 0 | 0 | 0 | 6 |
-| `an-activation-that-resolves-an-area` | 6 | 0 | 1 | 0 | 5 |
-| `an-area-that-filters-its-catch` | 6 | 0 | 1 | 0 | 5 |
-| `damage-with-neither-an-attack-roll-nor-a-save` | 6 | 0 | 2 | 0 | 4 |
-| `a-creature-type-predicate-an-area-reads` | 5 | 0 | 0 | 0 | 5 |
-| `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 5 |
-| `an-effect-that-fires-when-the-casting-ends` | 5 | 0 | 0 | 0 | 5 |
-| `a-casting-that-casts-another-spell` | 4 | 0 | 0 | 0 | 4 |
-| `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 4 |
-| `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 2 | 0 | 2 |
-| `a-fact-only-the-table-can-declare` | 4 | 0 | 1 | 0 | 3 |
-| `a-repeat-save-counted-to-a-tally` | 4 | 0 | 1 | 0 | 3 |
-| `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 4 |
-| `an-ability-score-a-spell-changes` | 4 | 0 | 0 | 0 | 4 |
-| `a-casting-dismissed-early` | 3 | 0 | 0 | 0 | 3 |
-| `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 |
-| `a-one-shot-roll-modifier` | 3 | 0 | 2 | 0 | 1 |
-| `a-payout-at-a-turn-boundary` | 3 | 0 | 0 | 0 | 3 |
-| `a-success-branch-that-does-something` | 3 | 0 | 0 | 0 | 3 |
-| `an-area-that-moves-by-itself` | 3 | 0 | 2 | 0 | 1 |
-| `senses-beyond-declared-sight` | 3 | 0 | 1 | 0 | 2 |
-| `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 0 | 1 | 0 | 1 |
-| `a-rest-an-effect-gives-or-denies` | 2 | 0 | 0 | 0 | 2 |
-| `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 | 0 | 0 | 2 |
-| `an-area-moved-by-the-casters-own-movement` | 2 | 0 | 0 | 0 | 2 |
-| `an-exhaustion-level-a-spell-changes` | 2 | 0 | 0 | 0 | 2 |
-| `an-outcome-that-breaks-concentration` | 2 | 0 | 0 | 0 | 2 |
-| `healing-modified-by-an-effect` | 2 | 0 | 2 | 0 | 0 |
-| `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 2 | 0 | 0 |
-| `a-bonus-narrowed-to-a-skill` | 1 | 0 | 0 | 0 | 1 |
-| `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 |
-| `a-damage-penalty-a-spell-grants` | 1 | 0 | 0 | 0 | 1 |
-| `a-dc-the-caster-does-not-set` | 1 | 0 | 0 | 0 | 1 |
-| `a-distance-a-creature-travels-inside-an-area` | 1 | 0 | 0 | 0 | 1 |
-| `a-mode-on-the-save-a-spell-forces` | 1 | 0 | 0 | 0 | 1 |
-| `a-range-that-scales-with-caster-level` | 1 | 0 | 0 | 0 | 1 |
-| `a-repeat-save-on-the-clock` | 1 | 0 | 1 | 0 | 0 |
-| `a-save-keyed-to-a-condition` | 1 | 0 | 1 | 0 | 0 |
-| `a-speed-an-effect-multiplies` | 1 | 0 | 0 | 0 | 1 |
-| `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 1 |
-| `an-automatic-success-by-creature-type` | 1 | 0 | 0 | 0 | 1 |
-| `an-effect-that-stabilises-a-dying-creature` | 1 | 0 | 0 | 0 | 1 |
-| `an-outcome-of-a-spells-own-damage` | 1 | 0 | 1 | 0 | 0 |
-| `an-outcome-that-reads-the-targets-defences` | 1 | 0 | 0 | 0 | 1 |
-| `jumping` | 1 | 0 | 0 | 1 | 0 |
-| `the-effects-source-as-a-participant` | 1 | 0 | 0 | 0 | 1 |
+**Finishes is split in two**, and that difference is the second finding.
+*Read* counts the spells whose SRD paragraph has been read sentence by
+sentence — every sentence tripping one of the guard’s mechanical markers
+carries a written clause saying which of four things it is. *Unread* counts
+the rest, whose entry names a blocker and says nothing about the sentences
+beside it. Every wrong prediction this map has made — Mind Blank, Protection
+from Energy, Enthrall, Magic Weapon, True Strike — was an unread sentence
+rather than a wrong entry, so the first column is what a tranche may be
+planned from and the second is what it may be planned from once somebody
+reads it.
+
+*Read* is a **floor, not a proof.** The markers read English, so a rule the
+SRD phrases in none of their words trips nothing and is demanded of nobody —
+Gaseous Form’s "can enter and occupy the space of another creature" is one,
+and is recorded because somebody read the paragraph rather than because the
+guard asked. What the column promises is that every sentence the markers can
+see has an answer, which is the same promise the tracked bucket’s guard has
+always made in the same words.
+
+| Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | Undefined |
+|---|---|---|---|---|---|---|
+| `a-long-casting-time` | 54 | 0 | 12 | 0 | 0 | 54 |
+| `a-stat-block-created-mid-fight` | 15 | 0 | 4 | 1 | 0 | 14 |
+| `an-action-a-spell-compels-or-forbids` | 26 | 0 | 2 | 10 | 0 | 16 |
+| `a-second-place-to-put-a-creature` | 19 | 0 | 2 | 1 | 0 | 18 |
+| `a-target-rule-the-format-cannot-state` | 13 | 0 | 2 | 0 | 0 | 13 |
+| `a-wall-or-several-templates-in-one-area` | 10 | 0 | 2 | 0 | 0 | 10 |
+| `a-rider-on-a-later-weapon-attack` | 7 | 0 | 2 | 0 | 0 | 7 |
+| `a-spell-that-answers-a-later-attack` | 5 | 0 | 2 | 0 | 0 | 5 |
+| `a-casting-ended-by-a-trigger` | 21 | 0 | 1 | 2 | 0 | 19 |
+| `a-random-outcome-that-is-not-a-d20` | 19 | 0 | 1 | 0 | 0 | 19 |
+| `difficult-terrain-an-area-creates` | 19 | 0 | 1 | 5 | 0 | 14 |
+| `a-barrier-that-blocks-passage` | 12 | 0 | 1 | 0 | 0 | 12 |
+| `a-spells-effects-applied-to-different-targets` | 11 | 0 | 1 | 1 | 0 | 10 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 11 | 0 | 1 | 1 | 0 | 10 |
+| `a-condition-immunity-a-spell-grants` | 10 | 1 | 0 | 0 | 0 | 10 |
+| `what-a-creature-is-holding` | 9 | 0 | 1 | 3 | 0 | 6 |
+| `a-repeat-save-that-does-something-on-a-failure` | 8 | 0 | 1 | 2 | 0 | 6 |
+| `a-flat-amount-with-no-dice` | 6 | 0 | 1 | 0 | 0 | 6 |
+| `an-outcome-that-reads-the-targets-hit-points` | 6 | 0 | 1 | 1 | 0 | 5 |
+| `healing-that-raises-the-dead` | 6 | 0 | 1 | 0 | 0 | 6 |
+| `a-hit-point-maximum-a-spell-moves` | 5 | 0 | 1 | 1 | 0 | 4 |
+| `an-activation-that-forces-a-saving-throw` | 5 | 0 | 1 | 0 | 0 | 5 |
+| `a-duration-the-slot-changes` | 4 | 0 | 1 | 0 | 0 | 4 |
+| `a-creature-fact-an-effect-overrides` | 3 | 0 | 1 | 0 | 0 | 3 |
+| `an-area-trigger-measured-from-a-point` | 3 | 0 | 1 | 0 | 0 | 3 |
+| `falling` | 3 | 0 | 1 | 0 | 0 | 3 |
+| `several-attack-rolls-from-one-casting` | 3 | 0 | 1 | 1 | 0 | 2 |
+| `a-die-behaviour-a-spell-asks-for` | 2 | 0 | 1 | 0 | 0 | 2 |
+| `a-roll-result-an-effect-replaces` | 2 | 0 | 1 | 0 | 0 | 2 |
+| `a-world-fact-nothing-can-represent` | 2 | 0 | 1 | 0 | 1 | 1 |
+| `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 | 0 | 0 | 1 |
+| `a-second-roll-sequenced-after-the-first` | 1 | 0 | 1 | 0 | 0 | 1 |
+| `an-armor-class-a-spell-floors` | 1 | 0 | 1 | 0 | 0 | 1 |
+| `an-effect-that-intercepts-dropping-to-0` | 1 | 0 | 1 | 0 | 0 | 1 |
+| `a-choice-made-at-the-casting` | 25 | 0 | 0 | 4 | 0 | 21 |
+| `an-effect-that-suppresses-other-magic` | 13 | 0 | 0 | 0 | 0 | 13 |
+| `forced-movement-a-spell-causes` | 12 | 0 | 0 | 1 | 0 | 11 |
+| `movement-modes` | 8 | 0 | 0 | 0 | 2 | 6 |
+| `a-repeat-save-raised-by-a-trigger` | 7 | 0 | 0 | 6 | 0 | 1 |
+| `a-deadline-anchored-to-a-rest` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `an-activation-that-resolves-an-area` | 6 | 0 | 0 | 1 | 0 | 5 |
+| `an-area-that-filters-its-catch` | 6 | 0 | 0 | 1 | 0 | 5 |
+| `damage-with-neither-an-attack-roll-nor-a-save` | 6 | 0 | 0 | 2 | 0 | 4 |
+| `a-creature-type-predicate-an-area-reads` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `an-effect-that-fires-when-the-casting-ends` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `a-casting-that-casts-another-spell` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 0 | 2 | 0 | 2 |
+| `a-fact-only-the-table-can-declare` | 4 | 0 | 0 | 1 | 0 | 3 |
+| `a-repeat-save-counted-to-a-tally` | 4 | 0 | 0 | 1 | 0 | 3 |
+| `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `an-ability-score-a-spell-changes` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `a-casting-dismissed-early` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `a-one-shot-roll-modifier` | 3 | 0 | 0 | 2 | 0 | 1 |
+| `a-payout-at-a-turn-boundary` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `a-success-branch-that-does-something` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `an-activation-taken-by-somebody-other-than-the-caster` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `an-area-that-moves-by-itself` | 3 | 0 | 0 | 2 | 0 | 1 |
+| `senses-beyond-declared-sight` | 3 | 0 | 0 | 1 | 0 | 2 |
+| `a-cap-on-how-many-castings-run-at-once` | 2 | 0 | 0 | 0 | 0 | 2 |
+| `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 0 | 0 | 1 | 0 | 1 |
+| `a-rest-an-effect-gives-or-denies` | 2 | 0 | 0 | 0 | 0 | 2 |
+| `an-area-moved-by-the-casters-own-movement` | 2 | 0 | 0 | 0 | 0 | 2 |
+| `an-exhaustion-level-a-spell-changes` | 2 | 0 | 0 | 0 | 0 | 2 |
+| `an-outcome-that-breaks-concentration` | 2 | 0 | 0 | 0 | 0 | 2 |
+| `healing-modified-by-an-effect` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 0 | 2 | 0 | 0 |
+| `a-bonus-narrowed-to-a-skill` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-damage-penalty-a-spell-grants` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-dc-the-caster-does-not-set` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-distance-a-creature-travels-inside-an-area` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-mode-on-the-save-a-spell-forces` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-range-that-scales-with-caster-level` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `a-save-keyed-to-a-condition` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `a-speed-an-effect-multiplies` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `an-automatic-success-by-creature-type` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `an-effect-that-stabilises-a-dying-creature` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `an-outcome-of-a-spells-own-damage` | 1 | 0 | 0 | 1 | 0 | 0 |
+| `an-outcome-that-reads-the-targets-defences` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `jumping` | 1 | 0 | 0 | 0 | 1 | 0 |
+| `the-effects-source-as-a-participant` | 1 | 0 | 0 | 0 | 0 | 1 |
 
 A spell can need more than one shape, so the columns do not sum to the
 population. A spell blocked on **nothing** — genuinely the table’s, and the
