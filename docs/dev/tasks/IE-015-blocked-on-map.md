@@ -1,13 +1,13 @@
 # IE-015 — `BLOCKED_ON`: derive the blockers instead of counting them by hand
 
-state: AWAITING_MERGE_APPROVAL
+state: DONE
 lane: conformance
 tranche: 4
 parallel-safe: YES — a derived map and its guard; no engine source, no effect kind, no event
 depends-on: none
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-aa7141e454a68d3a6 · worktree-agent-aa7141e454a68d3a6
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "MERGE" at Gate 3 (condition 3 waived on the owner's recorded rationale)
 
 ## Brief
 
@@ -191,3 +191,76 @@ signal that something is wrong; everything a test can hold is held, the one
 defect found by sampling was a citation rather than a reading, and the map's
 first prediction already paid for itself. But condition 3 is condition 3, and
 the decision is the owner's.
+
+
+## Merge record
+
+Merged to `main` as `c4f3b85` with the foreman's citation correction `a7013cc`,
+fast-forward, pushed. **6,696 tests across 103 files.** Partial and executed
+unchanged — this task defined no spell and changed no engine source.
+
+**Condition 3 was waived by the owner, and the rationale is theirs rather than
+mine, so it is recorded in their words:**
+
+> "I accept the reviewer's medium confidence as a limitation of exhaustive
+> semantic re-adjudication, not as an unresolved implementation concern."
+
+That is the distinction the gate existed to put to them. Twelve conditions were
+green; the thirteenth was a `PASS` at medium whose cause is that a 206-entry map
+read one SRD paragraph at a time can be verified exhaustively as a **mechanism**
+and only sampled as a set of **readings**. No amount of rework raises it, which
+is what made it Gate 3 rather than `CHANGES_REQUIRED`.
+
+The thirteen conditions: 1 inside the brief · 2 COMPLETE · 3 **PASS at medium —
+waived above** · 4 defects resolved, including the one the foreman found after
+the review · 5 gauntlet ✓ · 6 `COVERAGE.md` byte-identical; no definition
+touched · 7 no blocker · 8 no deviation · 9 no engine source changed at all ·
+10 no scope expansion · 11 no conflict · 12 rebased onto `67cd234` and the
+gauntlet re-run there, then again on `main`: typecheck ✓ lint ✓ **6696/6696** ✓
+coverage byte-clean ✓, both frozen fixtures untouched · 13 GREEN.
+
+### What merged, beyond the map
+
+- **40 tests**, including completeness in both directions — a spell added to the
+  catalogue with neither an entry nor a definition fails — the three former
+  bundles' counts summing to what each bundle claimed, and a mutation deleting
+  one entry failing completeness.
+- **`consumersOf` and `allShapeConsumers`**, which is what turned
+  `PROGRESS.md`'s ranked map from a hand-kept list into a query. Both of the
+  two numbers the map contradicted were wrong rather than stale, and both in
+  the direction that undersold the next task.
+- **The largest blocker in the book, found on the first run** — a casting time
+  of a minute or more, 54 touched and 12 finished, three times any other shape.
+  None of the three rankings carried it at all.
+
+### The citation round, and the correction the foreman made
+
+Two misquotes were sent back; the builder fixed them and then built a sweep
+that found **five more of the same class** — 119 quoted runs, 19 initially
+unresolved, 12 matcher artefacts, 7 real citation errors — and characterised
+them correctly: no entry's blocker changed and no count moved.
+
+**Spot-checking two of the seven found the seventh applied backwards.** The
+repository states one sentence two ways, and the sweep matched the run against
+the document the description does not cite:
+
+| | |
+|---|---|
+| `CLAUDE.md:3975` — the file the description **names** | "the point **rather than** to each target" |
+| `spell-definitions.ts:1296` — the wording the sweep **resolved against** | "the point, **not** to each target" |
+
+Restored as `a7013cc`. An independent sweep over all 99 quoted runs in the
+merged file, against `CLAUDE.md`, `PROGRESS.md`, the architecture records, the
+SRD raw text and the engine sources — excluding the file under audit so it
+could not match itself — found **no other run absent from the document it
+names**, and the other six corrections were verified individually against
+`PROGRESS.md:1404`, `spell-definitions.ts:1280`, Hypnotic Pattern's SRD
+paragraph, `CLAUDE.md:1644` and `CLAUDE.md`'s "nothing records what a save was
+against".
+
+Two findings queued rather than fixed here: the "a shape names where this
+repository already described it" guard checks that a source *name* appears and
+not that the quote is accurate — and it has to check the **named** source
+rather than the corpus, which is what this round proved — and a builder cannot
+see a rebase happen, so its digest should report `git merge-base HEAD main`
+beside its commit.

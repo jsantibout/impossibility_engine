@@ -111,6 +111,7 @@ still Wizard-shaped are named below.
 | The ongoing record pinned | A casting's area and its trigger clause are pinned at the cast, so a **versioned** log's fold no longer consults the live catalogue; the two dead fields are gone, the four debts closed, and `resolveCast` finally guarded — inside the `once` callback, which is the ninth instance of that trap and the first caught by a test written before it could happen | `b80e0d5` |
 | Tranche 2's findings closed | Produce Flame's die size pinned; the "was never code" framing corrected and its rotting counts removed; and the unreachable-event list **derived** — nine was seventeen, and the eight it missed are scene setup, so a tool surface cannot start an encounter | `973129f` |
 | An outcome that varies by type | Blight's automatic failure, Shatter's Disadvantage and Divine Smite's extra dice — a second reader of a fact the engine already held authoritatively, and an undeclared type now asks rather than silently taking a default | `54e8b54` |
+| The blockers, derived | Which missing shape blocks each of the 206 undefined spells is a map with a query over it, not three documents ranking one family at 17, 4 and 2. It found the largest blocker in the book on its first run — a casting time of a minute or more, 54 touched and 12 finished — and predicted which two spells IE-017 would finish, locating a bundle in its own vocabulary when one of the two was wrong | `c4f3b85` |
 | A granted Resistance | An effect can grant a Resistance, Immunity or Vulnerability with a source and a lifetime — a fourth sourced grant through the door the other three use — and `EffectTarget` gains the member that lets a grant end before its casting does | `6dd56c4` |
 | Refusals nothing had read | 36 refusal codes no test asserted, down to 1, with a derived sweep that keeps it there. The audits' own figure was wrong in both directions: their line-based grep saw 113 codes where the source has 170 | `ad4f0a6` |
 | A spell that removes a condition | Lesser Restoration and Protection from Poison, through the removal Lay On Hands already performed — one implementation, not two. Both partial: the SRD lets the caster choose *which* condition, and that choice has no shape yet | `fb79ca2` |
@@ -1384,25 +1385,58 @@ casting.
 
 ### The shapes that block the rest, ranked
 
-Measured across all 223 parsed spells the engine has no definition for, not
-just the utility bucket — a shape is worth building for what it unblocks
-everywhere. A spell can need more than one, so the columns do not sum.
+**This ranking is no longer kept by hand.** `consumersOf` and
+`allShapeConsumers` in `packages/engine/scripts/missing-shapes.ts` derive it
+from `BLOCKED_ON`, `ADJUDICATED` and `TRACKED_ADJUDICATED` over every parsed
+spell, and `COVERAGE.md` is regenerated and diffed in the gauntlet. **Where the
+table below and the query disagree, the query is right** — it exists because
+three documents ranked one family at 17, 4 and 2, and a hand-kept count is what
+produced those.
 
-| Shape | Open spells | What exists already | Risk |
-|---|---|---|---|
-| An ability check inside a spell | 22 | `checks.ts` entire, save-DC derivation, the turn-hook machinery a repeat *save* uses | low |
-| A standing Advantage or Disadvantage a spell grants | 25 | `ModeSource`, `standingSaveModes`, the merge in `savingSupport` | medium |
-| A condition applied with **no** saving throw | 9 | `applySpellEffect` already applies a condition with a casting link and a deadline | very low |
-| Resistance or Immunity a spell grants | 17 | `defensesOf`, `CreatureState` defences, standing resistances from features | low |
-| Healing that lifts a condition, raises the dead, or raises the maximum | 10 | the `heal` effect, `healCreature`'s refusal of a corpse | low |
-| Teleportation | 13 | positions, occupancy, `placeCreature`'s volume test | medium |
-| Damage with neither an attack roll nor a save | 19 | `rollSpellDice`, `dealSpellDamage` | low |
-| An effect that ends another casting | 15 (**unblocked**) | `state.ongoing` names every running casting, its caster and its level; `spell-ended` ends one whole or on one creature | low |
-| An Armour Class a spell sets or floors | 13 (≈4 real) | Unarmoured Defense already replaces the calculation for a *feature* | low |
-| A random outcome that is not a d20 | 11 | the generator, `parseNotation` | low |
-| Extra damage on the target's later attacks | 7 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes | medium |
-| A Speed a spell changes, and movement modes | 4 printed, far more in play | one `baseSpeed`, no modes | medium |
-| Reads the target's current Hit Points | 3 | vitals | very low |
+Two columns, because they are two questions the hand-kept version conflated.
+**finish** is the spells a shape is the *only* blocker for — build it and those
+definitions can be written. **touch** is every spell it reaches across the
+executed, tracked and undefined populations. A spell can need more than one
+shape, so neither column sums.
+
+| Shape | finish / touch | What exists already |
+|---|---|---|
+| **A casting time of a minute or more** | **12 / 54** | the clock — what is missing is a per-turn obligation, not a deadline |
+| A stat block created mid-fight | 4 / 15 | nothing; the summons seam |
+| An action a spell compels or forbids | 3 / 26 | the turn budget |
+| Extra damage on the target's later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes |
+| A second place to put a creature | 2 / 17 | one scene, and no second one |
+| Teleportation | 2 / 9 | positions, occupancy, `placeCreature`'s volume test |
+| A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation` |
+| Healing that raises the dead | 1 / 6 | the `heal` effect, `healCreature`'s refusal of a corpse |
+| A Hit Point maximum a spell moves | 1 / 5 | vitals |
+| An Armour Class a spell **floors** | 1 / 1 | Barkskin alone — CLAUDE.md says why one spell is not evidence |
+| A Speed a spell changes, and movement modes | 0 / 16 | one `baseSpeed`, no modes |
+| **Damage with neither an attack roll nor a save** | **0 / 5** | `rollSpellDice`, `dealSpellDamage` |
+| Reads the target's current Hit Points | 0 / 4 | vitals |
+| A check another creature may attempt | 0 / 4 | `checks.ts` entire |
+
+**Five rows of the old table are gone because the shape was built**, and the
+derived map carries no entry for any of them: an ability check inside a spell
+(`resolveEffectCheck`), a standing Advantage or Disadvantage
+(`roll-modifiers.ts`), a condition applied with no saving throw, a Resistance
+or Immunity a spell grants, and an effect that ends another casting (Dispel
+Magic). Each leaves a **narrower residue** rather than nothing —
+`a-check-another-creature-may-attempt`, `a-selector-for-every-d20-test`,
+`a-condition-immunity-a-spell-grants` — which is what a derived map shows and a
+hand-kept list hid.
+
+**Two of the old numbers were wrong rather than merely stale**, and both were
+wrong in the direction that would have bought the next task the least. "Damage
+with neither an attack roll nor a save" was carried at **19**; it touches
+**five** and finishes **none** of them. "Reads the target's current Hit Points"
+was carried at **3**; it touches **four**. And the largest blocker in the book —
+a casting time of a minute or more, 54 touched and 12 finished, three times any
+other shape — appeared in no ranking at all.
+
+The prose commentary that follows is the old table's, and the numbers inside it
+are the hand-kept ones. It is kept because the *reasoning* about which shapes
+are worth building is still the reasoning; ask the query for the counts.
 
 **1. An ability check inside a spell — and the repo's existing note was right,
 for a reason the note did not give.** It is not the largest bucket and it is

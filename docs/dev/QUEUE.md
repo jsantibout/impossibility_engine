@@ -206,7 +206,7 @@ it, so the audit falls due at the end of this tranche rather than inside it.
 
 Recommendation: APPROVE TRANCHE 3.
 
-### Tranche 4 — APPROVED 2026-09-13 — "APPROVE TRANCHE 4"
+### Tranche 4 — COMPLETE 2026-09-13 — "APPROVE TRANCHE 4"
 
 The approval authorises all ten listed tasks through implementation, review,
 ordinary rework, clean auto-merge, push, bookkeeping **and later waves as
@@ -313,13 +313,18 @@ Recommendation: APPROVE TRANCHE 4.
 
 ## CURRENT
 
-**Tranche 4 is approved and running.** Wave 1 launched 2026-09-13 with four
-builders, one worktree each. Waves 2, 3 and 4 launch as their dependencies
-merge — **no owner gate between waves**; the tranche is the autonomy boundary.
+**Nothing. Tranche 4 is complete and no tranche is approved.**
 
-| Wave | Task | Lane |
-|---|---|---|
-| 2 | [IE-015 — `BLOCKED_ON` derived blocker map](tasks/IE-015-blocked-on-map.md) | conformance — **`AWAITING_MERGE_APPROVAL`**: twelve conditions green, condition 3 a structural `PASS` at medium. Gate 3, the exception; the foreman recommends MERGE |
+All ten tasks are `DONE` and merged to `main`; `main` is at `a7013cc` with
+**6,696 tests across 103 files**, both frozen fixtures untouched and
+`COVERAGE.md` byte-clean. Nine merged under tranche authority with no owner
+involvement; IE-015 stopped at Gate 3 because its reviewer `PASS` carried
+medium confidence for a structural reason, and the owner waived that condition
+with a recorded rationale rather than the foreman deciding it.
+
+The next thing that happens is the owner's: either a broad whole-engine audit
+in a fresh Fable session against clean `main` — which is now the only way one
+starts — or approval of a tranche 5 the foreman proposes from the state below.
 
 ## NEXT
 
@@ -413,4 +418,6 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | Gate 1 | IE-010 … IE-019 | approved — "APPROVE TRANCHE 4"; the first long multi-wave tranche: ten tasks, four waves, ~5 hours. Wave 1 launched with four builders; waves 2–4 launch on their dependencies with no further gate |
 | 2026-09-13 | audit charter | — | a manually initiated broad audit now produces **two** things: the retrospective, and a **next-cycle recommendation** covering roughly 4–6 hours — highest-leverage work and why it outranks the alternatives, correctness before capability, dependencies, what is parallel and what is sequential, what Opus may execute and what needs Fable first, source-of-truth work needed before prioritisation can be trusted, and what to defer. Fable owns *what and why*; the foreman owns *how*. A recommendation is not authorisation. `WORKFLOW.md` |
 | 2026-09-13 | whole-engine gate | — | **answered: `APPROVE, narrowed`.** Outcome *riders*, not child effects — leaf types in fixed slots on `attack`, `save-damage` and `save`, with the branch fixed by the host and the invariant that a rider never rolls. `onFail: SpellEffect[]` rejected on evidence. Tranche 4 not reordered; C1 re-briefed. `docs/architecture/outcome-scoped-child-effects-2026-09-13.md` |
+| 2026-09-13 | Gate 3 | IE-015 | approved — "MERGE". Condition 3 waived on the owner's recorded rationale: the reviewer's medium confidence is "a limitation of exhaustive semantic re-adjudication, not an unresolved implementation concern". The only merge gate of the tranche |
+| 2026-09-13 | `TRANCHE_COMPLETE` | IE-010 … IE-019 | ten of ten shipped, nine without owner involvement; four waves, one merge gate, no YELLOW and no RED |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |
