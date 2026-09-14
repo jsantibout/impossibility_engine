@@ -1,13 +1,13 @@
 # IE-016 — The other nine facts a DM declares
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 4
 parallel-safe: YES beside union and conformance work — it is commands over existing pure functions and existing events; NO beside IE-012, which establishes the module and the pattern
 depends-on: IE-012
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a47b4e98980d2a158 · worktree-agent-a47b4e98980d2a158
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -111,3 +111,69 @@ existing functions; the tool surface itself, which is M2.
 - Item 2's sweep is the part that could quietly pass. It must fail if a new
   event type is declared with no command and no exemption — drive that with a
   synthetic type, the way the other derived sweeps drive theirs.
+
+
+## Merge record
+
+Merged to `main` as `9847661`, fast-forward, pushed. Worktree retired.
+PASS at high confidence, round two. **6,194 tests.**
+
+**Every one of the 91 declared event types is now emitted by engine code.** It
+was seventeen with no producer at all when IE-009 derived the number, in two
+families; IE-012 closed the scene-setup eight and this closes the other nine.
+The sweep asserting it is the deliverable — it closes the class rather than
+the instances, and it bites: all nine had no emitter on `main` and now have
+exactly one each.
+
+**The reviewer verified the sweep's non-vacuity itself** rather than accepting
+it: no `type: '<x>'` literal appears inside a comment in any runtime module,
+so no "emission" is prose, and the union parse is held against every
+`readonly type:` literal in `events.ts`, with both halves driven over synthetic
+sources.
+
+**One deviation, and it was pre-ratified.** Nine members of the `GameEvent`
+union gain `readonly command?: CommandStamp`. The brief said "no change to
+`events.ts`"; the foreman's IE-012 ruling superseded that line on exactly this
+point and was carried into this task's launch message. The reviewer confirmed
+independently that **IE-012 escaped the same constraint only because its eight
+events already carried the declaration** — `6d3cb92` touched no `events.ts`.
+Declarations only, no new event type, no reducer change, and the mutation
+deleting one left `npm run typecheck` completely silent, which is why the
+stamp sweep exists.
+
+**The builder fixed the fragility the foreman flagged, properly.** IE-012's
+stamp-declaration sweep was scoped to `commands/scene.ts` by a hard-coded
+path. Rather than adding its own module beside it, the builder **moved the
+sweep to `invariants.test.ts` and made it a directory listing over every
+module under `commands/`** — on the reasoning that a sweep about the whole
+command layer filed under one family's name is the same fragility in other
+clothes. That is the right generalisation and it was not asked for.
+
+**Three commands spend from the turn economy and six do not**, decided per
+command on the rule rather than per family — and the three spenders were
+**filed in the modules owning the budgets they draw on**, because
+`DECLARED_NOT_ACTED` asserts that every public command in the modules it names
+spends nothing. One spender filed beside the six would have forced that list
+to be filtered by the spender analysis, making its claim true by construction
+instead of by test.
+
+The thirteen conditions: 1 inside the brief · 2 COMPLETE · 3 PASS at high,
+round two · 4 no defects · 5 gauntlet in the worktree ✓ · 6 `COVERAGE.md`
+byte-identical, no definition touched · 7 no blocker · 8 one deviation,
+pre-ratified · 9 the `GameEvent` union gains nine optional declarations and
+nothing else; the reducer is untouched · 10 no scope expansion · 11 one
+`CLAUDE.md` conflict, the playbook's case: IE-013's timeout paragraph kept
+from `main`, IE-016's event-count paragraph kept from the branch because it
+supersedes `main`'s · 12 gauntlet re-run on `main`: typecheck ✓ lint ✓
+**6194/6194** ✓ coverage byte-clean ✓, both fixtures untouched · 13 GREEN.
+
+### Findings carried to `LATER`
+
+`sceneFor` is now duplicated privately in two command modules, prose included —
+**a third copy is the moment to hoist it**. `spendMounting` remaps any
+non-movement refusal to `not_enough_movement`, copied verbatim from
+`resolveMove`, so mounting on somebody else's turn reports that code with a
+"not X's turn" reason — an inherited wart rather than a new one. `resolveMove`
+still answers `no_scene` with a bare `needsContext` carrying no request, now
+that `setScene` exists to point at. And `CLAUDE.md`'s new "a turn budget has
+six fields" is true of the six *spendable* fields; `TurnBudget` has nine.

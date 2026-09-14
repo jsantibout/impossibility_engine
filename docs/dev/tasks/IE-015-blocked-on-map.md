@@ -1,11 +1,11 @@
 # IE-015 — `BLOCKED_ON`: derive the blockers instead of counting them by hand
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: conformance
 tranche: 4
 parallel-safe: YES — a derived map and its guard; no engine source, no effect kind, no event
 depends-on: none
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-aa7141e454a68d3a6 · worktree-agent-aa7141e454a68d3a6
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 

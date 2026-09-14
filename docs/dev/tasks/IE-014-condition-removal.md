@@ -1,11 +1,11 @@
 # IE-014 — A spell that takes a condition away
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside another union task — it adds a `SpellEffect` member and edits `resolveEffects`; YES beside conformance, tooling and the scene work
 depends-on: IE-010
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a36f5ccc0e7a1f399 · worktree-agent-a36f5ccc0e7a1f399
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
