@@ -1,11 +1,11 @@
 # IE-050 — Dispatch `applyOne` by domain
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 7
 parallel-safe: NO — it *is* `fold/apply.ts`; nothing that touches the reducer runs beside it
 depends-on: none
-worker: none
+worker: qb-builder, launched 2026-09-14 from `f00742a` (wave 1)
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 

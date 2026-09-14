@@ -1,11 +1,11 @@
 # IE-052 — A citation guard over task briefs
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: tooling
 tranche: 7
 parallel-safe: YES — `docs/dev/` is read, never written; the guard and its test are new files
 depends-on: none
-worker: none
+worker: qb-builder, launched 2026-09-14 from `f00742a` (wave 1)
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 
