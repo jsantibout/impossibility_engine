@@ -1,13 +1,14 @@
 /**
- * The six effect kinds that hang a **sourced grant** on a creature.
+ * The seven effect kinds that hang a **sourced grant** on a creature.
  *
  * One module per the enumerator that already names the family: `grantsOf` in
  * `fold/release.ts` walks `bonuses`, `armorClasses`, `rollModifiers`,
- * `grantedDefenses`, `speedModifiers` and `attackRiders`, and these are the
- * six resolvers that write them. The two lists are kept the same shape on
- * purpose — a seventh family joining the enumerator is a seventh resolver
- * joining this file, and a grant released by a dispel and not by a deadline
- * is the failure that enumerator was built to stop.
+ * `grantedDefenses`, `speedModifiers`, `attackRiders` and
+ * `grantedConditionImmunities`, and these are the seven resolvers that write
+ * them. The two lists are kept the same shape on purpose — an eighth family
+ * joining the enumerator is an eighth resolver joining this file, and a grant
+ * released by a dispel and not by a deadline is the failure that enumerator was
+ * built to stop.
  *
  * They are also, bar the first, the kinds that hand something out without
  * rolling for it: the docstrings below count them off in the order they
@@ -276,6 +277,50 @@ export function resolveAttackRiderEffect(
     },
   });
   const current = events.slice(-1).reduce(applyEvent, world);
+  outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
+ * Condition Immunities the spell hands its target, for as long as it runs.
+ *
+ * SRD Mind Blank: "Until the spell ends, one willing creature you touch has
+ * Immunity to Psychic damage and the Charmed condition." SRD Heroism: "Until
+ * the spell ends, the creature is immune to the Frightened condition." Nothing
+ * is rolled and nothing is resisted — the same shape `armor-class`,
+ * `damage-defense` and `speed` take, on the other half of the run a stat block
+ * prints in one line.
+ *
+ * **The seventh sourced grant, and the same four lines as the sixth.** The
+ * casting is in the source, so `releaseCasting`, `releaseOnTarget`, a dispel, a
+ * broken Concentration, the deadline and a `grants` timer all end it through
+ * the door every other grant already uses; `grantsOf` is what puts it in front
+ * of all of them at once, and it would not compile without the enumerator line.
+ *
+ * **The grant lands on the target and never on the caster**, unlike the rider
+ * above it: an Immunity is something the protected creature holds, and Mind
+ * Blank is Range: Touch. Divine Favor's asymmetry came from the *die* being
+ * thrown by whoever swings, and there is no die here.
+ */
+export function resolveConditionImmunityEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'condition-immunity'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { definition, castingId, events, outcomes, held } = ctx;
+  let current = world;
+
+  held.add(target);
+  events.push({
+    type: 'condition-immunity-granted',
+    id: target,
+    immunity: {
+      source: castingSource(definition.name, castingId),
+      conditions: effect.conditions,
+    },
+  });
+  current = events.slice(-1).reduce(applyEvent, current);
   outcomes.push({ target, affected: true });
   return ok(current);
 }

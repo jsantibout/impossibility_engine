@@ -832,12 +832,25 @@ export function defensesOf(
  * state; this half had none, so `adaptMonster` produced the list and nothing
  * whatever consulted it.
  *
- * One input today — the creature's own printed entries — and it is a gatherer
- * rather than a field read because a condition immunity an **effect** grants
- * is the next thing to arrive, and it joins here rather than at the caller.
- * Reading `creature.conditionImmunities` at `applyConditionTo` would be the
- * second place the question is answered, which is what this repository keeps
- * recording going wrong.
+ * **Two inputs**, in {@link defensesOf}'s shape: the creature's own printed
+ * entries, and the ones a *running effect* has hung on it. The gatherer was
+ * written with one and said in those words that the second was the next thing
+ * to arrive and would join here rather than at the caller — reading
+ * `creature.conditionImmunities` at `applyConditionTo` would be the second
+ * place the question is answered, which is what this repository keeps recording
+ * going wrong. It arrived, and nothing at the caller changed.
+ *
+ * **The answers union; a grant may never weaken what is printed.** An Immunity
+ * is a boolean, so there is no arithmetic a second copy could do and no reading
+ * under which a grant could take one away: a Zombie granted Mind Blank's
+ * Charmed Immunity is immune to Charmed once, and is still immune to Poisoned
+ * and Exhaustion when the casting ends. The damage half says the same sentence
+ * — "multiple instances of Resistance to the same damage type count as only
+ * one" — and `new Set` below is the whole of the rule.
+ *
+ * The printed half has no source and never ends; the granted half is keyed by
+ * one, so `releaseCasting`, `releaseOnTarget` and a `grants` deadline take it
+ * away through the door the other six sourced grants already use.
  *
  * **Suppression is deliberately not folded in.** SRD Aura of Courage says a
  * Frightened ally's condition "has no effect on that ally while there" — the
@@ -876,8 +889,13 @@ export function conditionImmunitiesOf(
   state: GameState,
   who: CharacterId,
 ): readonly ConditionName[] {
-  const own = state.creatures[who]?.conditionImmunities ?? [];
-  return [...new Set(own)].sort();
+  const creature = state.creatures[who];
+  if (creature === undefined) return [];
+  const names = new Set<ConditionName>(creature.conditionImmunities);
+  for (const granted of creature.grantedConditionImmunities) {
+    for (const condition of granted.conditions) names.add(condition);
+  }
+  return [...names].sort();
 }
 
 /**

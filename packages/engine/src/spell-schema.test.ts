@@ -2744,6 +2744,14 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { damageTypes: required(ARRAY_JUNK), defense: required(STRING_JUNK) },
     },
     {
+      kind: 'condition-immunity',
+      base: { kind: 'condition-immunity', conditions: ['charmed'] },
+      // One field and no second one, which is the difference from the defence
+      // above: there is no Vulnerability to a condition and no halfway house,
+      // so the list is the whole of what a definition states.
+      fields: { conditions: required(ARRAY_JUNK) },
+    },
+    {
       kind: 'speed',
       base: { kind: 'speed', change: 'add', feet: 10 },
       // `feet` is `NUMBER_JUNK` rather than `required(NUMBER_JUNK)` where the

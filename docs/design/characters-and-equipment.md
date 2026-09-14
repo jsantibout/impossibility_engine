@@ -627,6 +627,16 @@ unchanged and neither fixture was regenerated — and a `conditionImmunities` an
 `grantedDefenses` and not in this table, which is the creature's own and never
 grows.
 
+**IE-042 built that seventh family and the line held.** `grantedConditionImmunities`
+sits beside `grantedDefenses`, `condition-immunity-granted` writes it, and
+`conditionImmunitiesOf` unions the two inputs — so a creature under SRD Mind
+Blank cannot be Charmed and a Zombie granted the same Immunity is still immune
+to Exhaustion and Poisoned when the casting ends. The printed table did not gain
+an input, gained no source, and never grows; the grant is keyed by one and
+leaves through `releaseCasting`, `releaseOnTarget` or a `grants` deadline like
+the other six. `conditionApplicability` was read and not touched, which is the
+boundary that made the bundle split cleanly in the first place.
+
 **`conditionApplicability` and `monsterCanReceive` still have no runtime
 caller, and that is the honest residue rather than a half-finished job.** Both
 take an `AdaptedMonster`, which is what the *adapter* returns and not what

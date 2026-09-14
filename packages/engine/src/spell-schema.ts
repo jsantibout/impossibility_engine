@@ -1159,6 +1159,54 @@ function checkEffect(
       return;
     }
 
+    // The condition half of the same sentence, and the same three rules — with
+    // one field fewer, because there is no Vulnerability to a condition and no
+    // halfway house: the list is the whole of what a definition states.
+    //
+    // **The vocabulary is the one every other reader of a condition name
+    // uses**, so a granted Immunity to "bewildered" is refused by the same
+    // `unknown_condition` a rider and a removal already report. A grant that
+    // named a condition the engine does not apply would be a promise nothing
+    // could keep — `conditionImmunitiesOf` would carry a name
+    // `applyConditionTo` never compares against.
+    case 'condition-immunity': {
+      if (
+        !readsAsList(
+          effect.conditions,
+          `${path}.conditions`,
+          'a granted Immunity names the conditions it refuses as a list',
+          found,
+        )
+      ) {
+        return;
+      }
+      if (effect.conditions.length === 0) {
+        found.push({
+          field: `${path}.conditions`,
+          code: 'immune_to_nothing',
+          reason:
+            'a granted Immunity that names no condition refuses nothing; name the conditions the SRD prints',
+        });
+      }
+      const immune = new Set<string>();
+      effect.conditions.forEach((condition, i) => {
+        checkCondition(condition, `${path}.conditions[${i}]`, found);
+        if (immune.has(condition)) {
+          // An Immunity is a boolean, exactly as Resistance is, so a second
+          // copy of a name is a sentence the SRD has already answered rather
+          // than a second grant — `duplicate_damage_type`'s reasoning on the
+          // other half of the printed line.
+          found.push({
+            field: `${path}.conditions[${i}]`,
+            code: 'duplicate_condition',
+            reason: `the ${condition} condition is named twice, and an Immunity is a boolean rather than a tally`,
+          });
+        }
+        immune.add(condition);
+      });
+      return;
+    }
+
     // A rider on later attacks names dice and a damage type, and there is
     // nothing else to be wrong about: the two clauses it transcribes —
     // "with weapons" and "to the target" — are booleans the SRD either prints
@@ -1186,14 +1234,16 @@ function checkEffect(
 /**
  * What a grant needs from the casting it hangs on.
  *
- * Four things a definition can leave standing after it resolves, and every one
+ * Everything a definition can leave standing after it resolves, and every one
  * of them is removed by `releaseCasting` or `releaseOnTarget` when the casting
- * ends: a `buff`, a granted `roll-mode`, an `armor-class`, and a condition
- * whose rider says neither `lasts` nor `outlivesCasting` and therefore "lasts
- * as long as the casting does". An **Instantaneous** casting is over the
- * moment it resolves, so each of those is a grant with no moment that could
- * ever end it — a Bless adding its d4 for ever, or a paralysis with nothing to
- * lift it.
+ * ends: the sourced grants {@link grantCarried} enumerates — a `buff`, a
+ * granted `roll-mode`, an `armor-class`, a `damage-defense`, a `speed`, an
+ * `attack-rider`, a `condition-immunity` — and a condition whose rider says
+ * neither `lasts` nor `outlivesCasting` and therefore "lasts as long as the
+ * casting does". An **Instantaneous** casting is over the moment it resolves,
+ * so each of those is a grant with no moment that could ever end it — a Bless
+ * adding its d4 for ever, a paralysis with nothing to lift it, or a creature
+ * that can never be Charmed again.
  *
  * The two escapes are the two the SRD writes and the rider already carries.
  * Color Spray is Instantaneous and blinds "until the end of your next turn",
@@ -1398,6 +1448,12 @@ function grantCarried(effect: SpellEffect): string | null {
     // die away and an Instantaneous one never could.
     case 'attack-rider':
       return 'extra damage on later attacks';
+    // The seventh, and it carries no deadline of its own for the reason the
+    // fifth and sixth do not: every SRD sentence of this shape says "until the
+    // spell ends" or prints a span the definition carries, and an Instantaneous
+    // casting has no moment at which the Immunity could ever lift.
+    case 'condition-immunity':
+      return 'a granted Immunity to a condition';
     default: {
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
@@ -2413,6 +2469,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'armor-class',
   'roll-mode',
   'damage-defense',
+  'condition-immunity',
   'speed',
   'attack-rider',
   'teleport',

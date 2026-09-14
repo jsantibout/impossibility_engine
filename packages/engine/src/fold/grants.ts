@@ -1,10 +1,10 @@
 /**
- * The six families of granted modifier, and the one rule they share.
+ * The seven families of granted modifier, and the one rule they share.
  *
- * A bonus, an Armour Class, a roll modifier, a damage defence, a Speed and an
- * attack rider. **Re-granting from the same source replaces rather than
- * stacks** in every one of them; what differs is only what counts as the
- * source's identity, which each case states where it departs.
+ * A bonus, an Armour Class, a roll modifier, a damage defence, a Speed, an
+ * attack rider and a condition Immunity. **Re-granting from the same source
+ * replaces rather than stacks** in every one of them; what differs is only what
+ * counts as the source's identity, which each case states where it departs.
  */
 import { rollModifierKey } from '../roll-modifiers.js';
 import type { GameEvent } from '../events.js';
@@ -19,6 +19,7 @@ export const GRANTS_EVENTS = [
   'damage-defense-granted',
   'speed-modifier-granted',
   'attack-rider-granted',
+  'condition-immunity-granted',
   'bonus-removed',
 ] as const;
 
@@ -135,6 +136,34 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.rider,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { attackRiders }, creature);
+    }
+
+    case 'condition-immunity-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, which
+      // is the rule every other grant in the family follows — and the one the
+      // SRD itself insists on here, exactly as it does for a Resistance: an
+      // Immunity is a boolean, so there is nothing a second copy could add.
+      //
+      // **The source alone is the identity**, as it is for a defence, a Speed
+      // and a rider: no SRD sentence makes one creature immune to two
+      // *separate* runs of conditions from one casting — Heroes' Feast's
+      // "Immunity to the Frightened and Poisoned conditions" is one clause
+      // about two names, which is the plural `conditions` below.
+      const grantedConditionImmunities = [
+        ...creature.grantedConditionImmunities.filter(
+          (held) => held.source !== event.immunity.source,
+        ),
+        {
+          ...event.immunity,
+          // Sorted and deduplicated on the way in, so a fold compares byte for
+          // byte however the sentence was transcribed — the same treatment
+          // `damage-defense-granted` gives its damage types, for the same
+          // reason: this reaches serialised state and the log.
+          conditions: [...new Set(event.immunity.conditions)].sort(),
+        },
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { grantedConditionImmunities }, creature);
     }
 
     case 'bonus-removed': {

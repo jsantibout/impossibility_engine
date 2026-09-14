@@ -211,6 +211,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'concentration-ended',
   'concentration-started',
   'condition-applied',
+  'condition-immunity-granted',
   'condition-removed',
   'cover-declared',
   'creature-added',

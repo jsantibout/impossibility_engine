@@ -99,6 +99,7 @@ import {
   resolveArmorClassEffect,
   resolveAttackRiderEffect,
   resolveBuffEffect,
+  resolveConditionImmunityEffect,
   resolveDamageDefenseEffect,
   resolveRollModeEffect,
   resolveSpeedEffect,
@@ -1073,6 +1074,8 @@ function resolveOneEffect(
       return resolveArmorClassEffect(ctx, effect, target, world);
     case 'damage-defense':
       return resolveDamageDefenseEffect(ctx, effect, target, world);
+    case 'condition-immunity':
+      return resolveConditionImmunityEffect(ctx, effect, target, world);
     case 'speed':
       return resolveSpeedEffect(ctx, effect, target, world);
     case 'attack-rider':

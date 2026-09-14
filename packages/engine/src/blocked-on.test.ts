@@ -364,7 +364,17 @@ describe('a clause names one thing the spell prints', () => {
  * passed every other guard here.
  */
 describe('a read entry answers every sentence that names a mechanic', () => {
-  /** The synthetic it must catch: a sentence the engine owns, with nothing written. */
+  /**
+   * The synthetic it must catch: a sentence the engine owns, with nothing
+   * written.
+   *
+   * **Mind Blank is still the fixture and is no longer in the map**, which is
+   * the reason the entry is passed in rather than looked up: IE-042 defined the
+   * spell, so `BLOCKED_ON` has nothing for it, while the *book* still prints
+   * the one marker sentence this asserts against. A synthetic that reads the
+   * map would have quietly stopped being about anything the day the spell was
+   * written.
+   */
   it('reports a marker sentence no clause answers', () => {
     const gaps = sentenceGaps('mind-blank', []);
     expect(gaps).toHaveLength(1);
@@ -372,9 +382,12 @@ describe('a read entry answers every sentence that names a mechanic', () => {
     expect(gaps[0]!.markers).toContain('defence');
   });
 
-  /** And the one it must pass, because a guard that reported everything would too. */
+  /**
+   * And the one it must pass, because a guard that reported everything would
+   * too — read off a spell that is still undefined and still read.
+   */
   it('reports nothing once that sentence is answered', () => {
-    expect(sentenceGaps('mind-blank')).toEqual([]);
+    expect(sentenceGaps('heroes-feast')).toEqual([]);
   });
 
   /**
@@ -385,7 +398,7 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * told apart by the clause rather than by the silence.
    */
   it('does not call a grandfathered entry read', () => {
-    expect(isSentenceComplete('mind-blank')).toBe(true);
+    expect(isSentenceComplete('heroes-feast')).toBe(true);
     expect(isSentenceComplete('aid')).toBe(false);
     expect(clausesIn(BLOCKED_ON['aid'] ?? [])).toEqual([]);
   });
@@ -445,13 +458,33 @@ describe('a read entry answers every sentence that names a mechanic', () => {
 });
 
 /**
- * The family IE-044 backfilled, and what reading ten paragraphs found.
+ * The family IE-044 backfilled, what reading ten paragraphs found, and what
+ * **building the shape** then found in the same ten.
  *
- * `a-condition-immunity-a-spell-grants` is the shape IE-042 is briefed from, so
- * it is the family whose entries had to stop being bare lists first. Backfilling
- * is deliberately family by family: two hundred paragraphs in one commit is how
- * a reviewer stops reading, and the second `finishes` number is what makes the
- * rest honest in the meantime.
+ * `a-condition-immunity-a-spell-grants` was the shape IE-042 was briefed from,
+ * so it is the family whose entries had to stop being bare lists first.
+ * Backfilling is deliberately family by family: two hundred paragraphs in one
+ * commit is how a reviewer stops reading, and the second `finishes` number is
+ * what makes the rest honest in the meantime.
+ *
+ * **IE-042 built it, and the ten were re-read one at a time rather than
+ * find-and-replaced** — which is the discipline this file records for every
+ * shape that gets built, and the one that earned its keep again here. The
+ * unconditional grant reached five clauses; it reached **none** of the other
+ * five, and each of those is a different sentence:
+ *
+ * | | |
+ * |---|---|
+ * | Mind Blank | defined, and out of this population altogether — the map's sharpest wrong prediction, collected |
+ * | Calm Emotions, Gaseous Form, Heroes' Feast, Heroism, Wind Walk | `expressible`: each prints the Immunity unconditionally |
+ * | Freedom of Movement, Magic Circle, Protection from Evil and Good, Hallow's Ward | `a-condition-immunity-narrowed-to-its-source` — the Immunity holds against *some* causes, which `conditionImmunitiesOf` has no argument for |
+ * | Calm Emotions' second sentence | `a-condition-a-spell-suppresses` — the condition lands and is silenced, which is a feature's rule and no spell's |
+ * | Hallow's Courage | `a-standing-effect-derived-from-where-a-creature-stands`, where its own sibling clause Fear already sat |
+ *
+ * So the shape retired and **two** narrower ones came out of it, both of them
+ * sentences somebody had read rather than ids invented to hold a residue. That
+ * is IE-017's own lesson arriving one level down: the way to find out whether a
+ * shape is a bundle is to build it.
  *
  * **Five blockers came out of the reading that no entry had recorded**, which
  * is the instrument doing exactly what it exists for — each is a sentence the
@@ -472,16 +505,23 @@ describe('a read entry answers every sentence that names a mechanic', () => {
  * it can see has an answer.
  */
 describe('the condition-immunity family is read sentence by sentence', () => {
-  /** Which shapes each of the ten names now, pinned so the backfill is checkable. */
+  /**
+   * Which shapes each of the nine still-undefined spells names now, pinned so
+   * the backfill **and the re-read** are both checkable.
+   *
+   * Mind Blank is not here: it is defined, and a defined spell is not in this
+   * population at all. What is left of its entry is one `table` clause in
+   * `ADJUDICATED`.
+   */
   const BACKFILLED: readonly (readonly [string, readonly ShapeId[]])[] = [
     [
       'calm-emotions',
-      ['a-condition-immunity-a-spell-grants', 'a-spells-effects-applied-to-different-targets'],
+      ['a-condition-a-spell-suppresses', 'a-spells-effects-applied-to-different-targets'],
     ],
     [
       'freedom-of-movement',
       [
-        'a-condition-immunity-a-spell-grants',
+        'a-condition-immunity-narrowed-to-its-source',
         'an-activation-taken-by-somebody-other-than-the-caster',
         'an-effect-that-suppresses-other-magic',
         'difficult-terrain-an-area-creates',
@@ -493,7 +533,6 @@ describe('the condition-immunity family is read sentence by sentence', () => {
       [
         'a-casting-dismissed-early',
         'a-casting-ended-by-a-trigger',
-        'a-condition-immunity-a-spell-grants',
         'a-creature-fact-an-effect-overrides',
         'an-action-a-spell-compels-or-forbids',
         'movement-modes',
@@ -506,38 +545,30 @@ describe('the condition-immunity family is read sentence by sentence', () => {
         'a-barrier-that-blocks-passage',
         'a-cap-on-how-many-castings-run-at-once',
         'a-choice-made-at-the-casting',
-        'a-condition-immunity-a-spell-grants',
+        'a-condition-immunity-narrowed-to-its-source',
         'a-creature-type-predicate-an-area-reads',
         'a-long-casting-time',
         'a-standing-effect-derived-from-where-a-creature-stands',
         'an-effect-that-suppresses-other-magic',
       ],
     ],
-    [
-      'heroes-feast',
-      [
-        'a-condition-immunity-a-spell-grants',
-        'a-hit-point-maximum-a-spell-moves',
-        'a-long-casting-time',
-      ],
-    ],
-    ['heroism', ['a-condition-immunity-a-spell-grants', 'a-payout-at-a-turn-boundary']],
+    ['heroes-feast', ['a-hit-point-maximum-a-spell-moves', 'a-long-casting-time']],
+    ['heroism', ['a-payout-at-a-turn-boundary']],
     [
       'magic-circle',
       [
         'a-barrier-that-blocks-passage',
         'a-choice-made-at-the-casting',
-        'a-condition-immunity-a-spell-grants',
+        'a-condition-immunity-narrowed-to-its-source',
         'a-filter-on-the-attackers-creature-type',
         'a-long-casting-time',
         'an-effect-that-suppresses-other-magic',
       ],
     ],
-    ['mind-blank', ['a-condition-immunity-a-spell-grants']],
     [
       'protection-from-evil-and-good',
       [
-        'a-condition-immunity-a-spell-grants',
+        'a-condition-immunity-narrowed-to-its-source',
         'a-filter-on-the-attackers-creature-type',
         'a-mode-on-the-save-a-spell-forces',
       ],
@@ -545,7 +576,6 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     [
       'wind-walk',
       [
-        'a-condition-immunity-a-spell-grants',
         'a-long-casting-time',
         'an-action-a-spell-compels-or-forbids',
         'an-activation-taken-by-somebody-other-than-the-caster',
@@ -560,11 +590,23 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     expect(blockersOf(spellId)).toEqual(shapes);
   });
 
-  /** And the family is exactly these ten, so the claim above is about all of them. */
-  it('covers every spell the shape blocks', () => {
-    expect(consumersOf('a-condition-immunity-a-spell-grants').undefined).toEqual(
-      BACKFILLED.map(([id]) => id),
-    );
+  /**
+   * And the two residues cover exactly the clauses the build did not reach, so
+   * the claim above is about all of them.
+   *
+   * Four spells narrow their Immunity to what is causing the condition and one
+   * suppresses a condition that has already landed. Neither list is the whole
+   * family and that is the point: the other five clauses are `expressible` and
+   * claim no shape at all.
+   */
+  it('covers every spell the two residues block', () => {
+    expect(consumersOf('a-condition-immunity-narrowed-to-its-source').undefined).toEqual([
+      'freedom-of-movement',
+      'hallow',
+      'magic-circle',
+      'protection-from-evil-and-good',
+    ]);
+    expect(consumersOf('a-condition-a-spell-suppresses').undefined).toEqual(['calm-emotions']);
   });
 
   /**
@@ -610,19 +652,46 @@ describe('the condition-immunity family is read sentence by sentence', () => {
   });
 
   /**
-   * And Mind Blank stays the shape's one `finishes` — now in the column that
-   * says somebody read it.
+   * And the `finishes` this shape carried was **collected**, which is the one
+   * thing a read count is for.
    *
-   * That spell is this map's sharpest correction: the query said IE-017 would
+   * Mind Blank was the map's sharpest correction — the query said IE-017 would
    * finish it and the build did not, because the entry recorded the damage half
-   * of a sentence and not the condition half. It is now the sentence that
-   * records both.
+   * of a sentence and not the condition half — and the number it stood behind
+   * turned into a definition rather than into another prediction. So the honest
+   * check now is that the spell is defined and out of the population, and that
+   * neither residue inherited the claim: an Immunity narrowed to its source
+   * finishes nobody, because every spell that writes one prints other blockers
+   * beside it.
    */
-  it('reports the one spell it finishes as read rather than merely counted', () => {
-    const immunity = consumersOf('a-condition-immunity-a-spell-grants');
-    expect(immunity.unblocks).toEqual(['mind-blank']);
-    expect(immunity.unblocksRead).toEqual(['mind-blank']);
-    expect(immunity.unblocksUnread).toEqual([]);
+  it('collected the one spell it finished, and neither residue inherited it', () => {
+    expect(BLOCKED_ON['mind-blank']).toBeUndefined();
+    expect(ADJUDICATED['mind-blank']?.map((entry) => entry.why)).toEqual(['table']);
+
+    for (const shape of [
+      'a-condition-immunity-narrowed-to-its-source',
+      'a-condition-a-spell-suppresses',
+    ] as const) {
+      expect(consumersOf(shape).unblocks, shape).toEqual([]);
+    }
+  });
+
+  /**
+   * **And building this shape handed a `finishes` to another one**, which is
+   * the arithmetic a build does to the map and the reason every entry is
+   * re-read rather than edited.
+   *
+   * Heroism printed two blockers and prints one now: the Immunity is
+   * `expressible` and the Temporary Hit Points every turn are not. So
+   * `a-payout-at-a-turn-boundary` gained a spell it finishes outright, without
+   * anything about that shape changing — and it gained it in the column that
+   * says somebody read the paragraph.
+   */
+  it('hands Heroism to the shape that is now its only blocker', () => {
+    const payout = consumersOf('a-payout-at-a-turn-boundary');
+    expect(payout.unblocks).toContain('heroism');
+    expect(payout.unblocksRead).toContain('heroism');
+    expect(payout.unblocksUnread).not.toContain('heroism');
   });
 });
 
@@ -1613,7 +1682,9 @@ describe('the fought fact is a second build that corrected the query', () => {
    * This is IE-017's lesson arriving a second time: a count is only as good as
    * the shape it counts, and the way to find out which shapes are bundles is
    * to build one. So the residue is a narrower id, exactly as
-   * `a-condition-immunity-a-spell-grants` was.
+   * `a-condition-immunity-a-spell-grants` was — and that id has since been
+   * built and left two narrower ones of its own, which is the lesson a third
+   * time and the second measurement of it.
    */
   it('closes the five spells whose paragraph prints Advantage', () => {
     for (const id of [
@@ -1699,9 +1770,14 @@ describe('a consumer count is a query', () => {
     expect(BLOCKED_ON['stoneskin']).toBeUndefined();
     expect(BLOCKED_ON['protection-from-energy']).toBeUndefined();
 
-    // The wrong half, and where it went.
-    expect(blockersOf('mind-blank')).toEqual(['a-condition-immunity-a-spell-grants']);
-    expect(consumersOf('a-condition-immunity-a-spell-grants').unblocks).toEqual(['mind-blank']);
+    // The wrong half, and where it went — and then what happened to it.
+    // IE-042 built `a-condition-immunity-a-spell-grants` in its turn, so that
+    // id is retired too and Mind Blank is defined: the prediction was wrong for
+    // two tranches and the debt it named is paid. Asserting the *end* of it is
+    // what keeps this test about the lesson rather than about a snapshot.
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-condition-immunity-a-spell-grants');
+    expect(claimedShapes().has('a-condition-immunity-a-spell-grants')).toBe(false);
+    expect(BLOCKED_ON['mind-blank']).toBeUndefined();
   });
 
   /**
@@ -1909,10 +1985,12 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     ['revivify', 'healing-that-raises-the-dead'],
     // "Choose up to five falling creatures within range."
     ['feather-fall', 'falling'],
-    // "Immunity to Psychic damage **and the Charmed condition**" — the damage
-    // half is built and the condition half is not, which is the whole of what
-    // is left. Stoneskin stood here until IE-017 defined it.
-    ['mind-blank', 'a-condition-immunity-a-spell-grants'],
+    // "Until the spell ends, the creature is immune to the Frightened
+    // condition" is `condition-immunity` now, so the Temporary Hit Points at
+    // the start of each turn are the whole of what is left. Mind Blank stood
+    // here until IE-042 defined it, and Stoneskin until IE-017 did — which is
+    // this row emptying twice for the same reason.
+    ['heroism', 'a-payout-at-a-turn-boundary'],
   ];
 
   it.each(SOLE)('%s is blocked on %s and nothing else', (spellId, shape) => {
@@ -1955,10 +2033,12 @@ describe('a shape that gets built is content work, not a merge', () => {
   });
 
   // Calm Emotions *suppresses* a condition it did not cause and restores it
-  // when the spell ends, which is the granted Immunity rather than a removal.
-  it('reads suppression as the granted immunity it is', () => {
+  // when the spell ends, which is not a removal — and, once IE-042 built the
+  // Immunity in the clause beside it, is not that either: an Immunity refuses a
+  // condition and a suppression silences one that has already landed.
+  it('reads suppression as neither a removal nor the granted immunity', () => {
     expect(blockersOf('calm-emotions')).toEqual([
-      'a-condition-immunity-a-spell-grants',
+      'a-condition-a-spell-suppresses',
       'a-spells-effects-applied-to-different-targets',
     ]);
   });

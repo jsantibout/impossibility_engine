@@ -51,19 +51,22 @@ applied. Between them the pair covered every type the reducer declared on the
 day the second was written, and `persistence-2.test.ts` carries the list of
 what they do not as a ledger rather than a count.
 
-**That ledger has three entries, and how they got there is the interesting
-part.** `damage-defense-granted`, `speed-modifier-granted` and
-`attack-rider-granted` each arrived after both logs were frozen, and neither
-log can be regenerated: rewriting a fixture whose whole value is that nobody
-rewrites it turns a compatibility test into a rubber stamp. So a *new* event
-type is uncovered by construction until the next frozen log is written, and the
-honest record is a named entry saying which and why rather than a number that
-quietly drops. All three are driven end to end elsewhere — the first through
-Stoneskin, the second through Longstrider, Ray of Frost and Hypnotic Pattern,
-the third through Divine Favor and Hunter's Mark; what is missing is
-specifically the compatibility fixture. **The count is written here and derived
-there**, which is why the entry is a name: this sentence goes stale and the
-test does not — and it has, three times now.
+**Every entry in that ledger got there the same way, and how is the interesting
+part.** `damage-defense-granted`, `speed-modifier-granted`,
+`attack-rider-granted`, `casting-continued` and `condition-immunity-granted`
+each arrived after both logs were frozen, and neither log can be regenerated:
+rewriting a fixture whose whole value is that nobody rewrites it turns a
+compatibility test into a rubber stamp. So a *new* event type is uncovered by
+construction until the next frozen log is written, and the honest record is a
+named entry saying which and why rather than a number that quietly drops. Every
+one is driven end to end elsewhere — the first through Stoneskin, the second
+through Longstrider, Ray of Frost and Hypnotic Pattern, the third through
+Divine Favor and Hunter's Mark, the fourth through twenty turns of a real
+fight, the fifth through Mind Blank; what is missing is specifically the
+compatibility fixture. **The membership is written here and derived there**,
+which is why each entry is a name and why this paragraph carries no count of
+them: a number in prose goes stale and the test does not, and every name added
+to the run above is an occasion on which one would have.
 
 Neither is ever regenerated, and the second is not a replacement for the
 first: three types live only in the older log, which a test names so nobody
@@ -267,7 +270,7 @@ the other side.
 | `fold/features.ts` | what a creature has switched on, and what it is holding |
 | `fold/holds.ts` | what the engine is holding mid-resolution, and how each is settled |
 | `fold/inventory.ts` | what a creature carries, wears and holds in coin |
-| `fold/grants.ts` | the six families of granted modifier, and the one rule they share |
+| `fold/grants.ts` | the seven families of granted modifier, and the one rule they share |
 | `fold/rolls.ts` | the generator's own two events |
 
 **The three tasks that could not run together now touch different files**,

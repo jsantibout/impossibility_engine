@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 57 (16.8%) | 97 (28.6%) | 48 | 75 (22.1%) |
+| 339 | 57 (16.8%) | 98 (28.9%) | 48 | 76 (22.4%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -105,6 +105,7 @@ a plain statement of what the table decides.
 - **Mass Cure Wounds** (level 5) — verified
 - **Mass Healing Word** (level 3) — untested
 - **Mass Suggestion** (level 6) — untested
+- **Mind Blank** (level 8) — verified
 - **Mind Spike** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Misty Step** (level 2) — verified
 - **Moonbeam** (level 2) — verified
@@ -243,7 +244,6 @@ always made in the same words.
 | `a-barrier-that-blocks-passage` | 12 | 0 | 1 | 0 | 0 | 12 |
 | `a-spells-effects-applied-to-different-targets` | 11 | 0 | 1 | 1 | 0 | 10 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 11 | 0 | 1 | 1 | 0 | 10 |
-| `a-condition-immunity-a-spell-grants` | 10 | 1 | 0 | 0 | 0 | 10 |
 | `what-a-creature-is-holding` | 9 | 0 | 1 | 3 | 0 | 6 |
 | `a-repeat-save-that-does-something-on-a-failure` | 8 | 0 | 1 | 2 | 0 | 6 |
 | `a-flat-amount-with-no-dice` | 7 | 0 | 1 | 0 | 0 | 7 |
@@ -254,6 +254,7 @@ always made in the same words.
 | `an-activation-that-forces-a-saving-throw` | 5 | 0 | 1 | 0 | 0 | 5 |
 | `a-duration-the-slot-changes` | 4 | 0 | 1 | 0 | 0 | 4 |
 | `falling` | 4 | 0 | 1 | 0 | 0 | 4 |
+| `a-payout-at-a-turn-boundary` | 3 | 1 | 0 | 0 | 0 | 3 |
 | `an-area-trigger-measured-from-a-point` | 3 | 0 | 1 | 0 | 0 | 3 |
 | `several-attack-rolls-from-one-casting` | 3 | 0 | 1 | 1 | 0 | 2 |
 | `a-die-behaviour-a-spell-asks-for` | 2 | 0 | 1 | 0 | 0 | 2 |
@@ -281,6 +282,7 @@ always made in the same words.
 | `a-casting-that-casts-another-spell` | 4 | 0 | 0 | 0 | 0 | 4 |
 | `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 0 | 4 |
 | `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 0 | 2 | 0 | 2 |
+| `a-condition-immunity-narrowed-to-its-source` | 4 | 0 | 0 | 0 | 0 | 4 |
 | `a-fact-only-the-table-can-declare` | 4 | 0 | 0 | 1 | 0 | 3 |
 | `a-repeat-save-counted-to-a-tally` | 4 | 0 | 0 | 1 | 0 | 3 |
 | `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 0 | 4 |
@@ -289,7 +291,6 @@ always made in the same words.
 | `an-area-that-moves-by-itself` | 4 | 0 | 0 | 2 | 0 | 2 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 0 | 3 |
 | `a-one-shot-roll-modifier` | 3 | 0 | 0 | 2 | 0 | 1 |
-| `a-payout-at-a-turn-boundary` | 3 | 0 | 0 | 0 | 0 | 3 |
 | `a-success-branch-that-does-something` | 3 | 0 | 0 | 0 | 0 | 3 |
 | `healing-modified-by-an-effect` | 3 | 0 | 0 | 2 | 0 | 1 |
 | `a-cap-on-how-many-castings-run-at-once` | 2 | 0 | 0 | 0 | 0 | 2 |
@@ -300,6 +301,7 @@ always made in the same words.
 | `an-outcome-that-breaks-concentration` | 2 | 0 | 0 | 0 | 0 | 2 |
 | `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 0 | 2 | 0 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `a-condition-a-spell-suppresses` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-damage-penalty-a-spell-grants` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-dc-the-caster-does-not-set` | 1 | 0 | 0 | 0 | 0 | 1 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 | 0 | 0 | 0 | 1 |

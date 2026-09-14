@@ -463,3 +463,48 @@ export function canReceiveCondition(state: ConditionState, name: ConditionName):
   if (name === 'poisoned' && hasCondition(state, 'petrified')) return false;
   return true;
 }
+
+/**
+ * A condition Immunity an ongoing effect has hung on a creature.
+ *
+ * The seventh member of the family `bonuses`, `armorClasses`, `rollModifiers`,
+ * `grantedDefenses`, `speedModifiers` and `attackRiders` already form, and it
+ * needed no lifecycle of its own: the casting is in the `source`, so
+ * `releaseCasting`, `releaseOnTarget` and a `grants` deadline all end it
+ * through the door the other six already use.
+ *
+ * **Separate from `CreatureState.conditionImmunities`, which is the stat
+ * block's**, and separate for the reason `GrantedDefense` is separate from
+ * `CreatureState.defenses`: that table is written when the creature enters the
+ * game, carries no source, and holds only *unconditional* entries — a
+ * qualified one ("Charmed, except from its vampire master") deliberately stays
+ * out of it, because no boolean captures a qualification. A grant is
+ * unconditional by construction, and keeping the two apart is what lets one end
+ * without disturbing the other. `conditionImmunitiesOf` is the one gatherer
+ * that reads both.
+ *
+ * **A list of names rather than one**, because the SRD writes it plural: SRD
+ * Heroes' Feast's "Immunity to the Frightened and Poisoned conditions" is one
+ * sentence, one casting and one thing to end — the same reading Stoneskin's
+ * three damage types already take.
+ *
+ * **It lives here rather than beside the definition format**, with the
+ * condition vocabulary it is written in: `ActiveBonus` is in `bonuses.ts`,
+ * `GrantedArmorClass` in `character.ts`, `ActiveRollModifier` in
+ * `roll-modifiers.ts`, `GrantedDefense` and `GrantedSpeed` in `attack.ts` —
+ * each beside the table or the reader it belongs to. This one is about the
+ * fifteen conditions, and this is the module that holds them.
+ *
+ * **Not the feature layer's `condition-immunity`**, which shares the name and
+ * is a different rule: `StandingGrant`'s member is SRD Aura of Courage's
+ * *suppression* — the condition lands, stays on the creature, and has no effect
+ * while they are in the aura. This one refuses the condition outright.
+ * `conditionImmunitiesOf` and `suppressedConditions` are the two readers, and
+ * the docstring on each says why merging them would get both wrong.
+ */
+export interface GrantedConditionImmunity {
+  /** The casting (`Mind Blank#cast:3`) or the feature that granted it. */
+  readonly source: string;
+  /** The conditions the sentence names, sorted so state serialises identically. */
+  readonly conditions: readonly ConditionName[];
+}

@@ -17,7 +17,7 @@ import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import type { RngState } from './dice.js';
-import { type ConditionState } from './conditions.js';
+import { type ConditionState, type GrantedConditionImmunity } from './conditions.js';
 import { type ResourceState } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageComponent, DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
@@ -283,6 +283,30 @@ export interface CreatureState {
    * the deadline all end it through the door that already existed.
    */
   readonly attackRiders: readonly GrantedAttackRider[];
+  /**
+   * Condition Immunities a running effect has hung on this creature.
+   *
+   * The seventh member of the family the six above form, and the half IE-017
+   * deliberately left behind: it gave {@link defenses} a third input and
+   * touched the condition table not at all, because a stat block "prints damage
+   * types and conditions in one run ... which the engine treats completely
+   * differently". SRD Mind Blank's "Immunity to Psychic damage **and the
+   * Charmed condition**" is one sentence and both halves, and the second half
+   * had nowhere to live — so a Charm Person aimed at a creature under Mind
+   * Blank simply landed.
+   *
+   * Linked by the casting in its `source` exactly as the other six are, so
+   * `releaseCasting`, `releaseOnTarget`, a dispel, a broken Concentration and a
+   * `grants` deadline all end it through the door that already existed.
+   *
+   * **Not folded into {@link conditionImmunities}.** That table is the
+   * creature's own, carries no source, and could never give a grant back again
+   * — the same reading that keeps {@link grantedDefenses} out of
+   * {@link defenses}, and the one that matters more here: the *qualified*
+   * entries a stat block prints are deliberately in neither, and a merge would
+   * flatten a distinction `conditionApplicability` exists to keep.
+   */
+  readonly grantedConditionImmunities: readonly GrantedConditionImmunity[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *

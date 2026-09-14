@@ -786,7 +786,8 @@ and Passive Perception", which `BonusApplies` cannot narrow to a skill and which
 nothing reaches on a Passive score at all. That second half was never about the
 fact and the entry had never recorded it, so it is a narrower id of its own,
 `a-bonus-narrowed-to-a-skill` — the move `a-condition-immunity-a-spell-grants`
-already made when IE-017 built the other half of a bundle.
+already made when IE-017 built the other half of a bundle, and which that id
+then made again itself when IE-042 built *it*.
 
 **This is IE-017's lesson arriving a second time**: a count is only as good as
 the shape it counts, and the way to find out which shapes are bundles is to
@@ -1911,6 +1912,65 @@ what the format's own unused-member sweep exists to refuse — which is also why
 SRD Enlarge/Reduce's untyped "extra 1d4 damage" is still blocked on this shape
 rather than expressible by it.
 
+### A Condition Immunity Is The Seventh Sourced Grant
+
+`grantedConditionImmunities` on `CreatureState`, granted by
+`condition-immunity-granted`, and the `condition-immunity` effect kind that
+writes one. SRD Mind Blank — "Until the spell ends, one willing creature you
+touch has Immunity to Psychic damage **and the Charmed condition**" — is the
+spell built on it, and it is the *other half* of the sentence IE-017 built.
+
+**The seventh family cost one line, exactly as the fifth and sixth did.**
+`GrantFamily` is derived from the shape of `CreatureState`, so declaring the
+field made `grantsOf` a compile error naming the property it lacked;
+`releaseCasting`, `releaseOnTarget`, `releaseGrants`, `expireEffects` and
+`holdsNothingOf` all needed nothing, and the compiler named exactly two sites in
+the whole engine — the enumerator's literal, and the empty list
+`creature-added` starts a creature with. That is the third measurement of
+IE-028's guard rather than a third prediction about it.
+
+**One gatherer, not a second table.** `conditionImmunitiesOf` was written with
+one input and said in its own docstring that this would be the second and would
+join *there* rather than at the caller — "reading `creature.conditionImmunities`
+at `applyConditionTo` would be the second place the question is answered". It
+arrived, and nothing at the caller changed: `applyConditionTo` asks the same
+question it asked before, and a Charm Person aimed at a creature under Mind
+Blank now finds nothing to charm.
+
+**The answers union and a grant may never weaken what is printed.** An Immunity
+is a boolean, so there is no arithmetic a second copy could do — the same
+sentence the SRD writes for the damage half, "multiple instances of Resistance
+to the same damage type count as only one". A Zombie granted the Charmed
+Immunity is immune to Charmed once, and is still immune to Exhaustion and
+Poisoned when the casting ends, because the printed table has no source and
+nothing keyed by one can reach it.
+
+**Unconditional by construction, which is the line the kind will not cross.**
+The SRD also writes the *narrowed* form — Protection from Evil and Good's "from
+them", Freedom of Movement's "spells and other magical effects", Magic Circle's
+and Hallow's creature type chosen at the casting — and that is a different
+sentence with a different reader. `conditionImmunitiesOf` answers yes or no
+about a *condition* and has no argument for what is trying to cause it, exactly
+as `CreatureState.conditionImmunities` holds only unconditional entries and
+`conditionApplicability` answers `needs-adjudication` for the rest. Those four
+spells stay blocked, on `a-condition-immunity-narrowed-to-its-source`.
+
+**And it is not the feature layer's `condition-immunity`, which shares the
+name.** `StandingGrant`'s member is SRD Aura of Courage, and that is
+*suppression*: the condition lands, stays on the creature and does nothing while
+they are in the aura. This one refuses the condition outright.
+`suppressedConditions` and `conditionImmunitiesOf` are the two readers and
+neither folds the other in — which is why SRD Calm Emotions' second sentence is
+still blocked, on `a-condition-a-spell-suppresses`, while the Immunity in the
+clause beside it is expressible.
+
+**A plural list, because the SRD writes the clause plural**, exactly as
+Stoneskin's three damage types are one grant: Heroes' Feast's "Immunity to the
+Frightened and Poisoned conditions" is one sentence, one casting and one thing
+to end. A repeated name is refused for the reason a repeated damage type is —
+an Immunity is a boolean rather than a tally — and an empty list is refused
+because a grant that refuses nothing is a sentence no spell prints.
+
 ### A Duration The Slot Changes Is A Table Per Definition
 
 `SpellDefinition.durationAtSlot` maps the lowest slot level of a band to the
@@ -2618,9 +2678,16 @@ and touched `conditionApplicability` not at all — the line this file already
 draws everywhere else, where a stat block "prints damage types and conditions
 in one run ... which the engine treats completely differently". So Mind Blank's
 "Immunity to Psychic damage **and the Charmed condition**" kept half a blocker,
-and the half is now `a-condition-immunity-a-spell-grants`. And Protection from
+and the half became `a-condition-immunity-a-spell-grants`. And Protection from
 Energy's chosen damage type turned out to be expressible already, because
 IE-017 gave `damageTypeStated` the second user its own docstring had asked for.
+
+**IE-042 then built that half, and Mind Blank is defined** — so the prediction
+was wrong for two tranches and is now collected rather than restated. Its entry
+left the map by the route `coverageGaps().stale` names, and what the spell
+carries in `ADJUDICATED` is one `table` clause: the second sentence, whose
+mind-control half the Charmed Immunity itself answers, because every spell in
+this catalogue that controls a mind does it by imposing that condition.
 
 A count is only as good as the shape it counts, and the way to find out which
 shapes are bundles is to build one. That is the same lesson the audit drew from
@@ -2635,10 +2702,29 @@ find-and-replaced:
 | IE-014's `end-condition` | a printed list of condition names | Greater Restoration's "1 Exhaustion level" — a level is not a condition, so `an-exhaustion-level-a-spell-changes` |
 | IE-017's `damage-defense` | damage Resistance, Immunity, Vulnerability | condition Immunity, which is a different table |
 | IE-019's `againstType` | a save's automatic failure or Disadvantage, and extra attack dice | an automatic **success**, a filter on the *attacker's* type, and a type predicate an area reads |
+| IE-042's `condition-immunity` | an Immunity to named conditions, unconditional and for as long as the casting runs | an Immunity narrowed to what is *causing* the condition, and a condition **suppressed** rather than refused |
 
 Each retired its bundle id and left a narrower one behind, and in each case the
 narrower id is the honest residue rather than a rename: the guards name the
 entries, and reading them is the hour that separates the two.
+
+**The fourth row cost that hour and is the clearest measurement of it.** Ten
+spells claimed `a-condition-immunity-a-spell-grants` and the build reached
+**five** of them — Calm Emotions, Gaseous Form, Heroes' Feast, Heroism and Wind
+Walk all print the Immunity unconditionally, so all five clauses became
+`expressible` — plus Mind Blank, which is now defined. It reached none of the
+other five, and no two of those were the same sentence: four narrow the Immunity
+to its source ("from them", "spells and other magical effects", a creature type
+chosen at the casting), Calm Emotions' second sentence suppresses a condition
+that has already landed, and Hallow's Courage narrows to an *area* and was
+re-filed under the id its own sibling clause Fear already sat on. A
+find-and-replace would have carried all five into one new id and the count would
+have looked the same.
+
+It also **handed a `finishes` to a shape nobody touched**: Heroism printed two
+blockers and prints one, so `a-payout-at-a-turn-boundary` now finishes a spell
+outright. That is the arithmetic a build does to this map, and it only appears
+if the entries are read.
 
 **Where the prose and the SRD disagreed, the SRD won.** Three claims in this
 file did not survive reading the paragraph, and the largest is a whole row.

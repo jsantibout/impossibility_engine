@@ -161,7 +161,7 @@ sibling modules named for the family each rule belongs to.
 | module | the kinds it holds |
 |---|---|
 | `commands/spell-effect-rolls.ts` | `attack`, `save-damage`, `save` |
-| `commands/spell-effect-grants.ts` | `buff`, `roll-mode`, `armor-class`, `damage-defense`, `speed`, `attack-rider` |
+| `commands/spell-effect-grants.ts` | `buff`, `roll-mode`, `armor-class`, `damage-defense`, `speed`, `attack-rider`, `condition-immunity` |
 | `commands/spell-effect-hit-points.ts` | `heal`, `temp-hp` |
 | `commands/spell-effect-conditions.ts` | `condition`, `end-condition` |
 | `commands/spell-effect-magic.ts` | `dispel`, `interrupt-casting` |
@@ -171,10 +171,13 @@ with `commands/spell-effect-context.ts` holding the context type and
 `commands/spell-effect-riders.ts` holding what a settled outcome carries —
 `applyRiders` and the three pieces it composes.
 
-**The families are the engine's own, not a filing convenience.** The six in
-`spell-effect-grants.ts` are exactly the six `grantsOf` walks in
+**The families are the engine's own, not a filing convenience.** The seven in
+`spell-effect-grants.ts` are exactly the seven `grantsOf` walks in
 `fold/release.ts`, so the enumerator and the resolver set are the same list
-written twice; a seventh family joining one joins the other. The three in
+written twice; a family joining one joins the other. That was written when there
+were six and IE-042 supplied the seventh, `condition-immunity`, which arrived as
+one enumerator line and one resolver beside its six neighbours — the prediction
+held with nothing else moving. The three in
 `spell-effect-rolls.ts` are the only three that **host an outcome** —
 something rolled, an affirmative branch, riders hung on that branch — which is
 the whole of what `applyRiders` exists for, and every other kind lands or does

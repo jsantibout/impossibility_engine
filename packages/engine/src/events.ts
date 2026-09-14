@@ -30,6 +30,7 @@ import type { RngState } from './dice.js';
 import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
+import type { GrantedConditionImmunity } from './conditions.js';
 import type { D20TestResult } from './checks.js';
 import type { ReactionWindow } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
@@ -270,6 +271,37 @@ export type GameEvent =
       readonly type: 'attack-rider-granted';
       readonly id: CharacterId;
       readonly rider: GrantedAttackRider;
+    }
+
+  /**
+   * An ongoing effect makes a creature immune to named conditions.
+   *
+   * The seventh sourced grant, and the half IE-017 left behind when it built
+   * the damage one: a stat block prints damage types and conditions in one run
+   * — a Zombie's "Immunities Poison; Exhaustion, Poisoned" — and the engine
+   * treats them completely differently, so a granted Resistance reached
+   * `defensesOf` and a granted Immunity to the Charmed condition had nowhere to
+   * go. SRD Mind Blank: "Until the spell ends, one willing creature you touch
+   * has Immunity to Psychic damage **and the Charmed condition**."
+   *
+   * Its own event rather than a write into `CreatureState.conditionImmunities`,
+   * for the reason `damage-defense-granted` is its own: what a creature *is*
+   * and what a spell has *done to it* are two facts with two lifetimes, and the
+   * printed table carries no source to end a grant by.
+   *
+   * **Nothing here is a suppression.** SRD Aura of Courage lets the condition
+   * land and stops it biting while the ally is in the aura, which is
+   * `suppressedConditions` and a different rule; this refuses the condition
+   * outright, which is what `conditionImmunitiesOf` answers.
+   *
+   * Ended by the source it carries, exactly as the other six grants are, so
+   * there is no removal event: `releaseCasting`, `releaseOnTarget` and the
+   * `grants` timer are the doors.
+   */
+  | {
+      readonly type: 'condition-immunity-granted';
+      readonly id: CharacterId;
+      readonly immunity: GrantedConditionImmunity;
     }
 
   /**

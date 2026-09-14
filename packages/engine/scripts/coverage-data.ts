@@ -182,6 +182,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'longstrider',
   'mage-armor',
   'mass-cure-wounds',
+  'mind-blank',
   'mind-spike',
   'misty-step',
   'moonbeam',

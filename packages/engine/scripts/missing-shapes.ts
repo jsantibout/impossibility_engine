@@ -111,8 +111,10 @@ export const MISSING_SHAPES = {
     '`docs/design/rolls-and-damage.md` names it verbatim, with its consumers: "A filter on the *attacker’s* creature type | Protection from Evil and Good, Dispel Evil and Good, Magic Circle", in the table of what the roll-modifier vocabulary deliberately does not reach. IE-019 gave a **saving throw** an outcome that varies by the target’s type; a `RollSelector` still has no type axis at either end.',
   'a-creature-type-predicate-an-area-reads':
     'an area or a trigger that catches only named creature types. `designatesUnaffected` is the one filter an area has and it is explicit ids chosen once — `docs/design/space-and-areas.md`: "Designating creatures unaffected is a choice, and never allegiance ... it is **explicit**, because a cleric may spare an enemy and may decline to spare an ally." A predicate over a *type* is a different question, and IE-019 answered it for an outcome rather than for who is caught.',
-  'a-condition-immunity-a-spell-grants':
-    'IE-017 built the damage half of a granted defence and not this one. `docs/design/characters-and-equipment.md` keeps the two apart everywhere else — "A stat block prints damage types and conditions in one run ... one damage type and two conditions, **which the engine treats completely differently**" — and the build followed that line: `CreatureState.defenses` gained a third input and `conditionApplicability` gained none, so an Immunity to the Charmed condition has nowhere to live. That split is also why this file’s own prediction missed Mind Blank, because the retired description, which `docs/design/spell-definitions.md` quotes, claimed condition immunity was "the same storage and the same sentence shape". The storage was different, and the build proved it.',
+  'a-condition-immunity-narrowed-to-its-source':
+    'an Immunity to a condition that holds against **some** of its causes and not others. IE-042 built the unconditional grant — the seventh sourced family, folded into the one gatherer — and this is the sentence that grant will not carry: SRD Protection from Evil and Good protects against gaining the Charmed or Frightened conditions "from them", SRD Freedom of Movement says "spells and other magical effects can neither reduce the target’s Speed nor cause the target to have the Paralyzed or Restrained conditions", and Magic Circle and Hallow narrow theirs to a creature type chosen at the casting. `docs/design/characters-and-equipment.md` draws the identical line on the printed side — "A qualified defence is not an unconditional one." — and keeps such entries out of the automatic table, where `conditionApplicability` answers `needs-adjudication` rather than guessing. `conditionImmunitiesOf` answers yes or no about a *condition* and is told nothing whatever about what is trying to cause it, so there is no second argument for the qualification to arrive in. The honest residue of the shape IE-042 retired, and four spells claim it.',
+  'a-condition-a-spell-suppresses':
+    'a condition switched off while it stays on the creature, by a **spell**. The reading exists and only a feature can write it: `StandingGrant`’s `condition-immunity` member is SRD Aura of Courage, and `docs/design/characters-and-equipment.md` states the distinction this needs — "An immunity refuses the condition outright; a suppression lets it land and does nothing with it, and merging them would get both wrong." `suppressedConditions` and `effectiveConditions` derive the answer from a feature’s standing effects and from nothing else; no spell effect kind writes a `StandingEffect`, so SRD Calm Emotions’ "If the creature was already Charmed or Frightened, those conditions are suppressed for the duration" has the storage it needs and no way whatever to reach it. The second residue IE-042 left: the Immunity in the first half of that bullet is built, and the suppression in the second half is a different rule.',
   'an-outcome-that-reads-the-targets-defences':
     'a defence the target already has, read as an input to something other than damage. `docs/design/spell-definitions.md`: "**A creature’s defences are state, and damage reads them**" — `applyDamage` is the only reader, so a save a creature automatically makes because it is immune to a condition has nothing to consult.',
   'an-outcome-that-reads-the-targets-hit-points':
@@ -801,6 +803,17 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'a condition chosen at the casting has nowhere to be recorded',
       why: 'a-choice-made-at-the-casting',
       note: 'SRD: "end one condition on it: Blinded, Deafened, Paralyzed, or Poisoned." One of four, and the caster picks — so a creature both Blinded and Poisoned is fully cured of both, where the book cures one. It is the same gap Blindness/Deafness carries from the other side, where the choice is between imposing two rather than lifting one.',
+    },
+  ],
+  // The spell this map predicted IE-017 would finish and which IE-042 actually
+  // did, arriving in the executed population with **one** clause left — and it
+  // is the table's rather than a shape's, which is the honest end of a
+  // prediction that was wrong for two tranches.
+  'mind-blank': [
+    {
+      clause: 'the second sentence is the table’s',
+      why: 'table',
+      note: 'SRD: "The target is also unaffected by anything that would sense its emotions or alignment, read its thoughts, or magically detect its location, and no spell—not even _Wish_—can gather information about the target, observe it remotely, or control its mind." The mind-control half is answered by the Charmed Immunity the definition already grants: every spell in this catalogue that controls a mind does it by imposing that condition. The rest reaches nothing — no emotion, alignment, thought, remote sense or scrying result is a fact this engine holds, and no definition asks for one — so the clause is narration the DM owns rather than debt.',
     },
   ],
   'mind-spike': [
@@ -1881,10 +1894,13 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
   ],
   'call-lightning': ['a-fact-only-the-table-can-declare', 'an-activation-that-resolves-an-area'],
-  // — read sentence by sentence, with the nine below it: IE-044 backfilled the
-  // ten spells `a-condition-immunity-a-spell-grants` blocks, because that is
-  // the shape the next tranche is briefed from and a bare list of ids says
-  // nothing about which sentences anybody read.
+  // — read sentence by sentence, with the eight below it: IE-044 backfilled the
+  // ten spells the retired `a-condition-immunity-a-spell-grants` blocked,
+  // because that is the shape the next tranche was briefed from and a bare list
+  // of ids says nothing about which sentences anybody read. **IE-042 then built
+  // it and re-read all ten, one at a time**: Mind Blank is defined and out of
+  // this map, five clauses became `expressible`, one moved to the shape its own
+  // sibling clause already named, and the rest are the two narrower residues.
   'calm-emotions': [
     {
       clause: 'choose for each creature',
@@ -1893,13 +1909,13 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: 'Immunity to the Charmed and Frightened conditions',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'IE-017 gave `CreatureState.defenses` a third input and touched `conditionApplicability` not at all, so an Immunity to a condition has nowhere to live. The area, the Charisma save and the duration are all expressible; this sentence is the whole of what is not.',
+      why: 'expressible',
+      note: 'IE-042\'s `condition-immunity` effect, which Mind Blank already writes: the sentence is unconditional — "The creature has Immunity to the Charmed and Frightened conditions until the spell ends" — and two names in one clause is the plural list the kind carries. The area, the Charisma save and the duration were always expressible; what is left of this spell is the per-creature choice above and the suppression below.',
     },
     {
       clause: 'those conditions are suppressed for the duration',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'SRD: "If the creature was already Charmed or Frightened, those conditions are suppressed for the duration." Suppression hands the condition back when the spell ends, so it is not `end-condition` however much it reads like one — it is the same missing storage read over a condition that is already there.',
+      why: 'a-condition-a-spell-suppresses',
+      note: 'SRD: "If the creature was already Charmed or Frightened, those conditions are suppressed for the duration." **Re-read against the built shape and it is not that shape.** Suppression hands the condition back when the spell ends, so it is not `end-condition` however much it reads like one — and it is not the Immunity in the clause above it either, which refuses a condition rather than silencing one that has already landed. The engine derives suppression from a feature\'s standing effects and no spell can write one.',
     },
     {
       clause: 'This indifference ends if the target takes damage',
@@ -2530,8 +2546,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: 'nor cause the target to have the Paralyzed or Restrained conditions',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'The condition half of the same sentence, and the half this entry already named: an Immunity to a named condition has nowhere to live, and applying Paralyzed to this creature would simply work.',
+      why: 'a-condition-immunity-narrowed-to-its-source',
+      note: 'The condition half of the same sentence, and **the clause that says IE-042\'s grant is not enough for it**: the subject is "spells and other magical effects", so a Paralyzed from a Ghoul\'s claws still lands and a Hold Person\'s does not. `conditionImmunitiesOf` answers about a condition and knows nothing of what is causing it, which is the narrower residue rather than the shape that was built.',
     },
     {
       clause: 'a Swim Speed equal to its Speed',
@@ -2582,8 +2598,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: 'Immunity to the Prone condition',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'The condition half of the same sentence, and the one the damage half\'s build deliberately did not reach: `conditionApplicability` answers from a stat block and nothing an effect hangs reaches it.',
+      why: 'expressible',
+      note: 'IE-042\'s `condition-immunity` effect. SRD prints it unconditionally — "it has Immunity to the Prone condition" — beside the Resistance IE-017 already built, so the run this spell prints in one line is now expressible in both halves. Gaseous Form stays undefined on the six other blockers its entry names.',
     },
     {
       clause: 'Advantage on Strength, Dexterity, and Constitution saving throws',
@@ -2716,13 +2732,13 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: "isn't possessed, Charmed, or Frightened by them while in the area",
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'An Immunity to a named condition, which `conditionApplicability` answers from a stat block and no effect may hang. Possession is not modelled at all, and the two conditions beside it are what makes this sentence debt rather than fiction.',
+      why: 'a-condition-immunity-narrowed-to-its-source',
+      note: 'An Immunity narrowed twice over: "by them" is the chosen creature types, and "while in the area" is the geometry the two Extra Effects below already name. IE-042 built the unconditional grant and neither narrowing survived it. Possession is not modelled at all, and the two conditions beside it are what makes this sentence debt rather than fiction.',
     },
     {
       clause: "can't gain the Frightened condition while in the area",
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'Courage, which is the same missing storage as the Hallowed Ward above it — an Immunity granted by a running effect rather than printed on a stat block.',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'Courage, **re-read against the built shape and re-filed**: the Immunity itself is unconditional in its cause and IE-042 expresses that, but "while in the area" is not — a grant is keyed by source and nothing re-derives one from where the creature now is. It is the Fear clause below it read the other way round, and it is filed where Fear already was.',
     },
     {
       clause: "Dead bodies interred in the area can't be turned into Undead",
@@ -2807,8 +2823,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: 'Immunity to the Frightened and Poisoned conditions',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'One sentence, two tables: the Resistance beside it is built and the condition Immunity is the half `conditionApplicability` never gained, which is exactly the bundle IE-017 left behind.',
+      why: 'expressible',
+      note: 'One sentence, two tables, and IE-042 built the second: the Resistance beside it is a `damage-defense` and this is a `condition-immunity` naming two conditions in one clause, which is the plural list that kind carries. Heroes\' Feast stays undefined on the 10-minute casting time and the Hit Point maximum it raises.',
     },
     {
       clause: 'Its Hit Point maximum also increases by 2d10',
@@ -2819,8 +2835,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   heroism: [
     {
       clause: 'immune to the Frightened condition',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'The spell\'s whole first half, and the shape this entry is filed under: an Immunity a running effect grants has nowhere to live, so a Frightened applied to this creature would simply land.',
+      why: 'expressible',
+      note: 'IE-042\'s `condition-immunity` effect. The spell\'s whole first half — "Until the spell ends, the creature is immune to the Frightened condition" — is unconditional and lasts as long as the casting, which is the shape the kind was built for. What keeps Heroism undefined is the second half, below.',
     },
     {
       clause:
@@ -3007,8 +3023,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: "can't be possessed by or gain the Charmed or Frightened condition from the creature",
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'An Immunity narrowed to a source, which is narrower still than the one this shape names: `conditionApplicability` holds a stat block\'s qualified entries and no effect may add one.',
+      why: 'a-condition-immunity-narrowed-to-its-source',
+      note: 'An Immunity narrowed to a source — "from the creature", meaning a creature of the type chosen at the casting — which is narrower than the grant IE-042 built and is what that build left behind. `conditionApplicability` holds a stat block\'s qualified entries for the same reason and no effect may add one.',
     },
     {
       clause: 'cause its magic to operate in the reverse direction',
@@ -3208,18 +3224,14 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // The spell the query predicted IE-017 would finish and did not — the
   // sharpest correction this map has made, and the reason its entry is the
   // first anybody should be able to read back.
-  'mind-blank': [
-    {
-      clause: 'Immunity to Psychic damage',
-      why: 'expressible',
-      note: 'IE-017 built exactly this half: a `damage-defense` effect naming a type and an answer, ended by the casting through the door every other grant leaves by.',
-    },
-    {
-      clause: 'the Charmed condition',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'And this is the half it did not, which the retired bundle had claimed was "the same storage and the same sentence shape". The storage is different — a stat block prints damage types and conditions in one run and the engine treats them completely differently — and one sentence of one spell is the whole of what is left.',
-    },
-  ],
+  // **Mind Blank is defined and is no longer in this population.** Its entry
+  // read two clauses — the Psychic Immunity IE-017 built and the Charmed
+  // Immunity it deliberately did not — and IE-042 built the second, so both
+  // halves of the one sentence execute and the spell leaves the map by the
+  // route `coverageGaps().stale` names. It was this map's sharpest correction
+  // and is now its first `finishes` collected: the query predicted IE-017 would
+  // finish it, the build proved the storage was different, and the debt it left
+  // was paid by the task the prediction's failure was what briefed.
   'mirage-arcane': ['a-long-casting-time', 'difficult-terrain-an-area-creates'],
   'mirror-image': [
     'a-random-outcome-that-is-not-a-d20',
@@ -3428,8 +3440,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: 'gain the Charmed or Frightened conditions from them',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'An Immunity to two named conditions, narrowed to a source, which is the storage `conditionApplicability` holds for a stat block and no effect may add to.',
+      why: 'a-condition-immunity-narrowed-to-its-source',
+      note: 'An Immunity to two named conditions, narrowed to a source — "them" is the six creature types the first sentence protects against. IE-042 built the unconditional grant and this is the narrowing it deliberately does not carry: `conditionImmunitiesOf` answers about a condition and has no second argument for who is causing it.',
     },
     {
       clause: 'Advantage on any new saving throw against the relevant effect',
@@ -4260,8 +4272,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
     {
       clause: 'Immunity to the Prone condition',
-      why: 'a-condition-immunity-a-spell-grants',
-      note: 'Gaseous Form prints the same clause and both are blocked on the same half of the same bundle: the damage defence beside it is built and the condition Immunity is not.',
+      why: 'expressible',
+      note: 'Gaseous Form prints the same clause and both are expressible now: the damage defence beside it was IE-017\'s and the condition Immunity is IE-042\'s. Wind Walk stays undefined on the five other blockers its entry names, every one of them about the cloud form rather than the Immunity.',
     },
     {
       clause: 'Resistance to Bludgeoning, Piercing, and Slashing damage',

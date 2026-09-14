@@ -6,7 +6,7 @@
  * `releaseOnTarget` is the same operation narrowed to one creature, which is
  * the whole of Dispel Magic's "one creature, object, or magical effect"
  * distinction. Beneath them is the grant enumerator: `grantsOf`,
- * `grantSourcesOf` and `withoutGrants`, the one walk over the six sourced
+ * `grantSourcesOf` and `withoutGrants`, the one walk over the seven sourced
  * grant families that five call sites used to make by hand.
  *
  * `spellOn` and `withoutTarget` are here for the same reason as each other:
@@ -30,8 +30,9 @@ import type { CreatureState, GameState, PendingCasting } from '../state.js';
 /**
  * A grant a running effect hung on a creature, read only for what hung it.
  *
- * The five families below all carry more than this — a `Bonus`, a base Armour
- * Class, a `RollModifier`, a list of damage types, a change to a Speed — and
+ * The seven families below all carry more than this — a `Bonus`, a base Armour
+ * Class, a `RollModifier`, a list of damage types, a change to a Speed, a die
+ * on later attacks, a list of condition names — and
  * every operation that *ends* one reads nothing but the `source`. So this is
  * the shape the enumerator works in, and it is deliberately the smallest one
  * that answers the question.
@@ -69,14 +70,17 @@ type GrantFamily = Exclude<
 type HeldGrants = { readonly [K in GrantFamily]: readonly SourcedGrant[] };
 
 /**
- * The five families as one value, and the only place the list is written.
+ * The seven families as one value, and the only place the list is written.
  *
  * The annotation is a mapped type over {@link GrantFamily}, so a family
  * declared on `CreatureState` makes **this literal** a compile error naming the
  * property it lacks. That is the guard: the enumerator cannot quietly stop
  * seeing a family, and there is nowhere else for a hand-kept list to rot. It
- * fired exactly once, for `speedModifiers` — the fifth was one edit here and
- * the compiler insisted on it, which is what the guard was built to buy.
+ * has fired three times now — for `speedModifiers`, for `attackRiders` and for
+ * `grantedConditionImmunities` — and each time the whole of the plumbing was
+ * the one line the compiler insisted on, which is what the guard was built to
+ * buy. The seventh named two sites in the whole engine: this literal, and the
+ * empty list `creature-added` starts a creature with.
  *
  * Nothing is copied — each value is the creature's own array.
  */
@@ -87,6 +91,7 @@ const grantsOf = (creature: CreatureState): HeldGrants => ({
   grantedDefenses: creature.grantedDefenses,
   speedModifiers: creature.speedModifiers,
   attackRiders: creature.attackRiders,
+  grantedConditionImmunities: creature.grantedConditionImmunities,
 });
 
 /** How many grants are in a record of families, which a `filter` can only lower. */
@@ -96,10 +101,11 @@ const countGrants = (held: Record<string, readonly SourcedGrant[]>): number =>
 /**
  * Every source that has hung a grant on this creature.
  *
- * One enumerator over the five families — the bonuses Bless adds, the Armour
+ * One enumerator over the seven families — the bonuses Bless adds, the Armour
  * Class Mage Armor supplies, the Advantage Blur grants, the Resistance
- * Stoneskin grants, the ten feet Longstrider adds — so a reader asking "is
- * this casting still holding anything here" asks it once rather than five
+ * Stoneskin grants, the ten feet Longstrider adds, the die Divine Favor hangs
+ * on later attacks, the Charmed Mind Blank refuses — so a reader asking "is
+ * this casting still holding anything here" asks it once rather than seven
  * times.
  *
  * **Sorted and deduplicated**, so the answer is fixed however the families are
@@ -129,7 +135,7 @@ export function grantSourcesOf(creature: CreatureState): readonly string[] {
 }
 
 /**
- * Every grant whose source the predicate names, taken off all five families.
+ * Every grant whose source the predicate names, taken off all seven families.
  *
  * The one removal. The three callers differ only in which sources they name —
  * `releaseCasting` and `releaseOnTarget` match the casting id inside the
@@ -584,8 +590,9 @@ export function spellOn(state: GameState, record: OngoingSpell): readonly string
  *
  * The same links `releaseCasting` walks, asked of one creature: the conditions
  * it hung, and every grant {@link grantSourcesOf} enumerates — the bonuses, the
- * Armour Class it supplied, the roll modifiers, the defences it granted and the
- * Speed it changed.
+ * Armour Class it supplied, the roll modifiers, the defences it granted, the
+ * Speed it changed, the die it hung on later attacks and the conditions it
+ * made the creature immune to.
  * Reading them through the enumerator is what keeps this in step with the
  * release: a family this could see and `releaseCasting` could not would keep a
  * finished casting on the creature, which is a wrong answer to Dispel Magic

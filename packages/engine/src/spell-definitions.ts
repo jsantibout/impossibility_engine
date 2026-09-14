@@ -1020,6 +1020,61 @@ export type SpellEffect =
       readonly defense: DefenseKind;
     }
   /**
+   * Condition Immunities the spell hands its target.
+   *
+   * SRD Mind Blank: "Until the spell ends, one willing creature you touch has
+   * Immunity to Psychic damage **and the Charmed condition**." SRD Heroism:
+   * "Until the spell ends, the creature is immune to the Frightened condition."
+   * SRD Heroes' Feast: "it has Immunity to the Frightened and Poisoned
+   * conditions."
+   *
+   * **The other half of `damage-defense`'s sentence**, and its own kind for the
+   * reason IE-017 gave when it declined to build this one: a stat block prints
+   * damage types and conditions in one run and the engine treats them
+   * completely differently. Mind Blank's single sentence is *two* effects here,
+   * which is the honest reading — the damage half meets `applyDefenses` and the
+   * condition half meets `applyConditionTo`, and nothing they share would be
+   * served by one kind carrying both.
+   *
+   * **A list of names and one answer**, because that is how the SRD writes it:
+   * one clause names however many conditions it names and says one thing about
+   * all of them. There is no Vulnerability to a condition and no halfway house,
+   * so unlike {@link DefenseKind} there is nothing beside the list to state.
+   *
+   * **Nothing is rolled and nothing is resisted.** Every SRD sentence of this
+   * shape touches a willing creature or feeds it; a spell that made a roll
+   * first would hang this on the outcome, which is what a rider is for — and
+   * none does.
+   *
+   * **Unconditional by construction, which is the line this kind will not
+   * cross.** SRD also writes the *narrowed* form — Protection from Evil and
+   * Good's "can't ... gain the Charmed or Frightened conditions **from them**",
+   * Freedom of Movement's "**spells and other magical effects** can neither ...
+   * cause the target to have the Paralyzed or Restrained conditions" — and that
+   * is a different sentence with a different reader: `conditionImmunitiesOf`
+   * answers yes or no about a condition and knows nothing of what is causing
+   * it, exactly as `CreatureState.conditionImmunities` holds only the
+   * unconditional entries and `conditionApplicability` answers
+   * `needs-adjudication` for the rest. Those spells stay blocked on
+   * `a-condition-immunity-narrowed-to-its-source`.
+   *
+   * The casting is in the source, so `releaseCasting`, `releaseOnTarget`, a
+   * dispel, a broken Concentration and the deadline all end it through the door
+   * every other grant uses — and a `grants` timer can end it sooner, which is
+   * the deadline `EffectTarget` already carries.
+   */
+  | {
+      readonly kind: 'condition-immunity';
+      /**
+       * The conditions the sentence names.
+       *
+       * Never empty: a spell that makes a creature immune to nothing is a
+       * sentence the SRD does not print, and `checkSpellDefinition` refuses it
+       * rather than letting a definition resolve to a grant that does nothing.
+       */
+      readonly conditions: readonly ConditionName[];
+    }
+  /**
    * A Speed the spell changes, for as long as it runs.
    *
    * SRD Longstrider, whole: "You touch a creature. The target's Speed
@@ -7481,6 +7536,63 @@ export const PROTECTION_FROM_ENERGY: SpellDefinition = {
 };
 
 /**
+ * SRD Mind Blank:
+ *
+ * > _Level 8 Abjuration (Bard, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** 24 hours.
+ * > "Until the spell ends, one willing creature you touch has Immunity to
+ * > Psychic damage and the Charmed condition. The target is also unaffected by
+ * > anything that would sense its emotions or alignment, read its thoughts, or
+ * > magically detect its location, and no spell—not even _Wish_—can gather
+ * > information about the target, observe it remotely, or control its mind."
+ *
+ * **One sentence, two effects, and that is the whole of what IE-017 found out
+ * by building half of it.** A stat block prints damage types and conditions in
+ * one run and the engine treats them completely differently, so "Immunity to
+ * Psychic damage and the Charmed condition" is a `damage-defense` and a
+ * `condition-immunity` — two kinds, two tables, two readers. `missing-shapes.ts`
+ * predicted IE-017 would finish this spell and was wrong for exactly that
+ * reason; it is the sharpest correction that map has recorded, and this
+ * definition is the other end of it.
+ *
+ * **"Duration: 24 hours"**, which is 86,400 seconds and an ordinary deadline:
+ * no Concentration, so the Immunity survives the caster being hit, and the
+ * casting's own timer is what ends both halves.
+ *
+ * **The second sentence is answered twice over and neither answer is new.**
+ * Every spell in this catalogue that controls a mind does it by imposing the
+ * Charmed condition — Dominate Beast, Dominate Monster, Dominate Person,
+ * Suggestion, Mass Suggestion, Charm Person, Charm Monster, Animal Friendship —
+ * so "no spell ... can ... control its mind" is the Immunity above doing its
+ * work, not a clause nobody built. What is left of it senses emotions, reads
+ * thoughts, scries and gathers information, and the engine holds none of those
+ * facts and casts no spell that asks for one; the clause is the DM's, and
+ * `unmodelled` says so in those words.
+ */
+export const MIND_BLANK: SpellDefinition = {
+  id: 'mind-blank',
+  name: 'Mind Blank',
+  level: 8,
+  school: 'abjuration',
+  castingTime: 'action',
+  // "Range: Touch."
+  range: { kind: 'touch' },
+  // "one willing creature you touch" — one target, and the caster may be it.
+  targets: { count: 1, self: true },
+  // "Duration: 24 hours", with no Concentration printed.
+  concentration: false,
+  durationSeconds: 86_400,
+  effects: [
+    { kind: 'damage-defense', damageTypes: ['psychic'], defense: 'immune' },
+    { kind: 'condition-immunity', conditions: ['charmed'] },
+  ],
+  unmodelled: [
+    'whether the target is willing is not modelled; willingness is fiction',
+    'the second sentence is the table’s, once the Charmed Immunity above has answered the mind-control half of it: nothing in this engine senses emotions or alignment, reads thoughts, magically locates a creature, gathers information about one or observes it from elsewhere, so there is no effect for the protection to refuse and Wish is not in the catalogue',
+  ],
+};
+
+/**
  * SRD Divine Favor, whole:
  *
  * > _Level 1 Transmutation (Paladin)._ **Casting Time:** Bonus Action.
@@ -8215,6 +8327,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MASS_SUGGESTION,
   MENDING,
   MESSAGE,
+  MIND_BLANK,
   MIND_SPIKE,
   MINOR_ILLUSION,
   MISTY_STEP,
