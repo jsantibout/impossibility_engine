@@ -69,12 +69,27 @@ reading `isCreatureType` already takes for `againstType`.
 
 ### Architecture constraints
 
-- **A field the engine does not know is not an error.** `checkShape`'s
+> **Two of these three were superseded on 2026-09-14 by a recorded YELLOW
+> decision — see "Architecture decision" below, which is authority and not
+> commentary.** They are struck rather than deleted, because a brief that
+> quietly changes shape is worse than one that shows its history. A reviewer
+> reads this section before that one, which is exactly how the first review of
+> the rework came back `ESCALATE` on authority with no defect to report.
+
+- ~~**A field the engine does not know is not an error.** `checkShape`'s
   denylist reading is deliberate and stays: this task makes malformed input
-  *reportable*, it does not make unknown input rejected.
+  *reportable*, it does not make unknown input rejected.~~ **Superseded.** The
+  denylist's *contents* are unchanged; what changed is the **population** it
+  reaches — `checkNoNestedEffect` was entered only from the top-level walk, so
+  `CLAUDE.md`'s "three places enforce that a rider is a leaf" was two places
+  and a test. Extending the walk to all three effect lists is the decision.
 - Do not change any existing refusal code's spelling. A code is observable
-  behaviour and `refusals.test.ts` pins them.
-- No new validation rules beyond `mustBeType`. Five later tasks each add one.
+  behaviour and `refusals.test.ts` pins them. **Still binding.**
+- ~~No new validation rules beyond `mustBeType`.~~ **Superseded**, and narrowly:
+  no new *rule* is added. Two existing rules — `unknown_effect` and
+  `checkNoNestedEffect` — reach lists `CLAUDE.md` already claimed they covered,
+  and `unmodelled: null` is brought under the one `??` rule the decision
+  states. Five later tasks still each add their own rule, and that is unchanged.
 
 ### Acceptance criteria
 
@@ -106,7 +121,9 @@ None, and nothing else in wave 1 may edit `spell-schema.ts`.
 ### Out of scope
 
 The feature-definition validator (IE-025) — a different file and a different
-population. Any change to `checkShape`'s denylist.
+population. ~~Any change to `checkShape`'s denylist.~~ **Superseded on
+2026-09-14 by the recorded decision below**: the denylist's contents stay
+fixed, and the lists it is applied to are what the decision changes.
 
 ### Known risks
 

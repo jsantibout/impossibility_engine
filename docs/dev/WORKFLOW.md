@@ -438,6 +438,21 @@ A brief states semantics and boundaries precisely enough that the builder
 never has to invent architecture. "Improve X" is not a brief. The reviewer
 reviews against this file, so what is not in it is scope creep.
 
+**A decision relayed by message has not reached the reviewer.** A reviewer
+reviews against the brief **on disk in the builder's worktree**, and a builder
+may not edit `docs/dev/`, so a Fable answer the foreman sends by `SendMessage`
+reaches the builder and nobody else. IE-024's rework came back `ESCALATE` on
+**authority with no defect reported** for exactly this: the brief in that
+worktree still said "no new validation rules" and "any change to
+`checkShape`'s denylist" is out of scope, while the decision authorising both
+sat in a message and on a `main` the worktree had not seen.
+
+So when Fable answers, the foreman does **three** things, not one: record the
+decision on the task file; **strike the superseded lines where a reviewer
+reads them**, rather than only appending the decision at the end; and **rebase
+the builder's worktree** so the brief it works from is the decided one. The
+foreman owns rebases anyway, and this is one more reason it does.
+
 **A brief never asks the builder to rebase or to integrate.** It ends at a
 finished, reviewed branch reported in a digest; the foreman owns the rebase
 and everything after it.
