@@ -1,13 +1,13 @@
 # IE-010 — Outcome riders, and the two `on` rules made one
 
-state: AWAITING_FOREMAN_REVIEW
+state: DONE
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside any task touching the `SpellEffect` union or `commands/spell-resolution.ts`; YES beside `creation.ts`, a new command module, and conformance work
 depends-on: IE-001, IE-007
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a0cd69c068a23bdac · worktree-agent-a0cd69c068a23bdac
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -218,3 +218,77 @@ special case, both frozen logs untouched, reviewer PASS at the first round.
 
 GREEN. **Merge held behind IE-013**, per the tranche's stated order and now
 also because of finding 3.
+
+
+## Merge record
+
+Merged to `main` as `35ad5e3`, fast-forward, pushed. Worktree retired.
+Executed 86 → **87**, verified 62 → **64**, partial 54 → **53**. 6,085 tests.
+
+**The vocabulary is Fable's, and the invariant is enforced three ways** — the
+type system, a `checkShape` denylist, and a sweep walking every definition's
+`effects` as JSON refusing an effect `kind` nested below an effect. A rider
+never rolls a d20, names a target, spends anything or opens a window.
+
+**`on` has one rule.** A Range: Self casting used to write `on: [casterId]`
+and discard `held`, so Sunbeam blinded a creature and a Dispel Magic aimed at
+that creature found nothing — while the same rider landed by an area trigger a
+round later would have been found. The reproduction was written first and
+failed on `main`.
+
+### The integration, which is the part worth reading
+
+This task took **four review passes and two returns**, and none of it was the
+builder's fault.
+
+1. **The first PASS was at `c548848`, before IE-013 merged.** Then IE-013
+   restructured `spell-schema.ts` — **a file the foreman's brief listed in
+   IE-010's surface while the launch message assigned it to IE-013** — and the
+   rebase raised seven conflicts, five in that file. Both tasks had rewritten
+   `checkConditionRider` in different and both-wanted directions, which is a
+   decision about the code rather than about history, so it went back to the
+   builder with the rebase paused in its worktree.
+2. **The builder found that IE-013's `grant_without_lifetime` and its own
+   `rider_outlives_nothing` were the same rule, written independently**, kept
+   the broader one, deleted its own, and extended `grantCarried` to see the
+   rider vocabulary. It declared that as a combination with a loser rather
+   than resolving it silently.
+3. **Condition 12 then paid for itself.** The earlier PASS rested on a
+   `spell-schema.ts` that no longer existed, so the combination went to a
+   re-review — which proved the consolidation sound (*old fires ⟹ new fires*,
+   with three more grant kinds caught on top) and found that **the loop
+   conversion had dropped a null guard**: `parseSpellDefinition` threw a
+   `TypeError` where `main` returned `err('unknown_condition')`. **6,079 tests
+   passed over that.** The existing test for that exact input set
+   `durationSeconds: 60`, so it drove only the branch that cannot reach the
+   bug — while its own docstring carried the sentence the bug broke.
+4. **The fix went past the two defects to the rule behind them.** The builder
+   found a third unreadable shape neither the reviewer nor the foreman had
+   named — a bare-string rider, which reached `String(rider.name)` without
+   throwing and emitted a *spurious* second problem — and generalised: four
+   unreadable shapes × four carriers × both lifetimes.
+5. **The confirmation pass verified rather than read.** It re-ran its own two
+   reproductions, temporarily swapped the old module in to check the
+   bare-string claim against `408a431`, and **built a discriminating fixture
+   for the guard order** — an unreadable first rider must not mask a bad
+   readable second — proving `continue` rather than `return null` is doing the
+   work.
+
+**A second, unplanned handover fired on the way.** IE-013 exempted
+`SpellEffect.onSuccess='end-casting'` as *"built and driven, but no definition
+writes it"*; this task's Hideous Laughter **writes it**, and IE-013's zero-user
+sweep refused the stale exemption on the rebase — hours after the sweep landed.
+The exemption is gone and its pin now asserts both halves: a definition writes
+the value, and the engine still resolves it.
+
+The thirteen conditions: 1 inside the brief, one ratified deviation ·
+2 COMPLETE · 3 PASS at high, on the confirmation pass · 4 both defects fixed
+and re-verified by the reviewer that raised them · 5 gauntlet in the worktree ✓
+· 6 `COVERAGE.md` byte-clean; `PARTIAL_SPELLS` loses Acid Arrow and Sunburst
+and gains Hideous Laughter, all accounted for · 7 no blocker · 8 one deviation,
+ratified: the shape id **removed** rather than renamed, because renaming it
+while re-filing its last claimant leaves a shape nothing is blocked on, which
+the honesty guard refuses · 9 no event type, reducer or fold change · 10 no
+scope expansion · 11 the conflicts were resolved by the builder, not by the
+foreman in a rebase · 12 **this is the condition that caught the regression** ·
+13 risk gate GREEN.
