@@ -704,7 +704,7 @@ overrun, where the chain and not the pool was the wall clock.
 
 Recommendation: APPROVE TRANCHE 6.
 
-### Tranche 7 — APPROVED 2026-09-14 — "APPROVE TRANCHE 7."
+### Tranche 7 — COMPLETE 2026-09-14 — "APPROVE TRANCHE 7."
 
 roster: IE-042 (deferred from tranche 6), IE-050, IE-051, IE-052, IE-053, IE-054, IE-055, IE-056, IE-057, IE-058
 
@@ -841,21 +841,24 @@ they bind this tranche's execution and not only its roster:
 
 ## CURRENT
 
-**Tranche 7 is APPROVED and running.** Ten tasks, four waves, merge authority
-in force for exactly this roster.
+**Tranche 7 is COMPLETE. Ten rostered, ten shipped, none deferred** — and that
+line is **derived by `check-queue.mjs` from the ten task files**, not written
+from memory. IE-058 landed inside the tranche it closes, so this is the first
+closing report the repository could not have got wrong.
 
-`main` is at `239076a` — **8,433 tests across 122 files**, both frozen logs
-untouched, `COVERAGE.md` byte-clean, the fold graph acyclic, tree clean.
-`CLAUDE.md` is now the constitution and the router; the subsystem architecture
-lives under `docs/design/` and `docs/rules/`, and every builder is pointed at
-the document its surface belongs to.
+`main` — **8,728 tests across 127 files** (8,433 at the start), both frozen logs
+untouched and absent from every diff, `COVERAGE.md` byte-clean, the fold graph
+acyclic, `npm run check:briefs` reporting **0 findings**, tree clean, validator
+`Problems: none`.
 
-Tranche 6 is closed at **twelve of thirteen**, corrected: IE-042 was never
-launched and is re-rostered here. No new audit was run — the post-tranche-5
-simplification audit remains the architecture baseline, and tranche 7 is
-planned from tranche 6’s own measurements.
+**No RED.** One YELLOW to Fable, answered and recorded. Two tasks re-scoped by
+the foreman on the reviewer's explicit consent — IE-056 and IE-054 — each with
+its ruling written down rather than implied.
 
-**Wave 1 launched:** IE-050, IE-051, IE-052.
+**Awaiting: the owner. `DEVELOPMENT TRANCHE 8` is not proposed** — the foreman
+does not start one, and Fable's decision of 2026-09-14
+(`docs/architecture/read-corpus-and-repeated-units-2026-09-14.md`) is the first
+thing tranche 8 should be briefed from.
 
 ## NEXT
 
@@ -878,6 +881,7 @@ rest" prints both numbers for every shape. Do not re-rank from prose.
 
 | Task | Lane | Note |
 |---|---|---|
+| **Ask an area trigger’s turn-anchored riders about their timeline at the trigger’s own resolution**, beside `creatureTypeNeeds`’ second ask at `spell-resolution.ts` | mechanism | IE-054, ruled GREEN by the foreman and recorded rather than improvised — it is a new ask site the brief did not approve. **Nothing in the book reaches it today**: the one nested turn-anchored rider is Stinking Cloud’s, on a `start-of-turn` trigger that cannot fire without a turn to start. The fact that would make it matter is an area trigger carrying an **entry** clause with a turn-anchored rider, since an entry fires outside combat — and what happens today in that case is a *late* question rather than silence, because `schedule` converts the refusal mid-settlement, after the trigger’s save is rolled. Honest, and one roll too late. `turn-context.test.ts` holds the decision in both directions, premise included |
 | **`parallel-safe:` is a hand-maintained file list that a brief’s own required behaviour can contradict, and the foreman schedules from it** | tooling | IE-042, which collided **twice** in one wave on files its `parallel-safe` line did not name — `missing-shapes.ts` and `blocked-on.test.ts` (forced by its requirement 6, owned by IE-056) and `persistence-2.test.ts` (shared with IE-055). **This repository’s most-repeated failure shape wearing a new hat**: a hand-kept list of something derivable. The honest fix is not a longer line — it is to derive the surface, or to make the launch prompt stop asserting non-collision the foreman has not checked. Note the near-miss: the auto-merge was *clean* and still left the ledger claiming two fifths, because prose is what no guard reads |
 | **The casting-ender sweep detects `mayAct` textually, where the spender sweep proves guardedness by execution** — a future ender naming `mayAct` in a dead branch would satisfy it | conformance | IE-057’s reviewer, raised as a limitation rather than a defect. The two doors that matter today are also pinned behaviourally in both directions, so this is a hole rather than a breach — the same distinction IE-009 drew. The spender closure already shows what the stronger form looks like |
 | **The spell parser files three summons’ stat blocks as upcast text and drops the other half** — `find-steed`’s `higherLevel` is 1,191 characters in `spells.json` today | conformance | **Fable’s decision of 2026-09-14, recorded in `docs/architecture/read-corpus-and-repeated-units-2026-09-14.md`, with the full blast radius, the flip-not-delete instruction and the acceptance criterion already written.** Tranche 8’s first task and the one that ungates the book’s highest-ranked family. It makes eight spells *readable*; it does not read them — a content task does that afterwards |
@@ -1084,3 +1088,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | **GREEN, decided by the foreman** | — | **An area a slot scales.** Fable returned this half rather than deciding it — two consumers is the recorded bar and Fog Cloud’s false "blocked on nothing" is corrected on arrival — but added a measurement the escalation lacked: the SRD prints **four** slot-scaled sizes, not two. The foreman read all four rather than counting them. **Confusion, Fog Cloud and Create or Destroy Water scale a region the spell acts within; Creation scales the size of the matter it creates.** That is region-of-effect versus created object, a distinction the format already draws, so the shape takes three consumers and Creation is a different shape with one — below the bar, so **no id is invented for it** and it goes on the record as the instance to watch for a second |
 | 2026-09-14 | merge (tranche authority, **YELLOW answered by the builder**) | IE-057 | merged `29dd830`, 13/13, reviewer PASS at high confidence on the **first** round with no deviations. **The named YELLOW was answered rather than escalated, and the argument is better than the brief’s.** The brief pointed at `relocateCreature`; the builder went to the SRD and found the *closer* precedent — the dismissal clause one paragraph from the Concentration one carries the same "(no action required)" licence, and `endOngoingSpell` has been guarded since IE-048 on exactly this argument, **so the free-and-at-any-time wording was never what decided either door**. The framing that resolves the apparent conflict: `mayAct` here is not a claim about the action economy but the engine declining to act into a world owing a mandatory fact, and the refusal says *settle the save, then let go*, never *you may not let go*. The guard sits inside `once` after the duplicate check — verified in the diff — and the mutation that proves it is the tranche’s sharpest: the debt is raised *after* the command landed, so hoisting the guard turns a successful retry into a refusal. **And it answered "instance or class?" by measurement**: a second closure over casting-enders finds seven commands the spender sweep cannot see, three guarded and four exempt with a sentence each — `endConcentration` was the only unguarded one. One foreman edit declared: the paragraph the reviewer wanted about the legacy save path meeting the same guard, comment only |
 | 2026-09-14 | merge (tranche authority) | IE-042 | merged `60348ef`, reviewer PASS at high confidence, round 2. **The task tranche 6 lost is shipped** — the failure that produced IE-058, now closed. Mind Blank enters verified (98 executed, 76 verified); the ten-claimant bundle retires into two residues of 4 and 1; and re-reading Heroism hands a **different** family, `a-payout-at-a-turn-boundary`, its first read finish. **The foreman put two owners on one primitive and the builder caught it**: the launch prompt said it shared no file with IE-056, and requirement 6 forces it into `missing-shapes.ts` and `blocked-on.test.ts`. The builder characterised the overlap precisely, named the two fixture moves a merge would hide, and warned that a clean auto-merge would still leave the map false. **It was right, and in a third file neither of us named**: IE-055 and IE-042 each added a ledger paragraph saying "is the fifth" against a `main` that held four, and git merged both silently — no test can see prose. Resolved by reading. **The systemic finding is that `parallel-safe` is a hand-kept list its own brief contradicts**: this one names four files and omits the three where both collisions actually happened. The foreman schedules from that line |
+| 2026-09-14 | merge (re-scoped, tranche authority; **conditions 3 and 7 waived on recorded rationale**) | IE-054 | merged `26141e0`. Builder `ARCHITECTURE_BLOCKED`, reviewer `ESCALATE` with no defects — criteria 1–5 and 7 met and driven, the owner’s decision built, the DM boundary held. **Criterion 6 asked the builder to close the `areaTrigger.effects` gap on the foreman’s premise that the fix would be inert. The premise was wrong.** Gathering a trigger’s riders at the *casting* pre-flight asks at the wrong moment: Stinking Cloud’s Poisoned lasts "until the end of the current turn", so the cloud would be refused to anybody who had not rolled Initiative, and the only command satisfying that request begins a fight — the engine requiring combat before a gas trap may be laid. **The foreman verified all three facts independently**: Stinking Cloud is the only `areaTrigger` with a turn-anchored rider and has no `onEntry`; `area-triggers.test.ts` conjures before Initiative *by design*; and `conditions.ts:198` does convert the late refusal — so the question is **not lost, it is asked later**. **Ruled GREEN and accepted**: what the design document records is not new architecture but the distinction `creatureTypeNeeds` already draws by asking twice, in the debt idiom, naming the fact that would end it, pinned both ways. The alternatives lose on recorded principle — one refuses a legal casting, the other buys a branch no SRD spell can reach. Option (c), asking at the trigger’s own resolution, is recorded for a later tranche rather than improvised. Conditions 3 and 7 waived because the reviewer’s medium confidence is scoped precisely to the decision now made, and there is **no unreviewed code delta** — unlike IE-040, where one existed and a confirming round was launched |
+| 2026-09-14 | **`TRANCHE_COMPLETE`** | IE-042, IE-050 … IE-058 | **Ten rostered, ten shipped, none deferred — and the machine says so.** `check-queue.mjs` derives that line from the ten task files; the foreman did not type it. **IE-058 landed inside the tranche it closes**, so this is the first closing report this repository could not have got wrong, and the failure it fixes was the last one’s. `main` at **8,728 tests across 127 files** from 8,433, both frozen logs untouched and absent from every diff, `COVERAGE.md` byte-clean, fold graph acyclic, `check:briefs` 0 findings, validator `Problems: none`. **No RED.** One YELLOW to Fable, answered and recorded. Two re-scopes by the foreman on the reviewer’s explicit consent, each ruling written down. Three of four seams the tranche set out to prove: the reducer split separated every collider, the resolver split separated all three, and wave 3 ran three tasks concurrently that tranche 6’s structure would have serialised |
