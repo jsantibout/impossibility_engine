@@ -252,8 +252,8 @@ them honest rather than optimistic.
 | IE-014 — A spell that takes a condition away | mechanism | 2 | one union member reusing the removal `useHealingTouch` already performs — **merged `fb79ca2`** |
 | IE-015 — `BLOCKED_ON` derived blocker map | conformance | 2 | ends three documents ranking one family at 17, 4 and 2 |
 | IE-016 — The other nine facts a DM declares | mechanism | 2 | every declared event type reachable from the command layer — **merged `9847661`; all 91 now are** |
-| IE-017 — A granted Resistance, and the deadline it needs | mechanism | 3 | `defensesOf`'s third input, and the fourth `EffectTarget` member |
-| IE-018 — A sweep for refusal codes nothing asserts | conformance | 3 | 41 of 112 unasserted, unmoved across two audits |
+| IE-017 — A granted Resistance, and the deadline it needs | mechanism | 3 | `defensesOf`'s third input, and the fourth `EffectTarget` member — **merged `6dd56c4`** |
+| IE-018 — A sweep for refusal codes nothing asserts | conformance | 3 | 41 of 112 unasserted, unmoved across two audits — **merged `ad4f0a6`; the real figure was 36 of 170, now 1** |
 | IE-019 — An outcome that varies by creature type | mechanism | 4 | a second reader of a fact the engine holds authoritatively |
 
 ### Independence, and what serialises
@@ -320,9 +320,7 @@ merge — **no owner gate between waves**; the tranche is the autonomy boundary.
 | Wave | Task | Lane |
 |---|---|---|
 | 2 | [IE-015 — `BLOCKED_ON` derived blocker map](tasks/IE-015-blocked-on-map.md) | conformance — **integration over IE-014 in progress; heading for `AWAITING_MERGE_APPROVAL`, see below** |
-| 3 | [IE-017 — A granted Resistance, and the deadline it needs](tasks/IE-017-granted-resistance.md) | mechanism — **launched on IE-014's merge** |
-| 3 | [IE-018 — A sweep for refusal codes nothing asserts](tasks/IE-018-refusal-code-coverage.md) | conformance — **launched** |
-| 4 | [IE-019 — An outcome that varies by creature type](tasks/IE-019-creature-type-outcomes.md) | mechanism |
+| 4 | [IE-019 — An outcome that varies by creature type](tasks/IE-019-creature-type-outcomes.md) | mechanism — **launched on IE-017's merge** |
 
 ## NEXT
 
@@ -346,6 +344,9 @@ yet.
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
 | **`npm test` rewrites a tracked file, so the gauntlet's `COVERAGE.md` check passes for the wrong reason.** `coverage.ts` calls `writeFileSync('COVERAGE.md', …)` at module top level and two test files import it, so the suite regenerates the file it is then diffed against | conformance | IE-010's builder. Pre-existing and **more serious than it sounds**: `git diff --exit-code COVERAGE.md` has been asserting that the suite just ran, not that the committed file was right. Make the generation explicit and the check meaningful |
+| **`checkEffect` branches dereference an effect's fields unguarded**, so untyped input reaching `checkSpellDefinition` directly throws instead of reporting. `end-condition` and `damage-defense` both do it | conformance | IE-017's builder, which matched the precedent rather than making one kind defensive and its neighbour not. **This is the same class the IE-010 re-review caught in `grantCarried`, where it was a real regression** — three instances now, so it is a class rather than a slip, and the fix is one pass over every branch |
+| **`no_trigger` carries five distinct rules across three modules**; `nothing_to_interrupt`, `not_a_combatant` at `dash`, `bad_key`, `slot_not_allowed`, `bad_hit_die`'s second site and `no_damage` are unreachable or shadowed | conformance | IE-018, correctly reported rather than fixed — a refusal code is observable behaviour and a caller may branch on it |
+| **Fire Shield is a fourth candidate for the granted defence** — "the warm shield grants you Resistance to Cold damage, and the chill shield grants you Resistance to Fire damage", a choice at the cast that `damageTypeStated` now expresses — but it is partial on its retaliation clause | content | IE-017's builder |
 | **`CLAUDE.md`'s "A stat block created mid-fight" row is wrong about eight spells.** SRD 5.2.1 rewrote the Conjure family as *spirits*; none of the six prints an Armour Class, Hit Points or a turn, and neither does Guardian of Faith or Faithful Hound. **Conjure Fey is blocked on nothing at all** — Spiritual Weapon's shape exactly | content | IE-015's builder, corrected at source in that branch. So IE-002's "two spells the existing kinds express" was **three**, and this is the second time a hand-written claim in that file has been found wrong by a derivation |
 | **The largest blocker in the book is a casting time of a minute or more** — it blocks and finishes more spells than any other shape | — | IE-015's builder. **None of the three rankings had that**, which is the clearest vindication the derived map could have offered on its first run |
 | **A held Spirit Guardians loses its stated damage type.** `PendingCasting` carries no `damageType` and no `unaffected`, so a casting declared with `hold: true` silently settles with the definition's printed type instead of the one the caster stated | mechanism | IE-014's builder, pre-existing. A silently wrong damage type against a Necrotic-immune Undead is the exact failure `damageTypeStated` was built to prevent, reappearing on the interrupted-casting path |

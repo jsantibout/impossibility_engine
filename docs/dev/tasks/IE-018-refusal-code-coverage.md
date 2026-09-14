@@ -1,13 +1,13 @@
 # IE-018 — A sweep for refusal codes nothing asserts
 
-state: IMPLEMENTING
+state: DONE
 lane: conformance
 tranche: 4
 parallel-safe: YES — a sweep and the tests it demands; no engine semantic change
 depends-on: none
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a983a3e1b4d64e771 · worktree-agent-a983a3e1b4d64e771
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -101,3 +101,51 @@ a finding for the digest.
 - The temptation is to assert a code by calling the function that returns it
   directly. That proves the string exists, not that the rule holds. Acceptance
   criterion 3 is the guard, and the reviewer should check it hardest.
+
+
+## Merge record
+
+Merged to `main` as `ad4f0a6`, fast-forward, pushed. First-round PASS at high
+confidence. **36 unasserted refusal codes before, 1 after.** 6,434 tests.
+
+**The audits' own number was wrong in both directions, and that is the finding
+that outlives the task.** Both the third audit (46 of 162) and the fourth
+(41 of 112) counted with a line-based grep, which cannot see an `err(` whose
+code sits on the next line: **113 codes seen where the source has 170.** And
+`no_scene` and the mount family — which this brief named as unasserted,
+quoting the fourth audit — **were already asserted**: IE-016 closed them
+through table-driven and helper-parameter assertions the audit's tighter net
+could not see.
+
+So a measured figure, carried across two audits and into a brief, was wrong in
+both directions at once. The lesson is the one this repository keeps
+re-learning and has now written into `WORKFLOW.md` twice: **derive it, do not
+quote it.** The builder re-derived rather than taking the brief's number, which
+is what the task asked for and is why the error surfaced at all.
+
+**Seven unreachable or shadowed codes were found and correctly not fixed**, as
+the brief required — `nothing_to_interrupt` is answered by `no_trigger` first;
+`not_a_combatant` at `dash` is shadowed by `unknown_combatant`; `bad_key`
+cannot be returned by `declareResourcePool` at all, because an empty key
+reaches the reducer and throws a corrupt log instead of returning a value; and
+`no_trigger` carries **five distinct rules across three modules**, which is the
+brief's "duplicated across two rules" case inverted. Each is a finding rather
+than a diff, because a refusal code is observable behaviour and a caller may
+branch on it.
+
+**One deviation, ratified.** The brief attached a narrow condition to
+`CLAUDE.md` — "only if a rule turns out to be recorded wrongly" — and the
+builder added a 67-line section describing the new sweep, which is not a rule
+correction. **That condition contradicted the standing builder instruction to
+record what was built and why**, which is the sixth self-contradicting brief of
+this tranche and the first between a brief and the agent definition rather than
+within one document. Every sweep in this repository carries a paragraph in that
+file; this one should too. The reviewer independently verified every checkable
+claim in the section.
+
+The thirteen conditions: 1 inside the brief · 2 COMPLETE · 3 PASS at high,
+first round · 4 no defects · 5 gauntlet ✓ · 6 `COVERAGE.md` byte-clean, no
+definition touched · 7 no blocker · 8 one deviation, ratified above · 9 **zero
+engine source lines changed** · 10 no scope expansion · 11 no conflict ·
+12 gauntlet re-run on `main`: typecheck ✓ lint ✓ **6434/6434** ✓ coverage
+byte-clean ✓ · 13 GREEN.

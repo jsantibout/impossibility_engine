@@ -1,11 +1,11 @@
 # IE-019 — An outcome that varies by creature type
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside another union task; YES beside conformance and command-surface work
 depends-on: IE-017
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a7aa46b24d7952824 · worktree-agent-a7aa46b24d7952824
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 

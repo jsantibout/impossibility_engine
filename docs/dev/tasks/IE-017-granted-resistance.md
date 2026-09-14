@@ -1,13 +1,13 @@
 # IE-017 — A Resistance an effect grants, and the deadline it needs
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside another union task; YES beside conformance and command-surface work
 depends-on: IE-014
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a309aa2f457dd4cc9 · worktree-agent-a309aa2f457dd4cc9
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -131,3 +131,53 @@ adjudication, which stays as it is.
 - This is the tranche's only task touching `events.ts` **and** `duration.ts`
   **and** the union. It is weighted accordingly and sequenced last among the
   union tasks for that reason.
+
+
+## Merge record
+
+Merged to `main` as `6dd56c4`, fast-forward, pushed. First-round PASS at high
+confidence. Executed 89 → **91**, verified 66 → **68**, partial unchanged at
+55. 6,628 tests.
+
+**A fourth sourced grant, through the door the other three already use.**
+`grantedDefenses` sits on `CreatureState` beside `bonuses`,
+`GrantedArmorClass` and `rollModifiers`; `defensesOf` takes it as a third
+input and unions booleans rather than counting, so Resistance granted twice is
+still Resistance once. `releaseCasting`, `releaseOnTarget` and `expireEffects`
+all reach it, and the mutation that discards `releaseOnTarget`'s computed
+defences reproduces **the exact historical bug that sat in that function for
+its bonuses** — which is the best possible evidence the new grant went through
+the existing door rather than beside it.
+
+**The fourth `EffectTarget` member is one member, keyed on `source`**, exactly
+as Fable specified, so a feature's grant and a casting's use the same timer.
+
+**Superior Hunter's Defense is deferred on evidence, not on effort**, using the
+brief's own escape hatch, and the three blockers are named rather than waved
+at: a fifth `ReactionEffect` member (and `reduce-damage` is not a substitute,
+because SRD orders a halving as an *adjustment* and Resistance second, so a
+Ranger who already resists would take a quarter under the wrong one); which
+damage *type* "that damage" means when a hit deals two, which the SRD prints no
+worked example for; and a fifth `Duration` member for "the end of the
+**current** turn", since `endOfNextTurn` said of the creature whose turn it is
+resolves a full round late. The `grants` member is still built and driven end
+to end by a hand-built feature grant, which is acceptance criterion 2's stated
+alternative.
+
+**The numbers held.** Fable's re-derivation said 2 spells whole, 1 partial, 1
+feature — against the leverage audit's 4 and 5. Executed rose by exactly 2 and
+partial did not move, because Protection from Poison keeps its other clause.
+The `a-defence-a-spell-grants` missing-shape entry was **removed** rather than
+left, because it is no longer missing and the honesty guard refuses a shape
+nothing is blocked on.
+
+The thirteen conditions: 1 inside the brief · 2 COMPLETE · 3 PASS at high,
+first round · 4 no defects · 5 gauntlet ✓ · 6 `COVERAGE.md` byte-identical;
+both new `unmodelled` clauses are genuine fiction ("willingness is fiction")
+rather than debt · 7 no blocker · 8 **no deviation** · 9 foundational and
+authorised: a new event type, a new `CreatureState` field, a fourth
+`EffectTarget` member — the brief named all three, and both frozen logs fold
+because the reducer sorts grants by source and normalises types · 10 two files
+beyond the likely surface, both consequences · 11 no conflict · 12 gauntlet
+re-run on `main`: typecheck ✓ lint ✓ **6628/6628** ✓ coverage byte-clean ✓ ·
+13 GREEN.
