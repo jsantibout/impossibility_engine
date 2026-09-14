@@ -1278,6 +1278,68 @@ Nothing was implemented. The numbers are what the code said at `5ff287c`.
   the condition-without-a-save family re-briefed around one rider; then the
   ongoing-record hygiene. `docs/dev/QUEUE.md` holds the order.
 
+### Fourth architecture audit against the doctrine
+
+Run on 2026-09-13 after tranche 3, because nine engine tasks across three
+tranches had landed since the third audit and the owner declined to let a
+*scoped* gate — the outcome-rider design — reset a counter that measures
+whole-engine drift. Measured on `main` at `e2080da` by the architect's own
+greps, three scripts and reading, over the foreman's handed-over
+measurements; the full record with file:line evidence is
+`docs/architecture/whole-engine-audit-fourth-2026-09-13.md`. Nothing was
+implemented.
+
+- **The three tranches closed what they claimed.** The command layer's
+  value-level import graph is a **DAG** — 61 value edges, zero cycles,
+  verified module by module — `once` has made the duplicate check structural
+  (`identify` has no caller outside it anywhere in `commands/` or `rest.ts`),
+  the two frozen fixtures cover **all 91 event types** against 35 before, the
+  guard sweeps are derived, and the fold reaches the catalogue only through
+  one named upcaster for records that predate the field. `rolls.ts` was not
+  touched all period and `'engine'` is still stamped in exactly two places.
+  Five of the third audit's eight open debts are closed.
+- **What drifted is counting and filing, not architecture.** The repository
+  carries **three rankings of the same missing shapes** — `PROGRESS.md`'s
+  ranked map, the leverage audit, and the honesty guard's adjudications — and
+  they disagree by up to **four times** on one family: a granted Resistance is
+  17 open spells here, 4 in the leverage audit, and 2 whole plus 1 partial in
+  the SRD text. None of the three was derived.
+- **One adjudication in ten is filed to the wrong shape**, and the errors
+  cluster on exactly the three shape ids the rankings were built from.
+  `outcome-scoped-child-effects`, `a-mode-on-the-save-a-spell-forces` and
+  `a-repeat-save-beyond-the-turn-hook` are **bundle ids**: the last is four
+  mechanisms with consumer counts of one to three each, not a shape with
+  eight. `PARTIAL_SPELLS` is unaffected — a spell is partial under either
+  filing — but every per-shape count derived from that map inherits the
+  bundle, which is why a tranche planned from it was mis-ranked.
+- **Two of the leverage audit's four remaining candidates do not survive
+  re-derivation.** C2, "a selector for the save a casting forces", makes
+  **zero** consumers whole: its six spells have three different blockers, and
+  five of them need a *declared* fact ("you or your allies are fighting it")
+  rather than a selector axis. C1's nine consumers are three — Rage's
+  resistance is already executed, and one of its four spells is not in SRD
+  5.2.1 at all.
+- **Two wrong numbers are shipped and reachable.** `on` has two rules: the
+  cast writes `on: [casterId]` for a Range: Self casting and discards `held`,
+  so Sunbeam blinds a creature and a Dispel Magic aimed at that creature finds
+  nothing — while the same rider landed by an area trigger a round later would
+  be found. And multiclass Hit Dice are wrong: `poolsFor` declares one pool
+  from the starting class while `hitDicePools`, which is correct and tested
+  against both SRD worked examples, is called by nothing.
+- **The recurring "pure function nothing calls" finding has its largest
+  instance yet.** The whole scene-setup family — `scene-set`,
+  `landmark-added`, `creature-placed`, `sight-declared`, `cover-declared`,
+  `combat-started`, `time-advanced`, `spellcasting-declared` — has no command,
+  so **nothing above the engine can start an encounter**. The architect
+  disagreed with the foreman's deferral of this to M2, on the grounds that a
+  tool surface calls commands and never folds events itself, so these are
+  engine commands whatever M2 turns out to look like.
+- **Three members of the definition format have zero users** — `roll-mode.save`,
+  `SpellCheck.dc` and `'end-casting'` as a repeat-save outcome — and the
+  structural point is that **nothing can see a zero-user member**. The honesty
+  guard already asserts that no missing shape sits unclaimed; the same sweep
+  over the format is one test.
+
 ## The utility bucket, audited spell by spell
 
 Ninety-one SRD spells are filed as "narrative or exploration". Fifteen were

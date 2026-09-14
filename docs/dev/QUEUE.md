@@ -17,67 +17,25 @@ validator refuses it.
 
 ## Audit counter
 
-Last whole-engine audit: the third, 2026-09-13 —
-`docs/architecture/whole-engine-audit-2026-09-13.md`, recorded in
-`PROGRESS.md` under "Third architecture audit against the doctrine" and in
-the Done table, commit `588d7a0`.
+Last whole-engine audit: **the fourth, 2026-09-13** —
+`docs/architecture/whole-engine-audit-fourth-2026-09-13.md`, recorded in
+`PROGRESS.md` under "Fourth architecture audit against the doctrine".
 
-Engine tasks completed since last audit: 5
-Audit due at: 4 — **reached; the gate is chartered and running**
+Engine tasks completed since last audit: 0
+Audit due at: 4
 
-**The fourth whole-engine audit is running.** The owner accepted the scoped
-gate as recorded, declined to reset the counter — correctly, since a scoped
-gate is not the sweep it was counting toward — and asked for the due broad
-coherence audit under the standing charter, with the outcome-rider decision
-included as *current* architecture rather than as its subject. The foreman
-did the measurement legwork first, as the charter requires, and handed it
-over as evidence. **The counter resets only when that sweep has actually
-happened**, and its findings may reorder or re-scope tranche 4, which Opus
-prepares from the post-audit state and presents at Gate 1.
-
-**The gate is answered** — `docs/architecture/outcome-scoped-child-effects-2026-09-13.md`, `APPROVE, narrowed`: outcome **riders**, not child effects, and `onFail: SpellEffect[]` rejected on evidence. **Tranche 4 is not reordered.** The counter is left standing rather than reset, because a scoped gate is not the whole-engine sweep it was counting toward; see below.
-
-**The gate was scoped, at the owner's instruction** (2026-09-13): Fable is
-chartered on one architectural question rather than a whole-engine sweep —
-**the restricted child vocabulary for outcome-scoped child effects**, which
-`docs/architecture/spell-leverage-audit-2026-09-13.md` ranks as the
-highest-leverage and highest-risk missing primitive and names as not the
-foreman's to design. The deliverable is
-`docs/architecture/outcome-scoped-child-effects-2026-09-13.md`, a design
-record only; nothing is implemented and tranche 4 is not launched.
-
-Recorded precisely so nobody later reads a narrow review as a broad one:
-**the periodic audit's usual whole-engine sweep did not run at this
-threshold.** What was accumulating for it is on the task files and in the
-leverage audit — a command layer that is twenty-one modules and a barrel, a
-public surface fourteen names wider, `once` making a guard-above-the-check
-structurally impossible, two frozen logs covering all 91 event types, two
-wrong-number bugs found in progression, and seventeen event types no command
-emits. The next threshold should either sweep or say again why it did not.
+**Reset because the sweep actually happened.** The counter stood at 5 and was
+deliberately not reset by the scoped rider gate, on the owner's instruction:
+a gate scoped to one design question is not the whole-engine sweep the counter
+measures toward. The fourth audit is that sweep — 21 command modules and the
+barrel, the definition format's 45 optional fields and union members against
+132 definitions, all 102 adjudications against the SRD prose, the ongoing
+record and its upcaster, `EffectTarget`, both fixtures against the 91 event
+types, refusal-code coverage, and the SRD text behind every leverage
+candidate — so it resets.
 
 The counter counts tasks that changed engine source outside tests and
-definition prose: IE-003 (`5dfbc39`), IE-005 (`4f829e9`), IE-008
-(`601774c`), IE-001 (`7592efe`) and IE-007 (`b80e0d5`). **The threshold is reached.** The audit
-runs before tranche 4 is proposed at Gate 1, never instead of a gate, and the
-leverage audit recommends its charter: the restricted child vocabulary for
-outcome-scoped child effects. IE-007 is inside an already-approved roster and
-is unaffected — the audit gates the next *proposal*, not the completion of an
-approved tranche. IE-004 (`0536a2b`) was conformance — a
-guard, a script and two `unmodelled` strings — and is in the merge log below
-but not counted. What it added for the next audit to weigh is on its task
-file: the executed bucket now has a missing-shape vocabulary of its own
-beside the tracked guard's. IE-002 (`de45194`) was content — two spell
-definitions, their tests and prose — and IE-006 (`2915909`) was conformance —
-a frozen fixture, its generator and one test file, with no engine source
-touched at all. Neither is counted. IE-005 is: it moved the whole command layer, added
-`once` to `idempotency.ts` and sent thirteen helpers to five modules — all
-behaviour-preserving, which is not the same as not counting. What it leaves
-the next audit to weigh is on its task file: twenty-one modules and a barrel
-where there was one file, a public surface fourteen names wider, and a
-duplicate-check wrapper that makes a guard-above-the-check structurally
-impossible for the first time in eight recorded instances. What it left
-for the next audit to weigh is on its task file: the existing effect kinds are
-measurably drained, so the next spell coverage is bought by a mechanic.
+definition prose. Nothing has landed since the audit.
 
 ## Tranches
 
@@ -225,95 +183,110 @@ it, so the audit falls due at the end of this tranche rather than inside it.
 
 Recommendation: APPROVE TRANCHE 3.
 
+### Tranche 4 — PROPOSED
+roster: IE-010, IE-011, IE-012, IE-013
+
+Prepared by the foreman from the **post-audit** state, not from the leverage
+audit's ranking — which the fourth whole-engine audit re-derived and found
+wrong in two of its four remaining candidates.
+
+| Role | Task | Lane | Parallel-safe |
+|---|---|---|---|
+| PRIMARY | IE-010 — Outcome riders, and the two `on` rules made one | mechanism | NO beside the union or spell resolution |
+| PARALLEL | IE-011 — Multiclass Hit Dice: call the function that is already right | mechanism | YES |
+| PARALLEL | IE-012 — Scene commands: let something above the engine start an encounter | mechanism | YES |
+| PARALLEL | IE-013 — Guards that can see a zero-user member | conformance | YES |
+
+**Why these four, and why not the ones the leverage audit proposed.** Fable
+re-derived C1, C2, C3 and C5 against the SRD text the way it re-derived C4:
+**C2 makes zero consumers whole** and is dropped; **C1's nine consumers are
+three** (Rage's resistance is already executed, and one of its four spells is
+not in SRD 5.2.1 at all); C3 loses movement modes, which no rule reads; C5
+splits, keeping condition removal and dropping modified healing at two
+consumers. All four move to tranches 5 and 6, re-scoped. What replaces them at
+the front is what the audit found instead: **two shipped wrong numbers and the
+largest instance yet of a rule reachable from nothing.**
+
+- **IE-010** is the only task with a decided design — the owner's chartered
+  gate — and it owns the file where a shipped wrong answer lives. `on` has two
+  rules: a Range: Self casting writes `on: [casterId]` and discards `held`, so
+  Sunbeam blinds a creature and a Dispel Magic aimed at that creature finds
+  nothing. One task closes a design decision, a correctness bug, a zero-user
+  format member and three mis-filed adjudications.
+- **IE-011** is a wrong number shipped: a Paladin 4 / Fighter 1 has four d10
+  and no d8, while `hitDicePools` — correct, tested against both SRD worked
+  examples — is called by nothing. The eleventh instance of that finding.
+- **IE-012** is the twelfth and largest: nothing above the engine can start an
+  encounter. **The foreman had deferred this to M2 and the audit overruled the
+  boundary** — a tool surface calls commands and never folds events itself, so
+  these are engine commands whatever M2 looks like. The correction is accepted.
+- **IE-013** adds the guard that would have caught three of the audit's own
+  findings by itself: nothing in the repository can see a format member that
+  nobody uses.
+
+Independence check: PASS. IE-010 is the `SpellEffect` union and
+`commands/spell-resolution.ts`; **every new effect kind edits both, so at most
+one union task runs at a time** — that is why 5 through 9 are a chain rather
+than a tranche. IE-011 is `creation.ts` and `multiclass.ts`. IE-012 is a new
+`commands/scene.ts` plus the barrel and the two sweeps. IE-013 is
+`spell-schema.ts`, three test files and one read site in `commands/turns.ts`.
+Shared: `CLAUDE.md` across all four and `COVERAGE.md` across two — the known
+mechanical collisions, and three tranches of evidence that they rebase clean.
+`invariants.test.ts` is touched by IE-012 (module lists) and by nobody else in
+the roster.
+
+Maximum concurrent builders: **4.** Merge order: IE-011, IE-012, IE-013,
+IE-010 last — IE-013 counts `roll-mode.save`, which IE-010 removes, so IE-013
+merges first and IE-010 rebases over it. The foreman runs every rebase.
+
+Likely Fable involvement: **none foreseen.** IE-010's architecture is already
+decided and recorded; a deviation from it is `ARCHITECTURE_BLOCKED` rather
+than a judgement call. The other three are GREEN by the audit's own reading.
+
+Deliberately deferred, with reasons:
+
+| Not in this tranche | Why |
+|---|---|
+| Condition removal (C5, narrowed) | The next union task; the chain allows one at a time |
+| Granted Resistance (C1, re-scoped to 2+1) with the `grants` `EffectTarget` member | After condition removal; its timer member has one user until a modifier rider wants `lasts` |
+| Creature-type outcomes, and a declared "being fought" fact | The C2 replacement, four executed-partial consumers; after C1 |
+| Speed modifier (C3, narrowed) | Last of the chain; `moveCreature` and `PendingMove` read Speed at declaration |
+| `BLOCKED_ON` — derived blockers for the 207 undefined spells | The real fix for three rankings disagreeing fourfold. Conformance, and it should land before the *next* leverage ranking is written rather than before this tranche |
+| The nine remaining unemitted event types | A second family with its own evidence; IE-012 names them |
+| Feature-definition validator; refusal-code sweep (41 of 112); per-event field schemas; `index.ts` tiering; the snapshot policy for `castingsEnded` and `appliedCommands` | Named in the audit's `later` row; M2 and M3 own two of them |
+
+Recommendation: APPROVE TRANCHE 4.
+
 ## CURRENT
 
-Nothing running. **Tranche 3 is complete** — four of four merged, in the
-planned order: IE-008 (`601774c`), IE-001 (`7592efe`), IE-009 (`973129f`),
-IE-007 (`b80e0d5`). Each fast-forward, each verified on `main`, each pushed.
-The suite went 5508 → 5578 and `COVERAGE.md` is byte-clean.
+Nothing running. **Tranche 4 is proposed, not approved: nothing may execute.**
+All four tasks are at `OWNER_APPROVAL_REQUIRED`.
 
-**The chartered gate is still running.** Fable holds the scoped whole-engine
-gate — the restricted child vocabulary for outcome-scoped child effects — and
-its design record is the input to tranche 4. Nothing is proposed at Gate 1
-until it lands, because its findings may reorder the roster.
-
-**What tranche 3 cost that the plan did not predict.** Two of its four tasks
-reached the three-round review cap, and both were authorised a bounded fourth
-pass under the corrected rule. Neither was architecture: IE-009's rounds were
-prose precision in claims it had itself rewritten, IE-007's were documentation
-honesty about what its own pinning did and did not achieve. Two merges ran
-to five and six review passes, and in both cases the extra passes found
-something — IE-009's derived seventeen where a digest said nine, IE-007's
-distinction between duplicating live state and duplicating the catalogue.
-
-**Two foreman errors, both now guarded rather than noted.** The
-round-exhaustion rule said "strictly shrinking" and meant "converging"; and a
-branch was merged under a running review whose deliverable was a derived
-claim, which no test could fail and no line could conflict. Both corrections
-are in `WORKFLOW.md`.
-
-**And two briefs were stale in the same way** — IE-008's inventory said four
-pool kinds where the code had seven, and IE-001's file surface omitted the
-file its own acceptance criterion required, because IE-004 had made that list
-derived after the brief was written. Twice is a pattern: **a brief should
-point at the derivation, not transcribe its inputs.**
+| Task | Lane | Parallel-safe | Tranche |
+|---|---|---|---|
+| [IE-010 — Outcome riders, and the two `on` rules made one](tasks/IE-010-outcome-riders.md) | mechanism | NO beside the union | 4 |
+| [IE-011 — Multiclass Hit Dice](tasks/IE-011-multiclass-hit-dice.md) | mechanism | YES | 4 |
+| [IE-012 — Scene commands](tasks/IE-012-scene-commands.md) | mechanism | YES | 4 |
+| [IE-013 — Guards that can see a zero-user member](tasks/IE-013-format-and-validator-guards.md) | conformance | YES | 4 |
 
 ## NEXT
 
-**Tranche 4 is recommended and not yet proposed at Gate 1**, because tranche
-3 is in flight and no task joins an approved roster. The reasoning is
-`docs/architecture/spell-leverage-audit-2026-09-13.md`, written to the
-owner's instruction that the remaining SRD surface be planned as a
-leverage problem — verified rules coverage per unit of new engine
-complexity — rather than spell by spell.
+The union chain, in the audit's order, one per tranche because every new
+effect kind edits `SpellEffect` and `resolveEffects`:
 
-**A gate stands in front of it.** The whole-engine audit falls due when
-IE-001 merges (the counter reaches 4 of 4) and it is Fable's. It is
-chartered on the one question the foreman's audit deliberately did not
-answer: **the restricted child vocabulary for outcome-scoped child
-effects**, which is the highest-leverage missing primitive (8+ consumers),
-the one the definitions decision record deferred pending evidence, and the
-one the foreman may not design. Its output is a design record; tranche 5
-implements it.
+| | Task | Re-scoped how |
+|---|---|---|
+| 5 | Condition removal | C5 split: keep removal, reusing `useHealingTouch`'s extraction; drop modified healing at two consumers. Lesser Restoration whole; Heal needs flat-only healing, a one-line format question |
+| 6 | Granted Resistance | C1 at **2 spells + 1 feature**, not 4 + 5, as `defensesOf`'s third input; the `grants` `EffectTarget` member if Superior Hunter's Defense is taken |
+| 7 | Creature-type outcomes, and a declared "being fought" fact | The C2 replacement — Blight's auto-fail, Shatter's Disadvantage, Divine Smite's +1d8, Banishment's no-return, all reading a fact the engine holds authoritatively |
+| 8 | Speed modifier | C3 narrowed: add/subtract, halve/double, set to 0, with a source and lifetime, derived like `armorClassOf`. **No movement modes** — no rule reads Fly, Climb or Swim |
 
-**Tranche 4 is not reordered by the gate, and one of its tasks is
-re-briefed.** Fable found that `EffectTarget` ends a condition instance, a
-casting or a feature and **nothing ends a grant before its casting does** —
-so a granted Resistance with a deadline has no shape. C1 is the first task
-that meets it (Superior Hunter's Defense is exactly "a Resistance with a
-deadline"), and its brief must either carry the fourth `EffectTarget` member
-or state the limit as a named gap. That is a re-brief, not a reorder.
-
-Fable also asks that C1 be built as a **source-linked leaf**, because then
-its rider form costs one validator line in tranche 5 rather than a design.
-
-| Recommended for tranche 4 | Family | Consumers (spell + feature) | Level |
-|---|---|---|---|
-| A granted Resistance / Immunity / Vulnerability | C1 | 4 + 5 | GREEN |
-| Condition removal, and healing an effect modifies | C5 | 6 + 7 | GREEN |
-| A selector for the save a casting forces | C2, first half | 6 + 1 | GREEN |
-
-Each is a closed-union extension with three or more consumers in **both**
-populations — executed-but-partial spells, and unexecuted class features —
-and each reuses an existing storage-and-cleanup pattern rather than
-inventing one. C1 is the fourth user of a shape `bonuses`,
-`GrantedArmorClass` and `rollModifiers` already share, with one cleanup door
-already built. None is foundational architecture.
-
-They are mutually parallel-safe: C1 is `CreatureState` defences and
-`applyDamage`, C5 is healing and conditions, C2 is `roll-modifiers.ts` and
-the save path.
-
-**From tranche 4 onward every digest carries a leverage report** — reusable
-primitives added, existing primitives reused, features directly implemented,
-what is newly expressible *without further engine code*, bespoke handlers
-and their justification, tests, remaining blockers, invariant impact. The
-format is in the audit. It exists because raw implementation and capability
-unlocked are different numbers and the current digest reports only the
-first.
-
-Beyond tranche 4, the order is the audit's section F and `PROGRESS.md`'s
-ranked map, which it re-confirmed rather than replaced.
+Beside them, whenever a tranche has room: **`BLOCKED_ON`**, a derived map of
+the 207 undefined spells' blockers sharing `MISSING_SHAPES`, with the three
+bundle ids split. It is the fix for the audit's fourth finding — three
+documents ranking one family at 17, 4 and 2 — and it makes every future
+leverage count a query rather than a prose estimate. **It should land before
+the next leverage ranking is written.**
 
 ## LATER
 
@@ -360,5 +333,7 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | Gate 1 | IE-008, IE-001, IE-007, IE-009 | approved — "APPROVE TRANCHE 3"; launched with three builders, IE-007 held until IE-001 merges |
 | 2026-09-13 | planning objective | — | the SRD surface is planned as a leverage problem — verified coverage per unit of engine complexity, not raw spell count. A change to the foreman's objective, not to authority: review loop, thirteen conditions, bounded extra pass, escalation and foreman-owned rebases all unchanged. `docs/architecture/spell-leverage-audit-2026-09-13.md` |
 | 2026-09-13 | whole-engine gate | — | chartered, and **scoped by the owner** to one question: the restricted child vocabulary for outcome-scoped child effects. Design record only; `REJECT` and "narrower than asked" are legitimate answers. Tranche 4 not launched |
+| 2026-09-13 | whole-engine audit | — | **the fourth, run in full** at the owner's instruction after the scoped gate: 21 command modules, 45 format members against 132 definitions, 102 adjudications against the SRD prose, both fixtures against 91 event types, and every leverage candidate re-derived. Counter reset, because the sweep actually happened. `docs/architecture/whole-engine-audit-fourth-2026-09-13.md` |
+| 2026-09-13 | Gate 1 | IE-010, IE-011, IE-012, IE-013 | presented as tranche 4, prepared by Opus from the post-audit state; awaiting the owner |
 | 2026-09-13 | whole-engine gate | — | **answered: `APPROVE, narrowed`.** Outcome *riders*, not child effects — leaf types in fixed slots on `attack`, `save-damage` and `save`, with the branch fixed by the host and the invariant that a rider never rolls. `onFail: SpellEffect[]` rejected on evidence. Tranche 4 not reordered; C1 re-briefed. `docs/architecture/outcome-scoped-child-effects-2026-09-13.md` |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |
