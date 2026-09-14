@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+  type CharacterId,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -197,12 +204,16 @@ describe('Color Spray: a rider that outlives an instantaneous casting', () => {
 
   /**
    * SRD gives "the end of your next turn" no meaning outside combat, and
-   * `resolveDuration` refuses rather than inventing six seconds. The refusal
-   * has to cost nothing — the slot is expended half way through a cast, so an
-   * error that arrived after it would leave a caster paying for a spell that
-   * never happened.
+   * `resolveDuration` goes on refusing rather than inventing six seconds. What
+   * the *command* does with that refusal is ask: a turn timeline is a thin
+   * record, so IE-046 makes this a `needs-context` naming `beginCombat` and
+   * the caller sends the same casting again once the fight has begun.
+   *
+   * It has to cost nothing either way — the slot is expended half way through
+   * a cast, so an answer that arrived after it would leave a caster paying for
+   * a spell that never happened.
    */
-  it('refuses outside combat, and costs nothing', () => {
+  it('asks for a turn order outside combat, and costs nothing', () => {
     const dice = supply('spray');
     const before = { rng: dice.rng.snapshot(), rolls: dice.issuer.count };
 
@@ -214,6 +225,9 @@ describe('Color Spray: a rider that outlives an instantaneous casting', () => {
     );
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('no_turns');
+    expect(isNeedsContext(out)).toBe(true);
+    expect(contextRequestsOf(out).map((r) => r.kind)).toEqual(['turn-order']);
+    expect(contextRequestsOf(out)[0]?.satisfyWith).toContain('beginCombat');
 
     expect(remaining(fold('seed', PLACED).creatures.caster!.resources, spellSlotKey(1))).toBe(4);
     // And the generator has not moved. The rider is checked before the save is
@@ -417,7 +431,7 @@ describe('Ray of Sickness: a rider on a hit rather than on a failed save', () =>
    * to find a turn to end at — leaving the caller's generator several rolls
    * further on than it started, for a cast that never happened.
    */
-  it('refuses outside combat before the ray is even thrown', () => {
+  it('asks for a turn order before the ray is even thrown', () => {
     const dice = supply('hit');
     const before = { rng: dice.rng.snapshot(), rolls: dice.issuer.count };
 
@@ -429,6 +443,8 @@ describe('Ray of Sickness: a rider on a hit rather than on a failed save', () =>
     );
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('no_turns');
+    expect(isNeedsContext(out)).toBe(true);
+    expect(contextRequestsOf(out).map((r) => r.kind)).toEqual(['turn-order']);
     expect(dice.rng.snapshot()).toEqual(before.rng);
     expect(dice.issuer.count).toBe(before.rolls);
   });

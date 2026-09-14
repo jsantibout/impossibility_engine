@@ -19,7 +19,18 @@ import {
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { conditionImmunitiesOf } from '../standing.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, turnContextFor, unknownCreature } from './command.js';
+
+/**
+ * Who a scheduled effect is being hung on, for a moment that names no anchor.
+ *
+ * Three of the four things a timer can end are on a creature; the fourth is a
+ * casting, which is about a casting. SRD's "until the end of the current turn"
+ * is a moment in the order rather than a fact about a creature, so it has no
+ * anchor of its own and this is what a request is then about.
+ */
+const holderOf = (target: EffectTarget): string =>
+  target.kind === 'casting' ? target.castingId : target.on;
 
 /**
  * Apply a condition, refusing one the creature cannot receive.
@@ -152,8 +163,29 @@ export function endConditionsOn(
  *
  * The duration is resolved here rather than in the reducer, so a relative
  * duration that cannot be answered — "the start of your next turn", asked
- * outside combat — is a refusal the caller sees, not a deadline the log cannot
+ * outside combat — is something the caller sees, not a deadline the log cannot
  * evaluate later.
+ *
+ * **And what the caller sees is homework rather than a verdict.** A moment in
+ * the turn order with no turn order to be a moment in is a *thin record*: the
+ * conversion beneath still refuses, because calling that moment six seconds is
+ * the one mistake the two-type split exists to prevent, and this is the
+ * command layer that knows which rule wanted the fact and can therefore say
+ * what would settle it.
+ *
+ * **It is converted here because this is the single door**, the same argument
+ * that put the conversion itself in one place. Five modules schedule a
+ * deadline — a condition a DM hangs, a casting's own Duration, a readied
+ * spell's, a feature's activation, the grant a `speed-change` rider makes —
+ * and every one of them reaches this function. A sixth gets the request with
+ * nothing to remember, which is the difference between one rule and five sites
+ * that have to agree.
+ *
+ * The subject falls back to the creature the effect is being hung on, and is
+ * read off the {@link EffectTarget} rather than passed beside it: a caller
+ * that could name a different one is a caller that could name the wrong one.
+ * A casting's deadline is about the casting, which is why a request's subject
+ * is a string.
  */
 export function schedule(
   state: GameState,
@@ -163,7 +195,7 @@ export function schedule(
   check?: EffectCheck,
 ): Result<GameEvent> {
   const deadline = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, duration);
-  if (!deadline.ok) return deadline;
+  if (!deadline.ok) return turnContextFor(deadline, duration, holderOf(target));
   return ok({
     type: 'effect-scheduled',
     target,

@@ -56,8 +56,26 @@ export interface ContextRequest {
    * fact is still a fact — which spaces a thing passed through is not
    * something the engine may decide — and the asker is still the orchestrator
    * rather than a player.
+   *
+   * `turn-order` is the fact a *moment in the turn order* needs before it
+   * means anything. SRD Ray of Frost reduces a Speed "until the start of your
+   * next turn", and outside combat there is no such turn — so the conversion
+   * refuses, and it must go on refusing, because calling that moment six
+   * seconds is the one mistake the whole two-type duration split exists to
+   * prevent. What had been wrong was who the refusal was addressed to: a
+   * cantrip that cannot be cast in a corridor is a hole the layer above cannot
+   * repair unless it is told what would repair it. The engine does not start
+   * the fight, roll Initiative or invent an order — it says which command
+   * would, and the caller casts again exactly as it meant to.
    */
-  readonly kind: 'creature' | 'position' | 'visibility' | 'creature-type' | 'scene' | 'route';
+  readonly kind:
+    | 'creature'
+    | 'position'
+    | 'visibility'
+    | 'creature-type'
+    | 'scene'
+    | 'route'
+    | 'turn-order';
   /** Who the missing fact is about. */
   readonly subject: string;
   /** What is missing, in plain terms. */

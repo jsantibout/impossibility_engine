@@ -1,12 +1,13 @@
 /**
  * What every command in this directory needs, and nothing else.
  *
- * Three things, and each is here because every domain asks for it: how to read
+ * Four things, and each is here because every domain asks for it: how to read
  * a creature out of the world, what to answer about one the engine has never
- * been told about, and what to answer when there is no scene to be anywhere
- * in. The fourth — `once`, the wrapper that puts the duplicate check first —
- * is in `idempotency.ts` with the rest of the identity machinery, because
- * `rest.ts` needs it too and must not reach upwards.
+ * been told about, what to answer when there is no scene to be anywhere in,
+ * and what to answer when a moment in the turn order has no turn order to be a
+ * moment in. The fifth — `once`, the wrapper that puts the duplicate check
+ * first — is in `idempotency.ts` with the rest of the identity machinery,
+ * because `rest.ts` needs it too and must not reach upwards.
  *
  * It is the one module every other one in `commands/` imports, and it imports
  * none of them. That is what keeps the value-level graph a DAG: the two
@@ -18,7 +19,8 @@
  * `commands/teleport.ts` is the third place that needs it.
  */
 
-import { type CharacterId, needsContext, ok, type Result } from '@ie/shared';
+import { type CharacterId, type Err, needsContext, ok, type Result } from '@ie/shared';
+import { type Duration } from '../duration.js';
 import { type GameState } from '../events.js';
 import { type PositionState } from '../positioning.js';
 
@@ -108,4 +110,96 @@ export function sceneFor(
       satisfyWith: 'a setScene command',
     },
   ]);
+}
+
+/**
+ * How the SRD writes each moment in the turn order, in its own words.
+ *
+ * The rule that wanted the fact **is** the printed clause, so `because` is
+ * read off the duration rather than threaded from the call site. That is not a
+ * convenience: a rider on a condition, a rider on a Speed and a casting's own
+ * Duration are three different sentences in three different spells, and the
+ * only thing they have in common is the member they resolve to — which is
+ * precisely the thing that cannot be answered without a turn order.
+ */
+const PRINTED_AS: Readonly<Record<string, string>> = {
+  'start-of-next-turn': 'until the start of your next turn',
+  'end-of-next-turn': 'until the end of your next turn',
+  'end-of-current-turn': 'until the end of the current turn',
+};
+
+/**
+ * A moment in the turn order, asked for rather than refused.
+ *
+ * `resolveDuration` is the single conversion between a relative `Duration` and
+ * an absolute `Deadline`, and it **refuses** a turn-anchored one it cannot
+ * pin. It must go on refusing: where "the start of your next turn" falls
+ * depends on where the anchor sits in the Initiative order and on whose turn
+ * the effect began, so quietly calling it six seconds is the one mistake the
+ * whole two-type split exists to prevent.
+ *
+ * What was wrong was not the refusal but **who it was addressed to**. SRD Ray
+ * of Frost is a cantrip; a cantrip that cannot be cast in a corridor is a hole
+ * the layer above cannot repair, because `no_turns` does not say what would
+ * repair it. This is the three-state discipline the engine already applies to
+ * a creature nobody has typed and a room nobody has described — the rules say
+ * no, the record is thin, or fine — reaching a fact that is thin rather than
+ * forbidden.
+ *
+ * **Two thin records, not one**, and they are repaired by different commands:
+ *
+ * | Refusal | What is missing | What settles it |
+ * |---|---|---|
+ * | `no_turns` | there is no Initiative order at all | `beginCombat` |
+ * | `not_in_combat` | the fight exists and the anchor has no place in it | a number for the anchor, and a fight that holds it |
+ *
+ * Collapsing them would tell a caller mid-fight to begin a fight, which is not
+ * a repair and is not even legal to mean.
+ *
+ * **Everything else stays a refusal.** `bad_duration` is a span running
+ * backwards or in fractions of a second: nothing a caller can declare makes
+ * minus six seconds a whole number forwards, so offering to go and find a fact
+ * would be an orchestrator loop rather than a repair. The default is the one
+ * that closes the question, exactly as `err` is.
+ *
+ * `holder` is read only where the duration names no anchor — SRD's "until the
+ * end of the current turn" is a moment in the order rather than a fact about a
+ * creature, so the subject falls back to whoever the effect is being hung on.
+ * It is a `string` rather than a `CharacterId` because a casting's deadline is
+ * about a casting, and a request has to be about something.
+ */
+export function turnContextFor(refused: Err, duration: Duration, holder: string): Err {
+  const printed = PRINTED_AS[duration.kind];
+  if (printed === undefined) return refused;
+
+  const subject = 'of' in duration ? duration.of : holder;
+
+  // The fight exists and this creature has no place in it. Beginning combat is
+  // not the repair — there is a combat — so the request names what gives the
+  // anchor a number and what puts that number in the order.
+  if (refused.code === 'not_in_combat') {
+    return needsContext(refused.code, refused.reason, [
+      {
+        kind: 'turn-order',
+        subject,
+        need: `a place in the Initiative order for ${subject}`,
+        because: `the effect lasts "${printed}", and this fight holds no turns for ${subject}`,
+        satisfyWith: `a rollInitiativeFor command for ${subject}, then a beginCombat command whose order holds that number`,
+      },
+    ]);
+  }
+
+  if (refused.code === 'no_turns') {
+    return needsContext(refused.code, refused.reason, [
+      {
+        kind: 'turn-order',
+        subject,
+        need: 'an Initiative order, so that a moment in it means something',
+        because: `the effect lasts "${printed}", and outside combat there is no turn whose start or end that names`,
+        satisfyWith: 'a beginCombat command',
+      },
+    ]);
+  }
+
+  return refused;
 }

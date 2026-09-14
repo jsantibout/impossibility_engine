@@ -90,7 +90,7 @@ import {
   type SpellEffectOptions,
   triggerRefusal,
 } from './casting.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, turnContextFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
@@ -413,12 +413,18 @@ export function castOrRelease(
     // Asked here, before the slot and before the first die: the same
     // validate-before-rolling rule the rest of casting obeys, and the reason a
     // Color Spray outside combat costs its caster nothing at all.
+    //
+    // **And it asks rather than refusing.** A turn timeline is a thin record,
+    // not a rule saying no — the conversion below still refuses, because
+    // calling that moment six seconds is exactly what the two-type split
+    // exists to prevent, and this is the layer that knows a `beginCombat` is
+    // what would settle it. Raised here, the request costs a caller nothing to
+    // answer: the slot, the action and the generator are all still where they
+    // were, so the same casting is sent again unchanged.
     for (const lasts of riderDurations(definition)) {
-      const pinned = resolveDuration(
-        { elapsed: state.elapsed, combat: state.combat },
-        riderDuration(lasts, casterId) as Duration,
-      );
-      if (!pinned.ok) return pinned;
+      const wants = riderDuration(lasts, casterId) as Duration;
+      const pinned = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, wants);
+      if (!pinned.ok) return turnContextFor(pinned, wants, casterId);
     }
 
     // SRD Divine Smite is cast "immediately after hitting a target", so the

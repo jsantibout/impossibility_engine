@@ -3115,6 +3115,50 @@ it **can refuse** — a turn-anchored duration outside combat, or anchored to a
 creature who is not in the fight, is an error rather than an approximation.
 That refusal is the whole point of the split.
 
+**The conversion refuses and the command layer asks**, which is one sentence
+and two different jobs. `resolveDuration` is a pure helper and hands back a bare
+`no_turns` or `not_in_combat`, because it knows a `Duration` and a clock and
+nothing whatever about which rule wanted the deadline; the command that does
+know turns that into a `turn-order` request naming `beginCombat`, and the caller
+establishes the timeline and sends the same command again. That split is the
+rule this file already states for every other request kind — see "A missing fact
+is a request, not a refusal" — and keeping it is what makes the refusal safe to
+leave in place: **the one thing nothing here may ever do is convert a
+turn-anchored duration to seconds**, and a conversion that always refuses cannot.
+
+**`schedule` is where the command layer asks, because it is the single door.**
+Five modules give an effect a moment to stop at — a condition a DM hangs, a
+casting's own Duration, a readied spell's, a feature's activation, the grant a
+`speed-change` rider makes — and every one of them reaches that function, so a
+sixth gets the request with nothing to remember. The two sites that **ask**
+without going through it are the casting's declaration and `riderDurations`'
+pre-flight — three other sites call `resolveDuration` directly and convert
+nothing, each for a written reason the sweep below checks. The pre-flight sits
+**before the slot, the action and the first die** by the
+same validate-before-rolling rule the rest of casting obeys — so a Ray of Frost
+asked for in a corridor costs its caster nothing at all, which is asserted on
+the state rather than on the `Result`.
+
+**And the members are derived too**, one level below the call sites: the clause
+a request quotes is read off the duration's own kind, so a turn-anchored
+`Duration` member the table does not know would fall through to the bare
+refusal — a site left refusing with no symptom, arriving inside the guard
+against exactly that. IE-043 added the fifth member in this tranche, so the
+population is read out of `resolveDuration`'s own `switch` — the kinds it
+answers `no_turns` for, fall-through and all — and every one is driven through
+the conversion.
+
+**Every such site is converted or carries a written reason, and it is a derived
+sweep rather than a reading.** `turn-context.test.ts` reads every
+`resolveDuration` call in `commands/` and `rest.ts` and fails naming any that
+hands the bare refusal back, because a site left refusing has no symptom
+whatever — no failing test and no wrong number, just an orchestrator that gives
+up on a legal cantrip. Three are exempt and each names the fact that ends it:
+two whose argument is a **span** and therefore cannot be turn-anchored, and
+`scheduleDelayed`, where SRD Acid Arrow's later 2d4 is reported in `unverified`
+and not scheduled rather than refused — the casting succeeded and its first hit
+landed, so there is nothing for a caller to repair.
+
 **Start and end of turn are a full round apart**, so combatants count turns
 begun and turns ended separately. Nothing derives one from the other. The
 asymmetry that catches people out lives in the constructors: said on the
@@ -7371,12 +7415,45 @@ nothing, declaring a *different* one is refused with `type_established`, and
 a log that contradicts itself is corrupt. Sight and cover are momentary facts
 and re-declare freely. `ContextRequest.kind` is the field a tool surface
 branches on — `creature`, `position`, `visibility`, `creature-type`, `scene`,
-`route` — and `invariants.test.ts` asserts that no command returns
+`route`, `turn-order` — and `invariants.test.ts` asserts that no command returns
 `needs-context` without saying which. Pure helpers beneath the commands return
 the bare kind; the command that knows which rule wanted the fact attaches the
 request. `route` is the one satisfied by re-sending the same command with a
 field filled in rather than by declaring a fact through a command of its own —
 see "`via` is adjudicated, and asking for it is not a refusal".
+
+**A turn timeline is a thin record, not a rule saying no**, and until IE-046 it
+was the one thin fact in the engine answered with a verdict. SRD Ray of Frost
+reduces a Speed "until the start of your next turn"; outside combat there is no
+turn whose start that names, so `resolveDuration` refuses — correctly, and it
+must go on refusing, because quietly calling that moment six seconds is the one
+mistake the whole two-type duration split exists to prevent. What was wrong was
+**who the refusal was addressed to**: a cantrip that cannot be cast in a
+corridor is a hole the layer above cannot repair, because `no_turns` does not
+say what would repair it.
+
+**Two thin records, not one**, because they are repaired by different commands
+and collapsing them would tell a caller mid-fight to begin a fight:
+
+| Refusal | What is missing | What settles it |
+|---|---|---|
+| `no_turns` | there is no Initiative order at all | `beginCombat` |
+| `not_in_combat` | the fight exists and the anchor has no place in it | a number for the anchor, and a fight that holds it |
+
+`because` quotes the **printed clause** — "until the start of your next turn" —
+read off the `Duration` rather than threaded from the call site, because the
+rule that wanted the fact *is* that sentence and the three hosts that can write
+it (a condition rider, a Speed rider, a casting's own Duration) have nothing
+else in common. The subject is the duration's own anchor where it names one, and
+falls back to whoever the effect is being hung on where it does not: SRD's
+"until the end of the current turn" is a moment in the order rather than a fact
+about a creature, which is why that member names no anchor at all.
+
+**And the engine does none of the repairing.** It does not start the fight, roll
+Initiative or invent an order — it says which command would, and the caller
+casts again exactly as it meant to. That is the whole of the owner decision this
+was built from, and a conversion of a turn-anchored duration to seconds is
+forbidden anywhere, for ever.
 
 **That paragraph was a rule this file stated and the code did not keep**, and
 what closed the gap was a sweep rather than the six fixes. Seventeen requests

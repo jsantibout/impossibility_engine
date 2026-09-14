@@ -1,7 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+  type CharacterId,
+  type Result,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -433,26 +441,34 @@ describe('Ray of Frost is the first production writer of a grants deadline', () 
    * for a casting that never happened. `riderDurations` gathers every deadline
    * a casting is going to need so the refusal comes first.
    *
-   * **"It refused" is not the assertion, because it refuses either way.**
-   * Without the pre-flight the ray still comes back an error: it rolls the
-   * attack, deals the damage and *then* fails to schedule the reduction. What
+   * **"It came back an error" is not the assertion, because it does either
+   * way.** Without the pre-flight the ray still fails: it rolls the attack,
+   * deals the damage and *then* fails to schedule the reduction. What
    * separates the two is the **code** — `no_turns` rather than a refusal from
    * somewhere inside the resolution — and the generator, which is the rule
    * this engine calls "validate before rolling". So the fixture holds **one**
    * `Rng` across the call; a fresh one per call, which is what `supply()`
    * builds, could never have said so. A second `fold` of the same log could
    * not either: two folds of one list are equal whatever happened.
+   *
+   * **And it asks rather than refusing**, which IE-046 made the difference the
+   * code alone no longer carries: a turn timeline is a thin record, so the
+   * answer names `beginCombat` and the caller casts again unchanged. The
+   * pre-flight claim now rests on the request as well as on the generator.
    */
-  it('refuses the cast outside combat rather than rolling and then failing', () => {
+  it('asks for a turn order outside combat rather than rolling and then failing', () => {
     const rng = createRng('hit') as Rng;
     const before = rng.snapshot();
-    const refused = resolveSpell(
+    const asked = resolveSpell(
       fold('seed', PLACED),
       CASTER,
       { spellId: 'ray-of-frost', targets: [TARGET] },
       { issuer: createRollIssuer('r'), rng },
     );
-    expect(isErr(refused) && refused.code).toBe('no_turns');
+    expect(isErr(asked) && asked.code).toBe('no_turns');
+    expect(isNeedsContext(asked)).toBe(true);
+    expect(contextRequestsOf(asked).map((r) => r.kind)).toEqual(['turn-order']);
+    expect(contextRequestsOf(asked)[0]?.satisfyWith).toContain('beginCombat');
     expect(rng.snapshot()).toEqual(before);
   });
 });

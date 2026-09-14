@@ -68,7 +68,7 @@ import {
 } from '../spells.js';
 import { armorClassOf } from '../standing.js';
 import { concentrationSaveDc } from '../vitals.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, turnContextFor, unknownCreature } from './command.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { type DamageCommand, damageCreature } from './creatures.js';
 import { mayAct, pendingCastingsOf } from './holds.js';
@@ -713,7 +713,11 @@ function castSpellWith(
       // to a deadline of `null`: a casting that never expires live and expires
       // at once on reload, which is one log meaning two things.
       const pinned = resolveDuration(timeView(state), command.duration);
-      if (!pinned.ok) return pinned;
+      // A turn-anchored one outside combat is a thin record rather than a rule
+      // saying no, and this is the layer that can say which command settles it.
+      // Still before the window opens, so a caller that goes and begins the
+      // fight declares the casting again exactly as it meant to.
+      if (!pinned.ok) return turnContextFor(pinned, command.duration, id);
 
       if (sustained) {
         if (pinned.value.kind !== 'elapsed') {
