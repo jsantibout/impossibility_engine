@@ -1,13 +1,13 @@
 # IE-055 — A creature can join a fight already under way
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 7
 parallel-safe: CONDITIONAL — `events.ts`, one fold domain, `commands/initiative.ts`; not beside IE-050 or IE-053
 depends-on: IE-050
-worker: qb-builder, launched 2026-09-14 from `2bb66bb` (wave 3)
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 7."
 
 ## Brief
 
@@ -112,3 +112,86 @@ Medium, and all of it in requirement 2. The turn counter and the order are kept
 in step by every existing operation, and an insertion is the first operation
 that changes the order's *length* mid-round. Get that wrong and a creature acts
 twice or never — a wrong number with no symptom until somebody counts turns.
+
+## Completion digest
+
+**Merged `4f23895`**, 13/13 auto-merge conditions, reviewer PASS at high confidence on
+the **first** round, **no deviations declared**. `main` green at **8,668 tests
+across 126 files**; both frozen logs absent from the diff.
+
+### What it closes
+
+IE-046 raised a `not_in_combat` request — *a fight exists and this creature has
+no place in it* — that could not be answered cleanly, because it had to name
+**two** commands and neither did the job: `rollInitiativeFor` produces a number,
+`beginCombat` replaces the whole order. `joinCombat` is the command that was
+missing. `turnContextFor`'s request now names `rollInitiativeFor` then
+`joinCombat`, and `turn-context.test.ts` drives the whole loop — refusal, join,
+the same casting resolving — with an assertion that the request contains
+`joinCombat` and **not** `beginCombat`, which fails on `main`.
+
+### The comparator extraction, verified by the foreman
+
+Requirement 3 said the insertion must read the tie rule the engine already
+applies rather than writing a second one. `startCombat`'s inline comparator
+became a named `byInitiative`, and the change is exactly behaviour-preserving:
+
+```
+before:  (a, b) => b.initiative - a.initiative || b.tiebreak - a.tiebreak || a.index - b.index
+after:   (a, b) => byInitiative(a, b) || a.index - b.index
+```
+
+with `byInitiative` being precisely the first two terms. The insertion is
+`findIndex(c => byInitiative(combatant, c) < 0)` — the first index the joiner
+ranks ahead of.
+
+**The test that makes this mean something is the oracle**: `addCombatant` and
+`startCombat` are asserted to agree over **21 initiative/tiebreak combinations**.
+That is the only test that can catch a second comparator diverging on a tie, and
+the builder's mutation — `< 0` to `<= 0` — fails both it and the tie case.
+
+### The owner's boundary, held
+
+Nothing here decides *when* a fight begins. That is the DM's authority, and
+IE-054's brief says so. This builds the command; something above the engine
+chooses to call it. The initiative number is the caller's, exactly as at
+`beginCombat`, with `rollInitiativeFor` the engine path — so no new hole in
+**the model never produces a number**.
+
+### Deliberately unguarded, and the reasoning is adjacent to IE-057's live question
+
+`joinCombat` spends nothing and is **not** guarded on unsettled debt, and the
+docstring makes the `relocateCreature` comparison **explicitly** rather than
+leaving it implied: joining moves nobody and raises no area debt, and
+`beginCombat` is unguarded for the same reason.
+
+That is worth noting beside IE-057, which is deciding at this moment whether
+`endConcentration` should be guarded on that same precedent. The two are not in
+tension — IE-055's reasoning turns on exactly the distinguishing feature, that
+`relocateCreature` is guarded because it *raises* area debts — but it is the
+second task in this tranche to reason from that precedent, and a third would be
+a pattern worth naming in the design document.
+
+### Reported, not acted on
+
+**A creature joining mid-fight cannot use a `moment === 'initiative'` feature**,
+because `commands/features.ts:446` gates those on `turnsTaken > 0`. Pre-existing
+semantics about the first turn of a fight; the reviewer raised it as a note
+rather than a defect, and Surprise and anything about when a fight starts are
+out of this brief's scope.
+
+### Outside the brief's surface, each with its reason
+
+`combat.ts` — the pure turn-economy primitive both the reducer and the command
+call; putting the insertion anywhere else would be the second path to
+`combat.order` the brief forbids. `commands/command.ts` and `turn-context.test.ts`
+— requirement 5 and criterion 4. `persistence.test.ts` and `persistence-2.test.ts`
+— the event-type list and the uncovered-by-construction ledger, with a reason
+that is **true**: neither frozen log could contain a mid-fight join, because no
+command existed. `invariants.test.ts` — the idempotency sweep.
+
+**And one correction the task forced**: `refusals.test.ts`'s comment claimed
+*"there is no `addCombatant`, so the order… only ever shrinks"*. This task makes
+that false, so the comment is corrected **and the sweep widened** to `turnCounts`
+and driven over the insertion on both sides of the turn in progress. A stale
+comment that had become a false claim, found by the task that falsified it.
