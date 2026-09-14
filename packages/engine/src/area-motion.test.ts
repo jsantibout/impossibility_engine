@@ -732,6 +732,11 @@ describe('a route with spaces nobody named is a question, not a refusal', () => 
   it('asks rather than refusing', () => {
     const { out } = coarse();
     expect(isNeedsContext(out)).toBe(true);
+    // The code a tool surface reads, not only the request kind beneath it.
+    // `needs-context` is the channel; `route_required` is which question, and
+    // a caller branching on one without the other cannot tell this apart from
+    // a missing position or an unnamed scene.
+    expect(isErr(out) ? out.code : 'not asked').toBe('route_required');
   });
 
   it('names the fact it is missing and how to supply it', () => {

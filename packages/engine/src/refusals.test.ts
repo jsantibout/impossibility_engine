@@ -1,0 +1,877 @@
+import { describe, expect, it } from 'vitest';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  isErr,
+  expect as unwrap,
+  type Result,
+} from '@ie/shared';
+import type { Weapon } from '@ie/srd';
+import type { CharacterSheet } from './character.js';
+import { createRng, parseNotation, rerollDice, roll, type Rng } from './dice.js';
+import { createRollIssuer, recordExternalD20, recordExternalDamage } from './rolls.js';
+import { fold, type GameEvent, type GameState } from './events.js';
+import { declarePool, resourceState, spellSlotKey } from './resources.js';
+import { declaredCasting } from './spellcasting.js';
+import { rollAttackDamage } from './attack.js';
+import { dash, removeCombatant, spendMovement } from './combat.js';
+import { rollDeathSave } from './vitals.js';
+import {
+  activateSpell,
+  castSpell,
+  damageCreature,
+  declareCreatureDead,
+  declareResourcePool,
+  equipItem,
+  grantTemporaryHpTo,
+  healCreature,
+  placeCreatureInScene,
+  releaseReady,
+  removeCreatureEverywhere,
+  resolveAttack,
+  resolveAttackDamage,
+  resolveSpell,
+  resolveTurn,
+  settleTest,
+  takeReady,
+  takeTestReaction,
+  declineTestReaction,
+} from './commands.js';
+import { beginRest, endRest } from './rest.js';
+
+/**
+ * The refusals nothing had ever read.
+ *
+ * A rules-legal refusal is a value rather than an exception so that the layer
+ * above can act on it, and every code below is one the engine could return and
+ * no test had ever seen. That is not a cosmetic gap: a code nobody asserts is
+ * a code whose branch may not be reachable, whose spelling nothing pins, and
+ * whose rule — "a cantrip is cast without a spell slot", "only the engine may
+ * record a roll as engine-generated" — is recorded in a string and nowhere
+ * else. `refusal-sweep.test.ts` is what keeps the list honest; this is the
+ * list.
+ *
+ * **Every case here goes through the public API** — a command off
+ * `commands.ts`'s barrel, or a function `index.ts` re-exports — never through
+ * the helper that happens to contain the `err`. Calling the function that
+ * returns a code proves the string exists; it does not prove the rule holds,
+ * and the rule is the point. Where a code's own site is a private helper the
+ * test names the outermost entry point that reaches it.
+ *
+ * Each case names the rule it pins, because a refusal without its rule is a
+ * string with a test around it.
+ */
+
+const id = (s: string) => asCharacterId(s);
+const A = id('a');
+const B = id('b');
+
+const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
+  level: 5,
+  abilities: { str: 14, dex: 14, con: 12, int: 16, wis: 10, cha: 10 },
+  skills: {},
+  saveProficiencies: [],
+  armor: null,
+  shield: null,
+  armorTraining: { light: true, medium: true, heavy: true, shields: true },
+  baseSpeed: 30,
+  spellcastingAbility: 'int',
+  weaponProficiencies: ['simple', 'martial'],
+  ...over,
+});
+
+const added = (who: string, side: string): GameEvent => ({
+  type: 'creature-added',
+  id: id(who),
+  name: who,
+  sheet: sheet(),
+  maxHp: 40,
+  diesAtZero: false,
+  creatureType: 'Humanoid',
+  side,
+});
+
+const SETUP: readonly GameEvent[] = [
+  added('a', 'party'),
+  added('b', 'foes'),
+  { type: 'items-gained', id: A, items: [{ id: 'chain-shirt', quantity: 2 }], source: 'kit' },
+  {
+    type: 'resource-pool-declared',
+    id: A,
+    pool: { key: spellSlotKey(1), label: 'level 1 spell slot', max: 4, recovers: 'long-rest' },
+  },
+  {
+    type: 'resource-pool-declared',
+    id: A,
+    pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 3, recovers: 'long-rest' },
+  },
+  {
+    type: 'resource-pool-declared',
+    id: A,
+    pool: { key: spellSlotKey(3), label: 'level 3 spell slot', max: 3, recovers: 'long-rest' },
+  },
+  {
+    type: 'spellcasting-declared',
+    id: A,
+    spellcasting: declaredCasting({
+      ability: 'int',
+      prepared: [
+        'inflict-wounds',
+        'fire-bolt',
+        'hold-person',
+        'disguise-self',
+        'spirit-guardians',
+        'vampiric-touch',
+        'counterspell',
+      ],
+    }),
+  },
+  { type: 'scene-set', extent: { width: 300, depth: 300, height: 40 } },
+  { type: 'landmark-added', name: 'here', at: { x: 100, y: 100, z: 0 } },
+  { type: 'creature-placed', id: A, placement: { from: { landmark: 'here' }, feet: 0 } },
+  { type: 'creature-placed', id: B, placement: { from: { creature: A }, feet: 5, bearing: 0 } },
+  { type: 'sight-declared', from: A, to: B, seen: true },
+  { type: 'sight-declared', from: B, to: A, seen: true },
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: A, initiative: 20, speed: 30 },
+      { id: B, initiative: 10, speed: 30 },
+    ],
+  },
+];
+
+const world = (extra: readonly GameEvent[] = []): GameState => fold('seed', [...SETUP, ...extra]);
+
+const supply = (seed = 'seed') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+
+/** The code a refusal carried, or what it did instead. */
+const refusal = (out: Result<unknown>): string =>
+  isErr(out) ? out.code : 'not refused';
+
+describe('casting refuses a slot that contradicts itself', () => {
+  /**
+   * SRD: "A cantrip is cast without a spell slot." So naming one is not a
+   * generous caller being tidy; it is a casting the rules do not describe.
+   *
+   * `resolveSpell` cannot reach this and is right not to: it derives the
+   * payment from the definition, so a cantrip is never given a slot level to
+   * contradict. `castSpell` is the documented low-level half a caller
+   * reconstructing a log or scripting a fixture uses, and it takes the caller's
+   * word for the level — which is exactly why it has to check.
+   */
+  it('refuses a cantrip that names a spell slot', () => {
+    const out = castSpell(world(), A, { spell: 'Fire Bolt', level: 0, slotLevel: 1 });
+    expect(refusal(out)).toBe('cantrip_takes_no_slot');
+  });
+
+  /** And nothing is spent by the refusal — the slot is still there. */
+  it('spends nothing refusing it', () => {
+    const before = world();
+    expect(isErr(castSpell(before, A, { spell: 'Fire Bolt', level: 0, slotLevel: 1 }))).toBe(true);
+    expect(before.creatures[A]?.resources.pools[spellSlotKey(1)]?.spent).toBe(0);
+  });
+
+  /**
+   * A casting either expends a slot or explains why it does not. Saying both
+   * is not over-specification: the two answers disagree about whether the
+   * one-slot-per-turn rule has fired, and the engine will not pick one.
+   */
+  it('refuses a casting that both expends a slot and explains why it does not', () => {
+    const out = castSpell(world(), A, {
+      spell: 'Inflict Wounds',
+      level: 1,
+      slotLevel: 1,
+      slotless: 'special-ability',
+    });
+    expect(refusal(out)).toBe('conflicting_slot');
+  });
+
+  /**
+   * Through the whole spell surface as well, which is the half a tool surface
+   * will actually reach: a levelled spell paid for with a slot, handed a
+   * `slotless` reason on top of it.
+   */
+  it('refuses the same contradiction through the whole spell resolution', () => {
+    const out = resolveSpell(
+      world(),
+      A,
+      { spellId: 'inflict-wounds', targets: [B], slotLevel: 1, slotless: 'special-ability' },
+      supply(),
+    );
+    expect(refusal(out)).toBe('conflicting_slot');
+  });
+
+  /** SRD prints nine slot levels. A tenth is not a big spell; it is not a slot. */
+  it('refuses a slot level the game does not have', () => {
+    expect(refusal(castSpell(world(), A, { spell: 'Inflict Wounds', level: 1, slotLevel: 10 }))).toBe(
+      'bad_slot_level',
+    );
+    expect(refusal(castSpell(world(), A, { spell: 'Inflict Wounds', level: 1, slotLevel: 0 }))).toBe(
+      'bad_slot_level',
+    );
+  });
+
+  /**
+   * A spell name may not carry the mark that forges a casting link.
+   *
+   * `castingSource` writes `Hold Person#cast:3` and `castingIdOf` reads it
+   * back, so a name carrying a `#` could attach its effects to somebody else's
+   * casting — or detach its own from the cleanup that ends it.
+   */
+  it('refuses a spell name that would forge a casting link', () => {
+    const out = castSpell(world(), A, { spell: 'Hold Person#cast:1', level: 2, slotLevel: 2 });
+    expect(refusal(out)).toBe('bad_spell');
+  });
+
+  it('refuses a spell with no name at all', () => {
+    expect(refusal(castSpell(world(), A, { spell: '   ', level: 1, slotLevel: 1 }))).toBe('bad_spell');
+  });
+
+  /**
+   * A duration runs forwards in whole seconds. Half a second is not a short
+   * effect and a negative one is not an expired effect — both are a deadline
+   * the clock could never reach, which is the one thing a timer must not be.
+   */
+  it('refuses a duration that does not run forwards in whole seconds', () => {
+    const out = castSpell(world(), A, {
+      spell: 'Inflict Wounds',
+      level: 1,
+      slotLevel: 1,
+      duration: { kind: 'seconds', seconds: -60 },
+    });
+    expect(refusal(out)).toBe('bad_duration');
+  });
+});
+
+describe('a D20 Test Reaction needs a D20 Test to answer', () => {
+  /**
+   * The window is the whole mechanism: `pendingTest` holds a roll whose total
+   * is known and whose consequences have not happened. With no window open
+   * there is nothing to push on, and all three commands that speak to one say
+   * so rather than inventing a roll to modify.
+   */
+  it('refuses a Reaction when no test is waiting', () => {
+    const out = takeTestReaction(world(), A, { feature: 'fighter:indomitable' }, supply());
+    expect(refusal(out)).toBe('no_pending_test');
+  });
+
+  it('refuses a decline when no test is waiting', () => {
+    expect(refusal(declineTestReaction(world(), A, {}))).toBe('no_pending_test');
+  });
+
+  it('refuses a settlement when no test is waiting', () => {
+    expect(refusal(settleTest(world(), {}))).toBe('no_pending_test');
+  });
+});
+
+describe('the turn refuses to advance outside a fight', () => {
+  /**
+   * Out of combat there is no Initiative order to wrap and no six seconds to
+   * pass — the clock moves by narration instead. Advancing a turn that does
+   * not exist would move the clock on a rule that is not running.
+   */
+  it('refuses to advance a turn when no combat is running', () => {
+    const outside = fold('seed', [added('a', 'party')]);
+    expect(refusal(resolveTurn(outside, supply()))).toBe('no_combat');
+  });
+});
+
+describe('a pool is declared once, and with a maximum it could have', () => {
+  /** Pools are declared, never derived — and declaring one twice is two answers to one question. */
+  it('refuses a second pool with a key the creature already has', () => {
+    const out = declareResourcePool(world(), A, {
+      key: spellSlotKey(1),
+      label: 'level 1 spell slot',
+      max: 4,
+      recovers: 'long-rest',
+    });
+    expect(refusal(out)).toBe('duplicate_pool');
+  });
+
+  /**
+   * A maximum is a count of uses. A fraction is not a number of uses and a
+   * negative one is a pool that owes the creature something.
+   */
+  it('refuses a maximum that is not a whole number of uses', () => {
+    const out = declareResourcePool(world(), A, {
+      key: 'test:rage',
+      label: 'Rage',
+      max: -1,
+      recovers: 'long-rest',
+    });
+    expect(refusal(out)).toBe('bad_max');
+  });
+});
+
+describe('what is worn is worn once', () => {
+  /**
+   * One suit of body armour. Equipping the same item twice is not two suits —
+   * `equipped` is a set of what is actually on the creature, and Armour Class
+   * reads it.
+   */
+  it('refuses to equip what is already equipped', () => {
+    const on = unwrap(equipItem(world(), A, 'chain-shirt', 'first'), 'equip');
+    const out = equipItem(world(on), A, 'chain-shirt', 'second');
+    expect(refusal(out)).toBe('already_equipped');
+  });
+});
+
+describe('a rest is a span, and only one at a time', () => {
+  /** A rest begins, time passes, it ends. A second beginning contradicts the first. */
+  it('refuses to begin a rest while one is already running', () => {
+    const resting = unwrap(beginRest(world(), A, 'short', 'first'), 'begin');
+    const out = beginRest(world(resting), A, 'long', 'second');
+    expect(refusal(out)).toBe('already_resting');
+  });
+
+  /**
+   * SRD: spending Hit Point Dice is a benefit of a Short Rest. A completed
+   * Long Rest "restores all lost Hit Points and all spent Hit Point Dice", so
+   * spending one there is burning a resource the rest is about to hand back.
+   */
+  it('refuses Hit Dice on a rest that does not offer them', () => {
+    const resting = unwrap(beginRest(world(), A, 'long', 'begin'), 'begin');
+    const rested = fold('seed', [
+      ...SETUP,
+      ...resting,
+      { type: 'time-advanced', seconds: 8 * 60 * 60, reason: 'a long night' },
+    ]);
+    const out = endRest(rested, A, { hitDice: ['hit-die:d8'] }, supply());
+    expect(refusal(out)).toBe('no_hit_dice_here');
+  });
+
+  /**
+   * The die size lives in the pool key because nothing else knows it — a sheet
+   * has a level but no class. A key that names no die is a request the engine
+   * cannot price, and it is refused before any die is rolled.
+   */
+  it('refuses a Hit Die pool key that names no die', () => {
+    const resting = unwrap(beginRest(world(), A, 'short', 'begin'), 'begin');
+    const rested = fold('seed', [
+      ...SETUP,
+      ...resting,
+      { type: 'time-advanced', seconds: 60 * 60, reason: 'a breather' },
+    ]);
+    const out = endRest(rested, A, { hitDice: ['test:vigour'] }, supply());
+    expect(refusal(out)).toBe('bad_hit_die');
+  });
+});
+
+describe('an amount is a number of hit points', () => {
+  /**
+   * A non-finite or negative amount is the bug that turned hit points into
+   * `NaN` — a creature that compares false against every threshold and is
+   * therefore neither alive nor dead. Each of the three numeric entry points
+   * has its own sentence about what a number means there.
+   */
+  it('refuses damage that is not a non-negative number', () => {
+    expect(refusal(damageCreature(world(), A, { amount: -5, source: 'a trap' }))).toBe('bad_amount');
+    expect(refusal(damageCreature(world(), A, { amount: Number.NaN, source: 'a trap' }))).toBe(
+      'bad_amount',
+    );
+  });
+
+  /** Healing of nothing is not healing; SRD gives no spell that restores zero. */
+  it('refuses healing that is not a positive number', () => {
+    expect(refusal(healCreature(world(), A, 0))).toBe('bad_amount');
+  });
+
+  it('refuses Temporary Hit Points that are not a non-negative number', () => {
+    expect(refusal(grantTemporaryHpTo(world(), A, -1, {}))).toBe('bad_amount');
+  });
+});
+
+describe('a roll recorded from outside the engine is still a roll the die could have made', () => {
+  /**
+   * The provenance guard, and the one place the Inviolable Rule is actually
+   * enforced. Only `rolls.ts`'s own functions may stamp `engine`, so the layer
+   * above cannot forge the audit trail by claiming a number it decided was one
+   * the engine rolled. A human DM legitimately fudges; a model doing the same
+   * is a bug, and the difference is visible only because this refusal exists.
+   */
+  it('refuses an external roll that claims the engine generated it', () => {
+    const out = recordExternalD20(createRollIssuer('r'), {
+      natural: 20,
+      modifier: 0,
+      source: 'engine',
+    });
+    expect(refusal(out)).toBe('forged_provenance');
+  });
+
+  it('refuses external damage that claims the engine generated it', () => {
+    const out = recordExternalDamage(createRollIssuer('r'), {
+      notation: '2d6',
+      total: 7,
+      source: 'engine',
+    });
+    expect(refusal(out)).toBe('forged_provenance');
+  });
+
+  /** A d20 has twenty faces regardless of who is holding it — an override included. */
+  it('refuses a face a d20 cannot show', () => {
+    const issuer = createRollIssuer('r');
+    expect(refusal(recordExternalD20(issuer, { natural: 21, modifier: 0, source: 'dm-override' }))).toBe(
+      'impossible_die',
+    );
+    expect(refusal(recordExternalD20(issuer, { natural: 0, modifier: 0, source: 'physical-dice' }))).toBe(
+      'impossible_die',
+    );
+  });
+
+  /** Damage is never negative, whoever is reporting it. */
+  it('refuses a damage total that is not a damage total', () => {
+    const out = recordExternalDamage(createRollIssuer('r'), {
+      notation: '2d6',
+      total: -1,
+      source: 'dm-override',
+    });
+    expect(refusal(out)).toBe('impossible_damage');
+  });
+
+  /**
+   * And physical dice are held to what the notation can produce, where a DM's
+   * override is not: the difference between reporting a roll and deciding one.
+   * 2d6 cannot come to 13, so a table claiming it misread the dice.
+   */
+  it('refuses physical dice reporting a total the notation cannot reach', () => {
+    const issuer = createRollIssuer('r');
+    expect(
+      refusal(recordExternalDamage(issuer, { notation: '2d6', total: 13, source: 'physical-dice' })),
+    ).toBe('impossible_damage');
+    // The same total from a DM stating the result they want is allowed, which
+    // is what makes the check about provenance rather than about arithmetic.
+    expect(
+      unwrap(
+        recordExternalDamage(issuer, { notation: '2d6', total: 13, source: 'dm-override' }),
+        'override',
+      ).total,
+    ).toBe(13);
+  });
+});
+
+describe('dice notation says what it says', () => {
+  /** Nothing parses into a roll, and a roll of no dice is not a roll. */
+  it('refuses notation that is not notation', () => {
+    expect(refusal(parseNotation('a handful'))).toBe('bad_notation');
+    expect(refusal(parseNotation('0d6'))).toBe('bad_notation');
+    expect(refusal(parseNotation('2d6kh0'))).toBe('bad_notation');
+    expect(refusal(parseNotation('2d6kh3'))).toBe('bad_notation');
+  });
+
+  /**
+   * The die limit is a guard on the generator rather than a rule of the game:
+   * a caller asking for a million dice would advance the sequence a million
+   * times, and a replay would have to do it again.
+   */
+  it('refuses more dice than the engine will roll', () => {
+    expect(refusal(parseNotation('1001d6'))).toBe('too_many_dice');
+    // And the limit itself is not over it — a guard that refused the boundary
+    // would be a different guard from the one written down.
+    expect(unwrap(parseNotation('1000d6'), 'at the limit').count).toBe(1000);
+    // A die with too many sides is the other half of the same sentence, and is
+    // `bad_notation` rather than a limit of its own.
+    expect(refusal(parseNotation('1d1001'))).toBe('bad_notation');
+  });
+
+  /**
+   * A reroll takes explicit indices, because the rules that use one let the
+   * *player* choose which dice. An index that names no die is a choice about
+   * nothing, and a die already given up cannot be given up twice — the record
+   * keeps it marked `rerolled` so the log shows what was surrendered.
+   */
+  it('refuses a reroll of a die that is not there, and of one already rerolled', () => {
+    const rng = createRng('reroll') as Rng;
+    const outcome = unwrap(roll(rng, '2d6'), 'roll');
+    expect(refusal(rerollDice(rng, outcome, [7], 'Empowered Spell'))).toBe('unknown_die');
+    const once = unwrap(rerollDice(rng, outcome, [0], 'Empowered Spell'), 'reroll');
+    expect(refusal(rerollDice(rng, once, [0], 'Empowered Spell'))).toBe('already_rerolled');
+  });
+});
+
+describe('a pool needs a key to be found by', () => {
+  /**
+   * A pool is looked up by its key — `spell-slot:3`, `hit-die:d8` — so a blank
+   * one is a pool nothing can ever spend from or refill. "Declared, never
+   * derived" means the declaration has to say which pool it is declaring.
+   *
+   * The command above it does not reach this: `declareResourcePool` asks
+   * whether the creature already *has* the key, which an empty string never
+   * is, and emits the event — so an empty key arrives at the reducer, where
+   * `declarePool` refuses and the fold throws a corrupt log rather than
+   * returning a value. That is the reducer's contract working as designed and
+   * it is why this is asserted at the pure declaration, which is the public
+   * function a caller building a pool actually holds.
+   */
+  it('refuses a pool with no key', () => {
+    const out = declarePool(resourceState(), {
+      key: '   ',
+      label: 'a nameless reserve',
+      max: 3,
+      recovers: 'long-rest',
+    });
+    expect(refusal(out)).toBe('bad_key');
+  });
+});
+
+describe('a distance is a distance', () => {
+  /**
+   * Movement and placement share the rule and refuse it separately, because
+   * different callers reach them. A negative or non-finite distance does not
+   * move a creature backwards; it puts a `NaN` into the budget or the
+   * coordinates, and everything downstream compares false against it for ever
+   * — the same failure that made a creature neither alive nor dead.
+   */
+  it('refuses a movement spend that is not a distance', () => {
+    const combat = world().combat!;
+    expect(refusal(spendMovement(combat, A, -5))).toBe('bad_distance');
+    expect(refusal(spendMovement(combat, A, Number.POSITIVE_INFINITY))).toBe('bad_distance');
+  });
+
+  it('refuses a placement measured by a distance that is not one', () => {
+    const out = placeCreatureInScene(world(), id('c'), {
+      from: { landmark: 'here' },
+      feet: Number.NaN,
+    });
+    expect(refusal(out)).toBe('bad_distance');
+  });
+});
+
+describe('a fight keeps at least one combatant', () => {
+  /**
+   * An Initiative order of nobody is not a fight that has ended; it is a fight
+   * whose "whose turn is it" has no answer, and `currentCombatant` would have
+   * to invent one.
+   *
+   * `removeCreatureEverywhere` is why this is rarely met — it ends the combat
+   * outright rather than removing the last combatant — and the second case is
+   * what makes that a choice rather than an accident.
+   */
+  it('refuses to remove the only combatant left', () => {
+    const alone = fold('seed', [
+      added('a', 'party'),
+      { type: 'combat-started', combatants: [{ id: A, initiative: 20, speed: 30 }] },
+    ]).combat!;
+    expect(refusal(removeCombatant(alone, A))).toBe('last_combatant');
+  });
+
+  it('and the command that removes a creature ends the fight instead', () => {
+    const alone = fold('seed', [
+      added('a', 'party'),
+      { type: 'combat-started', combatants: [{ id: A, initiative: 20, speed: 30 }] },
+    ]);
+    const out = unwrap(removeCreatureEverywhere(alone, A, {}), 'remove');
+    expect(out.map((e) => e.type)).toContain('combat-ended');
+    expect(out.map((e) => e.type)).not.toContain('combatant-removed');
+  });
+});
+
+describe('an action is taken by somebody in the fight', () => {
+  /**
+   * Dash doubles the Speed the Initiative order is holding, so a creature who
+   * is not in it has no Speed for the rule to act on.
+   */
+  it('refuses a Dash by a creature who is not in this fight', () => {
+    const combat = world().combat!;
+    expect(refusal(dash(combat, id('c')))).toBe('not_a_combatant');
+  });
+});
+
+describe('a weapon that deals no damage is refused rather than dealing none', () => {
+  /**
+   * Every weapon the SRD prints has damage dice or a flat amount — the Blowgun
+   * is the one with only the second. A weapon with neither is a homebrew row
+   * the public damage function will be handed sooner or later, and the honest
+   * answer is a refusal: dealing 0 would be the engine inventing a number for
+   * a weapon whose damage nobody stated.
+   */
+  it('refuses to roll damage for a weapon with neither dice nor a flat amount', () => {
+    const nothing = {
+      id: 'feather',
+      name: 'A Feather',
+      category: 'simple',
+      kind: 'melee',
+      damage: { dice: null, fixed: null, type: 'bludgeoning' },
+      properties: [],
+      versatileDamage: null,
+      thrownRange: null,
+      ammunitionRange: null,
+      ammunitionType: null,
+      propertyNotes: null,
+      mastery: null,
+      weightLb: 0,
+      cost: { amount: 0, currency: 'cp' },
+    } as unknown as Weapon;
+    const out = rollAttackDamage(
+      createRollIssuer('r'),
+      createRng('d') as Rng,
+      sheet(),
+      { weapon: nothing, targetAc: 10 },
+      false,
+    );
+    expect(refusal(out)).toBe('no_damage');
+  });
+});
+
+describe('a spell aimed at a place is not a spell aimed at a creature', () => {
+  /**
+   * SRD Hold Person: "Choose a Humanoid that you can see within range." There
+   * is no point to aim it at, so a caller who names one has asked for a
+   * different spell — and the engine refuses rather than quietly dropping the
+   * field, which is the same rule `eligibleTargets` follows about a target it
+   * was not given.
+   */
+  it('refuses a point for a spell that is cast on a target', () => {
+    const out = resolveSpell(
+      world(),
+      A,
+      { spellId: 'hold-person', targets: [B], slotLevel: 2, at: { x: 105, y: 100, z: 0 } },
+      supply(),
+    );
+    expect(refusal(out)).toBe('not_an_area');
+  });
+});
+
+describe('a missing fact is a request, and the request says so', () => {
+  /**
+   * SRD Hold Person targets "a Humanoid that you can **see**", and sight is
+   * three-valued: seen, unseen, and nobody has said. Undeclared is a fact to
+   * go and get, so the whole casting comes back as `needs-context` with
+   * nothing spent — no slot, no die, no action.
+   */
+  it('asks for a sight line nobody has declared', () => {
+    const stranger = id('c');
+    const state = world([
+      added('c', 'foes'),
+      { type: 'creature-placed', id: stranger, placement: { from: { creature: A }, feet: 5, bearing: 90 } },
+    ]);
+    const out = resolveSpell(
+      state,
+      A,
+      { spellId: 'hold-person', targets: [stranger], slotLevel: 2 },
+      supply(),
+    );
+    expect(refusal(out)).toBe('needs_context');
+    expect(contextRequestsOf(out).map((r) => r.kind)).toContain('visibility');
+    // And asking cost nothing: the slot is still there.
+    expect(state.creatures[A]?.resources.pools[spellSlotKey(2)]?.spent).toBe(0);
+  });
+});
+
+describe('a readied move needs somewhere to go', () => {
+  /**
+   * SRD Ready: the trigger is declared now and the Reaction is taken later.
+   * A readied *move* has no destination until the trigger fires — "I move when
+   * it charges" does not say where — so the release is the moment the caller
+   * says, and a release that does not is refused rather than moving nobody.
+   */
+  it('refuses to release a readied move with nowhere to go', () => {
+    const held = unwrap(
+      takeReady(world(), A, { trigger: 'when it charges', response: { kind: 'move' } }),
+      'ready',
+    );
+    // Round the order to somebody else, so the Reaction is available.
+    const waiting = world([...held]);
+    const turned = unwrap(resolveTurn(waiting, supply()), 'turn').events;
+    const out = releaseReady(world([...held, ...turned]), A, {}, supply());
+    expect(refusal(out)).toBe('no_placement');
+  });
+});
+
+describe('a spell cast on a hit has to be one', () => {
+  /**
+   * SRD Divine Smite is cast "immediately after hitting a target", and what it
+   * does is add damage to that attack — an `attack-damage` effect. A spell
+   * with a definition and no such effect has nothing to contribute to a swing,
+   * so naming one is refused before the slot goes.
+   */
+  it('refuses a smite that is not a spell cast on a hit', () => {
+    const held = unwrap(
+      resolveAttack(
+        world(),
+        A,
+        { target: B, weapon: null, hold: true, modes: ['advantage'], attackBonuses: [{ source: 'a sure thing', flat: 50 }] },
+        supply('swing'),
+      ),
+      'attack',
+    );
+    const after = world(held.events);
+    expect(after.pendingAttack).not.toBeNull();
+    const out = resolveAttackDamage(
+      after,
+      A,
+      { smite: { spellId: 'hold-person', slotLevel: 2 } },
+      supply('damage'),
+    );
+    expect(refusal(out)).toBe('not_cast_on_a_hit');
+  });
+});
+
+describe('a dead creature makes no death saving throws', () => {
+  /**
+   * SRD: death saves are made "at 0 Hit Points", and a creature that is dead
+   * is past them. The three answers `rollDeathSave` gives apart are the three
+   * states a creature can be in — dead, not dying, Stable — and only the first
+   * had never been asserted.
+   *
+   * The vitals are the engine's own, folded out of a `creature-died` event
+   * that `declareCreatureDead` wrote, rather than a `Vitals` built by hand:
+   * death that is not hit-point loss is its own event, and this is the state
+   * it actually produces.
+   */
+  it('refuses a death save for a creature the engine has recorded as dead', () => {
+    const killed = unwrap(declareCreatureDead(world(), B, 'a wish', {}), 'died');
+    const dead = world(killed).creatures[B]!.vitals;
+    expect(dead.dead).toBe(true);
+    const out = rollDeathSave(createRollIssuer('r'), createRng('d') as Rng, dead);
+    expect(refusal(out)).toBe('already_dead');
+  });
+});
+
+describe('a casting designates each creature once', () => {
+  /**
+   * SRD Spirit Guardians: "When you cast this spell, you can designate
+   * creatures to be unaffected by it." Naming one twice is not emphasis — the
+   * list is a set of decisions, and a duplicate means the caller has lost
+   * track of which, so the engine says so rather than deduplicating silently.
+   */
+  it('refuses the same creature designated twice', () => {
+    const out = resolveSpell(
+      world(),
+      A,
+      {
+        spellId: 'spirit-guardians',
+        targets: [],
+        slotLevel: 3,
+        damageType: 'radiant',
+        unaffected: [B, B],
+      },
+      supply(),
+    );
+    expect(refusal(out)).toBe('duplicate_designation');
+  });
+});
+
+describe('a casting that holds no point has nothing to move', () => {
+  /**
+   * SRD gives a movement allowance to the spells that print one — Spiritual
+   * Weapon's twenty feet, Arcane Sword's thirty. Vampiric Touch is Range: Self
+   * and holds no point at all, so "move it" names nothing; giving every
+   * activation an allowance because one spell has one is a neighbouring
+   * spell's clause lending this one a rule.
+   */
+  it('refuses a destination for a casting with no point to move', () => {
+    const cast = unwrap(
+      resolveSpell(world(), A, { spellId: 'vampiric-touch', targets: [B], slotLevel: 3 }, supply('cast')),
+      'cast',
+    );
+    const running = world(cast.events);
+    const castingId = Object.keys(running.ongoing)[0]!;
+    const out = activateSpell(
+      running,
+      A,
+      { castingId, targets: [B], to: { x: 110, y: 100, z: 0 } },
+      supply('move'),
+    );
+    expect(refusal(out)).toBe('not_movable');
+  });
+});
+
+describe('a Counterspell answers an open casting, and the window is read before anything is spent', () => {
+  /**
+   * `nothing_to_interrupt` is the re-read *inside* the resolution, and nothing
+   * can reach it — see the allowlist entry in `refusal-sweep.test.ts`. What is
+   * reachable is the guard in front of it, and it is the one that matters: a
+   * Reaction is a whole action-economy slot and usually a slot too, and
+   * handing both over for a moment that never came is the expensive kind of
+   * wrong. So the window is checked before anything is spent.
+   */
+  it('refuses a Counterspell when nobody is midway through a casting', () => {
+    const state = world();
+    expect(state.pendingCasting).toBeNull();
+    const out = resolveSpell(
+      state,
+      A,
+      { spellId: 'counterspell', targets: [B], slotLevel: 3 },
+      supply('counter'),
+    );
+    expect(refusal(out)).toBe('no_trigger');
+    // Nothing spent, which is the whole point of checking here.
+    expect(state.creatures[A]?.resources.pools[spellSlotKey(3)]?.spent).toBe(0);
+  });
+
+  /**
+   * And the readied route — the one path that skips the trigger check, because
+   * a readied spell's trigger was declared and paid for when it was readied —
+   * cannot carry a Counterspell at all. SRD: "To be readied, a spell must have
+   * a casting time of an action", and Counterspell's is a Reaction. That is
+   * what closes the only door to the re-read beyond it.
+   */
+  it('and a Counterspell cannot be readied, because its casting time is a Reaction', () => {
+    const out = takeReady(
+      world(),
+      A,
+      {
+        trigger: 'when the ogre casts',
+        response: { kind: 'spell', spellId: 'counterspell', slotLevel: 3 },
+      },
+    );
+    expect(refusal(out)).toBe('not_readiable');
+  });
+});
+
+describe('a route that supplies no slot cannot be paid for with one', () => {
+  /**
+   * A grant says how it may be paid for. Magic Initiate's level 1 spell allows
+   * both — "You can also cast the spell using any spell slots you have" — and
+   * a declared innate grant need not: a monster's once-a-day ability is not a
+   * spell slot's worth of anything.
+   *
+   * Declared rather than derived, which is the same rule as a stat block's
+   * printed Armour Class: creation's own grants cannot reach this branch,
+   * because the only one it builds with `slotCasting: false` is a *cantrip*,
+   * and a cantrip costs nothing on any route and returns before the check.
+   */
+  it('refuses a slot on a route that does not take one', () => {
+    const innate = world([
+      {
+        type: 'spellcasting-declared',
+        id: B,
+        spellcasting: declaredCasting({
+          ability: 'cha',
+          granted: [
+            {
+              spellId: 'inflict-wounds',
+              source: 'innate:a dark gift',
+              ability: 'cha',
+              freeCastPool: 'innate:a dark gift:free',
+              slotCasting: false,
+            },
+          ],
+        }),
+      },
+      {
+        type: 'resource-pool-declared',
+        id: B,
+        pool: {
+          key: 'innate:a dark gift:free',
+          label: 'a dark gift',
+          max: 1,
+          recovers: 'long-rest',
+        },
+      },
+      {
+        type: 'resource-pool-declared',
+        id: B,
+        pool: { key: spellSlotKey(1), label: 'level 1 spell slot', max: 2, recovers: 'long-rest' },
+      },
+    ]);
+    const out = resolveSpell(
+      innate,
+      B,
+      { spellId: 'inflict-wounds', targets: [A], payment: 'slot', slotLevel: 1 },
+      supply(),
+    );
+    expect(refusal(out)).toBe('slot_not_allowed');
+  });
+});

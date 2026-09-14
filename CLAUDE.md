@@ -4930,6 +4930,73 @@ from `events.ts` leaves `npm run typecheck` completely silent**, because
 excess-property checking on a union accepts a field any member declares, and
 `recordCommand` is generic enough to remember it either way.
 
+### Every Refusal The Engine Can Return Is One A Test Has Seen
+
+A rules-legal refusal is a **value** so that the layer above can read it —
+"you're out of third-level slots" is something a DM narrates around. A code
+nothing has ever asserted is a sentence nobody has read: its branch may not be
+reachable, its spelling is pinned by nothing, and the rule it carries lives in
+a string and nowhere else.
+
+Three whole-engine audits measured that gap and got the same proportion every
+time — the third 46 of 162, the fourth 41 of 112 — which is what made it a
+standing gap rather than a backlog. `refusal-sweep.test.ts` is the derived
+sweep that closes it, in the shape `invariants.test.ts` established: read the
+source, compute a set, hold an allowlist in **both** directions so a stale
+exemption fails. `refusals.test.ts` is the other half, and the more important
+one — a sweep reporting forty unasserted codes and carrying forty exemptions
+would satisfy every line of the first file and none of its purpose.
+
+**The population is bigger than the audits saw, and the reason is a newline.**
+`err(` and its code are routinely on two lines, because prettier breaks the
+call the moment the reason is long — which is most of the interesting ones. A
+line-based `grep` sees 113 codes where there are **170**, and every one of the
+57 it misses is missed for no better reason than a wordy reason string. That is
+the `animals.md` failure again, so the sweep matches whole files. Re-derived:
+**36 unasserted, now one.**
+
+**"Asserted" is the loose net deliberately, and the tight one was tried and
+measured.** Requiring the literal to sit inside a matcher call marks ten codes
+unasserted that are asserted perfectly well through a table (`code: 'no_scene'`
+in `scene-commands.test.ts`, read by a loop below it) or through a helper
+parameter (`reject(request, 'duplicate_target')`), and a sweep that demands a
+second test for a rule already pinned teaches people to write redundant tests.
+The loose net's own risk was measured rather than assumed: no code in this
+repository is quoted in a test *only* as an argument to a constructed `err`.
+**The sweep excludes its own file**, because an exemption whose written reason
+mentioned another code would otherwise assert it, and a sweep that can satisfy
+itself is not a sweep.
+
+**A code the string net calls unasserted is not a rule nothing tests**, and
+conflating those two would overstate what this bought. Two mutations say where
+the line falls: dropping the cantrip-takes-no-slot guard already failed
+`casting.test.ts`, which asserted the behaviour without naming the code — so
+the new case pins the *code* a tool surface branches on. Dropping the
+duplicate-designation guard failed **nothing in the entire suite** but the new
+case. Both kinds were in the 36, and only the second kind was a hole.
+
+**What the codes turned out to be worth** is the argument for having done it at
+all: `forged_provenance` is where the Inviolable Rule is actually enforced —
+only `rolls.ts` may stamp `engine` — and nothing named it. Neither did the
+nine slot levels, the `#` that forges a casting link, the `NaN` amount that
+makes a creature neither alive nor dead, or the fight that may not lose its
+last combatant.
+
+**Every case goes through the public API**, never the helper that contains the
+`err`: a command off `commands.ts`'s barrel, or a function `index.ts`
+re-exports. Calling the function that returns a code proves the string exists;
+it does not prove the rule holds.
+
+**One exemption, and it is the shape an exemption should be.**
+`nothing_to_interrupt` is a defensive re-read of the Counterspell window inside
+the resolution, and nothing can reach it: `triggerRefusal` answers `no_trigger`
+first, the one path that skips that check is a **readied** spell, and SRD
+requires a readied spell's casting time to be an action while Counterspell's is
+a Reaction. Both halves are asserted in `refusals.test.ts`, so the exemption
+names facts a test holds rather than an opinion. A reason must also *say*
+something — the sweep refuses a bare or placeholder entry, the move
+`spell-honesty.test.ts` already makes for an adjudication.
+
 ### `once` makes "the duplicate check comes first" structural
 
 This file records **eight** occasions on which a guard was written above the

@@ -701,6 +701,9 @@ describe('a carrier move longer than one space is a question, not a guess', () =
   it('asks rather than refusing', () => {
     const { out } = coarse();
     expect(isNeedsContext(out)).toBe(true);
+    // The same code the area's own side of this question carries — one
+    // question asked from two directions, so a caller branches once.
+    expect(isErr(out) ? out.code : 'not asked').toBe('route_required');
   });
 
   it('names the casting, both ends and what to send instead', () => {
