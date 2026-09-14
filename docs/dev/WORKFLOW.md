@@ -691,6 +691,59 @@ produced either too many audits or a number nobody trusted.
 `qb-architect` has no Write tool and writes nothing to the tree: where the
 foreman invokes Fable, Fable returns the record and the foreman files it.
 
+### What a broad audit produces
+
+Two things, not one. The scheduling is settled and unchanged; this is only what
+the audit is *for*.
+
+**1 — The retrospective.** Against the actual repository: whether recently
+completed work closed what it claimed; architectural drift; duplicated or
+conflicting primitives; stale assumptions and stale sources of truth;
+correctness holes; validation and conformance blind spots; speculative or
+zero-consumer representation; accidental coupling; persistence and replay
+concerns; authority-boundary problems; debt that has become material; and what
+should be **simplified or deleted rather than extended**.
+
+**2 — The next development cycle.** Fable already holds the whole engine in
+context at that moment, and that is the expensive part; recommending what to do
+next while it is there costs little and is worth a great deal. It names: the
+highest-leverage work; **why it outranks the plausible alternatives**;
+correctness work that should outrank new capability; the dependencies; what is
+safely parallel and what must be sequential; which architecture is already
+settled and safe for Opus to execute; which questions need Fable again *before*
+implementation; **measurement or source-of-truth work needed before further
+prioritisation can be trusted**; and what should be deferred, with the reason.
+
+Where the repository genuinely supports it, that recommendation covers roughly
+the next **four to six hours** of useful development — thought of as coherent
+architectural goals and dependency groups, never as a task count to hit.
+
+### Who owns what
+
+**Fable owns *what* should happen next and *why*. The foreman owns *how*.**
+
+So Fable does not spend context on assigning workers or worktrees, rebases and
+merge mechanics, reviewer routing, routine implementation detail, or project
+management — unless a file or module boundary is architecturally significant.
+It may name likely tasks, architectural units, dependencies, constraints and
+acceptance-level outcomes wherever those are useful.
+
+### After a broad audit
+
+The next foreman session reads the audit and its next-cycle recommendation,
+**verifies its premises against current `main`**, translates it into
+implementation-ready briefs, builds dependency-aware waves, adds safe parallel
+conformance, content or tooling work where repository evidence justifies it,
+and presents one long `DEVELOPMENT TRANCHE — OWNER_APPROVAL_REQUIRED`.
+
+The foreman may refine operational sequencing on repository evidence. It **may
+not silently overturn a Fable architectural decision** — a substantive
+disagreement is YELLOW and goes back to Fable.
+
+**A recommendation is not authorisation.** The chain is unchanged: Fable
+recommends → the foreman operationalises → the owner approves → the foreman
+executes.
+
 ### What the foreman still does: `WHOLE_ENGINE_AUDIT_RECOMMENDED`
 
 The foreman watches for *systemic* architectural risk and says so. It does not

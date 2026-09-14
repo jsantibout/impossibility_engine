@@ -44,6 +44,12 @@ tranche carries on.
 
 Audit recommendation outstanding: **none**.
 
+A broad audit produces a retrospective **and** a next-cycle recommendation —
+`WORKFLOW.md`, "What a broad audit produces". The fourth audit already did
+both under the old charter: §0–3 are the retrospective and §5 is the forward
+recommendation, which is what tranche 4 was built from, with its premises
+verified against `main` first.
+
 ### Audits run so far
 
 | | Date | Record |
@@ -381,6 +387,7 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | Gate 1 | IE-010, IE-011, IE-012, IE-013 | presented as a short tranche 4; superseded by the cadence change before approval |
 | 2026-09-13 | cadence change | — | tranches target 4–6 hours and ~8–12 tasks in dependency-aware **waves**, one approval for the whole roster and no gate between waves; "sequential" is a wave, not a tranche. `WORKFLOW.md` |
 | 2026-09-13 | cadence change | — | **audit scheduling removed from the foreman.** No counter, no threshold, no automatic launch — the owner initiates broad audits, normally once a day, in a fresh Fable session against clean `main`. The foreman flags `WHOLE_ENGINE_AUDIT_RECOMMENDED` on systemic evidence and stops at `OWNER_DECISION_REQUIRED` only if continuing would be unsafe. Bounded YELLOW escalations are unchanged. `WORKFLOW.md`, `check-queue.mjs`, `CLAUDE.md` |
-| 2026-09-13 | Gate 1 | IE-010 … IE-019 | re-planned as the first long multi-wave tranche: ten tasks, four waves, ~5 hours, expected 10 of 12 points; awaiting the owner |
+| 2026-09-13 | Gate 1 | IE-010 … IE-019 | re-planned as the first long multi-wave tranche: ten tasks, four waves, ~5 hours; awaiting the owner |
+| 2026-09-13 | audit charter | — | a manually initiated broad audit now produces **two** things: the retrospective, and a **next-cycle recommendation** covering roughly 4–6 hours — highest-leverage work and why it outranks the alternatives, correctness before capability, dependencies, what is parallel and what is sequential, what Opus may execute and what needs Fable first, source-of-truth work needed before prioritisation can be trusted, and what to defer. Fable owns *what and why*; the foreman owns *how*. A recommendation is not authorisation. `WORKFLOW.md` |
 | 2026-09-13 | whole-engine gate | — | **answered: `APPROVE, narrowed`.** Outcome *riders*, not child effects — leaf types in fixed slots on `attack`, `save-damage` and `save`, with the branch fixed by the host and the invariant that a rider never rolls. `onFail: SpellEffect[]` rejected on evidence. Tranche 4 not reordered; C1 re-briefed. `docs/architecture/outcome-scoped-child-effects-2026-09-13.md` |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |
