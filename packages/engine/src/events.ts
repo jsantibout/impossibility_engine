@@ -898,7 +898,12 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly bonus: ActiveBonus;
     }
-  | { readonly type: 'bonus-removed'; readonly id: CharacterId; readonly source: string }
+  | {
+      readonly type: 'bonus-removed';
+      readonly id: CharacterId;
+      readonly source: string;
+      readonly command?: CommandStamp;
+    }
 
   /**
    * An ongoing effect supplies an alternative **base** Armour Class.
@@ -1004,7 +1009,7 @@ export type GameEvent =
       /** The modified total, when something added to the roll. */
       readonly total?: number;
     }
-  | { readonly type: 'stabilised'; readonly id: CharacterId }
+  | { readonly type: 'stabilised'; readonly id: CharacterId; readonly command?: CommandStamp }
 
   // — conditions ——————————————————————————————————————————————
   | {
@@ -1050,6 +1055,7 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly items: readonly InventoryLine[];
       readonly source: string;
+      readonly command?: CommandStamp;
     }
   /** Money in or out, in copper. Negative spends. */
   | {
@@ -1090,7 +1096,12 @@ export type GameEvent =
    * these: a healthy creature taking exactly its maximum in damage drops to 0,
    * it does not die.
    */
-  | { readonly type: 'creature-died'; readonly id: CharacterId; readonly cause: string }
+  | {
+      readonly type: 'creature-died';
+      readonly id: CharacterId;
+      readonly cause: string;
+      readonly command?: CommandStamp;
+    }
 
   // — resources —————————————————————————
   /**
@@ -1504,12 +1515,17 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly command?: CommandStamp;
     }
-  | { readonly type: 'free-interaction-used'; readonly id: CharacterId }
+  | {
+      readonly type: 'free-interaction-used';
+      readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
   | { readonly type: 'combatant-removed'; readonly id: CharacterId }
   | {
       readonly type: 'initiative-swapped';
       readonly a: CharacterId;
       readonly b: CharacterId;
+      readonly command?: CommandStamp;
     }
 
   // — the map ——————————————————————————————————————————————————
@@ -1562,7 +1578,12 @@ export type GameEvent =
    * a summoned creature is dismissed. SRD leans on "your allies" constantly and
    * never defines it mechanically, because at a table nobody has to ask.
    */
-  | { readonly type: 'creature-side-declared'; readonly id: CharacterId; readonly side: string }
+  | {
+      readonly type: 'creature-side-declared';
+      readonly id: CharacterId;
+      readonly side: string;
+      readonly command?: CommandStamp;
+    }
   /**
    * An attack hit, and its damage is being held for a moment.
    *
@@ -1781,8 +1802,20 @@ export type GameEvent =
       readonly rider: CharacterId;
       readonly mount: CharacterId;
       readonly willing: boolean;
+      /**
+       * Mounting costs half the rider's Speed, so the command emits a
+       * `movement-spent` beside this — but only in combat, where there is a
+       * budget to spend from. The stamp therefore rides here, on the event
+       * that always happens.
+       */
+      readonly command?: CommandStamp;
     }
-  | { readonly type: 'dismounted'; readonly rider: CharacterId; readonly placement: Placement }
+  | {
+      readonly type: 'dismounted';
+      readonly rider: CharacterId;
+      readonly placement: Placement;
+      readonly command?: CommandStamp;
+    }
 
   /**
    * A roll and everything that shaped it, recorded for the audit trail.

@@ -42,8 +42,8 @@ import { declaredCasting } from './spellcasting.js';
  * This is the twelfth recorded instance of the repository's most persistent
  * finding — a rule implemented and reachable from nothing — and the largest.
  *
- * The decisions this file pins, because nine more DM-declared events follow
- * the same pattern:
+ * The decisions this file pins, and which the nine DM-declared events in
+ * `declared-fact-commands.test.ts` went on to follow:
  *
  * - **The command is its event's name read as an imperative**, lengthened
  *   where the pure function beneath already owns the plain verb.
@@ -311,76 +311,17 @@ describe('each scene command emits its event, folds it, and answers a retry with
   });
 });
 
-describe('every event this module stamps declares that it carries one', () => {
-  /**
-   * **The compiler does not check this, and that is the point.**
-   * Excess-property checking on a union accepts a field *any* member declares,
-   * so `{ type: 'scene-set', extent, command }` compiles whether or not
-   * `scene-set` says it may carry a stamp — verified by mutation: deleting the
-   * declaration from `events.ts` leaves `npm run typecheck` completely silent.
-   * `recordCommand` is generic and remembers it either way, so nothing fails
-   * at runtime either.
-   *
-   * This repository has recorded that trap twice — once for a `command` stamp
-   * on an event that did not declare it, once for a casting's `route` — and
-   * both times the cost was the same: a field in the log that no reader of the
-   * type could see. So the claim is read off both sources instead. Derived on
-   * both sides, so the nine DM-declared events queued behind this family get
-   * the same guard by adding their module to the list.
-   */
-  const MODULES = ['commands/scene.ts'];
-  const SRC = fileURLToPath(new URL('.', import.meta.url));
-
-  /** Every event type a module writes, read off its `type:` positions. */
-  const stamped = new Set(
-    MODULES.flatMap((module) =>
-      [...readFileSync(`${SRC}${module}`, 'utf8').matchAll(/\btype: '([a-z-]+)'/g)].map(
-        (match) => match[1]!,
-      ),
-    ),
-  );
-
-  /**
-   * The union's members, split at the `|` that begins each one — rather than
-   * by matching to the next closing brace, which runs straight past a member
-   * written on one line and reads the *next* member's fields.
-   */
-  const members = new Map<string, string>();
-  for (const chunk of readFileSync(`${SRC}events.ts`, 'utf8').split(/^  \| /m).slice(1)) {
-    const named = /readonly type: '([a-z-]+)'/.exec(chunk);
-    if (named !== null) members.set(named[1]!, chunk);
-  }
-
-  it('found the events the module emits', () => {
-    expect([...stamped].sort()).toEqual([
-      'combat-started',
-      'cover-declared',
-      'creature-placed',
-      'landmark-added',
-      'scene-set',
-      'sight-declared',
-      'spellcasting-declared',
-      'time-advanced',
-    ]);
-  });
-
-  it('and every one of them declares a command stamp', () => {
-    for (const type of stamped) {
-      expect(members.has(type), type).toBe(true);
-      expect(members.get(type)!, type).toMatch(/readonly command\?: CommandStamp/);
-    }
-  });
-
-  /**
-   * And the reader would notice one that did not. `combat-ended` is the
-   * control: it is emitted by no command in this family and declares no stamp,
-   * so a reader that answered "yes" to everything would say it did.
-   */
-  it('would see a type that is missing it', () => {
-    expect(members.has('combat-ended')).toBe(true);
-    expect(members.get('combat-ended')!).not.toMatch(/readonly command\?: CommandStamp/);
-  });
-});
+/**
+ * **Where the stamp-declaration sweep went, and why it is not here.**
+ *
+ * This file used to hold it, scoped to `commands/scene.ts` by a hard-coded
+ * path — which meant a module added later was invisible to it unless somebody
+ * remembered the list. IE-016 needed three more modules in that scope, so the
+ * sweep became a directory listing over every module under `commands/` and
+ * moved to `invariants.test.ts`, where the other directory-derived sweeps
+ * live. A sweep about the whole command layer filed under one family's name is
+ * the same fragility wearing different clothes.
+ */
 
 describe('a scene command refuses exactly what the reducer would call corrupt', () => {
   /**

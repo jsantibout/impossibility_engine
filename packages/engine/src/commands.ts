@@ -51,6 +51,14 @@ export {
 export type { DamageCommand } from './commands/creatures.js';
 export { applyConditionTo, whyCondition } from './commands/conditions.js';
 export { declareCreatureType } from './commands/facts.js';
+export {
+  declareCreatureDead,
+  declareCreatureSide,
+  loseItems,
+  removeBonusFrom,
+  stabiliseCreature,
+  swapInitiativeBetween,
+} from './commands/declarations.js';
 export { declareResourcePool, restoreResourcesOn } from './commands/pools.js';
 export { carrying, coinsOf, equipItem, purchaseItem, unequipItem } from './commands/inventory.js';
 export { ongoingSpellOf, ongoingSpellsBy, ongoingSpellsOn } from './commands/ongoing.js';
@@ -74,7 +82,13 @@ export type {
 } from './commands/casting.js';
 export { resolveAttack, resolveAttackDamage } from './commands/attacks.js';
 export type { AttackCommand, AttackDamageCommand, AttackResolution } from './commands/attacks.js';
-export { declineOpportunity, resolveMove, takeOpportunityAttack } from './commands/movement.js';
+export {
+  declineOpportunity,
+  dismountRider,
+  mountCreature,
+  resolveMove,
+  takeOpportunityAttack,
+} from './commands/movement.js';
 export type { MoveCommand, MoveResolution, OpportunityCommand } from './commands/movement.js';
 export {
   declineDamageReaction,
@@ -148,6 +162,7 @@ export {
   takeDisengage,
   takeDodge,
   takeReady,
+  useFreeObjectInteraction,
 } from './commands/actions.js';
 export type {
   ReadyCommand,

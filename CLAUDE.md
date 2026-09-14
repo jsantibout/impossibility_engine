@@ -296,29 +296,34 @@ about compatibility teaches everyone to re-run it. It carries 30 seconds now.
 The test asserts a fold and not a speed, so the number is generous on purpose,
 and the next task to add a few hundred cases should not have to discover this.
 
-**Nine of the ninety-one types are emitted by no engine code at all**, and the
-second fixture writes them by hand as the rest of the suite does. It was
-seventeen, in two families, and the second family has been closed — see
-"Setting The Stage Is A Command Like Any Other":
+**Every one of the ninety-one types is emitted by engine code now**, and the
+second fixture still writes several of them by hand, as the rest of the suite
+does. It was seventeen with no producer at all, in two families, and both are
+closed:
 
 | | |
 |---|---|
-| A fact the DM declares mid-play | allegiance, mounting and dismounting, the free object interaction, Alert's Initiative swap, a stabilisation, death that is not hit-point loss, an item the DM took away, a bonus whose source was no casting |
-| ~~A fact that sets up a world for the rules to run in~~ | the scene, a landmark, a first placement, sight, cover, that a fight has begun, that time passed outside combat, what an NPC can cast — **all eight now have commands** |
+| ~~A fact that sets up a world for the rules to run in~~ | the scene, a landmark, a first placement, sight, cover, that a fight has begun, that time passed outside combat, what an NPC can cast — see "Setting The Stage Is A Command Like Any Other" |
+| ~~A fact the DM declares mid-play~~ | allegiance, mounting and dismounting, the free object interaction, Alert's Initiative swap, a stabilisation, death that is not hit-point loss, an item the DM took away, a bonus whose source was no casting — see "The Other Nine Facts A DM Declares" |
 
-Each of the nine that remain is a fact somebody declares rather than an outcome
-the engine computes — and each is still a reducer case a fold has to keep
-handling. The eight that went were the ones that read like an omission and
-were: `placeCreature`, `addLandmark`, `declareCover`, `declareSight` and
-`startCombat` existed as pure functions the whole time, and the *reducer*
-called them to fold an event nothing wrote.
+Both families read like an omission and were. `placeCreature`, `addLandmark`,
+`declareCover`, `declareSight`, `startCombat`, `mount`, `dismount`,
+`useFreeInteraction`, `swapInitiative`, `stabilize` and `mountingCost` all
+existed as pure functions the whole time, and the *reducer* called them to
+fold events nothing wrote.
 
-`creature-added` is not among the nine and is hand-written for a different
-reason: `createCharacter` emits one, but only for a creature built from
-choices, and a thug came from no character sheet.
+`creature-added` was never among the seventeen: `createCharacter` emits one,
+and the second fixture hand-writes one anyway for a thug who came from no
+character sheet.
 
-The count is derived rather than recalled — see "Known Pending Work" for the
-method and for why it matters before M2 rather than during it.
+**The claim is a derived sweep rather than a count in this file.**
+`invariants.test.ts` reads the union and every runtime module under `src/`, and
+fails naming any declared type nothing writes — driven over a synthetic type it
+must catch, so the analysis cannot quietly stop seeing anything. It asserts the
+narrower reading too: taken as *the command layer* — every module under
+`commands/`, plus `rest.ts` — five types come back, and each carries a written
+exemption naming `creation.ts` as its emitter, which the test then checks. See
+"Known Pending Work" for why that mattered before M2 rather than during it.
 
 Condition sets are sorted on the way in, so a replay compares byte for byte
 regardless of the order effects were applied.
@@ -2557,15 +2562,20 @@ it.
 ### A mandatory effect blocks everybody; an un-arrived start blocks one creature
 
 `mayAct` is the one policy, called by every command that spends an Action, a
-Bonus Action, movement or a feature's use: Dash, Disengage, Dodge, Ready,
-feature activation and extension, the three pool commands, an effect check, an
-attack, a move, a casting, an activation, and the turn.
+Bonus Action, movement, the turn's free object interaction or a feature's use:
+Dash, Disengage, Dodge, Ready, feature activation and extension, the three pool
+commands, an effect check, an attack, a move, a mount and a dismount, the free
+interaction, a casting, an activation, and the turn.
 
 **The list is derived, not recalled.** `invariants.test.ts` reads every module
 under `commands/` and `rest.ts` — as one string, because the closure crosses
-them — and computes the transitive closure of the five action-economy
+them — and computes the transitive closure of the **six** action-economy
 primitives in `combat.ts` and the two events whose reducer takes a resource
-away — `resource-spent` for a pool use, `spell-cast` for a slot. Every exported
+away — `resource-spent` for a pool use, `spell-cast` for a slot.
+`useFreeInteraction` is the sixth and was missing from the seeds until
+something called it: a turn budget has six fields and it consumes one of them,
+so a command spending it spends exactly as much as one spending a Bonus
+Action. Every exported
 declaration in that closure must either be run against a world owing a
 mandatory area effect and be refused `area_effect_owed`, or appear on an
 allowlist with the sentence that exempts it, and never both. A command added
@@ -4627,7 +4637,8 @@ rather than asserted, because a scenario that quietly writes one event proves
 nothing about whether a caller could have got there.
 
 Four decisions, stated rather than incidental, because **nine more DM-declared
-events are the same shape** and will follow whatever this did:
+events were the same shape** and did follow whatever this did — see "The Other
+Nine Facts A DM Declares":
 
 | | |
 |---|---|
@@ -4686,6 +4697,150 @@ sprung a ninth time.** Its own first run is what makes the world answer
 `already_placed`, so a guard above the duplicate check tells a retry its
 command was impossible when it had in fact succeeded. `once` is why there is
 nowhere to write one, and the test was written before the command was.
+
+### The Other Nine Facts A DM Declares
+
+The other nine event types no command produced, and with them the class is
+closed: **every one of the ninety-one declared types is emitted by engine
+code**, and `invariants.test.ts` asserts that as a derived sweep rather than
+this file asserting it as a number.
+
+They were a second family with the same shape as the scene-setup eight and a
+weaker claim — none of them blocks starting a fight — so they were a task of
+their own rather than a widening of that one. What they blocked is a tool
+surface reaching them at all, which is the whole of why it mattered before M2
+rather than during it: a tool surface calls commands and never folds events
+itself, so on the day it is assembled there was no tool that could declare
+allegiance, mount, dismount, spend the free object interaction, swap Initiative
+for Alert, stabilise a creature, kill one other than by damage, take an item
+away, or remove a bonus no casting hung.
+
+**Six declare and three spend, and that is why they are in three modules
+rather than one.**
+
+| | Command | Lives in |
+|---|---|---|
+| allegiance | `declareCreatureSide` | `commands/declarations.ts` |
+| Alert's Initiative swap | `swapInitiativeBetween` | " |
+| a stabilisation | `stabiliseCreature` | " |
+| death that is not hit-point loss | `declareCreatureDead` | " |
+| an item the DM took away | `loseItems` | " |
+| a bonus whose source was no casting | `removeBonusFrom` | " |
+| mounting | `mountCreature` | `commands/movement.ts` |
+| dismounting | `dismountRider` | " |
+| the free object interaction | `useFreeObjectInteraction` | `commands/actions.ts` |
+
+The split is not tidiness. `DECLARED_NOT_ACTED` claims that **every** public
+command in the modules it names spends nothing, and checks it against the code
+rather than against the sentence — so one spender filed beside the six would
+have forced that list to be filtered by the spender analysis, and the filter
+would have made the claim true by construction instead of by test. The three
+that spend live where the budgets they draw on live, and the action-economy
+sweep finds them by the closure rather than by being told.
+
+**`mayAct` is decided per command on the rule.** Mounting and dismounting cost
+"an amount of movement equal to half your Speed (round down)", and object
+interactions are capped at "one free interaction per turn", so all three draw
+on the turn budget and all three are guarded. A stabilisation is the *payout*
+of somebody else's Help action or Healer's Kit use and that cost was spent
+through its own command; a death by fiat, an allegiance, a confiscation and a
+lapsed bonus cost nobody anything on anybody's turn.
+
+**Three more pure functions nothing called, which is now the thirteenth
+recorded instance.** `mountingCost` has computed half a Speed since positioning
+landed and had two callers, both of them assertions in its own test.
+`useFreeInteraction` and `swapInitiative` each had one: the reducer, folding an
+event nothing wrote. And `swapInitiative` was worse than unreachable — it takes
+both creatures' conditions so that SRD Alert's "you can't make this swap if you
+or the ally has the Incapacitated condition" can fire, and the reducer passes
+**neither**, so that clause could not fire at all. The command reads them off
+the creatures it was given.
+
+**The event a DM declares is not the feat's offer.** Alert's swap stays
+unmodelled: nothing checks that either creature has the feat, that the moment is
+immediately after the Initiative roll, or that the ally is willing. The first
+two need a feature offering a choice at a moment the engine does not hold, and
+willingness is fiction. What the engine owns is the arithmetic, and that is what
+the command reaches.
+
+**Two of the nine refuse more than the reducer would, and each is a rule rather
+than a second copy of a check.** SRD stabilises "a creature with 0 Hit Points",
+so `stabiliseCreature` refuses a creature who is not dying and refuses a corpse
+— the rule `healCreature` already takes for hit points. And `loseItems` refuses
+taking more than is carried, because `removeItems` folds a loss in as a
+*negative quantity* and drops any line that reaches zero: five rations taken
+from two silently succeeds and leaves none, which is the class of wrong number
+this file calls its worst. It also refuses taking something that is **worn**,
+because `items-lost` does not touch `equipped` — confiscating a chain shirt
+would leave it equipped and still adding its Armour Class, which is the "chain
+mail in a backpack" bug inverted. Taking it off is a decision and
+`unequipItem` is where it looks like one.
+
+**Allegiance is the fact that is deliberately *not* durable**, which is the
+whole contrast with a creature's type. A type is established once and a
+contradiction is refused, because Hold Person may already have been cast on the
+strength of it. `creature-side-declared` exists precisely because allegiance
+changes in play — a bandit is bribed, a charmed ally turns — and the reducer
+overwrites rather than throwing, so refusing a second declaration would be the
+command refusing something the log permits.
+
+**A fact already true is not restated.** `declareCreatureDead` for a creature
+already dead and `removeBonusFrom` for a bonus nobody is carrying both emit
+nothing: neither is a thing that happened, and a log should not carry an event
+saying it did. Same reading `declareCreatureType` takes for a type that already
+matches.
+
+**The stamp rides on the event that always happens.** Mounting emits a
+`movement-spent` beside its `mounted` — but only in combat, where there is a
+budget to spend from — so the command stamp is declared on `mounted` and
+`dismounted` rather than on the cost. Fourth instance of that lesson in this
+file.
+
+### The sweeps that make the class closed rather than the instances fixed
+
+Three derived sweeps in `invariants.test.ts` carry this, and the point of each
+is that it fails when somebody *adds* something rather than when somebody
+remembers to look.
+
+**Every declared event type is emitted somewhere.** The declared types are the
+`readonly type: '<x>'` literals in the union; the emitted ones are those
+literals **in a `type:` position** in any runtime module under `src/` other
+than `events.ts`, which declares them and whose reducer `case` labels are not
+emissions. The `type:` position is load-bearing rather than pedantic: a
+`ContextRequest`'s `satisfyWith` *names* an event it does not write, and under
+the looser reading `creature-placed` came out emitted while nothing emitted it.
+Both halves are driven over synthetic sources they must catch.
+
+**Where the command layer is drawn changes the answer, so the sweep names it
+rather than assuming it.** Read as the other sweeps read it — every module
+under `commands/`, plus `rest.ts` — five types come back: `creature-added`,
+`character-created`, `character-advanced`, `hit-point-maximum-raised` and
+`resource-pool-resized`. Every one is emitted by `creation.ts`, which predates
+the command layer, takes no `CommandIdentity` and is not published through the
+`commands.ts` barrel — so it is a question about where a command lives rather
+than about whether one exists. Each carries a written exemption, and the test
+checks the exemption's *claim* rather than taking it on its word: `creation.ts`
+really does emit all five.
+
+**Every event a command stamps declares that it may carry one — and it reads
+the stamp rather than the module.** That is what let the sweep become a
+directory listing over every module under `commands/`. Scoping it by module was
+fine while every event a module wrote carried a stamp, which was true of
+`commands/scene.ts` alone; `commands/movement.ts` writes `movement-spent`
+without one. So each `...(stamp === null` spread is attributed to the nearest
+`type:` literal above it, and a module whose stamps that cannot read **fails**
+rather than going quiet — one does, `commands/reactions.ts`, which spreads a
+stamp onto `recordD20Test(...)` whose `type` is written inside the helper, and
+it has a written exemption naming the event and asserting that event declares a
+stamp anyway.
+
+That sweep also moved: it lived in `scene-commands.test.ts`, scoped by a
+hard-coded path, and a sweep about the whole command layer filed under one
+family's name is the same fragility wearing different clothes. The mutation is
+still the one worth repeating — **deleting a `readonly command?: CommandStamp`
+from `events.ts` leaves `npm run typecheck` completely silent**, because
+excess-property checking on a union accepts a field any member declares, and
+`recordCommand` is generic enough to remember it either way.
 
 ### `once` makes "the duplicate check comes first" structural
 
@@ -5074,63 +5229,64 @@ null and is reported — it never becomes either.
   mechanism, not by transcription** — which is the opposite of what the "cheapest
   coverage there is" note assumed, and is worth knowing before the next content
   task is briefed.
-- **Nine of the ninety-one event types have no command, so a tool surface
-  cannot reach them.** It was seventeen; the eight that set up a world for the
-  rules to run in now have commands — see "Setting The Stage Is A Command Like
-  Any Other". This is a shape rather than a hole — every one is a fact
-  somebody *declares* rather than an outcome the engine computes, which is why
-  the whole existing suite hand-writes them — but it is a thing to know before
-  M2 rather than during it. A Maestro tool surface is built out of commands, so
-  on the day it is assembled there is still no tool that can declare
-  allegiance, mount or dismount, spend the free object interaction, swap
-  Initiative for Alert, stabilise a creature, kill one other than by damage,
-  take an item away, or remove a bonus no casting hung.
+- **Every one of the ninety-one event types is now emitted by a command**, so a
+  Maestro tool surface can reach all of them. It was seventeen with no producer,
+  in two families: the eight that set up a world for the rules to run in — see
+  "Setting The Stage Is A Command Like Any Other" — and the nine a DM declares
+  mid-play, see "The Other Nine Facts A DM Declares". Neither was a hole in the
+  rules; both were a hole between the rules and anything that could reach them,
+  which is exactly the thing to close before M2 rather than during it.
 
-  **The question that was deferred to M2 has been answered for the eight, and
-  the answer generalises.** It was put as three ways it could go — a
-  declaration command per fact, one general declare-a-fact command, or a tool
-  surface permitted to append these events directly — and the third is the one
-  to be careful of, because appending an event is how the model asserts a
-  mechanical fact. The first is what shipped, and the reason it did not have to
-  wait for M2 is that a tool surface calls commands and never folds events
-  itself, so these are engine commands whatever M2 turns out to look like. The
-  nine that remain are a mixed bag on that axis and the distinction still
-  holds: allegiance is a pure declaration, while `creature-died` and
-  `stabilised` are outcomes with rules attached.
+  **The question that was deferred to M2 is answered, and the answer is the
+  first of the three it was put as.** They were: a declaration command per fact,
+  one general declare-a-fact command, or a tool surface permitted to append
+  these events directly. The third is the one to be careful of, because
+  appending an event is how the model asserts a mechanical fact. The first is
+  what shipped, and the reason it did not have to wait for M2 is that a tool
+  surface calls commands and never folds events itself, so these are engine
+  commands whatever M2 turns out to look like. The distinction the nine were
+  mixed on held all the way through: allegiance is a pure declaration and
+  `creature-died`, `stabilised`, `mounted`, `dismounted` and
+  `free-interaction-used` are outcomes with rules attached — three of which
+  spend from the turn economy and are guarded like any other spender.
 
-  **The number is derived, not transcribed.** The declared types are the
-  `readonly type: '<x>'` literals in the `GameEvent` union — the same reading
-  `persistence.test.ts`'s `declaredEventTypes()` uses — and the emitted ones
-  are those literals **in a `type:` position** (`/\btype: '<x>'/`) in any
-  runtime module under `packages/engine/src` other than `events.ts`, which
-  declares them and whose reducer `case` labels are not emissions. Tests and
-  the two golden-log generators are excluded, because hand-writing events is
-  the thing being measured.
+  **The claim is a derived sweep, not a number in this file.** The declared
+  types are the `readonly type: '<x>'` literals in the `GameEvent` union — the
+  same reading `persistence.test.ts`'s `declaredEventTypes()` uses — and the
+  emitted ones are those literals **in a `type:` position** (`/type: '<x>'/`)
+  in any runtime module under `packages/engine/src` other than `events.ts`,
+  which declares them and whose reducer `case` labels are not emissions. Tests
+  and the two golden-log generators are excluded, because hand-writing events is
+  the thing being measured. `invariants.test.ts` runs it and fails naming
+  anything it finds, driven over a synthetic source it must catch.
 
   **The `type:` position is the load-bearing half of that sentence, not
-  pedantry.** It was what told an emission from a context request *naming* the
-  event that would satisfy it — `satisfyWith: 'creature-placed'` — and under
-  the looser reading `creature-placed` came out already emitted, which it was
-  not. That particular case is now moot because a command emits it for real,
-  and the distinction is not: a `satisfyWith` still names an event nobody
-  wrote. 91 declared, 82 emitted somewhere, 9 emitted nowhere.
-  Two caveats
-  the method carries: it reads literals, so an event type assembled from a
-  computed string would be invisible — there are none today, the thirteen
+  pedantry.** It is what tells an emission from a context request *naming* the
+  event that would satisfy it — `satisfyWith: 'creature-placed'` — and under the
+  looser reading `creature-placed` came out already emitted, which it was not.
+  That case is moot now that a command emits it for real, and the distinction is
+  not: a `satisfyWith` still names an event nobody wrote, and the sweep is
+  driven over a synthetic one of those too.
+
+  Two caveats the method carries. It reads literals, so an event type assembled
+  from a computed string would be invisible — there are none today, the thirteen
   non-literal `type:` sites in the engine being three damage types read off a
   value, the seven `type: string` annotations and parameters those travel in,
-  and three fragments of prose. And the answer moves with where the
-  command layer is drawn, so the boundary is named rather than assumed: taking
-  it as `invariants.test.ts` does — every module under `commands/`, **plus
-  `rest.ts`** — adds the five `creation.ts` emits, which is a question about
-  where a command lives rather than about whether one exists. Dropping
-  `rest.ts` adds three more — `rest-begun`, `rest-ended` and
-  `temporary-hp-cleared` — which is why that is the wrong line to draw.
+  and three fragments of prose. And the answer moves with where the command
+  layer is drawn, so the boundary is **named rather than assumed and asserted
+  rather than described**: taking it as the other sweeps do — every module under
+  `commands/`, **plus `rest.ts`** — five types come back, every one of them
+  emitted by `creation.ts`, whose two entry points predate the command layer,
+  take no `CommandIdentity` and are not published through the `commands.ts`
+  barrel. Each carries a written exemption and the test checks its claim.
+  Dropping `rest.ts` from that reading adds three more — `rest-begun`,
+  `rest-ended` and `temporary-hp-cleared` — which is why that is the wrong line
+  to draw.
 
-  **An earlier count of nine was superseded by seventeen, and the number is
-  nine again for a completely different reason.** The first nine named only the
+  **The count went nine, seventeen, nine, zero, and every move is an argument
+  for stating a number with its method.** The first nine named only the
   DM-declared family and missed the eight setup facts; the derivation is what
-  found that. Those eight now have commands, so the same derivation gives nine
-  once more — which is the argument for stating a number with its method rather
-  than on its own, twice over.
+  found that; the eight were built, giving nine again for a completely
+  different reason; and the nine were built. The number is now a test rather
+  than a sentence, which is where it should have been three counts ago.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

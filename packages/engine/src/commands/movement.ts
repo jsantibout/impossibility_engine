@@ -13,10 +13,15 @@ import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
+  dismount,
   distanceToPoint,
+  mount,
+  mountingCost,
+  type MountOptions,
   moveCreature,
   type Placement,
   type Point,
+  type PositionState,
   positionOf,
   sightBetween,
 } from '../positioning.js';
@@ -429,6 +434,165 @@ export function declineOpportunity(
       },
     ];
     return ok([...answered, ...completeIfSettled(state, answered)]);
+  });
+}
+
+/**
+ * The scene, or the request that would make one.
+ *
+ * `resolveMove` answers `no_scene` with a bare refusal because it predates
+ * there being a command that could fix it. Mounting is new, and
+ * `commands/scene.ts` now supplies the provider, so this is homework rather
+ * than a verdict: nothing is wrong, the record is thin, and `setScene` is what
+ * settles it.
+ */
+function sceneFor(state: GameState, subject: CharacterId, because: string): Result<PositionState> {
+  if (state.scene !== null) return ok(state.scene);
+  return needsContext('no_scene', `there is no scene for ${because}`, [
+    {
+      kind: 'scene',
+      subject,
+      need: 'a scene, so that a place in it means something',
+      because,
+      satisfyWith: 'a setScene command',
+    },
+  ]);
+}
+
+/**
+ * What mounting or dismounting costs, and the event that records spending it.
+ *
+ * SRD Mounted Combat: "During your move, you can mount a creature that is
+ * within 5 feet of you or dismount. Doing so costs an amount of movement equal
+ * to half your Speed (round down)." `mountingCost` has said exactly that since
+ * positioning landed and nothing called it.
+ *
+ * It is *movement*, not an action, so it draws on the same budget a walk does
+ * and spends nothing at all outside combat — the reading `resolveMove` already
+ * takes, and the reason the command stamp rides on `mounted`/`dismounted`
+ * rather than on a `movement-spent` that may not be there.
+ */
+function spendMounting(state: GameState, rider: CharacterId): Result<readonly GameEvent[]> {
+  if (state.combat === null || state.combat.budgets[rider] === undefined) return ok([]);
+
+  const combatant = state.combat.order.find((entry) => entry.id === rider);
+  if (combatant === undefined) return ok([]);
+
+  const feet = mountingCost(combatant.speed);
+  const spent = spendMovement(state.combat, rider, feet, creatureOf(state, rider)?.conditions);
+  if (!spent.ok) {
+    return spent.code === 'not_enough_movement' || spent.code === 'no_movement'
+      ? spent
+      : err('not_enough_movement', spent.reason);
+  }
+
+  return ok([{ type: 'movement-spent', id: rider, feet }]);
+}
+
+/**
+ * Climb onto something.
+ *
+ * `mount` has been a correct pure function since positioning landed, with
+ * exactly one caller: the **reducer**, folding an event no command wrote. Every
+ * refusal below is its own — already riding, out of reach, a mount no larger
+ * than the rider — and the two `unplaced` answers are turned into the requests
+ * a pure helper cannot know to attach.
+ *
+ * SRD covers "a willing creature that is at least one size larger than a
+ * rider"; it says nothing about leaping onto a hostile dragon, which is among
+ * the most-attempted moves at any table. So that is recorded as
+ * `willing: false` rather than refused, and whether the character got up there
+ * is a check the DM calls for.
+ *
+ * **`mayAct` applies, because this spends movement.** The action-economy sweep
+ * in `invariants.test.ts` derives that from the call to `spendMovement` rather
+ * than from this sentence, which is why it is a guard and not a claim.
+ */
+export function mountCreature(
+  state: GameState,
+  rider: CharacterId,
+  target: CharacterId,
+  options: MountOptions,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `mount:${rider}`, { ...command, target, ...options }, () => [], (stamp) => {
+    // **After the duplicate check, never before it.**
+    const owedHere = mayAct(state, rider);
+    if (owedHere !== null) return owedHere;
+
+    const scene = sceneFor(state, rider, `${rider} to climb onto ${target} in`);
+    if (!scene.ok) return scene;
+
+    const mounted = mount(scene.value, rider, target, options);
+    if (!mounted.ok) {
+      // The refusal stays `mount`'s; this says whose position is missing.
+      if (mounted.code !== 'unplaced') return mounted;
+      const missing = positionOf(scene.value, rider) === null ? rider : target;
+      return needsContext(mounted.code, mounted.reason, [
+        {
+          kind: 'position',
+          subject: missing,
+          need: `where ${missing} is standing`,
+          because: 'mounting is measured from one creature to the other',
+          satisfyWith: `a placeCreatureInScene command for ${missing}`,
+        },
+      ]);
+    }
+
+    // The whole operation is validated before any of it is emitted: the ride
+    // has to be legal *and* the movement has to be there to spend.
+    const spent = spendMounting(state, rider);
+    if (!spent.ok) return spent;
+
+    return ok([
+      ...spent.value,
+      {
+        type: 'mounted',
+        rider,
+        mount: target,
+        willing: options.willing,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/**
+ * Get down, somewhere established.
+ *
+ * The other half of the same SRD sentence, at the same cost. Where the rider
+ * lands is an ordinary `Placement`, so it is measured on the lattice like
+ * every other position and `dismount` refuses one that does not work — which
+ * is the refusal this surfaces rather than restating.
+ */
+export function dismountRider(
+  state: GameState,
+  rider: CharacterId,
+  placement: Placement,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `dismount:${rider}`, { ...command, placement }, () => [], (stamp) => {
+    const owedHere = mayAct(state, rider);
+    if (owedHere !== null) return owedHere;
+
+    const scene = sceneFor(state, rider, `${rider} to get down into`);
+    if (!scene.ok) return scene;
+
+    const down = dismount(scene.value, rider, placement);
+    if (!down.ok) return down;
+
+    const spent = spendMounting(state, rider);
+    if (!spent.ok) return spent;
+
+    return ok([
+      ...spent.value,
+      {
+        type: 'dismounted',
+        rider,
+        placement,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
   });
 }
 

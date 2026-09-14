@@ -1,0 +1,301 @@
+/**
+ * The other facts a DM declares mid-play.
+ *
+ * `commands/scene.ts` closed the eight event types that set up a world for the
+ * rules to run in. These are six of the nine that were left: a creature's
+ * allegiance, Alert's Initiative swap, a stabilisation, death that is not
+ * hit-point loss, an item the DM took away, and a bonus whose source was no
+ * casting. Every one was a reducer case with no producer outside a test
+ * fixture, so a tool surface — which calls commands and never folds events
+ * itself — could not reach any of them.
+ *
+ * **The other three of the nine are not here, and that is the design rather
+ * than a scattering.** `mounted`, `dismounted` and `free-interaction-used`
+ * spend from the turn economy, so they live in the modules that own the
+ * budgets they draw on — `commands/movement.ts` and `commands/actions.ts` —
+ * and are swept by the action-economy sweep, which demands a `mayAct` guard
+ * of every spender it finds. Filing them here would have cost the claim this
+ * module's own entry in `DECLARED_NOT_ACTED` makes: that **every** command in
+ * it spends nothing, which is checked against the code rather than asserted.
+ *
+ * `commands/scene.ts` settled four decisions and this follows them rather than
+ * inventing a second set:
+ *
+ * **1. The command is its event's name read as an imperative**, lengthened
+ * where the pure function beneath already owns the plain verb and `index.ts`
+ * exports both — `swapInitiative`, `stabilize` and `dismount` are all reachable
+ * from `@ie/engine`, so `swapInitiativeBetween` and `stabiliseCreature` take
+ * the longer name.
+ *
+ * **2. A command refuses exactly what the reducer would call corrupt**, plus
+ * the rules the pure function beneath it already knows and the reducer cannot
+ * apply — `swapInitiative` has taken both creatures' conditions since it was
+ * written and the reducer passes neither, so SRD Alert's "you can't make this
+ * swap if you or the ally has the Incapacitated condition" was a rule reachable
+ * from nothing at all.
+ *
+ * Two of these refuse *more* than the reducer, and each is a rule rather than
+ * a second copy of a check: `stabiliseCreature` requires a creature at 0 hit
+ * points, because SRD stabilises "a creature with 0 Hit Points"; and
+ * `loseItems` refuses more than is carried, because `removeItems` folds a loss
+ * in as a negative quantity and drops the line at zero — so taking five
+ * rations from two silently succeeds, which is the class of wrong number this
+ * repository calls its worst.
+ *
+ * **3. A fact already true is not restated.** `declareCreatureType` returns
+ * `ok([])` for a type that already matches, and `declareCreatureDead` and
+ * `removeBonusFrom` take the same reading: a creature dying again and a bonus
+ * that was never there stopping are not things that happened, and a log should
+ * not carry an event saying they did.
+ *
+ * **4. `mayAct` is not consulted.** None of these is an action in the turn
+ * economy. A stabilisation is the payout of somebody else's Help action or
+ * Healer's Kit and the cost was spent through that command; death by fiat, an
+ * allegiance, a confiscation and a lapsed bonus cost nobody anything.
+ * `DECLARED_NOT_ACTED` in `invariants.test.ts` is where that decision is
+ * written down and checked, in the shape the sweep's own exemption lists use.
+ *
+ * Every one goes through `once`, so the duplicate check comes first and there
+ * is nowhere above it to write a guard.
+ */
+
+import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { swapInitiative } from '../combat.js';
+import { type GameEvent, type GameState, type InventoryLine } from '../events.js';
+import { type CommandIdentity, once } from '../idempotency.js';
+import { creatureOf, unknownCreature } from './command.js';
+
+/**
+ * Say which side of the fight a creature is on.
+ *
+ * Declared rather than derived, like cover and line of sight: who counts as an
+ * ally is fiction, and SRD leans on it constantly — "an ally within 5 feet of
+ * you" reaches a Rogue's Sneak Attack — without ever defining it mechanically.
+ *
+ * **Not durable, and that is the difference from a creature's type.** A type
+ * is established once and a contradiction is refused, because Hold Person may
+ * already have been cast on the strength of it. An allegiance is written to be
+ * changed — the event's own docstring says "a bandit is bribed, a charmed ally
+ * turns" — and the reducer overwrites rather than throwing, so refusing a
+ * second declaration would refuse something the log permits.
+ */
+export function declareCreatureSide(
+  state: GameState,
+  id: CharacterId,
+  side: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `declare-side:${id}`, { ...command, side }, () => [], (stamp) => {
+    if (creatureOf(state, id) === null) return unknownCreature(id);
+
+    return ok([
+      { type: 'creature-side-declared', id, side, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/**
+ * Swap two combatants' places in the Initiative order.
+ *
+ * SRD Alert: "Immediately after you roll Initiative, you can swap your
+ * Initiative with the Initiative of one willing ally in the same combat."
+ *
+ * **This is the event a DM declares; it is not the feat's offer.** `CLAUDE.md`
+ * records Alert's swap as not modelled, and it still is: nothing here checks
+ * that either creature has the feat, that the moment is immediately after the
+ * roll, or that the ally is willing — the first two need a feature that offers
+ * a choice at a moment the engine does not hold, and willingness is fiction.
+ * What the engine does own is the arithmetic, and `swapInitiative` has owned
+ * it since it was written, reachable from the reducer alone.
+ *
+ * The Incapacitated clause is the half that was unreachable. `swapInitiative`
+ * takes both creatures' conditions and the reducer passes neither, so the rule
+ * could not fire; the command reads them off the creatures it was given. A
+ * creature the engine has no record of simply contributes no conditions, which
+ * is what `swapInitiative` already means by leaving them optional.
+ *
+ * **One code covers two different misses, and only one of them is homework.**
+ * `swapInitiative` answers `unknown_combatant` both for a creature the engine
+ * has never been told about and for one standing right there who is simply not
+ * in the Initiative order. The first is a thin record with a provider; the
+ * second is the engine's **own ledger**, written by `startCombat` and complete
+ * — the same reading `resolveEffectCheck` takes for an effect key it holds no
+ * timer for. So the request is attached only where it is true, and a bystander
+ * gets a verdict rather than an instruction to establish a creature that
+ * already exists.
+ */
+export function swapInitiativeBetween(
+  state: GameState,
+  a: CharacterId,
+  b: CharacterId,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `swap-initiative:${a}<>${b}`, command, () => [], (stamp) => {
+    if (state.combat === null) {
+      return err('not_in_combat', 'there is no Initiative order to swap places in');
+    }
+
+    const swapped = swapInitiative(
+      state.combat,
+      a,
+      b,
+      creatureOf(state, a)?.conditions,
+      creatureOf(state, b)?.conditions,
+    );
+    if (!swapped.ok) {
+      if (swapped.code !== 'unknown_combatant') return swapped;
+      // Which of the two it was about — which the reason names in prose and the
+      // code does not — so that the request, where there is one, names them.
+      const missing = state.combat.order.some((combatant) => combatant.id === a) ? b : a;
+      return creatureOf(state, missing) === null
+        ? unknownCreature(missing)
+        : err('unknown_combatant', `${missing} is not in this combat`);
+    }
+
+    return ok([{ type: 'initiative-swapped', a, b, ...(stamp === null ? {} : { command: stamp }) }]);
+  });
+}
+
+/**
+ * Stop a dying creature from dying.
+ *
+ * SRD: "You can take the Help action to try to stabilize a creature with 0 Hit
+ * Points, which requires a successful DC 10 Wisdom (Medicine) check", and a
+ * Healer's Kit does it without one. The check and the action belong to whoever
+ * is doing the stabilising and go through their own commands; this records the
+ * outcome, which is a fact about the creature on the floor.
+ *
+ * Two refusals, both from the book. A creature that is not at 0 hit points has
+ * nothing to be stabilised from — SRD names the state, not a creature. And a
+ * corpse is Raise Dead's business, which is the rule `healCreature` already
+ * takes for hit points.
+ */
+export function stabiliseCreature(
+  state: GameState,
+  id: CharacterId,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `stabilise:${id}`, command, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    if (creature.vitals.dead) {
+      return err('dead', `${id} is dead; stabilising is for a creature still dying`);
+    }
+    if (creature.vitals.hp > 0) {
+      return err(
+        'not_dying',
+        `stabilising is for a creature with 0 Hit Points, and ${id} has ${creature.vitals.hp}`,
+      );
+    }
+
+    return ok([{ type: 'stabilised', id, ...(stamp === null ? {} : { command: stamp }) }]);
+  });
+}
+
+/**
+ * Record a death that is not hit-point loss.
+ *
+ * Damage is the wrong instrument for these, and that is the whole reason the
+ * event exists: a healthy creature taking exactly its maximum in damage drops
+ * to 0, it does not die. Power Word Kill, a fall nobody is surviving, a DM's
+ * ruling — each is a decision, so each carries its cause into the log.
+ *
+ * A creature already dead is not made deader: nothing is written, the reading
+ * `declareCreatureType` takes for a fact that is already true.
+ */
+export function declareCreatureDead(
+  state: GameState,
+  id: CharacterId,
+  cause: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `declare-dead:${id}`, { ...command, cause }, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+    if (creature.vitals.dead) return ok([]);
+
+    return ok([
+      { type: 'creature-died', id, cause, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/**
+ * Take something away from a creature.
+ *
+ * The counterpart of `purchaseItem`'s `items-gained` for everything a purchase
+ * is not: a thief in the night, a mimic that swallowed the sword, a ration
+ * eaten. No price is involved, so no coin moves and the catalogue is not
+ * consulted — a DM may take away something the SRD never listed.
+ *
+ * **Two refusals, and neither is a second copy of the reducer's.**
+ * `removeItems` folds a loss in as a negative quantity and drops any line that
+ * reaches zero, so taking five rations from two silently succeeds and leaves
+ * none. And **owning and wearing are two facts**: `items-lost` does not touch
+ * `equipped`, so confiscating worn armour would leave it worn and still adding
+ * its Armour Class — the "chain mail in a backpack" bug inverted. Taking it off
+ * is a decision and `unequipItem` is where it looks like one.
+ */
+export function loseItems(
+  state: GameState,
+  id: CharacterId,
+  items: readonly InventoryLine[],
+  source: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `lose-items:${id}`, { ...command, items, source }, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    if (items.length === 0) return err('no_items', 'a loss has to name something that was lost');
+
+    for (const line of items) {
+      if (!Number.isInteger(line.quantity) || line.quantity < 1) {
+        return err(
+          'bad_quantity',
+          `a loss takes a positive whole number, got ${line.quantity} of ${line.id}`,
+        );
+      }
+      const held = creature.inventory.find((owned) => owned.id === line.id)?.quantity ?? 0;
+      if (held < line.quantity) {
+        return err('not_owned', `${id} has ${held} of ${line.id}, not ${line.quantity}`);
+      }
+      if (creature.equipped.includes(line.id)) {
+        return err('equipped', `${line.id} is worn or wielded by ${id}; take it off first`);
+      }
+    }
+
+    return ok([
+      { type: 'items-lost', id, items, source, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/**
+ * Stop a named bonus applying.
+ *
+ * A bonus a **casting** hung ends with that casting, through `releaseCasting`,
+ * and needs no command — that is the one door every linked effect goes out of.
+ * This is for the others: a potion wearing off, an item taken off, a DM's
+ * ruling that the inspiring speech has stopped inspiring.
+ *
+ * A creature carrying no bonus from that source has nothing that stopped, so
+ * nothing is written — the same reading as a death already recorded.
+ */
+export function removeBonusFrom(
+  state: GameState,
+  id: CharacterId,
+  source: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `remove-bonus:${id}`, { ...command, source }, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+    if (!creature.bonuses.some((held) => held.source === source)) return ok([]);
+
+    return ok([
+      { type: 'bonus-removed', id, source, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}

@@ -24,10 +24,19 @@ import {
   beginCombat,
   castSpell,
   declareCoverBetween,
+  declareCreatureDead,
+  declareCreatureSide,
   declareSightBetween,
   declareSpellcasting,
+  dismountRider,
+  loseItems,
+  mountCreature,
   placeCreatureInScene,
+  removeBonusFrom,
   setScene,
+  stabiliseCreature,
+  swapInitiativeBetween,
+  useFreeObjectInteraction,
   applyConditionTo,
   applySpellEffect,
   damageCreature,
@@ -692,6 +701,47 @@ const greased = (): readonly GameEvent[] => {
   return [...declared, ...unwrap(declineOpportunity(fold('s', declared), A, {}), 'A lets B go')];
 };
 
+/** B on the floor at 0 hit points, which is the only state a stabilisation has. */
+const DYING: readonly GameEvent[] = [
+  ...SETUP,
+  ...unwrap(damageCreature(fold('s', SETUP), B, { amount: 60, source: 'a spear' }), 'down'),
+];
+
+/** A carrying a bonus that no casting hung, so no cleanup would ever remove it. */
+const BLESSED: readonly GameEvent[] = [
+  ...SETUP,
+  {
+    type: 'bonus-applied',
+    id: A,
+    bonus: {
+      source: 'a quiet word',
+      bonus: { source: 'a quiet word', flat: 1 },
+      applies: ['save'],
+      direction: 'add',
+    },
+  },
+];
+
+/**
+ * A Large horse beside A, because SRD requires a mount "at least one size
+ * larger than a rider" and every creature in `SETUP` is Medium.
+ */
+const HORSE = id('horse');
+const STABLED: readonly GameEvent[] = [
+  ...SETUP,
+  added(HORSE, 'party'),
+  {
+    type: 'creature-placed',
+    id: HORSE,
+    placement: { from: { creature: A }, feet: 10, bearing: 180, size: 'large' },
+  },
+];
+
+const RIDING: readonly GameEvent[] = [
+  ...STABLED,
+  ...unwrap(mountCreature(fold('s', STABLED), A, HORSE, { willing: true }), 'up'),
+];
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'settleAreaEffects',
@@ -1038,6 +1088,54 @@ const GUARDED: readonly Guarded[] = [
     log: [...SETUP, ...unwrap(equipItem(fold('s', SETUP), A, 'chain-shirt'), 'eq')],
     run: (s, commandId) => unequipItem(s, A, 'chain-shirt', commandId),
   },
+  // The nine facts a DM declares, which had no command at all until IE-016.
+  {
+    name: 'declareCreatureSide',
+    log: SETUP,
+    run: (s, commandId) => declareCreatureSide(s, B, 'the watch', { commandId }),
+  },
+  {
+    name: 'swapInitiativeBetween',
+    log: SETUP,
+    run: (s, commandId) => swapInitiativeBetween(s, A, B, { commandId }),
+  },
+  {
+    name: 'stabiliseCreature',
+    log: DYING,
+    run: (s, commandId) => stabiliseCreature(s, B, { commandId }),
+  },
+  {
+    name: 'declareCreatureDead',
+    log: SETUP,
+    run: (s, commandId) => declareCreatureDead(s, B, 'the pit', { commandId }),
+  },
+  {
+    name: 'loseItems',
+    log: SETUP,
+    run: (s, commandId) =>
+      loseItems(s, A, [{ id: 'longsword', quantity: 1 }], 'a thief', { commandId }),
+  },
+  {
+    name: 'removeBonusFrom',
+    log: BLESSED,
+    run: (s, commandId) => removeBonusFrom(s, A, 'a quiet word', { commandId }),
+  },
+  {
+    name: 'useFreeObjectInteraction',
+    log: SETUP,
+    run: (s, commandId) => useFreeObjectInteraction(s, A, { commandId }),
+  },
+  {
+    name: 'mountCreature',
+    log: STABLED,
+    run: (s, commandId) => mountCreature(s, A, HORSE, { willing: true }, { commandId }),
+  },
+  {
+    name: 'dismountRider',
+    log: RIDING,
+    run: (s, commandId) =>
+      dismountRider(s, A, { from: { creature: HORSE }, feet: 15, bearing: 90 }, { commandId }),
+  },
 ];
 
 describe('a retried command changes nothing the first one did not', () => {
@@ -1219,8 +1317,23 @@ const functionsIn = (
  * transitively, because a command that spends through a helper is spending
  * just the same: `activateFeature` never names `spendBonusAction`, and it
  * spends one.
+ *
+ * **`useFreeInteraction` is the sixth primitive and was missing.** A turn
+ * budget has six fields and this consumes one of them — SRD's "one free
+ * interaction per turn. Any additional interactions require the Utilize
+ * action" — so a command that spends it is spending exactly as much as one
+ * that spends a Bonus Action. Nothing called it until `useFreeObjectInteraction`
+ * did, which is why the omission cost nothing and why adding the seed sweeps
+ * up exactly one command.
  */
-const ECONOMY = ['spendAction', 'spendBonusAction', 'spendReaction', 'spendMovement', 'spendAttack'];
+const ECONOMY = [
+  'spendAction',
+  'spendBonusAction',
+  'spendReaction',
+  'spendMovement',
+  'spendAttack',
+  'useFreeInteraction',
+];
 const SPENT_EVENTS = ["'resource-spent'", "'spell-cast'"];
 
 const spendersIn = (source: string): ReadonlySet<string> => {
@@ -1312,6 +1425,22 @@ const SPENDERS: readonly Spender[] = [
     name: 'resolveCast',
     run: (s) => resolveCast(s, B, { spell: 'Bless', level: 1, concentration: false, slotLevel: 1 }),
   },
+  /**
+   * The three of the nine DM-declared events that are **not** declarations.
+   *
+   * SRD spends "an amount of movement equal to half your Speed" on mounting and
+   * on dismounting, and caps object interactions at "one free interaction per
+   * turn" — so all three draw on the turn budget and all three are found here
+   * by the closure rather than by being listed. The arguments need only be
+   * well-formed: `mayAct` is checked immediately after the duplicate check and
+   * before the scene, the mount or the budget is looked at.
+   */
+  { name: 'mountCreature', run: (s) => mountCreature(s, B, A, { willing: true }) },
+  {
+    name: 'dismountRider',
+    run: (s) => dismountRider(s, B, { from: { creature: A }, feet: 5, bearing: 180 }),
+  },
+  { name: 'useFreeObjectInteraction', run: (s) => useFreeObjectInteraction(s, B) },
 ];
 
 /**
@@ -1477,14 +1606,21 @@ describe('every command that spends something asks whether it may', () => {
  * lived nowhere.
  *
  * So it lives here, in the shape the exemption lists use and with the same
- * discipline: derived from the module rather than typed out, so a ninth
- * command added to `commands/scene.ts` fails this until somebody writes the
- * sentence — and checked behaviourally, because a reason nothing tests is
- * prose.
+ * discipline: derived from the modules rather than typed out, so a command
+ * added to either of them fails this until somebody writes the sentence — and
+ * checked behaviourally, because a reason nothing tests is prose.
  *
- * Nine more DM-declared events are queued behind this family and will join
- * the list as they arrive.
+ * **`DECLARING_MODULES` is the scope, and a module joins it only when every
+ * public command in it declares rather than acts.** That is what the second
+ * assertion below checks, and it is why the three DM-declared events that
+ * *do* spend — `mounted`, `dismounted` and `free-interaction-used` — live in
+ * `commands/movement.ts` and `commands/actions.ts` rather than beside the six
+ * here. Filing them together would have forced this list to be filtered by the
+ * spender analysis, and the filter would have made "none of these spends" true
+ * by construction instead of by test.
  */
+const DECLARING_MODULES = ['commands/scene.ts', 'commands/declarations.ts'];
+
 const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
   setScene:
     'not an action in the turn economy: the room the fight is happening in is a fact the DM declares, and no SRD rule spends anything to describe it',
@@ -1502,14 +1638,27 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: outside combat there are no turns, and how long the party spent searching the vault is narration',
   declareSpellcasting:
     'not an action in the turn economy: it states what a creature with no class table can cast, which is a fact about the creature and not a casting',
+  declareCreatureSide:
+    'not an action in the turn economy: who counts as an ally is fiction, and a bandit being bribed costs the bandit nothing on anybody’s turn',
+  swapInitiativeBetween:
+    'not an action in the turn economy: SRD Alert spends nothing on the swap — "immediately after you roll Initiative, you can swap" — and at that moment no budget has been handed out yet',
+  stabiliseCreature:
+    'not an action in the turn economy: the Help action or the Healer’s Kit use that stabilised the creature was spent through its own command, and this records what happened to the creature on the floor',
+  declareCreatureDead:
+    'not an action in the turn economy: whatever killed them spent its own cost, and a death the engine did not compute is a fact somebody declares',
+  loseItems:
+    'not an action in the turn economy: a thief in the night, a mimic, a DM’s ruling — SRD spends nothing when something is taken away from you',
+  removeBonusFrom:
+    'not an action in the turn economy: a bonus stopping is the end of something, and nobody spends anything to have an effect wear off',
 };
 
-describe('the scene-setup commands declare facts rather than taking actions', () => {
-  /** Every command the new module publishes, read off the module and the barrel. */
-  const declared = functionsIn(MODULE_SOURCE['commands/scene.ts']!)
-    .filter((fn) => fn.exported && COMMAND_SURFACE.has(fn.name))
-    .map((fn) => fn.name)
-    .sort();
+describe('the DM-declared commands declare facts rather than taking actions', () => {
+  /** Every command those modules publish, read off them and off the barrel. */
+  const declared = DECLARING_MODULES.flatMap((module) =>
+    functionsIn(MODULE_SOURCE[module]!)
+      .filter((fn) => fn.exported && COMMAND_SURFACE.has(fn.name))
+      .map((fn) => fn.name),
+  ).sort();
 
   it('accounts for every one of them, and invents none', () => {
     expect(declared.length).toBeGreaterThan(0);
@@ -1529,12 +1678,14 @@ describe('the scene-setup commands declare facts rather than taking actions', ()
     // The **code**, not the prose: the module's own docstring says it does not
     // consult `mayAct`, and a claim checked against the sentence that makes it
     // would be checking nothing.
-    const code = MODULE_SOURCE['commands/scene.ts']!
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/^\s*\/\/.*$/gm, '');
-    expect(code).not.toMatch(/\bmayAct\b/);
-    // And the stripping did not simply remove the whole file.
-    expect(code).toMatch(/\bonce\(/);
+    for (const module of DECLARING_MODULES) {
+      const code = MODULE_SOURCE[module]!
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      expect(code, module).not.toMatch(/\bmayAct\b/);
+      // And the stripping did not simply remove the whole file.
+      expect(code, module).toMatch(/\bonce\(/);
+    }
   });
 
   /**
@@ -1566,12 +1717,43 @@ describe('the scene-setup commands declare facts rather than taking actions', ()
       name: 'declareSpellcasting',
       run: (s) => declareSpellcasting(s, B, declaredCasting({ ability: 'wis', prepared: ['bless'] })),
     },
+    { name: 'declareCreatureSide', run: (s) => declareCreatureSide(s, C, 'the watch') },
+    { name: 'swapInitiativeBetween', run: (s) => swapInitiativeBetween(s, A, B) },
+    { name: 'stabiliseCreature', run: (s) => stabiliseCreature(s, C) },
+    { name: 'declareCreatureDead', run: (s) => declareCreatureDead(s, C, 'off-screen') },
+    {
+      name: 'loseItems',
+      run: (s) => loseItems(s, A, [{ id: 'longsword', quantity: 1 }], 'a thief'),
+    },
+    { name: 'removeBonusFrom', run: (s) => removeBonusFrom(s, A, 'a quiet word') },
   ];
 
-  /** The spenders' own fixture, plus a creature nobody has placed yet. */
-  const owedAndWatching = (): readonly GameEvent[] => [...owing(), added(C, 'onlookers')];
+  /**
+   * The spenders' own fixture, plus what these six need to do something.
+   *
+   * C is a creature nobody has placed, on the floor at 0 hit points; A carries
+   * a bonus no casting hung. Without those two facts `stabiliseCreature` would
+   * be refused and `removeBonusFrom` would succeed by having nothing to do —
+   * and a case that passes by being unreachable proves nothing, which is the
+   * lesson `greased()` itself already carries.
+   */
+  const owedAndWatching = (): readonly GameEvent[] => [
+    ...owing(),
+    added(C, 'onlookers'),
+    { type: 'damage-taken', id: C, amount: 60, source: 'something off-screen' },
+    {
+      type: 'bonus-applied',
+      id: A,
+      bonus: {
+        source: 'a quiet word',
+        bonus: { source: 'a quiet word', flat: 1 },
+        applies: ['save'],
+        direction: 'add',
+      },
+    },
+  ];
 
-  it('covers every command the module publishes', () => {
+  it('covers every command those modules publish', () => {
     expect(declaring.map((entry) => entry.name).sort()).toEqual(declared);
   });
 
@@ -2330,3 +2512,237 @@ function busyLog(): readonly GameEvent[] {
   log = [...log, ...unwrap(equipItem(fold('s', log), A, 'chain-shirt'), 'eq')];
   return log;
 }
+
+/**
+ * Every declared event type, and whether anything can produce one.
+ *
+ * `GameState` is a fold over `GameEvent`, so a type nothing emits is a piece
+ * of the rules the layer above cannot reach: a tool surface calls commands and
+ * never appends events itself, which is the whole of why appending one would
+ * be the model asserting a mechanical fact. Seventeen of the ninety-one types
+ * were in that state when IE-009 measured it, eight of them closed by
+ * `commands/scene.ts` and the other nine by this batch.
+ *
+ * **Derived on both sides, and by the method `CLAUDE.md` already states.** The
+ * declared types are the `readonly type: '<x>'` literals in the union; the
+ * emitted ones are those literals in a **`type:` position** in any runtime
+ * module under `src/` other than `events.ts`, which declares them and whose
+ * reducer `case` labels are not emissions. The `type:` position is the
+ * load-bearing half rather than pedantry: a `ContextRequest`'s `satisfyWith`
+ * *names* an event it does not write, and under the looser reading
+ * `creature-placed` came out emitted while nothing emitted it.
+ */
+const EVENT_TYPE_SOURCE: Readonly<Record<string, string>> = Object.fromEntries(
+  readdirSync(SRC, { recursive: true, encoding: 'utf8' })
+    .map((entry) => entry.replace(/\\/g, '/'))
+    .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts') && file !== 'events.ts')
+    .map((file) => [file, readFileSync(`${SRC}${file}`, 'utf8')]),
+);
+
+/**
+ * The union's members, split at the `|` that begins each one — rather than by
+ * matching to the next closing brace, which runs straight past a member
+ * written on one line and reads the *next* member's fields.
+ *
+ * The union is cut out of the file first, at the `};` that closes its last
+ * member. Without that the **last** member's chunk runs to end of file and
+ * carries three thousand lines of reducer with it, so a stamp declaration
+ * anywhere below would answer for a member that had lost its own.
+ */
+const EVENT_MEMBERS = new Map<string, string>();
+{
+  const file = readFileSync(`${SRC}events.ts`, 'utf8');
+  const opens = file.indexOf('export type GameEvent =');
+  const CLOSES = '\n    };';
+  const union = file.slice(opens, file.indexOf(CLOSES, opens) + CLOSES.length);
+  for (const chunk of union.split(/^  \| /m).slice(1)) {
+    const named = /readonly type: '([a-z-]+)'/.exec(chunk);
+    if (named !== null) EVENT_MEMBERS.set(named[1]!, chunk);
+  }
+}
+
+/** Which of a set of declared types no source in the given map writes. */
+const emittedNowhere = (
+  declared: Iterable<string>,
+  sources: Readonly<Record<string, string>>,
+): readonly string[] => {
+  const text = Object.values(sources).join('\n');
+  return [...declared].filter((type) => !new RegExp(`\\btype: '${type}'`).test(text)).sort();
+};
+
+describe('every declared event type is reachable from a command', () => {
+  /**
+   * And it read the **whole** union. Cutting the union out of the file bounds
+   * the last member's chunk, and a cut that landed early would drop members
+   * silently — leaving every assertion below true of a smaller set. So the
+   * count is held against every distinct `readonly type:` literal in the file,
+   * which is the reading `persistence.test.ts` takes and needs no cut at all.
+   */
+  it('read every member of the union', () => {
+    const everywhere = new Set(
+      [...readFileSync(`${SRC}events.ts`, 'utf8').matchAll(/readonly type: '([a-z-]+)'/g)].map(
+        (match) => match[1]!,
+      ),
+    );
+    expect(EVENT_MEMBERS.size).toBeGreaterThan(80);
+    expect([...EVENT_MEMBERS.keys()].sort()).toEqual([...everywhere].sort());
+  });
+
+  /**
+   * The whole point, and the assertion the nine DM-declared commands exist to
+   * make true. Nothing is exempt: a new event type declared with no producer
+   * fails here on the day it is written rather than on the day M2 goes looking
+   * for a tool that can reach it.
+   */
+  it('leaves no declared type that nothing in the engine emits', () => {
+    expect(emittedNowhere(EVENT_MEMBERS.keys(), EVENT_TYPE_SOURCE)).toEqual([]);
+  });
+
+  /**
+   * And the analysis is not vacuous: shown a type nothing writes, it says so.
+   *
+   * Synthetic on both sides, the way the action-economy sweep drives its own
+   * smuggled spender, because a sweep proved only against the repository it
+   * runs on is a sweep that can quietly stop seeing anything.
+   */
+  it('would find a declared type that no source emits', () => {
+    const sources = { 'a-module.ts': "ok([{ type: 'a-real-event', id }]);" };
+    expect(emittedNowhere(['a-real-event', 'a-fictional-event'], sources)).toEqual([
+      'a-fictional-event',
+    ]);
+  });
+
+  /** And a `satisfyWith` naming an event is not an emission of it. */
+  it('does not count a context request that merely names one', () => {
+    const sources = { 'a-module.ts': "satisfyWith: 'a-real-event'," };
+    expect(emittedNowhere(['a-real-event'], sources)).toEqual(['a-real-event']);
+  });
+
+  /**
+   * **Where the command layer is drawn changes the answer, so it is named
+   * rather than assumed.** Read as the sweeps above read it — every module
+   * under `commands/`, plus `rest.ts` — five types come back, and every one of
+   * them is emitted by `creation.ts`. That is a question about where a command
+   * lives rather than about whether one exists, and it is the only such
+   * question left: `createCharacter` and `advanceCharacter` predate the command
+   * layer, take no `CommandIdentity`, and are not in `commands.ts`'s barrel, so
+   * the sweeps that read that barrel do not see them either.
+   */
+  const OUTSIDE_THE_COMMAND_LAYER: Readonly<Record<string, string>> = {
+    'creature-added':
+      'emitted by `createCharacter` in `creation.ts`, which predates the command layer, takes no CommandIdentity and is not published through the `commands.ts` barrel',
+    'character-created': 'emitted by `createCharacter` in `creation.ts`, for the same reason',
+    'character-advanced': 'emitted by `advanceCharacter` in `creation.ts`, for the same reason',
+    'hit-point-maximum-raised':
+      'emitted by `advanceCharacter` in `creation.ts`, which pays out the hit points a level granted',
+    'resource-pool-resized':
+      'emitted by `advanceCharacter` in `creation.ts`, which grows a pool the level made bigger',
+  };
+
+  it('names the five that `creation.ts` emits and no command does', () => {
+    const commandLayer = Object.fromEntries(
+      [...COMMAND_MODULES, 'rest.ts'].map((file) => [file, MODULE_SOURCE[file]!]),
+    );
+    expect(emittedNowhere(EVENT_MEMBERS.keys(), commandLayer)).toEqual(
+      Object.keys(OUTSIDE_THE_COMMAND_LAYER).sort(),
+    );
+    expect(Object.values(OUTSIDE_THE_COMMAND_LAYER).every((why) => why.length > 20)).toBe(true);
+  });
+
+  /** And each exemption's claim is checked rather than taken on its word. */
+  it('and `creation.ts` really does emit every one of them', () => {
+    const creation = { 'creation.ts': readFileSync(`${SRC}creation.ts`, 'utf8') };
+    expect(emittedNowhere(Object.keys(OUTSIDE_THE_COMMAND_LAYER), creation)).toEqual([]);
+  });
+});
+
+/**
+ * Every event a command stamps declares that it may carry one.
+ *
+ * **The compiler does not check this, and that is the point.**
+ * Excess-property checking on a union accepts a field *any* member declares,
+ * so `{ type: 'scene-set', extent, command }` compiles whether or not
+ * `scene-set` says it may carry a stamp — verified by mutation: deleting the
+ * declaration from `events.ts` leaves `npm run typecheck` completely silent.
+ * `recordCommand` is generic and remembers it either way, so nothing fails at
+ * runtime either.
+ *
+ * This repository has recorded that trap twice — once for a `command` stamp on
+ * an event that did not declare it, once for a casting's `route` — and both
+ * times the cost was the same: a field in the log that no reader of the type
+ * could see. So the claim is read off both sources and held against itself.
+ *
+ * **It reads the stamp rather than the module**, which is what let it become a
+ * directory listing. Scoping it by module was fine while every event a module
+ * wrote carried a stamp, which was true of `commands/scene.ts` alone;
+ * `commands/movement.ts` writes `movement-spent` without one. So each
+ * `...(stamp === null` spread is attributed to the nearest `type:` literal
+ * above it — the object it is a property of — and a module whose stamps that
+ * cannot read fails rather than going quiet.
+ */
+describe('every event a command stamps declares that it carries one', () => {
+  const STAMP = '...(stamp === null';
+
+  /** The event each stamp spread is written onto, per module. */
+  const attributed = (source: string): readonly (string | null)[] =>
+    source
+      .split(STAMP)
+      .slice(0, -1)
+      .map((chunk) => [...chunk.matchAll(/\btype: '([a-z-]+)'/g)].at(-1)?.[1] ?? null);
+
+  /**
+   * The one module whose stamp cannot be attributed, with the reason.
+   *
+   * `resolveTest` spreads its stamp onto `recordD20Test(...)`, whose `type` is
+   * written inside that helper rather than at the call site — so there is no
+   * literal above it to attribute it to. It is `roll-recorded`, which declares
+   * a stamp, and the assertion below says so rather than leaving the gap
+   * silent.
+   */
+  const UNATTRIBUTABLE: Readonly<Record<string, string>> = {
+    'commands/reactions.ts':
+      'one stamp is spread onto `recordD20Test(...)`, which builds the event and its `type` inside the helper, so no literal at the call site can name it; it is `roll-recorded`',
+  };
+
+  it('attributes every stamp in every command module but the one named', () => {
+    const blind = Object.keys(MODULE_SOURCE)
+      .filter((file) => attributed(MODULE_SOURCE[file]!).includes(null))
+      .sort();
+    expect(blind).toEqual(Object.keys(UNATTRIBUTABLE).sort());
+    expect(Object.values(UNATTRIBUTABLE).every((why) => why.length > 20)).toBe(true);
+    // And the one it cannot see would have passed anyway.
+    expect(EVENT_MEMBERS.get('roll-recorded')!).toMatch(/readonly command\?: CommandStamp/);
+  });
+
+  const stamped = new Set(
+    Object.values(MODULE_SOURCE)
+      .flatMap((source) => attributed(source))
+      .filter((type): type is string => type !== null),
+  );
+
+  it('found the events the command layer stamps', () => {
+    // A floor rather than a list, so adding a stamped event is not a chore —
+    // but high enough that a derivation that quietly stopped reading fails.
+    expect(stamped.size).toBeGreaterThan(25);
+    expect(stamped.has('scene-set')).toBe(true);
+    expect(stamped.has('mounted')).toBe(true);
+  });
+
+  it('and every one of them declares a command stamp', () => {
+    for (const type of stamped) {
+      expect(EVENT_MEMBERS.has(type), type).toBe(true);
+      expect(EVENT_MEMBERS.get(type)!, type).toMatch(/readonly command\?: CommandStamp/);
+    }
+  });
+
+  /**
+   * And the reader would notice one that did not. `combat-ended` is the
+   * control: no command stamps it and it declares none, so a reader that
+   * answered "yes" to everything would say it did.
+   */
+  it('would see a type that is missing it', () => {
+    expect(EVENT_MEMBERS.has('combat-ended')).toBe(true);
+    expect(stamped.has('combat-ended')).toBe(false);
+    expect(EVENT_MEMBERS.get('combat-ended')!).not.toMatch(/readonly command\?: CommandStamp/);
+  });
+});

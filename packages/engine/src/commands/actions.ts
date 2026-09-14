@@ -9,7 +9,7 @@
 import { type CommandIdentity, once } from '../idempotency.js';
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from '../actions.js';
-import { dash, disengage, spendAction, spendReaction } from '../combat.js';
+import { dash, disengage, spendAction, spendReaction, useFreeInteraction } from '../combat.js';
 import { conditionSpeed } from '../conditions.js';
 import {
   applyEvent,
@@ -145,6 +145,54 @@ export function takeDodge(
     if (timer.value !== null) events.push(timer.value);
 
     return ok(events);
+  });
+}
+
+/**
+ * Open the door on the way past.
+ *
+ * SRD: "You can interact with one object or feature of the environment for
+ * free, during either your move or action", and "when time is short, such as
+ * in combat, interactions with objects are limited: one free interaction per
+ * turn. Any additional interactions require the Utilize action."
+ *
+ * `useFreeInteraction` has enforced exactly that since the action economy
+ * landed, with one caller: the **reducer**, folding an event no command wrote.
+ *
+ * **Outside combat there is nothing to limit**, so this refuses rather than
+ * quietly succeeding: the allowance is per *turn*, there are no turns, and the
+ * reducer throws for a `free-interaction-used` with no combat. That is the one
+ * place this differs from Dodge, which has a benefit worth having either way.
+ *
+ * **It spends from the turn budget, so `mayAct` applies.** The action-economy
+ * sweep derives that from the call rather than from this sentence —
+ * `useFreeInteraction` is one of its seeds, beside the five that spend an
+ * Action, a Bonus Action, a Reaction, movement or an attack, because the
+ * budget field it consumes is one of the same six.
+ */
+export function useFreeObjectInteraction(
+  state: GameState,
+  id: CharacterId,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `free-interaction:${id}`, command, () => [], (stamp) => {
+    // **After the duplicate check, never before it.**
+    const owedHere = mayAct(state, id);
+    if (owedHere !== null) return owedHere;
+
+    if (state.combat === null) {
+      return err(
+        'not_in_combat',
+        'interactions are limited to one a turn only when time is short; outside combat there is no turn to spend one on',
+      );
+    }
+
+    const spent = useFreeInteraction(state.combat, id);
+    if (!spent.ok) return spent;
+
+    return ok([
+      { type: 'free-interaction-used', id, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
   });
 }
 

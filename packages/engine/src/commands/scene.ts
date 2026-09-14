@@ -14,7 +14,9 @@
  * largest.
  *
  * Four decisions, stated rather than left to be inferred, because nine more
- * DM-declared events are the same shape and will follow whatever this does:
+ * DM-declared events were the same shape and did follow whatever this did —
+ * `commands/declarations.ts` and the mount, dismount and free-interaction
+ * commands beside them:
  *
  * **1. The command is its event's name read as an imperative.** `scene-set` is
  * `setScene`, `time-advanced` is `advanceTime`. Four of them are lengthened —
