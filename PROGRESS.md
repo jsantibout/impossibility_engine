@@ -1427,6 +1427,66 @@ implemented.
   5, once the two targeted repairs have landed, and run it in place of a
   fifth retrospective.
 
+### Post-tranche-5 simplification audit, and the tranche 6 recommendation
+
+Run on 2026-09-14 after tranche 5 shipped seventeen of eighteen, as the
+**non-semantic simplification and optimisation audit** the delta audit
+scheduled — not a fifth whole-engine retrospective. Measured on `main` at
+`eab142d`; the full record with `file:line` evidence, the three experiments
+and the cycle is
+`docs/architecture/post-tranche-5-simplification-audit-2026-09-14.md`.
+Nothing was implemented.
+
+- **The two structural costs the delta audit named are paid down**, and the
+  tranche exposed two state representations that were accidents of their
+  first user: the movement remainder (repaired, IE-031) and the single global
+  `pendingCasting` slot (decided, IE-034, not built). The slot is the next
+  cycle's first task: `pendingCastings` keyed by casting id, the record shape
+  unchanged, one open casting per caster in the reducer, the global
+  "a casting is open, therefore casting is refused" rule deleted from the
+  casting and activation paths, `resolveDeclaredCast` taking the id, the
+  Counterspell trigger and resolver addressing a casting by its caster.
+  Sixteen sites in seven modules, four tests inverted rather than preserved,
+  one exemption rewritten, no fixture regenerated. Concentration already
+  names a casting by id everywhere and needs no change.
+- **Two correctness gaps outrank capability.** No command puts a monster into
+  a game — `adaptMonster` has no caller outside its own module — and a stat
+  block's printed condition immunities never reach state, so a Zombie is
+  Poisoned like anybody. One task: an `addCreature` command and
+  `CreatureState.conditionImmunities` behind one gatherer, which is also the
+  storage a granted immunity joins as the seventh sourced family.
+- **The highest-leverage simplification is splitting `events.ts`** — 5,363
+  lines, touched by seven of ten mechanism tasks in a chain seven deep that
+  was the tranche's critical path — along the fold's own seams with the
+  IE-005/IE-027 byte-identity oracle, cheap at a tranche boundary. Then, with
+  measured evidence: delete the coverage report's regex shape classifier (a
+  second blocker table already disagreeing with the derived one) and derive
+  `PARTIAL_SPELLS`; stop maintaining `OngoingSpell.on` (869 of 869
+  checkpoints across the frozen logs equal its derivation); put the command
+  stamp on the event envelope in place of sixty declarations and a sweep;
+  move the definition format's types out of the catalogue file; make the
+  frozen log's prefix test O(n) (5 of the suite's 24 summed seconds); retire
+  the two barrel commands nothing calls and add `endOngoingSpell`. Refused on
+  evidence: `Combatant.speed` as a duplicate base (the rat enters both logs at
+  20 with a sheet of 30), further `resolveEffects` abstraction (three gap
+  tests instead), `index.ts` tiering (no consumer yet).
+- **Adjudication completeness needs a stronger instrument for one
+  population.** All five wrong "finishes" predictions were omissions in the
+  undefined map, whose entries are bare shape lists with no clause and no
+  quote. The executed map already has the right primitive — a distinctive
+  phrase matched exactly once — and pointing it at the spell's SRD paragraph
+  with a sentence-coverage guard and two `finishes` numbers closes the gap
+  without a new hand list; the backfill runs family by family, and no shape
+  is briefed from an unverified list.
+- **The recommended cycle**: the keyed record → the `events.ts` split → the
+  monster command with immunities beside the in-combat long casting → a
+  granted condition immunity beside the `end-of-current-turn` moment, with
+  IE-036, the adjudication instrument, the coverage deletion, the derivations
+  and a docs pass in the pool; six mechanism slots in a chain four deep,
+  roughly four and a half hours green and seven risk-adjusted; one optional
+  slot; no RED in the roster. Ray of Frost outside combat is the owner's,
+  and the `end-of-current-turn` member does not decide it.
+
 ## The utility bucket, audited spell by spell
 
 Ninety-one SRD spells are filed as "narrative or exploration". Fifteen were
