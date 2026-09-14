@@ -1,12 +1,12 @@
 # IE-036 — The twelve spells a long casting time alone blocked
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: OWNER_APPROVAL_REQUIRED
 lane: content
-tranche: 5
-parallel-safe: CONDITIONAL — content only; collides with IE-035 on registry lines alone
-depends-on: IE-034
+tranche: 6
+parallel-safe: CONDITIONAL — content only; collides with IE-043 on registry lines alone
+depends-on: IE-038
 worker: none
-approved: 2026-09-14 — "APPROVE TRANCHE 5"
+approved: none
 merge-approved: none
 
 ## Brief
@@ -152,4 +152,29 @@ somebody who did not read the twelve SRD paragraphs the first time.
 **Nothing about the brief is wrong** — it needs no re-scoping, and its
 dependency on IE-034 is satisfied the moment IE-034 merges. It is proposed
 first in tranche 6, behind the record change.
+
+## Re-rostered to tranche 6 — 2026-09-14
+
+Carried forward by the foreman when tranche 6 was assembled. The brief is
+**unchanged**; three bookkeeping lines are not.
+
+- `depends-on` becomes **IE-038**, not IE-034. IE-034 has merged; what this now
+  waits on is the keyed pending-casting record, which is the shape the twelve
+  fixtures will be written against and the reason the task was deferred.
+- `parallel-safe` names **IE-043** rather than IE-035 — the same registry-line
+  collision, with tranche 6's types-side task in the same file.
+- The tranche 5 approval lapses with tranche 5, so the file returns to
+  `OWNER_APPROVAL_REQUIRED` and is re-approved as part of tranche 6. This is
+  bookkeeping, not a reversal: the deferral note below stands, and the owner's
+  reason for approving it has not changed.
+
+Two things the brief should be read with, now that IE-044 exists:
+
+- IE-044 re-anchors `BLOCKED_ON` entries to clause phrases from each spell's
+  SRD paragraph. It merges first; these twelve then **leave** the map, so they
+  need no backfill — but the entries removed are the new shape, not the old.
+- Acceptance criterion 2 — one spell driven past its casting time — is the
+  fixture that exercises IE-038's settlement by id. Make it a **second creature
+  acting during the rite**, which is the behaviour IE-038 corrects and the most
+  natural demonstration of the twelve.
 

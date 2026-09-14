@@ -390,7 +390,14 @@ foreman.
 Recommendation: APPROVE TRANCHE 4.
 
 ### Tranche 5 — COMPLETE 2026-09-14 — "APPROVE TRANCHE 5"
-roster: IE-020, IE-021, IE-022, IE-023, IE-024, IE-025, IE-026, IE-027, IE-028, IE-029, IE-030, IE-031, IE-032, IE-033, IE-034, IE-035, IE-036, IE-037
+roster: IE-020, IE-021, IE-022, IE-023, IE-024, IE-025, IE-026, IE-027, IE-028, IE-029, IE-030, IE-031, IE-032, IE-033, IE-034, IE-035, IE-037
+
+> **IE-036 was on this roster and was deferred rather than launched** — the
+> 2026-09-14 deferral row in the gate log is the record. When tranche 6 was
+> assembled it was **re-rostered there**, so the roster line above no longer
+> names it: a task belongs to exactly one tranche, which is what makes a
+> tranche the unit of authority. Seventeen of the eighteen tasks this tranche
+> approved shipped; the eighteenth is tranche 6's wave 2.
 
 **Eighteen tasks, eight waves, operationalised from the post-tranche-4 delta
 audit §5** — the audit's own roster, re-briefed from repository evidence with
@@ -544,33 +551,130 @@ first item: a 4,800-line split would stall every mechanism task behind it.
 
 Recommendation: APPROVE TRANCHE 5.
 
+### Tranche 6 — PROPOSED
+
+roster: IE-036, IE-038, IE-039, IE-040, IE-041, IE-042, IE-043, IE-044, IE-045, IE-046, IE-047, IE-048, IE-049
+
+**Thirteen tasks, five waves, operationalised from the post-tranche-5
+simplification and optimisation audit** (`docs/architecture/post-tranche-5-simplification-audit-2026-09-14.md`),
+with its premises verified against `main` at `7f503c2` first, plus one owner
+decision the audit named as RED and the owner has since settled.
+
+**What the verification changed**, because the audit is evidence and not a
+roster to transcribe:
+
+- **The audit's T9 ∥ T8 pair is not parallel-safe.** IE-042 and IE-043 both
+  edit the definition format's type declarations at the top of
+  `spell-definitions.ts`, which CLAUDE.md names as a foundational primitive
+  with one owner. IE-043 depends on neither the keyed record nor the fold
+  split, so it moves **forward** to wave 1 instead — which shortens the chain
+  rather than lengthening it.
+- **`commands/spell-resolution.ts` is a second serialisation point** the audit
+  under-stated: the thirteen per-kind resolvers IE-027 created live in it, so
+  IE-038, IE-041, IE-042 and IE-046 are fully serial on that file alone. That,
+  not the fold, is why there is a fifth wave.
+- **The audit's T11 and T12 bundles are split.** A low-medium-risk derivation
+  (`OngoingSpell.on`) briefed beside three unrelated trivia dilutes a
+  reviewer's context; a new public command (`endOngoingSpell`) and the deletion
+  of two published ones deserve their own digest line. They are IE-047 and
+  IE-048.
+- **Two simplifications are deliberately deferred** — see below.
+- Every line-referenced claim in the briefs was re-read on `main`: the 26
+  `pendingCasting` references in 9 runtime files, `adaptMonster` having no
+  caller outside its own module and its tests, `endSpellEffectOn` and
+  `resolveCast` having no production caller, the 60 stamp declarations, the
+  single `no_turns` site, and the blocker counts quoted from `COVERAGE.md`.
+
+**Waves**
+
+```
+Wave 1   IE-038 (keyed pendingCastings)  ∥  IE-043 (end-of-current-turn)  ∥  IE-044 (adjudication instrument)
+Wave 2   IE-039 (split events.ts)        ∥  IE-036 (twelve long-casting spells)  ∥  IE-045 (coverage classifier)
+Wave 3   IE-041 (in-combat long casting) ∥  IE-040 (monster command + immunities) ∥  IE-047 (derive OngoingSpell.on)
+Wave 4   IE-042 (granted condition immunity)  ∥  IE-048 (end a casting by id)
+Wave 5   IE-046 (turn-context request)   ∥  IE-049 (readied stated facts — optional, on the clock)
+```
+
+**Sequential chains, by primitive:** the casting surface —
+IE-038 → IE-041 → IE-042 → IE-046, with IE-048 after IE-041; the fold layout —
+IE-038 → IE-039 → everything in `fold/`; creature entry and immunities —
+IE-040 → IE-042; the coverage scripts — IE-044 → IE-045, and IE-044 → IE-036
+because IE-036 removes twelve entries whose shape IE-044 changes.
+
+**Concurrency is capped at three builders**, which is the workflow's limit and
+the real constraint on the roster's size: five waves × three is fifteen slots,
+and thirteen tasks leave exactly the slack one rework round needs.
+
+**Why these simplifications, and why now.** The owner's test is that a
+simplification precedes capability only where later approved work would
+otherwise build on architecture already known to be temporary or duplicated:
+
+- **IE-039 (`events.ts`)** — four approved tasks in this very tranche
+  (IE-040, IE-041, IE-042, IE-047) land in that one file and would serialise
+  behind it. Seven of tranche 5's ten mechanism tasks touched it and that chain
+  *was* the critical path.
+- **IE-047 (derive `on`)** — a stored derivation kept in step by three passes,
+  measured equal to its derivation at 869 of 869 checkpoints, and IE-042 adds a
+  seventh grant family to the same release path.
+- **IE-045 (the classifier)** — the coverage report **contradicts itself in one
+  file** today, and this tranche and the next are briefed from that report.
+- **IE-044 (the instrument)** — every wrong prediction about what a shape would
+  finish came from the undefined map's unanchored entries, and IE-042 is
+  briefed from exactly such a list.
+
+**Deferred Fable recommendations, with reasons:**
+
+| Deferred | Why |
+|---|---|
+| **S4 — the command stamp on the event envelope** | It is a 60-site edit across the union that collides with every event-adding task in this tranche (IE-040's `creature-added` field, IE-042's new event) *and* with IE-039's split. It is cheapest as the **first task of the next cycle**, where it collides with nothing; the duplication costs one line per new event in the meantime and a mechanical sweep already covers it |
+| **S5 — `spell-format.ts`** | It must follow IE-036, so it buys parallelism only for the cycle *after* this one — and doing it here means two large behaviour-preserving moves of very large files in one night, concentrating the one risk class the byte-identity oracle cannot fully cover |
+| **S8 — the test-support fixture module** | Adopt going forward, as the audit says; a sweep converting 59 files is a large no-behaviour diff that collides with everything |
+| **S9 — `TurnBudget.attacksRemaining`** | Non-semantic today; nothing raises the allowance. Recorded for the task that builds the first raiser, which is the audit's own disposition |
+| **S10 — retiring the superseded prose** | This tranche rewrites CLAUDE.md in six tasks; a bulk `PROGRESS.md` retirement across those edits is a merge conflict for no correctness gain. Each task re-points the sentences it invalidates, which is where the citation guard will catch them anyway |
+| **The Counterspell-on-Counterspell lift** | SRD-legal and refused today. It needs a settle-order rule over the keyed record — a bounded YELLOW *before* a brief, not inside a representation task. Next cycle |
+| **Compelled and forbidden actions; summons; Heal's flat healing; modified healing; Superior Hunter's Defense whole** | Unchanged from the audit's own deferral table. IE-040 is deliberately summons' first half |
+
+**Likely escalation points:**
+
+- **YELLOW, IE-039** — if the value-graph precondition finds a cycle across the
+  proposed module boundaries. None is expected: the only calls to `applyOne`,
+  `applyEvent` and `fold` inside the file are the pipeline's own, verified.
+- **YELLOW, IE-041** — where the derived failure sits in the turn-boundary
+  ordering. The answer is pre-stated in the brief ("before the end-of-turn area
+  debts are raised"); it escalates only if a fixture shows a save owed to a
+  spell the same boundary failed.
+- **YELLOW, IE-047** — if a reader of `on` turns out to want "on at the cast"
+  rather than "on now". None was found.
+- **RED — none in the roster.** The one RED the audit named (Ray of Frost
+  outside combat) is settled by the owner and is IE-046. A second scene, walls
+  and falling remain doctrine seams and are untouched.
+
+**Duration.** Green path **5–6 hours**: five waves whose slowest slots are
+roughly 55, 65, 60, 50 and 35 minutes, plus about ten minutes of foreman
+integration per wave. Risk-adjusted **7–8 hours**, assuming one YELLOW and two
+multi-round reviews inside the chain — which is the shape of tranche 5's
+overrun, where the chain and not the pool was the wall clock.
+
+Recommendation: APPROVE TRANCHE 6.
+
 ## CURRENT
 
-**Tranche 5 is complete and no tranche is approved. Nothing executes.**
+**Tranche 6 is PROPOSED and awaits the owner. Nothing executes.**
 
-Seventeen of eighteen tasks merged; **IE-036 is deferred**, on its file with
-the reason, and stays on tranche 5's roster with the owner's approval intact.
-`main` is at `062441c` — **7,812 tests across 116 files**, both frozen logs
-untouched, `COVERAGE.md` byte-clean, everything pushed.
+`main` is at `7f503c2` — **7,812 tests across 116 files**, both frozen logs
+untouched, `COVERAGE.md` byte-clean, tree clean, everything pushed. Tranche 5
+is complete; its one deferred task, IE-036, is re-rostered into tranche 6's
+wave 2 and its file records the move.
 
-**The next three things are the owner's, in this order:**
+The post-tranche-5 simplification and optimisation audit was run by Fable in a
+separate session and is recorded at
+`docs/architecture/post-tranche-5-simplification-audit-2026-09-14.md`. Tranche
+6 above is that audit operationalised: its premises verified against `main`,
+two of its concurrency claims corrected, two of its bundles split, two of its
+simplifications deferred with reasons, and one owner decision — turn-anchored
+riders outside combat — added as IE-046.
 
-1. **`pendingCastings`, keyed by casting id.** Fable's decision from IE-034's
-   YELLOW, and explicitly outside that task's brief, so it was not built. The
-   engine currently refuses **every other creature's** casting while one rite
-   is open — a debt that ships **pinned by three tests** rather than described
-   in a comment, so the task that fixes it deletes tests. This is tranche 6's
-   first task and IE-036 sits behind it.
-2. **IE-036**, re-proposed behind that change, so twelve ritual definitions are
-   written once against a record whose shape has stopped moving.
-3. **The Fable non-semantic simplification and optimisation audit** — recorded
-   as a checkpoint *before* this tranche began and now due. The delta audit
-   asked that it measure the engine **after** IE-027 and IE-028 landed rather
-   than recommend them; both landed. `resolveEffects` is 214 lines where it was
-   1,008, and the grant families are enumerated once where they were walked by
-   hand in five places — so the two largest items it would have named are
-   already closed, and what it should measure is what tranche 5 *added*.
-   **Not a fifth retrospective.**
+**Awaiting: `DEVELOPMENT TRANCHE 6 — OWNER_APPROVAL_REQUIRED`.**
 
 ## NEXT
 
