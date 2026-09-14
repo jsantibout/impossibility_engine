@@ -696,7 +696,7 @@ Recommendation: APPROVE TRANCHE 6.
 
 ### Tranche 7 — PROPOSED
 
-roster: IE-042, IE-050, IE-051, IE-052, IE-053, IE-054, IE-055, IE-056, IE-057
+roster: IE-042, IE-050, IE-051, IE-052, IE-053, IE-054, IE-055, IE-056, IE-057, IE-058
 
 **Nine tasks, four waves, planned from tranche 6's own evidence** rather than
 from the audit's roster — the post-tranche-5 simplification audit remains the
@@ -739,7 +739,7 @@ is what ungates the next cycle.
 
 ```
 Wave 1   IE-050 (applyOne by domain) ∥ IE-051 (split the resolvers) ∥ IE-052 (brief citation guard)
-Wave 2   IE-053 (store the cast half, derive the rest) ∥ IE-056 (sentence-complete the next families)
+Wave 2   IE-053 (store the cast half, derive the rest) ∥ IE-056 (sentence-complete the next families) ∥ IE-058 (tranche closure enforced)
 Wave 3   IE-042 (granted condition immunity) ∥ IE-055 (join a running order) ∥ IE-057 (endConcentration and owed debt)
 Wave 4   IE-054 (a later consequence asks for its turn timeline)
 ```
@@ -751,7 +751,7 @@ owns `events.ts`, `spells.ts`, `ongoing-compatibility.ts`, `fold/release.ts`,
 task collides with one of those.
 
 **Concurrency stays capped at three builders.** Four waves × three is twelve
-slots for nine tasks, which leaves the slack a rework round needs without
+slots for ten tasks, which leaves the slack a rework round needs without
 padding the roster to fill it.
 
 **What happens early, and why exactly**
@@ -763,6 +763,17 @@ Wave 1 is chosen to attack the two things tranche 6 measured as costing it:
 | reducer serialisation | IE-050 dispatches `applyOne` by domain. Its acceptance criterion **checks the claim**: it must state which domain module each of tranche 6's three colliding tasks would now touch, and if two of three still land together, the split has not done its job |
 | resolver serialisation | IE-051 moves IE-027's thirteen resolvers out of one file, with the same check over tranche 7's own three would-be colliders |
 | brief-error risk | IE-052 fails a brief that names a source which does not exist or quotes a run absent from the file it names — **before** a builder is launched |
+
+**The tranche 6 miss is closed by a tool, not by a rule of attention.** IE-058
+makes `TRANCHE_COMPLETE` impossible while any task on the roster is live, and
+derives the shipped/deferred counts from the task states. Two facts were
+verified before briefing it: the validator has **no rule at all** tying a
+`COMPLETE` tranche to its tasks’ states — the hole — and **no representation of
+a deferral**, which is why IE-036’s and IE-042’s both lived in prose. The
+design constraint that matters is that a deferral must be **louder than a
+deletion**: a foreman can close a tranche today by quietly removing an id from
+the roster, and a fix that made that the path of least resistance would replace
+a visible bug with an invisible one.
 
 **Deliberately deferred, with reasons**
 
