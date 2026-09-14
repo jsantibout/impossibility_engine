@@ -70,6 +70,7 @@ import { concentrationSaveDc } from '../vitals.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { type DamageCommand, damageCreature } from './creatures.js';
+import { mayAct } from './holds.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { type CastSpellRequest } from './targeting.js';
 
@@ -1047,6 +1048,17 @@ export function resolveDamage(
  * Reaction Is A Window, Not A Trigger" in CLAUDE.md. Same split as
  * `damageCreature` beneath `resolveDamage`, and the same policy: the low-level
  * half exists, and Maestro's tool surface does not expose it.
+ *
+ * **It does consult `mayAct`, which it did not used to.** The action-economy
+ * sweep exempted it as "a named debt rather than a settled exemption": being
+ * the low-level half is a *policy* about who calls it, and a policy is not a
+ * guard. It spends an Action and a slot, so a caller reaching it while a
+ * persistent area owes somebody a saving throw would act into a world nobody
+ * has settled — which is the whole of what the debt is for.
+ *
+ * `castOnHit` therefore calls {@link resolveCastWith} instead: settling an
+ * attack the engine is already holding open must not be refused, and a guard
+ * on that path would strand the held roll.
  */
 export function resolveCast(
   state: GameState,
@@ -1054,8 +1066,13 @@ export function resolveCast(
   command: CastCommand,
 ): Result<GameEvent[]> {
   // Before anything else: a retry of a command that has already landed is a
-  // no-op, and the action it spent stays spent.
+  // no-op, and the action it spent stays spent. **The guard is inside the
+  // callback**, which is what `once` is for — a refusal written above it would
+  // tell a retry about the world its own first run arrived in, and this file
+  // records eight prior occasions on which that is exactly what happened.
   return once(state, `cast:${id}`, command, () => [], (stamp) => {
+    const owedHere = mayAct(state, id);
+    if (owedHere !== null) return owedHere;
     return resolveCastWith(state, id, command, stamp);
   });
 }

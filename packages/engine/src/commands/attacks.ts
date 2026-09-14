@@ -42,7 +42,7 @@ import {
   chooseRoute,
   type ConcentrationConsequence,
   type ConcentrationSaveSupply,
-  resolveCast,
+  resolveCastWith,
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { landDamage } from './damage.js';
@@ -716,14 +716,20 @@ function castOnHit(
   const route = chooseRoute(attacker.spellcasting, smite.spellId, undefined);
   if (!route.ok) return route;
 
-  const cast = resolveCast(state, id, {
+  // **`resolveCastWith`, not `resolveCast`.** This is inside
+  // `resolveAttackDamage`, which settles an attack the engine is already
+  // holding open and is exempt from `mayAct` for that reason — a guard here
+  // would strand the held roll. The identity is the settlement's own, and this
+  // command carries no id of its own, so nothing is lost by taking the half
+  // beneath the wrapper.
+  const cast = resolveCastWith(state, id, {
     spell: definition.name,
     level: definition.level,
     concentration: definition.concentration,
     castingTime: definition.castingTime,
     slotLevel: smite.slotLevel,
     route: route.value.kind === 'granted' ? route.value.grant.source : `class:${route.value.classId}`,
-  });
+  }, null);
   if (!cast.ok) return cast;
 
   return ok({

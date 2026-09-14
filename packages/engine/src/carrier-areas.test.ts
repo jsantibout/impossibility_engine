@@ -1051,7 +1051,9 @@ describe('a carried area ends with its casting, through the one door', () => {
     game.walk(CLERIC, ONE_STEP_EAST);
     game.settle();
     game.push(unwrap(endConcentration(game.state, CLERIC, 'voluntary'), 'ending it'));
-    expect(JSON.stringify(fold('seed', game.log))).not.toContain(aura);
+    // Everything but the tombstone: `castingsEnded` mentions the casting on
+    // purpose, so a later record naming it is refused as a corrupt log.
+    expect(JSON.stringify({ ...fold('seed', game.log), castingsEnded: [] })).not.toContain(aura);
   });
 
   /**

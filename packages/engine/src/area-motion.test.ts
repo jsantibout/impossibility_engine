@@ -1371,7 +1371,10 @@ describe('a casting that ends takes its moved area and its debts with it', () =>
 
   it('goes on holding nothing after the whole thing is replayed', () => {
     const { game, beam } = swept();
-    expect(JSON.stringify(fold('seed', game.log))).not.toContain(beam);
+    // `castingsEnded` is the one deliberate mention a finished casting leaves:
+    // the fold remembers it so a `spell-ongoing` naming it again is a corrupt
+    // log rather than a resurrection. Everything else must be gone.
+    expect(JSON.stringify({ ...fold('seed', game.log), castingsEnded: [] })).not.toContain(beam);
   });
 
   /**
@@ -1383,7 +1386,7 @@ describe('a casting that ends takes its moved area and its debts with it', () =>
     const beam = game.conjure('moonbeam', SELF_BEAM);
     game.fight().to(DRUID);
     game.beamTo(beam, SELF_END, { via: SELF_SWEEP });
-    expect(JSON.stringify(fold('seed', game.log))).not.toContain(beam);
+    expect(JSON.stringify({ ...fold('seed', game.log), castingsEnded: [] })).not.toContain(beam);
   });
 });
 

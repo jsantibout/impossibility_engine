@@ -5,9 +5,13 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
+import { definitionFor } from './spell-definitions.js';
 import { remaining } from './resources.js';
+import { forSeconds } from './duration.js';
+import { castingSource } from './spells.js';
 import {
   activateSpell,
+  applyConditionTo,
   ongoingSpellOf,
   ongoingSpellsBy,
   ongoingSpellsOn,
@@ -405,8 +409,6 @@ describe('the record lives exactly as long as the spell', () => {
             spellId: 'bless',
             spell: 'Bless',
             level: 1,
-            concentration: true,
-            route: null,
             numbers: { saveDc: 15, attackModifier: 7, spellcastingModifier: 4, casterLevel: 9 },
             on: [ALLY],
           },
@@ -1540,5 +1542,367 @@ describe('Produce Flame hurls its fire on later turns', () => {
     );
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('takes_no_target');
+  });
+});
+
+// — the record pins what the casting was made with —————————————————————————————
+
+/**
+ * A casting already made does not change when the catalogue does.
+ *
+ * `CastingNumbers` has pinned the save DC, the attack modifier, the
+ * spellcasting modifier and the caster's level since a spell could first catch
+ * somebody a minute after it was cast. The **shape of a persistent area and
+ * the clauses that fire in it** were not pinned: the fold looked them up in
+ * `spell-definitions.ts` on every read, so a replay of last week's log
+ * consulted this week's catalogue, and correcting a transcribed Cube size
+ * would raise different debts in a historical fold than the live session
+ * raised. That is the hazard the event-log section of CLAUDE.md names — "every
+ * future rules fix silently rewrote history" — arriving through data rather
+ * than through rules.
+ */
+describe('a casting pins its area and the clauses that fire in it', () => {
+  // The same geometry the `greased` fixture in `invariants.test.ts` uses, for
+  // the same reason: a point and a walk into it that are known to discriminate.
+  const AT = { x: 120, y: 100, z: 0 } as const;
+  const TOWARDS = { x: 200, y: 100, z: 0 } as const;
+
+  const WEB_SETUP: readonly GameEvent[] = [
+    added(WIZ, 'party'),
+    added(FOE, 'foes'),
+    {
+      type: 'spellcasting-declared',
+      id: WIZ,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['web'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: WIZ,
+      pool: { key: 'spell-slot:2', label: 'level 2', max: 4, recovers: 'long-rest' },
+    },
+    { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
+    { type: 'landmark-added', name: 'the web', at: AT },
+    { type: 'creature-placed', id: WIZ, placement: { from: { landmark: 'the web' }, feet: 40, bearing: 180 } },
+    { type: 'creature-placed', id: FOE, placement: { from: { landmark: 'the web' }, feet: 40, bearing: 270 } },
+  ];
+
+  /** Conjure a Web at the landmark, and hand back the whole log. */
+  const spun = (): readonly GameEvent[] => {
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', WEB_SETUP),
+        WIZ,
+        { spellId: 'web', targets: [], at: AT, towards: TOWARDS, slotLevel: 2 },
+        supply('web'),
+      ),
+      'web',
+    );
+    return [...WEB_SETUP, ...out.events];
+  };
+
+  /** And walk the foe into it, which is the fact the fold has to reconstruct. */
+  const walked = (): readonly GameEvent[] => [
+    ...spun(),
+    { type: 'creature-moved', id: FOE, placement: { from: { landmark: 'the web' }, feet: 15, bearing: 90 } },
+  ];
+
+  it('writes the shape and the clauses down when the spell is cast', () => {
+    const record = Object.values(fold('seed', spun()).ongoing)[0];
+
+    // SRD Web: "you fill a 20-foot Cube within range with sticky webbing".
+    expect(record?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
+    // SRD Web: "The first time a creature enters the webs on a turn or starts
+    // its turn there, it must succeed on a Dexterity saving throw." The clause
+    // is recorded whole, as cast. What the *fold* reads off it is the four
+    // fields that decide who is caught and when — `at`, `onEntry`,
+    // `onAreaEntry`, `oncePerTurn`; `settleAreaEffects` still resolves the
+    // effects through the catalogue, which this pins nothing about.
+    expect(record?.areaTrigger).toEqual(definitionFor('web')?.areaTrigger);
+    expect(record?.areaTrigger).toMatchObject({ at: 'start-of-turn', onEntry: 'first-per-turn' });
+  });
+
+  /**
+   * The assertion the whole change exists for: correct the definition under a
+   * log that has already been written, and the fold does not move.
+   *
+   * The edit is one a transcription fix would make — a Cube that turns out to
+   * be a different size — because that is exactly the change the audit found
+   * could rewrite history. The definition is restored whatever happens, so no
+   * other test can see it.
+   */
+  it('folds the same after the definition is corrected under it', () => {
+    const log = walked();
+    const before = fold('seed', log);
+    // Not vacuous: the fold really does reconstruct a debt from the area.
+    expect(before.owedAreaEffects).toHaveLength(1);
+
+    const web = definitionFor('web');
+    if (web === null) throw new Error('Web has no definition');
+    const mutable = web as { area?: unknown };
+    const original = mutable.area;
+    try {
+      mutable.area = { kind: 'cube', size: 5, origin: 'point' };
+      // The catalogue really did change, or the assertion below proves nothing.
+      expect(definitionFor('web')?.area).toEqual({ kind: 'cube', size: 5, origin: 'point' });
+      expect(fold('seed', log)).toStrictEqual(before);
+    } finally {
+      mutable.area = original;
+    }
+  });
+
+  /**
+   * And the same claim from the other side: a record that says its Cube is
+   * five feet across behaves like a five-foot Cube however big the book says
+   * Web is. The fold reads the record, not the catalogue.
+   */
+  it('reads the area off the record rather than off the catalogue', () => {
+    const log = walked();
+    const shrunk = log.map((event) =>
+      event.type === 'spell-ongoing'
+        ? { ...event, casting: { ...event.casting, area: { kind: 'cube', size: 5, origin: 'point' } } }
+        : event,
+    ) as readonly GameEvent[];
+
+    expect(fold('seed', log).owedAreaEffects).toHaveLength(1);
+    expect(fold('seed', shrunk).owedAreaEffects).toHaveLength(0);
+  });
+});
+
+/**
+ * The two fields the record carried and nobody read.
+ *
+ * `concentration` restated a fact the creature already holds — whoever is
+ * concentrating names the casting — and `route` is a *name*, which has to be
+ * resolved against a sheet before it is a number and therefore answers nothing
+ * a minute later; `numbers` is what a later use actually reads. Two answers to
+ * one question is the failure this record exists to avoid.
+ */
+describe('the record holds no second answer to a question state already answers', () => {
+  it('carries neither the route nor a concentration flag', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY], 1, 'a');
+    const record = ongoingSpellOf(g.state, bless);
+
+    expect(record).not.toBeNull();
+    expect(record).not.toHaveProperty('route');
+    expect(record).not.toHaveProperty('concentration');
+  });
+
+  /** The fact itself is still answerable, because the creature holds it. */
+  it('leaves whoever is concentrating as the one place that says so', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY], 1, 'a');
+    expect(g.state.creatures[WIZ]?.concentration?.castingId).toBe(bless);
+
+    g.push([{ type: 'concentration-ended', id: WIZ, castingId: bless, reason: 'voluntary' }]);
+    expect(g.state.creatures[WIZ]?.concentration).toBeNull();
+  });
+});
+
+/**
+ * `on` shrinks when the last thing a casting owns on a creature lapses.
+ *
+ * The rule is the one `alsoOn` already applies in the other direction: **a
+ * casting is on a creature while it has a live effect there that the casting
+ * owns.** Growing without shrinking left a stale name in the list Dispel Magic
+ * reads, so a creature could dispel a spell that was no longer on them.
+ *
+ * SRD Sunbeam is the spell that reaches it: **Concentration, up to 1 minute**,
+ * and the Blinded it imposes lasts "until the **start** of your next turn". So
+ * the condition lapses a round into a casting that runs for sixty seconds, and
+ * nothing of the spell is left on that creature.
+ */
+describe('a casting stops being on a creature whose condition lapses', () => {
+  /**
+   * Hold Person is the casting, and the second condition is applied by hand.
+   *
+   * **No executed spell reaches this today**, which is worth saying rather than
+   * dressing a fixture up as one: the only definitions carrying a rider with a
+   * deadline of its own are Ray of Sickness and Color Spray — both
+   * Instantaneous, so neither leaves a record — and Sunbeam, which is
+   * Range: Self and is therefore on its caster. So the condition here arrives
+   * through `applyConditionTo`, the DM-facing command that has taken a
+   * per-condition `Duration` since durations landed, carrying the casting in
+   * its source exactly as every linked effect does.
+   */
+  const held = (): { readonly g: Game; readonly castingId: string } => {
+    const g = new Game();
+    const castingId = g.cast(WIZ, 'hold-person', [FOE], 2, 'hold');
+    return { g, castingId };
+  };
+
+  const blind = (g: Game, castingId: string, who: CharacterId): void => {
+    g.push(
+      unwrap(
+        applyConditionTo(
+          g.state,
+          who,
+          'blinded',
+          castingSource('Hold Person', castingId),
+          [],
+          forSeconds(6),
+        ),
+        'blinding',
+      ),
+    );
+  };
+
+  it('grows `on` when the casting hangs something, and shrinks it when that lapses', () => {
+    const { g, castingId } = held();
+    // The casting caught the foe, and nobody else.
+    expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([FOE]);
+
+    blind(g, castingId, ALLY);
+    expect([...(ongoingSpellOf(g.state, castingId)?.on ?? [])]).toEqual([ALLY, FOE]);
+
+    g.push([{ type: 'time-advanced', seconds: 7, reason: 'a moment' }]);
+
+    // The Blinded has lapsed, and it was the only thing this casting owned on
+    // the ally — so the casting is no longer on them.
+    expect(g.state.creatures[ALLY]?.conditions.conditions).toEqual([]);
+    expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([FOE]);
+  });
+
+  /**
+   * And only the creature that lost its last effect. The foe is still
+   * Paralyzed by the same casting, so a lapse elsewhere says nothing about
+   * them — which is the whole reason a casting is addressed as
+   * *(casting, creature)*.
+   */
+  it('leaves everybody the casting is still doing something to', () => {
+    const { g, castingId } = held();
+    blind(g, castingId, ALLY);
+    blind(g, castingId, FOE);
+
+    g.push([{ type: 'time-advanced', seconds: 7, reason: 'a moment' }]);
+
+    expect(g.state.creatures[FOE]?.conditions.conditions).toContain('paralyzed');
+    expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([FOE]);
+  });
+});
+
+/**
+ * "Until dispelled" is the absence of a duration, and a spell that is still
+ * running has to be findable.
+ *
+ * SRD Arcane Lock and Continual Flame both print **Duration: Until dispelled**.
+ * `persists()` asked for a Concentration or a deadline, so neither left an
+ * ongoing record at all — which is the one thing that makes a spell reachable
+ * by Dispel Magic, and by anything else that asks what is running. The answer
+ * is a record with **no timer**: inventing a large number of seconds would be
+ * the engine answering a question the book declined to ask.
+ */
+describe('a spell that lasts until dispelled', () => {
+  const LOCK_SETUP: readonly GameEvent[] = [
+    added(WIZ, 'party'),
+    added(ALLY, 'party'),
+    {
+      type: 'spellcasting-declared',
+      id: WIZ,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['arcane-lock', 'continual-flame'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: WIZ,
+      pool: { key: 'spell-slot:2', label: 'level 2', max: 4, recovers: 'long-rest' },
+    },
+  ];
+
+  const cast = (spellId: string): { readonly g: Game; readonly castingId: string } => {
+    const g = new Game([...LOCK_SETUP]);
+    const out = unwrap(
+      resolveSpell(g.state, WIZ, { spellId, targets: [], slotLevel: 2 }, supply(spellId)),
+      spellId,
+    );
+    g.push(out.events);
+    return { g, castingId: out.castingId };
+  };
+
+  for (const [spellId, name] of [
+    ['arcane-lock', 'Arcane Lock'],
+    ['continual-flame', 'Continual Flame'],
+  ] as const) {
+    it(`${name} leaves a record that anything asking what is running can find`, () => {
+      const { g, castingId } = cast(spellId);
+      const record = ongoingSpellOf(g.state, castingId);
+
+      expect(record?.spellId).toBe(spellId);
+      expect(record?.level).toBe(2);
+      // On nobody: both spells touch an object, and objects are not modelled.
+      expect(record?.on).toEqual([]);
+    });
+
+    it(`${name} schedules no timer, because the book prints no deadline`, () => {
+      const { g, castingId } = cast(spellId);
+      expect(Object.keys(g.state.timers)).toEqual([]);
+
+      // And a day passing does not end it, which is what "until dispelled" means.
+      g.push([{ type: 'time-advanced', seconds: 86_400, reason: 'a day' }]);
+      expect(ongoingSpellOf(g.state, castingId)).not.toBeNull();
+    });
+  }
+
+  /** And it is reachable by the sentence the record exists for. */
+  it('ends when something ends it', () => {
+    const { g, castingId } = cast('continual-flame');
+    g.push([{ type: 'spell-ended', castingId, on: null, reason: 'dispelled' }]);
+    expect(ongoingSpellOf(g.state, castingId)).toBeNull();
+  });
+});
+
+/**
+ * A record for a casting that has **ended** is a corrupt log, not a resurrection.
+ *
+ * The reducer already refuses a record for a casting nobody cast and one for a
+ * casting already running. The third case was accepted: a `spell-ongoing` for
+ * a casting the log had ended put a finished spell back into `state.ongoing`,
+ * where Dispel Magic, the turn boundary and every area detector would find it
+ * — a zombie by exactly the route "the single place a record is removed" was
+ * meant to rule out.
+ */
+describe('a record for a casting that has ended', () => {
+  const record = (castingId: string): GameEvent => ({
+    type: 'spell-ongoing',
+    casting: {
+      castingId,
+      caster: WIZ,
+      spellId: 'bless',
+      spell: 'Bless',
+      level: 1,
+      numbers: { saveDc: 15, attackModifier: 7, spellcastingModifier: 4, casterLevel: 9 },
+      on: [ALLY],
+    },
+  });
+
+  it('is refused, loudly', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY], 1, 'a');
+    g.push([{ type: 'spell-ended', castingId: bless, on: null, reason: 'dispelled' }]);
+    expect(ongoingSpellOf(g.state, bless)).toBeNull();
+
+    expect(() => fold('seed', [...g.log, record(bless)])).toThrow();
+  });
+
+  /**
+   * However the casting ended. Concentration breaking writes no event of its
+   * own — it is derived — so this is the route a hand-built log most easily
+   * takes, and the one a memory of ended castings has to catch as well.
+   */
+  it('is refused after the Concentration that held it broke', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY], 1, 'a');
+    g.push([{ type: 'concentration-ended', id: WIZ, castingId: bless, reason: 'voluntary' }]);
+    expect(ongoingSpellOf(g.state, bless)).toBeNull();
+
+    expect(() => fold('seed', [...g.log, record(bless)])).toThrow();
+  });
+
+  /** And the two refusals it already had are unchanged. */
+  it('still refuses a casting that never happened, and one already running', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY], 1, 'a');
+
+    expect(() => fold('seed', [...g.log, record('cast:99')])).toThrow();
+    expect(() => fold('seed', [...g.log, record(bless)])).toThrow();
   });
 });

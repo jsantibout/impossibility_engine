@@ -499,9 +499,11 @@ describe('a creature whose position transitions from outside to inside', () => {
     expect(g.owed()).toEqual([]);
 
     g.walk(MOVER, 'inside cube');
-    expect(g.owed()).toEqual([
-      { castingId: grease, target: MOVER, moment: 'entry', turn: g.state.combat?.turnsTaken },
-    ]);
+    // Three facts and no fourth: the debt says which casting caught whom, and
+    // at which of the SRD's moments. The turn it was raised on lives in
+    // `areaTriggers`, which is what the once-per-turn caps read; carrying it
+    // here too was a second place for a cap to be got wrong.
+    expect(g.owed()).toEqual([{ castingId: grease, target: MOVER, moment: 'entry' }]);
   });
 
   it('owes nothing for a move that never leaves the area', () => {

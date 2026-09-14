@@ -238,8 +238,10 @@ describe('the grant ends with the casting, through the door that already existed
 
     expect(armorClassOf(after, FIGHTER)).toBe(12);
     expect(after.creatures.fighter!.armorClasses).toEqual([]);
-    // And nothing of the casting is left anywhere in the serialised state.
-    expect(JSON.stringify(after)).not.toContain(cast.castingId);
+    // And nothing of the casting is left anywhere in the serialised state,
+    // beyond the one deliberate mention: `castingsEnded`, which is how the
+    // fold refuses a later `spell-ongoing` naming a casting that is over.
+    expect(JSON.stringify({ ...after, castingsEnded: [] })).not.toContain(cast.castingId);
   });
 
   /** SRD Mage Armor: "8 hours". The clock ends it without anybody deciding. */

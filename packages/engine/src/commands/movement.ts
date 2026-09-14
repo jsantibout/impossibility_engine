@@ -238,7 +238,6 @@ export function moveWithin(
         mover: id,
         placement: command.placement,
         destination: to,
-        feet,
         provoked: opportunity.provoked,
       },
       ...(stamp === null ? {} : { command: stamp }),

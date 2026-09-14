@@ -919,8 +919,12 @@ describe('the point goes when the casting does', () => {
     const casting = g.conjure(CLERIC, AT_RANGE);
     g.push(unwrap(endConcentration(g.state, CLERIC, 'voluntary'), 'dropping it'));
 
-    const serialised = JSON.stringify(g.state);
+    // `castingsEnded` names the casting on purpose — it is what lets the fold
+    // refuse a `spell-ongoing` for a spell that is over — so the assertion is
+    // that *nothing else* mentions it: no point, no timer, no stamp, no debt.
+    const serialised = JSON.stringify({ ...g.state, castingsEnded: [] });
     expect(serialised).not.toContain(casting);
+    expect(g.state.castingsEnded).toEqual([casting]);
     expect(g.state.ongoing).toEqual({});
   });
 

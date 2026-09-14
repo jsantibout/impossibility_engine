@@ -1009,6 +1009,22 @@ export interface SpellDefinition {
    */
   readonly durationUntil?: RiderDuration;
   /**
+   * SRD "Duration: Until dispelled" — the **absence** of a deadline, not a
+   * large one.
+   *
+   * Distinct from Instantaneous, which also carries no seconds: one spell is
+   * over and the other is still running with nothing to end it. Before this
+   * field the two were indistinguishable, so {@link persists} answered no for
+   * Arcane Lock and Continual Flame and neither left an ongoing record — which
+   * is the one thing that makes a casting findable by Dispel Magic, or by
+   * anything else that asks what is running.
+   *
+   * It schedules no timer. Inventing a big number of seconds would be the
+   * engine answering a question the book declined to ask, which is the whole
+   * reason this is a flag rather than a `durationSeconds`.
+   */
+  readonly untilDispelled?: true;
+  /**
    * A check a creature may attempt against the casting itself.
    *
    * The illusions: nothing is on anybody, so what is examined is the spell.
@@ -1117,15 +1133,22 @@ export function onCaster(definition: SpellDefinition): boolean {
 /**
  * Whether this casting leaves anything running.
  *
- * A duration or a Concentration, which is what "ongoing" means in the SRD's
- * own Duration line. Instantaneous spells leave nothing and get no record —
- * Fireball is history the moment it lands.
+ * A duration, a Concentration, or "Until dispelled" — which is what "ongoing"
+ * means in the SRD's own Duration line. Instantaneous spells leave nothing and
+ * get no record: Fireball is history the moment it lands.
+ *
+ * **"Until dispelled" is the case this used to get wrong.** It asked for a
+ * deadline, and a spell with none looked exactly like an Instantaneous one, so
+ * Arcane Lock and Continual Flame left no record at all — running, by the
+ * book, and invisible to everything that asks what is running. The record they
+ * get carries no timer, because there is no moment to schedule.
  */
 export function persists(definition: SpellDefinition): boolean {
   return (
     definition.concentration ||
     definition.durationSeconds !== undefined ||
-    definition.durationUntil !== undefined
+    definition.durationUntil !== undefined ||
+    definition.untilDispelled === true
   );
 }
 
@@ -4437,6 +4460,7 @@ export const ARCANE_LOCK: SpellDefinition = {
   range: { kind: 'touch' },
   targets: { count: 0 },
   effects: [],
+  untilDispelled: true,
   unmodelled: [
     'the spell locks an object, and objects are not modelled: which door was touched, who may open it despite the lock, and the password are the DM’s',
     'a duration of “Until dispelled” is no deadline at all, so no timer is scheduled and the casting simply runs; Dispel Magic executes, and cannot reach this one, because it ends an ongoing spell **on a target** and this casting is on a door',
@@ -4461,6 +4485,7 @@ export const CONTINUAL_FLAME: SpellDefinition = {
   range: { kind: 'touch' },
   targets: { count: 0 },
   effects: [],
+  untilDispelled: true,
   unmodelled: [
     'the flame springs from an object, and objects are not modelled: which object was touched is the DM’s',
     'Bright Light in a 20-foot radius and Dim Light beyond it are not applied; the engine has no lighting, exactly as it has none for Light',

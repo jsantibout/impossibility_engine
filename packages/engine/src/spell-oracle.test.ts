@@ -157,8 +157,16 @@ describe('every definition agrees with the duration the book prints', () => {
       // a definition that invented one would be running a clock the book does
       // not print.
       expect(definition.durationSeconds, id).toBeUndefined();
+      // **And the two are not the same state.** One spell is over and the
+      // other is still running with nothing to end it, which decides whether
+      // the casting leaves an ongoing record at all — so the flag that says
+      // which is held against the book rather than taken on trust.
+      expect(definition.untilDispelled === true, id).toBe(book.open);
       return;
     }
+
+    // A spell the book gives a span to is not one that runs until dispelled.
+    expect(definition.untilDispelled, id).toBeUndefined();
 
     // A rider that ends at a moment in the turn order is the other way of
     // lasting, and the two are not interchangeable — see the durations section

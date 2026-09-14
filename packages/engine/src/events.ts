@@ -50,6 +50,7 @@ import {
 import {
   areaStampKey,
   castingIdOf,
+  castingNumber,
   type AreaMoment,
   type AreaTriggerStamp,
   type CastingTime,
@@ -99,11 +100,13 @@ import {
   type SceneExtent,
   type Point,
 } from './positioning.js';
-import {
-  definitionFor,
-  type AreaTrigger,
-  type SpellArea,
-} from './spell-definitions.js';
+// **Type-only, deliberately.** The fold does not open the spell catalogue: a
+// casting's area and its clauses are pinned on the ongoing record at the cast,
+// so a replay answers out of the log rather than out of this week's
+// definitions. The one lookup left is `upgradeOngoing`, which is for a record
+// written before that field existed — see `ongoing-compatibility.ts`.
+import type { AreaTrigger, SpellArea } from './spell-definitions.js';
+import { upgradeOngoing } from './ongoing-compatibility.js';
 import {
   applyDamageToVitals,
   grantTemporaryHp,
@@ -388,6 +391,15 @@ export interface PendingAttack {
  * mover is still standing where they were until every provoked creature has
  * taken its Reaction or passed — which is why the destination is written down
  * here rather than applied.
+ *
+ * **How far it is has deliberately no field.** The Speed is spent at
+ * declaration — `movement-spent` is in the same batch — and completing the move
+ * re-resolves the *placement* rather than re-measuring the distance. So nothing
+ * ever read the number, and a distance carried beside a placement that may
+ * resolve somewhere else is a second answer to what the move cost.
+ *
+ * Both frozen logs still carry it, so the reducer builds this from the fields
+ * it knows rather than storing the event's object whole.
  */
 export interface PendingMove {
   readonly mover: CharacterId;
@@ -412,7 +424,6 @@ export interface PendingMove {
    * already measured against and already paid Speed to reach.
    */
   readonly destination: Point;
-  readonly feet: number;
   /** Who was offered an Opportunity Attack and has not yet answered. */
   readonly provoked: readonly { readonly reactor: CharacterId; readonly reach: number }[];
 }
@@ -673,6 +684,26 @@ export interface GameState {
    * same casting ids, or every effect linked to one dangles after a restart.
    */
   readonly castingsBegun: number;
+  /**
+   * Castings whose ongoing record has been through {@link releaseCasting},
+   * oldest first.
+   *
+   * The counter above proves a casting *happened*; this proves one is **over**,
+   * and the two answer different questions. Without it a `spell-ongoing` for a
+   * casting the log had already ended was accepted and put a finished spell
+   * back into `ongoing` — a zombie by the one route "there is a single place a
+   * record is removed" exists to rule out.
+   *
+   * **Recorded only where a record was actually removed.** `releaseCasting`
+   * runs for castings that never had a record at all — an `endConcentration`
+   * on a spell whose resolution has not written one yet — and marking those
+   * would refuse the `spell-ongoing` that the same batch is about to emit.
+   * "Had a record and lost it" is the fact, and it is the one the debt names.
+   *
+   * Sorted by casting number rather than lexically, for the reason
+   * `castingNumber` exists: `cast:2` ended before `cast:10`.
+   */
+  readonly castingsEnded: readonly string[];
   /** Command ids already applied, by caller-supplied key. */
   readonly appliedCommands: Readonly<Record<string, AppliedCommand>>;
   /**
@@ -821,6 +852,7 @@ export function initialState(seed: string): GameState {
     scene: null,
     eventCount: 0,
     castingsBegun: 0,
+    castingsEnded: [],
     appliedCommands: {},
     elapsed: 0,
     timers: {},
@@ -1934,10 +1966,19 @@ function releaseCasting(
   // one answer to "is this spell still running", and no route by which a
   // finished spell stays queryable.
   let ongoing: Readonly<Record<string, OngoingSpell>> = state.ongoing;
+  let castingsEnded = state.castingsEnded;
   if (ongoing[castingId] !== undefined) {
     const rest: Record<string, OngoingSpell> = { ...ongoing };
     delete rest[castingId];
     ongoing = rest;
+    // And the door records who went through it, so a later `spell-ongoing`
+    // naming the same casting is a corrupt log rather than a resurrection.
+    // Only here: a `releaseCasting` for a casting that never had a record is
+    // not an ending, and marking one would refuse the record its own batch is
+    // still about to write.
+    castingsEnded = [...castingsEnded, castingId].sort(
+      (a, b) => castingNumber(a) - castingNumber(b),
+    );
     changed = true;
   }
 
@@ -1958,7 +1999,16 @@ function releaseCasting(
   }
 
   return changed
-    ? { ...state, creatures, timers, ongoing, scheduledDamage, owedAreaEffects, areaTriggers }
+    ? {
+        ...state,
+        creatures,
+        timers,
+        ongoing,
+        castingsEnded,
+        scheduledDamage,
+        owedAreaEffects,
+        areaTriggers,
+      }
     : state;
 }
 
@@ -2416,10 +2466,11 @@ function raiseTurnSaves(
  * — which is right, and is why this reads the *condition* rather than the
  * trigger that produced it.
  *
- * The asymmetry, stated rather than discovered: `on` grows here and does not
- * shrink when an independently-timed condition lapses. That was already true
- * before persistent areas and is recorded as an open debt in PROGRESS.md;
- * this widens it from "no executed spell reaches it" to "Web does".
+ * **And `expireEffects` reads the same link the other way**, which it did not
+ * used to: when a condition lapses on its own deadline and it was the last
+ * thing the casting owned on that creature, they leave `on`. Growing without
+ * shrinking left a stale name in the list Dispel Magic reads, so a creature
+ * could dispel a spell the rules had already taken off them.
  */
 function alsoOn(state: GameState, who: CharacterId, source: string): GameState {
   const castingId = castingIdOf(source);
@@ -2476,7 +2527,7 @@ function creaturesInCastingArea(
   scene: PositionState,
   record: OngoingSpell,
 ): ReadonlySet<CharacterId> | null {
-  const definition = areaDefinitionOf(record.spellId);
+  const definition = areaDefinitionOf(record);
   if (definition === null) return null;
 
   const origin = originOfCastingArea(definition.area, record);
@@ -2537,13 +2588,22 @@ function areaShapeOf(
   }
 }
 
-/** A casting whose spell has both an area and something it does to it later. */
+/**
+ * A casting that has both an area and something it does to it later.
+ *
+ * **Read off the record, never out of the catalogue.** The shape, its
+ * dimensions and the clauses that fire in it were pinned when the spell was
+ * cast, by the rule the pinned numbers already set: a spell already cast does
+ * not change when the book does. Asking `definitionFor` here — which this did
+ * at five call sites — meant a replay of last week's log consulted this week's
+ * definitions, so a corrected Cube size raised different debts in a historical
+ * fold than the live session raised.
+ */
 function areaDefinitionOf(
-  spellId: string,
+  record: OngoingSpell,
 ): { readonly area: SpellArea; readonly trigger: AreaTrigger } | null {
-  const definition = definitionFor(spellId);
-  if (definition?.area === undefined || definition.areaTrigger === undefined) return null;
-  return { area: definition.area, trigger: definition.areaTrigger };
+  if (record.area === undefined || record.areaTrigger === undefined) return null;
+  return { area: record.area, trigger: record.areaTrigger };
 }
 
 /**
@@ -2595,7 +2655,7 @@ function oweAreaEffect(
 
   return {
     ...state,
-    owedAreaEffects: [...state.owedAreaEffects, { castingId, target, moment, turn }],
+    owedAreaEffects: [...state.owedAreaEffects, { castingId, target, moment }],
     areaTriggers:
       turn === null
         ? state.areaTriggers
@@ -2632,7 +2692,7 @@ function raiseAreaBoundary(
   for (const castingId of Object.keys(state.ongoing).sort()) {
     const record = state.ongoing[castingId];
     if (record === undefined) continue;
-    const definition = areaDefinitionOf(record.spellId);
+    const definition = areaDefinitionOf(record);
     if (definition === null) continue;
     if (definition.trigger.at !== moment) continue;
 
@@ -2765,7 +2825,7 @@ function raiseAreaEntries(state: GameState, before: PositionState | null): GameS
   for (const castingId of Object.keys(state.ongoing).sort()) {
     const record = state.ongoing[castingId];
     if (record === undefined) continue;
-    const definition = areaDefinitionOf(record.spellId);
+    const definition = areaDefinitionOf(record);
     if (definition === null || definition.trigger.onEntry === undefined) continue;
 
     const was = creaturesInCastingArea(before, record);
@@ -2849,7 +2909,7 @@ function raiseCarriedArrivals(state: GameState, before: PositionState | null): G
     const record = state.ongoing[castingId];
     if (record === undefined) continue;
 
-    const definition = areaDefinitionOf(record.spellId);
+    const definition = areaDefinitionOf(record);
     if (definition === null || definition.trigger.onAreaEntry !== true) continue;
     // A point-origin area does not move because anybody walked; Moonbeam's
     // Cylinder stays exactly where it was put until `spell-origin-moved` says
@@ -2933,7 +2993,7 @@ function raiseAreaArrivals(
   const record = state.ongoing[castingId];
   if (record === undefined) return state;
 
-  const definition = areaDefinitionOf(record.spellId);
+  const definition = areaDefinitionOf(record);
   // **A fixed area gains nothing from a neighbour's moving one.** Web's Cube
   // stays where it was conjured, and a hand-built log that moved its point
   // anyway must not make it start catching people on a clause it never printed.
@@ -3163,9 +3223,47 @@ function expireEffects(state: GameState): GameState {
             },
           },
         };
+        // And the casting stops being *on* them, if that was the last thing it
+        // owned there. `alsoOn` grows the list on exactly this link — **a
+        // casting is on a creature while it has a live effect there that the
+        // casting owns** — and growing without shrinking left a stale name in
+        // the list Dispel Magic reads, so a creature could dispel a spell that
+        // was no longer on them.
+        //
+        // Only when nothing of the casting is left: a Hold Person still
+        // holding somebody is still on them, whatever else lapsed.
+        const castingId = castingIdOf(target.instance);
+        if (castingId !== null) {
+          current = holdsNothingOf(current, target.on, castingId)
+            ? withoutTarget(current, target.on, castingId)
+            : current;
+        }
       }
     }
   }
+}
+
+/**
+ * Whether a casting has no live effect left on a creature.
+ *
+ * The same four links `releaseCasting` walks, asked of one creature: the
+ * conditions it hung, the bonuses, the Armour Class it supplied and the roll
+ * modifiers it granted. Scheduled damage is deliberately not among them — a
+ * hit that is still owed is the casting's debt rather than something the
+ * casting is *doing* to the creature, which is the same reading that keeps a
+ * creature Insect Plague merely damaged off the list.
+ */
+function holdsNothingOf(state: GameState, who: CharacterId, castingId: string): boolean {
+  const creature = state.creatures[who];
+  if (creature === undefined) return true;
+
+  const owns = (source: string): boolean => castingIdOf(source) === castingId;
+  return (
+    !creature.conditions.instances.some((instance) => owns(instance.source)) &&
+    !creature.bonuses.some((bonus) => owns(bonus.source)) &&
+    !creature.armorClasses.some((granted) => owns(granted.source)) &&
+    !creature.rollModifiers.some((held) => owns(held.source))
+  );
 }
 
 export function applyEvent(state: GameState, event: GameEvent): GameState {
@@ -3638,9 +3736,22 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       if (Number(casting.castingId.slice('cast:'.length)) > state.castingsBegun) {
         throw new CorruptLogError(event, `${casting.castingId} has not been cast`);
       }
+      // And it has to still be running. `releaseCasting` is the single place a
+      // record is removed, so a record arriving for a casting that has already
+      // been through it is a spell coming back from the dead — visible again
+      // to Dispel Magic, to the turn boundary and to every area detector, by
+      // exactly the route that "one door out" was meant to close.
+      if (state.castingsEnded.includes(casting.castingId)) {
+        throw new CorruptLogError(event, `${casting.castingId} has already ended`);
+      }
       return {
         ...next,
-        ongoing: sortedRecord({ ...state.ongoing, [casting.castingId]: casting }),
+        ongoing: sortedRecord({
+          ...state.ongoing,
+          // A pre-versioned record is filled in here and nowhere else, so
+          // every later read is of a record rather than of the catalogue.
+          [casting.castingId]: upgradeOngoing(casting),
+        }),
       };
     }
     case 'spell-ended': {
@@ -4072,7 +4183,21 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       if (state.pendingMove !== null) {
         throw new CorruptLogError(event, 'a move is already waiting');
       }
-      return { ...next, pendingMove: event.move };
+      // **Built from the fields this engine knows, never stored verbatim.**
+      // Both frozen logs were written when `PendingMove` carried the distance,
+      // and nothing ever read it; spreading the event would put a field the
+      // type no longer declares into live state for the life of the move —
+      // the same data-nothing-can-explain that `upgradeOngoing` keeps out of
+      // an ongoing record.
+      return {
+        ...next,
+        pendingMove: {
+          mover: event.move.mover,
+          placement: event.move.placement,
+          destination: event.move.destination,
+          provoked: event.move.provoked,
+        },
+      };
     }
     case 'opportunity-answered': {
       const waiting = state.pendingMove;

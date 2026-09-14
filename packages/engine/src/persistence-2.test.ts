@@ -209,6 +209,25 @@ describe('the second stored log still folds', () => {
     expect(state.ongoing['cast:12']?.origin).toEqual({ x: 275, y: 300, z: 0 });
     expect(state.ongoing['cast:11']?.origin).toEqual({ x: 260, y: 300, z: 0 });
 
+    /**
+     * **And the ongoing records were written in an older shape.** This log
+     * predates `OngoingSpell` pinning a casting's area and its clauses, and
+     * predates `concentration` and `route` being dropped from it. Absent means
+     * what it always meant: the area is filled from the catalogue **once**, as
+     * it was read from the catalogue on every fold before, and the two dead
+     * fields do not ride into live state as data nothing can explain.
+     *
+     * This is what makes the rest of this test possible at all — the Web and
+     * the Moonbeam above only catch anybody because their areas came back.
+     */
+    expect(state.ongoing['cast:11']?.version).toBe(2);
+    expect(state.ongoing['cast:11']?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
+    expect(state.ongoing['cast:11']?.areaTrigger?.at).toBe('start-of-turn');
+    expect(state.ongoing['cast:11']).not.toHaveProperty('route');
+    expect(state.ongoing['cast:11']).not.toHaveProperty('concentration');
+    // A spell with no area keeps none, rather than acquiring an empty one.
+    expect(state.ongoing['cast:13']?.area).toBeUndefined();
+
     // Conditions remember why: the paralysis and the two Restrained all carry
     // the casting that caused them.
     expect(state.creatures.grim?.conditions.conditions).toEqual(['incapacitated', 'paralyzed']);
@@ -250,6 +269,32 @@ describe('the second stored log still folds', () => {
     // was raised, which is what the global debt guard insists on.
     expect(Object.keys(state.pendingSaves)).toHaveLength(0);
     expect(state.owedAreaEffects).toHaveLength(0);
+  });
+
+  /**
+   * A declared move written in the older shape, folded mid-flight.
+   *
+   * `PendingMove` used to carry the distance and nothing ever read it: the
+   * Speed is spent at declaration and completing the move re-resolves the
+   * *placement* rather than re-measuring. Both frozen logs still carry the
+   * number, so the reducer builds the pending record from the fields this
+   * engine knows rather than storing the event's object whole — otherwise a
+   * field the type no longer declares would sit in live state for the life of
+   * the move, which is the same data-nothing-can-explain that `upgradeOngoing`
+   * keeps out of an ongoing record.
+   *
+   * The whole log completes that move, so only a prefix can see it.
+   */
+  it('folds an older declared move without the field it dropped', () => {
+    const at = GOLDEN_2.findIndex((event) => event.type === 'movement-declared');
+    expect(at).toBeGreaterThan(0);
+    // The fixture really does carry it, or this test proves nothing.
+    const declared = GOLDEN_2[at] as unknown as { readonly move: Record<string, unknown> };
+    expect(declared.move).toHaveProperty('feet');
+
+    const pending = fold(SEED, GOLDEN_2.slice(0, at + 1)).pendingMove;
+    expect(pending?.mover).toBe('thug');
+    expect(pending).not.toHaveProperty('feet');
   });
 
   it('folds the same way twice', () => {

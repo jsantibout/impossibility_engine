@@ -1226,6 +1226,19 @@ const SPENDERS: readonly Spender[] = [
     name: 'resolveSpell',
     run: (s) => resolveSpell(s, B, { spellId: 'inflict-wounds', targets: [A], slotLevel: 1 }, supply()),
   },
+  /**
+   * The named debt this list carried, now discharged.
+   *
+   * `resolveCast` is still the low-level half beneath `resolveSpell` — the
+   * route left for a spell the engine has no definition for — but it spends an
+   * Action and a slot, and "the tool surface does not expose it" is a policy
+   * rather than a guard. The exemption's own text called itself "a named debt
+   * rather than a settled exemption"; this is the guard it was waiting for.
+   */
+  {
+    name: 'resolveCast',
+    run: (s) => resolveCast(s, B, { spell: 'Bless', level: 1, concentration: false, slotLevel: 1 }),
+  },
 ];
 
 /**
@@ -1246,8 +1259,6 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
     'the settlement of a casting the engine is already holding open; refusing it would deadlock the window',
   castSpell:
     'the documented low-level half, for a caller reconstructing a log or scripting a fixture; the economy is already accounted for',
-  resolveCast:
-    'the low-level half beneath resolveSpell, for a spell the engine has no definition for; its own docstring says the trigger is checked one layer up, and `castOrRelease` is where the guard sits for everything the definitions cover — **a named debt rather than a settled exemption**, because the moment M2 exposes this directly it needs the guard',
   endRest:
     'not an action in the turn economy: SRD spends no Action, Bonus Action or Reaction on a rest, and the Hit Dice it spends are the rest’s own payout rather than something taken during a turn. Whether an outstanding area effect should block a rest is a question neither the SRD nor this engine has asked; naming it here is how it gets asked',
 };
@@ -1318,6 +1329,66 @@ describe('every command that spends something asks whether it may', () => {
       expect(isErr(out) ? out.code : 'ok').not.toBe('area_effect_owed');
     });
   }
+
+  /**
+   * And the guard sits **inside** the duplicate check, which is the trap this
+   * repository has sprung eight times: *a retry looks at the world its own
+   * first run made*, and must be told its command landed rather than told
+   * about that world.
+   *
+   * `resolveCast` is the newest guard, so it is the one worth pinning here.
+   * The debt arrives between the first run and the retry and is owed by
+   * somebody else's move, which is precisely the case a guard written above
+   * `once` would answer wrongly.
+   */
+  describe('and asks after the duplicate check, never before it', () => {
+    const CAST = {
+      spell: 'Bless',
+      level: 1,
+      concentration: false,
+      slotLevel: 1,
+      commandId: 'the-one-casting',
+    } as const;
+
+    /** B, with a slot, having cast once — and then caught by the slick again. */
+    const castThenCaught = (): readonly GameEvent[] => {
+      const log = owing();
+      const settled = [
+        ...log,
+        ...unwrap(settleAreaEffects(fold('s', log), supply()), 'settle').events,
+        {
+          type: 'resource-pool-declared',
+          id: B,
+          pool: { key: spellSlotKey(1), label: 'level 1 spell slot', max: 4, recovers: 'long-rest' },
+        } satisfies GameEvent,
+      ];
+      const cast = [...settled, ...unwrap(resolveCast(fold('s', settled), B, CAST), 'the casting')];
+      // Out of the slick and back into it: the second step is what the area
+      // catches, and neither is a command B sent.
+      return [
+        ...cast,
+        { type: 'creature-moved', id: B, placement: { from: { landmark: 'the slick' }, feet: 60, bearing: 90 } },
+        { type: 'creature-moved', id: B, placement: { from: { landmark: 'the slick' }, feet: 5, bearing: 90 } },
+      ];
+    };
+
+    it('tells a retry that its casting already landed', () => {
+      const state = fold('s', castThenCaught());
+      // The fixture really does owe something, or neither assertion means
+      // anything.
+      expect(state.owedAreaEffects.length).toBeGreaterThan(0);
+
+      const retry = resolveCast(state, B, CAST);
+      expect(isErr(retry) ? retry.code : 'ok').toBe('ok');
+      expect(isErr(retry) ? [] : retry.value).toEqual([]);
+    });
+
+    /** And a genuinely new casting into the same world is refused. */
+    it('refuses a second casting sent into that same world', () => {
+      const out = resolveCast(fold('s', castThenCaught()), B, { ...CAST, commandId: 'a-second' });
+      expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
+    });
+  });
 });
 
 /**

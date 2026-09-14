@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@ie/shared';
 import type { Point, PointAnchoring } from './positioning.js';
+import type { AreaTrigger, SpellArea } from './spell-definitions.js';
 
 /**
  * Casting: what a spell costs, who is concentrating on what, and which effects
@@ -117,10 +118,17 @@ export interface Concentration {
  * | `level` | Dispel Magic's threshold and its DC |
  * | `caster` | "**you** can take a Magic action" — nobody else may act through it |
  * | `spellId` | finding the definition again, a minute later |
- * | `route` | the save DC and attack modifier a later activation rolls with |
+ * | `numbers` | the save DC, the attack modifier and the rest, as they were |
+ * | `area`, `areaTrigger` | who a persistent area catches, and at which moment |
  * | `on` | "on the target": which creatures this spell is currently affecting |
- * | `concentration` | whether losing Concentration is what ends it |
  * | `origin` | "within 5 feet of the force": where a spell that holds a point is |
+ *
+ * **Two fields it used to carry and nobody read.** `concentration` restated a
+ * fact the creature holds — whoever is concentrating names the casting — and
+ * `route` was a *name*, which has to be resolved against a sheet before it is
+ * a number and therefore answers nothing a minute later; `numbers` is what a
+ * later use actually reads. Two answers to one question is the failure this
+ * record exists to avoid, so both are gone. See {@link version}.
  *
  * **No second identity.** One casting can affect several creatures — Hold
  * Person at level 3 holds two — and each is released independently, but each
@@ -148,15 +156,56 @@ export interface OngoingSpell {
    * live held it for a spell whose caster is not concentrating.
    */
   readonly level: number;
-  readonly concentration: boolean;
   /**
-   * Which grant supplied it, for the log to be able to say so.
+   * Which shape of this record the log was written with.
    *
-   * **Not what a later use rolls with** — that is {@link numbers}. A route name
-   * has to be resolved against a sheet to become a number, and the sheet a
-   * minute later is not the sheet the spell was cast from.
+   * **Absent means what it always meant.** A record written before the fold
+   * stopped consulting the catalogue carries no `area` and no `areaTrigger`,
+   * and there is no other place those facts could have been written down — so
+   * a record with no version is read by looking the definition up **once**, as
+   * it always was. See `ongoing-compatibility.ts`, which is the only thing
+   * left in the fold's path that opens the catalogue, and does it for a
+   * pre-versioned record and nothing else.
+   *
+   * A version rather than "is `area` absent", because absence is ambiguous:
+   * most spells have no area at all, and reading every one of them as a legacy
+   * record would leave the fold consulting the catalogue for ever.
    */
-  readonly route: string | null;
+  readonly version?: 2;
+  /**
+   * The area this casting filled, and the clauses that fire in it — **as
+   * cast**.
+   *
+   * Pinned for the same reason {@link numbers} is, and against a sharper
+   * hazard: an area's shape and its trigger clauses are *catalogue data*, so
+   * before this the fold asked `definitionFor` on every read and a replay of
+   * last week's log consulted this week's catalogue. Correct a transcribed
+   * Cube size and a historical fold raises different debts than the live
+   * session raised — which is "every future rules fix silently rewrote
+   * history" arriving through data rather than through rules.
+   *
+   * Absent on a version 2 record means the spell has no persistent area, which
+   * is all but a handful of them.
+   */
+  readonly area?: SpellArea;
+  /**
+   * The clauses that fire in {@link area}, as cast. Absent means none.
+   *
+   * **The fold reads four of its fields** — `at`, `onEntry`, `onAreaEntry` and
+   * `oncePerTurn`, which between them decide who a persistent area catches and
+   * at which of the SRD's moments. Those are the ones that had to stop coming
+   * out of the catalogue.
+   *
+   * `effects` and `label` are recorded and **not** read here: settlement
+   * resolves them through `definitionFor`, as it always has, so a correction
+   * to Web's saving throw does reach a debt raised before it. That is stated
+   * rather than fixed, because moving settlement onto the record is a second
+   * change with its own compatibility question — a pre-versioned record has no
+   * effects to read — and this one is about the fold. The clause is stored
+   * whole anyway, because `AreaTrigger` is one value the SRD writes as one
+   * sentence, and storing four of its fields would be a second shape for it.
+   */
+  readonly areaTrigger?: AreaTrigger;
   /**
    * The numbers this casting was made with — see {@link CastingNumbers}.
    *
@@ -378,20 +427,18 @@ export type AreaMoment = 'end-of-turn' | 'area-moved' | 'entry' | 'start-of-turn
  * `spellId` and runs it at the level and route the casting was made with. What
  * is authoritative here is that the moment *happened* — settlement never
  * recomputes whether the creature was inside, because by then it may not be.
+ *
+ * **The turn it was raised on is not here**, and used not to be read either.
+ * The once-per-turn caps are `state.areaTriggers`' business and are stamped
+ * when the debt is raised; settlement orders by the moment, then the casting,
+ * then the target. A number carried on a debt and read by nothing is a second
+ * place for the cap to be got wrong.
  */
 export interface OwedAreaEffect {
   /** The casting whose area caught them. Never the spell's name. */
   readonly castingId: string;
   readonly target: string;
   readonly moment: AreaMoment;
-  /**
-   * The global turn it was raised on, or null outside combat.
-   *
-   * Null is a real state and not a gap: outside Initiative there is no turn
-   * for anything to be once-per, which is the reading the one-slot-per-turn
-   * rule and every once-per-turn feature already take.
-   */
-  readonly turn: number | null;
 }
 
 /**

@@ -581,6 +581,20 @@ export function checkSpellDefinition(
     });
   }
 
+  // "Until dispelled" is the absence of a deadline. A definition that carries
+  // one as well is claiming both that the spell ends at a moment and that it
+  // never does, and `persists` would answer on whichever field it read first.
+  if (
+    definition.untilDispelled === true &&
+    (definition.durationSeconds !== undefined || definition.durationUntil !== undefined)
+  ) {
+    found.push({
+      field: 'untilDispelled',
+      code: 'two_durations',
+      reason: '"Until dispelled" is the absence of a deadline, so a spell cannot also print one',
+    });
+  }
+
   if (definition.durationSeconds !== undefined && definition.durationSeconds <= 0) {
     found.push({
       field: 'durationSeconds',

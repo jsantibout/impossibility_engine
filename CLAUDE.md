@@ -1050,10 +1050,19 @@ checked one layer up" — `resolveSpell` is where `triggerRefusal` reads the
 window, where `unsettledRefusal` asks whether anybody may act at all, and where
 the targets, the range and the sight lines are checked. So the operation a tool
 surface exposes for a spell the engine has a definition for is `resolveSpell`;
-`resolveCast` is what is left for a spell it has none for, and it is unguarded
-by `mayAct`. That is a **named debt rather than a settled exemption** — the
-action-economy sweep in `invariants.test.ts` carries the sentence — and the
-moment M2 exposes it directly it needs the guard.
+`resolveCast` is what is left for a spell it has none for.
+
+**It is guarded by `mayAct` now, and that debt is discharged.** The exemption
+that covered it called itself "a named debt rather than a settled exemption",
+and the debt was precise: being the low-level half is a *policy* about who
+calls it, and a policy is not a guard. It spends an Action and a slot, so a
+caller reaching it while a persistent area owed somebody a saving throw acted
+into a world nobody had settled. The one path that must **not** be refused is
+the Divine Smite cast inside `resolveAttackDamage`, which settles an attack the
+engine is already holding open — so that one calls `resolveCastWith`, the half
+with the identity already established, and the exemption that protects the
+settlement keeps protecting it. The guard sits **inside** the `once` callback,
+which is what `once` is for.
 
 Outside combat there is no economy to spend, so `resolveCast` simply casts.
 
@@ -1283,6 +1292,62 @@ asserts the record is gone and the `spell-cast` event is still there.
 on a *concentrating* caster, so a spell whose caster was not concentrating had
 no live level anywhere and Dispel Magic had nothing to read.
 
+### Everything a later rule reads is pinned; nothing else is kept
+
+A casting already made does not change when its caster does — that is what
+`CastingNumbers` has meant since a spell could first catch somebody a minute
+later. **It did not cover the area**, and that was the hole the third
+whole-engine audit measured: the *shape* of a persistent area and the clauses
+that fire in it are catalogue data, and the fold asked `definitionFor` for them
+at five call sites on every read. So a replay of last week's log consulted this
+week's catalogue, and correcting a transcribed Cube size would raise different
+debts in a historical fold than the live session raised — which is "every
+future rules fix silently rewrote history" arriving through *data* rather than
+through rules, in the one place this file says it must not.
+
+`area` and `areaTrigger` are now pinned on the record at the cast, and
+`events.ts` imports the catalogue **for types only**. The rule is unchanged and
+now applies to both halves: *pinned for the casting, read live for the creature
+it is happening to.*
+
+**What that reaches is the fold, and the other half is named rather than
+fixed.** Four fields of the clause decide who is caught and when — `at`,
+`onEntry`, `onAreaEntry`, `oncePerTurn` — and those are the ones the reducer
+reads off the record. `settleAreaEffects` still resolves the trigger's
+*effects* through `definitionFor`, so a correction to Web's saving throw does
+reach a debt raised before it. Moving settlement onto the record is a second
+change with a compatibility question of its own — a pre-versioned record has no
+effects to restore — and the clause is stored whole meanwhile, because
+`AreaTrigger` is one value the SRD writes as one sentence.
+
+**Two fields came off in the same pass, and they had no readers at all.**
+`concentration` restated a fact the creature holds — whoever is concentrating
+names the casting — and `route` is a *name*, which has to be resolved against a
+sheet before it is a number and therefore answers nothing a minute later;
+`numbers` is what a later use actually reads. Two answers to one question is
+the failure this record was designed to avoid.
+
+**"Absent means what it always meant" is the whole compatibility story.** Both
+frozen logs were written in the older shape, and there is no second place those
+areas could have been recorded — so a record with no `version` is filled from
+the catalogue **once**, as it enters the fold, by `upgradeOngoing`. That
+function is the only thing left on the fold's path that opens the catalogue,
+its docstring says so, and it is in a module of its own precisely so the
+lookup cannot read as ordinary again: five of them sat in `events.ts` with no
+reader who knew they were there. A version rather than "is `area` absent",
+because absence is ambiguous — most spells have no area, and reading every one
+of them as legacy would leave the fold consulting the book for ever.
+
+**A record for a casting that has *ended* is a corrupt log.** The reducer
+already refused one for a casting nobody cast and one for a casting already
+running; the third case put a finished spell straight back into `ongoing`,
+visible again to Dispel Magic, to the turn boundary and to every area detector.
+`castingsEnded` is the memory that catches it — written **only** where a record
+was actually removed, because `releaseCasting` also runs for castings that
+never had one and marking those would refuse the record the same batch is about
+to write. It is the single deliberate mention a finished casting leaves in
+state, and the cleanup tests say so rather than asserting no mention at all.
+
 ### No second identity, and the evidence for that
 
 One casting can affect several creatures — Hold Person at level 3 holds two —
@@ -1321,9 +1386,12 @@ spell stays queryable, and no zombie.
 | Created | `spell-ongoing`, once the effects have resolved |
 | Concentration lost | the existing derived pass; no event, as before |
 | Deadline reached | the existing timer; no event, as before |
+| No deadline at all | "Until dispelled" runs with no timer — see that section |
 | Dispelled or recast | `spell-ended`, with a reason |
 | Target shakes it off | leaves `on`; the casting runs for everyone else |
+| Target's last effect lapses | leaves `on`; derived, by the rule `alsoOn` grew it with |
 | Target leaves the game | leaves `on`; the spell is **not** ended, because the SRD does not end a Bless when one of the blessed walks out |
+| Created again afterwards | refused as a corrupt log — `castingsEnded` is what remembers |
 
 **Expiry and a broken Concentration still write nothing.** Nobody decides
 either, so they stay derived — the same audit trade this file already records
@@ -1375,7 +1443,7 @@ what is read afresh is the whole design:
 | Pinned at the casting | Read again now |
 |---|---|
 | the level, so the dice do not grow when the caster does | who it is aimed at |
-| the route, so the numbers are the ones it was cast with | the range to them |
+| the numbers themselves, so a levelled-up caster does not move the save DC | the range to them |
 | the caster — nobody else may act through it | their Armour Class, conditions, defences |
 
 **Flame Blade is the one that proves the shape is a shape**: its casting does
@@ -1508,7 +1576,9 @@ nothing: a guard needs a case where it is the *only* thing that can refuse.
 damage a casting created, and the record with them — so the origin needed no
 new cleanup at all. Concentration broken, the minute running out, a dispel, the
 caster leaving: all four converge there, and a test asserts the serialised
-state no longer mentions the casting id at all.
+state mentions the casting id **only** in `castingsEnded` — the one deliberate
+trace, which is what lets the fold refuse a `spell-ongoing` naming a casting
+that is over. No point, no timer, no stamp, no debt, no bonus.
 
 **A new scene leaves the point where it was**, and that is a debt with a name
 rather than an accident. `scene-set` unplaces every creature and nothing can
@@ -2331,12 +2401,19 @@ into the third:
 Forcing Web's "save or be Restrained" into a shape that exists to let a
 Restrained creature *stop* being Restrained would have inverted the rule.
 
-**It holds facts and never behaviour** — a casting id, a creature, a moment, a
-turn. No predicate, no callback, no copy of the spell: settlement looks the
+**It holds facts and never behaviour** — a casting id, a creature and a moment.
+No predicate, no callback, no copy of the spell: settlement looks the
 definition up through the casting's own `spellId` and runs it at the level and
 route the casting was made with, through the same machinery an ordinary
 casting uses. There is no second save calculator and no second damage
 resolver, and the caller supplies no DC, no roll and no outcome.
+
+**Three facts and not a fourth.** It carried the turn it was raised on and
+nothing ever read it: the once-per-turn caps are `state.areaTriggers`' business
+and are stamped where the debt is raised, and settlement orders by the moment,
+then the casting, then the target. A number on a debt that nothing reads is a
+second place for a cap to be got wrong, which is precisely the distinction Web
+and Insect Plague exist to keep apart.
 
 **A list, not a keyed record**, which is the one place it differs from
 `pendingSaves` in storage as well as meaning: a save is keyed by effect and
@@ -2435,9 +2512,14 @@ is what the third whole-engine audit (2026-09-13) found was not true: the only
 test was a hand-written case list covering nine of sixteen spenders, and
 `extendFeature` spent a Bonus Action with no guard at all.
 
-The allowlist is ten: five Reactions, two settlements of a window the engine is
-already holding open, the two low-level halves beneath `resolveSpell`, and
-`endRest`. That last one is an **open question rather than a decision**. A rest
+The allowlist is nine: five Reactions, two settlements of a window the engine is
+already holding open, `castSpell` — the low-level half beneath `resolveSpell`
+that leaves the economy to its caller — and `endRest`. `resolveCast` was the
+tenth and is guarded now; its exemption said in its own words that it was a
+named debt, and a sweep that asserts the list in both directions is what made
+discharging it a one-line deletion rather than a search.
+
+`endRest` is an **open question rather than a decision**. A rest
 is not an action in the turn economy — SRD spends no Action, Bonus Action or
 Reaction on one, and the Hit Dice it spends are the rest's own payout rather
 than something taken during a turn — but whether an outstanding area effect
@@ -2537,7 +2619,7 @@ every 5 feet it travels") is not attempted at all.
 entry fires — the reading the one-slot-per-turn rule and every once-per-turn
 feature already take, preserved rather than invented.
 
-### `OngoingSpell.on` grows, and here is the half that does not
+### `OngoingSpell.on` grows, and now it shrinks as well
 
 SRD Dispel Magic ends "any ongoing spell ... **on the target**", and `on` was
 written once, at the resolution, because that was the only moment a casting
@@ -2551,13 +2633,33 @@ owns.** Deliberately not "everyone the area has ever touched" — a creature
 Insect Plague damaged carries nothing of the swarm's, so the swarm is not on
 them.
 
-**The asymmetry is real and is not new.** `on` grows here and still does not
-shrink when an independently-timed condition lapses. That was already an open
-debt; before this, no executed spell reached it, and now Web does. And Web's
-Restrained is worse than that: SRD says it lasts "while in the webs", and a
-condition that ends when its holder walks out of an area has no shape here at
-all — so it runs until the casting ends or the creature breaks free, and the
-definition says so in `unmodelled`.
+**The asymmetry is closed: `expireEffects` shrinks it.** When a condition
+instance lapses on its own deadline, the casting stops being on that creature —
+**if that was the last thing it owned there**. One rule read in both
+directions, rather than a list that only ever grew: a stale name in `on` let a
+creature dispel a spell that was no longer on them. The "last thing" test is
+the same four links `releaseCasting` walks — the conditions, the bonuses, the
+Armour Class and the roll modifiers — asked of one creature, so a Hold Person
+still holding somebody stays on them whatever else lapsed. Scheduled damage is
+deliberately not one of them: a hit still owed is the casting's debt, not
+something it is doing to the creature, which is the same reading that keeps a
+creature Insect Plague merely damaged off the list.
+
+**No executed spell reaches it yet**, and that is worth writing down rather
+than dressing a fixture up as one. A condition needs a deadline *of its own*,
+and the three definitions that give one — Ray of Sickness, Color Spray,
+Sunbeam — are Instantaneous twice over and Range: Self the third time, so the
+first two leave no record and the third is on its caster. The test drives it
+through `applyConditionTo`, which has taken a per-condition `Duration` since
+durations landed and carries the casting in its source like every linked
+effect.
+
+**Web's Restrained is not the case this reaches, and is worse than it.** It is
+not independently timed — it hangs on the casting's own deadline, so the
+casting's timer ends first and takes it along. And what the SRD actually gives
+it is "while in the webs": a condition that ends when its holder walks *out of
+an area* has no shape here at all, so it runs until the casting ends or the
+creature breaks free, and the definition says so in `unmodelled`.
 
 **One finding worth carrying:** Grease's Prone is linked to its casting, so the
 engine lifts it when the Grease ends. SRD leaves Prone standing until the
@@ -3686,6 +3788,17 @@ Recall have no position to move anybody to.
 Lock and Continual Flame carry no `durationSeconds` and schedule no timer.
 Inventing a big number of seconds would be the engine answering a question the
 SRD declined to ask.
+
+**It is still a spell that is running, though, and for a while it was
+invisible.** `persists()` asked for a Concentration or a deadline, so a spell
+with neither looked exactly like an Instantaneous one and left no ongoing
+record at all — which is the one thing that makes a casting findable, by Dispel
+Magic or by anything else asking what is in the air. `untilDispelled` is the
+bit that tells the two apart; the record it produces carries no timer, because
+there is no moment to schedule. The oracle holds the flag against the printed
+duration in both directions, because the parsed book already distinguishes
+`Instantaneous` from `Until dispelled` and a definition claiming the wrong one
+is exactly the sort of thing nothing else would notice.
 
 **A tracked spell's numbers are as easy to get wrong as an executed one's, and
 less is watching.** `coverage.test.ts` checks name, level, school, casting time
