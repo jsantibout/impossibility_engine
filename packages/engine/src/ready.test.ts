@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import {
+  asCharacterId,
+  isErr,
+  expect as unwrap,
+  type CharacterId,
+  type Result,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -11,7 +17,9 @@ import {
   readiedBy,
   releaseReady,
   resolveAttack,
+  resolveMove,
   resolveTurn,
+  settleAreaEffects,
   takeDisengage,
   takeReady,
 } from './commands.js';
@@ -645,5 +653,416 @@ describe('it replays', () => {
   it('survives JSON', () => {
     const state = fold('seed', ready({ kind: 'action' }));
     expect(JSON.parse(JSON.stringify(state))).toEqual(state);
+  });
+});
+
+/**
+ * The four facts a casting states rather than derives, said at the Ready.
+ *
+ * IE-020's rule, in its own words: **whether a casting is settled in one
+ * breath or held open for a Counterspell changes nothing about what the caster
+ * said.** A readied casting is the third door into that sentence and the one
+ * that was walled up — `ReadiedResponse` carried a spell id, a casting id and
+ * a level, so a spell that *requires* one of the four had nowhere to say it.
+ * The three Dominates are the spells that meet it: SRD prints "It does so with
+ * Advantage if you or your allies are fighting it", `statesFoughtFact` reads
+ * that off the definition, and a casting that does not answer it is refused.
+ *
+ * **The old failure was a wedged hold rather than a refusal**, which is the
+ * sharper reason the fact is asked at the Ready. `holdSpell` asked
+ * `declaredFacts` nowhere and `castSpell` never sees a definition, so readying
+ * a Dominate **succeeded** and took the action and the slot — and then every
+ * release came back `fought_fact_required`, because `castOrRelease` asks the
+ * question there, until the Ready's own deadline lifted the hold. A turn and a
+ * slot spent on a spell that could never be let go.
+ *
+ * **One validator, one normaliser, three doors.** The Ready asks
+ * `declaredFacts` — the same function the atomic cast and the declaration ask,
+ * so a spell that prints the clause and a Ready that says nothing is refused
+ * with the same code, and a spell that prints none and is told the fact is
+ * refused with the same code. The release hands the facts to `castOrRelease`,
+ * which normalises them through `statedFacts` and `foughtFor` exactly as the
+ * settlement does. Neither rule is spelled a second time on this path, which
+ * is what a mutation emptying `declaredFacts` has to redden here as well as in
+ * the other two files.
+ */
+describe('a readied casting can state what a casting states', () => {
+  const WOLF = id('wolf');
+
+  type SpellReady = Extract<Parameters<typeof takeReady>[2]['response'], { kind: 'spell' }>;
+
+  function refusal<T>(out: Result<T>): string {
+    return isErr(out) ? out.code : 'no refusal at all';
+  }
+
+  const beast = (who: CharacterId): GameEvent => ({
+    type: 'creature-added',
+    id: who,
+    name: who,
+    sheet: sheet(),
+    maxHp: 40,
+    diesAtZero: false,
+    creatureType: 'Beast',
+    side: 'cult',
+  });
+
+  const slot = (level: number): GameEvent => ({
+    type: 'resource-pool-declared',
+    id: ARCHER,
+    pool: {
+      key: spellSlotKey(level),
+      label: `level ${level} spell slot`,
+      max: 2,
+      recovers: 'long-rest',
+    },
+  });
+
+  /**
+   * The archer with every spell this section readies, and a slot for each.
+   *
+   * The wolf is here because SRD Dominate Beast is "One Beast you can see" and
+   * the cultist is a Humanoid — the three Dominates are one paragraph with the
+   * creature type changed, so driving all three needs both targets.
+   */
+  const CASTER: readonly GameEvent[] = [
+    ...SETUP.filter((e) => e.type !== 'spellcasting-declared'),
+    beast(WOLF),
+    {
+      type: 'creature-placed',
+      id: WOLF,
+      placement: { from: { creature: ARCHER }, feet: 25, bearing: 90 },
+    },
+    { type: 'sight-declared', from: ARCHER, to: WOLF, seen: true },
+    slot(4),
+    slot(5),
+    slot(8),
+    {
+      type: 'spellcasting-declared',
+      id: ARCHER,
+      spellcasting: declaredCasting({
+        ability: 'int',
+        prepared: [
+          'dominate-beast',
+          'dominate-person',
+          'dominate-monster',
+          'dissonant-whispers',
+          'dimension-door',
+          'misty-step',
+        ],
+      }),
+    },
+  ];
+
+  const readyRefusal = (response: SpellReady): string =>
+    refusal(takeReady(fold('seed', CASTER), ARCHER, { trigger: TRIGGER, response }));
+
+  /**
+   * Named among the fought, the released save carries a named source and the
+   * mode is Advantage.
+   *
+   * **Asserted on `modeSources`, not on the outcome.** A save that happened to
+   * succeed proves nothing about whether the Advantage was applied — the die
+   * decides that, and the seed decides the die. What says the fact was read is
+   * the attributed source on the roll.
+   */
+  it('releases Dominate Person with the Advantage the stated fact gives', () => {
+    const log = nextTurn(
+      ready({ kind: 'spell', spellId: 'dominate-person', slotLevel: 5, fought: [CULTIST] }, CASTER),
+    );
+    const out = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST] }, supply('dominate')),
+      'release',
+    );
+    const save = out.spell!.outcomes[0]!.save!;
+    expect(save.modeSources.some((m) => m.source.includes('Dominate Person'))).toBe(true);
+    expect(save.mode).toBe('advantage');
+  });
+
+  /** And "none of them" is an answer, which is the other half of the same fact. */
+  it('releases it with an ordinary save when the Ready said the target is not fought', () => {
+    const log = nextTurn(
+      ready({ kind: 'spell', spellId: 'dominate-person', slotLevel: 5, fought: [] }, CASTER),
+    );
+    const out = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { targets: [CULTIST] }, supply('dominate')),
+      'release',
+    );
+    const save = out.spell!.outcomes[0]!.save!;
+    expect(save.modeSources.some((m) => m.source.includes('Dominate Person'))).toBe(false);
+    expect(save.mode).toBe('normal');
+  });
+
+  /**
+   * **No default, and the refusal lands before anything is spent.** An answer
+   * the engine filled in would be a fact it invented; and the Ready spends the
+   * action *and* the slot, so a refusal that only arrived at the release would
+   * have taken both for a casting that could never be let go.
+   */
+  it('refuses the Ready when the spell prints the clause and nothing was stated', () => {
+    const before = fold('seed', CASTER);
+    expect(
+      refusal(
+        takeReady(before, ARCHER, {
+          trigger: TRIGGER,
+          response: { kind: 'spell', spellId: 'dominate-person', slotLevel: 5 },
+        }),
+      ),
+    ).toBe('fought_fact_required');
+
+    expect(remaining(before.creatures.archer!.resources, spellSlotKey(5))).toBe(2);
+    expect(budget(before)?.action).toBe(true);
+    expect(readiedBy(before, ARCHER)).toBeNull();
+  });
+
+  /**
+   * The same two refusals for all four facts, each through the one validator:
+   * **required** where the spell prints the clause and **refused** where it
+   * does not.
+   */
+  it.each([
+    [
+      'the fought fact by a spell that prints no such clause',
+      { kind: 'spell', spellId: 'dissonant-whispers', slotLevel: 1, fought: [CULTIST] },
+      'no_fought_clause',
+    ],
+    [
+      'a designation by a spell that offers none',
+      { kind: 'spell', spellId: 'dissonant-whispers', slotLevel: 1, unaffected: [CULTIST] },
+      'no_designation',
+    ],
+    [
+      'a damage type by a spell that prints one',
+      { kind: 'spell', spellId: 'dissonant-whispers', slotLevel: 1, damageType: 'radiant' },
+      'damage_type_fixed',
+    ],
+    [
+      'a destination by a spell that teleports nobody',
+      {
+        kind: 'spell',
+        spellId: 'dissonant-whispers',
+        slotLevel: 1,
+        teleportTo: { from: { landmark: 'the door' }, feet: 10, bearing: 0 },
+      },
+      'no_teleport_clause',
+    ],
+    [
+      'no destination by a spell that teleports',
+      { kind: 'spell', spellId: 'dimension-door', slotLevel: 4 },
+      'destination_required',
+    ],
+  ] as readonly (readonly [string, SpellReady, string])[])(
+    'refuses %s',
+    (_why, response, code) => {
+      expect(readyRefusal(response)).toBe(code);
+    },
+  );
+
+  /**
+   * A creature the engine has never heard of is refused at the Ready, which is
+   * the evidence the whole validator is being asked rather than the one clause
+   * this task was about: `unknown_creature` is a rule inside `declaredFacts`
+   * and nothing on this path spells it a second time.
+   */
+  it('refuses a fought creature nobody has added', () => {
+    expect(
+      readyRefusal({
+        kind: 'spell',
+        spellId: 'dominate-person',
+        slotLevel: 5,
+        fought: [id('nobody')],
+      }),
+    ).toBe('unknown_creature');
+  });
+
+  /** The fact reaches the readied record, which is where the release reads it. */
+  it('records the fact on what is being held', () => {
+    const held = readiedBy(
+      fold(
+        'seed',
+        ready(
+          { kind: 'spell', spellId: 'dominate-person', slotLevel: 5, fought: [CULTIST] },
+          CASTER,
+        ),
+      ),
+      ARCHER,
+    )?.response;
+    if (held?.kind !== 'spell') throw new Error('expected a readied spell');
+    expect(held.fought).toEqual([CULTIST]);
+  });
+
+  /**
+   * All three, driven end to end — the Beast, the Humanoid and the one that
+   * takes anything at all. SRD writes them as one paragraph with the creature
+   * type and the slot bands changed, so a fixture that readied only the middle
+   * one would be pinning the paragraph rather than the three spells.
+   */
+  it.each([
+    ['dominate-beast', 4, 'Dominate Beast', WOLF],
+    ['dominate-person', 5, 'Dominate Person', CULTIST],
+    ['dominate-monster', 8, 'Dominate Monster', CULTIST],
+  ] as readonly (readonly [string, number, string, CharacterId])[])(
+    'readies and releases %s',
+    (spellId, slotLevel, name, target) => {
+      const log = nextTurn(ready({ kind: 'spell', spellId, slotLevel, fought: [target] }, CASTER));
+      const out = unwrap(
+        releaseReady(fold('seed', log), ARCHER, { targets: [target] }, supply('dominate')),
+        'release',
+      );
+      const save = out.spell!.outcomes[0]!.save!;
+      expect(save.modeSources.some((m) => m.source.includes(name))).toBe(true);
+      expect(readiedBy(fold('seed', [...log, ...out.events]), ARCHER)).toBeNull();
+    },
+  );
+
+  /**
+   * The fourth fact, and the one the release could not possibly work out
+   * again: where the caster said they were going.
+   *
+   * **Dimension Door and not Misty Step**, which is what the SRD leaves of the
+   * brief's own example: "To be readied, a spell must have a casting time of
+   * an action", and Misty Step is a Bonus Action. The case below is the honest
+   * answer for the spell that cannot be readied at all.
+   */
+  it('releases a readied Dimension Door at the space it named', () => {
+    const log = nextTurn(
+      ready(
+        {
+          kind: 'spell',
+          spellId: 'dimension-door',
+          slotLevel: 4,
+          // The archer stands on "the door" at (100, 100, 0); bearing 90 is +x.
+          teleportTo: { from: { landmark: 'the door' }, feet: 120, bearing: 90 },
+        },
+        CASTER,
+      ),
+    );
+    const out = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { targets: [ARCHER] }, supply('door')),
+      'release',
+    );
+    expect(fold('seed', [...log, ...out.events]).scene?.positions.archer).toEqual({
+      x: 220,
+      y: 100,
+      z: 0,
+    });
+  });
+
+  /**
+   * The other two facts, driven through the aura they were stated for.
+   *
+   * Spirit Guardians states both in one paragraph — "3d8 Radiant damage (if
+   * you are good or neutral) or 3d8 Necrotic damage (if you are evil)" and
+   * "you can designate creatures to be unaffected by it" — and it is cast with
+   * an Action, so it can be readied. Neither fact lands at the release: the
+   * casting leaves an Emanation behind and every later trigger reads them off
+   * the ongoing record, which is exactly why dropping one is a **wedged hold**
+   * rather than a silent number. `castOrRelease` re-asks `declaredFacts` at
+   * the release, so a readied Spirit Guardians whose stated type was lost is
+   * refused `damage_type_required` at every release, after the action and the
+   * slot have gone.
+   */
+  describe('a readied Spirit Guardians keeps what its caster said', () => {
+    /**
+     * The cultist is **Immune to Radiant** — the type the spell's own area
+     * trigger prints. So a casting that failed to carry the caster's stated
+     * Necrotic would deal Radiant and this creature would take nothing at all,
+     * which is the only assertion that tells the stated type from the printed
+     * one. An undefended target cannot.
+     */
+    const GUARDIAN: readonly GameEvent[] = [
+      ...SETUP.filter((e) => e.type !== 'spellcasting-declared').map((e) =>
+        e.type === 'creature-added' && e.id === CULTIST
+          ? { ...e, defenses: { radiant: { immune: true } } }
+          : e,
+      ),
+      slot(3),
+      {
+        type: 'spellcasting-declared',
+        id: ARCHER,
+        spellcasting: declaredCasting({ ability: 'int', prepared: ['spirit-guardians'] }),
+      },
+    ];
+
+    /**
+     * Ready the aura, let it go on the cultist's turn, and walk the cultist
+     * into it — the entry clause, because the release happens on somebody
+     * else's turn and only that creature has movement to spend.
+     */
+    const sweptInto = (unaffected?: readonly CharacterId[]) => {
+      const log = nextTurn(
+        ready(
+          {
+            kind: 'spell',
+            spellId: 'spirit-guardians',
+            slotLevel: 3,
+            damageType: 'necrotic',
+            ...(unaffected === undefined ? {} : { unaffected }),
+          },
+          GUARDIAN,
+        ),
+      );
+      const held = readiedBy(fold('seed', log), ARCHER)?.response;
+      if (held?.kind !== 'spell') throw new Error('expected a readied spell');
+
+      const released = unwrap(
+        releaseReady(fold('seed', log), ARCHER, {}, supply('guardians')),
+        'release',
+      );
+      const after = [...log, ...released.events];
+
+      // Ten feet from the archer is inside a 15-foot Emanation; thirty, where
+      // the cultist began, is outside it.
+      const walked = unwrap(
+        resolveMove(
+          fold('seed', after),
+          CULTIST,
+          { placement: { from: { creature: ARCHER }, feet: 10, bearing: 0 } },
+          supply('walk'),
+        ),
+        'walk',
+      );
+      const arrived = [...after, ...walked.events];
+
+      const settled = unwrap(
+        settleAreaEffects(fold('seed', arrived), supply('settle')),
+        'settle',
+      );
+      return {
+        castingId: held.castingId,
+        owed: fold('seed', arrived).owedAreaEffects,
+        state: fold('seed', [...arrived, ...settled.events]),
+      };
+    };
+
+    it('deals the damage type the Ready stated, not the one the spell prints', () => {
+      const { castingId, state } = sweptInto();
+      // Radiant would have been shrugged off entirely, so losing a hit point
+      // at all is what says the stated Necrotic reached the trigger's damage.
+      expect(state.creatures.cultist!.vitals.hp).toBeLessThan(
+        state.creatures.cultist!.vitals.hpMax,
+      );
+      expect(state.ongoing[castingId]?.damageType).toBe('necrotic');
+    });
+
+    it('spares the creature the Ready designated unaffected', () => {
+      const { castingId, owed, state } = sweptInto([CULTIST]);
+      // Nothing was ever owed, which is the aura declining to catch them at
+      // all rather than a save they happened to make.
+      expect(owed).toEqual([]);
+      expect(state.creatures.cultist!.vitals.hp).toBe(state.creatures.cultist!.vitals.hpMax);
+      expect(state.ongoing[castingId]?.unaffected).toEqual([CULTIST]);
+    });
+  });
+
+  /** SRD: only a spell cast with an action can be readied. */
+  it('refuses to ready Misty Step at all, whatever it says about where', () => {
+    expect(
+      readyRefusal({
+        kind: 'spell',
+        spellId: 'misty-step',
+        slotLevel: 2,
+        teleportTo: { from: { landmark: 'the door' }, feet: 10, bearing: 90 },
+      }),
+    ).toBe('not_readiable');
   });
 });

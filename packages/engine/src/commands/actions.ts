@@ -28,7 +28,7 @@ import { featureTimer } from './features.js';
 import { mayAct } from './holds.js';
 import { type MoveResolution, moveWithin } from './movement.js';
 import { castOrRelease } from './spell-resolution.js';
-import { type SpellResolution } from './targeting.js';
+import { declaredFacts, type SpellResolution } from './targeting.js';
 
 /**
  * SRD Dash: "you gain extra movement for the current turn. The increase equals
@@ -216,14 +216,42 @@ export interface ReadyCommand extends CommandIdentity {
 export type ReadyResponse =
   | { readonly kind: 'action'; readonly note?: string }
   | { readonly kind: 'move' }
-  | {
+  | ({
       readonly kind: 'spell';
       readonly spellId: string;
       /** The slot to expend now. Omitted for a cantrip. */
       readonly slotLevel?: number;
       readonly slotKind?: SlotKind;
       readonly source?: string;
-    };
+    } & StatedFacts);
+
+/**
+ * The four facts a casting states rather than derives.
+ *
+ * SRD Ready: "you cast it as normal (expending any resources used to cast it)
+ * but hold its energy" — so the slot goes at the Ready, and everything the
+ * caster said about the spell was said there too. They take exactly the shape
+ * they take on `CastSpellRequest`, are validated by exactly the same
+ * {@link declaredFacts}, and are handed back to `castOrRelease` at the
+ * release, which normalises them through the same two functions a settlement
+ * uses. Whether a casting is settled in one breath, held open for a
+ * Counterspell or waiting on a trigger changes nothing about what the caster
+ * said.
+ *
+ * One type here and one on `ReadiedResponse`, because the caller's word and
+ * the held record are two different moments; what must not be written twice is
+ * the *copying*, which is {@link statedOf}.
+ */
+export interface StatedFacts {
+  /** Which of the damage types the spell prints this casting deals. */
+  readonly damageType?: string;
+  /** Which creatures the caster or their allies are fighting. */
+  readonly fought?: readonly CharacterId[];
+  /** Creatures the caster designated unaffected, for a spell that offers it. */
+  readonly unaffected?: readonly CharacterId[];
+  /** Where a teleporting spell puts its target. */
+  readonly teleportTo?: Placement;
+}
 
 /** What this creature is holding for a trigger, or null. */
 export function readiedBy(state: GameState, id: CharacterId): ReadiedAction | null {
@@ -362,6 +390,28 @@ function holdSpell(
   if (!chosen.ok) return chosen;
   const route = chosen.value;
 
+  // — the four facts the caster states, and the engine will not guess ————————
+  //
+  // **The same validator, not a second copy of it.** `declaredFacts` is what
+  // the atomic cast and the declaration both ask, so a spell that prints a
+  // clause and a Ready that says nothing is refused with the same code, and a
+  // spell that prints none and is told the fact is refused with the same code.
+  // The three Dominates could not be readied at all before this: SRD prints
+  // "It does so with Advantage if you or your allies are fighting it", so the
+  // casting *requires* the fact and nothing on a `ReadyResponse` could say it.
+  //
+  // Asked here, **before the slot** — SRD spends it at the Ready and the
+  // release has nothing left to refund, so a fact missing until the release
+  // would be an action and a slot spent on a casting that could never be let
+  // go. It reads only the four fields; a readied spell names its targets at
+  // the release, and `targets` is empty because there are none to name yet.
+  const stated = declaredFacts(state, definition, {
+    spellId: response.spellId,
+    targets: [],
+    ...statedOf(response),
+  });
+  if (!stated.ok) return stated;
+
   const castLevel = Math.max(definition.level, response.slotLevel ?? definition.level);
   const castingId = nextCastingId(state);
 
@@ -387,8 +437,57 @@ function holdSpell(
 
   return ok({
     events: cast.value,
-    response: { kind: 'spell', spellId: response.spellId, castingId, castLevel },
+    response: {
+      kind: 'spell',
+      spellId: response.spellId,
+      castingId,
+      castLevel,
+      // Exactly what the caster said, and nothing the caller did not say:
+      // `statedOf` elides an absent field rather than defaulting it, so a
+      // Ready written before these existed folds to the state it always did.
+      ...statedOf(response),
+    },
   });
+}
+
+/**
+ * The four stated facts, lifted off whichever record is carrying them.
+ *
+ * **One reader for all three places a readied spell touches them** — what
+ * `declaredFacts` validates at the Ready, what the readied record stores, and
+ * the request the release hands to `castOrRelease` — so a fifth stated fact is
+ * one edit here rather than three that have to agree. The parameter is the
+ * structural shape rather than either named type, because `ReadyResponse` and
+ * `ReadiedResponse` are the *same four facts* said at two moments, and a
+ * reader that named one of them would need a twin for the other, which is the
+ * duplication this exists to prevent.
+ *
+ * **It normalises nothing, and that is the decision.** `statedFacts` sorts the
+ * designation and elides it when empty, `foughtFor` sorts the fought list and
+ * never elides it, and both belong to `spell-resolution.ts`, which owns the
+ * two records a *casting* writes. A readied response is neither of those: it
+ * is the caster's stated intent, held, and it reaches those two functions at
+ * the release, through `castOrRelease`, which is the same door a settlement
+ * goes through. Normalising half of it here — `foughtFor` is exported and
+ * `statedFacts` is not — would be the second answer to one question this
+ * repository keeps finding wrong.
+ *
+ * **Absent means absent**, in both directions: a field the caller omitted is
+ * omitted from the record, and an empty `fought` is kept, because "none of
+ * them" is an answer the spell insisted on — the one place `fought` and
+ * `unaffected` part company, which `foughtFor` in `targeting.ts` records.
+ *
+ * Idempotent, which is what lets the release call it on a record `holdSpell`
+ * already built rather than spelling the copy out a second time — the property
+ * `statedFacts` has for the same reason.
+ */
+function statedOf(response: StatedFacts): StatedFacts {
+  return {
+    ...(response.damageType === undefined ? {} : { damageType: response.damageType }),
+    ...(response.fought === undefined ? {} : { fought: response.fought }),
+    ...(response.unaffected === undefined ? {} : { unaffected: response.unaffected }),
+    ...(response.teleportTo === undefined ? {} : { teleportTo: response.teleportTo }),
+  };
 }
 
 /**
@@ -598,6 +697,16 @@ function releaseSpell(
       targets: command.targets ?? [],
       ...(command.at === undefined ? {} : { at: command.at }),
       ...(definition.level === 0 ? {} : { slotLevel: response.castLevel }),
+      // What the caster stated at the Ready, put back on the request the
+      // resolution reads — through the same `statedOf` that validated them and
+      // wrote them down, so a fifth stated fact is one edit rather than three
+      // that have to agree. **Not restated by the release**: `ReleaseCommand`
+      // carries no field for any of the four, so a Dimension Door readied at
+      // the far end of the hall cannot be let go beside its caster — the same
+      // rule as `resolveDeclaredCast`, which takes no fresh request either.
+      // They reach `statedFacts` and `foughtFor` from here exactly as a
+      // settlement's do, which is what keeps one normaliser for three doors.
+      ...statedOf(response),
     },
     supply,
     { castingId: response.castingId },

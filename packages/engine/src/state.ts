@@ -726,6 +726,43 @@ export type ReadiedResponse =
       readonly castingId: string;
       /** The level it was cast at, so the release resolves at that level. */
       readonly castLevel: number;
+      /**
+       * The damage type this casting was declared with, where the spell prints
+       * more than one.
+       *
+       * The first of the four facts a caster **states** rather than the engine
+       * deriving, carried here for the reason {@link PendingCasting} carries
+       * it: the release takes no fresh request about what the spell *is*, so
+       * this is the only place it can come from. A readied Spirit Guardians
+       * declared Necrotic must not settle Radiant.
+       */
+      readonly damageType?: string;
+      /**
+       * Which creatures the caster or their allies are fighting.
+       *
+       * SRD Charm Person: "It does so with Advantage if you or your allies are
+       * fighting **it**", which the three Dominates print with the clauses
+       * swapped round. Without it those three could not be readied at all: the
+       * spell *requires* the fact, so the casting was refused before the Ready
+       * could be taken.
+       *
+       * A list, because the clause is about the target, and **empty rather
+       * than absent** where the caster answered "none of them" — absence means
+       * the spell never asked, which is every spell but the five that print
+       * the clause, and is what makes a Ready written before this fold to
+       * exactly the state it always did.
+       */
+      readonly fought?: readonly CharacterId[];
+      /** Creatures the caster designated unaffected, for a spell that offers it. */
+      readonly unaffected?: readonly CharacterId[];
+      /**
+       * Where a teleporting spell puts its target.
+       *
+       * The fourth stated fact, and the one the release could not possibly
+       * work out again — a Dimension Door readied against the far end of the
+       * hall must not let go beside its caster.
+       */
+      readonly teleportTo?: Placement;
     }
   /**
    * SRD: "or you choose to move up to your Speed in response to it."

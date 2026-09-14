@@ -5015,6 +5015,15 @@ function also feeds the ongoing record and no later sentence of any of the five
 spells re-rolls the save — a field on the record that nothing reads is the
 second answer to one question this file keeps naming.
 
+**And it rides on a readied casting for the same sentence**, which is the third
+door into it — see "A Readied Casting States What A Casting States". Until that
+was built the three Dominates **could not be readied at all**, and the way they
+failed was worse than a refusal: `holdSpell` asked `declaredFacts` nowhere and
+`castSpell` never sees a definition, so the Ready **succeeded** and spent the
+action and the slot, and every *release* was then refused
+`fought_fact_required` until the hold's own deadline lifted it. A wasted turn
+and a wasted slot for a spell that could never be let go.
+
 **The clause has one home, and the validator says so.** It sits on a `save`,
 because the five spells all write a bare Wisdom save and no other host rolls
 one; and it sits in the definition's **own** effect list and in neither an area
@@ -5053,6 +5062,78 @@ and the split-bundle arithmetic gained the second reason a clause may honestly
 leave the map — **the shape stands and *this clause* was built** — as a reviewed
 list rather than a blanket escape, because nothing derived can tell a partial
 build from a silent loss.
+
+### A Readied Casting States What A Casting States
+
+IE-020's rule has no exception and now has three doors: **whether a casting is
+settled in one breath, held open for a Counterspell or waiting on a trigger
+changes nothing about what the caster said.** `ReadiedResponse` carried a spell
+id, a casting id and a level, so the four facts a casting states rather than
+derives had nowhere to sit — and the consequence was not a lost field but a
+**wedged hold**. SRD Ready casts the spell at the Ready: "you cast it as normal
+(expending any resources used to cast it) but hold its energy". So the three
+Dominates, which print "It does so with Advantage if you or your allies are
+fighting it" and therefore *require* the fact, could not be readied at all.
+
+**The old failure was the expensive one, and it is worth recording rather than
+softening.** The Ready did not refuse: `holdSpell` asked `declaredFacts`
+nowhere, and `castSpell` is the low-level half that never sees a definition, so
+the hold **succeeded** and took the action and the slot. `castOrRelease` asks
+the question at the *release*, so every attempt to let the spell go came back
+`fought_fact_required` until the Ready's own deadline lifted the hold. That is
+the shape this repository calls its worst — not a wrong number, but a cost paid
+for something that could never happen — and it is why the fact is asked at the
+Ready, **before the slot**, rather than merely carried to the release.
+
+| | Where the fact is said | Where it is read back |
+|---|---|---|
+| the atomic cast | `CastSpellRequest` | the ongoing record |
+| a declared casting | `CastSpellRequest`, pinned at the declaration | `PendingCasting`, at the settlement |
+| a readied casting | `ReadyResponse`, at the Ready | `ReadiedResponse`, at the release |
+
+**One validator and one normaliser, or it is not a third door but a third
+implementation.** `holdSpell` asks `declaredFacts` — the same function, not a
+copy of its four rules — so a spell that prints a clause and a Ready that says
+nothing is refused with the same code a cast would give, and a spell that
+prints none and is told the fact is refused with the same code. The release
+spreads the stored facts onto the request it hands `castOrRelease`, which
+normalises them through `statedFacts` and `foughtFor` exactly as a settlement
+does. **The evidence is a mutation**: emptying `declaredFacts` reddens the
+readied cases beside the atomic cast's and the teleport's, which is what says
+one function answers for all three.
+
+**Asked before the slot, because the Ready is where the slot goes.** SRD spends
+it at the Ready and the release has nothing to refund, so a fact missing until
+the release would have taken an action *and* a slot for a casting that could
+never be let go — the same reason `teleportTo` is pre-flighted before a
+declaration, arriving on the other command.
+
+**The release restates nothing.** `ReleaseCommand` carries no field for any of
+the four, so a Dimension Door readied at the far end of the hall cannot be let
+go beside its caster — `resolveDeclaredCast`'s rule, applied to the other path
+that resolves a casting somebody else's command paid for.
+
+**Stored as the caller said them, and normalised at the one door.** The readied
+record is not a casting record: `PendingCasting` and `OngoingSpell` are written
+*by* a casting and read *by* it afterwards, which is why they are normalised
+where the request is read. A readied response is the caster's stated intent,
+held, and it meets `statedFacts` and `foughtFor` at the release. Normalising
+half of it at the Ready — `foughtFor` is exported and `statedFacts` is
+`spell-resolution.ts`'s own — would be the second answer to one question, and
+every observable answer is identical either way: an empty `unaffected` is
+elided by the same function it always was, an empty `fought` is kept by the
+same one.
+
+**Every field is optional and absent means absent**, so a Ready written before
+this folds to exactly the state it always did, and neither frozen log changes —
+which is the whole compatibility story and needed no upgrade path, because the
+reducer stores `event.readied` verbatim.
+
+**Misty Step is the honest answer rather than the example.** SRD: "To be
+readied, a spell must have a casting time of an action", and Misty Step is a
+Bonus Action — so the readied teleport is driven through **Dimension Door**,
+and readying Misty Step is refused `not_readiable` whatever it says about
+where it was going.
 
 ### A spell may declare the footprint its template wants
 
