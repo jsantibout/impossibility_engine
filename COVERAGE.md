@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 46 (13.6%) | 84 (24.8%) | 53 | 60 (17.7%) |
+| 339 | 46 (13.6%) | 86 (25.4%) | 54 | 62 (18.3%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -52,9 +52,10 @@ spell, and the area is the part that is missing.
 | Saving throw for damage | 30 | 0 | 13 | — |
 | Saving throw for a condition | 43 | 0 | 17 | — |
 | Restores Hit Points | 4 | 0 | 3 | — |
+| A condition imposed with no saving throw | 4 | 0 | 2 | per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition") |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 1 | — |
-| Narrative or exploration effect | 91 | 43 | 5 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
+| Narrative or exploration effect | 87 | 43 | 5 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -101,6 +102,7 @@ spell, and the area is the part that is missing.
 - **Flame Strike** (level 5) — verified
 - **Freezing Sphere** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Grease** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Greater Invisibility** (level 4) — verified
 - **Guidance** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
 - **Guiding Bolt** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Harm** (level 6) — verified, partial — a clause the engine owns is still unbuilt
@@ -113,6 +115,7 @@ spell, and the area is the part that is missing.
 - **Incendiary Cloud** (level 8) — untested, partial — a clause the engine owns is still unbuilt
 - **Inflict Wounds** (level 1) — verified
 - **Insect Plague** (level 5) — verified, partial — a clause the engine owns is still unbuilt
+- **Invisibility** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Lightning Bolt** (level 3) — verified
 - **Mage Armor** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Mass Cure Wounds** (level 5) — verified

@@ -110,6 +110,28 @@ const SHAPES = [
     label: 'Restores Hit Points',
     test: (s: ParsedSpell) => /regains? .{0,40}Hit Points/i.test(s.description),
   },
+  /**
+   * Below `save-condition` because it is that shape with the roll taken out,
+   * and therefore the *lesser* machinery the ordering rule above files under.
+   *
+   * **And below `heal`, which is a correction rather than a preference.** The
+   * test is a prose match, and the phrase it looks for also appears in spells
+   * that *read* a condition rather than impose one: Power Word Heal's "If the
+   * creature has the Prone condition, it can use its Reaction to stand up" is
+   * a healing spell, and filing it here made "Restores Hit Points" read 3 of
+   * 3 — a shape reported as drained while a level 9 spell in it is
+   * unexecuted, which is the exact green tick this report exists to prevent.
+   * Mirror Image's "unaffected by this spell if it has the Blinded condition"
+   * is the same false positive with no shape above it to catch it, so the
+   * blocker column names it. A regex cannot tell imposing from reading, and
+   * parsing the English harder would be the thing `spell-tracking.test.ts`
+   * says prose does not honestly support.
+   */
+  {
+    id: 'condition',
+    label: 'A condition imposed with no saving throw',
+    test: (s: ParsedSpell) => /\bhas the [A-Z][a-z]+ condition\b/.test(s.description),
+  },
   {
     id: 'temp-hp',
     label: 'Temporary Hit Points',
@@ -202,6 +224,7 @@ export const PARTIAL_SPELLS: readonly string[] = [
   'ice-storm',
   'incendiary-cloud',
   'insect-plague',
+  'invisibility',
   'mage-armor',
   'mass-suggestion',
   'mind-spike',
@@ -254,6 +277,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'flame-blade',
   'flame-strike',
   'grease',
+  'greater-invisibility',
   'guidance',
   'guiding-bolt',
   'harm',
@@ -264,6 +288,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'ice-storm',
   'inflict-wounds',
   'insect-plague',
+  'invisibility',
   'lightning-bolt',
   'mage-armor',
   'mass-cure-wounds',
@@ -488,10 +513,16 @@ function render(coverage: SpellCoverage): string {
     'save-damage': '—',
     'save-condition': '—',
     heal: '—',
+    // The shape itself is built; what is left in this bucket is each spell's
+    // *other* clause — and one entry that does not print this shape at all.
+    // See "A Condition With No Saving Throw Is The `save` Shape Minus The
+    // Roll" in CLAUDE.md for the spell-by-spell reading.
+    condition:
+      'per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition")',
     'temp-hp': '—',
     buff: '—',
     utility:
-      'nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — a condition with no save, an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing',
+      'nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing',
   };
 
   for (const shape of SHAPES) {

@@ -37,6 +37,8 @@ import {
 import { apartFromSource, type Point, type PointAnchoring } from '../positioning.js';
 import { remaining } from '../resources.js';
 import {
+  type ConditionRider,
+  conditionRiderOf,
   definitionFor,
   type DelayedDamage,
   onCaster,
@@ -61,6 +63,7 @@ import {
   nextCastingId,
   resolveCastWith,
   settlementEvents,
+  type SpellEffectOptions,
   triggerRefusal,
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
@@ -703,6 +706,41 @@ function scheduleDelayed(
   };
 }
 
+/**
+ * The `applySpellEffect` options one condition rider asks for.
+ *
+ * Four effect kinds impose a condition — an `attack` on a hit, a `save-damage`
+ * or a `save` on a failure, and a `condition` with nothing rolled at all — and
+ * before this there were three near-identical blocks translating a rider into
+ * options, each reading a different subset of the fields. That was an accident
+ * of the order the spells were written in: an escape check reached two of the
+ * three, `outlivesCasting` reached one. One translation means a rider's field
+ * works wherever the rider does.
+ *
+ * `held` is the other half a caller still does for itself, because it is not
+ * an option: `outlivesCasting` keeps the target out of `OngoingSpell.on`, and
+ * the branch that knows whether the target was affected at all is the one that
+ * decides to add them.
+ */
+function riderOptions(
+  rider: ConditionRider,
+  context: {
+    readonly castingId: string;
+    readonly spell: string;
+    readonly casterId: CharacterId;
+    readonly saveDc: number;
+  },
+): SpellEffectOptions {
+  const escape = effectCheckFrom(rider.check, context.spell, context.saveDc);
+  const duration = riderDuration(rider.lasts, context.casterId);
+  return {
+    casting: { castingId: context.castingId, spell: context.spell },
+    ...(rider.outlivesCasting === true ? { unowned: true as const } : {}),
+    ...(escape === undefined ? {} : { check: escape }),
+    ...(duration === undefined ? {} : { duration }),
+  };
+}
+
 export function resolveEffects(
   state: GameState,
   casterId: CharacterId,
@@ -923,13 +961,19 @@ export function resolveEffects(
         // **and** has the Poisoned condition". The attack roll settled it up
         // there; a miss already returned, so reaching here is the hit.
         if (effect.condition !== undefined) {
-          held.add(target);
-          const rider = applySpellEffect(current, target, effect.condition.name, casterId, {
-            casting: { castingId, spell: definition.name },
-            ...(riderDuration(effect.condition.lasts, casterId) === undefined
-              ? {}
-              : { duration: riderDuration(effect.condition.lasts, casterId)! }),
-          });
+          if (effect.condition.outlivesCasting !== true) held.add(target);
+          const rider = applySpellEffect(
+            current,
+            target,
+            effect.condition.name,
+            casterId,
+            riderOptions(effect.condition, {
+              castingId,
+              spell: definition.name,
+              casterId,
+              saveDc,
+            }),
+          );
           if (!rider.ok) return rider;
           events.push(...rider.value);
           current = rider.value.reduce(applyEvent, current);
@@ -1246,15 +1290,19 @@ export function resolveEffects(
         // all on a success, because the condition is on the failure branch of
         // a sentence the damage only half-shares.
         if (effect.condition !== undefined && !save.value.success) {
-          const escape = effectCheckFrom(effect.condition.check, definition.name, saveDc);
-          held.add(target);
-          const rider = applySpellEffect(current, target, effect.condition.name, casterId, {
-            casting: { castingId, spell: definition.name },
-            ...(riderDuration(effect.condition.lasts, casterId) === undefined
-              ? {}
-              : { duration: riderDuration(effect.condition.lasts, casterId)! }),
-            ...(escape === undefined ? {} : { check: escape }),
-          });
+          if (effect.condition.outlivesCasting !== true) held.add(target);
+          const rider = applySpellEffect(
+            current,
+            target,
+            effect.condition.name,
+            casterId,
+            riderOptions(effect.condition, {
+              castingId,
+              spell: definition.name,
+              casterId,
+              saveDc,
+            }),
+          );
           if (!rider.ok) return rider;
           events.push(...rider.value);
           current = rider.value.reduce(applyEvent, current);
@@ -1320,17 +1368,22 @@ export function resolveEffects(
           continue;
         }
 
-        const shakeOff = effectCheckFrom(effect.check, definition.name, saveDc);
-        // A condition the casting causes but does not keep is recorded under
-        // the spell's bare name: legible in the log, and linked to nothing
-        // that could later take it away. See `outlivesCasting`.
-        const landed = applySpellEffect(current, target, effect.condition, casterId, {
-          casting: { castingId, spell: definition.name },
-          ...(effect.outlivesCasting === true ? { unowned: true as const } : {}),
-          ...(shakeOff === undefined ? {} : { check: shakeOff }),
-          ...(riderDuration(effect.lasts, casterId) === undefined
-            ? {}
-            : { duration: riderDuration(effect.lasts, casterId)! }),
+        // `save` writes its rider flat; `conditionRiderOf` is the one place
+        // that knows, so from here the four kinds that impose a condition are
+        // reading one shape. A condition the casting causes but does not keep
+        // is recorded under the spell's bare name: legible in the log, and
+        // linked to nothing that could later take it away — `outlivesCasting`.
+        const rider = conditionRiderOf(effect);
+        const landed = applySpellEffect(current, target, rider.name, casterId, {
+          ...riderOptions(rider, {
+            castingId,
+            spell: definition.name,
+            casterId,
+            saveDc,
+          }),
+          // The one option that is not the rider's: a repeat save belongs to
+          // the saving throw this spell already made, so no kind without one
+          // can carry it.
           ...(effect.repeats === undefined
             ? {}
             : {
@@ -1348,13 +1401,35 @@ export function resolveEffects(
 
         events.push(...landed.value);
         current = landed.value.reduce(applyEvent, current);
-        if (effect.outlivesCasting !== true) held.add(target);
+        if (rider.outlivesCasting !== true) held.add(target);
         outcomes.push({
           target,
           save: save.value,
-          condition: effect.condition,
+          condition: rider.name,
           affected: true,
         });
+        continue;
+      }
+
+      // SRD Greater Invisibility: "A creature you touch has the Invisible
+      // condition until the spell ends." The `save` branch above, minus the
+      // roll — no die, no `roll-recorded`, and the generator does not move,
+      // because the spell asked for nothing to be thrown.
+      if (effect.kind === 'condition') {
+        const rider = conditionRiderOf(effect);
+        const landed = applySpellEffect(
+          current,
+          target,
+          rider.name,
+          casterId,
+          riderOptions(rider, { castingId, spell: definition.name, casterId, saveDc }),
+        );
+        if (!landed.ok) return landed;
+
+        events.push(...landed.value);
+        current = landed.value.reduce(applyEvent, current);
+        if (rider.outlivesCasting !== true) held.add(target);
+        outcomes.push({ target, condition: rider.name, affected: true });
         continue;
       }
 
@@ -1503,8 +1578,8 @@ export function resolveEffects(
         continue;
       }
 
-      // Eight kinds, eight branches, and the `never` binding is what keeps
-      // that true. Until now the last kind was an unguarded fall-through, so
+      // A branch for every kind, and the `never` binding is what keeps that
+      // true. Until now the last kind was an unguarded fall-through, so
       // an effect this chain had no rule for was read as a saving throw: it
       // took `effect.ability` off a definition that has none and rolled
       // against a DC of NaN. A definition and its resolver disagreeing is a

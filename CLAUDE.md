@@ -3243,6 +3243,59 @@ nothing in the engine could check it.
 separate fields rather than one overloaded number, because conflating them is
 exactly the mistake that was made.
 
+### A Condition With No Saving Throw Is The `save` Shape Minus The Roll
+
+SRD Greater Invisibility, whole: "A creature you touch has the Invisible
+condition until the spell ends." No save, no attack, nothing to throw — so the
+`condition` effect throws nothing. No die, no `roll-recorded`, no
+`rolls-issued`, and the generator does not move, because a spell that asked for
+no roll must not consume one.
+
+**There is deliberately no `repeats`.** A repeat save is the SRD's "the target
+repeats the save", and a spell that offered no save has none to repeat. No
+candidate writes the sentence, and a field with no user is a guess — the
+argument `RiderDuration` already makes in the other direction. What the shape
+*does* keep is `check`, because "a creature can take an action to make a
+Strength (Athletics) check" is a different sentence and a real one.
+
+**It is the fourth consumer of one `ConditionRider`, not a fourth spelling of
+one.** `attack`, `save-damage` and `save` each imposed a condition through a
+near-identical block, and the subsets they read were an accident of the order
+the spells were written in: an escape check reached two of the three,
+`outlivesCasting` reached one. One rider type, one option-building helper
+(`riderOptions`), one schema reader, and a field now works wherever a rider
+does. `save` keeps its **flat** layout — changing it would rewrite thirty
+definitions for no rules gain — and `conditionRiderOf` is the one place that
+knows, so the vocabulary is shared even though the layouts are not.
+
+**Two spells, and they differ by one sentence.** Greater Invisibility is
+verified; Invisibility adds "The spell ends early immediately after the target
+makes an attack roll, deals damage, or casts a spell", which is
+`a-casting-ended-by-a-trigger` — the same debt Animal Friendship and Mage Armor
+already carry — so it is **partial**, derived rather than declared.
+
+**And that is the whole population**, which is worth writing down because it is
+the second measured finding in a row that the existing shapes are drained. A
+pass over all 211 undefined SRD spells — every one whose prose names any of the
+fifteen conditions and offers no saving throw anywhere, twenty-seven of them —
+leaves only these two. The rest are blocked, and never on this shape:
+
+| Blocked on | Spells |
+|---|---|
+| A thing with its own state | Conjure Fey, Mirror Image, Mislead's illusory double, Arcane Eye, Clairvoyance, Unseen Servant, Instant Summons |
+| Condition **removal**, which is its own missing shape | Power Word Heal, Heal, Mass Heal, Lesser Restoration, Greater Restoration |
+| Condition *immunity* or prevention | Mind Blank, Heroism, Freedom of Movement, Heroes' Feast, Hallow |
+| A casting ended by a trigger | Sequester, and Mislead again |
+| A condition that ends when its holder leaves an area | Silence's "Deafened **while entirely inside it**" — the gap Web's Restrained already records |
+| A long casting time | Astral Projection, Awaken, Wind Walk, Hallow, Heroes' Feast, Clairvoyance, Instant Summons |
+| Reading a condition rather than imposing one | Find Steed, Shining Smite, Mirror Image |
+| A world the engine does not model | Meld into Stone's Prone on being expelled from the rock |
+
+Silence and Mislead are the two the brief named that no prose scan for "has
+the X condition" catches, because the SRD writes them as "creatures **have**
+the Deafened condition" and "you **gain** the Invisible condition" — which is
+why the census above is by condition name rather than by that phrase.
+
 ### Once Per Turn Is A Turn, Not A Round
 
 Four SRD class features add damage to a hit and cap it at once a turn — Sneak
@@ -4343,7 +4396,7 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 84 of 339 executable and 46 tracked, with the shapes that block
+- M1 spells: 86 of 339 executable and 46 tracked, with the shapes that block
   the rest counted in `COVERAGE.md` and ranked in `PROGRESS.md`. The utility
   bucket was audited spell by spell rather than by shape: 30 of the 76 open
   ones became tracked, 42 carry a rule the engine should own, and 4 depend on
@@ -4396,8 +4449,7 @@ null and is reported — it never becomes either.
   Missile), an outcome-scoped child effect (Ice Knife's explosion, Hideous
   Laughter's two conditions, Sleet Storm's broken Concentration), a damage type
   chosen at the casting (Chromatic Orb, Dragon's Breath, Protection from
-  Energy), a condition applied with no saving throw (Invisibility, Greater
-  Invisibility), condition removal (Lesser Restoration, Heal), a Resistance a
+  Energy), condition removal (Lesser Restoration, Heal), a Resistance a
   spell grants (Stoneskin, Protection from Energy), a rider on every weapon
   attack (Divine Favor, Hex, Hunter's Mark), an area that is several templates
   or a wall (Fire Storm, every Wall), and a Temporary Hit Point payout that

@@ -190,6 +190,57 @@ export interface DelayedDamage {
   readonly damageType: string;
 }
 
+/**
+ * A condition a spell imposes, and everything the SRD writes about how long it
+ * lasts and how a creature gets out of it.
+ *
+ * **One rider, four consumers.** The union spelled this three separate ways
+ * before the standalone kind arrived — on `attack` ("On a hit ... and has the
+ * Poisoned condition"), on `save-damage` ("takes 6d8 Radiant damage **and**
+ * has the Blinded condition") and, flat, on `save`. Three near-identical
+ * blocks resolved them, each with its own idea of which fields it read: an
+ * escape check reached the second and the third and not the first, and
+ * `outlivesCasting` reached only the third. Those were accidents of the order
+ * the spells were written in rather than rules, so this is one type read by
+ * one option-building helper, and every field works wherever a rider does.
+ *
+ * `save` keeps its **flat** spelling — `condition`, `lasts`, `check` and
+ * `outlivesCasting` beside its own `ability` and `repeats` — because changing
+ * it would rewrite every definition that uses it for no rules gain.
+ * {@link conditionRiderOf} is the view that lets it share the type anyway, so
+ * there is one vocabulary even where there are two layouts.
+ */
+export interface ConditionRider {
+  readonly name: ConditionName;
+  /** Omitted, it lasts as long as the casting does. */
+  readonly lasts?: RiderDuration;
+  /**
+   * A check the affected creature may attempt to shake it off.
+   *
+   * SRD Black Tentacles: "A Restrained creature can take an action to make a
+   * Strength (Athletics) check against your spell save DC, **ending the
+   * condition on itself** on a success." On the condition rather than on the
+   * casting, because the condition is what ends — the tentacles carry on for
+   * everybody else standing in them.
+   */
+  readonly check?: SpellCheck;
+  /**
+   * The condition outlives the casting that caused it.
+   *
+   * **Causing a condition and owning it are two different links**, and the
+   * engine had only one. Web says its Restrained lasts "while in the webs";
+   * Hold Person's Paralyzed lasts "for the duration". SRD Grease says none of
+   * that — it says "or have the Prone condition", full stop, and Prone ends
+   * when the creature stands up.
+   *
+   * Set, the condition is recorded with the spell's **name** and no casting
+   * mark: the log still says what caused it, the casting's cleanup does not
+   * claim it, and the record does not grow to include somebody the spell is
+   * not on.
+   */
+  readonly outlivesCasting?: true;
+}
+
 export type SpellEffect =
   /** A spell attack roll; damage on a hit. */
   | {
@@ -206,11 +257,7 @@ export type SpellEffect =
        * and unlike a saving throw there is no half-measure branch to fall
        * through to: a miss leaves the target untouched.
        */
-      readonly condition?: {
-        readonly name: ConditionName;
-        /** Omitted, it lasts as long as the casting does. */
-        readonly lasts?: RiderDuration;
-      };
+      readonly condition?: ConditionRider;
       /**
        * A second hit at the end of the target's next turn, on a hit only.
        *
@@ -276,21 +323,7 @@ export type SpellEffect =
        * it as a separate effect would roll a second save, and a target could
        * then fail one and make the other, which is not the spell.
        */
-      readonly condition?: {
-        readonly name: ConditionName;
-        /** Omitted, it lasts as long as the casting does. */
-        readonly lasts?: RiderDuration;
-        /**
-         * A check the affected creature may attempt to shake it off.
-         *
-         * SRD Black Tentacles: "A Restrained creature can take an action to
-         * make a Strength (Athletics) check against your spell save DC,
-         * **ending the condition on itself** on a success." On the condition
-         * rather than on the casting, because the condition is what ends — the
-         * tentacles carry on for everybody else standing in them.
-         */
-        readonly check?: SpellCheck;
-      };
+      readonly condition?: ConditionRider;
       /**
        * A second hit at the end of the target's next turn, on a failure only.
        *
@@ -394,6 +427,29 @@ export type SpellEffect =
       readonly kind: 'attack-damage';
       readonly damage: DiceScaling;
       readonly damageType: string;
+    }
+  /**
+   * A condition the spell simply imposes, with **no saving throw**.
+   *
+   * SRD Greater Invisibility, whole: "A creature you touch has the Invisible
+   * condition until the spell ends." There is nothing to roll, so nothing is
+   * rolled — no die, no `roll-recorded`, and the generator does not move.
+   *
+   * **This is the `save` shape minus the roll**, which is why it carries the
+   * same {@link ConditionRider} rather than a vocabulary of its own: the
+   * condition is applied to every resolved target with the casting link, for
+   * the casting's duration unless `lasts` says otherwise, and `check` and
+   * `outlivesCasting` mean exactly what they mean there.
+   *
+   * **There is deliberately no `repeats`.** A repeat save is the SRD's "the
+   * target repeats the save", and a spell that offered no save in the first
+   * place has none to repeat — no candidate spell writes the sentence, and a
+   * field with no user is a guess. `check` is the escape a spell of this shape
+   * *does* sometimes offer, and it is already here.
+   */
+  | {
+      readonly kind: 'condition';
+      readonly condition: ConditionRider;
     }
   /** A saving throw; a condition on a failure. */
   | {
@@ -1137,15 +1193,44 @@ export function riderDuration(
 export function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
   const found: RiderDuration[] = [];
   for (const effect of definition.effects) {
-    if (effect.kind === 'save' && effect.lasts !== undefined) found.push(effect.lasts);
-    if (effect.kind === 'attack' && effect.condition?.lasts !== undefined) {
-      found.push(effect.condition.lasts);
-    }
-    if (effect.kind === 'save-damage' && effect.condition?.lasts !== undefined) {
-      found.push(effect.condition.lasts);
-    }
+    const lasts = conditionRiderOf(effect)?.lasts;
+    if (lasts !== undefined) found.push(lasts);
   }
   return found;
+}
+
+/**
+ * The condition rider an effect carries, wherever it spells it.
+ *
+ * Four kinds impose a condition and one of them writes the fields flat, so
+ * this is the one place that knows the difference — the reason `save` could
+ * keep its layout without the vocabulary forking. Every reader asks this
+ * rather than switching on the kind, so a fifth consumer is one case here and
+ * nothing anywhere else.
+ */
+export function conditionRiderOf(
+  effect: Extract<SpellEffect, { kind: 'save' | 'condition' }>,
+): ConditionRider;
+export function conditionRiderOf(effect: SpellEffect): ConditionRider | undefined;
+export function conditionRiderOf(effect: SpellEffect): ConditionRider | undefined {
+  switch (effect.kind) {
+    case 'condition':
+      return effect.condition;
+    case 'attack':
+    case 'save-damage':
+      return effect.condition;
+    case 'save':
+      return {
+        name: effect.condition,
+        ...(effect.lasts === undefined ? {} : { lasts: effect.lasts }),
+        ...(effect.check === undefined ? {} : { check: effect.check }),
+        ...(effect.outlivesCasting === undefined
+          ? {}
+          : { outlivesCasting: effect.outlivesCasting }),
+      };
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -1208,6 +1293,63 @@ export const HOLD_PERSON: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
+};
+
+/**
+ * SRD Greater Invisibility:
+ *
+ * > _Level 4 Illusion (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** Concentration, up to 1 minute.
+ * > "A creature you touch has the Invisible condition until the spell ends."
+ *
+ * That sentence is the whole spell, and it offers no saving throw — which is
+ * the shape this definition exists to prove. "A creature you touch" includes
+ * yourself, and it prints no *Using a Higher-Level Spell Slot* line, so a
+ * level 9 slot still reaches one creature.
+ */
+export const GREATER_INVISIBILITY: SpellDefinition = {
+  id: 'greater-invisibility',
+  name: 'Greater Invisibility',
+  level: 4,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
+  durationSeconds: 60,
+};
+
+/**
+ * SRD Invisibility:
+ *
+ * > _Level 2 Illusion (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "A creature you touch has the Invisible condition until the spell ends.
+ * > The spell ends early immediately after the target makes an attack roll,
+ * > deals damage, or casts a spell."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 2."
+ *
+ * Greater Invisibility's sentence plus one more, and that second sentence is
+ * the whole of the difference between the two spells — which is why this one
+ * is **partial** and its bigger sibling is not.
+ */
+export const INVISIBILITY: SpellDefinition = {
+  id: 'invisibility',
+  name: 'Invisibility',
+  level: 2,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
+  effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell: a casting cannot ask to be ended when its own target acts, so the invisibility runs its hour and the DM ends it',
+  ],
 };
 
 /**
@@ -5916,6 +6058,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FREEZING_SPHERE,
   GENTLE_REPOSE,
   GREASE,
+  GREATER_INVISIBILITY,
   GUIDANCE,
   GUIDING_BOLT,
   HARM,
@@ -5928,6 +6071,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   INCENDIARY_CLOUD,
   INFLICT_WOUNDS,
   INSECT_PLAGUE,
+  INVISIBILITY,
   JUMP,
   KNOCK,
   LIGHT,

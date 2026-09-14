@@ -500,6 +500,88 @@ describe('each rule refuses something', () => {
   });
 });
 
+/**
+ * One rider, four kinds, one rule — and the *path* is what proves it is one
+ * rule rather than four spelled alike.
+ *
+ * `attack`, `save-damage` and `condition` nest the rider and `save` writes it
+ * flat, so a problem has to be reported against the field the author actually
+ * wrote. A single reader that appended `.name` to every path would point a
+ * `save` author at `effects[0].condition.name`, which their definition does
+ * not have.
+ */
+describe('a condition rider is checked the same way wherever it sits', () => {
+  const problems = (effect: unknown): readonly SpellDefinitionProblem[] =>
+    checkSpellDefinition({ ...FIRE_DART, effects: [effect] } as SpellDefinition);
+
+  it.each([
+    [
+      'condition',
+      { kind: 'condition', condition: { name: 'bewildered' } },
+      'effects[0].condition.name',
+    ],
+    [
+      'save',
+      { kind: 'save', ability: 'wis', condition: 'bewildered' },
+      'effects[0].condition',
+    ],
+    [
+      'attack',
+      {
+        kind: 'attack',
+        attack: 'ranged',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        condition: { name: 'bewildered' },
+      },
+      'effects[0].condition.name',
+    ],
+    [
+      'save-damage',
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'none',
+        condition: { name: 'bewildered' },
+      },
+      'effects[0].condition.name',
+    ],
+  ] as const)('refuses an unknown condition on a %s, pointing at the field', (_kind, effect, field) => {
+    expect(problems(effect)).toEqual([
+      {
+        field,
+        code: 'unknown_condition',
+        reason: '"bewildered" is not one of the SRD\'s fifteen conditions',
+      },
+    ]);
+  });
+
+  /** And the new kind survives the untyped path, which is the loader's. */
+  it('accepts a condition applied with no saving throw', () => {
+    const spell = {
+      ...FIRE_DART,
+      effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
+    };
+    expect(checkSpellDefinition(spell as SpellDefinition)).toEqual([]);
+    const parsed = parseSpellDefinition(JSON.parse(JSON.stringify(spell)));
+    expect(isErr(parsed) ? parsed.reason : 'ok').toBe('ok');
+  });
+
+  /**
+   * A rider that is missing outright is *reported*, not thrown at. `checkShape`
+   * establishes the effect's `kind` and nothing below it, so untyped input can
+   * reach this reader with no rider at all — and a validator that crashes on
+   * the input it exists to judge has judged nothing.
+   */
+  it('reports a condition effect whose rider is missing', () => {
+    const parsed = parseSpellDefinition({ ...FIRE_DART, effects: [{ kind: 'condition' }] });
+    expect(isErr(parsed)).toBe(true);
+    if (isErr(parsed)) expect(parsed.code).toBe('unknown_condition');
+  });
+});
+
 describe('a definition is told everything that is wrong with it at once', () => {
   it('reports every problem, with the field each belongs to', () => {
     const problems = checkSpellDefinition({

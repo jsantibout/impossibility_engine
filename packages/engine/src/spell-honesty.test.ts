@@ -592,6 +592,13 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The swarm’s saves and damage all run; the ground it stands on costs nothing extra to cross, because Difficult Terrain reaches the ruler only as feet a move declares.',
     },
   ],
+  invisibility: [
+    {
+      clause: 'ends early immediately after the target makes an attack roll',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'SRD: "The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell." The engine emits all three — an attack roll, damage naming its dealer, a `spell-cast` — and no casting can ask to be ended when one arrives, so the invisibility runs its full hour. It is the whole of the difference between this spell and Greater Invisibility, which prints the sentence and nothing else.',
+    },
+  ],
   'mage-armor': [
     {
       clause: 'if the target dons armor',

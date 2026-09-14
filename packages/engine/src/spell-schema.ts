@@ -12,7 +12,9 @@ import {
 } from '@ie/shared';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
+import { conditionRiderOf } from './spell-definitions.js';
 import type {
+  ConditionRider,
   DiceScaling,
   SpellArea,
   SpellDefinition,
@@ -187,6 +189,35 @@ function checkCondition(
   }
 }
 
+/**
+ * A condition rider, wherever an effect carries one.
+ *
+ * One function for the four kinds that impose a condition, because they carry
+ * one {@link ConditionRider} between them — so a rider on an `attack` is held
+ * to exactly what a rider on a `save-damage` is, and a field added to the
+ * rider is checked in one place rather than three.
+ *
+ * `rider` is optional and read through `?.` because this also meets untyped
+ * input: `checkShape` establishes the effect's `kind` and nothing below it, so
+ * a `condition` effect whose rider is missing outright must be *reported*
+ * rather than throw. What is not checked is the `check`, which is what `save`
+ * already did not check — the SRD fields inside a `SpellCheck` have no
+ * validator anywhere, and inventing one here would be a rule this task did not
+ * measure.
+ *
+ * **The caller supplies the whole path**, rather than this appending `.name`,
+ * because `save` holds its condition flat: a problem reported against
+ * `effects[0].condition.name` on a definition whose field is
+ * `effects[0].condition` points at nothing an author can fix.
+ */
+function checkConditionRider(
+  rider: ConditionRider | undefined,
+  namePath: string,
+  found: SpellDefinitionProblem[],
+): void {
+  checkCondition(String(rider?.name), namePath, found);
+}
+
 /** One effect, wherever it was found: the spell's own list, an activation, a trigger. */
 function checkEffect(
   effect: SpellEffect,
@@ -199,7 +230,7 @@ function checkEffect(
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
       if (effect.condition !== undefined) {
-        checkCondition(effect.condition.name, `${path}.condition.name`, found);
+        checkConditionRider(effect.condition, `${path}.condition.name`, found);
       }
       if (effect.delayed !== undefined) {
         checkScaling(effect.delayed.damage, level, `${path}.delayed.damage`, found);
@@ -215,7 +246,7 @@ function checkEffect(
         checkDamageType(extra.damageType, `${path}.plus[${i}].damageType`, found);
       });
       if (effect.condition !== undefined) {
-        checkCondition(effect.condition.name, `${path}.condition.name`, found);
+        checkConditionRider(effect.condition, `${path}.condition.name`, found);
       }
       if (effect.delayed !== undefined) {
         checkScaling(effect.delayed.damage, level, `${path}.delayed.damage`, found);
@@ -228,8 +259,16 @@ function checkEffect(
       checkDamageType(effect.damageType, `${path}.damageType`, found);
       return;
 
+    // `save` spells its rider flat and `condition` nests it; both go through
+    // one reader, so the two layouts cannot be validated by two rules — and
+    // each names the field its own author wrote, which is the whole reason the
+    // path is the caller's to supply.
     case 'save':
-      checkCondition(effect.condition, `${path}.condition`, found);
+      checkConditionRider(conditionRiderOf(effect), `${path}.condition`, found);
+      return;
+
+    case 'condition':
+      checkConditionRider(effect.condition, `${path}.condition.name`, found);
       return;
 
     case 'heal':
@@ -846,6 +885,7 @@ const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'heal',
   'attack-damage',
   'save',
+  'condition',
   'dispel',
   'interrupt-casting',
   'armor-class',
