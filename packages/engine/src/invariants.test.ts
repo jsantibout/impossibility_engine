@@ -64,6 +64,7 @@ import {
   resolveCast,
   resolveMove,
   resolveDamage,
+  pendingCastingsOf,
   resolveDeclaredCast,
   resolveSpell,
   resolveTurn,
@@ -378,6 +379,15 @@ const declaring = (): readonly GameEvent[] => [
     'declare',
   ).events,
 ];
+
+/**
+ * The one casting `declaring()` leaves open.
+ *
+ * Settlement addresses a casting **id**, and this sweep runs the command twice
+ * under one command id — so the id has to be the same both times, which it
+ * could not be if it were read off a state the first run has already settled.
+ */
+const DECLARED_CASTING = pendingCastingsOf(fold('s', declaring()))[0]!.castingId;
 
 /**
  * An illusion standing there for somebody to look at.
@@ -943,7 +953,7 @@ const GUARDED: readonly Guarded[] = [
   {
     name: 'resolveDeclaredCast',
     log: declaring(),
-    run: (s, commandId) => resolveDeclaredCast(s, supply(), { commandId }),
+    run: (s, commandId) => resolveDeclaredCast(s, DECLARED_CASTING, supply(), { commandId }),
   },
   {
     name: 'resolveEffectCheck',

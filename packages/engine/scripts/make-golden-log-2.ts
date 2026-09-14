@@ -829,7 +829,10 @@ const held = run(
     supply(),
   ),
 );
-run('and it lands', resolveDeclaredCast(state(), supply(-40), { commandId: 'vex-settle-2' }));
+run(
+  'and it lands',
+  resolveDeclaredCast(state(), held.castingId, supply(-40), { commandId: 'vex-settle-2' }),
+);
 
 // — Dispel Magic, which reads the level of what it is dispelling ——————————————
 again(MIRA, 'to-mira-4');

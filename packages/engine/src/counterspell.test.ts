@@ -16,7 +16,7 @@ import { createRollIssuer } from './rolls.js';
 import { declaredCasting } from './spellcasting.js';
 import {
   castSpell,
-  pendingCastingOf,
+  pendingCastingsOf,
   removeCreatureEverywhere,
   resolveDeclaredCast,
   resolveSpell,
@@ -169,9 +169,9 @@ describe('a casting that has been declared and has not yet resolved', () => {
     const after = fold('s', [...TABLE, ...declared.events]);
 
     // The window is real, durable state, and it names the casting.
-    expect(after.pendingCasting?.castingId).toBe(declared.castingId);
-    expect(after.pendingCasting?.caster).toBe(ENEMY);
-    expect(after.pendingCasting?.spell).toBe('Hold Person');
+    expect(pendingCastingsOf(after)[0]?.castingId).toBe(declared.castingId);
+    expect(pendingCastingsOf(after)[0]?.caster).toBe(ENEMY);
+    expect(pendingCastingsOf(after)[0]?.spell).toBe('Hold Person');
 
     // SRD: "the action ... used to cast it is wasted" — so it is spent now.
     expect(after.combat?.budgets[ENEMY]?.action).toBe(false);
@@ -190,7 +190,7 @@ describe('a casting that has been declared and has not yet resolved', () => {
     const log = [...TABLE, ...declared.events];
     expect(fold('s', log)).toEqual(fold('s', log));
     // A different seed folds the same log identically: nothing here is rolled.
-    expect(fold('other', log).pendingCasting).toEqual(fold('s', log).pendingCasting);
+    expect(pendingCastingsOf(fold('other', log))[0]).toEqual(pendingCastingsOf(fold('s', log))[0]);
   });
 
   it('settles into the spell actually landing, spending the slot then', () => {
@@ -198,10 +198,10 @@ describe('a casting that has been declared and has not yet resolved', () => {
     const opened = fold('s', [...TABLE, ...declared.events]);
 
     // A large negative bonus on the ogre's save settles the branch outright.
-    const settled = unwrap(resolveDeclaredCast(opened, supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(opened, declared.castingId, supply(-40)), 'settle');
     const after = fold('s', [...TABLE, ...declared.events, ...settled.events]);
 
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     expect(settled.castingId).toBe(declared.castingId);
     expect(remaining(after.creatures[ENEMY]!.resources, spellSlotKey(2))).toBe(3);
     expect(after.creatures[OGRE]!.conditions.conditions).toContain('paralyzed');
@@ -241,7 +241,7 @@ describe('Counterspell', () => {
     const countered = unwrap(counter(log, -40), 'counterspell');
     const after = fold('s', [...log, ...countered.events]);
 
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     // SRD: "the slot isn't expended."
     expect(remaining(after.creatures[ENEMY]!.resources, spellSlotKey(2))).toBe(4);
     // SRD: "the spell dissipates with no effect."
@@ -261,11 +261,11 @@ describe('Counterspell', () => {
     const after = fold('s', [...log, ...countered.events]);
 
     // The window is still open: Counterspell failed, the casting stands.
-    expect(after.pendingCasting?.castingId).toBe(open.castingId);
+    expect(pendingCastingsOf(after)[0]?.castingId).toBe(open.castingId);
     // The counterspeller still paid.
     expect(slot3(after, WIZARD)).toBe(3);
 
-    const settled = unwrap(resolveDeclaredCast(after, supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(after, open.castingId, supply(-40)), 'settle');
     const done = fold('s', [...log, ...countered.events, ...settled.events]);
     expect(done.creatures[OGRE]!.conditions.conditions).toContain('paralyzed');
     expect(remaining(done.creatures[ENEMY]!.resources, spellSlotKey(2))).toBe(3);
@@ -310,7 +310,7 @@ describe('what the window costs, and what it does not', () => {
     );
     const after = fold('s', [...TABLE, ...cast.events]);
 
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     expect(cast.events.filter((e) => e.type === 'spell-declared')).toHaveLength(0);
     expect(cast.events.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
     expect(remaining(after.creatures[ENEMY]!.resources, spellSlotKey(2))).toBe(3);
@@ -322,7 +322,7 @@ describe('what the window costs, and what it does not', () => {
   it('spends the slot exactly once across declaration and settlement', () => {
     const open = unwrap(declareHoldPerson(TABLE), 'declare');
     const log = [...TABLE, ...open.events];
-    const settled = unwrap(resolveDeclaredCast(fold('s', log), supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle');
 
     const casts = [...open.events, ...settled.events].filter((e) => e.type === 'spell-cast');
     expect(casts).toHaveLength(1);
@@ -401,7 +401,7 @@ describe('what the window costs, and what it does not', () => {
     const log = [...TABLE, ...open.events];
     expect(fold('s', log).creatures[ENEMY]!.concentration).toBeNull();
 
-    const settled = unwrap(resolveDeclaredCast(fold('s', log), supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle');
     const after = fold('s', [...log, ...settled.events]);
     expect(after.creatures[ENEMY]!.concentration?.castingId).toBe(open.castingId);
   });
@@ -449,8 +449,8 @@ describe('what the window costs, and what it does not', () => {
     );
     const log = [...TABLE, ...open.events];
     const declared = fold('s', log);
-    expect(declared.pendingCasting?.slot).toBeNull();
-    expect(declared.pendingCasting?.slotless).toBe('cantrip');
+    expect(pendingCastingsOf(declared)[0]?.slot).toBeNull();
+    expect(pendingCastingsOf(declared)[0]?.slotless).toBe('cantrip');
 
     const countered = unwrap(
       resolveSpell(
@@ -462,7 +462,7 @@ describe('what the window costs, and what it does not', () => {
       'counterspell',
     );
     const after = fold('s', [...log, ...countered.events]);
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     // No damage: the Fire Bolt dissipated with no effect.
     expect(after.creatures[WIZARD]!.vitals.hp).toBe(60);
     expect(after.combat?.budgets[ENEMY]?.action).toBe(false);
@@ -485,7 +485,7 @@ describe('what the window costs, and what it does not', () => {
       'declare',
     );
     const log = [...TABLE, ...open.events];
-    expect(fold('s', log).pendingCasting?.slot).toEqual({ key: spellSlotKey(3), level: 3 });
+    expect(pendingCastingsOf(fold('s', log))[0]?.slot).toEqual({ key: spellSlotKey(3), level: 3 });
 
     const countered = unwrap(
       resolveSpell(
@@ -529,13 +529,13 @@ describe('retrying any of the three commands changes nothing', () => {
     const log = [...TABLE, ...open.events];
 
     const settled = unwrap(
-      resolveDeclaredCast(fold('s', log), supply(-40), { commandId: 'settle-1' }),
+      resolveDeclaredCast(fold('s', log), open.castingId, supply(-40), { commandId: 'settle-1' }),
       'settle',
     );
     const done = [...log, ...settled.events];
     const after = fold('s', done);
 
-    const retry = unwrap(resolveDeclaredCast(after, supply(-40), { commandId: 'settle-1' }), 'retry');
+    const retry = unwrap(resolveDeclaredCast(after, open.castingId, supply(-40), { commandId: 'settle-1' }), 'retry');
     expect(retry.events).toEqual([]);
     expect(retry.castingId).toBe(open.castingId);
     expect(fold('s', [...done, ...retry.events])).toEqual(after);
@@ -564,7 +564,7 @@ describe('retrying any of the three commands changes nothing', () => {
     const first = unwrap(counter(log), 'counterspell');
     const done = [...log, ...first.events];
     const after = fold('s', done);
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
 
     const retry = unwrap(counter(done), 'retry');
     expect(retry.events).toEqual([]);
@@ -592,7 +592,7 @@ describe('the window is a window, not a standing permission', () => {
   it('cannot counter a casting that has already settled', () => {
     const open = unwrap(declareHoldPerson(TABLE), 'declare');
     const log = [...TABLE, ...open.events];
-    const settled = unwrap(resolveDeclaredCast(fold('s', log), supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle');
     const after = [...log, ...settled.events];
 
     const late = resolveSpell(
@@ -629,16 +629,38 @@ describe('the window is a window, not a standing permission', () => {
     expect(isErr(second) && second.code).toBe('no_trigger');
   });
 
-  it('refuses a second casting while one is still open', () => {
+  /**
+   * **Inverted.** This asserted `casting_pending` — a casting being open
+   * refused everybody's casting, engine-wide, and that corresponded to no SRD
+   * rule at all. It refuses nobody now, and what stops the wizard here is the
+   * **action economy**: it is the enemy's turn, and a Magic action is taken on
+   * your own. Asserted by its own code, because the point of the inversion is
+   * that the refusal comes from a rule rather than from a record.
+   */
+  it('refuses a second creature’s casting from the economy, not from the record', () => {
     const open = unwrap(declareHoldPerson(TABLE), 'declare');
     const log = [...TABLE, ...open.events];
+    const at = fold('s', log).scene!.positions[OGRE]!;
     const again = resolveSpell(
       fold('s', log),
       WIZARD,
-      { spellId: 'fireball', targets: [], at: { x: 0, y: 0, z: 0 }, slotLevel: 3 },
+      { spellId: 'fireball', targets: [], at, slotLevel: 3 },
       supply(-40),
     );
-    expect(isErr(again) && again.code).toBe('casting_pending');
+    expect(isErr(again) && again.code).toBe('not_their_turn');
+  });
+
+  /** And the Reaction the SRD *does* give them on somebody else's turn lands. */
+  it('lets that creature take the Reaction the same moment offers', () => {
+    const open = unwrap(declareHoldPerson(TABLE), 'declare');
+    const log = [...TABLE, ...open.events];
+    const answered = resolveSpell(
+      fold('s', log),
+      WIZARD,
+      { spellId: 'counterspell', targets: [ENEMY], slotLevel: 3 },
+      supply(40),
+    );
+    expect(isErr(answered) ? answered.code : 'ok').toBe('ok');
   });
 
   /**
@@ -651,9 +673,19 @@ describe('the window is a window, not a standing permission', () => {
    * and an exception is reserved for programmer error.
    *
    * The reachable shape of the nesting is a Counterspell that asks to be
-   * **held open** while a casting is already open, because that is the only
-   * way a second window could exist. Answering the open casting outright is
-   * still allowed, and that is the whole point of the exemption.
+   * **held open**, because that is the only way a second window could exist.
+   * Answering the open casting outright is still allowed, and that is the
+   * whole point of the exemption.
+   *
+   * **The code changed, and the rule it carries is narrower.** It was
+   * `casting_pending`, whose reason said "one casting is open at a time" —
+   * which stopped being true when the record became keyed by casting id. The
+   * rule that is left is about the **answering relationship**: an answer is
+   * not a window. It is an engine limit standing in for a settle-order rule
+   * the engine does not have, and **not** an SRD rule — SRD Counterspell
+   * triggers on a creature "casting a spell with Verbal, Somatic, or Material
+   * components", and a creature casting Counterspell is doing exactly that.
+   * The reason has to say so.
    */
   it('refuses to hold a Counterspell open while a casting is already open', () => {
     const open = unwrap(declareHoldPerson(TABLE), 'declare');
@@ -665,13 +697,17 @@ describe('the window is a window, not a standing permission', () => {
       { spellId: 'counterspell', targets: [ENEMY], slotLevel: 3, hold: true },
       supply(-40),
     );
-    expect(isErr(nested) && nested.code).toBe('casting_pending');
-    if (isErr(nested)) expect(nested.reason).toContain('Counterspell');
+    expect(isErr(nested) && nested.code).toBe('answer_cannot_be_held');
+    if (isErr(nested)) {
+      expect(nested.reason).toContain('Counterspell');
+      // The reason says whose limit it is, so nobody reads it as the book's.
+      expect(nested.reason).toContain('rather than of the SRD');
+    }
 
     // Nothing spent, and the window it was aimed at is exactly as it was.
     const after = fold('s', log);
     expect(slot3(after, WIZARD)).toBe(4);
-    expect(after.pendingCasting?.castingId).toBe(open.castingId);
+    expect(pendingCastingsOf(after)[0]?.castingId).toBe(open.castingId);
     expect(after.combat?.budgets[WIZARD]?.reaction).toBe(true);
   });
 
@@ -684,6 +720,11 @@ describe('the window is a window, not a standing permission', () => {
    * A second Counterspell aimed at that window is the thing CLAUDE.md has
    * always said is refused rather than nested, and the refusal has to be a
    * value there too.
+   *
+   * **Its own code now**, because it is its own rule: an answer may not answer
+   * an answer. Like the clause above it that is an engine limit standing in
+   * for the settle-order rule the engine does not have, and **not** an SRD
+   * rule.
    */
   it('refuses a Counterspell aimed at a casting that is itself a Counterspell', () => {
     // The enemy can answer too, so the refusal below is the nesting guard and
@@ -715,7 +756,7 @@ describe('the window is a window, not a standing permission', () => {
       ),
     ];
     const open = fold('s', opened);
-    expect(open.pendingCasting?.spellId).toBe('counterspell');
+    expect(pendingCastingsOf(open)[0]?.spellId).toBe('counterspell');
 
     const nested = resolveSpell(
       open,
@@ -723,10 +764,31 @@ describe('the window is a window, not a standing permission', () => {
       { spellId: 'counterspell', targets: [WIZARD], slotLevel: 3 },
       supply(-40),
     );
-    expect(isErr(nested) && nested.code).toBe('casting_pending');
+    expect(isErr(nested) && nested.code).toBe('answer_to_an_answer');
+    if (isErr(nested)) expect(nested.reason).toContain('rather than of the SRD');
     // Nothing spent, and the window it was aimed at is exactly as it was.
     expect(slot3(open, ENEMY)).toBe(4);
-    expect(open.pendingCasting).not.toBeNull();
+    expect(pendingCastingsOf(open)).toHaveLength(1);
+  });
+
+  /**
+   * **A field quietly ignored is a caller who thinks they said something.**
+   * `answers` names the casting a Reaction interrupts, so a spell that prints
+   * no such trigger is refused rather than having the field dropped — the
+   * shape `damageType`, `fought` and `teleportTo` already take.
+   */
+  it('refuses a casting id on a spell that answers no casting', () => {
+    const open = unwrap(declareHoldPerson(TABLE), 'declare');
+    const log = [...TABLE, ...open.events];
+    const at = fold('s', log).scene!.positions[OGRE]!;
+
+    const confused = resolveSpell(
+      fold('s', log),
+      WIZARD,
+      { spellId: 'fireball', targets: [], at, slotLevel: 3, answers: open.castingId },
+      supply(-40),
+    );
+    expect(isErr(confused) && confused.code).toBe('no_answer_clause');
   });
 
   /** And the ordinary answer is untouched: a Counterspell may still answer. */
@@ -744,7 +806,7 @@ describe('the window is a window, not a standing permission', () => {
   });
 
   it('refuses to settle when nothing is being cast', () => {
-    const nothing = resolveDeclaredCast(fold('s', TABLE), supply(-40));
+    const nothing = resolveDeclaredCast(fold('s', TABLE), 'cast:1', supply(-40));
     expect(isErr(nothing) && nothing.code).toBe('no_casting_pending');
   });
 
@@ -761,7 +823,7 @@ describe('the window is a window, not a standing permission', () => {
     const gone = unwrap(removeCreatureEverywhere(fold('s', log), ENEMY), 'remove');
     const after = fold('s', [...log, ...gone]);
 
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     expect(isErr(resolveTurn(after, supply()))).toBe(false);
   });
 });
@@ -808,7 +870,7 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
     expect(isErr(refused) && refused.code).toBe('out_of_range');
     // The window is untouched, and so is the would-be counterspeller's purse.
     const after = fold('s', [...FAR, ...open.events]);
-    expect(after.pendingCasting).not.toBeNull();
+    expect(pendingCastingsOf(after)).toHaveLength(1);
     expect(slot3(after, WIZARD)).toBe(4);
   });
 
@@ -831,7 +893,7 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
     // Nothing spent while the question stands.
     const after = fold('s', [...BLIND, ...open.events]);
     expect(slot3(after, WIZARD)).toBe(4);
-    expect(after.pendingCasting).not.toBeNull();
+    expect(pendingCastingsOf(after)).toHaveLength(1);
   });
 
   /** A sight line declared **false** is the refusal, not the request. */
@@ -904,7 +966,7 @@ describe('the log is the whole truth', () => {
       'counterspell',
     );
     const settled = unwrap(
-      resolveDeclaredCast(fold('s', [...TABLE, ...open.events, ...countered.events]), supply(-40)),
+      resolveDeclaredCast(fold('s', [...TABLE, ...open.events, ...countered.events]), open.castingId, supply(-40)),
       'settle',
     );
     const log = [...TABLE, ...open.events, ...countered.events, ...settled.events];
@@ -927,7 +989,7 @@ describe('the log is the whole truth', () => {
     const log = [...TABLE, ...open.events];
 
     const reloaded = fold('s', log);
-    const pending = pendingCastingOf(reloaded);
+    const pending = pendingCastingsOf(reloaded)[0] ?? null;
     expect(pending).not.toBeNull();
     // Everything settlement needs, written down rather than remembered.
     expect(pending).toMatchObject({
@@ -941,8 +1003,8 @@ describe('the log is the whole truth', () => {
     });
 
     // And a fresh fold of the same log settles to the same place.
-    const a = unwrap(resolveDeclaredCast(reloaded, supply(-40)), 'settle a');
-    const b = unwrap(resolveDeclaredCast(fold('s', log), supply(-40)), 'settle b');
+    const a = unwrap(resolveDeclaredCast(reloaded, open.castingId, supply(-40)), 'settle a');
+    const b = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle b');
     expect(a).toEqual(b);
   });
 
@@ -971,7 +1033,7 @@ describe('the log is the whole truth', () => {
       'declare',
     );
     const log = [...warlock, ...open.events];
-    expect(fold('s', log).pendingCasting?.slot).toEqual({ key: 'pact-slot:3', level: 3 });
+    expect(pendingCastingsOf(fold('s', log))[0]?.slot).toEqual({ key: 'pact-slot:3', level: 3 });
     expect(remaining(fold('s', log).creatures[ENEMY]!.resources, 'pact-slot:3')).toBe(2);
 
     const countered = unwrap(
@@ -1004,7 +1066,7 @@ describe('the log is the whole truth', () => {
     );
     expect(isErr(resolveTurn(fold('s', [...log, ...countered.events]), supply()))).toBe(false);
 
-    const settled = unwrap(resolveDeclaredCast(fold('s', log), supply(-40)), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('s', log), open.castingId, supply(-40)), 'settle');
     expect(isErr(resolveTurn(fold('s', [...log, ...settled.events]), supply()))).toBe(false);
   });
 });

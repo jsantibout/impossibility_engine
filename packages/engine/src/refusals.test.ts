@@ -42,6 +42,7 @@ import {
   takeReady,
   takeTestReaction,
   declineTestReaction,
+  pendingCastingsOf,
 } from './commands.js';
 import { beginRest, endRest } from './rest.js';
 
@@ -928,7 +929,7 @@ describe('a Counterspell answers an open casting, and the window is read before 
    */
   it('refuses a Counterspell when nobody is midway through a casting', () => {
     const state = world();
-    expect(state.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(state)).toEqual([]);
     const out = resolveSpell(
       state,
       A,
@@ -1251,7 +1252,7 @@ describe('a casting of a minute or more, and the Ritual that is one', () => {
       'declare',
     );
     const open = peace(declared.events);
-    expect(refusal(resolveDeclaredCast(open, supply()))).toBe('still_casting');
+    expect(refusal(resolveDeclaredCast(open, declared.castingId, supply()))).toBe('still_casting');
   });
 
   /** A spell the book does not tag as a Ritual has no Ritual version. */

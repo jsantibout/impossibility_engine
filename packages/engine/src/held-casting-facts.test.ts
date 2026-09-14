@@ -10,6 +10,7 @@ import type { Point } from './positioning.js';
 import { dealSpellDamage } from './commands/damage.js';
 import {
   ongoingSpellOf,
+  pendingCastingsOf,
   resolveDeclaredCast,
   resolveMove,
   resolveSpell,
@@ -201,8 +202,14 @@ class Game {
     return { castingId: out.castingId, events: out.events };
   }
 
+  /** These fixtures hold exactly one casting open, and settle it by its id. */
   settleCast(): readonly GameEvent[] {
-    const out = unwrap(resolveDeclaredCast(this.state, supply('settle-cast')), 'settling the cast');
+    const open = pendingCastingsOf(this.state);
+    expect(open).toHaveLength(1);
+    const out = unwrap(
+      resolveDeclaredCast(this.state, open[0]!.castingId, supply('settle-cast')),
+      'settling the cast',
+    );
     this.push(out.events);
     return out.events;
   }

@@ -56,8 +56,12 @@ export function settleHoldsInvolving(state: GameState, id: CharacterId): readonl
   // could settle it — `resolveDeclaredCast` is addressed to them — and the
   // slot was never spent, so the spell simply never happened. That is the
   // honest record, and it is the same one an interruption writes.
-  const casting = state.pendingCasting;
-  if (casting !== null && casting.caster === id) {
+  //
+  // **Every one of them, and that is genuinely plural now.** This read the
+  // single slot and stopped at the first; a caster may hold a rite and a
+  // Shield open at once, and a debt left standing is a fight the turn refuses
+  // to advance past for ever.
+  for (const casting of pendingCastingsBy(state, id)) {
     events.push({
       type: 'spell-interrupted',
       castingId: casting.castingId,
@@ -211,13 +215,33 @@ export function pendingSavesOf(state: GameState): readonly PendingSave[] {
 }
 
 /**
- * The casting waiting to resolve, if one is.
+ * Every casting waiting to resolve, in casting-number order.
  *
  * A query, so a caller — or a Reaction deciding whether it has a trigger — can
  * look without changing anything.
+ *
+ * **A list rather than an optional**, because several castings may be open at
+ * once and several of them may belong to one caster. The order is the record's
+ * own, which `withPendingCasting` keeps in casting-number order.
  */
-export function pendingCastingOf(state: GameState): PendingCasting | null {
-  return state.pendingCasting;
+export function pendingCastingsOf(state: GameState): readonly PendingCasting[] {
+  return Object.values(state.pendingCastings);
+}
+
+/**
+ * The castings this creature has open, in casting-number order.
+ *
+ * Plural, and that is the rule rather than a convenience: SRD's per-turn
+ * Magic-action obligation is on the caster's *own* turns and a Reaction is
+ * taken on somebody else's, so a wizard mid-rite may legally have a Shield
+ * open beside it. A caller that has to choose between them names an id; the
+ * engine never picks.
+ */
+export function pendingCastingsBy(
+  state: GameState,
+  caster: CharacterId,
+): readonly PendingCasting[] {
+  return pendingCastingsOf(state).filter((casting) => casting.caster === caster);
 }
 
 /**

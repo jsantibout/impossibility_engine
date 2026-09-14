@@ -19,6 +19,7 @@ import {
   resolveDeclaredCast,
   resolveSpell,
   settleAreaEffects,
+  pendingCastingsOf,
 } from './commands.js';
 
 const supply = (seed = 'teleport') => ({
@@ -525,7 +526,7 @@ describe('Misty Step is executed rather than tracked', () => {
     );
     expect(isErr(out) ? out.code : 'ok').toBe(code);
     // Nothing was declared, so nothing is pending and the turn is not wedged.
-    expect(fold('seed', seeing).pendingCasting).toBeNull();
+    expect(pendingCastingsOf(fold('seed', seeing))).toEqual([]);
   });
 });
 
@@ -592,10 +593,10 @@ describe('a destination is stated or refused, never defaulted', () => {
       'declaring Dimension Door',
     );
     const declared = [...CASTER, ...held.events];
-    expect(fold('seed', declared).pendingCasting).not.toBeNull();
+    expect(pendingCastingsOf(fold('seed', declared))).toHaveLength(1);
 
     const settled = unwrap(
-      resolveDeclaredCast(fold('seed', declared), supply()),
+      resolveDeclaredCast(fold('seed', declared), held.castingId, supply()),
       'settling Dimension Door',
     );
     expect(settled.events.some((e) => e.type === 'creature-moved')).toBe(true);

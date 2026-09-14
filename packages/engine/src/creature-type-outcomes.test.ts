@@ -15,7 +15,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent } from './events.js';
 import { adaptMonster } from './monster.js';
 import { remaining } from './resources.js';
-import { resolveAttack, resolveAttackDamage, resolveSpell } from './commands.js';
+import { pendingCastingsOf, resolveAttack, resolveAttackDamage, resolveSpell } from './commands.js';
 // Past the barrel on purpose, for one fixture: see "the backstop, driven
 // rather than trusted" below. `resolveEffects` is a half rather than a
 // command, and reaching it through a command is what makes its own guard
@@ -333,7 +333,7 @@ describe('an undeclared creature type is a request, not a pass', () => {
     );
     expect(isNeedsContext(out)).toBe(true);
     expect(contextRequestsOf(out).map((r) => r.kind)).toEqual(['creature-type']);
-    expect(fold('seed', log).pendingCasting).toBeNull();
+    expect(pendingCastingsOf(fold('seed', log))).toEqual([]);
   });
 
   /**

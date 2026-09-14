@@ -20,6 +20,7 @@ import {
   removeCreatureEverywhere,
   resolveTurn,
   beginCombat,
+  pendingCastingsOf,
 } from './commands.js';
 
 /**
@@ -158,8 +159,8 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     const declared = unwrap(declareLong(), 'declare');
     const after = world(declared);
 
-    expect(after.pendingCasting?.spell).toBe('Comprehend Languages');
-    expect(after.pendingCasting?.completesAt).toEqual({ kind: 'elapsed', at: 60 });
+    expect(pendingCastingsOf(after)[0]?.spell).toBe('Comprehend Languages');
+    expect(pendingCastingsOf(after)[0]?.completesAt).toEqual({ kind: 'elapsed', at: 60 });
     expect(slots(after, 1)).toBe(4);
   });
 
@@ -172,7 +173,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
   it('concentrates on the casting from the moment it begins', () => {
     const after = world(unwrap(declareLong(), 'declare'));
     expect(after.creatures.wizard!.concentration?.castingId).toBe(
-      after.pendingCasting?.castingId,
+      pendingCastingsOf(after)[0]?.castingId,
     );
     // And nothing is running under that id yet, which is the whole point.
     expect(after.ongoing).toEqual({});
@@ -197,7 +198,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     const declared = unwrap(declareLong(), 'declare');
     const open = world(declared);
 
-    const early = resolveDeclaredCast(open, supply());
+    const early = resolveDeclaredCast(open, pendingCastingsOf(open)[0]!.castingId, supply());
     expect(isErr(early) && early.code).toBe('still_casting');
 
     const ticked = fold('seed', [
@@ -205,7 +206,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
       ...declared,
       ...unwrap(advanceTime(open, 60, 'the incantation'), 'tick'),
     ]);
-    const settled = unwrap(resolveDeclaredCast(ticked, supply()), 'settle');
+    const settled = unwrap(resolveDeclaredCast(ticked, pendingCastingsOf(open)[0]!.castingId, supply()), 'settle');
     const done = fold('seed', [
       ...SETUP,
       ...declared,
@@ -213,7 +214,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
       ...settled.events,
     ]);
 
-    expect(done.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(done)).toEqual([]);
     // The slot goes here and nowhere else.
     expect(slots(done, 1)).toBe(3);
   });
@@ -238,7 +239,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     );
     const after = fold('seed', [...SETUP, ...declared, ...hurt.events]);
 
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     expect(after.creatures.wizard!.concentration).toBeNull();
     expect(slots(after, 1)).toBe(4);
   });
@@ -248,7 +249,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     const declared = unwrap(declareLong(), 'declare');
     const open = world(declared);
     const stopped = unwrap(endConcentration(open, WIZARD, 'voluntary'), 'stop');
-    expect(fold('seed', [...SETUP, ...declared, ...stopped]).pendingCasting).toBeNull();
+    expect(pendingCastingsOf(fold('seed', [...SETUP, ...declared, ...stopped]))).toEqual([]);
   });
 
   /**
@@ -262,7 +263,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     const open = world(declared);
     const tick = unwrap(advanceTime(open, 60, 'the incantation'), 'tick');
     const log = [...SETUP, ...declared, ...tick];
-    const settled = unwrap(resolveDeclaredCast(fold('seed', log), supply()), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('seed', log), pendingCastingsOf(open)[0]!.castingId, supply()), 'settle');
 
     expect(
       settled.events.filter(
@@ -284,7 +285,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     const open = world(declared);
     const tick = unwrap(advanceTime(open, 60, 'the incantation'), 'tick');
     const log = [...SETUP, ...declared, ...tick];
-    const settled = unwrap(resolveDeclaredCast(fold('seed', log), supply()), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('seed', log), pendingCastingsOf(open)[0]!.castingId, supply()), 'settle');
 
     const scheduled = settled.events.find((e) => e.type === 'effect-scheduled');
     expect(scheduled).toMatchObject({ deadline: { kind: 'elapsed', at: 60 + 3600 } });
@@ -314,12 +315,18 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     expect(isErr(out) && out.code).toBe('bad_duration');
   });
 
-  /** And nothing is spent by the refusal — no casting is left standing open. */
+  /**
+   * And nothing is spent by the refusal — no casting is left standing open.
+   *
+   * Read off the world **after** the refusal. It used to be read off `before`,
+   * which is the state the refusal was aimed at and holds no casting by
+   * construction, so the assertion could not fail whatever the command did.
+   */
   it('leaves no casting open when the duration is refused', () => {
     const before = world();
     expect(isErr(declareLong(SETUP, { duration: { kind: 'seconds', seconds: -1 } }))).toBe(true);
     expect(world()).toEqual(before);
-    expect(before.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(world())).toEqual([]);
   });
 
   /**
@@ -337,7 +344,7 @@ describe('a casting of a minute or more is declared, and completes on the clock'
     const open = world(declared);
     const tick = unwrap(advanceTime(open, 60, 'the incantation'), 'tick');
     const log = [...SETUP, ...declared, ...tick];
-    const settled = unwrap(resolveDeclaredCast(fold('seed', log), supply()), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('seed', log), pendingCastingsOf(open)[0]!.castingId, supply()), 'settle');
     const running = fold('seed', [...log, ...settled.events]);
 
     const castingId = settled.castingId;
@@ -404,7 +411,7 @@ describe('in combat the refusal stands, and says what is missing', () => {
     expect(isErr(refused) && refused.code).toBe('casting_pending');
 
     const stopped = unwrap(endConcentration(fold('seed', log), WIZARD, 'voluntary'), 'stop');
-    expect(fold('seed', [...log, ...stopped]).pendingCasting).toBeNull();
+    expect(pendingCastingsOf(fold('seed', [...log, ...stopped]))).toEqual([]);
   });
 });
 
@@ -420,7 +427,7 @@ describe('a spell cast as a Ritual', () => {
   /** SRD: "takes 10 minutes longer to cast than normal" — an Action, plus 600. */
   it('takes ten minutes longer than the printed casting time', () => {
     const declared = unwrap(ritual(), 'ritual');
-    expect(world(declared.events).pendingCasting?.completesAt).toEqual({
+    expect(pendingCastingsOf(world(declared.events))[0]?.completesAt).toEqual({
       kind: 'elapsed',
       at: 600,
     });
@@ -432,7 +439,7 @@ describe('a spell cast as a Ritual', () => {
     const open = world(declared.events);
     const tick = unwrap(advanceTime(open, 600, 'the rite'), 'tick');
     const log = [...SETUP, ...declared.events, ...tick];
-    const settled = unwrap(resolveDeclaredCast(fold('seed', log), supply()), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('seed', log), pendingCastingsOf(open)[0]!.castingId, supply()), 'settle');
 
     expect(settled.events.find((e) => e.type === 'spell-cast')).toMatchObject({
       slotless: 'ritual',
@@ -495,12 +502,12 @@ describe('a spell cast as a Ritual', () => {
       'detect magic ritual',
     );
     const open = world(declared.events);
-    const castingId = open.pendingCasting!.castingId;
+    const castingId = pendingCastingsOf(open)[0]!.castingId;
     expect(open.creatures.wizard!.concentration?.castingId).toBe(castingId);
 
     const tick = unwrap(advanceTime(open, 600, 'the rite'), 'tick');
     const log = [...SETUP, ...declared.events, ...tick];
-    const settled = unwrap(resolveDeclaredCast(fold('seed', log), supply()), 'settle');
+    const settled = unwrap(resolveDeclaredCast(fold('seed', log), pendingCastingsOf(open)[0]!.castingId, supply()), 'settle');
 
     // No second `concentration-started` — the reducer would call that a corrupt
     // log, and the SRD calls it one Concentration.
@@ -558,7 +565,7 @@ describe('a casting on the clock is a casting in progress', () => {
     );
     const log = [...SETUP, ...COUNTERER, ...declared.events];
     const open = fold('seed', log);
-    expect(open.pendingCasting?.spell).toBe('Comprehend Languages');
+    expect(pendingCastingsOf(open)[0]?.spell).toBe('Comprehend Languages');
 
     // The Reaction resolves — so the re-read inside it found the casting the
     // trigger check had already proved was open.
@@ -675,7 +682,7 @@ describe('a rite that ends takes its Concentration with it, by every door', () =
   it('leaves nobody concentrating when a Counterspell interrupts it', () => {
     const log = rite();
     const open = fold('seed', log);
-    expect(open.creatures.wizard!.concentration?.castingId).toBe(open.pendingCasting?.castingId);
+    expect(open.creatures.wizard!.concentration?.castingId).toBe(pendingCastingsOf(open)[0]?.castingId);
 
     // **The interruption is asserted, not assumed.** A Counterspell only
     // dissipates the casting on a failed save, so this forces the failure
@@ -693,7 +700,7 @@ describe('a rite that ends takes its Concentration with it, by every door', () =
     expect(answered.events.filter((e) => e.type === 'spell-interrupted')).toHaveLength(1);
 
     const after = fold('seed', [...log, ...answered.events]);
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     expect(after.creatures.wizard!.concentration).toBeNull();
     expect(after.ongoing).toEqual({});
     // SRD: "If that spell was cast with a spell slot, the slot isn't expended"
@@ -713,7 +720,7 @@ describe('a rite that ends takes its Concentration with it, by every door', () =
     const log = rite();
     const removed = unwrap(removeCreatureEverywhere(fold('seed', log), WIZARD), 'leave');
     const after = fold('seed', [...log, ...removed]);
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     expect(after.creatures.wizard).toBeUndefined();
   });
 });
@@ -757,32 +764,27 @@ describe('the Concentration save is the one the rite actually rests on', () => {
     const after = fold('seed', [...SETUP, ...declared, ...hurt.events]);
     // And the caster is still on their feet, so nothing but the save ended it.
     expect(after.creatures.wizard!.vitals.hp).toBeGreaterThan(0);
-    expect(after.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(after)).toEqual([]);
     expect(after.creatures.wizard!.concentration).toBeNull();
     expect(slots(after, 1)).toBe(4);
   });
 });
 
-describe('a casting in process is one engine-wide, which is the record and not the rule', () => {
+describe('a casting in process is one caster’s, and stops nobody else', () => {
   /**
-   * **This is a limit of the record, not a rule of the SRD**, and it is pinned
-   * here so that whoever removes the limit deletes a test rather than
-   * discovering a comment.
+   * **Inverted.** These two tests pinned a limit of the record wearing a
+   * rule's clothes: `castOrRelease` refused `casting_pending` while *any*
+   * casting was open and named no caster, so during a ten-minute rite every
+   * other creature's casting and activation was refused too. SRD lets the
+   * cleric cast Cure Wounds while the wizard performs a Ritual, and nothing in
+   * the book refuses a casting because somebody else is casting.
    *
-   * `castOrRelease` refuses `casting_pending` while any casting is open, and
-   * it names no caster. That guard was written for the Counterspell window,
-   * which is open for an instant under one caller's control — and its whole
-   * content is refusing the second `spell-declared` the reducer would throw
-   * on, because `unsettledRefusal` has **never** carried `pendingCasting`: a
-   * fighter attacks, a rogue moves and anybody Dodges while one stands. A
-   * casting of a minute or more makes that instant ten minutes of game time,
-   * and the guard now reaches every other creature's casting and activation
-   * for the whole rite.
-   *
-   * SRD lets the cleric cast Cure Wounds while the wizard performs a Ritual.
-   * A queued task replaces the single slot with one keyed by casting id, the
-   * reducer enforcing one open casting per *caster*; until then this is what
-   * the engine does, asserted rather than described.
+   * The record is keyed by casting id now and the guard is gone, so what these
+   * assert is the other direction: the second caster's spell simply happens,
+   * nine minutes in as readily as at the start. What still stops a casting is
+   * the real primitive in every case — the action economy, the turn's one
+   * slot, and Concentration's single door — none of which has anything to say
+   * about a *different* creature outside combat.
    */
   const COUNTERER: readonly GameEvent[] = [
     {
@@ -798,7 +800,7 @@ describe('a casting in process is one engine-wide, which is the record and not t
     { type: 'sight-declared', from: ALLY, to: FOE, seen: true },
   ];
 
-  it('refuses a second creature’s casting for the whole rite, and costs them nothing', () => {
+  it('lets a second creature cast while the rite runs, and leaves the rite open', () => {
     const started = fold('seed', [...SETUP, ...COUNTERER]);
     const declared = unwrap(
       resolveSpell(
@@ -809,23 +811,27 @@ describe('a casting in process is one engine-wide, which is the record and not t
       ),
       'rite',
     );
-    const open = fold('seed', [...SETUP, ...COUNTERER, ...declared.events]);
+    const log = [...SETUP, ...COUNTERER, ...declared.events];
+    const open = fold('seed', log);
 
-    const cleric = resolveSpell(open, ALLY, { spellId: 'fire-bolt', targets: [FOE] }, supply('c'));
-    expect(isErr(cleric) && cleric.code).toBe('casting_pending');
+    const cleric = unwrap(
+      resolveSpell(open, ALLY, { spellId: 'fire-bolt', targets: [FOE] }, supply('c')),
+      'the ally casts while the wizard performs the rite',
+    );
 
-    // Nothing is spent by the refusal — no action, no die, no state change.
-    expect(open.rollsIssued).toBe(0);
-    expect(open.rng).toBeNull();
-    expect(fold('seed', [...SETUP, ...COUNTERER, ...declared.events])).toEqual(open);
+    // Two castings in the log, one still open: the ally's resolved in one
+    // breath and did not touch the wizard's window.
+    const after = fold('seed', [...log, ...cleric.events]);
+    expect(pendingCastingsOf(after).map((c) => c.castingId)).toEqual([declared.castingId]);
+    expect(after.creatures.wizard!.concentration?.castingId).toBe(declared.castingId);
   });
 
   /**
-   * And it does not relent as the rite runs on: nine minutes in, the answer is
-   * the same. A window measured in instants and a window measured in minutes
-   * are the same guard, which is the whole of the finding.
+   * And it does not start refusing as the rite runs on: nine minutes in, the
+   * answer is the same. A window measured in instants and a window measured in
+   * minutes are the same record, which is the whole of the finding.
    */
-  it('still refuses them nine minutes into the rite', () => {
+  it('still lets them cast nine minutes into the rite', () => {
     const started = fold('seed', [...SETUP, ...COUNTERER]);
     const declared = unwrap(
       resolveSpell(
@@ -845,7 +851,7 @@ describe('a casting in process is one engine-wide, which is the record and not t
     ]);
 
     const cleric = resolveSpell(later, ALLY, { spellId: 'fire-bolt', targets: [FOE] }, supply('c'));
-    expect(isErr(cleric) && cleric.code).toBe('casting_pending');
+    expect(isErr(cleric) ? cleric.code : 'ok').toBe('ok');
   });
 
   /**
@@ -867,7 +873,7 @@ describe('a casting in process is one engine-wide, which is the record and not t
       'rite',
     );
     const open = fold('seed', [...SETUP, ...COUNTERER, ...declared.events]);
-    expect(open.pendingCasting).not.toBeNull();
+    expect(pendingCastingsOf(open)).toHaveLength(1);
 
     // Movement is the cheapest thing to drive outside combat, and it is
     // authoritative: the creature really is somewhere else afterwards.

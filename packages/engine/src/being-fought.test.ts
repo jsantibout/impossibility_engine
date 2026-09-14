@@ -9,7 +9,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { definitionFor, statesFoughtFact, SPELL_DEFINITIONS } from './spell-definitions.js';
-import { resolveDeclaredCast, resolveSpell } from './commands.js';
+import { pendingCastingsOf, resolveDeclaredCast, resolveSpell } from './commands.js';
 
 /**
  * "It does so with Advantage if you or your allies are fighting it."
@@ -316,8 +316,8 @@ describe('a casting states whether the target is being fought', () => {
       'declared',
     );
     const open = world(declared.events);
-    expect(open.pendingCasting?.fought).toEqual([]);
-    expect(open.pendingCasting).toHaveProperty('fought');
+    expect(pendingCastingsOf(open)[0]?.fought).toEqual([]);
+    expect(pendingCastingsOf(open)[0]).toHaveProperty('fought');
   });
 
   /** And a creature nobody has heard of is the ordinary stranger refusal. */
@@ -352,9 +352,9 @@ describe('a held casting settles with the fact its caster stated', () => {
       'declared',
     );
     const open = world(declared.events);
-    expect(open.pendingCasting?.fought).toEqual([TURNCOAT]);
+    expect(pendingCastingsOf(open)[0]?.fought).toEqual([TURNCOAT]);
 
-    const settled = unwrap(resolveDeclaredCast(open, supply('settle')), 'settled');
+    const settled = unwrap(resolveDeclaredCast(open, declared.castingId, supply('settle')), 'settled');
     expect(settled.outcomes[0]!.save!.mode).toBe('advantage');
     expect(
       settled.outcomes[0]!.save!.modeSources.some((m) => m.source.includes('Charm Person')),
@@ -373,9 +373,9 @@ describe('a held casting settles with the fact its caster stated', () => {
       'declared',
     );
     const open = world(declared.events);
-    expect(open.pendingCasting?.fought).toEqual([]);
+    expect(pendingCastingsOf(open)[0]?.fought).toEqual([]);
 
-    const settled = unwrap(resolveDeclaredCast(open, supply('settle')), 'settled');
+    const settled = unwrap(resolveDeclaredCast(open, declared.castingId, supply('settle')), 'settled');
     expect(settled.outcomes[0]!.save!.mode).toBe('normal');
   });
 });

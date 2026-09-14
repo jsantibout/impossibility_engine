@@ -18,6 +18,7 @@ import {
   removeCreatureEverywhere,
   resolveDeclaredCast,
   resolveSpell,
+  pendingCastingsOf,
 } from './commands.js';
 
 /**
@@ -1197,11 +1198,11 @@ describe('a declared casting keeps the space it was declared with', () => {
       'declaring',
     );
     g.push(declared.events);
-    expect(g.state.pendingCasting?.origin).toEqual(AT_RANGE);
+    expect(pendingCastingsOf(g.state)[0]?.origin).toEqual(AT_RANGE);
     // No record yet: the slot is unspent and the spell has not happened.
     expect(ongoingSpellOf(g.state, declared.castingId)).toBeNull();
 
-    const settled = unwrap(resolveDeclaredCast(g.state, supply('settle')), 'settling');
+    const settled = unwrap(resolveDeclaredCast(g.state, declared.castingId, supply('settle')), 'settling');
     g.push(settled.events);
 
     expect(g.originOf(declared.castingId)).toEqual(AT_RANGE);
@@ -1220,11 +1221,11 @@ describe('a declared casting keeps the space it was declared with', () => {
       'declaring',
     );
     g.push(declared.events);
-    g.push(unwrap(resolveDeclaredCast(g.state, supply('settle'), { commandId: 's1' }), 'settling').events);
+    g.push(unwrap(resolveDeclaredCast(g.state, declared.castingId, supply('settle'), { commandId: 's1' }), 'settling').events);
     const after = g.state;
     const hurt = g.hp(FAR);
 
-    const retry = unwrap(resolveDeclaredCast(g.state, supply('settle'), { commandId: 's1' }), 'retrying');
+    const retry = unwrap(resolveDeclaredCast(g.state, declared.castingId, supply('settle'), { commandId: 's1' }), 'retrying');
     expect(retry.events).toEqual([]);
     expect(fold('seed', [...g.log, ...retry.events])).toEqual(after);
     expect(g.hp(FAR)).toBe(hurt);
@@ -1256,7 +1257,7 @@ describe('a declared casting keeps the space it was declared with', () => {
       },
     ]);
 
-    expect(g.state.pendingCasting).toBeNull();
+    expect(pendingCastingsOf(g.state)).toEqual([]);
     expect(g.state.ongoing).toEqual({});
     expect(g.hp(FAR)).toBe(80);
   });

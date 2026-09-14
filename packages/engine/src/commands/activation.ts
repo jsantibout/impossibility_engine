@@ -127,15 +127,12 @@ export function activateSpell(
     const unsettled = unsettledRefusal(state, casterId);
     if (unsettled !== null) return unsettled;
 
-    // SRD Counterspell's window: while a casting is in process, the only thing
-    // that may happen is the Reaction that answers it. Same rule `castOrRelease`
-    // applies, with no exemption here because no activation is a Reaction.
-    if (state.pendingCasting !== null) {
-      return err(
-        'casting_pending',
-        `${state.pendingCasting.caster} is midway through casting ${state.pendingCasting.spell}; settle that casting before acting through another`,
-      );
-    }
+    // **No refusal for "a casting is open", and there never was a rule behind
+    // one.** This refused every creature's activation for the whole of another
+    // creature's ten-minute rite — a limit of the single pending slot wearing
+    // a rule's clothes. SRD lets the cleric act while the wizard performs a
+    // Ritual, and what stops an activation is what stops any Magic action: the
+    // action economy, and the debts `unsettledRefusal` above already carries.
 
     const record = state.ongoing[command.castingId];
     if (record === undefined) {

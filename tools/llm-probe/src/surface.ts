@@ -279,7 +279,10 @@ export function observe(state: GameState): Record<string, unknown> {
     pending_attack: state.pendingAttack === null ? null : state.pendingAttack.attacker,
     pending_damage: state.pendingDamage === null ? null : state.pendingDamage.target,
     pending_test: state.pendingTest === null ? null : state.pendingTest.who,
-    pending_casting: state.pendingCasting === null ? null : state.pendingCasting.castingId,
+    // Several castings may be open at once — and several may belong to one
+    // caster — so this is a list of ids rather than one, and a caller settling
+    // or answering one names the id it means.
+    pending_castings: Object.keys(state.pendingCastings),
     // A held move names the mover *and* everyone who must answer before the
     // fight can continue. Reporting only the mover is what left the first live
     // run guessing: it could see something was pending and not who owed what.

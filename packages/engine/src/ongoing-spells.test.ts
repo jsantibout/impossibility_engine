@@ -1217,7 +1217,15 @@ describe('acting through a spell respects the debts a casting respects', () => {
     expect(isErr(out) ? out.code : 'ok').toBe('test_pending');
   });
 
-  it('is refused while another casting stands open to be interrupted', () => {
+  /**
+   * **Inverted.** This asserted `casting_pending`: an activation was refused
+   * while *anybody's* casting stood open, which was the single pending slot
+   * wearing a rule's clothes rather than a rule. SRD lets the wizard strike
+   * with Vampiric Touch while the rival is halfway through a Bless, and the
+   * debts `unsettledRefusal` carries — an owed save, a held damage roll, a
+   * held test — are what genuinely stop an activation.
+   */
+  it('is permitted while another creature’s casting stands open', () => {
     const g = new Game();
     const drain = g.cast(WIZ, 'vampiric-touch', [FOE], 3);
     g.push(
@@ -1232,7 +1240,7 @@ describe('acting through a spell respects the debts a casting respects', () => {
       ).events,
     );
     const out = activateSpell(g.state, WIZ, { castingId: drain, targets: [FOE] }, supply());
-    expect(isErr(out) ? out.code : 'ok').toBe('casting_pending');
+    expect(isErr(out) ? out.code : 'ok').toBe('ok');
   });
 });
 

@@ -198,9 +198,12 @@ export interface SpellCheck {
  * creature that dealt it rather than only describing it in prose.
  *
  * `casting-a-spell` could be written once a casting stopped being atomic:
- * `pendingCasting` holds one open between its declaration and its effects, and
- * the slot the SRD spares is simply not spent until it settles. Feather Fall
- * is the one left — it answers a fall, and nothing falls.
+ * `pendingCastings` holds each one open between its declaration and its
+ * effects, by casting id, and the slot the SRD spares is simply not spent
+ * until it settles. Several may stand at once — and several may belong to one
+ * caster — so which one this Reaction answers is a casting id the request may
+ * name rather than "the" open casting. Feather Fall is the one trigger left —
+ * it answers a fall, and nothing falls.
  *
  * **These are not the spells' own vocabulary any more.** `ReactionWindow` in
  * `reactions.ts` names every moment a Reaction can answer, for spells and for

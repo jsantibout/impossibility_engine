@@ -1243,9 +1243,10 @@ serve a moment that is usually empty would be a worse API for no rules gain.
 **The reducer branches on the id, not on "is anything pending".** A
 Counterspell is itself cast *while* a casting is open, so its own `spell-cast`
 has to allocate the next id in sequence rather than trying to settle somebody
-else's casting. Matching `pendingCasting.castingId` against the event's is what
-keeps those two cases apart; asking "is a casting open" conflates them and
-corrupts the log.
+else's casting. Looking the event's own `castingId` up in `pendingCastings` is
+what keeps those two cases apart; asking "is a casting open" conflates them and
+corrupts the log. That sentence was already right when there was one slot, and
+it is the reason the keyed record needed nothing of that case but the lookup.
 
 **The casting id is allocated at declaration**, because the entire point is
 that other mechanics can name the casting while it is open — `cast:3` is what
@@ -1326,23 +1327,126 @@ only reachable value is "yes" is not a rule, so the gap is reported in
 `unverified` and `counterspell.test.ts` pins the count that makes it safe.
 
 **One thing this deliberately is not, and one that it turned out to be.** It
-is not a general interruption framework — one pending casting, no stack, and a
-Counterspell answering a Counterspell is refused rather than nested. And this
+is not a general interruption framework — there is **no stack**, and a
+Counterspell answering a Counterspell is refused rather than nested. That
+sentence used to read "one pending casting, no stack", and the first half is
+gone: several castings may be open at once — see "Several Castings May Be Open,
+And A Casting Id Is What Names One". And this
 file used to say it was "not the long-casting-time machinery" either, on the
 grounds that a casting of a minute or more needs a per-turn obligation rather
 than a window. Half of that was right and the conclusion was wrong: the
 obligation is what is still missing **in combat**, and outside combat the
 process this built is exactly what a long casting is. See the section below.
 
-**And that refusal is a value, which it was not.** The exemption above lets a
-Reaction *answer* the open casting; nothing said it could not open a second
-one, so a Counterspell asking to be **held** while a casting was already open
-sailed past the guard and produced a `spell-declared` the reducer rejected as a
-corrupt log. The rule was right and the instrument was wrong: an exception is
-reserved for programmer error, and "you may answer this casting but you may not
-hold a second one open beside it" is something a DM narrates around.
-`castOrRelease` returns it, nothing is spent, and the reducer's throw stays
-where it belongs — as the backstop for a log that claims it happened anyway.
+**And those refusals are values, which they were not.** The exemption above
+lets a Reaction *answer* an open casting; nothing said it could not open a
+second one, so a Counterspell asking to be **held** while a casting was already
+open sailed past the guard and produced a `spell-declared` the reducer rejected
+as a corrupt log. The rule was right and the instrument was wrong: an exception
+is reserved for programmer error, and "you may answer this casting but you may
+not hold an answer open" is something a DM narrates around. `castOrRelease`
+returns it, nothing is spent, and the reducer's throw stays where it belongs —
+as the backstop for a log that claims it happened anyway.
+
+**They are two rules under two codes now, and neither is an SRD rule.**
+`answer_cannot_be_held` is *an answer is not a window*; `answer_to_an_answer`
+is *an answer may not answer an answer*. Both are about the **answering
+relationship** rather than about how many records exist, which is what they had
+to become once the record stopped being unique — their old reason said "one
+casting is open at a time", and that is no longer true. And both are **engine
+limits standing in for a settle-order rule the engine does not have**: SRD
+Counterspell triggers on a creature "casting a spell with Verbal, Somatic, or
+Material components", and a creature casting Counterspell is doing exactly
+that, so the book permits the nesting and the engine has no order in which two
+nested answers would settle. Each refusal reason says so in as many words,
+because a limit that reads like a rule is the thing this file keeps finding.
+
+### Several Castings May Be Open, And A Casting Id Is What Names One
+
+`GameState.pendingCastings` is a record keyed by casting id. It was one slot,
+engine-wide, and the guard protecting it refused **every other creature's**
+casting and activation for the whole of a ten-minute rite — which SRD does not
+say, and which IE-034 recorded as a structural accident of a one-instant user
+surfacing as a rules refusal.
+
+**The sharper case needs no second creature at all**, and it is the invariant
+this is built around. Read sentence by sentence rather than recalled:
+
+| SRD | |
+|---|---|
+| *Longer Casting Times* | "you must take the Magic action on **each of your turns**" — the obligation is on the caster's own turns, and "you don't expend a spell slot" until it completes |
+| *Concentration* | Concentration breaks on starting a spell "**that requires Concentration**" — Shield and Counterspell require none |
+| *Reaction* | "You can take a Reaction on **another creature's turn**" |
+| *One slot a turn* | "On a turn, you can expend only one spell slot" — it reads **expenditure**, and a pending casting has expended none |
+
+So a wizard mid-rite, attacked, may legally cast Shield: **two pending
+castings, one caster**, no nesting and no mechanic the engine lacks. The engine
+refused it purely because a record existed.
+
+**Casting identity, not caster identity, is what keys the record**, and there
+is deliberately no per-caster rule either. Every pending casting retains its
+caster, and settlement, interruption, cancellation and retry all address a
+**specific casting id** — `resolveDeclaredCast` takes one and refuses
+`no_casting_pending` naming it, its idempotency kind carries it, and a command
+id reused for a *different* casting is refused as a recycled id.
+
+**Deleting the uniqueness deleted no rule, and each one is enforced by its own
+primitive** — which is the whole argument, and each row is asserted:
+
+| The real rule | Its primitive |
+|---|---|
+| One Action, Bonus Action or Reaction a turn | `spendAction` / `spendBonusAction` / `spendReaction`. A caster mid-rite has spent that turn's Magic action at the declaration, so a second Action casting is refused **there**, under `no_action` |
+| "On a turn, you can expend only one spell slot" | `spellSlotSpentOnTurn`, whose marker rides on the settling `spell-cast` |
+| One Concentration | `releaseCasting`, the single door: a second Concentration casting breaks the first at its declaration |
+| The rite's per-turn Magic action | IE-041's derived failure; still missing, and untouched |
+| An answer may not open its own window | the two relationship rules above |
+
+**The reducer's invariant is purely id-based.** `spell-declared` throws only if
+that casting **id** is already pending, and the sequence check beside it is
+what makes a duplicate id impossible in practice — so the throw is the
+corrupt-log backstop for *identity*, which is what a reducer is for. Caster
+uniqueness is not an identity fact and the reducer says nothing about it.
+
+**The record is kept in casting-number order**, the order `castingsEnded`
+already uses and for the same reason: it serialises, so a key order that
+followed the accidents of declaration would make the fold something other than
+a pure function of the log's content. Ids run in sequence, so today the sort is
+a no-op — which is exactly when it is cheap to make structural.
+
+**An ambiguous reference resolves to a casting id or is refused; the engine
+never picks.** `answeredCasting` is the one function that decides which casting
+a Reaction answers, read twice — by `triggerRefusal` before anything is spent,
+and by the `interrupt-casting` resolver on the state its own events have been
+folded into, so the two agree by construction rather than by the window being
+unique. Three answers, differing in what the caller does next:
+
+| Code | Says | The caller |
+|---|---|---|
+| `no_trigger` | nothing is being cast, or that casting is over | waits |
+| `forced_target` | the named creature is casting nothing, or is not the one casting *this* | re-sends, naming the right creature |
+| `ambiguous_casting` | they have several open and the command named none | re-sends, naming a casting id |
+
+`CastSpellRequest.answers` is that id, **optional** because a caster with
+exactly one casting open leaves nothing to choose between — and refused
+outright (`no_answer_clause`) for a spell that prints no such trigger, which is
+the shape `damageType`, `fought` and `teleportTo` already take.
+`reactionOpportunities` reports the id to send, on every open casting, to every
+creature but that casting's own caster: two offers that differed only in a
+casting nobody could see would be an ambiguity refusal naming candidates the
+caller was never shown.
+
+**`resolveTurn` keeps a global refusal**, now reading the record's size and
+naming the castings. In combat every pending casting is still an instant window
+under one caller's control; IE-041 is what makes that per-casting.
+
+**And `settleHoldsInvolving` is genuinely plural now.** It read the single slot
+and stopped at the first; a caster may hold a rite and a Shield open at once,
+and a debt left standing when its only settler walks out is a fight that can
+never advance. The mutation that proves it is taking the first of the list.
+
+**Neither frozen log needed a fixture edit.** `spell-declared` has always
+carried the whole record as `event.casting`, so both fold into the keyed record
+unchanged — which is the compatibility story in one sentence.
 
 ## A Casting Of A Minute Or More Runs On The Clock
 
@@ -1407,8 +1511,8 @@ because the slot was never taken, which is the same asymmetry
 `spell-interrupted` has always written.
 
 **And one exit was not going through it, which is what makes "single door" a
-claim worth checking rather than a habit.** `spell-interrupted` cleared
-`pendingCasting` itself — complete, and complete only while no pending casting
+claim worth checking rather than a habit.** `spell-interrupted` cleared the
+pending record itself — complete, and complete only while no pending casting
 could be concentrated on. With one that can, a Counterspelled rite left its
 caster concentrating on a casting that no longer existed: permanently, because
 nothing would ever end it, and expensively, because every later hit then rolled
@@ -1603,29 +1707,15 @@ action rather than pretending the deadline is the whole rule. That half is a
 `continueCasting` command plus a derived failure at the caster's turn boundary,
 and it is the second half of this work.
 
-**A casting in process is one engine-wide, and that is a limit of the record
-rather than a rule of the SRD.** `castOrRelease` refuses `casting_pending`
-while any casting is open and names no caster, so during a rite **every other
-creature's** casting and activation is refused too — for the whole ten minutes.
-SRD lets the cleric cast Cure Wounds while the wizard performs a Ritual.
-
-The guard was written for the Counterspell window, which is open for an instant
-under one caller's control, and its **entire content** is refusing the second
-`spell-declared` the reducer would throw on: `unsettledRefusal` has never
-carried `pendingCasting`, so a fighter attacks, a rogue moves and anybody
-Dodges while one stands. That was a structural accident of a one-instant user,
-surfacing as a rules refusal; a casting measured in minutes is what made it
-visible. **A queued task replaces the single slot with one keyed by casting id,
-the reducer enforcing one open casting per caster** — every reducer path
-already addresses the record by casting id, and `ongoing` is that shape
-already. Narrowing the guard to the caster and leaving the slot was refused
-outright: it keeps the accident and re-issues it as a rule, so two party
-members performing rites in the same ruin are still refused.
-
-It is **asserted rather than described** — the second caster's refusal, that it
-costs them nothing, that it does not relent nine minutes in, and that a
-creature who is not casting still acts — so whoever removes the limit deletes a
-test rather than finding a comment.
+**A casting in process was one engine-wide, and that limit is gone.**
+`castOrRelease` refused `casting_pending` while any casting was open and named
+no caster, so during a rite **every other creature's** casting and activation
+was refused too — for the whole ten minutes. SRD lets the cleric cast Cure
+Wounds while the wizard performs a Ritual, and that refusal corresponded to no
+rule at all. The record is keyed by casting id now: see "Several Castings May
+Be Open, And A Casting Id Is What Names One". The four tests that pinned the
+limit are inverted rather than deleted, so the record of what changed is a
+test's own prose.
 
 **A casting declared before a fight and still open when one starts wedges the
 fight**, and deciding what `startCombat` should do to an open casting belongs

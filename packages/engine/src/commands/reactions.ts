@@ -67,7 +67,7 @@ import {
   reactionContributions,
   spendReactionCost,
 } from './damage.js';
-import { completeIfSettled } from './holds.js';
+import { completeIfSettled, pendingCastingsOf } from './holds.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 
 export interface DamageReactionCommand extends CommandIdentity {
@@ -889,13 +889,17 @@ export function reactionOpportunities(state: GameState): readonly ReactionOpport
     }
   }
 
-  const casting = state.pendingCasting;
-  if (casting !== null) {
+  // **Every casting that is open, and each offer names which.** Several may be
+  // open at once and several may belong to one caster, so `against` alone no
+  // longer identifies one — two offers with the same reactor and the same
+  // caster would be indistinguishable, and the ambiguity refusal would then
+  // tell a caller to name an id they could not see.
+  for (const casting of pendingCastingsOf(state)) {
     for (const key of Object.keys(state.creatures).sort()) {
       const who = key as CharacterId;
       if (who === casting.caster || !canReact(who)) continue;
       for (const chance of spellsFor(who, 'casting-a-spell')) {
-        found.push({ ...chance, against: casting.caster });
+        found.push({ ...chance, against: casting.caster, casting: casting.castingId });
       }
     }
   }

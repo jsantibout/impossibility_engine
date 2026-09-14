@@ -72,7 +72,7 @@ import { concentrationSaveDc } from '../vitals.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { type DamageCommand, damageCreature } from './creatures.js';
-import { mayAct } from './holds.js';
+import { mayAct, pendingCastingsOf } from './holds.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { type CastSpellRequest } from './targeting.js';
 
@@ -165,27 +165,8 @@ export function triggerRefusal(
     }
 
     case 'casting-a-spell': {
-      const open = state.pendingCasting;
-      if (open === null) {
-        return err(
-          'no_trigger',
-          `${definition.name} is a Reaction taken when you see a creature casting a spell, and nobody is midway through a casting`,
-        );
-      }
-
-      // SRD: "You attempt to interrupt **a creature in the process of casting
-      // a spell**." The target is forced by the trigger, exactly as Hellish
-      // Rebuke's is — there is only one casting open, and answering it is the
-      // only thing this Reaction does. Aiming elsewhere is refused rather than
-      // redirected, and under `forced_target` for the reason above: the window
-      // is open and the casting named the wrong creature.
-      if (request.targets.length !== 1 || request.targets[0] !== open.caster) {
-        return err(
-          'forced_target',
-          `${definition.name} interrupts the creature that is casting, which is ${open.caster}`,
-        );
-      }
-      return null;
+      const answered = answeredCasting(state, definition, request);
+      return answered.ok ? null : answered;
     }
 
     default: {
@@ -193,6 +174,100 @@ export function triggerRefusal(
       throw new Error(`no trigger rule for ${String(unhandled)}`);
     }
   }
+}
+
+/**
+ * Which casting this Reaction answers — an id, never a guess.
+ *
+ * SRD Counterspell: "You attempt to interrupt **a creature in the process of
+ * casting a spell**." While one casting could be open engine-wide, the caster
+ * *was* the casting and this check could read "the" casting. Several may be
+ * open now, and several of them may belong to one creature, so an ambiguous
+ * reference has to resolve to a casting id or be refused — the rule
+ * `eligibleTargets` obeys for targeting, arriving on the other axis.
+ *
+ * The three answers a caller can get differ in what they do next:
+ *
+ * | Code | Says | The caller |
+ * |---|---|---|
+ * | `no_trigger` | nothing is being cast, or that casting is over | waits |
+ * | `forced_target` | the named creature is casting nothing, or is not the one casting *this* | re-sends, naming the right creature |
+ * | `ambiguous_casting` | they have several open and the command named none | re-sends, naming a casting id |
+ *
+ * **One function, two readers.** `triggerRefusal` asks it before anything is
+ * spent, and the Counterspell's own resolution asks it again on the state its
+ * own events have been folded into — so the resolver settles exactly the
+ * casting the trigger check accepted, by construction rather than by the
+ * window happening to be unique.
+ */
+export function answeredCasting(
+  state: GameState,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+): Result<PendingCasting> {
+  const open = pendingCastingsOf(state);
+  if (open.length === 0) {
+    return err(
+      'no_trigger',
+      `${definition.name} is a Reaction taken when you see a creature casting a spell, and nobody is midway through a casting`,
+    );
+  }
+
+  // Named outright, which is what a caller with several to choose between
+  // sends. A casting that is not open is the moment having passed — it settled
+  // or it was already interrupted — so it is `no_trigger` and not a re-send.
+  const named = request.answers;
+  if (named !== undefined) {
+    const found = open.find((casting) => casting.castingId === named);
+    if (found === undefined) {
+      return err(
+        'no_trigger',
+        `${named} is not a casting in progress; ${
+          open.length === 1 ? 'the one that is' : 'the ones that are'
+        } ${open.map((c) => `${c.castingId} (${c.caster}, ${c.spell})`).join(', ')}`,
+      );
+    }
+    // SRD forces the target, so a command naming the wrong creature for the
+    // casting it says it answers is refused rather than quietly redirected.
+    if (request.targets.length !== 1 || request.targets[0] !== found.caster) {
+      return err(
+        'forced_target',
+        `${definition.name} interrupts the creature that is casting ${found.castingId}, which is ${found.caster}`,
+      );
+    }
+    return ok(found);
+  }
+
+  if (request.targets.length !== 1) {
+    return err(
+      'forced_target',
+      `${definition.name} interrupts one creature in the process of casting a spell; name which`,
+    );
+  }
+  const theirs = open.filter((casting) => casting.caster === request.targets[0]);
+  if (theirs.length === 0) {
+    return err(
+      'forced_target',
+      `${definition.name} interrupts a creature that is casting, and ${request.targets[0]} is not; ${open
+        .map((c) => c.caster)
+        .join(', ')} ${open.length === 1 ? 'is' : 'are'}`,
+    );
+  }
+
+  // **The engine never picks between candidates.** A creature may legally have
+  // two castings open — a rite and the Shield they cast when attacked — and
+  // choosing one of them would be the engine answering a question the caster
+  // was asked. Where there is nothing to choose between, an omitted id is not
+  // ambiguous and resolves.
+  if (theirs.length > 1) {
+    return err(
+      'ambiguous_casting',
+      `${request.targets[0]} has more than one casting in progress; name which ${definition.name} answers: ${theirs
+        .map((c) => `${c.castingId} (${c.spell})`)
+        .join(', ')}`,
+    );
+  }
+  return ok(theirs[0]!);
 }
 
 /**

@@ -78,6 +78,7 @@ import {
   speedOf,
 } from '../standing.js';
 import {
+  answeredCasting,
   applySpellEffect,
   choosePayment,
   chooseRoute,
@@ -155,9 +156,16 @@ export function resolveSpell(
  * declaration. A settlement that took a fresh request could declare Fireball
  * at the goblins and settle it at the party, and no rule in the engine would
  * have noticed.
+ *
+ * **What it does take is a casting id.** Several castings may be open at once,
+ * and several of them may belong to one caster, so "the" casting stopped being
+ * a thing a settlement could address. The id is in the idempotency kind as well
+ * as in the lookup, so one command id used to settle two different castings is
+ * refused as a recycled id rather than silently swallowing the second.
  */
 export function resolveDeclaredCast(
   state: GameState,
+  castingId: string,
   supply: ConcentrationSaveSupply,
   command: CommandIdentity = {},
 ): Result<SpellResolution> {
@@ -165,18 +173,18 @@ export function resolveDeclaredCast(
   // first settlement finds no casting open, and reporting "nothing is being
   // cast" for a spell that has already landed is the exact confusion command
   // ids exist to prevent.
-  return once(state, 'settle-cast', command, () => {
+  return once(state, `settle-cast:${castingId}`, command, () => {
     const already = command.commandId === undefined ? null : commandOutcome(state, command.commandId);
     return {
       events: [],
-      castingId: already?.castingId ?? '',
+      castingId: already?.castingId ?? castingId,
       outcomes: [],
       unverified: [],
     };
   }, (stamp) => {
-    const pending = state.pendingCasting;
-    if (pending === null) {
-      return err('no_casting_pending', 'no casting is waiting to resolve');
+    const pending = state.pendingCastings[castingId];
+    if (pending === undefined) {
+      return err('no_casting_pending', `no casting ${castingId} is waiting to resolve`);
     }
 
     // SRD "Longer Casting Times": the spell takes effect when the casting is
@@ -342,41 +350,60 @@ export function castOrRelease(
       if (refused !== null) return refused;
     }
 
-    // A casting already open is a moment the rules are in the middle of, and the
-    // only thing that may happen in it is the Reaction that answers it. Anything
-    // else would be a second spell begun before the first has taken effect.
+    // **There is no refusal here for "a casting is already open", and deleting
+    // it deleted no rule.** It refused every other creature's casting for the
+    // whole of a ten-minute rite, and it refused the rite's own caster a
+    // Reaction spell — neither of which the SRD says. What stops a second
+    // casting is the real primitive in every case: the action economy for a
+    // second Magic action, `spellSlotSpentOnTurn` for a second slot on one
+    // turn, and `releaseCasting`'s single door for a second Concentration.
     //
-    // Checked against the trigger rather than against the spell, so this stays a
-    // rule about *answering a casting* rather than a mention of Counterspell in
-    // the middle of the casting path.
-    //
-    // **After the duplicate check, never before it** — the same trap the trigger
-    // above fell into, and it bites harder here: a retried *declaration* looks
-    // at a window its own first run opened, so an eager guard would report
-    // `casting_pending` for the command that opened it. A retry has already
-    // returned its empty batch above and never reaches here.
-    const open = state.pendingCasting;
-    if (open !== null && definition.trigger !== 'casting-a-spell') {
+    // **Which casting this answers, where it answers one.** Asked of the same
+    // function the trigger check above asked, which is pure and reads nothing
+    // that has changed between the two calls — so it resolves to the same
+    // casting, and the trigger has already refused if it could not resolve.
+    // The `ok` guard below is therefore only reachable on the released-readied
+    // path, which skips the trigger check entirely.
+    const answering =
+      definition.trigger === 'casting-a-spell' ? answeredCasting(state, definition, request) : null;
+
+    // **A field quietly ignored is a caller who thinks they said something.**
+    // The shape every other stated fact on this request takes: refused for a
+    // spell that prints no clause it could belong to.
+    if (request.answers !== undefined && definition.trigger !== 'casting-a-spell') {
       return err(
-        'casting_pending',
-        `${open.caster} is midway through casting ${open.spell}; settle that casting before beginning another`,
+        'no_answer_clause',
+        `${definition.name} is not a Reaction taken when a creature casts a spell, so it answers no casting`,
       );
     }
 
-    // **One window at a time, and the refusal is a value.** The exemption above
-    // lets a Reaction *answer* the open casting; it does not let that Reaction
-    // open a second one. A held Counterspell, or one aimed at a casting that is
-    // itself an answer, is the nesting this deliberately does not build — "one
-    // pending casting, no stack" — and the reducer's `CorruptLogError` on a
-    // second `spell-declared` was the only thing saying so. An exception is
-    // reserved for programmer error; a rules refusal is something the DM
-    // narrates around.
-    if (open !== null && definition.trigger === 'casting-a-spell') {
-      const answered = definitionFor(open.spellId);
-      if (request.hold === true || answered?.trigger === 'casting-a-spell') {
+    // **The two clauses of the nesting limit, and they are rules about the
+    // answering relationship rather than about uniqueness.** An answer is not a
+    // window, and an answer may not answer an answer.
+    //
+    // Both are **engine limits standing in for a settle-order rule the engine
+    // does not have, and neither is an SRD rule**: SRD Counterspell triggers on
+    // "a creature within 60 feet of yourself casting a spell with Verbal,
+    // Somatic, or Material components", and a creature casting Counterspell is
+    // doing exactly that. Lifting them needs an order in which nested answers
+    // settle, which is a semantic change and is not this.
+    //
+    // **After the duplicate check, never before it** — the same trap the
+    // trigger above fell into. A retried *declaration* looks at a window its
+    // own first run opened; a retry has already returned its empty batch and
+    // never reaches here.
+    if (definition.trigger === 'casting-a-spell' && request.hold === true) {
+      return err(
+        'answer_cannot_be_held',
+        `${definition.name} answers a casting and cannot itself be held open; the engine has no rule for the order two nested answers would settle in, which is a limit of this engine rather than of the SRD`,
+      );
+    }
+    if (answering !== null && answering.ok) {
+      const answered = definitionFor(answering.value.spellId);
+      if (answered?.trigger === 'casting-a-spell') {
         return err(
-          'casting_pending',
-          `${definition.name} may answer ${open.spell} but may not be held open beside it; one casting is open at a time and a Reaction to a Reaction is not nested`,
+          'answer_to_an_answer',
+          `${answering.value.spell} is itself an answer to a casting, and ${definition.name} may not answer it; the engine has no rule for the order two nested answers would settle in, which is a limit of this engine rather than of the SRD`,
         );
       }
     }
@@ -544,6 +571,7 @@ export function castOrRelease(
       area,
       stamp,
       casting: casting.value,
+      ...(answering !== null && answering.ok ? { answers: answering.value.castingId } : {}),
     });
   });
 }
@@ -685,6 +713,15 @@ function resolveOnTargets(
     readonly stamp: CommandStamp | null;
     /** How long it takes and whether it is a Ritual — see `castingOf`. */
     readonly casting: CastingTiming;
+    /**
+     * The casting a Reaction spell answers, by id.
+     *
+     * Resolved by the wrapper, before anything was spent, through the same
+     * function the trigger check read — so the `interrupt-casting` effect
+     * settles the casting the trigger accepted rather than whichever one
+     * happens to be open when it runs.
+     */
+    readonly answers?: string;
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, held, origin, area, stamp, casting } =
@@ -917,6 +954,11 @@ function resolveOnTargets(
     ...(origin === null ? {} : { from: origin }),
     ...(fought === undefined ? {} : { fought }),
     ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
+    // The casting this Reaction answers, as an **id** rather than as the record
+    // that was read. The resolver looks it up again on the state its own events
+    // have been folded into, so it settles exactly the casting the trigger
+    // accepted and reads it as it now stands.
+    ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
   });
   if (!resolved.ok) return resolved;
@@ -1306,6 +1348,15 @@ interface EffectContext {
    * {@link resolveTeleportEffect}.
    */
   readonly teleportTo?: Placement;
+  /**
+   * The casting a Reaction spell answers, by id.
+   *
+   * Resolved before anything was spent, by the same function the trigger check
+   * read, and looked up again here on the state this resolution has folded its
+   * own events into — so the interruption settles the casting the trigger
+   * accepted rather than whichever one happens to be open now.
+   */
+  readonly answers?: string;
   /** What the casting could not check, appended to as it resolves. */
   readonly unverified: string[];
   /** The batch being built. Appended to by every resolver. */
@@ -2379,7 +2430,7 @@ function resolveInterruptCastingEffect(
   victim: CreatureState,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, definition, supply, events, outcomes, saveDc } = ctx;
+  const { casterId, definition, supply, events, outcomes, saveDc, answers } = ctx;
   let current = world;
 
   // SRD Counterspell: "The creature makes a Constitution saving throw.
@@ -2390,8 +2441,13 @@ function resolveInterruptCastingEffect(
   // Counterspell's own casting — have been folded in, and reading the
   // stale copy would be reading a different game than the one being
   // changed.
-  const open = current.pendingCasting;
-  if (open === null) {
+  //
+  // **By the id the trigger resolved**, which is what the keyed record made
+  // necessary and what makes the two reads provably the same casting: several
+  // may be open, and several may belong to one caster, so "the" casting is no
+  // longer a thing to read.
+  const open = answers === undefined ? undefined : current.pendingCastings[answers];
+  if (open === undefined) {
     return err(
       'nothing_to_interrupt',
       `${definition.name} found no casting in progress to interrupt`,
@@ -2632,6 +2688,15 @@ export function resolveEffects(
      */
     readonly teleportTo?: Placement;
     /**
+     * Which casting a Reaction spell answers, by id.
+     *
+     * Several castings may be open at once and several may belong to one
+     * caster, so an `interrupt-casting` effect cannot read "the" casting. The
+     * id was resolved before anything was spent and is looked up again inside
+     * the resolver — see {@link EffectContext.answers}.
+     */
+    readonly answers?: string;
+    /**
      * Set when this casting leaves something running.
      *
      * Recorded **after** the effects rather than beside the slot, because what
@@ -2726,6 +2791,7 @@ export function resolveEffects(
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
+    ...(context.answers === undefined ? {} : { answers: context.answers }),
   };
 
   for (const target of targets) {

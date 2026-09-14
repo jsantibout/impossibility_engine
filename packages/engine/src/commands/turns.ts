@@ -42,7 +42,7 @@ import { isDown, rollDeathSave } from '../vitals.js';
 import { type ConcentrationSaveSupply } from './casting.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { dealSpellDamage } from './damage.js';
-import { mayAct, pendingSavesOf } from './holds.js';
+import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
 import { recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
 import { resolveEffects } from './spell-resolution.js';
 import { type SpellTargetOutcome } from './targeting.js';
@@ -737,10 +737,19 @@ export function resolveTurn(
     // A declared casting is engine debt in exactly the way a held attack is: the
     // action is spent, the slot is not, and nothing has taken effect. Advancing
     // past it would strand a spell that the rules say is still being cast.
-    if (state.pendingCasting !== null) {
+    //
+    // **Still global, and still reading every one of them.** In combat every
+    // pending casting is an instant window under one caller's control; IE-041
+    // makes the long casting's obligation per-casting, and this is what that
+    // task narrows. The reason names them, because with several open "the
+    // casting" says nothing a caller could act on.
+    const declared = pendingCastingsOf(state);
+    if (declared.length > 0) {
       return err(
         'casting_pending',
-        `${state.pendingCasting.caster} has declared ${state.pendingCasting.spell} and it has not taken effect; settle it before the turn moves on`,
+        `${declared
+          .map((casting) => `${casting.caster} has declared ${casting.spell} (${casting.castingId})`)
+          .join('; ')} and ${declared.length === 1 ? 'it has' : 'they have'} not taken effect; settle ${declared.length === 1 ? 'it' : 'them'} before the turn moves on`,
       );
     }
 

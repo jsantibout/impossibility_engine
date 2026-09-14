@@ -171,7 +171,7 @@ describe('the second stored log still folds', () => {
     const state = fold(SEED, GOLDEN_2);
     expect(state.pendingTest).toBeNull();
     expect(state.pendingAttack).toBeNull();
-    expect(state.pendingCasting).toBeNull();
+    expect(state.pendingCastings).toEqual({});
     expect(state.pendingMove).toBeNull();
   });
 

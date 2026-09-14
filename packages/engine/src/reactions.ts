@@ -588,4 +588,13 @@ export interface ReactionOpportunity {
   readonly pool: string | null;
   /** What it answers: the creature that acted, or the casting that is open. */
   readonly against: CharacterId | null;
+  /**
+   * Which casting a `casting-a-spell` opportunity answers, by id.
+   *
+   * Several may be open at once and several may belong to one caster, so
+   * `against` alone no longer names one — this is the id the caller sends back
+   * as `CastSpellRequest.answers`, and without it a creature with two castings
+   * open would produce two opportunities nothing could tell apart.
+   */
+  readonly casting?: string;
 }

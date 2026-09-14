@@ -272,7 +272,7 @@ describe('every debt the engine can raise has a way out', () => {
     pending_attack: 'only a held attack opens one, and `hold` is not exposed',
     pending_damage: 'only a damage-reducing Reaction opens one; nobody in this fixture has a feature that would',
     pending_test: 'only a test-pushing Reaction opens one; same',
-    pending_casting: 'only a held casting opens one, and `hold` is not exposed',
+    pending_castings: 'only a held casting opens one, and `hold` is not exposed',
   };
 
   it('names a settling tool for every debt, or records why it is unreachable', () => {
@@ -311,7 +311,7 @@ describe('every debt the engine can raise has a way out', () => {
     // appears here with no entry and fails, which is the point.
     const PROJECTED_AS: Readonly<Record<string, string>> = {
       pendingAttack: 'pending_attack',
-      pendingCasting: 'pending_casting',
+      pendingCastings: 'pending_castings',
       pendingDamage: 'pending_damage',
       pendingMove: 'pending_move',
       pendingSaves: 'pending_saves',

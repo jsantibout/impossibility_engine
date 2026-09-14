@@ -954,12 +954,29 @@ export interface GameState {
    */
   readonly pendingMove: PendingMove | null;
   /**
-   * A spell declared and not yet resolved, held open so it can be interrupted.
+   * Spells declared and not yet resolved, held open so they can be
+   * interrupted — **by casting id**.
    *
    * The third debt of this shape, and the one whose costs are split: the
    * action is already spent and the slot is not. See {@link PendingCasting}.
+   *
+   * **Keyed rather than single, and casting identity is what keys it.** It was
+   * one slot, engine-wide, and the guard that protected it refused every other
+   * creature's casting for the whole of a ten-minute rite — a limit of the
+   * record wearing a rule's clothes. Several castings may be open at once, and
+   * **several of them may belong to one caster**: SRD's per-turn Magic-action
+   * obligation is on the caster's *own* turns, Concentration breaks only on a
+   * spell that requires it, and a Reaction is taken on somebody else's turn —
+   * so a wizard mid-rite may legally cast Shield when attacked. What stops a
+   * second casting is the real primitive in every case: the action economy,
+   * `spellSlotSpentOnTurn`, and `releaseCasting`'s single Concentration door.
+   *
+   * **In casting-number order**, which is the order `castingsEnded` already
+   * keeps and for the same reason: this record serialises, so an order that
+   * depended on which caster happened to declare first would make the fold
+   * something other than a pure function of the log's content.
    */
-  readonly pendingCasting: PendingCasting | null;
+  readonly pendingCastings: Readonly<Record<string, PendingCasting>>;
   /**
    * Damage rolled and not yet applied, held open for the Reactions that answer
    * it — see {@link PendingDamage}.
@@ -1049,7 +1066,7 @@ export function initialState(seed: string): GameState {
     scheduledDamage: {},
     pendingAttack: null,
     pendingMove: null,
-    pendingCasting: null,
+    pendingCastings: {},
     pendingDamage: null,
     pendingTest: null,
     ongoing: {},
@@ -2448,9 +2465,14 @@ function releaseCasting(
   // **The single door stays single.** An ordinary casting's caster is not
   // concentrating on its pending id — Concentration starts at settlement — so
   // no other route reaches this with a pending casting's id in hand.
-  let pendingCasting = state.pendingCasting;
-  if (pendingCasting !== null && pendingCasting.castingId === castingId) {
-    pendingCasting = null;
+  //
+  // **And it addresses one casting id**, which is the whole of what the keyed
+  // record changed here: a caster may have two castings open, and the one that
+  // ends is the one this call names. Deleting by key preserves the order of
+  // whatever is left, so the record stays in casting-number order.
+  let pendingCastings = state.pendingCastings;
+  if (pendingCastings[castingId] !== undefined) {
+    pendingCastings = withoutPendingCasting(state, castingId);
     changed = true;
   }
 
@@ -2464,9 +2486,50 @@ function releaseCasting(
         scheduledDamage,
         owedAreaEffects,
         areaTriggers,
-        pendingCasting,
+        pendingCastings,
       }
     : state;
+}
+
+/**
+ * Add a declared casting, keeping the record in casting-number order.
+ *
+ * Ids run in sequence and a declaration always allocates the next one, so
+ * insertion order *is* casting-number order today. The sort is what makes that
+ * structural rather than lucky: the record serialises, and a key order that
+ * followed the accidents of declaration would be a fold that is not a pure
+ * function of the log's content. `castingsEnded` is sorted for the same reason
+ * and by the same comparison.
+ */
+function withPendingCasting(
+  pending: Readonly<Record<string, PendingCasting>>,
+  casting: PendingCasting,
+): Readonly<Record<string, PendingCasting>> {
+  const next: Record<string, PendingCasting> = {};
+  for (const key of [...Object.keys(pending), casting.castingId].sort(
+    (a, b) => castingNumber(a) - castingNumber(b),
+  )) {
+    next[key] = key === casting.castingId ? casting : pending[key]!;
+  }
+  return next;
+}
+
+/**
+ * Drop one declared casting, leaving the rest in the order they were in.
+ *
+ * The settling `spell-cast` closes exactly the window its own id names, and
+ * `releaseCasting` takes the one it was called for; the other castings a
+ * caster or anybody else has open are none of either's business. **One
+ * spelling, two callers**: the removal was written out inline in both, which
+ * is two answers to one question in a single file.
+ */
+function withoutPendingCasting(
+  state: GameState,
+  castingId: string,
+): Readonly<Record<string, PendingCasting>> {
+  const rest: Record<string, PendingCasting> = { ...state.pendingCastings };
+  delete rest[castingId];
+  return rest;
 }
 
 /**
@@ -4419,8 +4482,18 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     }
 
     case 'spell-declared': {
-      if (state.pendingCasting !== null) {
-        throw new CorruptLogError(event, 'a casting is already waiting to resolve');
+      // **Purely id-based, and there is deliberately no per-caster throw.**
+      // The reducer is the corrupt-log backstop for *identity*, and two
+      // castings by one caster is not an identity fact: SRD permits it, and
+      // what refuses a second casting is the action economy, the turn's one
+      // slot, or Concentration's single door. A duplicate id is impossible in
+      // practice because of the sequence check below — which is exactly what
+      // makes this the backstop rather than the rule.
+      if (state.pendingCastings[event.casting.castingId] !== undefined) {
+        throw new CorruptLogError(
+          event,
+          `${event.casting.castingId} is already waiting to resolve`,
+        );
       }
       creatureOf(state, event, event.casting.caster);
 
@@ -4437,7 +4510,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return {
         ...next,
         castingsBegun: state.castingsBegun + 1,
-        pendingCasting: event.casting,
+        pendingCastings: withPendingCasting(state.pendingCastings, event.casting),
       };
     }
 
@@ -4532,19 +4605,14 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return raiseAreaArrivals(moved, event.castingId, from, event.to);
     }
     case 'spell-interrupted': {
-      const waiting = state.pendingCasting;
-      if (waiting === null) throw new CorruptLogError(event, 'no casting is waiting to resolve');
-      if (waiting.castingId !== event.castingId) {
-        throw new CorruptLogError(
-          event,
-          `casting ${waiting.castingId} is waiting, not ${event.castingId}`,
-        );
+      if (state.pendingCastings[event.castingId] === undefined) {
+        throw new CorruptLogError(event, `no casting ${event.castingId} is waiting to resolve`);
       }
       // Nothing is given back. The action was wasted by the same SRD sentence
       // that spares the slot, and the slot was never spent.
       //
       // **Through the single door, which this case used not to need.** It
-      // cleared `pendingCasting` itself, and that was complete while no
+      // cleared the pending record itself, and that was complete while no
       // pending casting could be concentrated on. A casting of a minute or
       // more is concentrated on from its declaration, and SRD Counterspell
       // says "the spell dissipates with no effect" — so a caster left
@@ -4568,9 +4636,10 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       //
       // Matching on the id rather than on "is anything pending" is what lets a
       // Counterspell be cast *while* a casting is open: its own `spell-cast`
-      // is a different casting and takes the ordinary branch.
-      const waiting = state.pendingCasting;
-      const settling = waiting !== null && waiting.castingId === event.castingId;
+      // is a different casting and takes the ordinary branch. That was already
+      // the reading when there was one slot, which is why the keyed record
+      // needed nothing of this case but the lookup.
+      const settling = state.pendingCastings[event.castingId] !== undefined;
 
       if (!settling) {
         // Casting ids run in sequence. Applying a batch twice — a retried
@@ -4591,7 +4660,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return {
         ...cast,
         castingsBegun: settling ? state.castingsBegun : state.castingsBegun + 1,
-        ...(settling ? { pendingCasting: null } : {}),
+        ...(settling ? { pendingCastings: withoutPendingCasting(state, event.castingId) } : {}),
         // SRD: "On a turn, you can expend only one spell slot to cast a spell."
         // It reads *expenditure*, so a casting whose slot is still unspent has
         // not used the turn's one slot — and a countered one never will.

@@ -142,10 +142,13 @@ const AUDIT: readonly {
         'a free daily casting *and* a slot both serving. Reachable in principle — all three Tier 2 characters carry a Magic Initiate free casting — and measured as unreachable in practice: Shield refuses on its Reaction trigger first and Mage Armor has no executable definition, so the engine never gets as far as asking',
       ),
       hold: because(
-        'opens `pendingCasting`, and nothing on this surface settles a declared casting. Publishing it alone would wedge the fight, which is the deadlock this audit exists to have stopped repeating',
+        'opens a pending casting, and nothing on this surface settles a declared casting. Publishing it alone would wedge the fight, which is the deadlock this audit exists to have stopped repeating',
       ),
       ritual: because(
-        'SRD casts a Ritual in ten minutes more than the spell normally takes, which makes it a declared casting settled off the clock — so it opens `pendingCasting` exactly as `hold` does, and nothing on this surface settles one. It is also refused outright while a fight is running, and both benchmarks are fights. Publish it with the settlement command, never before',
+        'SRD casts a Ritual in ten minutes more than the spell normally takes, which makes it a declared casting settled off the clock — so it opens a pending casting exactly as `hold` does, and nothing on this surface settles one. It is also refused outright while a fight is running, and both benchmarks are fights. Publish it with the settlement command, never before',
+      ),
+      answers: because(
+        'which casting a Reaction interrupts, by id. Only Counterspell prints the trigger that reads it, and nothing on this surface opens a pending casting for one to answer — `hold` and `ritual` are both withheld above for that reason. It is also optional where the named caster has exactly one casting open, so the day a settlement command is published this is what a caller re-sends with when they have two',
       ),
     },
   },

@@ -327,6 +327,25 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly hold?: boolean;
   /**
+   * Which casting this Reaction answers.
+   *
+   * SRD Counterspell interrupts "a creature in the process of casting a
+   * spell", and several castings may be in progress at once — several of them
+   * possibly one creature's, since a wizard mid-rite may cast Shield when
+   * attacked. So an ambiguous reference resolves to a **casting id** or is
+   * refused: the engine never picks between candidates, which is the boundary
+   * `eligibleTargets` already draws for targeting.
+   *
+   * Optional, because where the named creature has exactly one casting open
+   * there is nothing to choose between and an omitted id resolves. Where they
+   * have several, omitting it is `ambiguous_casting` naming them, and the
+   * caller re-sends. `reactionOpportunities` reports the id to send.
+   *
+   * Refused for a spell whose trigger is not `casting-a-spell`, which is the
+   * shape every other stated fact on this request takes.
+   */
+  readonly answers?: string;
+  /**
    * Cast it as a Ritual.
    *
    * SRD: "The Ritual version of a spell takes 10 minutes longer to cast than
