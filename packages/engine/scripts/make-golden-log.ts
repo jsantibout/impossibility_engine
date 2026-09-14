@@ -19,13 +19,16 @@ import { createRollIssuer } from '../src/rolls.js';
 import { fold, type GameEvent } from '../src/events.js';
 import { spellSlotKey } from '../src/resources.js';
 import { declaredCasting } from '../src/spellcasting.js';
+// Not a command: the low-level half beneath `resolveSpell`, a module export
+// rather than a barrel name — see `commands.ts`'s own note. An import path
+// only; this generator's output is unchanged and the log stays frozen.
+import { resolveCast } from '../src/commands/casting.js';
 import {
   damageCreature,
   declineOpportunity,
   equipItem,
   purchaseItem,
   resolveAttack,
-  resolveCast,
   resolveMove,
   resolveSpell,
   resolveTurn,

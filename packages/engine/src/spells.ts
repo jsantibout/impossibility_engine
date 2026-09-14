@@ -521,7 +521,17 @@ export type OngoingEndReason =
   /** SRD Dispel Magic, and anything else that ends a spell by naming it. */
   | 'dispelled'
   /** SRD Mage Hand: "The hand vanishes ... if you cast this spell again." */
-  | 'recast';
+  | 'recast'
+  /**
+   * SRD, on a spell with a duration: "you can dismiss it (no action required)
+   * if you don't have the Incapacitated condition."
+   *
+   * `ConcentrationEndReason.voluntary`'s sentence, arriving on the other half
+   * of the same idea — and a separate member for the same reason those two
+   * unions keep `dispelled` apart from it: a dispel is somebody else's magic
+   * defeating yours, and this is the creator letting go of their own.
+   */
+  | 'dismissed';
 
 /**
  * Why a Concentration ended. Every one of these is in the SRD except

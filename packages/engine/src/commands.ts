@@ -27,6 +27,18 @@
  * because there was one file. This is where they are told apart, so `index.ts`
  * exposes exactly what it exposed before — and `invariants.test.ts` reads this
  * list to know which of the modules’ exports its sweeps are about.
+ *
+ * **And a name may leave this list, which is the same decision read the other
+ * way.** `resolveCast` was published and called by nothing but tests: its one
+ * production use, the Divine Smite inside `resolveAttackDamage`, goes through
+ * `resolveCastWith`, and CLAUDE.md has said since Counterspell landed that
+ * "the operation a tool surface exposes for a spell the engine has a
+ * definition for is `resolveSpell`; `resolveCast` is what is left for a spell
+ * it has none for." Being the low-level half is a *policy* about who calls it,
+ * and a policy that lives only in prose is the thing this file exists to make
+ * structural — so it is a module export, its guards are still exercised, and
+ * the sweeps that read this list stop asking a non-command a command's
+ * questions.
  */
 
 export { ZERO_HIT_POINTS } from './commands/command.js';
@@ -75,9 +87,8 @@ export {
   concentrationSaveAfterDamage,
   continueCasting,
   endConcentration,
-  endSpellEffectOn,
+  endOngoingSpell,
   nextCastingId,
-  resolveCast,
   resolveDamage,
 } from './commands/casting.js';
 export type {

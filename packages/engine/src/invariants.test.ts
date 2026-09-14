@@ -44,6 +44,7 @@ import {
   declareCreatureType,
   declineOpportunity,
   endConcentration,
+  endOngoingSpell,
   grantTemporaryHpTo,
   setExhaustionLevel,
   pendingAttackOf,
@@ -62,7 +63,6 @@ import {
   releaseReady,
   resolveAttack,
   resolveAttackDamage,
-  resolveCast,
   resolveMove,
   resolveDamage,
   pendingCastingsOf,
@@ -88,6 +88,9 @@ import {
   useRecovery,
   useSelfHeal,
 } from './commands.js';
+// Not a command, and therefore not on the barrel — the low-level half beneath
+// `resolveSpell`, kept here so the `mayAct` guard it gained stays exercised.
+import { resolveCast } from './commands/casting.js';
 import { beginRest } from './rest.js';
 import { allClasses, allSubclasses } from './creation.js';
 import {
@@ -1078,6 +1081,17 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) =>
       activateSpell(s, A, { castingId: 'cast:1', targets: [B], commandId }, supply()),
   },
+  /**
+   * Letting go of a casting by its id. A retry that got past the guard would
+   * find no such casting and report `not_ongoing` for a dismissal that had in
+   * fact landed — the trap this repository has sprung eight times, met by a
+   * command whose own first run is what makes the world answer that way.
+   */
+  {
+    name: 'endOngoingSpell',
+    log: draining(),
+    run: (s, commandId) => endOngoingSpell(s, A, 'cast:1', null, { commandId }),
+  },
   {
     // And the same command when it also moves a point. A retry that got past
     // the guard would move the force a second twenty feet, which no event
@@ -1489,19 +1503,6 @@ const SPENDERS: readonly Spender[] = [
     run: (s) => resolveSpell(s, B, { spellId: 'inflict-wounds', targets: [A], slotLevel: 1 }, supply()),
   },
   /**
-   * The named debt this list carried, now discharged.
-   *
-   * `resolveCast` is still the low-level half beneath `resolveSpell` — the
-   * route left for a spell the engine has no definition for — but it spends an
-   * Action and a slot, and "the tool surface does not expose it" is a policy
-   * rather than a guard. The exemption's own text called itself "a named debt
-   * rather than a settled exemption"; this is the guard it was waiting for.
-   */
-  {
-    name: 'resolveCast',
-    run: (s) => resolveCast(s, B, { spell: 'Bless', level: 1, concentration: false, slotLevel: 1 }),
-  },
-  /**
    * The Magic action SRD's "Longer Casting Times" asks for on each of the
    * caster's turns. The casting id need only be well-formed: `mayAct` is asked
    * immediately after the duplicate check and before the record is looked up
@@ -1614,6 +1615,82 @@ describe('every command that spends something asks whether it may', () => {
       expect(isErr(out) ? out.code : 'ok').not.toBe('area_effect_owed');
     });
   }
+
+  /**
+   * And a command that spends **nothing** is guarded anyway, which is the
+   * combination `relocateCreature` already documents and which the derived
+   * sweep above structurally cannot see: the closure classifies spenders, and
+   * `endOngoingSpell` takes no Action, Bonus Action, Reaction, movement or
+   * pool use — SRD dismisses a spell with "no action required".
+   *
+   * It is guarded because ending a casting **forgives what that casting
+   * already owes**: `releaseCasting` drops the casting's outstanding
+   * `OwedAreaEffect`s, so dismissing the Grease here while B's save is still
+   * owed would lose a rule the boundary had already raised. A guard nobody
+   * asserts is the thing this repository keeps finding, so it is asserted in
+   * both directions — the second case is what says the command was reachable
+   * in this world at all.
+   */
+  describe('and a dismissal spends nothing and is guarded regardless', () => {
+    const dismiss = (s: GameState) => endOngoingSpell(s, A, 'cast:1', null);
+
+    it('really is A’s own Grease that is running here', () => {
+      const state = fold('s', owing());
+      expect(state.ongoing['cast:1']?.caster).toBe(A);
+      expect(state.owedAreaEffects.map((o) => o.castingId)).toContain('cast:1');
+    });
+
+    it('is refused while that area effect is owed', () => {
+      const out = dismiss(fold('s', owing()));
+      expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
+    });
+
+    it('and lets it through once the debt is settled', () => {
+      const log = owing();
+      const settled = [...log, ...unwrap(settleAreaEffects(fold('s', log), supply()), 'settle').events];
+      expect(isErr(dismiss(fold('s', settled)))).toBe(false);
+    });
+
+    /** And the sweep above is right not to list it: it spends nothing. */
+    it('is not classified as a spender', () => {
+      const spenders = new Set(
+        [...spendersIn(Object.values(MODULE_SOURCE).join('\n'))].filter((name) =>
+          COMMAND_SURFACE.has(name),
+        ),
+      );
+      expect(spenders.has('endOngoingSpell')).toBe(false);
+      expect(COMMAND_SURFACE.has('endOngoingSpell')).toBe(true);
+    });
+  });
+
+  /**
+   * And `resolveCast` keeps its guard, written down here rather than derived.
+   *
+   * It was on the list above while it was a barrel command; IE-048 demoted it
+   * to a module export — its one production use, the Divine Smite inside
+   * `resolveAttackDamage`, goes through `resolveCastWith` — so the derived
+   * sweep no longer sees it, because that sweep is about **commands**. The
+   * guard is unchanged and its exemption stayed discharged, so the case moves
+   * rather than being deleted: what would otherwise happen is a guard quietly
+   * losing the only thing that exercised it, on the day it stopped being
+   * published.
+   */
+  describe('and the low-level half beneath resolveSpell keeps its guard', () => {
+    const cast = (s: GameState) =>
+      resolveCast(s, B, { spell: 'Bless', level: 1, concentration: false, slotLevel: 1 });
+
+    it('is refused while an area effect is owed', () => {
+      const out = cast(fold('s', owing()));
+      expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
+    });
+
+    it('and lets it through once the debt is settled', () => {
+      const log = owing();
+      const settled = [...log, ...unwrap(settleAreaEffects(fold('s', log), supply()), 'settle').events];
+      const out = cast(fold('s', settled));
+      expect(isErr(out) ? out.code : 'ok').not.toBe('area_effect_owed');
+    });
+  });
 
   /**
    * And the guard sits **inside** the duplicate check, which is the trap this
@@ -1952,8 +2029,6 @@ const carriesEvents = (returns: string): boolean | 'unresolved' => {
  */
 const UNIDENTIFIED_ON_PURPOSE: Readonly<Record<string, string>> = {
   applySpellEffect:
-    'a builder for a caller reconstructing a log or scripting a fixture; it decides nothing and spends nothing',
-  endSpellEffectOn:
     'a builder for a caller reconstructing a log or scripting a fixture; it decides nothing and spends nothing',
   declareResourcePool: 'declaring a pool twice is refused outright, so a retry cannot double one',
   endRest:

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+  type CharacterId,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -9,9 +16,11 @@ import { definitionFor } from './spell-definitions.js';
 import { remaining } from './resources.js';
 import { forSeconds } from './duration.js';
 import { castingSource } from './spells.js';
+import { armorClassOf } from './standing.js';
 import {
   activateSpell,
   applyConditionTo,
+  endOngoingSpell,
   ongoingSpellOf,
   ongoingSpellsBy,
   ongoingSpellsOn,
@@ -79,6 +88,12 @@ const PREPARED = [
   'mage-hand',
   'hold-person',
   'fire-bolt',
+  // SRD Mage Armor: 8 hours, no Concentration — the non-Concentration ongoing
+  // casting `endSpellEffectOn` could not express.
+  'mage-armor',
+  // SRD Continual Flame: "Until dispelled" — neither a time span nor a
+  // Concentration, so the book prints its caster no way out at all.
+  'continual-flame',
 ];
 
 const added = (who: CharacterId, side: string, over: Partial<CharacterSheet> = {}): GameEvent => ({
@@ -2027,5 +2042,330 @@ describe('a record for a casting that has ended', () => {
 
     expect(() => fold('seed', [...g.log, record('cast:99')])).toThrow();
     expect(() => fold('seed', [...g.log, record(bless)])).toThrow();
+  });
+});
+
+// — a caster lets go of a casting, by its id ——————————————————————————————————
+
+/**
+ * SRD, on a spell with a duration: "you can dismiss it (**no action
+ * required**) if you don't have the Incapacitated condition."
+ *
+ * The engine had half of that. `endConcentration` ends a casting by asking who
+ * is concentrating on it — the right question for a Concentration spell and
+ * **no question at all** for the rest: a Mage Armor, a Longstrider or a Magic
+ * Mouth is nobody's Concentration, so nothing held it and nothing could let it
+ * go. That was the last place in the command layer a casting was addressed by
+ * its holder rather than by its id.
+ *
+ * `endOngoingSpell` is the other half, and it writes the `spell-ended` the
+ * Dispel resolver already writes — so `on: null` ends the casting and
+ * everything it made, and `on: <creature>` releases it there and leaves the
+ * casting running for everyone else. No new event, and no reducer change: both
+ * operations have existed since Hold Person's repeat save.
+ */
+describe('a caster dismisses a casting of their own by its id', () => {
+  /**
+   * SRD Mage Armor: **8 hours, no Concentration** — so it is exactly the
+   * casting the old command could not express, and it leaves all three kinds
+   * of debt behind for the dismissal to take: a granted Armour Class, a
+   * deadline, and the live record itself.
+   */
+  const armoured = () => {
+    const g = new Game();
+    const castingId = g.cast(WIZ, 'mage-armor', [ALLY], undefined, 'armour');
+    return { g, castingId };
+  };
+
+  it('really is a casting nobody is concentrating on', () => {
+    const { g, castingId } = armoured();
+    expect(ongoingSpellOf(g.state, castingId)).not.toBeNull();
+    // The question the old command asked has no answer at all here.
+    expect(
+      Object.values(g.state.creatures).filter((c) => c.concentration?.castingId === castingId),
+    ).toEqual([]);
+  });
+
+  it('ends it, and takes the grant, the timer and the record with it', () => {
+    const { g, castingId } = armoured();
+    const armed = armorClassOf(g.state, ALLY);
+    expect(g.state.creatures[ALLY]!.armorClasses).toHaveLength(1);
+    expect(Object.values(g.state.timers).some((t) => t.target.kind === 'casting')).toBe(true);
+
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'the dismissal'));
+
+    expect(ongoingSpellOf(g.state, castingId)).toBeNull();
+    expect(g.state.creatures[ALLY]!.armorClasses).toEqual([]);
+    expect(armorClassOf(g.state, ALLY)).toBeLessThan(armed);
+    expect(Object.values(g.state.timers).some((t) => t.target.kind === 'casting')).toBe(false);
+    g.foldsAtEveryPrefix();
+  });
+
+  /** One event, the one the reducer already had, with a reason of its own. */
+  it('writes one spell-ended naming the casting', () => {
+    const { g, castingId } = armoured();
+    const events = unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'the dismissal');
+    expect(events.map((e) => e.type)).toEqual(['spell-ended']);
+    expect(events[0]).toMatchObject({ castingId, on: null, reason: 'dismissed' });
+  });
+
+  /**
+   * `on: <creature>` is the other half of SRD Dispel Magic's own distinction,
+   * and the discriminating fixture is a casting that caught **two**: with one
+   * target, releasing on them and ending the casting outright leave the same
+   * state a moment later.
+   */
+  it('releases it on one creature and leaves the casting running', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY, RIVAL], 1, 'blessing');
+    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY, RIVAL]);
+
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, bless, ALLY), 'released on the ally'));
+
+    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([RIVAL]);
+    expect(g.state.creatures[ALLY]!.bonuses).toEqual([]);
+    expect(g.state.creatures[RIVAL]!.bonuses).toHaveLength(1);
+    // The caster is still concentrating, because the spell is still doing
+    // something somewhere else.
+    expect(g.state.creatures[WIZ]!.concentration).toMatchObject({ castingId: bless });
+    g.foldsAtEveryPrefix();
+  });
+
+  /** And `on: null` on the same casting ends it for both of them. */
+  it('ends it outright for everyone it caught', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY, RIVAL], 1, 'blessing');
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, bless, null), 'dismissed'));
+
+    expect(ongoingSpellOf(g.state, bless)).toBeNull();
+    expect(g.state.creatures[ALLY]!.bonuses).toEqual([]);
+    expect(g.state.creatures[RIVAL]!.bonuses).toEqual([]);
+    // A Concentration dismissed by id drops the Concentration too, because
+    // `releaseCasting` is the one door and always has been.
+    expect(g.state.creatures[WIZ]!.concentration).toBeNull();
+  });
+
+  /** SRD: "...**if you don't have the Incapacitated condition**." */
+  it('refuses an Incapacitated caster', () => {
+    const { g, castingId } = armoured();
+    g.push(unwrap(applyConditionTo(g.state, WIZ, 'stunned', 'a blow'), 'stunned'));
+
+    const out = endOngoingSpell(g.state, WIZ, castingId, null);
+    expect(isErr(out) ? out.code : 'ok').toBe('incapacitated');
+    // A refusal spends nothing: the spell is still up.
+    expect(ongoingSpellOf(g.state, castingId)).not.toBeNull();
+  });
+
+  /** A spell is not a thing lying about for anyone to put out. */
+  it('refuses a creature who is not the caster', () => {
+    const { g, castingId } = armoured();
+    const out = endOngoingSpell(g.state, RIVAL, castingId, null);
+    expect(isErr(out) ? out.code : 'ok').toBe('not_your_spell');
+    expect(ongoingSpellOf(g.state, castingId)).not.toBeNull();
+  });
+
+  it('refuses a casting that is not running', () => {
+    const g = new Game();
+    const out = endOngoingSpell(g.state, WIZ, 'cast:9', null);
+    expect(isErr(out) ? out.code : 'ok').toBe('not_ongoing');
+  });
+
+  /**
+   * **The clause is scoped to one duration form, and the word that scopes it
+   * is the easiest thing here to elide.** SRD's Duration section lists three —
+   * Concentration, Instantaneous, Time Span — and prints the free dismissal
+   * under the third: "While a **time-span** spell that you cast is ongoing,
+   * you can dismiss it (no action required)". A Concentration is free to end
+   * by its own separate sentence.
+   *
+   * "Until dispelled" is neither, and the book gives its caster nothing:
+   * Continual Flame consumes 50 GP of ruby dust and prints no ending whatever.
+   * Permitting it would be the engine answering a question the SRD declined to
+   * ask, so it is refused — the shape a clause a spell does not print always
+   * takes here.
+   *
+   * The discriminating fixture is a casting with **no deadline at all**: Mage
+   * Armor and Continual Flame are both non-Concentration ongoing castings, and
+   * only the timer tells them apart.
+   */
+  describe('a casting the book prints no ending for', () => {
+    const lit = () => {
+      const g = new Game();
+      const castingId = g.cast(WIZ, 'continual-flame', [], undefined, 'flame');
+      return { g, castingId };
+    };
+
+    it('really is running, concentrated on by nobody, and carries no deadline', () => {
+      const { g, castingId } = lit();
+      expect(ongoingSpellOf(g.state, castingId)).not.toBeNull();
+      expect(g.state.creatures[WIZ]!.concentration).toBeNull();
+      expect(
+        Object.values(g.state.timers).filter(
+          (t) => t.target.kind === 'casting' && t.target.castingId === castingId,
+        ),
+      ).toEqual([]);
+    });
+
+    it('is refused, and the spell goes on burning', () => {
+      const { g, castingId } = lit();
+      const out = endOngoingSpell(g.state, WIZ, castingId, null);
+      expect(isErr(out) ? out.code : 'ok').toBe('not_dismissible');
+      expect(ongoingSpellOf(g.state, castingId)).not.toBeNull();
+    });
+
+    /**
+     * And the refusal is the **duration** talking rather than anything else
+     * about the spell: Mage Armor is the same kind of casting — ongoing, no
+     * Concentration, the same caster — and differs only in having a deadline.
+     */
+    it('while the same caster’s time-span casting is let go', () => {
+      const { g } = lit();
+      const armor = g.cast(WIZ, 'mage-armor', [ALLY], undefined, 'armour');
+      expect(isErr(endOngoingSpell(g.state, WIZ, armor, null))).toBe(false);
+    });
+  });
+
+  /**
+   * And it refuses **that** casting rather than reaching for whatever else is
+   * running — the fixture a single running spell cannot discriminate.
+   */
+  it('does not fall through to another casting still running', () => {
+    const { g, castingId } = armoured();
+    const illusion = g.cast(WIZ, 'minor-illusion', [], undefined, 'illusion');
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissed'));
+
+    const out = endOngoingSpell(g.state, WIZ, castingId, null);
+    expect(isErr(out) ? out.code : 'ok').toBe('not_ongoing');
+    expect(ongoingSpellOf(g.state, illusion)).not.toBeNull();
+  });
+
+  /**
+   * The conditions half, which is what `endSpellEffectOn` was written for and
+   * is now one branch of this. SRD Hold Person: a release is "on itself", so
+   * the creature let go loses what the casting hung on *them* and nobody else
+   * is touched.
+   */
+  describe('releasing a casting that hung conditions', () => {
+    /**
+     * Hold Person caught the foe; the ally is Blinded by the same casting,
+     * applied by hand for the reason the record's own suite already gives —
+     * no executed definition hangs an independently timed condition on a
+     * second creature.
+     */
+    const holding = () => {
+      const g = new Game();
+      const castingId = g.cast(WIZ, 'hold-person', [FOE], 2, 'hold');
+      g.push(
+        unwrap(
+          applyConditionTo(g.state, ALLY, 'blinded', castingSource('Hold Person', castingId)),
+          'blinding',
+        ),
+      );
+      return { g, castingId };
+    };
+
+    it('frees the one it is released on and leaves the other held', () => {
+      const { g, castingId } = holding();
+      expect(g.state.creatures[FOE]!.conditions.conditions).toContain('paralyzed');
+      expect(g.state.creatures[ALLY]!.conditions.conditions).toContain('blinded');
+
+      g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, FOE), 'released on the foe'));
+
+      expect(g.state.creatures[FOE]!.conditions.conditions).not.toContain('paralyzed');
+      expect(g.state.creatures[ALLY]!.conditions.conditions).toContain('blinded');
+      // Still concentrating, because the spell is still doing something.
+      expect(g.state.creatures[WIZ]!.concentration).toMatchObject({ castingId });
+      expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([ALLY]);
+    });
+
+    /** Only what *this* casting put there: the link is the casting id. */
+    it('leaves an effect from another source alone', () => {
+      const { g, castingId } = holding();
+      g.push(unwrap(applyConditionTo(g.state, FOE, 'poisoned', 'a bad mushroom'), 'poisoning'));
+
+      g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, FOE), 'released on the foe'));
+
+      expect(g.state.creatures[FOE]!.conditions.conditions).not.toContain('paralyzed');
+      expect(g.state.creatures[FOE]!.conditions.conditions).toContain('poisoned');
+    });
+
+    /** And what the ended condition implied goes with it. */
+    it('drops what the ended condition carried with it', () => {
+      const { g, castingId } = holding();
+      expect(g.state.creatures[FOE]!.conditions.conditions).toContain('incapacitated');
+
+      g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, FOE), 'released on the foe'));
+
+      expect(g.state.creatures[FOE]!.conditions.conditions).not.toContain('incapacitated');
+    });
+
+    /**
+     * A release names a creature the casting is **on**, and the refusal the
+     * old command gave for "that casting put nothing there" survives under the
+     * wider reading `OngoingSpell.on` supplies.
+     */
+    it('refuses a release on a creature the casting is not on', () => {
+      const { g, castingId } = holding();
+      const out = endOngoingSpell(g.state, WIZ, castingId, RIVAL);
+      expect(isErr(out) ? out.code : 'ok').toBe('no_effect_there');
+      expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([ALLY, FOE]);
+    });
+  });
+
+  /** A creature nobody has mentioned is a thin record, not a refusal. */
+  it('asks for a caster nobody has added', () => {
+    const { g, castingId } = armoured();
+    const out = endOngoingSpell(g.state, id('nobody'), castingId, null);
+    expect(isErr(out) ? out.code : 'ok').toBe('unknown_creature');
+  });
+
+  /**
+   * And the same of the creature a release names, which is a **different**
+   * answer from the refusal below it and has to be reachable to be one.
+   * `record.on.includes` would say no for a creature nobody has added, so
+   * without this guard the caller gets `no_effect_there` — a verdict about the
+   * rules — where the honest answer is a thin record and a `creature` request
+   * naming the fact to go and get.
+   */
+  it('asks for a released creature nobody has added, rather than refusing', () => {
+    const g = new Game();
+    const bless = g.cast(WIZ, 'bless', [ALLY, RIVAL], 1, 'blessing');
+
+    const out = endOngoingSpell(g.state, WIZ, bless, id('nobody'));
+    expect(isErr(out) ? out.code : 'ok').toBe('unknown_creature');
+    expect(isNeedsContext(out)).toBe(true);
+    expect(contextRequestsOf(out).map((request) => request.kind)).toEqual(['creature']);
+    // And the spell is untouched, because a request spends nothing.
+    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY, RIVAL]);
+  });
+
+  /** One id, one dismissal. */
+  it('is idempotent under one command id', () => {
+    const { g, castingId } = armoured();
+    const first = unwrap(
+      endOngoingSpell(g.state, WIZ, castingId, null, { commandId: 'let-go' }),
+      'first',
+    );
+    expect(first.length).toBeGreaterThan(0);
+    g.push(first);
+
+    const retry = endOngoingSpell(g.state, WIZ, castingId, null, { commandId: 'let-go' });
+    expect(isErr(retry) ? retry.code : 'ok').toBe('ok');
+    expect(isErr(retry) ? ['not empty'] : retry.value).toEqual([]);
+  });
+
+  /**
+   * And the retry is told that rather than told about the world its own first
+   * run made. The duplicate check comes first, always: without it a caller
+   * re-sending after a dropped connection gets `not_ongoing` for a dismissal
+   * that had in fact succeeded.
+   */
+  it('tells a retry its command landed rather than that the spell is gone', () => {
+    const { g, castingId } = armoured();
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null, { commandId: 'let-go' }), 'first'));
+    expect(ongoingSpellOf(g.state, castingId)).toBeNull();
+
+    const retry = endOngoingSpell(g.state, WIZ, castingId, null, { commandId: 'let-go' });
+    expect(isErr(retry) ? retry.code : 'ok').not.toBe('not_ongoing');
   });
 });

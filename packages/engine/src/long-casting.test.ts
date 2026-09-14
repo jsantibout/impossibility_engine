@@ -9,11 +9,14 @@ import { declaredCasting } from './spellcasting.js';
 import { SPELL_DEFINITIONS, definitionFor } from './spell-definitions.js';
 import { checkSpellDefinition } from './spell-schema.js';
 import { castingOf } from './commands/spell-resolution.js';
+// Not a command: `resolveCast` is the low-level half beneath `resolveSpell`,
+// for a spell the engine has no definition for, so it is a module export and
+// not on the barrel. This file is the one that drives it hardest.
+import { resolveCast } from './commands/casting.js';
 import {
   advanceTime,
   continueCasting,
   endConcentration,
-  resolveCast,
   resolveDamage,
   resolveDeclaredCast,
   resolveMove,

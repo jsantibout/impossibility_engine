@@ -5,7 +5,10 @@ import { HOUR, ROUND, hours, minutes } from './clock.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { hitDieKey, beginRest, endRest, LONG_REST } from './rest.js';
-import { grantTemporaryHpTo, resolveCast } from './commands.js';
+import { grantTemporaryHpTo } from './commands.js';
+// The low-level half beneath `resolveSpell`, a module export rather than a
+// command — see the barrel's own note about why it is not published.
+import { resolveCast } from './commands/casting.js';
 
 /**
  * Sequences reported from direct probing, each reproduced before it was fixed.

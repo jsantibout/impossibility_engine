@@ -1291,10 +1291,10 @@ layer that knows.
   bonuses, areas and summons alike — the source string is the link, and nothing
   about it is condition-specific — but conditions are the only effect type the
   engine currently applies, so they are the only one implemented.
-- **Non-Concentration ongoing spells now run and expire.** Give `castSpell` a
-  `duration` and the casting ends on time, taking its effects with it, whether
-  or not anyone was concentrating. What is still missing is dismissing one
-  early — see the durations section.
+- **Non-Concentration ongoing spells run, expire, and can be let go.** Give
+  `castSpell` a `duration` and the casting ends on time, taking its effects
+  with it, whether or not anyone was concentrating; `endOngoingSpell` is how a
+  caster ends one early, by naming the casting rather than by holding it.
 - **The two-call path has an ordering requirement; `resolveDamage` does not.**
   `concentrationSaveAfterDamage` must be asked of the state *after* the damage
   landed, or it reports a save for a spell the damage already ended. That is a
@@ -2163,7 +2163,7 @@ spell stays queryable, and no zombie.
 | Concentration lost | the existing derived pass; no event, as before |
 | Deadline reached | the existing timer; no event, as before |
 | No deadline at all | "Until dispelled" runs with no timer — see that section |
-| Dispelled or recast | `spell-ended`, with a reason |
+| Dispelled, recast, or dismissed by its caster | `spell-ended`, with a reason |
 | A trigger the spell prints | the derived pass; **no event** — see "A Casting Can Be Ended By Something That Happens" |
 | Target shakes it off | leaves `on`; the casting runs for everyone else |
 | Target's last effect lapses | leaves `on`; derived, by the rule `alsoOn` grew it with |
@@ -2196,6 +2196,135 @@ this is the event that names which. SRD lets Dispel Magic target "one creature,
 object, or **magical effect**", and that is the same distinction: a spell on
 this creature and nobody else has nothing left to be, so it ends, while one that
 caught three loses only this one.
+
+### A Caster Lets Go By Naming The Casting, Not By Holding It
+
+SRD's Duration section, under **Time Span**: "While a time-span spell that you
+cast is ongoing, you can dismiss it (**no action required**) if you don't have
+the Incapacitated condition." The engine had half of that.
+`endSpellEffectOn` found its casting through `caster.concentration`, which is
+the right question for a Concentration spell and **no question at all** for the
+rest — a Mage Armor, a Longstrider or a Magic Mouth is nobody's Concentration,
+so nothing held it and nothing could let it go. It was the last place in the
+command layer a casting was addressed by its holder rather than by its id.
+
+`endOngoingSpell(caster, castingId, on)` is the correction, and it writes the
+`spell-ended` the Dispel resolver already writes: **no new event and no reducer
+change**, because both operations have existed since Hold Person's repeat save
+and `on` has named which since that event was written.
+
+**What it bought is narrow and is worth stating as narrowly as it is.** The
+shape it unblocks — `a-casting-dismissed-early` — finishes **no spell at all**,
+and every one of its claimants survives it. It was bought for the correctness
+of the addressing, which is the last instance of a rule reachable only through
+a fact that is true of one kind of spell.
+
+`endConcentration` stays, and the two are not redundant: that one is about a
+*Concentration*, which is what a caster reaches for when they do not know or
+care which casting they are holding, and it writes `concentration-ended` with a
+reason of its own. Both converge on `releaseCasting`, still the single door.
+
+**`OngoingEndReason` gained `dismissed`** rather than reusing `dispelled`, for
+the reason `ConcentrationEndReason` already keeps `voluntary` apart from it
+four lines away: a dispel is somebody else's magic defeating yours, and this is
+the creator letting go of their own. A log should not say a wizard dispelled
+themselves.
+
+**It spends nothing and is guarded anyway** — `relocateCreature`'s combination
+exactly, and worth stating rather than leaving to be inferred. SRD spends no
+Action, Bonus Action, Reaction, movement or pool use on a dismissal, so the
+action-economy sweep never classifies it and no exemption list has anything to
+say about it. It consults `mayAct` because ending a casting **forgives what
+that casting already owes**: `releaseCasting` drops the casting's outstanding
+`OwedAreaEffect`s, so a Web dismissed while somebody's save was owed would lose
+a rule the boundary had already raised — the engine losing a rule to its own
+bookkeeping, which is the sentence this file already writes about a casting
+that outlives its caster. A guard nobody asserts is what this file keeps
+finding, so it is driven in both directions, beside `resolveCast`'s.
+
+**A release names a creature the casting is on**, which is `OngoingSpell.on`'s
+own answer, and that is where the old command's `no_effect_there` went. It
+scanned for a condition instance; `on` is the wider and truer reading, because
+a tracked spell like Darkvision is on somebody and hangs nothing there. Same
+code, because it is the same mistake.
+
+#### The word that scopes the clause is the easiest thing here to elide
+
+SRD's Duration section lists **three** forms — Concentration, Instantaneous,
+Time Span — and prints the free dismissal under the third and only the third.
+A Concentration is free to end by its own separate sentence, which is the one
+`endConcentration` has always quoted: "The creator can end Concentration at any
+time (no action required)." So both of those are covered, by two sentences
+rather than by one.
+
+**"Until dispelled" is neither, and the book gives its caster nothing.** Arcane
+Lock and Continual Flame each consume a costly component and print no ending
+whatever; a free dismissal of one would be the engine answering a question the
+SRD declined to ask, which is the same reading `untilDispelled` already gets
+from the other direction — *"Inventing a big number of seconds would be the
+engine answering a question the SRD declined to ask."* So it is refused
+(`not_dismissible`), which is the shape `ritual`, `damage_type_fixed` and
+`no_fought_clause` already take for a clause a spell does not print.
+
+**The duration form is read off the casting, never off the catalogue.** A time
+span is a `casting` timer, pinned at the cast; a Concentration is the caster
+holding it. Asking `definitionFor` would let a definition corrected next month
+decide whether a casting made today may be let go, which is IE-007's rule
+applied to one more fact. The discriminating fixture is therefore a casting
+with **no deadline at all** — Mage Armor and Continual Flame are both ongoing
+and both non-Concentration, and only the timer tells them apart.
+
+It was the elision that got this wrong first, and it is worth recording
+because the brief quoted the clause with the same word missing and an
+independent review is what caught it: *when the brief and the paragraph
+disagree the paragraph wins*, which is the rule the `fought` list already
+established.
+
+#### The shape kept all three claimants, and gained two more
+
+This is the fourth time a build has corrected the query that predicted it, and
+the first time the correction ran entirely the other way.
+`a-casting-dismissed-early` blocked Animal Shapes, Astral Projection and
+Gaseous Form; the general sentence is now built, and **every one of those three
+prints an exception to it**:
+
+| Spell | SRD | What a dismissal does not carry |
+|---|---|---|
+| Animal Shapes | "until **the target** ends it as a **Bonus Action**" | the target, and a Bonus Action |
+| Gaseous Form | "**the target** ... takes a **Magic action** to end the spell on itself" | the target, and a Magic action |
+| Astral Projection | "if **you** take a **Magic action** to dismiss it" | a Magic action |
+
+Two of the three are ended by the **target** rather than by the caster, and all
+three cost an action the book prints where SRD's general dismissal costs none.
+So the shape survives with its description narrowed to the exceptions rather
+than the rule.
+
+**Two more claimants it had never recorded**, and why they were missing is the
+tracked guard's own stated floor: **no `MECHANICAL_MARKER` fires on the phrase
+"the spell ends"**, so neither Instant Summons' "you can take a Magic action to
+speak the object's name and crush the sapphire ... and the spell ends" nor
+Magic Mouth's "you can have the spell end after it delivers its message" could
+be filed in `TRACKED_ADJUDICATED` at all, and IE-036 recorded both in
+`unmodelled` prose instead. Both keep a blocker, and **both are Until
+dispelled** — so the duration form above is what refuses them, before the
+question of what each sentence asks for is reached at all. Instant Summons is
+refused twice over, because it also charges a Magic action where a dismissal
+spends nothing; Magic Mouth's "When you cast this spell, you can have the spell
+end after it delivers its message" is a choice the caster makes at the casting
+whose *consequence* the engine still cannot perform. Both notes are corrected
+where they stand.
+
+**That pair is the sharpest thing in the batch, because the first correction
+was wrong.** Magic Mouth's note was re-adjudicated from debt to fiction on the
+strength of a permission the command should never have had, and it took an
+independent review reading the Duration section to find it. A note is only as
+honest as the code it describes, and a note *re-filed* on the strength of a
+build is the place that bites hardest.
+
+**The marker set was not widened to see them.** It is a floor by design, and a
+guard extended so that a record comes out complete is a guard answering its own
+question — the same reason `spell-tracking.test.ts` says in its own words that
+it reads English and that a rule phrased in none of those words slips past.
 
 ### Dispel Magic is 2024, and 2024 removed a roll
 
@@ -3199,12 +3328,13 @@ they are still not done, for different reasons:
 
 Two smaller gaps in the same area, stated so nobody assumes otherwise:
 
-- **A non-Concentration ongoing spell cannot be dismissed early.** SRD: "you
-  can dismiss it (no action required) if you don't have the Incapacitated
-  condition." Such a spell now runs and expires correctly when given a
-  duration; ending it ahead of time has no command, because `endConcentration`
-  is about Concentration. Adding one is small and deliberately not in this
-  milestone.
+- **A non-Concentration ongoing spell can be dismissed early now**, and the
+  sentence that stood here — that it could not, because `endConcentration` is
+  about Concentration — was the last place a casting was reached through its
+  holder. `endOngoingSpell` names it by its id instead; see "A Caster Lets Go
+  By Naming The Casting, Not By Holding It". What SRD's exceptions still cost
+  is an action a dismissal does not spend, which is what keeps three spells
+  blocked on that shape.
 - **The log records the effect being scheduled, not expiring.** Expiry is
   derived, so a target's history shows the condition arriving and its deadline
   being set, but not the moment it lapsed — the same audit trade already made
@@ -7537,8 +7667,26 @@ file. A helper is `export`ed in its own module so a sibling can call it, and is
 *not* a command — before the split those were the same word, because there was
 one file, and `export *` would have made `landDamage` and `castOrRelease` part
 of `@ie/engine`. `commands.ts` is where the two are told apart, `index.ts`
-exposes the same 118 names it exposed before, and **`invariants.test.ts` reads
-that list** to know which of the modules' exports its sweeps are about.
+exposes the same names it exposed before, and **`invariants.test.ts` reads
+that list** to know which of the modules' exports its sweeps are about. (It
+said 118 and that was a digit in prose, which this file's own most-repeated
+finding is about; the list is in the file and it moves.)
+
+**And a name may leave that list, which is the same decision read the other
+way.** `resolveCast` was published and called by nothing but tests — its one
+production use, the Divine Smite inside `resolveAttackDamage`, goes through
+`resolveCastWith` — while this file has said since Counterspell landed that
+"the operation a tool surface exposes for a spell the engine has a definition
+for is `resolveSpell`; `resolveCast` is what is left for a spell it has none
+for." Being the low-level half is a *policy* about who calls it, and a policy
+that lives only in prose is what the barrel exists to make structural, so it is
+a module export now. **That is a public API change**, recorded here because the
+eventual `index.ts` tiering will read this record: nothing in `@ie/engine`
+exports it, and the callers that drive it import the module directly. Its
+`mayAct` guard is unchanged and stays exercised — moved out of the derived
+spender sweep, which is about *commands*, into a case of its own, because a
+guard losing the only thing that ran it on the day it stopped being published
+is exactly the silence that sweep was derived to end.
 
 **A sweep over several modules reads them as one string.** The action-economy
 closure is transitive — `resolveAttack` spends through `damage.ts` and

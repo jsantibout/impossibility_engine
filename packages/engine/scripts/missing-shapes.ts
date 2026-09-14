@@ -226,7 +226,7 @@ export const MISSING_SHAPES = {
   'an-activation-taken-by-somebody-other-than-the-caster':
     'CLAUDE.md, on acting through a spell on a later turn: "Pinned at the casting | ... **the caster — nobody else may act through it**". A spell that hands its *target* the later action inverts exactly that rule, and the pinned numbers are still the caster’s.',
   'a-casting-dismissed-early':
-    'CLAUDE.md: "**A non-Concentration ongoing spell cannot be dismissed early.** SRD: “you can dismiss it (no action required) if you don’t have the Incapacitated condition.” ... ending it ahead of time has no command, because `endConcentration` is about Concentration."',
+    'the **exceptions** to the general dismissal, which is built: `endOngoingSpell` ends a casting of the caster’s own by id and spends nothing, which is what SRD prints for a **Time Span** duration. What is left is what each claimant prints instead — CLAUDE.md: "every one of those three prints an exception to it". Animal Shapes and Gaseous Form are ended by the **target** rather than by the caster; all three cost an action the book names where a dismissal costs none; and a casting that runs "Until dispelled" is refused outright, because the book gives its caster no ending at all.',
   'a-dc-the-caster-does-not-set':
     'every saving throw a spell forces is measured against the casting’s pinned `saveDc`. The audit names the asymmetry from the other side — "**Three members of the definition format have zero catalogue users**, not one: `roll-mode.save` ..., `SpellCheck.dc` ..., and `’end-casting’` as a `save.repeats.onSuccess` value" — so an *ability check* may already name a printed DC and a *saving throw* may not.',
   'a-save-keyed-to-a-condition':
@@ -1594,7 +1594,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     {
       clause: 'takes a Magic action to end the spell on itself',
       why: 'a-casting-dismissed-early',
-      note: 'A non-Concentration ongoing spell cannot be dismissed early: `endConcentration` is about Concentration, and there is no command for a target ending a casting that is on it.',
+      note: 'ending the casting is a command now — `endOngoingSpell` names it by id — and this sentence prints both of the exceptions that command does not carry: the creature ending it is the **target** rather than the caster, and the SRD charges a Magic action where a dismissal costs none.',
     },
     {
       clause: 'a Fly Speed of 10 feet',

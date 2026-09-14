@@ -7994,7 +7994,7 @@ export const INSTANT_SUMMONS: SpellDefinition = {
   untilDispelled: true,
   unmodelled: [
     'the sapphire and the marked object are the DM’s: the weight limit, the 6-foot longest dimension, the Invisible mark, the inscribed name and the rule that "Each time you cast this spell, you must use a different sapphire" are all facts about objects, which the engine does not model',
-    'the Magic action that crushes the sapphire is not offered, and ending the casting with it is debt rather than fiction: an ongoing casting that nobody is concentrating on cannot be dismissed early, because the only door out is `endConcentration` — the spell runs until something else ends it',
+    'the Magic action that crushes the sapphire is not offered, and ending the casting with it is debt rather than fiction: `endOngoingSpell` ends a casting by id, and it refuses this one twice over — SRD prints the free dismissal for a **time span** and this spell lasts until dispelled, and the book charges a Magic action here where a dismissal spends nothing (`a-casting-dismissed-early`, whose every claimant prints an exception of that kind)',
     'learning who is holding the object and where they are, when crushing the sapphire fails to fetch it, is the DM’s',
   ],
 };
@@ -8073,7 +8073,7 @@ export const MAGIC_MOUTH: SpellDefinition = {
   unmodelled: [
     'the object, the message and the mouth are the DM’s: which object was chosen, the 25 words spoken, the ten minutes they may be delivered over, and the mouth appearing where a statue’s mouth is are all fiction',
     'the trigger is the DM’s: "it must be based on visual or audible conditions that occur within 30 feet of the object" is a circumstance somebody watches for rather than any of the fifteen conditions the engine applies, and whether a silver bell has rung is not a fact the engine holds',
-    'having the spell end once it has spoken is not offered, and that is debt rather than fiction: an ongoing casting that nobody is concentrating on cannot be dismissed early, because the only door out is `endConcentration`',
+    'the choice the caster makes at the casting — "When you cast this spell, you can have the spell end after it delivers its message" — is not offered, and that half is debt rather than fiction: `endOngoingSpell` ends a casting by id, and it refuses this one, because SRD prints the free dismissal for a **time span** and this spell lasts until dispelled. So there is no way for the caster to end it early however the choice went (`a-casting-dismissed-early`, the same duration form Instant Summons carries)',
   ],
 };
 

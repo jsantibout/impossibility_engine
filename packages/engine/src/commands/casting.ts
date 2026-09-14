@@ -57,7 +57,6 @@ import { type RollIssuer } from '../rolls.js';
 import { type ReactionTrigger, type SpellDefinition } from '../spell-definitions.js';
 import { type CastingRoute, routesFor, type SpellcastingState } from '../spellcasting.js';
 import {
-  castingIdOf,
   castingSource,
   type CastingTime,
   type ConcentrationCheck,
@@ -1076,54 +1075,131 @@ export function applySpellEffect(
 }
 
 /**
- * End one casting's effect on one creature, leaving the casting running.
+ * A caster lets go of a casting of their own, naming it by its id.
  *
- * SRD Hold Person: "At the end of each of its turns, the target repeats the
- * save, **ending the spell on itself** on a success." On itself — not on
- * everyone. Upcast, Hold Person holds several Humanoids, and one of them
- * shaking it off must not free the rest or drop the caster's Concentration.
+ * SRD, on a spell with a duration: "you can dismiss it (**no action
+ * required**) if you don't have the Incapacitated condition."
  *
- * {@link endConcentration} is the other half: that ends the casting
- * everywhere. This ends it in one place, and the caster keeps concentrating
- * because the spell is still doing something somewhere else.
+ * **A casting is addressed by its id, never by whoever holds it.** The command
+ * this replaced found the casting through `caster.concentration`, which is the
+ * right question for a Concentration spell and *no question at all* for the
+ * rest: a Mage Armor, a Longstrider or a Magic Mouth is nobody's
+ * Concentration, so nothing held it and nothing could let it go. That was the
+ * last place in the command layer a casting was reached through its holder.
  *
- * Only what *this* casting put there is removed — the link is the casting id
- * in the condition's source, so an unrelated poisoning on the same creature
- * stays exactly where it is.
+ * `on` carries the whole of SRD Dispel Magic's own distinction, which
+ * `spell-ended` has recorded since it was written: **null** ends the casting
+ * and everything it made, and a **creature** releases it there and leaves the
+ * casting running for everyone else it caught. Both operations have existed
+ * since Hold Person's repeat save; this is a second command that names which.
+ *
+ * {@link endConcentration} stays, and the two are not redundant: that one is
+ * about a *Concentration* — it is what a caster reaches for when they do not
+ * know or care which casting they are holding — and it writes
+ * `concentration-ended` with its own reason. Both converge on `releaseCasting`,
+ * which is still the single door.
+ *
+ * **`mayAct` applies and this is not a spender**, which is the one combination
+ * worth stating rather than leaving to be inferred — `relocateCreature`'s
+ * precedent exactly. SRD spends no Action, Bonus Action, Reaction, movement or
+ * pool use on a dismissal, so the action-economy sweep never classifies it and
+ * no exemption list has anything to say about it. It is guarded anyway,
+ * because ending a casting **forgives what that casting already owes**:
+ * `releaseCasting` drops the casting's outstanding `OwedAreaEffect`s, so a
+ * Web dismissed while somebody's save was owed would lose a rule the boundary
+ * had already raised — the engine losing a rule to its own bookkeeping, which
+ * is what the global area-debt guard exists to prevent.
+ *
+ * The guard sits **inside** `once`, so a retry of a dismissal that landed is
+ * told its command landed rather than told `not_ongoing` about the world its
+ * own first run made.
  */
-export function endSpellEffectOn(
+export function endOngoingSpell(
   state: GameState,
-  targetId: CharacterId,
   casterId: CharacterId,
+  castingId: string,
+  on: CharacterId | null,
+  command: CommandIdentity = {},
 ): Result<GameEvent[]> {
-  const caster = creatureOf(state, casterId);
-  if (caster === null) return unknownCreature(casterId);
-  if (caster.concentration === null) {
-    return err('not_concentrating', `${casterId} is not concentrating on anything`);
-  }
+  return once(state, `end-ongoing:${castingId}`, { ...command, on }, () => [], (stamp) => {
+    const owed = mayAct(state, casterId);
+    if (owed !== null) return owed;
 
-  const target = creatureOf(state, targetId);
-  if (target === null) return unknownCreature(targetId);
+    const caster = creatureOf(state, casterId);
+    if (caster === null) return unknownCreature(casterId);
 
-  const castingId = caster.concentration.castingId;
-  const theirs = target.conditions.instances.filter(
-    (instance) => castingIdOf(instance.source) === castingId && instance.impliedBy === null,
-  );
-  if (theirs.length === 0) {
-    return err(
-      'no_effect_there',
-      `${caster.concentration.spell} put nothing on ${targetId} that could end`,
+    const record = state.ongoing[castingId];
+    if (record === undefined) {
+      return err('not_ongoing', `${castingId} is not a spell that is still running`);
+    }
+
+    // SRD: "**you** can dismiss it." A spell is not a thing lying about for
+    // anyone to put out, and `activateSpell` says the same of acting through
+    // one — the same code, because it is the same rule.
+    if (record.caster !== casterId) {
+      return err(
+        'not_your_spell',
+        `${castingId} is ${record.caster}'s casting; ${casterId} cannot dismiss it`,
+      );
+    }
+
+    if (isIncapacitated(caster.conditions)) {
+      return err('incapacitated', `${casterId} is Incapacitated and can't dismiss ${record.spell}`);
+    }
+
+    // **The SRD prints the free dismissal under one duration form, and the
+    // word that scopes it is easy to elide.** Its Duration section lists three
+    // — Concentration, Instantaneous, Time Span — and the clause sits under
+    // the third: "While a **time-span** spell that you cast is ongoing, you
+    // can dismiss it (no action required)". A Concentration is free to end by
+    // its own separate sentence, which is what `endConcentration` quotes:
+    // "The creator can end Concentration at any time (no action required)".
+    //
+    // "Until dispelled" is **neither**, and the book gives its caster no way
+    // out at all — Arcane Lock and Continual Flame each consume a costly
+    // component and print no ending whatever. Permitting it would be the
+    // engine answering a question the SRD declined to ask, so it is refused
+    // rather than quietly allowed: the shape `ritual`, `damage_type_fixed`
+    // and `no_fought_clause` already take for a clause a spell does not print.
+    //
+    // **Read off the casting rather than off the catalogue**, because a
+    // definition corrected next month must not decide whether a casting made
+    // today can be let go — IE-007's rule, applied to one more fact. A time
+    // span is a `casting` timer, pinned at the cast; a Concentration is the
+    // caster holding it.
+    const timeSpan = Object.values(state.timers).some(
+      (timer) => timer.target.kind === 'casting' && timer.target.castingId === castingId,
     );
-  }
+    if (!timeSpan && caster.concentration?.castingId !== castingId) {
+      return err(
+        'not_dismissible',
+        `${record.spell} runs until dispelled and takes no Concentration, and SRD gives its caster no way to end it — the free dismissal is printed for a time span`,
+      );
+    }
 
-  return ok(
-    theirs.map((instance) => ({
-      type: 'condition-removed',
-      id: targetId,
-      condition: instance.condition,
-      source: instance.source,
-    })),
-  );
+    if (on !== null) {
+      if (creatureOf(state, on) === null) return unknownCreature(on);
+      // **A release names a creature the casting is actually on**, which is
+      // `OngoingSpell.on`'s own answer. The command this replaced refused the
+      // same defect by scanning for a condition instance; `on` is the wider
+      // and truer reading, because a tracked spell like Darkvision is on
+      // somebody and hangs nothing there. Same code, because it is the same
+      // mistake: the caller is releasing a spell that is not there to release.
+      if (!record.on.includes(on)) {
+        return err('no_effect_there', `${record.spell} is not on ${on}, so it cannot end there`);
+      }
+    }
+
+    return ok([
+      {
+        type: 'spell-ended',
+        castingId,
+        on,
+        reason: 'dismissed',
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
 }
 
 /**
