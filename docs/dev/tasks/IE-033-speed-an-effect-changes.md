@@ -1,11 +1,11 @@
 # IE-033 — A Speed an effect changes
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 5
 parallel-safe: NO — a union task touching `events.ts`, `spell-resolution.ts` and `standing.ts`; runs alone
 depends-on: IE-031, IE-032
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a5cb96033d87e4449 · worktree-agent-a5cb96033d87e4449
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

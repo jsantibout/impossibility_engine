@@ -552,10 +552,29 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged: 12 of 18** — IE-020 through IE-031, every one 13/13. `main` at
-`9887829`, **7233 tests across 111 files**, both frozen logs untouched and run
-explicitly, `COVERAGE.md` byte-clean, pushed after every merge. **Waves 1, 2
-and 3 are complete**; IE-032 is running as wave 4.
+**Merged: 13 of 18** — IE-020 through IE-032, every one 13/13. `main` at
+`db62430`, **7276 tests across 112 files**, both frozen logs untouched and run
+explicitly on every fold-touching merge, `COVERAGE.md` byte-clean. **Waves 1–4
+complete**; IE-033 is running as wave 5.
+
+### The derived map has been wrong twice, and that is a finding about the
+instrument
+
+Two "this shape finishes X outright" claims in foreman briefs, both taken from
+`consumersOf`, have been falsified by a builder reading the paragraph:
+
+| Spell | The map said | The SRD says |
+|---|---|---|
+| Enthrall (IE-030) | finished by `a-fact-only-the-table-can-declare` | prints an automatic **success**, not Advantage, plus a −10 narrowed to one skill and Passive Perception |
+| Mislead (IE-032) | finished by `a-casting-ended-by-a-trigger` | ends the **invisibility**, not the casting — and the entry never recorded the illusory double at all |
+
+**The map is sound about what blocks; its *finishes* column inherits any
+adjudication that is incomplete.** A clause omitted from an entry makes a spell
+look finishable when it is not, and no derivation can see a clause nobody
+wrote down. IE-015 made the count a query so that no hand-written number would
+be trusted; the residual risk moved from the number to the adjudications
+beneath it, and **a brief should not quote a `finishes` figure without reading
+the spell's own paragraph.** That is the rule for the next tranche's briefs.
 
 **IE-031 found a wrong number that was already shipped**, which is the payoff
 of Fable's decision arriving within the hour. `action-economy.test.ts`
@@ -872,3 +891,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | rebase (foreman) | IE-031 | its worktree conflicted on `COVERAGE.md`, one of the five `merge=binary` paths. Resolved by `CONTRIBUTING.md`'s playbook — **take either side, then regenerate; never hand-merge the numbers** — and the regenerated file came back with exactly the branch's own three features (88 → 91; Barbarian, Monk, Ranger each +1), which is the evidence the resolution was right rather than merely conflict-free |
 | 2026-09-14 | merge (tranche authority) | IE-031 | merged `9887829`, 13/13, risk gate inspected closely — a state representation, two reducer cases and the public surface, on the task that had already been wrong once about the fold agreeing with the command. **Both frozen logs and `scenario.test.ts` were run explicitly, 53 tests, with a zero-line fixture diff**, because criterion 6 is the one it got wrong before. It surfaced a shipped wrong number (Exhaustion 3 + Dash asserted at 45 against its own comment's 30) and one rules decision the live allowance forced: mounting had become free at a Speed of 0, restored under its original code on SRD's "During your move" |
 | 2026-09-14 | launch | IE-032 | wave 4, alone. Its launch prompt carries the five things that landed under its brief while it waited — IE-030's third stated fact, IE-031's reducer and budget change, IE-024's `effectLists` idiom, IE-026's `satisfyWith` sweep and IE-021's write guard — because a brief pointing at stale line numbers is how a builder fixes the wrong thing, and that has nearly happened twice tonight |
+| 2026-09-14 | merge (tranche authority) | IE-032 | merged `db62430`, 13/13, risk gate inspected — a new derived pass in the reducer pipeline. **Termination is structural rather than argued**: a mutation dropping one check *hung the fold*, so the loop is now bounded by a settled-set keyed on (casting, subject). One declared deviation, verified against the book by three readers: "Mislead is finished" is false — SRD ends the *invisibility*, not the casting. And it found that IE-013's zero-user-member sweep **could not read a multi-line literal union**, so it would have swept this task's own new type with nothing |
+| 2026-09-14 | finding (tooling) | — | **32 orphaned worktree directories** under `.claude/worktrees/`, from this tranche and earlier ones. `git worktree list` is clean and `git worktree prune` has run, so git's registry is correct and new worktrees are unaffected; the directories themselves resist deletion under Windows file locks. Disk clutter rather than a correctness problem, and best cleared when nothing is running |
