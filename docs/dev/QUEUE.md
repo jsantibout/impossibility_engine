@@ -193,10 +193,52 @@ Recommendation: APPROVE TRANCHE 3.
 ## CURRENT
 
 Tranche 3 is approved and running. **IE-008 is `DONE`, merged `601774c`** —
-first-round PASS, thirteen conditions green. IE-001 and IE-009 are still
-building; **IE-007 is held at `APPROVED_FOR_IMPLEMENTATION`** and launches
-when IE-001 has merged, because they share `commands/spell-resolution.ts` and
-the `SpellEffect` union.
+first-round PASS, thirteen conditions green. **IE-009 is at
+`CHANGES_REQUIRED`** with a bounded fourth review pass running. IE-001 is
+still building; **IE-007 is held at `APPROVED_FOR_IMPLEMENTATION`** and
+launches when IE-001 has merged, because they share
+`commands/spell-resolution.ts` and the `SpellEffect` union.
+
+**IE-009 is the first use of the round-exhaustion rule, and it caught the
+rule's own wording.** Its three rounds went 2 → 2 → 1, every finding a
+precision defect in prose the builder had rewritten that round, confidence
+high and escalation none throughout. The rule as written said "strictly
+shrinking", which 2 → 2 → 1 is not — so applying it literally would have sent
+a sentence about a derivation method to Fable. The foreman authorised the
+bounded pass under the rule's purpose and then **corrected the rule's text**
+rather than leaving a precedent of quietly bending it: the test that separates
+convergence from churn is whether a finding *repeats*, not whether the count
+falls every round. `WORKFLOW.md`.
+
+**Two findings from IE-009 outrank the task that produced them.**
+
+- **The unreachable-event count was 9 and is 17**, and the eight it missed are
+  one family: `scene-set`, `landmark-added`, `creature-placed`,
+  `sight-declared`, `cover-declared`, `combat-started`, `time-advanced`,
+  `spellcasting-declared`. That is scene setup — **a tool surface cannot start
+  an encounter**. `placeCreature`, `declareCover`, `declareSight` and
+  `startCombat` exist as pure functions the *reducer* calls to fold the event,
+  and nothing emits one. This is the twelfth instance of the repository's
+  recurring finding, and the largest: it is not one unreachable rule but the
+  whole opening of a session. It is an **M2 blocker discovered before M2**,
+  which is the best time to find one, and it belongs in the next tranche
+  rather than in `LATER`.
+- **IE-005 opened a guard hole and nothing said so.** `spell-schema.test.ts`'s
+  runtime special-case sweep reads `commands/`, `events.ts`, `spells.ts`,
+  `spellcasting.ts` and `standing.ts`; IE-005 moved seven readers into
+  `spell-definitions.ts`, which is not on that list. No special case exists
+  there today — verified with the sweep's own regex — so this is a hole rather
+  than a breach. Half of it is unclosable, because the sweep's second half
+  asks that a file name no catalogue id and a file of definitions names all
+  130 of its own; the first half could simply be pointed there.
+
+A third, smaller and worth recording because of who made it: **IE-002's
+builder and reviewer both reported having "independently checked" an SRD line
+number that was eleven lines off.** The value they checked — Produce Flame's
+`1d8` — was right, and both of them did read the sentence; what neither
+verified was the pointer they each cited. IE-009 quoted the SRD sentence
+instead of citing a line into `packages/srd/raw/`, which is the convention
+everywhere else and survives a re-vendoring.
 
 | Task | Lane | Parallel-safe | Tranche |
 |---|---|---|---|
@@ -257,6 +299,7 @@ ranked map, which it re-confirmed rather than replaced.
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a tranche has room |
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
+| `spell-schema.test.ts`'s runtime special-case sweep does not read `spell-definitions.ts`, where IE-005 moved seven readers | conformance | IE-009's builder. No special case is there today, verified with the sweep's own regex, so it is a hole and not a breach. The sweep's first half — an id compared against a literal — can simply be pointed there; its second half cannot, because a file of definitions names all 130 of its own ids |
 | **Multiclass Hit Dice pools are wrong, and the correct function is called by nothing.** `hitDicePools` (`multiclass.ts:142`) implements "Hit Dice pool by die type", is tested against both SRD worked examples (`multiclass.test.ts:203`) and is reached from no production code; `poolsFor` declares one Hit Die pool from the *starting* class. A Paladin 4 / Fighter 1 gets one `hit-die:d10` pool; a Cleric/Paladin gets no d8 pool at all | mechanism | IE-008's builder and reviewer, independently, in the function IE-008 refactored. Pre-existing and byte-identical across that diff, so it was correctly left alone. The eleventh instance in this repository of a pure function nothing calls, and a wrong number rather than a missing feature |
 
 IE-003's two residuals are discharged: `carriesEvents` now answers

@@ -1,6 +1,6 @@
 # IE-009 — Close out tranche 2's four findings
 
-state: IMPLEMENTING
+state: CHANGES_REQUIRED
 lane: conformance
 tranche: 3
 parallel-safe: YES — one spell test assertion, two prose corrections and one recorded finding; no runtime code, no event, no definition semantics

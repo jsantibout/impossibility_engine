@@ -467,13 +467,24 @@ redesigning under review, one finding at a time. It is not a verdict.
 
 **Round exhaustion is not a failed review.** When the cap is reached the
 foreman reads the rounds and decides which of two things happened. If *all* of
-these hold — the findings are **strictly shrinking**, `Confidence: high` and
+these hold — the findings **converge**, `Confidence: high` and
 `Escalation reason: none` every round, and the remaining delta is ordinary
 implementation or documentation correction rather than architecture — it is
 procedural exhaustion, and the foreman may authorise **one further bounded
 review pass**, saying in the task file what it is bounded to. Anything else is
-YELLOW: findings that stop shrinking, repeat, broaden, drop in confidence, or
-expose an architectural disagreement go to Fable.
+YELLOW: findings that broaden, drop in confidence, or expose an architectural
+disagreement go to Fable.
+
+**Converging is not the same as strictly shrinking, and this sentence said the
+wrong one first.** IE-009's rounds went 2 → 2 → 1 — non-increasing, ending at
+one prose defect, and flat in the middle. Read as "strictly shrinking" that is
+an escalation to Fable over a sentence about a derivation method, which is the
+cost this rule exists to avoid. The test that actually separates convergence
+from churn is **whether a finding repeats**: a defect raised again after the
+builder claimed to fix it is churn, and a *new* defect in prose the builder
+rewrote that round is the review working. So the rule is: **non-increasing,
+ending small, and no finding raised twice.** A count that rises, or the same
+finding surviving a fix, is YELLOW.
 
 Two things that extension never does. It does not **manufacture a PASS** — the
 foreman may not supply condition 3 itself, however small the remaining defect,
