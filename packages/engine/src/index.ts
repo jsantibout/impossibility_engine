@@ -19,6 +19,11 @@ export * from './spell-definitions.js';
 // it here rather than writing its own checks, the way `author_creature`'s
 // hand-written accessors had to.
 export * from './spell-schema.js';
+// The feature validator, exported for the same reason and beside its
+// precedent: a class file is declarative data the compiler was the only guard
+// on, and a validator nothing outside its own test can reach is a rule nothing
+// enforces.
+export * from './feature-schema.js';
 export * from './creation.js';
 export * from './spells.js';
 export * from './character.js';

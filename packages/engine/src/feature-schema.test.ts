@@ -1,0 +1,726 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { isErr } from '@ie/shared';
+import { spellById } from '@ie/srd';
+import { allClasses, allSubclasses } from './creation.js';
+import { BACKGROUNDS, SPECIES } from './origins.js';
+import { MAX_LEVEL, type FeatureDefinition } from './progression.js';
+import {
+  checkFeatureDefinition,
+  declaredGrantKinds,
+  declaredOptionalFields,
+  duplicateFeatureIds,
+  parseFeatureDefinition,
+  readableFeatureFields,
+  readableGrantKinds,
+  unwrittenGrantKinds,
+  type FeatureContext,
+} from './feature-schema.js';
+
+/**
+ * A feature definition is data, and until now nothing checked it.
+ *
+ * The failure this file exists to catch is on the record: **nine features
+ * declared `automation: 'engine'` with a note saying "declared as a pool", and
+ * none of them declared a pool.** A Bard had a Hit Die, three slot pools and
+ * nowhere to spend an inspiration from. `class-pools.test.ts` closed that one
+ * instance — a note that claims a pool must be a feature that declares one —
+ * and the *class* of failure is wider than the instance: a feature declares
+ * its own automation, and the coverage table reads that declaration.
+ *
+ * This is the structural half. `class-pools.test.ts` keeps its own guards
+ * rather than being folded in: one asks whether a note's prose is honest, and
+ * this asks whether the declaration is coherent. Two instruments asking
+ * different questions is the point.
+ */
+
+const here = fileURLToPath(new URL('.', import.meta.url));
+const read = (name: string): string => readFileSync(`${here}${name}`, 'utf8');
+
+/**
+ * The three modules that read a feature's declaration.
+ *
+ * Named by the brief, and read as **one string** for the reason every sweep
+ * here does: the readers call one another, so asking each on its own stops the
+ * walk at the import that carries it.
+ */
+const READER_FILES = ['standing.ts', 'creation.ts', 'commands/features.ts'] as const;
+const READERS = READER_FILES.map(read);
+const PROGRESSION = read('progression.ts');
+
+const DECLARED_KINDS = declaredGrantKinds(PROGRESSION);
+const READABLE_KINDS = readableGrantKinds(DECLARED_KINDS, READERS);
+const READABLE_FIELDS = readableFeatureFields(declaredOptionalFields(PROGRESSION), READERS);
+
+/** Every feature the engine declares, with the source that grants it. */
+interface Entry {
+  readonly source: string;
+  readonly classId: string | null;
+  readonly levels: number;
+  readonly feature: FeatureDefinition;
+}
+
+const population = (): readonly Entry[] => {
+  const rows: Entry[] = [];
+  for (const definition of allClasses()) {
+    const levels = definition.table.length;
+    for (const feature of definition.features) {
+      rows.push({ source: definition.id, classId: definition.id, levels, feature });
+    }
+    for (const sub of allSubclasses().filter((s) => s.classId === definition.id)) {
+      for (const feature of sub.features) {
+        rows.push({ source: sub.id, classId: definition.id, levels, feature });
+      }
+    }
+  }
+  // A species or a background has no table of its own; its traits are keyed to
+  // character level, which runs to the same twenty.
+  for (const species of SPECIES) {
+    for (const feature of species.features) {
+      rows.push({ source: species.id, classId: null, levels: MAX_LEVEL, feature });
+    }
+  }
+  for (const background of BACKGROUNDS) {
+    for (const feature of background.features) {
+      rows.push({ source: background.id, classId: null, levels: MAX_LEVEL, feature });
+    }
+  }
+  return rows;
+};
+
+const POPULATION = population();
+
+const contextFor = (entry: Entry): FeatureContext => ({
+  levels: entry.levels,
+  readableGrants: READABLE_KINDS,
+  readableFields: READABLE_FIELDS,
+  spellExists: (id) => spellById(id) !== null,
+});
+
+/** A minimal feature that passes every rule, for a synthetic pair to vary. */
+const sound: FeatureDefinition = {
+  id: 'wizard:a-sound-feature',
+  name: 'A Sound Feature',
+  level: 3,
+  automation: 'manual',
+  note: 'The thing this feature does is not modelled, because nothing tracks a spellbook on fire.',
+};
+
+const CONTEXT: FeatureContext = {
+  levels: MAX_LEVEL,
+  readableGrants: READABLE_KINDS,
+  readableFields: READABLE_FIELDS,
+  spellExists: (id) => spellById(id) !== null,
+};
+
+const codes = (feature: FeatureDefinition, context: FeatureContext = CONTEXT): string[] =>
+  checkFeatureDefinition(feature, context).map((problem) => problem.code);
+
+/**
+ * An `engine` feature the instrument cannot see a reader for.
+ *
+ * Rule 4 asks whether an `engine` feature declares anything the readers read.
+ * Ten do not, in two families, and both are genuinely executed — through a
+ * declaration that is **not on the feature**, which is exactly where a
+ * derivation over feature fields is blind. The brief's own instruction for
+ * that case is to say so rather than to pretend, so each entry names the fact
+ * that would end it.
+ *
+ * The spellcasting eight are *derived* below rather than typed out, because
+ * the class's own `spellcasting` block names which feature it is.
+ */
+const EXECUTED_ELSEWHERE: Readonly<Record<string, string>> = {
+  'cleric:improved-blessed-strikes':
+    'SRD: "The extra damage of your Divine Strike increases to 2d8." An "Improved X" that only raises a number is a step in the first feature’s table, not a second grant — `cleric:blessed-strikes` carries the `diceCountByLevel` column and the engine reads it at the Cleric’s own level. Ends when `FeatureGrant` gains a member for "a later feature steps an earlier feature’s table", which is `progression.ts`’s owner to add.',
+  'druid:improved-elemental-fury':
+    'SRD: "The extra damage of your Primal Strike increases to 2d8." The same shape, reading `druid:elemental-fury`’s column. Ends with the same member.',
+};
+
+/** `<class>:<the feature its own spellcasting block names>`. */
+const spellcastingFeatureIds = (): readonly string[] =>
+  allClasses()
+    .filter((definition) => definition.spellcasting !== undefined)
+    .map((definition) => `${definition.id}:${definition.spellcasting?.feature ?? 'spellcasting'}`);
+
+describe('the readers are found at all', () => {
+  it('reads three reader modules and the declarations', () => {
+    expect(READERS).toHaveLength(3);
+    for (const source of READERS) expect(source.length).toBeGreaterThan(500);
+    expect(PROGRESSION.length).toBeGreaterThan(500);
+  });
+
+  /**
+   * A floor rather than a count, for the reason `refusal-sweep.test.ts` gives:
+   * the population grows with the engine, and what it must never do is
+   * silently drop to nothing, which is how a regex that stopped matching looks.
+   */
+  it('finds the population, and does not quietly see none', () => {
+    expect(POPULATION.length).toBeGreaterThan(200);
+    expect(DECLARED_KINDS.size).toBeGreaterThan(10);
+    expect(READABLE_KINDS.size).toBeGreaterThan(10);
+    expect(READABLE_FIELDS.size).toBeGreaterThan(2);
+  });
+});
+
+describe('rule 1 — ids are unique and namespaced', () => {
+  it('reports a namespace-less id, and accepts a namespaced one', () => {
+    expect(codes({ ...sound, id: 'a-sound-feature' })).toContain('bad_feature_id');
+    expect(codes({ ...sound, id: 'Wizard:Scholar' })).toContain('bad_feature_id');
+    expect(codes(sound)).not.toContain('bad_feature_id');
+  });
+
+  it('reports a shared id, and accepts a population with none', () => {
+    const shared = { ...sound, id: 'wizard:scholar' };
+    expect(duplicateFeatureIds([shared, { ...shared, name: 'Other' }])).toEqual(['wizard:scholar']);
+    expect(duplicateFeatureIds([shared, sound])).toEqual([]);
+  });
+
+  it('has no two features sharing an id anywhere in the engine', () => {
+    expect(duplicateFeatureIds(POPULATION.map((entry) => entry.feature))).toEqual([]);
+  });
+});
+
+describe('rule 2 — a level the table reaches', () => {
+  it('reports a level past the table, and accepts one inside it', () => {
+    expect(codes({ ...sound, level: 21 })).toContain('unreachable_level');
+    expect(codes({ ...sound, level: 0 })).toContain('unreachable_level');
+    expect(codes({ ...sound, level: 3.5 })).toContain('unreachable_level');
+    expect(codes({ ...sound, level: 20 })).not.toContain('unreachable_level');
+  });
+
+  /**
+   * The discriminating case: a level the *character* can reach and this
+   * source's table does not. A context of twenty cannot tell the two apart.
+   */
+  it('reads the source’s own table, not a universal twenty', () => {
+    const short: FeatureContext = { ...CONTEXT, levels: 3 };
+    expect(codes({ ...sound, level: 5 }, short)).toContain('unreachable_level');
+    expect(codes({ ...sound, level: 3 }, short)).not.toContain('unreachable_level');
+  });
+});
+
+describe('rule 3 — a manual feature says what is missing', () => {
+  it('reports a hollow note, and accepts one that says something', () => {
+    expect(codes({ ...sound, note: '' })).toContain('hollow_note');
+    expect(codes({ ...sound, note: '   ' })).toContain('hollow_note');
+    expect(codes({ ...sound, note: 'TODO' })).toContain('hollow_note');
+    expect(codes({ ...sound, note: 'Not modelled.' })).toContain('hollow_note');
+    expect(codes({ ...sound, note: 'This feature is not automated' })).toContain('hollow_note');
+    expect(codes({ ...sound, note: 'The Wish effect is not modelled.' })).not.toContain(
+      'hollow_note',
+    );
+    expect(codes(sound)).not.toContain('hollow_note');
+  });
+
+  /**
+   * The rule reads a *manual* feature, because that is where an unexplained
+   * "not automated" costs somebody at three in the morning. An `engine`
+   * feature's note describes what the engine does and is prose either way.
+   */
+  it('does not demand one of an engine feature', () => {
+    const executed: FeatureDefinition = {
+      ...sound,
+      automation: 'engine',
+      note: '',
+      grants: { kind: 'expertise' },
+    };
+    expect(codes(executed)).not.toContain('hollow_note');
+  });
+});
+
+describe('rule 4 — an engine feature declares something the engine reads', () => {
+  it('reports a grant kind nothing reads, and accepts one that is read', () => {
+    const unread = {
+      ...sound,
+      automation: 'engine' as const,
+      grants: { kind: 'telepathy' } as never,
+    };
+    expect(codes(unread)).toContain('grant_not_read');
+    expect(
+      codes({ ...sound, automation: 'engine', grants: { kind: 'expertise' } }),
+    ).not.toContain('grant_not_read');
+  });
+
+  it('reports an engine feature that declares nothing, and accepts one that does', () => {
+    expect(codes({ ...sound, automation: 'engine' })).toContain('engine_declares_nothing');
+    expect(
+      codes({ ...sound, automation: 'engine', choice: { kind: 'skill', choose: 1 } }),
+    ).not.toContain('engine_declares_nothing');
+    expect(
+      codes({
+        ...sound,
+        automation: 'engine',
+        grantsFeat: { featId: 'magic-initiate', spellList: 'wizard' },
+      }),
+    ).not.toContain('engine_declares_nothing');
+  });
+
+  /**
+   * **`grantsSubclass` does not satisfy it, because nothing reads it** — see
+   * the unread-field sweep below. Written down here as well, because a reader
+   * meeting this rule will reach for that field first: a feature declaring
+   * only `grantsSubclass` claims to be executed and reaches nothing.
+   */
+  it('is not satisfied by a field no reader dereferences', () => {
+    expect(codes({ ...sound, automation: 'engine', grantsSubclass: true })).toContain(
+      'engine_declares_nothing',
+    );
+  });
+
+  /** A manual feature is recorded and not executed, so it declares nothing. */
+  it('does not demand a declaration of a manual feature', () => {
+    expect(codes(sound)).not.toContain('engine_declares_nothing');
+  });
+
+  /**
+   * The derivation is over the readers, never a list — a hand-kept list is the
+   * claim this repository has had falsified four times. So it is driven over a
+   * synthetic reader it must see and a synthetic one it must not.
+   */
+  it('derives readability from the readers, and is driven over a source it must catch', () => {
+    const kinds = ['seen', 'unseen', 'commented'];
+    const reader = [
+      "if (grant?.kind !== 'seen') continue;",
+      "// a docstring naming 'commented' is not a reader",
+      '/** nor is `commented` in a block comment */',
+    ].join('\n');
+    const readable = readableGrantKinds(kinds, [reader]);
+    expect([...readable]).toEqual(['seen']);
+  });
+
+  it('sees a kind a reader names and a kind no reader names, in the real modules', () => {
+    // Non-vacuous in both directions against the engine's own readers.
+    expect(READABLE_KINDS.has('expertise')).toBe(true);
+    expect(readableGrantKinds(['a-kind-nobody-reads'], READERS).size).toBe(0);
+  });
+
+  it('derives which feature fields a reader reads', () => {
+    const fields = readableFeatureFields(['alpha', 'beta', 'gamma'], [
+      'const x = feature.alpha; const y = thing.beta;',
+    ]);
+    expect([...fields].sort()).toEqual(['alpha', 'beta']);
+  });
+
+  /**
+   * `.grants` must not be matched by `.grantsFeat`. The two are different
+   * fields and creation reads both; a loose boundary would make every
+   * `grantsFeat` reader look like a `grants` reader.
+   */
+  it('does not let one field name swallow a longer one', () => {
+    expect([...readableFeatureFields(['grants'], ['feature.grantsFeat'])]).toEqual([]);
+    expect([...readableFeatureFields(['grants'], ['feature.grants?.kind'])]).toEqual(['grants']);
+  });
+});
+
+describe('rule 5 — a fixed spell grant names spells the book prints', () => {
+  const withFixed = (fixed: readonly string[]): FeatureDefinition => ({
+    ...sound,
+    automation: 'engine',
+    grants: { kind: 'spells', fixed },
+  });
+
+  it('reports a spell the book does not print, and accepts one it does', () => {
+    expect(codes(withFixed(['dragon-breath']))).toContain('unknown_granted_spell');
+    expect(codes(withFixed(['dragons-breath']))).not.toContain('unknown_granted_spell');
+  });
+
+  it('reports an empty fixed list, because a grant of nothing grants nothing', () => {
+    expect(codes(withFixed([]))).toContain('empty_spell_grant');
+    expect(codes(withFixed(['bless']))).not.toContain('empty_spell_grant');
+  });
+
+  /**
+   * **Class-list membership is deliberately not checked, and the SRD is why.**
+   *
+   * The brief asked for "on that class's list", and four of the engine's
+   * fifteen fixed grants are off it — correctly. SRD 5.2.1 Fiend Spells:
+   * "when you reach a Warlock level specified in the Fiend Spells table, you
+   * thereafter always have the listed spells prepared", level 3: "Burning
+   * Hands, Command, Scorching Ray, Suggestion". Three of those four are on no
+   * Warlock list, and that is the entire point of a subclass spell grant —
+   * it hands you spells the class does not otherwise get. Draconic Spells does
+   * the same with Command.
+   *
+   * So enforcing it would have required deleting SRD content from four
+   * correct transcriptions, which is a change to what the engine executes. The
+   * counterexamples are asserted here rather than described, so a future rule
+   * meets them.
+   */
+  it('does not require a fixed grant to be on the class’s own list', () => {
+    const offList = ['burning-hands', 'command', 'scorching-ray'];
+    for (const id of offList) {
+      expect(spellById(id)?.classes ?? []).not.toContain('warlock');
+    }
+    expect(codes(withFixed(offList))).toEqual([]);
+  });
+});
+
+describe('rule 6 — a pool is sized the three ways the SRD sizes one', () => {
+  const pool = (sizing: Record<string, unknown>): FeatureDefinition => ({
+    ...sound,
+    automation: 'engine',
+    grants: {
+      kind: 'pool',
+      key: 'a-pool',
+      recovers: 'long-rest',
+      ...sizing,
+    } as never,
+  });
+
+  it('reports two sizings at once, and accepts exactly one', () => {
+    expect(codes(pool({ usesByLevel: new Array(20).fill(1), perClassLevel: 5 }))).toContain(
+      'ambiguous_pool_sizing',
+    );
+    expect(codes(pool({ perClassLevel: 5 }))).not.toContain('ambiguous_pool_sizing');
+  });
+
+  it('reports a column that is not the length of the table, and accepts one that is', () => {
+    expect(codes(pool({ usesByLevel: [1, 2, 3] }))).toContain('not_a_table_column');
+    expect(codes(pool({ usesByLevel: new Array(MAX_LEVEL).fill(1) }))).not.toContain(
+      'not_a_table_column',
+    );
+  });
+
+  it('reports a sizing that is not a number the SRD could print', () => {
+    expect(codes(pool({ perClassLevel: 0 }))).toContain('bad_pool_sizing');
+    expect(codes(pool({ perClassLevel: -1 }))).toContain('bad_pool_sizing');
+    expect(codes(pool({ minimum: 0.5 }))).toContain('bad_pool_sizing');
+    expect(codes(pool({ usesByLevel: new Array(20).fill(-1) }))).toContain('bad_pool_sizing');
+    expect(codes(pool({ fromAbilityModifier: 'luck' }))).toContain('bad_pool_sizing');
+    expect(codes(pool({ fromAbilityModifier: 'cha', minimum: 1 }))).not.toContain(
+      'bad_pool_sizing',
+    );
+  });
+
+  /**
+   * SRD Arcane Recovery: "Once you use this feature, you can't do so again
+   * until you finish a Long Rest." A pool of one names no shape at all, which
+   * is `poolSizeOf`'s fourth branch and a real answer rather than an omission.
+   */
+  it('accepts a pool of one, which names no sizing shape', () => {
+    expect(codes(pool({ minimum: 1 }))).toEqual([]);
+    expect(codes(pool({}))).toEqual([]);
+  });
+
+  /** The sizing is read wherever a grant declares one, not only on `pool`. */
+  it('reads the sizing an activated grant and a reaction grant declare', () => {
+    const activated: FeatureDefinition = {
+      ...sound,
+      automation: 'engine',
+      grants: {
+        kind: 'activated',
+        action: 'bonus-action',
+        pool: 'a-pool',
+        lasts: 'end-of-next-turn',
+        usesByLevel: [1, 2, 3],
+      },
+    };
+    expect(codes(activated)).toContain('not_a_table_column');
+
+    const reaction: FeatureDefinition = {
+      ...sound,
+      automation: 'engine',
+      grants: {
+        kind: 'reaction',
+        costsReaction: true,
+        reach: { kind: 'self' },
+        does: [{ kind: 'reroll' }],
+        pool: 'a-pool',
+        declares: { usesByLevel: [1, 2, 3], recovers: 'long-rest' },
+      },
+    };
+    expect(codes(reaction)).toContain('not_a_table_column');
+  });
+});
+
+describe('rule 7 — no FeatureGrant member sits unwritten', () => {
+  const written: ReadonlySet<string> = new Set(
+    POPULATION.flatMap((entry) =>
+      entry.feature.grants === undefined ? [] : [String(entry.feature.grants.kind)],
+    ),
+  );
+
+  /**
+   * Both directions, which together are a bijection: a member the extraction
+   * misses fails the first, and a member nobody writes fails the second.
+   * Names, never a count — a count needs maintaining by whoever next changes
+   * the format, and passes for the wrong reason the moment two changes cancel.
+   */
+  it('declares every kind a class writes', () => {
+    expect([...written].filter((kind) => !DECLARED_KINDS.has(kind)).sort()).toEqual([]);
+  });
+
+  it('has a class writing every kind it declares', () => {
+    expect(unwrittenGrantKinds(DECLARED_KINDS, written)).toEqual([]);
+  });
+
+  it('reports a member nobody writes, driven over a synthetic one', () => {
+    expect(unwrittenGrantKinds(['expertise', 'telepathy'], new Set(['expertise']))).toEqual([
+      'telepathy',
+    ]);
+  });
+
+  /**
+   * The extraction takes the union's own arms and not the unions nested inside
+   * them. `FeatureGrant`'s `recovery` arm carries
+   * `restores: { kind: 'pool' } | { kind: 'pact-slots' }`, and `pact-slots` is
+   * not a `FeatureGrant` member — reading it as one would report a member
+   * nobody could ever write.
+   */
+  it('does not mistake a nested union’s arm for a member of this one', () => {
+    expect(DECLARED_KINDS.has('pact-slots')).toBe(false);
+    expect(DECLARED_KINDS.has('reaction')).toBe(true);
+  });
+
+  it('is driven over a synthetic declaration it must read exactly', () => {
+    const source = [
+      'export type FeatureGrant =',
+      "  | { readonly kind: 'alpha' }",
+      '  | {',
+      "      readonly kind: 'beta';",
+      '      readonly restores:',
+      "        | { readonly kind: 'nested-one' }",
+      "        | { readonly kind: 'nested-two' };",
+      '    };',
+      '',
+      'export interface PoolSizing {',
+      "  readonly kind: 'not-a-grant';",
+      '}',
+    ].join('\n');
+    expect([...declaredGrantKinds(source)].sort()).toEqual(['alpha', 'beta']);
+  });
+
+  /**
+   * The same question one level up: a **field** of `FeatureDefinition` that
+   * every class writes and no reader reads.
+   *
+   * `grantsSubclass` is the one, and it is a finding rather than a fix. All
+   * twelve classes set it `true` on the feature that opens their subclass, and
+   * nothing in `standing.ts`, `creation.ts` or `commands/features.ts`
+   * dereferences it — `creation.ts:412` asks `definition.subclassLevel`, the
+   * **class's** own declaration, and `checkFeatureChoices` reads the feature's
+   * `choice: { kind: 'subclass' }`. So it is a second place recording a fact
+   * the engine reads from the first, which is the "two answers to one
+   * question" failure this repository keeps naming.
+   *
+   * Removing it is `progression.ts`'s owner's — this task may not change those
+   * types, and deleting the twelve writers while the field still stands would
+   * be worse than leaving them. So the exemption names it, and the sweep is
+   * held in both directions so it cannot silently grow a second entry.
+   */
+  const UNREAD_FIELDS: Readonly<Record<string, string>> = {
+    grantsSubclass:
+      'Written `true` by all twelve classes and dereferenced by no reader. Creation decides a subclass is due from `ClassDefinition.subclassLevel` and asks for it through the feature’s own `choice: { kind: "subclass" }`, so this field records a third time what two other declarations already say. Ends when `progression.ts`’s owner removes it, or when a reader is written that prefers it to `subclassLevel`.',
+  };
+
+  it('names every optional feature field no reader reads, and exempts none that is read', () => {
+    const declared = declaredOptionalFields(PROGRESSION);
+    const unread = [...declared].filter((field) => !READABLE_FIELDS.has(field)).sort();
+    expect(unread).toEqual(Object.keys(UNREAD_FIELDS).sort());
+    // Not vacuous: the fields that *are* read are read.
+    expect([...READABLE_FIELDS].sort()).toEqual(['choice', 'grants', 'grantsFeat']);
+  });
+
+  it('has a reason on the unread field, and it says something', () => {
+    const hollow = /^(todo|tbd|n\/?a|none|later|unknown)\.?$/i;
+    for (const [field, reason] of Object.entries(UNREAD_FIELDS)) {
+      expect(reason.length, field).toBeGreaterThan(80);
+      expect(hollow.test(reason.trim()), field).toBe(false);
+    }
+  });
+
+  /**
+   * Driven over a declaration carrying the two shapes that mislead it: a
+   * neighbouring interface, and an **inline** optional nested on the same line
+   * as the field that holds it — which is how `grantsFeat` writes `spellList`,
+   * and is why indentation cannot be what separates them.
+   */
+  it('reads the optional fields a feature may declare, and not the ones inside them', () => {
+    const source = [
+      'export interface FeatureDefinition {',
+      '  readonly id: string;',
+      '  readonly choice?: FeatureChoice;',
+      '  readonly grants?: FeatureGrant;',
+      '  readonly grantsFeat?: { readonly featId: string; readonly spellList?: string };',
+      '}',
+      'export interface Other {',
+      '  readonly nope?: string;',
+      '}',
+    ].join('\n');
+    expect([...declaredOptionalFields(source)].sort()).toEqual([
+      'choice',
+      'grants',
+      'grantsFeat',
+    ]);
+  });
+});
+
+describe('the whole engine’s features validate', () => {
+  it('reports nothing but the rule-4 blind spot', () => {
+    const problems = POPULATION.flatMap((entry) =>
+      checkFeatureDefinition(entry.feature, contextFor(entry)).map(
+        (problem) => `${entry.feature.id} ${problem.code}: ${problem.reason}`,
+      ),
+    );
+    const exempt = new Set([...Object.keys(EXECUTED_ELSEWHERE), ...spellcastingFeatureIds()]);
+    expect(
+      problems.filter(
+        (line) =>
+          !(line.includes('engine_declares_nothing') && exempt.has(line.split(' ')[0] ?? '')),
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * The exemption list is held in **both** directions, so a stale entry fails
+   * rather than sitting there — the discipline `invariants.test.ts` established
+   * and the one thing that keeps an allowlist from becoming a licence.
+   */
+  it('exempts nothing that the rule does not actually catch', () => {
+    const caught = new Set(
+      POPULATION.filter((entry) =>
+        checkFeatureDefinition(entry.feature, contextFor(entry)).some(
+          (problem) => problem.code === 'engine_declares_nothing',
+        ),
+      ).map((entry) => entry.feature.id),
+    );
+    for (const id of Object.keys(EXECUTED_ELSEWHERE)) expect(caught.has(id)).toBe(true);
+    for (const id of spellcastingFeatureIds()) expect(caught.has(id)).toBe(true);
+    expect(caught.size).toBe(Object.keys(EXECUTED_ELSEWHERE).length + spellcastingFeatureIds().length);
+  });
+
+  /**
+   * The spellcasting eight are derived from the class's own `spellcasting`
+   * block rather than typed out — `ClassSpellcasting.feature` names which of
+   * the two features it is, and a thirteenth casting class needs no edit here.
+   * Checked to be real features, because a derived id that matches nothing
+   * would exempt nothing and pass silently.
+   */
+  it('derives the spellcasting exemptions from the class declarations', () => {
+    const byId = new Set(POPULATION.map((entry) => entry.feature.id));
+    const derived = spellcastingFeatureIds();
+    expect(derived.length).toBeGreaterThan(5);
+    for (const id of derived) expect(byId.has(id)).toBe(true);
+    expect(derived).toContain('warlock:pact-magic');
+  });
+
+  /** A written reason has to say something; whether it is *true* is review's. */
+  it('has a reason on every exemption, and no placeholder', () => {
+    const hollow = /^(todo|tbd|n\/?a|none|later|unknown)\.?$/i;
+    for (const [id, reason] of Object.entries(EXECUTED_ELSEWHERE)) {
+      expect(reason.length, id).toBeGreaterThan(80);
+      expect(hollow.test(reason.trim()), id).toBe(false);
+    }
+  });
+});
+
+describe('parseFeatureDefinition is the Result half', () => {
+  /**
+   * The codes are named rather than only `isErr`, because a code a tool
+   * surface branches on is a rule that lives in a string and nowhere else —
+   * `refusal-sweep.test.ts` is what says so, and it counts this file.
+   */
+  it('takes unknown and refuses what is not a feature at all', () => {
+    const refusal = (value: unknown): string => {
+      const result = parseFeatureDefinition(value, CONTEXT);
+      expect(isErr(result)).toBe(true);
+      return result.ok ? '' : result.code;
+    };
+    expect(refusal(null)).toBe('not_a_feature');
+    expect(refusal('wizard:scholar')).toBe('not_a_feature');
+    expect(refusal([sound])).toBe('not_a_feature');
+    expect(refusal({ id: 'wizard:scholar' })).toBe('bad_feature_shape');
+    expect(refusal({ ...sound, level: '3' })).toBe('bad_feature_shape');
+  });
+
+  /**
+   * **Every field a rule dereferences, because that is where a refusal turns
+   * into a `TypeError`.** The first version checked the five scalars and
+   * nothing else, so `grants: null` threw reading `.kind`, a string `fixed`
+   * threw on `.forEach` and a numeric `usesByLevel` threw on `.findIndex` —
+   * three exceptions out of a function whose whole contract is that it answers
+   * a caller who did not come through the compiler. Rules-legal refusals are
+   * values, not exceptions, and this is the task's own subject arriving in the
+   * task: a docstring made a claim and nothing checked it.
+   */
+  it('answers rather than throwing on every field a rule reads', () => {
+    const malformed: readonly [string, unknown][] = [
+      ['a grant that is not an object', { ...sound, grants: null }],
+      ['a grant that is a list', { ...sound, grants: [{ kind: 'expertise' }] }],
+      ['a grant with no kind', { ...sound, grants: {} }],
+      ['a grant whose kind is not a string', { ...sound, grants: { kind: 7 } }],
+      ['a fixed list that is a string', { ...sound, grants: { kind: 'spells', fixed: 'bless' } }],
+      [
+        'a fixed list holding something that is not an id',
+        { ...sound, grants: { kind: 'spells', fixed: ['bless', 3] } },
+      ],
+      [
+        'a column that is a number',
+        { ...sound, grants: { kind: 'pool', key: 'k', recovers: 'long-rest', usesByLevel: 20 } },
+      ],
+      [
+        'a column holding something that is not a number',
+        {
+          ...sound,
+          grants: { kind: 'pool', key: 'k', recovers: 'long-rest', usesByLevel: ['1'] },
+        },
+      ],
+      [
+        'a declared pool that is not an object',
+        { ...sound, grants: { kind: 'reaction', declares: 'twice' } },
+      ],
+      [
+        'a declared pool whose column is a number',
+        { ...sound, grants: { kind: 'reaction', declares: { usesByLevel: 3 } } },
+      ],
+    ];
+
+    for (const [label, value] of malformed) {
+      const result = parseFeatureDefinition(value, CONTEXT);
+      expect(result.ok, label).toBe(false);
+      if (!result.ok) expect(result.code, label).toBe('bad_feature_shape');
+    }
+  });
+
+  /**
+   * The shape check stops at what the rules read. A field the engine does not
+   * know is data a later engine understands, not data that is wrong — the
+   * reading `checkShape` takes and the reason this is not a second copy of the
+   * type.
+   */
+  it('does not refuse a field it has never heard of', () => {
+    expect(parseFeatureDefinition({ ...sound, telepathy: { range: 30 } }, CONTEXT).ok).toBe(true);
+  });
+
+  /** A shape it *can* read, refused on the semantics, keeps the rule's code. */
+  it('carries the rule’s own code through, with the field in front of it', () => {
+    const result = parseFeatureDefinition({ ...sound, level: 99 }, CONTEXT);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('unreachable_level');
+      expect(result.reason).toMatch(/^level: /);
+    }
+  });
+
+  it('returns the definition when it is sound', () => {
+    const parsed = parseFeatureDefinition(sound, CONTEXT);
+    expect(parsed.ok).toBe(true);
+  });
+
+  it('drives every feature the engine declares through the untyped half', () => {
+    const refused = POPULATION.map((entry) =>
+      parseFeatureDefinition(entry.feature, { ...contextFor(entry), readableFields: READABLE_FIELDS }),
+    )
+      .map((result, index) =>
+        result.ok
+          ? null
+          : `${POPULATION[index]?.feature.id}: ${result.code} ${result.reason}`,
+      )
+      .filter((line): line is string => line !== null)
+      // The rule-4 blind spot is the one thing the population trips, and it is
+      // accounted for above.
+      .filter((line) => !line.includes('engine_declares_nothing'));
+    expect(refused).toEqual([]);
+  });
+});

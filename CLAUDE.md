@@ -4346,6 +4346,113 @@ recovers at *dawn* and gives one back on a Short Rest can simply be built. That
 is the difference between this and `placeArea`'s dead `no_scene`, which stayed
 dead because nothing could construct its case.
 
+### A Feature Definition Is Validated Data Too
+
+`feature-schema.ts` is `spell-schema.ts` pointed at the twelve class files, and
+it exists for the reason that one does: a class file is pure declarative data,
+the compiler was the only guard on it, and **every claim a definition made
+about itself was believed**. The nine features that said "declared as a pool"
+and declared none are the record of what that costs.
+
+`checkFeatureDefinition` returns every problem with a path on each,
+`parseFeatureDefinition` takes `unknown` and is the `Result` half, and the two
+guards stay apart on purpose: `class-pools.test.ts` asks whether a feature's
+**note** is honest, this asks whether its **declaration** is coherent, and
+`creation.ts` asks whether *this character* may take it. Every rule was run
+against the whole population before it was written and none of them fires —
+the seven caught no defect, and the three things they *found* are below.
+
+**Rule 4 is the one with teeth, and it is derived rather than listed.** The
+question is whether an `engine` feature declares anything the engine reads, and
+the readable set is computed from `standing.ts`, `creation.ts` and
+`commands/features.ts` themselves — comments stripped, because
+`progression.ts` names every grant kind in prose several times and a probe that
+counted a docstring would report that everything is read and check nothing. A
+hand-written list is the claim this repository has had falsified four times,
+and rule 4 is *about* a claim nobody checked.
+
+**Its blind spot is stated rather than exempted away.** Ten `engine` features
+declare nothing on themselves and are executed anyway, through a declaration on
+their **class**: the eight spellcasting features, which `ClassSpellcasting`
+carries — derived from that block rather than typed out, so a thirteenth
+casting class needs no edit — and the two "Improved X" features, which are a
+step in an earlier feature's dice table. The second pair is what would end when
+`FeatureGrant` gains a member for a later feature restating an earlier one's
+column, which is `progression.ts`'s owner's to add. The exemptions are held in
+**both** directions, so a rule that stopped firing fails rather than sitting
+there.
+
+**The shape check covers what the rules dereference, and the first version did
+not — which is this task's own subject arriving in the task.** It checked the
+five scalar fields, so `parseFeatureDefinition` answered a JSON blob with a
+`TypeError` three ways over: `grants: null` reading `.kind`, a string `fixed`
+on `.forEach`, a numeric `usesByLevel` on `.findIndex`. A docstring claimed "a
+caller handing over a JSON blob gets the same answers as one handing over a
+compiled constant" and nothing checked the claim, which is precisely the
+failure the module exists to prevent. `checkFeatureShape` now reads every field
+a rule touches and stops there — an unknown extra field is still data a later
+engine understands rather than data that is wrong — and **rules-legal refusals
+are values, not exceptions** is what makes that a defect rather than a nicety.
+
+**A probe coarser than the thing it reads must pin its collisions, and two of
+them were real.** `FeatureGrant`'s `recovery` arm carries a *nested* union —
+`restores: { kind: 'pool' } | { kind: 'pact-slots' }` — so reading every
+`readonly kind:` in the declaration invents `pact-slots` as a member nobody
+could ever write, which is the one thing a guard must not do; the arms are
+split on their own indentation instead. And `grantsFeat` declares an inline
+optional `spellList` **on the same line**, so indentation cannot separate those
+two and the field probe anchors to the start of a line. Both are driven over a
+synthetic declaration they must read exactly.
+
+### Three things the validator found, none of them a rule it enforces
+
+**`grantsSubclass` has twelve writers and no reader at all.** Every class sets
+it `true` on the feature that opens its subclass, and nothing in any reader
+dereferences it: `creation.ts` decides a subclass is due from
+`ClassDefinition.subclassLevel` and asks for it through the feature's own
+`choice: { kind: 'subclass' }`. So it is a third place recording what two other
+declarations already say — the "two answers to one question" failure this file
+keeps naming, arriving in the feature format. Removing it belongs to
+`progression.ts`'s owner, so the sweep **reports** it, in both directions, and
+the twelve writers stand: deleting a field's only writers while the field
+itself remains is worse than leaving them.
+
+**A fixed spell grant is deliberately off the class's own list, and a rule
+requiring otherwise would have deleted SRD content.** SRD Fiend Spells: "when
+you reach a Warlock level specified in the Fiend Spells table, you thereafter
+always have the listed spells prepared", level 3 — "Burning Hands, Command,
+Scorching Ray, Suggestion". Three of those four are on no Warlock list, and
+Draconic Spells does the same with Command: handing you spells the class does
+not otherwise get is the *entire point* of a subclass spell grant. Four of the
+engine's fifteen fixed grants are off-list and all four are correct. So the
+rule checks **existence in the parsed book** — which is what catches a typo in
+an id nothing else validates, because a fixed grant is the feature's own answer
+and never meets a character's choices — and the counterexamples are asserted
+rather than described, so a future rule meets them. The class-list check that
+*is* right is the one `checkEvocationSavant` already makes, on a grant the
+player **chooses** from.
+
+**A subclass feature's namespace is not a class id, and that is a live wrong
+number.** `classLevelFor` derives the class from `featureId.split(':')[0]` and
+falls back to `choices.level` — the *starting* class's level — when no class
+has that id. A subclass id never does. Its own docstring names the case it gets
+wrong: "a multiclassed Bard's inspiration does not grow with their Fighter
+levels", which is true of `bard:bardic-inspiration` and false of
+`college-of-lore:cutting-words`. A **Fighter 5 / Bard 3** of the College of
+Lore is handed a **1d8** Cutting Words die; SRD gives a Bard 3 a d6, and d8
+arrives at Bard level 5. The direction matters: a Bard 3 / Fighter 5 is
+accidentally right, because the fallback reads the starting class — which is
+the same discriminating fixture this file already records for "half your
+*Sorcerer* level", met a second time from the other side.
+
+Two subclass features size a pool today and both do it from an ability
+modifier, so no *pool* is wrong yet; `open-hand:` and `berserker:` are the two
+namespaces that do not even match their own subclass id. The rule that would
+catch all of this is not in `feature-schema.ts`, because its only violators are
+correct data whose fix is in `creation.ts`: a feature whose grant reads a class
+level must be reachable from a class, and where that is read is the thing to
+change.
+
 ### What A Pool Buys, Which Was The Half Nobody Had Built
 
 Every pool in the class tables was declared, sized correctly and refilled on
