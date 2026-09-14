@@ -1,13 +1,13 @@
 # IE-058 — A tranche cannot close over a live task
 
-state: IMPLEMENTING
+state: DONE
 lane: tooling
 tranche: 7
 parallel-safe: YES — `docs/dev/check-queue.mjs` and its test; touches no engine source
 depends-on: none
-worker: qb-builder, launched 2026-09-14 from `04a5353` (wave 2)
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 7."
 
 ## Brief
 
@@ -152,3 +152,79 @@ Low in code. The design risk is the one requirement 2 names: a representation
 that makes deferral quieter than it is today — in particular anything that lets
 a roster entry simply vanish — would replace a visible bug with an invisible
 one. If the shape you land on has that property, stop and say so.
+
+## Completion digest
+
+**Merged `55d772e`**, 13/13 auto-merge conditions, reviewer PASS at high
+confidence, round 2. `main` green at **8,542 tests across 124 files**.
+
+### The regression, reproduced by the foreman against the real repository
+
+Not against a fixture. IE-049 was flipped to `AWAITING_FOREMAN_REVIEW` on the
+live corpus and both validators run from the same path:
+
+| | Result |
+|---|---|
+| the validator as it stood at `04a5353` | **`Problems: none`** — while printing `IE-049 (AWAITING_FOREMAN_REVIEW)` on tranche 6's `COMPLETE` line |
+| the validator after this task | `Problems: 1` — *"COMPLETE but IE-049 is AWAITING_FOREMAN_REVIEW — a tranche cannot close over a live task; finish it, or record the deferral as `IE-049 (deferred → tranche N)` on this roster"* |
+
+**That top row is the tranche-6 failure, exactly.** The information was on the
+screen and nothing refused. The owner's instruction was that completeness become
+a machine-enforced invariant rather than a foreman attention rule, and the
+difference between those two rows is that instruction, satisfied.
+
+### The declared deviation: a two-sided deferral — accepted, and it is better
+
+The brief proposed a one-sided marker on the closing roster. The builder made it
+**two-sided** — `IE-042 (deferred → tranche 7)` on the closing roster and
+`IE-042 (deferred from tranche 6)` on the receiving one, each half required —
+because **a one-sided marker leaves deletion exactly as cheap as it is today**,
+and therefore fails the brief's own load-bearing constraint that a deferral must
+be louder than a deletion. That is the constraint reasoning about the design
+rather than following it, which is what a builder is for.
+
+Review then found the first attempt had **no legal spelling for a second slip**,
+which would have made deleting the tranche-6 marker the only route back to a
+green queue — the exact failure mode inverted. Hence a fourth form,
+`(deferred from tranche N → tranche M)`. Four forms, and an unrecognised
+bracketed note is **refused rather than read past**.
+
+### The erasure had already happened, in the record this task was written from
+
+The builder's first out-of-scope finding is about the foreman's own edit, and it
+is correct. Tranche 6's roster had simply **lost** IE-042 — twelve ids, the
+thirteenth absent — and IE-042's `approved:` line had been rewritten to tranche
+7's words. Nothing in the corpus recorded that it was ever deferred; the
+validator passed truthfully over an incomplete record.
+
+**Fixed at merge, in the foreman's lane, and the same two lines applied to
+IE-036's tranche-5 deferral**, which had the identical shape. Both now derive:
+
+```
+Tranche 5  COMPLETE  18 rostered → 17 shipped, 1 deferred
+  deferred (1): IE-036 → tranche 6
+Tranche 6  COMPLETE  13 rostered → 12 shipped, 1 deferred
+  deferred (1): IE-042 → tranche 7
+```
+
+Note what that repaired besides the provenance: tranche 6 now reads **13
+rostered**, which is what the owner approved. The roster itself had been carrying
+the same wrong number as the closing report.
+
+### The honest limit, recorded rather than implied
+
+**A fully consistent erasure remains undetectable** — delete the id from the
+closing roster, move the task file, add it plainly to the receiving roster —
+because nothing the validator may read records prior roster membership, and the
+brief fixes it to a single dependency-free file. Every *partial* erasure is now
+loud, and **the motive is gone**: the shipped count is derived from task states
+either way, so erasing an id no longer flatters the number. The builder declined
+to widen the validator's inputs to close it, correctly calling that a YELLOW.
+
+### Verified
+
+31 new tests (36 in the file). The best of them, and the reviewer said so: an
+`it.each` table over all nine non-`DONE` states **pinned against the state list
+the validator prints**, so a tenth state cannot leave the table one case short.
+Three mutations, each failing as required. Every prior rule intact. The real
+corpus passes at exit 0 and no historical tranche needed the rule weakened.

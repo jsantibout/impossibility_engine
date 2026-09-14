@@ -390,7 +390,7 @@ foreman.
 Recommendation: APPROVE TRANCHE 4.
 
 ### Tranche 5 — COMPLETE 2026-09-14 — "APPROVE TRANCHE 5"
-roster: IE-020, IE-021, IE-022, IE-023, IE-024, IE-025, IE-026, IE-027, IE-028, IE-029, IE-030, IE-031, IE-032, IE-033, IE-034, IE-035, IE-037
+roster: IE-020, IE-021, IE-022, IE-023, IE-024, IE-025, IE-026, IE-027, IE-028, IE-029, IE-030, IE-031, IE-032, IE-033, IE-034, IE-035, IE-036 (deferred → tranche 6), IE-037
 
 > **IE-036 was on this roster and was deferred rather than launched** — the
 > 2026-09-14 deferral row in the gate log is the record. When tranche 6 was
@@ -553,13 +553,23 @@ Recommendation: APPROVE TRANCHE 5.
 
 ### Tranche 6 — COMPLETE 2026-09-14 — "APPROVE TRANCHE 6."
 
-roster: IE-036, IE-038, IE-039, IE-040, IE-041, IE-043, IE-044, IE-045, IE-046, IE-047, IE-048, IE-049
+roster: IE-036 (deferred from tranche 5), IE-038, IE-039, IE-040, IE-041, IE-042 (deferred → tranche 7), IE-043, IE-044, IE-045, IE-046, IE-047, IE-048, IE-049
 
 > **IE-042 was on this roster and was never launched** — see the correction row
-> in the gate log. It is **re-rostered to tranche 7**, so the roster line above no
-> longer names it: a task belongs to exactly one tranche, which is what makes a
-> tranche the unit of authority. Twelve of the thirteen this tranche approved
-> shipped.
+> in the gate log. It is **deferred to tranche 7**, and since IE-058 the roster
+> line says so in a form the validator reads: `IE-042 (deferred → tranche 7)`
+> here, `IE-042 (deferred from tranche 6)` there. Both halves are required and
+> either one alone is a validator problem, which is what stops a foreman closing
+> a tranche by quietly deleting an id. A task still belongs to exactly one
+> tranche — its file claims tranche 7 — and this records where it came from.
+> Twelve of the thirteen this tranche approved shipped; `check-queue.mjs`
+> derives that line rather than trusting this one.
+>
+> **The record was incomplete until 2026-09-14 and IE-058's own builder found
+> it.** The roster had simply lost the id, and IE-042's `approved:` line had been
+> rewritten to tranche 7's words — so nothing in the corpus said it was ever
+> deferred. That is precisely the erasure the task was briefed to make loud, sitting
+> in the record the task was written from.
 
 **Thirteen tasks, five waves, operationalised from the post-tranche-5
 simplification and optimisation audit** (`docs/architecture/post-tranche-5-simplification-audit-2026-09-14.md`),
@@ -696,7 +706,7 @@ Recommendation: APPROVE TRANCHE 6.
 
 ### Tranche 7 — APPROVED 2026-09-14 — "APPROVE TRANCHE 7."
 
-roster: IE-042, IE-050, IE-051, IE-052, IE-053, IE-054, IE-055, IE-056, IE-057, IE-058
+roster: IE-042 (deferred from tranche 6), IE-050, IE-051, IE-052, IE-053, IE-054, IE-055, IE-056, IE-057, IE-058
 
 **Ten tasks, four waves, planned from tranche 6's own evidence** rather than
 from the audit's roster — the post-tranche-5 simplification audit remains the
@@ -868,6 +878,7 @@ rest" prints both numbers for every shape. Do not re-rank from prose.
 
 | Task | Lane | Note |
 |---|---|---|
+| **A `QUEUE.md` with CRLF line endings parses zero tranches, so the roster guard fails open** — on `main` as well as in the branch that found it | tooling | IE-058’s builder, pre-existing and out of its scope. **This matters more now than it did an hour ago**: the file that fails open is the one that just became the enforcement mechanism for tranche closure, and "fails open" means it silently checks nothing rather than complaining. Repo files are LF today and `.gitattributes` does not normalise this one; a Windows editor rewriting it is all it takes |
 | **`check:briefs` findings belong in the state a fresh session reads first, and the validator should refuse rather than print.** IE-052 ships as a report by the foreman’s ruling; its stated weakness is that a foreman who forgets the command gets nothing — and the foreman who ruled on it is the one who read past IE-042 in twelve consecutive validator summaries | tooling | the foreman, ruling on IE-052’s requirement 6. **Printing it in a longer summary is what failed for IE-042**, so the fix is not "put it in the `/qb` output": it is to make `check-queue.mjs` **refuse**, the way IE-058 makes closure refuse. Could not be done in tranche 7 — IE-058 owns `check-queue.mjs` this cycle and one owner per primitive is the rule. The one-line switch that would instead gate the suite is left in `brief-citations.test.ts` with its reasoning, unflipped |
 | **184 quotations in the 48 closed briefs now cite `CLAUDE.md` for sentences it no longer contains**, because the architecture was extracted into `docs/design/` on 2026-09-14 | conformance | IE-052’s guard, run over the closed corpus (188 findings, 184 of them quotations). **A consequence of the foreman’s own refactor, surfaced by an instrument built the same day.** It launches nothing — a closed brief cannot start a builder, which is why IE-052 scopes its corpus to briefs that are not `DONE` — but it is provenance rot across the historical record, and `docs/architecture/claude-md-migration-ledger-2026-09-14.md` is the map that would repair it |
 | Two false-positive classes a brief-citation **gate** would red, demonstrated rather than hypothesised: a brief naming a file the task will **create**, and a brief quoting prose it instructs the builder to **add** to a named document | tooling | IE-052’s reviewer. A brief describes the future; a citation guard checks the present. Whoever revisits the gate decision has to answer these two first |
@@ -1057,3 +1068,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | Gate 1 (tranche) | IE-042, IE-050 … IE-058 | approved — "APPROVE TRANCHE 7. Launch the tranche under the existing foreman/builder protocol." Ten tasks, four waves, the roster and the collision structure preserved as approved — nothing added, removed, combined or substituted. The owner bound four things beyond the roster: each builder loads the authoritative `docs/design/` document for its surface, every returned diff is reviewed against the acceptance criteria and those documents rather than against a green suite, closure is derived from the machine state per IE-058 rather than from a checklist, and a genuine architectural ambiguity stops its task and escalates instead of improvising a design |
 | 2026-09-14 | merge (tranche authority) | IE-051 | merged `402ecf4`, 13/13, reviewer PASS at **high confidence on the first round** — the first of the tranche. `commands/spell-resolution.ts` 3,043 → 1,485 lines, sixteen resolvers into eight siblings. **The byte-identity oracle was verified a third time, by the foreman, mechanically**: 22 of 22 moved declarations identical to a run in `main`’s file after removing exactly one `export ` keyword. The value graph ran both ways and printed the same 35 declarations, ACYCLIC both times, so the anticipated YELLOW did not arrive. **Criterion 4 answered with a residual**: the three would-be colliders land in three different modules, but each still needs one small edit in `spell-resolution.ts` itself — at file granularity the one-owner rule would still serialise them, at declaration granularity it would not. **The foreman ruled no change**: the approved plan already puts those three in three different waves, so the question is moot this tranche, and loosening a workflow rule to solve a problem the roster does not have is the improvisation the approval forbade. Recorded as next-cycle evidence. Reported and not acted on: neither frozen log caught either of the builder’s two mutations, which is thinner resolver coverage than "the frozen logs are the conformance" implies |
 | 2026-09-14 | merge (tranche authority, **one deviation accepted**) | IE-050 | merged `26a47d7`, 13/13, reviewer PASS at high confidence on the first round. **The brief named six domains and the builder used thirteen — declared, inspected, accepted.** Criterion 5 is what forced it: under the brief’s own six-way grouping *two of the three* tranche-6 colliders still collide, on `creature-added` beside `condition-applied` and on `casting-continued` beside `spell-ongoing`, so the six would have **failed** the acceptance criterion. One rule applied uniformly — a seam owns a region of `GameState` — and the two refinements are cuts `commands/` already makes. GREEN: inside the brief’s explicit delegation, inventing no architecture. **The foreman verified the partition against the code rather than the digest**: 95 event literals in `events.ts`, 95 claimed, 0 double-claimed, 0 unclaimed; and of 1,545 non-blank lines below the imports in the thirteen seams, 1,257 are identical to lines in `main`’s `apply.ts`, with every one of the remaining 288 accounted for as scaffolding — no moved logic line unexplained. Criterion 5 re-checked: IE-040 → `roster.ts`, IE-041 → `casting.ts`+`combat.ts`, IE-047 → `ongoing.ts`+`vitals.ts`, no two sharing a module. **A real catch inside it**: `invariants.test.ts`’s "the fold holds the reducer’s case labels" had become satisfiable by `interruptedRests`, a derived pass rather than the switch the exclusion is about — the foreman hit the same ambiguity independently while checking byte-identity. `fold-graph.ts` is now in the suite, so the graph stops being checked only when somebody remembers |
+| 2026-09-14 | merge (tranche authority, **one deviation accepted**) | IE-058 | merged `55d772e`, 13/13, reviewer PASS at high confidence, round 2. **The regression was reproduced by the foreman against the real repository rather than a fixture**: IE-049 flipped to `AWAITING_FOREMAN_REVIEW` on the live corpus, and the validator as it stood at `04a5353` reports **`Problems: none`** while printing `IE-049 (AWAITING_FOREMAN_REVIEW)` on tranche 6’s `COMPLETE` line — the tranche-6 failure exactly, the information on screen and nothing refusing. The new one names the id, the state and both legal routes. **The deviation is a betterment**: the brief proposed a one-sided deferral marker and the builder made it two-sided, because one-sided leaves deletion exactly as cheap as today and so fails the brief’s own constraint that a deferral be louder than a deletion; review then found the first attempt had no legal spelling for a *second* slip, which would have made deleting the marker the only route back to green. **The erasure had already happened in the record this task was written from, and it was the foreman’s**: tranche 6’s roster had lost IE-042 outright and its `approved:` line had been rewritten to tranche 7’s words. Repaired at merge along with IE-036’s identical tranche-5 deferral — which also fixed a wrong number, since tranche 6 now derives **13 rostered → 12 shipped, 1 deferred** where the roster had been carrying the same twelve the false closing report did. The honest limit is recorded: a *fully consistent* erasure is still undetectable, but every partial one is loud and the motive is gone, because the shipped count is derived either way |
