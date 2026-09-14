@@ -206,12 +206,49 @@ the `SpellEffect` union.
 
 ## NEXT
 
-Nothing queued behind tranche 3. The order beyond it is `PROGRESS.md`'s
-"Next actions" and the ranked map beneath it — Resistance or Immunity a spell
-grants; healing that lifts a condition or raises the dead; damage with
-neither roll nor save; teleportation; automatic area drift; the standing
-spatial effect; `cause` on events; summons; long casting times — with the
-whole-engine audit falling due first, at four engine tasks.
+**Tranche 4 is recommended and not yet proposed at Gate 1**, because tranche
+3 is in flight and no task joins an approved roster. The reasoning is
+`docs/architecture/spell-leverage-audit-2026-09-13.md`, written to the
+owner's instruction that the remaining SRD surface be planned as a
+leverage problem — verified rules coverage per unit of new engine
+complexity — rather than spell by spell.
+
+**A gate stands in front of it.** The whole-engine audit falls due when
+IE-001 merges (the counter reaches 4 of 4) and it is Fable's. It is
+chartered on the one question the foreman's audit deliberately did not
+answer: **the restricted child vocabulary for outcome-scoped child
+effects**, which is the highest-leverage missing primitive (8+ consumers),
+the one the definitions decision record deferred pending evidence, and the
+one the foreman may not design. Its output is a design record; tranche 5
+implements it.
+
+| Recommended for tranche 4 | Family | Consumers (spell + feature) | Level |
+|---|---|---|---|
+| A granted Resistance / Immunity / Vulnerability | C1 | 4 + 5 | GREEN |
+| Condition removal, and healing an effect modifies | C5 | 6 + 7 | GREEN |
+| A selector for the save a casting forces | C2, first half | 6 + 1 | GREEN |
+
+Each is a closed-union extension with three or more consumers in **both**
+populations — executed-but-partial spells, and unexecuted class features —
+and each reuses an existing storage-and-cleanup pattern rather than
+inventing one. C1 is the fourth user of a shape `bonuses`,
+`GrantedArmorClass` and `rollModifiers` already share, with one cleanup door
+already built. None is foundational architecture.
+
+They are mutually parallel-safe: C1 is `CreatureState` defences and
+`applyDamage`, C5 is healing and conditions, C2 is `roll-modifiers.ts` and
+the save path.
+
+**From tranche 4 onward every digest carries a leverage report** — reusable
+primitives added, existing primitives reused, features directly implemented,
+what is newly expressible *without further engine code*, bespoke handlers
+and their justification, tests, remaining blockers, invariant impact. The
+format is in the audit. It exists because raw implementation and capability
+unlocked are different numbers and the current digest reports only the
+first.
+
+Beyond tranche 4, the order is the audit's section F and `PROGRESS.md`'s
+ranked map, which it re-confirmed rather than replaced.
 
 ## LATER
 
