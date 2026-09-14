@@ -33,6 +33,7 @@ import {
   removeCreatureEverywhere,
   resolveAttack,
   resolveAttackDamage,
+  resolveDeclaredCast,
   resolveMove,
   resolveSpell,
   resolveTurn,
@@ -129,6 +130,7 @@ const SETUP: readonly GameEvent[] = [
         'vampiric-touch',
         'counterspell',
         'charm-person',
+        'comprehend-languages',
       ],
     }),
   },
@@ -1157,5 +1159,206 @@ describe('every Hit Die in a request is checked before any of them is rolled', (
     const out = endRest(rested, A, { hitDice: ['hit-die:d8', 'test:vigour'] }, rolls);
     expect(refusal(out)).toBe('bad_hit_die');
     expect(rolls.issuer.count).toBe(0);
+  });
+});
+
+describe('a casting of a minute or more, and the Ritual that is one', () => {
+  /**
+   * Outside combat, where a long casting is legal. SRD "Longer Casting Times"
+   * makes it a process the caster keeps at, and the engine keeps the process
+   * on the clock — so the fixtures below are the world with the fight taken
+   * out of it.
+   */
+  const peace = (extra: readonly GameEvent[] = []): GameState =>
+    fold('seed', [...SETUP.filter((e) => e.type !== 'combat-started'), ...extra]);
+
+  /**
+   * SRD writes "minutes or even hours" and never a number. So the engine will
+   * not invent one: a casting time of `long` that names no span of seconds has
+   * no moment it could complete at, and there is nothing plausible to fall
+   * back to.
+   */
+  it('refuses a long casting that names no moment to complete at', () => {
+    const out = castSpell(peace(), A, {
+      spell: 'Comprehend Languages',
+      level: 1,
+      slotLevel: 1,
+      castingTime: 'long',
+    });
+    expect(refusal(out)).toBe('bad_casting_seconds');
+  });
+
+  /**
+   * **And the floor is the same number the validator holds a definition to.**
+   * SRD's bucket is "minutes or even hours", so a six-second `long` casting is
+   * incoherent — and the low-level half taking a caller's word about the
+   * economy is not the same as taking one about arithmetic. Two spellings of
+   * one number would let a casting through here that no definition could ever
+   * declare, which is the second answer to one question this engine keeps
+   * finding.
+   */
+  it('refuses a long casting shorter than the minute the bucket names', () => {
+    const out = castSpell(peace(), A, {
+      spell: 'Comprehend Languages',
+      level: 1,
+      slotLevel: 1,
+      castingTime: 'long',
+      castingSeconds: 6,
+      hold: { spellId: 'comprehend-languages', targets: [], unverified: [] },
+    });
+    expect(refusal(out)).toBe('bad_casting_seconds');
+  });
+
+  /** And a span of seconds means nothing to a casting time that is a moment. */
+  it('refuses a span of seconds on an Action casting time', () => {
+    const out = castSpell(peace(), A, {
+      spell: 'Inflict Wounds',
+      level: 1,
+      slotLevel: 1,
+      castingSeconds: 60,
+    });
+    expect(refusal(out)).toBe('casting_seconds_without_long');
+  });
+
+  /**
+   * **In combat the refusal stands**, and its reason names the machinery that
+   * is missing rather than the one that is built. SRD: "you must take the
+   * Magic action on each of your turns" — a per-turn obligation over the
+   * caster's turns, which is a state machine and not a deadline.
+   */
+  it('refuses a long casting while a fight is running, naming the obligation', () => {
+    const out = castSpell(world(), A, {
+      spell: 'Comprehend Languages',
+      level: 1,
+      slotLevel: 1,
+      castingTime: 'long',
+      castingSeconds: 60,
+      hold: { spellId: 'comprehend-languages', targets: [], unverified: [] },
+    });
+    expect(refusal(out)).toBe('unsupported_casting_time');
+    expect(isErr(out) && out.reason).toContain('Magic action');
+  });
+
+  /** The spell has not been cast until the time has passed. */
+  it('refuses to settle a casting that is still being cast', () => {
+    const declared = unwrap(
+      resolveSpell(
+        peace(),
+        A,
+        { spellId: 'comprehend-languages', targets: [], ritual: true },
+        supply(),
+      ),
+      'declare',
+    );
+    const open = peace(declared.events);
+    expect(refusal(resolveDeclaredCast(open, supply()))).toBe('still_casting');
+  });
+
+  /** A spell the book does not tag as a Ritual has no Ritual version. */
+  it('refuses a Ritual of a spell that prints no Ritual tag', () => {
+    const out = resolveSpell(
+      peace(),
+      A,
+      { spellId: 'inflict-wounds', targets: [B], ritual: true },
+      supply(),
+    );
+    expect(refusal(out)).toBe('not_a_ritual');
+  });
+
+  /**
+   * SRD: a Ritual "doesn't expend a spell slot, **which means the ritual
+   * version of a spell can't be cast at a higher level**". The book's own
+   * gloss, so the refusal names the level rather than the slot.
+   */
+  it('refuses a Ritual cast from a higher slot', () => {
+    const out = resolveSpell(
+      peace(),
+      A,
+      { spellId: 'comprehend-languages', targets: [], ritual: true, slotLevel: 3 },
+      supply(),
+    );
+    expect(refusal(out)).toBe('ritual_not_upcast');
+  });
+
+  /**
+   * And nothing is paid at all — not a slot and not a feat's free casting — so
+   * there is no payment to choose between. A field quietly ignored is a caller
+   * who thinks they said something.
+   */
+  it('refuses a Ritual that names a payment', () => {
+    const out = resolveSpell(
+      peace(),
+      A,
+      { spellId: 'comprehend-languages', targets: [], ritual: true, payment: 'slot' },
+      supply(),
+    );
+    expect(refusal(out)).toBe('ritual_pays_nothing');
+  });
+});
+
+describe('one code said five things, and two of them were different questions', () => {
+  /**
+   * `no_trigger` carried five distinct rules across three modules, which
+   * IE-029 measured and left to the task that owns the casting path. Two of
+   * them are not about a trigger at all, and the difference is what a caller
+   * does next.
+   *
+   * **`no_trigger` stays for the moment that has not arrived**, which is the
+   * genuine window question and the only one a caller answers by waiting: no
+   * attack is held, nothing has damaged you, the window has closed, nobody is
+   * casting. Four voices, one rule, one code — and each of the four is driven
+   * by name in `reaction-triggers.test.ts`, `reactions.test.ts` and
+   * `counterspell.test.ts`.
+   */
+  it('still refuses a Reaction whose moment has not arrived', () => {
+    const out = resolveSpell(
+      world(),
+      A,
+      { spellId: 'counterspell', targets: [B], slotLevel: 3 },
+      supply(),
+    );
+    expect(refusal(out)).toBe('no_trigger');
+  });
+
+  /**
+   * **`no_trigger_stated` is a malformed command**, not an unarrived moment.
+   * SRD Ready: "you decide what perceivable circumstance will trigger your
+   * Reaction" — so a Ready with an empty trigger has not said what it waits
+   * for, and a caller fixes that by re-sending rather than by waiting.
+   */
+  it('refuses a Ready that never says what it is waiting for', () => {
+    const out = takeReady(world(), A, {
+      trigger: '   ',
+      response: { kind: 'move' },
+    });
+    expect(refusal(out)).toBe('no_trigger_stated');
+  });
+
+  /**
+   * **`forced_target` is the window being open and the casting naming the
+   * wrong creature.** SRD forces the target of both Reactions that take one —
+   * Hellish Rebuke's "the creature that damaged you", Counterspell's "a
+   * creature in the process of casting a spell" — so the engine refuses rather
+   * than quietly redirecting, which is `eligibleTargets`' rule arriving at a
+   * Reaction. Told apart from `no_trigger` because the Reaction really is
+   * available and a caller who gave up on it would lose it.
+   */
+  it('refuses a Counterspell aimed at anybody but the creature casting', () => {
+    const declared = unwrap(
+      resolveSpell(
+        world(),
+        A,
+        { spellId: 'hold-person', targets: [B], slotLevel: 2, hold: true },
+        supply(),
+      ),
+      'declare',
+    );
+    const out = resolveSpell(
+      world(declared.events),
+      B,
+      { spellId: 'counterspell', targets: [B], slotLevel: 3 },
+      supply(),
+    );
+    expect(refusal(out)).toBe('forced_target');
   });
 });

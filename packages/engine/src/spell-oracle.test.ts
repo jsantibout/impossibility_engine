@@ -5,6 +5,7 @@ import { SPELL_INDEX } from '@ie/srd';
 import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import {
   ORACLE_EXEMPTIONS,
+  srdCastingSeconds,
   srdCastingTime,
   srdDuration,
   srdRange,
@@ -292,5 +293,87 @@ describe('the oracle catches a metadata mismatch', () => {
   it('notices a Concentration clause that has drifted', () => {
     expect(srdDuration(printed('fly').duration)?.concentration).toBe(true);
     expect(srdDuration(printed('mage-armor').duration)?.concentration).toBe(false);
+  });
+});
+
+/**
+ * The casting time is two printed facts, not one, and only the first was ever
+ * checked.
+ *
+ * `srdCastingTime` has answered which of the four buckets a spell is in since
+ * tracked spells landed. **How long** a casting of a minute or more takes was
+ * nobody's, because nothing could be cast that way — and it is the same class
+ * of unwatched number as the Range and the Duration above: fifty-four spells
+ * print one, and a definition saying ten minutes where the book says an hour
+ * would defer a casting to the wrong moment with nothing to say so.
+ *
+ * The Ritual tag is the other half of the same line. SRD prints it *inside*
+ * the casting time — "Action or Ritual", "1 minute or Ritual" — so the two are
+ * oracled together against the same string.
+ */
+describe('a casting time of a minute or more is a number the book prints', () => {
+  /**
+   * The grammar covers the whole book rather than the corner the catalogue
+   * uses, exactly as the Range and Duration grammars do: a wording that came
+   * back null would be a parser problem silently excusing a spell.
+   */
+  it('reads a span of seconds for every long casting time the book prints', () => {
+    const unread = [...BOOK.values()]
+      .filter(
+        (spell) =>
+          srdCastingTime(spell.castingTime) === 'long' &&
+          srdCastingSeconds(spell.castingTime) === null,
+      )
+      .map((spell) => `${spell.id}: ${spell.castingTime}`);
+    expect(unread).toEqual([]);
+  });
+
+  /** And reads nothing at all for a casting time that is a moment in a turn. */
+  it('reads no span for an Action, a Bonus Action or a Reaction', () => {
+    const spurious = [...BOOK.values()]
+      .filter(
+        (spell) =>
+          srdCastingTime(spell.castingTime) !== 'long' &&
+          srdCastingSeconds(spell.castingTime) !== null,
+      )
+      .map((spell) => `${spell.id}: ${spell.castingTime}`);
+    expect(spurious).toEqual([]);
+  });
+
+  it('reads the units it claims to', () => {
+    expect(srdCastingSeconds('1 minute')).toBe(60);
+    expect(srdCastingSeconds('10 minutes')).toBe(600);
+    expect(srdCastingSeconds('1 hour')).toBe(3600);
+    expect(srdCastingSeconds('8 hours')).toBe(28_800);
+    expect(srdCastingSeconds('24 hours')).toBe(86_400);
+    // The suffix is the *other* casting time the same line offers, and the
+    // ten minutes a Ritual adds are the rule's rather than the spell's.
+    expect(srdCastingSeconds('1 minute or Ritual')).toBe(60);
+    expect(srdCastingSeconds('Action')).toBeNull();
+    expect(srdCastingSeconds('Action or Ritual')).toBeNull();
+  });
+
+  /** Both directions: a definition says the number, or says nothing at all. */
+  it.each(CASES)('%s takes the span of seconds the book prints', (id, definition) => {
+    expect(definition.castingSeconds, id).toBe(
+      srdCastingSeconds(printed(id).castingTime) ?? undefined,
+    );
+  });
+
+  /**
+   * And carries the Ritual tag exactly where the book prints one. Both
+   * directions, because a definition that quietly claimed the tag would offer
+   * a Ritual version of a spell that has none, and one that quietly dropped it
+   * would refuse a casting the rules allow.
+   */
+  it.each(CASES)('%s carries the Ritual tag exactly when the book does', (id, definition) => {
+    const tagged = SPELL_INDEX.find((s) => s.id === id)?.ritual === true;
+    expect(definition.ritual ?? false, id).toBe(tagged);
+  });
+
+  /** The catalogue really does hold some of each, so neither sweep is vacuous. */
+  it('has definitions on both sides of the tag', () => {
+    expect(SPELL_DEFINITIONS.filter((d) => d.ritual === true).length).toBeGreaterThan(0);
+    expect(SPELL_DEFINITIONS.filter((d) => d.ritual !== true).length).toBeGreaterThan(0);
   });
 });

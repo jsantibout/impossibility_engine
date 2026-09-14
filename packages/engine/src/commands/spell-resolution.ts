@@ -29,7 +29,7 @@ import { bonusesFor } from '../bonuses.js';
 import { modifierFor, spellAttackModifierWith, spellSaveDcWith } from '../character.js';
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
 import { reasonsFor } from '../conditions.js';
-import { type Duration, endOfNextTurn, resolveDuration, timeView } from '../duration.js';
+import { type Duration, endOfNextTurn, isDue, resolveDuration, timeView } from '../duration.js';
 import {
   applyEvent,
   type CommandStamp,
@@ -61,7 +61,7 @@ import {
   statedDamageType,
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
-import { type CastingNumbers, castingSource } from '../spells.js';
+import { type CastingNumbers, castingSource, type CastingTime } from '../spells.js';
 import { armorClassOf, effectiveConditions, evadesHalfDamage, speedOf } from '../standing.js';
 import {
   applySpellEffect,
@@ -164,6 +164,19 @@ export function resolveDeclaredCast(
       return err('no_casting_pending', 'no casting is waiting to resolve');
     }
 
+    // SRD "Longer Casting Times": the spell takes effect when the casting is
+    // finished, and the caster has to still be at it until then. **`isDue` and
+    // not `hasExpired`** — see `PendingCasting.completesAt`: the two are
+    // opposites for a moment that can never arrive, and a casting that
+    // completed because the fight ended would be a completion the engine
+    // invented.
+    if (pending.completesAt !== undefined && !isDue(timeView(state), pending.completesAt)) {
+      return err(
+        'still_casting',
+        `${pending.caster} is still casting ${pending.spell}; it takes a minute or more and the time has not passed`,
+      );
+    }
+
     const caster = creatureOf(state, pending.caster);
     if (caster === null) return unknownCreature(pending.caster);
 
@@ -182,7 +195,7 @@ export function resolveDeclaredCast(
     const chosen = chooseRoute(caster.spellcasting, pending.spellId, pending.route);
     if (!chosen.ok) return chosen;
 
-    const events: GameEvent[] = settlementEvents(pending, stamp);
+    const events: GameEvent[] = settlementEvents(state, pending, stamp);
 
     // What the caster stated at the declaration, read back off the record it
     // was written on. Normalised already — this is the same function that
@@ -377,6 +390,12 @@ export function castOrRelease(
     if (!chosen.ok) return chosen;
     const route = chosen.value;
 
+    // How long this casting takes, and whether it is a Ritual. Refused here,
+    // before a slot, an action or a die — and computed once, because the
+    // arithmetic and the refusals are three consequences of one SRD sentence.
+    const casting = castingOf(definition, request);
+    if (!casting.ok) return casting;
+
     const slotLevel = request.slotLevel ?? definition.level;
     const castLevel = Math.max(definition.level, slotLevel);
     // What this definition knowingly leaves out, reported on every casting so
@@ -479,8 +498,113 @@ export function castOrRelease(
       origin,
       area,
       stamp,
+      casting: casting.value,
     });
   });
+}
+
+/** SRD: "The Ritual version of a spell takes 10 minutes longer to cast." */
+const RITUAL_SECONDS = 600;
+
+/** How long this casting takes, and whether a Ritual was asked for. */
+export interface CastingTiming {
+  readonly castingTime: CastingTime;
+  /** Whole seconds, for a casting of a minute or more. */
+  readonly castingSeconds?: number;
+  readonly ritual: boolean;
+}
+
+/**
+ * What the casting time of *this* casting is, Ritual included.
+ *
+ * SRD's whole Ritual rule is one sentence with three consequences, and all
+ * three are here rather than in three places: "The Ritual version of a spell
+ * takes 10 minutes longer to cast than normal. It also doesn't expend a spell
+ * slot, **which means the ritual version of a spell can't be cast at a higher
+ * level.**"
+ *
+ * So a Ritual is **always a long casting**, whatever the spell's printed
+ * casting time is — Detect Magic prints "Action or Ritual" and its Ritual
+ * version takes ten minutes, which is a minute or more by any reading. That is
+ * why `PendingCasting.completesAt` rather than `castingTime` is what the
+ * settlement branches on.
+ *
+ * A spell that prints no Ritual tag has no Ritual version, so asking for one
+ * is refused rather than quietly cast normally — the shape `damageType` and
+ * `fought` already take for a clause a spell does not print.
+ *
+ * **Exported so a fixture can reach the arithmetic no registered spell does.**
+ * Ten catalogue definitions carry the Ritual tag and every one of them prints
+ * "Action or Ritual", so they have no `castingSeconds` of their own and "adds
+ * ten minutes" and "is ten minutes" give the same answer for all ten — a
+ * mutation replacing the sum with the constant survives the whole suite. SRD
+ * Alarm prints "1 minute or Ritual" and comes to **660**, and this is pure
+ * over a definition, so that definition can simply be built: the move
+ * `restoreOn`'s dawn-recovering pool already makes for a branch no class can
+ * reach.
+ */
+export function castingOf(
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+): Result<CastingTiming> {
+  if (request.ritual !== true) {
+    return ok({
+      castingTime: definition.castingTime,
+      ...(definition.castingSeconds === undefined
+        ? {}
+        : { castingSeconds: definition.castingSeconds }),
+      ritual: false,
+    });
+  }
+
+  if (definition.ritual !== true) {
+    return err(
+      'not_a_ritual',
+      `${definition.name} does not carry the Ritual tag, so it has no Ritual version`,
+    );
+  }
+
+  // "which means the ritual version of a spell can't be cast at a higher
+  // level" — the book's own gloss on the slot, so the refusal names the level.
+  // Checked first because it is the more informative of the two answers a
+  // caller who named a slot level can get.
+  if (request.slotLevel !== undefined && request.slotLevel > definition.level) {
+    return err(
+      'ritual_not_upcast',
+      `a Ritual expends no spell slot, so ${definition.name} cannot be cast as one above level ${definition.level}`,
+    );
+  }
+
+  // **One sentence, enforced one way.** "It also doesn't expend a spell slot"
+  // is the rule, and the upcast prohibition above is the book's gloss on it —
+  // so *every* way a caller can say how the casting is paid for is refused,
+  // not only the one the gloss names. A `slotLevel` at the spell's own level
+  // was silently dropped and a `slotless` reason silently overwrote the
+  // `'ritual'` the casting had just decided, which is the field-quietly-
+  // ignored failure this very refusal was written against.
+  const paid =
+    request.payment !== undefined
+      ? 'a payment'
+      : request.slotLevel !== undefined
+        ? 'a slot level'
+        : request.slotless !== undefined
+          ? 'a reason for skipping a slot'
+          : null;
+  if (paid !== null) {
+    return err(
+      'ritual_pays_nothing',
+      `a Ritual expends neither a spell slot nor a free casting, so ${paid} says nothing about how ${definition.name} is cast as one`,
+    );
+  }
+
+  return {
+    ok: true,
+    value: {
+      castingTime: 'long',
+      castingSeconds: (definition.castingSeconds ?? 0) + RITUAL_SECONDS,
+      ritual: true,
+    },
+  };
 }
 
 /**
@@ -514,9 +638,12 @@ function resolveOnTargets(
     } | null;
     /** The identity the wrapper established, stamped on the casting's event. */
     readonly stamp: CommandStamp | null;
+    /** How long it takes and whether it is a Ritual — see `castingOf`. */
+    readonly casting: CastingTiming;
   },
 ): Result<SpellResolution> {
-  const { castLevel, route, targets, unverified, supply, held, origin, area, stamp } = context;
+  const { castLevel, route, targets, unverified, supply, held, origin, area, stamp, casting } =
+    context;
 
   // Normalised here, once, and read by both paths out of this file: the
   // ongoing record an atomic casting writes, and the declaration a held one
@@ -598,7 +725,18 @@ function resolveOnTargets(
     });
   }
 
-  const payment = choosePayment(definition, route, request);
+  // **Two reasons to declare rather than resolve, and one of them is not the
+  // caller's.** `hold` asks for the Counterspell window; a casting time of a
+  // minute or more *is* a process the SRD lets a Counterspell interrupt, so it
+  // is declared whether the caller asked or not. Both write `spell-declared`
+  // and both settle through `resolveDeclaredCast`; what differs is only when
+  // the settlement is allowed to happen.
+  const declaring = request.hold === true || casting.castingTime === 'long';
+
+  // SRD: a Ritual "doesn't expend a spell slot" — nor a feat's free casting,
+  // nor anything else. So there is no payment to choose and none is asked for;
+  // `castingOf` has already refused a caller who named one.
+  const payment = casting.ritual ? ok(null) : choosePayment(definition, route, request);
   if (!payment.ok) return payment;
   const freePool = payment.value;
 
@@ -633,13 +771,24 @@ function resolveOnTargets(
       spell: definition.name,
       level: definition.level,
       concentration: definition.concentration,
-      castingTime: definition.castingTime,
-      ...(freePool !== null || definition.level === 0
-        ? { slotless: definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const) }
-        : {
-            slotLevel: castLevel,
-            ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
-          }),
+      castingTime: casting.castingTime,
+      ...(casting.castingSeconds === undefined
+        ? {}
+        : { castingSeconds: casting.castingSeconds }),
+      // SRD: a Ritual "doesn't expend a spell slot", and the log says which of
+      // the reasons for skipping one this was — the value `SlotlessReason` has
+      // carried since it was written and nothing has ever meant.
+      ...(casting.ritual
+        ? { slotless: 'ritual' as const }
+        : freePool !== null || definition.level === 0
+          ? {
+              slotless:
+                definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const),
+            }
+          : {
+              slotLevel: castLevel,
+              ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
+            }),
       route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
       ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
       // A span of seconds, or a moment in the turn order. A definition carries
@@ -656,7 +805,7 @@ function resolveOnTargets(
       // The window, and everything settlement will need to finish the job
       // without the caller getting to restate what the spell was aimed at —
       // the space it appears in included, for a spell that holds one.
-      ...(request.hold === true
+      ...(declaring
         ? {
             hold: {
               spellId: request.spellId,
@@ -693,7 +842,7 @@ function resolveOnTargets(
   // Declared and held open. The action is spent, any Concentration the caster
   // was holding is gone, and the slot is not — which is exactly the state SRD
   // Counterspell describes and the reason the effects are not run here.
-  if (request.hold === true) {
+  if (declaring) {
     return ok({ events, castingId, outcomes: [], unverified });
   }
 

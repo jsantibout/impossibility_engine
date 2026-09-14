@@ -1123,11 +1123,12 @@ layer that knows.
 
 ### Limitations, stated rather than papered over
 
-- **Casting times of 1 minute or more are refused**, and the clock did not
-  change that — see "Durations Are Two Different Things". The slot is expended
-  on completion, and completion depends on the caster taking the Magic action
-  every turn of the casting, which is a state machine rather than a deadline.
-  Rituals cast the long way are covered by the same refusal.
+- **In combat a casting time of 1 minute or more is still refused**, and the
+  reason names what is missing: SRD requires the caster to take the Magic
+  action on each turn of the casting, which is a per-turn obligation rather
+  than a deadline. Outside combat the casting is declared, runs on the clock
+  and settles — see "A Casting Of A Minute Or More Runs On The Clock", which
+  is also where a Ritual is cast.
 - **Three Reaction triggers are enforced; the fourth needs machinery that does
   not exist.** SRD writes a Reaction's casting time as a clause — "Reaction,
   **which you take when you are hit by an attack roll**" — and the clause is a
@@ -1323,11 +1324,14 @@ the qualifier excludes nothing the engine can be asked about. A field whose
 only reachable value is "yes" is not a rule, so the gap is reported in
 `unverified` and `counterspell.test.ts` pins the count that makes it safe.
 
-**Two things this deliberately is not.** It is not a general interruption
-framework — one pending casting, no stack, and a Counterspell answering a
-Counterspell is refused rather than nested. And it is not the long-casting-time
-machinery: a casting of a minute or more needs a per-turn obligation the caster
-must keep, which is a state machine, not a window.
+**One thing this deliberately is not, and one that it turned out to be.** It
+is not a general interruption framework — one pending casting, no stack, and a
+Counterspell answering a Counterspell is refused rather than nested. And this
+file used to say it was "not the long-casting-time machinery" either, on the
+grounds that a casting of a minute or more needs a per-turn obligation rather
+than a window. Half of that was right and the conclusion was wrong: the
+obligation is what is still missing **in combat**, and outside combat the
+process this built is exactly what a long casting is. See the section below.
 
 **And that refusal is a value, which it was not.** The exemption above lets a
 Reaction *answer* the open casting; nothing said it could not open a second
@@ -1338,6 +1342,345 @@ reserved for programmer error, and "you may answer this casting but you may not
 hold a second one open beside it" is something a DM narrates around.
 `castOrRelease` returns it, nothing is spent, and the reducer's throw stays
 where it belongs — as the backstop for a log that claims it happened anyway.
+
+## A Casting Of A Minute Or More Runs On The Clock
+
+**The largest blocker in the book was a casting time**, and none of the three
+rankings this repository kept before `missing-shapes.ts` derived them had it at
+all: fifty-four spells are touched by it and twelve are blocked on nothing
+else — three times any other shape, by a wide margin. `resolveCast` refused
+every one of them.
+
+SRD, "Longer Casting Times", whole:
+
+> "Certain spells—including a spell cast as a Ritual—require more time to cast:
+> minutes or even hours. While you cast a spell with a casting time of 1 minute
+> or more, you must take the Magic action on each of your turns, and you must
+> maintain Concentration while you do so. If your Concentration is broken, the
+> spell fails, but you don't expend a spell slot. To cast the spell again, you
+> must start over."
+
+**The state machine that paragraph asks for was already here, and had been
+since Counterspell.** A declared casting is a process with an identity, whose
+action is already spent, whose slot is not, and which other mechanics can name
+while it is open — and "the slot isn't expended" is the *same sentence* the
+Counterspell rule prints, arriving from the other direction. So this is one
+field on the pending record, one Concentration that names a casting nothing is
+running under yet, and a refusal at the settlement until the clock catches up.
+No second mechanism, no second window, no new event type.
+
+| | Declaration (`spell-declared`) | Settlement (`spell-cast`) |
+|---|---|---|
+| The action | **spent**, where there is a turn to spend it on | — |
+| Concentration the caster held | **broken**, "the moment you *start* casting" | — |
+| Concentration **on the casting itself** | **started** | ended, or carried on — see below |
+| The spell slot | — | **spent** |
+| `completesAt` | pinned | the moment settlement waits for |
+| The spell's own Duration | — | **starts here** |
+| The effects | — | resolved |
+
+### The Concentration is on the casting, and the readers were asked
+
+`creature.concentration` names the **pending** casting id from the declaration,
+which is the one question this needed answering before it could be built: does
+any reader assume that id is in `state.ongoing`?
+
+Asked of every one of them, the answer is no, and the reason is structural
+rather than lucky: **`ongoing` is what a casting left behind, and a casting
+that has not taken effect has left nothing behind.** `ongoingSpellsBy`,
+`ongoingSpellsOn` and every Dispel reader walk `state.ongoing` and never touch
+`concentration` at all, so they simply do not see a rite in progress — which is
+correct, because there is nothing there to dispel. `holdsNothingOf` asks what a
+casting owns *on a creature* and is reached only from a condition instance's
+own source, which a casting with no effects has never written. And the readers
+that do read `concentration` all want exactly what is true: the damage save
+(`concentrationSaveAfterDamage`) fires, `endConcentration` dismisses it, and
+the derived Incapacitated pass ends it.
+
+**`releaseCasting` is still the single door, and it grew one line.** Every
+route by which Concentration ends — damage, a dismissal, the derived pass, a
+second Concentration spell, the caster leaving — already converged there, so
+the pending record is dropped there and nowhere else. That is the whole of SRD's
+"the spell fails, but you don't expend a spell slot": nothing is refunded,
+because the slot was never taken, which is the same asymmetry
+`spell-interrupted` has always written.
+
+**And one exit was not going through it, which is what makes "single door" a
+claim worth checking rather than a habit.** `spell-interrupted` cleared
+`pendingCasting` itself — complete, and complete only while no pending casting
+could be concentrated on. With one that can, a Counterspelled rite left its
+caster concentrating on a casting that no longer existed: permanently, because
+nothing would ever end it, and expensively, because every later hit then rolled
+a Constitution save and threw a die for a spell that was not there. SRD is
+plain — "the spell dissipates with no effect" — so the case routes through the
+door like the other four, and for an ordinary casting it finds no
+Concentration and does exactly what that line always did.
+
+**A batch is built against the world its own earlier events leave.**
+`removeCreatureEverywhere` wrote `spell-interrupted` and then read the caster's
+Concentration off the state *before* it, which was two events about one fact
+and became a `concentration-ended` the fold refused outright. Both are read
+forward now. It is the snapshot failure this file already records for a command
+that lists what it is about to remove, arriving inside one batch instead of
+across two commands — and it is only reachable because the interruption now
+takes the Concentration, which is the shape of a correct fix exposing the next
+thing along.
+
+**A long casting always drops a prior Concentration, whatever the spell is.**
+The rule reads "you must maintain Concentration while you do so", so the rite
+*requires* Concentration even when the spell it will cast does not — and "you
+lose Concentration on an effect the moment you start casting a spell that
+requires Concentration" then applies at the declaration.
+
+**Settlement inverts the two branches**, and the fact it reads is
+`completesAt` rather than `castingTime`, because a Ritual of an Action-casting-
+time spell is a long casting whose printed casting time is not `long`:
+
+| The spell | At settlement |
+|---|---|
+| takes Concentration | nothing at all — one Concentration, carried on under the same id |
+| takes none | `concentration-ended`, reason `completed` |
+
+`completed` is `released`'s shape: a Concentration that existed only to hold
+something, ended by that something finally happening rather than by anybody
+giving up. It is written **before** the deadline in the same batch, and that
+ordering is load-bearing — `concentration-ended` folds through
+`releaseCasting`, which takes every timer the casting owns, so a schedule
+written first would be wiped by the event saying the rite is over.
+
+**And only a fold can say so, which is why reading the emitted event was not
+enough.** Swapping the two pushes leaves every assertion about the *batch*
+green: the `effect-scheduled` is still there, with the right deadline on it. It
+is gone from `state.timers` a moment later, and the spell then runs for ever —
+invisible, because nothing will ever expire it, and findable only by Dispel
+Magic. So the fixture folds the settlement, reads the timer out of the state,
+and then drives the casting past its own hour and asserts the record is gone.
+
+**`completesAt` and `castingTime === 'long'` agree and cannot disagree, and a
+mutation swapping them survives the whole suite.** A Ritual's *printed* casting
+time is "Action or Ritual" and the casting it makes is recorded as `long`,
+because the Ritual version really does take ten minutes — so every casting the
+engine can produce sets both or neither. The field read is the one the branch
+is *about*: whether a Concentration was already started for this casting. That
+is what `completesAt` says; `castingTime` is what happens to travel with it,
+and it is the field a fourth casting-time bucket would come apart on. Stated
+rather than dressed up as a fixture, which is the move this file already makes
+for the cross-slot rider order.
+
+### The spell's Duration starts when the spell does
+
+`PendingCasting.deadline` is pinned at the declaration so that settlement
+cannot fail. For a casting that takes ten minutes that is the wrong moment
+altogether: a Detect Magic ritual pinned at its declaration would expire the
+instant it finished being cast, its whole ten minutes spent on the rite.
+
+So a clock-deferred casting carries `lastsSeconds` — the **span**, resolved at
+settlement against the clock as it then is. It is a number of seconds rather
+than a `Duration` because a turn-anchored duration is refused at the
+declaration (there are no turns outside combat, and a long casting is refused
+inside one), so a span is the only kind that can reach the settlement — which
+is what keeps "settlement cannot fail" true rather than merely likely.
+
+**Carrying a number rather than a `Duration` is exactly where the validation
+gets lost, and it was.** `resolveDuration` is the single conversion between the
+two types and the only thing that refuses a span running backwards, in
+fractions of a second, or not a number at all — so a branch that stored the
+seconds *instead* of resolving them was the one place in the engine where a
+duration went unchecked. What that cost is not abstract: a `NaN` span settles
+to a deadline of `null`, which never expires live and expires **immediately**
+on reload, because `null` folds back as `0`. One log, two meanings. So the
+duration is resolved either way and the span is read back **off the answer** —
+`at - elapsed` — which is the same number for every duration that was legal and
+no number at all for one that was not.
+
+And the settlement converts through `resolveDuration` too rather than spelling
+`elapsed + seconds` out a second time. It cannot refuse, because the span came
+off an `elapsed` deadline at the declaration and is a whole number of seconds
+forwards by construction; `mustResolve` says that rather than making every
+caller ask. Two spellings of one arithmetic is the second answer to one
+question this file keeps naming, and here it would have sat four lines under a
+comment warning about it.
+
+### `completesAt` is read with `isDue`, and that is a choice
+
+`hasExpired` and `isDue` read a `Deadline` in opposite directions for a
+turn-anchored one whose anchor has gone: the first answers **yes**, so nothing
+runs for ever, and the second answers **no**, so a moment that will never
+arrive collects nothing. A casting completes when its moment genuinely comes,
+so `isDue` is the reading — `hasExpired` would complete a casting because the
+fight ended, which is a completion the engine invented.
+
+Every value here is an `elapsed` deadline today, because a casting time is a
+span of seconds and never a moment in the turn order. **The two therefore
+agree, which is exactly why the choice has to be stated rather than left to
+luck** — the same argument this file already makes about Acid Arrow's second
+hit, arriving on the other function.
+
+### A Ritual is a long casting, and the value already had a writer
+
+The audit that proposed this task said it would be `SlotlessReason.ritual`'s
+first writer. It was **not**: `castSpell` has accepted `slotless: 'ritual'`
+from its caller since slots landed, and `casting.test.ts` has cast Detect Magic
+as a ritual and asserted the event carries it for just as long. What was true
+is that the value **meant almost nothing** — nothing checked that the spell
+carried the Ritual tag, and nothing added the ten minutes. This makes it mean
+what the book says.
+
+SRD: "The Ritual version of a spell takes 10 minutes longer to cast than
+normal. It also doesn't expend a spell slot, **which means the ritual version
+of a spell can't be cast at a higher level.**" One sentence, three
+consequences, and all three are in one function (`castingOf`) rather than three
+places:
+
+- **It is always a long casting.** Ten minutes more than an Action is ten
+  minutes, which is a minute or more by any reading — so `CastSpellRequest.ritual`
+  makes Detect Magic a declared casting settled off the clock even though its
+  printed casting time is `Action or Ritual`.
+- **It expends nothing** — not a slot, and not a feat's free daily casting
+  either, so `choosePayment` is not asked and a casting that names a payment is
+  refused rather than having the field quietly ignored.
+- **It cannot be upcast**, which is the book's own gloss on the slot, so the
+  refusal names the level — and the *rule* is the sentence in front of it, so
+  **every** way a caller can say how the casting is paid for is refused, not
+  only the one the gloss names. A `slotLevel` at the spell's own level was
+  silently dropped and a `slotless` reason silently overwrote the `ritual` the
+  casting had just decided, which is the field-quietly-ignored failure this
+  very refusal was written against, arriving inside it.
+
+**"Ten minutes longer" is a sum, and no catalogue spell can tell you so.** All
+ten definitions carrying the Ritual tag print "Action or Ritual", so none has a
+casting time of its own to be longer *than* — and a mutation replacing the sum
+with the constant survives the entire suite, because for all ten the two are
+600. SRD Alarm prints "1 minute or Ritual" and comes to **660**. `castingOf` is
+pure over a definition, so that definition is simply built and handed to it:
+the move `restoreOn`'s dawn-recovering pool already makes for a branch no class
+can reach, and the rule it protects is the same one — *a guard nothing can
+reach is not a rule, and a pure function will take a fixture that reaches it.*
+
+A spell that prints no Ritual tag is refused rather than quietly cast normally
+— the shape `damageType` and `fought` already take for a clause a spell does
+not print. The tag is **transcribed onto the definition and oracled**, rather
+than read out of `SPELL_INDEX` at cast time: a definition is the engine's
+authoritative answer about a spell and the book is what checks it, which is the
+rule every other printed field already follows.
+
+**Preparation stays unjudged.** SRD requires a Ritual to be prepared, or to
+come from a feature that allows casting one unprepared, and spell lists and
+preparation are not modelled. Refusing on a rule the engine cannot evaluate is
+worse than leaving it to the layer that knows — which is what casting has said
+about knowing and preparing a spell since the day it was written, and a Ritual
+is not the place to start making an exception.
+
+### The casting time is two printed facts, and only one was ever checked
+
+`srdCastingTime` has answered *which bucket* since tracked spells landed. **How
+long** a long casting takes was nobody's, because nothing could be cast that
+way — and it is the same unwatched-number class as the Range and the Duration
+the oracle already covers. `srdCastingSeconds` parses it, the grammar is
+asserted to cover the **whole book** rather than the corner the catalogue uses,
+and every definition is held against it in both directions. `castingSeconds` is
+**required** on a `long` definition and refused on any other, because `long` is
+the SRD's bucket — "minutes or even hours" — and not a span.
+
+**The bucket's floor is one number in one place**, `LONG_CASTING_SECONDS`, read
+by the definition validator and by `castSpellWith` alike. They were written
+separately and disagreed — sixty against nothing-but-positive — so the
+low-level half accepted a six-second `long` casting that no definition could
+ever declare. Being the half that takes its caller's word about the *economy*
+is not the same as taking a caller's word about arithmetic, and two spellings
+of one number is the second answer to one question this file keeps naming.
+
+The Ritual tag is oracled beside it, because the SRD prints it *inside* the
+casting time: "Action or Ritual", "1 minute or Ritual". The suffix is the other
+casting time the same line offers, so the parser strips it and the ten minutes
+a Ritual adds stay the rule's rather than the spell's.
+
+### What is deferred, and the one path that can still wedge
+
+**In combat the refusal stands**, and its reason names the per-turn Magic
+action rather than pretending the deadline is the whole rule. That half is a
+`continueCasting` command plus a derived failure at the caster's turn boundary,
+and it is the second half of this work.
+
+**A casting in process is one engine-wide, and that is a limit of the record
+rather than a rule of the SRD.** `castOrRelease` refuses `casting_pending`
+while any casting is open and names no caster, so during a rite **every other
+creature's** casting and activation is refused too — for the whole ten minutes.
+SRD lets the cleric cast Cure Wounds while the wizard performs a Ritual.
+
+The guard was written for the Counterspell window, which is open for an instant
+under one caller's control, and its **entire content** is refusing the second
+`spell-declared` the reducer would throw on: `unsettledRefusal` has never
+carried `pendingCasting`, so a fighter attacks, a rogue moves and anybody
+Dodges while one stands. That was a structural accident of a one-instant user,
+surfacing as a rules refusal; a casting measured in minutes is what made it
+visible. **A queued task replaces the single slot with one keyed by casting id,
+the reducer enforcing one open casting per caster** — every reducer path
+already addresses the record by casting id, and `ongoing` is that shape
+already. Narrowing the guard to the caster and leaving the slot was refused
+outright: it keeps the accident and re-issues it as a rule, so two party
+members performing rites in the same ruin are still refused.
+
+It is **asserted rather than described** — the second caster's refusal, that it
+costs them nothing, that it does not relent nine minutes in, and that a
+creature who is not casting still acts — so whoever removes the limit deletes a
+test rather than finding a comment.
+
+**A casting declared before a fight and still open when one starts wedges the
+fight**, and deciding what `startCombat` should do to an open casting belongs
+to the in-combat half rather than here. `resolveTurn` refuses `casting_pending`
+and settlement refuses `still_casting` until the clock reaches completion — and
+in combat the clock is *derived from turns wrapping*, which is the thing that
+is blocked. Measured, the three ways out are: the caster gives up the
+Concentration, the caster leaves the game, or the DM declares time passed with
+`advanceTime`, which is not gated on combat and is the out-of-combat instrument
+being used mid-fight. What the engine does **not** do in that window is hold
+the caster to the per-turn obligation, which is exactly the half that is
+deferred.
+
+**No definition in the catalogue declares a long casting time yet**, and that
+is IE-036's: it writes the twelve spells this unblocks. So `castingSeconds`
+carries a written exemption in the format's own unused-member sweep — a
+handover in the shape `roll-mode.save` used, naming the task that supplies the
+writer. The mechanism is driven end to end regardless: through `resolveCast`
+for a one-minute casting, and through the **ten** already-defined spells that
+print the Ritual tag, which reach it with no `castingSeconds` of their own.
+
+**`a-long-casting-time` keeps its claimants in `missing-shapes.ts`.** Re-filing
+fifty-four entries — twelve of which become `[]` — is the entry-by-entry
+re-read that map insists on when a shape is built, and it belongs with the task
+that reads each of those paragraphs to write the definition. What is corrected
+here is the shape's *description*, which quoted a CLAUDE.md sentence that is no
+longer true.
+
+### One code said five things, and two of them were different questions
+
+IE-029 measured that `no_trigger` carried five distinct rules across three
+modules and left the casting-path half to the task that owns the file. Two of
+the five are not about a trigger at all, and the difference is **what a caller
+does next**:
+
+| Code | Says | The caller |
+|---|---|---|
+| `no_trigger` | the moment has not arrived — no attack held, nothing has damaged you, the window has closed, nobody is casting | waits |
+| `no_trigger_stated` | SRD Ready's "you decide what perceivable circumstance will trigger your Reaction", and the command named none | re-sends |
+| `forced_target` | the window **is** open and the casting named the wrong creature | re-sends, naming the forced one |
+
+The third is the one that was costing something. SRD forces the target of both
+Reaction spells that take one — Hellish Rebuke's "the creature that damaged
+you", Counterspell's "a creature in the process of casting a spell" — and a
+tool surface told `no_trigger` would give up on a Reaction it could in fact
+take. Four voices remain under `no_trigger` and they are one rule, each driven
+by name. **Two codes changed**, which is observable behaviour and recorded as a
+deliberate change rather than a cleanup.
+
+`nothing_to_interrupt` stays exempt, and its written reason was **re-verified**
+against the second way a casting can now be open rather than left to stand: a
+Counterspell takes no Concentration and is not itself a long casting, so its
+own batch writes no `concentration-ended` and leaves the rite's caster
+concentrating — which is what keeps the pending record where the trigger check
+found it. A Counterspell is driven at a Ritual and watched to resolve, which is
+the re-read reaching the casting.
 
 ## A Casting Is History; What It Left Behind Is State
 
@@ -2292,13 +2635,16 @@ Two things expiry is adjacent to and does **not** implement. Both were refused
 before on the grounds that time was not modelled; time is modelled now, and
 they are still not done, for different reasons:
 
-- **Casting times of 1 minute or more are still refused.** The blocker was
-  never the clock. SRD requires the caster to take the Magic action on *each*
-  turn of the casting and maintain Concentration throughout, and the slot is
-  expended only on completion — "If your Concentration is broken, the spell
-  fails, but you don't expend a spell slot." That is a casting-in-progress
-  state machine with a per-turn obligation, not a deadline. A timer can say
-  when something stops; it cannot say whether the caster kept working at it.
+- **Casting times of 1 minute or more were refused, and the clock was never
+  the blocker — which is why the clock alone did not fix it.** SRD requires
+  the caster to take the Magic action on *each* turn of the casting and
+  maintain Concentration throughout, and the slot is expended only on
+  completion. A timer can say when something stops; it cannot say whether the
+  caster kept working at it. What the two-event casting supplied was the other
+  half — a process with an identity, a Concentration on it, and a settlement
+  the clock gates — so **outside combat it is built** and in combat the
+  per-turn obligation is what remains missing. See "A Casting Of A Minute Or
+  More Runs On The Clock".
 - **A rest still cannot be resumed.** SRD lets you pick a Long Rest back up for
   one extra hour per interruption. That needs a rest that survives its own
   interruption and accumulates required time, which is a change to how a rest
@@ -7127,8 +7473,15 @@ null and is reported — it never becomes either.
   Frost takes ten away until the start of the caster's next turn, and Hypnotic
   Pattern holds its targets at 0 — one grant beside the four already on a
   creature, read by the one reader IE-031 built, and ended through the door
-  every other grant leaves by. What does not work: casting a definition the
-  catalogue does not compile in, summons, long casting times, an area that
+  every other grant leaves by. **And a casting of a minute or more runs on the
+  clock** — see "A Casting Of A Minute Or More Runs On The Clock": the largest
+  blocker in the book, built outside combat as a declared casting that
+  completes on the clock and concentrates on itself until it does, with a
+  Ritual as the same mechanism ten minutes longer. What does not work: casting
+  a definition the
+  catalogue does not compile in, summons, a long casting **in combat** — the
+  per-turn Magic action SRD requires of the caster, which is the deferred half
+  — an area that
   moves *by itself* at the start of a turn (Cloudkill, Incendiary Cloud), a
   standing spatial effect such as the Speed halved inside that Emanation — a
   Speed derived from where a creature is standing rather than one an effect

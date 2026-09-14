@@ -36,6 +36,7 @@ import {
   type Deadline,
   type Duration,
   type EffectCheck,
+  forSeconds,
   type RepeatSave,
   resolveDuration,
   timeView,
@@ -61,6 +62,7 @@ import {
   type CastingTime,
   type ConcentrationCheck,
   type ConcentrationEndReason,
+  LONG_CASTING_SECONDS,
   slotFits,
   type SlotlessReason,
   validateSpellName,
@@ -146,9 +148,16 @@ export function triggerRefusal(
       // green flames." The target is forced, so a different one is refused
       // rather than quietly redirected — however obviously better a candidate
       // is standing next to them.
+      //
+      // **A different code from the three above it, and the difference is what
+      // the caller does next.** `no_trigger` says the moment has not arrived,
+      // and there is nothing to re-send; this says the moment *has* arrived and
+      // the casting named the wrong creature, which a caller fixes by naming
+      // the right one. One code for both told a tool surface to give up on a
+      // Reaction it could in fact take.
       if (request.targets.length !== 1 || request.targets[0] !== hurt.by) {
         return err(
-          'no_trigger',
+          'forced_target',
           `${definition.name} burns the creature that damaged you, which is ${hurt.by}`,
         );
       }
@@ -168,10 +177,11 @@ export function triggerRefusal(
       // a spell**." The target is forced by the trigger, exactly as Hellish
       // Rebuke's is — there is only one casting open, and answering it is the
       // only thing this Reaction does. Aiming elsewhere is refused rather than
-      // redirected.
+      // redirected, and under `forced_target` for the reason above: the window
+      // is open and the casting named the wrong creature.
       if (request.targets.length !== 1 || request.targets[0] !== open.caster) {
         return err(
-          'no_trigger',
+          'forced_target',
           `${definition.name} interrupts the creature that is casting, which is ${open.caster}`,
         );
       }
@@ -232,6 +242,16 @@ export interface CastCommand extends CommandIdentity {
   readonly concentration?: boolean;
   /** Defaults to an action. */
   readonly castingTime?: CastingTime;
+  /**
+   * How long a `long` casting takes, in whole seconds. Required for one.
+   *
+   * The declaration pins `state.elapsed + this` as the moment settlement may
+   * happen, so it is the whole of what makes a casting time of a minute or
+   * more mean anything. `resolveSpell` derives it from the definition — and
+   * adds the Ritual's ten minutes where the casting asked for one — so this is
+   * the low-level half's way of being told, exactly as `castingTime` is.
+   */
+  readonly castingSeconds?: number;
   /** The level of slot to expend. Mutually exclusive with `slotless`. */
   readonly slotLevel?: number;
   /**
@@ -437,14 +457,54 @@ function castSpellWith(
   }
 
   const castingTime = command.castingTime ?? 'action';
-  // SRD: a spell of 1 minute or more "doesn't expend a spell slot" if
-  // Concentration breaks before it finishes — so the slot goes at completion,
-  // not at the start. Elapsed time is not modelled, so the engine says it
-  // cannot do this rather than expending the slot at the wrong moment.
+
+  // SRD "Longer Casting Times": "While you cast a spell with a casting time of
+  // 1 minute or more, you must take the Magic action on each of your turns,
+  // and you must maintain Concentration while you do so." The Concentration
+  // half is a deadline the engine can keep; the per-turn obligation is a state
+  // machine over the caster's turns, and there is none — so a fight running is
+  // where the refusal stands, and it names what is missing rather than
+  // pretending the deadline is the whole rule.
   if (castingTime === 'long') {
+    if (state.combat !== null) {
+      return err(
+        'unsupported_casting_time',
+        'a casting time of 1 minute or more requires the caster to take the Magic action on each of their turns, and that per-turn obligation is not modelled; outside combat the casting runs on the clock instead',
+      );
+    }
+
+    // **The same floor the validator holds a definition to, from the same
+    // constant.** The low-level half takes its caller's word about the
+    // economy; it does not take a caller's word about arithmetic, and two
+    // spellings of one number would let a six-second "long" casting through
+    // here that no definition could ever declare.
+    const seconds = command.castingSeconds;
+    if (
+      seconds === undefined ||
+      !Number.isInteger(seconds) ||
+      seconds < LONG_CASTING_SECONDS
+    ) {
+      return err(
+        'bad_casting_seconds',
+        'a casting time of 1 minute or more completes at a moment on the clock, at least 60 seconds away, and this casting named none',
+      );
+    }
+
+    // A long casting **is** a declared casting: the id is allocated now, the
+    // Concentration starts now, and the slot waits for the settlement. The
+    // resolution half of the record is the layer above's — `castSpell` does
+    // not know which definition it is or who it is aimed at — so a caller that
+    // supplied none has asked for a window nothing could ever close.
+    if (command.hold === undefined) {
+      return err(
+        'unsupported_casting_time',
+        'a casting time of 1 minute or more is a declared casting settled later, and this casting named nothing for the settlement to resolve',
+      );
+    }
+  } else if (command.castingSeconds !== undefined) {
     return err(
-      'unsupported_casting_time',
-      'a casting time of 1 minute or more defers its slot until the casting completes, and elapsed time is not modelled yet',
+      'casting_seconds_without_long',
+      'only a casting time of a minute or more takes a span of seconds; an Action, a Bonus Action and a Reaction are moments in a turn',
     );
   }
 
@@ -518,11 +578,17 @@ function castSpellWith(
   const castingId = nextCastingId(state);
   const events: GameEvent[] = [];
 
+  // SRD "Longer Casting Times": "you must maintain Concentration while you do
+  // so." A casting of a minute or more therefore *requires* Concentration
+  // whatever the spell itself asks for, which is why this is read here and not
+  // off `concentration` alone.
+  const sustained = castingTime === 'long';
+
   // SRD: "You lose Concentration on an effect the moment you start casting a
   // spell that requires Concentration." The moment you *start* — which is why
   // this precedes the slot going, and why a casting that goes on to accomplish
   // nothing still costs the caster the spell they were holding.
-  if (concentration && caster.concentration !== null) {
+  if ((concentration || sustained) && caster.concentration !== null) {
     events.push({
       type: 'concentration-ended',
       id,
@@ -541,10 +607,46 @@ function castSpellWith(
   // window that could not be closed would wedge the fight.
   if (command.hold !== undefined) {
     let deadline: Deadline | undefined;
+    let lastsSeconds: number | undefined;
     if (command.duration !== undefined) {
+      // A clock-deferred casting carries the **span** rather than a resolved
+      // deadline: SRD gives a spell's Duration from the moment it takes
+      // effect, and a casting that takes ten minutes has not taken effect for
+      // ten minutes. Pinning it here would expire a ten-minute Detect Magic
+      // ritual the instant the rite finished.
+      //
+      // A turn-anchored duration still resolves here, and outside combat that
+      // is a refusal — before the window opens, which costs nothing. A long
+      // casting is refused *inside* combat, so a span is the only kind that
+      // can reach the settlement, which is why the field holds seconds.
+      //
+      // **It resolves either way, and the span is read back off the answer.**
+      // `resolveDuration` is the single conversion between a `Duration` and a
+      // `Deadline` and the only thing that refuses one running backwards, in
+      // fractions of a second or not a number at all — so a branch that stored
+      // the span *instead* of resolving it would be the one place in the
+      // engine where a duration goes unchecked. A `NaN` span would then settle
+      // to a deadline of `null`: a casting that never expires live and expires
+      // at once on reload, which is one log meaning two things.
       const pinned = resolveDuration(timeView(state), command.duration);
       if (!pinned.ok) return pinned;
-      deadline = pinned.value;
+
+      if (sustained && pinned.value.kind === 'elapsed') {
+        lastsSeconds = pinned.value.at - state.elapsed;
+      } else {
+        deadline = pinned.value;
+      }
+    }
+
+    // When the casting finishes. Outside combat, so `resolveDuration` cannot
+    // refuse a span of seconds — but it is what resolves every other moment in
+    // this engine, and a second arithmetic for one field is a second place to
+    // get it wrong.
+    let completesAt: Deadline | undefined;
+    if (sustained) {
+      const done = resolveDuration(timeView(state), forSeconds(command.castingSeconds!));
+      if (!done.ok) return done;
+      completesAt = done.value;
     }
 
     events.push({
@@ -572,10 +674,34 @@ function castSpellWith(
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
         unverified: command.hold.unverified,
         ...(deadline === undefined ? {} : { deadline }),
+        ...(completesAt === undefined ? {} : { completesAt }),
+        ...(lastsSeconds === undefined ? {} : { lastsSeconds }),
         ...(command.check === undefined ? {} : { check: command.check }),
       },
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // SRD: "you must maintain Concentration while you do so." The casting is
+    // the thing being concentrated on, and it has an identity precisely so
+    // other mechanics can name it while it is open — so this is the same
+    // `concentration-started` every other spell writes, naming the id the
+    // declaration has just allocated. Nothing is running under it yet, which
+    // is what makes every reader of `concentration` correct here: they either
+    // look for effects the casting hung (there are none) or simply report the
+    // spell being held, which is the truth.
+    //
+    // A Concentration spell cast this way starts exactly one Concentration,
+    // here, and settlement carries it on rather than starting a second.
+    if (sustained) {
+      events.push({
+        type: 'concentration-started',
+        id,
+        castingId,
+        spell: name.value,
+        level: castLevel,
+      });
+    }
+
     return ok(events);
   }
 
@@ -619,8 +745,22 @@ function castSpellWith(
  * do. The slot goes here, the Concentration starts here, and the deadline
  * pinned at declaration is scheduled here — because all three belong to a
  * spell that has actually taken effect.
+ *
+ * **A casting of a minute or more has already started its Concentration**, at
+ * the declaration, because SRD requires it to be maintained *while* the spell
+ * is cast. So the two branches invert for one: a spell that needs
+ * Concentration simply carries the one it has on, under the same id, and one
+ * that does not has a Concentration with nothing left to hold, which ends
+ * here with `completed`.
+ *
+ * The state is read for exactly one thing — the moment the spell takes effect,
+ * which is when a deferred duration begins. See `PendingCasting.lastsSeconds`.
  */
-export function settlementEvents(pending: PendingCasting, stamp: CommandStamp | null): GameEvent[] {
+export function settlementEvents(
+  state: GameState,
+  pending: PendingCasting,
+  stamp: CommandStamp | null,
+): GameEvent[] {
   const events: GameEvent[] = [
     {
       type: 'spell-cast',
@@ -637,7 +777,17 @@ export function settlementEvents(pending: PendingCasting, stamp: CommandStamp | 
     },
   ];
 
-  if (pending.concentration) {
+  // A casting the clock deferred is already concentrated on, whatever spell it
+  // is. The **moment** is the fact rather than the casting time: `castingTime`
+  // agrees today, because `castingOf` records a Ritual's as `long` — its
+  // printed one is "Action or Ritual" and the Ritual version really does take
+  // ten minutes — so the two cannot disagree and no fixture can tell them
+  // apart. What this branch is *about* is whether a Concentration was already
+  // started for the casting, and `completesAt` is the field that says so
+  // directly rather than the one that happens to travel with it.
+  const sustained = pending.completesAt !== undefined;
+
+  if (pending.concentration && !sustained) {
     events.push({
       type: 'concentration-started',
       id: pending.caster,
@@ -645,18 +795,63 @@ export function settlementEvents(pending: PendingCasting, stamp: CommandStamp | 
       spell: pending.spell,
       level: pending.level,
     });
+  } else if (sustained && !pending.concentration) {
+    // **Before the deadline below, and that ordering is load-bearing.**
+    // `concentration-ended` folds through `releaseCasting`, which takes every
+    // timer the casting owns with it — so a schedule written first would be
+    // wiped by the very event that says the rite is over.
+    events.push({
+      type: 'concentration-ended',
+      id: pending.caster,
+      castingId: pending.castingId,
+      reason: 'completed',
+    });
   }
 
-  if (pending.deadline !== undefined) {
+  // A span carried from the declaration starts **now**: the spell has this
+  // moment taken effect, and SRD gives its Duration from here rather than from
+  // whenever the caster began muttering.
+  //
+  // **Through the same conversion the declaration used**, rather than the
+  // arithmetic spelled out a second time — `elapsed + seconds` written here as
+  // well would be the second answer to one question this file warns about four
+  // lines up. It cannot refuse: the span was resolved and read back off an
+  // `elapsed` deadline at the declaration, so it is already a whole number of
+  // seconds forwards, and `must` says so rather than a caller having to.
+  const deadline =
+    pending.deadline ??
+    (pending.lastsSeconds === undefined
+      ? undefined
+      : mustResolve(state, forSeconds(pending.lastsSeconds)));
+
+  if (deadline !== undefined) {
     events.push({
       type: 'effect-scheduled',
       target: { kind: 'casting', castingId: pending.castingId },
-      deadline: pending.deadline,
+      deadline,
       ...(pending.check === undefined ? {} : { check: pending.check }),
     });
   }
 
   return events;
+}
+
+/**
+ * `resolveDuration` for a span the declaration already validated.
+ *
+ * The conversion is the same one, so the arithmetic is not written twice; what
+ * this adds is the statement that the refusal cannot arrive. `lastsSeconds` is
+ * stored as the difference between an `elapsed` deadline and the clock it was
+ * resolved against, so it is a whole number of seconds forwards by
+ * construction — and a throw here would mean the declaration's own validation
+ * had stopped holding, which is programmer error rather than a rules refusal.
+ */
+function mustResolve(state: GameState, duration: Duration): Deadline {
+  const pinned = resolveDuration(timeView(state), duration);
+  if (!pinned.ok) {
+    throw new Error(`a settled casting's own duration was refused: ${pinned.reason}`);
+  }
+  return pinned.value;
 }
 
 /**

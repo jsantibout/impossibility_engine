@@ -133,6 +133,35 @@ export function srdCastingTime(printed: string): 'action' | 'bonus-action' | 're
   return 'long';
 }
 
+/**
+ * How many seconds a printed casting time of a minute or more takes.
+ *
+ * Null where {@link srdCastingTime} does not answer `long`, and null for a
+ * long wording the grammar does not cover — which is a **parser problem** and
+ * never a plausible default, the rule `srdRange` and `srdDuration` already
+ * follow and the one `animals.md` taught. The test asserts that every spell in
+ * the book whose casting time reads `long` parses here, so a re-ingest that
+ * changes a wording fails rather than quietly exempting a spell.
+ *
+ * The ` or Ritual` suffix is the *other* casting time the same line prints —
+ * "1 minute or Ritual" is a one-minute casting or a Ritual — so it is stripped
+ * and the number in front of it is the non-ritual answer. The ten minutes a
+ * Ritual adds are the rule's, applied where the casting is declared, and are
+ * deliberately not folded in here: a definition records what its spell prints.
+ */
+export function srdCastingSeconds(printed: string): number | null {
+  if (srdCastingTime(printed) !== 'long') return null;
+
+  const text = printed.trim().replace(/ or Ritual$/i, '');
+  const span = /^(\d+) (\w+)$/.exec(text);
+  if (span === null) return null;
+
+  const seconds = UNIT_SECONDS[span[2]!.toLowerCase()];
+  if (seconds === undefined) return null;
+
+  return Number(span[1]) * seconds;
+}
+
 /** A definition that deliberately disagrees with the book, and why. */
 export interface OracleExemption {
   readonly field: 'range' | 'duration';

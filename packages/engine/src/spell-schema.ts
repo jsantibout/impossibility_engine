@@ -12,6 +12,7 @@ import {
 } from '@ie/shared';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
+import { LONG_CASTING_SECONDS } from './spells.js';
 import { conditionRiderOf, CREATURE_TYPES, modifierRidersOf } from './spell-definitions.js';
 import type {
   ConditionRider,
@@ -1452,6 +1453,30 @@ export function checkSpellDefinition(
       field: 'castingTime',
       code: 'unknown_casting_time',
       reason: `"${definition.castingTime}" is not a casting time the engine has`,
+    });
+  }
+
+  // SRD "Longer Casting Times": "minutes or even hours". `long` is a bucket
+  // rather than a span, so a definition in it has to say which — the engine
+  // cannot defer a casting to a moment nobody named, and it will not invent
+  // one. The floor of a minute is what the bucket *means*, so a `long` casting
+  // shorter than one is incoherent rather than merely unusual.
+  if (definition.castingTime === 'long') {
+    const seconds = definition.castingSeconds;
+    if (typeof seconds !== 'number' || !Number.isInteger(seconds) || seconds < LONG_CASTING_SECONDS) {
+      found.push({
+        field: 'castingSeconds',
+        code: 'bad_casting_seconds',
+        reason:
+          'a casting time of "1 minute or more" is a whole number of seconds, at least 60; the engine defers the casting to that moment and will not invent one',
+      });
+    }
+  } else if (definition.castingSeconds !== undefined) {
+    found.push({
+      field: 'castingSeconds',
+      code: 'casting_seconds_without_long',
+      reason:
+        'only a casting time of a minute or more takes a span of seconds; an Action, a Bonus Action and a Reaction are moments in a turn',
     });
   }
 

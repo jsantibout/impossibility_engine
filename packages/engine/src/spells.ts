@@ -89,6 +89,20 @@ export type SlotlessReason = 'cantrip' | 'ritual' | 'special-ability' | 'magic-i
 
 export type CastingTime = 'action' | 'bonus-action' | 'reaction' | 'long';
 
+/**
+ * The floor of SRD's `long` bucket, in seconds.
+ *
+ * "Certain spells—including a spell cast as a Ritual—require more time to
+ * cast: **minutes or even hours**." A minute is what the bucket *means*, so a
+ * `long` casting shorter than one is incoherent rather than merely unusual.
+ *
+ * **One number, one place**, read by the definition validator and by the
+ * casting command alike. Two constants would be two floors, and the low-level
+ * half accepting a six-second `long` casting that no definition could declare
+ * is exactly the second answer to one question this engine keeps finding.
+ */
+export const LONG_CASTING_SECONDS = 60;
+
 /** What a creature is currently concentrating on. */
 export interface Concentration {
   readonly castingId: string;
@@ -524,6 +538,19 @@ export type ConcentrationEndReason =
    * finally happening rather than the caster giving up on it.
    */
   | 'released'
+  /**
+   * SRD "Longer Casting Times": a casting of a minute or more is sustained by
+   * Concentration while it is being cast, and that Concentration has nothing
+   * left to hold once the spell takes effect.
+   *
+   * Distinct from `released` in the same way `released` is distinct from
+   * `voluntary`: nobody gave anything up. The Concentration existed only to
+   * carry the casting to its completion, and completing it is the spell
+   * happening rather than the caster stopping. A spell that *itself* takes
+   * Concentration writes nothing at all here — there is one Concentration and
+   * it simply carries on under the same casting id.
+   */
+  | 'completed'
   | 'another-concentration-effect'
   | 'failed-save'
   | 'incapacitated'

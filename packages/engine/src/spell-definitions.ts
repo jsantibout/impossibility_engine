@@ -1315,6 +1315,36 @@ export interface SpellDefinition {
   readonly level: number;
   readonly school: string;
   readonly castingTime: CastingTime;
+  /**
+   * How long a casting time of a minute or more takes, in whole seconds.
+   *
+   * **Required when `castingTime` is `long` and refused otherwise**, because
+   * `long` is not a duration — it is the SRD's own bucket, "minutes or even
+   * hours", and the engine cannot defer a casting to a moment nobody named.
+   * The oracle holds it against the printed casting time in both directions,
+   * so a definition claiming ten minutes where the book says an hour fails at
+   * authoring rather than at the table. Never invented: `srdCastingSeconds`
+   * parses the printed string, and a wording the grammar does not cover is a
+   * parser problem rather than a plausible default.
+   *
+   * A Ritual is a long casting whatever this says — see {@link ritual} — so
+   * this is the *non-ritual* casting time and 600 is added on top of it.
+   */
+  readonly castingSeconds?: number;
+  /**
+   * SRD: the spell prints the Ritual tag, so it has a Ritual version.
+   *
+   * "The Ritual version of a spell takes 10 minutes longer to cast than
+   * normal. It also doesn't expend a spell slot, which means the ritual
+   * version of a spell can't be cast at a higher level." A casting asks for it
+   * with `CastSpellRequest.ritual`, and a spell that does not carry the tag
+   * refuses the request rather than quietly casting normally.
+   *
+   * Transcribed and oracled like every other printed field, rather than read
+   * out of `SPELL_INDEX` at cast time: a definition is the engine's
+   * authoritative answer about a spell, and the book is what checks it.
+   */
+  readonly ritual?: true;
   readonly concentration: boolean;
   readonly range: SpellRange;
   readonly targets: TargetRule;
@@ -4848,6 +4878,7 @@ export const DETECT_MAGIC: SpellDefinition = {
   level: 1,
   school: 'divination',
   castingTime: 'action',
+  ritual: true,
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
@@ -4855,7 +4886,6 @@ export const DETECT_MAGIC: SpellDefinition = {
   durationSeconds: 600,
   unmodelled: [
     'sensing magical effects within 30 feet, the Magic action to see an aura, and the school a spell belongs to, are all the DM’s to narrate',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
     'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s',
   ],
 };
@@ -5127,6 +5157,7 @@ export const COMPREHEND_LANGUAGES: SpellDefinition = {
   level: 1,
   school: 'divination',
   castingTime: 'action',
+  ritual: true,
   concentration: false,
   range: { kind: 'self' },
   targets: { count: 0 },
@@ -5134,7 +5165,6 @@ export const COMPREHEND_LANGUAGES: SpellDefinition = {
   durationSeconds: 3600,
   unmodelled: [
     'understanding a language is the DM’s; the engine records which languages a character knows but nothing reads them in play',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -5212,6 +5242,7 @@ export const WATER_BREATHING: SpellDefinition = {
   level: 3,
   school: 'transmutation',
   castingTime: 'action',
+  ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 10 },
@@ -5219,7 +5250,6 @@ export const WATER_BREATHING: SpellDefinition = {
   durationSeconds: 86_400,
   unmodelled: [
     'breathing underwater is the DM’s; suffocation is not modelled',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -5238,6 +5268,7 @@ export const SPEAK_WITH_ANIMALS: SpellDefinition = {
   level: 1,
   school: 'divination',
   castingTime: 'action',
+  ritual: true,
   concentration: false,
   range: { kind: 'self' },
   targets: { count: 0 },
@@ -5246,7 +5277,6 @@ export const SPEAK_WITH_ANIMALS: SpellDefinition = {
   unmodelled: [
     'what a Beast says is the DM’s',
     'the Influence action and its skill options are not modelled',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -5466,6 +5496,7 @@ export const DETECT_POISON_AND_DISEASE: SpellDefinition = {
   level: 1,
   school: 'divination',
   castingTime: 'action',
+  ritual: true,
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
@@ -5473,7 +5504,6 @@ export const DETECT_POISON_AND_DISEASE: SpellDefinition = {
   durationSeconds: 600,
   unmodelled: [
     'poisons, venomous creatures and magical contagions are not modelled, and what the caster senses is narration',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
     'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s',
   ],
 };
@@ -5516,6 +5546,7 @@ export const FLOATING_DISK: SpellDefinition = {
   level: 1,
   school: 'conjuration',
   castingTime: 'action',
+  ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 0 },
@@ -5524,7 +5555,6 @@ export const FLOATING_DISK: SpellDefinition = {
   unmodelled: [
     'the disk is an object and objects are not modelled: where it is, the 500 pounds it holds, and what is riding on it are the DM’s',
     'the disk following the caster within 20 feet, refusing an elevation change of 10 feet or more, and the spell ending beyond 100 feet are all the DM’s',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -5546,6 +5576,7 @@ export const GENTLE_REPOSE: SpellDefinition = {
   level: 2,
   school: 'necromancy',
   castingTime: 'action',
+  ritual: true,
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 0 },
@@ -5554,7 +5585,6 @@ export const GENTLE_REPOSE: SpellDefinition = {
   unmodelled: [
     'the target is a corpse or other remains, which is an object rather than a creature in state: which remains were touched is the DM’s',
     'decay, becoming Undead, and the time limit this extends on raising the dead are the DM’s — no spell the engine executes raises anybody',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -5598,13 +5628,13 @@ export const LOCATE_ANIMALS_OR_PLANTS: SpellDefinition = {
   level: 2,
   school: 'divination',
   castingTime: 'action',
+  ritual: true,
   concentration: false,
   range: { kind: 'self' },
   targets: { count: 0 },
   effects: [],
   unmodelled: [
     'what is within 5 miles is the DM’s: the engine holds one scene, and a creature off it is not a creature at a distance',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -6203,6 +6233,7 @@ export const TELEPATHIC_BOND: SpellDefinition = {
   level: 5,
   school: 'divination',
   castingTime: 'action',
+  ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 8, self: true },
@@ -6210,7 +6241,6 @@ export const TELEPATHIC_BOND: SpellDefinition = {
   durationSeconds: 3600,
   unmodelled: [
     'what is said through the bond is the DM’s, and the engine records which languages a character knows without reading them in play — so excluding a creature that speaks none is the DM’s too',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 
@@ -6335,6 +6365,7 @@ export const WATER_WALK: SpellDefinition = {
   level: 3,
   school: 'transmutation',
   castingTime: 'action',
+  ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 10, self: true },
@@ -6343,7 +6374,6 @@ export const WATER_WALK: SpellDefinition = {
   unmodelled: [
     'liquid surfaces are not modelled: whether there is water, acid, mud or lava under the party, and what the heat of lava does, are the DM’s',
     'the Bonus Action a target spends to drop through the surface is charged by the DM, because nothing in state says the target is standing on a liquid',
-    'the Ritual casting option is not modelled: a Ritual takes 10 minutes longer, and a casting time of a minute or more is refused until a casting-in-progress state machine exists',
   ],
 };
 

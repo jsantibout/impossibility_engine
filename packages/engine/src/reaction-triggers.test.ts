@@ -520,7 +520,7 @@ describe('a Reaction to being damaged', () => {
     const log = hurtBy(TABLE, THUG);
     const refused = rebuke(log, CLERIC);
     expect(isErr(refused)).toBe(true);
-    if (isErr(refused)) expect(refused.code).toBe('no_trigger');
+    if (isErr(refused)) expect(refused.code).toBe('forced_target');
   });
 
   /**

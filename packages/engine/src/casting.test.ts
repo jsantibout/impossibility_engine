@@ -520,8 +520,12 @@ describe('a refusal costs nothing', () => {
       (s) => castSpell(s, id('wizard'), { spell: 'Hold Person#cast:9', level: 2, slotLevel: 2 }),
     ],
     [
-      'unsupported casting time',
+      'a long casting that names no moment to complete at',
       (s) => castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2, castingTime: 'long' }),
+    ],
+    [
+      'a span of seconds on a casting time that is a moment in a turn',
+      (s) => castSpell(s, id('wizard'), { ...HOLD, slotLevel: 2, castingSeconds: 60 }),
     ],
   ];
 
@@ -540,15 +544,46 @@ describe('a refusal costs nothing', () => {
   });
 
   /**
-   * A spell whose casting time is a minute or more only expends its slot once
-   * the casting completes, and time is not modelled yet — so the engine says
-   * so rather than spending the slot at the wrong moment.
+   * A spell whose casting time is a minute or more completes at a moment on
+   * the clock, and the low-level half has to be told which — `resolveSpell`
+   * derives it from the definition, and a caller scripting a fixture says so.
+   * The engine will not invent a number of seconds.
    */
-  it('refuses a casting time of a minute or more, naming the rule', () => {
+  it('refuses a casting of a minute or more that names no moment to finish at', () => {
     const before = fold('seed', table());
     const result = castSpell(before, id('wizard'), { ...HOLD, slotLevel: 2, castingTime: 'long' });
     expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('bad_casting_seconds');
+  });
+
+  /**
+   * And it is a declared casting rather than an atomic one — the slot waits
+   * for the completion, so there has to be something for the settlement to
+   * resolve. `castSpell` knows the slot, the level and the id and nothing
+   * about which definition it is or who it is aimed at.
+   */
+  it('refuses a casting of a minute or more with nothing for the settlement to resolve', () => {
+    const before = fold('seed', table());
+    const result = castSpell(before, id('wizard'), {
+      ...HOLD,
+      slotLevel: 2,
+      castingTime: 'long',
+      castingSeconds: 60,
+    });
+    expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('unsupported_casting_time');
+  });
+
+  /** A span of seconds means nothing to an Action, a Bonus Action or a Reaction. */
+  it('refuses a span of seconds on a casting time that is a moment in a turn', () => {
+    const before = fold('seed', table());
+    const result = castSpell(before, id('wizard'), {
+      ...HOLD,
+      slotLevel: 2,
+      castingSeconds: 60,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('casting_seconds_without_long');
   });
 
   /** SRD: "You must have training with any armor you are wearing to cast spells." */

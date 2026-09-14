@@ -285,7 +285,7 @@ describe('Counterspell', () => {
       { spellId: 'counterspell', targets: [OGRE], slotLevel: 3 },
       supply(-40),
     );
-    expect(isErr(refused) && refused.code).toBe('no_trigger');
+    expect(isErr(refused) && refused.code).toBe('forced_target');
   });
 });
 

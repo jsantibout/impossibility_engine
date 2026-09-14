@@ -300,8 +300,33 @@ export interface CastSpellRequest extends CommandIdentity {
    * nobody can answer resolves in one call exactly as it always has; turning
    * every casting into a two-step ceremony would be a worse API for the sake
    * of a moment that is usually empty.
+   *
+   * **A casting of a minute or more is declared whether or not this is set**,
+   * because the SRD makes it a process rather than a moment. So this asks for
+   * the window and a long casting time *has* one.
    */
   readonly hold?: boolean;
+  /**
+   * Cast it as a Ritual.
+   *
+   * SRD: "The Ritual version of a spell takes 10 minutes longer to cast than
+   * normal. It also doesn't expend a spell slot, **which means the ritual
+   * version of a spell can't be cast at a higher level.**" All three clauses
+   * follow from this one field: the casting becomes a long one 600 seconds
+   * longer than the spell's printed time, no slot is expended and the log
+   * records `ritual` as the reason, and a slot level above the spell's own is
+   * refused rather than silently ignored.
+   *
+   * Legal only where the definition carries the printed Ritual tag, which is
+   * the same shape `damageType` and `fought` take: a clause the spell prints,
+   * refused for a spell that prints none rather than quietly doing nothing.
+   *
+   * **Preparation is still unjudged.** SRD requires a Ritual to be prepared or
+   * to come from a feature that allows it, and spell lists and preparation are
+   * not modelled — refusing on a rule the engine cannot evaluate is worse than
+   * leaving it to the layer that knows, exactly as it is for every other cast.
+   */
+  readonly ritual?: true;
 }
 
 /**

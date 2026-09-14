@@ -157,23 +157,23 @@ spell, and the area is the part that is missing.
 Cast for real; the effect is narrated. Each says what it leaves to the DM.
 
 - **Arcane Lock** (level 2) — 2 noted
-- **Comprehend Languages** (level 1) — 2 noted
+- **Comprehend Languages** (level 1) — 1 noted
 - **Continual Flame** (level 2) — 3 noted
 - **Create Food and Water** (level 3) — 1 noted
 - **Darkvision** (level 2) — 1 noted
 - **Demiplane** (level 8) — 3 noted
 - **Detect Evil and Good** (level 1) — 3 noted
-- **Detect Magic** (level 1) — 3 noted
-- **Detect Poison and Disease** (level 1) — 3 noted
+- **Detect Magic** (level 1) — 2 noted
+- **Detect Poison and Disease** (level 1) — 2 noted
 - **Disguise Self** (level 1) — 2 noted
 - **Find Traps** (level 2) — 1 noted
-- **Floating Disk** (level 1) — 3 noted
+- **Floating Disk** (level 1) — 2 noted
 - **Fly** (level 3) — 2 noted
-- **Gentle Repose** (level 2) — 3 noted
+- **Gentle Repose** (level 2) — 2 noted
 - **Jump** (level 1) — 1 noted
 - **Knock** (level 2) — 3 noted
 - **Light** (cantrip) — 3 noted
-- **Locate Animals or Plants** (level 2) — 2 noted
+- **Locate Animals or Plants** (level 2) — 1 noted
 - **Locate Creature** (level 4) — 2 noted
 - **Locate Object** (level 2) — 2 noted
 - **Mage Hand** (cantrip) — 3 noted
@@ -189,17 +189,17 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Rope Trick** (level 2) — 2 noted
 - **See Invisibility** (level 2) — 2 noted
 - **Silent Image** (level 1) — 3 noted
-- **Speak with Animals** (level 1) — 3 noted
+- **Speak with Animals** (level 1) — 2 noted
 - **Speak with Dead** (level 3) — 2 noted
 - **Spider Climb** (level 2) — 1 noted
 - **Stone Shape** (level 4) — 1 noted
-- **Telepathic Bond** (level 5) — 2 noted
+- **Telepathic Bond** (level 5) — 1 noted
 - **Tongues** (level 3) — 1 noted
 - **Transport via Plants** (level 6) — 2 noted
 - **True Seeing** (level 6) — 2 noted
 - **Wall of Force** (level 5) — 3 noted
-- **Water Breathing** (level 3) — 2 noted
-- **Water Walk** (level 3) — 3 noted
+- **Water Breathing** (level 3) — 1 noted
+- **Water Walk** (level 3) — 2 noted
 - **Word of Recall** (level 6) — 2 noted
 
 ## What blocks the rest

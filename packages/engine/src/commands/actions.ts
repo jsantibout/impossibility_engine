@@ -271,8 +271,14 @@ export function takeReady(
     if (creature.readied !== null) {
       return err('already_readied', `${id} is already holding a readied action`);
     }
+    // **Not `no_trigger`.** That code says a Reaction's moment has not arrived,
+    // which is a fact about the world and something a caller waits out; this
+    // says the command did not say what it is waiting for, which is a fact
+    // about the command and something a caller fixes by re-sending it. One
+    // code carried both, and a tool surface branching on it could not tell a
+    // Shield with no attack to answer from a Ready with an empty string.
     if (command.trigger.trim() === '') {
-      return err('no_trigger', 'a readied action waits for something; say what');
+      return err('no_trigger_stated', 'a readied action waits for something; say what');
     }
 
     // Validate the whole thing before any of it is emitted, casting included:

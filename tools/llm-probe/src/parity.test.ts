@@ -141,6 +141,9 @@ const AUDIT: readonly {
       hold: because(
         'opens `pendingCasting`, and nothing on this surface settles a declared casting. Publishing it alone would wedge the fight, which is the deadlock this audit exists to have stopped repeating',
       ),
+      ritual: because(
+        'SRD casts a Ritual in ten minutes more than the spell normally takes, which makes it a declared casting settled off the clock — so it opens `pendingCasting` exactly as `hold` does, and nothing on this surface settles one. It is also refused outright while a fight is running, and both benchmarks are fights. Publish it with the settlement command, never before',
+      ),
     },
   },
   {

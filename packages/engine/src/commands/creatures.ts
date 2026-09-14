@@ -10,7 +10,7 @@
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { hasCondition } from '../conditions.js';
-import { type GameEvent, type GameState } from '../events.js';
+import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { applyDamageToVitals, isDown } from '../vitals.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
@@ -180,7 +180,16 @@ export function removeCreatureEverywhere(
 
     // A caster leaving takes their ongoing spell with them, and the log should
     // say so rather than leaving the reader to infer it from the disappearance.
-    const creature = creatureOf(state, id);
+    //
+    // **Read off the world the settlement above leaves, not the one before
+    // it.** `settleHoldsInvolving` interrupts a casting the caster had
+    // declared, and a casting of a minute or more is *concentrated on* — so
+    // the interruption has already taken that Concentration, and a
+    // `concentration-ended` naming it would be an event the fold refuses. Two
+    // events about one fact, written against two different worlds, is a batch
+    // built against a snapshot; this is the same reading `resolveDamage`
+    // already takes when it asks what the damage left behind.
+    const creature = creatureOf(events.reduce(applyEvent, state), id);
     if (creature?.concentration != null) {
       events.push({
         type: 'concentration-ended',

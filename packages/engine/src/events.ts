@@ -627,6 +627,53 @@ export interface PendingCasting {
    */
   readonly deadline?: Deadline;
   /**
+   * When a casting of a minute or more finishes, for a casting that takes one.
+   *
+   * SRD "Longer Casting Times": "Certain spells—including a spell cast as a
+   * Ritual—require more time to cast: minutes or even hours." The two-event
+   * casting already held the window open; this is the fact that says when the
+   * window may be closed, and `resolveDeclaredCast` refuses `still_casting`
+   * until the clock reaches it.
+   *
+   * **Read with `isDue`, never `hasExpired`.** The two differ only for a
+   * turn-anchored deadline whose anchor has gone, and there they are
+   * opposites: `hasExpired` answers **yes**, so that nothing runs for ever,
+   * while `isDue` answers **no**, so that a moment which will never arrive
+   * collects nothing. A casting completes when its moment genuinely comes, so
+   * a reading under which a casting completed because the fight ended would be
+   * the engine inventing a completion. Every value here is an `elapsed`
+   * deadline today — a casting time is a span of seconds and never a moment in
+   * the turn order — so the two agree, which is precisely why the choice has
+   * to be stated rather than left to luck.
+   *
+   * Absent for every casting that is not a long one, which is what makes a
+   * declaration written before this fold to exactly the state it always did —
+   * and it is the fact `settlementEvents` branches on, because what that
+   * branch is about is whether a Concentration was already started for the
+   * casting. `castingTime === 'long'` agrees with it today and cannot
+   * disagree, a Ritual being recorded as a long casting; this is the field
+   * that says the thing directly rather than the one that travels with it.
+   */
+  readonly completesAt?: Deadline;
+  /**
+   * How long the spell runs **once it takes effect**, for a clock-deferred
+   * casting.
+   *
+   * A span of seconds rather than a resolved {@link Deadline}, because a
+   * deadline pinned at declaration would start the spell's duration at the
+   * moment the *casting* began: a ten-minute Detect Magic ritual would expire
+   * the instant it finished being cast. SRD gives a spell's Duration from when
+   * it takes effect, so the span is carried and resolved at settlement.
+   *
+   * Seconds and not a `Duration`, because a turn-anchored duration is refused
+   * at declaration — `resolveDuration` has no meaning for one outside combat,
+   * and a long casting is refused inside one — so a span is the only kind that
+   * can reach here, and storing the narrower thing means settlement cannot
+   * fail. That is the same validate-before-rolling rule {@link deadline}
+   * obeys, arriving at the other end.
+   */
+  readonly lastsSeconds?: number;
+  /**
    * A check the casting's own timer will offer, worked out at declaration.
    *
    * Beside the deadline for the same reason: both belong to the timer that
@@ -2330,6 +2377,24 @@ function releaseCasting(
     areaTriggers[key] = stamp;
   }
 
+  // And a casting that has not taken effect yet. SRD "Longer Casting Times":
+  // "If your Concentration is broken, the spell fails, but you don't expend a
+  // spell slot." A casting of a minute or more is concentrated on from the
+  // moment it begins, so every route by which Concentration ends — damage, a
+  // dismissal, the derived Incapacitated pass, a second Concentration spell —
+  // arrives here, and the pending record has to go with it or the window would
+  // outlive the thing holding it open. Nothing is refunded, because the slot
+  // was never taken: the same asymmetry `spell-interrupted` already writes.
+  //
+  // **The single door stays single.** An ordinary casting's caster is not
+  // concentrating on its pending id — Concentration starts at settlement — so
+  // no other route reaches this with a pending casting's id in hand.
+  let pendingCasting = state.pendingCasting;
+  if (pendingCasting !== null && pendingCasting.castingId === castingId) {
+    pendingCasting = null;
+    changed = true;
+  }
+
   return changed
     ? {
         ...state,
@@ -2340,6 +2405,7 @@ function releaseCasting(
         scheduledDamage,
         owedAreaEffects,
         areaTriggers,
+        pendingCasting,
       }
     : state;
 }
@@ -4416,7 +4482,18 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       }
       // Nothing is given back. The action was wasted by the same SRD sentence
       // that spares the slot, and the slot was never spent.
-      return { ...next, pendingCasting: null };
+      //
+      // **Through the single door, which this case used not to need.** It
+      // cleared `pendingCasting` itself, and that was complete while no
+      // pending casting could be concentrated on. A casting of a minute or
+      // more is concentrated on from its declaration, and SRD Counterspell
+      // says "the spell dissipates with no effect" — so a caster left
+      // concentrating on it would be holding a casting that no longer exists,
+      // permanently, and rolling a Constitution save on every later hit for a
+      // spell that is not there. `releaseCasting` is where every other ending
+      // converges and already answers exactly this; for an ordinary casting it
+      // finds no Concentration and does what this line always did.
+      return releaseCasting(next, event.id, event.castingId);
     }
 
     case 'spell-cast': {
