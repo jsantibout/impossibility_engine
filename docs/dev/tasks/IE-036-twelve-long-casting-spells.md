@@ -1,11 +1,11 @@
 # IE-036 — The twelve spells a long casting time alone blocked
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: content
 tranche: 6
 parallel-safe: CONDITIONAL — content only; collides with IE-043 on registry lines alone
 depends-on: IE-038
-worker: none
+worker: qb-builder in .claude/worktrees/agent-a1188d0edebcc7f38, branch worktree-agent-a1188d0edebcc7f38
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
@@ -178,3 +178,46 @@ Two things the brief should be read with, now that IE-044 exists:
   acting during the rite**, which is the behaviour IE-038 corrects and the most
   natural demonstration of the twelve.
 
+
+## Read this before starting — added by the foreman at launch, 2026-09-14
+
+**IE-044 merged first, and its instrument says something about your twelve.**
+`BLOCKED_ON` entries are now clause-anchored — a distinctive phrase from the
+spell's own parsed SRD paragraph, matched exactly once — and `COVERAGE.md`
+reports two `finishes` numbers rather than one: the spells whose paragraph has
+been read sentence by sentence, and the rest.
+
+`a-long-casting-time` reports **finishes (read) 0, finishes (unread) 12**. Your
+twelve are the unread ones. That is not a fault in the brief; it is the
+instrument saying that nobody has yet checked whether those paragraphs contain a
+*second* blocker. Every wrong prediction this map has made — Mind Blank,
+Protection from Energy, Enthrall, Magic Weapon, True Strike — was an unread
+sentence rather than a wrong entry.
+
+So requirement 1 is the load-bearing one and it has not changed: **read each of
+the twelve against its own SRD paragraph.** What this note adds is what to do
+with what you find:
+
+- A spell whose whole printed content the engine can now express gets its
+  definition and leaves `BLOCKED_ON`, as the brief says.
+- **A spell whose paragraph yields another blocker does not get a definition.**
+  It gets a clause-anchored entry in IE-044's new shape — `{ clause, why, note }`
+  with the phrase quoted from its own paragraph — naming the blocker you found.
+  That is a **success of the task**, not a failure of it: it is exactly the
+  finding the instrument exists to surface, and it should be prominent in your
+  digest with the SRD sentence that forced it.
+- Acceptance criterion 1 should be read with that in mind: what must be true is
+  that no spell is left claiming `a-long-casting-time` *alone* when its paragraph
+  says otherwise. If fewer than twelve get definitions, say which and why, and
+  the criterion is met in substance.
+
+Do not widen the task to build whatever the new blocker needs. Record it and
+move on — that is the map working.
+
+Two smaller notes:
+
+- The entry type in `scripts/missing-shapes.ts` changed under you. Read it as it
+  now stands rather than as the brief describes it.
+- `a-long-casting-time`'s description was corrected by IE-034's merge and again
+  by IE-038's; its "outside combat only" caveat is IE-041's to remove, not
+  yours.

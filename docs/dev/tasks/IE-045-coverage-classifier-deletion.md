@@ -1,11 +1,11 @@
 # IE-045 — Delete the shape classifier; derive `PARTIAL_SPELLS`
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: tooling
 tranche: 6
 parallel-safe: CONDITIONAL — `scripts/coverage-data.ts`, `scripts/coverage.ts`, `spell-honesty.test.ts`; after IE-044, same script files
 depends-on: IE-044
-worker: none
+worker: qb-builder in .claude/worktrees/agent-a9c4b2425e6ed09f1, branch worktree-agent-a9c4b2425e6ed09f1
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
