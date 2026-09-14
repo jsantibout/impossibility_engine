@@ -1,11 +1,11 @@
 # IE-032 — A casting ended by a trigger
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 5
 parallel-safe: NO — a union task touching `events.ts` and `spell-resolution.ts`; runs alone
 depends-on: IE-027, IE-028, IE-030
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a8c3683dd1f652c5b · worktree-agent-a8c3683dd1f652c5b
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

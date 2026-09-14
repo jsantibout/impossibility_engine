@@ -552,10 +552,18 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged: 11 of 18** — IE-020 through IE-030 bar IE-031, every one 13/13.
-`main` at `d185bd6`, **7196 tests across 110 files**, both frozen logs
-untouched, `COVERAGE.md` byte-clean, pushed after every merge. **Waves 1 and 2
-complete; wave 3 is one task from complete.**
+**Merged: 12 of 18** — IE-020 through IE-031, every one 13/13. `main` at
+`9887829`, **7233 tests across 111 files**, both frozen logs untouched and run
+explicitly, `COVERAGE.md` byte-clean, pushed after every merge. **Waves 1, 2
+and 3 are complete**; IE-032 is running as wave 4.
+
+**IE-031 found a wrong number that was already shipped**, which is the payoff
+of Fable's decision arriving within the hour. `action-economy.test.ts`
+asserted a Fighter with Exhaustion 3 who Dashes has **45** feet **while its own
+comment beside the assertion said 30** — and the comment and the SRD were
+right. A remainder seeded at the un-reduced Speed and raised by the reduced one
+gives a number the book never prints. A stored remainder is a derived quantity
+frozen at its seed, and this one had been frozen at the wrong number.
 
 **All four instruments the delta audit called broken are repaired, and every
 one of them has fired on a real defect.** IE-022's citation guard found five
@@ -862,3 +870,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | debts accepted (recorded, not solved) | IE-031 | (1) **a Dash's gained movement survives a later Speed of 0 this turn** — today's arithmetic already allows it, the new formula preserves it exactly, and SRD's "Speed is 0 and can't increase" against banked extra movement is an open reading the engine has not decided; the sentence goes in the code. (2) **the single-reader sweep must add `events.ts` to its population** once the fold calls `speedOf` — the reviewer's "lesser" defect is load-bearing now, since the sweep reads `EVENT_TYPE_SOURCE`, which excludes the very file the defect was in |
 | 2026-09-14 | merge (tranche authority) | IE-030 | merged `d185bd6`, 13/13, risk gate inspected. Two declared deviations, both approved before the work: the foreman's arity decision, and acceptance criterion 1 falsified by the SRD. The fixture that discriminates is an **upcast Charm Person naming one of two targets** — the shape the first round shipped past, and the same lesson as the multiclass fixture and the Rogue who resisted nothing. Clause carriers are held against **each definition's own parsed paragraph** rather than a hand-written list |
 | 2026-09-14 | rebase (foreman) | IE-031 | its worktree conflicted on `COVERAGE.md`, one of the five `merge=binary` paths. Resolved by `CONTRIBUTING.md`'s playbook — **take either side, then regenerate; never hand-merge the numbers** — and the regenerated file came back with exactly the branch's own three features (88 → 91; Barbarian, Monk, Ranger each +1), which is the evidence the resolution was right rather than merely conflict-free |
+| 2026-09-14 | merge (tranche authority) | IE-031 | merged `9887829`, 13/13, risk gate inspected closely — a state representation, two reducer cases and the public surface, on the task that had already been wrong once about the fold agreeing with the command. **Both frozen logs and `scenario.test.ts` were run explicitly, 53 tests, with a zero-line fixture diff**, because criterion 6 is the one it got wrong before. It surfaced a shipped wrong number (Exhaustion 3 + Dash asserted at 45 against its own comment's 30) and one rules decision the live allowance forced: mounting had become free at a Speed of 0, restored under its original code on SRD's "During your move" |
+| 2026-09-14 | launch | IE-032 | wave 4, alone. Its launch prompt carries the five things that landed under its brief while it waited — IE-030's third stated fact, IE-031's reducer and budget change, IE-024's `effectLists` idiom, IE-026's `satisfyWith` sweep and IE-021's write guard — because a brief pointing at stale line numbers is how a builder fixes the wrong thing, and that has nearly happened twice tonight |

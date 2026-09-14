@@ -1,13 +1,13 @@
 # IE-031 — Speed is read live, through one reader
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `standing.ts`, `combat.ts`, `commands/movement.ts`, `commands/actions.ts`; safe beside IE-030
 depends-on: IE-026, IE-029
-worker: qb-builder · .claude/worktrees/agent-ae256127edaa000a9 · worktree-agent-ae256127edaa000a9
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -174,88 +174,106 @@ and leaving the seed, and state which you did.
 
 ## Risk gate
 
+
+## Completion digest
+
+Builder **COMPLETE**, reviewer **PASS at high confidence**, three rounds after
+the YELLOW. Branch `worktree-agent-ae256127edaa000a9`, commit `3b5d6c6`,
+rebased to `9887829`. Tests **7196 → 7233 on `main`**, 37 new. Gauntlet green;
+`COVERAGE.md` **88 → 91** executed features, Barbarian, Monk and Ranger each
++1, byte-clean under the reviewer's own regeneration.
+
+Eight mutations, each failing for its own reason. Three are the ones that
+matter: **reverting the reducer's `movement-spent` to the pinned Speed fails the
+two fold assertions** — the reviewer's own defect, reproduced as a test;
+reverting `dash-taken` fails the Dash, the SRD Exhaustion example and the
+sweep; and **shifting the Monk's shared table column fails four cases in two
+files, which is what says it is one column** rather than two that agree today.
+
+### It found a wrong number that was already on `main`
+
+`action-economy.test.ts` asserted that a Fighter with Exhaustion 3 who Dashes
+has **45** feet — **while its own comment beside the assertion said 30**. The
+comment and the book were right. SRD: *"If your Speed of 30 feet is reduced to
+15 feet, you can move up to 30 feet this turn if you Dash."* A remainder seeded
+at the **un-reduced** 30 and then raised by the **reduced** 15 gives 45, which
+is neither number the SRD prints — the seed was the un-reduced Speed, so
+Exhaustion reached the *increase* and not the *allowance*. The derivation gives
+15 + 15.
+
+That is the whole argument for Fable's decision arriving within an hour of it:
+a stored remainder is a derived quantity frozen at its seed, and this one had
+been frozen at the wrong number in a shipped test that asserted against its own
+comment.
+
+### One rules decision the live allowance forced
+
+Making cost and allowance both read `speedOf` made **mounting free at a Speed
+of 0** — "half your Speed" of 0 is 0, so the guard compared 0 against 0 and
+passed, where a pinned cost of 15 against an effective 0 used to refuse. Caught
+in review round 3, restored under its original `not_enough_movement` code on
+SRD's "**During your move**", with the fixture the suite had never had.
+
+## Risk gate
+
+**Inspected**, and more closely than most: this task changes a state
+representation, two reducer cases and the public surface, and it is the task
+that was already wrong once about whether the fold agreed with the command.
+
+What I verified rather than accepted:
+
+- **Both reducer cases now pass `speedOf`** — `movement-spent` and
+  `dash-taken` — with the comment at each saying why a backstop with different
+  inputs is a fork rather than a guard. The runtime import of `standing.ts`
+  into `events.ts` carries the argument that it opens no catalogue: every input
+  `speedOf` reads is log-held, so the fence `upgradeOngoing` stands behind is
+  intact.
+- **Both frozen logs fold unchanged**, run explicitly rather than inside the
+  full suite: `persistence.test.ts`, `persistence-2.test.ts` and
+  `scenario.test.ts`, **53 tests, all passing**, with `packages/engine/fixtures`
+  showing a zero-line diff. That is criterion 6, and it is the criterion this
+  task claimed once on a suite that was green while the fold threw.
+- The full suite on `main` at **7233 across 111 files**, `COVERAGE.md`
+  regenerating byte-clean.
+
+Classification: **GREEN**.
+
 ## Architecture decision
+
+**Recorded in full above under its own heading, answered by Fable as a YELLOW.**
+Summary: store the spend, not the remainder; derive the allowance at every read,
+in the command and in the fold alike; the reducer keeps its guard and calls the
+command's own function with the command's own inputs.
+
+The general rule it produced, which is the part that outlives the task:
+***store what happened, derive what is left.*** A working live cap is not
+evidence that a live allowance exists, and the test for a brief is whether the
+stored number can represent an allowance **larger than its seed**.
 
 ## Merge record
 
-## Architecture decision
+Merged to `main` as `9887829`, fast-forward, pushed. Rebased by the foreman
+twice; the second conflicted on `COVERAGE.md`, one of the five `merge=binary`
+paths, and was resolved by `CONTRIBUTING.md`'s playbook — **take either side,
+then regenerate, never hand-merge the numbers**. The regenerated file came back
+carrying exactly this branch's own three features, which is the evidence the
+resolution was right rather than merely conflict-free.
 
-**YELLOW, escalated by the builder as `ARCHITECTURE_BLOCKED` and independently
-by its reviewer as `ESCALATE`, both at high confidence. Answered: a *fourth*
-option — the delta audit's original, which the foreman's brief correction had
-overridden.**
+`main` verified after the merge: typecheck ✓, lint ✓, **7233 tests across 111
+files** ✓, both frozen logs and the scenario determinism run explicitly ✓,
+`COVERAGE.md` byte-clean ✓, tree clean.
 
-> **Question.** When the fold applies `movement-spent`, must it re-derive the
-> allowance, and what should the turn budget store so a feature grant can raise
-> it?
+Thirteen conditions: **1** inside the brief as repaired by the recorded
+decision; **2** `COMPLETE`; **3** `PASS` at high confidence; **4** defects
+resolved, including the reviewer's own fold defect, now a test; **5** gauntlet
+green; **6** conformance; **7** the architecture blocker is answered and
+recorded; **8** no deviation taken — the field flip *is* the decision, and the
+superseded brief line is struck in place; **9** the primitives are declared and
+the two `events.ts` lines are the surface the decision added; **10** five files
+outside the original surface, each forced — two by the Monk table, one by the
+brief's own non-negotiable, two by a removed field they read; **11** the
+`COVERAGE.md` conflict resolved by the playbook; **12** re-verified on `main`;
+**13** risk gate inspected, GREEN.
 
-**Decision. Store the spend, not the remainder.** `TurnBudget` carries
-`movementSpent` and `movementGained`, and the allowance is derived at every
-read as `max(0, speedOf + gained − spent)` — **by the command and by the fold
-alike**. The reducer keeps its guard and calls the command's own function with
-the command's own inputs: `spendMovement` and `dash` both take the live
-`speedOf`. No event shape changes. `movedSoFar` and the `min(remaining, …)`
-clamp are **deleted, not re-based**.
-
-**Because — and the first half is the general rule.** *Derived beats stored.* A
-stored remainder is a derived quantity frozen at its seed, sound only while
-every later change to the allowance moves in the direction a cap can express.
-A grant raises it, and nothing but the seed can raise.
-
-And the fold's backstop **is honest only when it is the command's own check
-with the command's own inputs.** `events.ts:4360` already passes
-`sheet.attacksPerAction` and `:4371` already passes conditions; `:4388` calls
-the same function with *different* inputs and therefore measures against a
-number the command never used. **That is a fork — the Dodge-versus-Fire-Bolt
-shape this file already records — and it is why a green suite folded a corrupt
-log.** The guard is the right shape; the inputs were wrong.
-
-**It may call `speedOf` on the fold path**, and that was the load-bearing check:
-every input is log-held — the pinned combatant speed, `sheet.standing` carried
-by `character-created`, `equipped`, conditions. No catalogue opens, so the
-fence `upgradeOngoing` stands behind is intact, and a future correction to the
-Monk table changes future sheets rather than historical folds.
-
-**The three options on the table were all refused, each for a principled
-reason.** Option 1 keeps a stored number whose name lies — seeded at 30 and
-driven to −5, `movedSoFar` becoming `spent − dash` by accident of algebra.
-Option 2 keeps the remainder and moves its basis, which is the drift the brief's
-own risk note warned about, and still cannot express a Longstrider cast on the
-mover's own turn before they move — **which IE-033 meets on its first fixture**.
-Option 3 deletes a live corrupt-log guard to make arithmetic pass.
-
-**On the foreman's correction**, quoted because the next brief needs the rule
-rather than the incident: it was *wrong in kind*, not merely wrong for grants
-that raise. **A working live cap is not evidence that a live allowance exists**,
-and the test is whether the stored number can represent an allowance larger than
-its seed.
-
-**Inside the approved brief: YES.** The Out-of-scope line reserved the field
-flip "unless the digest argues for it first", and an `ARCHITECTURE_BLOCKED`
-plus an independent `ESCALATE` is that argument; criteria 2, 3 and 6 are
-unmeetable without it. The surface gains two reducer lines in `events.ts`,
-which the **foreman sequences** — after IE-030 merges, since that is its
-primitive — rather than a new task.
-
-**Two debts this accepts, both to be written down rather than solved:**
-
-1. **A Dash's gained movement survives a later Speed of 0 this turn.** Today's
-   arithmetic already allows it and the new formula preserves the reading
-   exactly; SRD's "Speed is 0 and can't increase" against banked extra movement
-   is an open reading and the engine has not decided it. The sentence goes in
-   the code.
-2. **The single-reader sweep must add `events.ts` to its population** once the
-   fold calls `speedOf`, or it cannot assert what its name claims. The
-   reviewer's first "lesser" defect is **load-bearing** now rather than
-   cosmetic — the sweep reads `EVENT_TYPE_SOURCE`, which excludes the very file
-   the defect was in.
-
-Second-order findings, for the queue rather than this task: `Combatant.speed`
-on `combat-started` duplicates `sheet.baseSpeed` and, after this, is read only
-as `speedOf`'s base — two sources for one number; the `has-speed` circularity
-guard sweeps `allClasses()` only, missing subclass features, species traits and
-feats; and `speedOf` falls back to `sheet.baseSpeed` outside combat and the
-pinned speed inside it, two bases for one reader, harmless today and worth one
-sentence in its docstring.
-
-Fable's confidence: **high**.
+**Wave 3 complete. Unblocks IE-033**, which needed this reader and would have
+met Fable's Longstrider objection on its first fixture.
