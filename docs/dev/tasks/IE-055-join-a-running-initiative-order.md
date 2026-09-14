@@ -1,11 +1,11 @@
 # IE-055 — A creature can join a fight already under way
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 7
 parallel-safe: CONDITIONAL — `events.ts`, one fold domain, `commands/initiative.ts`; not beside IE-050 or IE-053
 depends-on: IE-050
-worker: none
+worker: qb-builder, launched 2026-09-14 from `2bb66bb` (wave 3)
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 

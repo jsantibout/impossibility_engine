@@ -1,11 +1,11 @@
 # IE-042 — A condition immunity a spell grants
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 7
 parallel-safe: CONDITIONAL — `spell-definitions.ts` types, `spell-schema.ts`, its own resolver module, `fold/release.ts`; not beside IE-053 or IE-054
 depends-on: IE-051
-worker: none
+worker: qb-builder, launched 2026-09-14 from `2bb66bb` (wave 3)
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 
