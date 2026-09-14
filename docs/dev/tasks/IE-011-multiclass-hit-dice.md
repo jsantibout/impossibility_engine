@@ -1,11 +1,11 @@
 # IE-011 — Multiclass Hit Dice: call the function that is already right
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 4
 parallel-safe: YES — `creation.ts` and `multiclass.ts`, touching no spell, no event type, no fold and no command module
 depends-on: none
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a2f4e1019f7a6f93a · worktree-agent-a2f4e1019f7a6f93a
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 

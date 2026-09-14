@@ -1,11 +1,11 @@
 # IE-012 — Scene commands: let something above the engine start an encounter
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 4
 parallel-safe: YES — a new command module wrapping pure functions that already exist; touches no spell, no effect kind, no existing command
 depends-on: none
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-aab26f5019e2fbd13 · worktree-agent-aab26f5019e2fbd13
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 

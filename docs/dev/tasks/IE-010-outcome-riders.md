@@ -1,11 +1,11 @@
 # IE-010 — Outcome riders, and the two `on` rules made one
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside any task touching the `SpellEffect` union or `commands/spell-resolution.ts`; YES beside `creation.ts`, a new command module, and conformance work
 depends-on: IE-001, IE-007
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a0cd69c068a23bdac · worktree-agent-a0cd69c068a23bdac
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 

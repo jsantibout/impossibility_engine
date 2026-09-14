@@ -1,11 +1,11 @@
 # IE-013 — Guards that can see a zero-user member, and three that were missing
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: conformance
 tranche: 4
 parallel-safe: YES — validator rules, sweeps and one read-site change; no effect kind, no union member, no new event
 depends-on: none
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-ad9a21180a344d5bc · worktree-agent-ad9a21180a344d5bc
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
