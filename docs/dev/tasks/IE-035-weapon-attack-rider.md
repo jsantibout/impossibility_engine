@@ -1,11 +1,11 @@
 # IE-035 — A rider on later weapon attacks, and a duration the slot changes
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — a union task; safe beside IE-036, which touches only definitions and the registry
 depends-on: IE-034
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a92c5cdd25ca0fb04 · worktree-agent-a92c5cdd25ca0fb04
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

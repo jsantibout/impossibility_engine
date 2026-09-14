@@ -552,10 +552,11 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged: 14 of 18** — IE-020 through IE-033, every one 13/13. `main` at
-`fcf40cc`, **7318 tests across 113 files**, both frozen logs untouched and run
-explicitly on every fold-touching merge, `COVERAGE.md` byte-clean. **Waves 1–5
-complete**; IE-034 is running as wave 6.
+**Merged: 15 of 18** — IE-020 through IE-034. `main` at `c3fc27e`, **7648
+tests across 114 files**, both frozen logs untouched and run explicitly on
+every fold-touching merge, `COVERAGE.md` byte-clean. **Waves 1–6 complete**;
+IE-035 is running as wave 7. **IE-036 is deferred to tranche 6** and IE-037
+follows IE-035.
 
 Coverage stands at **45 tracked / 92 executed / 46 partial / 70 verified**, and
 every one of those numbers is derived rather than written.
@@ -961,3 +962,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | YELLOW answered | IE-034 | Fable, high confidence: replace the single `pendingCasting` slot with a record **keyed by casting id**, one open casting per caster; the rite's own caster refused a Magic action and permitted a Reaction and a Bonus Action. The reframing fact is that **`unsettledRefusal` never contained the record** — so the guard was only ever refusing what the reducer would throw on, and the slot was an accident of a one-instant user. Option (a) refused under any sequencing. **Explicitly outside the approved brief**, so the foreman did not build it |
 | 2026-09-14 | deferral (foreman) | IE-036 | **deferred on Fable's evidence, not withdrawn** — it stays on tranche 5's roster with the owner's approval intact, because a deferral is a decision not to launch. It writes twelve ritual definitions with fixtures, and the record's shape changes in front of it rather than behind it; writing them now means writing them twice, the second time by somebody who did not read the twelve SRD paragraphs. Reported at `TRANCHE_COMPLETE` |
 | 2026-09-14 | LATER (from IE-034's YELLOW) | — | **A rite open when `startCombat` fires wedges the fight**: `resolveTurn` refuses `casting_pending`, settlement refuses `still_casting` until a round-derived clock arrives, and the only exits are the caster giving up Concentration or leaving the game. What `startCombat` should do to an open casting belongs to the deferred in-combat half. Also: `casting_pending` now carries three rules — the same shape `no_trigger` was just split for — and the Counterspell-nesting one is the odd one out, GREEN for whoever opens that file |
+| 2026-09-14 | merge (tranche authority) | IE-034 | merged `c3fc27e`, 13/13, risk gate inspected. **Six rounds**, one of them the YELLOW the foreman adjudicated with Fable and routed to the owner. Eighteen mutations; two survived and are recorded rather than papered over. The **Alarm fixture had to be hand-built** because all ten tagged catalogue spells print "Action or Ritual", so `0 + 600` and `600` are the same number and nothing else can tell the Ritual's sum from a constant. **The debt ships pinned as behaviour** — three tests assert a second caster is refused for the whole rite and that a non-casting creature still acts — so the queued task deletes tests rather than finding a comment |
+| 2026-09-14 | LATER (from IE-034) | — | `long-casting.test.ts:318` asserts `expect(world()).toEqual(before)` where `before = world()` — two identical pure computations, so **that assertion cannot fail**. The block's load-bearing `isErr` assertion can, and duplicates the `it.each` above it. The builder declined to edit after a PASS so the reviewed commit stayed the merged commit, which is right; a vacuous assertion *beside* a working one is a tidy rather than a correctness risk. One line for whoever next opens that file |

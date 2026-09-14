@@ -1,13 +1,13 @@
 # IE-034 — A long casting time outside combat, and rituals
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 5
 parallel-safe: NO — owns `commands/casting.ts`, `spells.ts` and `events.ts`; runs alone
 depends-on: IE-033
-worker: qb-builder · .claude/worktrees/agent-a633d308db72c66e4 · worktree-agent-a633d308db72c66e4
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -162,96 +162,114 @@ use the right one, and say which in the digest.
 
 ## Risk gate
 
+
+## Completion digest
+
+Builder **COMPLETE**, reviewer **PASS at high confidence** — after **six
+rounds**, of which one was the `ESCALATE` the foreman adjudicated with Fable and
+routed to the owner, and four were ordinary defects. Branch
+`worktree-agent-a633d308db72c66e4`, commit `8173963`, rebased to `c3fc27e`.
+Tests **7318 → 7648 on `main`**, 32 new in a new file plus 22 across four
+others. Gauntlet green; `COVERAGE.md` byte-clean, its only deltas the **ten
+`unmodelled` clauses saying the Ritual option was not modelled**, removed
+because it now is.
+
+**Eighteen mutations.** The load-bearing ones: suppressing the casting's own
+Concentration (11 red); removing the `pendingCasting` clear from
+`releaseCasting` (3); reverting `spell-interrupted` to clear the record without
+the Concentration (4); reverting the forward-read in `removeCreatureEverywhere`
+(1, a `CorruptLogError`); restoring the `resolveDuration` bypass (4); an
+`unshift` on the settlement's `effect-scheduled` (1, **and only the folded
+reading sees it**); replacing the Ritual's sum with the constant (1, **and only
+the hand-built Alarm sees it**); and narrowing `casting_pending` to the caster
+(2 — the debt tests).
+
+**Two survived and are recorded rather than papered over**: `completesAt` and
+`castingTime === 'long'` agree by construction, so no fixture can tell them
+apart; and reading the span off the request rather than the resolution is
+behaviour-identical once the resolution is what validates.
+
+**The Alarm fixture is the discriminating one and had to be built.** All ten
+tagged catalogue spells print "Action or Ritual", so `0 + 600` and `600` are the
+same number — a hand-built definition reaching 660 is the only thing that
+distinguishes the Ritual's *sum* from a constant, and it is driven through
+`checkSpellDefinition` so it is not junk.
+
+**The named YELLOW was answered correctly**: no reader of `concentration` was
+branched and no second field invented. The *unforeseen* one became Fable's
+decision and the owner's, below.
+
+**The debt ships pinned as behaviour, not as prose.** Three tests assert that a
+second caster is refused `casting_pending` for the whole rite, that it costs
+them nothing, that it does not relent nine minutes in, and that a creature who
+is **not** casting still acts. The queued `pendingCastings` task therefore
+**deletes tests** rather than finding a comment — which is the whole point of
+pinning a debt.
+
+Two refusal codes change observable value, both assigned by the brief and
+asserted by name: `no_trigger` → `forced_target` at the two forced-target
+Reaction sites, and `no_trigger` → `no_trigger_stated` for an empty Ready
+trigger.
+
+Unresolved concern, cleared by the reviewer as blocking nothing:
+`long-casting.test.ts:318` carries `expect(world()).toEqual(before)` where
+`before = world()` — two identical pure computations, so **that assertion
+cannot fail**. The block's load-bearing `isErr` assertion can, and duplicates
+the `it.each` above it. The builder left it rather than edit after a PASS and
+make the reviewed commit no longer the commit — the right instinct, and the
+foreman agrees: a vacuous assertion **beside** a working one is a tidy, not a
+correctness risk. Filed rather than fixed silently.
+
+## Risk gate
+
+**Inspected.** Foundational primitives, two observable refusal-code changes and
+a change to the Concentration branch of the fold.
+
+- **Both frozen logs and `scenario.test.ts` run explicitly** — 53 tests — with
+  the fixtures untouched.
+- **The debt is genuinely pinned**: `casting_pending` is asserted by name at
+  three sites in `long-casting.test.ts`, not described in a comment.
+- `removeCreatureEverywhere` now reads **forward**, because routing
+  `spell-interrupted` through `releaseCasting` made it write two events about
+  one fact against two different worlds — which the fold refused. That is a
+  correctness fix the Concentration change itself exposed, and it is driven.
+
+Classification: **GREEN**.
+
 ## Architecture decision
+
+**Recorded in full in the section the foreman appended at the escalation** —
+Fable's answer, the measured fact that `unsettledRefusal` never contained
+`pendingCasting`, the decision to key the record by casting id with one open
+casting per caster, and the explicit finding that the change **does not stay
+inside this brief**.
+
+Because the owner's standing instruction is that a YELLOW may continue only if
+the answer stays inside approved scope, the shape change was **not built here**.
+It is proposed as tranche 6's first task, with **IE-036 deferred behind it** on
+Fable's evidence.
 
 ## Merge record
 
-## Architecture decision
+Merged to `main` as `c3fc27e`, fast-forward, pushed. Rebased by the foreman;
+clean.
 
-**YELLOW, escalated by the builder as `ARCHITECTURE_BLOCKED` and independently
-by its reviewer as `ESCALATE`. Answered by Fable, and the answer is larger than
-this brief — so the decision is recorded, the *narrow* half is built, and the
-shape change goes to the owner.**
+`main` verified after the merge: typecheck ✓, lint ✓, **7648 tests across 114
+files** ✓, both frozen logs and the scenario determinism explicitly ✓,
+`COVERAGE.md` byte-clean ✓, tree clean.
 
-> **Question.** Once a pending casting can last ten minutes of game time, is a
-> single global `pendingCasting` still the right representation, and what
-> constrains the rite's own caster meanwhile?
+Thirteen conditions: **1** inside the brief, and the one thing that was not is
+deferred rather than smuggled; **2** `COMPLETE`; **3** `PASS` at high
+confidence; **4** defects resolved; **5** gauntlet green; **6** conformance —
+ten stale clauses removed because the thing they described is built; **7** the
+architecture blocker is answered, recorded, and its out-of-scope half routed to
+the owner; **8** no deviation; **9** the primitives are the brief's, with the
+two refusal-code changes it assigned; **10** files outside the surface are each
+forced — one by the `no_trigger` split the brief assigns, one by a fold-breaking
+consequence, one by an audit sweep that refuses an unaccounted field; **11**
+clean rebase; **12** re-verified on `main`; **13** risk gate inspected, GREEN.
 
-### The measured fact that reframed it
-
-**`unsettledRefusal` has never contained `pendingCasting`.** While a
-Counterspell window is open on `main`, a fighter attacks, a rogue moves,
-anybody Dodges — only `castOrRelease`, `activateSpell` and `resolveTurn` read
-the record at all.
-
-So the guard was never "a casting in process freezes the world". **Its entire
-content is refusing the second declaration the reducer would throw on** — a
-structural fact leaking out as a rules refusal, invisible only because its one
-user was an instant inside one creature's own Magic action. **IE-034 did not
-break the guard; it exposed that the single slot was an accident of its first
-user.**
-
-### The decision
-
-Replace the slot with `pendingCastings`, **keyed by casting id** and sorted as
-`ongoing` is, with the reducer enforcing **one open casting per caster**. Every
-reducer path already addresses the record by casting id — `spell-interrupted`,
-`spell-cast`, and this task's own `releaseCasting` addition — and `ongoing` is
-already that shape, so this is a **second user of an existing shape rather than
-a new one**.
-
-**Option (a) — refuse only castings that would themselves be declared — is
-refused outright, under any sequencing.** It keeps the accident and re-issues
-it as a rule, so two party members performing rites in the same ruin are still
-refused. A structure compensating for itself.
-
-**The rite's own caster.** SRD commits *the Magic action* and Concentration and
-nothing else, so the per-caster guard refuses an `action` or `long` casting and
-an `action` activation, and **permits a Reaction and a Bonus Action** — a
-Counterspell from a wizard mid-rite is the natural fixture. Refusing a Bonus
-Action would be an invented rule. A Concentration spell begun mid-rite needs no
-guard: `concentration-ended` already routes through `releaseCasting`, which
-drops the pending record with no slot spent — the SRD's own "the spell fails,
-but you don't expend a spell slot", derived.
-
-**`casting_pending` afterwards** means *the creature named is mid-casting and
-what you asked for waits on it*. The Counterspell invariant is restated rather
-than lost, and reads better: **a Counterspell is never a pending casting, and a
-casting that is an answer is never answered.**
-
-### Why the shape change is not in this task
-
-Fable's own line: **"Stays inside the approved brief: NO."** It changes a
-foundational record's shape, a published command's signature, four command
-modules this brief never listed, and one file under `tools/`. The owner's
-standing instruction for this tranche is that a YELLOW **"may continue only if
-the answer stays inside approved scope"**, and this does not — so it is the
-owner's to authorise, and it is proposed as tranche 6's first task.
-
-What ships here is the narrow, correct thing plus **a named and pinned debt**,
-which Fable sanctioned explicitly as acceptable for one tranche:
-
-> A casting in process is one engine-wide … **This is a limit of the record,
-> not a rule of the SRD**, and a queued task replaces the record.
-
-Pinned by a test in which a cleric's Fire Bolt during a wizard's rite is
-refused `casting_pending` and **the refusal costs nothing**. A debt that is
-asserted is a debt somebody deletes when it stops being true.
-
-**`unsettledRefusal` and `mayAct` must not gain the record** — a fighter
-attacking during a rite is legal play, and that is the one thing already right.
-
-### Second-order findings, recorded
-
-1. **A rite open when `startCombat` fires wedges the fight.** `resolveTurn`
-   refuses `casting_pending`, settlement refuses `still_casting` until a
-   round-derived clock arrives, and the only exits are giving up Concentration
-   or leaving the game. What `startCombat` should do to an open casting belongs
-   to the deferred in-combat half.
-2. `casting_pending` carries three rules — own casting open, turn cannot
-   advance, Counterspell nesting — the same shape the builder has just split
-   `no_trigger` for. The nesting refusal is the odd one out and is GREEN.
-3. The `hold === undefined` refusal means the low-level `castSpellWith` cannot
-   begin a rite at all. Fine as policy; its docstring should say so.
-
-Fable's confidence: **high**.
+**Wave 6 complete.** The largest blocker in the book is built for the
+out-of-combat half: **54 spells touched, 12 finishable** — though IE-036, which
+writes them, is deferred to tranche 6 so that it writes them against a record
+whose shape has stopped moving.
