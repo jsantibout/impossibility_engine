@@ -132,8 +132,16 @@ for leniency. It reviews against the brief on disk.
 
 - **PASS** → write your digest and stop.
 - **Ordinary defects** → fix them, fold them into your commit, re-run the
-  gauntlet, launch the reviewer again. At most three rounds; a third round
-  without a PASS is YELLOW.
+  gauntlet, launch the reviewer again. **At most three rounds.** A third round
+  without a PASS is where you stop and report — not a failure, and not something
+  to push through. **A fourth round is the foreman's to authorise, never
+  yours**, even when the remaining findings are small and even when stopping
+  hands back a `DEFECTS` verdict with unverified fixes. That verdict is useful
+  evidence, not a bad outcome: the foreman reads it, and may authorise one
+  further bounded pass when findings are strictly shrinking, confidence is high,
+  escalation is none and the remainder is not architecture. Stopping costs
+  almost nothing — the foreman is woken by your digest either way. Say plainly
+  in the digest what the open findings are and what one more round would take.
 - **ESCALATE** → do not argue and do not rework around it; finish with
   `ARCHITECTURE_BLOCKED`, quoting the reviewer's reason.
 - **The launch itself fails** (the tool refuses or errors) → write your

@@ -1,13 +1,13 @@
 # IE-053 — `OngoingSpell.on`: store what the cast knows, derive what the world holds
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 7
 parallel-safe: NO — `events.ts`, `spells.ts`, the fold and four readers
 depends-on: IE-050, IE-051
-worker: qb-builder, launched 2026-09-14 from `04a5353` (wave 2)
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 7."
 
 ## Brief
 
@@ -140,3 +140,107 @@ Medium, and concentrated in requirement 4: the two compatibility steps in the
 wrong order silently overwrite a pinned area in a version 2 record, and the
 frozen logs would still fold. Criterion 4 is the only thing that catches it, so
 write that test first.
+
+## Completion digest
+
+**Merged `5556e3d`**, 13/13 auto-merge conditions, reviewer PASS at high confidence.
+`main` green at **8,577 tests across 125 files**; both frozen logs untouched and
+absent from the diff entirely.
+
+### What this task actually bought: a latent wrong number, found as a precondition
+
+The headline is not the rename. `ongoing-compatibility.ts` keyed its catalogue
+fill on `version !== ONGOING_RECORD_VERSION`, so **any** version bump would have
+routed every version-2 record through the fill and **overwritten an area pinned
+at the cast with the book as it reads now** — the exact hazard pinning the area
+was for, one constant edit away.
+
+The builder's own words on why nothing would have caught it: *invisible to both
+frozen logs because both are pre-versioned and take the fill either way.* That
+is this repository's worst class — a wrong number with no symptom — sitting one
+edit from being triggered by the very task that needed the bump. It is keyed on
+`version === undefined` now, which is the condition it always meant.
+
+**And it was driven test-first**: mutation (a) bumped the version *without* the
+re-keying and watched the pinned 15-foot Cube become the catalogue's 20. Watched
+to fail, for the right reason, before the fix.
+
+### Fable's merge condition from IE-047, honoured exactly
+
+IE-047 merged on one recorded condition: the derived-`on` gate's third case
+**asserts the disagreement**, and the task that fixes `fold/expiry.ts` must
+**flip** it, never delete it. The foreman checked this directly in the diff. The
+fixture is flipped and its docstring says so — *"said a fix should be expected
+to redden it. This is that fix, so the fixture now asserts the agreement"*.
+
+### Verified by the foreman, not read off the digest
+
+- **Both frozen logs are absent from the diff**, confirmed by `git diff --stat`
+  over `fixtures/`, and `persistence`, `persistence-2`, `derived-on` and
+  `scenario` run explicitly: 62 tests, all green.
+- **The compatibility path is exercised by an immutable fixture, not just by new
+  tests.** `golden-log-2.json` carries ten `spell-ongoing` events whose records
+  have **no `version` field at all** and a real `casting.on` list — Bless on
+  three names. So the oldest upgrade path is pinned by a frozen log, and
+  `derived-on.test.ts` walks 11,425 checkpoints across it. The version-2 → 3 path
+  has no frozen coverage and could not — which is exactly why the builder added
+  the two hand-written version-2 fixtures.
+
+### The process point the builder raised rather than buried — ruled
+
+**This took four review rounds against a three-round cap**, and the builder's
+instructions make a third round without a PASS a YELLOW. It judged the extension
+GREEN, continued, and put the judgement in its digest for the foreman to
+overturn.
+
+**Ruling: the instance is ratified; the rule stands; the wording is fixed.**
+
+- **On the merits the builder was right and I would have authorised it.** Rounds
+  1 and 3 were stale-design-doc sweeps, round 2 a genuinely missing test, round 4
+  a PASS. No round raised an architectural finding; all were high confidence;
+  findings shrank monotonically. That is precisely the case the procedure
+  contemplates when it says round exhaustion is not a failed review.
+- **On the process it took a decision that is the foreman's.** The procedure says
+  *the foreman may authorise* one further bounded pass. Stopping at three costs
+  almost nothing — the foreman is woken by the completion notification anyway,
+  and this is exactly what it did for IE-040 in tranche 6, launching a confirming
+  round on a `DEFECTS` verdict with an unreviewed fix.
+- **But the rule as written put the builder in a bind**, and that is the part
+  worth fixing rather than scolding: it could exceed the cap or hand back weaker
+  evidence, and nothing told it that reporting at three is a success. `qb-builder.md`
+  now says a fourth round is the foreman's to authorise, that stopping at three
+  is not a failure, and that the honest report is what the cap is for.
+
+**A systemic observation worth more than the ruling.** Two of the four rounds
+were stale-design-doc sweeps. Before 2026-09-14 that prose lived in one file;
+the extraction spread it across eight, and this change falsified assertions in
+**four** of them — `time-and-turns.md`, `spell-definitions.md`,
+`characters-and-equipment.md` and `event-log.md`. The reviewer kept finding more
+because there is simply more surface to falsify. **That is a real cost of the
+refactor**, arriving one day later, and it is recorded in `LATER` rather than
+discovered again by the next task that renames a field.
+
+### Semantic consequences, applied faithfully and flagged
+
+1. **A Range: Self casting that holds something on its caster now stores `[]`**,
+   so if that hold lapses independently the casting is on nobody, where the old
+   field kept the caster for ever. Latent: a `grants` deadline has one runtime
+   writer and the only definition that writes one is Ray of Frost, a cantrip
+   leaving no record. The Divine Favor fixture asserts it **deliberately**.
+2. `WrittenOngoing` makes both `on?` and `aimed?` optional, so a future resolver
+   writing `on:` would type-check. It cannot corrupt state — `upgradeOngoing`
+   reconstructs `aimed` from `on` for any record lacking it — and the optionality
+   is what the compatibility design requires.
+3. `aimedAt`'s `!held.has(target)` clause changes no answer today, and the
+   docstring says so rather than hiding it: every resolver that hangs something
+   on a target also reports an outcome for it. It is kept because the rule must
+   be one rule across all three branches, and the caster branch is where the same
+   subtraction *is* reachable and tested.
+
+### Scope beyond the brief's named surface — accepted
+
+Four design documents rather than the two the brief named, because all four
+asserted things this change made false. `fold-layout.json`, one command module
+and seven test files are renames the change forces. `docs/design/event-log.md:206`
+still names `alsoOn` and was **left deliberately**, as a past-tense record of
+what IE-039's split found when `alsoOn` existed — the right call.
