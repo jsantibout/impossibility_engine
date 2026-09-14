@@ -659,6 +659,37 @@ fix has no runtime cycle.
 `events.ts`, which IE-030 holds. Nothing starts there until IE-030 merges, and
 no follow-up task will be invented to carry it — that is the owner's roster.
 
+**IE-030 escalated too, and the foreman decided it GREEN rather than sending a
+second question to Fable.** `CastSpellRequest.fought` was briefed as one
+**boolean per casting**, and SRD keys the clause **per target** — "if you or
+your allies are fighting **it**". Charm Person and Charm Monster both carry
+`extraPerSlotLevelAbove: 1`, so an upcast casting names several creatures and
+every one of them got the same answer, with the `unmodelled` clause that had
+admitted the gap removed: **a wrong number with no symptom in a reachable
+path**. Decided: `fought?: readonly CharacterId[]`, which is `unaffected`'s
+existing shape for the neighbouring clause in the same paragraph of the same
+spells — already validated against the world, already carried on the pending
+record. It invents nothing, so it is the foreman's to take, and the brief's
+prescribed arity is recorded as an **approved deviation**. One detail that must
+not be copied from the neighbour: an empty list means *fighting none of them*
+and is not absence, so it may not be elided the way `unaffected` is.
+
+**And the derived map was wrong about Enthrall, which is the finding worth more
+than the task.** The brief said this shape finishes Enthrall outright, quoting
+`consumersOf`. SRD Enthrall prints "automatically **succeeds**", not
+Advantage, plus a −10 narrowed to Wisdom (Perception) and Passive Perception —
+so it is blocked on an `autoSucceed` `checks.ts` does not have and a
+skill-narrowed bonus `BonusApplies` cannot express, neither of which the map
+had ever recorded. IE-015 made the consumer count a query so that nobody would
+trust a hand-written number; **a query is still only as good as the
+adjudications beneath it**, and this is the first time one of them has been
+caught wrong by a builder reading the paragraph.
+
+**Both wave-3 tasks escalated, and both trace to briefs of mine** — a wrong
+arity here, a wrong correction about the movement seed in IE-031. Four
+substantive brief errors this tranche, every one caught by a builder or a
+reviewer, none reaching `main`.
+
 **Running:** IE-021, IE-022, IE-023 (wave 1), IE-026's confirming review, and
 Fable on IE-024.
 
@@ -822,3 +853,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | `CHANGES_REQUIRED` (condition 12) | IE-021 | the base moved eight merges and **IE-023 added two tests to `packages/engine/scripts/`**, the directory IE-021's sweep is defined over — so its population assertion and its unguarded-write assertion both failed after the rebase, on a test writing fixtures rather than a script writing at import time. **The first time this tranche's integration condition has caught something**, and it caught exactly what it is for: a review that passed a branch whose sweep had a different population. Returned and re-reviewed rather than merged. The `CLAUDE.md` conflict was the known mechanical one — two new `###` sections at one insertion point, both kept |
 | 2026-09-14 | merge (tranche authority) | IE-021 | merged `ff15526`, 13/13, risk gate inspected. **Wave 1 complete.** The payoff was verified by the foreman on `main` — a corrupted `COVERAGE.md` survives a full `npm test` and fails `git diff --exit-code`, where before it vanished after one test file. Condition 12 had returned this branch once when IE-023's two tests landed in the directory its sweep sweeps; the re-reviewed fix asserts the exclusion admits only test files and that the three-name floor still contains real writes. One foreman integration commit, `8ec33c5`: a sentence the builder specified and declined to spend a fifth round on, because the reviewed sha should be the sha that merges |
 | 2026-09-14 | YELLOW → Fable | IE-031 | `ARCHITECTURE_BLOCKED` by builder and `ESCALATE` by reviewer, independently and both at high confidence. The command layer and the reducer disagree about Speed: a feature-raised move is validated by `speedOf` and then refused by the fold as a corrupt log. **The foreman's own brief correction caused it** — the delta audit said flip the budget to `spent`, the foreman verified the live cap already existed for conditions and said not to, and a cap can only lower while a feature grant raises. The question put to Fable is what the reducer's job is when folding `movement-spent` at all, not only which of three patches to take |
+| 2026-09-14 | GREEN decision (foreman) | IE-030 | escalated by builder and reviewer on the **arity** of a stated fact: the brief prescribed `fought: boolean` and SRD keys the clause per target, so an upcast Charm Person gave a bystander the Advantage owed to the creature you are fighting — with the `unmodelled` clause removed, a wrong number with no symptom. Decided **GREEN, not sent to Fable**: `fought?: readonly CharacterId[]` is `unaffected`'s existing shape for the neighbouring clause of the same spells, so it invents nothing and follows established architecture. The prescribed arity is recorded as an approved deviation against required behaviour 2 |
+| 2026-09-14 | map correction | IE-030 | **the derived blocker map was wrong about Enthrall.** It reported the spell finished by `a-fact-only-the-table-can-declare` alone; SRD prints an automatic **success** plus a −10 narrowed to Wisdom (Perception) and Passive Perception, so it is blocked on two shapes nobody had recorded — one of which, `a-bonus-narrowed-to-a-skill`, the builder minted. IE-015 made the count a query so no hand-written number would be trusted; **a query inherits any adjudication that is wrong beneath it**, and this is the first one caught by reading the paragraph |
