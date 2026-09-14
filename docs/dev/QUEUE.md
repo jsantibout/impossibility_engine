@@ -566,17 +566,29 @@ existence in the parsed book and pinned the counterexamples. Second time
 `WORKFLOW.md`'s "a brief may not assert a rules fact without quoting the SRD
 line" has earned its keep; rule 5 quoted none.
 
-**IE-026 is at `CHANGES_REQUIRED` with one further bounded pass authorised.**
-Its third review round returned a single prose defect, the builder fixed it,
-and the brief's three-round cap meant **no reviewer had passed the final
-commit** — so condition 3 was false. Round exhaustion is not a failed review:
-findings shrank 4 → 1 → 1, confidence stayed high and no architectural
-question arose, which is precisely the case the procedure lets the foreman
-authorise one more pass for. The foreman then found a **further** defect in
-the same docstring at the gate — it claims `placeCreature` and
-`placeCreatureInScene` "contain" neither the other, and the second is a prefix
-of the first — so the pass carries that fix *and* an independent review of the
-commit that would actually be merged.
+**IE-026 has had four review rounds and the foreman has launched a fifth as a
+confirming review of the head commit.** The pattern is the finding: every
+round passed the *implementation* — brief compliance, tests, regression risk,
+conformance, architecture, all clean, at high confidence — and every round
+returned defects on **documentation prose**, after which the builder's fix
+went unreviewed. So condition 3 has been false three times for the same
+structural reason: no reviewer had seen the commit that would be merged.
+
+The prose in question is not trivia. Twice it justified the sweep with a
+**symmetric containment claim that is false** — `placeCreatureInScene` is a
+prefix of `placeCreature` — to support a conclusion that is true for a
+*directional* reason. The foreman found it at the gate in the test docstring;
+the round-4 reviewer found it independently in `CLAUDE.md`, where the first
+fix had not reached. A false sentence in the constitutional file about what a
+guard does is exactly what this repository treats as a defect.
+
+The fifth pass is a **reviewer, not a builder round**: the prose is now
+correct and directional on the foreman's own reading, so there is nothing to
+edit, and what is missing is independent review of `47a3fb5` itself. If it
+returns defects again, the task stops at `AWAITING_MERGE_APPROVAL` — IE-015's
+precedent, where a failed condition went to the owner rather than being
+decided by the foreman — because at that point the loop is itself the evidence
+the owner needs.
 
 **Running:** IE-024 (wave 1), IE-026 (rework), IE-027 and IE-028 (wave 2), and
 IE-022, launched into the slot IE-025 freed.
@@ -711,3 +723,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | merge (tranche authority) | IE-020 | merged `687331c`, 13/13 green, risk gate **inspected** (foundational primitive: `PendingCasting`) and GREEN. One foreman integration change, recorded on the task file: a declared prose imprecision in the branch's own `CLAUDE.md` paragraph corrected from "three call sites" to "three readers", committed separately so the reviewed commit stands as reviewed. IE-027 and IE-028 launched on the merged `main` |
 | 2026-09-14 | merge (tranche authority) | IE-025 | merged `43fe3d0`, 13/13 green, risk gate **inspected** (declared architectural deviation) and GREEN. The deviation was the *brief's* mistaken rules claim — rule 5 required a `fixed` spell grant to be on its class's list, and SRD Fiend Spells grants a Warlock three spells that are on none — corrected by the builder against `classes.md` and pinned, which is IE-011's precedent exactly. Three findings filed under LATER, one of them a live wrong number in `creation.ts` |
 | 2026-09-14 | `CHANGES_REQUIRED` + bounded pass | IE-026 | returned by the foreman. Condition 3 was false — three review rounds ended `DEFECTS` on a prose defect the builder then fixed, leaving the final commit unreviewed. Judged **round exhaustion rather than a failed review** (findings 4 → 1 → 1, confidence high, no architectural question), so one further bounded pass is authorised: fix a second false claim the foreman found in the same docstring, then an independent review of the commit that would be merged. No `ARCHITECTURE_BLOCKED` — there is no architectural question to wake Fable for |
+| 2026-09-14 | confirming review (foreman-launched) | IE-026 | a fifth pass, and a **reviewer rather than a builder round**. Four rounds had each passed the implementation at high confidence and each returned defects on documentation prose, and each fix then went unreviewed — so condition 3 was false three times for one structural reason. The prose defect was the same false symmetric containment claim twice, found by the foreman in the test docstring and by the round-4 reviewer in `CLAUDE.md`. Nothing left to edit, so the missing thing is independent review of the head commit itself. If it defects again the task stops at `AWAITING_MERGE_APPROVAL`, per IE-015 |
