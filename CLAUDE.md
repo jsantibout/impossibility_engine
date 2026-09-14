@@ -2088,6 +2088,73 @@ Timers are keyed by their target rather than numbered, so re-applying the same
 effect from the same source *replaces* its deadline instead of leaving a stale
 one behind to end it early.
 
+### One enumerator for the four, because the fourth was threaded through five places
+
+`bonuses`, `armorClasses`, `rollModifiers` and `grantedDefenses` are four lists
+of the same shape — a grant, and the source that hung it — and **five functions
+walked all four by hand**: `releaseCasting`, `releaseOnTarget`,
+`releaseGrants`, `expireEffects` and `holdsNothingOf`. The fourth family
+arrived after the other three and had to be added to every one of them. A fifth
+added to three of the five is how a grant comes to be ended by a dispel and not
+by a deadline — silently, because each site is correct on its own terms, which
+is the shape of the two lists of pool kinds `poolsFor` collapsed and the four
+readers `roll-modifiers.ts` replaced.
+
+`grantSourcesOf(creature)` is the read and `withoutGrants(creature, predicate)`
+is the removal, and all five route through them. The predicate is the whole of
+what varied: `releaseCasting` and `releaseOnTarget` match the casting id inside
+the source, `releaseGrants` matches the bare source a feature's deadline
+carries.
+
+**The list of families is derived from `CreatureState`, not written down.**
+`GrantFamily` is every key whose value is a list of things carrying a `source`,
+so a fifth family joins it on the day it is *declared* — and `grantsOf`, whose
+return type is a mapped type over it, then fails to compile naming the property
+it lacks. There is one such literal and `withoutGrants` builds its answer from
+it rather than spelling the four out again, so a fifth family is one edit in
+one place and the compiler insists on it. That guard was checked by mutation in
+both directions before the enumerator was written: a fifth field added to
+`CreatureState` reddens the build, and a family removed from the literal reddens
+it too.
+
+**`initiativeBonuses` matches the shape and is excluded**, which is the one
+written exemption. Creation derives it from the character's own feats; no
+casting hangs it, and no casting, deadline or dispel takes it away. It was in
+none of the five walks, and putting it in one would end a feat the rules never
+ended.
+
+**Four things it deliberately does not do.** It does not merge the four arrays
+— they are read by different rules, and a mode is not a bonus. It does not
+touch `rollModifierKey`: that two-part identity decides whether a **re-grant**
+replaces or stacks, and it is not what an *ending* matches on, because Beacon of
+Hope's two modifiers are one casting's grant and one deadline takes both. It
+does not enumerate `scheduledDamage`, because a hit still owed is the casting's
+debt rather than something the casting is doing to the creature — the reading
+that keeps a creature Insect Plague merely damaged out of `OngoingSpell.on`.
+And it does not enumerate conditions, which are a different link with their own
+instances and implications; `holdsNothingOf` asks them separately.
+
+**The answer is sorted and deduplicated**, so the family order is unobservable
+and serialised state cannot depend on it — and `withoutGrants` returns the
+creature *by reference* when nothing matched, which `releaseCasting` reads to
+decide whether a derived pass touched anybody at all.
+
+**The evidence that it is one enumerator and not four spelled alike is a
+mutation, and it is the evidence `defendingModes` was held to.** Stopping the
+shared walk from removing anything reddens the bonuses suite, the
+granted-defences suite, the roll-modifier suite and the Armour Class suite
+together — and `golden-log-2.json`, which is what says the fold itself runs
+through here. Dropping one *family* reddens only that family's suite, which is
+the weaker claim and is why the shared walk is the one to break.
+
+**`expireEffects` is the site the frozen logs could not have protected.** It
+reads the four in reverse, to decide whether a casting still owns anything on a
+creature; an enumerator reporting a grant the old code skipped would keep a
+finished casting in `OngoingSpell.on`, which is a wrong answer to Dispel Magic
+and appears in no log either fixture contains. The set it reports is exactly
+the union of the four the five sites read — nothing added, `scheduledDamage`
+and the conditions still outside it.
+
 ### What expiry did not buy
 
 Two things expiry is adjacent to and does **not** implement. Both were refused
