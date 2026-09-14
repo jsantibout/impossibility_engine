@@ -1350,6 +1350,66 @@ implemented.
   guard already asserts that no missing shape sits unclaimed; the same sweep
   over the format is one test.
 
+### Post-tranche-4 delta audit, and the tranche 5 recommendation
+
+Run on 2026-09-13 after tranche 4 shipped ten of ten, as a **delta** against
+the fourth audit rather than a fifth whole-engine pass: every engine and
+workflow change since `b1a21f6` was read, the boundaries those changes touch
+were inspected, and nothing the tranche left alone was re-read. Measured on
+`main` at `0ecc84e`; the full record with `file:line` evidence, the
+experiments and the cycle is
+`docs/architecture/post-tranche-4-delta-audit-2026-09-13.md`. Nothing was
+implemented.
+
+- **Every task closed what it claimed, inside existing shapes.** Riders in
+  fixed slots; `on` with one rule; the Hit Dice call; seventeen commands over
+  pure functions that already existed; a fourth sourced grant through the
+  door the other three use; condition removal as one shared implementation;
+  creature-type outcomes as a second reader of an authoritative fact; and
+  three derived guards. No new runtime special case; `rolls.ts` untouched;
+  both fixtures fold. **No whole-engine audit is due**, and the flag the
+  foreman set is discharged by that record.
+- **What drifted is the instruments, and one is broken.** `npm test` rewrites
+  `COVERAGE.md` — proved by corrupting the file and watching one test restore
+  it — so the gauntlet's byte-diff has asserted that the suite ran rather
+  than that the committed file was right. The citation guard checks that a
+  source *name* appears, not that the quote is in that source. And the
+  U+0008 that disabled the validator's audit flag is still in `CLAUDE.md`
+  and `QUEUE.md`, misquoting the very sweep it describes.
+- **Two shipped correctness gaps outrank every capability.** A **held**
+  casting loses the damage type and the exemptions its caster stated
+  (`PendingCasting` carries neither), so a Spirit Guardians declared through
+  a Counterspell window settles Radiant against the Undead its caster named
+  Necrotic for. And `parseSpellDefinition(unknown)` throws where its contract
+  is to report.
+- **The derived map re-ranks the queue.** A casting time of a minute or more
+  is the largest blocker in the book — 54 spells touched, 12 finished — and
+  was in none of the three rankings the fourth audit compared. A casting
+  ended by a trigger touches 29, eight of them executed spells the engine
+  drives and does not finish. The Speed modifier and the "being fought" fact
+  the fourth audit ranked next are still right; `speed-and-movement-modes`
+  is a bundle (the modifier the engine will own, the modes it will not).
+- **Two structural costs the tranche exposed.** `resolveEffects` grew from
+  914 to 1,008 lines because every union brief forbade the split the audit
+  asked for as a consequence; and four sourced grants are enumerated by hand
+  in five places with three more kinds queued. Both are repaired at the head
+  of the next union chain, not extended.
+- **The recommended cycle is eighteen tasks in eight waves**, roughly six to
+  eight hours at tranche 4's observed rate: a seven-wide repair wave (the
+  held-casting fix, the three instrument repairs, the validator's contract, a
+  feature-definition validator, context requests naming their commands),
+  then the `resolveEffects` split beside the grant enumerator, then — one at
+  a time on the union — the "being fought" fact, a casting ended by a
+  trigger, the Speed modifier in two halves, a long casting time outside
+  combat with rituals, a weapon-attack rider with a duration the slot
+  changes, and teleport as the tail; with the twelve long-casting utility
+  spells as content once the mechanism lands. The architecture for each is
+  decided in the record and is GREEN for Opus; one plausible YELLOW is named
+  (Concentration on a pending casting); nothing is RED.
+- **The simplification audit is APPROACHING, not due**: run it after tranche
+  5, once the two targeted repairs have landed, and run it in place of a
+  fifth retrospective.
+
 ## The utility bucket, audited spell by spell
 
 Ninety-one SRD spells are filed as "narrative or exploration". Fifteen were
