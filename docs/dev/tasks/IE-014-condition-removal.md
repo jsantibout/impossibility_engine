@@ -1,13 +1,13 @@
 # IE-014 — A spell that takes a condition away
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside another union task — it adds a `SpellEffect` member and edits `resolveEffects`; YES beside conformance, tooling and the scene work
 depends-on: IE-010
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a36f5ccc0e7a1f399 · worktree-agent-a36f5ccc0e7a1f399
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -104,3 +104,60 @@ moves; Greater Restoration's other clauses.
 
 - The extraction is where a behaviour change hides. `useHealingTouch`'s tests
   are the guard and none of them may be edited.
+
+
+## Merge record
+
+Merged to `main` as `fb79ca2`, fast-forward, pushed. Worktree retired.
+PASS at high confidence, round three. Executed 87 → **89**, verified 64 → 66,
+partial 53 → **55**. 6,379 tests.
+
+**One implementation, and the mutation proves it**: `endConditionsOn` lives in
+`commands/conditions.ts` and is called by both `useHealingTouch` and
+`resolveEffects`. Lay On Hands' events are byte-identical and **none of its
+tests was edited** — replacing the extracted call with a fresh removal naming
+a source reddens `healing-touch.test.ts` *and* the new spell tests, which is
+the evidence there is one removal rather than two.
+
+### The brief said "whole" and the SRD says otherwise
+
+My acceptance criterion called Lesser Restoration whole. SRD prints **"end
+*one* condition on it: Blinded, Deafened, Paralyzed, or Poisoned"** — a choice
+the caster makes — and the engine ends every one the target has. I checked the
+line myself (`spells.md:3468`) rather than take either party's word: the
+builder is right.
+
+Building the choice would mean building `a-choice-made-at-the-casting`, an
+already-enumerated missing shape with an existing consumer, plus
+`CastSpellRequest` and `PendingCasting` carrying it so a *held* casting could
+not lose it. That is architecture the brief did not approve. So the gap is in
+`unmodelled`, adjudicated to that shape, and derived into `PARTIAL_SPELLS` —
+which is why partial went to 55 rather than 54, and why **neither new spell is
+whole**. That is the honest number.
+
+**This is my fifth brief error of the tranche and the second of its kind** —
+an outcome asserted without reading the SRD sentence, exactly as the
+Paladin/Fighter hit die was. The rule added after IE-011 (a brief may not
+assert a rules fact without quoting the line) covers the number and not the
+*verdict*; a brief's claim that a spell comes out whole is the same kind of
+claim and needs the same evidence.
+
+### Heal was deferred with measurement, and my brief was wrong about that too
+
+I called flat-only healing "a one-line format question". The builder measured
+it: `DiceScaling.dice` is required, `parseNotation` refuses a count below one
+so `0d6` cannot stand in, and making it optional touches `scaledDiceFor` and
+the six resolution paths that hand its result to `rollSpellDice` — **and would
+make flat-only *damage* expressible with no consumer**, which is precisely the
+speculative member IE-013's own zero-user sweep exists to catch. Deferred on
+evidence, which the brief authorised.
+
+The thirteen conditions: 1 inside the brief · 2 COMPLETE · 3 PASS at high,
+round three · 4 no defects · 5 gauntlet ✓ · 6 `COVERAGE.md` byte-clean, every
+`unmodelled` clause adjudicated to a named shape citing text that predates the
+commit · 7 no blocker · 8 no deviation; one reading, ruled above · 9 no event
+type, no reducer, no fold change — `condition-removed` already existed ·
+10 one file outside the surface, `commands/targeting.ts`, holding the return
+type the required behaviour reports through · 11 no conflict · 12 gauntlet
+re-run on `main`: typecheck ✓ lint ✓ **6379/6379** ✓ coverage byte-clean ✓ ·
+13 GREEN.

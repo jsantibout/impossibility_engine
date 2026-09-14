@@ -249,7 +249,7 @@ them honest rather than optimistic.
 | IE-011 — Multiclass Hit Dice | mechanism | 1 | a shipped wrong number; calls a function that already exists and is tested — **merged `ded4e71`** |
 | IE-012 — Scene commands | mechanism | 1 | nothing above the engine can start an encounter — **merged `6d3cb92`** |
 | IE-013 — Guards that can see a zero-user member | conformance | 1 | the guard that would have caught three of the audit's own findings — **merged `b1a3b3c`**, and it found four |
-| IE-014 — A spell that takes a condition away | mechanism | 2 | one union member reusing the removal `useHealingTouch` already performs |
+| IE-014 — A spell that takes a condition away | mechanism | 2 | one union member reusing the removal `useHealingTouch` already performs — **merged `fb79ca2`** |
 | IE-015 — `BLOCKED_ON` derived blocker map | conformance | 2 | ends three documents ranking one family at 17, 4 and 2 |
 | IE-016 — The other nine facts a DM declares | mechanism | 2 | every declared event type reachable from the command layer — **merged `9847661`; all 91 now are** |
 | IE-017 — A granted Resistance, and the deadline it needs | mechanism | 3 | `defensesOf`'s third input, and the fourth `EffectTarget` member |
@@ -319,10 +319,9 @@ merge — **no owner gate between waves**; the tranche is the autonomy boundary.
 
 | Wave | Task | Lane |
 |---|---|---|
-| 2 | [IE-014 — A spell that takes a condition away](tasks/IE-014-condition-removal.md) | mechanism — **launched on IE-010's merge** |
 | 2 | [IE-015 — `BLOCKED_ON` derived blocker map](tasks/IE-015-blocked-on-map.md) | conformance — **launched** |
-| 3 | [IE-017 — A granted Resistance, and the deadline it needs](tasks/IE-017-granted-resistance.md) | mechanism |
-| 3 | [IE-018 — A sweep for refusal codes nothing asserts](tasks/IE-018-refusal-code-coverage.md) | conformance |
+| 3 | [IE-017 — A granted Resistance, and the deadline it needs](tasks/IE-017-granted-resistance.md) | mechanism — **launched on IE-014's merge** |
+| 3 | [IE-018 — A sweep for refusal codes nothing asserts](tasks/IE-018-refusal-code-coverage.md) | conformance — **launched** |
 | 4 | [IE-019 — An outcome that varies by creature type](tasks/IE-019-creature-type-outcomes.md) | mechanism |
 
 ## NEXT
@@ -347,6 +346,7 @@ yet.
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
 | **`npm test` rewrites a tracked file, so the gauntlet's `COVERAGE.md` check passes for the wrong reason.** `coverage.ts` calls `writeFileSync('COVERAGE.md', …)` at module top level and two test files import it, so the suite regenerates the file it is then diffed against | conformance | IE-010's builder. Pre-existing and **more serious than it sounds**: `git diff --exit-code COVERAGE.md` has been asserting that the suite just ran, not that the committed file was right. Make the generation explicit and the check meaningful |
+| **A held Spirit Guardians loses its stated damage type.** `PendingCasting` carries no `damageType` and no `unaffected`, so a casting declared with `hold: true` silently settles with the definition's printed type instead of the one the caster stated | mechanism | IE-014's builder, pre-existing. A silently wrong damage type against a Necrotic-immune Undead is the exact failure `damageTypeStated` was built to prevent, reappearing on the interrupted-casting path |
 | `sceneFor` is duplicated privately in `commands/movement.ts` and `commands/scene.ts`, prose included — **a third copy is the moment to hoist it** | mechanism | IE-016's builder and reviewer both |
 | `spendMounting` remaps any non-movement refusal to `not_enough_movement`, copied verbatim from `resolveMove`, so mounting on somebody else's turn reports that code with a "not X's turn" reason | mechanism | IE-016; an inherited wart rather than a new one |
 | `resolveMove` answers `no_scene` with a bare `needsContext` carrying no request, now that `setScene` exists to point at | conformance | IE-016; every command-level `needs-context` is supposed to name its provider |

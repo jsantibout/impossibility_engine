@@ -1,11 +1,11 @@
 # IE-017 — A Resistance an effect grants, and the deadline it needs
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside another union task; YES beside conformance and command-surface work
 depends-on: IE-014
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a309aa2f457dd4cc9 · worktree-agent-a309aa2f457dd4cc9
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 

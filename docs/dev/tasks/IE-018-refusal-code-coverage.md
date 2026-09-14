@@ -1,11 +1,11 @@
 # IE-018 — A sweep for refusal codes nothing asserts
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: conformance
 tranche: 4
 parallel-safe: YES — a sweep and the tests it demands; no engine semantic change
 depends-on: none
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a983a3e1b4d64e771 · worktree-agent-a983a3e1b4d64e771
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
