@@ -1,6 +1,6 @@
 # IE-012 — Scene commands: let something above the engine start an encounter
 
-state: IMPLEMENTING
+state: AWAITING_FOREMAN_REVIEW
 lane: mechanism
 tranche: 4
 parallel-safe: YES — a new command module wrapping pure functions that already exist; touches no spell, no effect kind, no existing command
