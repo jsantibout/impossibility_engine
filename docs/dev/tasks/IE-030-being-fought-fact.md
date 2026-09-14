@@ -1,11 +1,11 @@
 # IE-030 — The declared "being fought" fact
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — a union task; safe beside IE-031, which touches no file it touches
 depends-on: IE-028
-worker: none
+worker: qb-builder · .claude/worktrees/agent-afca07523d01f0015 · worktree-agent-afca07523d01f0015
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

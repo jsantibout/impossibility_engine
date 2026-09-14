@@ -1,11 +1,11 @@
 # IE-031 — Speed is read live, through one reader
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `standing.ts`, `combat.ts`, `commands/movement.ts`, `commands/actions.ts`; safe beside IE-030
 depends-on: IE-026, IE-029
-worker: none
+worker: qb-builder · .claude/worktrees/agent-ae256127edaa000a9 · worktree-agent-ae256127edaa000a9
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

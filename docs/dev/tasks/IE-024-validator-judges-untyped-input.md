@@ -1,13 +1,13 @@
 # IE-024 — The validator judges untyped input instead of throwing on it
 
-state: IMPLEMENTING
+state: DONE
 lane: conformance
 tranche: 5
 parallel-safe: CONDITIONAL — owns `spell-schema.ts`; every later union task adds a rule to that file, so it lands first and alone
 depends-on: none
-worker: qb-builder · .claude/worktrees/agent-a4be1fee7f60504ad · worktree-agent-a4be1fee7f60504ad
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -133,11 +133,69 @@ reported for the input that used to reach it legitimately.
 
 ## Completion digest
 
+Builder **COMPLETE**, reviewer **PASS at high confidence**. Branch
+`worktree-agent-a4be1fee7f60504ad`, commit `b084b13`, rebased by the foreman to
+`d53ae63`. Tests **6808 → 7017 on `main`**, **212 new**. Gauntlet green,
+`COVERAGE.md` byte-identical, the whole catalogue still validating unchanged.
+
+**Five rounds in total, and only the last two were about the code**: three were
+the question Fable answered, and the fourth was an `ESCALATE` on *authority*
+caused by the foreman's own process defect — the decision reached the builder
+by message and never reached the brief the reviewer reads. Neither cost is the
+builder's.
+
+Nine mutations, each failing only the case that pins it. Two worth naming:
+reverting `checkScaling`'s guard to a silent skip fails **26 rows, every one on
+`isErr` and none on a throw** — which is the "began accepting" direction the
+brief asked for rather than the throw-safety one; and **adding a fifteenth kind
+to `EFFECT_KINDS` fails the new coverage assertion, while removing one fails it
+from the other side**.
+
+**It removes a second source of truth rather than adding one.**
+`checkGrantLifetimes` had its own hand-written copy of the three effect lists
+and dereferenced two of their holders directly, so a string `areaTrigger` threw
+there one call after the rules that report what is wrong with it. `effectLists`
+is the single enumeration now, read by both `checkShape` and
+`checkGrantLifetimes` — the optional GREEN half of Fable's decision, taken. The
+mutation that says it is one enumeration and not two spelled alike: removing
+the nested walk reddens the nested-entry cases, the leaf cases **and** the
+lifetime sweep together.
+
+**The one ordinary defect this round found is worth recording because of where
+it was.** `BRANCHES` enumerated what the runtime derives, with two exclusions in
+prose and nothing holding either against `EFFECT_KINDS` — **a hand-kept list, in
+the file five queued tasks each edit**. It is the exact shape `CLAUDE.md`
+records going wrong repeatedly, and the builder's own note is that it wrote the
+list while writing about that shape. The reviewer caught it; the fix is the
+both-directions assertion above.
+
+Out-of-scope findings, neither acted on: a `DiceScaling` with no `dice` becomes
+`NaNd6` in `scaledDiceFor` and the spell silently rolls nothing, and
+`origin: {}` validates for the same reason — both required-field rules the
+brief reserves. And the pre-existing code asymmetry Fable instructed be written
+down rather than fixed: a top-level `effects` that is not a list is
+`missing_field` (phase 1), a nested one `malformed_field` (phase 2).
+
 ## Risk gate
 
-## Architecture decision
+**Inspected** — a new observable refusal code (`malformed_field`), a recorded
+architecture decision, and the validator five later tasks each add a rule to.
 
-## Merge record
+I read the enumeration, which is the heart of Fable's option (a), and it is
+what was specified: `effectLists` answers the one question — which effect lists
+does this definition carry — and **a list nobody can walk simply does not
+appear**, so the report stays at the container, which is the division of labour
+`grantCarried` already followed for a rider it cannot read. No entry guard was
+added to `checkEffect`, the call sites or `grantCarried`; no `malformed_field`
+per entry.
+
+Three classes of authored input that validated before now refuse: an unknown
+effect `kind` inside a nested list, a rider carrying `effects`/`targets`/`area`
+inside a nested list, and `unmodelled: null`. **None occurs in the catalogue**,
+which is driven through `parseSpellDefinition` wholesale, so no real content is
+caught.
+
+Classification: **GREEN**, under the recorded decision.
 
 ## Architecture decision
 
@@ -204,3 +262,27 @@ code change and belongs to its own task, and Fable is explicit that it must not
 be discovered by IE-030.
 
 Fable's confidence: **high**. Blast radius: `spell-schema.ts` only.
+
+## Merge record
+
+Merged to `main` as `d53ae63`, fast-forward, pushed. Rebased by the foreman
+twice — once to carry Fable's decision into the worktree, once after the
+superseded lines were struck — and again before the merge.
+
+`main` verified after the merge: typecheck ✓, lint ✓, **7017 tests across 108
+files** ✓, `COVERAGE.md` byte-clean ✓, tree clean.
+
+Thirteen conditions: **1** inside the brief **as clarified by the recorded
+decision**, which is the condition this task spent a round failing for a reason
+that was the foreman's; **2** `COMPLETE`; **3** `PASS` at high confidence;
+**4** the one ordinary defect resolved; **5** gauntlet green; **6**
+conformance; **7** the architecture blocker is answered and recorded; **8** no
+outstanding deviation — the two that were deviations against the old brief are
+the decision itself; **9** `spell-schema.ts` is the brief's own exclusive
+surface and the definition types are untouched; **10** `CLAUDE.md` outside the
+named surface, authorised by the decision, which required the leaf-denylist
+sentence corrected with the change; **11** clean rebase; **12** re-verified on
+`main`; **13** risk gate inspected, GREEN.
+
+**Unblocks IE-030**, and clears `spell-schema.ts` for the four union tasks
+behind it.
