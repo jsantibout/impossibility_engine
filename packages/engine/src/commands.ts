@@ -192,7 +192,7 @@ export type {
   ReadyResponse,
   ReleaseCommand,
 } from './commands/actions.js';
-export { rollInitiativeFor } from './commands/initiative.js';
+export { joinCombat, rollInitiativeFor } from './commands/initiative.js';
 export {
   addSceneLandmark,
   advanceTime,

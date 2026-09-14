@@ -1095,3 +1095,97 @@ landmarks, and cover and line of sight stay *declared* rather than ray-cast —
 because computing them needs walls, and walls are where a rules engine becomes
 a map editor. Rendering a battlemap later is a presentation change, not an
 engine change.
+
+
+### A Creature Can Join A Fight Already Under Way
+
+**There was no command that added one creature to a running Initiative
+order**, and the hole was found from the other side. A turn-anchored duration
+whose anchor is not in the fight raises a `not_in_combat` request — *the fight
+exists and this creature has no place in it* — and that request had to name
+two commands, neither of which did the job: `rollInitiativeFor` produces a
+number and changes no order, and `beginCombat` *replaces* the order, which is
+not a repair for a fight that is already running and is not even legal to
+mean. It is the same class of gap `addCreature` closed for adding a creature
+at all: a fact the layer above has to be able to establish, with no single
+command that establishes it. A reinforcement walking in mid-fight is also the
+most ordinary thing at a table.
+
+`joinCombat` is that command, and `addCombatant` in `combat.ts` is the
+arithmetic beneath it — the one path that grows `combat.order`, asked by the
+command and asked again by the reducer so that the two cannot disagree about
+where the creature landed.
+
+**Nothing here decides that combat has begun.** When a fight starts is the
+DM's authority and stays there; this is what the layer above calls once that
+judgement has been made, exactly as `beginCombat` is.
+
+**The Initiative total and the pinned Speed are the caller's**, as they are at
+`beginCombat`. The engine ranks; it does not roll on anybody's behalf. So the
+pair a caller needs is `rollInitiativeFor` for the number and `joinCombat` for
+the place, and that is what the `not_in_combat` request now names.
+
+**Where the joiner goes is the ranking a fight begins with, read rather than
+rewritten.** `startCombat`'s comparator is now a named `byInitiative` with two
+callers: the sort that ranks a whole order, and the scan that finds one
+creature's place in an order already sorted by it. A second comparator would
+agree with the first everywhere except on a tie, which is precisely the
+disagreement no assertion about a single insertion would ever show — so the
+test drives every Initiative and tiebreak a joiner could have and asserts the
+result equals what `startCombat` would have produced from the same list. Where
+the joiner ranks exactly level, the scan carries on past: a latecomer was
+listed last, because it arrived last.
+
+**Three facts keep the order and the turn counts in exact step**, which is the
+agreement `invariants` asserts and the one thing this command must not break.
+An insertion is the first operation that changes the order's *length*
+mid-round — `combatant-removed` shrinks it and `initiative-swapped` reorders
+it, and both leave every other combatant's relation to the turn in progress
+alone.
+
+1. **Whoever is acting goes on acting.** Everything from the insertion point
+   onwards shifts one place later, so a `turnIndex` at or after it moves with
+   them. Leaving it where it was hands the rest of the turn to whichever
+   creature the shift pushed into that slot — one creature acting twice,
+   another never acting at all, and a log that looks perfectly well-formed.
+   That is the `removeCombatant` correction in mirror image.
+2. **The joiner has taken no turns, and that is the honest number.** `begun`
+   and `ended` are per-creature counters that every turn-anchored deadline is
+   computed *relative* to — `begun + 1` for "the start of your next turn" — so
+   what has to hold is the relationship rather than the round: `begun` equals
+   `ended` for everybody not mid-turn. Zero satisfies it, and the first turn is
+   counted when the order reaches them. A creature inserted ahead of the one
+   currently acting has simply missed this round, which is what its place in
+   the order says.
+3. **A budget and a count arrive together**, as `startCombat` hands them out
+   and as `removeCombatant` deletes them. The joiner arrives with a Reaction,
+   because SRD's Reaction lasts "until the start of your next turn" and
+   somebody who has just walked in has not spent one.
+
+**It spends nothing and is deliberately not guarded**, which is the
+combination `relocateCreature` documents the other half of. That command
+spends nothing either and asks `mayAct` anyway, because it is an authoritative
+*position* change that raises area debts, and two operations that both move a
+creature must not disagree about whether the world has to be settled first.
+None of that is true here: joining an order moves nobody, raises no debt,
+rolls nothing, and leaves every budget and the creature currently acting
+exactly as they were, so there is no world an owed settlement could change out
+from under it. `beginCombat` is the sibling operation on the same piece of
+state and is unguarded for the same reason.
+
+**Three refusals, each asserted by name.** A creature already in the order is
+`duplicate_combatant`, `startCombat`'s own code for the same miss — the
+engine's own ledger rather than a thin record, so it is a verdict and not
+homework. A creature the engine has never been told about is
+`unknown_creature`, with the request that repairs it. And a fight that is not
+running is `not_in_combat`, which is what every command in this layer answers
+for an absent `combat`, with a reason that names `beginCombat` as the command
+for that case.
+
+`combatant-joined` is **uncovered by construction** in both frozen logs and
+named in `persistence-2.test.ts`'s ledger with that reason: neither log was
+written when a creature could take a place in a fight already under way.
+
+Out of scope and stated so: Surprise, Initiative ties beyond the rule the
+engine already applies, and removing a creature from an order, which
+`removeCombatant` already does.

@@ -438,3 +438,28 @@ up its timer by rebuilding a key from the first doomed condition instance — an
 (`incapacitated:...` before `paralyzed:...`). The lookup pointed at the wrong
 timer, left the real one running, and the hook fired again on a spell that had
 ended. Filtering the timers rather than guessing a key is what fixed it.
+
+
+### The Order Can Grow, And The Counters Are Relative
+
+`turnCounts` is what every turn-anchored deadline is resolved against — `begun
++ 1` for "the start of your next turn", `ended + 1` or `+ 2` for its end — and
+those counters are kept in **exact step** with `combat.order` by every
+operation that changes either. The order used to only ever shrink: it was set
+by `combat-started` and thinned by `combatant-removed`, so the agreement held
+by construction.
+
+`joinCombat` grows it, and that is the first operation that changes the order's
+*length* mid-round. What makes it safe is that the counters are read
+**relatively** and never against the round: what has to hold is `begun ===
+ended` for everybody who is not mid-turn, and one more for whoever is. A
+creature that has just walked in has taken no turns, so it arrives at zero and
+takes its first turn when the order reaches it. Nothing that was already
+anchored on it can exist, because `resolveDuration` refuses `not_in_combat`
+for an anchor the fight does not hold — which is the request `joinCombat` was
+built to satisfy.
+
+The clock does not move: `round`, `turnsTaken` and `elapsed` are untouched,
+because nobody's turn ended. The full account of the insertion, including what
+happens to `turnIndex`, is in `docs/design/space-and-areas.md` under "A
+Creature Can Join A Fight Already Under Way".

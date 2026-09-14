@@ -877,6 +877,25 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly command?: CommandStamp;
     }
+  /**
+   * One creature took a place in a fight already under way.
+   *
+   * **Not `combat-started` with a longer list.** Beginning a fight ranks
+   * everybody at once and hands every combatant a fresh turn; this changes the
+   * *length* of a running order, which is the one thing no other operation
+   * does — `combatant-removed` shrinks it and `initiative-swapped` reorders
+   * it, and both leave the number of turns in a round alone.
+   *
+   * It carries the whole `CombatantInput` for the same reason `combat-started`
+   * carries a list of them: the Initiative total and the pinned Speed are the
+   * caller's to have established, through `rollInitiativeFor` and the
+   * creature's own sheet, and the ranking is the reducer's.
+   */
+  | {
+      readonly type: 'combatant-joined';
+      readonly combatant: CombatantInput;
+      readonly command?: CommandStamp;
+    }
   | { readonly type: 'combatant-removed'; readonly id: CharacterId }
   | {
       readonly type: 'initiative-swapped';

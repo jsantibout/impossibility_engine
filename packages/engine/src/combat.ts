@@ -251,6 +251,28 @@ const fullBudget = (): TurnBudget => ({
 });
 
 /**
+ * Where two combatants stand relative to one another: negative if the first
+ * acts earlier, positive if later, zero if the two are exactly level.
+ *
+ * **One ranking, two callers.** `startCombat` sorts a whole order by it and
+ * {@link addCombatant} finds one creature's place in an order already sorted
+ * by it. A second comparator written out beside the first is how a creature
+ * joining a fight could come to sit somewhere other than where it would have
+ * sat had the fight begun with it — a disagreement no assertion about a single
+ * insertion would ever show, because both readings agree everywhere except on
+ * a tie.
+ *
+ * It answers zero for a tie rather than falling through to a third key,
+ * because the two callers break a tie differently *by construction* and not by
+ * choice: `startCombat` has an index for every combatant and a joiner has
+ * none. See each of them for what it does with the zero.
+ */
+const byInitiative = (
+  a: { readonly initiative: number; readonly tiebreak: number },
+  b: { readonly initiative: number; readonly tiebreak: number },
+): number => b.initiative - a.initiative || b.tiebreak - a.tiebreak;
+
+/**
  * SRD: "The GM ranks the combatants, from highest to lowest Initiative." Ties
  * fall to the supplied tiebreak, then to insertion order so the result is
  * stable and replayable.
@@ -274,9 +296,7 @@ export function startCombat(combatants: readonly CombatantInput[]): Result<Comba
       tiebreak: c.tiebreak ?? 0,
       index,
     }))
-    .sort(
-      (a, b) => b.initiative - a.initiative || b.tiebreak - a.tiebreak || a.index - b.index,
-    )
+    .sort((a, b) => byInitiative(a, b) || a.index - b.index)
     .map(({ id, initiative, speed, tiebreak }) => ({ id, initiative, speed, tiebreak }));
 
   const budgets: Record<string, TurnBudget> = {};
@@ -624,6 +644,66 @@ export function useFreeInteraction(state: CombatState, id: CharacterId): Result<
   }
 
   return ok(withBudget(state, id, { freeInteraction: false }, budget.value));
+}
+
+/**
+ * Put a combatant into a fight already under way.
+ *
+ * **The first operation that changes the order's length mid-round**, and that
+ * is the whole of its difficulty. `removeCombatant` shrinks the order and
+ * `swapInitiative` reorders it; both leave every other combatant's relation to
+ * the turn in progress alone, and this one does not.
+ *
+ * Three facts keep the order and the turn counts in exact step:
+ *
+ * **Where they go is {@link byInitiative}'s answer, not a second one.** The
+ * order is already sorted by it, so the joiner belongs at the first index it
+ * ranks *above* — and where it ranks level, the scan carries on past, which
+ * puts a latecomer after everybody it exactly ties with. That is `startCombat`'s
+ * own tiebreak read through the one fact that distinguishes a joiner: it was
+ * listed last, because it arrived last.
+ *
+ * **Whoever is acting goes on acting.** Everything from the insertion point
+ * onwards shifts one place later, so a `turnIndex` at or after it has to move
+ * with them. Leaving it where it was would hand the rest of the turn to
+ * whichever creature the shift pushed into that slot — one creature acting
+ * twice, another never acting at all, and a log that looks perfectly
+ * well-formed.
+ *
+ * **The joiner has taken no turns, and that is the honest number.** `begun`
+ * and `ended` are per-creature counters that every turn-anchored deadline is
+ * computed *relative* to — `begun + 1` for "the start of your next turn" — so
+ * what has to be true is the relationship, not the round: `begun` equals
+ * `ended` for everybody who is not mid-turn. Zero satisfies it, and the
+ * command's first turn is counted when the order reaches them. A creature
+ * inserted ahead of the one currently acting has simply missed this round,
+ * which is what its place in the order says and what makes it act once next
+ * round rather than at once.
+ *
+ * `round`, `turnsTaken` and the clock are untouched: nobody's turn ended.
+ */
+export function addCombatant(state: CombatState, joining: CombatantInput): Result<CombatState> {
+  if (state.order.some((c) => c.id === joining.id)) {
+    return err('duplicate_combatant', `${joining.id} is already in this combat`);
+  }
+
+  const combatant: Combatant = {
+    id: joining.id,
+    initiative: joining.initiative,
+    speed: joining.speed,
+    tiebreak: joining.tiebreak ?? 0,
+  };
+
+  const found = state.order.findIndex((c) => byInitiative(combatant, c) < 0);
+  const index = found === -1 ? state.order.length : found;
+
+  return ok({
+    ...state,
+    order: [...state.order.slice(0, index), combatant, ...state.order.slice(index)],
+    turnIndex: index <= state.turnIndex ? state.turnIndex + 1 : state.turnIndex,
+    budgets: { ...state.budgets, [combatant.id]: fullBudget() },
+    turnCounts: { ...state.turnCounts, [combatant.id]: { begun: 0, ended: 0 } },
+  });
 }
 
 /**

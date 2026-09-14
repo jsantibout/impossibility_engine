@@ -30,6 +30,7 @@ import {
   applyConditionTo,
   beginCombat,
   castSpell,
+  joinCombat,
   resolveSpell,
   resolveTurn,
 } from './commands.js';
@@ -244,9 +245,64 @@ describe('a turn-anchored rider outside combat asks for a turn order', () => {
     expect(requests.map((r) => r.kind)).toEqual(['turn-order']);
     expect(requests[0]?.subject).toBe(CASTER);
     expect(requests[0]?.satisfyWith).toContain('rollInitiativeFor');
+    // And the command it names is the one that puts a creature into a running
+    // order, rather than the one that starts a fight — which is the whole
+    // difference between this row of the table and the one above it.
+    expect(requests[0]?.satisfyWith).toContain('joinCombat');
+    expect(requests[0]?.satisfyWith).not.toContain('beginCombat');
     // And it is *not* the first request wearing the same clothes: beginning a
     // fight that is already running is not what this caller has to do.
     expect(requests[0]?.need).not.toEqual(contextRequestsOf(ray(fold('seed', PLACED)))[0]?.need);
+  });
+
+  /**
+   * And the whole loop, which is what makes the request worth having: the
+   * caller is refused, sends the command the request named, and **the same
+   * casting** resolves.
+   *
+   * This is the second row's answer to the `beginCombat` round trip above it.
+   * It could not be written before `joinCombat` existed, because the only
+   * command that could hold the anchor's number would have replaced the order
+   * the two other creatures are already fighting in.
+   */
+  it('resolves once joinCombat has put the anchor in the running order', () => {
+    const elsewhere: readonly GameEvent[] = [
+      ...PLACED,
+      ...must(
+        beginCombat(fold('seed', PLACED), [
+          { id: TARGET, initiative: 10, speed: 30 },
+          { id: BYSTANDER, initiative: 5, speed: 30 },
+        ]),
+      ),
+    ];
+
+    expect(isNeedsContext(ray(fold('seed', elsewhere)))).toBe(true);
+
+    const joined: readonly GameEvent[] = [
+      ...elsewhere,
+      ...must(joinCombat(fold('seed', elsewhere), { id: CASTER, initiative: 18, speed: 30 })),
+    ];
+
+    // The fight the other two were already in is the fight they are still in,
+    // with the caster ahead of both of them and the target still acting — the
+    // caster's place in this round has already gone by, so their first turn is
+    // the top of the next one.
+    const state = fold('seed', joined);
+    expect(state.combat?.order.map((c) => c.id)).toEqual([CASTER, TARGET, BYSTANDER]);
+    expect(state.combat?.order[state.combat.turnIndex]?.id).toBe(TARGET);
+
+    let round: readonly GameEvent[] = joined;
+    for (let n = 0; n < 2; n += 1) {
+      round = [...round, ...must(resolveTurn(fold('seed', round), supply('turn'))).events];
+    }
+    const acting = fold('seed', round);
+    expect(acting.combat?.order[acting.combat.turnIndex]?.id).toBe(CASTER);
+    expect(acting.combat?.round).toBe(2);
+
+    // And the very casting that was refused now lands, with its rider hung on
+    // the moment the order gives it.
+    const cast = must(ray(acting));
+    expect(speedOf(fold('seed', [...round, ...cast.events]), TARGET)).toBe(20);
   });
 
   /**

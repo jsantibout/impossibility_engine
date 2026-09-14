@@ -151,10 +151,20 @@ const PRINTED_AS: Readonly<Record<string, string>> = {
  * | Refusal | What is missing | What settles it |
  * |---|---|---|
  * | `no_turns` | there is no Initiative order at all | `beginCombat` |
- * | `not_in_combat` | the fight exists and the anchor has no place in it | a number for the anchor, and a fight that holds it |
+ * | `not_in_combat` | the fight exists and the anchor has no place in it | `rollInitiativeFor`, then `joinCombat` |
  *
  * Collapsing them would tell a caller mid-fight to begin a fight, which is not
  * a repair and is not even legal to mean.
+ *
+ * **The second row used to describe a repair rather than name one**, and that
+ * was the honest shape of a gap rather than a wording problem: it asked for "a
+ * number for the anchor, and a fight that holds it", because the only command
+ * that could hold the number was `beginCombat` and beginning a fight is
+ * exactly what this row exists to say the caller must not do. `joinCombat`
+ * puts one creature into a running order, so the request names it. Two
+ * commands are still named, and that is the fact rather than the workaround:
+ * the number and the place in the order are two things, and the first row
+ * names two for the same reason a fight needs somebody in it.
  *
  * **Everything else stays a refusal.** `bad_duration` is a span running
  * backwards or in fractions of a second: nothing a caller can declare makes
@@ -184,7 +194,7 @@ export function turnContextFor(refused: Err, duration: Duration, holder: string)
         subject,
         need: `a place in the Initiative order for ${subject}`,
         because: `the effect lasts "${printed}", and this fight holds no turns for ${subject}`,
-        satisfyWith: `a rollInitiativeFor command for ${subject}, then a beginCombat command whose order holds that number`,
+        satisfyWith: `a rollInitiativeFor command for ${subject}, then a joinCombat command putting ${subject} into the running order at that number`,
       },
     ]);
   }

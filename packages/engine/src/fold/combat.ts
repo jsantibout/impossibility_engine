@@ -9,6 +9,7 @@
  * calls is load-bearing: see `turns.ts`.
  */
 import {
+  addCombatant,
   advanceTurn,
   dash,
   disengage,
@@ -68,6 +69,7 @@ export const COMBAT_EVENTS = [
   'reaction-spent',
   'movement-spent',
   'free-interaction-used',
+  'combatant-joined',
   'combatant-removed',
   'initiative-swapped',
   'feature-used',
@@ -182,6 +184,17 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
         next,
         state,
         must(event, useFreeInteraction(combatOf(state, event), event.id)),
+      );
+
+    // The order's length changes here and nowhere else. `addCombatant` is the
+    // one path that grows it, so the reducer asks it exactly as the command
+    // did: a backstop that worked the insertion out for itself would be a
+    // second ranking, and a second ranking is a fork.
+    case 'combatant-joined':
+      return withCombat(
+        next,
+        state,
+        must(event, addCombatant(combatOf(state, event), event.combatant)),
       );
 
     case 'combatant-removed':

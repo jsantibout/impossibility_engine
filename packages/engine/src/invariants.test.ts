@@ -32,6 +32,7 @@ import {
   declareSightBetween,
   declareSpellcasting,
   dismountRider,
+  joinCombat,
   loseItems,
   mountCreature,
   placeCreatureInScene,
@@ -1181,6 +1182,15 @@ const GUARDED: readonly Guarded[] = [
         ],
         { commandId },
       ),
+  },
+  {
+    // A retried join is the duplicate that adds a **second** creature to the
+    // order under one id, which changes the number of turns in a round and
+    // looks perfectly well-formed in the log — the same hazard `resolveTurn`
+    // names for a retried advance, from the other direction.
+    name: 'joinCombat',
+    log: [...SETUP, added(C, 'onlookers')],
+    run: (s, commandId) => joinCombat(s, { id: C, initiative: 15, speed: 30 }, { commandId }),
   },
   {
     name: 'advanceTime',

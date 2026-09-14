@@ -206,6 +206,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'coins-changed',
   'combat-ended',
   'combat-started',
+  'combatant-joined',
   'combatant-removed',
   'concentration-ended',
   'concentration-started',

@@ -27,6 +27,7 @@ import {
   equipItem,
   grantTemporaryHpTo,
   healCreature,
+  joinCombat,
   mountCreature,
   placeCreatureInScene,
   releaseReady,
@@ -617,23 +618,44 @@ describe('an action is taken by somebody in the fight', () => {
   });
 
   /**
-   * Fact 2: nothing puts a budget on a creature the order does not hold. There
-   * is no `addCombatant`, so the order is set by `combat-started` and only ever
-   * shrinks; the two are built together and deleted together.
+   * Fact 2: nothing puts a budget on a creature the order does not hold, and
+   * nothing leaves one holding a creature with no budget.
+   *
+   * The order used to only ever *shrink* — it was set by `combat-started` and
+   * thinned by removals, and this comment said as much. `joinCombat` grows it,
+   * so the claim is no longer true by construction and the insertion is driven
+   * here on both sides of the creature currently acting. The turn counts are
+   * swept beside the budgets for the same reason: `duration.ts` answers "the
+   * start of your next turn" out of `turnCounts` and refuses `not_in_combat`
+   * where it finds none, so a combatant the order holds and the counts do not
+   * would strand every turn-anchored effect anchored on them.
    */
   it('and no operation leaves a budget for somebody the order does not hold', () => {
     const agree = (state: GameState): void => {
       const combat = state.combat;
       if (combat === null) return;
-      expect(Object.keys(combat.budgets).sort()).toEqual(
-        combat.order.map((c) => c.id as string).sort(),
-      );
+      const held = combat.order.map((c) => c.id as string).sort();
+      expect(Object.keys(combat.budgets).sort()).toEqual(held);
+      expect(Object.keys(combat.turnCounts).sort()).toEqual(held);
     };
 
     const start = world();
     agree(start);
     agree(fold('seed', [...SETUP, ...unwrap(resolveTurn(start, supply()), 'turn').events]));
     agree(fold('seed', [...SETUP, ...unwrap(removeCreatureEverywhere(start, B, {}), 'remove')]));
+
+    // And the operation that grows it, on both sides of the turn in progress:
+    // A is acting at 20, so 25 lands ahead of the creature mid-turn and 5
+    // lands behind everybody.
+    const walked = [...SETUP, added('c', 'party')];
+    for (const initiative of [25, 5]) {
+      const joining = { id: id('c'), initiative, speed: 30 };
+      const joined = [
+        ...walked,
+        ...unwrap(joinCombat(fold('seed', walked), joining), 'join'),
+      ];
+      agree(fold('seed', joined));
+    }
   });
 });
 
