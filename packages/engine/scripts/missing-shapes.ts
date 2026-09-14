@@ -94,7 +94,7 @@ export const MISSING_SHAPES = {
   'a-repeat-save-raised-by-a-trigger':
     'a repeat save raised by something that happened — taking damage, having moved, coming within a distance, another effect trying to cure it. The turn hook is the only thing that raises one, which CLAUDE.md states outright: "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes". The fourth of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-casting-ended-by-a-trigger':
-    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — CLAUDE.md, "Lifecycle, and the one place it ends". The SRD also ends one when the caster or an ally damages the target, when the target attacks, when two creatures drift apart, and when a running total is reached. `CreatureState.lastDamage` names the dealer and `side` is declared, so the facts are held and nothing hangs an ending on them; the audit (§3.5) reads the Charm clauses as debt.',
+    'a casting ends by its deadline, by Concentration, by a dispel or by a recast — CLAUDE.md, "Lifecycle, and the one place it ends". IE-032 built the fifth way for **five** transcribed causes: the target attacks, deals damage or casts, the target dons armour, and the caster or an ally damages the target. What is left is every cause whose fact no consequence event holds and every consequence the two scopes cannot express — **any** damage from anybody (Modify Memory, Sleep, Sequester, Phantom Steed, Project Image, Eyebite), a distance two creatures drift apart (Faithful Hound, Warding Bond, Antilife Shell), a running total dealt (Guardian of Faith), a condition the caster chooses at the casting (Sequester), letting go of an object (Shillelagh), leaving an area (Tiny Hut), dropping to 0 Hit Points (Gaseous Form, Warding Bond), another spell ending this one (Geas, Contact Other Plane), a Temporary Hit Point total running out (Polymorph), the target dying (True Polymorph), and ending **one effect** of a casting rather than the casting (Mislead, whose double outlives its invisibility).',
   'a-mode-on-the-save-a-spell-forces':
     'CLAUDE.md: "nothing records what a save was against" — the sentence that already blocks Countercharm. A `RollModifier` selects a roll by family, ability and skill, so there is no way to select the saving throws an effect from a Fiend forces. **Re-described rather than kept**: the audit found this id claimed by six clauses whose real blockers were three different things, and that the description misstated its own. What is left is the clause that genuinely needs a save to remember its provenance.',
   'a-fact-only-the-table-can-declare':
@@ -392,13 +392,6 @@ export interface Adjudication {
  * append to — the same reason `VERIFIED_SPELLS` and the catalogue are sorted.
  */
 export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
-  'animal-friendship': [
-    {
-      clause: 'ending early if you or an ally damages',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'The engine records who dealt the damage and which side they are on, and no casting can ask to be ended when that happens — so the Beast stays friendly for its full day however hard the party hits it.',
-    },
-  ],
   'arcane-sword': [
     {
       clause: 'to a spot you can see',
@@ -468,20 +461,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'only the first target must be seen',
       why: 'targeting-rules-that-differ-within-one-casting',
       note: 'SRD requires sight of the first target only. One sight requirement is checked against every target named, so this casting demands four declared sight lines where the book demands one.',
-    },
-  ],
-  'charm-monster': [
-    {
-      clause: 'ends early if you or your allies damage',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD: the Charmed condition lasts "until the spell ends or until you or your allies damage it". The damage event names its dealer and the sides are declared, and no casting can hang its ending on either.',
-    },
-  ],
-  'charm-person': [
-    {
-      clause: 'ends early if you or your allies damage',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD: the Charmed condition lasts "until the spell ends or until you or your allies damage it". Nothing raises a casting’s obligation off a damage event, so the Charm outlasts the blow that the rules say broke it.',
     },
   ],
   'chill-touch': [
@@ -734,9 +713,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   invisibility: [
     {
-      clause: 'ends early immediately after the target makes an attack roll',
+      clause: 'an attack roll that costs no Attack action',
       why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD: "The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell." The engine emits all three — an attack roll, damage naming its dealer, a `spell-cast` — and no casting can ask to be ended when one arrives, so the invisibility runs its full hour. It is the whole of the difference between this spell and Greater Invisibility, which prints the sentence and nothing else.',
+      note: 'SRD: "The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell." All three are built; the residue is which *event* records an attack roll. `target-attacks` reads `attack-made`, which is the Attack action, and the only thing naming the roller of a free swing — an Opportunity Attack, or any attack outside combat — is `roll-recorded`, which changes no state by rule. A free swing that lands still ends the spell through the damage it deals, so what is left is a free swing that misses.',
     },
   ],
   'lesser-restoration': [
@@ -746,19 +725,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "end one condition on it: Blinded, Deafened, Paralyzed, or Poisoned." One of four, and the caster picks — so a creature both Blinded and Poisoned is fully cured of both, where the book cures one. It is the same gap Blindness/Deafness carries from the other side, where the choice is between imposing two rather than lifting one.',
     },
   ],
-  'mage-armor': [
-    {
-      clause: 'if the target dons armor',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'Equipping is an event the engine emits, and no casting can ask to end when one arrives. The Armour Class is right either way — the granted calculation is inert while armour is worn — and the casting goes on running and stays dispellable.',
-    },
-  ],
   'mass-suggestion': [
-    {
-      clause: 'ends on a target when you or your allies deal it damage',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'The damage half is a trigger the engine holds every fact for and raises nothing from; the completed activity beside it is the table’s, and both end the spell on that one target.',
-    },
     {
       clause: 'higher-level slot lengthens the duration',
       why: 'a-duration-the-slot-changes',
@@ -831,13 +798,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'cannot benefit from the Invisible',
       why: 'a-condition-benefit-an-effect-takes-away',
       note: 'The Dim Light is the table’s, because light is not modelled. Taking the benefit away is not: the attack halves of Invisible read declared sight and a DM can answer those, while `initiativeConditionModes` grants its Initiative Advantage from the condition’s presence alone — so a creature the wisp has lit still rolls Initiative with Advantage, and no declaration exists that would stop it.',
-    },
-  ],
-  suggestion: [
-    {
-      clause: 'ends early when you or your allies deal damage',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'The engine knows who dealt the damage and whose side they are on, and no casting can be told to end when that happens; the completed activity in the same sentence really is the table’s.',
     },
   ],
   sunbeam: [
@@ -1200,7 +1160,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'an-outcome-that-reads-the-targets-hit-points',
   ],
   awaken: [
-    'a-casting-ended-by-a-trigger',
     'a-long-casting-time',
     'a-stat-block-created-mid-fight',
     'a-target-rule-the-format-cannot-state',
@@ -1506,7 +1465,14 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-spell-that-answers-a-later-attack',
     'senses-beyond-declared-sight',
   ],
-  mislead: ['a-casting-ended-by-a-trigger'],
+  // SRD ends the **invisibility** here and not the casting — "The double lasts
+  // for the duration, but the invisibility ends immediately after you make an
+  // attack roll, deal damage, or cast a spell" — so IE-032's three causes name
+  // the moment and nothing can say that it takes one effect rather than the
+  // whole spell. And the double is Project Image's sentence word for word:
+  // "You can see through its eyes and hear through its ears as if you were
+  // located where it is."
+  mislead: ['a-casting-ended-by-a-trigger', 'a-second-place-to-put-a-creature'],
   'modify-memory': ['a-casting-ended-by-a-trigger'],
   'pass-without-trace': ['a-standing-effect-derived-from-where-a-creature-stands'],
   'phantasmal-force': ['a-payout-at-a-turn-boundary', 'an-area-trigger-measured-from-a-point'],
@@ -1596,7 +1562,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   ],
   'reverse-gravity': ['falling', 'forced-movement-a-spell-causes'],
   revivify: ['healing-that-raises-the-dead'],
-  sanctuary: ['a-casting-ended-by-a-trigger', 'a-spell-that-answers-a-later-attack'],
+  sanctuary: ['a-spell-that-answers-a-later-attack'],
   'scorching-ray': ['several-attack-rolls-from-one-casting'],
   scrying: ['a-fact-only-the-table-can-declare', 'a-long-casting-time'],
   'searing-smite': ['a-repeat-save-that-does-something-on-a-failure'],

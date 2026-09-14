@@ -251,12 +251,25 @@ describe('a condition applied with no saving throw', () => {
 
   /**
    * SRD Invisibility: "The spell ends early immediately after the target makes
-   * an attack roll, deals damage, or casts a spell." Nothing ends a casting
-   * when its target acts, so the clause is debt and is adjudicated as such —
-   * which is why Invisibility is partial and Greater Invisibility is not.
+   * an attack roll, deals damage, or casts a spell." IE-032 built all three —
+   * and **only Invisibility carries them**, which is the whole of the
+   * difference between the two spells: Greater Invisibility prints the first
+   * sentence and not the second, so a trigger list on it would be a
+   * neighbouring spell's clause lent to one that never had it.
+   *
+   * What Invisibility still declares is the residue named in
+   * `casting-end-triggers.test.ts`: a free attack roll that misses leaves no
+   * consequence event to hang the ending on.
    */
-  it('says plainly that Invisibility’s early end is not built', () => {
-    expect(INVISIBILITY.unmodelled?.join(' ')).toMatch(/ends early/i);
+  it('carries the three triggers its sentence prints, and its sibling none', () => {
+    expect(INVISIBILITY.endsEarly?.map((t) => t.on)).toEqual([
+      'target-attacks',
+      'target-deals-damage',
+      'target-casts',
+    ]);
+    expect(INVISIBILITY.endsEarly?.every((t) => t.ends === 'casting')).toBe(true);
+    expect(GREATER_INVISIBILITY.endsEarly).toBeUndefined();
     expect(GREATER_INVISIBILITY.unmodelled ?? []).toEqual([]);
+    expect(INVISIBILITY.unmodelled?.join(' ')).toMatch(/costs no Attack action/i);
   });
 });

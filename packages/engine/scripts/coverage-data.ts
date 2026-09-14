@@ -200,7 +200,6 @@ const shapeOf = (spell: ParsedSpell): string =>
  * be quietly parked.
  */
 export const PARTIAL_SPELLS: readonly string[] = [
-  'animal-friendship',
   'banishment',
   'beacon-of-hope',
   'befuddlement',
@@ -208,8 +207,6 @@ export const PARTIAL_SPELLS: readonly string[] = [
   'blindness-deafness',
   'blur',
   'chain-lightning',
-  'charm-monster',
-  'charm-person',
   'chill-touch',
   'cloudkill',
   'compulsion',
@@ -235,7 +232,6 @@ export const PARTIAL_SPELLS: readonly string[] = [
   'insect-plague',
   'invisibility',
   'lesser-restoration',
-  'mage-armor',
   'mass-suggestion',
   'mind-spike',
   'phantasmal-killer',
@@ -245,7 +241,6 @@ export const PARTIAL_SPELLS: readonly string[] = [
   'shocking-grasp',
   'spirit-guardians',
   'starry-wisp',
-  'suggestion',
   'sunbeam',
   'thunderwave',
   'vampiric-touch',

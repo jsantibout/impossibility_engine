@@ -1479,6 +1479,92 @@ export interface SpellDefinition {
    * ongoing record is what makes obeying it a lookup instead of a search.
    */
   readonly replacesPriorCasting?: true;
+  /**
+   * What stops this casting before its time is up.
+   *
+   * A casting has always ended four ways — its deadline, a broken
+   * Concentration, a dispel, a recast — and every one of them is either a
+   * moment on the clock or somebody's decision. The SRD writes a fifth: a
+   * spell that stops because **something happened**, and nobody decided it.
+   * Five sentences across eight executed spells, and each member below is one
+   * of them transcribed rather than a category somebody invented.
+   *
+   * Absent for every spell that prints no such sentence, which is almost all
+   * of them — and deliberately absent from Greater Invisibility, whose whole
+   * difference from Invisibility is that it prints the first sentence and not
+   * the second.
+   */
+  readonly endsEarly?: readonly CastingEndTrigger[];
+}
+
+/**
+ * What has to happen for a casting to stop early, as the book writes it.
+ *
+ * **A closed list of five, and what keeps it closed is that each member names
+ * a fact the log already holds on an event that already has consequences.**
+ * `target-deals-damage` is `damage-taken` naming its dealer — the field
+ * Hellish Rebuke needed, because prose cannot be aimed at — and
+ * `target-dons-armor` is `item-equipped` naming a piece of body armour. A
+ * trigger whose fact the log does not hold is filed in `missing-shapes.ts`
+ * instead: Sequester's caster-chosen condition, Faithful Hound's 300 feet,
+ * Guardian of Faith's running total, and the several spells that end on
+ * **any** damage rather than on the caster's, are all still there.
+ *
+ * **`target-attacks` is `attack-made`, which is the Attack action rather than
+ * every attack roll.** The only thing that names the roller of an attack that
+ * costs nothing — an Opportunity Attack, an attack outside combat — is
+ * `roll-recorded`, and that event changes no state by rule, so nothing may
+ * hang a consequence on it. What is reachable is recorded in Invisibility's
+ * own `unmodelled`; a missed free swing is the whole of the residue, because
+ * one that lands deals damage and `target-deals-damage` catches it.
+ */
+export type CastingEndCause =
+  /** Invisibility: "immediately after the target makes an attack roll". */
+  | 'target-attacks'
+  /** Invisibility: "... deals damage ...". The damage names its dealer. */
+  | 'target-deals-damage'
+  /** Invisibility: "... or casts a spell." A settled casting, not a declared one. */
+  | 'target-casts'
+  /** Mage Armor: "The spell ends early if the target dons armor." */
+  | 'target-dons-armor'
+  /**
+   * Animal Friendship: "If you or one of your allies deals damage to the
+   * target, the spells ends." — transcribed as the raw file prints it.
+   *
+   * Charm Person and Charm Monster write the same rule as a bound on the
+   * condition, "until you or your allies damage it"; Suggestion and Mass
+   * Suggestion as "until you or your allies deal damage to the target".
+   *
+   * **"Ally" is declared allegiance, and an undeclared one is withheld rather
+   * than invented** — the three-valued reading declared cover, declared sight
+   * and Sneak Attack's flanking clause already take. The caster is never in
+   * doubt, because the sentence names them. `withheldEndings` is the query
+   * that says which castings this leaves unjudged, since a derived pass has no
+   * `unverified` line to write one on.
+   */
+  | 'caster-or-ally-damages-target';
+
+/**
+ * One printed sentence: what happens, and what it ends.
+ *
+ * **The scope is transcribed, not defaulted**, because the SRD prints both and
+ * means them differently. Animal Friendship and Mage Armor say "the spell
+ * ends"; Charm Person bounds the Charmed condition "until the spell ends or
+ * until you or your allies damage **it**", and Mass Suggestion spells the
+ * difference out in the same paragraph — "the spell ends **for a target**".
+ * Choosing one for both would make a level 3 Charm Person release two
+ * creatures for one blow, or leave Animal Friendship running on a Beast the
+ * party has just shot.
+ */
+export interface CastingEndTrigger {
+  readonly on: CastingEndCause;
+  /**
+   * `casting` ends the whole thing, through `releaseCasting`; `target`
+   * releases it on the creature the trigger names and leaves the casting
+   * running for everyone else, through `releaseOnTarget`. Both doors already
+   * existed — this is the field that says which one a sentence means.
+   */
+  readonly ends: 'casting' | 'target';
 }
 
 /** What an ongoing spell lets its caster do again. */
@@ -1904,8 +1990,12 @@ export const GREATER_INVISIBILITY: SpellDefinition = {
  * > for each spell slot level above 2."
  *
  * Greater Invisibility's sentence plus one more, and that second sentence is
- * the whole of the difference between the two spells — which is why this one
- * is **partial** and its bigger sibling is not.
+ * the whole of the difference between the two spells — so this one carries an
+ * `endsEarly` list and its bigger sibling carries none.
+ *
+ * **Three causes, one sentence, and the casting ends outright**: the book says
+ * "the spell ends early", where Charm Person bounds a condition instead. See
+ * {@link CastingEndTrigger} for why that distinction is a field.
  */
 export const INVISIBILITY: SpellDefinition = {
   id: 'invisibility',
@@ -1918,8 +2008,13 @@ export const INVISIBILITY: SpellDefinition = {
   targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
   effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
   durationSeconds: 3600,
+  endsEarly: [
+    { on: 'target-attacks', ends: 'casting' },
+    { on: 'target-deals-damage', ends: 'casting' },
+    { on: 'target-casts', ends: 'casting' },
+  ],
   unmodelled: [
-    'the spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell: a casting cannot ask to be ended when its own target acts, so the invisibility runs its hour and the DM ends it',
+    'an attack roll that costs no Attack action — an Opportunity Attack, or any swing outside combat — ends this spell only if it hits: the attack roll itself is recorded on `roll-recorded`, which changes no state by rule, so nothing may hang the ending on it',
   ],
 };
 
@@ -3844,7 +3939,10 @@ export const CHARM_PERSON: SpellDefinition = {
   requiresSight: true,
   effects: [{ kind: 'save', ability: 'wis', advantageIfFought: true, condition: 'charmed' }],
   durationSeconds: 3600,
-  unmodelled: ['the spell ends early if you or your allies damage the target'],
+  // "until the spell ends **or until you or your allies damage it**" — the
+  // bound is on the Charmed condition, so one blow frees one creature and a
+  // level 3 casting goes on holding the other.
+  endsEarly: [{ on: 'caster-or-ally-damages-target', ends: 'target' }],
 };
 
 /**
@@ -3975,9 +4073,12 @@ export const SUGGESTION: SpellDefinition = {
   requiresSight: true,
   effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
   durationSeconds: 28800,
+  // "for the duration or until you or your allies deal damage to the target",
+  // and the paragraph's last sentence says which scope the book means: "the
+  // spell ends for the target upon completing it".
+  endsEarly: [{ on: 'caster-or-ally-damages-target', ends: 'target' }],
   unmodelled: [
-    'the course of activity you suggest, whether it sounds achievable, and whether the target pursues or completes it',
-    'the spell ends early when you or your allies deal damage to the target, or when the suggested activity is completed',
+    'the course of activity you suggest, whether it sounds achievable, and whether the target pursues or completes it — the other half of the sentence that ends this spell on that target',
     'the target must be able to hear and understand you',
   ],
 };
@@ -4119,9 +4220,11 @@ export const MASS_SUGGESTION: SpellDefinition = {
   requiresSight: true,
   effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
   durationSeconds: 86400,
+  // "the spell ends for a target upon completing it" — twelve creatures, and
+  // the book is explicit that one of them leaving is not the spell ending.
+  endsEarly: [{ on: 'caster-or-ally-damages-target', ends: 'target' }],
   unmodelled: [
-    'the course of activity you suggest, whether it sounds achievable, and whether a target pursues or completes it',
-    'the spell ends on a target when you or your allies deal it damage, or when it completes the suggested activity',
+    'the course of activity you suggest, whether it sounds achievable, and whether a target pursues or completes it — the other half of the sentence that ends this spell on that target',
     'the targets must be able to hear and understand you',
     'a higher-level slot lengthens the duration: 10 days at level 7, 30 days at 8, 366 days at 9',
   ],
@@ -4588,7 +4691,11 @@ export const ANIMAL_FRIENDSHIP: SpellDefinition = {
   requiresSight: true,
   effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
   durationSeconds: 86400,
-  unmodelled: ['the spell ending early if you or an ally damages the target'],
+  // "If you or one of your allies deals damage to the target, the spells ends"
+  // — transcribed as the raw file prints it, typo included. **The spell**, not
+  // the condition: this is the sentence Charm Person's is read against, and
+  // the reason the scope is a field rather than one answer for all five.
+  endsEarly: [{ on: 'caster-or-ally-damages-target', ends: 'casting' }],
 };
 
 /**
@@ -4618,7 +4725,8 @@ export const CHARM_MONSTER: SpellDefinition = {
   requiresSight: true,
   effects: [{ kind: 'save', ability: 'wis', advantageIfFought: true, condition: 'charmed' }],
   durationSeconds: 3600,
-  unmodelled: ['the spell ends early if you or your allies damage the target'],
+  // The same sentence as Charm Person, bounding the same condition.
+  endsEarly: [{ on: 'caster-or-ally-damages-target', ends: 'target' }],
 };
 
 
@@ -4685,10 +4793,11 @@ export const MAGE_ARMOR: SpellDefinition = {
     { kind: 'armor-class', base: 13, plusAbility: null, shieldAllowed: true },
   ],
   durationSeconds: 28_800,
-  unmodelled: [
-    'the spell ends early if the target dons armor: the Armour Class is right either way, because the calculation is inert while armour is worn, but the casting goes on running and stays dispellable',
-    'whether the target is willing is not modelled; willingness is fiction',
-  ],
+  // "The spell ends early if the target dons armor." Body armour, not a
+  // Shield: the sentence is the other half of the targeting clause, and
+  // `mustBeUnarmored` already reads the body slot.
+  endsEarly: [{ on: 'target-dons-armor', ends: 'casting' }],
+  unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
 };
 
 /**

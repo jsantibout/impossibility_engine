@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@ie/shared';
 import type { Point, PointAnchoring } from './positioning.js';
-import type { AreaTrigger, SpellArea } from './spell-definitions.js';
+import type { AreaTrigger, CastingEndTrigger, SpellArea } from './spell-definitions.js';
 
 /**
  * Casting: what a spell costs, who is concentrating on what, and which effects
@@ -206,6 +206,25 @@ export interface OngoingSpell {
    * sentence, and storing four of its fields would be a second shape for it.
    */
   readonly areaTrigger?: AreaTrigger;
+  /**
+   * What stops this casting before its time is up — **as cast**.
+   *
+   * Pinned for the reason {@link area} and {@link numbers} are, and the rule
+   * is the same one IE-007 set: *pinned for the casting, read live for the
+   * creature it is happening to.* A trigger list is catalogue data, so a fold
+   * that looked it up would let a corrected transcription reach a casting made
+   * before the correction — a Mage Armor cast last week ending on a sentence
+   * nobody had written when it was cast.
+   *
+   * **Absent means none**, on a version 2 record. A pre-versioned record never
+   * wrote the fact down at all, so `upgradeOngoing` fills it from the
+   * catalogue exactly as it fills the area — see `ongoing-compatibility.ts`,
+   * which is the one place left on the fold's path that opens the book.
+   *
+   * Read by the derived pass in `events.ts`, which is where the members are
+   * matched to the events that raise them. Nothing else reads it.
+   */
+  readonly endsEarly?: readonly CastingEndTrigger[];
   /**
    * The numbers this casting was made with — see {@link CastingNumbers}.
    *

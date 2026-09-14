@@ -1090,6 +1090,115 @@ function checkGrantLifetimes(
 }
 
 /**
+ * The causes a trigger may name, as a set.
+ *
+ * The second place a runtime value restates a union, and here for the reason
+ * {@link EFFECT_KINDS} is: the reducer switches on the cause and the compiler
+ * makes that exhaustive, while untyped input needs the vocabulary as data. A
+ * cause added to the type and not here is caught by the sweep that drives the
+ * whole catalogue through this function.
+ */
+export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
+  'target-attacks',
+  'target-deals-damage',
+  'target-casts',
+  'target-dons-armor',
+  'caster-or-ally-damages-target',
+]);
+
+/** What a trigger may end: the casting, or the casting on one creature. */
+const END_TRIGGER_SCOPES: ReadonlySet<string> = new Set(['casting', 'target']);
+
+/**
+ * A trigger that ends a casting needs a casting that could still be running.
+ *
+ * The same sentence {@link checkGrantLifetimes} enforces about a grant, about
+ * the other thing a definition can leave standing. A casting that never
+ * becomes ongoing — no seconds, no turn-anchored deadline, no Concentration,
+ * not "until dispelled" — is over the moment it resolves, and nothing ever
+ * enters `state.ongoing` for the derived pass to find. A trigger on such a
+ * definition is a sentence nothing could ever read, which compiles.
+ *
+ * **Its own code rather than `grant_without_lifetime`**, because it is a
+ * different defect with a different fix: a grant is repaired by giving the
+ * rider a deadline, and there is no rider here. It is reported at
+ * `endsEarly`, where the field is.
+ *
+ * And the two vocabulary rules sit here rather than in `checkShape` because
+ * they are value rules over a field the compiler already types for anything
+ * written in this repository — what `checkShape` guarantees is that the list
+ * is a list of objects, which is what the entry-level division IE-024 recorded
+ * asks of it.
+ */
+function checkEndsEarly(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const triggers = definition.endsEarly;
+  if (triggers === undefined) return;
+  if (!readsAsList(triggers, 'endsEarly', 'the triggers that end a casting early are a list', found)) {
+    return;
+  }
+
+  if (triggers.length === 0) {
+    found.push({
+      field: 'endsEarly',
+      code: MALFORMED,
+      reason: 'a spell that prints no such sentence omits the field rather than writing an empty list',
+    });
+    return;
+  }
+
+  const persists = lasts || definition.untilDispelled === true || definition.concentration;
+  if (!persists) {
+    found.push({
+      field: 'endsEarly',
+      code: 'end_trigger_without_casting',
+      reason:
+        'this casting is over the moment it resolves, so it never becomes ongoing and nothing could end it early; give the spell a duration',
+    });
+  }
+
+  const seen = new Set<string>();
+  triggers.forEach((trigger, i) => {
+    const path = `endsEarly[${i}]`;
+    if (!readsAsObject(trigger, path, 'a trigger is an object naming what happens and what it ends', found)) {
+      return;
+    }
+
+    const { on, ends } = trigger as { on?: unknown; ends?: unknown };
+
+    if (typeof on !== 'string' || !END_TRIGGER_CAUSES.has(on)) {
+      found.push({
+        field: `${path}.on`,
+        code: 'unknown_end_trigger',
+        reason: `"${String(on)}" is not something the engine can see happen; a trigger whose fact the log does not hold is a missing shape rather than a definition`,
+      });
+    } else if (seen.has(on)) {
+      // Two scopes for one cause is one sentence written twice, and the second
+      // could never fire: the first match ends the casting or releases the
+      // target, and there is nothing left for the other reading to do.
+      found.push({
+        field: `${path}.on`,
+        code: 'duplicate_end_trigger',
+        reason: `"${on}" is already written on this definition, and one sentence has one scope`,
+      });
+    } else {
+      seen.add(on);
+    }
+
+    if (typeof ends !== 'string' || !END_TRIGGER_SCOPES.has(ends)) {
+      found.push({
+        field: `${path}.ends`,
+        code: 'unknown_end_scope',
+        reason: `"${String(ends)}" is neither "casting" nor "target"; the SRD prints one or the other and defaulting would pick for it`,
+      });
+    }
+  });
+}
+
+/**
  * What this effect leaves standing, or null if it leaves nothing.
  *
  * **Every rider, not the first**, because a host carries several: Hideous
@@ -1560,6 +1669,8 @@ export function checkSpellDefinition(
       });
     }
   }
+
+  checkEndsEarly(definition, lasts, found);
 
   // — a grant with nothing to hang on ——————————————————————————————————————
   //

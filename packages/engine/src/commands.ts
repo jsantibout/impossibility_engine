@@ -61,7 +61,13 @@ export {
 } from './commands/declarations.js';
 export { declareResourcePool, restoreResourcesOn } from './commands/pools.js';
 export { carrying, coinsOf, equipItem, purchaseItem, unequipItem } from './commands/inventory.js';
-export { ongoingSpellOf, ongoingSpellsBy, ongoingSpellsOn } from './commands/ongoing.js';
+export {
+  ongoingSpellOf,
+  ongoingSpellsBy,
+  ongoingSpellsOn,
+  withheldEndings,
+  type WithheldEnding,
+} from './commands/ongoing.js';
 export {
   applySpellEffect,
   castSpell,

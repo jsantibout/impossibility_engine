@@ -21,7 +21,7 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { type GameEvent, type GameState } from '../events.js';
+import { allyOfCaster, type GameEvent, type GameState } from '../events.js';
 import {
   distanceBetween,
   distanceBetweenPoints,
@@ -68,6 +68,76 @@ export function ongoingSpellsBy(
 /** One ongoing spell by the casting that made it, or null if it has ended. */
 export function ongoingSpellOf(state: GameState, castingId: string): OngoingSpell | null {
   return state.ongoing[castingId] ?? null;
+}
+
+/**
+ * A casting whose early ending the engine cannot judge, and whose damage.
+ *
+ * SRD writes "until **you or your allies** damage it" in five spells, and an
+ * ally is declared allegiance — so where nobody has said which side a creature
+ * is on, the ending is **withheld rather than invented**: the same three-valued
+ * reading declared cover, declared sight and Sneak Attack's flanking clause
+ * already take, and the same refusal to answer a question nobody asked the
+ * engine.
+ *
+ * **A derived pass has no `unverified` line**, which is the whole reason this
+ * is a query. `resolveAttack` can hand back a sentence beside its result
+ * because it is a command with a result; the reducer's ending is derived, has
+ * no return value a caller reads, and happens after the fact — so the honest
+ * place to say "this could not be judged" is a question a caller may ask of
+ * the state, before or after the blow.
+ *
+ * **It is a standing fact, not a record of a moment.** What it reports is that
+ * *right now*, this casting carries the clause and these creatures could not be
+ * judged against it — the caster themself never among them, because the
+ * sentence names them. A casting with no such trigger, or one where every side
+ * is declared, contributes nothing.
+ */
+export interface WithheldEnding {
+  readonly castingId: string;
+  /** The display name, so a tool surface needs no second lookup. */
+  readonly spell: string;
+  readonly caster: string;
+  /**
+   * Whose damage to one of this casting's targets could not be judged the
+   * caster's or an ally's, sorted. Never empty — an entry with nothing to
+   * report is not reported.
+   */
+  readonly unjudged: readonly CharacterId[];
+  readonly reason: string;
+}
+
+export function withheldEndings(state: GameState): readonly WithheldEnding[] {
+  const out: WithheldEnding[] = [];
+
+  for (const record of byCastingOrder(state)) {
+    const clause = record.endsEarly?.some(
+      (trigger) => trigger.on === 'caster-or-ally-damages-target',
+    );
+    if (clause !== true) continue;
+
+    // The creature's own id rather than the key it is filed under, so the
+    // brand travels and the answer is the same list `on` is written from.
+    const unjudged = Object.keys(state.creatures)
+      .sort()
+      .map((key) => state.creatures[key])
+      .filter(
+        (who): who is NonNullable<typeof who> =>
+          who !== undefined && allyOfCaster(state, record.caster, who.id) === 'unknown',
+      )
+      .map((who) => who.id);
+    if (unjudged.length === 0) continue;
+
+    out.push({
+      castingId: record.castingId,
+      spell: record.spell,
+      caster: record.caster,
+      unjudged,
+      reason: `${record.spell} ends when ${record.caster} or one of their allies damages a target, and nobody has declared which side ${unjudged.length === 1 ? `${unjudged[0]} is` : 'these creatures are'} on — so damage from ${unjudged.length === 1 ? 'them' : 'any of them'} leaves the casting running rather than ending it on a guess`,
+    });
+  }
+
+  return out;
 }
 
 /**

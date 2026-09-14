@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 46 (13.6%) | 91 (26.8%) | 52 | 69 (20.4%) |
+| 339 | 46 (13.6%) | 91 (26.8%) | 47 | 69 (20.4%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -61,7 +61,7 @@ spell, and the area is the part that is missing.
 
 - **Acid Arrow** (level 2) — untested
 - **Acid Splash** (cantrip) — verified
-- **Animal Friendship** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Animal Friendship** (level 1) — verified
 - **Arcane Sword** (level 7) — verified
 - **Bane** (level 1) — verified
 - **Banishment** (level 4) — verified, partial — a clause the engine owns is still unbuilt
@@ -74,8 +74,8 @@ spell, and the area is the part that is missing.
 - **Blur** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Burning Hands** (level 1) — verified
 - **Chain Lightning** (level 6) — untested, partial — a clause the engine owns is still unbuilt
-- **Charm Monster** (level 4) — verified, partial — a clause the engine owns is still unbuilt
-- **Charm Person** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Charm Monster** (level 4) — verified
+- **Charm Person** (level 1) — verified
 - **Chill Touch** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
 - **Circle of Death** (level 6) — verified
 - **Cloudkill** (level 5) — untested, partial — a clause the engine owns is still unbuilt
@@ -119,7 +119,7 @@ spell, and the area is the part that is missing.
 - **Invisibility** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Lesser Restoration** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Lightning Bolt** (level 3) — verified
-- **Mage Armor** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Mage Armor** (level 1) — verified
 - **Mass Cure Wounds** (level 5) — verified
 - **Mass Healing Word** (level 3) — untested
 - **Mass Suggestion** (level 6) — untested, partial — a clause the engine owns is still unbuilt
@@ -141,7 +141,7 @@ spell, and the area is the part that is missing.
 - **Spiritual Weapon** (level 2) — verified
 - **Starry Wisp** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
 - **Stoneskin** (level 4) — verified
-- **Suggestion** (level 2) — untested, partial — a clause the engine owns is still unbuilt
+- **Suggestion** (level 2) — untested
 - **Sunbeam** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Sunburst** (level 8) — verified
 - **Thunderwave** (level 1) — verified, partial — a clause the engine owns is still unbuilt
@@ -220,11 +220,12 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-stat-block-created-mid-fight` | 15 | 4 | 1 | 0 | 14 |
 | `an-action-a-spell-compels-or-forbids` | 26 | 3 | 9 | 0 | 17 |
 | `a-rider-on-a-later-weapon-attack` | 10 | 3 | 0 | 0 | 10 |
-| `a-casting-ended-by-a-trigger` | 29 | 2 | 8 | 0 | 21 |
-| `a-second-place-to-put-a-creature` | 17 | 2 | 1 | 0 | 16 |
+| `a-second-place-to-put-a-creature` | 18 | 2 | 1 | 0 | 17 |
 | `a-target-rule-the-format-cannot-state` | 13 | 2 | 0 | 0 | 13 |
 | `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 10 |
 | `teleportation` | 9 | 2 | 0 | 1 | 8 |
+| `a-spell-that-answers-a-later-attack` | 5 | 2 | 0 | 0 | 5 |
+| `a-casting-ended-by-a-trigger` | 21 | 1 | 2 | 0 | 19 |
 | `a-random-outcome-that-is-not-a-d20` | 19 | 1 | 0 | 0 | 19 |
 | `difficult-terrain-an-area-creates` | 18 | 1 | 5 | 0 | 13 |
 | `a-barrier-that-blocks-passage` | 12 | 1 | 0 | 0 | 12 |
@@ -237,7 +238,6 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-flat-amount-with-no-dice` | 6 | 1 | 0 | 0 | 6 |
 | `healing-that-raises-the-dead` | 6 | 1 | 0 | 0 | 6 |
 | `a-hit-point-maximum-a-spell-moves` | 5 | 1 | 1 | 0 | 4 |
-| `a-spell-that-answers-a-later-attack` | 5 | 1 | 0 | 0 | 5 |
 | `an-activation-that-forces-a-saving-throw` | 5 | 1 | 0 | 0 | 5 |
 | `an-area-trigger-measured-from-a-point` | 3 | 1 | 0 | 0 | 3 |
 | `falling` | 3 | 1 | 0 | 0 | 3 |

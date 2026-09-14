@@ -198,12 +198,18 @@ describe('Mage Armor replaces the calculation rather than adding to it', () => {
   });
 
   /**
-   * And the calculation is consulted only where the SRD consults it. A
-   * creature who dons armour afterwards is back to their armour's number —
-   * which is the Armour Class coming out right; the spell going on running is
-   * the half the definition declares as unmodelled.
+   * And the calculation is consulted only where the SRD consults it: a
+   * creature wearing armour is back to their armour's number, because the
+   * granted base loses the comparison.
+   *
+   * **That inertness is no longer the whole answer**, and it never was the
+   * spell's own sentence. IE-032 built "The spell ends early if the target
+   * dons armor", so the casting goes too — which
+   * `casting-end-triggers.test.ts` drives through `equipItem`. What is
+   * asserted here is the arithmetic that has always been right, and that the
+   * definition now carries the trigger rather than a note saying it does not.
    */
-  it('is inert once armour is worn, and says the casting does not end itself', () => {
+  it('is inert once armour is worn, and the casting ends when it is donned', () => {
     const out = unwrap(castOn(base(), FIGHTER), 'mage armor');
     const after = fold('seed', [...SETUP, ...out.events]);
     expect(armorClassOf(after, FIGHTER)).toBe(15);
@@ -214,7 +220,10 @@ describe('Mage Armor replaces the calculation rather than adding to it', () => {
       armorClass(sheet({ armor: leather() })),
     );
 
-    expect(out.unverified.join(' ')).toContain('dons armor');
+    expect(definitionFor('mage-armor')?.endsEarly).toEqual([
+      { on: 'target-dons-armor', ends: 'casting' },
+    ]);
+    expect(out.unverified.join(' ')).not.toContain('dons armor');
   });
 });
 

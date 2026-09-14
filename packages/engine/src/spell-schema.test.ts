@@ -1285,8 +1285,20 @@ const regionOf = (source: string, name: string): string => {
   return withoutComments(out.join('\n'));
 };
 
-/** A type whose whole right-hand side is string literals, or one field's. */
-const LITERAL_UNION = /^(?:'[a-z0-9-]+'\s*\|\s*)*'[a-z0-9-]+'$/;
+/**
+ * A type whose whole right-hand side is string literals, or one field's.
+ *
+ * **The leading `|` is optional, and that was a blind spot rather than a
+ * nicety.** TypeScript writes a union across several lines with a pipe in
+ * front of every arm, which is what every union long enough to carry a
+ * docstring per member looks like — and this pattern read none of them. It
+ * reported no problems and checked nothing, which is the `animals.md` failure
+ * arriving inside the guard that exists to catch it. `CastingEndCause` is the
+ * first multi-line one in `FORMAT_TYPES` and is the case that found it; the
+ * mutation is a sixth cause no definition writes, which is reported now and
+ * was silently accepted before.
+ */
+const LITERAL_UNION = /^\|?\s*(?:'[a-z0-9-]+'\s*\|\s*)*'[a-z0-9-]+'$/;
 
 /**
  * Every optional field and every closed-union value one declaration writes.
@@ -1309,7 +1321,9 @@ const membersOf = (source: string, name: string): readonly FormatMember[] => {
   if (top !== null) {
     const rhs = top[1]!.replace(/\s+/g, ' ').trim();
     if (LITERAL_UNION.test(rhs)) {
-      for (const literal of rhs.split('|')) {
+      // A leading `|` splits to an empty fragment, which would be reported as
+      // a member spelled `''` that no definition could ever write.
+      for (const literal of rhs.split('|').filter((part) => part.trim() !== '')) {
         const value = literal.trim().slice(1, -1);
         add(`${name}='${value}'`, `*='${value}'`);
       }
@@ -1381,6 +1395,12 @@ const FORMAT_TYPES = [
   // two it declares are Blight's automatic failure and Shatter's Disadvantage.
   'TypedSaveOutcome',
   'TypedExtraDamage',
+  // What ends a casting early, both halves: the closed list of causes, and the
+  // scope each sentence names. A sixth cause added to the union with no SRD
+  // sentence behind it fails here rather than sitting unwritten, and so does a
+  // third scope.
+  'CastingEndCause',
+  'CastingEndTrigger',
   'DiceScaling',
   'CastingOrigin',
   'SpellActivation',
@@ -2706,6 +2726,14 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     ...(['nonsense', 7, {}] as const).map(
       (junk) => ['unmodelled', junk] as readonly [string, unknown],
     ),
+    // IE-032's trigger list, which `checkEndsEarly` walks: a value that is not
+    // a list reaches `.forEach`, and an entry that is not an object is
+    // destructured for `on` and `ends`. Both restore a throw out of the
+    // `Result` half if their guard goes, which is the class this table exists
+    // to close and the reason a new list-valued field joins it.
+    ...([null, 'nonsense', 7, {}] as const).map(
+      (junk) => ['endsEarly', junk] as readonly [string, unknown],
+    ),
   ];
 
   it.each(TOP_LEVEL)('answers with a refusal for a definition whose %s is %s', (field, value) => {
@@ -2792,6 +2820,24 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     }).not.toThrow();
     expect(isErr(parsed!)).toBe(true);
   });
+
+  /**
+   * And the same for a trigger list, whose entries are destructured for `on`
+   * and `ends`. `readsAsObject` is what stops a `null` there being read for
+   * two fields, and the row above — which replaces the list itself — never
+   * reaches it. Same shape as the note, and the same reason for a row of its
+   * own.
+   */
+  it.each([[null], ['nonsense'], [7], [[]]])(
+    'answers with a refusal for a trigger that is %s',
+    (junk) => {
+      let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
+      expect(() => {
+        parsed = parseSpellDefinition({ ...FIRE_DART, durationSeconds: 60, endsEarly: [junk] });
+      }).not.toThrow();
+      expect(isErr(parsed!)).toBe(true);
+    },
+  );
 
   /**
    * **`undefined` is absent; everything else is read against the declared

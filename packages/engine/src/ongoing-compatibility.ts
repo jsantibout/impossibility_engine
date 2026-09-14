@@ -39,6 +39,16 @@ import type { OngoingSpell } from './spells.js';
  * Bumped when a field a fold *reads* changes meaning, never for an addition a
  * reader can ignore. Version 2 is the shape that carries `area` and
  * `areaTrigger` and has dropped `concentration` and `route`.
+ *
+ * **`endsEarly` arrived after version 2 and did not bump it**, which is a
+ * decision rather than an oversight. It changes the meaning of no field that
+ * was already there, and bumping would be *worse*: the upgrade path fills the
+ * area from the catalogue, so running a version 2 record through it would
+ * overwrite an area pinned at the cast with the book as it reads now — the
+ * exact hazard pinning the area was for. So absence on a version 2 record
+ * means the spell prints no such sentence, which is true of every such record
+ * in the repository: both frozen logs are pre-versioned, and nothing else
+ * persists one yet.
  */
 export const ONGOING_RECORD_VERSION = 2;
 
@@ -71,6 +81,13 @@ export function upgradeOngoing(casting: OngoingSpell): OngoingSpell {
     on: casting.on,
     ...(definition?.area === undefined ? {} : { area: definition.area }),
     ...(definition?.areaTrigger === undefined ? {} : { areaTrigger: definition.areaTrigger }),
+    // And what ends the casting early, for the same reason and by the same
+    // rule: a pre-versioned record never wrote it down, so the catalogue is
+    // the only place it was ever recorded. A version 2 record with no
+    // `endsEarly` is a spell that prints no such sentence, which is almost all
+    // of them — every version 2 record in the repository was written by code
+    // that writes this field, and the two frozen logs are pre-versioned.
+    ...(definition?.endsEarly === undefined ? {} : { endsEarly: definition.endsEarly }),
     ...(casting.origin === undefined ? {} : { origin: casting.origin }),
     ...(casting.towards === undefined ? {} : { towards: casting.towards }),
     ...(casting.anchoring === undefined ? {} : { anchoring: casting.anchoring }),

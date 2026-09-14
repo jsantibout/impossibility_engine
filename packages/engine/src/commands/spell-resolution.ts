@@ -2347,6 +2347,10 @@ export function resolveEffects(
         // rewrite what a historical replay raised.
         ...(definition.area === undefined ? {} : { area: definition.area }),
         ...(definition.areaTrigger === undefined ? {} : { areaTrigger: definition.areaTrigger }),
+        // And what ends it early, pinned by the same rule for the same
+        // reason: a sentence corrected in the catalogue next month must not
+        // reach a casting made today.
+        ...(definition.endsEarly === undefined ? {} : { endsEarly: definition.endsEarly }),
         // **A casting that holds a point is on its point, not on a creature.**
         // The force is not on the goblin it hit, so a Dispel Magic aimed at
         // the goblin must not put it out — and `on: []` is the state the

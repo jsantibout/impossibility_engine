@@ -1460,6 +1460,7 @@ spell stays queryable, and no zombie.
 | Deadline reached | the existing timer; no event, as before |
 | No deadline at all | "Until dispelled" runs with no timer — see that section |
 | Dispelled or recast | `spell-ended`, with a reason |
+| A trigger the spell prints | the derived pass; **no event** — see "A Casting Can Be Ended By Something That Happens" |
 | Target shakes it off | leaves `on`; the casting runs for everyone else |
 | Target's last effect lapses | leaves `on`; derived, by the rule `alsoOn` grew it with |
 | Target leaves the game | leaves `on`; the spell is **not** ended, because the SRD does not end a Bless when one of the blessed walks out |
@@ -1505,6 +1506,122 @@ level this casting was made at.**
 The definition therefore carries **no numbers at all**. Every one of them is a
 fact the engine holds, and a definition restating any would be a second place
 to get the spell wrong.
+
+### A Casting Can Be Ended By Something That Happens
+
+The table above had four ways a casting ends and every one of them is either a
+moment on the clock or somebody's decision. The SRD writes a fifth — a spell
+that stops because **something happened**, and nobody decided it — and that is
+`SpellDefinition.endsEarly`, a closed list of five transcribed causes.
+
+| Member | SRD |
+|---|---|
+| `target-attacks`, `target-deals-damage`, `target-casts` | Invisibility: "The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell." |
+| `target-dons-armor` | Mage Armor: "The spell ends early if the target dons armor." |
+| `caster-or-ally-damages-target` | Animal Friendship: "If you or one of your allies deals damage to the target, the spells ends." — the raw file's typo included |
+
+**Derived, so no event.** Nobody decides that the target swung, so the reducer
+finds it, exactly as it finds a lost Concentration and an arrived deadline. The
+same audit trade follows: the log shows the blow and not the spell ending, and
+a target's history says the condition arrived and not that it lapsed.
+
+**The scope is printed too, and it is not one answer.** Animal Friendship and
+Mage Armor say "the spell ends"; Charm Person bounds the *condition* — "until
+the spell ends or until you or your allies damage **it**" — and Mass
+Suggestion spells the difference out in its own paragraph, "the spell ends
+**for a target**". So `CastingEndTrigger.ends` transcribes which, and the two
+doors are `releaseCasting` and `releaseOnTarget`, both of which already
+existed. One answer for both would make a level 3 Charm Person free two
+creatures for one blow, or leave Animal Friendship running on a Beast the party
+has just shot.
+
+**Pinned on the record at the cast**, by IE-007's rule and for its reason: a
+trigger list is catalogue data, so a fold that looked it up would let a
+sentence corrected next month reach a casting made today. A **pre-versioned**
+record is filled from the catalogue by `upgradeOngoing`, exactly as its area
+is, because that log never wrote the fact down and there is nowhere else to
+read it. **Version 2 was not bumped**, and that is a decision: `endsEarly`
+changes the meaning of no field already there, and bumping would be *worse* —
+running a version 2 record through the upgrade would overwrite a **pinned**
+area with the book as it reads now, which is the hazard pinning it was for.
+
+**A trigger hangs on a consequence event, never on `roll-recorded`.** That
+event changes no state by rule, and an ending hung there would fire on a roll
+whose outcome had not happened. So `target-attacks` reads `attack-made`, which
+is the Attack action — and the residue is named rather than hidden:
+Invisibility's own `unmodelled` says that a **free** attack roll that *misses*
+— an Opportunity Attack, or any swing outside combat — leaves it running,
+because nothing but `roll-recorded` names the roller of one. A free swing that
+lands still ends it, through the damage it deals.
+
+**"Ally" is declared allegiance, and an undeclared one is withheld rather than
+invented.** `allyOfCaster` answers four ways — `caster`, `ally`, `not-ally`,
+`unknown` — and only the first two end anything. The caster is never in doubt,
+because the sentence names them. A derived pass has no `unverified` line to
+write, so **`withheldEndings` is the query** a caller asks instead: it names
+each casting carrying the clause and the creatures whose damage could not be
+judged. Same three-valued discipline as declared cover, declared sight and
+Sneak Attack's flanking clause.
+
+**The subject has to be a creature the casting is on.** Every sentence says
+"the target", and `OngoingSpell.on` is the engine's answer to which creatures
+those are — so a Mage Armor on the wizard is untouched by the fighter putting a
+breastplate on. It is also the reading that made the fixture discriminating:
+an invisible creature who is *also* the one acting cannot tell "read the
+casting's target" from "read the event's id" apart.
+
+**The loop terminates structurally, and that was measured rather than
+assumed.** The pass releases castings and then reads the state the release
+left, so it has to consume something it cannot recreate — the move
+`expireEffects` makes by deleting the timer key *before* acting on it. Here it
+is the `(casting, creature)` pair, recorded before the release and skipped
+afterwards. Progress is in fact implied today by what the two doors remove, and
+the mutation that proves so **hung the fold** rather than failing a test:
+termination resting on what a function three hundred lines away happens to do
+is correct until somebody edits the other end, and a wedged fold is the worst
+possible way to find out. With the pair recorded, the same mutation is three
+red tests.
+
+**And it is cheap first.** Four event types can say anything at all here and
+every other one returns before `state.ongoing` is touched — the discipline
+`anyCreature` established for the three passes that sort the whole cast.
+
+#### What this deliberately does not reach, and the spell that corrected the query
+
+A trigger whose fact no consequence event holds is **filed rather than
+modelled**, and the list is long enough to be worth reading: *any* damage from
+anybody (Modify Memory, Sleep, Sequester, Phantom Steed, Project Image,
+Eyebite), a distance two creatures drift apart (Faithful Hound, Warding Bond,
+Antilife Shell), a running total dealt (Guardian of Faith), a condition the
+caster chooses at the casting (Sequester), letting go of an object
+(Shillelagh), leaving an area (Tiny Hut), dropping to 0 Hit Points (Gaseous
+Form), another spell ending this one (Geas), and ending **one effect** of a
+casting rather than the casting.
+
+That last one is Mislead, and it is the third time in this file that building a
+shape corrected the query that predicted it. `a-casting-ended-by-a-trigger` was
+Mislead's **only** recorded blocker, so the derivation said this would finish
+the spell. SRD says otherwise twice over: "The double lasts for the duration,
+but the **invisibility** ends immediately after you make an attack roll, deal
+damage, or cast a spell" — `ends` says `casting` or `target` and neither is
+*one effect of a casting* — and the entry had never recorded the double at all,
+which prints Project Image's sentence word for word. So the shape stays on it
+and `a-second-place-to-put-a-creature` joins it. A count is only as good as the
+shape it counts, and the way to find out which shapes are bundles is to build
+one.
+
+**Hypnotic Pattern is the case that says the list was not widened to fit.** Its
+clause is "It wakes up if it takes **any** damage or if another creature takes
+an action to shake it awake" — *any* damage is not the caster's or an ally's,
+and the second half is an action a spell grants. Neither half is one of the
+five, so the adjudication is untouched.
+
+**A trigger on a casting that never runs is refused at authoring.**
+`end_trigger_without_casting` is `grant_without_lifetime`'s sentence about the
+other thing a definition leaves standing: an Instantaneous casting is over the
+moment it resolves, never enters `state.ongoing`, and a trigger on it names a
+moment that can never arrive. Its own code rather than that one, because the
+fix is different — there is no rider to give a deadline to.
 
 ### Acting through a spell on a later turn
 
@@ -3725,9 +3842,16 @@ Three details that are the SRD rather than the shape:
   are, and refuses the casting rather than spending a slot on a creature the
   spell cannot touch.
 
-`unmodelled` carries the half that is missing: **the spell does not end when
-the target dons armour.** The Armour Class is right either way; what goes on
-running is the casting, which is observable through `ongoing` and Dispel Magic.
+**The half that used to be missing is built, and it needed the other
+sentence.** `unmodelled` said "the spell does not end when the target dons
+armour" — the Armour Class was right either way, because the granted
+calculation is inert while armour is worn, and the *casting* went on running
+and stayed dispellable. IE-032's `target-dons-armor` ends it, through
+`releaseCasting`, so the granted Armour Class goes with it by the door every
+other grant already leaves by. And "dons armor" is the body slot rather than a
+Shield — the same reading `mustBeUnarmored` and `shieldAllowed: true` already
+take of the targeting clause, which is why only a Shield can tell the two
+readings apart and why there is a fixture that takes one up.
 
 Barkskin is deliberately *not* included: "an Armor Class of 17 if its AC is
 lower than that" is a floor on the **total**, a different rule, and one spell is
@@ -4449,9 +4573,13 @@ knows, so the vocabulary is shared even though the layouts are not.
 
 **Two spells, and they differ by one sentence.** Greater Invisibility is
 verified; Invisibility adds "The spell ends early immediately after the target
-makes an attack roll, deals damage, or casts a spell", which is
-`a-casting-ended-by-a-trigger` — the same debt Animal Friendship and Mage Armor
-already carry — so it is **partial**, derived rather than declared.
+makes an attack roll, deals damage, or casts a spell". All three of those are
+built — see "A Casting Can Be Ended By Something That Happens" — and the
+sentence is still the whole of the difference between the two spells, which is
+now visible in the data: Invisibility carries three `endsEarly` triggers and
+Greater Invisibility carries none. What keeps Invisibility **partial** is a
+narrower residue, and it is about which *event* records an attack roll rather
+than about the cause.
 
 **And that is the whole population**, which is worth writing down because it is
 the second measured finding in a row that the existing shapes are drained. A
@@ -4464,7 +4592,7 @@ leaves only these two. The rest are blocked, and never on this shape:
 | A thing with its own state | Conjure Fey, Mirror Image, Mislead's illusory double, Arcane Eye, Clairvoyance, Unseen Servant, Instant Summons |
 | Condition **removal** — its own effect kind, now **built**, and Lesser Restoration executes on it | Power Word Heal, Heal, Mass Heal, Greater Restoration, each still blocked on the *other* half of its sentence |
 | Condition *immunity* or prevention | Mind Blank, Heroism, Freedom of Movement, Heroes' Feast, Hallow |
-| A casting ended by a trigger | Sequester, and Mislead again |
+| A casting ended by a trigger | Sequester's caster-chosen condition and its "any damage"; Mislead, which ends the **invisibility** and not the casting |
 | A condition that ends when its holder leaves an area | Silence's "Deafened **while entirely inside it**" — the gap Web's Restrained already records |
 | A long casting time | Astral Projection, Awaken, Wind Walk, Hallow, Heroes' Feast, Clairvoyance, Instant Summons |
 | Reading a condition rather than imposing one | Find Steed, Shining Smite, Mirror Image |
@@ -6862,12 +6990,21 @@ null and is reported — it never becomes either.
   Blur puts Disadvantage on attacks *against* the creature it is on, Beacon of
   Hope puts Advantage on the two rolls it names and on no neighbouring one, and
   a class feature's grant and a spell's now share one selector and one
-  predicate. What does not work: casting a definition the catalogue does not
+  predicate. **And a casting can be ended by something that happens** — see "A
+  Casting Can Be Ended By Something That Happens": Invisibility ends when its
+  target attacks, deals damage or casts, Mage Armor when the target dons
+  armour, and Animal Friendship, Charm Person, Charm Monster, Suggestion and
+  Mass Suggestion when the caster or a declared ally damages the target —
+  derived in the reducer, with no event, and with the printed scope
+  deciding whether the casting ends or is released on that one creature. What
+  does not work: casting a definition the catalogue does not
   compile in, summons, long casting times, an area that moves *by itself* at the
   start of a turn (Cloudkill, Incendiary Cloud), a standing spatial effect such
   as the Speed halved inside that Emanation, a path or a distance travelled, an
-  activation that resolves an area at a point chosen now, and a Reaction that
-  answers a fall.
+  activation that resolves an area at a point chosen now, a Reaction that
+  answers a fall, and an ending triggered by a fact no consequence event holds
+  — any damage at all, a distance drifted, a running total, or one effect of a
+  casting ending while the casting runs on.
 - **The existing shapes are drained, and that is a measured finding rather than
   a feeling.** "Keep pouring spells into the working shapes" was written when
   roughly ninety parsed spells were thought to fit one; a spell-by-spell pass

@@ -1014,6 +1014,126 @@ describe('a shape that gets built is content work, not a merge', () => {
   });
 });
 
+describe('a trigger that ends a casting is a partial build, and the map says which part', () => {
+  /**
+   * **IE-032 built five causes out of a shape that names many more**, which is
+   * the first entry here to stay in the vocabulary on the strength of what it
+   * still blocks rather than being retired or renamed.
+   *
+   * The five are transcribed sentences — the target attacks, deals damage or
+   * casts; the target dons armour; the caster or an ally damages the target —
+   * and each hangs on a **consequence** event the engine already writes. What
+   * the shape keeps is every cause whose fact no such event holds: *any*
+   * damage from anybody, a distance two creatures drift apart, a running
+   * total, a condition chosen at the casting, letting go of an object,
+   * leaving an area, another spell ending this one.
+   */
+  it('closes the clause on the six executed spells whose whole sentence it reaches', () => {
+    for (const id of [
+      'animal-friendship',
+      'charm-monster',
+      'charm-person',
+      'mage-armor',
+      'mass-suggestion',
+      'suggestion',
+    ]) {
+      const shapes = (ADJUDICATED[id] ?? []).map((entry) => entry.why);
+      expect(shapes, id).not.toContain('a-casting-ended-by-a-trigger');
+    }
+    // Six leave the map entirely; Mass Suggestion keeps its other clause.
+    expect(ADJUDICATED['animal-friendship']).toBeUndefined();
+    expect(ADJUDICATED['charm-person']).toBeUndefined();
+    expect(ADJUDICATED['charm-monster']).toBeUndefined();
+    expect(ADJUDICATED['mage-armor']).toBeUndefined();
+    expect(ADJUDICATED['suggestion']).toBeUndefined();
+    expect(ADJUDICATED['mass-suggestion']?.map((e) => e.why)).toEqual([
+      'a-duration-the-slot-changes',
+    ]);
+  });
+
+  /**
+   * Invisibility is the eighth and keeps a **narrower** clause, because the
+   * residue is about which event records an attack roll rather than about the
+   * cause. `target-attacks` reads `attack-made`, which is the Attack action;
+   * a free swing — an Opportunity Attack, or any attack outside combat —
+   * leaves only `roll-recorded`, which changes no state by rule. One that
+   * lands still ends the spell through `target-deals-damage`.
+   */
+  it('keeps the narrower residue on the spell whose sentence names a roll', () => {
+    expect(ADJUDICATED['invisibility']?.map((e) => e.why)).toEqual([
+      'a-casting-ended-by-a-trigger',
+    ]);
+    expect(ADJUDICATED['invisibility']?.[0]?.clause).toBe(
+      'an attack roll that costs no Attack action',
+    );
+  });
+
+  /**
+   * And Hypnotic Pattern keeps the whole of its clause, which is the
+   * discriminating case for "do not widen the list to make a spell fit".
+   *
+   * SRD: "It wakes up if it takes any damage or if another creature takes an
+   * action to shake it awake." *Any* damage is not the caster's or an ally's,
+   * and the second half is an action a spell grants — so neither half is one
+   * of the five, and the entry is untouched.
+   */
+  it('leaves a spell whose trigger is any damage at all exactly where it was', () => {
+    const shapes = (ADJUDICATED['hypnotic-pattern'] ?? []).map((entry) => entry.why);
+    expect(shapes).toContain('a-casting-ended-by-a-trigger');
+  });
+
+  /**
+   * **The query predicted Mislead finished and the book says otherwise**, which
+   * is IE-017's and IE-030's lesson arriving a third time.
+   *
+   * `a-casting-ended-by-a-trigger` was the only blocker recorded for Mislead,
+   * so the derivation said building it would finish the spell. Read against the
+   * paragraph, two things are wrong with that. SRD ends the **invisibility**
+   * and not the casting — "The double lasts for the duration, but the
+   * invisibility ends immediately after you make an attack roll, deal damage,
+   * or cast a spell" — and `CastingEndTrigger.ends` says `casting` or
+   * `target`, neither of which is *one effect of a casting*. And the entry had
+   * never recorded the double at all, which prints Project Image's sentence
+   * word for word: "You can see through its eyes and hear through its ears as
+   * if you were located where it is."
+   *
+   * So the shape stays on it, a narrower id joins it, and the spell is **not**
+   * in the blocked-on-nothing set that a naive removal would have put it in.
+   */
+  it('does not call Mislead finished, and records the blocker the entry had missed', () => {
+    expect(BLOCKED_ON['mislead']).toEqual([
+      'a-casting-ended-by-a-trigger',
+      'a-second-place-to-put-a-creature',
+    ]);
+    expect(BLOCKED_ON['project-image']).toContain('a-second-place-to-put-a-creature');
+    const free = Object.entries(BLOCKED_ON)
+      .filter(([, shapes]) => shapes.length === 0)
+      .map(([id]) => id);
+    expect(free).not.toContain('mislead');
+  });
+
+  /**
+   * Two undefined spells do lose the blocker, and both keep others — so the
+   * shape's `unblocks` column is unchanged by this build, which is exactly the
+   * distinction between the two numbers that column exists to draw.
+   */
+  it('clears it from the two undefined spells that print one of the five', () => {
+    // "The awakened target has the Charmed condition for 30 days **or until
+    // you or your allies deal damage to it**."
+    expect(BLOCKED_ON['awaken']).not.toContain('a-casting-ended-by-a-trigger');
+    expect(BLOCKED_ON['awaken']).toContain('a-long-casting-time');
+    // "The spell ends if the warded creature makes an attack roll, casts a
+    // spell, or deals damage." — Invisibility's three, word for word.
+    expect(BLOCKED_ON['sanctuary']).toEqual(['a-spell-that-answers-a-later-attack']);
+  });
+
+  /** And the shape is still claimed, so the unclaimed-shape guard keeps it. */
+  it('keeps the shape, because most of what it names is still missing', () => {
+    expect(claimedShapes().has('a-casting-ended-by-a-trigger')).toBe(true);
+    expect(consumersOf('a-casting-ended-by-a-trigger').blocks.length).toBeGreaterThan(10);
+  });
+});
+
 describe('the executed and tracked maps still cover their own populations', () => {
   /**
    * The move is a move. Both maps are keyed by spell id and the populations
