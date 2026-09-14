@@ -193,6 +193,20 @@ C1 will meet. Named, not built.
   and `condition` yield one), `riderDurations`, `checkEffect`, the honesty
   test's readers, `coverage.ts`. Mechanical; A's lane for the definitions, B's
   for the types.
+
+  > **Foreman's correction, 2026-09-13, ratified at IE-010's merge gate.** That
+  > parenthesis contradicts §A, §B and §I and cannot be read as normative.
+  > §B's two plural consumers — Hideous Laughter and Hypnotic Pattern — are
+  > both `save`-hosted spells with no damage, so a `save` that yields exactly
+  > one condition leaves the `conditions` member with **zero** consumers, in
+  > the section whose whole job is to justify a member by naming them. Only one
+  > reading makes §A, §B and §I simultaneously true and it is the one built:
+  > **`save` keeps its flat first rider and gains a `conditions` list for the
+  > rest**, with `conditionRiderOf` returning `[flat, ...conditions]`. The
+  > parenthesis stays true of the *flat layout*, which does yield one. No
+  > existing definition changes meaning. IE-010's builder found the ambiguity,
+  > declared it rather than resolving it silently, and its reviewer reached the
+  > same reading independently.
 - `save.repeats` stays flat; the view gains one line.
 - `roll-mode.save` has **zero users** in the catalogue (Blur and Beacon of Hope
   are the only `roll-mode` effects and neither saves) and `buff.ability` has

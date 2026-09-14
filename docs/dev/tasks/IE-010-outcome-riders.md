@@ -1,6 +1,6 @@
 # IE-010 — Outcome riders, and the two `on` rules made one
 
-state: IMPLEMENTING
+state: AWAITING_FOREMAN_REVIEW
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside any task touching the `SpellEffect` union or `commands/spell-resolution.ts`; YES beside `creation.ts`, a new command module, and conformance work
@@ -132,3 +132,89 @@ tranches); anything in `events.ts`.
   fixes a correctness bug in it. Do item 3 first, with its reproduction, so
   the bug fix is not entangled with the vocabulary change.
 - Five definitions change shape. The catalogue test drives every one.
+
+## Completion digest
+
+```
+IE-010 — Completion digest
+Approved architectural intent: Build Fable's outcome-rider vocabulary — leaf riders in fixed named slots on the three kinds that produce an outcome, with the branch fixed by the host and the invariant that a rider never rolls a d20, names no target, spends nothing and opens no window — and close the `on` correctness bug in the same file.
+Builder: COMPLETE
+Worktree: .claude/worktrees/agent-a0cd69c068a23bdac   Branch: worktree-agent-a0cd69c068a23bdac   Commit: c548848   Rebased on main at: not rebased — built on 4b22823, as briefed
+Opus review: PASS — rounds: 1
+Tests: 5630 passing / 5630 total; new tests: 33 (16 in the new `outcome-riders.test.ts`, 13 in `spell-schema.test.ts`, 3 in `delayed-damage.test.ts`, 1 in `ongoing-spells.test.ts`); mutation run: seven, each failing the test that should catch it — the `checkShape` recursion denylist disabled (3 schema tests fail); the `repeats`-host rule disabled (1); `applyRiders` applying only the first condition rider (3); `onMiss` dealing full damage instead of half (1); only the first modifier rider applied (3); `riderDuration` ignoring `lasts: { seconds }` (5); and the `on` fix reverted to `[casterId]` (the item-3 reproduction).
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓
+Conformance: PASS — `COVERAGE.md` regenerated and reproduces clean against the commit; `PARTIAL_SPELLS` loses `acid-arrow` and `sunburst` and nothing else, and gains `hideous-laughter` (newly defined, real unmodelled clauses); both frozen logs fold unchanged.
+Architectural deviations: one, declared. **The shape id `outcome-scoped-child-effects` is removed rather than renamed to `outcome-riders`.** Brief item 5 says "renamed", but item 5 also re-files Disintegrate off that shape, and building the shape deletes the Acid Arrow, Sunburst and Phantasmal Killer adjudications — leaving zero claimants. `spell-honesty.test.ts`'s own guard ("keeps no shape nothing is blocked on") fails on any unclaimed shape, so the rename was unexecutable as written. Disintegrate is re-filed to a new `an-outcome-of-a-spells-own-damage`, which the brief explicitly permits and which criterion 4 requires, since `table` would have dropped Disintegrate out of `PARTIAL_SPELLS`.
+Foundational primitives touched: the `SpellEffect` union and the rider types at the top of `spell-definitions.ts`; `conditionRiderOf` (now returns a list) and `riderDurations`; `resolveEffects`'s three host branches and `riderOptions` in `commands/spell-resolution.ts`; `checkShape`/`checkEffect` in `spell-schema.ts`; `SpellTargetOutcome.condition` → `conditions` in `commands/targeting.ts`; the `OngoingSpell.on` write site (the record type is unchanged — only the caster branch's rule).
+New runtime special cases: none. `applyRiders` contains no branch at all, which is what makes "the slot name is the branch" structural rather than validated.
+Files outside the brief's surface: two, both consequences of the brief's own changes — `commands/targeting.ts` (`SpellTargetOutcome.condition` → `conditions`, which the design record §F puts in scope) and five test files each a mechanical follow-on.
+Out-of-scope findings (not acted on): three.
+  1. **`npm test` rewrites a tracked file.** `packages/engine/scripts/coverage.ts` calls `writeFileSync('COVERAGE.md', …)` at module top level, and `coverage.test.ts` and `spell-honesty.test.ts` import it — so running the suite regenerates `COVERAGE.md` as a side effect. Pre-existing; it makes `git diff --exit-code COVERAGE.md` pass for a reason other than the one the gauntlet intends.
+  2. **`acid-arrow` is driven end to end by `delayed-damage.test.ts` and is not in `VERIFIED_SPELLS`.** Pre-existing understatement.
+  3. **The cross-slot rider order is unpinnable today.** No castable definition carries two slots, and a homebrew one that did would validate and still not be castable, because `definitionFor` reads the catalogue rather than state.
+Unresolved concerns: one, an interpretation resolved and flagged — **the design record is internally inconsistent about whether a `save` host may carry more than one condition** (§A/§B/§I against §H's parenthesis). Built the reading under which §A, §B, §I and acceptance criterion 2 are simultaneously true: `save` keeps its flat first rider and gains a `conditions` list for the rest, `conditionRiderOf` returning `[flat, ...conditions]`.
+  Also: `spell-schema.ts` is named in this brief's file surface *and* was assigned to IE-013. Expect a conflict at integration.
+Reviewer confidence: high
+Recommendation: READY FOR MERGE
+```
+
+The reviewer's verdict was `PASS` at high confidence, first round, with one
+non-blocking note — a test docstring claiming to pin an order no castable
+definition can produce. The builder acted on it after the review; that delta
+is `d32d785..c548848`, two files, prose and test titles only, and it makes the
+claim narrower rather than wider. Inspected and accepted.
+
+## Risk gate
+
+The tranche's largest task, and four things needed deciding rather than
+reading.
+
+**1 — The declared deviation is ratified.** Brief item 5 said to *rename*
+`outcome-scoped-child-effects` to `outcome-riders`; the same item re-files
+Disintegrate off that shape, and building the vocabulary deletes the Acid
+Arrow, Sunburst and Phantasmal Killer adjudications — so the renamed shape
+would have had **no claimants**, and `spell-honesty.test.ts`'s own guard
+refuses a shape nothing is blocked on. **The instruction was unexecutable as
+written**, which is the foreman's error and not the builder's. Removing the
+shape and re-filing Disintegrate to a new `an-outcome-of-a-spells-own-damage`
+is what item 5 permits in its own words ("`table` or a new shape id, with the
+reason"), and `table` was ruled out by criterion 4, which requires Disintegrate
+to stay partial. The reviewer reached the same reading independently. GREEN.
+
+**2 — The design record's ambiguity is resolved in the builder's favour, and
+the record is corrected.** §A, §B and §I put a `conditions` list on a `save`
+host; §H's parenthesis says `conditionRiderOf` returns a list "(`save` and
+`condition` yield one)". Checked rather than arbitrated: §B's two plural
+consumers are **Hideous Laughter and Hypnotic Pattern**, and both are
+`save`-hosted spells with no damage (`spells.md:3179`, `:3246`). Under §H's
+literal reading the `conditions` member therefore has **zero consumers** — in
+the section whose entire job is to justify a member by naming them, and in a
+repository that had just spent an audit finding on zero-consumer members.
+That reading is self-defeating; the builder's is the only self-consistent one.
+
+This is **not** a silent overturning of a Fable decision and did not need to
+go back to Fable: it is an internal contradiction in the record, the builder
+declared it rather than resolving it quietly, and only one reading leaves the
+design coherent. The record now carries a foreman's correction at §H saying
+so, so the next reader does not re-derive it.
+
+**3 — The `spell-schema.ts` collision is the foreman's independence-check
+error.** IE-010's brief named that file in its surface and the launch message
+assigned it to IE-013. Both edit it. The consequence is a real conflict at
+integration rather than a design problem, and the merge order already had
+IE-013 first, so IE-010 rebases over it. Recorded as an error in the check,
+not in the work.
+
+**4 — One finding outranks the task that produced it.** `coverage.ts` calls
+`writeFileSync('COVERAGE.md', …)` at module top level, and two test files
+import it — so **`npm test` rewrites a tracked file**, and the gauntlet's
+`git diff --exit-code COVERAGE.md` step passes because the suite has just
+regenerated it rather than because the committed file was already right. The
+check has been weaker than it reads for as long as that import has existed.
+Pre-existing, out of this brief's scope, and queued.
+
+Nothing else signalled: no new event type, no reducer or fold change, no
+special case, both frozen logs untouched, reviewer PASS at the first round.
+
+GREEN. **Merge held behind IE-013**, per the tranche's stated order and now
+also because of finding 3.
