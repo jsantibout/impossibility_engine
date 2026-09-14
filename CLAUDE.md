@@ -146,7 +146,7 @@ from this file alone.**
 
 | If you are changing … | Read first |
 |---|---|
-| casting, pending castings, ongoing spells, Concentration, rituals, long castings — `commands/casting.ts`, `commands/spell-resolution.ts` | `docs/design/casting.md` |
+| casting, pending castings, ongoing spells, Concentration, rituals, long castings, the per-kind effect resolvers — `commands/casting.ts`, `commands/spell-resolution.ts`, `commands/spell-effect-*.ts` | `docs/design/casting.md` |
 | the definition format, an effect kind, the rider vocabulary, the validator or its SRD oracle, or any spell definition | `docs/design/spell-definitions.md` |
 | the event log, the reducer, the fold, state ownership, conditions, engine-owned transitions — anything under `packages/engine/src/fold/` | `docs/design/event-log.md` |
 | positioning, distance, creature volume, areas of effect, persistent or carried areas, teleportation, the combat model | `docs/design/space-and-areas.md` |

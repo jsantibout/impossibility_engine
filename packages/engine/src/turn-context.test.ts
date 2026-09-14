@@ -429,7 +429,7 @@ describe('no command-layer duration site is left refusing', () => {
       'a casting time is a span of seconds and never a moment in the turn order, so no turn-anchored refusal can arrive; the argument itself says so, which is what the assertion below reads',
     'commands/casting.ts: const pinned = resolveDuration(timeView(state), duration);':
       '`mustResolve`, which throws rather than returning: the span was resolved and read back off an `elapsed` deadline at the declaration, so a refusal here is programmer error rather than a thin record',
-    'commands/spell-resolution.ts: const deadline = resolveDuration(timeView(state), endOfNextTurn(target));':
+    'commands/spell-effect-riders.ts: const deadline = resolveDuration(timeView(state), endOfNextTurn(target));':
       'the delayed hit is not scheduled and is reported in `unverified` rather than refused — SRD Acid Arrow lands its first damage either way, so the casting succeeds and there is nothing for a caller to repair; converting it would change what that spell does, which is out of IE-046 by the owner',
   };
 

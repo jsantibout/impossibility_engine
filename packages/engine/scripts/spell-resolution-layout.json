@@ -1,0 +1,41 @@
+{
+  "commands/spell-effect-context.ts": ["EffectContext", "EffectOfKind"],
+  "commands/spell-effect-riders.ts": [
+    "scheduleDelayed",
+    "riderOptions",
+    "imposeCondition",
+    "applyRiders"
+  ],
+  "commands/spell-effect-rolls.ts": [
+    "resolveAttackEffect",
+    "resolveSaveDamageEffect",
+    "resolveSaveEffect"
+  ],
+  "commands/spell-effect-grants.ts": [
+    "resolveBuffEffect",
+    "resolveRollModeEffect",
+    "resolveArmorClassEffect",
+    "resolveDamageDefenseEffect",
+    "resolveSpeedEffect",
+    "resolveAttackRiderEffect"
+  ],
+  "commands/spell-effect-hit-points.ts": ["resolveTempHpEffect", "resolveHealEffect"],
+  "commands/spell-effect-conditions.ts": ["resolveConditionEffect", "resolveEndConditionEffect"],
+  "commands/spell-effect-magic.ts": ["resolveDispelEffect", "resolveInterruptCastingEffect"],
+  "commands/spell-effect-teleport.ts": ["resolveTeleportEffect"],
+  "commands/spell-resolution.ts": [
+    "resolveSpell",
+    "resolveDeclaredCast",
+    "castOrRelease",
+    "RITUAL_SECONDS",
+    "CastingTiming",
+    "castingOf",
+    "resolveOnTargets",
+    "creatureTypeNeeds",
+    "resolveOneEffect",
+    "resolveEffects",
+    "landedOn",
+    "OngoingRecordPlan",
+    "statedFacts"
+  ]
+}

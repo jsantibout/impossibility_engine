@@ -151,6 +151,61 @@ has the components. Spell lists, preparation and inventory are not modelled, and
 refusing on a rule the engine cannot evaluate is worse than leaving it to the
 layer that knows.
 
+### One dispatch, and the rules it dispatches to live next door
+
+`commands/spell-resolution.ts` holds the casting, the pre-flight, the loop and
+the dispatch. It does **not** hold the rule each effect kind applies: that is a
+function per effect kind over one gathered `EffectContext`, and they live in
+sibling modules named for the family each rule belongs to.
+
+| module | the kinds it holds |
+|---|---|
+| `commands/spell-effect-rolls.ts` | `attack`, `save-damage`, `save` |
+| `commands/spell-effect-grants.ts` | `buff`, `roll-mode`, `armor-class`, `damage-defense`, `speed`, `attack-rider` |
+| `commands/spell-effect-hit-points.ts` | `heal`, `temp-hp` |
+| `commands/spell-effect-conditions.ts` | `condition`, `end-condition` |
+| `commands/spell-effect-magic.ts` | `dispel`, `interrupt-casting` |
+| `commands/spell-effect-teleport.ts` | `teleport` |
+
+with `commands/spell-effect-context.ts` holding the context type and
+`commands/spell-effect-riders.ts` holding what a settled outcome carries —
+`applyRiders` and the three pieces it composes.
+
+**The families are the engine's own, not a filing convenience.** The six in
+`spell-effect-grants.ts` are exactly the six `grantsOf` walks in
+`fold/release.ts`, so the enumerator and the resolver set are the same list
+written twice; a seventh family joining one joins the other. The three in
+`spell-effect-rolls.ts` are the only three that **host an outcome** —
+something rolled, an affirmative branch, riders hung on that branch — which is
+the whole of what `applyRiders` exists for, and every other kind lands or does
+not land with nothing for a rider to ride. And `spell-effect-teleport.ts`
+holds one function, because one is how many are in its family: a module of one
+is the true answer where a contrived family would not be.
+
+**The dispatch is still one `switch` with one `never` default**, and moving the
+bodies out is exactly why that matters more than it did. The `never` binding is
+what makes a kind added to the union and not to the dispatch a compile error
+rather than a wrong answer in a fight — a lookup table keyed by `kind` would be
+satisfied by a partial one, and a table assembled out of six modules would be
+satisfied by five of them.
+
+**`EffectContext` is a leaf both halves import**, which is the one placement
+decision the split had to make. Left where it was, every resolver module would
+import the module that imports it; that compiles, because a type is erased, and
+an import cycle that survives only because of erasure is not an acyclic graph
+but one whose failure has been deferred to whichever module loads first.
+`packages/engine/scripts/spell-resolution-graph.ts` is the evidence — the same
+declaration-level walk `fold-graph.ts` runs, over this family, reading the
+layout from a JSON file so that it answers **before and after** the move and a
+precondition is not something only the finished code can be asked.
+
+**Why this file and not another.** It was the engine's measured contention
+point: across one tranche of twelve merges it was touched by four of them and
+ran to three thousand lines, more than the reducer on both counts — and it is
+the file that lost a task outright, one that could not run beside two others
+because all three wanted it. The split is what lets three rules about three
+different families be written at once.
+
 ### Limitations, stated rather than papered over
 
 - **A casting time of 1 minute or more is built, in combat and out of it.**
