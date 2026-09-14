@@ -1,6 +1,6 @@
 # IE-021 — `COVERAGE.md` has one writer, so the gauntlet's diff means something
 
-state: IMPLEMENTING
+state: CHANGES_REQUIRED
 lane: tooling
 tranche: 5
 parallel-safe: YES — `scripts/coverage.ts` and two test imports; no engine module

@@ -557,14 +557,28 @@ IE-028, IE-029, every one 13/13. `main` at `d53ae63`, **7017 tests across 108
 files**, both frozen logs untouched, `COVERAGE.md` byte-clean, pushed after
 every merge. **Waves 1 and 2 are complete**; wave 3 is running.
 
-**The instruments the delta audit called broken are repaired, and every one of
-them has now fired on a real defect.** IE-022's citation guard found five
+**Three of the four repaired instruments have fired on real defects, and the
+fourth just failed condition 12.** IE-022's citation guard found five
 misquotes, three of them counts quoted from a `PROGRESS.md` since re-derived.
 IE-023's C0 sweep caught the character that made the audit flag unfireable —
 and then caught the same class **in its own source** before it was committed.
-IE-024's validator found that the rider-is-a-leaf denylist reached one effect
-list of three, which `CLAUDE.md` had claimed closed. IE-021, the last of them,
-is still building.
+IE-024's validator found the rider-is-a-leaf denylist reaching one effect list
+of three, which `CLAUDE.md` had claimed closed.
+
+**IE-021 is at `CHANGES_REQUIRED` on condition 12, and it is the condition
+working rather than failing.** Its sweep is defined over every script in
+`packages/engine/scripts/`, and **IE-023 put two *tests* in that directory**
+while IE-021 was building. One of them writes throwaway fixtures so it can
+drive the real CLI — which is not "a script that writes at import time" and is
+not what the guard is about. The rule is right; its population changed under
+it. Sent back with the failure quoted, and it is re-reviewed rather than merged
+on a review that saw a different population.
+
+There is a real tension in the fix and it is the builder's: the hard-coded file
+list its reviewer praised as a vacuity guard is also the hand-kept-list shape
+this repository keeps finding wrong — twice tonight alone. Whatever replaces it
+must fail when the population genuinely empties **and** not fail when somebody
+adds a test beside a script.
 
 **IE-024's YELLOW is answered, and the first rework came back `ESCALATE` on
 *authority* with no defect reported — because of a process failure of the
@@ -778,3 +792,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | merge (tranche authority) | IE-029 | merged `74e3c46`, 13/13, risk gate **inspected** (two declared behaviour changes, and the action economy's refusal surface). Out-of-turn movement reported `not_enough_movement` under a reason string reading "it is not b's turn" — one question, two answers, which is what a refusal being a value exists to prevent. Both exemptions are pinned by **sweeps over the facts that would end them**, not by sentences. **Wave 2 complete** |
 | 2026-09-14 | merge (tranche authority) | IE-024 | merged `d53ae63`, 13/13, risk gate inspected. Five rounds in total, of which **three were the question Fable answered and one was the foreman's process defect** — only the last two were about the code. It **removes** a second source of truth: `checkGrantLifetimes` had its own copy of the three effect lists, and `effectLists` is now the one enumeration both it and `checkShape` read. The ordinary defect its final round found was a hand-kept list in the very file five queued tasks edit — the shape `CLAUDE.md` records going wrong repeatedly, written while writing about that shape |
 | 2026-09-14 | launch | IE-030, IE-031 | wave 3, launched together on `d53ae63`. Parallel-safe by inspection: IE-030 holds `spell-definitions.ts`, `targeting.ts`, `spell-resolution.ts`, `spell-schema.ts`, `events.ts` and `missing-shapes.ts`; IE-031 holds `standing.ts`, `combat.ts`, `movement.ts`, `actions.ts`, the class files and `invariants.test.ts`. **Both launch prompts carry what changed under them since their briefs were written** — IE-030 the new `effectLists` idiom and the `satisfyWith` sweep, IE-031 the two refusal remaps IE-029 removed — because a brief pointing at stale line numbers is how a builder fixes the wrong thing |
+| 2026-09-14 | `CHANGES_REQUIRED` (condition 12) | IE-021 | the base moved eight merges and **IE-023 added two tests to `packages/engine/scripts/`**, the directory IE-021's sweep is defined over — so its population assertion and its unguarded-write assertion both failed after the rebase, on a test writing fixtures rather than a script writing at import time. **The first time this tranche's integration condition has caught something**, and it caught exactly what it is for: a review that passed a branch whose sweep had a different population. Returned and re-reviewed rather than merged. The `CLAUDE.md` conflict was the known mechanical one — two new `###` sections at one insertion point, both kept |
