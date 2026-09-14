@@ -23,7 +23,25 @@ Last whole-engine audit: the third, 2026-09-13 —
 the Done table, commit `588d7a0`.
 
 Engine tasks completed since last audit: 4
-Audit due at: 4 — **reached; the audit runs before tranche 4 is proposed**
+Audit due at: 4 — **reached; the gate is chartered and running**
+
+**The gate is scoped, at the owner's instruction** (2026-09-13): Fable is
+chartered on one architectural question rather than a whole-engine sweep —
+**the restricted child vocabulary for outcome-scoped child effects**, which
+`docs/architecture/spell-leverage-audit-2026-09-13.md` ranks as the
+highest-leverage and highest-risk missing primitive and names as not the
+foreman's to design. The deliverable is
+`docs/architecture/outcome-scoped-child-effects-2026-09-13.md`, a design
+record only; nothing is implemented and tranche 4 is not launched.
+
+Recorded precisely so nobody later reads a narrow review as a broad one:
+**the periodic audit's usual whole-engine sweep did not run at this
+threshold.** What was accumulating for it is on the task files and in the
+leverage audit — a command layer that is twenty-one modules and a barrel, a
+public surface fourteen names wider, `once` making a guard-above-the-check
+structurally impossible, two frozen logs covering all 91 event types, two
+wrong-number bugs found in progression, and seventeen event types no command
+emits. The next threshold should either sweep or say again why it did not.
 
 The counter counts tasks that changed engine source outside tests and
 definition prose: IE-003 (`5dfbc39`), IE-005 (`4f829e9`), IE-008
@@ -367,4 +385,6 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | workflow change | — | `WORKFLOW.md` "Parallel safety": the command layer is no longer one primitive. One module under `commands/` is; two mechanism tasks in different domains may run concurrently, and still collide on the barrel and `invariants.test.ts` |
 | 2026-09-13 | workflow change | — | Two repeated tranche-2 findings folded into the procedure: **round exhaustion is not a failed review** (the foreman may authorise one further bounded pass when findings are strictly shrinking, confidence high, escalation none and the remainder is not architecture — never manufacturing a PASS, never skipping independent review), and **rebases are the foreman's** (builders finish and report a branch; briefs stop asking them to rebase). `WORKFLOW.md`, `qb-builder.md` |
 | 2026-09-13 | Gate 1 | IE-008, IE-001, IE-007, IE-009 | approved — "APPROVE TRANCHE 3"; launched with three builders, IE-007 held until IE-001 merges |
+| 2026-09-13 | planning objective | — | the SRD surface is planned as a leverage problem — verified coverage per unit of engine complexity, not raw spell count. A change to the foreman's objective, not to authority: review loop, thirteen conditions, bounded extra pass, escalation and foreman-owned rebases all unchanged. `docs/architecture/spell-leverage-audit-2026-09-13.md` |
+| 2026-09-13 | whole-engine gate | — | chartered, and **scoped by the owner** to one question: the restricted child vocabulary for outcome-scoped child effects. Design record only; `REJECT` and "narrower than asked" are legitimate answers. Tranche 4 not launched |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |
