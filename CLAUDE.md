@@ -6132,7 +6132,13 @@ when the population *empties*, so it names the three scripts that **write**: a
 wrong directory, a filter too narrow and an exclusion too broad all take those
 out of it, and none of them is disturbed by a file arriving. A new script with
 an unguarded write still fails the sweep itself; a new script without one
-should fail nothing, which is exactly what an inventory got wrong.
+should fail nothing, which is exactly what an inventory got wrong. **And a new
+script whose write *is* guarded fails until it is named in the floor** — which
+is the third case and the right one: a script that writes belongs in front of a
+reviewer, and the floor is where saying so costs one line. Two cases read as
+complete here until the builder said otherwise, and an enumeration that reads
+complete and is not is the shape this file records going wrong in IE-008's two
+lists of pool kinds.
 
 **One idiom, spelled one way, and executed rather than read.** The sweep holds
 every guarding script to the same line byte for byte, because the looser
