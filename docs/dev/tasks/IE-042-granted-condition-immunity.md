@@ -1,13 +1,13 @@
 # IE-042 — A condition immunity a spell grants
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 7
 parallel-safe: CONDITIONAL — `spell-definitions.ts` types, `spell-schema.ts`, its own resolver module, `fold/release.ts`; not beside IE-053 or IE-054
 depends-on: IE-051
-worker: qb-builder, launched 2026-09-14 from `2bb66bb` (wave 3)
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 7."
 
 ## Brief
 
@@ -142,3 +142,119 @@ Three things to read with the brief, all of which changed under it:
   because IE-044 backfilled its ten claimants. That is why the roster looks
   correctness-heavy, and it is also why acceptance criterion 7 — re-reading the
   nine remaining claimants one at a time — is the part that must not be rushed.
+
+## Completion digest
+
+**Merged `60348ef`**, reviewer PASS at high confidence, round 2. `main` green at
+**8,720 tests across 127 files**; both frozen logs untouched.
+
+**The task tranche 6 lost is shipped.** It was approved in tranche 6, held
+correctly out of two waves because it collided with IE-046 and IE-047, then
+never picked back up — the failure that produced IE-058. Re-rostered here and
+delivered.
+
+### The foreman put two owners on one primitive, and the builder caught it
+
+The launch prompt told this builder *"Neither shares a file with you"*. **That
+was wrong.** IE-056 owned `packages/engine/scripts/missing-shapes.ts` and
+`packages/engine/src/blocked-on.test.ts`, and this brief's **required behaviour
+6 forces the builder into both**. That is a one-owner-per-primitive violation
+and the foreman caused it.
+
+**Why it did not cost anything**, and none of the three reasons is luck:
+
+1. **The builder read its own brief against the launch prompt, found the
+   contradiction, and said so** rather than assuming the foreman knew — with the
+   overlap characterised precisely: *by content, not by region*; it touched only
+   the ten `a-condition-immunity-a-spell-grants` claimants, the `MISSING_SHAPES`
+   vocabulary and the one `describe` block about that family, while IE-056
+   worked four other families.
+2. It named the two fixture changes a merge would hide: two assertions moved off
+   `mind-blank` (now defined) onto `heroes-feast`, and the `SOLE` row
+   `['mind-blank', ...]` replaced with `['heroism', 'a-payout-at-a-turn-boundary']`.
+3. **It told the foreman not to trust a clean auto-merge** — *"a mechanical merge
+   will leave the map saying something false, so the foreman should resolve it by
+   reading."*
+
+**It was right, and the falsehood was in a third file neither of us named.**
+`missing-shapes.ts` and `blocked-on.test.ts` auto-merged cleanly. The conflict
+landed in `persistence-2.test.ts`, and the part git *silently* merged was worse
+than the part it flagged: IE-055 and IE-042 had each added a paragraph to the
+uncovered-event ledger, and **both correctly wrote "is the fifth"** against a
+`main` that held four. The merge produced two fifths, in an order running third,
+fifth, fourth, fifth. No test could see it — it is prose.
+
+Resolved by reading: `combatant-joined` is the fifth (it merged first),
+`condition-immunity-granted` is the sixth, and the out-of-order paragraph was
+moved to where its ordinal says it belongs.
+
+### The real finding: `parallel-safe` is a hand-kept list that its own brief contradicts
+
+This brief's `parallel-safe` line names *"`spell-definitions.ts` types,
+`spell-schema.ts`, its own resolver module, `fold/release.ts`"*. It does **not**
+name `missing-shapes.ts` or `blocked-on.test.ts` — which requirement 6 makes
+mandatory — nor `persistence-2.test.ts`, where the collision with IE-055 actually
+happened. Two independent collisions in one wave, both from a summary line that
+the brief body contradicts.
+
+**That is this repository's most-repeated failure shape wearing a new hat**: a
+hand-maintained list of something derivable. The foreman schedules from that line
+and it is not sound. Recorded in `LATER`.
+
+### Two new shape ids, and why they are not the precedent they look like
+
+The retired `a-condition-immunity-a-spell-grants` leaves two residues:
+`a-condition-immunity-narrowed-to-its-source` (**4** claimants) and
+`a-condition-a-spell-suppresses` (**1**).
+
+A one-claimant shape looks inconsistent with the foreman's decision earlier today
+that Creation stays out of `an-area-a-slot-scales` for having one consumer. **It
+is not, and the distinction is worth stating so the record does not contradict
+itself.** The two-writer bar governs *inventing* a shape. These are **residues of
+a bundle that was split after reading all ten entries** — IE-015's recorded
+pattern — and a residue inherits the bundle's justification. Creation would be a
+new id with one writer and no bundle behind it.
+
+### Criterion 7: nine claimants re-read entry by entry
+
+Four turn out to be **expressible** and are freed — Calm Emotions' first clause,
+Gaseous Form, Heroes' Feast, Heroism, Wind Walk. Four are narrowed by their
+source: Freedom of Movement (*"spells and other magical effects"* — a Ghoul's
+claws still land), Hallow, Magic Circle, Protection from Evil and Good. One is
+suppression rather than immunity. Hallow's second clause was **re-filed** to
+`a-standing-effect-derived-from-where-a-creature-stands`, where its sibling
+clause Fear already sat.
+
+**And the re-reading paid somewhere else entirely**: freeing Heroism leaves it
+with one blocker and hands `a-payout-at-a-turn-boundary` a **read** finish, which
+is visible in `COVERAGE.md` as that family moving out of the zero table. A
+capability task that ungates a *different* family by reading carefully is the
+instrument working exactly as IE-044 intended.
+
+### Verified
+
+Mind Blank enters verified — **98 executed, 76 verified** — the retired shape
+leaves the table and the two residues enter. The end-to-end fixture is the
+discriminating one the reviewer named: a Charm Person aimed at the protected
+fighter **and** an unprotected squire on one seed, asserting **both saves
+failed**, so the refusal cannot be confused with a lucky roll. Two mutations,
+both biting: dropping the `grantsOf` line fails `tsc` with TS2741 naming the
+property — the mapped-type guard doing its job — and dropping the union in
+`conditionImmunitiesOf` fails four tests.
+
+`COVERAGE.md` was **regenerated at integration rather than merged**, which is
+this repository's rule for it; the builder's copy was correct for a base without
+IE-056.
+
+### Reported, not acted on
+
+- `conditionApplicability` at `monster.ts:266` still takes an `AdaptedMonster`
+  rather than a `CreatureState` — **verified, read, and deliberately untouched**.
+  That is the boundary that let this bundle split cleanly, and it is the exact
+  thing that made the derived `unblocks` query mispredict Mind Blank two tranches
+  ago.
+- `grant-enumerator.test.ts` exercises four of seven families at runtime — a gap
+  predating families five and six.
+- The `save` host reports `affected: true` on a failed save even when the
+  condition was refused as immune, with `conditions: []` carrying the truth —
+  pre-existing, identical for a printed immunity.
