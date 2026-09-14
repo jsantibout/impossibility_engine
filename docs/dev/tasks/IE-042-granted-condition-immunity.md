@@ -1,12 +1,12 @@
 # IE-042 — A condition immunity a spell grants
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `spell-definitions.ts` types, `spell-schema.ts`, `commands/spell-resolution.ts`, `fold/release`; not beside IE-040, IE-043, IE-046, IE-047 or IE-048
 depends-on: IE-040
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
 ## Brief

@@ -551,7 +551,7 @@ first item: a 4,800-line split would stall every mechanism task behind it.
 
 Recommendation: APPROVE TRANCHE 5.
 
-### Tranche 6 — PROPOSED
+### Tranche 6 — APPROVED 2026-09-14 — "APPROVE TRANCHE 6."
 
 roster: IE-036, IE-038, IE-039, IE-040, IE-041, IE-042, IE-043, IE-044, IE-045, IE-046, IE-047, IE-048, IE-049
 
@@ -690,7 +690,7 @@ Recommendation: APPROVE TRANCHE 6.
 
 ## CURRENT
 
-**Tranche 6 is PROPOSED and awaits the owner. Nothing executes.**
+**Tranche 6 is APPROVED and running. Wave 1 is launched.****
 
 `main` is at `7f503c2` — **7,812 tests across 116 files**, both frozen logs
 untouched, `COVERAGE.md` byte-clean, tree clean, everything pushed. Tranche 5
@@ -705,7 +705,21 @@ two of its concurrency claims corrected, two of its bundles split, two of its
 simplifications deferred with reasons, and one owner decision — turn-anchored
 riders outside combat — added as IE-046.
 
-**Awaiting: `DEVELOPMENT TRANCHE 6 — OWNER_APPROVAL_REQUIRED`.**
+**Wave 1 (launched 2026-09-14): IE-038, IE-043, IE-044.** The foreman is
+event-driven from here: it is woken by a completion notification, an
+escalation or an owner decision, runs the risk gate and the thirteen
+conditions, merges what is clean under tranche authority, and launches the
+next wave. It stops at `TRANCHE_COMPLETE` or RED.
+
+**The owner's approval carries IE-038's revised architecture explicitly**
+(`73a3d1e`): casting id is the pending-casting identity boundary; no global and
+no per-caster uniqueness invariant; several pending castings may belong to one
+caster where the rules permit; legality is enforced by the action-economy,
+slot, Concentration and long-casting primitives rather than by uniqueness of
+pending state; an ambiguous casting reference resolves to a casting id rather
+than being guessed. **The answer-to-answer and held-answer limits remain
+explicitly non-SRD engine debt**, pending the deferred settle-order question,
+and this tranche may not be broadened to solve it.
 
 ## NEXT
 
@@ -871,3 +885,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | merge (tranche authority) | IE-037 | merged `062441c`, 13/13, risk gate inspected. **The last merge of tranche 5.** The discriminating fixture is a **40-foot room with a 30-foot spell** — disabling the scene check reddens exactly that case and nothing else, where a 600-foot hall would have hidden it for ever. `sceneFor` has one home on its third copy, and emptying it now reddens the scene, movement and teleport families together. No new event type, so both frozen logs fold unchanged |
 | 2026-09-14 | `TRANCHE_COMPLETE` | IE-020 … IE-037 | **17 of 18 shipped, 1 deferred.** Three YELLOWs — one predicted and resolved cleanly, two unforeseen, all three answered by Fable and one of those routed onward to the owner. Four brief errors of the foreman's, every one caught by a builder or reviewer and none reaching `main`. Tests 6,696 → 7,812; executed 91 → 96; `resolveEffects` 1,008 lines → 214. `main` verified green after every merge |
 | 2026-09-14 | owner correction (pre-approval) | IE-038 | The owner challenged "one open casting **per caster**" — Fable's IE-034 invariant, carried into the Gate 1 draft. **Re-audited against SRD 5.2.1 and the engine; the owner is right.** The proof case is the rite's *own* caster taking a Reaction, not a Counterspell duel — and the owner was right to rule that duel out, since `spells.md:167` ("on a turn, you can expend only one spell slot") can defeat it. `rules-glossary.md:455` breaks Concentration only for a spell that **requires** it, so Shield and Counterspell leave a rite standing; `spells.md:175` puts the Magic action obligation on the caster's **own** turns. A held Shield beside a pending rite is two pending records for one caster, legal, needing no unbuilt mechanic. Invariant revised to **casting identity alone**; the reducer's throw becomes id-based and **Counterspell addresses the casting by id** (ambiguous by caster once a caster may have two) — both GREEN, following IE-007's and IE-048's established "address a casting by its id". The nesting refusal stays, restated as a relationship rule and explicitly **not** an SRD rule. No YELLOW: nothing here invents foundational architecture |
+| 2026-09-14 | `APPROVE TRANCHE 6` | IE-036, IE-038 … IE-049 | Thirteen tasks, five waves, three builders. The owner approved the revised IE-038 architecture by name — casting id as the identity boundary, no uniqueness invariant global or per caster, legality by real primitives, ambiguity resolved to an id — and ruled the answer-to-answer and held-answer limits **explicitly non-SRD engine debt** pending the deferred settle-order question, with no broadening of this tranche to solve it |

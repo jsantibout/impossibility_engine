@@ -1,12 +1,12 @@
 # IE-039 — Split `events.ts` along the fold's own seams
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 6
 parallel-safe: NO — it *is* `events.ts`; nothing that touches the fold runs beside it
 depends-on: IE-038
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
 ## Brief

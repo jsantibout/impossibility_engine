@@ -1,12 +1,12 @@
 # IE-043 — The `end-of-current-turn` moment
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `duration.ts`, `spell-definitions.ts` types, `spell-schema.ts`; content-line collision with IE-036 only, the IE-035 ∥ IE-036 precedent
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
 ## Brief

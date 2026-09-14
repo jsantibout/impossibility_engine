@@ -1,12 +1,12 @@
 # IE-047 — Derive `OngoingSpell.on`, and three tests the suite was missing
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 6
 parallel-safe: CONDITIONAL — `fold/release`, `fold/expiry`, `commands/ongoing.ts`, `persistence-2.test.ts`; not beside IE-042 or IE-048
 depends-on: IE-039
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
 ## Brief

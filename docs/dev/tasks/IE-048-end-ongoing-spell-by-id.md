@@ -1,12 +1,12 @@
 # IE-048 — End a casting by its id, and retire the two zero-caller commands
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `commands/casting.ts`, `commands/ongoing.ts`, the barrel; not beside IE-041, IE-042, IE-046 or IE-047
 depends-on: IE-038, IE-041
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
 ## Brief

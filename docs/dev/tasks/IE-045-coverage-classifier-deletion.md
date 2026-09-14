@@ -1,12 +1,12 @@
 # IE-045 — Delete the shape classifier; derive `PARTIAL_SPELLS`
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: tooling
 tranche: 6
 parallel-safe: CONDITIONAL — `scripts/coverage-data.ts`, `scripts/coverage.ts`, `spell-honesty.test.ts`; after IE-044, same script files
 depends-on: IE-044
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
 ## Brief

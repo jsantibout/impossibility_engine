@@ -1,12 +1,12 @@
 # IE-041 — The in-combat long casting
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `commands/{casting,spell-resolution,turns,scene}.ts`, `fold/casting`, `fold/turns`; not beside IE-038, IE-042, IE-046 or IE-048
 depends-on: IE-038, IE-039
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
 ## Brief

@@ -1,12 +1,12 @@
 # IE-044 — Clause-anchored blockers, and a sentence-coverage guard
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 6
 parallel-safe: CONDITIONAL — `scripts/missing-shapes.ts`, `blocked-on.test.ts`, `scripts/coverage.ts`; before IE-036 and IE-045, which both touch what it changes
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
 ## Brief
