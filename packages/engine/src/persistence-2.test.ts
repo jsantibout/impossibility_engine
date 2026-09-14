@@ -383,8 +383,16 @@ function declaredEventTypes(): readonly string[] {
  * drives it end to end through Longstrider, Ray of Frost and Hypnotic Pattern.
  * **A new event type is uncovered by construction until the next frozen log is
  * written**, and a named entry saying which and why is the honest record.
+ *
+ * `attack-rider-granted` is the third, arriving by the same construction:
+ * neither log was written when a spell could hang extra damage on a creature's
+ * later attacks, so no casting in either emits one.
+ * `attack-riders.test.ts` folds it and drives it end to end through Divine
+ * Favor and Hunter's Mark — a weapon attack, a spell attack, a Critical Hit,
+ * and every door the grant is ended by.
  */
 const UNCOVERED_EVENT_TYPES: readonly string[] = [
+  'attack-rider-granted',
   'damage-defense-granted',
   'speed-modifier-granted',
 ];

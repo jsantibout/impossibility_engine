@@ -24,7 +24,8 @@ import {
 } from './conditions.js';
 import { abilityModifier, armorClass } from './character.js';
 import { distanceBetween } from './positioning.js';
-import type { GameState } from './events.js';
+import type { CreatureState, GameState } from './events.js';
+import { spellOfSource } from './spells.js';
 import type { DamageDefenses, DefenseKind } from './attack.js';
 import type { Weapon } from '@ie/srd';
 import { canUseFeatureThisTurn, movementLeft } from './combat.js';
@@ -915,6 +916,97 @@ export interface GrantedSpeed {
 }
 
 /**
+ * Extra damage an ongoing effect adds to the holder's **later** attacks.
+ *
+ * The sixth member of the family `bonuses`, `armorClasses`, `rollModifiers`,
+ * `grantedDefenses` and `speedModifiers` already form, and like the fifth it
+ * needed no lifecycle of its own: the casting is in the `source`, so
+ * `releaseCasting`, `releaseOnTarget` and a `grants` deadline all end it
+ * through the door the other five already use.
+ *
+ * **It is held by whoever *deals* the damage, never by whoever takes it.**
+ * SRD Hunter's Mark marks a quarry ninety feet away and then says "**you**
+ * deal an extra 1d6 Force damage to the target" — the ranger is the one the
+ * rider is on, and {@link target} is the creature it is *about*. Storing it on
+ * the quarry would have been the tempting reading and would give a second
+ * ranger's arrow the first ranger's die.
+ *
+ * **Two fields, because the SRD writes two different clauses**, and the
+ * difference is the one thing about this shape that is easy to get wrong:
+ *
+ * | | SRD | Fields |
+ * |---|---|---|
+ * | Divine Favor | "**your attacks with weapons** deal an extra 1d4 Radiant damage on a hit" | `weaponOnly`, no `target` |
+ * | Hunter's Mark | "you deal an extra 1d6 Force damage **to the target** whenever you hit it **with an attack roll**" | `target`, no `weaponOnly` |
+ *
+ * So Divine Favor reaches every weapon in the ranger's hands and no Fire Bolt,
+ * and Hunter's Mark reaches a Fire Bolt aimed at the quarry and nothing aimed
+ * at anybody else. Sharing one predicate would have made one of the two
+ * spells wrong, silently, in the direction nothing measures.
+ *
+ * **The damage type is required.** Every SRD sentence of this shape names one
+ * — Radiant, Force, Necrotic — and the absent-means-the-weapon's-own-type
+ * reading `standingAttackDamage` takes for a *feature* has no spell consumer,
+ * so a field that could be left out would be shape built ahead of the mechanic
+ * that wants it.
+ */
+export interface GrantedAttackRider {
+  /** The casting (`Divine Favor#cast:3`) that granted it. */
+  readonly source: string;
+  /** The extra dice, e.g. `1d4`. A notation rather than a `DiceScaling`: no
+   * SRD sentence of this shape grows its dice with the slot or the level. */
+  readonly dice: string;
+  /** The damage type the sentence names. Never the weapon's own. */
+  readonly damageType: string;
+  /** SRD Divine Favor's "attacks **with weapons**". Absent reaches any attack. */
+  readonly weaponOnly?: true;
+  /** SRD Hunter's Mark's "**to the target**". Absent reaches any target. */
+  readonly target?: CharacterId;
+}
+
+/**
+ * The riders on this creature's attacks that have something to say about
+ * *this* attack.
+ *
+ * **One gatherer, three paths.** A weapon attack and the second half of a held
+ * one both arrive through {@link standingAttackDamage}, which folds this in;
+ * a *spell* attack calls it directly, because SRD Hunter's Mark says "whenever
+ * you hit it with an attack roll" and a Fire Bolt is one. What the spell path
+ * must **not** take is the feature half beside it — Sneak Attack and Rage
+ * Damage are weapon rules — which is why this is its own function rather than
+ * `standingAttackDamage` pointed at a third caller.
+ *
+ * That is the `defendingModes` lesson applied on the offensive side: emptying
+ * this function fails a weapon-attack test, a held-attack test *and* a
+ * spell-attack test, which is the evidence it is one gatherer and not three
+ * spelled alike.
+ *
+ * Returned in the shape `rollAttackDamage` takes its `extraDamage` in, so the
+ * die is a **component of its own** with its own type and source: it meets the
+ * target's defences separately, and a Critical Hit doubles it.
+ */
+export function grantedAttackRiders(
+  creature: CreatureState | undefined,
+  context: { readonly weapon: Weapon | null; readonly target: CharacterId },
+): readonly { readonly source: string; readonly type: string; readonly dice: string }[] {
+  if (creature === undefined) return [];
+  return creature.attackRiders
+    .filter((rider) => {
+      if (rider.weaponOnly === true && context.weapon === null) return false;
+      if (rider.target !== undefined && rider.target !== context.target) return false;
+      return true;
+    })
+    .map((rider) => ({
+      // `spellOfSource` gives the readable half back, so the log says "Divine
+      // Favor" rather than `Divine Favor#cast:3`. The casting id stays in the
+      // grant, which is what ends it.
+      source: spellOfSource(rider.source),
+      type: rider.damageType,
+      dice: rider.dice,
+    }));
+}
+
+/**
  * Compose a Speed out of its parts, in the order the architect fixed.
  *
  * **The SRD prints no order**, and the order is observable, so it is decided
@@ -1251,6 +1343,20 @@ export function standingAttackDamage(
       });
     }
   }
+
+  // **The spell riders, folded in here rather than at the two call sites.**
+  // `resolveAttack` and `resolveAttackDamage` both already ask this function
+  // what rides a hit, so a rider reaches a swung weapon and a held one with no
+  // new call site to forget — which is exactly the fork `defendingModes`
+  // closed on the defensive side. The spell-attack path calls
+  // {@link grantedAttackRiders} on its own, because it must not take the
+  // feature half above.
+  extra.push(
+    ...grantedAttackRiders(state.creatures[who], {
+      weapon: context.weapon,
+      target: context.target,
+    }),
+  );
 
   return { bonuses, extra, spent, unverified };
 }

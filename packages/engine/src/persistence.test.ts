@@ -196,6 +196,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'attack-damage-dealt',
   'attack-landed',
   'attack-made',
+  'attack-rider-granted',
   'bonus-action-spent',
   'bonus-applied',
   'bonus-removed',

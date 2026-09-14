@@ -20,7 +20,7 @@ import {
 } from '../events.js';
 import { type Placement, type Point } from '../positioning.js';
 import { type SlotKind } from '../resources.js';
-import { definitionFor } from '../spell-definitions.js';
+import { definitionFor, durationSecondsAt } from '../spell-definitions.js';
 import { castSpell, chooseRoute, type ConcentrationSaveSupply, nextCastingId } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { schedule } from './conditions.js';
@@ -617,7 +617,11 @@ function releaseSpell(
     const timer = schedule(
       events.reduce(applyEvent, state),
       { kind: 'casting', castingId: response.castingId },
-      { kind: 'seconds', seconds: definition.durationSeconds },
+      // The band the slot reached, through the same reader the ordinary
+      // resolution uses — a readied spell cast from a level 5 slot lasts what
+      // a level 5 slot buys, and two spellings of that arithmetic would be two
+      // places for one sentence to go wrong.
+      { kind: 'seconds', seconds: durationSecondsAt(definition, response.castLevel)! },
     );
     if (!timer.ok) return timer;
     events.push(timer.value);

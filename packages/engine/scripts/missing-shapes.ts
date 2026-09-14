@@ -173,13 +173,13 @@ export const MISSING_SHAPES = {
   'a-spells-effects-applied-to-different-targets':
     'CLAUDE.md: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that chooses per creature, or divides a pool among them, is the same gap.',
   'a-rider-on-a-later-weapon-attack':
-    'CLAUDE.md, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". The feature side is built and no `SpellEffect` reaches it — extra damage, a substituted ability, or a different damage die.',
+    'CLAUDE.md, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. What is left is every rider that is not that: a **substituted ability** (Shillelagh, True Strike, Alter Self), a **replaced damage die** (the same three), a damage type **chosen at the moment of the attack** (Conjure Minor Elementals), a **flat** bonus of the weapon’s own type reaching the attack roll as well (Magic Weapon), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), and a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse).',
   'a-range-that-scales-with-caster-level':
     '`SpellDefinition.range` in spell-definitions.ts is one fixed `SpellRange`, and `ranged(definition.range)` is checked on every casting — tracked or executed, before a target is looked at. CLAUDE.md keeps the two scaling axes apart on purpose — "**Cantrips scale by caster level and levelled spells by slot**, and they are separate fields rather than one overloaded number" — and both of them reach *dice*. Exactly one spell in the book prints a range that grows with the caster, and the engine would refuse the casting the SRD allows.',
   'a-cap-on-how-many-castings-run-at-once':
     '`replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. A spell that lets three of its own castings run at a time and no more is the same field with a number, and `state.ongoing` already holds everything needed to count them.',
   'a-duration-the-slot-changes':
-    'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". `durationSeconds` is one number, so a Dominate cast at a higher level runs for the level 5 minute.',
+    'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. What is left is the *other* half of the sentence PROGRESS.md quotes: a slot that changes **what kind** of duration the spell has. SRD Major Image is the one spell in the book that prints it — "The spell lasts until dispelled, **without requiring Concentration**, if cast with a level 4+ spell slot" — so a table of seconds cannot say it, and a member with one writer is what the format’s own unused-member sweep exists to refuse.',
   'a-deadline-anchored-to-a-rest':
     'CLAUDE.md: "`duration.ts` has two types" — "A span of time" and "A moment in the turn order". A rest is neither, and the SRD anchors effects to one constantly. The clock records `lastShortRestAt` and a rest is a span the engine measures, so the fact is there and no deadline can name it.',
   'an-effect-that-fires-when-the-casting-ends':
@@ -616,11 +616,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'Issuing commands and spending your Reaction to make the dominated creature act are both somebody else’s action economy, which no effect can spend.',
     },
-    {
-      clause: 'higher-level slot lengthens the Concentration',
-      why: 'a-duration-the-slot-changes',
-      note: 'SRD prints 10 minutes at level 5, 1 hour at 6 and 8 hours at 7 and above. `durationSeconds` is one number, so a Dominate Beast cast at level 7 still ends after the level 4 minute.',
-    },
   ],
   'dominate-monster': [
     {
@@ -633,11 +628,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'Commanding the target, and spending your own Reaction to make it take one of its Reactions, are both somebody else’s budget to spend.',
     },
-    {
-      clause: 'higher-level slot lengthens the Concentration',
-      why: 'a-duration-the-slot-changes',
-      note: 'SRD prints 8 hours with a level 9 slot, and the definition carries one duration for every level it can be cast at.',
-    },
   ],
   'dominate-person': [
     {
@@ -649,11 +639,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the telepathic link',
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'The commands the link carries are the target’s actions, and no effect spends another creature’s action economy.',
-    },
-    {
-      clause: 'higher-level slot lengthens the Concentration',
-      why: 'a-duration-the-slot-changes',
-      note: 'SRD prints 10 minutes at level 6, 1 hour at 7 and 8 hours at 8 and above; one `durationSeconds` cannot say three numbers.',
     },
   ],
   'eldritch-blast': [
@@ -741,6 +726,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "it can\u2019t end the Prone condition on itself." Standing up is something a creature does and the engine does not model it as an action a spell can forbid, so the Prone is lifted by the spell ending and by nothing this clause could stop.',
     },
   ],
+  'hunters-mark': [
+    {
+      clause: 'Advantage on a Wisdom (Perception or Survival) check made to find the quarry',
+      why: 'a-fact-only-the-table-can-declare',
+      note: 'SRD: "You also have Advantage on any Wisdom (Perception or Survival) check you make to find it." A `RollModifier` selects a check by ability and by skill, so Wisdom (Perception) and Wisdom (Survival) are each perfectly expressible — two grants, one sentence. What no selector can say is which of those checks is the one being made *to find the quarry*, and that is a fact about the attempt rather than about the roll. Granted unconditionally it would hand the ranger Advantage on every Perception check they roll for the hour the spell runs, which is the silent wrong answer this discipline exists to refuse.',
+    },
+    {
+      clause: 'moving the mark to a new creature when the quarry drops to 0 Hit Points',
+      why: 'an-outcome-that-reads-the-targets-hit-points',
+      note: 'SRD: "If the target drops to 0 Hit Points before this spell ends, you can take a Bonus Action to move the mark to a new creature you can see within range." The vitals are there and nothing reads a threshold on them, which is the whole of this shape; and the second half is a later action that re-aims what the casting already granted, where every registered `SpellActivation` resolves effects at a target instead.',
+    },
+  ],
   'hypnotic-pattern': [
     {
       clause: 'only a creature that can see the pattern',
@@ -791,13 +788,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'a condition chosen at the casting has nowhere to be recorded',
       why: 'a-choice-made-at-the-casting',
       note: 'SRD: "end one condition on it: Blinded, Deafened, Paralyzed, or Poisoned." One of four, and the caster picks — so a creature both Blinded and Poisoned is fully cured of both, where the book cures one. It is the same gap Blindness/Deafness carries from the other side, where the choice is between imposing two rather than lifting one.',
-    },
-  ],
-  'mass-suggestion': [
-    {
-      clause: 'higher-level slot lengthens the duration',
-      why: 'a-duration-the-slot-changes',
-      note: 'SRD prints 10 days at level 7, 30 days at 8 and 366 days at 9, and the definition carries the one duration its own level prints.',
     },
   ],
   'mind-spike': [
@@ -1309,7 +1299,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'an-activation-that-forces-a-saving-throw',
   ],
   divination: ['a-random-outcome-that-is-not-a-d20'],
-  'divine-favor': ['a-rider-on-a-later-weapon-attack'],
   'divine-word': [
     'a-second-place-to-put-a-creature',
     'a-spells-effects-applied-to-different-targets',
@@ -1457,16 +1446,26 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-long-casting-time',
   ],
   heroism: ['a-condition-immunity-a-spell-grants', 'a-payout-at-a-turn-boundary'],
-  hex: [
-    'a-choice-made-at-the-casting',
-    'a-duration-the-slot-changes',
-    'a-rider-on-a-later-weapon-attack',
-  ],
+  // **Both of IE-035's shapes reached it**, which is what that task was for:
+  // the extra 1d6 Necrotic "to the target whenever you hit it with an attack
+  // roll" is `attack-rider` word for word, and "level 2 (up to 4 hours), 3–4
+  // (up to 8 hours), or 5+ (24 hours)" is a `durationAtSlot` table — a
+  // different table from Hunter's Mark's, which is why the field is
+  // per-definition.
+  //
+  // **Two blockers are left, and the second is the one the brief missed.**
+  // IE-035's own acceptance criterion said Hex would be blocked on its chosen
+  // ability *alone*; SRD prints a third sentence — "If the target drops to 0
+  // Hit Points before this spell ends, you can take a Bonus Action on a later
+  // turn to curse a new creature" — which is Hunter's Mark's word for word and
+  // is filed for that spell under the same shape. One sentence in two spells
+  // must not have two answers, and the number it moves is a leverage count a
+  // tranche gets planned from.
+  hex: ['a-choice-made-at-the-casting', 'an-outcome-that-reads-the-targets-hit-points'],
   'holy-aura': [
     'a-spell-that-answers-a-later-attack',
     'a-standing-effect-derived-from-where-a-creature-stands',
   ],
-  'hunters-mark': ['a-duration-the-slot-changes', 'a-rider-on-a-later-weapon-attack'],
   'ice-knife': ['a-second-roll-sequenced-after-the-first'],
   identify: ['a-long-casting-time'],
   'illusory-script': ['a-long-casting-time'],

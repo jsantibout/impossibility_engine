@@ -96,7 +96,7 @@ import {
  * the fence `upgradeOngoing` stands behind is intact and a future correction
  * to the Monk table changes future sheets rather than historical folds.
  */
-import { speedOf, type GrantedSpeed } from './standing.js';
+import { speedOf, type GrantedAttackRider, type GrantedSpeed } from './standing.js';
 import {
   addLandmark,
   areaPointAt,
@@ -341,6 +341,27 @@ export interface CreatureState {
    * {@link grantedDefenses} out of {@link defenses}.
    */
   readonly speedModifiers: readonly GrantedSpeed[];
+  /**
+   * Extra damage a running effect adds to this creature's **later** attacks.
+   *
+   * The sixth member of the family the five above form, and the one whose
+   * reader already existed on the other side of the fence: `attack-damage` has
+   * been a *feature* grant since Sneak Attack landed — "a rider whose damage
+   * type is chosen at the hit", Rage Damage, Radiant Strikes — and no spell
+   * could hand one out. SRD Divine Favor, Hunter's Mark and Hex all write the
+   * sentence, and every one of them was a spell the catalogue had no
+   * definition for.
+   *
+   * **It sits on the attacker, which is what makes it a grant on a creature at
+   * all.** Hunter's Mark is cast at a quarry ninety feet away and the die is
+   * the ranger's; `GrantedAttackRider.target` is the creature the rider is
+   * *about*, and the rider itself is held by whoever swings.
+   *
+   * Linked by the casting in its `source` exactly as the other five are, so
+   * `releaseCasting`, `releaseOnTarget`, a dispel, a broken Concentration and
+   * the deadline all end it through the door that already existed.
+   */
+  readonly attackRiders: readonly GrantedAttackRider[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *
@@ -1132,6 +1153,30 @@ export type GameEvent =
       readonly type: 'speed-modifier-granted';
       readonly id: CharacterId;
       readonly modifier: GrantedSpeed;
+    }
+
+  /**
+   * An ongoing effect adds damage to a creature's later attacks.
+   *
+   * Its own event rather than a `bonus-applied`, because `BonusApplies` covers
+   * attacks, saves, ability checks and an Armour Class — all of them *rolls*
+   * or a number rolled against — and damage is none of them. And a bonus folds
+   * into the weapon's own damage type, where the whole point of this is that
+   * SRD Divine Favor's Radiant and Hunter's Mark's Force meet the target's
+   * defences **separately**: a component of its own, doubled on a Critical Hit
+   * like every other damage die.
+   *
+   * **`id` is the attacker**, not the creature the rider names. See
+   * {@link GrantedAttackRider}.
+   *
+   * Ended by the source it carries, exactly as the other five grants are, so
+   * there is no removal event: `releaseCasting`, `releaseOnTarget` and the
+   * `grants` timer are the doors.
+   */
+  | {
+      readonly type: 'attack-rider-granted';
+      readonly id: CharacterId;
+      readonly rider: GrantedAttackRider;
     }
 
   /**
@@ -2190,6 +2235,7 @@ const grantsOf = (creature: CreatureState): HeldGrants => ({
   rollModifiers: creature.rollModifiers,
   grantedDefenses: creature.grantedDefenses,
   speedModifiers: creature.speedModifiers,
+  attackRiders: creature.attackRiders,
 });
 
 /** How many grants are in a record of families, which a `filter` can only lower. */
@@ -4124,6 +4170,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             rollModifiers: [],
             grantedDefenses: [],
             speedModifiers: [],
+            attackRiders: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
@@ -5162,6 +5209,21 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         event.modifier,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { speedModifiers }, creature);
+    }
+
+    case 'attack-rider-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, which
+      // is the rule every other grant in the family follows. **The source
+      // alone is the identity**, as it is for a defence and a Speed: no SRD
+      // sentence hangs two riders on one creature from one casting, and
+      // re-casting Hunter's Mark at a new quarry is the *same* casting's rider
+      // pointed somewhere else rather than a second one.
+      const attackRiders = [
+        ...creature.attackRiders.filter((held) => held.source !== event.rider.source),
+        event.rider,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { attackRiders }, creature);
     }
 
     case 'bonus-removed': {

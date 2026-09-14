@@ -283,18 +283,19 @@ applied. Between them the pair covered every type the reducer declared on the
 day the second was written, and `persistence-2.test.ts` carries the list of
 what they do not as a ledger rather than a count.
 
-**That ledger has two entries, and how they got there is the interesting
-part.** `damage-defense-granted` and `speed-modifier-granted` each arrived
-after both logs were frozen, and neither log can be regenerated: rewriting a
-fixture whose whole value is that nobody rewrites it turns a compatibility test
-into a rubber stamp. So a *new* event type is uncovered by construction until
-the next frozen log is written, and the honest record is a named entry saying
-which and why rather than a number that quietly drops. Both events are driven
-end to end elsewhere — the first through Stoneskin, the second through
-Longstrider, Ray of Frost and Hypnotic Pattern; what is missing is specifically
-the compatibility fixture. **The count is written here and derived there**,
-which is why the entry is a name: this sentence goes stale and the test does
-not.
+**That ledger has three entries, and how they got there is the interesting
+part.** `damage-defense-granted`, `speed-modifier-granted` and
+`attack-rider-granted` each arrived after both logs were frozen, and neither
+log can be regenerated: rewriting a fixture whose whole value is that nobody
+rewrites it turns a compatibility test into a rubber stamp. So a *new* event
+type is uncovered by construction until the next frozen log is written, and the
+honest record is a named entry saying which and why rather than a number that
+quietly drops. All three are driven end to end elsewhere — the first through
+Stoneskin, the second through Longstrider, Ray of Frost and Hypnotic Pattern,
+the third through Divine Favor and Hunter's Mark; what is missing is
+specifically the compatibility fixture. **The count is written here and derived
+there**, which is why the entry is a name: this sentence goes stale and the
+test does not — and it has, three times now.
 
 Neither is ever regenerated, and the second is not a replacement for the
 first: three types live only in the older log, which a test names so nobody
@@ -2590,6 +2591,11 @@ whole of it: `releaseCasting`, `releaseOnTarget`, `releaseGrants`,
 `expireEffects` and `holdsNothingOf` all needed nothing. What the fourth family
 cost was five edits and the risk of three; what the fifth cost was one, and the
 compiler would not let it be none.
+
+**And the sixth arrived the same way**, which is what turns one measurement
+into a habit: `attackRiders` was declared for SRD Divine Favor and Hunter's
+Mark, `grantsOf` stopped compiling naming it, and the same five walks needed
+nothing again. See "A Rider On Later Attacks Is The Sixth Sourced Grant".
 
 **`initiativeBonuses` matches the shape and is excluded**, which is the one
 written exemption. Creation derives it from the character's own feats; no
@@ -5494,6 +5500,174 @@ blocker, and that shape is now the *only* thing standing between the spell and
 a definition. A shape's `unblocks` count is a property of every other shape as
 well as of itself, which is the argument for it being a query.
 
+### A Rider On Later Attacks Is The Sixth Sourced Grant
+
+`attackRiders` on `CreatureState`, granted by `attack-rider-granted`, and the
+`attack-rider` effect kind that writes one. SRD Divine Favor — "Until the spell
+ends, your attacks with weapons deal an extra 1d4 Radiant damage on a hit" —
+and Hunter's Mark — "you deal an extra 1d6 Force damage to the target whenever
+you hit it with an attack roll" — are the two spells built on it, and Hex's
+first sentence is Hunter's Mark's word for word.
+
+**The sixth family cost one line, exactly as the fifth did.** `GrantFamily` is
+derived from the shape of `CreatureState`, so declaring the field made
+`grantsOf` a compile error naming the property it lacked; `releaseCasting`,
+`releaseOnTarget`, `releaseGrants`, `expireEffects` and `holdsNothingOf` all
+needed nothing. That is the second measurement of IE-028's guard rather than a
+second prediction about it.
+
+**It is held by whoever *deals* the damage, never by whoever takes it.**
+Hunter's Mark marks a quarry ninety feet away and the die is the ranger's, so
+the effect resolves on the target and the grant lands on the caster;
+`GrantedAttackRider.target` is the creature the rider is *about*. Storing it on
+the quarry reads naturally and would give a second ranger's arrow the first
+ranger's 1d6. It follows that the casting is **on the caster** — a casting is
+on a creature while it has a live effect there that it owns, and what this one
+owns is on the ranger.
+
+**And that is the rule `landedOn` was stating and not applying.** It walked
+`targets` and consulted `held` only as a filter, which is the same answer for
+every effect that hangs its grant on the creature it is resolving — and until
+this one, that was all of them, so the two readings agreed across the whole
+catalogue. `attack-rider` is the first that owns something on a creature who
+is not a target at all: the record folded to `on: []` and a Dispel Magic could
+reach Hunter's Mark from **nobody**. Divine Favor hid it, being Range: Self and
+taking the branch that unions `held` already — which is why the discriminating
+fixture has to be the spell cast at ninety feet. `held` is unioned in now, so
+the sentence is true in both branches rather than in one.
+
+**Two clauses, two fields, because the SRD writes two different sentences.**
+This is the one thing about the shape that is easy to get wrong, and a single
+predicate would have made one of the two spells silently wrong:
+
+| | SRD | Fields |
+|---|---|---|
+| Divine Favor | "**your attacks with weapons**" | `weaponOnly`, no target |
+| Hunter's Mark | "**to the target** ... **with an attack roll**" | a marked target, no `weaponOnly` |
+
+So Divine Favor reaches every weapon in the caster's hands and no Fire Bolt,
+and Hunter's Mark reaches a Fire Bolt aimed at the quarry and nothing aimed at
+anybody else.
+
+**A component of its own, never a bonus folded into the weapon's.** The rider
+meets the target's defences as its own type and a Critical Hit doubles its
+dice, which is what `ExtraDamage` already buys — the reading
+`featureDamageTypes` takes for Divine Strike's Radiant. **An undefended dummy
+cannot tell the two apart**, so the discriminating fixture is a target that
+resists **the rider's** type and not the weapon's: it takes *less* than an
+undefended one, which can only happen if the 1d4 met the defences as Radiant.
+
+**One gatherer, three paths.** `grantedAttackRiders` is folded into
+`standingAttackDamage`, so a swung weapon and the second half of a held attack
+get it with no new call site; the **spell attack** calls it directly, because
+that path must not take the feature half beside it — Sneak Attack and Rage
+Damage are weapon rules. Emptying the gatherer reddens a weapon-attack test, a
+held-attack test and a spell-attack test together, which is the evidence it is
+one gatherer and not three spelled alike — `defendingModes`' lesson on the
+offensive side.
+
+**The spell-attack path filters its components to the spell's own name**, to
+drop the Unarmed Strike the weaponless branch contributes, and that filter is
+what silently swallowed the rider at first. It is selected by name and appended
+**after** `withFlatAddend`, because that helper lands on the first component
+and the SRD prints its addend beside the *spell's* dice: Hunter's Mark's 1d6 is
+not part of Finger of Death's "+ 30".
+
+**The damage type is required, and that is the line between a spell's rider and
+a feature's.** A feature may leave it absent and deal the weapon's own type;
+every SRD *spell* of this shape names one. A field no definition could write is
+what the format's own unused-member sweep exists to refuse — which is also why
+SRD Enlarge/Reduce's untyped "extra 1d4 damage" is still blocked on this shape
+rather than expressible by it.
+
+### A Duration The Slot Changes Is A Table Per Definition
+
+`SpellDefinition.durationAtSlot` maps the lowest slot level of a band to the
+**whole** duration in seconds, and `durationSecondsAt` is the one reader — so
+the ordinary resolution and the release of a readied spell cannot disagree
+about which band a slot reaches. `durationSeconds` is what a slot below every
+band still gets.
+
+**A table per definition rather than a formula, and the six tables below are
+the evidence.** Five definitions write one and Hex prints the sixth with no
+definition to write it in. No arithmetic produces all of these, and any formula
+fitting two of them is quietly wrong about the others:
+
+| Spell | SRD | Table |
+|---|---|---|
+| Hunter's Mark | "level 3–4 (up to 8 hours) or 5+ (up to 24 hours)" | `{ 3: 28800, 5: 86400 }` |
+| Hex | "level 2 (up to 4 hours), 3–4 (up to 8 hours), or 5+ (24 hours)" | a band at 2 that Hunter's Mark has not |
+| Dominate Beast | "level 5 (10 minutes), 6 (1 hour), 7+ (8 hours)" | `{ 5: 600, 6: 3600, 7: 28800 }` |
+| Dominate Person | the same three spans, one slot level higher | `{ 6: 600, 7: 3600, 8: 28800 }` |
+| Dominate Monster | "a level 9 spell slot (up to 8 hours)" | one band |
+| Mass Suggestion | "level 7 (10 days), 8 (30 days), or 9 (366 days)" | days, and **no Concentration** |
+
+Mass Suggestion is the one that shows the field is about duration rather than
+about Concentration: it takes none, and the slot lengthens a span running on
+the clock. The same field, read the same way, for a different sentence.
+
+**The band is "at this level or above"**, which is how the book writes "5+",
+so a level 4 slot falls in the band opened at 3. The validator refuses a band
+at or below the spell's own level, a band on a cantrip, a table with no
+`durationSeconds` to lengthen, and a band that is not longer than the one below
+it — the last being the transcription guard, because a digit dropped from 28800
+reads as a plausible number and *shortens* the spell.
+
+**Major Image is deliberately not expressible by it**, and that is the honest
+half of the build. SRD prints "The spell lasts until dispelled, **without
+requiring Concentration**, if cast with a level 4+ spell slot" — one spell in
+the whole book, and a sentence that changes *what kind* of duration the spell
+has rather than how long it runs. A table of seconds cannot say it, and a
+member with one writer is what the format's own sweep refuses. So
+`a-duration-the-slot-changes` survives with Major Image on it, its description
+narrowed to that half.
+
+### The query predicted three spells finished, and two of them were not
+
+Building these two shapes is the third time a build has corrected the map, and
+the correction is sharper than IE-017's because it runs in both directions.
+
+| Predicted | What happened |
+|---|---|
+| Divine Favor finished | **defined** — right |
+| Hunter's Mark finished by the two together | **defined**, partial on two clauses of its own — right about the shapes |
+| Hex loses both and is blocked on its chosen ability **alone** | half right — see below |
+| Mass Suggestion — not predicted at all | **finished**, and left `ADJUDICATED` entirely |
+| Magic Weapon finished | **wrong** |
+| True Strike finished | **wrong** |
+
+**Both misses are the same bundle, and reading the paragraphs is what found
+it.** SRD True Strike is Instantaneous and says "you make one attack with the
+weapon used in the spell's casting" — the spell *makes* the attack, with the
+caster's spellcasting ability substituted and a damage type chosen at the hit.
+None of that is a rider on a **later** attack. SRD Magic Weapon gives a touched
+weapon "a +1 bonus to attack rolls and damage rolls", banded +1/+2/+3 by slot:
+a **flat** bonus of the weapon's own type that also reaches the attack roll,
+tied to one particular weapon. Neither is extra typed damage, and neither was
+built.
+
+So the id stays and its description is narrowed to name each residue — a
+substituted ability, a replaced damage die, a type chosen at the moment of the
+attack, a flat weapon-typed bonus reaching the attack roll, extra damage with
+no type at all, and a rider that fires on damage from a **spell** rather than
+an attack roll. **The shape is not retired**, because it was never fully built;
+what would have been dishonest is leaving a description claiming the half that
+now works. That is IE-034's move rather than IE-017's: a shape half built keeps
+its claimants and corrects its own sentence.
+
+**And Hex kept a second blocker the brief had not counted**, which is the same
+lesson arriving from the map's own side rather than the engine's. IE-035's
+acceptance criterion said Hex would be blocked on its chosen ability *alone*,
+and the first re-filing wrote exactly that. SRD prints a third sentence — "If
+the target drops to 0 Hit Points before this spell ends, you can take a Bonus
+Action on a later turn to curse a new creature" — which is Hunter's Mark's word
+for word, and the same commit had already filed that sentence for Hunter's Mark
+under `an-outcome-that-reads-the-targets-hit-points`. One sentence in two
+spells with two answers moved a shape's `unblocks` from 0 to 1, and an
+`unblocks` count is what a tranche gets planned from. **Re-file both ends of a
+shared sentence in the same pass**, and when the brief and the paragraph
+disagree the paragraph wins — the rule the `fought` list already established.
+
 ### A Feature Definition Is Validated Data Too
 
 `feature-schema.ts` is `spell-schema.ts` pointed at the twelve class files, and
@@ -7477,7 +7651,15 @@ null and is reported — it never becomes either.
   clock** — see "A Casting Of A Minute Or More Runs On The Clock": the largest
   blocker in the book, built outside combat as a declared casting that
   completes on the clock and concentrates on itself until it does, with a
-  Ritual as the same mechanism ten minutes longer. What does not work: casting
+  Ritual as the same mechanism ten minutes longer. **And a spell can hang a
+  rider on the caster's later attacks, and a slot can lengthen a duration** —
+  see "A Rider On Later Attacks Is The Sixth Sourced Grant" and "A Duration The
+  Slot Changes Is A Table Per Definition": Divine Favor's 1d4 Radiant on every
+  weapon swing and Hunter's Mark's 1d6 Force on the quarry, each a damage
+  component of its own that a Critical Hit doubles and the target's defences
+  meet separately; and a per-definition table of slot level to seconds that
+  Hunter's Mark, the three Dominates and Mass Suggestion each read at their own
+  bands. What does not work: casting
   a definition the
   catalogue does not compile in, summons, a long casting **in combat** — the
   per-turn Magic action SRD requires of the caster, which is the deferred half
@@ -7526,6 +7708,16 @@ null and is reported — it never becomes either.
   Smite have all left the undefined and partial populations. Do not count from
   this bullet at all; it is the prose the map replaced, kept because several
   shape descriptions still cite it.
+
+  **The rider row is half built now, and the half is the interesting part.**
+  "A rider on every weapon attack (Divine Favor, Hex, Hunter's Mark)" is what
+  `attack-rider` reaches — all three of those spells, the first two defined and
+  Hex left blocked on its chosen ability *alone* — see "A Rider On Later
+  Attacks Is The Sixth Sourced Grant". What it does not reach is the rest of
+  what that row had quietly bundled: a substituted ability, a replaced damage
+  die, a flat bonus of the weapon's own type. Magic Weapon and True Strike were
+  predicted to be finished by it and are not, which is the row being a bundle
+  and the build being how anyone found out.
 - **Every one of the event types the union declares is now emitted by a command**, so a
   Maestro tool surface can reach all of them. It was seventeen with no producer,
   in two families: the eight that set up a world for the rules to run in — see

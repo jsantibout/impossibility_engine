@@ -925,12 +925,21 @@ describe('a grant needs a casting that outlasts it', () => {
   } as const;
   const AC = { kind: 'armor-class', base: 13, plusAbility: null, shieldAllowed: true } as const;
   const HELD = { kind: 'save', ability: 'wis', condition: 'paralyzed' } as const;
+  /**
+   * The sixth sourced grant, and it carries no deadline of its own for the
+   * reason `speed` does not: every SRD sentence of this shape says "until the
+   * spell ends", so the casting is the only thing that could take the die away
+   * — and an Instantaneous one never could. Divine Favor's own shape, on a
+   * definition that does not last.
+   */
+  const RIDER = { kind: 'attack-rider', dice: '1d4', damageType: 'radiant' } as const;
 
   it.each([
     ['a bonus', BUFF],
     ['a granted mode', MODE],
     ['a base Armour Class', AC],
     ['a condition that lasts as long as the casting', HELD],
+    ['extra damage on later attacks', RIDER],
   ] as const)('refuses %s on a spell that is over as soon as it resolves', (_what, effect) => {
     const problems = checkSpellDefinition({
       ...FIRE_DART,
@@ -2622,6 +2631,16 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       // and it is asserted by name below rather than swept as junk.
       fields: { change: required(STRING_JUNK), feet: NUMBER_JUNK },
     },
+    {
+      kind: 'attack-rider',
+      base: { kind: 'attack-rider', dice: '1d6', damageType: 'force' },
+      // Both are **required**, which is what separates a spell's rider from
+      // the feature grant it mirrors: a feature may leave the type absent and
+      // deal the weapon's own, and no SRD spell of this shape does. The two
+      // clauses beside them — `weaponOnly` and `marksTarget` — are booleans the
+      // book either prints or does not, so there is nothing to be wrong about.
+      fields: { dice: required(STRING_JUNK), damageType: required(STRING_JUNK) },
+    },
   ];
 
   /**
@@ -2744,6 +2763,14 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     // to close and the reason a new list-valued field joins it.
     ...([null, 'nonsense', 7, {}] as const).map(
       (junk) => ['endsEarly', junk] as readonly [string, unknown],
+    ),
+    // IE-035's band table, which the duration rules walk with `Object.keys`: a
+    // value that is not an object reaches it and `Object.keys(null)` throws
+    // out of the `Result` half. `{}` is deliberately absent for the reason the
+    // origin's is — an empty table is readable, and refusing it would be a
+    // required-field rule rather than a guard.
+    ...([null, 'nonsense', 7] as const).map(
+      (junk) => ['durationAtSlot', junk] as readonly [string, unknown],
     ),
   ];
 
@@ -3317,5 +3344,107 @@ describe('a casting time of a minute or more names the minute', () => {
         } as SpellDefinition),
       ),
     ).toEqual(['casting_seconds_without_long']);
+  });
+});
+
+/**
+ * A higher slot lengthens the duration the spell already prints.
+ *
+ * Every rule here fires on **no** catalogue definition — the six spells that
+ * carry a band table were driven through before the rules were written, as
+ * every rule in this file was — so the only way to know any of them is a guard
+ * is a definition built to fail it. That is `grant_without_lifetime`'s own
+ * argument, arriving on the duration.
+ */
+describe('a band table is a lengthening, not a duration of its own', () => {
+  /** A level 4 spell that runs a minute, which every case below mutates. */
+  const HOLD_THE_LINE: SpellDefinition = {
+    ...FIRE_DART,
+    level: 4,
+    concentration: true,
+    durationSeconds: 60,
+  };
+
+  it('accepts a table that climbs above the spell’s own level', () => {
+    expect(
+      checkSpellDefinition({ ...HOLD_THE_LINE, durationAtSlot: { 5: 600, 6: 3600 } }),
+    ).toEqual([]);
+  });
+
+  /**
+   * **A table with nothing to lengthen leaves every lower slot with none.**
+   * `durationSecondsAt` falls back to `durationSeconds` below the first band,
+   * so a definition carrying only the table would be Instantaneous at its own
+   * level and run for an hour one level up.
+   */
+  it('refuses a table on a spell that prints no duration', () => {
+    const instantaneous: Record<string, unknown> = { ...HOLD_THE_LINE };
+    delete instantaneous['durationSeconds'];
+    expect(
+      codes(
+        checkSpellDefinition({
+          ...(instantaneous as unknown as SpellDefinition),
+          concentration: false,
+          durationAtSlot: { 5: 600 },
+        }),
+      ),
+    ).toEqual(['band_without_duration']);
+  });
+
+  /** A cantrip is cast from no slot, so no band of a slot table is reachable. */
+  it('refuses a table on a cantrip', () => {
+    expect(
+      codes(
+        checkSpellDefinition({
+          ...HOLD_THE_LINE,
+          level: 0,
+          effects: [{ kind: 'attack', attack: 'ranged', damage: { dice: '1d10' }, damageType: 'fire' }],
+          durationAtSlot: { 1: 600 },
+        }),
+      ),
+    ).toEqual(['slot_scaling_on_cantrip']);
+  });
+
+  /**
+   * SRD writes every one of these under *Using a Higher-Level Spell Slot*, so
+   * a band at or below the spell's own level is the duration it already prints
+   * said twice — and one outside the nine slot levels names no slot at all.
+   */
+  it.each([
+    [{ 4: 600 }, 'its own level'],
+    [{ 3: 600 }, 'a level it cannot be cast at'],
+    [{ 10: 600 }, 'a tenth slot level'],
+    [{ 0: 600 }, 'no slot at all'],
+  ])('refuses a band at %o — %s', (durationAtSlot, why) => {
+    expect(codes(checkSpellDefinition({ ...HOLD_THE_LINE, durationAtSlot })), why).toEqual([
+      'bad_slot_level',
+    ]);
+  });
+
+  /**
+   * **Every band is longer than the one below it**, which is the transcription
+   * guard rather than a tidiness rule: a digit dropped from 28800 reads as a
+   * plausible number and *shortens* the spell, which is the class of wrong
+   * number this repository calls its worst.
+   */
+  it.each([
+    [{ 5: 30 }, 'shorter than the printed duration'],
+    [{ 5: 600, 6: 600 }, 'no longer than the band below it'],
+    [{ 5: 600, 6: 120 }, 'shorter than the band below it'],
+  ])('refuses %o — %s', (durationAtSlot, why) => {
+    expect(codes(checkSpellDefinition({ ...HOLD_THE_LINE, durationAtSlot })), why).toEqual([
+      'bad_duration',
+    ]);
+  });
+
+  it.each([['nonsense'], [1.5], [0], [-60]])('refuses %s seconds in a band', (seconds) => {
+    expect(
+      codes(
+        checkSpellDefinition({
+          ...HOLD_THE_LINE,
+          durationAtSlot: { 5: seconds } as unknown as Readonly<Record<number, number>>,
+        }),
+      ),
+    ).toEqual(['bad_duration']);
   });
 });

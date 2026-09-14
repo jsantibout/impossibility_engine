@@ -52,6 +52,7 @@ import {
   type OutcomeRiders,
   persists,
   ranged,
+  durationSecondsAt,
   riderDuration,
   riderDurations,
   scaledDiceFor,
@@ -62,7 +63,13 @@ import {
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
 import { type CastingNumbers, castingSource, type CastingTime } from '../spells.js';
-import { armorClassOf, effectiveConditions, evadesHalfDamage, speedOf } from '../standing.js';
+import {
+  armorClassOf,
+  effectiveConditions,
+  evadesHalfDamage,
+  grantedAttackRiders,
+  speedOf,
+} from '../standing.js';
 import {
   applySpellEffect,
   choosePayment,
@@ -795,8 +802,18 @@ function resolveOnTargets(
       // one or the other: Shield's "until the start of your next turn" is not
       // six seconds, and `resolveDuration` refuses to pretend otherwise where
       // there are no turns to anchor to.
+      // **The band the slot falls in, not the printed number.** SRD Hunter's
+      // Mark: "Your Concentration can last longer with a spell slot of level
+      // 3–4 (up to 8 hours) or 5+ (up to 24 hours)." `durationSecondsAt` is
+      // the one reader, so this and the readied-spell path cannot disagree
+      // about which band a slot reaches.
       ...(definition.durationSeconds !== undefined
-        ? { duration: { kind: 'seconds' as const, seconds: definition.durationSeconds } }
+        ? {
+            duration: {
+              kind: 'seconds' as const,
+              seconds: durationSecondsAt(definition, castLevel)!,
+            },
+          }
         : definition.durationUntil === undefined
           ? {}
           : { duration: riderDuration(definition.durationUntil, casterId)! }),
@@ -1379,6 +1396,17 @@ function resolveAttackEffect(
   }
 
   const dice = scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel);
+  // **A spell attack is an attack roll**, and SRD Hunter's Mark says "whenever
+  // you hit it with an attack roll" — so a Fire Bolt aimed at the quarry
+  // carries the Force. Divine Favor's `weaponOnly` is what keeps its Radiant
+  // off this path, which is the whole reason the two clauses are separate
+  // fields.
+  //
+  // The gatherer is called directly rather than through
+  // `standingAttackDamage`, because the *feature* half beside it is weapon
+  // rules — Sneak Attack and Rage Damage — and a spell attack must not take
+  // them.
+  const carried = grantedAttackRiders(current.creatures[casterId], { weapon: null, target });
   // A critical doubles the dice, which is `rollAttackDamage`'s job, so
   // this one call keeps the weapon-shaped signature rather than going
   // through `rollSpellDice`.
@@ -1389,25 +1417,36 @@ function resolveAttackEffect(
     {
       weapon: null,
       targetAc: armorClassOf(current, target),
-      extraDamage: [{ source: definition.name, type: effect.damageType, dice }],
+      extraDamage: [{ source: definition.name, type: effect.damageType, dice }, ...carried],
     },
     attack.value.critical,
   );
   if (!rolled.ok) return rolled;
 
+  // **The rider is kept beside the spell's own damage, not folded into it.**
+  // The filter exists to drop the Unarmed Strike the weaponless branch
+  // contributes; a rider is a real component with its own type and source, so
+  // it is selected by name and appended. It goes on **after** the addend,
+  // because `withFlatAddend` lands on the first component and SRD prints that
+  // number beside the *spell's* dice — Hunter's Mark's 1d6 is not part of
+  // Finger of Death's "+ 30".
+  const riderNames = new Set(carried.map((rider) => rider.source));
   const hurt = dealSpellDamage(
     current,
     target,
-    withFlatAddend(
-      rolled.value.components.filter((c) => c.source === definition.name),
-      // SRD Flame Blade: "3d6 **plus your spellcasting ability
-      // modifier**" — the chosen route's, so a feat's version adds its
-      // own. A flat addend printed beside the dice adds on top of it.
-      scaledFlatFor(effect.damage, definition.level, castLevel) +
-        (effect.addSpellcastingModifier === true
-          ? numbers.spellcastingModifier
-          : 0),
-    ),
+    [
+      ...withFlatAddend(
+        rolled.value.components.filter((c) => c.source === definition.name),
+        // SRD Flame Blade: "3d6 **plus your spellcasting ability
+        // modifier**" — the chosen route's, so a feat's version adds its
+        // own. A flat addend printed beside the dice adds on top of it.
+        scaledFlatFor(effect.damage, definition.level, castLevel) +
+          (effect.addSpellcastingModifier === true
+            ? numbers.spellcastingModifier
+            : 0),
+      ),
+      ...rolled.value.components.filter((c) => riderNames.has(c.source)),
+    ],
     definition.name,
     supply,
     { by: casterId, ...(attack.value.critical ? { critical: true } : {}) },
@@ -1709,6 +1748,52 @@ function resolveSpeedEffect(
   // feet to a Speed the rules have already pinned at 0, and the outcome
   // should say 0 rather than what the definition asked for.
   outcomes.push({ target, speed: speedOf(current, target), affected: true });
+  return ok(current);
+}
+
+/**
+ * Extra damage on the **caster's** later attacks, for as long as the spell
+ * runs. SRD Divine Favor: "Until the spell ends, your attacks with weapons
+ * deal an extra 1d4 Radiant damage on a hit." Nothing is rolled here and
+ * nothing is resisted — the die is thrown by each later attack — so this is
+ * the shape `armor-class`, `damage-defense` and `speed` already take, on the
+ * fourth thing a spell hands out that is not a roll.
+ *
+ * **The grant lands on the caster and never on the target**, which is the one
+ * thing about this resolver that differs from its four neighbours. SRD
+ * Hunter's Mark marks a quarry ninety feet away and the extra die is the
+ * ranger's: `marksTarget` records *which* creature the rider is about, and the
+ * rider itself is held by whoever swings. So the effect's own target decides
+ * the mark, and `held` records the **caster**, because a casting is on a
+ * creature while it has a live effect there that the casting owns and the
+ * thing this casting owns is on the caster.
+ *
+ * The casting is in the source, so `releaseCasting` ends it with the spell —
+ * a dispel, a broken Concentration, the deadline and the caster leaving all
+ * converge on the door every other grant already uses.
+ */
+function resolveAttackRiderEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'attack-rider'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { casterId, definition, castingId, events, outcomes, held } = ctx;
+
+  held.add(casterId);
+  events.push({
+    type: 'attack-rider-granted',
+    id: casterId,
+    rider: {
+      source: castingSource(definition.name, castingId),
+      dice: effect.dice,
+      damageType: effect.damageType,
+      ...(effect.weaponOnly === undefined ? {} : { weaponOnly: effect.weaponOnly }),
+      ...(effect.marksTarget === undefined ? {} : { target }),
+    },
+  });
+  const current = events.slice(-1).reduce(applyEvent, world);
+  outcomes.push({ target, affected: true });
   return ok(current);
 }
 
@@ -2336,6 +2421,8 @@ function resolveOneEffect(
       return resolveDamageDefenseEffect(ctx, effect, target, world);
     case 'speed':
       return resolveSpeedEffect(ctx, effect, target, world);
+    case 'attack-rider':
+      return resolveAttackRiderEffect(ctx, effect, target, world);
     case 'heal':
       return resolveHealEffect(ctx, effect, target, victim, world);
     case 'save-damage':
@@ -2616,6 +2703,20 @@ export function resolveEffects(
  * spell is not on somebody it failed to touch.
  *
  * Sorted, so the record serialises identically however the targets arrived.
+ *
+ * **`held` is unioned in rather than only used to filter**, because the rule
+ * is about creatures and this function was walking a *list*. Every resolver
+ * but one holds something on the creature it is resolving, so for the whole
+ * catalogue before Divine Favor the two readings agreed exactly — `held` was
+ * a subset of `targets` and a filter could not lose anybody.
+ *
+ * `attack-rider` is the first effect that hangs its grant somewhere else.
+ * SRD Hunter's Mark is Range: 90 feet and the extra die is the **ranger's**,
+ * so the casting owns something on a creature who is not in `targets` at all,
+ * and filtering dropped them: the record folded to `on: []` and a Dispel Magic
+ * could reach the spell from nobody. The rule the rest of the engine states —
+ * a casting is on a creature while it has a live effect there that the casting
+ * owns — is what this now says in both branches rather than in one.
  */
 function landedOn(
   targets: readonly CharacterId[],
@@ -2623,7 +2724,7 @@ function landedOn(
   fromArea: boolean,
   held: ReadonlySet<CharacterId>,
 ): readonly CharacterId[] {
-  return [...targets]
+  return [...new Set([...held, ...targets])]
     .filter((target) => {
       // **A casting is on a creature while it has a live effect there that the
       // casting owns**, which is the same rule `alsoOn` applies when a

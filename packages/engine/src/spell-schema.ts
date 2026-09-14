@@ -1128,6 +1128,24 @@ function checkEffect(
       return;
     }
 
+    // A rider on later attacks names dice and a damage type, and there is
+    // nothing else to be wrong about: the two clauses it transcribes —
+    // "with weapons" and "to the target" — are booleans the SRD either prints
+    // or does not. Both notation and type are **required**, which is what
+    // separates this from the feature grant it mirrors: a feature may leave
+    // the type absent and deal the weapon's own, and no SRD *spell* of this
+    // shape does.
+    case 'attack-rider':
+      if (typeof effect.dice !== 'string' || !parseNotation(effect.dice).ok) {
+        found.push({
+          field: `${path}.dice`,
+          code: 'bad_dice',
+          reason: `"${String(effect.dice)}" is not dice notation`,
+        });
+      }
+      checkDamageType(effect.damageType, `${path}.damageType`, found);
+      return;
+
     case 'dispel':
     case 'interrupt-casting':
       return;
@@ -1343,6 +1361,12 @@ function grantCarried(effect: SpellEffect): string | null {
     // shorter deadline lives, because a rider is what Ray of Frost writes.
     case 'speed':
       return 'a changed Speed';
+    // The sixth sourced grant, and it carries no deadline of its own for the
+    // reason `speed` does not: every SRD sentence of this shape says "until
+    // the spell ends", so the casting is the only thing that could take the
+    // die away and an Instantaneous one never could.
+    case 'attack-rider':
+      return 'extra damage on later attacks';
     default: {
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
@@ -1677,6 +1701,88 @@ export function checkSpellDefinition(
       code: 'bad_duration',
       reason: 'a duration of nothing is Instantaneous, which is the absence of one',
     });
+  }
+
+  // **A band lengthens a printed duration; it does not supply one.** Every SRD
+  // spell that writes this clause prints a Duration of its own first — "up to
+  // 1 hour", then "level 3–4 (up to 8 hours)" — and `durationSecondsAt` falls
+  // back to `durationSeconds` for a slot below every band, so a table with no
+  // base would make a level 1 casting Instantaneous while a level 3 one ran
+  // for eight hours.
+  if (definition.durationAtSlot !== undefined) {
+    if (
+      readsAsObject(
+        definition.durationAtSlot,
+        'durationAtSlot',
+        'a higher-slot duration table is a record of slot level to seconds',
+        found,
+      )
+    ) {
+      if (definition.durationSeconds === undefined) {
+        found.push({
+          field: 'durationAtSlot',
+          code: 'band_without_duration',
+          reason:
+            'a higher slot lengthens the duration the spell already prints; a table with no `durationSeconds` leaves every lower slot with none',
+        });
+      }
+      // A cantrip is cast from no slot at all, so a table keyed by slot level
+      // has no key any casting of it could ever reach — the same argument
+      // `checkScaling` makes about `perSlotLevelAbove`.
+      if (definition.level === 0) {
+        found.push({
+          field: 'durationAtSlot',
+          code: 'slot_scaling_on_cantrip',
+          reason: 'a cantrip is cast from no slot, so no band of this table can be reached',
+        });
+      }
+
+      const bands = definition.durationAtSlot as Record<string, unknown>;
+      let previous = definition.durationSeconds ?? 0;
+      for (const key of Object.keys(bands).sort((a, b) => Number(a) - Number(b))) {
+        const level = Number(key);
+        const seconds = bands[key];
+        if (!Number.isInteger(level) || level < 1 || level > 9) {
+          found.push({
+            field: `durationAtSlot.${key}`,
+            code: 'bad_slot_level',
+            reason: `"${key}" is not one of the nine spell slot levels`,
+          });
+          continue;
+        }
+        // A band at or below the spell's own level is the duration the spell
+        // already prints, said twice — and the SRD writes every one of these
+        // clauses under "Using a Higher-Level Spell Slot".
+        if (level <= definition.level) {
+          found.push({
+            field: `durationAtSlot.${key}`,
+            code: 'bad_slot_level',
+            reason: `a band at level ${key} is not a *higher* slot than this level ${definition.level} spell`,
+          });
+          continue;
+        }
+        if (typeof seconds !== 'number' || !Number.isInteger(seconds) || seconds <= 0) {
+          found.push({
+            field: `durationAtSlot.${key}`,
+            code: 'bad_duration',
+            reason: `"${String(seconds)}" is not a whole number of seconds`,
+          });
+          continue;
+        }
+        // **Every band is longer than the one below it**, which is the
+        // transcription guard rather than a tidiness rule: the SRD's tables
+        // climb without exception, and a digit dropped from 28800 reads as a
+        // plausible number and shortens the spell.
+        if (seconds <= previous) {
+          found.push({
+            field: `durationAtSlot.${key}`,
+            code: 'bad_duration',
+            reason: `a higher slot lengthens the spell; ${seconds} seconds is not longer than ${previous}`,
+          });
+        }
+        previous = Math.max(previous, seconds);
+      }
+    }
   }
 
   const lasts =
@@ -2249,4 +2355,5 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'roll-mode',
   'damage-defense',
   'speed',
+  'attack-rider',
 ]);

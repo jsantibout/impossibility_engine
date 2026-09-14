@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 45 (13.3%) | 92 (27.1%) | 46 | 70 (20.6%) |
+| 339 | 45 (13.3%) | 94 (27.7%) | 46 | 72 (21.2%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -54,8 +54,8 @@ spell, and the area is the part that is missing.
 | Restores Hit Points | 4 | 0 | 3 | — |
 | A condition imposed with no saving throw | 4 | 0 | 2 | per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition") |
 | Temporary Hit Points | 3 | 0 | 1 | — |
-| A bonus to later rolls | 5 | 0 | 1 | — |
-| Narrative or exploration effect | 87 | 42 | 9 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
+| A bonus to later rolls | 5 | 0 | 2 | — |
+| Narrative or exploration effect | 87 | 42 | 10 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -88,6 +88,7 @@ spell, and the area is the part that is missing.
 - **Disintegrate** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Dispel Magic** (level 3) — verified
 - **Dissonant Whispers** (level 1) — verified, partial — a clause the engine owns is still unbuilt
+- **Divine Favor** (level 1) — verified
 - **Divine Smite** (level 1) — verified
 - **Dominate Beast** (level 4) — untested, partial — a clause the engine owns is still unbuilt
 - **Dominate Monster** (level 8) — untested, partial — a clause the engine owns is still unbuilt
@@ -111,6 +112,7 @@ spell, and the area is the part that is missing.
 - **Hideous Laughter** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Hold Monster** (level 5) — verified
 - **Hold Person** (level 2) — verified
+- **Hunter's Mark** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Hypnotic Pattern** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Ice Storm** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Incendiary Cloud** (level 8) — untested, partial — a clause the engine owns is still unbuilt
@@ -123,7 +125,7 @@ spell, and the area is the part that is missing.
 - **Mage Armor** (level 1) — verified
 - **Mass Cure Wounds** (level 5) — verified
 - **Mass Healing Word** (level 3) — untested
-- **Mass Suggestion** (level 6) — untested, partial — a clause the engine owns is still unbuilt
+- **Mass Suggestion** (level 6) — untested
 - **Mind Spike** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Moonbeam** (level 2) — verified
 - **Phantasmal Killer** (level 4) — untested, partial — a clause the engine owns is still unbuilt
@@ -219,11 +221,11 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-long-casting-time` | 54 | 12 | 0 | 0 | 54 |
 | `a-stat-block-created-mid-fight` | 15 | 4 | 1 | 0 | 14 |
 | `an-action-a-spell-compels-or-forbids` | 26 | 3 | 9 | 0 | 17 |
-| `a-rider-on-a-later-weapon-attack` | 10 | 3 | 0 | 0 | 10 |
 | `a-second-place-to-put-a-creature` | 18 | 2 | 1 | 0 | 17 |
 | `a-target-rule-the-format-cannot-state` | 13 | 2 | 0 | 0 | 13 |
 | `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 10 |
 | `teleportation` | 9 | 2 | 0 | 1 | 8 |
+| `a-rider-on-a-later-weapon-attack` | 7 | 2 | 0 | 0 | 7 |
 | `a-spell-that-answers-a-later-attack` | 5 | 2 | 0 | 0 | 5 |
 | `a-casting-ended-by-a-trigger` | 21 | 1 | 2 | 0 | 19 |
 | `a-random-outcome-that-is-not-a-d20` | 19 | 1 | 0 | 0 | 19 |
@@ -231,15 +233,15 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-barrier-that-blocks-passage` | 12 | 1 | 0 | 0 | 12 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 11 | 1 | 1 | 0 | 10 |
 | `a-condition-immunity-a-spell-grants` | 10 | 1 | 0 | 0 | 10 |
-| `a-duration-the-slot-changes` | 10 | 1 | 4 | 0 | 6 |
 | `a-spells-effects-applied-to-different-targets` | 10 | 1 | 0 | 0 | 10 |
 | `what-a-creature-is-holding` | 9 | 1 | 3 | 0 | 6 |
 | `a-repeat-save-that-does-something-on-a-failure` | 8 | 1 | 2 | 0 | 6 |
 | `a-flat-amount-with-no-dice` | 6 | 1 | 0 | 0 | 6 |
+| `an-outcome-that-reads-the-targets-hit-points` | 6 | 1 | 1 | 0 | 5 |
 | `healing-that-raises-the-dead` | 6 | 1 | 0 | 0 | 6 |
 | `a-hit-point-maximum-a-spell-moves` | 5 | 1 | 1 | 0 | 4 |
 | `an-activation-that-forces-a-saving-throw` | 5 | 1 | 0 | 0 | 5 |
-| `an-outcome-that-reads-the-targets-hit-points` | 4 | 1 | 0 | 0 | 4 |
+| `a-duration-the-slot-changes` | 4 | 1 | 0 | 0 | 4 |
 | `an-area-trigger-measured-from-a-point` | 3 | 1 | 0 | 0 | 3 |
 | `falling` | 3 | 1 | 0 | 0 | 3 |
 | `several-attack-rolls-from-one-casting` | 3 | 1 | 1 | 0 | 2 |
@@ -266,11 +268,11 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-casting-that-casts-another-spell` | 4 | 0 | 0 | 0 | 4 |
 | `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 4 |
 | `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 2 | 0 | 2 |
+| `a-fact-only-the-table-can-declare` | 4 | 0 | 1 | 0 | 3 |
 | `a-repeat-save-counted-to-a-tally` | 4 | 0 | 1 | 0 | 3 |
 | `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 4 |
 | `an-ability-score-a-spell-changes` | 4 | 0 | 0 | 0 | 4 |
 | `a-casting-dismissed-early` | 3 | 0 | 0 | 0 | 3 |
-| `a-fact-only-the-table-can-declare` | 3 | 0 | 0 | 0 | 3 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 |
 | `a-one-shot-roll-modifier` | 3 | 0 | 2 | 0 | 1 |
 | `a-payout-at-a-turn-boundary` | 3 | 0 | 0 | 0 | 3 |

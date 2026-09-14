@@ -64,9 +64,21 @@ describe('the blocked-on map covers the undefined population', () => {
     expect(coverageGaps(PARSED, DEFINED_SPELL_IDS)).toEqual({ unrecorded: [], stale: [] });
   });
 
-  /** And the population is the size the audit measured, not something smaller. */
+  /**
+   * And the population has not silently emptied.
+   *
+   * **A floor has to sit below the population, not on it.** This read
+   * `> 200` against a map of exactly 201, so the *next* task to define two
+   * spells failed a guard by succeeding — which is what IE-035 did, and the
+   * only available answers were to lower the number or to leave two spells
+   * recorded as undefined after they had been built. The count shrinking is
+   * the work going well; what this exists to catch is a wrong directory, a
+   * filter that reads nothing, or a map that has quietly stopped being
+   * populated at all. So it is generous on purpose, and the number of spells
+   * the engine actually defines is `COVERAGE.md`'s to print.
+   */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(200);
+    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(150);
   });
 
   it('names only shapes the vocabulary has', () => {
@@ -753,11 +765,21 @@ describe('the fought fact is a second build that corrected the query', () => {
     expect(consumersOf('a-fact-only-the-table-can-declare').unblocks).toEqual([]);
   });
 
-  /** And the shape survives on the facts nobody has built. */
+  /**
+   * And the shape survives on the facts nobody has built.
+   *
+   * **It has an executed claimant now, and that is the shape working rather
+   * than drifting.** IE-035 defined Hunter's Mark, whose "Advantage on any
+   * Wisdom (Perception or Survival) check you make **to find it**" is this
+   * same gap read off a check: the selector can name Wisdom (Perception)
+   * perfectly well and nothing can say which check is the one made to find the
+   * quarry. A spell moving from `BLOCKED_ON` into `ADJUDICATED` while keeping
+   * a shape is exactly what a partial definition is.
+   */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
     expect(fact.undefined).toEqual(['call-lightning', 'enthrall', 'scrying']);
-    expect(fact.executed).toEqual([]);
+    expect(fact.executed).toEqual(['hunters-mark']);
   });
 });
 
@@ -863,11 +885,24 @@ describe('a consumer count is a query', () => {
    * Points starts its turn in the aura, that ally regains 1 Hit Point" — and it
    * is in the ranked map's own population. A three-spell family counted by hand
    * was still wrong, which is the argument for deriving even the small ones.
+   *
+   * **Hunter's Mark and Hex are the fifth and sixth, and they are one
+   * sentence.** SRD gives both "If the target drops to 0 Hit Points before
+   * this spell ends, you can take a Bonus Action ... to curse a new creature",
+   * and IE-035 defined Hunter's Mark without that clause while leaving Hex
+   * undefined. It filed the sentence for one of them and not the other on its
+   * first pass, which moved this shape's `unblocks` from 0 to 1 on the
+   * strength of a spell that prints the same rule — the argument for re-filing
+   * **both ends of a shared sentence in the same pass**, and for reading the
+   * paragraph rather than the brief, which said Hex would be blocked on its
+   * chosen ability alone.
    */
   it('finds one more than the ranked map did for reading the target’s Hit Points', () => {
     expect(consumersOf('an-outcome-that-reads-the-targets-hit-points').blocks).toEqual([
       'aura-of-life',
       'divine-word',
+      'hex',
+      'hunters-mark',
       'power-word-kill',
       'power-word-stun',
     ]);
@@ -964,13 +999,18 @@ describe('a spell with one blocker is the leverage the map is for', () => {
   /**
    * Spot-checks, each transcribed from the spell's own SRD paragraph, because
    * a map that nothing reads back is the prose it replaced in another costume.
+   *
+   * **A row leaves this list by being built**, which has now happened twice:
+   * Stoneskin stood here until IE-017 defined it, and Divine Favor —
+   * "your attacks with weapons deal an extra 1d4 Radiant damage on a hit" —
+   * until IE-035 did. Both were the map's prediction coming true, and the row
+   * going rather than the assertion being loosened is what keeps the list a
+   * claim about spells nobody has finished.
    */
   const SOLE: readonly (readonly [string, ShapeId])[] = [
     // "the target's skin assumes a bark-like appearance, and the target has an
     // Armor Class of 17 if its AC is lower than that" — a floor on the total.
     ['barkskin', 'an-armor-class-a-spell-floors'],
-    // "you deal an extra 1d4 Radiant damage on a hit" with weapons.
-    ['divine-favor', 'a-rider-on-a-later-weapon-attack'],
     // "restoring 70 Hit Points" — the conditions it ends are `end-condition`
     // now, and the printed 70 is the whole of what is left.
     ['heal', 'a-flat-amount-with-no-dice'],
@@ -1079,15 +1119,18 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
       const shapes = (ADJUDICATED[id] ?? []).map((entry) => entry.why);
       expect(shapes, id).not.toContain('a-casting-ended-by-a-trigger');
     }
-    // Six leave the map entirely; Mass Suggestion keeps its other clause.
+    // **All six leave the map entirely now**, and the sixth took two builds to
+    // get there: IE-032 closed Mass Suggestion's ending trigger and left its
+    // "The duration is longer with a spell slot of level 7 (10 days), 8 (30
+    // days), or 9 (366 days)" standing, which IE-035's `durationAtSlot`
+    // closed. A spell can owe two shapes and be finished by neither alone,
+    // which is exactly what `unblocks` counts and `blocks` does not.
     expect(ADJUDICATED['animal-friendship']).toBeUndefined();
     expect(ADJUDICATED['charm-person']).toBeUndefined();
     expect(ADJUDICATED['charm-monster']).toBeUndefined();
     expect(ADJUDICATED['mage-armor']).toBeUndefined();
     expect(ADJUDICATED['suggestion']).toBeUndefined();
-    expect(ADJUDICATED['mass-suggestion']?.map((e) => e.why)).toEqual([
-      'a-duration-the-slot-changes',
-    ]);
+    expect(ADJUDICATED['mass-suggestion']).toBeUndefined();
   });
 
   /**

@@ -1017,6 +1017,57 @@ export type SpellEffect =
       /** Signed feet, required by `add` and refused by the other two. */
       readonly feet?: number;
     }
+  /**
+   * Extra damage the spell adds to the **caster's later attacks**.
+   *
+   * SRD Divine Favor, whole: "Until the spell ends, your attacks with weapons
+   * deal an extra 1d4 Radiant damage on a hit." SRD Hunter's Mark: "you deal
+   * an extra 1d6 Force damage to the target whenever you hit it with an attack
+   * roll."
+   *
+   * **Not `attack-damage`**, which is the neighbouring kind and a different
+   * mechanic: that one joins an attack that has *already hit*, is resolved
+   * through `resolveAttackDamage`, and is over in the same breath — Divine
+   * Smite's shape. This one is a **grant**, hung on the caster and read again
+   * on every attack they make until the casting ends.
+   *
+   * **Not a `buff`.** `BonusApplies` covers attacks, saves, ability checks and
+   * an Armour Class, and damage is none of them; and a bonus folds into the
+   * weapon's own type, where the whole point is that the Radiant meets the
+   * target's defences separately and doubles on a Critical Hit as its own
+   * component.
+   *
+   * **The grant lands on the caster, whoever the effect was aimed at.** Divine
+   * Favor is Range: Self, so the two are the same creature; Hunter's Mark is
+   * cast ninety feet away and the die is still the ranger's.
+   * {@link marksTarget} is what records the difference, and it is the SRD's own
+   * distinction rather than a convenience: one sentence names the target and
+   * the other names the weapon, and neither names both.
+   */
+  | {
+      readonly kind: 'attack-rider';
+      /**
+       * The extra dice, e.g. `1d4`.
+       *
+       * A bare notation rather than a {@link DiceScaling}: no SRD sentence of
+       * this shape grows its dice with the slot or with the caster's level —
+       * Hunter's Mark's higher slot buys *duration* — so a scaling field here
+       * would be a member no definition could write.
+       */
+      readonly dice: string;
+      /** The type the sentence names: Divine Favor's Radiant, Hunter's Mark's Force. */
+      readonly damageType: string;
+      /** SRD Divine Favor's "your attacks **with weapons**". */
+      readonly weaponOnly?: true;
+      /**
+       * SRD Hunter's Mark's "**to the target**": the rider fires only against
+       * the creature this effect resolved on.
+       *
+       * Absent is Divine Favor, whose die rides every weapon swing whoever it
+       * is aimed at.
+       */
+      readonly marksTarget?: true;
+    }
   | {
       readonly kind: 'interrupt-casting';
       readonly ability: Ability;
@@ -1487,6 +1538,41 @@ export interface SpellDefinition {
   /** How long it lasts, in seconds. Omitted for an instantaneous spell. */
   readonly durationSeconds?: number;
   /**
+   * How much longer it lasts when cast with a higher slot, by band.
+   *
+   * The key is **the lowest slot level of the band** and the value is the
+   * whole duration in seconds — not an increase — so a band is read by finding
+   * the highest key at or below the level cast. {@link durationSecondsAt} is
+   * the one reader, and `durationSeconds` is what a level below every band
+   * still gets.
+   *
+   * **A table per definition rather than a formula, because the SRD prints a
+   * different table for each spell.** The two that sit next to each other in
+   * the book are the argument:
+   *
+   * | | SRD | Table |
+   * |---|---|---|
+   * | Hunter's Mark | "level 3–4 (up to 8 hours) or 5+ (up to 24 hours)" | `{ 3: 28800, 5: 86400 }` |
+   * | Hex | "level 2 (up to 4 hours), 3–4 (up to 8 hours), or 5+ (24 hours)" | `{ 2: 14400, 3: 28800, 5: 86400 }` |
+   *
+   * Both are level 1 Concentration spells capped at an hour, and Hex has a
+   * band at 2 that Hunter's Mark does not. One shared field — "double it per
+   * level", "eight hours from level 3" — would have made one of the two wrong
+   * silently, and there is no arithmetic that produces both.
+   *
+   * **Five definitions write it** — Hunter's Mark, the three Dominates and
+   * Mass Suggestion — and SRD Hex prints a sixth table that this field would
+   * take whole, which is what makes it a member rather than a guess. Hex has
+   * no definition to write it in: it is blocked on the ability chosen at its
+   * casting and on the Bonus Action that re-marks a dropped target.
+   *
+   * What it deliberately does *not* express is SRD Major Image's "lasts until
+   * dispelled, **without requiring Concentration**, if cast with a level 4+
+   * spell slot" — one spell in the whole book, and a different sentence: it
+   * changes what kind of duration the spell has rather than how long it runs.
+   */
+  readonly durationAtSlot?: Readonly<Record<number, number>>;
+  /**
    * Parts of the printed spell this definition does **not** do.
    *
    * Most SRD spells are one clean mechanic plus a rider — Ray of Frost slows
@@ -1748,6 +1834,44 @@ export function persists(definition: SpellDefinition): boolean {
     definition.durationUntil !== undefined ||
     definition.untilDispelled === true
   );
+}
+
+/**
+ * How long a casting of this spell at this slot level runs, in seconds.
+ *
+ * The one reader of {@link SpellDefinition.durationAtSlot}, so the two places
+ * that schedule a casting's deadline — the ordinary resolution and the release
+ * of a readied spell — cannot disagree about which band a slot falls in.
+ *
+ * **The band is "at this level or above"**, which is how the SRD writes it:
+ * "level 3–4 (up to 8 hours) **or 5+** (up to 24 hours)" is two keys, 3 and 5,
+ * and a level 4 slot falls in the first because 5 has not been reached. So the
+ * answer is the highest key at or below `castLevel`, and `durationSeconds` is
+ * what a slot below every band still gets.
+ *
+ * A cantrip has no slot to read, and `castLevel` is its own level there, which
+ * falls below every band by construction — the validator refuses a band on a
+ * cantrip rather than leaving that to arithmetic.
+ */
+export function durationSecondsAt(
+  definition: SpellDefinition,
+  castLevel: number,
+): number | undefined {
+  const bands = definition.durationAtSlot;
+  if (bands === undefined) return definition.durationSeconds;
+
+  let best: number | undefined;
+  let bestLevel = -Infinity;
+  // Sorted rather than trusting key order: numeric keys iterate in ascending
+  // order today and this answer reaches a deadline in the log, which is not a
+  // thing to leave resting on an engine's iteration rules.
+  for (const key of Object.keys(bands).map(Number).sort((a, b) => a - b)) {
+    if (key <= castLevel && key > bestLevel) {
+      bestLevel = key;
+      best = bands[key];
+    }
+  }
+  return best ?? definition.durationSeconds;
 }
 
 /** How far a range reaches in feet, or null where it is not a distance at all. */
@@ -4229,8 +4353,16 @@ function dominate(args: {
   /** Omitted by Dominate Monster, which takes anything at all. */
   readonly creatureType?: string;
   readonly durationSeconds: number;
-  /** How the SRD lengthens the Concentration with a bigger slot, verbatim. */
-  readonly longer: string;
+  /**
+   * How the SRD lengthens the Concentration with a bigger slot.
+   *
+   * **Three spells, three different tables**, which is exactly why this is a
+   * parameter rather than something the shared helper could compute: Dominate
+   * Beast bands at 5/6/7+, Dominate Person one level higher at 6/7/8+, and
+   * Dominate Monster prints a single band at 9. A formula that fitted any two
+   * of them would be silently wrong about the third.
+   */
+  readonly durationAtSlot: Readonly<Record<number, number>>;
 }): SpellDefinition {
   return {
     id: args.id,
@@ -4247,10 +4379,10 @@ function dominate(args: {
     requiresSight: true,
     effects: [{ kind: 'save', ability: 'wis', advantageIfFought: true, condition: 'charmed' }],
     durationSeconds: args.durationSeconds,
+    durationAtSlot: args.durationAtSlot,
     unmodelled: [
       'the target repeats the save whenever it takes damage, which is a trigger rather than a turn boundary',
       'the telepathic link that issues commands, and spending your own Reaction to command one of the target\u2019s',
-      `a higher-level slot lengthens the Concentration: ${args.longer}`,
     ],
   };
 }
@@ -4272,7 +4404,9 @@ export const DOMINATE_BEAST = dominate({
   level: 4,
   creatureType: 'Beast',
   durationSeconds: 60,
-  longer: '10 minutes at level 5, 1 hour at 6, 8 hours at 7 and above',
+  // "level 5 (up to 10 minutes), 6 (up to 1 hour), or 7+ (up to 8 hours)":
+  // 10 x 60, 60 x 60, 8 x 3600.
+  durationAtSlot: { 5: 600, 6: 3600, 7: 28800 },
 });
 
 /**
@@ -4292,7 +4426,9 @@ export const DOMINATE_PERSON = dominate({
   level: 5,
   creatureType: 'Humanoid',
   durationSeconds: 60,
-  longer: '10 minutes at level 6, 1 hour at 7, 8 hours at 8 and above',
+  // "level 6 (up to 10 minutes), 7 (up to 1 hour), or 8+ (up to 8 hours)" —
+  // the same three spans one slot level higher than Dominate Beast.
+  durationAtSlot: { 6: 600, 7: 3600, 8: 28800 },
 });
 
 /**
@@ -4314,7 +4450,9 @@ export const DOMINATE_MONSTER = dominate({
   name: 'Dominate Monster',
   level: 8,
   durationSeconds: 3600,
-  longer: '8 hours with a level 9 slot',
+  // "a level 9 spell slot (up to 8 hours)" — one band, and the only one the
+  // book gives a level 8 spell.
+  durationAtSlot: { 9: 28800 },
 });
 
 /**
@@ -4346,13 +4484,18 @@ export const MASS_SUGGESTION: SpellDefinition = {
   requiresSight: true,
   effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
   durationSeconds: 86400,
+  // "level 7 (10 days), 8 (30 days), or 9 (366 days)", in seconds: 10 × 86400,
+  // 30 × 86400, 366 × 86400. **The fourth table in four spells** — and the one
+  // that is not a Concentration cap at all, because this spell takes none: the
+  // slot lengthens a span running on the clock, which is the same field
+  // reading the same way for a different sentence.
+  durationAtSlot: { 7: 864000, 8: 2592000, 9: 31622400 },
   // "the spell ends for a target upon completing it" — twelve creatures, and
   // the book is explicit that one of them leaving is not the spell ending.
   endsEarly: [{ on: 'caster-or-ally-damages-target', ends: 'target' }],
   unmodelled: [
     'the course of activity you suggest, whether it sounds achievable, and whether a target pursues or completes it — the other half of the sentence that ends this spell on that target',
     'the targets must be able to hear and understand you',
-    'a higher-level slot lengthens the duration: 10 days at level 7, 30 days at 8, 366 days at 9',
   ],
 };
 
@@ -7089,6 +7232,99 @@ export const PROTECTION_FROM_ENERGY: SpellDefinition = {
   unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
 };
 
+/**
+ * SRD Divine Favor, whole:
+ *
+ * > _Level 1 Transmutation (Paladin)._ **Casting Time:** Bonus Action.
+ * > **Range:** Self. **Duration:** 1 minute.
+ * > "Until the spell ends, your attacks with weapons deal an extra 1d4 Radiant
+ * > damage on a hit."
+ *
+ * One sentence and the engine finishes all of it, which makes this the
+ * cleanest consumer of the rider: no target to choose, no save, no scaling,
+ * and a printed duration that is a plain span of seconds.
+ *
+ * **"With weapons" is the whole of `weaponOnly`.** A Paladin who casts this
+ * and then throws a Sacred Flame gets no Radiant from it, and the field is
+ * what says so — Hunter's Mark, three entries down, writes the other clause
+ * and carries no such field.
+ *
+ * Range: Self, so the effect resolves on the caster and the grant lands where
+ * it would have landed anyway. Hunter's Mark is what proves the grant follows
+ * the *caster* rather than the target.
+ */
+export const DIVINE_FAVOR: SpellDefinition = {
+  id: 'divine-favor',
+  name: 'Divine Favor',
+  level: 1,
+  school: 'transmutation',
+  castingTime: 'bonus-action',
+  // SRD prints "Duration: 1 minute" with no Concentration line, which is the
+  // whole of what separates this from Hunter's Mark below.
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 1, self: true },
+  effects: [{ kind: 'attack-rider', dice: '1d4', damageType: 'radiant', weaponOnly: true }],
+  // "Duration: 1 minute", and no Concentration line: the SRD prints neither
+  // the word nor a higher-slot clause for this spell.
+  durationSeconds: 60,
+};
+
+/**
+ * SRD Hunter's Mark, whole:
+ *
+ * > _Level 1 Divination (Ranger)._ **Casting Time:** Bonus Action. **Range:**
+ * > 90 feet. **Duration:** Concentration, up to 1 hour.
+ * > "You magically mark one creature you can see within range as your quarry.
+ * > Until the spell ends, you deal an extra 1d6 Force damage to the target
+ * > whenever you hit it with an attack roll. You also have Advantage on any
+ * > Wisdom (Perception or Survival) check you make to find it."
+ * > "If the target drops to 0 Hit Points before this spell ends, you can take
+ * > a Bonus Action to move the mark to a new creature you can see within
+ * > range."
+ * > _Using a Higher-Level Spell Slot._ "Your Concentration can last longer
+ * > with a spell slot of level 3–4 (up to 8 hours) or 5+ (up to 24 hours)."
+ *
+ * **The spell blocked on both of this task's shapes, and on nothing else** —
+ * which is why the two were built together. The rider is the first sentence
+ * and the bands are the last.
+ *
+ * **The grant is on the ranger and the mark is on the quarry.** The effect
+ * resolves on the creature 90 feet away; `marksTarget` records which creature
+ * the extra die is *about*, and the die itself is held by whoever is shooting.
+ * Storing it on the quarry would have read naturally and would have given a
+ * second ranger's arrow the first ranger's 1d6.
+ *
+ * **"With an attack roll" and not "with weapons"**, which is Divine Favor's
+ * clause and deliberately absent here: a Fire Bolt aimed at the quarry carries
+ * the Force.
+ *
+ * Two clauses are the table's and one is debt, and they are told apart in
+ * `unmodelled` rather than in a docstring nobody rereads.
+ */
+export const HUNTERS_MARK: SpellDefinition = {
+  id: 'hunters-mark',
+  name: "Hunter's Mark",
+  level: 1,
+  school: 'divination',
+  castingTime: 'bonus-action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 90 },
+  requiresSight: true,
+  targets: { count: 1 },
+  effects: [{ kind: 'attack-rider', dice: '1d6', damageType: 'force', marksTarget: true }],
+  // "Concentration, up to 1 hour" — the cap a level 1 or 2 slot buys.
+  durationSeconds: 3600,
+  // "level 3–4 (up to 8 hours) or 5+ (up to 24 hours)": 8 × 3600 and 24 × 3600.
+  // Two keys, because the SRD prints two bands; a level 4 slot falls in the
+  // first because 5 has not been reached.
+  durationAtSlot: { 3: 28800, 5: 86400 },
+  unmodelled: [
+    'the Advantage on a Wisdom (Perception or Survival) check made to find the quarry is not granted: a roll modifier selects Wisdom (Perception) and Wisdom (Survival) perfectly well, and what nothing can select is *which* check is being made to find the quarry — so a grant would hand the ranger Advantage on every Perception check they ever roll',
+    'moving the mark to a new creature when the quarry drops to 0 Hit Points is not offered: nothing reads a threshold on a creature current Hit Points, and an activation resolves effects at a target rather than re-aiming what the casting already granted',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -7129,6 +7365,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DISINTEGRATE,
   DISPEL_MAGIC,
   DISSONANT_WHISPERS,
+  DIVINE_FAVOR,
   DIVINE_SMITE,
   DOMINATE_BEAST,
   DOMINATE_MONSTER,
@@ -7156,6 +7393,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HIDEOUS_LAUGHTER,
   HOLD_MONSTER,
   HOLD_PERSON,
+  HUNTERS_MARK,
   HYPNOTIC_PATTERN,
   ICE_STORM,
   INCENDIARY_CLOUD,
