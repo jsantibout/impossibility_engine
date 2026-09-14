@@ -1,11 +1,11 @@
 # IE-049 — A readied spell can state a stated fact
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `state.ts` (the readied type), `commands/actions.ts`; optional slot, launched only if the window allows
 depends-on: IE-039
-worker: none
+worker: qb-builder in .claude/worktrees/agent-a2da98ccb6ea767bb, branch worktree-agent-a2da98ccb6ea767bb
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
