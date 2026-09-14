@@ -22,11 +22,12 @@ Last whole-engine audit: the third, 2026-09-13 —
 `PROGRESS.md` under "Third architecture audit against the doctrine" and in
 the Done table, commit `588d7a0`.
 
-Engine tasks completed since last audit: 2
+Engine tasks completed since last audit: 3
 Audit due at: 4
 
 The counter counts tasks that changed engine source outside tests and
-definition prose: IE-003 (`5dfbc39`) and IE-005 (`4f829e9`). IE-004 (`0536a2b`) was conformance — a
+definition prose: IE-003 (`5dfbc39`), IE-005 (`4f829e9`) and IE-008
+(`601774c`). IE-004 (`0536a2b`) was conformance — a
 guard, a script and two `unmodelled` strings — and is in the merge log below
 but not counted. What it added for the next audit to weigh is on its task
 file: the executed bucket now has a missing-shape vocabulary of its own
@@ -105,7 +106,7 @@ ordering tranche 2 left behind. Two items moved and one is new.
 
 | Role | Task | Lane | Parallel-safe |
 |---|---|---|---|
-| PRIMARY | IE-008 — Every pool a level grants, granted at advancement | mechanism | YES beside spell resolution |
+| PRIMARY | IE-008 — Every pool a level grants, granted at advancement | mechanism | YES beside spell resolution — **merged `601774c`** |
 | PRIMARY | IE-001 — A condition applied with no saving throw | mechanism | CONDITIONAL |
 | SEQUENTIAL | IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts | mechanism | NO beside IE-001 |
 | PARALLEL | IE-009 — Close out tranche 2's four findings | conformance | YES |
@@ -191,14 +192,14 @@ Recommendation: APPROVE TRANCHE 3.
 
 ## CURRENT
 
-Tranche 3 is approved and running. IE-008, IE-001 and IE-009 launched
-2026-09-13, one builder each in its own worktree; **IE-007 is held at
-`APPROVED_FOR_IMPLEMENTATION`** and launches when IE-001 has merged, because
-they share `commands/spell-resolution.ts` and the `SpellEffect` union.
+Tranche 3 is approved and running. **IE-008 is `DONE`, merged `601774c`** —
+first-round PASS, thirteen conditions green. IE-001 and IE-009 are still
+building; **IE-007 is held at `APPROVED_FOR_IMPLEMENTATION`** and launches
+when IE-001 has merged, because they share `commands/spell-resolution.ts` and
+the `SpellEffect` union.
 
 | Task | Lane | Parallel-safe | Tranche |
 |---|---|---|---|
-| [IE-008 — Every pool a level grants, granted at advancement](tasks/IE-008-pools-at-advancement.md) | mechanism | YES beside spell resolution | 3 |
 | [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | CONDITIONAL | 3 |
 | [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | NO beside IE-001 | 3 |
 | [IE-009 — Close out tranche 2's four findings](tasks/IE-009-tranche-2-findings.md) | conformance | YES | 3 |
@@ -219,6 +220,7 @@ whole-engine audit falling due first, at four engine tasks.
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a tranche has room |
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
+| **Multiclass Hit Dice pools are wrong, and the correct function is called by nothing.** `hitDicePools` (`multiclass.ts:142`) implements "Hit Dice pool by die type", is tested against both SRD worked examples (`multiclass.test.ts:203`) and is reached from no production code; `poolsFor` declares one Hit Die pool from the *starting* class. A Paladin 4 / Fighter 1 gets one `hit-die:d10` pool; a Cleric/Paladin gets no d8 pool at all | mechanism | IE-008's builder and reviewer, independently, in the function IE-008 refactored. Pre-existing and byte-identical across that diff, so it was correctly left alone. The eleventh instance in this repository of a pure function nothing calls, and a wrong number rather than a missing feature |
 
 IE-003's two residuals are discharged: `carriesEvents` now answers
 `'unresolved'` for a union payload with a driven non-vacuity case, and the
