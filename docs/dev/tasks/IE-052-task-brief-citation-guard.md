@@ -1,6 +1,6 @@
 # IE-052 — A citation guard over task briefs
 
-state: IMPLEMENTING
+state: CHANGES_REQUIRED
 lane: tooling
 tranche: 7
 parallel-safe: YES — `docs/dev/` is read, never written; the guard and its test are new files
