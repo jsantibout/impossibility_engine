@@ -1,13 +1,13 @@
 # IE-046 — A turn-anchored rider outside combat asks for turn context
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `packages/shared/src/result.ts`, `commands/spell-resolution.ts`, `commands/conditions.ts`, `commands/casting.ts`; not beside IE-038, IE-041, IE-042 or IE-048
 depends-on: IE-038, IE-043
-worker: qb-builder in .claude/worktrees/agent-a0499dbc79bb08aa5, branch worktree-agent-a0499dbc79bb08aa5
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 6."
 
 ## Brief
 
@@ -132,3 +132,101 @@ fifth member must exist to be covered).
 Low in mechanism, medium in scope discovery: the value of the task is that
 **every** such site converts, and a site left refusing is invisible until a
 caller meets it. The sweep in requirement 2 is the acceptance, not a nicety.
+
+## Completion digest
+
+```
+IE-046 — Completion digest
+Builder: COMPLETE
+Commit: 391b358 (replayed onto main as 09a52de)   Branch: worktree-agent-a0499dbc79bb08aa5
+Opus review: PASS — rounds: 2, confidence high, no defects
+Tests: 8423 / 8423; new: 20 (17 in the new turn-context.test.ts, 3 converted in
+  speed-grants.test.ts and turn-anchored-riders.test.ts). On main after the replay: 8423
+  across 120 files.
+Mutations, five, each red: (1) `schedule` handing back the bare refusal — 4 cases;
+  (2) the pre-flight doing so — 7 across 3 files; (3) collapsing not_in_combat into the
+  no_turns branch — the case that separates them; (4) `subject = holder`, dropping the
+  duration's own anchor — the anchor-vs-holder fixture; (5) deleting a member from the clause
+  table — the membership sweep.
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓
+Conformance: PASS — COVERAGE.md byte-clean; no spell definition or adjudication touched.
+Architectural deviations: none.
+Foundational primitives touched: ContextRequest.kind in packages/shared/src/result.ts (widened
+  by one member, additive; no exhaustive switch over it exists); commands/command.ts (one new
+  exported helper); the duration-scheduling path at three sites. **duration.ts, the GameEvent
+  union, the fold and persistence are all untouched; both frozen logs untouched.**
+New runtime special cases: none.
+Files outside the brief's surface: commands/command.ts — the conversion lives there rather
+  than in three copies, beside unknownCreature and sceneFor, which is that module's stated
+  purpose. Requirement 2 directed a source sweep rather than the brief's file list, and three
+  modules needed it.
+Reviewer confidence: high
+Recommendation: READY FOR MERGE
+```
+
+## The requirement-2 sweep, which is the point of the task
+
+Enumerated from source rather than from my brief's three sites. **Six**
+`resolveDuration` call sites exist across `commands/` and `rest.ts`:
+
+| | |
+|---|---|
+| Converted | `spell-resolution.ts` (the `riderDurations` pre-flight — my brief's site); `casting.ts` (the held declaration — my brief's two); `conditions.ts`'s `schedule` — which is the **single door** and therefore subsumes my brief's third site *and* three my brief never named: the atomic cast's timer, `features.ts`'s `featureTimer`, and the `speed-change` grant timer |
+| Exempted, behaviourally | two whose argument is a **span** and so cannot be turn-anchored (`castingSeconds`, `mustResolve`); and `scheduleDelayed`, the site I put out of scope |
+
+So the brief named three and the truth was six, three of which were reached for
+free because one of them is a single door. That is requirement 2 doing exactly
+what it was written to do.
+
+## Risk gate
+
+**Inspected, and the owner's constraint verified by me directly rather than read
+off the digest**, because this task exists to implement a decision:
+
+- **`duration.ts` is not in the diff at all** — the pure helper still returns a
+  bare refusal, which is requirement 3 and the rule CLAUDE.md states for every
+  other request kind.
+- **No conversion to seconds anywhere.** Grepped the whole diff for one; there
+  is none.
+- `turnContextFor` reads the **duration's own anchor** (`'of' in duration ?
+  duration.of : holder`) rather than the turn holder, which is what mutation (4)
+  exists to catch and what the differing-creatures fixture discriminates.
+- The `because` line quotes the **printed** clause out of a table keyed on the
+  `Duration` union's own members — and that table's population is read out of
+  `resolveDuration`'s switch, so a sixth member fails *here* rather than in a
+  corridor.
+- It preserves `refused.code`, so `no_turns` and `not_in_combat` keep their
+  codes, every existing assertion on them still passes, and no new code enters
+  the refusal sweep's population.
+
+**Nothing is spent, asserted on folded state rather than on the `Result`** —
+which is the claim my brief demanded be tested that way, because a `Result` that
+says "needs-context" while the slot is gone is the failure this whole channel
+exists to prevent.
+
+Classification: **GREEN**.
+
+## Architecture decision
+
+None at build time. The architecture is the **owner's decision of 2026-09-14**,
+quoted in the brief and carried into the launch message verbatim, with a
+deviation from it declared `ARCHITECTURE_BLOCKED` in advance. No Fable
+involvement.
+
+## Merge record
+
+Replayed onto `main` as `09a52de`; clean, no conflict.
+
+`main` verified **after** the merge: typecheck ✓, lint ✓, **8,423 tests across
+120 files** ✓, both frozen logs and the scenario determinism explicitly ✓,
+`COVERAGE.md` regenerated and byte-clean ✓, tree clean.
+
+Thirteen conditions: **1** inside the brief; **2** `COMPLETE`; **3** `PASS` at
+high confidence; **4** no defects; **5** gauntlet green; **6** conformance green;
+**7** no blocker; **8** no deviation — the owner's constraint is honoured to the
+letter; **9** the primitives are the brief's, plus one shared helper; **10**
+`commands/command.ts` is outside the declared list and is the *right* home — the
+alternative was three copies, and `sceneFor`'s third copy is the precedent this
+repository already recorded; **11** integration valid, and I confirmed the
+reviewer's open question — IE-047 does not touch `commands/command.ts`; **12**
+re-verified on `main`; **13** risk gate inspected, GREEN.
