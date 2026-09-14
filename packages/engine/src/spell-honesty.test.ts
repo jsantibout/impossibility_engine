@@ -147,8 +147,6 @@ const MISSING_SHAPES = {
     'CLAUDE.md: "nothing records what a save was against" — the sentence that already blocks Countercharm. A `RollModifier` selects a roll by family, ability and skill, so there is no way to say "the saving throw this casting calls for", and the SRD hands that save Advantage a dozen times.',
   'a-save-keyed-to-a-condition':
     'a save selected by what it is *against* rather than by the ability that rolls it. CLAUDE.md names it and names this spell: "A save keyed to a named **condition** rather than an ability | Protection from Poison", in the table of what the roll-modifier vocabulary deliberately does not reach. Distinct from `a-mode-on-the-save-a-spell-forces`, which is the caster’s own save seen from the other end — this one modifies a save some *other* effect will call for.',
-  'a-defence-a-spell-grants':
-    'a Resistance, Vulnerability or Immunity that arrives with a spell and leaves with it. `CreatureState.defenses` is written when a creature enters the game and nothing adds to it afterwards; CLAUDE.md lists the want twice, as "A granted Speed, Resistance, or a push | Ray of Frost, Hypnotic Pattern, Stoneskin, Thunderwave" among what a settled outcome may not carry, and as the class-feature gap "Superior Hunter’s Defense needs a Resistance with a deadline".',
   'an-outcome-that-varies-by-creature-type':
     'creature type is authoritative — `declareCreatureType`, `mustBeType` — and reaches targeting only. No effect varies by it, so an automatic failure, extra dice or a refusal to return goes unapplied. CLAUDE.md names the missing filter beside Protection from Evil and Good.',
   'a-stat-block-created-mid-fight':
@@ -665,11 +663,6 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'Advantage on saving throws to avoid or end the Poisoned condition',
       why: 'a-save-keyed-to-a-condition',
       note: 'SRD: "the target has Advantage on saving throws to avoid or end the Poisoned condition". A `RollModifier` selects a save by ability and by nothing else, so the nearest sayable thing is Advantage on every Constitution save the target ever makes — which is a different and much larger spell. The engine rolls those saves without it.',
-    },
-    {
-      clause: 'has Resistance to Poison damage',
-      why: 'a-defence-a-spell-grants',
-      note: 'SRD: "it has Resistance to Poison damage". Resistance is read off `CreatureState.defenses`, which is written when a creature enters the game, and no effect adds to it for a while — so every point of Poison damage during the hour lands in full.',
     },
   ],
   'ray-of-frost': [

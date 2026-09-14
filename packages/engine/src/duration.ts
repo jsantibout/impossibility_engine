@@ -147,7 +147,27 @@ export type EffectTarget =
    * SRD Rage: "The Rage lasts until the end of your next turn" — a deadline
    * like any other, on a thing that is neither a condition nor a casting.
    */
-  | { readonly kind: 'feature'; readonly on: CharacterId; readonly feature: string };
+  | { readonly kind: 'feature'; readonly on: CharacterId; readonly feature: string }
+  /**
+   * Every grant one source made on one creature.
+   *
+   * The operation already existed — `releaseOnTarget` performs it by casting —
+   * and what was missing was a *deadline* on it. Nothing ended a grant before
+   * the thing that made it ended, which is why `ModifierRider` carries no
+   * `lasts` and why SRD Superior Hunter's Defense ("Resistance to that damage
+   * ... until the end of the current turn") had nowhere to be written.
+   *
+   * **`source` rather than a casting id**, so a feature and a casting use the
+   * same member. A casting's grants carry `Stoneskin#cast:3`; a feature's
+   * carry the feature's own id, and neither needs a member of its own.
+   *
+   * **One member rather than one per grant kind.** A per-kind member would
+   * need a per-kind identity here — `rollModifierKey` against a bare `source`,
+   * which are not the same string — and would be four ways to write one
+   * sentence. What ends is *what that source granted*, which is one question
+   * however many of the four answers it.
+   */
+  | { readonly kind: 'grants'; readonly on: CharacterId; readonly source: string };
 
 /**
  * A saving throw an effect gets at a turn boundary.
@@ -376,6 +396,8 @@ export function timerKey(target: EffectTarget): string {
       return `condition|${target.on}|${target.instance}`;
     case 'feature':
       return `feature|${target.on}|${target.feature}`;
+    case 'grants':
+      return `grants|${target.on}|${target.source}`;
     default:
       return `casting|${target.castingId}`;
   }

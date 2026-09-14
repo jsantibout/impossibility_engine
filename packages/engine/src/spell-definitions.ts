@@ -1,5 +1,6 @@
 import type { Ability, CharacterId, ConditionName, Skill } from '@ie/shared';
 import { endOfNextTurn, forSeconds, startOfNextTurn, type Duration } from './duration.js';
+import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { PointAnchoring } from './positioning.js';
@@ -297,13 +298,14 @@ export interface ConditionRider {
  * those two branches already emit, the source is the casting, and
  * `releaseCasting` ends them through the door every other grant uses.
  *
- * **A modifier rider carries no `lasts`.** `EffectTarget` ends a condition
- * instance, a casting or a feature, and nothing ends a *grant* before its
- * casting does — so a rider that lives for less than the casting is not
- * expressible and this does not pretend otherwise. Phantasmal Killer's "for
- * the duration" fits; a future "for 1 minute" on an Instantaneous host needs
- * a fourth `EffectTarget` member, which is the same gap CLAUDE.md already
- * names for Superior Hunter's Defense.
+ * **A modifier rider still carries no `lasts`, and it is no longer because it
+ * could not.** `EffectTarget` has a fourth member now — `grants`, every grant
+ * one source made on one creature — so a deadline on a grant is expressible;
+ * what is missing is a rider that asks for one. No SRD sentence in this
+ * position does: Phantasmal Killer's "for the duration" fits, and a field with
+ * no user is a guess dressed as a structure. The member is reachable from a
+ * `damage-defense` grant and from a class feature, which is where the sentence
+ * that wanted it is written — SRD Superior Hunter's Defense.
  */
 export type ModifierRider =
   | {
@@ -791,6 +793,49 @@ export type SpellEffect =
        */
       readonly shieldAllowed: boolean;
     }
+  /**
+   * Resistance, Immunity or Vulnerability the spell hands its target.
+   *
+   * SRD Stoneskin, whole: "Until the spell ends, one willing creature you touch
+   * has **Resistance to Bludgeoning, Piercing, and Slashing damage**." SRD
+   * Protection from Energy: "the willing creature you touch has Resistance to
+   * one damage type of your choice: Acid, Cold, Fire, Lightning, or Thunder."
+   *
+   * **A list of types and a single answer**, because that is how the SRD
+   * writes it: one sentence names however many types it names and says one
+   * thing about all of them. No SRD spell grants Resistance to one type and
+   * Immunity to another in one sentence, and a spell that did would be two
+   * effects.
+   *
+   * **Not a `buff`.** A bonus is arithmetic that adds and stacks; Resistance
+   * is a boolean the SRD refuses to let stack — "multiple instances of
+   * Resistance to the same damage type count as only one" — and it is applied
+   * in its own step of `applyDefenses`, after the adjustments and before
+   * Vulnerability. Folding it into a number would put it in the wrong step and
+   * let two castings quarter the damage.
+   *
+   * **Nothing is rolled and nothing is resisted.** Both spells touch a willing
+   * creature and ask nobody to save; a spell that made a roll first would hang
+   * this on the outcome, which is what a rider is for.
+   *
+   * The casting is in the source, so `releaseCasting`, a dispel, the deadline
+   * and a broken Concentration all end it through the door every other grant
+   * uses — and a `grants` timer can end it sooner, which is the deadline
+   * `EffectTarget` gained for SRD Superior Hunter's Defense.
+   */
+  | {
+      readonly kind: 'damage-defense';
+      /**
+       * The types the sentence names.
+       *
+       * For a spell that prints several and chooses one at the casting, this
+       * is the placeholder the definition must carry to be well-formed, and
+       * `damageTypeStated` is what actually lands — the same split Spirit
+       * Guardians already uses for its damage.
+       */
+      readonly damageTypes: readonly string[];
+      readonly defense: DefenseKind;
+    }
   | {
       readonly kind: 'interrupt-casting';
       readonly ability: Ability;
@@ -1083,9 +1128,16 @@ export interface SpellDefinition {
    * refuses anything not on this list, and the answer is pinned on the
    * casting — the discipline declared cover and declared sight already follow.
    *
-   * Not a *choice*: the SRD decides it, and this records who is entitled to
-   * tell the engine what the SRD decided. One spell, transcribed; a second
-   * would be the evidence that anything here should generalise.
+   * **The second user is what generalised it, and it states its type for the
+   * opposite reason.** Spirit Guardians is not a choice — the SRD decides it
+   * on a fact about the caster, and this records who is entitled to tell the
+   * engine what the SRD decided. Protection from Energy *is* one: "Resistance
+   * to one damage type of your choice: Acid, Cold, Fire, Lightning, or
+   * Thunder". The mechanism is identical either way — a printed list, one
+   * value named at the casting, anything off the list refused, the answer
+   * pinned on the casting — so what generalises is the field and what stays
+   * the spell's own is the reason. This docstring said a second user would be
+   * that evidence; it is.
    */
   readonly damageTypeStated?: readonly string[];
   /**
@@ -1369,7 +1421,7 @@ export const ranged = (range: SpellRange): number | null =>
 export const needsCasterSheet = (effect: SpellEffect): boolean => effect.kind !== 'save';
 
 /**
- * A trigger's effects, dealing the damage type this casting was declared with.
+ * A spell's effects, using the damage type this casting was declared with.
  *
  * SRD Spirit Guardians prints two and picks between them on the caster's
  * alignment, which is stated at the casting and pinned there — see
@@ -1377,6 +1429,21 @@ export const needsCasterSheet = (effect: SpellEffect): boolean => effect.kind !=
  * shape is well-formed and `spell-catalogue.test.ts` can cast it; the pinned
  * answer is what actually lands, and it is pinned rather than re-read for the
  * same reason the save DC is.
+ *
+ * **Two spells now, and they state it for two different reasons.** Spirit
+ * Guardians states a fact the *SRD* decides and the engine does not hold;
+ * Protection from Energy states a *choice* the caster makes — "Resistance to
+ * one damage type of your choice: Acid, Cold, Fire, Lightning, or Thunder".
+ * The mechanism is identical either way: a list the definition prints, one
+ * value named at the casting and refused if it is not on the list, pinned on
+ * the casting for as long as the spell runs. `damageTypeStated` said that a
+ * second user would be the evidence anything here should generalise, and this
+ * is it — the field generalises, and the *reason* stays the spell's own.
+ *
+ * **Both spellings of the field, because the SRD writes both.** Damage names
+ * one type and a granted defence names a list, so a spell that chooses at the
+ * casting replaces whichever it has — for a list, with the one type chosen,
+ * because "one damage type of your choice" is exactly one.
  *
  * Absent for every other spell, where the printed type is the only type and
  * this is the identity function.
@@ -1386,9 +1453,15 @@ export function statedDamageType(
   damageType: string | undefined,
 ): readonly SpellEffect[] {
   if (damageType === undefined) return effects;
-  return effects.map((effect) =>
-    'damageType' in effect && effect.damageType !== undefined ? { ...effect, damageType } : effect,
-  );
+  return effects.map((effect) => {
+    if ('damageType' in effect && effect.damageType !== undefined) {
+      return { ...effect, damageType };
+    }
+    if ('damageTypes' in effect && effect.damageTypes !== undefined) {
+      return { ...effect, damageTypes: [damageType] };
+    }
+    return effect;
+  });
 }
 
 /**
@@ -6458,20 +6531,19 @@ export const LESSER_RESTORATION: SpellDefinition = {
  * > duration, the target has Advantage on saving throws to avoid or end the
  * > Poisoned condition, and it has Resistance to Poison damage."
  *
- * The first sentence executes; the other two are debt with names, and the pair
- * is why this spell is worth defining beside Lesser Restoration. A list of one
- * is what a spell that names its own condition looks like — nothing is chosen,
- * so nothing is missing there — and the hour it then runs makes the casting an
- * ongoing record where an Instantaneous removal leaves none at all.
+ * The first and third sentences execute; the second is debt with a name. A
+ * list of one is what a spell that names its own condition looks like —
+ * nothing is chosen, so nothing is missing there — and the hour it then runs
+ * makes the casting an ongoing record where an Instantaneous removal leaves
+ * none at all.
  *
- * **That record is on nobody, and it is right to be.** A casting is on a
- * creature while it has a live effect there that the casting owns, and a
- * removal owns nothing: it takes something away and keeps nothing. So `on` is
- * empty and a Dispel Magic aimed at the target finds no Protection from Poison
- * to end — which is the *engine's* answer rather than the book's, and it is
- * the two unmodelled clauses below that make it so. Build either of them and
- * the casting will own something on the target, and `on` will say so without
- * anything here changing.
+ * **That record was on nobody, and building the Resistance is what put it on
+ * somebody.** A casting is on a creature while it has a live effect there that
+ * the casting owns; a removal owns nothing, because it takes something away
+ * and keeps nothing, so `on` was empty and a Dispel Magic aimed at the target
+ * found no Protection from Poison to end. The Resistance is a thing the
+ * casting owns and keeps, and `on` says so — exactly as the earlier version of
+ * this docstring predicted it would, without anything else here changing.
  */
 export const PROTECTION_FROM_POISON: SpellDefinition = {
   id: 'protection-from-poison',
@@ -6482,12 +6554,88 @@ export const PROTECTION_FROM_POISON: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [{ kind: 'end-condition', conditions: ['poisoned'] }],
+  effects: [
+    { kind: 'end-condition', conditions: ['poisoned'] },
+    { kind: 'damage-defense', damageTypes: ['poison'], defense: 'resistant' },
+  ],
   durationSeconds: 3600,
   unmodelled: [
     'the target has Advantage on saving throws to avoid or end the Poisoned condition; a mode is selected by roll family, ability and skill, and there is no way to say "a saving throw against a named condition", so those saves are rolled without it',
-    'the target has Resistance to Poison damage; defences are set when a creature enters the game and no effect grants one for a while, so poison damage during the hour is taken in full',
   ],
+};
+
+/**
+ * SRD Stoneskin:
+ *
+ * > _Level 4 Transmutation (Druid, Ranger, Sorcerer, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "Until the spell ends, one willing creature you touch has Resistance to
+ * > Bludgeoning, Piercing, and Slashing damage."
+ *
+ * One sentence and the whole spell, which is what makes it the proving case
+ * for the `damage-defense` effect: there is nothing else in it to get right.
+ * Three types in one grant, because the SRD writes one clause about all three
+ * — and a second casting of it on the same creature halves the sword once,
+ * because "multiple instances of Resistance to the same damage type count as
+ * only one".
+ */
+export const STONESKIN: SpellDefinition = {
+  id: 'stoneskin',
+  name: 'Stoneskin',
+  level: 4,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'damage-defense',
+      damageTypes: ['bludgeoning', 'piercing', 'slashing'],
+      defense: 'resistant',
+    },
+  ],
+  durationSeconds: 3600,
+  unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
+};
+
+/**
+ * SRD Protection from Energy:
+ *
+ * > _Level 3 Abjuration (Cleric, Druid, Ranger, Sorcerer, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "For the duration, the willing creature you touch has Resistance to one
+ * > damage type of your choice: Acid, Cold, Fire, Lightning, or Thunder."
+ *
+ * **The second spell whose damage type is named at the casting**, and it names
+ * it for the opposite reason to the first. Spirit Guardians states a fact the
+ * *SRD* decides — "Radiant (if you are good or neutral) or Necrotic (if you
+ * are evil)" — that the engine does not hold about every caster. This states a
+ * *choice*, which nothing but the caster can make. `damageTypeStated` said a
+ * second user would be the evidence that anything about it should generalise;
+ * the mechanism is identical and the reason stays each spell's own.
+ *
+ * The five printed types are the whole of the list, so naming a sixth is
+ * refused rather than granted, and naming none is refused rather than guessed
+ * — the discipline Spirit Guardians already follows. `damageTypes` below is
+ * the placeholder that makes the definition well-formed; the stated answer is
+ * what actually lands.
+ */
+export const PROTECTION_FROM_ENERGY: SpellDefinition = {
+  id: 'protection-from-energy',
+  name: 'Protection from Energy',
+  level: 3,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'thunder'],
+  effects: [{ kind: 'damage-defense', damageTypes: ['acid'], defense: 'resistant' }],
+  durationSeconds: 3600,
+  unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
 };
 
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
@@ -6590,6 +6738,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   POISON_SPRAY,
   PRESTIDIGITATION,
   PRODUCE_FLAME,
+  PROTECTION_FROM_ENERGY,
   PROTECTION_FROM_POISON,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
@@ -6609,6 +6758,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SPIRITUAL_WEAPON,
   STARRY_WISP,
   STONE_SHAPE,
+  STONESKIN,
   SUGGESTION,
   SUNBEAM,
   SUNBURST,

@@ -269,7 +269,7 @@ total. Its consequences arrive as their own events.
 
 **Two frozen logs watch the fold, and it took two because one was not enough.**
 `golden-log.json` is 93 events across 35 types, written before most of this
-engine existed — so 56 of the 91 event types had no compatibility fixture at
+engine existed — so most of the event types had no compatibility fixture at
 all, and a schema change to any of them passed the whole suite. That is every
 event carrying state a fold reconstructs for the five reaction windows, the
 interruptible casting, the ongoing record, a moved area origin and the
@@ -277,8 +277,18 @@ area-trigger debt queue. `golden-log-2.json` is the other half: 551 events
 across 88 types, a campaign with two fights, two rests and a second encounter
 **saved mid-turn** — four Concentrations, five ongoing castings, eight
 deadlines, a paralysis repeating its save and a damage roll made and not
-applied. Between them the pair covers all 91, and `persistence-2.test.ts`
-carries the list of what they do not as a ledger rather than a count.
+applied. Between them the pair covered every type the reducer declared on the
+day the second was written, and `persistence-2.test.ts` carries the list of
+what they do not as a ledger rather than a count.
+
+**That ledger has one entry now, and how it got there is the interesting
+part.** `damage-defense-granted` arrived after both logs were frozen, and
+neither can be regenerated: rewriting a fixture whose whole value is that
+nobody rewrites it turns a compatibility test into a rubber stamp. So a *new*
+event type is uncovered by construction until the next frozen log is written,
+and the honest record is a named entry saying which and why rather than a
+number that quietly drops. The event is driven end to end elsewhere; what is
+missing is specifically the compatibility fixture.
 
 Neither is ever regenerated, and the second is not a replacement for the
 first: three types live only in the older log, which a test names so nobody
@@ -296,7 +306,7 @@ about compatibility teaches everyone to re-run it. It carries 30 seconds now.
 The test asserts a fold and not a speed, so the number is generous on purpose,
 and the next task to add a few hundred cases should not have to discover this.
 
-**Every one of the ninety-one types is emitted by engine code now**, and the
+**Every one of the types the union declares is emitted by engine code now**, and the
 second fixture still writes several of them by hand, as the rest of the suite
 does. It was seventeen with no producer at all, in two families, and both are
 closed:
@@ -2000,13 +2010,35 @@ event, and no log — however assembled — can show an effect still running pas
 its own end. Timer keys are visited in sorted order, so a fold is byte-identical
 however the effects were scheduled.
 
-**A timer names what it ends**, and there are exactly two things it can be: one
-condition instance on one creature, or a whole casting. The first expires that
-instance and nothing else — two Clerics' Hold Persons on one goblin with
-different durations end one at a time. The second ends the casting and
-everything it created, which is the same cleanup a broken Concentration
-performs, so "Concentration, up to 1 minute" is both at once: losing
-Concentration ends it early, reaching the cap ends it regardless.
+**A timer names what it ends**, and `EffectTarget` is the closed list of what
+that can be. One condition instance on one creature expires that instance and
+nothing else — two Clerics' Hold Persons on one goblin with different durations
+end one at a time. A whole casting ends the casting and everything it created,
+which is the same cleanup a broken Concentration performs, so "Concentration,
+up to 1 minute" is both at once: losing Concentration ends it early, reaching
+the cap ends it regardless. A **feature** a creature switched on is SRD Rage's
+"lasts until the end of your next turn", on a thing that is neither.
+
+**The fourth is every grant one source made on one creature**, and it is the
+one that took a task of its own. `bonuses`, `armorClasses`, `rollModifiers` and
+`grantedDefenses` all end when their casting does and nothing ended one
+*sooner* — which is why `ModifierRider` carries no `lasts` and why SRD Superior
+Hunter's Defense ("Resistance to that damage ... **until the end of the current
+turn**") had nowhere to be written. Three decisions, each of which could have
+gone the other way:
+
+- **`source`, not a casting id**, so a feature's grant and a casting's use one
+  member. `Stoneskin#cast:3` and `ranger:superior-hunters-defense` are the same
+  kind of string to a timer.
+- **One member, not one per grant kind.** A per-kind member would need a
+  per-kind *identity* — `rollModifierKey` against a bare source, which are not
+  the same string — and would be four ways to write one sentence. What ends is
+  *what that source granted*, which is one question however many of the four
+  answer it.
+- **It ends the grant and never the casting.** The spell goes on running, stays
+  concentrated on and stays in `ongoing`; only what that source hung on that
+  creature goes. A casting whose grant expired is still a casting, which is the
+  whole difference between this member and `casting`.
 
 Timers are keyed by their target rather than numbered, so re-applying the same
 effect from the same source *replaces* its deadline instead of leaving a stale
@@ -2219,9 +2251,28 @@ The recurring blockers, each wanted by several classes:
   Peerless Skill, Indomitable, Dark One's Own Luck and Retaliation all run.
   What is left in this family is named rather than vague: Countercharm needs a
   spell's saving throws to be interruptible *and* a save that remembers what it
-  was against; Superior Hunter's Defense needs a Resistance with a deadline;
-  Slow Fall needs falling; Disciplined Survivor's reroll needs a feature to
-  carry two grants; a stat block's printed Reactions are not read at all.
+  was against; Slow Fall needs falling; Disciplined Survivor's reroll needs a
+  feature to carry two grants; a stat block's printed Reactions are not read at
+  all.
+
+  **Superior Hunter's Defense is the one whose blocker moved rather than
+  cleared**, and it is worth saying what is left instead of striking it off.
+  "A Resistance with a deadline" is built — `damage-defense-granted` hangs one
+  and the `grants` timer ends it — and reading the SRD sentence against the
+  machinery turns up **three further things, none of them the grant**: "When
+  you take damage, you can take a Reaction to give yourself Resistance to that
+  damage and any other damage of the same type until the end of the current
+  turn."
+
+  | | |
+  |---|---|
+  | A fifth `ReactionEffect` member | the union's own rule is that a member exists because **at least two** features write it, and this is one. `reduce-damage` is not a substitute: SRD orders Uncanny Dodge's halving as an *adjustment* and Resistance second, so a Ranger who already resists would take a quarter under the wrong one |
+  | "that damage", when a hit deals two types | the SRD prints no worked example, exactly as it prints none for which type Uncanny Dodge comes off — so it is a choice the engine would have to make and state, like `adjustmentsFor`'s |
+  | "the end of the **current** turn" | a fifth `Duration` member. `endOfNextTurn` said of the creature whose turn it is resolves two turn-endings away, which is a round late |
+
+  So the member is built and its runtime user is not, which is the honest
+  order: the deadline was the part nothing could express, and the rest is a
+  feature task with three decisions in it.
 - **Auras that follow a creature.** Every Paladin aura, Spirit Guardians.
 - **Defences that change after a rest.** Fiendish Resilience, Rage.
 - **A grant that can be re-chosen on a rest.** Circle of the Land's spells, and
@@ -3428,6 +3479,70 @@ Barkskin is deliberately *not* included: "an Armor Class of 17 if its AC is
 lower than that" is a floor on the **total**, a different rule, and one spell is
 not evidence for building it.
 
+### A Resistance a spell grants, and the third input to `defensesOf`
+
+SRD Stoneskin, whole: "Until the spell ends, one willing creature you touch has
+Resistance to Bludgeoning, Piercing, and Slashing damage." `CreatureState.defenses`
+was written when a creature entered the game and nothing added to it
+afterwards, so every spell that hands one out was a sentence in `unmodelled`
+saying so — Protection from Poison's said it in those words for as long as the
+definition existed.
+
+**`defensesOf` was already the gatherer, and this is its third input.** The
+stat block's entries, the ones a feature grants while its requirement holds
+(Rage, Elemental Affinity), and now the ones a *running effect* has hung on the
+creature. The third is the one with a lifetime: it is keyed by `source`, so
+`releaseCasting`, `releaseOnTarget` and a `grants` deadline can take it away
+again, where the other two are derived afresh on every read.
+
+`GrantedDefense` therefore lives on `CreatureState` beside `bonuses`,
+`armorClasses` and `rollModifiers` — the fourth member of that family, ended
+through the door the other three already use, needing no lifecycle of its own.
+
+Three readings that are the SRD rather than the shape:
+
+- **The answers union; they never override.** "Multiple instances of Resistance
+  to the same damage type count as only one", so there is no arithmetic a
+  second copy could do and no reading under which a grant could *weaken* what
+  is already there. A creature Immune to Fire who is then granted Resistance to
+  Fire still takes nothing, because `applyDefenses` reads Immunity first and
+  stops; one who is Vulnerable takes the SRD's own worked order, halved and
+  then doubled. Two castings of Stoneskin on one fighter halve the sword once,
+  and each ends on its own.
+- **A list of types and one answer**, because the SRD writes one clause about
+  however many types it names. No sentence in the book grants Resistance to one
+  type and Immunity to another, and a spell that did would be two effects.
+- **A qualified entry stays qualified.** A grant is unconditional by
+  construction; `adaptMonster` keeps "Charmed (except from its vampire master)"
+  out of the automatic table and `conditionApplicability` goes on answering
+  three ways. Merging a grant into `defenses` would have been the tempting
+  implementation and would have put an unconditional answer in the one table
+  that exists to hold only unconditional answers.
+
+**Not a `buff`.** A bonus is arithmetic that adds and stacks; Resistance is a
+boolean the SRD refuses to let stack, and it is applied in its own step of
+`applyDefenses` — after the adjustments, before Vulnerability. Folding it into
+a number would put it in the wrong step *and* let two castings quarter the
+damage.
+
+**The second spell to state its damage type at the casting, for the opposite
+reason to the first.** Spirit Guardians states a fact the *SRD* decides about
+the caster and the engine does not hold; Protection from Energy states a
+*choice* — "Resistance to one damage type of your choice: Acid, Cold, Fire,
+Lightning, or Thunder". `damageTypeStated`'s own docstring said a second user
+would be the evidence that anything about it should generalise, and this is it:
+the mechanism generalises and the *reason* stays each spell's own. What had to
+change is that `statedDamageType` now reads the plural spelling too, and is
+applied to the casting's **own** effects rather than only to an area trigger's
+— Spirit Guardians' effect list is empty, so nothing had ever needed that.
+
+Three spells execute on it, and the third is the one that shows the shape was a
+gap rather than a want: Protection from Poison's own `unmodelled` clause said
+"defences are set when a creature enters the game and no effect grants one".
+Building it also made that casting's `on` non-empty, which the definition's
+docstring had predicted in those words — a removal owns nothing, and a
+Resistance is something the casting owns and keeps.
+
 ### A spell may declare the footprint its template wants
 
 `SpellDefinition.anchoring` is the geometry pass's one bit of information, in
@@ -3644,7 +3759,8 @@ excluded for being large:
 | A rider on the **success** or the **miss** branch | Flesh to Stone's "its Speed is 0", Ray of Enfeeblement |
 | Ending another casting, or breaking somebody's Concentration | Sleet Storm |
 | Forbidding or compelling an action | Shocking Grasp, Slow |
-| A granted Speed, Resistance, or a push | Ray of Frost, Hypnotic Pattern, Stoneskin, Thunderwave |
+| A granted Speed or a push | Ray of Frost, Hypnotic Pattern, Thunderwave |
+| A granted **Resistance** as a rider — the effect kind exists and rides no outcome | no SRD spell; Stoneskin needed the effect and not the rider |
 
 **The rule for admitting a future rider is stated rather than a slot being
 reserved.** A primitive may become a rider member **iff** it is a leaf — rolls
@@ -4789,7 +4905,7 @@ nowhere to write one, and the test was written before the command was.
 ### The Other Nine Facts A DM Declares
 
 The other nine event types no command produced, and with them the class is
-closed: **every one of the ninety-one declared types is emitted by engine
+closed: **every one of the declared types is emitted by engine
 code**, and `invariants.test.ts` asserts that as a derived sweep rather than
 this file asserting it as a number.
 
@@ -5325,8 +5441,10 @@ null and is reported — it never becomes either.
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is
   Not Wearing" — encumbrance, containers, attunement and ammunition.
-- M1 spells: 86 of 339 executable and 46 tracked, with the shapes that block
-  the rest counted in `COVERAGE.md` and ranked in `PROGRESS.md`. The utility
+- M1 spells: how many are executable and how many tracked lives in
+  `COVERAGE.md`, which is regenerated and diffed in the gauntlet rather than
+  restated here; the shapes that block the rest are counted there and ranked in
+  `PROGRESS.md`. The utility
   bucket was audited spell by spell rather than by shape: 30 of the 76 open
   ones became tracked, 42 carry a rule the engine should own, and 4 depend on
   a world fact nothing can represent. **An ability check a spell offers against
@@ -5353,6 +5471,11 @@ null and is reported — it never becomes either.
   Class a spell sets is not one it adds to": Mage Armor replaces the target's
   base calculation, competes with Unarmoured Defense instead of stacking with
   it, and ends with the casting through the door every other effect uses.
+  **And a spell can grant a Resistance** — see "A Resistance a spell grants,
+  and the third input to `defensesOf`": Stoneskin, Protection from Energy and
+  Protection from Poison all hand one out, it ends with the casting, and
+  `EffectTarget` gained the member that lets a grant end *before* whatever made
+  it — which is the half SRD Superior Hunter's Defense was missing.
   **Definitions are validated data** — see "A Definition Is Validated Data,
   And The SRD Is Its Oracle": a pure validator any definition passes through,
   SRD or homebrew, and a conformance oracle over the printed range and
@@ -5377,18 +5500,18 @@ null and is reported — it never becomes either.
   casting (Scorching Ray), damage with neither an attack roll nor a save (Magic
   Missile), an outcome-scoped child effect (Ice Knife's explosion, Hideous
   Laughter's two conditions, Sleet Storm's broken Concentration), a damage type
-  chosen at the casting (Chromatic Orb, Dragon's Breath, Protection from
-  Energy), flat-only healing (Heal's 70, which is the *whole* of what now
+  chosen at the casting (Chromatic Orb, Dragon's Breath — *not* Protection from
+  Energy, whose choice is one of a printed list and is `damageTypeStated`'s
+  second user), flat-only healing (Heal's 70, which is the *whole* of what now
   blocks it — its condition removal is built and Lesser Restoration executes on
-  it), a Resistance a
-  spell grants (Stoneskin, Protection from Energy), a rider on every weapon
+  it), a rider on every weapon
   attack (Divine Favor, Hex, Hunter's Mark), an area that is several templates
   or a wall (Fire Storm, every Wall), and a Temporary Hit Point payout that
   repeats each turn (Heroism). **So the next spell coverage is bought by a
   mechanism, not by transcription** — which is the opposite of what the "cheapest
   coverage there is" note assumed, and is worth knowing before the next content
   task is briefed.
-- **Every one of the ninety-one event types is now emitted by a command**, so a
+- **Every one of the event types the union declares is now emitted by a command**, so a
   Maestro tool surface can reach all of them. It was seventeen with no producer,
   in two families: the eight that set up a world for the rules to run in — see
   "Setting The Stage Is A Command Like Any Other" — and the nine a DM declares

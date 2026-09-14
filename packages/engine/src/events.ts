@@ -24,7 +24,12 @@ import {
   type ResourceState,
 } from './resources.js';
 import type { CharacterRecord } from './creation.js';
-import type { DamageComponent, DamageDefenses, DamageReduction } from './attack.js';
+import type {
+  DamageComponent,
+  DamageDefenses,
+  DamageReduction,
+  GrantedDefense,
+} from './attack.js';
 import type { D20TestResult } from './checks.js';
 import type { ReactionOffer, ReactionWindow } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
@@ -184,6 +189,10 @@ export interface CreatureState {
    * anything else. Only *unconditional* entries live here — a qualified one
    * ("except from its vampire master") stays out, because no boolean captures
    * it and treating it as absolute is the documented wrong answer.
+   *
+   * **This is the creature's own, and it never grows.** What an effect hands
+   * out lives in {@link grantedDefenses}, because a grant has to be able to
+   * end and this table has no source on it to end by.
    */
   readonly defenses: Readonly<Record<string, DamageDefenses>>;
   /**
@@ -275,6 +284,28 @@ export interface CreatureState {
    * the door that already existed.
    */
   readonly rollModifiers: readonly ActiveRollModifier[];
+  /**
+   * Resistance, Immunity or Vulnerability a running effect has hung on this
+   * creature.
+   *
+   * The fourth member of the family the three above form, and the one the
+   * `unmodelled` note on Protection from Poison named for as long as it
+   * existed: "defences are set when a creature enters the game and no effect
+   * grants one". SRD Stoneskin, Protection from Energy and Protection from
+   * Poison all hand a creature a Resistance and all three had nowhere to put
+   * it.
+   *
+   * Linked by the casting in its `source` exactly as the other three are, so
+   * `releaseCasting` and `releaseOnTarget` end it with the spell — and a
+   * `grants` timer can end it *before* the spell, which is the deadline
+   * `EffectTarget` gained for it.
+   *
+   * **Not merged into {@link defenses}.** That table is the creature's own and
+   * carries no source, so a grant folded into it could never be taken out
+   * again — and the *qualified* entries a stat block prints are deliberately
+   * not in it either, which is a distinction a merge would quietly flatten.
+   */
+  readonly grantedDefenses: readonly GrantedDefense[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *
@@ -938,6 +969,26 @@ export type GameEvent =
       readonly type: 'roll-modifier-granted';
       readonly id: CharacterId;
       readonly modifier: ActiveRollModifier;
+    }
+
+  /**
+   * An ongoing effect grants Resistance, Immunity or Vulnerability.
+   *
+   * Its own event rather than a second `creature-added`-style table write,
+   * because what a creature *is* and what a spell has *done to it* are two
+   * facts with two lifetimes: the stat block's entries stand for ever and this
+   * one ends with the casting in its `source`. SRD Stoneskin: "Until the spell
+   * ends, one willing creature you touch has Resistance to Bludgeoning,
+   * Piercing, and Slashing damage."
+   *
+   * Ended by the casting in its `source`, exactly as a bonus, an Armour Class
+   * and a roll modifier are, so there is no removal event: `releaseCasting`
+   * and the `grants` timer are the doors.
+   */
+  | {
+      readonly type: 'damage-defense-granted';
+      readonly id: CharacterId;
+      readonly defense: GrantedDefense;
     }
 
   /**
@@ -1997,6 +2048,17 @@ function releaseCasting(
       updated = { ...updated, rollModifiers: modes };
     }
 
+    // And the Resistance it granted. Same link, same door: a Stoneskin whose
+    // Concentration broke stops halving the sword, and another casting of it
+    // by somebody else goes on halving — which is what keying by source is
+    // for.
+    const defences = creature.grantedDefenses.filter(
+      (granted) => castingIdOf(granted.source) !== castingId,
+    );
+    if (defences.length !== creature.grantedDefenses.length) {
+      updated = { ...updated, grantedDefenses: defences };
+    }
+
     if (key === casterId && updated.concentration?.castingId === castingId) {
       updated = { ...updated, concentration: null };
     }
@@ -2013,7 +2075,10 @@ function releaseCasting(
     const owned =
       (timer.target.kind === 'casting' && timer.target.castingId === castingId) ||
       (timer.target.kind === 'condition' &&
-        castingIdOf(`${timer.target.instance}`) === castingId);
+        castingIdOf(`${timer.target.instance}`) === castingId) ||
+      // A deadline the casting put on its own grant. The grant has just gone;
+      // a timer left waiting to end it is the stale timer this loop exists for.
+      (timer.target.kind === 'grants' && castingIdOf(timer.target.source) === castingId);
     if (owned) {
       changed = true;
       continue;
@@ -2195,11 +2260,18 @@ function releaseOnTarget(
   const modes = creature.rollModifiers.filter(
     (held) => castingIdOf(held.source) !== castingId,
   );
+  // And the defence it granted, for the same reason: a Dispel Magic aimed at
+  // one Stoneskinned creature must stop halving *that* creature's damage and
+  // leave the rest of the casting alone.
+  const defences = creature.grantedDefenses.filter(
+    (granted) => castingIdOf(granted.source) !== castingId,
+  );
   if (
     doomed.length === 0 &&
     survivors.length === creature.bonuses.length &&
     calculations.length === creature.armorClasses.length &&
-    modes.length === creature.rollModifiers.length
+    modes.length === creature.rollModifiers.length &&
+    defences.length === creature.grantedDefenses.length
   ) {
     return base;
   }
@@ -2216,9 +2288,14 @@ function releaseOnTarget(
   const timers: Record<string, TimedEffect> = {};
   for (const [key, timer] of Object.entries(base.timers)) {
     const mine =
-      timer.target.kind === 'condition' &&
-      timer.target.on === targetId &&
-      castingIdOf(timer.target.instance) === castingId;
+      (timer.target.kind === 'condition' &&
+        timer.target.on === targetId &&
+        castingIdOf(timer.target.instance) === castingId) ||
+      // The deadline this casting put on its own grant on *this* creature. The
+      // grant is going below; the timer that was going to end it goes too.
+      (timer.target.kind === 'grants' &&
+        timer.target.on === targetId &&
+        castingIdOf(timer.target.source) === castingId);
     if (!mine) timers[key] = timer;
   }
 
@@ -2239,9 +2316,45 @@ function releaseOnTarget(
         bonuses: survivors,
         armorClasses: calculations,
         rollModifiers: modes,
+        grantedDefenses: defences,
       },
     },
   };
+}
+
+/**
+ * Every grant one source made on one creature, taken away.
+ *
+ * The same operation `releaseOnTarget` performs, asked by **source** rather
+ * than by casting — which is what lets a feature and a casting share it. SRD
+ * Superior Hunter's Defense grants a Resistance and no casting exists to hang
+ * it on; a Stoneskin's grant with a deadline of its own is the same sentence
+ * with a casting id inside the source.
+ *
+ * **All four grant kinds, not the one the deadline was written for.** What
+ * ends is what that source granted, which is one question however many of the
+ * four answer it — and it is why the `grants` timer needs no per-kind identity.
+ * The roll modifiers are matched on the bare source rather than through
+ * `rollModifierKey` for exactly that reason: Beacon of Hope's two modifiers
+ * are one source's grant, and one deadline ends both.
+ *
+ * Nothing here touches the casting itself. A casting whose grant has expired is
+ * still running, still concentrated on, and still in `ongoing`.
+ */
+function releaseGrants(creature: CreatureState, source: string): CreatureState {
+  const bonuses = creature.bonuses.filter((held) => held.source !== source);
+  const armorClasses = creature.armorClasses.filter((held) => held.source !== source);
+  const rollModifiers = creature.rollModifiers.filter((held) => held.source !== source);
+  const grantedDefenses = creature.grantedDefenses.filter((held) => held.source !== source);
+  if (
+    bonuses.length === creature.bonuses.length &&
+    armorClasses.length === creature.armorClasses.length &&
+    rollModifiers.length === creature.rollModifiers.length &&
+    grantedDefenses.length === creature.grantedDefenses.length
+  ) {
+    return creature;
+  }
+  return { ...creature, bonuses, armorClasses, rollModifiers, grantedDefenses };
 }
 
 /**
@@ -3271,6 +3384,21 @@ function expireEffects(state: GameState): GameState {
           },
         };
       }
+    } else if (target.kind === 'grants') {
+      // SRD Superior Hunter's Defense: "Resistance to that damage ... until
+      // the end of the current turn." What ends is what that source granted,
+      // and nothing else — the casting or the feature that made it carries on,
+      // which is the whole difference between this and a `casting` deadline.
+      const creature = current.creatures[target.on];
+      if (creature !== undefined) {
+        current = {
+          ...current,
+          creatures: {
+            ...current.creatures,
+            [target.on]: releaseGrants(creature, target.source),
+          },
+        };
+      }
     } else if (target.kind === 'casting') {
       // Ending the casting takes its Concentration and every effect it created.
       const castingId = target.castingId;
@@ -3314,12 +3442,12 @@ function expireEffects(state: GameState): GameState {
 /**
  * Whether a casting has no live effect left on a creature.
  *
- * The same four links `releaseCasting` walks, asked of one creature: the
- * conditions it hung, the bonuses, the Armour Class it supplied and the roll
- * modifiers it granted. Scheduled damage is deliberately not among them — a
- * hit that is still owed is the casting's debt rather than something the
- * casting is *doing* to the creature, which is the same reading that keeps a
- * creature Insect Plague merely damaged off the list.
+ * The same five links `releaseCasting` walks, asked of one creature: the
+ * conditions it hung, the bonuses, the Armour Class it supplied, the roll
+ * modifiers and the defences it granted. Scheduled damage is deliberately not
+ * among them — a hit that is still owed is the casting's debt rather than
+ * something the casting is *doing* to the creature, which is the same reading
+ * that keeps a creature Insect Plague merely damaged off the list.
  */
 function holdsNothingOf(state: GameState, who: CharacterId, castingId: string): boolean {
   const creature = state.creatures[who];
@@ -3330,7 +3458,8 @@ function holdsNothingOf(state: GameState, who: CharacterId, castingId: string): 
     !creature.conditions.instances.some((instance) => owns(instance.source)) &&
     !creature.bonuses.some((bonus) => owns(bonus.source)) &&
     !creature.armorClasses.some((granted) => owns(granted.source)) &&
-    !creature.rollModifiers.some((held) => owns(held.source))
+    !creature.rollModifiers.some((held) => owns(held.source)) &&
+    !creature.grantedDefenses.some((granted) => owns(granted.source))
   );
 }
 
@@ -3536,6 +3665,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             bonuses: [],
             armorClasses: [],
             rollModifiers: [],
+            grantedDefenses: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
@@ -4512,6 +4642,32 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         return left < right ? -1 : left > right ? 1 : 0;
       });
       return withCreature(next, event.id, { rollModifiers }, creature);
+    }
+
+    case 'damage-defense-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces it rather than stacking —
+      // the rule `bonus-applied` and `armor-class-granted` follow, and the one
+      // the SRD itself insists on here: "multiple instances of Resistance to
+      // the same damage type count as only one", so there is nothing a second
+      // copy could add.
+      //
+      // **The source alone is the identity**, unlike `roll-modifier-granted`.
+      // Beacon of Hope needed a per-selector key because one casting grants two
+      // modifiers in one sentence; no SRD sentence grants two *defences*, and a
+      // per-kind key here would be the identity the `grants` timer deliberately
+      // does not have.
+      const grantedDefenses = [
+        ...creature.grantedDefenses.filter((held) => held.source !== event.defense.source),
+        {
+          ...event.defense,
+          // Lower-cased on the way in, so a fold compares byte for byte however
+          // the type was spelled and the keys match the table `applyDamage`
+          // sums into.
+          damageTypes: [...event.defense.damageTypes.map((t) => t.toLowerCase())].sort(),
+        },
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { grantedDefenses }, creature);
     }
 
     case 'bonus-removed': {

@@ -794,6 +794,101 @@ describe('a spell that ends a condition ends a real one, once', () => {
 });
 
 /**
+ * A granted defence names real damage types, once, and says one thing.
+ *
+ * The same two mistakes an `end-condition` list can make, on the list a
+ * `damage-defense` names — and both compile. An **empty** list is
+ * `resolves_nothing` one level down: a definition claiming to grant a defence
+ * and granting none. A **repeated** type is the SRD answering itself, since
+ * "multiple instances of Resistance to the same damage type count as only
+ * one", so the second copy is a second place for one sentence to be written
+ * rather than a second grant.
+ *
+ * The third rule is the one the type cannot make: `defense` is a named
+ * vocabulary type shared with `DamageDefenses`, so untyped input needs it as
+ * data, which is the reading `checkShape` takes everywhere else.
+ */
+describe('a spell that grants a defence grants a real one, once', () => {
+  const only = (effect: unknown): readonly string[] =>
+    codes(checkSpellDefinition({ ...FIRE_DART, durationSeconds: 60, effects: [effect] } as SpellDefinition));
+
+  it('refuses a grant that names no damage type', () => {
+    expect(only({ kind: 'damage-defense', damageTypes: [], defense: 'resistant' })).toEqual([
+      'defends_nothing',
+    ]);
+  });
+
+  it('refuses the same damage type twice, because Resistance is not a tally', () => {
+    expect(
+      only({ kind: 'damage-defense', damageTypes: ['fire', 'fire'], defense: 'resistant' }),
+    ).toEqual(['duplicate_damage_type']);
+  });
+
+  it('names the repeated entry rather than the list', () => {
+    const problems = checkSpellDefinition({
+      ...FIRE_DART,
+      durationSeconds: 60,
+      effects: [
+        { kind: 'damage-defense', damageTypes: ['cold', 'fire', 'cold'], defense: 'resistant' },
+      ],
+    } as unknown as SpellDefinition);
+    expect(problems.map((p) => p.field)).toEqual(['effects[0].damageTypes[2]']);
+  });
+
+  it('refuses a damage type the SRD does not print', () => {
+    expect(
+      only({ kind: 'damage-defense', damageTypes: ['sonic'], defense: 'resistant' }),
+    ).toEqual(['unknown_damage_type']);
+  });
+
+  it('refuses an answer that is not one of the three', () => {
+    expect(only({ kind: 'damage-defense', damageTypes: ['fire'], defense: 'halved' })).toEqual([
+      'unknown_defense',
+    ]);
+  });
+
+  /** Stoneskin's own sentence: three types, one answer. */
+  it('accepts the plural sentence the SRD writes', () => {
+    expect(
+      only({
+        kind: 'damage-defense',
+        damageTypes: ['bludgeoning', 'piercing', 'slashing'],
+        defense: 'resistant',
+      }),
+    ).toEqual([]);
+  });
+
+  /**
+   * **A grant needs a casting to end it.** `FIRE_DART` is Instantaneous, so
+   * without the `durationSeconds` every other case here supplies, the same
+   * effect is a Resistance no moment could ever take away.
+   */
+  it('is refused outright on an Instantaneous spell', () => {
+    expect(
+      codes(
+        checkSpellDefinition({
+          ...FIRE_DART,
+          effects: [{ kind: 'damage-defense', damageTypes: ['fire'], defense: 'resistant' }],
+        } as SpellDefinition),
+      ),
+    ).toEqual(['grant_without_lifetime']);
+  });
+
+  /** Every definition the engine ships already obeys it. */
+  it.each(SPELL_DEFINITIONS.map((d) => [d.id, d] as const))(
+    'is already true of %s',
+    (id, definition) => {
+      expect(
+        checkSpellDefinition(definition).filter(
+          (p) => p.code === 'defends_nothing' || p.code === 'duplicate_damage_type',
+        ),
+        id,
+      ).toEqual([]);
+    },
+  );
+});
+
+/**
  * A grant the casting cannot hold up, which is the rule with no fix attached.
  *
  * **No definition in the catalogue violates it** — every one was driven

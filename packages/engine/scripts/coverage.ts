@@ -299,6 +299,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'moonbeam',
   'poison-spray',
   'produce-flame',
+  'protection-from-energy',
   'protection-from-poison',
   'ray-of-frost',
   'ray-of-sickness',
@@ -311,6 +312,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // would be the same report telling a different lie.
   'spirit-guardians',
   'spiritual-weapon',
+  'stoneskin',
   'sunburst',
   'thunderwave',
   'vampiric-touch',

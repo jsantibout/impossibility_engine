@@ -22,6 +22,7 @@ import type {
   SpellDefinition,
   SpellEffect,
 } from './spell-definitions.js';
+import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 
@@ -83,6 +84,12 @@ const SCHOOLS: ReadonlySet<string> = new Set([
 
 const DAMAGE: ReadonlySet<string> = new Set(DAMAGE_TYPES);
 const CONDITION_NAMES: ReadonlySet<string> = new Set(CONDITIONS);
+/** The three answers `DamageDefenses` holds, as data, for untyped input. */
+const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
+  'resistant',
+  'immune',
+  'vulnerable',
+]);
 const CASTING_TIMES: ReadonlySet<string> = new Set([
   'action',
   'bonus-action',
@@ -628,6 +635,45 @@ function checkEffect(
       }
       return;
 
+    // A granted defence names types and says one thing about all of them, so
+    // the only things to be wrong about are the list and the answer.
+    //
+    // **An empty list is refused**, for the reason an empty `end-condition`
+    // list is: a definition that resists nothing resists nothing, and it
+    // compiles. A repeat is refused too — Resistance is a boolean and
+    // "multiple instances ... count as only one", so a second copy of a type
+    // is a sentence the SRD has already answered rather than a second grant.
+    case 'damage-defense': {
+      if (effect.damageTypes.length === 0) {
+        found.push({
+          field: `${path}.damageTypes`,
+          code: 'defends_nothing',
+          reason:
+            'a granted defence that names no damage type defends against nothing; name the types the SRD prints',
+        });
+      }
+      const seen = new Set<string>();
+      effect.damageTypes.forEach((type, i) => {
+        checkDamageType(type, `${path}.damageTypes[${i}]`, found);
+        if (seen.has(type)) {
+          found.push({
+            field: `${path}.damageTypes[${i}]`,
+            code: 'duplicate_damage_type',
+            reason: `${type} is named twice, and Resistance is a boolean rather than a tally`,
+          });
+        }
+        seen.add(type);
+      });
+      if (!DEFENSE_KINDS.has(effect.defense)) {
+        found.push({
+          field: `${path}.defense`,
+          code: 'unknown_defense',
+          reason: `"${String(effect.defense)}" is not Resistance, Immunity or Vulnerability`,
+        });
+      }
+      return;
+    }
+
     case 'dispel':
     case 'interrupt-casting':
       return;
@@ -722,6 +768,8 @@ function grantCarried(effect: SpellEffect): string | null {
       return 'a granted Advantage or Disadvantage';
     case 'armor-class':
       return 'a base Armour Class';
+    case 'damage-defense':
+      return 'a granted Resistance, Immunity or Vulnerability';
     default: {
       for (const rider of conditionRiderOf(effect)) {
         // Unreadable first, lifetime second. A rider that is missing, null or
@@ -1365,4 +1413,5 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'interrupt-casting',
   'armor-class',
   'roll-mode',
+  'damage-defense',
 ]);

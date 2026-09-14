@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 46 (13.6%) | 89 (26.3%) | 55 | 66 (19.5%) |
+| 339 | 46 (13.6%) | 91 (26.8%) | 55 | 68 (20.1%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -55,7 +55,7 @@ spell, and the area is the part that is missing.
 | A condition imposed with no saving throw | 4 | 0 | 2 | per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition") |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 1 | — |
-| Narrative or exploration effect | 87 | 43 | 6 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
+| Narrative or exploration effect | 87 | 43 | 8 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -128,6 +128,7 @@ spell, and the area is the part that is missing.
 - **Phantasmal Killer** (level 4) — untested, partial — a clause the engine owns is still unbuilt
 - **Poison Spray** (cantrip) — verified
 - **Produce Flame** (cantrip) — verified
+- **Protection from Energy** (level 3) — verified
 - **Protection from Poison** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Ray of Frost** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
 - **Ray of Sickness** (level 1) — verified
@@ -139,6 +140,7 @@ spell, and the area is the part that is missing.
 - **Spirit Guardians** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Spiritual Weapon** (level 2) — verified
 - **Starry Wisp** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
+- **Stoneskin** (level 4) — verified
 - **Suggestion** (level 2) — untested, partial — a clause the engine owns is still unbuilt
 - **Sunbeam** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Sunburst** (level 8) — verified

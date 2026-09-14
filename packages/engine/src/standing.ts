@@ -25,7 +25,7 @@ import {
 import { abilityModifier, armorClass } from './character.js';
 import { distanceBetween } from './positioning.js';
 import type { GameState } from './events.js';
-import type { DamageDefenses } from './attack.js';
+import type { DamageDefenses, DefenseKind } from './attack.js';
 import type { Weapon } from '@ie/srd';
 import { canUseFeatureThisTurn } from './combat.js';
 
@@ -719,24 +719,45 @@ export function standingDefenses(
 /**
  * Everything this creature resists, is immune to, or is vulnerable to.
  *
- * The stat block's entries and the features' together, and the **stronger**
- * answer wins per type: a creature already Immune to Fire is not weakened into
- * merely resisting it by a feature that grants Resistance, because SRD applies
- * Immunity first and stops.
+ * **Three inputs, not two.** The stat block's entries, the ones its features
+ * grant while some requirement holds, and the ones a *running effect* has hung
+ * on it — Stoneskin's Resistance, Protection from Energy's. The third arrived
+ * last and is the one with a lifetime: it is keyed by source so `releaseCasting`
+ * and a `grants` deadline can take it away again, where the other two are
+ * derived afresh on every read.
+ *
+ * **The answers union rather than overriding**, and the SRD is why: "multiple
+ * instances of Resistance to the same damage type count as only one", so there
+ * is no arithmetic for a second copy to do and no reading under which a grant
+ * could *weaken* what is already there. A creature Immune to Fire that is then
+ * granted Resistance to Fire still takes nothing, because `applyDefenses` reads
+ * Immunity first and stops; a creature Vulnerable to Fire that is granted
+ * Resistance takes the SRD's own worked order, halved and then doubled.
  */
 export function defensesOf(
   state: GameState,
   who: CharacterId,
 ): Readonly<Record<string, DamageDefenses>> {
   const own = state.creatures[who]?.defenses ?? {};
-  const granted = standingDefenses(state, who);
-  if (Object.keys(granted).length === 0) return own;
+  const standing = standingDefenses(state, who);
+  const hung = state.creatures[who]?.grantedDefenses ?? [];
+  if (Object.keys(standing).length === 0 && hung.length === 0) return own;
 
   const merged: Record<string, DamageDefenses> = { ...own };
-  for (const [type, defence] of Object.entries(granted)) {
-    const existing = merged[type];
-    merged[type] =
-      existing === undefined ? defence : { ...existing, resistant: existing.resistant ?? true };
+  const add = (type: string, defence: DefenseKind): void => {
+    merged[type] = { ...merged[type], [defence]: true };
+  };
+  for (const [type, defence] of Object.entries(standing)) {
+    if (defence.resistant === true) add(type, 'resistant');
+    if (defence.immune === true) add(type, 'immune');
+    if (defence.vulnerable === true) add(type, 'vulnerable');
+  }
+  // Unsorted on purpose: a union of booleans commutes, so the order the grants
+  // arrived in cannot change the answer, and `damage-defense-granted` sorts
+  // them by source on the way in anyway — this is a derived read that reaches
+  // no log.
+  for (const granted of hung) {
+    for (const type of granted.damageTypes) add(type, granted.defense);
   }
   return merged;
 }

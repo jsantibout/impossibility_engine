@@ -359,16 +359,22 @@ export function declaredFacts(
   // clerics are good would be the engine answering a question the SRD asked
   // about the caster — and a Necrotic-immune Undead is where that answer
   // shows.
+  //
+  // The two spells that print a list state it for opposite reasons — Spirit
+  // Guardians reports a fact the SRD decides about the caster, Protection from
+  // Energy makes a choice the caster is offered — so the refusal names the
+  // list and leaves the reason to the spell. It used to say "depending on its
+  // caster", which is one of those two wearing the other's name.
   if (request.damageType === undefined) {
     return err(
       'damage_type_required',
-      `${definition.name} deals ${types.join(' or ')} depending on its caster, and the engine does not hold that; name which`,
+      `${definition.name} prints ${types.join(' or ')} and the engine will not choose between them; name which`,
     );
   }
   if (!types.includes(request.damageType)) {
     return err(
       'unknown_damage_type',
-      `${definition.name} deals ${types.join(' or ')}, not ${request.damageType}`,
+      `${definition.name} prints ${types.join(' or ')}, not ${request.damageType}`,
     );
   }
   return ok(null);

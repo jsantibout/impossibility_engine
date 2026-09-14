@@ -56,6 +56,7 @@ import {
   scaledFlatFor,
   type SpellDefinition,
   type SpellEffect,
+  statedDamageType,
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
 import { type CastingNumbers, castingSource } from '../spells.js';
@@ -505,6 +506,20 @@ function resolveOnTargets(
     ...(request.damageType === undefined ? {} : { damageType: request.damageType }),
   });
 
+  /**
+   * The effects, using the type this casting named.
+   *
+   * Spirit Guardians' stated type reached only the *area trigger*, because
+   * that is where its damage is and its own `effects` list is empty. SRD
+   * Protection from Energy states its type for an effect that lands at the
+   * cast — "Resistance to one damage type of your choice" — so the same
+   * substitution has to happen here, through the same function, rather than a
+   * second reading of the same field.
+   *
+   * Identity when nothing was stated, which is every other spell in the book.
+   */
+  const running = statedDamageType(definition.effects, request.damageType);
+
   // — paying for it ——————————————————————————————————————————————————————
   //
   // A free casting from a feat spends its own pool; anything else goes through
@@ -531,6 +546,7 @@ function resolveOnTargets(
       supply,
       castingId: held.castingId,
       events,
+      effects: running,
       ...(origin === null ? {} : { from: origin }),
       // A released spell leaves the same thing running that a cast one does.
       // This was the one resolution path of three that wrote no record, so a
@@ -638,6 +654,7 @@ function resolveOnTargets(
     supply,
     castingId,
     events,
+    effects: running,
     ...(origin === null ? {} : { from: origin }),
     ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
   });
@@ -1318,6 +1335,31 @@ export function resolveEffects(
         // Defense already beats 13 + Dexterity keeps their own calculation,
         // and the outcome should say what their Armour Class actually is.
         outcomes.push({ target, armorClass: armorClassOf(current, target), affected: true });
+        continue;
+      }
+
+      // Resistance, Immunity or Vulnerability, for as long as the spell runs.
+      // SRD Stoneskin touches a willing creature and Protection from Energy
+      // does the same, so nothing is rolled and nothing is resisted — the same
+      // shape the Armour Class above takes, on the other half of what a
+      // defence is.
+      //
+      // The casting is in the source, so `releaseCasting` ends it with the
+      // spell; a `grants` timer is what could end it sooner, and no SRD spell
+      // asks for one.
+      if (effect.kind === 'damage-defense') {
+        held.add(target);
+        events.push({
+          type: 'damage-defense-granted',
+          id: target,
+          defense: {
+            source: castingSource(definition.name, castingId),
+            damageTypes: effect.damageTypes,
+            defense: effect.defense,
+          },
+        });
+        current = events.slice(-1).reduce(applyEvent, current);
+        outcomes.push({ target, affected: true });
         continue;
       }
 

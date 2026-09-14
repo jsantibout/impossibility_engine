@@ -547,6 +547,42 @@ export interface DamageDefenses {
 }
 
 /**
+ * Which of the three answers a defence gives.
+ *
+ * The same three {@link DamageDefenses} holds, named so a *grant* can carry
+ * one of them rather than a record of booleans: an effect grants Resistance,
+ * or Immunity, or Vulnerability, and no SRD sentence grants two at once.
+ */
+export type DefenseKind = 'resistant' | 'immune' | 'vulnerable';
+
+/**
+ * A defence an ongoing effect has hung on a creature.
+ *
+ * The fourth member of the family `bonuses`, `armorClasses` and
+ * `rollModifiers` already form, and it needed no new lifecycle: the casting is
+ * in the `source`, so `releaseCasting` and `releaseOnTarget` end it with the
+ * spell through the door the other three already use.
+ *
+ * **Separate from `CreatureState.defenses`, which is the stat block's.** That
+ * table is written when the creature enters the game and holds only
+ * *unconditional* entries — a qualified one ("except from its vampire master")
+ * deliberately stays out of it, because no boolean captures a qualification.
+ * A grant is unconditional by construction, and keeping the two apart is what
+ * lets one end without disturbing the other.
+ *
+ * **A list of types rather than one**, because the SRD writes it plural:
+ * Stoneskin's "Resistance to Bludgeoning, Piercing, and Slashing damage" is
+ * one sentence, one casting and one thing to end.
+ */
+export interface GrantedDefense {
+  /** The casting (`Stoneskin#cast:3`) or the feature that granted it. */
+  readonly source: string;
+  /** Lower-cased, so it keys the same table `applyDamage` sums into. */
+  readonly damageTypes: readonly string[];
+  readonly defense: DefenseKind;
+}
+
+/**
  * SRD "Order of Application": adjustments such as bonuses, penalties or
  * multipliers first; Resistance second; Vulnerability third.
  *

@@ -269,33 +269,39 @@ describe('Protection from Poison ends the Poisoned condition', () => {
     expect(out.outcomes[0]?.ended).toEqual(['poisoned']);
   });
 
-  /** The removal is the whole of what the engine executes; the rest is declared. */
-  it('names one condition and leaves its other two clauses unmodelled', () => {
+  /**
+   * The removal names one condition; the Resistance beside it is the spell's
+   * third sentence, and one clause is still declared rather than executed.
+   */
+  it('names one condition, grants one Resistance, and leaves its last clause unmodelled', () => {
     const definition = definitionFor('protection-from-poison');
     const effect = definition?.effects[0];
     expect(effect && 'conditions' in effect ? effect.conditions : null).toEqual(['poisoned']);
-    expect(definition?.unmodelled?.length).toBeGreaterThanOrEqual(2);
+    const granted = definition?.effects[1];
+    expect(granted && 'damageTypes' in granted ? granted.damageTypes : null).toEqual(['poison']);
+    expect(definition?.unmodelled?.length).toBeGreaterThanOrEqual(1);
   });
 
   /**
    * It runs its hour, so there is an ongoing record where an Instantaneous
-   * removal leaves none — **and that record is on nobody.**
+   * removal leaves none — **and that record is now on its target.**
    *
    * A casting is on a creature while it has a live effect there that the
-   * casting owns, and a removal owns nothing: it takes something away and
-   * keeps nothing. So Dispel Magic aimed at the target finds no Protection
-   * from Poison to end. That is the engine's answer rather than the book's,
-   * and it is the two unmodelled clauses that make it so — build either and
-   * the casting will own something here. Asserted rather than described,
-   * because the docstring claimed the opposite until a review read the code.
+   * casting owns. A removal owns nothing: it takes something away and keeps
+   * nothing, so while the removal was the whole of what this spell executed
+   * the record was on nobody and a Dispel Magic aimed at the target found no
+   * Protection from Poison to end. The Resistance *is* something the casting
+   * owns and keeps, so `on` says so — which is exactly what the earlier
+   * version of this test predicted would happen when either unmodelled clause
+   * was built, with nothing about `on` changing.
    */
-  it('leaves an ongoing casting behind, and it is on nobody', () => {
+  it('leaves an ongoing casting behind, and the Resistance puts it on its target', () => {
     const state = fold('seed', [...SETUP, applied('poisoned', 'a wyvern')]);
     const out = unwrap(cast(state, 'protection-from-poison'), 'protection from poison');
     const next = fold('seed', [...SETUP, applied('poisoned', 'a wyvern'), ...out.events]);
 
     expect(Object.keys(next.ongoing)).toContain(out.castingId);
-    expect(next.ongoing[out.castingId]?.on).toEqual([]);
+    expect(next.ongoing[out.castingId]?.on).toEqual([ALLY]);
   });
 
   /** Lesser Restoration is Instantaneous, so it leaves no record at all. */

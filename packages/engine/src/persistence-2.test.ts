@@ -363,14 +363,21 @@ function declaredEventTypes(): readonly string[] {
 /**
  * The types no frozen log exercises, named rather than counted.
  *
- * Empty today, which is the point: every one of the ninety-one types the
- * reducer declares is folded by one of the two fixtures, so a schema change to
- * any of them has something to break. **This list is a ledger, not a
- * budget** — an addition to it is a deliberate act saying which type a frozen
- * log stopped covering and why, and the floor below is what stops it growing
+ * Every other type the reducer declares is folded by one of the two fixtures,
+ * so a schema change to it has something to break. **This list is a ledger,
+ * not a budget** — an entry is a deliberate act saying which type a frozen log
+ * does not cover and why, and the floor below is what stops it growing
  * quietly.
+ *
+ * `damage-defense-granted` is here because **both logs are frozen and neither
+ * can be regenerated.** They were written before a spell could grant a
+ * Resistance, so there is no casting in either that would emit one, and adding
+ * it would mean rewriting a fixture whose whole value is that nobody rewrites
+ * it. `granted-defenses.test.ts` folds the event directly and drives it end to
+ * end through Stoneskin; what is missing is a *compatibility* fixture, which
+ * the next frozen log is where it belongs.
  */
-const UNCOVERED_EVENT_TYPES: readonly string[] = [];
+const UNCOVERED_EVENT_TYPES: readonly string[] = ['damage-defense-granted'];
 
 /** What the pair must cover between them, whatever else changes. */
 const COVERAGE_FLOOR = 80;
