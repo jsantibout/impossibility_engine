@@ -298,7 +298,7 @@ function main() {
   console.log(`Awaiting the owner: approval ${gate1.join(', ') || '—'} · decision ${gate2.join(', ') || '—'} · merge ${gate3.join(', ') || '—'}`);
   // Audit scheduling is the owner's, not the validator's: no counter, no
   // threshold. The foreman may still flag systemic risk, and if it has, say so.
-  if (/^WHOLE_ENGINE_AUDIT_RECOMMENDED/m.test(queue)) {
+  if (/^WHOLE_ENGINE_AUDIT_RECOMMENDED/m.test(queue)) {
     console.log('Audit: WHOLE_ENGINE_AUDIT_RECOMMENDED — see QUEUE.md for the evidence');
   }
   if (problems.length === 0) {

@@ -38,6 +38,52 @@ be unsafe, or finishes the tranche and reports it at `TRANCHE_COMPLETE`. An
 isolated bug does not qualify, however serious, when its class is being closed
 directly.
 
+### `WHOLE_ENGINE_AUDIT_RECOMMENDED` — set 2026-09-13, after tranche 4
+
+WHOLE_ENGINE_AUDIT_RECOMMENDED — set 2026-09-13, after tranche 4.
+
+**One criterion is met and it is met four times over: repeated stale
+source-of-truth failures.** Each was found by a derivation rather than by
+review, each had been wrong for some time, and each sat in a document another
+task was reading:
+
+| What was wrong | Found by | How wrong |
+|---|---|---|
+| The ranked map of blocking shapes | IE-015 | three documents ranked one family at 17, 4 and 2; two rows were wrong rather than stale, both underselling the next task; the **largest** blocker in the book was in no ranking at all |
+| `CLAUDE.md`'s "A stat block created mid-fight" row | IE-015's builder | wrong about eight spells — SRD 5.2.1 rewrote the Conjure family as spirits |
+| The unasserted-refusal figure, carried across **two** audits | IE-018 | 41 of 112 against a real 36 of 170; a line-based grep cannot see an `err(` whose code wrapped to the next line |
+| The leverage audit's own C1/C2/C4 counts | the fourth audit, then IE-017 | C4 overstated roughly 2×; C2 finished **zero** consumers and was dropped |
+
+**A second criterion is partly met: the conformance instrument overstates
+itself.** `npm test` regenerates `COVERAGE.md` as a side effect, so the
+gauntlet's `git diff --exit-code COVERAGE.md` has been asserting that the suite
+just ran rather than that the committed file was right — and the honesty
+guard's "a shape names where this repository already described it" check reads
+for a source *name*, not for an accurate quote, which this tranche proved twice
+over in both directions.
+
+**The argument against**, stated because it is a real one: no YELLOW escalation
+was raised in the whole tranche, no RED, both frozen logs fold unchanged, no
+new runtime special case was reported by any of the ten tasks, and the class of
+failure above is **being closed by exactly the method that found it** — the
+refusal sweep and the blocker map are both derived and both now guarded. What
+is not yet closed is the pair of instrument weaknesses in the paragraph above.
+
+**And setting it found that the flag could never have fired.** The regex in
+`check-queue.mjs` carried a stray `U+0008` immediately after the token —
+introduced when the audit counter was stripped out of the validator on
+2026-09-13 — so `^WHOLE_ENGINE_AUDIT_RECOMMENDED` matched nothing, and the
+one signal the manual-audit design leaves the foreman was invisible to every
+fresh session. Fixed; the flag prints. The lesson is the tranche's own, arriving
+a fifth time: **a guard nobody has seen fire is a guard nobody has tested**, and
+this one was written and never exercised because no tranche had yet had cause
+to raise it.
+
+This is a recommendation and nothing is blocked on it. Continuing without an
+audit is safe; the foreman's reading is that the repository has just replaced
+four hand-kept claims with derivations and that a broad pass is better value
+*now*, before a tranche 5 is briefed off the new numbers, than after.
+
 A bounded YELLOW escalation inside a tranche is **not** a broad audit: it is an
 architecture consultation on one question, the foreman invokes it, and the
 tranche carries on.
