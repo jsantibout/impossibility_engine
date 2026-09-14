@@ -91,7 +91,7 @@ Ten states, closed. `check-queue.mjs` refuses any other word.
 
 A task's state lives in **its own file**, on the `state:` line. `QUEUE.md`
 indexes tasks and owns what no task file can: the tranches, the gate log and
-the audit counter. State is written at the moments the foreman is awake
+and the gate log. State is written at the moments the foreman is awake
 anyway — launch, digest, merge — never as a running status.
 
 ## The tranche is the unit of owner authority
@@ -584,7 +584,7 @@ git branch -d <branch>
 
 Then: the Done row in `PROGRESS.md` (the existing convention), `state: DONE`
 with the authority quoted on `merge-approved:`, the thirteen conditions
-asserted in the task file's merge record, the audit counter in `QUEUE.md` —
+asserted in the task file's merge record —
 one bookkeeping commit — and the next task in the tranche moves up.
 
 **If step 3 fails on `main`, the merge is reverted, not fixed forward.**
@@ -631,8 +631,6 @@ Dependency graph: <in plain English, what waits on what and why>
 Concurrency per wave: <n>, bounded by the independence check below
 Execution and merge order: <the order, and what rebases over what>
 Approximate autonomous duration: <hours>
-Architecture-change weight: <per task, 0/1/2/3 with one reason each; and the
-          expected total against the 12-point audit threshold>
 Independence check: <shared files, shared primitives, what serialises>
 Likely Fable involvement: none foreseen | IE-NNN, because <the question>
 Excluded deliberately: <what was considered and left out, and why>
@@ -652,15 +650,13 @@ Deferred: none | <IE-NNN, and the evidence that made it premature, invalid
 Waves executed: <n of m, and what each waited on>
 Tests: <added> new; <N> total passing
 Conformance: <COVERAGE.md deltas: executed / tracked / partial>
-Architecture-change points: <actual, per task, summing to N — recorded from
-          what landed, not from the estimate>
 Architectural deviations: none | <each, and how it was judged>
 Debt discovered: none | <each, and where it is now written down>
 YELLOW / Fable interventions: none | <each, the question and the decision>
 RED / owner interventions: none | <each>
 Engine health: <gauntlet on main, replay determinism, golden logs untouched>
-Audit status: <points> of 12 | WHOLE_ENGINE_AUDIT_DUE | risk signals seen
-Simplification audit: <broad audits since the last one; approaching or not>
+Audit recommendation: none | WHOLE_ENGINE_AUDIT_RECOMMENDED — <the systemic
+          evidence, and why it is not an isolated bug>
 Proposed next tranche: <the Gate 1 block above>
 ```
 
@@ -678,92 +674,65 @@ Detail lives in the task file. The summary is what the owner reads.
 
 ## The whole-engine audit
 
-Due on an **architecture-change budget**, not on a task count; `QUEUE.md`
-keeps the running total and `check-queue.mjs` prints `WHOLE_ENGINE_AUDIT_DUE`
-when it is reached.
+**The owner initiates it. The foreman never does, and keeps no counter.**
 
-**A raw count of completed tasks was too sensitive at this throughput** — it
-would have called a broad Fable audit once or twice a day regardless of how
-much architecture actually moved. What is counted now is the movement.
+A broad audit normally runs **once per heavy development day**, in a fresh
+Fable session against a clean `main`, started by the owner. Fable records it
+using the repository's existing convention — a section in `PROGRESS.md`, and a
+design record under `docs/architecture/` — and **the next foreman session reads
+those findings** and may reorder or re-scope the queue before proposing work.
 
-| Points | What it describes |
-|---|---|
-| **0** | content or transcription only; documentation only; conformance or test-only work with no engine semantic change; mechanical cleanup with no architectural consequence |
-| **1** | a bounded mechanic on established primitives; a localised correctness fix inside established architecture; an ordinary command or feature addition that alters no foundational representation |
-| **2** | a meaningful modification to an existing foundational primitive; a cross-system semantic change; a significant state-model change that stays inside established authority; a meaningful lifecycle or ownership change |
-| **3** | a new or replaced foundational primitive; persistence or replay semantics; event-authority changes; a change to the authoritative-versus-derived boundary; major cross-system architecture work |
+There is no schedule to maintain, no task-count threshold, no
+architecture-change budget, and nothing for `check-queue.mjs` to print. An
+earlier version of this file carried all three; they were removed on
+2026-09-13 because audit scheduling is the owner's judgement and automating it
+produced either too many audits or a number nobody trusted.
 
-**A broad audit is due at about 12 points.** The weight is **recorded at merge,
-from what actually landed** — never assigned from a task's label or lane, and
-never carried over from the planning estimate if the two disagree. The
-estimate goes in the Gate 1 proposal; the actual goes in the merge record.
+`qb-architect` has no Write tool and writes nothing to the tree: where the
+foreman invokes Fable, Fable returns the record and the foreman files it.
 
-**A scoped Fable consultation does not reset the budget.** Only a broad sweep
-does, and only because it happened.
+### What the foreman still does: `WHOLE_ENGINE_AUDIT_RECOMMENDED`
 
-### Risk signals may bring it forward
+The foreman watches for *systemic* architectural risk and says so. It does not
+launch anything.
 
-The budget is not a blind counter. Call an audit early on evidence of
-*systemic* architectural risk: repeated new special cases across several
-subsystems; several YELLOW escalations pointing at the same boundary;
-conflicting foundational representations; persistence or replay uncertainty
-spreading past one bounded task; repeated stale source-of-truth failures;
-recently merged tasks invalidating each other's assumptions; a RED
-architecture event; evidence that coverage or conformance materially
-overstates support; or repeated defects showing an architectural class was not
-actually closed.
+Evidence that warrants the flag: repeated new special cases across several
+subsystems; several YELLOW escalations converging on the same boundary;
+persistence or replay uncertainty spreading past one bounded task; contradictory
+foundational representations; repeated stale source-of-truth failures; recently
+merged tasks invalidating each other's assumptions; or evidence that coverage
+or conformance materially overstates support.
 
 **An isolated bug does not qualify, however serious**, when it is clearly
 localised and its class is being closed directly.
 
-### Crossing the threshold mid-tranche does not stop the tranche
+Having seen it, the foreman sets `WHOLE_ENGINE_AUDIT_RECOMMENDED` in
+`QUEUE.md` with the evidence, and then:
 
-If the budget reaches the threshold while an approved tranche is running and
-no urgent systemic risk is present: mark `WHOLE_ENGINE_AUDIT_DUE`, **finish the
-approved tranche**, and run the audit before proposing the next one. Only a
-genuine systemic risk signal interrupts a tranche early. **It is
-Fable's, and it is one of the highest-value things Fable does.** It runs at the
-next wake-up that would otherwise propose a mechanic — never in an idle gap,
-and never by rolling straight into another tranche.
-
-The foreman does the measurement legwork first (counting call sites, listing
-special cases, mapping coupling, diffing `COVERAGE.md` over the period), hands
-it over as evidence, and invokes `qb-architect` with `model: "fable"`. The
-judgment is Fable's; the recording is the foreman's.
-
-It covers what the three previous audits covered (`PROGRESS.md`, "Architecture
-audit against the doctrine"): duplicated primitives, accidental coupling,
-inconsistent authority boundaries, missing validation and conformance, drift,
-abstractions grown too broad, repeated needs that now justify one, runtime
-special cases by name, test blind spots, hidden cross-subsystem assumptions,
-state that should be derived, duplicated sources of truth, and complexity
-recent work introduced. Measured, not recalled.
-
-It is recorded where the previous ones were: a section in `PROGRESS.md`, and a
-design record under `docs/architecture/` if it is long. It needs no approval to
-run; its **findings become proposals that pass Gate 1 like anything else**, and
-they may reorder or re-scope the tranche the foreman was about to propose. It
-does not launch rewrites, and no new work begins until the owner approves.
-
-`qb-architect` has no Write tool and writes nothing to the tree: Fable returns
-the record and the foreman files it.
+- **if continuing the approved tranche would be unsafe** — the risk touches
+  what the remaining tasks are about to build on — it stops at
+  `OWNER_DECISION_REQUIRED`;
+- **otherwise it finishes the approved tranche** and reports the
+  recommendation at `TRANCHE_COMPLETE`.
 
 ### Fable's cadence
 
 Fable is for a bounded YELLOW architecture question, RED analysis before an
-owner decision, a broad whole-engine audit, and — later — a simplification
-pass. **Never for coordination, implementation review, merges, queue updates or
-ordinary foreman work.** At the demonstrated throughput a broad audit should
-land roughly **once per heavy development day**, not every couple of hours,
-unless risk evidence brings it forward.
+owner decision, the owner's broad audits, and — later — a simplification pass.
+**Never for coordination, implementation review, merges, queue updates or
+ordinary foreman work.**
+
+**A bounded YELLOW escalation inside a tranche is not a broad audit** and needs
+no owner initiation: it is an architecture consultation on one question, the
+foreman invokes it, and the tranche continues.
 
 ### The simplification audit, not yet
 
 After roughly **three to five broad whole-engine audits**, or when a major
-subsystem becomes structurally mature, Fable runs a separate
-**non-semantic simplification and optimisation audit**: where is the engine
-correct but unnecessarily complex; what duplicated representation can collapse;
-what speculative fields have zero consumers; what indirection no longer buys
+subsystem becomes structurally mature, Fable runs a separate **non-semantic
+simplification and optimisation audit**: where is the engine correct but
+unnecessarily complex; what duplicated representation can collapse; what
+speculative fields have zero consumers; what indirection no longer buys
 anything; what repeated scans, parsing or validation can be simplified; what
 dead fields and historical seams remain; what developer or test workflow is
 unnecessarily expensive. It ranks by leverage, confidence and regression risk.
@@ -771,6 +740,7 @@ unnecessarily expensive. It ranks by leverage, confidence and regression risk.
 **Runtime micro-performance is not part of it** and comes later, driven by
 profiling rather than intuition. Do not run a generic optimisation pass before
 this cadence says so.
+
 ## Resuming in a fresh session
 
 `/qb` injects `QUEUE.md`, the validator's summary, `git status`, the worktrees

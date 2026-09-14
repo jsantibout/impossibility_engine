@@ -8,50 +8,51 @@ prints the summary a fresh session reads first.
 
 A task's state lives on the `state:` line of its own file under
 `docs/dev/tasks/`. This file indexes tasks and records what no task file can:
-**the tranches and their authority**, the gate log, and the audit counter.
+**the tranches and their authority**, the gate log, and the audit history.
 
 **The tranche is the unit of owner authority.** Approving one authorises
 exactly the tasks on its roster to run all the way to a merged, pushed,
 recorded `main` — and nothing else. No task joins an approved roster; the
 validator refuses it.
 
-## Audit counter
+## Audits
 
-Last whole-engine audit: **the fourth, 2026-09-13** —
-`docs/architecture/whole-engine-audit-fourth-2026-09-13.md`, recorded in
-`PROGRESS.md` under "Fourth architecture audit against the doctrine".
+**Broad whole-engine audits are the owner's to initiate**, normally once per
+heavy development day, in a fresh Fable session against a clean `main`. Fable
+records each one by the existing convention and the next foreman session reads
+the findings and may reorder or re-scope the queue before proposing work.
 
-Architecture-change points since last audit: 0
-Audit due at: 12
+**The foreman keeps no counter and launches no broad audit.** It had one — a
+task threshold, then an architecture-change budget — and both were removed on
+2026-09-13 at the owner's instruction: audit scheduling is a judgement, and
+automating it produced either too many audits or a number nobody trusted.
 
-**Reset because the sweep actually happened.** The counter stood at 5 and was
-deliberately not reset by the scoped rider gate, on the owner's instruction:
-a gate scoped to one design question is not the whole-engine sweep the counter
-measures toward. The fourth audit is that sweep — 21 command modules and the
-barrel, the definition format's 45 optional fields and union members against
-132 definitions, all 102 adjudications against the SRD prose, the ongoing
-record and its upcaster, `EffectTarget`, both fixtures against the 91 event
-types, refusal-code coverage, and the SRD text behind every leverage
-candidate — so it resets.
+What the foreman still does is flag systemic risk. Where the evidence is
+repeated cross-system special cases, several YELLOW escalations converging on
+one boundary, persistence or replay uncertainty spreading past a bounded task,
+contradictory foundational representations, repeated stale source-of-truth
+failures, merged tasks invalidating each other, or conformance materially
+overstating support, it writes `WHOLE_ENGINE_AUDIT_RECOMMENDED` here with the
+evidence — and either stops at `OWNER_DECISION_REQUIRED` if continuing would
+be unsafe, or finishes the tranche and reports it at `TRANCHE_COMPLETE`. An
+isolated bug does not qualify, however serious, when its class is being closed
+directly.
 
-**And the counter is now a budget rather than a tally**, at the owner's
-instruction: a raw count of completed tasks was too sensitive at this
-throughput and would have called a broad Fable audit once or twice a day
-however little architecture actually moved. What is counted is the movement —
-0 for content, docs or test-only work; 1 for a bounded mechanic or a localised
-fix; 2 for a meaningful change to a foundational primitive, a cross-system
-semantic change or a lifecycle change; 3 for a new or replaced primitive,
-persistence or replay semantics, event authority, or the
-authoritative-versus-derived boundary. Due at **12**. The weighting is in
-`WORKFLOW.md`, the estimate goes in the Gate 1 proposal, and **the actual is
-recorded at merge from what landed** rather than from the label.
+A bounded YELLOW escalation inside a tranche is **not** a broad audit: it is an
+architecture consultation on one question, the foreman invokes it, and the
+tranche carries on.
 
-A scoped Fable consultation does not reset it; only a broad sweep does. And
-crossing 12 mid-tranche does not stop the tranche — mark it due, finish the
-roster, audit before proposing the next — unless a genuine systemic risk
-signal is present.
+Audit recommendation outstanding: **none**.
 
-Nothing has landed since the audit.
+### Audits run so far
+
+| | Date | Record |
+|---|---|---|
+| First | — | `PROGRESS.md`, "Architecture audit against the doctrine" |
+| Second | — | `PROGRESS.md` |
+| Third | 2026-09-13 | `docs/architecture/whole-engine-audit-2026-09-13.md`, commit `588d7a0` |
+| Scoped gate | 2026-09-13 | `docs/architecture/outcome-scoped-child-effects-2026-09-13.md` — one design question, not a sweep |
+| Fourth | 2026-09-13 | `docs/architecture/whole-engine-audit-fourth-2026-09-13.md` — the current architecture baseline |
 
 ## Tranches
 
@@ -229,26 +230,20 @@ So the four ready union tasks are four waves inside one tranche:
 audit's own re-derivation against the SRD text, which is what makes including
 them honest rather than optimistic.
 
-### Roster, with expected architecture-change weight
+### Roster
 
-| Task | Lane | Wave | Weight | Why that weight |
-|---|---|---|---|---|
-| IE-010 — Outcome riders, and the two `on` rules made one | mechanism | 1 | **2** | restructures the rider vocabulary across three hosts, the validator and the resolution path; no new primitive and no persistence change |
-| IE-011 — Multiclass Hit Dice | mechanism | 1 | **1** | a localised correctness fix inside established architecture; calls a function that already exists |
-| IE-012 — Scene commands | mechanism | 1 | **1** | ordinary command addition over existing pure functions; no new event, no fold change, no foundational representation altered |
-| IE-013 — Guards that can see a zero-user member | conformance | 1 | **1** | validator rules and sweeps, plus one read-site change in `turns.ts` that moves a source of truth |
-| IE-014 — A spell that takes a condition away | mechanism | 2 | **1** | one union member reusing an engine operation that already exists; no new state, no lifecycle |
-| IE-015 — `BLOCKED_ON` derived blocker map | conformance | 2 | **0** | a derived map, a guard and a query; no engine semantic change |
-| IE-016 — The other nine facts a DM declares | mechanism | 2 | **1** | ordinary command addition following IE-012's pattern |
-| IE-017 — A granted Resistance, and the deadline it needs | mechanism | 3 | **2** | a fourth sourced-grant kind on `CreatureState` plus a fourth `EffectTarget` member — a meaningful lifecycle and ownership change inside established authority |
-| IE-018 — A sweep for refusal codes nothing asserts | conformance | 3 | **0** | test-only; a code removed as dead is the only source change and is capped at one or two |
-| IE-019 — An outcome that varies by creature type | mechanism | 4 | **1** | a second reader of a fact the engine already holds authoritatively |
-
-**Expected total: 10 points against the 12-point threshold.** The budget is
-**not** expected to reach `WHOLE_ENGINE_AUDIT_DUE` during this tranche; on
-these estimates it falls due early in tranche 5. Weights are recorded at merge
-from what actually landed, and the estimate does not carry over if the two
-disagree.
+| Task | Lane | Wave | What it is |
+|---|---|---|---|
+| IE-010 — Outcome riders, and the two `on` rules made one | mechanism | 1 | the decided rider design, plus a shipped wrong answer in `on` and a zero-user format member |
+| IE-011 — Multiclass Hit Dice | mechanism | 1 | a shipped wrong number; calls a function that already exists and is tested |
+| IE-012 — Scene commands | mechanism | 1 | nothing above the engine can start an encounter |
+| IE-013 — Guards that can see a zero-user member | conformance | 1 | the guard that would have caught three of the audit's own findings |
+| IE-014 — A spell that takes a condition away | mechanism | 2 | one union member reusing the removal `useHealingTouch` already performs |
+| IE-015 — `BLOCKED_ON` derived blocker map | conformance | 2 | ends three documents ranking one family at 17, 4 and 2 |
+| IE-016 — The other nine facts a DM declares | mechanism | 2 | every declared event type reachable from the command layer |
+| IE-017 — A granted Resistance, and the deadline it needs | mechanism | 3 | `defensesOf`'s third input, and the fourth `EffectTarget` member |
+| IE-018 — A sweep for refusal codes nothing asserts | conformance | 3 | 41 of 112 unasserted, unmoved across two audits |
+| IE-019 — An outcome that varies by creature type | mechanism | 4 | a second reader of a fact the engine holds authoritatively |
 
 ### Independence, and what serialises
 
@@ -310,18 +305,18 @@ Recommendation: APPROVE TRANCHE 4.
 Nothing running. **Tranche 4 is proposed, not approved: nothing may execute.**
 All ten tasks are at `OWNER_APPROVAL_REQUIRED`.
 
-| Wave | Task | Lane | Weight |
-|---|---|---|---|
-| 1 | [IE-010 — Outcome riders, and the two `on` rules made one](tasks/IE-010-outcome-riders.md) | mechanism | 2 |
-| 1 | [IE-011 — Multiclass Hit Dice](tasks/IE-011-multiclass-hit-dice.md) | mechanism | 1 |
-| 1 | [IE-012 — Scene commands](tasks/IE-012-scene-commands.md) | mechanism | 1 |
-| 1 | [IE-013 — Guards that can see a zero-user member](tasks/IE-013-format-and-validator-guards.md) | conformance | 1 |
-| 2 | [IE-014 — A spell that takes a condition away](tasks/IE-014-condition-removal.md) | mechanism | 1 |
-| 2 | [IE-015 — `BLOCKED_ON` derived blocker map](tasks/IE-015-blocked-on-map.md) | conformance | 0 |
-| 2 | [IE-016 — The other nine facts a DM declares](tasks/IE-016-declared-fact-commands.md) | mechanism | 1 |
-| 3 | [IE-017 — A granted Resistance, and the deadline it needs](tasks/IE-017-granted-resistance.md) | mechanism | 2 |
-| 3 | [IE-018 — A sweep for refusal codes nothing asserts](tasks/IE-018-refusal-code-coverage.md) | conformance | 0 |
-| 4 | [IE-019 — An outcome that varies by creature type](tasks/IE-019-creature-type-outcomes.md) | mechanism | 1 |
+| Wave | Task | Lane |
+|---|---|---|
+| 1 | [IE-010 — Outcome riders, and the two `on` rules made one](tasks/IE-010-outcome-riders.md) | mechanism |
+| 1 | [IE-011 — Multiclass Hit Dice](tasks/IE-011-multiclass-hit-dice.md) | mechanism |
+| 1 | [IE-012 — Scene commands](tasks/IE-012-scene-commands.md) | mechanism |
+| 1 | [IE-013 — Guards that can see a zero-user member](tasks/IE-013-format-and-validator-guards.md) | conformance |
+| 2 | [IE-014 — A spell that takes a condition away](tasks/IE-014-condition-removal.md) | mechanism |
+| 2 | [IE-015 — `BLOCKED_ON` derived blocker map](tasks/IE-015-blocked-on-map.md) | conformance |
+| 2 | [IE-016 — The other nine facts a DM declares](tasks/IE-016-declared-fact-commands.md) | mechanism |
+| 3 | [IE-017 — A granted Resistance, and the deadline it needs](tasks/IE-017-granted-resistance.md) | mechanism |
+| 3 | [IE-018 — A sweep for refusal codes nothing asserts](tasks/IE-018-refusal-code-coverage.md) | conformance |
+| 4 | [IE-019 — An outcome that varies by creature type](tasks/IE-019-creature-type-outcomes.md) | mechanism |
 
 ## NEXT
 
@@ -384,7 +379,8 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | whole-engine gate | — | chartered, and **scoped by the owner** to one question: the restricted child vocabulary for outcome-scoped child effects. Design record only; `REJECT` and "narrower than asked" are legitimate answers. Tranche 4 not launched |
 | 2026-09-13 | whole-engine audit | — | **the fourth, run in full** at the owner's instruction after the scoped gate: 21 command modules, 45 format members against 132 definitions, 102 adjudications against the SRD prose, both fixtures against 91 event types, and every leverage candidate re-derived. Counter reset, because the sweep actually happened. `docs/architecture/whole-engine-audit-fourth-2026-09-13.md` |
 | 2026-09-13 | Gate 1 | IE-010, IE-011, IE-012, IE-013 | presented as a short tranche 4; superseded by the cadence change before approval |
-| 2026-09-13 | cadence change | — | tranches target 4–6 hours and ~8–12 tasks in dependency-aware **waves**, one approval for the whole roster and no gate between waves; "sequential" is a wave, not a tranche; the raw task counter becomes an **architecture-change budget** (0/1/2/3, due at 12, recorded at merge from what landed); risk signals may bring an audit forward and crossing the threshold mid-tranche does not stop it; a simplification audit is scheduled for after 3–5 broad audits. `WORKFLOW.md`, `check-queue.mjs` |
+| 2026-09-13 | cadence change | — | tranches target 4–6 hours and ~8–12 tasks in dependency-aware **waves**, one approval for the whole roster and no gate between waves; "sequential" is a wave, not a tranche. `WORKFLOW.md` |
+| 2026-09-13 | cadence change | — | **audit scheduling removed from the foreman.** No counter, no threshold, no automatic launch — the owner initiates broad audits, normally once a day, in a fresh Fable session against clean `main`. The foreman flags `WHOLE_ENGINE_AUDIT_RECOMMENDED` on systemic evidence and stops at `OWNER_DECISION_REQUIRED` only if continuing would be unsafe. Bounded YELLOW escalations are unchanged. `WORKFLOW.md`, `check-queue.mjs`, `CLAUDE.md` |
 | 2026-09-13 | Gate 1 | IE-010 … IE-019 | re-planned as the first long multi-wave tranche: ten tasks, four waves, ~5 hours, expected 10 of 12 points; awaiting the owner |
 | 2026-09-13 | whole-engine gate | — | **answered: `APPROVE, narrowed`.** Outcome *riders*, not child effects — leaf types in fixed slots on `attack`, `save-damage` and `save`, with the branch fixed by the host and the invariant that a rider never rolls. `onFail: SpellEffect[]` rejected on evidence. Tranche 4 not reordered; C1 re-briefed. `docs/architecture/outcome-scoped-child-effects-2026-09-13.md` |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |

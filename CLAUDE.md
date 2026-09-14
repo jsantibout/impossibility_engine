@@ -189,9 +189,14 @@ not get wrong.
   Content, conformance, tooling and docs run beside a mechanism task.
 - **Builders never edit `PROGRESS.md` or `docs/dev/`.** The foreman is the only
   writer there; the Done row is recorded at merge, as it always was.
-- **`WHOLE_ENGINE_AUDIT_DUE`** after every 3–5 engine tasks; `QUEUE.md`
-  counts, the audit is Fable's, and it is recorded where the previous ones
-  were. It runs before the next tranche is proposed, never instead of a gate.
+- **Broad audits are the owner's to start.** The foreman keeps no counter and
+  launches none; the owner runs one in a fresh Fable session against clean
+  `main`, normally once per heavy development day, and the next foreman session
+  reads the findings before proposing work. What the foreman does is flag
+  systemic risk as `WHOLE_ENGINE_AUDIT_RECOMMENDED`, with the evidence — and
+  stop at `OWNER_DECISION_REQUIRED` only if continuing would be unsafe. A
+  bounded YELLOW escalation inside a tranche is an architecture consultation,
+  not an audit, and needs nobody's permission.
 
 ## Architecture
 
