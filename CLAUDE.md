@@ -1835,20 +1835,115 @@ being used mid-fight. What the engine does **not** do in that window is hold
 the caster to the per-turn obligation, which is exactly the half that is
 deferred.
 
-**No definition in the catalogue declares a long casting time yet**, and that
-is IE-036's: it writes the twelve spells this unblocks. So `castingSeconds`
-carries a written exemption in the format's own unused-member sweep — a
-handover in the shape `roll-mode.save` used, naming the task that supplies the
-writer. The mechanism is driven end to end regardless: through `resolveCast`
-for a one-minute casting, and through the **ten** already-defined spells that
-print the Ritual tag, which reach it with no `castingSeconds` of their own.
+**The twelve definitions this unblocked are written**, so `castingSeconds` has
+writers and the handover it carried is discharged — see "Twelve Spells Whose
+Only Blocker Was The Clock" below.
 
-**`a-long-casting-time` keeps its claimants in `missing-shapes.ts`.** Re-filing
-fifty-four entries — twelve of which become `[]` — is the entry-by-entry
-re-read that map insists on when a shape is built, and it belongs with the task
-that reads each of those paragraphs to write the definition. What is corrected
-here is the shape's *description*, which quoted a CLAUDE.md sentence that is no
-longer true.
+### Twelve Spells Whose Only Blocker Was The Clock
+
+`consumersOf('a-long-casting-time').unblocks` named exactly twelve spells, and
+IE-036 read each of their SRD paragraphs and wrote all twelve. Alarm,
+Clairvoyance, Commune with Nature, Fabricate, Find the Path, Hallucinatory
+Terrain, Identify, Illusory Script, Instant Summons, Legend Lore, Magic Mouth
+and Mending — a ward that warns you, a sensor a mile off, three facts about the
+countryside, an object fabricated or repaired, a page only your friends can
+read, a mouth that speaks when somebody walks past.
+
+**Every one of them is tracked, and that is what reading the paragraphs
+decided rather than what the batch set out to do.** Not one changes a number, a
+resource or a condition: what the engine owns is the cost, and it now spends
+all of it — the action, the slot, the Concentration on the rite, the deadline,
+the range and the target rule. The **one** clause among the twelve that is
+arithmetic is Hallucinatory Terrain's "make an Intelligence (Investigation)
+check against your spell save DC to disbelieve it", which is the sentence
+Disguise Self, Minor Illusion and Silent Image already write, and it is
+executed.
+
+**The handover fell rather than being rewritten**, which is what a handover is
+for. `SpellDefinition.castingSeconds`' exemption in the format's own
+unused-member sweep ended "the day any definition prints a casting time of a
+minute or more, this fails rather than going on excusing a field that has a
+writer", and twelve of them do; the sweep's own "keeps no exemption for a
+member something now writes" arm is what removed it. Second time an exemption
+has been discharged by deletion — `dash`'s was the first.
+
+**The catalogue is now a witness for a sum that no fixture could reach.**
+`castingOf` adds a Ritual's ten minutes to the spell's *own* casting time, and
+every one of the ten previously tagged definitions prints "Action or Ritual" —
+no casting time of its own — so "0 + 600" and "600" were the same number for
+all ten and a mutation replacing the sum with the constant survived the entire
+suite. **Six of the twelve print "1 minute or Ritual" and come to 660** —
+Alarm, Commune with Nature, Identify, Illusory Script, Instant Summons and
+Magic Mouth. That fixture was a hand-built Alarm; it reads
+`definitionFor('alarm')` now and a sweep beside it loops over *every* tagged
+definition with a casting time of its own, and the same mutation reddens three
+tests in two files.
+
+**Alarm is the fixture and was briefly written down as the only case**, in
+four places at once, which is worth recording because it is this file's own
+most-repeated failure arriving inside the commit that fixed it: a claim of
+uniqueness written while five more of the same thing were being added in the
+same diff. An independent review measured it. The sweep that loops over every
+tagged definition is what makes the prose no longer load-bearing.
+
+**A `long` casting time changes what a sweep over the catalogue has to do**,
+and both sweeps were asserting on half a casting the moment these landed. A
+casting of a minute or more is a *declared* one, so `resolveSpell` returns a
+`spell-declared` and stops; `spell-tracking.test.ts`'s "casts %s" and
+`spell-catalogue.test.ts`'s "spends exactly one casting" both expect a
+`spell-cast` and would have found none. Both drive the clock to the
+definition's own `castingSeconds` and settle by casting id — the honest
+generalisation, because what they claim is *one casting*, not *one batch*. The
+catalogue sweep asserts the two-event route is taken for exactly the `long`
+definitions, so the branch is exercised rather than merely present.
+
+**Three readings the paragraphs settled, each of which could have gone the
+other way:**
+
+- **Alarm carries no area and no designation, and the two go together.** SRD
+  wards "a door, a window, or an area within range that is **no larger than** a
+  20-foot Cube" — two objects and a ceiling the caster chooses under, where
+  `SpellArea.size` is one fixed number. And `designatesUnaffected` filters
+  which creatures an area's *effects* reach: this area has none, because what
+  the ward does when it catches somebody is **tell the caster**, which changes
+  no authoritative state at all — no roll, no resource, no condition. So the
+  alarm is the table's for the same reason Detect Magic's "you sense the
+  presence of any magical effects" is, and the exemption from a warning is the
+  table's along with the warning. The validator refuses `designatesUnaffected`
+  without an area, which is the guard saying the same thing. Hallucinatory
+  Terrain's 150-foot Cube is left off for the first half of that reason, and
+  the book says so outright: "creatures within the area aren't changed."
+- **Identify may name the creature it touched, or name nobody.** "You touch an
+  object throughout the spell's casting ... **If you instead touch a creature**
+  throughout the casting, you learn which ongoing spells are affecting it" —
+  two things may be touched and one of them is a creature, which is exactly
+  `TargetRule.optional`. Naming one buys the Touch range check against a real
+  creature; `count: 0` would have refused a target the book plainly allows.
+- **What a caster *learns* is never an effect.** "You learn which ongoing
+  spells, if any, are currently affecting it" is a fact the engine holds and
+  already answers — `ongoingSpellsOn` is the query — and no effect kind reports
+  knowledge, because knowing something changes no authoritative state. The
+  spell tells the table which question to ask.
+
+**Two clauses among the twelve are debt rather than fiction, and the tracked
+guard cannot see either.** Instant Summons' "you can take a Magic action to
+speak the object's name and crush the sapphire ... and the spell ends" and
+Magic Mouth's "you can have the spell end after it delivers its message" are
+both `a-casting-dismissed-early` — an ongoing casting nobody is concentrating
+on has no door out, because `endConcentration` is about Concentration. No
+`MECHANICAL_MARKER` fires on "the spell ends", so neither could be filed in
+`TRACKED_ADJUDICATED`, whose entries must name a marker their own sentence
+trips. Each says so in its `unmodelled` clause and names the shape. That is the
+floor being a floor, recorded rather than fixed by widening the marker set.
+
+**And the shape survived with an `unblocks` of zero**, which is a state the map
+had not held before: forty-two spells still name `a-long-casting-time` and
+every one of them names something else too, so building the in-combat per-turn
+obligation now finishes nothing on its own. `blocks` is the number a reader
+wants and `unblocks` is the number a tranche is planned from, and this is the
+clearest case in the map of the two saying different things. The forty-two are
+not re-filed: each waits on a shape the map already names, and re-reading one
+belongs with whichever task is briefed from *that* shape.
 
 ### One code said five things, and two of them were different questions
 
@@ -5408,7 +5503,7 @@ leaves only these two. The rest are blocked, and never on this shape:
 | Condition *immunity* or prevention | Mind Blank, Heroism, Freedom of Movement, Heroes' Feast, Hallow |
 | A casting ended by a trigger | Sequester's caster-chosen condition and its "any damage"; Mislead, which ends the **invisibility** and not the casting |
 | A condition that ends when its holder leaves an area | Silence's "Deafened **while entirely inside it**" — the gap Web's Restrained already records |
-| A long casting time | Astral Projection, Awaken, Wind Walk, Hallow, Heroes' Feast, Clairvoyance, Instant Summons |
+| A long casting time — ~~built~~, so this row is what it left | Astral Projection, Awaken, Wind Walk, Hallow, Heroes' Feast (each blocked on something else in this table too); **Clairvoyance and Instant Summons are tracked definitions now**, and what keeps them out of the `condition` kind is the first row rather than this one |
 | Reading a condition rather than imposing one | Find Steed, Shining Smite, Mirror Image |
 | A world the engine does not model | Meld into Stone's Prone on being expelled from the rock |
 
@@ -6348,9 +6443,14 @@ written reason is only as honest as its author, but *this* claim is checkable.
 
 ### Tracked Is A Claim About The Cost, Not A Half-Finished Execution
 
-Forty-four spells have a definition with `effects: []`. The engine casts every
+A good many spells have a definition with `effects: []` — `COVERAGE.md` counts
+them, and this sentence said "forty-four" while the number was forty-five and
+is fifty-seven now, which is the digit-in-prose failure this file records about
+every count it keeps. The engine casts every
 one of them for real — the action or Bonus Action, the slot, the Concentration
-it takes and the one it breaks, the deadline on the clock, the range and the
+it takes and the one it breaks, the deadline on the clock — **and for a casting
+of a minute or more, the declaration, the rite's own Concentration and the
+settlement the clock gates** — the range and the
 target count, the command id that makes a retry a no-op — and what the spell
 *does* is the DM's. Disguise Self will never be executed, because what a caster
 looks like is not arithmetic. Refusing the cast outright, which is what the
@@ -8240,7 +8340,10 @@ null and is reported — it never becomes either.
   clock** — see "A Casting Of A Minute Or More Runs On The Clock": the largest
   blocker in the book, built outside combat as a declared casting that
   completes on the clock and concentrates on itself until it does, with a
-  Ritual as the same mechanism ten minutes longer. **And a spell can hang a
+  Ritual as the same mechanism ten minutes longer — **and the twelve spells it
+  was the only blocker for are written**, all twelve tracked, which is what
+  took that shape's `unblocks` to zero while leaving forty-two claimants on it.
+  **And a spell can hang a
   rider on the caster's later attacks, and a slot can lengthen a duration** —
   see "A Rider On Later Attacks Is The Sixth Sourced Grant" and "A Duration The
   Slot Changes Is A Table Per Definition": Divine Favor's 1d4 Radiant on every

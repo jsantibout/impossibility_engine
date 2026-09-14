@@ -606,15 +606,21 @@ export interface CastingTiming {
  * is refused rather than quietly cast normally — the shape `damageType` and
  * `fought` already take for a clause a spell does not print.
  *
- * **Exported so a fixture can reach the arithmetic no registered spell does.**
- * Ten catalogue definitions carry the Ritual tag and every one of them prints
- * "Action or Ritual", so they have no `castingSeconds` of their own and "adds
- * ten minutes" and "is ten minutes" give the same answer for all ten — a
- * mutation replacing the sum with the constant survives the whole suite. SRD
- * Alarm prints "1 minute or Ritual" and comes to **660**, and this is pure
- * over a definition, so that definition can simply be built: the move
+ * **Exported because the arithmetic below needed a fixture no registered
+ * spell could reach, and now six of them can.** Every definition tagged as a
+ * Ritual before IE-036 prints "Action or Ritual", so none had a
+ * `castingSeconds` of its own and "adds ten minutes" and "is ten minutes"
+ * gave the same answer for all ten — a mutation replacing the sum with the
+ * constant survived the whole suite, and the only way to reach the difference
+ * was to build a definition by hand, which is pure over one and is the move
  * `restoreOn`'s dawn-recovering pool already makes for a branch no class can
  * reach.
+ *
+ * SRD Alarm prints "1 minute or Ritual" and comes to **660**; IE-036 wrote it
+ * and five more that print the same line, so the sum has catalogue writers and
+ * that mutation now reddens three tests in two files. The export stays,
+ * because being pure over a definition is what lets the sweep in
+ * `long-casting.test.ts` ask the question of every tagged definition at once.
  */
 export function castingOf(
   definition: SpellDefinition,

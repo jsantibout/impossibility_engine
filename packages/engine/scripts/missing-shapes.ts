@@ -188,7 +188,7 @@ export const MISSING_SHAPES = {
   'an-effect-that-fires-when-the-casting-ends':
     'CLAUDE.md: "**Expiry is derived, like Concentration breaking** ... The log records the effect being scheduled, not expiring." Nothing hangs a consequence on the moment a casting runs out, so a spell that punishes its target when it lapses, or rewards a caster who held Concentration to the end, has no hook.',
   'a-long-casting-time':
-    'CLAUDE.md: "**In combat a casting time of 1 minute or more is still refused**, and the reason names what is missing: SRD requires the caster to take the Magic action on each turn of the casting, which is a per-turn obligation rather than a deadline." Outside combat IE-034 built it — the casting is declared, runs on the clock and settles, and a Ritual is cast the same way — so what is left of this shape is the in-combat half. The entries below are **not** re-filed yet: re-reading fifty-four paragraphs is the entry-by-entry work this map insists on when a shape is built, and it belongs with IE-036, which reads each of them to write the twelve definitions this unblocks. It is still the single largest blocker in the undefined population by the count below, and the day those definitions are written is the day this shrinks.',
+    'CLAUDE.md: "**In combat a casting time of 1 minute or more is still refused**, and the reason names what is missing: SRD requires the caster to take the Magic action on each turn of the casting, which is a per-turn obligation rather than a deadline." Outside combat IE-034 built it — the casting is declared, runs on the clock and settles, and a Ritual is cast the same way — so what is left of this shape is the in-combat half. **IE-036 read the twelve paragraphs this was the only blocker for and wrote all twelve as tracked definitions**, so what it now blocks is the forty-two spells that name it *and something else*; not one of them is blocked on the in-combat half alone, which is why the second number below is zero rather than the shape being retired. Those forty-two are **not** re-filed: each is blocked by a shape this map already names, and re-reading them belongs with whichever task is briefed from the shape they are waiting on.',
   'senses-beyond-declared-sight':
     'sight is a pairwise declaration and there is nothing else — CLAUDE.md names the missing piece as "A sight clause read from the **attacker’s** side | Faerie Fire". Blindsight and Truesight are the attacker’s senses, so a spell that excuses them cannot be written.',
   'what-a-creature-is-holding':
@@ -1095,6 +1095,23 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'a creature shunted out as the door vanishes lands Prone — but who is inside an unmodelled demiplane is a fiction the engine cannot see, and the DM applies the condition with applyConditionTo.',
     },
   ],
+  'hallucinatory-terrain': [
+    {
+      marker: 'ability-check',
+      clause:
+        'make an Intelligence (Investigation) check against your spell save DC to disbelieve it',
+      why: 'engine',
+      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against the casting own timer, which the twenty-four hours give it; the table decides only that somebody put a hand out and then looked closely.',
+    },
+  ],
+  'magic-mouth': [
+    {
+      marker: 'condition',
+      clause: 'a message that is uttered when a trigger condition is met',
+      why: 'table',
+      note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds.',
+    },
+  ],
   fly: [
     {
       marker: 'speed',
@@ -1306,7 +1323,6 @@ export type BlockedEntry = ShapeId | BlockedClause;
  */
 export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   aid: ['a-hit-point-maximum-a-spell-moves'],
-  alarm: ['a-long-casting-time'],
   'alter-self': [
     'a-choice-made-at-the-casting',
     'a-rider-on-a-later-weapon-attack',
@@ -1399,7 +1415,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
   ],
   'chromatic-orb': ['a-die-behaviour-a-spell-asks-for', 'several-attack-rolls-from-one-casting'],
-  clairvoyance: ['a-long-casting-time'],
   clone: ['a-long-casting-time', 'healing-that-raises-the-dead'],
   command: [
     'a-choice-made-at-the-casting',
@@ -1407,7 +1422,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'what-a-creature-is-holding',
   ],
   commune: ['a-long-casting-time', 'a-random-outcome-that-is-not-a-d20'],
-  'commune-with-nature': ['a-long-casting-time'],
   confusion: ['a-random-outcome-that-is-not-a-d20', 'an-action-a-spell-compels-or-forbids'],
   'conjure-animals': [
     'a-standing-effect-derived-from-where-a-creature-stands',
@@ -1507,13 +1521,11 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'an-action-a-spell-compels-or-forbids',
     'an-activation-that-forces-a-saving-throw',
   ],
-  fabricate: ['a-long-casting-time'],
   'faerie-fire': ['a-condition-benefit-an-effect-takes-away', 'senses-beyond-declared-sight'],
   'faithful-hound': ['a-casting-ended-by-a-trigger', 'an-area-trigger-on-the-casters-turn'],
   'feather-fall': ['falling'],
   'find-familiar': ['a-long-casting-time', 'a-stat-block-created-mid-fight'],
   'find-steed': ['a-stat-block-created-mid-fight'],
-  'find-the-path': ['a-long-casting-time'],
   'fire-shield': ['a-spell-that-answers-a-later-attack'],
   'fire-storm': ['a-wall-or-several-templates-in-one-area'],
   'flaming-sphere': ['an-area-trigger-measured-from-a-point'],
@@ -1729,7 +1741,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The same standing spatial effect as Resistance above it, on the other end of `applyDefenses`, and blocked on the same missing derivation rather than on the defence.',
     },
   ],
-  'hallucinatory-terrain': ['a-long-casting-time'],
   haste: [
     'a-speed-an-effect-multiplies',
     'an-action-a-spell-compels-or-forbids',
@@ -1798,20 +1809,16 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-standing-effect-derived-from-where-a-creature-stands',
   ],
   'ice-knife': ['a-second-roll-sequenced-after-the-first'],
-  identify: ['a-long-casting-time'],
-  'illusory-script': ['a-long-casting-time'],
   imprisonment: [
     'a-choice-made-at-the-casting',
     'a-long-casting-time',
     'a-second-place-to-put-a-creature',
     'an-effect-that-suppresses-other-magic',
   ],
-  'instant-summons': ['a-long-casting-time'],
   'irresistible-dance': [
     'a-success-branch-that-does-something',
     'an-action-a-spell-compels-or-forbids',
   ],
-  'legend-lore': ['a-long-casting-time'],
   levitate: [
     'a-target-rule-the-format-cannot-state',
     'forced-movement-a-spell-causes',
@@ -1873,7 +1880,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-spells-effects-applied-to-different-targets',
     'damage-with-neither-an-attack-roll-nor-a-save',
   ],
-  'magic-mouth': ['a-long-casting-time'],
   'magic-weapon': ['a-rider-on-a-later-weapon-attack'],
   'magnificent-mansion': ['a-long-casting-time', 'a-second-place-to-put-a-creature'],
   'major-image': ['a-duration-the-slot-changes'],
@@ -1883,7 +1889,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   ],
   maze: ['a-second-place-to-put-a-creature'],
   'meld-into-stone': ['a-world-fact-nothing-can-represent'],
-  mending: ['a-long-casting-time'],
   'meteor-swarm': ['a-wall-or-several-templates-in-one-area'],
   // The spell the query predicted IE-017 would finish and did not — the
   // sharpest correction this map has made, and the reason its entry is the

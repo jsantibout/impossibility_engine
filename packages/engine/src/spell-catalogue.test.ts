@@ -6,7 +6,12 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
-import { resolveSpell } from './commands.js';
+import {
+  advanceTime,
+  pendingCastingsOf,
+  resolveDeclaredCast,
+  resolveSpell,
+} from './commands.js';
 import {
   SPELL_DEFINITIONS,
   definitionFor,
@@ -315,6 +320,33 @@ const castAt = (
 };
 
 /**
+ * The whole casting as a flat batch, declaration and settlement alike.
+ *
+ * `castAt` returns whatever `resolveSpell` gave, which for a casting of a
+ * minute or more is a **declaration**: the action is spent, the casting is
+ * open, and the slot and the effects wait on the clock. This drives the clock
+ * to the moment the definition's own `castingSeconds` names and settles the
+ * casting by its id, so a sweep over the whole catalogue asks every definition
+ * the same question rather than asking twelve of them half of it.
+ */
+const castAndSettle = (spellId: string, bonus = -40, seed = 'cast'): readonly GameEvent[] => {
+  const base = logFor(spellId);
+  const first = unwrap(castAt(fold('seed', base), spellId, bonus, seed), spellId);
+  const definition = definitionFor(spellId)!;
+  if (definition.castingTime !== 'long') return first.events;
+
+  const open = fold('seed', [...base, ...first.events]);
+  const castingId = pendingCastingsOf(open)[0]!.castingId;
+  const tick = unwrap(advanceTime(open, definition.castingSeconds!, 'the rite'), `tick ${spellId}`);
+  const ticked = [...base, ...first.events, ...tick];
+  const settled = unwrap(
+    resolveDeclaredCast(fold('seed', ticked), castingId, supply(seed, bonus)),
+    `settle ${spellId}`,
+  );
+  return [...first.events, ...tick, ...settled.events];
+};
+
+/**
  * A spell cast on an attack that has hit is not cast through this command at
  * all — SRD Divine Smite's casting time is "immediately after hitting a
  * target", and `resolveSpell` has no attack to hand it. They are driven by
@@ -367,9 +399,25 @@ describe('every definition in the catalogue actually casts', () => {
     }
   });
 
+  /**
+   * **One casting, however many events it takes to record one.**
+   *
+   * A casting of a minute or more is a *declared* one — `spell-declared`, a
+   * span on the clock, and `spell-cast` only when the rite finishes — so a
+   * sweep that read the first batch alone would assert zero for the twelve
+   * definitions that print one, and a sweep that asserted "one of either"
+   * would stop noticing a settlement that wrote a second. Driving both halves
+   * is what keeps the claim the claim: **exactly one `spell-cast` per casting,
+   * for every definition in the catalogue.**
+   */
   it.each(CASTABLE.map((d) => [d.id] as const))('spends exactly one casting for %s', (spellId) => {
-    const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
-    expect(out.events.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
+    const out = castAndSettle(spellId);
+    expect(out.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
+    // And a long casting really does take the two-event route, so the branch
+    // above is exercised rather than merely present.
+    expect(out.some((e) => e.type === 'spell-declared')).toBe(
+      definitionFor(spellId)!.castingTime === 'long',
+    );
   });
 
   /** Same state, same seed, same batch — twice. */
@@ -381,9 +429,7 @@ describe('every definition in the catalogue actually casts', () => {
   });
 
   it.each(CASTABLE.map((d) => [d.id] as const))('replays %s prefix by prefix', (spellId) => {
-    const base = logFor(spellId);
-    const out = unwrap(castAt(fold('seed', base), spellId, -40), spellId);
-    const log = [...base, ...out.events];
+    const log = [...logFor(spellId), ...castAndSettle(spellId)];
     for (let n = 0; n <= log.length; n += 1) {
       expect(fold('seed', log.slice(0, n))).toEqual(fold('seed', log.slice(0, n)));
     }

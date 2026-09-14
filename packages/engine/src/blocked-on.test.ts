@@ -1638,6 +1638,66 @@ describe('a shape that gets built is content work, not a merge', () => {
   });
 });
 
+describe('a shape may finish nothing and still block forty-two spells', () => {
+  /**
+   * **IE-034 built the largest blocker in the book and IE-036 spent it**, and
+   * what is left is the state this file had not seen before: a shape with a
+   * long list of claimants and an `unblocks` of **zero**.
+   *
+   * The twelve `a-long-casting-time` was the only blocker for were read
+   * paragraph by paragraph and written as tracked definitions, so they leave
+   * the map entirely — and every remaining claimant names it *and something
+   * else*, which is what makes the second column empty rather than the shape
+   * retired. `blocks` is the number a reader wants and `unblocks` is the
+   * number a tranche is planned from, and this is the clearest case in the map
+   * of the two saying different things.
+   *
+   * Not retired, because the guard that retires a shape asks whether anything
+   * claims it and forty-two spells do. What is genuinely gone is the *content*
+   * half of the shape: nothing else can be finished by building the in-combat
+   * per-turn obligation alone.
+   */
+  it('has finished every spell it was the only blocker for', () => {
+    const casting = consumersOf('a-long-casting-time');
+    expect(casting.unblocks).toEqual([]);
+    expect(casting.blocks.length).toBeGreaterThan(40);
+    expect(claimedShapes().has('a-long-casting-time')).toBe(true);
+  });
+
+  /** The twelve are out of the map, and every one of them is now a definition. */
+  it.each([
+    ['alarm'],
+    ['clairvoyance'],
+    ['commune-with-nature'],
+    ['fabricate'],
+    ['find-the-path'],
+    ['hallucinatory-terrain'],
+    ['identify'],
+    ['illusory-script'],
+    ['instant-summons'],
+    ['legend-lore'],
+    ['magic-mouth'],
+    ['mending'],
+  ] as const)('has moved %s out of the undefined population', (spellId) => {
+    expect(BLOCKED_ON[spellId]).toBeUndefined();
+    expect(DEFINED_SPELL_IDS.has(spellId), spellId).toBe(true);
+  });
+
+  /**
+   * And the two of the twelve that carry a mechanical clause are in the
+   * **tracked** map, which is where a tracked spell's debt belongs — the other
+   * ten name nothing the markers can see, which is what "tracked" is supposed
+   * to mean and is the measure of how well the twelve fitted the bucket.
+   */
+  it('files the two clauses the twelve carry in the tracked map', () => {
+    expect(TRACKED_ADJUDICATED['hallucinatory-terrain']?.map((e) => e.why)).toEqual(['engine']);
+    expect(TRACKED_ADJUDICATED['magic-mouth']?.map((e) => e.why)).toEqual(['table']);
+    for (const id of ['alarm', 'clairvoyance', 'identify', 'mending']) {
+      expect(TRACKED_ADJUDICATED[id], id).toBeUndefined();
+    }
+  });
+});
+
 describe('a trigger that ends a casting is a partial build, and the map says which part', () => {
   /**
    * **IE-032 built five causes out of a shape that names many more**, which is

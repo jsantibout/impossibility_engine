@@ -1472,9 +1472,22 @@ const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
     'SRD 5.2.1 mandates no footprint convention for an area of effect — its "Playing on a Grid" sidebar covers squares, Speed, entering a square, corners and ranges and says nothing about areas, and the intersection convention comes from a 2014 optional rule. Declaring one per spell would be the engine choosing a rule the book declined to give. The field exists so a deliberate geometry pass, or an author of content the SRD never printed, says it in data rather than in runtime logic, and `spatial-model.test.ts` drives both precedence branches through `anchoringFor`.',
   'SpellCheck.dc?':
     'SRD Maze prints "a DC 20 Intelligence (Investigation) check", which is exactly this field, and Maze has no definition because it is blocked on a demiplane the engine does not model. The reader is live on every executed check — `effectCheckFrom` writes `check.dc ?? saveDc` — so what is absent is a definition, not a use. The pin below is the one Sunburst\'s dispel clause already takes: the day Maze gets a definition it must write the number the book prints, and this fails rather than going on excusing a field that now has a user.',
-  'SpellDefinition.castingSeconds?':
-    'a handover, exactly as `roll-mode.save` was, and in the opposite direction: this member has no writer because no definition in the catalogue declares `castingTime: "long"` yet, and IE-036 is the task that writes the twelve spells a long casting time unblocks. The reader is live on every casting — `castingOf` turns it into the moment `PendingCasting.completesAt` pins, the validator requires it of any `long` definition, and `spell-oracle.test.ts` holds it against the printed casting time — so what is absent is a definition, not a use, and `long-casting.test.ts` drives the whole mechanism through `resolveCast` and through the ten Rituals that reach it with no `castingSeconds` of their own. The day any definition prints a casting time of a minute or more, this fails rather than going on excusing a field that has a writer.',
 };
+
+/**
+ * **`SpellDefinition.castingSeconds` was here, and the handover worked.**
+ *
+ * Its written reason ended "the day any definition prints a casting time of a
+ * minute or more, this fails rather than going on excusing a field that has a
+ * writer", and IE-036 wrote twelve of them. The exemption therefore *fell*
+ * rather than being rewritten, which is the second time a handover has been
+ * discharged by deletion — `dash`'s `conditionSpeed` exemption was the first,
+ * and `roll-mode.save`'s was discharged by the member going instead.
+ *
+ * Nothing replaces it: the sweep's "keeps no exemption for a member something
+ * now writes" arm is what removed it, and Alarm, Mending and the other ten are
+ * what keep it removed.
+ */
 
 /**
  * **Nothing in this repository could see a member that nobody uses.**
@@ -3427,10 +3440,11 @@ describe('a casting time of a minute or more names the minute', () => {
    * to; there is no plausible value to fall back to, which is the
    * `packages/srd/raw` rule arriving at the definition format.
    *
-   * **No catalogue definition is `long` yet** — IE-036 writes the twelve
-   * spells a long casting time unblocks — so the only way to know either rule
-   * below is a guard at all is a definition built to fail it, which is exactly
-   * what `grant_without_lifetime`'s own test does and for the same reason.
+   * **Twelve catalogue definitions are `long` now** and every one of them
+   * obeys these rules, which is what makes them rules the format holds rather
+   * than rules nothing could break: the only way to know either is a *guard*
+   * is still a definition built to fail it, exactly as
+   * `grant_without_lifetime`'s own test does and for the same reason.
    */
   const LONG: SpellDefinition = {
     ...FIRE_DART,

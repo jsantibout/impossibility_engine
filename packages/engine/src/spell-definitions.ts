@@ -1497,6 +1497,15 @@ export interface SpellDefinition {
    *
    * Absent means the spell offers no such choice and naming anybody is
    * refused, rather than quietly ignored.
+   *
+   * **{@link ALARM} is defined and does not carry it**, which is worth saying
+   * here because this docstring named it before that definition existed. What
+   * this field filters is which creatures an area's **effects** reach, and
+   * Alarm's ward has no effects to reach anybody: what it does when it catches
+   * somebody is tell the caster, which changes no authoritative state at all.
+   * So the exemption is from a warning the DM gives and is the DM's along with
+   * the warning — and the validator says the same thing from the other side,
+   * refusing this field on a definition with no `area`.
    */
   readonly designatesUnaffected?: true;
   /**
@@ -7564,9 +7573,549 @@ export const HUNTERS_MARK: SpellDefinition = {
   ],
 };
 
+// — the third tracked batch: the twelve a casting time of a minute or more blocked —
+//
+// IE-034 built the mechanism and could reach it from no definition: a casting
+// of a minute or more is declared, concentrated on, and settled when the clock
+// arrives, and a Ritual is the same mechanism ten minutes longer. These are the
+// twelve spells for which that refusal was the *only* thing in the way —
+// `consumersOf('a-long-casting-time').unblocks`, read as data rather than
+// counted by hand.
+//
+// **Every one of them is tracked, and that is what reading the paragraphs
+// decided rather than what the batch set out to do.** A ward that warns you, a
+// sensor a mile off, three facts about the countryside, an object fabricated
+// or repaired, a page only your friends can read, a mouth that speaks when
+// somebody walks past: not one of the twelve changes a number, a resource or a
+// condition. What the engine owns is the cost — the action, the slot, the
+// Concentration, the deadline, the range and the target rule — and it now
+// spends all of it.
+//
+// The one clause among the twelve that is arithmetic is Hallucinatory
+// Terrain's Intelligence (Investigation) check, which is the sentence Disguise
+// Self, Minor Illusion and Silent Image already write, and it is executed.
+
+/**
+ * SRD Alarm:
+ *
+ * > _Level 1 Abjuration (Ritual) (Ranger, Wizard)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** 30 feet.
+ * > **Duration:** 8 hours.
+ * > "You set an alarm against intrusion. Choose a door, a window, or an area
+ * > within range that is no larger than a 20-foot Cube. Until the spell ends,
+ * > an alarm alerts you whenever a creature touches or enters the warded area.
+ * > When you cast the spell, you can designate creatures that won't set off
+ * > the alarm."
+ *
+ * **The first spell in the catalogue whose Ritual is not ten minutes**, and
+ * the fixture for it — not the only one. Every definition carrying the tag
+ * *before this batch* prints "Action or Ritual" and so has no casting time of
+ * its own to be longer *than*, which made "adds ten minutes" and "is ten
+ * minutes" the same number for all ten and left `castingOf`'s sum unwatched —
+ * a mutation replacing it with the constant survived the entire suite. Alarm
+ * prints "1 minute or Ritual" and its Ritual therefore takes **660** seconds,
+ * so that mutation now reddens a fixture driven off the catalogue rather than
+ * one built by hand to reach it.
+ *
+ * **Five more of this batch print the same line and come to the same 660** —
+ * Commune with Nature, Identify, Illusory Script, Instant Summons and Magic
+ * Mouth — so what makes Alarm the fixture is that the test was written around
+ * it, rather than any uniqueness. `long-casting.test.ts` loops over *every*
+ * tagged definition with a casting time of its own, which is what keeps this
+ * paragraph from being the thing the guard rests on.
+ *
+ * **No area, and no designation, and the two go together.** `SpellArea.size`
+ * is one fixed number and the SRD prints a ceiling the caster chooses under —
+ * "no larger than a 20-foot Cube" — with two of the three things that may be
+ * warded being objects. And `designatesUnaffected` filters which creatures an
+ * area's **effects** reach: this area has none to reach anybody, because what
+ * the ward does when it catches somebody is tell the caster, which changes no
+ * authoritative state at all. An area carrying no effect and no trigger would
+ * gather creatures for nothing, which is why no definition in the catalogue
+ * has one.
+ */
+export const ALARM: SpellDefinition = {
+  id: 'alarm',
+  name: 'Alarm',
+  level: 1,
+  school: 'abjuration',
+  // "Casting Time: 1 minute or Ritual" — the minute is the spell's own, and
+  // the Ritual's ten minutes are the rule's, added at the declaration.
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  // "Range: 30 feet."
+  range: { kind: 'ranged', feet: 30 },
+  // The ward is set on a door, a window or a patch of ground; no creature is
+  // ever a target of it.
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: 8 hours."
+  durationSeconds: 28_800,
+  unmodelled: [
+    'the warded area is the DM’s: "a door, a window, or an area within range that is no larger than a 20-foot Cube" is a choice between two objects and a Cube whose size the caster picks, where a spell’s area is one fixed number — transcribing 20 would assert as the ward’s footprint a figure the book prints as a ceiling',
+    'the alarm is not raised: "an alarm alerts you whenever a creature touches or enters the warded area" changes no mechanically authoritative state — no roll, no resource, no condition, nothing about any creature — so there is nothing for the engine to decide, exactly as there is nothing for it to decide about Detect Magic’s "you sense the presence of any magical effects"',
+    'designating creatures that will not set off the alarm is not recorded, because there is no alarm for them to be exempt from: the exemption is from a warning the DM gives, so it is the DM’s along with the warning',
+    'whether the alarm is audible or mental, the handbell heard 60 feet off, the mental ping a mile away and being woken by it are all the DM’s',
+  ],
+};
+
+/**
+ * SRD Clairvoyance:
+ *
+ * > _Level 3 Divination (Bard, Cleric, Sorcerer, Wizard)._
+ * > **Casting Time:** 10 minutes. **Range:** 1 mile.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "You create an Invisible sensor within range in a location familiar to you
+ * > ... The intangible, invulnerable sensor remains in place for the duration."
+ * > "When you cast the spell, choose seeing or hearing. You can use the chosen
+ * > sense through the sensor as if you were in its space."
+ *
+ * **A mile of Range and nobody to aim it at**, which is why `targets.count` is
+ * zero: the spell reaches a *place*, and the place is one the caster has
+ * visited rather than one anybody has declared into this scene.
+ *
+ * The sensor is the whole of what is left, and it is not a point a casting
+ * holds. `CastingOrigin` exists to be **measured from** — a reach, an attack,
+ * an area that travels — and nothing is measured from this one; what it does
+ * is let the caster perceive, and perception in this engine is a *declared*
+ * pairwise fact rather than anything derived. So a sensor granting sight
+ * grants a fact the DM declares, and the Bonus Action that switches between
+ * seeing and hearing is a cost of operating a thing the engine does not hold.
+ */
+export const CLAIRVOYANCE: SpellDefinition = {
+  id: 'clairvoyance',
+  name: 'Clairvoyance',
+  level: 3,
+  school: 'divination',
+  // "Casting Time: 10 minutes."
+  castingTime: 'long',
+  castingSeconds: 600,
+  // "Duration: Concentration, up to 10 minutes."
+  concentration: true,
+  // "Range: 1 mile" — 5,280 feet, which the oracle reads off the printed line.
+  range: { kind: 'ranged', feet: 5280 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the sensor is the DM’s: "You create an Invisible sensor within range in a location familiar to you" makes an intangible, invulnerable thing that stands somewhere the caster has been, and nothing measures anything from it — what it does is let the caster see or hear, and sight in this engine is a declared pairwise fact rather than a derived one',
+    'choosing seeing or hearing, and the Bonus Action that switches between them, go with the sensor: the cost is a cost of operating a thing the engine does not hold, and what changes when it is spent is what the caster perceives',
+    'a creature with See Invisibility or Truesight seeing "a luminous orb about the size of your fist" is the DM’s; the engine has no senses beyond declared sight',
+  ],
+};
+
+/**
+ * SRD Commune with Nature:
+ *
+ * > _Level 5 Divination (Ritual) (Druid, Ranger)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** Self.
+ * > **Duration:** Instantaneous.
+ * > "You commune with nature spirits and gain knowledge of the surrounding
+ * > area." "Choose three of the following facts; you learn those facts as they
+ * > pertain to the spell's area."
+ *
+ * Knowledge, and nothing else: five bullet points of geography, one of which
+ * names a creature type and none of which asks the engine for a number. The
+ * spell is Instantaneous, so it leaves no record to be dispelled either.
+ */
+export const COMMUNE_WITH_NATURE: SpellDefinition = {
+  id: 'commune-with-nature',
+  name: 'Commune with Nature',
+  level: 5,
+  school: 'divination',
+  // "Casting Time: 1 minute or Ritual."
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  // "Range: Self."
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: Instantaneous" — no deadline, and nothing left standing.
+  unmodelled: [
+    'what the spirits say is the DM’s: the three facts chosen from "Locations of settlements", portals, a Challenge Rating 10+ Celestial, Elemental, Fey, Fiend or Undead, the most prevalent plant, mineral or Beast, and bodies of water are all descriptions of a world the engine does not hold',
+    'the 3 miles outdoors, the 300 feet underground, and the spell not functioning "where nature has been replaced by construction" are the DM’s: the engine holds one scene with an extent and no terrain at all',
+  ],
+};
+
+/**
+ * SRD Fabricate:
+ *
+ * > _Level 4 Transmutation (Wizard)._ **Casting Time:** 10 minutes.
+ * > **Range:** 120 feet. **Duration:** Instantaneous.
+ * > "You convert raw materials into products of the same material."
+ * > "Choose raw materials that you can see within range. You can fabricate a
+ * > Large or smaller object (contained within a 10-foot Cube or eight
+ * > connected 5-foot Cubes) given a sufficient quantity of material."
+ *
+ * Objects in, objects out. The Artisan's Tools clause is the one sentence that
+ * reads a fact about the caster, and it reads one the engine does not carry in
+ * play: tool proficiencies are gathered when a character is planned and land
+ * on the plan rather than on the sheet, and there is no fabricated object for
+ * the clause to gate in any case.
+ */
+export const FABRICATE: SpellDefinition = {
+  id: 'fabricate',
+  name: 'Fabricate',
+  level: 4,
+  school: 'transmutation',
+  // "Casting Time: 10 minutes."
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  // "Range: 120 feet."
+  range: { kind: 'ranged', feet: 120 },
+  // The spell is aimed at raw materials, never at a creature.
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: Instantaneous."
+  unmodelled: [
+    'what is fabricated is the DM’s: the raw materials, the product, the size limits — "a Large or smaller object (contained within a 10-foot Cube or eight connected 5-foot Cubes)", Medium for metal or stone — and the quality that follows from the materials are all facts about objects, which the engine does not model',
+    'the clause that "Creatures and magic items can’t be created by this spell" forbids making a thing the engine could not have made anyway',
+    'the Artisan’s Tools proficiency that gates weapons and armour is not checked: a character’s tool proficiencies are gathered when the character is planned and stay on the plan rather than reaching the sheet, so nothing in play reads one — and there is no fabricated object for it to gate',
+  ],
+};
+
+/**
+ * SRD Find the Path:
+ *
+ * > _Level 6 Divination (Bard, Cleric, Druid)._ **Casting Time:** 1 minute.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 day.
+ * > "You magically sense the most direct physical route to a location you
+ * > name." "For the duration, as long as you are on the same plane of
+ * > existence as the destination, you know how far it is and in what direction
+ * > it lies."
+ *
+ * A day of Concentration — 86,400 seconds, the longest deadline in the
+ * catalogue — spent knowing which way to walk. The engine runs the clock and
+ * the Concentration, and every word about the route is the DM's.
+ */
+export const FIND_THE_PATH: SpellDefinition = {
+  id: 'find-the-path',
+  name: 'Find the Path',
+  level: 6,
+  school: 'divination',
+  // "Casting Time: 1 minute."
+  castingTime: 'long',
+  castingSeconds: 60,
+  // "Duration: Concentration, up to 1 day."
+  concentration: true,
+  // "Range: Self."
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'the route is the DM’s: "you know how far it is and in what direction it lies", and "Whenever you face a choice of paths along the way there, you know which path is the most direct" — the engine holds one scene and no map beyond it',
+    'the spell failing for a destination on another plane, a moving one or an unspecific one is the DM’s: whether the caster is familiar with a place, and whether "a green dragon’s lair" names one, are judgements about the fiction',
+  ],
+};
+
+/**
+ * SRD Hallucinatory Terrain:
+ *
+ * > _Level 4 Illusion (Bard, Druid, Warlock, Wizard)._
+ * > **Casting Time:** 10 minutes. **Range:** 300 feet. **Duration:** 24 hours.
+ * > "You make natural terrain in a 150-foot Cube in range look, sound, and
+ * > smell like another sort of natural terrain."
+ * > "If the difference isn't obvious by touch, a creature examining the
+ * > illusion can take the Study action to make an Intelligence (Investigation)
+ * > check against your spell save DC to disbelieve it."
+ *
+ * **The one clause among these twelve that is arithmetic**, and it is the
+ * sentence Disguise Self, Minor Illusion and Silent Image already write. So it
+ * is the same {@link SpellCheck}, riding on the casting's own timer — which
+ * this spell has, because its twenty-four hours leave an ongoing record for
+ * the check to be made against.
+ *
+ * **No area**, for the reason Alarm has none: a `SpellArea` picks the
+ * creatures a casting's effects reach, and this illusion reaches none of them.
+ * "Manufactured structures, equipment, and creatures within the area aren't
+ * changed" is the book saying so outright.
+ */
+export const HALLUCINATORY_TERRAIN: SpellDefinition = {
+  id: 'hallucinatory-terrain',
+  name: 'Hallucinatory Terrain',
+  level: 4,
+  school: 'illusion',
+  // "Casting Time: 10 minutes."
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  // "Range: 300 feet."
+  range: { kind: 'ranged', feet: 300 },
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: 24 hours."
+  durationSeconds: 86_400,
+  // "a creature examining the illusion can take the Study action to make an
+  // Intelligence (Investigation) check against your spell save DC to
+  // disbelieve it." Seeing through it changes nothing the engine holds, which
+  // is what `onSuccess: 'none'` says.
+  check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
+  unmodelled: [
+    'what the terrain looks, sounds and smells like is the DM’s, and so is the 150-foot Cube it fills: a spell’s area picks the creatures its effects reach and this illusion reaches none — "Manufactured structures, equipment, and creatures within the area aren’t changed"',
+    'whether a creature notices by touch, and whether it thinks to examine the illusion at all, are the DM’s; what the engine owns is the check itself, which `resolveEffectCheck` rolls against this casting’s own save DC',
+    'the "vague image superimposed on the real terrain" a creature sees once it has disbelieved is narration',
+  ],
+};
+
+/**
+ * SRD Identify:
+ *
+ * > _Level 1 Divination (Ritual) (Bard, Wizard)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** Touch.
+ * > **Duration:** Instantaneous.
+ * > "You touch an object throughout the spell's casting. If the object is a
+ * > magic item or some other magical object, you learn its properties and how
+ * > to use them, whether it requires Attunement, and how many charges it has,
+ * > if any."
+ * > "If you instead touch a creature throughout the casting, you learn which
+ * > ongoing spells, if any, are currently affecting it."
+ *
+ * **Two things may be touched and only one of them is a creature**, which is
+ * exactly `TargetRule.optional`: the caller names the creature, or names
+ * nobody because it was an object. Naming one buys the Touch range check
+ * against a real creature; naming none is the spell's other half and is legal.
+ *
+ * What the caster *learns* is deliberately not an effect. "You learn which
+ * ongoing spells, if any, are currently affecting it" is a fact the engine
+ * already holds and already answers — `ongoingSpellsOn` is the query — and no
+ * effect kind reports knowledge, because knowing something changes no
+ * authoritative state. The spell tells the table which question to ask.
+ */
+export const IDENTIFY: SpellDefinition = {
+  id: 'identify',
+  name: 'Identify',
+  level: 1,
+  school: 'divination',
+  // "Casting Time: 1 minute or Ritual."
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  // "Range: Touch."
+  range: { kind: 'touch' },
+  // "If you instead touch a creature throughout the casting" — so one creature
+  // may be named, and naming nobody means the object case.
+  targets: { count: 1, optional: true },
+  effects: [],
+  // "Duration: Instantaneous."
+  unmodelled: [
+    'what is learned about an object is the DM’s: its properties, how to use them, whether it requires Attunement, how many charges it has and which spell created it are all facts about a magic item, and magic items are not modelled',
+    'what is learned about a creature is not delivered as an effect: "you learn which ongoing spells, if any, are currently affecting it" is a fact the engine holds and already answers as a query, and no effect kind reports knowledge, because knowing something changes no authoritative state',
+  ],
+};
+
+/**
+ * SRD Illusory Script:
+ *
+ * > _Level 1 Illusion (Ritual) (Bard, Warlock, Wizard)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** Touch.
+ * > **Duration:** 10 days.
+ * > "You write on parchment, paper, or another suitable material and imbue it
+ * > with an illusion that lasts for the duration."
+ * > "To you and any creatures you designate when you cast the spell, the
+ * > writing appears normal ... To all others, the writing appears as if it
+ * > were written in an unknown or magical script that is unintelligible."
+ *
+ * Ten days — 864,000 seconds — is the longest span in the catalogue, and the
+ * engine runs it. Everything else is reading, which is fiction: who was
+ * designated, what the script says, and what it says instead.
+ *
+ * "If the spell is dispelled, the original script and the illusion both
+ * disappear" is half executed already, and the half that is executed is the
+ * half that matters: the casting leaves an ongoing record, so Dispel Magic can
+ * genuinely end it. What disappears is then the DM's.
+ */
+export const ILLUSORY_SCRIPT: SpellDefinition = {
+  id: 'illusory-script',
+  name: 'Illusory Script',
+  level: 1,
+  school: 'illusion',
+  // "Casting Time: 1 minute or Ritual."
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  // "Range: Touch" — the material written on, which is never a creature.
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: 10 days."
+  durationSeconds: 864_000,
+  unmodelled: [
+    'the writing is the DM’s: what the text says, what the illusion makes it say instead, and the altered "meaning, handwriting, and language" are all fiction, and so is the parchment it is written on',
+    'the creatures designated at the casting are not recorded, because what being designated buys is the ability to read, and reading is the DM’s',
+    'a creature with Truesight reading the hidden message is the DM’s; the engine has no senses beyond declared sight',
+  ],
+};
+
+/**
+ * SRD Instant Summons:
+ *
+ * > _Level 6 Conjuration (Ritual) (Wizard)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** Touch.
+ * > **Duration:** Until dispelled.
+ * > "You touch the sapphire used in the casting and an object weighing 10
+ * > pounds or less ... The spell leaves an Invisible mark on that object and
+ * > invisibly inscribes the object's name on the sapphire."
+ * > "Thereafter, you can take a Magic action to speak the object's name and
+ * > crush the sapphire. The object instantly appears in your hand regardless
+ * > of physical or planar distances, and the spell ends."
+ *
+ * "Until dispelled" is the absence of a deadline rather than a large one, so
+ * no timer is scheduled and the ward on the sapphire simply stands.
+ *
+ * **The Magic action that ends it is the one clause here the engine would own
+ * if it could**, and it is named as debt rather than as fiction: a
+ * non-Concentration ongoing casting cannot be ended ahead of time, because
+ * `endConcentration` is about Concentration and there is no other door. The
+ * sapphire, the object and the summoning across planes are the DM's.
+ */
+export const INSTANT_SUMMONS: SpellDefinition = {
+  id: 'instant-summons',
+  name: 'Instant Summons',
+  level: 6,
+  school: 'conjuration',
+  // "Casting Time: 1 minute or Ritual."
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  // "Range: Touch" — the sapphire and the object marked, neither a creature.
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: Until dispelled" — no deadline, so no timer.
+  untilDispelled: true,
+  unmodelled: [
+    'the sapphire and the marked object are the DM’s: the weight limit, the 6-foot longest dimension, the Invisible mark, the inscribed name and the rule that "Each time you cast this spell, you must use a different sapphire" are all facts about objects, which the engine does not model',
+    'the Magic action that crushes the sapphire is not offered, and ending the casting with it is debt rather than fiction: an ongoing casting that nobody is concentrating on cannot be dismissed early, because the only door out is `endConcentration` — the spell runs until something else ends it',
+    'learning who is holding the object and where they are, when crushing the sapphire fails to fetch it, is the DM’s',
+  ],
+};
+
+/**
+ * SRD Legend Lore:
+ *
+ * > _Level 5 Divination (Bard, Cleric, Wizard)._ **Casting Time:** 10 minutes.
+ * > **Range:** Self. **Duration:** Instantaneous.
+ * > "Name or describe a famous person, place, or object. The spell brings to
+ * > your mind a brief summary of the significant lore about that famous thing,
+ * > as described by the GM."
+ *
+ * The SRD hands this one to the DM in its own words — "as described by the
+ * GM", "as determined by the GM" — twice in four sentences. What was missing
+ * was never the lore; it was the ten minutes, and those are the engine's.
+ */
+export const LEGEND_LORE: SpellDefinition = {
+  id: 'legend-lore',
+  name: 'Legend Lore',
+  level: 5,
+  school: 'divination',
+  // "Casting Time: 10 minutes."
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  // "Range: Self."
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: Instantaneous."
+  unmodelled: [
+    'the lore is the DM’s, and the SRD says so: "a brief summary of the significant lore about that famous thing, **as described by the GM**", and whether it is "couched in figurative language or poetry, **as determined by the GM**"',
+    'whether the thing named is actually famous — and the "sad musical notes played on a trombone" when it is not — is the DM’s',
+  ],
+};
+
+/**
+ * SRD Magic Mouth:
+ *
+ * > _Level 2 Illusion (Ritual) (Bard, Wizard)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** 30 feet.
+ * > **Duration:** Until dispelled.
+ * > "You implant a message within an object in range—a message that is uttered
+ * > when a trigger condition is met."
+ * > "The trigger can be as general or as detailed as you like, though it must
+ * > be based on visual or audible conditions that occur within 30 feet of the
+ * > object."
+ *
+ * **"Condition" here means circumstance**, which is why the tracked map
+ * carries an adjudication for it: the guard's marker fires on the word and the
+ * sentence is about a trigger the DM watches for, not about any of the fifteen
+ * the engine applies.
+ *
+ * "you can have the spell end after it delivers its message" is the same debt
+ * Instant Summons carries — a non-Concentration casting with no way to be
+ * dismissed — and is named as debt rather than filed as narration.
+ */
+export const MAGIC_MOUTH: SpellDefinition = {
+  id: 'magic-mouth',
+  name: 'Magic Mouth',
+  level: 2,
+  school: 'illusion',
+  // "Casting Time: 1 minute or Ritual."
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  // "Range: 30 feet" — to the object, which is never a creature: "an object
+  // that you can see and that isn't being worn or carried by another creature".
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: Until dispelled" — no deadline, so no timer.
+  untilDispelled: true,
+  unmodelled: [
+    'the object, the message and the mouth are the DM’s: which object was chosen, the 25 words spoken, the ten minutes they may be delivered over, and the mouth appearing where a statue’s mouth is are all fiction',
+    'the trigger is the DM’s: "it must be based on visual or audible conditions that occur within 30 feet of the object" is a circumstance somebody watches for rather than any of the fifteen conditions the engine applies, and whether a silver bell has rung is not a fact the engine holds',
+    'having the spell end once it has spoken is not offered, and that is debt rather than fiction: an ongoing casting that nobody is concentrating on cannot be dismissed early, because the only door out is `endConcentration`',
+  ],
+};
+
+/**
+ * SRD Mending:
+ *
+ * > _Transmutation Cantrip (Bard, Cleric, Druid, Sorcerer, Wizard)._
+ * > **Casting Time:** 1 minute. **Range:** Touch.
+ * > **Duration:** Instantaneous.
+ * > "This spell repairs a single break or tear in an object you touch, such as
+ * > a broken chain link, two halves of a broken key, a torn cloak, or a
+ * > leaking wineskin."
+ *
+ * **A cantrip that takes a minute**, which is the only such combination among
+ * these twelve and the reason it is worth a fixture of its own: the casting is
+ * declared and settled on the clock like the rest, and no slot moves in either
+ * direction, because a cantrip never had one to spare.
+ */
+export const MENDING: SpellDefinition = {
+  id: 'mending',
+  name: 'Mending',
+  level: 0,
+  school: 'transmutation',
+  // "Casting Time: 1 minute."
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  // "Range: Touch" — the object mended, which is never a creature.
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  // "Duration: Instantaneous."
+  unmodelled: [
+    'the repair is the DM’s: which break or tear was mended, and the limit that it be "no larger than 1 foot in any dimension", are facts about an object, and objects are not modelled — the engine tracks what a creature owns and wears and nothing about its condition',
+    'that the spell "can physically repair a magic item, but it can’t restore magic to such an object" forbids restoring something the engine never took away',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
+  ALARM,
   ANIMAL_FRIENDSHIP,
   ARCANE_LOCK,
   ARCANE_SWORD,
@@ -7585,8 +8134,10 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   CHARM_PERSON,
   CHILL_TOUCH,
   CIRCLE_OF_DEATH,
+  CLAIRVOYANCE,
   CLOUDKILL,
   COLOR_SPRAY,
+  COMMUNE_WITH_NATURE,
   COMPREHEND_LANGUAGES,
   COMPULSION,
   CONE_OF_COLD,
@@ -7611,8 +8162,10 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DOMINATE_MONSTER,
   DOMINATE_PERSON,
   ELDRITCH_BLAST,
+  FABRICATE,
   FALSE_LIFE,
   FEAR,
+  FIND_THE_PATH,
   FIND_TRAPS,
   FINGER_OF_DEATH,
   FIRE_BOLT,
@@ -7627,6 +8180,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   GREATER_INVISIBILITY,
   GUIDANCE,
   GUIDING_BOLT,
+  HALLUCINATORY_TERRAIN,
   HARM,
   HEALING_WORD,
   HELLISH_REBUKE,
@@ -7636,12 +8190,16 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HUNTERS_MARK,
   HYPNOTIC_PATTERN,
   ICE_STORM,
+  IDENTIFY,
+  ILLUSORY_SCRIPT,
   INCENDIARY_CLOUD,
   INFLICT_WOUNDS,
   INSECT_PLAGUE,
+  INSTANT_SUMMONS,
   INVISIBILITY,
   JUMP,
   KNOCK,
+  LEGEND_LORE,
   LESSER_RESTORATION,
   LIGHT,
   LIGHTNING_BOLT,
@@ -7651,9 +8209,11 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   LONGSTRIDER,
   MAGE_ARMOR,
   MAGE_HAND,
+  MAGIC_MOUTH,
   MASS_CURE_WOUNDS,
   MASS_HEALING_WORD,
   MASS_SUGGESTION,
+  MENDING,
   MESSAGE,
   MIND_SPIKE,
   MINOR_ILLUSION,

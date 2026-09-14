@@ -6,7 +6,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
-import { resolveSpell } from './commands.js';
+import { advanceTime, pendingCastingsOf, resolveDeclaredCast, resolveSpell } from './commands.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { SPELL_DEFINITIONS, definitionFor } from './spell-definitions.js';
@@ -156,10 +156,61 @@ const cast = (
 const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = SETUP) =>
   unwrap(cast(spellId, over, log), spellId);
 
+/**
+ * A tracked spell driven all the way to the `spell-cast` that records it.
+ *
+ * Most of the bucket settles in one breath and this is `resolved` for them.
+ * **Twelve take a minute or more**, and a casting of a minute or more is a
+ * *declared* one: `resolveSpell` writes `spell-declared` and stops, the clock
+ * has to reach the moment the rite finishes, and `resolveDeclaredCast` settles
+ * it under the casting id. So the sweeps below drive the whole casting rather
+ * than asserting on half of one — which is the honest generalisation, because
+ * what they claim is that every tracked spell is *cast* rather than refused.
+ *
+ * The span is the definition's own `castingSeconds`, which the oracle holds
+ * against the printed casting time, so the clock is moved by the number the
+ * book prints rather than by one this fixture chose.
+ */
+const driven = (spellId: string, log: readonly GameEvent[] = SETUP) => {
+  const definition = definitionFor(spellId)!;
+  const first = resolved(spellId, {}, log);
+  if (definition.castingTime !== 'long') return first;
+
+  const open = fold('seed', [...log, ...first.events]);
+  const castingId = pendingCastingsOf(open)[0]!.castingId;
+  const tick = unwrap(advanceTime(open, definition.castingSeconds!, 'the rite'), `tick ${spellId}`);
+  const ticked = [...log, ...first.events, ...tick];
+  const settled = unwrap(
+    resolveDeclaredCast(fold('seed', ticked), castingId, supply()),
+    `settle ${spellId}`,
+  );
+  return {
+    ...settled,
+    events: [...first.events, ...tick, ...settled.events],
+    unverified: [...first.unverified, ...settled.unverified],
+  };
+};
+
 describe('a tracked spell is cast, not refused', () => {
   it.each(TRACKED.map((s) => [s] as const))('casts %s', (spellId) => {
-    const out = resolved(spellId);
+    const out = driven(spellId);
     expect(out.events.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
+  });
+
+  /**
+   * And the twelve that take a minute or more are declared first, which is the
+   * whole of what a long casting time changes about the bucket. Asserted here
+   * rather than left implicit in the helper, because a `driven` that silently
+   * stopped declaring would make the sweep above pass for the wrong reason.
+   */
+  it('declares the casting for every tracked spell that takes a minute or more', () => {
+    const long = TRACKED.filter((spellId) => definitionFor(spellId)?.castingTime === 'long');
+    expect(long.length).toBeGreaterThan(0);
+    for (const spellId of long) {
+      const declaration = resolved(spellId);
+      expect(declaration.events.some((e) => e.type === 'spell-declared'), spellId).toBe(true);
+      expect(declaration.events.some((e) => e.type === 'spell-cast'), spellId).toBe(false);
+    }
   });
 
   /** The cost is the whole point: a slot spent is a slot gone. */
@@ -200,7 +251,7 @@ describe('a tracked spell is cast, not refused', () => {
    * which is worse than the refusal it replaced.
    */
   it.each(TRACKED.map((s) => [s] as const))('says what a DM still does for %s', (spellId) => {
-    const out = resolved(spellId);
+    const out = driven(spellId);
     expect(out.unverified.length).toBeGreaterThan(0);
     expect(out.unverified.join(' ')).toContain(definitionFor(spellId)!.name);
   });
@@ -268,7 +319,7 @@ describe('a tracked spell is retried and replayed like any other', () => {
   });
 
   it.each(TRACKED.map((s) => [s] as const))('replays %s prefix by prefix', (spellId) => {
-    const out = resolved(spellId);
+    const out = driven(spellId);
     const log = [...SETUP, ...out.events];
     for (let n = 0; n <= log.length; n += 1) {
       expect(fold('seed', log.slice(0, n))).toEqual(fold('seed', log.slice(0, n)));

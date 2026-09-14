@@ -6,7 +6,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
-import { type SpellDefinition } from './spell-definitions.js';
+import { SPELL_DEFINITIONS, definitionFor } from './spell-definitions.js';
 import { checkSpellDefinition } from './spell-schema.js';
 import { castingOf } from './commands/spell-resolution.js';
 import {
@@ -130,10 +130,13 @@ const slots = (state: GameState, level: number) =>
  * A minute-long casting of a spell the engine has a definition for.
  *
  * Driven through `resolveCast` — the low-level half, which takes the casting
- * time and the seconds directly — because **no definition in the catalogue
- * declares a long casting time yet**: IE-036 writes the twelve spells this
- * unblocks. The mechanism is the same one a ritual reaches through
- * `resolveSpell`, and both are driven here.
+ * time and the seconds directly — because that half takes its caller's word
+ * about the economy and is therefore where the *mechanism* can be exercised
+ * without a definition at all. IE-036 has since written twelve definitions
+ * that declare one, and `long-casting-spells.test.ts` drives the same
+ * mechanism through the **catalogue**; the two are worth having apart, because
+ * this file's cases are about the state machine and that one's are about the
+ * spells. The ritual path through `resolveSpell` is driven here too.
  */
 const declareLong = (log: readonly GameEvent[] = SETUP, over = {}) =>
   resolveCast(fold('seed', log), WIZARD, {
@@ -582,38 +585,33 @@ describe('a casting on the clock is a casting in progress', () => {
   });
 });
 
-describe('a Ritual adds ten minutes, and no catalogue spell can tell you so', () => {
+describe('a Ritual adds ten minutes, and the catalogue can tell you so at last', () => {
   /**
    * SRD: "The Ritual version of a spell takes 10 minutes longer to cast **than
    * normal**." Longer than normal, not ten minutes flat — and every one of the
-   * ten definitions that carries the Ritual tag prints "Action or Ritual", so
-   * none of them has a casting time of its own to be longer than. For all ten,
-   * "0 + 600" and "600" are the same number, and a mutation replacing the sum
-   * with the constant survives the entire suite.
+   * *ten* definitions that carried the Ritual tag before IE-036 prints "Action
+   * or Ritual", so none of them has a casting time of its own to be longer
+   * than. For all ten, "0 + 600" and "600" are the same number, and a mutation
+   * replacing the sum with the constant survived the entire suite.
    *
-   * SRD Alarm prints "1 minute or Ritual" and its Ritual version therefore
-   * takes **660** seconds. Nothing in the catalogue defines it — IE-036 writes
-   * the twelve spells a long casting time unblocks — and `castingOf` is pure
-   * over a definition, so the definition is simply built. That is the move
-   * `restoreOn`'s dawn-recovering pool already makes for a branch no class can
-   * reach: a guard nothing can reach is not a rule, and a pure function will
-   * take a fixture that reaches it.
+   * **SRD Alarm prints "1 minute or Ritual"**, so its Ritual takes **660**
+   * seconds, and IE-036 put it in the catalogue. This fixture was a
+   * hand-written definition until then — `castingOf` is pure over one, which
+   * is the move `restoreOn`'s dawn-recovering pool makes for a branch no class
+   * can reach — and it reads the real one now, because a guard that can be
+   * pointed at the content itself should be.
+   *
+   * **Alarm is the fixture and not the only case.** Five more of the twelve
+   * carry the tag and every one of them prints "1 minute or Ritual" too —
+   * Commune with Nature, Identify, Illusory Script, Instant Summons and Magic
+   * Mouth, all six coming to the same 60 + 600. Alarm is what these two cases
+   * name because the test was written around it before the catalogue had one;
+   * the sweep below is what actually holds the sum, and it loops over *every*
+   * tagged definition with a casting time of its own, so a seventh needs no
+   * edit here and a first one printing an hour would be caught by the same
+   * loop.
    */
-  const ALARM: SpellDefinition = {
-    id: 'alarm',
-    name: 'Alarm',
-    level: 1,
-    school: 'abjuration',
-    castingTime: 'long',
-    castingSeconds: 60,
-    ritual: true,
-    concentration: false,
-    range: { kind: 'ranged', feet: 30 },
-    targets: { count: 0 },
-    effects: [],
-    durationSeconds: 28_800,
-    unmodelled: ['an alarm is the DM’s to sound'],
-  };
+  const ALARM = definitionFor('alarm')!;
 
   it('is the spell’s own casting time plus ten minutes, not ten minutes flat', () => {
     expect(unwrap(castingOf(ALARM, { spellId: 'alarm', targets: [], ritual: true }), 'ritual')).toEqual(
@@ -630,9 +628,32 @@ describe('a Ritual adds ten minutes, and no catalogue spell can tell you so', ()
     });
   });
 
-  /** The fixture is a coherent definition, so the rule is not being tested against junk. */
+  /** The definition under test is a coherent one, and it is the catalogue's. */
   it('is a definition the validator accepts', () => {
     expect(checkSpellDefinition(ALARM)).toEqual([]);
+    expect(SPELL_DEFINITIONS).toContain(ALARM);
+  });
+
+  /**
+   * And the sum is not vacuous, which is the half the ten Rituals could not
+   * give: a tagged definition with a casting time of its own is what makes
+   * "adds ten minutes" and "is ten minutes" different numbers, and the
+   * catalogue now holds some. The two sets are named rather than counted —
+   * a count would go stale the next time a Ritual is written.
+   */
+  it('has tagged definitions on both sides of the sum', () => {
+    const tagged = SPELL_DEFINITIONS.filter((d) => d.ritual === true);
+    const own = tagged.filter((d) => (d.castingSeconds ?? 0) > 0).map((d) => d.id);
+    expect(own).not.toEqual([]);
+    expect(tagged.filter((d) => d.castingSeconds === undefined).map((d) => d.id)).not.toEqual([]);
+    // Every one of them comes to its own span plus the Ritual's ten minutes.
+    for (const id of own) {
+      const definition = definitionFor(id)!;
+      expect(
+        unwrap(castingOf(definition, { spellId: id, targets: [], ritual: true }), id).castingSeconds,
+        id,
+      ).toBe(definition.castingSeconds! + 600);
+    }
   });
 });
 

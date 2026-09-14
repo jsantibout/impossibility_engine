@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 45 (13.3%) | 97 (28.6%) | 48 | 75 (22.1%) |
+| 339 | 57 (16.8%) | 97 (28.6%) | 48 | 75 (22.1%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -139,7 +139,10 @@ a plain statement of what the table decides.
 
 Cast for real; the effect is narrated. Each says what it leaves to the DM.
 
+- **Alarm** (level 1) — 4 noted
 - **Arcane Lock** (level 2) — 2 noted
+- **Clairvoyance** (level 3) — 3 noted
+- **Commune with Nature** (level 5) — 2 noted
 - **Comprehend Languages** (level 1) — 1 noted
 - **Continual Flame** (level 2) — 3 noted
 - **Create Food and Water** (level 3) — 1 noted
@@ -149,17 +152,26 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Detect Magic** (level 1) — 2 noted
 - **Detect Poison and Disease** (level 1) — 2 noted
 - **Disguise Self** (level 1) — 2 noted
+- **Fabricate** (level 4) — 3 noted
+- **Find the Path** (level 6) — 2 noted
 - **Find Traps** (level 2) — 1 noted
 - **Floating Disk** (level 1) — 2 noted
 - **Fly** (level 3) — 2 noted
 - **Gentle Repose** (level 2) — 2 noted
+- **Hallucinatory Terrain** (level 4) — 3 noted
+- **Identify** (level 1) — 2 noted
+- **Illusory Script** (level 1) — 3 noted
+- **Instant Summons** (level 6) — 3 noted
 - **Jump** (level 1) — 1 noted
 - **Knock** (level 2) — 3 noted
+- **Legend Lore** (level 5) — 2 noted
 - **Light** (cantrip) — 3 noted
 - **Locate Animals or Plants** (level 2) — 1 noted
 - **Locate Creature** (level 4) — 2 noted
 - **Locate Object** (level 2) — 2 noted
 - **Mage Hand** (cantrip) — 3 noted
+- **Magic Mouth** (level 2) — 3 noted
+- **Mending** (cantrip) — 2 noted
 - **Message** (cantrip) — 3 noted
 - **Minor Illusion** (cantrip) — 3 noted
 - **Move Earth** (level 6) — 3 noted
@@ -218,7 +230,6 @@ always made in the same words.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | Undefined |
 |---|---|---|---|---|---|---|
-| `a-long-casting-time` | 54 | 0 | 12 | 0 | 0 | 54 |
 | `a-stat-block-created-mid-fight` | 15 | 0 | 4 | 1 | 0 | 14 |
 | `an-action-a-spell-compels-or-forbids` | 26 | 0 | 2 | 10 | 0 | 16 |
 | `a-second-place-to-put-a-creature` | 19 | 0 | 2 | 1 | 0 | 18 |
@@ -252,6 +263,7 @@ always made in the same words.
 | `a-second-roll-sequenced-after-the-first` | 1 | 0 | 1 | 0 | 0 | 1 |
 | `an-armor-class-a-spell-floors` | 1 | 0 | 1 | 0 | 0 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 0 | 1 | 0 | 0 | 1 |
+| `a-long-casting-time` | 42 | 0 | 0 | 0 | 0 | 42 |
 | `a-choice-made-at-the-casting` | 25 | 0 | 0 | 4 | 0 | 21 |
 | `an-effect-that-suppresses-other-magic` | 13 | 0 | 0 | 0 | 0 | 13 |
 | `forced-movement-a-spell-causes` | 12 | 0 | 0 | 1 | 0 | 11 |
