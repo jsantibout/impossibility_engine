@@ -1230,12 +1230,12 @@ layer that knows.
 
 ### Limitations, stated rather than papered over
 
-- **In combat a casting time of 1 minute or more is still refused**, and the
-  reason names what is missing: SRD requires the caster to take the Magic
-  action on each turn of the casting, which is a per-turn obligation rather
-  than a deadline. Outside combat the casting is declared, runs on the clock
-  and settles — see "A Casting Of A Minute Or More Runs On The Clock", which
-  is also where a Ritual is cast.
+- **A casting time of 1 minute or more is built, in combat and out of it.**
+  Outside combat the casting is declared, runs on the clock and settles; in
+  combat the clock is derived from turns wrapping and SRD's per-turn Magic
+  action is `continueCasting`, with a turn that ends without it failing the
+  rite. See "A Casting Of A Minute Or More Runs On The Clock", which is also
+  where a Ritual is cast.
 - **Three Reaction triggers are enforced; the fourth needs machinery that does
   not exist.** SRD writes a Reaction's casting time as a clause — "Reaction,
   **which you take when you are hit by an attack roll**" — and the clause is a
@@ -1504,7 +1504,7 @@ primitive** — which is the whole argument, and each row is asserted:
 | One Action, Bonus Action or Reaction a turn | `spendAction` / `spendBonusAction` / `spendReaction`. A caster mid-rite has spent that turn's Magic action at the declaration, so a second Action casting is refused **there**, under `no_action` |
 | "On a turn, you can expend only one spell slot" | `spellSlotSpentOnTurn`, whose marker rides on the settling `spell-cast` |
 | One Concentration | `releaseCasting`, the single door: a second Concentration casting breaks the first at its declaration |
-| The rite's per-turn Magic action | IE-041's derived failure; still missing, and untouched |
+| The rite's per-turn Magic action | `continueCasting`, and the derived failure at the caster's own turn boundary — built, and reading the record this keyed |
 | An answer may not open its own window | the two relationship rules above |
 
 **The reducer's invariant is purely id-based.** `spell-declared` throws only if
@@ -1541,9 +1541,11 @@ creature but that casting's own caster: two offers that differed only in a
 casting nobody could see would be an ambiguity refusal naming candidates the
 caller was never shown.
 
-**`resolveTurn` keeps a global refusal**, now reading the record's size and
-naming the castings. In combat every pending casting is still an instant window
-under one caller's control; IE-041 is what makes that per-casting.
+**`resolveTurn` keeps a global refusal**, now reading the record and naming the
+castings — and reading it **per casting**, which is what the keyed record made
+possible: an instant window still blocks the turn, and a casting of a minute or
+more does not, because SRD measures that one *in* turns. So a rite standing
+beside an unsettled window blocks on the window alone.
 
 **And `settleHoldsInvolving` is genuinely plural now.** It read the single slot
 and stopped at the first; a caster may hold a rite and a Shield open at once,
@@ -1806,12 +1808,74 @@ casting time: "Action or Ritual", "1 minute or Ritual". The suffix is the other
 casting time the same line offers, so the parser strips it and the ten minutes
 a Ritual adds stay the rule's rather than the spell's.
 
-### What is deferred, and the one path that can still wedge
+### In combat the obligation is the turn, and it is one field
 
-**In combat the refusal stands**, and its reason names the per-turn Magic
-action rather than pretending the deadline is the whole rule. That half is a
-`continueCasting` command plus a derived failure at the caster's turn boundary,
-and it is the second half of this work.
+**In combat the obligation is a state machine on the caster's own turns, and it
+is built.** The refusal that stood here named exactly what was missing — SRD's
+Magic action on each of those turns — and what it turned out to need was one
+field, one command and one derived pass. No second mechanism: the clock a fight
+derives from its own rounds is the same clock the settlement already waited on,
+and `isDue` reads `completesAt` in combat exactly as it does outside one.
+
+| | |
+|---|---|
+| `PendingCasting.sustainedOnTurn` | which turn last saw the caster at it — one number, because the boundary asks one question |
+| `continueCasting` | the Magic action, on the caster's own turn, guarded by `mayAct` and spent through `spendAction` like every other spender |
+| `failUnsustainedCastings` | the turn that ended without it, failing the rite through `releaseCasting` |
+
+**The failure is derived, so it writes no event.** Nobody decides that a turn
+ended without the Magic action being taken, exactly as nobody decides that a
+Concentration broke — so it is the reducer's, and no log however assembled can
+show a rite running past a turn its caster let slip. It leaves by the single
+door every other ending already uses, which is also where SRD's "the spell
+fails, but you don't expend a spell slot" is kept: nothing is refunded, because
+the slot was never taken.
+
+**Taking the action is a decision, so it *is* an event.** `casting-continued`
+is the whole of it and it carries no turn number — the turn is
+`state.combat.turnsTaken` at the moment it folds, and a number written beside
+it would be the second answer to one question this file keeps naming. The
+`action-spent` beside it is what the economy reads; this is what the rite reads.
+
+**The turn a rite is declared on needs no second Magic action**, because the
+declaration *was* it: `spell-declared` stamps the record itself, and a caller
+who asks again is refused `no_action` by the economy — which is the honest
+refusal, since it is the economy that says so.
+
+**Absent means no turn has**, which is what a rite declared outside combat
+carries into a fight that starts around it, so the caster's first turn of that
+fight is the first one it is owed on. And the marker is **dropped when the
+fight ends**, because turn numbers restart with the next one: left standing it
+would credit turn 3 of the next fight with the Magic action taken on turn 3 of
+the last, which is a rite surviving in silence. The rite itself is untouched —
+a fight ending is not a Concentration broken.
+
+**The ordering against the boundary's other business is decided rather than
+left to luck.** The failure runs **before** the end-of-turn area debts are
+raised, so those debts are raised against the world the failure leaves. It is
+unobservable today — a casting that has taken no effect owns no area, no timer
+and no condition, so it can owe nothing and be owed nothing — and the fixture
+that says so is deliberate rather than hoped for: a rite fails at a boundary
+that is *also* collecting a Grease's saving throw, and the save owed belongs to
+a different casting because it could not belong to this one. Same argument this
+section already makes about `isDue` against `hasExpired`.
+
+**The wedge is gone, and `resolveTurn` is what closed it.** A rite pending
+across a turn is now skipped by the `casting_pending` guard, because in combat
+the clock it settles on is derived from turns wrapping — refusing to advance
+past one was refusing the only thing that could ever settle it. An **instant**
+window still blocks the turn, and with IE-038's keyed record that is per casting
+rather than per record count, so a rite standing beside an unsettled window
+blocks on the window alone.
+
+**One hole opened with the refusal and was closed with it.** While a long
+casting was refused in combat, a turn-anchored Duration could never reach the
+declaration's deadline branch, because `resolveDuration` refuses one outside a
+fight. In combat it resolves perfectly well — and pinning it at the declaration
+would end the spell a minute before it began, which is exactly the bug
+`lastsSeconds` exists to prevent. `duration_not_a_span` refuses it before the
+slot, the action and the first die, so a span is still the only kind that can
+reach the settlement and settlement still cannot fail.
 
 **A casting in process was one engine-wide, and that limit is gone.**
 `castOrRelease` refused `casting_pending` while any casting was open and named
@@ -1823,17 +1887,17 @@ Be Open, And A Casting Id Is What Names One". The four tests that pinned the
 limit are inverted rather than deleted, so the record of what changed is a
 test's own prose.
 
-**A casting declared before a fight and still open when one starts wedges the
-fight**, and deciding what `startCombat` should do to an open casting belongs
-to the in-combat half rather than here. `resolveTurn` refuses `casting_pending`
-and settlement refuses `still_casting` until the clock reaches completion — and
-in combat the clock is *derived from turns wrapping*, which is the thing that
-is blocked. Measured, the three ways out are: the caster gives up the
-Concentration, the caster leaves the game, or the DM declares time passed with
-`advanceTime`, which is not gated on combat and is the out-of-combat instrument
-being used mid-fight. What the engine does **not** do in that window is hold
-the caster to the per-turn obligation, which is exactly the half that is
-deferred.
+**A casting declared before a fight and still open when one starts used to
+wedge the fight**, and what `startCombat` does to an open casting turned out to
+be *nothing at all*. There is no special case: the rite simply enters the
+obligation, the caster keeps at it on each of their own turns, and the fight's
+own rounds carry the clock to the moment the settlement waits on. Before this
+it was `resolveTurn` refusing `casting_pending` and the settlement refusing
+`still_casting` until a clock that only turns could advance, with three ways
+out — the caster gives up the Concentration, the caster leaves the game, or the
+DM declares time passed with `advanceTime`. A test drives a rite through twenty
+turns of a two-creature fight to sixty seconds and settles it there, which is
+the test that would have caught the wedge.
 
 **The twelve definitions this unblocked are written**, so `castingSeconds` has
 writers and the handover it carried is discharged — see "Twelve Spells Whose
@@ -3125,9 +3189,9 @@ they are still not done, for different reasons:
   completion. A timer can say when something stops; it cannot say whether the
   caster kept working at it. What the two-event casting supplied was the other
   half — a process with an identity, a Concentration on it, and a settlement
-  the clock gates — so **outside combat it is built** and in combat the
-  per-turn obligation is what remains missing. See "A Casting Of A Minute Or
-  More Runs On The Clock".
+  the clock gates — and the per-turn obligation is one field on that process
+  plus the command that stamps it, so **both halves are built now**. See "A
+  Casting Of A Minute Or More Runs On The Clock".
 - **A rest still cannot be resumed.** SRD lets you pick a Long Rest back up for
   one extra hour per interruption. That needs a rest that survives its own
   interruption and accumulates required time, which is a change to how a rest
@@ -8419,12 +8483,11 @@ null and is reported — it never becomes either.
   creature, read by the one reader IE-031 built, and ended through the door
   every other grant leaves by. **And a casting of a minute or more runs on the
   clock** — see "A Casting Of A Minute Or More Runs On The Clock": the largest
-  blocker in the book, built outside combat as a declared casting that
-  completes on the clock and concentrates on itself until it does, with a
-  Ritual as the same mechanism ten minutes longer — **and the twelve spells it
-  was the only blocker for are written**, all twelve tracked, which is what
-  took that shape's `unblocks` to zero while leaving forty-two claimants on it.
-  **And a spell can hang a
+  blocker in the book, a declared casting that completes on the clock and
+  concentrates on itself until it does, with a Ritual as the same mechanism ten
+  minutes longer — **and the twelve spells it was the only blocker for are
+  written**, all twelve tracked, which is what took that shape’s `unblocks` to
+  zero while leaving forty-two claimants on it. **And a spell can hang a
   rider on the caster's later attacks, and a slot can lengthen a duration** —
   see "A Rider On Later Attacks Is The Sixth Sourced Grant" and "A Duration The
   Slot Changes Is A Table Per Definition": Divine Favor's 1d4 Radiant on every
@@ -8437,11 +8500,13 @@ null and is reported — it never becomes either.
   Position Change And Not A Move": Misty Step's thirty feet to an unoccupied
   space it can see and Dimension Door's five hundred, through a
   `relocateCreature` that provokes nobody, charges nothing and still raises the
-  area entry a Web is owed. What does not work: casting
-  a definition the
-  catalogue does not compile in, summons, a long casting **in combat** — the
-  per-turn Magic action SRD requires of the caster, which is the deferred half
-  — an area that
+  area entry a Web is owed. **And a casting of a minute or more runs in combat
+  too** — see "In combat the obligation is the turn, and it is one field": the
+  Magic action SRD asks for on each of the caster's turns is `continueCasting`,
+  a turn that ends without it fails the rite derived and with no event, and the
+  fight's own rounds carry the clock to the settlement. What does not work:
+  casting a definition the
+  catalogue does not compile in, summons, an area that
   moves *by itself* at the start of a turn (Cloudkill, Incendiary Cloud), a
   standing spatial effect such as the Speed halved inside that Emanation — a
   Speed derived from where a creature is standing rather than one an effect

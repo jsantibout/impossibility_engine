@@ -589,6 +589,33 @@ export interface PendingCasting {
    */
   readonly completesAt?: Deadline;
   /**
+   * The turn on which the caster last took the Magic action for this rite.
+   *
+   * SRD "Longer Casting Times": "you must take the Magic action on **each of
+   * your turns**, and you must maintain Concentration while you do so. If your
+   * Concentration is broken, the spell fails, but you don't expend a spell
+   * slot." The Concentration half is `releaseCasting`'s and always was; this is
+   * the other half, and it is one number because the question the turn boundary
+   * asks is one question — *did this turn see it?*
+   *
+   * `state.combat.turnsTaken` at the declaration, and again at every
+   * `casting-continued`. A turn ending compares it against the number of the
+   * turn that ended, so the turn a rite was **declared** on needs no second
+   * Magic action: the declaration was it.
+   *
+   * **Absent means no turn has**, which is what a rite declared outside combat
+   * carries into a fight that starts around it — so the caster's first turn of
+   * that fight is the first one it is owed on. It is absent for every casting
+   * that is not a long one, and for every casting written before this existed,
+   * which is the whole compatibility story.
+   *
+   * **Dropped when the fight ends**, because turn numbers restart with each
+   * one: a marker from the last fight names a turn that has not happened, and
+   * left standing it would silently credit turn 3 of the next fight with turn 3
+   * of the last.
+   */
+  readonly sustainedOnTurn?: number;
+  /**
    * How long the spell runs **once it takes effect**, for a clock-deferred
    * casting.
    *
@@ -600,10 +627,12 @@ export interface PendingCasting {
    *
    * Seconds and not a `Duration`, because a turn-anchored duration is refused
    * at declaration — `resolveDuration` has no meaning for one outside combat,
-   * and a long casting is refused inside one — so a span is the only kind that
-   * can reach here, and storing the narrower thing means settlement cannot
-   * fail. That is the same validate-before-rolling rule {@link deadline}
-   * obeys, arriving at the other end.
+   * and inside one `castSpellWith` refuses it `duration_not_a_span`, since a
+   * moment in the turn order pinned a rite before the spell exists is the very
+   * bug this field was built against. So a span is the only kind that can reach
+   * here, and storing the narrower thing means settlement cannot fail. That is
+   * the same validate-before-rolling rule {@link deadline} obeys, arriving at
+   * the other end.
    */
   readonly lastsSeconds?: number;
   /**

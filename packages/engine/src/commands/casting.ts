@@ -545,19 +545,12 @@ function castSpellWith(
 
   // SRD "Longer Casting Times": "While you cast a spell with a casting time of
   // 1 minute or more, you must take the Magic action on each of your turns,
-  // and you must maintain Concentration while you do so." The Concentration
-  // half is a deadline the engine can keep; the per-turn obligation is a state
-  // machine over the caster's turns, and there is none — so a fight running is
-  // where the refusal stands, and it names what is missing rather than
-  // pretending the deadline is the whole rule.
+  // and you must maintain Concentration while you do so." Both halves are the
+  // engine's now: the Concentration is a deadline it already kept, and the
+  // per-turn obligation is `PendingCasting.sustainedOnTurn`, `continueCasting`
+  // and the derived failure at the caster's own turn boundary. A fight running
+  // is therefore no longer a reason to refuse one.
   if (castingTime === 'long') {
-    if (state.combat !== null) {
-      return err(
-        'unsupported_casting_time',
-        'a casting time of 1 minute or more requires the caster to take the Magic action on each of their turns, and that per-turn obligation is not modelled; outside combat the casting runs on the clock instead',
-      );
-    }
-
     // **The same floor the validator holds a definition to, from the same
     // constant.** The low-level half takes its caller's word about the
     // economy; it does not take a caller's word about arithmetic, and two
@@ -701,9 +694,16 @@ function castSpellWith(
       // ritual the instant the rite finished.
       //
       // A turn-anchored duration still resolves here, and outside combat that
-      // is a refusal — before the window opens, which costs nothing. A long
-      // casting is refused *inside* combat, so a span is the only kind that
-      // can reach the settlement, which is why the field holds seconds.
+      // is a refusal — before the window opens, which costs nothing. **Inside
+      // combat a long casting is no longer refused**, so one could now resolve
+      // to a moment in the turn order, and the branch below would pin it at the
+      // *declaration*: a spell whose Duration ends at the caster's next turn,
+      // scheduled a minute before the spell exists. That is precisely the bug
+      // `lastsSeconds` was built against, arriving through the door IE-041
+      // opened, so it is refused here instead — before the window opens, which
+      // is the same validate-before-rolling rule. A span is therefore still the
+      // only kind that can reach the settlement, which is why the field holds
+      // seconds and why settlement cannot fail.
       //
       // **It resolves either way, and the span is read back off the answer.**
       // `resolveDuration` is the single conversion between a `Duration` and a
@@ -716,7 +716,13 @@ function castSpellWith(
       const pinned = resolveDuration(timeView(state), command.duration);
       if (!pinned.ok) return pinned;
 
-      if (sustained && pinned.value.kind === 'elapsed') {
+      if (sustained) {
+        if (pinned.value.kind !== 'elapsed') {
+          return err(
+            'duration_not_a_span',
+            `a casting of a minute or more takes its Duration from the moment the spell takes effect, so it cannot be a moment in the turn order that was worked out a ${command.castingSeconds}-second rite earlier`,
+          );
+        }
         lastsSeconds = pinned.value.at - state.elapsed;
       } else {
         deadline = pinned.value;
@@ -763,6 +769,14 @@ function castSpellWith(
         unverified: command.hold.unverified,
         ...(deadline === undefined ? {} : { deadline }),
         ...(completesAt === undefined ? {} : { completesAt }),
+        // SRD's obligation is on "each of your turns", and the turn a rite is
+        // begun on is one of them — the declaration *is* that turn's Magic
+        // action, so the caster does not owe a second. Outside combat there is
+        // no turn to name, and the field stays absent: the fight that starts
+        // around the rite then owes it on the caster's first turn.
+        ...(sustained && state.combat !== null
+          ? { sustainedOnTurn: state.combat.turnsTaken }
+          : {}),
         ...(lastsSeconds === undefined ? {} : { lastsSeconds }),
         ...(command.check === undefined ? {} : { check: command.check }),
       },
@@ -1395,6 +1409,97 @@ export function resolveCast(
     const owedHere = mayAct(state, id);
     if (owedHere !== null) return owedHere;
     return resolveCastWith(state, id, command, stamp);
+  });
+}
+
+/**
+ * Take the Magic action a casting of a minute or more costs this turn.
+ *
+ * SRD "Longer Casting Times": "While you cast a spell with a casting time of 1
+ * minute or more, you must take the Magic action on **each of your turns**, and
+ * you must maintain Concentration while you do so. If your Concentration is
+ * broken, the spell fails, but you don't expend a spell slot."
+ *
+ * **This is the half somebody decides.** The other half — a turn that ended
+ * without it — is derived at the boundary and writes no event, exactly as a
+ * lost Concentration does, because nobody decides that a turn ended. So the
+ * split here is the one every rule in this engine obeys: rules are derived,
+ * judgements are events.
+ *
+ * It spends the Action and nothing else. The slot is still untouched until the
+ * settlement, which is the same asymmetry `spell-declared` has always written,
+ * and there is no second casting: the rite is the casting already open, named
+ * by its id.
+ *
+ * **The turn the rite was declared on needs none of this.** The declaration
+ * *was* that turn's Magic action, so it stamps the record itself and a caller
+ * asking for a second is refused `no_action` by the economy — which is the
+ * honest refusal, because it is the economy that says so.
+ */
+export function continueCasting(
+  state: GameState,
+  casterId: CharacterId,
+  castingId: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `continue-cast:${castingId}`, command, () => [], (stamp) => {
+    // A mandatory effect somebody has been caught by, or a turn whose start has
+    // not arrived. **After the duplicate check, never before it.**
+    const owedHere = mayAct(state, casterId);
+    if (owedHere !== null) return owedHere;
+
+    const pending = state.pendingCastings[castingId];
+    if (pending === undefined) {
+      return err('no_casting_pending', `no casting ${castingId} is waiting to resolve`);
+    }
+
+    // SRD: "**you** must take the Magic action." A rite in progress is not a
+    // thing lying about for anyone to pick up — the rule `activateSpell`
+    // already states for a spell that is running.
+    if (pending.caster !== casterId) {
+      return err(
+        'not_your_spell',
+        `${castingId} is ${pending.caster}'s casting; ${casterId} cannot keep at it`,
+      );
+    }
+
+    // An instant window — a casting held open so a Counterspell can answer it —
+    // is owed nothing on anybody's turn. `completesAt` is the field that says
+    // which kind of casting this is, for the reason `settlementEvents` reads it
+    // rather than `castingTime`.
+    if (pending.completesAt === undefined) {
+      return err(
+        'not_a_long_casting',
+        `${pending.spell} is not a casting of a minute or more; only one of those is taken up again on a later turn`,
+      );
+    }
+
+    const combat = state.combat;
+    if (combat === null) {
+      return err(
+        'not_in_combat',
+        'outside combat there are no turns to take the Magic action on, and the casting runs on the clock instead',
+      );
+    }
+
+    const caster = creatureOf(state, casterId);
+    if (caster === null) return unknownCreature(casterId);
+
+    // Whose turn it is, whether the Action is still there and whether the
+    // caster is Incapacitated are all this one call's — the economy's own
+    // question, asked where the economy answers it.
+    const spent = spendAction(combat, casterId, caster.conditions);
+    if (!spent.ok) return spent;
+
+    return ok([
+      { type: 'action-spent', id: casterId },
+      {
+        type: 'casting-continued',
+        id: casterId,
+        castingId,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
   });
 }
 

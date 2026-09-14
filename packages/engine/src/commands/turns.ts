@@ -738,12 +738,24 @@ export function resolveTurn(
     // action is spent, the slot is not, and nothing has taken effect. Advancing
     // past it would strand a spell that the rules say is still being cast.
     //
-    // **Still global, and still reading every one of them.** In combat every
-    // pending casting is an instant window under one caller's control; IE-041
-    // makes the long casting's obligation per-casting, and this is what that
-    // task narrows. The reason names them, because with several open "the
-    // casting" says nothing a caller could act on.
-    const declared = pendingCastingsOf(state);
+    // **An instant window only.** A casting held open so a Counterspell can
+    // answer it is open for a moment under one caller's control, and there is
+    // nothing for a turn to do but wait. A casting of a minute or more is the
+    // opposite: SRD measures it in turns, so the turn is exactly what it needs
+    // — and refusing to advance past one was the recorded wedge, since in
+    // combat the clock it settles on is *derived from turns wrapping*. So the
+    // rite is skipped here and answered at the boundary instead, by the
+    // per-turn Magic action and the derived failure that reads it.
+    //
+    // `completesAt` is what tells the two apart, for the reason
+    // `settlementEvents` reads it rather than `castingTime`. With IE-038's
+    // keyed record this is per casting rather than per record count, so a rite
+    // standing beside an unsettled window blocks on the window alone, and the
+    // reason names them because with several open "the casting" says nothing a
+    // caller could act on.
+    const declared = pendingCastingsOf(state).filter(
+      (casting) => casting.completesAt === undefined,
+    );
     if (declared.length > 0) {
       return err(
         'casting_pending',

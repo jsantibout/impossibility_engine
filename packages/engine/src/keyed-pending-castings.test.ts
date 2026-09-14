@@ -8,12 +8,15 @@ import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import {
   beginCombat,
+  continueCasting,
   pendingCastingsBy,
   pendingCastingsOf,
   reactionOpportunities,
   removeCreatureEverywhere,
+  resolveAttackDamage,
   resolveDeclaredCast,
   resolveSpell,
+  resolveTurn,
 } from './commands.js';
 
 /**
@@ -391,13 +394,14 @@ describe('two pending castings belonging to one caster', () => {
    * casting has expended a slot.
    *
    * **The rite is declared outside combat and the fight starts around it**,
-   * which is the only arrangement that needs no unbuilt mechanic. A long
-   * casting *begun* in combat is still refused — the per-turn Magic-action
-   * obligation is IE-041's, and nothing here exercises it, because the turn
-   * never advances. And Shield cannot be cast outside combat at all: its
-   * "until the start of your next turn" is turn-anchored, and
-   * `resolveDuration` refuses rather than inventing six seconds. That refusal
-   * is pre-existing and has nothing to do with this record.
+   * and the turn deliberately never advances here: this fixture is about the
+   * *record*, so it holds every other mechanic still. The pair below drives
+   * the same sequence with the turn moving, which is the half IE-041 built.
+   *
+   * Shield cannot be cast outside combat at all: its "until the start of your
+   * next turn" is turn-anchored, and `resolveDuration` refuses rather than
+   * inventing six seconds. That refusal is pre-existing and has nothing to do
+   * with this record.
    *
    * The rite still settles on the clock, through `advanceTime` — which is not
    * gated on combat and is exactly the instrument CLAUDE.md already names for
@@ -552,6 +556,145 @@ describe('two pending castings belonging to one caster', () => {
     const interrupted = gone.filter((e) => e.type === 'spell-interrupted');
     expect(interrupted.map((e) => e.castingId)).toEqual([riteId, shieldId]);
     expect(world([...log, ...gone]).pendingCastings).toEqual({});
+  });
+
+  /**
+   * **And here it is with the turn actually moving**, which is the half this
+   * file could not drive when it was written: the rite's per-turn Magic-action
+   * obligation was IE-041's, so the fixture above stops before the first
+   * boundary and says so.
+   *
+   * The sequence the owner named, in combat and end to end: the wizard is
+   * mid-rite on its own turn, the turn passes to the foe, the foe attacks, the
+   * wizard answers with Shield held open as a Reaction — two pending castings
+   * for one caster — the Shield settles, the foe's turn ends, and the wizard's
+   * next turn comes round with the rite still standing and still owed.
+   *
+   * Every SRD sentence quoted at the top of this file is what makes that legal,
+   * and the load-bearing one here is *Reaction*: "You can take a Reaction on
+   * **another creature's turn**", so the rite's obligation — which is on the
+   * wizard's own turns — is untouched by any of it.
+   */
+  const midFight = () => {
+    const declared = unwrap(
+      resolveSpell(
+        world(),
+        WIZARD,
+        { spellId: 'comprehend-languages', targets: [], ritual: true },
+        supply('rite'),
+      ),
+      'rite',
+    );
+    const begun = unwrap(
+      beginCombat(world(declared.events), [
+        { id: WIZARD, initiative: 20, speed: 30 },
+        { id: ALLY, initiative: 15, speed: 30 },
+        { id: FOE, initiative: 10, speed: 30 },
+      ]),
+      'combat',
+    );
+    // The wizard's own first turn: the rite is kept at, and the turn passes.
+    const opened = [...declared.events, ...begun];
+    const kept = unwrap(
+      continueCasting(world(opened), WIZARD, declared.castingId, { commandId: 'keep-1' }),
+      'keep at it',
+    );
+    const carried = [...opened, ...kept];
+    const turned = [
+      ...carried,
+      ...unwrap(resolveTurn(world(carried), supply('turn')), 'on to the ally').events,
+    ];
+    return { riteId: declared.castingId, log: turned };
+  };
+
+  it('holds a Shield open beside a rite on another creature’s turn', () => {
+    const { riteId, log } = midFight();
+    const hit = landedOn(WIZARD, ALLY);
+    const before = world([...log, hit]);
+    expect(before.combat?.order[before.combat.turnIndex]?.id).toBe(ALLY);
+
+    const shield = unwrap(
+      resolveSpell(
+        before,
+        WIZARD,
+        { spellId: 'shield', targets: [WIZARD], slotLevel: 1, hold: true },
+        supply('shield'),
+      ),
+      'shield',
+    );
+    const both = world([...log, hit, ...shield.events]);
+
+    // Two pending castings, one caster, on somebody else's turn.
+    expect(pendingCastingsBy(both, WIZARD).map((c) => c.castingId)).toEqual([
+      riteId,
+      shield.castingId,
+    ]);
+    // The rite's Concentration is where it was — Shield requires none.
+    expect(both.creatures.wizard!.concentration?.castingId).toBe(riteId);
+    // Neither has expended a slot, and the rite's obligation is unaffected
+    // because this is not the wizard's turn.
+    expect(slotsLeft(both, WIZARD, 1)).toBe(4);
+    expect(both.pendingCastings[riteId]?.sustainedOnTurn).toBe(0);
+  });
+
+  it('settles the Shield and carries the rite into the wizard’s next turn', () => {
+    const { riteId, log } = midFight();
+    const hit = landedOn(WIZARD, ALLY);
+    const shield = unwrap(
+      resolveSpell(
+        world([...log, hit]),
+        WIZARD,
+        { spellId: 'shield', targets: [WIZARD], slotLevel: 1, hold: true },
+        supply('shield'),
+      ),
+      'shield',
+    );
+    const settled = unwrap(
+      resolveDeclaredCast(
+        world([...log, hit, ...shield.events]),
+        shield.castingId,
+        supply('settle-shield'),
+      ),
+      'settle shield',
+    );
+    // And the blow that opened the window lands, because a held attack is its
+    // own debt and the turn refuses to advance past one.
+    const struck = unwrap(
+      resolveAttackDamage(
+        world([...log, hit, ...shield.events, ...settled.events]),
+        ALLY,
+        {},
+        supply('damage'),
+      ),
+      'the blow lands',
+    );
+    let current: readonly GameEvent[] = [
+      ...log,
+      hit,
+      ...shield.events,
+      ...settled.events,
+      ...struck.events,
+    ];
+
+    // The Shield spent its slot; the rite still has not.
+    expect(slotsLeft(world(current), WIZARD, 1)).toBe(3);
+    expect(Object.keys(world(current).pendingCastings)).toEqual([riteId]);
+
+    // The ally's turn and the foe's both end with the rite intact, because
+    // neither is the wizard's.
+    for (const seed of ['ally', 'foe']) {
+      current = [
+        ...current,
+        ...unwrap(resolveTurn(world(current), supply(seed)), `end ${seed}`).events,
+      ];
+      expect(Object.keys(world(current).pendingCastings)).toEqual([riteId]);
+    }
+
+    const round = world(current);
+    expect(round.combat?.order[round.combat.turnIndex]?.id).toBe(WIZARD);
+    // And the rite is owed again: the marker names the turn that has passed.
+    expect(round.pendingCastings[riteId]?.sustainedOnTurn).toBe(0);
+    expect(round.combat?.turnsTaken).toBe(3);
   });
 });
 

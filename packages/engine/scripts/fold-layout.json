@@ -62,7 +62,13 @@
     "raiseAreaArrivals",
     "dropOrphanedAreaEffects"
   ],
-  "fold/turns.ts": ["raiseTurnSaves", "raiseTurnEnd", "reachStartOfTurn"],
+  "fold/turns.ts": [
+    "raiseTurnSaves",
+    "failUnsustainedCastings",
+    "forgetSustainedTurns",
+    "raiseTurnEnd",
+    "reachStartOfTurn"
+  ],
   "fold/expiry.ts": [
     "viewOf",
     "expireEffects",

@@ -1222,22 +1222,28 @@ describe('a casting of a minute or more, and the Ritual that is one', () => {
   });
 
   /**
-   * **In combat the refusal stands**, and its reason names the machinery that
-   * is missing rather than the one that is built. SRD: "you must take the
-   * Magic action on each of your turns" — a per-turn obligation over the
-   * caster's turns, which is a state machine and not a deadline.
+   * **Inverted.** This asserted that a fight running refused a long casting
+   * outright, on the grounds that SRD's "you must take the Magic action on each
+   * of your turns" was a state machine the engine did not have. It has one now
+   * — `PendingCasting.sustainedOnTurn`, `continueCasting` and the derived
+   * failure at the caster's own turn boundary — so the refusal is gone and
+   * `long-casting.test.ts` drives the obligation instead.
+   *
+   * `unsupported_casting_time` survives on its other rule, which is about the
+   * *shape* of the command rather than about a fight: a casting of a minute or
+   * more is a declared casting settled later, so a caller who names nothing for
+   * the settlement to resolve has asked for a window nothing could ever close.
    */
-  it('refuses a long casting while a fight is running, naming the obligation', () => {
+  it('refuses a long casting that names nothing for the settlement to resolve', () => {
     const out = castSpell(world(), A, {
       spell: 'Comprehend Languages',
       level: 1,
       slotLevel: 1,
       castingTime: 'long',
       castingSeconds: 60,
-      hold: { spellId: 'comprehend-languages', targets: [], unverified: [] },
     });
     expect(refusal(out)).toBe('unsupported_casting_time');
-    expect(isErr(out) && out.reason).toContain('Magic action');
+    expect(isErr(out) && out.reason).toContain('settled later');
   });
 
   /** The spell has not been cast until the time has passed. */

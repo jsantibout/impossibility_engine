@@ -73,6 +73,7 @@ export {
   applySpellEffect,
   castSpell,
   concentrationSaveAfterDamage,
+  continueCasting,
   endConcentration,
   endSpellEffectOn,
   nextCastingId,

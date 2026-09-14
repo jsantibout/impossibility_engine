@@ -11,14 +11,19 @@
  *
  * `raiseTurnSaves` is the other debt a boundary raises: the reducer cannot
  * roll, so it records what is owed and an engine-owned operation settles it.
+ *
+ * `failUnsustainedCastings` is the third thing a boundary does and the only one
+ * that *ends* something: SRD's per-turn Magic action for a casting of a minute
+ * or more, which nobody decides has gone unspent.
  */
 import { isDue, pendingSaveKey, type PendingSave } from '../duration.js';
 import { castingIdOf } from '../spells.js';
 import { type CombatState } from '../combat.js';
 
-import type { GameState } from '../state.js';
+import type { GameState, PendingCasting } from '../state.js';
 import { sortedRecord } from './common.js';
 import { raiseAreaBoundary } from './areas.js';
+import { releaseCasting } from './release.js';
 
 /**
  * Raise the saves a turn boundary owes.
@@ -68,6 +73,86 @@ export function raiseTurnSaves(
 
   if (Object.keys(raised).length === 0) return state;
   return { ...state, pendingSaves: sortedRecord({ ...state.pendingSaves, ...raised }) };
+}
+
+/**
+ * A rite its caster let slip, ended by the turn that ended without it.
+ *
+ * SRD "Longer Casting Times": "you must take the Magic action on **each of your
+ * turns**, and you must maintain Concentration while you do so. If your
+ * Concentration is broken, the spell fails, but you don't expend a spell slot."
+ *
+ * **Derived, so no event.** Nobody decides that a turn ended without the Magic
+ * action being taken, exactly as nobody decides that a Concentration broke —
+ * so this is the reducer's, and no log however assembled can show a rite
+ * running past a turn its caster let slip. It goes out through
+ * `releaseCasting`, the single door every other ending already uses, which is
+ * also where the slot is left unspent: nothing is refunded because nothing was
+ * taken.
+ *
+ * **Before the end-of-turn area debts are raised.** The failure is a fact about
+ * the turn that is ending, so the boundary's debts are raised against the world
+ * the failure leaves rather than the other way round. That ordering is
+ * unobservable today — a casting that has taken no effect owns no area, no
+ * timer and no condition, so it can owe nothing and be owed nothing — and it is
+ * decided here rather than left to luck, which is the argument this file
+ * already makes about `isDue` against `hasExpired`.
+ *
+ * **The turn compared against is the one that ended**, `before.turnsTaken`,
+ * which is the same number `raiseTurnEnd` stamps its end-of-turn debts with and
+ * for the same reason: `turnsTaken` has already moved on by the time the
+ * reducer sees `turn-advanced`.
+ *
+ * The iteration reads the record as it stood before any release, which is safe
+ * because releasing one casting can never add another, and it is in
+ * casting-number order, so the fold is a pure function of the log.
+ */
+export function failUnsustainedCastings(state: GameState, before: CombatState): GameState {
+  const whose = before.order[before.turnIndex]?.id;
+  if (whose === undefined) return state;
+
+  let current = state;
+  for (const castingId of Object.keys(state.pendingCastings)) {
+    const pending = state.pendingCastings[castingId];
+    if (pending === undefined) continue;
+    // Only a casting of a minute or more is owed anything on a turn; an
+    // instant window — a Counterspell being answered — has no such obligation,
+    // and `completesAt` is the field that says which this is.
+    if (pending.completesAt === undefined) continue;
+    if (pending.caster !== whose) continue;
+    if (pending.sustainedOnTurn === before.turnsTaken) continue;
+    current = releaseCasting(current, pending.caster, castingId);
+  }
+  return current;
+}
+
+/**
+ * Forget which turn sustained a rite, because the numbering has gone.
+ *
+ * `turnsTaken` restarts at zero with each fight, so a marker left over from the
+ * last one names a turn that has not happened — and would silently credit turn
+ * 3 of the next fight with the Magic action taken on turn 3 of the last. The
+ * rite itself is untouched: a fight ending is not a Concentration broken, and
+ * outside combat the casting simply runs on the clock again.
+ */
+export function forgetSustainedTurns(state: GameState): GameState {
+  const keys = Object.keys(state.pendingCastings);
+  if (!keys.some((key) => state.pendingCastings[key]?.sustainedOnTurn !== undefined)) {
+    return state;
+  }
+
+  const pendingCastings: Record<string, PendingCasting> = {};
+  for (const key of keys) {
+    const casting = state.pendingCastings[key]!;
+    if (casting.sustainedOnTurn === undefined) {
+      pendingCastings[key] = casting;
+      continue;
+    }
+    const without: PendingCasting & { sustainedOnTurn?: number } = { ...casting };
+    delete without.sustainedOnTurn;
+    pendingCastings[key] = without;
+  }
+  return { ...state, pendingCastings };
 }
 
 /**

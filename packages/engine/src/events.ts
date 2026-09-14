@@ -643,6 +643,27 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * The Magic action a casting of a minute or more costs on a later turn.
+   *
+   * SRD "Longer Casting Times": "While you cast a spell with a casting time of
+   * 1 minute or more, you must take the Magic action on **each of your
+   * turns**." The *failure* that follows from not taking it is derived — nobody
+   * decides that a turn ended — but taking it is a decision, so it is an event,
+   * which is the same split every other rule here obeys.
+   *
+   * It carries no turn number. The turn is `state.combat.turnsTaken` at the
+   * moment this folds, and a number written down beside it would be a second
+   * answer to one question — which is the failure the pending record itself was
+   * designed against. The `action-spent` beside it is what the economy reads;
+   * this is what the rite reads.
+   */
+  | {
+      readonly type: 'casting-continued';
+      readonly id: CharacterId;
+      readonly castingId: string;
+      readonly command?: CommandStamp;
+    }
+  /**
    * A declared casting that never took effect.
    *
    * SRD Counterspell: "the spell dissipates with no effect." Nothing is

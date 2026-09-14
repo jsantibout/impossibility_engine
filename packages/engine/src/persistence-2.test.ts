@@ -390,9 +390,18 @@ function declaredEventTypes(): readonly string[] {
  * `attack-riders.test.ts` folds it and drives it end to end through Divine
  * Favor and Hunter's Mark — a weapon attack, a spell attack, a Critical Hit,
  * and every door the grant is ended by.
+ *
+ * `casting-continued` is the fourth, and by the same construction again:
+ * neither log was written when a casting of a minute or more could be begun in
+ * combat at all — it was refused outright — so no turn in either could carry
+ * the Magic action SRD's "Longer Casting Times" asks for.
+ * `long-casting.test.ts` folds it through twenty turns of a real fight, and
+ * `keyed-pending-castings.test.ts` drives it beside a Shield held open on
+ * somebody else's turn.
  */
 const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'attack-rider-granted',
+  'casting-continued',
   'damage-defense-granted',
   'speed-modifier-granted',
 ];

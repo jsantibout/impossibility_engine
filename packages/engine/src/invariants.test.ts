@@ -23,6 +23,7 @@ import {
   advanceTime,
   beginCombat,
   castSpell,
+  continueCasting,
   declareCoverBetween,
   declareCreatureDead,
   declareCreatureSide,
@@ -762,11 +763,56 @@ const RIDING: readonly GameEvent[] = [
   ...unwrap(mountCreature(fold('s', STABLED), A, HORSE, { willing: true }), 'up'),
 ];
 
+/**
+ * A rite of a minute or more, open, with the turn come round to its caster.
+ *
+ * SRD "Longer Casting Times" puts the Magic action on **each of the caster's
+ * turns**, so the retry that matters here is the second one: it would spend a
+ * second Action on a turn that has none left, and the boundary reads which turn
+ * last saw the rite — so a retry arriving on the *next* turn would keep alive a
+ * casting the rules had already failed.
+ *
+ * `resolveCast` is the low-level half, which takes the casting time and the
+ * seconds directly, because no definition in the catalogue declares a long
+ * casting time yet.
+ */
+const reciting = (): readonly GameEvent[] => {
+  const declared: readonly GameEvent[] = [
+    ...SETUP,
+    ...unwrap(
+      resolveCast(fold('s', SETUP), A, {
+        spell: 'Comprehend Languages',
+        level: 1,
+        slotLevel: 1,
+        castingTime: 'long',
+        castingSeconds: 60,
+        hold: { spellId: 'comprehend-languages', targets: [], unverified: [] },
+      }),
+      'the rite',
+    ),
+  ];
+  // A's own turn ends with the declaration standing in for its Magic action;
+  // B's ends owing nothing. The turn is then A's again, and the rite is owed.
+  let log: readonly GameEvent[] = declared;
+  for (let n = 0; n < 2; n += 1) {
+    log = [...log, ...unwrap(resolveTurn(fold('s', log), supply()), 'turn').events];
+  }
+  return log;
+};
+
+const RECITING = reciting();
+const RITE = Object.keys(fold('s', RECITING).pendingCastings)[0]!;
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'settleAreaEffects',
     log: greased(),
     run: (s, commandId) => settleAreaEffects(s, supply(), { commandId }),
+  },
+  {
+    name: 'continueCasting',
+    log: RECITING,
+    run: (s, commandId) => continueCasting(s, A, RITE, { commandId }),
   },
   {
     name: 'damageCreature',
@@ -1455,6 +1501,13 @@ const SPENDERS: readonly Spender[] = [
     name: 'resolveCast',
     run: (s) => resolveCast(s, B, { spell: 'Bless', level: 1, concentration: false, slotLevel: 1 }),
   },
+  /**
+   * The Magic action SRD's "Longer Casting Times" asks for on each of the
+   * caster's turns. The casting id need only be well-formed: `mayAct` is asked
+   * immediately after the duplicate check and before the record is looked up
+   * at all, which is what this case is here to hold it to.
+   */
+  { name: 'continueCasting', run: (s) => continueCasting(s, B, 'cast:1', {}) },
   /**
    * The three of the nine DM-declared events that are **not** declarations.
    *

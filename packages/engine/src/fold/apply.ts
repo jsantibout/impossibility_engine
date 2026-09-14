@@ -115,7 +115,13 @@ import {
   withoutTarget,
 } from './release.js';
 import { dropOrphanedAreaEffects, raiseAfterMovement, raiseAreaArrivals } from './areas.js';
-import { raiseTurnEnd, raiseTurnSaves, reachStartOfTurn } from './turns.js';
+import {
+  failUnsustainedCastings,
+  forgetSustainedTurns,
+  raiseTurnEnd,
+  raiseTurnSaves,
+  reachStartOfTurn,
+} from './turns.js';
 import { dropOrphanedSaves, dropStrandedDamage, expireEffects, timersApartFrom } from './expiry.js';
 import { endTriggeredCastings } from './endings.js';
 
@@ -1137,16 +1143,62 @@ function applyOne(state: GameState, event: GameEvent): GameState {
       return { ...next, combat: must(event, startCombat(event.combatants)) };
 
     case 'combat-ended':
-      return { ...next, combat: null };
+      // The rites go on running; what goes is which *turn* last sustained one,
+      // because turn numbers restart with the next fight.
+      return forgetSustainedTurns({ ...next, combat: null });
 
     case 'turn-advanced': {
       const before = combatOf(state, event);
       const after = advanceTurn(before);
+      // A rite the ending turn's caster did not keep at fails **before** the
+      // end-of-turn area debts are raised, so the boundary's debts are raised
+      // against the world the failure leaves. See `failUnsustainedCastings`.
       return raiseTurnEnd(
-        raiseTurnSaves(withCombat(next, state, after), before, after),
+        failUnsustainedCastings(
+          raiseTurnSaves(withCombat(next, state, after), before, after),
+          before,
+        ),
         before,
         after,
       );
+    }
+
+    // SRD "Longer Casting Times": the Magic action a casting of a minute or
+    // more costs on each of the caster's turns. The *failure* is derived at the
+    // boundary; taking the action is a decision, so it is this event, and all
+    // it does is record which turn saw it.
+    //
+    // **Three identity facts and no economy.** The backstop here is what a
+    // reducer is for — that the casting exists, belongs to this creature and is
+    // one the Magic action is owed on. Whether the caster had an Action to
+    // spend and whether it was their turn is the `action-spent` the command
+    // always emits beside this one, folded through `spendAction`, exactly as
+    // `spell-declared` leaves its own economy to the `action-spent` above it.
+    case 'casting-continued': {
+      const combat = combatOf(state, event);
+      const pending = state.pendingCastings[event.castingId];
+      if (pending === undefined) {
+        throw new CorruptLogError(event, `no casting ${event.castingId} is waiting to resolve`);
+      }
+      if (pending.caster !== event.id) {
+        throw new CorruptLogError(
+          event,
+          `${event.castingId} is ${pending.caster}'s casting, not ${event.id}'s`,
+        );
+      }
+      if (pending.completesAt === undefined) {
+        throw new CorruptLogError(
+          event,
+          `${event.castingId} takes no more than an instant and is not taken up again`,
+        );
+      }
+      return {
+        ...next,
+        pendingCastings: {
+          ...state.pendingCastings,
+          [event.castingId]: { ...pending, sustainedOnTurn: combat.turnsTaken },
+        },
+      };
     }
 
     case 'action-spent':
