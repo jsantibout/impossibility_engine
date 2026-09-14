@@ -1,11 +1,11 @@
 # IE-020 — A held casting keeps the facts its caster stated
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `events.ts` and `commands/spell-resolution.ts` for wave 1; safe beside every conformance and tooling task in that wave
 depends-on: none
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a720a755b59ce0aff · worktree-agent-a720a755b59ce0aff
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

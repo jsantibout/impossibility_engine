@@ -1,11 +1,11 @@
 # IE-026 — Every context request names the command that satisfies it
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: conformance
 tranche: 5
 parallel-safe: CONDITIONAL — owns `commands/targeting.ts` and `commands/movement.ts` in wave 1; must merge before IE-029 and IE-031, which own those files later
 depends-on: none
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a0a79c1bf3e2c5c74 · worktree-agent-a0a79c1bf3e2c5c74
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

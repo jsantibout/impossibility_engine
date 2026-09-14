@@ -1,11 +1,11 @@
 # IE-024 — The validator judges untyped input instead of throwing on it
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: conformance
 tranche: 5
 parallel-safe: CONDITIONAL — owns `spell-schema.ts`; every later union task adds a rule to that file, so it lands first and alone
 depends-on: none
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a4be1fee7f60504ad · worktree-agent-a4be1fee7f60504ad
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

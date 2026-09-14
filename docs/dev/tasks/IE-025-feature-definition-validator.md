@@ -1,11 +1,11 @@
 # IE-025 — A feature-definition validator
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: conformance
 tranche: 5
 parallel-safe: YES — a new module, its test, and data-only fixes in the twelve class files
 depends-on: none
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a75dd26295c405827 · worktree-agent-a75dd26295c405827
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
