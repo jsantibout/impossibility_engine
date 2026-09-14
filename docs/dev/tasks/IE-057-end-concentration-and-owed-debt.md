@@ -39,11 +39,13 @@ action required)."* So it is genuinely **not an action**, and `mayAct` is named
 for actions.
 
 But `mayAct` is not only about actions. `relocateCreature` is guarded and
-**spends nothing** — CLAUDE.md states the precedent in as many words: it is
-guarded because it *raises* area debts, and because two operations that both
-move a creature must not disagree about whether the world has to be settled
-first. And CLAUDE.md's own argument for the global debt is three moves long and
-ends: *settle the mandatory mechanical fact first.*
+**spends nothing** — `docs/design/casting.md` states the precedent in as many
+words ("It spends nothing and is guarded anyway"): it is guarded because it
+*raises* area debts, and because two operations that both move a creature must
+not disagree about whether the world has to be settled first. And the
+repository's own argument for the global debt is three moves long and ends:
+*settle the mandatory mechanical fact first.* `docs/design/space-and-areas.md`
+carries the one `mayAct` policy and its allowlist.
 
 The candidate readings, and the foreman's position:
 
@@ -95,8 +97,11 @@ invents a restriction the book does not contain.
 
 ### Tests and conformance
 
-CLAUDE.md's `mayAct` paragraph gains the decision and, if the answer is to
-guard, loses nothing — the allowlist's written reasons stay as they are.
+The `mayAct` paragraph gains the decision **where it now lives** —
+`docs/design/space-and-areas.md`, which carries the one policy and the
+allowlist, with `docs/design/casting.md` authoritative for what ending a casting
+does. Read both first; `CLAUDE.md` is the constitution and the router only. If
+the answer is to guard, the allowlist's written reasons stay as they are.
 
 ### Dependencies
 
@@ -104,8 +109,8 @@ None. Not beside IE-053, which owns `commands/casting.ts` as a reader.
 
 ### Out of scope
 
-`endRest`, whose exemption CLAUDE.md records as an open question rather than a
-decision. Any change to what `releaseCasting` does.
+`endRest`, whose exemption `docs/design/space-and-areas.md` records as an open
+question rather than a decision. Any change to what `releaseCasting` does.
 
 ### Known risks
 

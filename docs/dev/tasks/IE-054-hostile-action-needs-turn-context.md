@@ -117,9 +117,21 @@ Settled by the owner; a deviation is `ARCHITECTURE_BLOCKED`:
 
 ### Tests and conformance
 
-CLAUDE.md: the delayed-damage paragraph loses "outside combat there are no turns
-for it to be the end of, so nothing is scheduled and the caller is told", and
-gains the rule that a printed later consequence asks for the timeline it needs.
+**`docs/design/time-and-turns.md`** is the authoritative document for durations,
+turn boundaries and the clock — read it first; `CLAUDE.md` is now only the
+constitution and the router. The paragraph to rewrite is the `turn-context`
+exemption list, whose `scheduleDelayed` clause currently reads that SRD Acid
+Arrow's later 2d4 "is reported in `unverified` and not scheduled rather than
+refused". It gains the rule that a printed later consequence asks for the
+timeline it needs.
+
+**Brief correction, recorded rather than hidden.** This section previously told
+the builder to remove the sentence "outside combat there are no turns for it to
+be the end of, so nothing is scheduled and the caller is told" from `CLAUDE.md`.
+**That sentence is not in the repository** — IE-046 rewrote the paragraph, and
+the brief was quoting a superseded run. The instruction is re-pointed above to
+the paragraph that actually exists. This is precisely the class of error IE-052
+is being built to catch, and it is the second confirmed instance.
 
 ### Dependencies
 

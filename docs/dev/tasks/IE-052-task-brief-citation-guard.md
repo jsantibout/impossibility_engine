@@ -46,9 +46,15 @@ real damage. Build it for what it is; do not let the docstring imply otherwise.
   reason. The mechanism is already parameterised over a corpus and a prose
   string, which is why this is reuse rather than new machinery.
 - **`SRD` is in that table carrying no files, deliberately** — a note that names
-  CLAUDE.md and quotes the book must not have the book's sentence looked up in
-  CLAUDE.md, and spell quotations already have their own guard in
-  `spell-honesty.test.ts` against that spell's own paragraph.
+  a repository design document and quotes the book must not have the book's
+  sentence looked up in that document, and spell quotations already have their
+  own guard in `spell-honesty.test.ts` against that spell's own paragraph.
+- **`CITED_SOURCES` no longer carries `claude.md`.** The architecture moved out
+  of `CLAUDE.md` into `docs/design/` and `docs/rules/`, which are registered
+  individually; `claude.md` was removed because nothing cites it any more, with
+  the restore condition recorded in the file. A brief citing `CLAUDE.md` for a
+  subsystem paragraph is therefore now itself a brief error this guard should
+  catch — which is the strongest available argument for building it.
 - `packages/srd/raw/*.md` — the rules text a brief actually quotes. Six of the
   eight errors quoted *rules sections* (Longer Casting Times, the Duration
   forms, Ready's casting time), not spell paragraphs, so

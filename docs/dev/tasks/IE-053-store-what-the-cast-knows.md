@@ -115,9 +115,13 @@ Settled by Fable; a deviation is `ARCHITECTURE_BLOCKED`:
 
 ### Tests and conformance
 
-CLAUDE.md's `OngoingSpell.on` paragraphs are rewritten: the three-pass
-description goes, the two-provenance rule and the derivation arrive, and the
-`grants` finding is recorded as closed by construction.
+The `OngoingSpell.on` paragraphs are rewritten **where they now live**: the
+three-pass description at `docs/design/space-and-areas.md` ("`on` is a stored
+derivation kept in step by three passes") goes, and the two-provenance rule and
+the derivation arrive there and in `docs/design/casting.md`, which is
+authoritative for casting and ongoing spells. The `grants` finding is recorded
+as closed by construction. `CLAUDE.md` is the constitution and the router only —
+do not write subsystem architecture back into it.
 
 ### Dependencies
 

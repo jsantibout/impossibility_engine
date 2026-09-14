@@ -90,8 +90,11 @@ A reinforcement walking in mid-fight is also the most ordinary thing at a table.
 
 ### Tests and conformance
 
-CLAUDE.md's combat section gains the command. `invariants.test.ts`'s
-emitted-type and idempotency sweeps pick the new event and command up.
+**`docs/design/space-and-areas.md`**'s `## Combat Model` section gains the
+command — that document, not `CLAUDE.md`, is authoritative for the combat model,
+and `docs/design/time-and-turns.md` is authoritative for the Initiative-order
+clock. Read both before implementing. `invariants.test.ts`'s emitted-type and
+idempotency sweeps pick the new event and command up.
 
 ### Dependencies
 

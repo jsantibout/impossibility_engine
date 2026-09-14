@@ -113,8 +113,11 @@ Settled; a deviation is `ARCHITECTURE_BLOCKED`:
 ### Tests and conformance
 
 No new behavioural tests. The frozen logs, the exhaustiveness sweep and the
-byte-identity oracle are the conformance. CLAUDE.md's event-log section gains a
+byte-identity oracle are the conformance. **`docs/design/event-log.md`** gains a
 short paragraph naming the domains, in the shape IE-039 wrote for the seams.
+That document — not `CLAUDE.md` — is now authoritative for the reducer and the
+fold; `CLAUDE.md` is the constitution and the router, and its router table
+points here. Read `docs/design/event-log.md` before touching `fold/`.
 
 ### Dependencies
 
