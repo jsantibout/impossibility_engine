@@ -1,11 +1,11 @@
 # IE-058 — A tranche cannot close over a live task
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: tooling
 tranche: 7
 parallel-safe: YES — `docs/dev/check-queue.mjs` and its test; touches no engine source
 depends-on: none
-worker: none
+worker: qb-builder, launched 2026-09-14 from `04a5353` (wave 2)
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 

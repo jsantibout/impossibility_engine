@@ -1,11 +1,11 @@
 # IE-053 — `OngoingSpell.on`: store what the cast knows, derive what the world holds
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 7
 parallel-safe: NO — `events.ts`, `spells.ts`, the fold and four readers
 depends-on: IE-050, IE-051
-worker: none
+worker: qb-builder, launched 2026-09-14 from `04a5353` (wave 2)
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 
