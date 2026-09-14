@@ -1300,6 +1300,15 @@ export function endConcentration(
  * The save itself is an ordinary Constitution saving throw — roll it through
  * `rollSavingThrow`, so proficiency, conditions and bonuses all apply — and a
  * failure is reported back with {@link endConcentration}.
+ *
+ * **That route meets the same debt guard, and the reason it is safe is the
+ * duplicate check.** `endConcentration` refuses `area_effect_owed` for *every*
+ * `ConcentrationEndReason`, a broken save included, so a caller reporting a
+ * failure into a world that still owes a mandatory area effect is told to
+ * settle it first. Nothing is lost: `once` returns before stamping, so the
+ * command id is not consumed and the *same* id succeeds once the debt is
+ * settled. The ordering the engine insists on is the SRD's own — the save the
+ * world already owes resolves before the casting it might have ended does.
  */
 export function concentrationSaveAfterDamage(
   state: GameState,
