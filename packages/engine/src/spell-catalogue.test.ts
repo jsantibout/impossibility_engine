@@ -12,6 +12,7 @@ import {
   definitionFor,
   riderDurations,
   statesFoughtFact,
+  teleportOf,
 } from './spell-definitions.js';
 
 /**
@@ -252,11 +253,22 @@ const castAt = (
   // the one that would notice. `statesFoughtFact` is the runtime's own reader
   // rather than a second reading of the field — the lesson `riderDurations`
   // taught this file.
+  //
+  // The third is a teleport's destination, and it is the same shape a third
+  // time: a spell that teleports is refused until the caster names a space,
+  // and a spell that teleports nobody is refused for naming one. The sweep
+  // answers with a **landmark** ten feet from where everyone is standing —
+  // inside the scene, unoccupied, and within the shortest teleport in the
+  // catalogue. `teleportOf` is the runtime's own reader, for the reason
+  // `statesFoughtFact` is used above rather than a second reading of the field.
   const stated = {
     ...(definition.damageTypeStated === undefined
       ? {}
       : { damageType: definition.damageTypeStated[0]! }),
     ...(statesFoughtFact(definition) ? { fought: [] as readonly CharacterId[] } : {}),
+    ...(teleportOf(definition) === null
+      ? {}
+      : { teleportTo: { from: { landmark: 'here' }, feet: 10, bearing: 180 } }),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —

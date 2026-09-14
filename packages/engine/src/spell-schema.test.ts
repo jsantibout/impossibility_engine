@@ -1598,6 +1598,15 @@ describe('every member of the definition format has a user or a written exemptio
       "SpellEffect.onSuccess='none' + SpellCheck.onSuccess='none'",
       'SpellEffect.outlivesCasting? + ConditionRider.outlivesCasting?',
       'SpellEffect.repeats? + ConditionRider.repeats?',
+      // Two different sentences that happen to share a word. A definition's
+      // `requiresSight` is Hold Person's "a Humanoid **that you can see**",
+      // checked against every target the caller names; a teleport's is Misty
+      // Step's "an unoccupied space **you can see**", checked against the
+      // anchor its destination is measured from. Both are written today —
+      // Hold Person the first, Misty Step the second — so this collision
+      // masks nothing; what it costs is that one going unwritten would be
+      // reported as written because the other still is.
+      'SpellEffect.requiresSight? + SpellDefinition.requiresSight?',
     ]);
   });
 });
@@ -2641,6 +2650,15 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       // book either prints or does not, so there is nothing to be wrong about.
       fields: { dice: required(STRING_JUNK), damageType: required(STRING_JUNK) },
     },
+    {
+      kind: 'teleport',
+      base: { kind: 'teleport', feet: 30, requiresSight: true },
+      // The destination is the **casting's** to state and is nowhere on the
+      // definition, so the only field below the kind is the distance — and
+      // `requiresSight` is a clause the book either prints or does not, which
+      // the pairing rule below asserts by name rather than sweeping as junk.
+      fields: { feet: required(NUMBER_JUNK) },
+    },
   ];
 
   /**
@@ -3276,6 +3294,33 @@ describe('the fought clause is refused everywhere it could not be read', () => {
   /** And a save that says nothing is the ordinary case. */
   it('accepts a saving throw that does not print it', () => {
     expect(inList('effects', SAVE)).toEqual([]);
+  });
+
+  /**
+   * A teleport has exactly one home for the same reason and by the same rule:
+   * **where the creature goes is stated at the casting**, through
+   * `CastSpellRequest.teleportTo`, and pinned on a declaration so a settlement
+   * can read it back. An area trigger fires a minute later off an
+   * `OngoingSpell` that carries no destination, and an activation the same, so
+   * a teleport written in either list would reach `resolveEffects` with
+   * nowhere to go.
+   */
+  it('refuses a teleport anywhere the destination cannot reach it', () => {
+    const STEP = { kind: 'teleport', feet: 30 };
+    expect(inList('effects', STEP)).toEqual([]);
+    expect(inList('areaTrigger', STEP)).toEqual(['teleport_outside_the_casting']);
+    expect(inList('activation', STEP)).toEqual(['teleport_outside_the_casting']);
+  });
+
+  /**
+   * And the one number a teleport prints is a whole number of feet on the
+   * 5-foot lattice everything else is measured on — a teleport of two feet is
+   * a distance the engine has no way to be at.
+   */
+  it('refuses a distance the lattice cannot hold', () => {
+    expect(inList('effects', { kind: 'teleport', feet: 2 })).toEqual(['bad_teleport_distance']);
+    expect(inList('effects', { kind: 'teleport', feet: 0 })).toEqual(['bad_teleport_distance']);
+    expect(inList('effects', { kind: 'teleport' })).toEqual(['bad_teleport_distance']);
   });
 });
 

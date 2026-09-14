@@ -19,6 +19,7 @@ import {
   type CharacterId,
   type ConditionName,
   type ContextRequest,
+  contextRequestsOf,
   err,
   needsContext,
   ok,
@@ -38,7 +39,12 @@ import {
   type GameState,
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
-import { apartFromSource, type Point, type PointAnchoring } from '../positioning.js';
+import {
+  apartFromSource,
+  type Placement,
+  type Point,
+  type PointAnchoring,
+} from '../positioning.js';
 import { remaining } from '../resources.js';
 import {
   type ConditionRider,
@@ -59,6 +65,7 @@ import {
   scaledFlatFor,
   type SpellDefinition,
   type SpellEffect,
+  teleportOf,
   statedDamageType,
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
@@ -87,6 +94,7 @@ import { endConditionsOn, schedule } from './conditions.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { unsettledRefusal } from './holds.js';
+import { teleportTo } from './teleport.js';
 import { ongoingSpellsOn, replacedCastings } from './ongoing.js';
 import {
   defendingModes,
@@ -228,6 +236,9 @@ export function resolveDeclaredCast(
       // fresh request there is none of. A held Charm Person settles with the
       // Advantage its caster said it had.
       ...(pending.fought === undefined ? {} : { fought: pending.fought }),
+      // The fourth stated fact, read back off the record. A Dimension Door
+      // declared at one space settles at that space and at no other.
+      ...(pending.teleportTo === undefined ? {} : { teleportTo: pending.teleportTo }),
       ...(persists(definition)
         ? {
             becomesOngoing: {
@@ -487,6 +498,33 @@ export function castOrRelease(
     // rather than one fact at a time.
     needs.push(...creatureTypeNeeds(state, definition, definition.effects, targets));
 
+    // And whether the teleport this casting performs can happen at all, asked
+    // at the same moment and for the same two reasons. Before the slot and the
+    // action, so a Misty Step aimed at a space nobody has described costs
+    // nothing — and before a **declaration**, because SRD Counterspell makes
+    // the action "wasted" whatever follows, so a casting held open must always
+    // be able to settle. `teleportTo` is the pre-flight rather than a second
+    // reading of it: it is pure and its events are discarded here, so every
+    // refusal the resolver could give — the distance, the occupied space, the
+    // scene's extent, the declared sight — is reachable before anything is
+    // spent, and there is no second answer to any of those questions.
+    const teleport = teleportOf(definition);
+    if (teleport !== null && request.teleportTo !== undefined) {
+      for (const target of targets) {
+        const reachable = teleportTo(state, target, {
+          placement: request.teleportTo,
+          within: teleport.feet,
+          ...(teleport.requiresSight === undefined
+            ? {}
+            : { requiresSight: teleport.requiresSight }),
+        });
+        if (reachable.ok) continue;
+        const asked = contextRequestsOf(reachable);
+        if (asked.length === 0) return reachable;
+        needs.push(...asked);
+      }
+    }
+
     if (needs.length > 0) {
       return needsContext(
         'needs_context',
@@ -724,6 +762,7 @@ function resolveOnTargets(
       effects: running,
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
+      ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
       // A released spell leaves the same thing running that a cast one does.
       // This was the one resolution path of three that wrote no record, so a
       // readied Bless was running, concentrated on, and invisible to Dispel
@@ -839,6 +878,9 @@ function resolveOnTargets(
               // `statedFacts` — see where it is bound above.
               ...stated,
               ...(fought === undefined ? {} : { fought }),
+              // The fourth, and the one settlement could not possibly work
+              // out again: where the caster said they were going.
+              ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
             },
           }
         : {}),
@@ -874,6 +916,7 @@ function resolveOnTargets(
     effects: running,
     ...(origin === null ? {} : { from: origin }),
     ...(fought === undefined ? {} : { fought }),
+    ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
     ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
   });
   if (!resolved.ok) return resolved;
@@ -1254,6 +1297,15 @@ interface EffectContext {
    * the caster answered "none of them"**, which is not the same thing.
    */
   readonly fought?: readonly CharacterId[];
+  /**
+   * Where a `teleport` effect puts its target.
+   *
+   * Stated at the casting and refused there when a teleporting spell names
+   * none, so a resolver reaching here without one is the definition and the
+   * command layer disagreeing rather than a rules dispute — see
+   * {@link resolveTeleportEffect}.
+   */
+  readonly teleportTo?: Placement;
   /** What the casting could not check, appended to as it resolves. */
   readonly unverified: string[];
   /** The batch being built. Appended to by every resolver. */
@@ -2391,6 +2443,52 @@ function resolveInterruptCastingEffect(
 }
 
 /**
+ * The target is somewhere else, and nothing was spent getting there.
+ *
+ * The arithmetic and every refusal are `teleportTo`'s in `commands/teleport.ts`
+ * — the range, the unoccupied space, the scene's extent and the declared sight
+ * — so this resolver is the wiring and nothing more. It reaches the **low
+ * half**, without the identity or the `mayAct` guard the command carries,
+ * for the reason `resolveCastWith` exists beneath `resolveCast`: the casting
+ * has already been paid for and already asked whether anybody may act, and a
+ * second refusal here would be one arriving after the world had moved.
+ *
+ * **The destination is loud rather than absent when it is missing.**
+ * `declaredFacts` refuses a teleporting spell that names nowhere to go before
+ * a slot is spent, `PendingCasting` pins it for a settlement, and
+ * `checkTeleportPlacement` refuses the effect anywhere an area trigger or an
+ * activation could reach it — so arriving here with none is the definition and
+ * the command layer disagreeing, which is programmer error and is the same
+ * answer `casterSheet` gives a casting that outlived its caster.
+ */
+function resolveTeleportEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'teleport'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { definition, events, outcomes, unverified } = ctx;
+  if (ctx.teleportTo === undefined) {
+    throw new Error(
+      `${definition.name} teleports its target and no destination was stated; ` +
+        'the caller should have been refused `destination_required` before reaching here',
+    );
+  }
+
+  const moved = teleportTo(world, target, {
+    placement: ctx.teleportTo,
+    within: effect.feet,
+    ...(effect.requiresSight === undefined ? {} : { requiresSight: effect.requiresSight }),
+  });
+  if (!moved.ok) return moved;
+
+  events.push(...moved.value.events);
+  unverified.push(...moved.value.unverified.map((gap) => `${definition.name}: ${gap}`));
+  outcomes.push({ target, affected: true });
+  return ok(moved.value.events.reduce(applyEvent, world));
+}
+
+/**
  * Which rule resolves this effect.
  *
  * The whole of the branching, in one place, over a union the compiler closes:
@@ -2437,6 +2535,8 @@ function resolveOneEffect(
       return resolveDispelEffect(ctx, target, world);
     case 'interrupt-casting':
       return resolveInterruptCastingEffect(ctx, effect, target, victim, world);
+    case 'teleport':
+      return resolveTeleportEffect(ctx, effect, target, world);
 
     // An on-hit spell never reaches here: `resolveSpell` refuses one up
     // front, because the attack it rides on is not this command's to give.
@@ -2522,6 +2622,15 @@ export function resolveEffects(
      * cancels rather than stacks.
      */
     readonly fought?: readonly CharacterId[];
+    /**
+     * Where a `teleport` effect puts its target.
+     *
+     * The caster's decision, stated at the casting and never derived — the
+     * shape `damageType` and the designation already take. A held casting
+     * pins it on the declaration, because settlement takes no fresh request
+     * and a Dimension Door declared at one space must not settle at another.
+     */
+    readonly teleportTo?: Placement;
     /**
      * Set when this casting leaves something running.
      *
@@ -2616,6 +2725,7 @@ export function resolveEffects(
     held,
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
+    ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
   };
 
   for (const target of targets) {

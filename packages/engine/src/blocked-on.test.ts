@@ -982,18 +982,26 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    * first: you meet it in the same sentence rather than after the missing
    * mechanism is built.
    *
-   * **The distinction is what keeps `unblocks` honest.** Dimension Door's 4d6
-   * on a failed arrival is damage with no roll too, and it is *not* a second
-   * blocker, because nothing teleports — the damage is unreachable until the
-   * first shape exists. A blocker you would meet anyway counts; one you could
-   * only meet afterwards does not.
+   * **The distinction is what keeps `unblocks` honest, and the case it was
+   * written against has since come true.** Dimension Door's 4d6 on a failed
+   * arrival is damage with no roll too, and while nothing could teleport it
+   * was *not* a second blocker: the damage was unreachable until the first
+   * shape existed. A blocker you would meet anyway counts; one you could only
+   * meet afterwards does not. IE-037 built teleportation, the spell left the
+   * map, and the 4d6 became exactly what this paragraph predicted — a clause
+   * an **executed** definition carries and does not finish, filed under this
+   * very shape in `ADJUDICATED`.
    */
   it('does not call Magic Missile finished by one shape', () => {
     expect(BLOCKED_ON['magic-missile']).toEqual([
       'a-spells-effects-applied-to-different-targets',
       'damage-with-neither-an-attack-roll-nor-a-save',
     ]);
-    expect(BLOCKED_ON['dimension-door']).toEqual(['teleportation']);
+    expect(BLOCKED_ON['dimension-door']).toBeUndefined();
+    expect(ADJUDICATED['dimension-door']?.map((entry) => entry.why)).toEqual([
+      'a-spells-effects-applied-to-different-targets',
+      'damage-with-neither-an-attack-roll-nor-a-save',
+    ]);
   });
 
   /**
@@ -1020,8 +1028,6 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     ['revivify', 'healing-that-raises-the-dead'],
     // "Choose up to five falling creatures within range."
     ['feather-fall', 'falling'],
-    // "You teleport to a location within range."
-    ['dimension-door', 'teleportation'],
     // "Immunity to Psychic damage **and the Charmed condition**" — the damage
     // half is built and the condition half is not, which is the whole of what
     // is left. Stoneskin stood here until IE-017 defined it.
@@ -1073,6 +1079,49 @@ describe('a shape that gets built is content work, not a merge', () => {
     expect(BLOCKED_ON['calm-emotions']).toEqual([
       'a-condition-immunity-a-spell-grants',
       'a-spells-effects-applied-to-different-targets',
+    ]);
+  });
+
+  /**
+   * **IE-037 built teleportation and the shape was retired**, which is the
+   * third id to go that way and the first whose claimants divided three ways
+   * rather than narrowing.
+   *
+   * Eight spells named it and only two were finished by it. Re-reading the
+   * other six against their own paragraphs found that **not one of them was
+   * ever blocked on a teleport the engine could perform**:
+   *
+   * | | |
+   * |---|---|
+   * | Forbiddance, Magic Circle, Hallow | print a ward that **stops** a teleport — "creatures can't teleport into the area" — which is an area that suppresses magic rather than one that performs it |
+   * | Teleport, Teleportation Circle | send the party to a destination "on the same plane" and off the scene entirely, which is the second place the engine has nowhere to put anybody |
+   * | Blink | returns its caster "to an unoccupied space of your choice ... within 10 feet", which this build performs; what is left is the Ethereal Plane and a 1d6 |
+   *
+   * So the shape had one honest claimant apiece and none of them was this one,
+   * which is IE-017's lesson from the other direction: a count is only as good
+   * as the shape it counts, and building one is how anybody finds out.
+   */
+  it('has retired the shape IE-037 built, and re-filed every claimant', () => {
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('teleportation');
+    expect(claimedShapes().has('teleportation')).toBe(false);
+
+    // The two it finished are out of the map and into their own populations.
+    expect(BLOCKED_ON['dimension-door']).toBeUndefined();
+    expect(BLOCKED_ON['tree-stride']).toBeUndefined();
+
+    // A ward against arriving is suppression, not teleportation.
+    for (const id of ['forbiddance', 'magic-circle', 'hallow']) {
+      expect(BLOCKED_ON[id], id).toContain('an-effect-that-suppresses-other-magic');
+    }
+    // A destination off the scene is the second place, which one of the two
+    // already named and the other had never recorded at all.
+    for (const id of ['teleport', 'teleportation-circle']) {
+      expect(BLOCKED_ON[id], id).toContain('a-second-place-to-put-a-creature');
+    }
+    // And Blink keeps the two halves this build does not reach.
+    expect(BLOCKED_ON['blink']).toEqual([
+      'a-random-outcome-that-is-not-a-d20',
+      'a-second-place-to-put-a-creature',
     ]);
   });
 

@@ -2206,6 +2206,156 @@ already draws — and it is adjudicated as such rather than left unsaid.
   could see it. This is the second instance of that trap in this file; the
   first was a `command` stamp on an event that did not declare it.
 
+## A Teleport Is A Position Change And Not A Move
+
+This file said *"No command teleports"* for as long as the tracked bucket has
+existed, and that is the longest-standing instance of its most persistent
+finding: `moveCreature` charges a budget and `placeCreature` refuses a creature
+that already has a position, so a spell that relocates somebody had nothing
+authoritative to call. Misty Step's thirty feet, its unoccupied space and its
+line of sight all went unchecked. `relocateCreature` in `commands/teleport.ts`
+is the command, and the `teleport` effect kind is what a spell reaches it
+through.
+
+**What it is not comes from the SRD rather than from taste.** None of Speed,
+Difficult Terrain, Opportunity Attacks, Disengage or Grappled applies, because
+the book applies none of them to a teleport: an Opportunity Attack is offered
+only when a creature "leaves your reach using its action, its Bonus Action, its
+Reaction, or **one of its speeds**", and Misty Step is none of those. That is
+the reasoning `relocateOrigin` already records for a spell's point, and it is
+why this is its own command rather than a flag on `resolveMove` — routing it
+through that one would import every one of those rules silently.
+
+**What it *is* is an authoritative position change, so it writes the same
+`creature-moved` a walk writes.** Every consequence the reducer derives from
+one then follows for free, and the one that matters is the area entry:
+`raiseAreaEntries` fires on the position having changed and does not ask how,
+which is the SRD's reading of arriving inside a Web. **No new event type and no
+flag on the old one** — the event already means "this creature's authoritative
+position changed", and a field nothing branches on is the speculative member
+the format's own sweeps exist to refuse. `forced` is a field because the
+*reducer* branches on it, to permit an occupied space; a teleport asks for no
+such permission, since SRD Misty Step names "an unoccupied space" and Dimension
+Door's own answer to an occupied one is 4d6 Force damage.
+
+**A teleport crosses nothing, so it is never asked for a route.** `moveWithin`
+asks a carrier of an Emanation which spaces it passed through, because two
+points do not imply the line between them — and a teleport has no line at all.
+Whoever is standing at the destination is caught by the carrier arriving;
+nobody in between is, because the area was never in between.
+
+**It is guarded by `mayAct` and it is not a spender**, which is the one
+combination worth stating rather than leaving to be inferred. It takes no
+Action, Bonus Action, Reaction, movement or pool use, so the action-economy
+sweep never classifies it and no exemption list has anything to say about it —
+and it is guarded anyway, because it *raises* area debts. It refuses a pending
+move and a held attack for the same reason `resolveMove` does — both are about
+a **position** rather than about an economy neither of them spends, and a
+teleport out from under a declared move is a relocation `completeIfSettled`
+would silently undo. Two operations that both move a creature must not
+disagree about whether the world has to be settled first, and saying so is not
+enough: an independent review found them disagreeing while the sentence stood.
+
+### Where it goes is the caster's, and it is stated or refused
+
+`CastSpellRequest.teleportTo` is an ordinary `Placement` — measured from a
+landmark, a creature or a point already established, because the model never
+types raw coordinates — and it is **the fourth fact a casting states rather
+than derives**, in exactly the shape of the other three: required by a spell
+that teleports (`destination_required`), refused for one that does not
+(`no_teleport_clause`), and both before a slot is spent. The engine validates
+the destination and never chooses one, which is the boundary `eligibleTargets`
+draws for targeting.
+
+**It is pinned on a declaration**, beside the targets, the origin and the
+damage type, because settlement takes no fresh request: a Dimension Door
+declared at the far end of the hall must not settle beside its caster.
+
+**And it has one home in the definition**, which `checkTeleportPlacement`
+enforces: a `teleport` written in an area trigger's effect list or an
+activation's would fire off an `OngoingSpell` that carries no destination, so
+it is refused at authoring — the rule `advantageIfFought` already obeys, for
+the same reason.
+
+### Sight is declared, and a destination is a coordinate
+
+SRD Misty Step prints "an unoccupied space **you can see**"; SRD Dimension Door
+prints the opposite in as many words — "a place you can see, one you can
+visualize, or one you can describe by stating distance and direction" — so
+`requiresSight` is a per-effect clause rather than a property of teleporting.
+
+What the engine can read is the **anchor** the placement is measured from:
+"beside the ogre" is a space the teleporter can see if they can see the ogre,
+and that is a pairwise declaration. Anchored on a landmark or a bare point
+there is none, and nothing it could read instead — the gap this file already
+records for Arcane Sword's "a spot you can see" — so the clause goes unchecked
+and says so in `unverified` rather than passing silently. Three values, and the
+third written down.
+
+**`teleportTo` is its own pre-flight, and that is what makes a declared
+casting able to settle.** `castOrRelease` runs it over every target with the
+targets settled and **before the slot, the action and the first die**,
+discarding the events — it is pure and rolls nothing, so asking twice costs a
+caller nothing and asking *once* would cost them the action. SRD Counterspell
+makes that action "wasted" whatever follows, so a Misty Step declared at a
+space 120 feet away would spend it and then fail at every settlement for ever,
+with `resolveTurn` refusing `casting_pending` behind it. Every refusal the
+resolver can give is therefore reachable before anything is spent: the
+distance, the occupied space, the scene's extent and the declared sight alike.
+A pre-flight over the sight alone would have left the other three at the
+settlement, which is the defect an independent review caught. The caveat is
+`creatureTypeNeeds`' own — the pre-flight reads the world as it stands rather
+than the world the casting's earlier effects leave, and no definition puts a
+teleport behind one.
+
+### Two spells, and the one that is honestly partial
+
+Misty Step is executed and verified; every clause of its one sentence is a rule
+the engine now owns. Dimension Door executes its first paragraph and carries
+two clauses it does not finish, each filed under a shape that already existed:
+the **willing creature** who comes along arrives "within 5 feet of your
+destination space", which is a second destination for a second creature where a
+casting applies one effect list to every target; and the **4d6 Force damage**
+on a failed arrival is damage with neither an attack roll nor a save. The
+engine refuses an occupied destination before the slot is spent, which is the
+validate-before-rolling discipline and is *not* what the book does — SRD spends
+the slot and hurts everybody travelling.
+
+**Tree Stride is tracked, and teleportation was never what blocked it.** Every
+clause of its ability hangs on being *inside a tree* — a state the world model
+has no room for, the same place Meld into Stone's whole paragraph hangs from —
+and the relocation it performs is one the SRD charges 5 feet of movement for,
+which is the opposite of what a teleport costs.
+
+### The shape was retired, and the six left over were never blocked on it
+
+`teleportation` blocked eight spells in `missing-shapes.ts` and finished two,
+so re-reading the other six is the content work that map insists on when a
+shape is built — and **not one of them turned out to be blocked on a teleport
+the engine could perform**:
+
+| | |
+|---|---|
+| Forbiddance, Magic Circle, Hallow | print a ward that **stops** a teleport — "creatures can't teleport into the area" — which is an area that suppresses magic rather than one that performs it |
+| Teleport, Teleportation Circle | send the party to a destination "on the same plane" and off the scene entirely, which is `a-second-place-to-put-a-creature`; one of the two had never recorded it |
+| Blink | returns its caster "to an unoccupied space of your choice ... within 10 feet", which this build performs; what is left is the Ethereal Plane and a 1d6 |
+
+So the id has no claimants and is gone, which is the third time a build has
+retired one. It is IE-017's lesson from the other direction: a count is only as
+good as the shape it counts, and building one is how anybody finds out.
+
+### `sceneFor` has one home, because a third copy arrived
+
+It was written privately in `commands/scene.ts` and copied whole into
+`commands/movement.ts`, prose included; IE-016's builder and its reviewer both
+recorded that a third copy would be the moment to hoist it. It is in
+`commands/command.ts` now, beside the two creature readers and for their
+reason: it is a question every domain that is about a *place* has to ask, and
+answering it in any one of them would make that domain a dependency of the
+others. The evidence that it is one helper and not three spelled alike is a
+mutation — emptying it reddens the scene family, the movement family and the
+teleport family together.
+
 ## A Reaction Is A Window, Not A Trigger
 
 Eight class features spent eleven batches saying *"needs an interrupt the
@@ -5974,14 +6124,17 @@ because `resolveAttack` rolls every attack; Mage Armor and Barkskin, because
 the engine derives an Armour Class on each one; Death Ward, because the engine
 drops creatures to 0 itself.
 
-**No command teleports.** `moveCreature` charges a movement budget and
-`placeCreature` refuses a creature that already has a position, so a spell that
-relocates somebody has nothing authoritative to call — Misty Step's 30 feet,
-unoccupied space and line of sight all go unchecked. This was misfiled for a
-long time as "a separate placement the caller makes", which reads as a division
-of labour and is a hole. A destination *outside* the scene is different in kind
-and is genuinely the DM's: there is one scene, so Plane Shift and Word of
-Recall have no position to move anybody to.
+**A command teleports now**, and the sentence that stood here — "No command
+teleports" — was this file's own longest-running example of a rule with nothing
+to call. `moveCreature` charges a movement budget and `placeCreature` refuses a
+creature that already has a position, so Misty Step's 30 feet, unoccupied space
+and line of sight all went unchecked; it was misfiled for a long time as "a
+separate placement the caller makes", which reads as a division of labour and
+is a hole. `relocateCreature` is the command — see "A Teleport Is A Position
+Change And Not A Move" — and Misty Step is executed rather than tracked. A
+destination *outside* the scene is different in kind and is genuinely the DM's:
+there is one scene, so Plane Shift and Word of Recall have no position to move
+anybody to.
 
 **"Until dispelled" is the absence of a duration, not a large one.** Arcane
 Lock and Continual Flame carry no `durationSeconds` and schedule no timer.
@@ -7659,7 +7812,12 @@ null and is reported — it never becomes either.
   component of its own that a Critical Hit doubles and the target's defences
   meet separately; and a per-definition table of slot level to seconds that
   Hunter's Mark, the three Dominates and Mass Suggestion each read at their own
-  bands. What does not work: casting
+  bands. **And a spell can put a
+  creature somewhere else without spending a foot** — see "A Teleport Is A
+  Position Change And Not A Move": Misty Step's thirty feet to an unoccupied
+  space it can see and Dimension Door's five hundred, through a
+  `relocateCreature` that provokes nobody, charges nothing and still raises the
+  area entry a Web is owed. What does not work: casting
   a definition the
   catalogue does not compile in, summons, a long casting **in combat** — the
   per-turn Magic action SRD requires of the caster, which is the deferred half

@@ -96,6 +96,8 @@ export {
   takeOpportunityAttack,
 } from './commands/movement.js';
 export type { MoveCommand, MoveResolution, OpportunityCommand } from './commands/movement.js';
+export { relocateCreature } from './commands/teleport.js';
+export type { RelocateCommand, RelocateOutcome } from './commands/teleport.js';
 export {
   declineDamageReaction,
   declineTestReaction,

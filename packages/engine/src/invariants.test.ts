@@ -57,6 +57,7 @@ import {
   extendFeature,
   healCreature,
   purchaseItem,
+  relocateCreature,
   releaseReady,
   resolveAttack,
   resolveAttackDamage,
@@ -791,6 +792,16 @@ const GUARDED: readonly Guarded[] = [
     name: 'resolveMove (provoking nobody)',
     log: SETUP,
     run: (s, commandId) => resolveMove(s, A, { placement: CIRCLING, commandId }, supply()),
+  },
+  {
+    name: 'relocateCreature',
+    log: SETUP,
+    run: (s, commandId) =>
+      relocateCreature(s, A, {
+        placement: { from: { creature: B }, feet: 15, bearing: 180 },
+        within: 60,
+        commandId,
+      }),
   },
   {
     name: 'takeOpportunityAttack',

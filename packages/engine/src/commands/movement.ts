@@ -22,13 +22,12 @@ import {
   moveCreature,
   type Placement,
   type Point,
-  type PositionState,
   positionOf,
   sightBetween,
 } from '../positioning.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
 import { type ConcentrationSaveSupply } from './casting.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, sceneFor, unknownCreature } from './command.js';
 import { completeIfSettled, mayAct } from './holds.js';
 import { sweptRoute } from './ongoing.js';
 
@@ -443,33 +442,6 @@ export function declineOpportunity(
     ];
     return ok([...answered, ...completeIfSettled(state, answered)]);
   });
-}
-
-/**
- * The scene, or the request that would make one.
- *
- * Homework rather than a verdict: nothing is wrong, the record is thin, and
- * `setScene` in `commands/scene.ts` is what settles it.
- *
- * **Every caller in this module goes through it now**, which it did not when
- * it was written. Mounting and dismounting were written after
- * `commands/scene.ts` existed and got the request; `moveWithin` was written
- * before and kept a bare `needsContext('no_scene', …)` carrying nothing a
- * caller could act on — the same refusal, at the same cost, telling the
- * orchestrator nothing about how to fix it. There is no reason for a second
- * answer to one question, so there is no longer a second one.
- */
-function sceneFor(state: GameState, subject: CharacterId, because: string): Result<PositionState> {
-  if (state.scene !== null) return ok(state.scene);
-  return needsContext('no_scene', `there is no scene for ${because}`, [
-    {
-      kind: 'scene',
-      subject,
-      need: 'a scene, so that a place in it means something',
-      because,
-      satisfyWith: 'a setScene command',
-    },
-  ]);
 }
 
 /**

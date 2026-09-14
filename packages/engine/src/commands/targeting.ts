@@ -34,6 +34,7 @@ import {
   distanceBetween,
   distanceToPoint,
   isInsideScene,
+  type Placement,
   type Point,
   type PointAnchoring,
   positionOf,
@@ -49,6 +50,7 @@ import {
   type SpellDefinition,
   statesFoughtFact,
   targetCountFor,
+  teleportOf,
 } from '../spell-definitions.js';
 import { type SlotlessReason } from '../spells.js';
 import { type ConcentrationConsequence } from './casting.js';
@@ -279,6 +281,24 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Where a teleporting spell puts its target.
+   *
+   * SRD Misty Step: "you teleport up to 30 feet to an unoccupied space you can
+   * see"; SRD Dimension Door: "You teleport to a location within range. You
+   * arrive at exactly the spot desired." **Which space is the caster's**, so
+   * it arrives here as an ordinary `Placement` — measured from a landmark, a
+   * creature or a point already established, because the model never types raw
+   * coordinates.
+   *
+   * The fourth fact a casting states rather than derives, and it takes the
+   * shape of the other three: **required** by a spell that teleports and
+   * **refused** for one that does not, both before a slot is spent. The engine
+   * validates the destination — the distance, the unoccupied space, the
+   * scene's extent, the declared sight — and never chooses one, which is the
+   * same boundary `eligibleTargets` draws for targeting.
+   */
+  readonly teleportTo?: Placement;
+  /**
    * How to pay for it.
    *
    * **Default:** a slot when `slotLevel` is given, and nothing at all for a
@@ -469,6 +489,28 @@ export function declaredFacts(
     return err(
       'no_fought_clause',
       `${definition.name} does not change its save for a creature you are fighting; which of them you are fighting is not a fact it asks for`,
+    );
+  }
+
+  // — where a teleport goes ————————————————————————————————————————————————
+  //
+  // The fourth stated fact, and the same two refusals: **required** where the
+  // spell teleports, **refused** where it does not. SRD Misty Step's "an
+  // unoccupied space you can see" and Dimension Door's "the spot desired" are
+  // both a decision the caster makes and the engine could not make for them —
+  // and a destination quietly ignored is a caller who thinks they said
+  // something.
+  if (teleportOf(definition) !== null) {
+    if (request.teleportTo === undefined) {
+      return err(
+        'destination_required',
+        `${definition.name} teleports its target and the engine will not choose where; name the space`,
+      );
+    }
+  } else if (request.teleportTo !== undefined) {
+    return err(
+      'no_teleport_clause',
+      `${definition.name} does not teleport anybody; where they would go is not a fact it asks for`,
     );
   }
 

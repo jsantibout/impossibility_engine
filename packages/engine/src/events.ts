@@ -636,6 +636,19 @@ export interface PendingCasting {
    * same bytes — normalised once, where the request is read.
    */
   readonly unaffected?: readonly CharacterId[];
+  /**
+   * Where a teleporting spell puts its target.
+   *
+   * The fourth stated fact, beside the other three and for the same reason:
+   * settlement takes no fresh request, so a Dimension Door declared at the far
+   * end of the hall must not settle beside the caster — and unlike the level
+   * or the route, a destination is a decision nothing could re-derive.
+   *
+   * Absent for every spell that teleports nobody, which is all but two of
+   * them, so a declaration written before this folds to exactly the state it
+   * always did.
+   */
+  readonly teleportTo?: Placement;
   /** What the definition knowingly leaves out, gathered at declaration. */
   readonly unverified: readonly string[];
   /**

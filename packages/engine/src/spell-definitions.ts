@@ -1071,6 +1071,48 @@ export type SpellEffect =
   | {
       readonly kind: 'interrupt-casting';
       readonly ability: Ability;
+    }
+  /**
+   * The target is somewhere else, and nothing was spent getting there.
+   *
+   * SRD Misty Step, whole: "Briefly surrounded by silvery mist, you teleport up
+   * to 30 feet to an unoccupied space you can see." SRD Dimension Door: "You
+   * teleport to a location within range. You arrive at exactly the spot
+   * desired."
+   *
+   * **Not a `speed` change and not movement of any kind.** `relocateCreature`
+   * is the command beneath it, and `commands/teleport.ts` records why that is
+   * its own operation rather than a flag on a move: none of Speed, Difficult
+   * Terrain, Opportunity Attacks, Disengage or Grappled applies, because the
+   * SRD applies none of them to a teleport.
+   *
+   * **Where it goes is the caster's**, stated at the casting through
+   * `CastSpellRequest.teleportTo` and pinned on a declaration exactly as the
+   * damage type and the designation are — the engine validates the destination
+   * and never chooses one. What the *definition* carries is the two numbers the
+   * spell prints: how far, and whether the space has to be one the caster can
+   * see.
+   */
+  | {
+      readonly kind: 'teleport';
+      /**
+       * How far, in feet, measured from where the creature is standing now.
+       *
+       * Misty Step's "up to 30 feet"; Dimension Door's printed Range of 500,
+       * which is the distance the teleport covers rather than a reach to a
+       * target — the spell is on its caster, so `range` checking the target
+       * would measure a creature against itself and answer nothing.
+       */
+      readonly feet: number;
+      /**
+       * SRD Misty Step's "an unoccupied space **you can see**".
+       *
+       * Absent is Dimension Door, which prints the opposite in as many words:
+       * the destination "can be a place you can see, one you can visualize, or
+       * one you can describe by stating distance and direction". A clause a
+       * spell does not print is not one the engine may apply.
+       */
+      readonly requiresSight?: true;
     };
 
 /**
@@ -1984,6 +2026,25 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
     }
   }
   return found;
+}
+
+/**
+ * The teleport a casting performs, or null for the rest of the book.
+ *
+ * One reader for one question, asked in three places that must agree: the
+ * validator's *is a destination required*, the pre-flight's *may this casting
+ * reach that space*, and the resolver's *how far and whether they must see
+ * it*. Two spellings of it would be two places for one sentence to be got
+ * wrong, which is the failure this file records about every duplicated rule.
+ *
+ * A definition's own effect list and nowhere else — `checkTeleportPlacement`
+ * refuses a teleport in an area trigger's list or an activation's, because
+ * neither carries the destination the caster stated.
+ */
+export function teleportOf(
+  definition: SpellDefinition,
+): Extract<SpellEffect, { kind: 'teleport' }> | null {
+  return definition.effects.find((effect) => effect.kind === 'teleport') ?? null;
 }
 
 /**
@@ -5249,10 +5310,90 @@ export const MISTY_STEP: SpellDefinition = {
   castingTime: 'bonus-action',
   concentration: false,
   range: { kind: 'self' },
+  // Range: Self, so the caster is the target and the thirty feet are the
+  // teleport's own rather than a reach to somebody else — the split Produce
+  // Flame already draws between `range` and an activation's.
+  targets: { count: 1, self: true },
+  effects: [{ kind: 'teleport', feet: 30, requiresSight: true }],
+};
+
+/**
+ * SRD Dimension Door:
+ *
+ * > _Level 4 Conjuration._ **Casting Time:** Action. **Range:** 500 feet.
+ * > **Duration:** Instantaneous.
+ * > "You teleport to a location within range. You arrive at exactly the spot
+ * > desired. It can be a place you can see, one you can visualize, or one you
+ * > can describe by stating distance and direction, such as "200 feet straight
+ * > downward" or "300 feet upward to the northwest at a 45-degree angle.""
+ * > "You can also teleport one willing creature. The creature must be within 5
+ * > feet of you when you teleport, and it teleports to a space within 5 feet
+ * > of your destination space."
+ * > "If you, the other creature, or both would arrive in a space occupied by a
+ * > creature or completely filled by one or more objects, you and any creature
+ * > traveling with you each take 4d6 Force damage, and the teleportation
+ * > fails."
+ *
+ * The first paragraph is the whole of what this executes, and the printed
+ * sight clause is the **absence** of a requirement rather than one: a spot
+ * described by distance and direction is a legal destination, so no sight is
+ * demanded and Misty Step's `requiresSight` is what tells the two apart.
+ */
+export const DIMENSION_DOOR: SpellDefinition = {
+  id: 'dimension-door',
+  name: 'Dimension Door',
+  level: 4,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 500 },
+  targets: { count: 1, self: true },
+  effects: [{ kind: 'teleport', feet: 500 }],
+  unmodelled: [
+    'the willing creature who comes along is not teleported: it arrives "within 5 feet of your destination space", which is a second destination for a second creature, and a spell applies one effect list to every target it names',
+    'the 4d6 Force damage on a failed arrival is not dealt: the engine refuses an occupied destination before the slot is spent, where the SRD spends it and hurts everybody travelling',
+  ],
+};
+
+/**
+ * SRD Tree Stride:
+ *
+ * > _Level 5 Conjuration._ **Casting Time:** Action. **Range:** Self.
+ * > **Duration:** Concentration, up to 1 minute.
+ * > "You gain the ability to enter a tree and move from inside it to inside
+ * > another tree of the same kind within 500 feet. Both trees must be living
+ * > and at least the same size as you. You must use 5 feet of movement to
+ * > enter a tree. You instantly know the location of all other trees of the
+ * > same kind within 500 feet and, as part of the move used to enter the tree,
+ * > can either pass into one of those trees or step out of the tree you're in.
+ * > You appear in a spot of your choice within 5 feet of the destination tree,
+ * > using another 5 feet of movement. If you have no movement left, you appear
+ * > within 5 feet of the tree you entered."
+ * > "You can use this transportation ability only once on each of your turns.
+ * > You must end each turn outside a tree."
+ *
+ * **Tracked, and teleportation is not what blocks it.** Every clause of the
+ * ability hangs on *being inside a tree* — a place the world model has no room
+ * for, the same state Meld into Stone's whole paragraph hangs on — and the
+ * relocation it performs is one the SRD charges 5 feet of movement for, which
+ * is the opposite of what a teleport costs. So the engine casts it for real,
+ * takes the action, spends the slot, holds the Concentration and ends it after
+ * its minute; where the druid comes out is the table's.
+ */
+export const TREE_STRIDE: SpellDefinition = {
+  id: 'tree-stride',
+  name: 'Tree Stride',
+  level: 5,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
   targets: { count: 0 },
   effects: [],
+  durationSeconds: 60,
   unmodelled: [
-    'the teleport is not performed, and that is a missing mechanism rather than a judgement: no command relocates a creature without charging movement — moveCreature spends a budget and placeCreature refuses a creature that already has a position — so the 30 feet, the unoccupied space and the line of sight go unchecked',
+    'entering and leaving a tree is not performed: a tree is not a thing the world model holds, so "inside a tree" is a state nothing can sit in and the 500 feet between two of them has nothing to measure',
+    'the 5 feet of movement each step costs is not charged, and the once-per-turn limit has nothing to count, because the step itself has no representation',
   ],
 };
 
@@ -7361,6 +7502,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DETECT_EVIL_AND_GOOD,
   DETECT_MAGIC,
   DETECT_POISON_AND_DISEASE,
+  DIMENSION_DOOR,
   DISGUISE_SELF,
   DISINTEGRATE,
   DISPEL_MAGIC,
@@ -7455,6 +7597,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   THUNDERWAVE,
   TONGUES,
   TRANSPORT_VIA_PLANTS,
+  TREE_STRIDE,
   TRUE_SEEING,
   VAMPIRIC_TOUCH,
   VICIOUS_MOCKERY,

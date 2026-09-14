@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 45 (13.3%) | 94 (27.7%) | 46 | 72 (21.2%) |
+| 339 | 45 (13.3%) | 96 (28.3%) | 47 | 74 (21.8%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -55,7 +55,7 @@ spell, and the area is the part that is missing.
 | A condition imposed with no saving throw | 4 | 0 | 2 | per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition") |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 2 | — |
-| Narrative or exploration effect | 87 | 42 | 10 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
+| Narrative or exploration effect | 87 | 42 | 12 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -85,6 +85,7 @@ spell, and the area is the part that is missing.
 - **Contagion** (level 5) — untested, partial — a clause the engine owns is still unbuilt
 - **Counterspell** (level 3) — verified
 - **Cure Wounds** (level 1) — verified
+- **Dimension Door** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Disintegrate** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Dispel Magic** (level 3) — verified
 - **Dissonant Whispers** (level 1) — verified, partial — a clause the engine owns is still unbuilt
@@ -127,6 +128,7 @@ spell, and the area is the part that is missing.
 - **Mass Healing Word** (level 3) — untested
 - **Mass Suggestion** (level 6) — untested
 - **Mind Spike** (level 2) — verified, partial — a clause the engine owns is still unbuilt
+- **Misty Step** (level 2) — verified
 - **Moonbeam** (level 2) — verified
 - **Phantasmal Killer** (level 4) — untested, partial — a clause the engine owns is still unbuilt
 - **Poison Spray** (cantrip) — verified
@@ -181,7 +183,6 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Mage Hand** (cantrip) — 3 noted
 - **Message** (cantrip) — 3 noted
 - **Minor Illusion** (cantrip) — 3 noted
-- **Misty Step** (level 2) — 1 noted
 - **Move Earth** (level 6) — 3 noted
 - **Nondetection** (level 3) — 2 noted
 - **Passwall** (level 5) — 2 noted
@@ -198,6 +199,7 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Telepathic Bond** (level 5) — 1 noted
 - **Tongues** (level 3) — 1 noted
 - **Transport via Plants** (level 6) — 2 noted
+- **Tree Stride** (level 5) — 2 noted
 - **True Seeing** (level 6) — 2 noted
 - **Wall of Force** (level 5) — 3 noted
 - **Water Breathing** (level 3) — 1 noted
@@ -221,19 +223,18 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-long-casting-time` | 54 | 12 | 0 | 0 | 54 |
 | `a-stat-block-created-mid-fight` | 15 | 4 | 1 | 0 | 14 |
 | `an-action-a-spell-compels-or-forbids` | 26 | 3 | 9 | 0 | 17 |
-| `a-second-place-to-put-a-creature` | 18 | 2 | 1 | 0 | 17 |
+| `a-second-place-to-put-a-creature` | 19 | 2 | 1 | 0 | 18 |
 | `a-target-rule-the-format-cannot-state` | 13 | 2 | 0 | 0 | 13 |
 | `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 10 |
-| `teleportation` | 9 | 2 | 0 | 1 | 8 |
 | `a-rider-on-a-later-weapon-attack` | 7 | 2 | 0 | 0 | 7 |
 | `a-spell-that-answers-a-later-attack` | 5 | 2 | 0 | 0 | 5 |
 | `a-casting-ended-by-a-trigger` | 21 | 1 | 2 | 0 | 19 |
 | `a-random-outcome-that-is-not-a-d20` | 19 | 1 | 0 | 0 | 19 |
 | `difficult-terrain-an-area-creates` | 19 | 1 | 5 | 0 | 14 |
 | `a-barrier-that-blocks-passage` | 12 | 1 | 0 | 0 | 12 |
+| `a-spells-effects-applied-to-different-targets` | 11 | 1 | 1 | 0 | 10 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 11 | 1 | 1 | 0 | 10 |
 | `a-condition-immunity-a-spell-grants` | 10 | 1 | 0 | 0 | 10 |
-| `a-spells-effects-applied-to-different-targets` | 10 | 1 | 0 | 0 | 10 |
 | `what-a-creature-is-holding` | 9 | 1 | 3 | 0 | 6 |
 | `a-repeat-save-that-does-something-on-a-failure` | 8 | 1 | 2 | 0 | 6 |
 | `a-flat-amount-with-no-dice` | 6 | 1 | 0 | 0 | 6 |
@@ -248,23 +249,23 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-creature-fact-an-effect-overrides` | 2 | 1 | 0 | 0 | 2 |
 | `a-die-behaviour-a-spell-asks-for` | 2 | 1 | 0 | 0 | 2 |
 | `a-roll-result-an-effect-replaces` | 2 | 1 | 0 | 0 | 2 |
+| `a-world-fact-nothing-can-represent` | 2 | 1 | 0 | 1 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 1 | 0 | 0 | 1 |
 | `a-second-roll-sequenced-after-the-first` | 1 | 1 | 0 | 0 | 1 |
-| `a-world-fact-nothing-can-represent` | 1 | 1 | 0 | 0 | 1 |
 | `an-armor-class-a-spell-floors` | 1 | 1 | 0 | 0 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 1 | 0 | 0 | 1 |
 | `a-choice-made-at-the-casting` | 24 | 0 | 4 | 0 | 20 |
+| `an-effect-that-suppresses-other-magic` | 12 | 0 | 0 | 0 | 12 |
 | `forced-movement-a-spell-causes` | 12 | 0 | 1 | 0 | 11 |
-| `an-effect-that-suppresses-other-magic` | 9 | 0 | 0 | 0 | 9 |
 | `movement-modes` | 8 | 0 | 0 | 2 | 6 |
 | `a-repeat-save-raised-by-a-trigger` | 7 | 0 | 6 | 0 | 1 |
 | `a-deadline-anchored-to-a-rest` | 6 | 0 | 0 | 0 | 6 |
 | `an-activation-that-resolves-an-area` | 6 | 0 | 1 | 0 | 5 |
 | `an-area-that-filters-its-catch` | 6 | 0 | 1 | 0 | 5 |
+| `damage-with-neither-an-attack-roll-nor-a-save` | 6 | 0 | 2 | 0 | 4 |
 | `a-creature-type-predicate-an-area-reads` | 5 | 0 | 0 | 0 | 5 |
 | `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 5 |
 | `an-effect-that-fires-when-the-casting-ends` | 5 | 0 | 0 | 0 | 5 |
-| `damage-with-neither-an-attack-roll-nor-a-save` | 5 | 0 | 1 | 0 | 4 |
 | `a-casting-that-casts-another-spell` | 4 | 0 | 0 | 0 | 4 |
 | `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 4 |
 | `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 2 | 0 | 2 |

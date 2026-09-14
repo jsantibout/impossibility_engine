@@ -1,21 +1,26 @@
 /**
  * What every command in this directory needs, and nothing else.
  *
- * Two things, and each is here because every domain asks for it: how to read a
- * creature out of the world, and what to answer about one the engine has never
- * been told about. The third — `once`, the wrapper that puts the duplicate
- * check first — is in `idempotency.ts` with the rest of the identity
- * machinery, because `rest.ts` needs it too and must not reach upwards.
+ * Three things, and each is here because every domain asks for it: how to read
+ * a creature out of the world, what to answer about one the engine has never
+ * been told about, and what to answer when there is no scene to be anywhere
+ * in. The fourth — `once`, the wrapper that puts the duplicate check first —
+ * is in `idempotency.ts` with the rest of the identity machinery, because
+ * `rest.ts` needs it too and must not reach upwards.
  *
  * It is the one module every other one in `commands/` imports, and it imports
  * none of them. That is what keeps the value-level graph a DAG: the two
  * creature readers were called from all thirteen of the regions the old single
  * file had, so leaving them in any domain would have made that domain a
- * dependency of every other.
+ * dependency of every other. `sceneFor` arrived here by the same argument
+ * measured rather than predicted: it was written privately in
+ * `commands/scene.ts`, copied whole into `commands/movement.ts`, and
+ * `commands/teleport.ts` is the third place that needs it.
  */
 
-import { type CharacterId, needsContext } from '@ie/shared';
+import { type CharacterId, needsContext, ok, type Result } from '@ie/shared';
 import { type GameState } from '../events.js';
+import { type PositionState } from '../positioning.js';
 
 /**
  * The source recorded for unconsciousness that comes from having no hit points
@@ -63,3 +68,37 @@ export const unknownCreature = (id: CharacterId, detail = 'is not in this game')
       satisfyWith: `a creature-added event for ${id}`,
     },
   ]);
+
+/**
+ * The scene, or the request that would make one.
+ *
+ * Homework rather than a verdict: nothing is wrong, the record is thin, and
+ * `setScene` in `commands/scene.ts` is what settles it. The reducer says the
+ * same thing by throwing `no scene has been set`; a command says it as a fact
+ * to go and get, because a caller who has not described the room yet has made
+ * no mistake.
+ *
+ * **Hoisted because a third copy arrived.** It was written privately in
+ * `commands/scene.ts` and copied, prose included, into `commands/movement.ts`
+ * — IE-016's builder and reviewer both recorded that a third copy would be the
+ * moment to move it, and `commands/teleport.ts` is that third. It belongs
+ * here for the reason the two creature readers do: it is a question every
+ * domain that is about a *place* has to ask, and answering it in any one of
+ * them would make that domain a dependency of the others.
+ */
+export function sceneFor(
+  state: GameState,
+  subject: string,
+  because: string,
+): Result<PositionState> {
+  if (state.scene !== null) return ok(state.scene);
+  return needsContext('no_scene', `there is no scene for ${because}`, [
+    {
+      kind: 'scene',
+      subject,
+      need: 'a scene, so that a place in it means something',
+      because,
+      satisfyWith: 'a setScene command',
+    },
+  ]);
+}

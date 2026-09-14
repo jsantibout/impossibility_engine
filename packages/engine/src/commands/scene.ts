@@ -77,35 +77,13 @@ import {
   type CoverDegree,
   declareCover,
   declareSight,
-  type PositionState,
   placeCreature,
   type Placement,
   type Point,
   type SceneExtent,
 } from '../positioning.js';
 import { type SpellcastingState } from '../spellcasting.js';
-import { creatureOf, unknownCreature } from './command.js';
-
-/**
- * The scene, or the request that would make one.
- *
- * Four of these commands are about a place, and none of them can mean anything
- * without one — which the reducer says by throwing `no scene has been set`.
- * Here it is homework: nothing is wrong, the record is thin, and the command
- * that fixes it is `setScene` two functions up.
- */
-function sceneFor(state: GameState, subject: string, because: string): Result<PositionState> {
-  if (state.scene !== null) return ok(state.scene);
-  return needsContext('no_scene', `there is no scene for ${because}`, [
-    {
-      kind: 'scene',
-      subject,
-      need: 'a scene, so that a place in it means something',
-      because,
-      satisfyWith: 'a setScene command',
-    },
-  ]);
-}
+import { creatureOf, sceneFor, unknownCreature } from './command.js';
 
 /**
  * Set the scene, and with it what the room can contain.

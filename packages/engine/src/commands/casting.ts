@@ -50,7 +50,7 @@ import {
   type GameState,
   type PendingCasting,
 } from '../events.js';
-import { type Point, type PointAnchoring } from '../positioning.js';
+import { type Placement, type Point, type PointAnchoring } from '../positioning.js';
 import { damageWindowOpen } from '../reactions.js';
 import { remaining, slotKeyOf, type SlotKind } from '../resources.js';
 import { type RollIssuer } from '../rolls.js';
@@ -381,6 +381,16 @@ export interface CastingPlan {
    * read; this is the copy that carries it to the declaration.
    */
   readonly unaffected?: readonly CharacterId[];
+  /**
+   * Where a teleporting spell puts its target.
+   *
+   * Beside the targets and the origin, and for the same reason: settlement
+   * takes no fresh request, so a Dimension Door declared at the far end of the
+   * hall must not settle beside the caster. Carried verbatim from the request
+   * the layer above read — it is an ordinary `Placement` and there is nothing
+   * to normalise.
+   */
+  readonly teleportTo?: Placement;
 }
 
 /**
@@ -672,6 +682,9 @@ function castSpellWith(
         ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
+        // And where the teleport goes, which is the one fact a settlement
+        // could not possibly work out again.
+        ...(command.hold.teleportTo === undefined ? {} : { teleportTo: command.hold.teleportTo }),
         unverified: command.hold.unverified,
         ...(deadline === undefined ? {} : { deadline }),
         ...(completesAt === undefined ? {} : { completesAt }),

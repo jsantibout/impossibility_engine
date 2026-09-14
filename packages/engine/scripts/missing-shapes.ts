@@ -210,8 +210,6 @@ export const MISSING_SHAPES = {
     'CLAUDE.md, "Transitions Are Engine-Owned Batches": "Dropping to 0 hit points makes a character Unconscious ... The command layer produces these as coherent batches". The engine owns the transition end to end, and nothing may stand in front of it and change the answer — which is why that file already files Death Ward as debt: "Death Ward, because the engine drops creatures to 0 itself".',
   'a-second-place-to-put-a-creature':
     'there is one scene, so a creature sent elsewhere has nowhere to be. CLAUDE.md: "A destination *outside* the scene is different in kind ... there is one scene, so Plane Shift and Word of Recall have no position to move anybody to", and "the real fix is the doctrine’s multiple-scenes seam".',
-  teleportation:
-    'relocating a creature inside the scene without spending movement. `moveCreature` charges a budget and `placeCreature` refuses a creature that already has a position, so no command performs a teleport — the gap `spell-tracking.test.ts` has recorded for Misty Step since the tracked bucket existed, and which CLAUDE.md states as "No command teleports."',
   falling:
     'CLAUDE.md lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". Nothing drops, nothing takes fall damage, and no rate of descent has anything to be measured against.',
   jumping:
@@ -589,6 +587,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'before any effect can end the Poisoned',
       why: 'a-repeat-save-raised-by-a-trigger',
       note: 'SRD gates the *removal* of the condition behind a save, and a save is raised here only by a turn boundary; nothing puts one in front of another effect’s cure.',
+    },
+  ],
+  'dimension-door': [
+    {
+      clause: 'the willing creature who comes along',
+      why: 'a-spells-effects-applied-to-different-targets',
+      note: 'SRD: "You can also teleport one willing creature. The creature must be within 5 feet of you when you teleport, and it teleports to a space within 5 feet of your destination space." One casting, two creatures and **two different destinations**, where a casting applies one effect list to every target it names.',
+    },
+    {
+      clause: 'the 4d6 Force damage on a failed arrival',
+      why: 'damage-with-neither-an-attack-roll-nor-a-save',
+      note: 'SRD: "If you, the other creature, or both would arrive in a space occupied by a creature or completely filled by one or more objects, you and any creature traveling with you each take 4d6 Force damage, and the teleportation fails." The engine refuses the occupied destination before a slot is spent, which is the validate-before-rolling discipline and **not** what the book does: SRD spends the slot and hurts everybody travelling. What the damage needs is a hit with no roll to make it, which is the shape Magic Missile is blocked on.',
     },
   ],
   disintegrate: [
@@ -1063,12 +1073,6 @@ export const TRACKED_ADJUDICATED: Readonly<
       note: 'a Climb Speed equal to its Speed, and walls and ceilings: the engine tracks one Speed and no movement modes.',
     },
   },
-  'misty-step': {
-    teleport: {
-      why: 'teleportation',
-      note: '"you teleport up to 30 feet to an unoccupied space you can see" — the destination is a point in this scene, which the engine owns, and no command puts a creature at one without charging movement.',
-    },
-  },
   'plane-shift': {
     teleport: {
       why: 'table',
@@ -1079,6 +1083,12 @@ export const TRACKED_ADJUDICATED: Readonly<
     teleport: {
       why: 'table',
       note: 'the sanctuary is a second place and the engine holds one scene, so the arrival is the DM’s — unlike Misty Step, no coordinate in this scene would be the right answer.',
+    },
+  },
+  'tree-stride': {
+    'movement-cost': {
+      why: 'a-world-fact-nothing-can-represent',
+      note: 'the 5 feet spent entering a tree is not charged, because there is no tree: every clause of the ability hangs on being *inside* one, which is a state the world model has no room for — the same place Meld into Stone’s whole paragraph hangs from — so the step it pays for has no representation to cost anything.',
     },
   },
   'transport-via-plants': {
@@ -1223,11 +1233,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'the-effects-source-as-a-participant',
   ],
   'blade-barrier': ['a-wall-or-several-templates-in-one-area', 'difficult-terrain-an-area-creates'],
-  blink: [
-    'a-random-outcome-that-is-not-a-d20',
-    'a-second-place-to-put-a-creature',
-    'teleportation',
-  ],
+  blink: ['a-random-outcome-that-is-not-a-d20', 'a-second-place-to-put-a-creature'],
   'call-lightning': ['a-fact-only-the-table-can-declare', 'an-activation-that-resolves-an-area'],
   'calm-emotions': [
     'a-condition-immunity-a-spell-grants',
@@ -1292,7 +1298,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'what-a-creature-is-holding',
   ],
   'detect-thoughts': ['an-activation-that-forces-a-saving-throw'],
-  'dimension-door': ['teleportation'],
   'dispel-evil-and-good': [
     'a-filter-on-the-attackers-creature-type',
     'a-second-place-to-put-a-creature',
@@ -1363,7 +1368,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   forbiddance: [
     'a-creature-type-predicate-an-area-reads',
     'a-long-casting-time',
-    'teleportation',
+    'an-effect-that-suppresses-other-magic',
   ],
   forcecage: [
     'a-barrier-that-blocks-passage',
@@ -1430,7 +1435,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-creature-type-predicate-an-area-reads',
     'a-long-casting-time',
     'a-standing-effect-derived-from-where-a-creature-stands',
-    'teleportation',
+    'an-effect-that-suppresses-other-magic',
   ],
   'hallucinatory-terrain': ['a-long-casting-time'],
   haste: [
@@ -1491,7 +1496,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-condition-immunity-a-spell-grants',
     'a-filter-on-the-attackers-creature-type',
     'a-long-casting-time',
-    'teleportation',
+    'an-effect-that-suppresses-other-magic',
   ],
   'magic-jar': [
     'a-long-casting-time',
@@ -1685,12 +1690,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'forced-movement-a-spell-causes',
     'what-a-creature-is-holding',
   ],
-  teleport: ['a-random-outcome-that-is-not-a-d20', 'teleportation'],
-  'teleportation-circle': [
-    'a-long-casting-time',
-    'a-second-place-to-put-a-creature',
-    'teleportation',
-  ],
+  teleport: ['a-random-outcome-that-is-not-a-d20', 'a-second-place-to-put-a-creature'],
+  'teleportation-circle': ['a-long-casting-time', 'a-second-place-to-put-a-creature'],
   thaumaturgy: ['a-cap-on-how-many-castings-run-at-once', 'a-choice-made-at-the-casting'],
   'time-stop': [
     'a-casting-ended-by-a-trigger',
@@ -1703,7 +1704,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-long-casting-time',
     'an-effect-that-suppresses-other-magic',
   ],
-  'tree-stride': ['teleportation'],
   'true-polymorph': [
     'a-casting-ended-by-a-trigger',
     'a-stat-block-created-mid-fight',

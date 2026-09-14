@@ -1068,6 +1068,29 @@ function checkEffect(
       checkSpeedChange(effect, path, found);
       return;
 
+    // Two printed numbers and nothing else to be wrong about: how far, and
+    // whether the space has to be one the caster can see. Where it goes is the
+    // casting's to state, so the definition carries no destination at all.
+    case 'teleport': {
+      if (!Number.isInteger(effect.feet) || (effect.feet as number) < 5) {
+        found.push({
+          field: `${path}.feet`,
+          code: 'bad_teleport_distance',
+          reason:
+            'a teleport covers a whole number of feet, and at least one space of the 5-foot lattice everything else is measured on',
+        });
+      }
+      const sight = (effect as { requiresSight?: unknown }).requiresSight;
+      if (sight !== undefined && sight !== true) {
+        found.push({
+          field: `${path}.requiresSight`,
+          code: 'malformed_field',
+          reason: 'a spell either prints "a space you can see" or does not; the only value is true',
+        });
+      }
+      return;
+    }
+
     case 'armor-class':
       if (!Number.isInteger(effect.base) || effect.base < 1) {
         found.push({
@@ -2119,6 +2142,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
         });
       }
       checkFoughtClause(effect, kind, where, `${where}[${i}]`, found);
+      checkTeleportPlacement(kind, where, `${where}[${i}]`, found);
       checkNoNestedEffect(effect, `${where}[${i}]`, found);
     });
   }
@@ -2184,6 +2208,33 @@ function checkFoughtClause(
       reason: 'a spell either prints the clause or does not; the only value is true',
     });
   }
+}
+
+/**
+ * Where a teleport may be written, which is the casting's own list and nowhere
+ * else.
+ *
+ * The same rule {@link checkFoughtClause} applies to the fought fact, for the
+ * same reason: **where the creature goes is stated at the casting**, through
+ * `CastSpellRequest.teleportTo`, and pinned on a declaration so a settlement
+ * can read it back. An area trigger fires a minute later off an `OngoingSpell`
+ * that carries no destination and an activation the same, so a teleport
+ * written in either list would reach `resolveEffects` with nowhere to go.
+ * Refused at authoring rather than left to be met at the table.
+ */
+function checkTeleportPlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'teleport' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'teleport_outside_the_casting',
+    reason:
+      'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
+  });
 }
 
 /**
@@ -2356,4 +2407,5 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'damage-defense',
   'speed',
   'attack-rider',
+  'teleport',
 ]);
