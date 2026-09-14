@@ -118,3 +118,38 @@ resolution path never arrives at it.
 ## Architecture decision
 
 ## Merge record
+
+## Deferred by the foreman — 2026-09-14
+
+**Not launched, and not withdrawn.** The owner approved this task and it stays
+on tranche 5's roster; what the foreman is exercising is the authority to
+*defer an approved task that evidence shows is premature*, recorded here and
+reported at `TRANCHE_COMPLETE`.
+
+**The evidence is Fable's, from IE-034's YELLOW.** The engine's single
+`pendingCasting` slot turns out to be an accident of its first user — a
+Counterspell window open for an instant — and Fable's decision replaces it with
+a record keyed by casting id, enforcing one open casting per *caster*. That
+change is **outside IE-034's approved brief** and is therefore the owner's to
+authorise, so it cannot happen in this tranche.
+
+This task writes **twelve ritual and long-casting definitions with their
+fixtures**. Fable was explicit about the cost of running it first:
+
+> IE-036 would otherwise stack twelve ritual fixtures on a slot that is about
+> to change.
+
+And on sequencing:
+
+> the shape change becomes the task in front of IE-036, not behind it. The one
+> thing that may not happen is the guard changing meaning twice.
+
+So the honest order is: the owner authorises the record's shape; that lands;
+then these twelve spells are written against the shape they will keep. Writing
+them now means writing them twice, and the second writing would be done by
+somebody who did not read the twelve SRD paragraphs the first time.
+
+**Nothing about the brief is wrong** — it needs no re-scoping, and its
+dependency on IE-034 is satisfied the moment IE-034 merges. It is proposed
+first in tranche 6, behind the record change.
+

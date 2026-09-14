@@ -741,41 +741,43 @@ the part they asked for to protect the part they did not. **The fix is a
 same missing `Duration` member Superior Hunter's Defense wants** — in a task
 of its own.
 
-**IE-034 is `ARCHITECTURE_BLOCKED` — the tranche's third YELLOW, and it is not
-the one that was predicted.** The named escalation (whether Concentration may
-name a *pending* casting id) **resolved cleanly in the affirmative**, with no
-reader needing a branch. This is a different consequence of the same premise,
-and neither Fable nor the foreman surfaced it when the design was approved.
+**IE-034's YELLOW is answered, and the answer is larger than its brief — so
+the narrow half ships with a named debt and the shape change goes to the
+owner.**
 
-**A guard written for an instant now spans ten minutes.** `casting_pending` is
-**global in caster** — written for the Counterspell window, which is open for a
-moment under one caller's control, with a single fixture in which the *same*
-wizard casts over their own held casting. A rite makes `pendingCasting` live
-for ten minutes of game time and across `advanceTime`, so it now refuses
-**every other creature's** spell. The builder probed it rather than reasoning
-about it: a Cleric is refused `casting_pending` *nine minutes into* a Wizard's
-Comprehend Languages. `activation.ts:133` is the same shape. **That is the
-engine forbidding legal play, which the North Star names in terms.**
+**The measured fact that reframed it:** `unsettledRefusal` has **never**
+contained `pendingCasting`. While a Counterspell window is open, a fighter
+attacks and a rogue moves; only three commands read the record at all. So the
+guard was never "a casting in process freezes the world" — **its entire
+content is refusing the second declaration the reducer would throw on**, a
+structural fact leaking out as a rules refusal, invisible only because its one
+user was an instant. **IE-034 did not break the guard; it exposed that the
+single slot was an accident of its first user.**
 
-**And it is not a one-line narrowing, which is why it is Fable's.** The guard
-does two jobs: *"you may not begin a second casting"*, which is per caster and
-is SRD; and *"the engine holds one pending casting at a time"*, which is
-**global and structural** — verified on `main`, `events.ts:4296` throws
-`CorruptLogError` on a second `spell-declared`. Narrowing to the caster alone
-would let a second creature ask to `hold` and **turn a rules refusal into a
-thrown corrupt log**, which is the one thing this repository says a refusal
-must never become. By contrast `turns.ts:742` is also global and is *right*: a
-pending casting is engine debt a turn must not advance past.
+Fable's decision: replace the slot with a record **keyed by casting id**,
+enforcing **one open casting per caster** — a second user of the shape
+`ongoing` already has, since every reducer path already addresses by casting
+id. The rite's own caster is refused a Magic action and **permitted a Reaction
+and a Bonus Action**, because SRD commits the Magic action and nothing else.
+**Option (a) is refused under any sequencing**: it keeps the accident and
+re-issues it as a rule, so two party members riting in the same ruin are still
+refused.
 
-The question put to Fable is deliberately wider than the three options on the
-table: **is a single global `pendingCasting` still the right representation**
-once a pending casting can last ten minutes? Patching a guard when the state
-shape is what changed meaning is the mistake IE-031 nearly made — and Fable has
-chosen a fourth option twice tonight.
+**Fable's own line is "Stays inside the approved brief: NO."** The owner's
+standing instruction is that a YELLOW *"may continue only if the answer stays
+inside approved scope"* — so the foreman is **not** building it. IE-034 reworks
+three GREEN items instead (a vacuous test, a one-sentence-two-ways refusal, and
+the debt named **and pinned by a test** that a cleric's Fire Bolt during a rite
+is refused and costs nothing), and the record's shape is proposed as tranche
+6's first task.
 
-The task is otherwise **complete and green at 7,637 tests**, every acceptance
-criterion met, both frozen logs folding, and IE-029's two casting-path refusal
-leftovers discharged.
+**IE-036 is deferred behind it**, on Fable's evidence rather than the
+foreman's preference: it writes twelve ritual definitions with their fixtures,
+and *"the shape change becomes the task in front of IE-036, not behind it. The
+one thing that may not happen is the guard changing meaning twice."* It stays
+on the owner's roster with its approval intact — a deferral is a decision not
+to launch, not a withdrawal, and the validator refuses a roster that quietly
+loses a task.
 
 **Running:** IE-021, IE-022, IE-023 (wave 1), IE-026's confirming review, and
 Fable on IE-024.
@@ -956,3 +958,6 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | LATER (from IE-033) | — | **A `RiderDuration` member for a moment that does not exist outside combat.** Ray of Frost is refused out of combat because its rider is turn-anchored; the refusal is correct and every alternative is worse, but it is the first time the rule reaches a cantrip whose *primary* content is damage, so it denies the player what they asked for to protect what they did not. This is **the same missing `Duration` member Superior Hunter's Defense wants**, and building it once serves both |
 | 2026-09-14 | YELLOW → Fable | IE-034 | `ARCHITECTURE_BLOCKED` by builder and `ESCALATE` by reviewer. **Not the predicted YELLOW** — that one resolved cleanly with no reader needing a branch. A `casting_pending` guard written for the Counterspell instant now spans a ten-minute rite and **refuses every other creature's spell**, probed directly rather than reasoned about. Not a one-line narrowing: the guard does a per-caster SRD job and a global *structural* one, and `events.ts:4296` throws a `CorruptLogError` on a second `spell-declared`, so narrowing to the caster alone would convert a rules refusal into a thrown corrupt log. Asked as a **representation** question, not a patch question |
 | 2026-09-14 | queued for IE-034's rework | — | two ordinary defects, needing no architecture: `long-casting.test.ts:600` puts every assertion behind `if (!answered.events.some(…)) return;`, so a mutation stopping a Counterspell interrupting a rite would pass **vacuously** while claiming to prove the record, the Concentration and the slot are all right; and `castingOf` refuses a Ritual's `payment` on the stated principle that a quietly ignored field is a caller who thinks they said something, while **silently dropping a `slotLevel`** and never checking `slotless` against `ritual: true` — one sentence enforced two ways |
+| 2026-09-14 | YELLOW answered | IE-034 | Fable, high confidence: replace the single `pendingCasting` slot with a record **keyed by casting id**, one open casting per caster; the rite's own caster refused a Magic action and permitted a Reaction and a Bonus Action. The reframing fact is that **`unsettledRefusal` never contained the record** — so the guard was only ever refusing what the reducer would throw on, and the slot was an accident of a one-instant user. Option (a) refused under any sequencing. **Explicitly outside the approved brief**, so the foreman did not build it |
+| 2026-09-14 | deferral (foreman) | IE-036 | **deferred on Fable's evidence, not withdrawn** — it stays on tranche 5's roster with the owner's approval intact, because a deferral is a decision not to launch. It writes twelve ritual definitions with fixtures, and the record's shape changes in front of it rather than behind it; writing them now means writing them twice, the second time by somebody who did not read the twelve SRD paragraphs. Reported at `TRANCHE_COMPLETE` |
+| 2026-09-14 | LATER (from IE-034's YELLOW) | — | **A rite open when `startCombat` fires wedges the fight**: `resolveTurn` refuses `casting_pending`, settlement refuses `still_casting` until a round-derived clock arrives, and the only exits are the caster giving up Concentration or leaving the game. What `startCombat` should do to an open casting belongs to the deferred in-combat half. Also: `casting_pending` now carries three rules — the same shape `no_trigger` was just split for — and the Counterspell-nesting one is the odd one out, GREEN for whoever opens that file |
