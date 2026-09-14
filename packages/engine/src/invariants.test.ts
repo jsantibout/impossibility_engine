@@ -19,7 +19,15 @@ import { declaredCasting } from './spellcasting.js';
 import {
   activateFeature,
   activateSpell,
+  addSceneLandmark,
+  advanceTime,
+  beginCombat,
   castSpell,
+  declareCoverBetween,
+  declareSightBetween,
+  declareSpellcasting,
+  placeCreatureInScene,
+  setScene,
   applyConditionTo,
   applySpellEffect,
   damageCreature,
@@ -958,6 +966,71 @@ const GUARDED: readonly Guarded[] = [
         supply(),
       ),
   },
+  /**
+   * The scene-setup family, which had no commands at all until IE-012 and
+   * which the sweep named the moment the module appeared — eight exports
+   * handing back events with nowhere to be accounted for, which is exactly
+   * the silence a derived list buys.
+   *
+   * `placeCreatureInScene` is the one whose guard is load-bearing rather than
+   * conventional: its own first run is what makes the world answer
+   * `already_placed`, so a guard written above the duplicate check would tell
+   * a retry that its command was impossible when it had in fact succeeded.
+   * Ninth instance of that trap in this repository, and the first met by a
+   * test that existed before the command did.
+   */
+  {
+    name: 'setScene',
+    log: SETUP,
+    run: (s, commandId) => setScene(s, { width: 60, depth: 40, height: 20 }, { commandId }),
+  },
+  {
+    name: 'addSceneLandmark',
+    log: SETUP,
+    run: (s, commandId) => addSceneLandmark(s, 'the hearth', { x: 20, y: 30, z: 0 }, { commandId }),
+  },
+  {
+    name: 'placeCreatureInScene',
+    log: untyped(),
+    run: (s, commandId) =>
+      placeCreatureInScene(s, C, { from: { landmark: 'here' }, feet: 10, bearing: 90 }, { commandId }),
+  },
+  {
+    name: 'declareSightBetween',
+    log: SETUP,
+    run: (s, commandId) => declareSightBetween(s, A, B, false, { commandId }),
+  },
+  {
+    name: 'declareCoverBetween',
+    log: SETUP,
+    run: (s, commandId) => declareCoverBetween(s, A, B, 'half', { commandId }),
+  },
+  {
+    name: 'beginCombat',
+    log: SETUP,
+    run: (s, commandId) =>
+      beginCombat(
+        s,
+        [
+          { id: A, initiative: 21, speed: 30 },
+          { id: B, initiative: 3, speed: 30 },
+        ],
+        { commandId },
+      ),
+  },
+  {
+    name: 'advanceTime',
+    log: SETUP,
+    run: (s, commandId) => advanceTime(s, 600, 'searching the vault', { commandId }),
+  },
+  {
+    name: 'declareSpellcasting',
+    log: SETUP,
+    run: (s, commandId) =>
+      declareSpellcasting(s, B, declaredCasting({ ability: 'wis', prepared: ['bless'] }), {
+        commandId,
+      }),
+  },
   { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, A, 'rope', 1, commandId) },
   { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, A, 'chain-shirt', commandId) },
   {
@@ -1389,6 +1462,129 @@ describe('every command that spends something asks whether it may', () => {
       expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
     });
   });
+});
+
+/**
+ * The commands that are not actions at all, and the other half of the sweep
+ * above.
+ *
+ * `UNGUARDED_ON_PURPOSE` is the exemption list for a command that **spends**
+ * something and consults `mayAct` anyway — every entry in it is a name the
+ * derived sweep found and a sentence saying why the guard is absent. The
+ * scene-setup family is a different claim: these commands spend nothing, so
+ * the sweep never classifies one as a spender and adding a name here would
+ * have failed its own "invents none" assertion. The decision would then have
+ * lived nowhere.
+ *
+ * So it lives here, in the shape the exemption lists use and with the same
+ * discipline: derived from the module rather than typed out, so a ninth
+ * command added to `commands/scene.ts` fails this until somebody writes the
+ * sentence — and checked behaviourally, because a reason nothing tests is
+ * prose.
+ *
+ * Nine more DM-declared events are queued behind this family and will join
+ * the list as they arrive.
+ */
+const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
+  setScene:
+    'not an action in the turn economy: the room the fight is happening in is a fact the DM declares, and no SRD rule spends anything to describe it',
+  addSceneLandmark:
+    'not an action in the turn economy: laying out the room is map-making, and a bar nobody had mentioned costs its describer nothing',
+  placeCreatureInScene:
+    'not an action in the turn economy: a creature walking into the scene is placed rather than moved, and SRD spends movement only on a move from somewhere',
+  declareSightBetween:
+    'not an action in the turn economy: whether one creature can see another is a fact about the room, declared because computing it would need walls',
+  declareCoverBetween:
+    'not an action in the turn economy: cover is declared for the same reason sight is, and a creature does not spend anything to be behind a bar',
+  beginCombat:
+    'not an action in the turn economy: it is the moment the economy starts existing, so there is no budget yet for it to spend',
+  advanceTime:
+    'not an action in the turn economy: outside combat there are no turns, and how long the party spent searching the vault is narration',
+  declareSpellcasting:
+    'not an action in the turn economy: it states what a creature with no class table can cast, which is a fact about the creature and not a casting',
+};
+
+describe('the scene-setup commands declare facts rather than taking actions', () => {
+  /** Every command the new module publishes, read off the module and the barrel. */
+  const declared = functionsIn(MODULE_SOURCE['commands/scene.ts']!)
+    .filter((fn) => fn.exported && COMMAND_SURFACE.has(fn.name))
+    .map((fn) => fn.name)
+    .sort();
+
+  it('accounts for every one of them, and invents none', () => {
+    expect(declared.length).toBeGreaterThan(0);
+    expect(declared).toEqual(Object.keys(DECLARED_NOT_ACTED).sort());
+    expect(Object.values(DECLARED_NOT_ACTED).every((reason) => reason.length > 20)).toBe(true);
+  });
+
+  /**
+   * And the claim is about the code rather than the comment. None of them
+   * spends anything the action-economy sweep can see, and none of them names
+   * `mayAct` — so a later edit that started guarding one, or that started
+   * spending, fails here rather than silently changing what the list says.
+   */
+  it('spends nothing, and asks nothing about whose turn it is', () => {
+    const spenders = spendersIn(Object.values(MODULE_SOURCE).join('\n'));
+    for (const name of declared) expect([name, spenders.has(name)]).toEqual([name, false]);
+    // The **code**, not the prose: the module's own docstring says it does not
+    // consult `mayAct`, and a claim checked against the sentence that makes it
+    // would be checking nothing.
+    const code = MODULE_SOURCE['commands/scene.ts']!
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    expect(code).not.toMatch(/\bmayAct\b/);
+    // And the stripping did not simply remove the whole file.
+    expect(code).toMatch(/\bonce\(/);
+  });
+
+  /**
+   * The half that bites. A creature owing a mandatory area effect may not
+   * act — and the DM may still describe the room, place the creature that
+   * just walked in, and start the fight. Every one of these **succeeds**
+   * against the world that refuses every spender above, which is what makes
+   * "these are not actions" a behaviour rather than an assertion.
+   */
+  const declaring: readonly { readonly name: string; readonly run: (s: GameState) => Result<unknown> }[] = [
+    { name: 'setScene', run: (s) => setScene(s, { width: 400, depth: 400, height: 40 }) },
+    { name: 'addSceneLandmark', run: (s) => addSceneLandmark(s, 'the hearth', { x: 20, y: 30, z: 0 }) },
+    {
+      name: 'placeCreatureInScene',
+      run: (s) => placeCreatureInScene(s, C, { from: { landmark: 'the slick' }, feet: 30, bearing: 90 }),
+    },
+    { name: 'declareSightBetween', run: (s) => declareSightBetween(s, A, B, false) },
+    { name: 'declareCoverBetween', run: (s) => declareCoverBetween(s, A, B, 'half') },
+    {
+      name: 'beginCombat',
+      run: (s) =>
+        beginCombat(s, [
+          { id: A, initiative: 21, speed: 30 },
+          { id: B, initiative: 3, speed: 30 },
+        ]),
+    },
+    { name: 'advanceTime', run: (s) => advanceTime(s, 600, 'the storm passes') },
+    {
+      name: 'declareSpellcasting',
+      run: (s) => declareSpellcasting(s, B, declaredCasting({ ability: 'wis', prepared: ['bless'] })),
+    },
+  ];
+
+  /** The spenders' own fixture, plus a creature nobody has placed yet. */
+  const owedAndWatching = (): readonly GameEvent[] => [...owing(), added(C, 'onlookers')];
+
+  it('covers every command the module publishes', () => {
+    expect(declaring.map((entry) => entry.name).sort()).toEqual(declared);
+  });
+
+  it('really does owe an area effect in this fixture', () => {
+    expect(fold('s', owedAndWatching()).owedAreaEffects.length).toBeGreaterThan(0);
+  });
+
+  for (const entry of declaring) {
+    it(`${entry.name}: allowed while an area effect is owed`, () => {
+      const out = entry.run(fold('s', owedAndWatching()));
+      expect(isErr(out) ? `${out.code}: ${out.reason}` : 'ok').toBe('ok');
+    });
+  }
 });
 
 /**

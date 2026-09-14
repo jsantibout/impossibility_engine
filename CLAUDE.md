@@ -286,23 +286,24 @@ concludes it has been superseded. The generators —
 `scripts/make-golden-log.ts` and `make-golden-log-2.ts` — exist so each log is
 readable rather than magic, and are not steps in the build.
 
-**Seventeen of the ninety-one types are emitted by no engine code at all**, and
-the second fixture writes them by hand as the rest of the suite does. They fall
-into two families, and the second is the one that was missed when this
-paragraph first said *nine*:
+**Nine of the ninety-one types are emitted by no engine code at all**, and the
+second fixture writes them by hand as the rest of the suite does. It was
+seventeen, in two families, and the second family has been closed — see
+"Setting The Stage Is A Command Like Any Other":
 
 | | |
 |---|---|
 | A fact the DM declares mid-play | allegiance, mounting and dismounting, the free object interaction, Alert's Initiative swap, a stabilisation, death that is not hit-point loss, an item the DM took away, a bonus whose source was no casting |
-| A fact that **sets up a world for the rules to run in** | the scene and its extent, a landmark, where a creature is first placed, who can see whom, who is behind what, that a fight has begun, that time passed outside combat, what an NPC can cast |
+| ~~A fact that sets up a world for the rules to run in~~ | the scene, a landmark, a first placement, sight, cover, that a fight has begun, that time passed outside combat, what an NPC can cast — **all eight now have commands** |
 
-Each is a fact somebody declares rather than an outcome the engine computes —
-and each is still a reducer case a fold has to keep handling. The second family
-reads like an omission and is not: `placeCreature`, `declareCover`,
-`declareSight` and `startCombat` all exist as pure functions, and the *reducer*
-calls them to fold the event. Nothing emits one, so a caller writes it.
+Each of the nine that remain is a fact somebody declares rather than an outcome
+the engine computes — and each is still a reducer case a fold has to keep
+handling. The eight that went were the ones that read like an omission and
+were: `placeCreature`, `addLandmark`, `declareCover`, `declareSight` and
+`startCombat` existed as pure functions the whole time, and the *reducer*
+called them to fold an event nothing wrote.
 
-`creature-added` is not among the seventeen and is hand-written for a different
+`creature-added` is not among the nine and is hand-written for a different
 reason: `createCharacter` emits one, but only for a creature built from
 choices, and a thug came from no character sheet.
 
@@ -4282,6 +4283,86 @@ they came to live in. The module list itself is a directory listing rather than
 an array, because a hand-maintained list of modules is the hand-maintained list
 of commands these sweeps were written to replace, arriving one level up.
 
+### Setting The Stage Is A Command Like Any Other
+
+**Nothing above the engine could start an encounter.** `placeCreature`,
+`addLandmark`, `declareCover` and `declareSight` in `positioning.ts` and
+`startCombat` in `combat.ts` were correct pure functions with exactly one
+caller apiece — the **reducer**, folding an event no command wrote — and
+`scene-set`, `time-advanced` and `spellcasting-declared` had no producer
+outside a test fixture at all. So a caller who wanted a fight hand-wrote the
+log, which is narration writing straight to truth. The twelfth recorded
+instance of a rule implemented and reachable from nothing, and the largest.
+
+`commands/scene.ts` is the eight commands, and the test that matters is the one
+that was impossible before it: an encounter driven **from nothing** — three
+characters created, a taproom, two landmarks, everybody placed, sight and cover
+declared, the clock moved, Initiative rolled, the fight begun — with not one
+event literal anywhere in it. That claim is read off the test's own source
+rather than asserted, because a scenario that quietly writes one event proves
+nothing about whether a caller could have got there.
+
+Four decisions, stated rather than incidental, because **nine more DM-declared
+events are the same shape** and will follow whatever this did:
+
+| | |
+|---|---|
+| **The command is its event's name as an imperative** | `scene-set` → `setScene`. Four are lengthened — `addSceneLandmark`, `placeCreatureInScene`, `declareSightBetween`, `declareCoverBetween` — because the pure function beneath owns the plain verb and `index.ts` exports both |
+| **It refuses exactly what the reducer would call corrupt** | and nothing more |
+| **A missing fact is homework, and it says which fact** | a `scene` request when there is no room, a `position` request when the *anchor* a placement is measured from is not standing anywhere — each naming a command rather than an event, and each naming a command that now exists |
+| **`mayAct` is not consulted** | none of these is an action in the turn economy |
+
+**The anchor is the half a pass-through would have lost.** "Beside the fighter"
+needs the fighter to be standing somewhere, and `resolveAnchor` answers that
+with a bare `unplaced` and no request — which is the right division of labour,
+because a pure helper returns the kind and the command that knows which rule
+wanted the fact attaches the request. Handing that refusal straight back left a
+command-level `needs-context` with the "what" in a prose string, which is the
+one thing a tool surface cannot branch on. The *decision* is still
+`placeCreature`'s; the command only says what would settle it, and names the
+anchor rather than the creature being placed — a distinction only a fixture
+that places one creature relative to another can see.
+
+**"The validation is the pure function's, not a second copy" is only a slogan
+until it is made precise enough to test.** The precise form is the second row
+above, and the test is that each refusal is paired with the event the command
+declined to write, folded, and asserted to throw `CorruptLogError`. Two
+consequences are deliberate rather than oversights. `setScene` refuses
+*nothing*, because nothing about a scene can corrupt a log — a new room is a
+new room, and the reducer has always unplaced everybody when one arrives. And
+sight, cover and placement take creature ids and do **not** look them up,
+because their reducer cases do not either; inventing the check would be the
+second copy the rule exists to prevent. `declareSpellcasting` is the one that
+does check, because its reducer case reads the creature and throws.
+
+**`mayAct` had nowhere to be written down, and that is the shape of the
+action-economy sweep rather than an omission.** `UNGUARDED_ON_PURPOSE` excuses
+a command that *spends* something and consults nothing; these spend nothing, so
+the sweep never classifies one as a spender and a name added there would have
+failed its own "invents none" assertion. `DECLARED_NOT_ACTED` is the decision
+in the shape the exemption lists use, derived from the module so a ninth
+command fails it until somebody writes the sentence — and checked
+behaviourally: every one of the eight **succeeds** against the world that
+refuses every spender, which is what makes "these are not actions" a behaviour
+rather than a claim.
+
+**The stamp is declared on all eight events, and the compiler does not care.**
+Excess-property checking on a union accepts a field *any* member declares, so
+`{ type: 'scene-set', extent, command }` compiles whether or not `scene-set`
+says it may carry one, and `recordCommand` is generic enough to remember it
+either way — verified by mutation: deleting the declaration leaves
+`npm run typecheck` completely silent. This file records that trap twice
+already, once for a `command` stamp and once for a casting's `route`, and both
+times the cost was the same: a field in the log that no reader of the type
+could see. So `scene-commands.test.ts` reads the claim off both sources and
+holds them against each other, which is the only thing that can.
+
+**And `placeCreatureInScene` is where the duplicate-check trap would have been
+sprung a ninth time.** Its own first run is what makes the world answer
+`already_placed`, so a guard above the duplicate check tells a retry its
+command was impossible when it had in fact succeeded. `once` is why there is
+nowhere to write one, and the test was written before the command was.
+
 ### `once` makes "the duplicate check comes first" structural
 
 This file records **eight** occasions on which a guard was written above the
@@ -4669,29 +4750,29 @@ null and is reported — it never becomes either.
   mechanism, not by transcription** — which is the opposite of what the "cheapest
   coverage there is" note assumed, and is worth knowing before the next content
   task is briefed.
-- **Seventeen of the ninety-one event types have no command, so a tool surface
-  cannot reach them.** This is a shape rather than a hole — every one is a fact
+- **Nine of the ninety-one event types have no command, so a tool surface
+  cannot reach them.** It was seventeen; the eight that set up a world for the
+  rules to run in now have commands — see "Setting The Stage Is A Command Like
+  Any Other". This is a shape rather than a hole — every one is a fact
   somebody *declares* rather than an outcome the engine computes, which is why
   the whole existing suite hand-writes them — but it is a thing to know before
   M2 rather than during it. A Maestro tool surface is built out of commands, so
-  on the day it is assembled there is no tool that can set a scene, place a
-  creature, declare cover or sight, start a fight, advance the clock outside
-  combat, declare an NPC's spellcasting, add a landmark, declare allegiance,
-  mount or dismount, spend the free object interaction, swap Initiative for
-  Alert, stabilise a creature, kill one other than by damage, take an item
-  away, or remove a bonus no casting hung. **Eight of the seventeen are scene
-  setup**, which is the part an encounter cannot start without.
+  on the day it is assembled there is still no tool that can declare
+  allegiance, mount or dismount, spend the free object interaction, swap
+  Initiative for Alert, stabilise a creature, kill one other than by damage,
+  take an item away, or remove a bonus no casting hung.
 
-  Three ways it could go, and choosing between them is M2's decision rather
-  than one to take now: a declaration command per fact, one general
-  declare-a-fact command, or a tool surface permitted to append these events
-  directly. The last is the one to be careful of — appending an event is how
-  the model asserts a mechanical fact. Six of them are pure declarations
-  (scene, landmark, placement, sight, cover, allegiance) and are exactly the
-  facts this file already says the model authors, placement included, because
-  a placement is relative to something established and carries no raw
-  coordinate. The other eleven are not: `creature-died` and `stabilised` are
-  outcomes with rules attached, and `combat-started` fixes an Initiative order.
+  **The question that was deferred to M2 has been answered for the eight, and
+  the answer generalises.** It was put as three ways it could go — a
+  declaration command per fact, one general declare-a-fact command, or a tool
+  surface permitted to append these events directly — and the third is the one
+  to be careful of, because appending an event is how the model asserts a
+  mechanical fact. The first is what shipped, and the reason it did not have to
+  wait for M2 is that a tool surface calls commands and never folds events
+  itself, so these are engine commands whatever M2 turns out to look like. The
+  nine that remain are a mixed bag on that axis and the distinction still
+  holds: allegiance is a pure declaration, while `creature-died` and
+  `stabilised` are outcomes with rules attached.
 
   **The number is derived, not transcribed.** The declared types are the
   `readonly type: '<x>'` literals in the `GameEvent` union — the same reading
@@ -4703,12 +4784,12 @@ null and is reported — it never becomes either.
   the thing being measured.
 
   **The `type:` position is the load-bearing half of that sentence, not
-  pedantry.** Searching for the bare id gives 16, because
-  `commands/features.ts` writes `satisfyWith: 'creature-placed'` — a context
-  request *naming* the event that would satisfy it, which is the opposite of
-  emitting one. The looser reading drops exactly one type, and it is
-  `creature-placed`: a scene-setup fact, and one of the eight this correction
-  exists to add. 91 declared, 74 emitted somewhere, 17 emitted nowhere.
+  pedantry.** It was what told an emission from a context request *naming* the
+  event that would satisfy it — `satisfyWith: 'creature-placed'` — and under
+  the looser reading `creature-placed` came out already emitted, which it was
+  not. That particular case is now moot because a command emits it for real,
+  and the distinction is not: a `satisfyWith` still names an event nobody
+  wrote. 91 declared, 82 emitted somewhere, 9 emitted nowhere.
   Two caveats
   the method carries: it reads literals, so an event type assembled from a
   computed string would be invisible — there are none today, the thirteen
@@ -4717,14 +4798,15 @@ null and is reported — it never becomes either.
   and three fragments of prose. And the answer moves with where the
   command layer is drawn, so the boundary is named rather than assumed: taking
   it as `invariants.test.ts` does — every module under `commands/`, **plus
-  `rest.ts`** — gives 22 instead of 17, the five extra being what `creation.ts`
-  emits, which is a question about where a command lives rather than about
-  whether one exists. `commands/` without `rest.ts` gives 25, and those three
-  are `rest-begun`, `rest-ended` and `temporary-hp-cleared`, which is why that
-  is the wrong line to draw.
+  `rest.ts`** — adds the five `creation.ts` emits, which is a question about
+  where a command lives rather than about whether one exists. Dropping
+  `rest.ts` adds three more — `rest-begun`, `rest-ended` and
+  `temporary-hp-cleared` — which is why that is the wrong line to draw.
 
-  An earlier count of **nine** is superseded. It named only the first family
-  and missed the eight setup facts, which is the half that matters most to a
-  tool surface; the derivation is what found that, and is why the number is
-  stated with its method rather than on its own.
+  **An earlier count of nine was superseded by seventeen, and the number is
+  nine again for a completely different reason.** The first nine named only the
+  DM-declared family and missed the eight setup facts; the derivation is what
+  found that. Those eight now have commands, so the same derivation gives nine
+  once more — which is the argument for stating a number with its method rather
+  than on its own, twice over.
 - M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

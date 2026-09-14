@@ -156,3 +156,13 @@ export type {
   ReleaseCommand,
 } from './commands/actions.js';
 export { rollInitiativeFor } from './commands/initiative.js';
+export {
+  addSceneLandmark,
+  advanceTime,
+  beginCombat,
+  declareCoverBetween,
+  declareSightBetween,
+  declareSpellcasting,
+  placeCreatureInScene,
+  setScene,
+} from './commands/scene.js';

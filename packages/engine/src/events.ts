@@ -947,6 +947,7 @@ export type GameEvent =
       readonly type: 'spellcasting-declared';
       readonly id: CharacterId;
       readonly spellcasting: SpellcastingState;
+      readonly command?: CommandStamp;
     }
   | {
       readonly type: 'creature-removed';
@@ -1368,7 +1369,12 @@ export type GameEvent =
    * decides that. Out of combat, how long the party spent searching the vault
    * is narration, so it arrives as an event.
    */
-  | { readonly type: 'time-advanced'; readonly seconds: number; readonly reason: string }
+  | {
+      readonly type: 'time-advanced';
+      readonly seconds: number;
+      readonly reason: string;
+      readonly command?: CommandStamp;
+    }
 
   // — rests ————————————————————————————
   /**
@@ -1466,7 +1472,11 @@ export type GameEvent =
 
 
   // — combat ——————————————————————————————————————————————————
-  | { readonly type: 'combat-started'; readonly combatants: readonly CombatantInput[] }
+  | {
+      readonly type: 'combat-started';
+      readonly combatants: readonly CombatantInput[];
+      readonly command?: CommandStamp;
+    }
   | { readonly type: 'combat-ended' }
   /**
    * The turn moved on.
@@ -1503,9 +1513,32 @@ export type GameEvent =
     }
 
   // — the map ——————————————————————————————————————————————————
-  | { readonly type: 'scene-set'; readonly extent: SceneExtent }
-  | { readonly type: 'landmark-added'; readonly name: string; readonly at: { x: number; y: number; z: number } }
-  | { readonly type: 'creature-placed'; readonly id: CharacterId; readonly placement: Placement }
+  /**
+   * The three that lay out a scene, each carrying the stamp of the command
+   * that declared it.
+   *
+   * **The stamp is declared, not merely emitted.** Excess-property checking on
+   * a union accepts a field *any* member declares, so a command could write
+   * `command` onto an event whose own type says nothing about it and no reader
+   * would see the difference — which is the trap this file has recorded twice,
+   * once for a `command` stamp and once for a casting's `route`. `recordCommand`
+   * is generic and would remember it either way; that is exactly why the
+   * declaration has to be here rather than inferred from the fold happening to
+   * work.
+   */
+  | { readonly type: 'scene-set'; readonly extent: SceneExtent; readonly command?: CommandStamp }
+  | {
+      readonly type: 'landmark-added';
+      readonly name: string;
+      readonly at: { x: number; y: number; z: number };
+      readonly command?: CommandStamp;
+    }
+  | {
+      readonly type: 'creature-placed';
+      readonly id: CharacterId;
+      readonly placement: Placement;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'creature-moved';
       readonly id: CharacterId;
@@ -1734,12 +1767,14 @@ export type GameEvent =
       readonly from: CharacterId;
       readonly to: CharacterId;
       readonly seen: boolean;
+      readonly command?: CommandStamp;
     }
   | {
       readonly type: 'cover-declared';
       readonly from: CharacterId;
       readonly to: CharacterId;
       readonly degree: CoverDegree;
+      readonly command?: CommandStamp;
     }
   | {
       readonly type: 'mounted';
