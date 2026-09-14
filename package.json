@@ -23,6 +23,7 @@
     "srd:index": "node packages/srd/scripts/spell-index.mjs",
     "srd:fetch-reference": "curl -sSL --create-dirs -o packages/srd/reference/SRD_CC_v5.2.1.pdf https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf",
     "coverage": "tsx packages/engine/scripts/coverage.ts",
+    "check:briefs": "tsx packages/engine/scripts/brief-citations.ts",
     "probe": "tsc -b tools/llm-probe && node tools/llm-probe/dist/run.js"
   },
   "allowScripts": {

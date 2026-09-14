@@ -1,6 +1,14 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import {
+  misquotes as misquotedIn,
+  namesIn,
+  normaliseProse,
+  quotedRunsIn,
+  type Citation,
+  type CitedSource,
+} from '../scripts/citations.js';
 import {
   ADJUDICATED,
   BLOCKED_ON,
@@ -674,15 +682,12 @@ describe('what a shape finishes is two numbers', () => {
  * have the book's sentence looked up in `CLAUDE.md`. Those quotations already
  * have a guard — `spell-honesty.test.ts` holds each against that spell's own
  * paragraph — and this one would check them against the wrong document
- * entirely.
+ * entirely. **The brief corpus resolves `SRD` to the raw files instead**, and
+ * `brief-citations.ts` says why the two differ: a brief quoting a rules
+ * section has no other guard, and nothing in a brief says which spell it is
+ * talking about.
  */
-const CITED_SOURCES: ReadonlyArray<{
-  /** What a citation writes, matched as it stands and case-insensitively. */
-  readonly name: string;
-  /** What a failure names, which for the audits is the directory. */
-  readonly label: string;
-  readonly files: readonly string[];
-}> = [
+const CITED_SOURCES: readonly CitedSource[] = [
   // **`claude.md` is deliberately not in this table any more.** When CLAUDE.md
   // became the constitution and router its architecture moved out verbatim,
   // and with it every sentence these maps quoted — so a `claude.md` entry
@@ -761,56 +766,6 @@ const CITED_SOURCES: ReadonlyArray<{
 ];
 
 /**
- * The shortest run worth holding against a document, and what the floor costs.
- *
- * Eight characters, which is `spell-honesty.test.ts`'s floor for the same job
- * on the other axis — one convention in this repository rather than two. What
- * it costs is that a shorter quotation goes unchecked, and that is the right
- * way round: `"D20 Tests"` and `"within reach"` are quoted *terms* rather than
- * citations, and a run that short is as likely to land in a document by
- * coincidence as by quotation. Measured on this corpus the floor is not
- * load-bearing — every citation from eight characters upward passes, and so
- * does every one from thirty upward — so it sits where it under-fires rather
- * than where it would start guessing.
- */
-const CITATION_FLOOR = 8;
-
-/**
- * Emphasis, smart quotes and line wrapping are typesetting; the wording is not.
- *
- * Both sides are normalised, so a citation may be typeset differently from the
- * sentence it quotes and still be that sentence. What survives is every word
- * and every mark of punctuation between them — a quotation closing with a full
- * stop where the document goes on with a colon is a different sentence, which
- * is why the descriptions put the citing sentence's own stop *outside* the
- * closing quote.
- */
-const normaliseProse = (text: string): string =>
-  text
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[*_]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const documents = new Map<string, string>();
-const documentText = (path: string): string => {
-  const cached = documents.get(path);
-  if (cached !== undefined) return cached;
-  const text = normaliseProse(readFileSync(`${HERE}../../../${path}`, 'utf8'));
-  documents.set(path, text);
-  return text;
-};
-
-interface Citation {
-  /** The shape, or the spell and clause, the run was written in. */
-  readonly where: string;
-  readonly source: string;
-  readonly run: string;
-  readonly files: readonly string[];
-}
-
-/**
  * Every quoted run in one piece of prose, attributed to the last document
  * named before it.
  *
@@ -822,79 +777,28 @@ interface Citation {
  * enforce rather than a concession. A run with no document named anywhere
  * before it is nobody's citation and is skipped, as is one attributed to a
  * name the table gives no file.
+ *
+ * The scans it composes — {@link namesIn}, {@link quotedRunsIn} — and the
+ * containment test underneath {@link misquotes} moved to `citations.ts` when
+ * IE-052 pointed the same instrument at `docs/dev/tasks/`. The floor, the
+ * normalisation and the elision are shared; **this attribution rule is not**,
+ * because the brief corpus needs a different one and a flag argument standing
+ * in for two honest rules would be worse than two named functions.
  */
-function citationsIn(where: string, prose: string): Citation[] {
-  const named: Array<{ at: number; source: string; files: readonly string[] }> = [];
-  for (const { name, label, files } of CITED_SOURCES) {
-    const mark = new RegExp(name.replace(/\./g, '\\.'), 'gi');
-    let found: RegExpExecArray | null;
-    while ((found = mark.exec(prose)) !== null) {
-      named.push({ at: found.index, source: label, files });
-    }
-  }
-  named.sort((a, b) => a.at - b.at);
-
+function citationsIn(where: string, prose: string): readonly Citation[] {
+  const named = namesIn(CITED_SOURCES, prose);
   const cited: Citation[] = [];
-  const quoted = new RegExp(`"[^"]{${CITATION_FLOOR},}"`, 'g');
-  let run: RegExpExecArray | null;
-  while ((run = quoted.exec(prose)) !== null) {
-    const at = run.index;
+  for (const { at, run } of quotedRunsIn(prose)) {
     const attributed = named.filter((mention) => mention.at < at).pop();
     if (attributed === undefined || attributed.files.length === 0) continue;
-    cited.push({
-      where,
-      source: attributed.source,
-      run: run[0].slice(1, -1),
-      files: attributed.files,
-    });
+    cited.push({ where, source: attributed.source, run, files: attributed.files });
   }
   return cited;
 }
 
-/**
- * Does the cited document contain this run, reading an elision forwards?
- *
- * A citation may elide with `...`, which this repository's prose does
- * constantly, and the parts either side must then appear **in the document's
- * order** — a quotation that reorders a document is not that document's
- * sentence. With no elision it is a plain containment test, which is the whole
- * of the precedent's behaviour.
- */
-function containsRun(path: string, run: string): boolean {
-  const text = documentText(path);
-  let cursor = 0;
-  for (const part of run.split(/\s*(?:\.\.\.|…)\s*/)) {
-    const fragment = normaliseProse(part);
-    if (fragment.length === 0) continue;
-    const at = text.indexOf(fragment, cursor);
-    if (at < 0) return false;
-    cursor = at + fragment.length;
-  }
-  return true;
-}
-
-/**
- * The citations a corpus makes that the document it named does not contain.
- *
- * Parameterised over the corpus for the reason `coverageGaps` is: a guard that
- * can only be run against the data it already agrees with is not a guard, so
- * the tests below drive it with a misquote built to be caught before they run
- * it on the real maps. Every failure carries the shape or spell, the run, and
- * the document it was checked against, because a guard that reports only a
- * failure teaches nobody.
- */
-function misquotes(corpus: Iterable<readonly [string, string]>): string[] {
-  const found: string[] = [];
-  for (const [where, prose] of corpus) {
-    for (const citation of citationsIn(where, prose)) {
-      if (citation.files.some((path) => containsRun(path, citation.run))) continue;
-      found.push(
-        `${citation.where} attributes to ${citation.source} a run it does not contain: "${normaliseProse(citation.run)}"`,
-      );
-    }
-  }
-  return found;
-}
+/** Every citation in this corpus the document it named does not contain. */
+const misquotes = (corpus: Iterable<readonly [string, string]>): string[] =>
+  misquotedIn(corpus, citationsIn);
 
 /** Every piece of prose in these three maps that may cite this repository. */
 function citedProse(): Array<readonly [string, string]> {

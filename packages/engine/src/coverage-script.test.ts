@@ -290,10 +290,18 @@ describe('no script writes at import time', () => {
    * One idiom, spelled one way. The behavioural test below proves *that*
    * spelling works in both directions; a second spelling would be a second
    * thing to be wrong.
+   *
+   * **Every script that writes carries the guard; not every script that
+   * carries it writes.** It asserted equality until `brief-citations.ts`
+   * arrived, which prints a report and sets an exit code when Node runs it and
+   * must do neither when a test imports it for its functions. That is the same
+   * hazard in a different currency, and the same line answers it — so the rule
+   * is *writes implies guarded*, and the converse was a stronger claim than
+   * the rule ever made.
    */
   it('spells the guard identically in every script that has one', () => {
     const guards = guarding(SCRIPT_SOURCE);
-    expect(guards).toEqual(WRITING_SCRIPTS);
+    expect(guards).toEqual(expect.arrayContaining(WRITING_SCRIPTS));
     for (const name of guards) expect(SCRIPT_SOURCE[name]).toContain(GUARD);
   });
 });
