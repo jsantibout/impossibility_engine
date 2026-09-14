@@ -1,13 +1,13 @@
 # IE-027 — `resolveEffects` split into per-kind resolvers, behaviour-preserving
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `commands/spell-resolution.ts` alone; safe beside IE-028 (`events.ts` only) and IE-029
 depends-on: IE-020
-worker: qb-builder · .claude/worktrees/agent-ad3cd09c3ca5ed758 · worktree-agent-ad3cd09c3ca5ed758
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -113,10 +113,104 @@ must not quietly give one path a field the other did not have — that is a
 behaviour change wearing a refactor's clothes, and it is exactly what the
 frozen logs are there to catch.
 
+
 ## Completion digest
+
+Builder **COMPLETE**, reviewer **PASS at high confidence on round one**, no
+defects. Branch `worktree-agent-ad3cd09c3ca5ed758`, commit `8d5ab13`, rebased
+by the foreman to `71bf406`.
+
+**`resolveEffects`: 1,008 lines → 214**, of which 63 are its signature and
+docs, with **thirteen per-kind resolvers** over a shared `EffectContext`. The
+reviewer verified both counts itself rather than accepting them.
+
+**Zero new tests, which the brief required**, and zero test files edited — so
+no import path changed either. The oracle is the existing suite plus
+byte-identity: every one of the thirteen resolver bodies equals its original
+branch **line for line, comments included**, after reversing the three declared
+transformations. The builder proved it by reversing them and diffing; the
+reviewer reproduced the check with its own normalisation and independently
+surfaced the one exception the code correctly preserves.
+
+Frozen logs fold unchanged, neither regenerated. `scenario.test.ts`'s three
+assertions hold, including the load-bearing one — re-running the script from
+the same seed produces the same log.
+
+One mutation caught, three **survived and are reported rather than fixed**:
+
+- Wiring the context's `saveDc` one point high failed three tests in three
+  files across *both* the atomic and the settled path, so the shared context is
+  guarded — the thing most worth guarding in a shared-context refactor.
+- **Dispel Magic's inner `continue`** survives being rewritten as its
+  twenty-two neighbours are. No fixture aims a Dispel Magic at a target
+  carrying **two** ongoing spells and fails the first check, so `continue` and
+  `return` are indistinguishable to the suite. That line now looks exactly like
+  its neighbours and means something else.
+- `current = done.value;` — the state threading the split introduced — can be
+  commented out and everything passes. No registered definition has one effect
+  reading the world another left.
+- The `from` wiring can be dropped and everything passes. This is the brief's
+  own named risk: the Prone rule read from a casting's held point has no
+  fixture with a prone target.
+
+Two things the split made newly visible, both recorded in `CLAUDE.md`: a
+resolver's destructure line now states exactly what its rule reads —
+`resolveEndConditionEffect` two bindings, `resolveAttackEffect` sixteen — and
+`resolveDispelEffect` takes **no `effect` parameter at all**, so
+`noUnusedParameters` turned this file's long-standing claim that Dispel Magic's
+definition "carries no numbers at all" into something the compiler checks.
+
+Process note for the record: an early mutation applied with Python rewrote the
+file CRLF and broke `invariants.test.ts`'s source sweeps. It was caught, the
+file re-assembled LF-clean, and every reported result is from the LF file.
+`persistence-2.test.ts` did not flake at any point.
 
 ## Risk gate
 
+**Lightweight.** The digest reports no architectural deviation, no new runtime
+special case, no file outside the surface but `CLAUDE.md`, and the one
+foundational primitive it names — `resolveEffects` — *is* the brief's whole
+subject. The reviewer passed it at high confidence on the first round having
+re-run the byte-identity check independently, which is a stronger oracle than
+anything an inspection by me would add: the claim is that the bodies are
+unchanged, and two parties verified it mechanically.
+
+Classification: **GREEN**. Merging under tranche 5 authority.
+
+The three surviving mutations are **findings, not defects**: each names a real
+line the suite cannot see fail, and all three are pre-existing gaps in fixture
+coverage that the split *exposed* rather than created. They are recorded in
+`QUEUE.md` under LATER, and the Dispel Magic one is the sharpest — it is a
+line that reads like its neighbours and does not mean what they mean.
+
 ## Architecture decision
 
+None. No Fable involvement.
+
 ## Merge record
+
+Merged to `main` as `71bf406`, fast-forward, pushed. Rebased by the foreman
+over IE-025's and IE-028's commits, including two `CLAUDE.md` additions;
+clean.
+
+`main` verified after the merge: typecheck ✓, lint ✓, **6767 tests across 105
+files** ✓, `COVERAGE.md` byte-clean ✓, tree clean. The count is unchanged from
+IE-028's merge, which is what a move with no new tests should do.
+
+**Condition 12 deserves its own sentence here**, because this is a
+behaviour-preserving move whose oracle is the suite, and IE-028 landed in
+`events.ts` between the review and the merge. Nothing IE-028 changed is read by
+a resolver: `grantSourcesOf` and `withoutGrants` are internal to the reducer's
+release paths, which `spell-resolution.ts` reaches only through events it
+emits. The full gauntlet was re-run on the combination, both frozen logs fold,
+and `scenario.test.ts`'s re-run determinism passes on `main` — which is the
+assertion that would catch a move that had smuggled in a decision.
+
+Thirteen conditions: **1** inside the brief; **2** `COMPLETE`; **3** `PASS`,
+high, one round; **4** no defects; **5** gauntlet green; **6** conformance;
+**7** no blocker; **8** no deviation; **9** the one primitive named is the
+brief's subject, and `events.ts`, the union, the reducer, the barrel and the
+definition format are untouched; **10** no scope expansion; **11** clean
+rebase; **12** above; **13** risk gate lightweight, GREEN.
+
+**Unblocks IE-032** (wave 4), together with IE-028.

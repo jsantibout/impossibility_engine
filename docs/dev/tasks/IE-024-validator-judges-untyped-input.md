@@ -1,6 +1,6 @@
 # IE-024 — The validator judges untyped input instead of throwing on it
 
-state: IMPLEMENTING
+state: ARCHITECTURE_BLOCKED
 lane: conformance
 tranche: 5
 parallel-safe: CONDITIONAL — owns `spell-schema.ts`; every later union task adds a rule to that file, so it lands first and alone

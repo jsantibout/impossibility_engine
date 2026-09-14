@@ -1,13 +1,13 @@
 # IE-028 — One enumerator for a creature's sourced grants
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `events.ts` alone; safe beside IE-027 (`spell-resolution.ts` only) and IE-029
 depends-on: IE-020
-worker: qb-builder · .claude/worktrees/agent-aa6095a1b720ab3be · worktree-agent-aa6095a1b720ab3be
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -111,10 +111,106 @@ on a creature. An enumerator that reports a grant the old code skipped would
 keep a finished casting in `on`, which is a wrong answer to Dispel Magic and
 is not caught by the frozen logs.
 
+
 ## Completion digest
+
+Builder **COMPLETE**, reviewer **PASS at high confidence on round one**, no
+defects, no rework. Branch `worktree-agent-aa6095a1b720ab3be`, commit
+`45c4705`, rebased by the foreman to `7e7717b`.
+
+Tests **6721/6721** in the worktree, 9 new in `grant-enumerator.test.ts`.
+Gauntlet green; `COVERAGE.md` byte-identical; **both frozen logs fold and
+neither was regenerated.**
+
+**The acceptance criterion I wrote could not be satisfied, and the builder was
+right to substitute.** Criterion 1 asked that dropping one family from the
+enumerator redden the bonuses suite *and* the granted-defences suite. It
+cannot: dropping `grantedDefenses` leaves the bonuses walk intact, so only the
+defences suite moves — and under the derived `GrantFamily` the brief itself
+asked for, dropping a family is a **compile error** before any test runs. The
+substitute is stronger and is what the `defendingModes` precedent actually
+describes: break the **shared walk**, and 25 tests across 10 files go red
+together — `spell-buffs`, `granted-defenses`, `roll-modifiers`,
+`armor-class-spells`, `ongoing-spells`, `counterspell`, `reaction-triggers`,
+`outcome-riders`, the new suite and `persistence-2`. The builder ran both
+mutations and reported both; the reviewer reproduced them independently and
+verified the compile guard **in both directions** — a fifth sourced-grant field
+added to `CreatureState`, and a family removed from the `grantsOf` literal,
+each failing the build by name.
+
+Foundational primitives touched: `events.ts` release paths — `releaseCasting`,
+`releaseOnTarget`, `releaseGrants`, `holdsNothingOf`, and `expireEffects`
+through them. The `GameEvent` union and `CreatureState`'s shape are unchanged.
+`grantSourcesOf` and `withoutGrants` join `@ie/engine`'s surface through
+`export * from './events.js'` — declared, since the brief named the file but
+not the surface addition.
+
+Out-of-scope finding: `releaseGrants`'s predicate parameter is still named
+`held` while it now receives a source string. The reviewer raised it as a
+non-defect and the builder left the reviewed commit untouched rather than
+amending after a PASS — the right instinct. One word, for whoever next opens
+that function.
 
 ## Risk gate
 
+**Inspected** — one signal: a foundational primitive changed (`events.ts`, the
+reducer's release paths).
+
+What the diff shows:
+
+- **`GrantFamily` is derived from `CreatureState`'s own shape**, not listed —
+  a mapped type selecting the keys whose value is a `readonly SourcedGrant[]`,
+  with `initiativeBonuses` excluded and the exclusion argued: creation derives
+  it from the character's feats, nothing hangs it on them, and no casting,
+  deadline or dispel takes it away. It was in none of the five walks, and
+  putting it in one would end a feat the rules never end.
+- **`grantsOf` is annotated with a mapped type over `GrantFamily`**, so a fifth
+  family declared on `CreatureState` makes *that literal* a compile error
+  naming the property it lacks. That is a stronger guard than the test I asked
+  for, and it is the answer to the brief's "if it is not expressible without a
+  hand-kept list, say so plainly" — it turned out to be expressible.
+- **`scheduledDamage` is excluded with the reason the brief required**, and the
+  docstring goes further than asked: it is not even per-creature, being dropped
+  at state level by `withoutScheduledDamage`.
+- **The by-reference early return is preserved**, and the docstring says why it
+  is load-bearing rather than an optimisation: `releaseCasting` compares
+  identity to decide whether a derived pass touched anybody.
+- **The `expireEffects` hazard the brief named is discharged by reading, not
+  only by the suite** — `grantSourcesOf` reports exactly the union the five
+  sites already read, so `holdsNothingOf` cannot report a grant a release
+  would skip and no finished casting can be kept in `OngoingSpell.on`. The
+  frozen logs would not have caught that, which is why the brief named it.
+
+Classification: **GREEN**. The one declared correction is to my criterion's
+*text*, not to the approved design, and it is the second brief error of this
+tranche — see the merge record.
+
 ## Architecture decision
 
+None. No Fable involvement.
+
 ## Merge record
+
+Merged to `main` as `7e7717b`, fast-forward, pushed. Rebased by the foreman
+over three commits including IE-025's `CLAUDE.md` addition; clean.
+
+`main` verified after the merge: typecheck ✓, lint ✓, **6767 tests across 105
+files** ✓, `COVERAGE.md` byte-clean ✓, tree clean.
+
+Thirteen conditions: **1** inside the brief; **2** `COMPLETE`; **3** `PASS`,
+high, one round; **4** no defects; **5** gauntlet green; **6** conformance,
+both frozen logs folding; **7** no blocker; **8** no material deviation — the
+one declared correction is to an acceptance criterion I wrote wrongly, verified
+above; **9** `events.ts` was the brief's whole named surface, and the public
+surface addition is declared; **10** no scope expansion; **11** the rebase was
+clean; **12** re-verified on `main` after the merge; **13** risk gate
+inspected, GREEN.
+
+**This is my second mistaken acceptance criterion in one tranche** — IE-025's
+rule 5 asserted a rules fact the SRD contradicts, and this one described a test
+outcome the design it asked for cannot produce. Both were caught by the builder
+and confirmed by the reviewer, which is the system working; the pattern is that
+I wrote each by analogy to a precedent without checking the analogy held in the
+new design. Recorded here rather than only noticed.
+
+**Unblocks IE-030** (wave 3) and, with IE-027, **IE-032** (wave 4).

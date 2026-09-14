@@ -1,11 +1,11 @@
 # IE-023 — No invisible characters, and a validator that is itself tested
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: tooling
 tranche: 5
 parallel-safe: YES — a new guard, `CLAUDE.md`'s prose, and `docs/dev/check-queue.mjs`; no engine module
 depends-on: none
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a9d196d2b8ae373da · worktree-agent-a9d196d2b8ae373da
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 

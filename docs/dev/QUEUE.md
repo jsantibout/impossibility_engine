@@ -552,49 +552,44 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged: IE-020** (`687331c`) and **IE-025** (`43fe3d0`) — 2 of 18. Both
-13/13, both risk-gated by inspection rather than lightly: IE-020 because a
-foundational primitive changed, IE-025 because it declared an architectural
-deviation. `main` verified after each merge, now at **6758 tests across 105
-files**, both frozen logs untouched, `COVERAGE.md` byte-clean, pushed.
+**Merged: IE-020, IE-025, IE-028, IE-027** — 4 of 18, all 13/13. `main` at
+`71bf406`, **6767 tests across 105 files**, both frozen logs untouched,
+`COVERAGE.md` byte-clean, pushed after every merge.
 
-**IE-025's deviation was the brief's error and is recorded as mine.** Rule 5
-asserted that a `fixed` spell grant must be on that class's list; SRD Fiend
-Spells grants a Warlock Burning Hands, Command and Scorching Ray, and **not
-one of the three is on the Warlock list**. The builder narrowed the rule to
-existence in the parsed book and pinned the counterexamples. Second time
-`WORKFLOW.md`'s "a brief may not assert a rules fact without quoting the SRD
-line" has earned its keep; rule 5 quoted none.
+**IE-024 is `ARCHITECTURE_BLOCKED` — the tranche's first YELLOW, and not the
+one that was predicted.** Its builder stopped at the three-round cap and I
+agree it is not mine: entries of the two *nested* effect lists
+(`areaTrigger.effects`, `activation.effects`) both **throw** on `[null]` and
+are **accepted** holding nonsense, and every fix turns on `parseSpellDefinition`'s
+two-phase short-circuit — a contract the brief explicitly fenced off, in a file
+five later tasks each add a rule to. Three rounds each found the same class one
+level further out (the branch table, then fields inside an effect, now entries
+inside a nested list), which is what says the remaining fix is structural
+rather than a fourth pass of spot-guards. With Fable, with the evidence
+gathered and the three options named.
 
-**IE-026 has had four review rounds and the foreman has launched a fifth as a
-confirming review of the head commit.** The pattern is the finding: every
-round passed the *implementation* — brief compliance, tests, regression risk,
-conformance, architecture, all clean, at high confidence — and every round
-returned defects on **documentation prose**, after which the builder's fix
-went unreviewed. So condition 3 has been false three times for the same
-structural reason: no reviewer had seen the commit that would be merged.
+**IE-026 is at its fifth pass**, a foreman-launched confirming review of the
+head commit. See the gate log.
 
-The prose in question is not trivia. Twice it justified the sweep with a
-**symmetric containment claim that is false** — `placeCreatureInScene` is a
-prefix of `placeCreature` — to support a conclusion that is true for a
-*directional* reason. The foreman found it at the gate in the test docstring;
-the round-4 reviewer found it independently in `CLAUDE.md`, where the first
-fix had not reached. A false sentence in the constitutional file about what a
-guard does is exactly what this repository treats as a defect.
+**Two mistaken acceptance criteria of mine, both caught by builders and
+confirmed by reviewers.** IE-025's rule 5 asserted a rules fact SRD Fiend
+Spells contradicts; IE-028's criterion 1 described a test outcome the design it
+asked for cannot produce, because dropping a family from a *derived* list is a
+compile error rather than a test failure. The pattern is that each was written
+by analogy to a precedent without checking the analogy held in the new design.
+The system caught both, which is the point of it; the brief-writing is mine to
+correct.
 
-The fifth pass is a **reviewer, not a builder round**: the prose is now
-correct and directional on the foreman's own reading, so there is nothing to
-edit, and what is missing is independent review of `47a3fb5` itself. If it
-returns defects again, the task stops at `AWAITING_MERGE_APPROVAL` — IE-015's
-precedent, where a failed condition went to the owner rather than being
-decided by the foreman — because at that point the loop is itself the evidence
-the owner needs.
+**Running:** IE-021, IE-022, IE-023 (wave 1), IE-026's confirming review, and
+Fable on IE-024.
 
-**Running:** IE-024 (wave 1), IE-026 (rework), IE-027 and IE-028 (wave 2), and
-IE-022, launched into the slot IE-025 freed.
-
-**Waiting for a slot:** IE-021, IE-023 (wave 1) and IE-029 (wave 2, after
-IE-026 merges).
+**Blocked on file ownership rather than on its dependency:** IE-030's brief
+depends only on IE-028, which has merged — but it edits `spell-schema.ts`
+(IE-024's), `commands/targeting.ts` (IE-026's) and `missing-shapes.ts`
+descriptions (IE-022's), all three in flight. **The dependency graph I wrote
+tracked semantics and the real constraint is file ownership**, which is a
+planning lesson worth more than the delay: IE-030 waits for IE-024 and IE-026
+to resolve.
 
 All nineteen tasks to date are `DONE` and merged; tranche 4 shipped ten of ten,
 nine of them without owner involvement. `main` carries **6,696 tests across 103
@@ -631,6 +626,11 @@ rest" prints both numbers for every shape. Do not re-rank from prose.
 
 | Task | Lane | Note |
 |---|---|---|
+| **Dispel Magic's inner `continue` now reads like its neighbours and means something else.** `resolveDispelEffect` keeps an inner `for (const spell of running)` whose failed-check `continue` belongs to *that* loop, not the effect loop. Rewriting it the way the other twenty-two resolvers were rewritten **passes the entire suite** | mechanism | IE-027, reported rather than fixed — a behaviour-preserving move must not carry a fix. No fixture aims a Dispel Magic at a target carrying **two** ongoing spells and fails the first check, so `continue` and `return` are indistinguishable today. The fixture is the fix: two ongoing spells, the first above the dispel's level |
+| Two lines the split introduced that the suite cannot see fail: `current = done.value;` (the state threading — no registered definition has one effect reading the world another left) and the `from` wiring (no fixture has a **prone** target attacked from a casting's held point, which is Spiritual Weapon's seam) | mechanism | IE-027, both read and both correct. Named because an unpinned line is an unpinned line, and the second is the brief's own named risk arriving exactly where it was predicted |
+| **A `DiceScaling` with no `dice` reaches `scaledDiceFor`, which splits the notation and does arithmetic on the halves — so it becomes `NaNd6` and the spell silently rolls nothing.** `origin: {}` validates for the same reason | conformance | IE-024's builder implemented the rule, the round-1 reviewer correctly called it a **required-field** rule the brief excluded, and it was removed. It is the class this repository calls its worst — a wrong number with no symptom — and it wants briefing as its own task |
+| Sixteen pre-existing branches in `spell-schema.ts` are uncovered by the full suite — `bad_ability`, `bad_skill`, `bad_name`, `unknown_casting_time`, `bad_range`, `bad_target_count`, `unknown_area`, `two_durations`, `bad_duration`, `bad_movement_allowance`, `bad_reach`, `not_an_effect`, `effect_too_deep`, and the `modifierRidersOf` switch | conformance | IE-024; none added by that task. IE-018's sweep asks whether a *code* is asserted somewhere, which is a weaker question than whether a *branch* is reached |
+| `releaseGrants`'s predicate parameter is still named `held` while it now receives a source string | mechanism | IE-028's reviewer raised it as a non-defect and the builder declined to amend a commit after a PASS, which is the right instinct. One word |
 | **A live wrong number: `classLevelFor` returns the starting class's level for any subclass feature.** `creation.ts:2342` derives the class from `featureId.split(':')[0]`, which a *subclass* id never matches, so it falls through to the starting class. A Fighter 5 / Bard 3 of the College of Lore gets a **1d8** Cutting Words die where SRD gives a Bard 3 a **d6** — reproduced through `planCharacter`. Its docstring at `:2334` says "the character level" and is wrong the same way | mechanism | IE-025's builder, pre-existing and out of its scope. **No pool is wrong yet** — the two subclass features that size one both use an ability modifier — which is exactly why it is cheap to fix now and expensive after the third does not. Needs a task in `creation.ts` |
 | `grantsSubclass` has twelve writers and no reader — `creation.ts:412` reads `ClassDefinition.subclassLevel` and asks through the feature's own `choice: { kind: 'subclass' }` | conformance | IE-025. Removal belongs to `progression.ts`'s owner; IE-025's zero-user sweep reports it in both directions meanwhile, so it cannot rot unseen |
 | `FeatureGrant` wants a member for **"a later feature steps an earlier feature's table"** — that is the fact that would end IE-025's two "Improved X" exemptions | conformance | IE-025. An exemption naming the member that would retire it, which is the shape this repository asks of every exemption |
@@ -724,3 +724,6 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | merge (tranche authority) | IE-025 | merged `43fe3d0`, 13/13 green, risk gate **inspected** (declared architectural deviation) and GREEN. The deviation was the *brief's* mistaken rules claim — rule 5 required a `fixed` spell grant to be on its class's list, and SRD Fiend Spells grants a Warlock three spells that are on none — corrected by the builder against `classes.md` and pinned, which is IE-011's precedent exactly. Three findings filed under LATER, one of them a live wrong number in `creation.ts` |
 | 2026-09-14 | `CHANGES_REQUIRED` + bounded pass | IE-026 | returned by the foreman. Condition 3 was false — three review rounds ended `DEFECTS` on a prose defect the builder then fixed, leaving the final commit unreviewed. Judged **round exhaustion rather than a failed review** (findings 4 → 1 → 1, confidence high, no architectural question), so one further bounded pass is authorised: fix a second false claim the foreman found in the same docstring, then an independent review of the commit that would be merged. No `ARCHITECTURE_BLOCKED` — there is no architectural question to wake Fable for |
 | 2026-09-14 | confirming review (foreman-launched) | IE-026 | a fifth pass, and a **reviewer rather than a builder round**. Four rounds had each passed the implementation at high confidence and each returned defects on documentation prose, and each fix then went unreviewed — so condition 3 was false three times for one structural reason. The prose defect was the same false symmetric containment claim twice, found by the foreman in the test docstring and by the round-4 reviewer in `CLAUDE.md`. Nothing left to edit, so the missing thing is independent review of the head commit itself. If it defects again the task stops at `AWAITING_MERGE_APPROVAL`, per IE-015 |
+| 2026-09-14 | merge (tranche authority) | IE-028 | merged `7e7717b`, 13/13, risk gate **inspected** (foundational primitive: the reducer's release paths) and GREEN. The family list is derived from `CreatureState`'s shape, so a fifth grant is a compile error rather than a silent omission — stronger than the test the brief asked for. **My acceptance criterion 1 was unsatisfiable** and the builder substituted a stronger mutation, reviewer-reproduced |
+| 2026-09-14 | merge (tranche authority) | IE-027 | merged `71bf406`, 13/13, risk gate **lightweight** — the digest declared no deviation, no special case and one primitive that is the brief's own subject, and two parties had mechanically verified the byte-identity claim. `resolveEffects` 1,008 → 214 lines, thirteen resolvers, zero behaviour change, zero new tests, zero test files edited. Three surviving mutations reported as findings, not fixed — a behaviour-preserving move must not carry a fix |
+| 2026-09-14 | YELLOW → Fable | IE-024 | `ARCHITECTURE_BLOCKED` at the three-round cap, and the foreman agrees rather than overriding. The question: how to guard entries of the two nested effect lists when `checkShape` short-circuits, in a file five later tasks each add a rule to. The builder's three options and the evidence were gathered by the foreman and handed over; the answer will be recorded as an approved deviation if it changes what the brief asked for. **Not the YELLOW the tranche predicted** — IE-034's is still ahead |

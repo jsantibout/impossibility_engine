@@ -1,11 +1,11 @@
 # IE-021 — `COVERAGE.md` has one writer, so the gauntlet's diff means something
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: tooling
 tranche: 5
 parallel-safe: YES — `scripts/coverage.ts` and two test imports; no engine module
 depends-on: none
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a72e43e4cfed7fd8f · worktree-agent-a72e43e4cfed7fd8f
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
