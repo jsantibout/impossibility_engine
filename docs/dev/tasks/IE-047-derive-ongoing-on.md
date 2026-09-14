@@ -1,6 +1,6 @@
 # IE-047 — Derive `OngoingSpell.on`, and three tests the suite was missing
 
-state: IMPLEMENTING
+state: ARCHITECTURE_BLOCKED
 lane: conformance
 tranche: 6
 parallel-safe: CONDITIONAL — `fold/release`, `fold/expiry`, `commands/ongoing.ts`, `persistence-2.test.ts`; not beside IE-042 or IE-048
