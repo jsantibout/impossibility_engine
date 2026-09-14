@@ -22,12 +22,17 @@ Last whole-engine audit: the third, 2026-09-13 —
 `PROGRESS.md` under "Third architecture audit against the doctrine" and in
 the Done table, commit `588d7a0`.
 
-Engine tasks completed since last audit: 3
-Audit due at: 4
+Engine tasks completed since last audit: 4
+Audit due at: 4 — **reached; the audit runs before tranche 4 is proposed**
 
 The counter counts tasks that changed engine source outside tests and
-definition prose: IE-003 (`5dfbc39`), IE-005 (`4f829e9`) and IE-008
-(`601774c`). IE-004 (`0536a2b`) was conformance — a
+definition prose: IE-003 (`5dfbc39`), IE-005 (`4f829e9`), IE-008
+(`601774c`) and IE-001 (`7592efe`). **The threshold is reached.** The audit
+runs before tranche 4 is proposed at Gate 1, never instead of a gate, and the
+leverage audit recommends its charter: the restricted child vocabulary for
+outcome-scoped child effects. IE-007 is inside an already-approved roster and
+is unaffected — the audit gates the next *proposal*, not the completion of an
+approved tranche. IE-004 (`0536a2b`) was conformance — a
 guard, a script and two `unmodelled` strings — and is in the merge log below
 but not counted. What it added for the next audit to weigh is on its task
 file: the executed bucket now has a missing-shape vocabulary of its own
@@ -107,7 +112,7 @@ ordering tranche 2 left behind. Two items moved and one is new.
 | Role | Task | Lane | Parallel-safe |
 |---|---|---|---|
 | PRIMARY | IE-008 — Every pool a level grants, granted at advancement | mechanism | YES beside spell resolution — **merged `601774c`** |
-| PRIMARY | IE-001 — A condition applied with no saving throw | mechanism | CONDITIONAL |
+| PRIMARY | IE-001 — A condition applied with no saving throw | mechanism | CONDITIONAL — **merged `7592efe`** |
 | SEQUENTIAL | IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts | mechanism | NO beside IE-001 |
 | PARALLEL | IE-009 — Close out tranche 2's four findings | conformance | YES |
 
@@ -242,9 +247,23 @@ everywhere else and survives a re-vendoring.
 
 | Task | Lane | Parallel-safe | Tranche |
 |---|---|---|---|
-| [IE-001 — A condition applied with no saving throw](tasks/IE-001-condition-without-a-save.md) | mechanism | CONDITIONAL | 3 |
 | [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | NO beside IE-001 | 3 |
 | [IE-009 — Close out tranche 2's four findings](tasks/IE-009-tranche-2-findings.md) | conformance | YES | 3 |
+
+**IE-001 merged `7592efe`, and its unification found what the leverage audit
+predicted it would.** The three condition-rider spellings had each drifted to
+a different idea of which fields they read — an escape check reached two of
+the three, `outlivesCasting` only one — and those differences were accidents
+of the order the spells were written in rather than rules. No spell-by-spell
+test could have surfaced that, because each block was correct on its own
+terms. One type, one option-builder, one schema reader now, and the mutation
+that drops `unowned` from the shared helper fails four *Grease* tests, which
+is the evidence the merge preserved behaviour.
+
+**IE-007 launched on that base** and is the tranche's last task. Its item 2 —
+removing two fields from a persisted record while both frozen logs still fold
+— is the highest-risk thing in tranche 3, and its brief says to stop and
+report rather than regenerate a fixture if it cannot be done compatibly.
 
 ## NEXT
 
@@ -299,6 +318,8 @@ ranked map, which it re-confirmed rather than replaced.
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a tranche has room |
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
+| Should `save`'s **stored** layout adopt `ConditionRider` too? IE-001 gave it the type through `conditionRiderOf` without moving its storage, because the brief forbade changing the member. Moving it is ~30 definitions, the schema and `riderDurations`, and buys uniformity of storage where uniformity of vocabulary is already had | mechanism | IE-001's builder raised it as a question rather than taking it. A decision, not a defect |
+| `check` and `outlivesCasting` are now reachable on the `attack` and `save-damage` riders, where no definition uses them and no test covers those two combinations | content | the declared cost of one shared rider rather than three; expressible and unexercised |
 | `spell-schema.test.ts`'s runtime special-case sweep does not read `spell-definitions.ts`, where IE-005 moved seven readers | conformance | IE-009's builder. No special case is there today, verified with the sweep's own regex, so it is a hole and not a breach. The sweep's first half — an id compared against a literal — can simply be pointed there; its second half cannot, because a file of definitions names all 130 of its own ids |
 | **Multiclass Hit Dice pools are wrong, and the correct function is called by nothing.** `hitDicePools` (`multiclass.ts:142`) implements "Hit Dice pool by die type", is tested against both SRD worked examples (`multiclass.test.ts:203`) and is reached from no production code; `poolsFor` declares one Hit Die pool from the *starting* class. A Paladin 4 / Fighter 1 gets one `hit-die:d10` pool; a Cleric/Paladin gets no d8 pool at all | mechanism | IE-008's builder and reviewer, independently, in the function IE-008 refactored. Pre-existing and byte-identical across that diff, so it was correctly left alone. The eleventh instance in this repository of a pure function nothing calls, and a wrong number rather than a missing feature |
 
