@@ -1310,6 +1310,34 @@ const regionOf = (source: string, name: string): string => {
 const LITERAL_UNION = /^\|?\s*(?:'[a-z0-9-]+'\s*\|\s*)*'[a-z0-9-]+'$/;
 
 /**
+ * A union's arms, split at the pipes that are actually pipes.
+ *
+ * `String.split('|')` is right only while no arm contains one, and an object
+ * arm may — `{ readonly kind: 'a' | 'b' }` is one arm carrying a pipe, and
+ * splitting on it would invent two arms that are neither literals nor objects.
+ * So the split is depth-aware over `{}`, which is the only bracket the format's
+ * unions use, and an empty fragment from a leading `|` is dropped here rather
+ * than at every call site.
+ */
+const unionArms = (rhs: string): readonly string[] => {
+  const arms: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of rhs) {
+    if (char === '{') depth += 1;
+    if (char === '}') depth -= 1;
+    if (char === '|' && depth === 0) {
+      arms.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  arms.push(current);
+  return arms.map((arm) => arm.trim()).filter((arm) => arm !== '');
+};
+
+/**
  * Every optional field and every closed-union value one declaration writes.
  *
  * Derived from the source rather than listed, for the reason every sweep in
@@ -1323,20 +1351,28 @@ const membersOf = (source: string, name: string): readonly FormatMember[] => {
     found.set(label, { label, probe });
   };
 
-  // `export type RiderDuration = 'a' | 'b';` — the union *is* the members, and
-  // they are written as somebody's field value rather than under a name of
-  // their own, so the probe matches a value wherever it was written.
+  // `export type RiderDuration = 'a' | 'b' | { … };` — a union's bare
+  // string-literal arms *are* members, and they are written as somebody's
+  // field value rather than under a name of their own, so the probe matches a
+  // value wherever it was written.
+  //
+  // **A union mixing literals with object arms still has literal members**,
+  // and requiring the *whole* right-hand side to be literals is what hid them.
+  // `RiderDuration` is the one such union in the format and it contributed
+  // **nothing at all**: the object arm failed `LITERAL_UNION`, the walk fell
+  // through to the field probe, and that found one required non-union field.
+  // So the type whose members this sweep's own docstring names as the example
+  // was the one type it could not see — the `animals.md` failure arriving
+  // inside the guard again. Arms are taken one at a time now, and a union with
+  // no bare literal arms is unaffected, which is every other union here.
   const top = /^export type \w+ =([\s\S]*);\s*$/.exec(region.trim());
   if (top !== null) {
-    const rhs = top[1]!.replace(/\s+/g, ' ').trim();
-    if (LITERAL_UNION.test(rhs)) {
+    for (const arm of unionArms(top[1]!.replace(/\s+/g, ' ').trim())) {
       // A leading `|` splits to an empty fragment, which would be reported as
       // a member spelled `''` that no definition could ever write.
-      for (const literal of rhs.split('|').filter((part) => part.trim() !== '')) {
-        const value = literal.trim().slice(1, -1);
-        add(`${name}='${value}'`, `*='${value}'`);
-      }
-      return [...found.values()];
+      if (!/^'[a-z0-9-]+'$/.test(arm)) continue;
+      const value = arm.slice(1, -1);
+      add(`${name}='${value}'`, `*='${value}'`);
     }
   }
 
@@ -1525,6 +1561,61 @@ describe('every member of the definition format has a user or a written exemptio
 
   it('throws rather than reporting nothing for a declaration it cannot find', () => {
     expect(() => membersOf(source, 'NoSuchMember')).toThrow(/declares no NoSuchMember/);
+  });
+
+  /**
+   * **The arms of a union are read one at a time**, which is what lets a union
+   * mixing named moments with an object arm be seen at all. Asserted over
+   * synthetic source, and asserted to find the literals *and* the object arm's
+   * own optional field — because the walk no longer returns early, an arm that
+   * is not a literal still reaches the field probe.
+   */
+  it('derives the literal arms of a union that also has an object arm', () => {
+    const synthetic = [
+      'export type Mood =',
+      "  | 'sullen'",
+      "  | 'merry'",
+      '  | { readonly degrees: number; readonly since?: string };',
+    ].join('\n');
+    expect(membersOf(synthetic, 'Mood').map((m) => m.label)).toEqual([
+      "Mood='sullen'",
+      "Mood='merry'",
+      'Mood.since?',
+    ]);
+  });
+
+  /**
+   * And the pipe inside an object arm is not a union pipe. Splitting on it
+   * would invent arms that are neither literals nor objects, and the two
+   * halves of the nested union would be reported as members of the outer one.
+   */
+  it('does not split a union at a pipe inside an object arm', () => {
+    const synthetic = ["export type Held = 'loose' | { readonly grip: 'firm' | 'slack' };"].join(
+      '\n',
+    );
+    expect(membersOf(synthetic, 'Held').map((m) => m.label)).toEqual([
+      "Held='loose'",
+      "Held.grip='firm'",
+      "Held.grip='slack'",
+    ]);
+  });
+
+  /**
+   * The member this task added, named rather than left to the aggregate: its
+   * writer is Stinking Cloud's Poisoned, and the sweep can only say so because
+   * it can see `RiderDuration` at all. Before the arm-at-a-time read that type
+   * contributed no members whatever, so a fourth one could have been added
+   * with no writer and nothing would have reported it.
+   */
+  it('sees every named moment a rider may last until', () => {
+    expect(membersOf(source, 'RiderDuration').map((m) => m.label)).toEqual([
+      "RiderDuration='start-of-casters-next-turn'",
+      "RiderDuration='end-of-casters-next-turn'",
+      "RiderDuration='end-of-current-turn'",
+    ]);
+    expect(unused.map((member) => member.label)).not.toContain(
+      "RiderDuration='end-of-current-turn'",
+    );
   });
 
   /**

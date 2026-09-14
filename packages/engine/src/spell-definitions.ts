@@ -1,5 +1,11 @@
 import type { Ability, CharacterId, ConditionName, Skill } from '@ie/shared';
-import { endOfNextTurn, forSeconds, startOfNextTurn, type Duration } from './duration.js';
+import {
+  endOfCurrentTurn,
+  endOfNextTurn,
+  forSeconds,
+  startOfNextTurn,
+  type Duration,
+} from './duration.js';
 import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
@@ -104,9 +110,27 @@ export interface DiceScaling {
  * keeps the two kinds of "how long" apart rather than folding a minute into
  * whichever turn boundary happened to be nearest.
  */
+/**
+ * **A fourth member, and it is the one that names no anchor.**
+ *
+ * SRD Stinking Cloud: "have the Poisoned condition **until the end of the
+ * current turn**". The two caster-anchored members above cannot say it and
+ * neither can a target-anchored one, because the current turn is a moment in
+ * the Initiative order rather than a fact about anybody: Stinking Cloud's
+ * clause fires at a *start-of-turn* boundary, so the turn it ends at is the
+ * poisoned creature's own, while Superior Hunter's Defense answers damage
+ * taken on somebody else's turn and ends at theirs. One member, resolved
+ * against whoever is taking the turn.
+ *
+ * `end-of-casters-next-turn` is a full round too long for it — `ended` does
+ * not count the turn in progress, so "the end of your next turn" said on your
+ * own turn is two turn-endings away. That off-by-a-round is why this is a
+ * member of `Duration` rather than a spelling of one that was already there.
+ */
 export type RiderDuration =
   | 'start-of-casters-next-turn'
   | 'end-of-casters-next-turn'
+  | 'end-of-current-turn'
   | { readonly seconds: number };
 
 /**
@@ -1982,9 +2006,11 @@ export function statedDamageType(
 /**
  * The deadline a rider clause names.
  *
- * Two of the three members are anchored to the caster's own turn; the third is
- * a span on the clock, and the whole reason it is a separate member is that
- * the two are not interchangeable — see {@link RiderDuration}.
+ * Two of the four members are anchored to the caster's own turn; one is a span
+ * on the clock; and one — the turn in progress ending — is anchored to nobody,
+ * so it ignores the caster entirely and is resolved against whoever is taking
+ * the turn. The whole reason they are separate members is that none of them is
+ * interchangeable with another — see {@link RiderDuration}.
  */
 export function riderDuration(
   lasts: RiderDuration | undefined,
@@ -1992,6 +2018,7 @@ export function riderDuration(
 ): Duration | undefined {
   if (lasts === undefined) return undefined;
   if (typeof lasts === 'object') return forSeconds(lasts.seconds);
+  if (lasts === 'end-of-current-turn') return endOfCurrentTurn;
   return lasts === 'end-of-casters-next-turn'
     ? endOfNextTurn(casterId)
     : startOfNextTurn(casterId);
@@ -5520,6 +5547,74 @@ export const WEB: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Stinking Cloud:
+ *
+ * > _Level 3 Conjuration (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 90 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You create a 20-foot-radius Sphere of yellow, nauseating gas centered on
+ * > a point within range. The cloud is Heavily Obscured. The cloud lingers in
+ * > the air for the duration or until a strong wind (such as the one created
+ * > by _Gust of Wind_) disperses it."
+ * > "Each creature that starts its turn in the Sphere must succeed on a
+ * > Constitution saving throw or have the Poisoned condition **until the end
+ * > of the current turn**. While Poisoned in this way, the creature can't take
+ * > an action or a Bonus Action."
+ *
+ * **The casting does nothing at all**, exactly as Web's does: the gas simply
+ * appears, and every save the spell ever calls for comes from the trigger. A
+ * creature already standing in the Sphere when it is conjured is not caught by
+ * it, because nothing in the text says so.
+ *
+ * **It prints one clause and takes one field.** "Starts its turn" is the
+ * boundary and there is no entry clause and no once-per-turn cap, so `onEntry`
+ * and `oncePerTurn` are both absent — a cloud next door must not lend this
+ * spell a sentence it does not print, and `area-triggers.test.ts` holds all
+ * three fields against this paragraph out of the parsed book.
+ *
+ * **The Poisoned is the first consumer of `end-of-current-turn`.** The clause
+ * fires at a *start-of-turn* boundary, so the turn it ends at is the poisoned
+ * creature's own and the condition lasts exactly that creature's turn — which
+ * is the whole of what the spell does to them. `end-of-casters-next-turn`
+ * would have been a round or more out and anchored to the wrong creature
+ * entirely, and the casting's own minute would have left the gas poisoning
+ * somebody for the rest of the fight.
+ *
+ * It carries **no** `perSlotLevelAbove` and no `durationAtSlot`: the spell
+ * prints no _Using a Higher-Level Spell Slot_ line, so a level 9 casting is
+ * the same cloud for the same minute.
+ */
+export const STINKING_CLOUD: SpellDefinition = {
+  id: 'stinking-cloud',
+  name: 'Stinking Cloud',
+  level: 3,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 90 },
+  targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  effects: [],
+  areaTrigger: {
+    at: 'start-of-turn',
+    label: 'Stinking Cloud (the gas)',
+    effects: [
+      {
+        kind: 'save',
+        ability: 'con',
+        condition: 'poisoned',
+        lasts: 'end-of-current-turn',
+      },
+    ],
+  },
+  durationSeconds: 60,
+  unmodelled: [
+    'a creature Poisoned by the gas "can\'t take an action or a Bonus Action", which is an action the spell forbids rather than a condition the engine names',
+    'the cloud is Heavily Obscured, and obscurement is not modelled',
+    'a strong wind dispersing the cloud, which is a fact about the weather rather than a consequence the engine records',
+  ],
+};
+
 export const WATER_BREATHING: SpellDefinition = {
   id: 'water-breathing',
   name: 'Water Breathing',
@@ -7588,6 +7683,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SPIRIT_GUARDIANS,
   SPIRITUAL_WEAPON,
   STARRY_WISP,
+  STINKING_CLOUD,
   STONE_SHAPE,
   STONESKIN,
   SUGGESTION,

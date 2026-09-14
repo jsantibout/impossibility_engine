@@ -440,9 +440,13 @@ function checkSpellCheck(
  * the check is shared rather than spelled twice.
  *
  * **`typeof lasts === 'object'` is true of `null` as well**, so a rider that
- * carried one reached `.seconds` and threw. `RiderDuration` is two named
+ * carried one reached `.seconds` and threw. `RiderDuration` is three named
  * moments or a span of seconds, and anything else is a value no reader of this
  * field can do anything with.
+ *
+ * The moments are checked by name rather than against a derived set, because
+ * the union is a closed list the compiler already holds a definition to — what
+ * this guards is *untyped* input, where the compiler was never there.
  */
 function checkRiderDuration(
   lasts: RiderDuration | undefined,
@@ -461,7 +465,11 @@ function checkRiderDuration(
           'a rider that lasts no seconds does not last; omit it to borrow the casting’s own deadline',
       });
     }
-  } else if (lasts !== 'start-of-casters-next-turn' && lasts !== 'end-of-casters-next-turn') {
+  } else if (
+    lasts !== 'start-of-casters-next-turn' &&
+    lasts !== 'end-of-casters-next-turn' &&
+    lasts !== 'end-of-current-turn'
+  ) {
     found.push({
       field: `${riderPath}.lasts`,
       code: MALFORMED,

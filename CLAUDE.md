@@ -2134,7 +2134,7 @@ not is never "it needs a position":
 | Blocked on | Spells |
 |---|---|
 | A creature that **ends** its turn in an area | Moonbeam, Cloudkill, Incendiary Cloud, Insect Plague (and Grease and Black Tentacles, whose casts already execute) |
-| A creature that **starts** its turn in an area — a different boundary, a round apart | Stinking Cloud, Web, Sleet Storm, Zone of Truth |
+| A creature that **starts** its turn in an area — a different boundary, a round apart | Stinking Cloud and Web (**built**), Sleet Storm, Zone of Truth |
 | A creature that **enters** an area, on its own move or a forced one | Web, Grease, Insect Plague, Moonbeam, Cloudkill, Incendiary Cloud, Black Tentacles, Sleet Storm, Zone of Truth |
 | An area that **moves into** a creature's space — printed only by areas that move | Moonbeam and Spirit Guardians (**built**); Cloudkill and Incendiary Cloud, blocked on automatic turn-start drift |
 | Ending a turn within 5 feet of a point, and a point rolled into a creature's space | Flaming Sphere |
@@ -2612,7 +2612,7 @@ interchangeable:
 | | |
 |---|---|
 | A span of time | "1 minute", "8 hours", "10 days", "Concentration, up to 1 hour" |
-| A moment in the turn order | "until the start of your next turn", "until the end of your next turn" |
+| A moment in the turn order | "until the start of your next turn", "until the end of your next turn", "until the end of the current turn" |
 
 A round is six seconds, so folding the second into the first looks free. It is
 not. Where "the start of your next turn" falls depends on where the anchor sits
@@ -2635,6 +2635,41 @@ because the turn in progress has not ended yet, while "the start of your next
 turn" is one turn-beginning away, because the turn in progress has already
 begun. Callers say `startOfNextTurn(who)` and `endOfNextTurn(who)`; nobody
 writes counts by hand.
+
+**And the moment that asymmetry made unsayable is the turn in progress
+ending.** SRD writes "until the end of the **current** turn" — Stinking Cloud's
+Poisoned, Superior Hunter's Defense's Resistance, Steady Aim's Speed of 0 — and
+the nearest thing the vocabulary had was a full round out: `endOfNextTurn` said
+of the creature whose turn it is resolves *two* turn-endings away, because the
+turn in progress has not ended yet. `endOfCurrentTurn` is the fifth `Duration`
+member, and it is exactly one turn-ending away, always.
+
+**It names no anchor at all, and that is the member rather than an omission.**
+"The current turn" is a moment in the order and not a fact about a creature, so
+the anchor is derived at resolution from whoever is taking the turn. The two
+consumers prove the difference is real rather than cosmetic: Stinking Cloud's
+clause fires at a *start-of-turn* boundary, so the turn it ends at is the
+poisoned creature's own, while Superior Hunter's Defense answers damage taken
+on somebody **else's** turn and ends at the attacker's. An `of` field would
+have been read by nothing — one duration cannot be told which of those it is —
+and a field nothing reads is the speculative member the format's own sweeps
+exist to refuse.
+
+It is a **constant** rather than a function for the same reason, and it is
+still a constructor in the sense that matters: `resolveDuration` is the only
+thing that turns it into a count, so nobody writes one by hand. Combat-scoped
+like its four siblings, refusing `no_turns` outside a fight under the code they
+already use — **no conversion to seconds anywhere**, because there is no turn
+to convert, which is the whole of what the two-type split is for.
+
+**The mutation that proves it is the off-by-a-round it exists to prevent.**
+Changing the count from `ended + 1` to `ended + 2` — which is precisely what
+using `endOfNextTurn` here would have done — reddens five tests in two files:
+the two constructors compared in the same instant, the pair driven through a
+fold a round apart, the anchor case, and both ends of Stinking Cloud. And the
+mutation that anchors the rider to the **caster** instead reddens the two spell
+drives alone, which is what a caster standing outside their own cloud is in the
+fixture for.
 
 **Turn-anchored timing is combat-scoped, and that is a policy, not a rule.**
 When the fight ends, or the anchor leaves the Initiative order, the moment the
@@ -3012,11 +3047,14 @@ The recurring blockers, each wanted by several classes:
   |---|---|
   | A fifth `ReactionEffect` member | the union's own rule is that a member exists because **at least two** features write it, and this is one. `reduce-damage` is not a substitute: SRD orders Uncanny Dodge's halving as an *adjustment* and Resistance second, so a Ranger who already resists would take a quarter under the wrong one |
   | "that damage", when a hit deals two types | the SRD prints no worked example, exactly as it prints none for which type Uncanny Dodge comes off — so it is a choice the engine would have to make and state, like `adjustmentsFor`'s |
-  | "the end of the **current** turn" | a fifth `Duration` member. `endOfNextTurn` said of the creature whose turn it is resolves two turn-endings away, which is a round late |
+  | ~~"the end of the **current** turn"~~ | **built** — `endOfCurrentTurn`, the fifth `Duration` member. `endOfNextTurn` said of the creature whose turn it is resolves two turn-endings away, which is a round late, and this Reaction is usually taken on somebody else's turn |
 
-  So the member is built and its runtime user is not, which is the honest
-  order: the deadline was the part nothing could express, and the rest is a
-  feature task with three decisions in it.
+  So **both** deadlines are built and the runtime user is not, which is the
+  honest order: the parts nothing could express were the grant's lifetime and
+  the moment it ends at, and what is left is a feature task with two decisions
+  in it. Stinking Cloud is what supplied the moment — the member arrived with
+  a writer rather than ahead of one, which is the rule a closed union is held
+  to everywhere else here.
 - **Auras that follow a creature.** Every Paladin aura, Spirit Guardians.
 - **Defences that change after a rest.** Fiendish Resilience, Rage.
 - **A grant that can be re-chosen on a rest.** Circle of the Land's spells, and
@@ -3232,6 +3270,14 @@ rather than being an enum somebody invented:
 | Web | **start** | first-per-turn | — | the entry is capped; the boundary is not |
 | Grease | end | every-entry | — | nothing is capped at all |
 | Black Tentacles | end | every-entry | **yes** | one save a turn |
+| Stinking Cloud | **start** | *(none)* | — | the boundary and nothing else |
+
+**Stinking Cloud is the one that writes a single clause**, which is what makes
+it the floor of the table rather than a fifth variation: "Each creature that
+starts its turn in the Sphere" is the whole of it, so `onEntry` and
+`oncePerTurn` are both absent and walking into the gas costs nothing until your
+own turn comes round. A neighbouring cloud must not lend it either field, and
+the guard that says so is the prose check below rather than this row.
 
 **Web against Insect Plague is the pair that proves the difference is real.**
 "The first time a creature enters the webs on a turn **or** starts its turn
@@ -4100,6 +4146,22 @@ The last is the interesting shape. A task that may not change the format cannot
 So the exemption names the task that removes it, and the rule that **an
 exemption must name a member the format still declares** is what turns that
 removal into a one-line deletion rather than a search.
+
+**And the one union it could not see was the one its own docstring named.**
+The reader had two paths: a type alias whose **whole** right-hand side is
+string literals contributed its arms, and anything else fell through to a walk
+over `readonly` fields. `RiderDuration` is neither — two named moments and an
+object arm — so the whole-union test failed, the field walk found its one
+required non-union field, and the type contributed **nothing at all**. The
+comment explaining the first path used `RiderDuration` as its example. So a
+fourth member could have been added to it with no writer and the sweep that
+exists to report exactly that would have said nothing, which is the
+`animals.md` failure arriving inside the guard against it for the second time
+— the first was the leading `|`. Arms are read one at a time now, the split is
+depth-aware because an object arm may carry a pipe of its own, and a union with
+no bare literal arms is unaffected, which is every other union in the format.
+Measured before it was changed: `RiderDuration` is the only mixed union there,
+so the repair surfaced three members and all three already had writers.
 
 **The probe is coarser than the member, and that is the sound choice.** A
 member is looked up by field name and value, not by the type that declared it,
@@ -5518,11 +5580,12 @@ nothing reads would be a vocabulary with no reader. The note names the half
 rather than the feature being demoted to `manual`, which is the shape Colossus
 Slayer's and Deflect Attacks' notes already use.
 
-**Steady Aim stays `manual`, and the Speed is not what blocks it.** `speedOf`
-reads a grant like any other; what is missing is "until the end of the current
-turn", which is a `Duration` member with no other consumer — the same one
-Superior Hunter's Defense wants — and a one-shot Advantage consumed by the roll
-it changes, which nothing here consumes.
+**Steady Aim stays `manual`, and neither half of its Speed sentence blocks it
+any more.** `speedOf` reads a grant like any other, and "until the end of the
+current turn" is `endOfCurrentTurn` — the member Superior Hunter's Defense
+wanted too, built with Stinking Cloud as its writer. What is left is the clause
+the feature is actually for: a one-shot Advantage consumed by the roll it
+changes, which nothing here consumes.
 
 #### The requirement that could not read its own answer
 
@@ -7763,8 +7826,10 @@ null and is reported — it never becomes either.
   Bonus Action. Areas of effect, healing, saving throws for damage or a
   condition, Temporary Hit Points, lasting bonuses and an interruptible casting
   all work. **A persistent area catches a creature at a moment the spell
-  names** — see that section: Insect Plague, Web, Grease and Black Tentacles
-  all trigger on the turn boundary the SRD prints and on entering. **And an
+  names** — see that section: Insect Plague, Web, Grease, Black Tentacles and
+  Stinking Cloud all trigger on the turn boundary the SRD prints, and all but
+  the last on entering, which is the clause Stinking Cloud does not print.
+  **And an
   area can arrive at a creature standing still** — see "An Area Can Arrive At A
   Creature Standing Still": Moonbeam's Cylinder is moved by a later Magic
   action, along a route the caller states, and catches whoever it comes to.

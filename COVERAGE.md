@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 45 (13.3%) | 96 (28.3%) | 47 | 74 (21.8%) |
+| 339 | 45 (13.3%) | 97 (28.6%) | 48 | 75 (22.1%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -44,7 +44,7 @@ spell, and the area is the part that is missing.
 | Shape | Parsed | Tracked | Executed | Blocked on |
 |---|---|---|---|---|
 | Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 2 | 26 | — |
+| Area of effect | 73 | 2 | 27 | — |
 | Reaction timing | 4 | 0 | 3 | falling — Counterspell now has a casting it can hold open |
 | Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
 | An ongoing effect that acts on later turns | 18 | 1 | 3 | an effect that a later turn can act through |
@@ -145,6 +145,7 @@ spell, and the area is the part that is missing.
 - **Spirit Guardians** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Spiritual Weapon** (level 2) — verified
 - **Starry Wisp** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
+- **Stinking Cloud** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Stoneskin** (level 4) — verified
 - **Suggestion** (level 2) — untested
 - **Sunbeam** (level 6) — untested, partial — a clause the engine owns is still unbuilt
@@ -222,7 +223,7 @@ ranked at 17, at 4 and at 2 in three different documents.
 |---|---|---|---|---|---|
 | `a-long-casting-time` | 54 | 12 | 0 | 0 | 54 |
 | `a-stat-block-created-mid-fight` | 15 | 4 | 1 | 0 | 14 |
-| `an-action-a-spell-compels-or-forbids` | 26 | 3 | 9 | 0 | 17 |
+| `an-action-a-spell-compels-or-forbids` | 26 | 2 | 10 | 0 | 16 |
 | `a-second-place-to-put-a-creature` | 19 | 2 | 1 | 0 | 18 |
 | `a-target-rule-the-format-cannot-state` | 13 | 2 | 0 | 0 | 13 |
 | `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 10 |

@@ -84,7 +84,15 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const PREPARED = ['insect-plague', 'web', 'grease', 'black-tentacles', 'bless', 'hold-person'];
+const PREPARED = [
+  'insect-plague',
+  'web',
+  'grease',
+  'black-tentacles',
+  'bless',
+  'hold-person',
+  'stinking-cloud',
+];
 
 const added = (who: CharacterId): GameEvent => ({
   type: 'creature-added',
@@ -139,6 +147,21 @@ const SPHERE: Point = { x: 300, y: 200, z: 0 };
 const CUBE: Point = { x: 250, y: 200, z: 0 };
 const TOWARDS: Point = { x: 300, y: 200, z: 0 }; // a Cube is laid along +x
 const AWAY: Point = { x: 200, y: 200, z: 0 }; // …or along -x, which is a different Cube
+/**
+ * Stinking Cloud's Sphere gets a centre of its own, and the arithmetic is why.
+ *
+ * It cannot share `CUBE`: a **20-foot radius** reaches 20 feet from that
+ * centre, where a **20-foot Cube** laid along +x does not reach back at all —
+ * so `outside cube` at x=240 is outside Web's Cube and squarely *inside* a
+ * Sphere centred there, and MOVER would begin the fixture already standing in
+ * the gas. It cannot be `SPHERE` either: that is 100 feet from the caster and
+ * Stinking Cloud reaches 90.
+ *
+ * At x=275 the three distances it has to get right all come out: 75 feet from
+ * the caster (inside the spell's Range), 35 from `outside cube` (out of the
+ * gas, so MOVER starts clean) and 15 from `inside cube` (in it).
+ */
+const CLOUD: Point = { x: 275, y: 200, z: 0 };
 
 const spot = (name: string, at: Point): GameEvent => ({ type: 'landmark-added', name, at });
 
@@ -487,6 +510,88 @@ describe('a creature that starts or ends its turn in the area', () => {
     g.settle('entry');
     g.push([{ type: 'time-advanced', seconds: 60, reason: 'a long look round' }]);
     expect(g.owed()).toEqual([]);
+  });
+});
+
+/**
+ * SRD Stinking Cloud, whole clause: "Each creature that starts its turn in the
+ * Sphere must succeed on a Constitution saving throw or have the Poisoned
+ * condition **until the end of the current turn**."
+ *
+ * It is the first spell in the book the engine can say that about, and the
+ * point of driving it here rather than trusting `duration.test.ts` is that the
+ * rider travels a long way before it becomes a deadline: from the definition,
+ * through the trigger's effect list, through `riderDuration`, into
+ * `resolveDuration` at the moment the debt settles. Every one of those is a
+ * place the anchor could have been read off the caster instead, and a caster
+ * standing outside the cloud is what makes the difference visible.
+ *
+ * **The whole of what the spell does to a creature lasts that creature's own
+ * turn.** The clause fires at a start-of-turn boundary, so the turn in
+ * progress is the poisoned creature's; `end-of-casters-next-turn` would have
+ * anchored to the cleric across the room and run a round or more longer.
+ */
+describe('a condition that lasts until the end of the turn in progress', () => {
+  it('poisons a creature that starts its turn in the gas, for that turn only', () => {
+    const g = new Game();
+    g.conjure('stinking-cloud', CLOUD, { slotLevel: 3, seed: 'cloud' });
+
+    // Walking in owes nothing: the spell prints no entry clause, which is the
+    // half `every trigger is a clause the SRD actually prints` holds to the
+    // book. So the gas has done nothing to anybody yet.
+    g.walk(MOVER, 'inside cube');
+    g.settle('entry');
+    expect(g.has(MOVER, 'poisoned')).toBe(false);
+
+    // Round the order back to the top of MOVER's own turn. The boundary raises
+    // the debt and `resolveTurn` settles it with the fixture's −40, so the
+    // Constitution save fails and the gas lands.
+    g.turn('movers-first-turn-ends');
+    g.to(MOVER);
+    expect(g.has(MOVER, 'poisoned')).toBe(true);
+
+    // And it is gone the moment that turn ends — one turn-ending away, not the
+    // two "the end of your next turn" comes to when it is said on your own.
+    g.turn('movers-second-turn-ends');
+    expect(g.has(MOVER, 'poisoned')).toBe(false);
+  });
+
+  /**
+   * The same cloud, on the next round, with nobody having done anything about
+   * it: a creature that is still standing there starts its turn and is
+   * poisoned again. A deadline that had ended the *casting* rather than the
+   * condition would show up here and nowhere else.
+   */
+  it('poisons them again the next time they start a turn in it', () => {
+    const g = new Game();
+    g.conjure('stinking-cloud', CLOUD, { slotLevel: 3, seed: 'cloud' });
+    g.walk(MOVER, 'inside cube');
+
+    g.turn('first');
+    g.to(MOVER);
+    expect(g.has(MOVER, 'poisoned')).toBe(true);
+    g.turn('second');
+    expect(g.has(MOVER, 'poisoned')).toBe(false);
+
+    g.to(MOVER);
+    expect(g.has(MOVER, 'poisoned')).toBe(true);
+  });
+
+  /**
+   * And the cloud really is what did it, rather than the fixture: the save is
+   * rolled at the boundary and reported, and a creature standing outside the
+   * Sphere the whole time is never poisoned at all.
+   */
+  it('settles a save for the creature in the gas and none for the one outside', () => {
+    const g = new Game();
+    g.conjure('stinking-cloud', CLOUD, { slotLevel: 3, seed: 'cloud' });
+    g.walk(MOVER, 'inside cube');
+    g.turn('first');
+
+    const settled = g.to(MOVER).log.filter((e) => e.type === 'area-effect-settled');
+    expect(settled.length).toBeGreaterThan(0);
+    expect(settled.every((e) => e.moment === 'start-of-turn')).toBe(true);
+    expect(g.has(SITTER, 'poisoned')).toBe(false);
   });
 });
 

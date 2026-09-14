@@ -29,6 +29,25 @@ export type Duration =
   | { readonly kind: 'seconds'; readonly seconds: number }
   | { readonly kind: 'start-of-next-turn'; readonly of: CharacterId }
   | { readonly kind: 'end-of-next-turn'; readonly of: CharacterId }
+  /**
+   * The turn **in progress** ending — SRD's "until the end of the current
+   * turn", which is not anybody's *next* turn.
+   *
+   * `end-of-next-turn` said of the creature whose turn it is resolves **two**
+   * turn-endings away, because the turn in progress has not ended yet; that is
+   * a full round late for this sentence. Three SRD consumers write it —
+   * Stinking Cloud's Poisoned, Superior Hunter's Defense's Resistance, Steady
+   * Aim's Advantage — and none of them could be said before this member.
+   *
+   * **It names no anchor, and that is the member rather than an omission.**
+   * "The current turn" is a moment in the order, not a fact about a creature:
+   * Superior Hunter's Defense is a Reaction to damage taken on somebody
+   * *else's* turn, and the turn it ends at is the attacker's. So the anchor is
+   * derived at resolution from whoever is taking the turn, and an `of` field
+   * naming a creature would be one no reader could honestly use — the
+   * speculative member this repository's sweeps exist to refuse.
+   */
+  | { readonly kind: 'end-of-current-turn' }
   | { readonly kind: 'indefinite' };
 
 /** What the log records. Absolute, and always answerable. */
@@ -43,6 +62,15 @@ export type Deadline =
 export const forSeconds = (seconds: number): Duration => ({ kind: 'seconds', seconds });
 export const startOfNextTurn = (of: CharacterId): Duration => ({ kind: 'start-of-next-turn', of });
 export const endOfNextTurn = (of: CharacterId): Duration => ({ kind: 'end-of-next-turn', of });
+/**
+ * SRD "until the end of the current turn".
+ *
+ * A constant rather than a function, because it takes no anchor — which is the
+ * whole difference between it and {@link endOfNextTurn}. It is still a
+ * constructor in the sense that matters here: nobody writes a turn count by
+ * hand, and {@link resolveDuration} is the only thing that turns it into one.
+ */
+export const endOfCurrentTurn: Duration = { kind: 'end-of-current-turn' };
 export const indefinite: Duration = { kind: 'indefinite' };
 
 /**
@@ -109,6 +137,30 @@ export function resolveDuration(view: TimeView, duration: Duration): Result<Dead
       // is one away. This asymmetry is the whole reason the constructors exist
       // rather than callers writing counts.
       return ok({ kind: 'turn-end', of: duration.of, count: turns.ended + (theirTurn ? 2 : 1) });
+    }
+
+    case 'end-of-current-turn': {
+      if (view.combat === null) {
+        return err('no_turns', 'there are no turns outside combat to anchor a duration to');
+      }
+
+      // The anchor is whoever is taking the turn, which is what makes this a
+      // different member rather than `end-of-next-turn` said of them: `ended`
+      // does not count the turn in progress, so its end is always exactly one
+      // away — never the two that "your next turn" comes to on your own turn.
+      const holder = view.combat.order[view.combat.turnIndex];
+      const turns = holder === undefined ? null : turnsOf(view.combat, holder.id);
+      if (holder === undefined || turns === null) {
+        // Not reachable through any command: `turnCounts` is kept in exact step
+        // with `order` by every operation that changes either. It is a value
+        // rather than a throw because this function's contract is to hand back
+        // a refusal, and it is `not_in_combat` because a caller branching on a
+        // turn-anchored duration's refusals should not need a third code to
+        // learn the same thing — there is no turn here to anchor to.
+        return err('not_in_combat', 'this combat holds no turn in progress to end');
+      }
+
+      return ok({ kind: 'turn-end', of: holder.id, count: turns.ended + 1 });
     }
   }
 }

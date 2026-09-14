@@ -861,6 +861,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The Dim Light is the table’s, because light is not modelled. Taking the benefit away is not: the attack halves of Invisible read declared sight and a DM can answer those, while `initiativeConditionModes` grants its Initiative Advantage from the condition’s presence alone — so a creature the wisp has lit still rolls Initiative with Advantage, and no declaration exists that would stop it.',
     },
   ],
+  'stinking-cloud': [
+    {
+      clause: "can't take an action or a Bonus Action",
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'SRD: "While Poisoned in this way, the creature can’t take an action or a Bonus Action." The gas, the Constitution save and the Poisoned all run; what does not is the sentence after them. The action economy is the engine’s and `mayAct` guards every spender, and the only lever a spell has on it is a condition the engine names — Poisoned is not that condition, so a creature the cloud has poisoned may still take its Action.',
+    },
+  ],
   sunbeam: [
     {
       clause: 'creates a new Line on a later turn',
@@ -1669,7 +1676,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-distance-a-creature-travels-inside-an-area',
     'difficult-terrain-an-area-creates',
   ],
-  'stinking-cloud': ['an-action-a-spell-compels-or-forbids'],
   'storm-of-vengeance': [
     'an-activation-that-resolves-an-area',
     'an-area-trigger-on-the-casters-turn',

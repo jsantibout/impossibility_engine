@@ -170,7 +170,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Steady Aim',
       level: 3,
       automation: 'manual',
-      note: 'SRD: "you can take a Bonus Action to give yourself Advantage on your next attack roll on the current turn. You can use this Bonus Action only if you haven’t moved during this turn, and after you use it, your Speed is 0 until the end of the current turn." Not modelled, and the Speed is not the blocker — speedOf reads a grant like any other. What is missing is "until the end of the current turn", which is a Duration member with no other consumer, and a one-shot Advantage that is consumed by the roll it changes, which nothing here consumes.',
+      note: 'SRD: "you can take a Bonus Action to give yourself Advantage on your next attack roll on the current turn. You can use this Bonus Action only if you haven’t moved during this turn, and after you use it, your Speed is 0 until the end of the current turn." Not modelled, and neither half of the Speed sentence is the blocker any more: `speedOf` reads a grant like any other, and "until the end of the current turn" is `end-of-current-turn`, which IE-043 built for Stinking Cloud. What is left is the clause this feature is actually for — a one-shot Advantage that is consumed by the roll it changes, which nothing here consumes — and the "haven’t moved during this turn" condition on spending the Bonus Action.',
     },
     {
       id: 'rogue:ability-score-improvement',

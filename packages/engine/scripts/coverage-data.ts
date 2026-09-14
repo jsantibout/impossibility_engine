@@ -241,6 +241,7 @@ export const PARTIAL_SPELLS: readonly string[] = [
   'shocking-grasp',
   'spirit-guardians',
   'starry-wisp',
+  'stinking-cloud',
   'sunbeam',
   'thunderwave',
   'vampiric-touch',
@@ -321,6 +322,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // would be the same report telling a different lie.
   'spirit-guardians',
   'spiritual-weapon',
+  // Driven end to end in `area-triggers.test.ts`: conjured at a point, a
+  // creature starting its turn in the Sphere, the Constitution save rolled at
+  // the boundary, the Poisoned landing, and the condition gone when that same
+  // turn ends. Partial as well as verified, which is the pair Spirit Guardians
+  // above already records — the gas runs and the sentence after it does not.
+  'stinking-cloud',
   'stoneskin',
   'sunburst',
   'thunderwave',

@@ -7,6 +7,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { castingSource } from './spells.js';
 import {
+  endOfCurrentTurn,
   endOfNextTurn,
   forSeconds,
   hasExpired,
@@ -317,6 +318,147 @@ describe('an effect that lasts until a turn', () => {
     );
     const after = fold('seed', [...log, { type: 'combat-ended' }]);
     expect(conditionsOf(after, 'goblin')).toContain('poisoned');
+  });
+});
+
+/**
+ * **The turn in progress, which is not anybody's *next* turn.**
+ *
+ * SRD writes "until the end of the current turn" — Stinking Cloud's Poisoned,
+ * Superior Hunter's Defense's Resistance, Steady Aim's Advantage — and the
+ * engine had no way to say it. `endOfNextTurn` said of the creature whose turn
+ * it is resolves **two** turn-endings away, because the turn in progress has
+ * not ended yet, which is a full round late. That off-by-a-round is the whole
+ * reason this member exists, and the first test below is the one that catches
+ * it: both constructors, said in the same instant, a round apart.
+ *
+ * **It names no anchor**, and that is the member rather than an omission. "The
+ * current turn" is a moment in the order, not a fact about a creature — SRD
+ * Superior Hunter's Defense is a Reaction to damage taken on somebody *else's*
+ * turn, and the turn it ends at is the attacker's. So the anchor is derived at
+ * resolution from whoever is taking the turn, and a field naming a creature
+ * would be one nothing could read.
+ */
+describe('an effect that lasts until the end of the turn in progress', () => {
+  /**
+   * The trap, asserted as arithmetic first. The wizard is up; `ended` does not
+   * count the turn in progress, so the current turn's end is one away and "the
+   * end of your next turn" is two — a full round further on.
+   */
+  it('resolves a full round earlier than the end of the anchor next turn', () => {
+    const view = timeView(fold('seed', fight()));
+
+    expect(unwrap(resolveDuration(view, endOfCurrentTurn), 'current')).toEqual({
+      kind: 'turn-end',
+      of: id('wizard'),
+      count: 1,
+    });
+    expect(unwrap(resolveDuration(view, endOfNextTurn(id('wizard'))), 'next')).toEqual({
+      kind: 'turn-end',
+      of: id('wizard'),
+      count: 2,
+    });
+  });
+
+  /**
+   * And the same pair behaviourally, because the arithmetic above is only a
+   * claim about two numbers until something folds them. One turn-ending ends
+   * the first; the wizard's own next turn has to come round and finish before
+   * the second goes.
+   */
+  it('ends at this turn ending, where the next-turn version lasts a round longer', () => {
+    const current = run(fight(), (s) =>
+      applyConditionTo(s, id('goblin'), 'restrained', 'a fume', [], endOfCurrentTurn),
+    );
+    const next = run(fight(), (s) =>
+      applyConditionTo(s, id('goblin'), 'restrained', 'a fume', [], endOfNextTurn(id('wizard'))),
+    );
+
+    // The wizard's turn ends: the current-turn version is already gone.
+    expect(conditionsOf(fold('seed', [...current.log, ...tick(1)]), 'goblin')).not.toContain(
+      'restrained',
+    );
+    // The other survives the whole round, and the wizard's next turn beginning.
+    expect(conditionsOf(fold('seed', [...next.log, ...tick(3)]), 'goblin')).toContain('restrained');
+    expect(conditionsOf(fold('seed', [...next.log, ...tick(4)]), 'goblin')).not.toContain(
+      'restrained',
+    );
+  });
+
+  /**
+   * Said on somebody else's turn it anchors to **them**, which is the case
+   * Superior Hunter's Defense is: a Reaction to damage taken while the goblin
+   * is up ends when the goblin's turn does, not when the ranger's next one
+   * does.
+   */
+  it('anchors to whoever is taking the turn, not to whoever asked', () => {
+    const onGoblinTurn = [...fight(), ...tick(1)];
+    const view = timeView(fold('seed', onGoblinTurn));
+
+    expect(unwrap(resolveDuration(view, endOfCurrentTurn), 'current')).toEqual({
+      kind: 'turn-end',
+      of: id('goblin'),
+      count: 1,
+    });
+
+    const { log } = run(onGoblinTurn, (s) =>
+      applyConditionTo(s, id('wizard'), 'frightened', 'a shriek', [], endOfCurrentTurn),
+    );
+    expect(conditionsOf(fold('seed', log), 'wizard')).toContain('frightened');
+    // The goblin's turn ends and takes it, a turn before the cleric's begins.
+    expect(conditionsOf(fold('seed', [...log, ...tick(1)]), 'wizard')).not.toContain('frightened');
+  });
+
+  /**
+   * Combat-scoped exactly as its four siblings are. No conversion to seconds,
+   * because there is no turn to convert: a round is six seconds only once
+   * somebody is taking turns.
+   */
+  it('refuses outside combat, under the code its siblings use', () => {
+    const view = timeView(fold('seed', table()));
+    const result = resolveDuration(view, endOfCurrentTurn);
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.code).toBe('no_turns');
+  });
+
+  /**
+   * And refuses where the fight holds no turn anybody is taking.
+   *
+   * There is no `of` for a caller to get wrong, so the anchor that can be
+   * missing is the combat's own: a turn index pointing at nobody, or a holder
+   * with no counts. No public command can build either — `turnCounts` is kept
+   * in exact step with `order`, which is the invariant `combat.test.ts` pins —
+   * so the fixture is built by hand, which `resolveDuration` being pure over a
+   * `TimeView` is what allows. Same move `restoreOn`'s dawn-recovering pool
+   * makes for a branch no class can reach: a guard nothing can reach is not a
+   * rule, and a pure function will take a fixture that reaches it.
+   */
+  it('refuses where the combat holds no turn in progress', () => {
+    const state = fold('seed', fight());
+    const combat = state.combat!;
+
+    const noHolder = resolveDuration({ elapsed: state.elapsed, combat: { ...combat, order: [] } }, endOfCurrentTurn);
+    expect(isErr(noHolder)).toBe(true);
+    if (isErr(noHolder)) expect(noHolder.code).toBe('not_in_combat');
+
+    const noCounts = resolveDuration(
+      { elapsed: state.elapsed, combat: { ...combat, turnCounts: {} } },
+      endOfCurrentTurn,
+    );
+    expect(isErr(noCounts)).toBe(true);
+    if (isErr(noCounts)) expect(noCounts.code).toBe('not_in_combat');
+  });
+
+  /**
+   * It ends with the fight like every other turn-anchored deadline, rather
+   * than hanging on a moment that can no longer arrive.
+   */
+  it('ends when the fight does', () => {
+    const { log } = run(fight(), (s) =>
+      applyConditionTo(s, id('goblin'), 'restrained', 'a fume', [], endOfCurrentTurn),
+    );
+    const after = fold('seed', [...log, { type: 'combat-ended' }]);
+    expect(conditionsOf(after, 'goblin')).not.toContain('restrained');
   });
 });
 
