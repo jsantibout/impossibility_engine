@@ -1,11 +1,11 @@
 # IE-057 — Ending Concentration while the world owes a saving throw
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 7
 parallel-safe: CONDITIONAL — `commands/casting.ts`; not beside IE-053
 depends-on: none
-worker: none
+worker: qb-builder, launched 2026-09-14 from `ce20eba` (wave 3)
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 
