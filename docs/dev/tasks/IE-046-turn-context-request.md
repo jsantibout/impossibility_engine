@@ -1,11 +1,11 @@
 # IE-046 — A turn-anchored rider outside combat asks for turn context
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `packages/shared/src/result.ts`, `commands/spell-resolution.ts`, `commands/conditions.ts`, `commands/casting.ts`; not beside IE-038, IE-041, IE-042 or IE-048
 depends-on: IE-038, IE-043
-worker: none
+worker: qb-builder in .claude/worktrees/agent-a0499dbc79bb08aa5, branch worktree-agent-a0499dbc79bb08aa5
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
