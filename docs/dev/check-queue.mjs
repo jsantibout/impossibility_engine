@@ -249,10 +249,14 @@ function main() {
   }
   const tranches = parseTranches(queue);
   checkTranches(tranches, tasks, known);
-  const since = queue.match(/^Engine tasks completed since last audit:\s*(\d+)/m);
+  // The budget is architecture *change*, not task count: a raw count was too
+  // sensitive at this throughput and would have called a broad Fable audit once
+  // or twice a day however little actually moved. WORKFLOW.md carries the 0/1/2/3
+  // weighting; the weight is recorded at merge from what landed.
+  const since = queue.match(/^Architecture-change points since last audit:\s*(\d+)/m);
   const dueAt = queue.match(/^Audit due at:\s*(\d+)/m);
   if (since === null || dueAt === null) {
-    problem('docs/dev/QUEUE.md', 'needs "Engine tasks completed since last audit: N" and "Audit due at: N" lines');
+    problem('docs/dev/QUEUE.md', 'needs "Architecture-change points since last audit: N" and "Audit due at: N" lines');
   }
 
   // The summary a fresh session reads first.
@@ -304,7 +308,7 @@ function main() {
   if (since !== null && dueAt !== null) {
     const n = Number(since[1]);
     const due = Number(dueAt[1]);
-    console.log(`Audit: ${n} engine task(s) since the last whole-engine audit; due at ${due}${n >= due ? ' → WHOLE_ENGINE_AUDIT_DUE' : ''}`);
+    console.log(`Audit: ${n} architecture-change point(s) since the last whole-engine audit; due at ${due}${n >= due ? ' → WHOLE_ENGINE_AUDIT_DUE' : ''}`);
   }
   if (problems.length === 0) {
     console.log('Problems: none');

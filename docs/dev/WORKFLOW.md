@@ -96,9 +96,56 @@ anyway — launch, digest, merge — never as a running status.
 
 ## The tranche is the unit of owner authority
 
-A **tranche** is a bounded set of roughly **3–5 meaningful tasks**, with their
-dependencies, their execution order and their concurrency stated. It is
-numbered, and every task in it carries `tranche: N` in its header.
+A **tranche** is a bounded set of work targeting roughly **four to six hours
+of autonomous development**, when the ready queue honestly supports that much.
+A normal tranche holds **about 8–12 meaningful tasks** — guidance, not a
+quota. It is numbered, and every task in it carries `tranche: N` in its header.
+
+**Never bundle work to hit a number.** If six tasks are honestly ready, propose
+six. A task is honestly ready when it is briefed well enough that a builder
+never has to invent architecture — which is the same bar as always, applied to
+a longer list.
+
+### Waves
+
+A tranche contains one or more **waves**, and a wave is a dependency boundary
+rather than an approval boundary:
+
+```
+TRANCHE N
+  Wave 1 — Task A, Task B, Task C        (no dependencies)
+  Wave 2 — Task D, Task E                (after A merges)
+  Wave 3 — Task F, Task G                (after D merges)
+```
+
+**One owner approval authorises the whole listed tranche.** Inside it the
+foreman may, without asking again: launch the parallel-safe tasks of a wave;
+auto-merge clean work under tranche authority; **launch a later wave the moment
+its dependencies are satisfied**; re-order approved tasks when repository
+evidence requires it; **defer an approved task** that evidence shows is
+premature, invalid or unnecessary, and carry on with the rest; run ordinary
+builder ↔ reviewer rework; and invoke Fable for a bounded YELLOW question.
+
+**There is no gate between waves.** The tranche is the hard autonomy boundary,
+and it is unchanged: the foreman may not add a task that was not listed, may
+not materially widen an approved task's scope, may not treat a newly discovered
+task as implicitly approved, and may not continue past a RED issue.
+
+A deferred task is recorded with its reason and reported at
+`TRANCHE_COMPLETE`.
+
+### "Sequential" is a wave, not a tranche
+
+Two tasks that may not run *concurrently* — because they touch the same union,
+the same foundational primitive, the same file — are **sequential waves inside
+one tranche**, not one task per tranche. "At most one union-changing task at a
+time" is a concurrency constraint and the wave structure is how it is
+expressed. Splitting such a chain across tranches makes the owner an approval
+bottleneck for a fact the foreman already knows.
+
+The bar is unchanged: each task in the chain must be briefed well enough to be
+honestly approved *now*. A task that needs the previous one's findings before
+it can be briefed is not ready, and belongs in the next tranche.
 
 **The owner's approval of a tranche authorises exactly the listed tasks** to
 move through implementation, review, ordinary rework, the risk-gate check
@@ -345,9 +392,11 @@ touching" set in `CONTRIBUTING.md`: `dnd.ts`, `result.ts`, `character.ts`,
 the `GameEvent` union — a task touching those is `parallel-safe: NO`.
 
 Classify every task `YES`, `NO` or `CONDITIONAL`, and say why in one line.
-Zero, one, two or three builders are all normal states; there is no
-utilisation target. **A tranche of five tasks does not mean five builders**: it
-means five approved tasks and an execution order.
+Concurrency is **bounded by parallel safety rather than by a number** — two to
+five builders is the normal range, and zero is a normal state too. There is no
+utilisation target. **A wave of five tasks does not mean five builders**: it
+means five approved tasks and whatever concurrency their independence check
+actually permits.
 
 ## The brief
 
@@ -577,12 +626,19 @@ DEVELOPMENT TRANCHE N — OWNER_APPROVAL_REQUIRED
 Per task: IE-NNN — title
           why now · dependencies · architecture surface · likely file surface ·
           parallel-safe YES/NO/CONDITIONAL · lane
-Execution order: <the order, and what waits on what>
-Maximum concurrent builders: <n>
+Waves: Wave 1 — <tasks>; Wave 2 — <tasks>, after <what>; …
+Dependency graph: <in plain English, what waits on what and why>
+Concurrency per wave: <n>, bounded by the independence check below
+Execution and merge order: <the order, and what rebases over what>
+Approximate autonomous duration: <hours>
+Architecture-change weight: <per task, 0/1/2/3 with one reason each; and the
+          expected total against the 12-point audit threshold>
 Independence check: <shared files, shared primitives, what serialises>
 Likely Fable involvement: none foreseen | IE-NNN, because <the question>
-What this authorises: implementation, review, rework, clean auto-merge and
-push for these <n> tasks and nothing else.
+Excluded deliberately: <what was considered and left out, and why>
+What this authorises: implementation, review, rework, clean auto-merge, push
+and **later waves as their dependencies are satisfied**, for these <n> listed
+tasks and nothing else.
 Recommendation: APPROVE TRANCHE N | APPROVE IE-NNN, IE-NNN ONLY | MODIFY | DEFER
 ```
 
@@ -591,13 +647,20 @@ At **`TRANCHE_COMPLETE`**:
 ```
 TRANCHE_COMPLETE — tranche N
 Shipped: <IE-NNN — title — commit sha>, one line each
+Deferred: none | <IE-NNN, and the evidence that made it premature, invalid
+          or unnecessary>
+Waves executed: <n of m, and what each waited on>
 Tests: <added> new; <N> total passing
 Conformance: <COVERAGE.md deltas: executed / tracked / partial>
+Architecture-change points: <actual, per task, summing to N — recorded from
+          what landed, not from the estimate>
 Architectural deviations: none | <each, and how it was judged>
 Debt discovered: none | <each, and where it is now written down>
-Fable escalations used: none | <each, the question and the decision>
-Engine health: <gauntlet on main, replay determinism, golden log untouched>
-Audit counter: <n> of <due> since the last whole-engine audit
+YELLOW / Fable interventions: none | <each, the question and the decision>
+RED / owner interventions: none | <each>
+Engine health: <gauntlet on main, replay determinism, golden logs untouched>
+Audit status: <points> of 12 | WHOLE_ENGINE_AUDIT_DUE | risk signals seen
+Simplification audit: <broad audits since the last one; approaching or not>
 Proposed next tranche: <the Gate 1 block above>
 ```
 
@@ -615,8 +678,50 @@ Detail lives in the task file. The summary is what the owner reads.
 
 ## The whole-engine audit
 
-Due after every 3–5 meaningful engine tasks; `QUEUE.md` keeps the count and
-`check-queue.mjs` prints `WHOLE_ENGINE_AUDIT_DUE` when it is reached. **It is
+Due on an **architecture-change budget**, not on a task count; `QUEUE.md`
+keeps the running total and `check-queue.mjs` prints `WHOLE_ENGINE_AUDIT_DUE`
+when it is reached.
+
+**A raw count of completed tasks was too sensitive at this throughput** — it
+would have called a broad Fable audit once or twice a day regardless of how
+much architecture actually moved. What is counted now is the movement.
+
+| Points | What it describes |
+|---|---|
+| **0** | content or transcription only; documentation only; conformance or test-only work with no engine semantic change; mechanical cleanup with no architectural consequence |
+| **1** | a bounded mechanic on established primitives; a localised correctness fix inside established architecture; an ordinary command or feature addition that alters no foundational representation |
+| **2** | a meaningful modification to an existing foundational primitive; a cross-system semantic change; a significant state-model change that stays inside established authority; a meaningful lifecycle or ownership change |
+| **3** | a new or replaced foundational primitive; persistence or replay semantics; event-authority changes; a change to the authoritative-versus-derived boundary; major cross-system architecture work |
+
+**A broad audit is due at about 12 points.** The weight is **recorded at merge,
+from what actually landed** — never assigned from a task's label or lane, and
+never carried over from the planning estimate if the two disagree. The
+estimate goes in the Gate 1 proposal; the actual goes in the merge record.
+
+**A scoped Fable consultation does not reset the budget.** Only a broad sweep
+does, and only because it happened.
+
+### Risk signals may bring it forward
+
+The budget is not a blind counter. Call an audit early on evidence of
+*systemic* architectural risk: repeated new special cases across several
+subsystems; several YELLOW escalations pointing at the same boundary;
+conflicting foundational representations; persistence or replay uncertainty
+spreading past one bounded task; repeated stale source-of-truth failures;
+recently merged tasks invalidating each other's assumptions; a RED
+architecture event; evidence that coverage or conformance materially
+overstates support; or repeated defects showing an architectural class was not
+actually closed.
+
+**An isolated bug does not qualify, however serious**, when it is clearly
+localised and its class is being closed directly.
+
+### Crossing the threshold mid-tranche does not stop the tranche
+
+If the budget reaches the threshold while an approved tranche is running and
+no urgent systemic risk is present: mark `WHOLE_ENGINE_AUDIT_DUE`, **finish the
+approved tranche**, and run the audit before proposing the next one. Only a
+genuine systemic risk signal interrupts a tranche early. **It is
 Fable's, and it is one of the highest-value things Fable does.** It runs at the
 next wake-up that would otherwise propose a mechanic — never in an idle gap,
 and never by rolling straight into another tranche.
@@ -640,6 +745,32 @@ run; its **findings become proposals that pass Gate 1 like anything else**, and
 they may reorder or re-scope the tranche the foreman was about to propose. It
 does not launch rewrites, and no new work begins until the owner approves.
 
+`qb-architect` has no Write tool and writes nothing to the tree: Fable returns
+the record and the foreman files it.
+
+### Fable's cadence
+
+Fable is for a bounded YELLOW architecture question, RED analysis before an
+owner decision, a broad whole-engine audit, and — later — a simplification
+pass. **Never for coordination, implementation review, merges, queue updates or
+ordinary foreman work.** At the demonstrated throughput a broad audit should
+land roughly **once per heavy development day**, not every couple of hours,
+unless risk evidence brings it forward.
+
+### The simplification audit, not yet
+
+After roughly **three to five broad whole-engine audits**, or when a major
+subsystem becomes structurally mature, Fable runs a separate
+**non-semantic simplification and optimisation audit**: where is the engine
+correct but unnecessarily complex; what duplicated representation can collapse;
+what speculative fields have zero consumers; what indirection no longer buys
+anything; what repeated scans, parsing or validation can be simplified; what
+dead fields and historical seams remain; what developer or test workflow is
+unnecessarily expensive. It ranks by leverage, confidence and regression risk.
+
+**Runtime micro-performance is not part of it** and comes later, driven by
+profiling rather than intuition. Do not run a generic optimisation pass before
+this cadence says so.
 ## Resuming in a fresh session
 
 `/qb` injects `QUEUE.md`, the validator's summary, `git status`, the worktrees
