@@ -125,13 +125,28 @@ Arrow's later 2d4 "is reported in `unverified` and not scheduled rather than
 refused". It gains the rule that a printed later consequence asks for the
 timeline it needs.
 
-**Brief correction, recorded rather than hidden.** This section previously told
-the builder to remove the sentence "outside combat there are no turns for it to
-be the end of, so nothing is scheduled and the caller is told" from `CLAUDE.md`.
-**That sentence is not in the repository** — IE-046 rewrote the paragraph, and
-the brief was quoting a superseded run. The instruction is re-pointed above to
-the paragraph that actually exists. This is precisely the class of error IE-052
-is being built to catch, and it is the second confirmed instance.
+**Brief correction, twice — and the second correction is of the first.** This
+section originally told the builder to remove the sentence "outside combat there
+are no turns for it to be the end of, so nothing is scheduled and the caller is
+told" from `CLAUDE.md`. The foreman re-pointed the instruction and wrote that
+**that sentence is not in the repository**.
+
+**That was wrong, and IE-052's guard caught it.** The sentence *is* in the
+repository, verbatim: it is the docstring on `scheduleDelayed`, which IE-051
+moved to `packages/engine/src/commands/spell-effect-riders.ts` — the very
+function this task is about. What the original brief got wrong was not the
+sentence but **the source**: it attributed a code docstring to `CLAUDE.md`.
+
+That distinction is the whole argument for resolving a citation **by naming**
+rather than by searching the repository. A corpus-search guard passes this
+citation, because the run is present *somewhere*. IE-022's rule — resolve
+against the document the citation actually names — is what fails it. This is a
+better example of why that instrument exists than the one the foreman wrote.
+
+**So the builder rewrites two places, not one**: the `turn-context` exemption
+list in `docs/design/time-and-turns.md`, and the `scheduleDelayed` docstring
+itself, which states the old rule in the file whose behaviour this task
+changes.
 
 ### Dependencies
 

@@ -400,6 +400,22 @@ actually permits.
 
 ## The brief
 
+**Run `npm run check:briefs` after writing or editing one, before launching
+anything.** It reads every brief that is not `DONE` and names two things: a
+backticked path this repository does not have, and a quoted run the document
+that brief's own paragraph named does not contain. It exits non-zero on either.
+It is IE-022's citation instrument pointed at `docs/dev/tasks/`, and it is
+deliberately small — two of tranche 6's eight brief errors outright, the stale
+`file:line` class weakly, and none of the accurate-quotation, stale-claim or
+design-imprecision classes. It **resolves what the brief actually wrote, never
+what the repository happens to contain elsewhere**, which is what lets it catch
+a real sentence cited to the wrong document.
+
+It is a command and not a gauntlet gate, deliberately: gating the shared suite
+would couple every builder's baseline to the prose of every other live brief,
+and a builder is told to stop on a red baseline. IE-052's task file carries the
+full ruling.
+
 `docs/dev/tasks/IE-NNN-<slug>.md`, in this shape. The header lines are parsed;
 keep them exactly.
 
