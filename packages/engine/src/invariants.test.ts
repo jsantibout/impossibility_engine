@@ -3131,8 +3131,11 @@ describe('every declared event type is reachable from a command', () => {
       expect.arrayContaining(['fold/apply.ts', 'fold/release.ts', 'fold/index.ts']),
     );
     // And it really does hold the reducer's `case` labels, which is what the
-    // exclusion is about.
-    expect(FOLD_SOURCE['fold/apply.ts']).toContain("case 'spell-cast':");
+    // exclusion is about. They live in the seam that owns the type since
+    // IE-050, and reading `fold/apply.ts` for one would now be satisfied by
+    // `interruptedRests` — a derived pass that branches on three types and is
+    // not the switch this exclusion is about.
+    expect(FOLD_SOURCE['fold/casting.ts']).toContain("case 'spell-cast':");
   });
 
   /**
@@ -3413,7 +3416,7 @@ describe('Speed is read through one reader', () => {
    * rather than a guard, and that fork is what folded a corrupt log.
    */
   it('asks speedOf from the two reducer cases that need it', () => {
-    const reducer = SPEED_SOURCE['fold/apply.ts']!;
+    const reducer = SPEED_SOURCE['fold/combat.ts']!;
     expect(reducer).toMatch(/dash\(combatOf\(state, event\), event\.id, speedOf\(state, event\.id\)\)/);
     expect(reducer).toMatch(/spendMovement\([\s\S]{0,120}speedOf\(state, event\.id\)/);
   });

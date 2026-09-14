@@ -15,7 +15,9 @@
     "GameState",
     "initialState"
   ],
-  "events.ts": ["GameEvent"],
+  "events.ts": [
+    "GameEvent"
+  ],
   "fold/common.ts": [
     "CorruptLogError",
     "withCombat",
@@ -26,7 +28,10 @@
     "must",
     "castingIdFor",
     "sortedTimers",
-    "sortedRecord"
+    "sortedRecord",
+    "Applying",
+    "seamOf",
+    "unhandledEvent"
   ],
   "fold/release.ts": [
     "SourcedGrant",
@@ -87,15 +92,93 @@
     "endingKey",
     "endTriggeredCastings"
   ],
+  "fold/inventory.ts": [
+    "INVENTORY_EVENTS",
+    "InventoryEvent",
+    "isInventoryEvent",
+    "mergeItems",
+    "removeItems",
+    "withEquipment",
+    "applyInventory"
+  ],
+  "fold/roster.ts": [
+    "ROSTER_EVENTS",
+    "RosterEvent",
+    "isRosterEvent",
+    "applyRoster"
+  ],
+  "fold/vitals.ts": [
+    "VITALS_EVENTS",
+    "VitalsEvent",
+    "isVitalsEvent",
+    "applyVitals"
+  ],
+  "fold/upkeep.ts": [
+    "UPKEEP_EVENTS",
+    "UpkeepEvent",
+    "isUpkeepEvent",
+    "applyUpkeep"
+  ],
+  "fold/casting.ts": [
+    "CASTING_EVENTS",
+    "CastingEvent",
+    "isCastingEvent",
+    "applyCasting"
+  ],
+  "fold/ongoing.ts": [
+    "ONGOING_EVENTS",
+    "OngoingEvent",
+    "isOngoingEvent",
+    "applyOngoing"
+  ],
+  "fold/timers.ts": [
+    "TIMERS_EVENTS",
+    "TimersEvent",
+    "isTimersEvent",
+    "applyTimers"
+  ],
+  "fold/combat.ts": [
+    "COMBAT_EVENTS",
+    "CombatEvent",
+    "isCombatEvent",
+    "applyCombat"
+  ],
+  "fold/scene.ts": [
+    "SCENE_EVENTS",
+    "SceneEvent",
+    "isSceneEvent",
+    "applyScene"
+  ],
+  "fold/features.ts": [
+    "FEATURES_EVENTS",
+    "FeaturesEvent",
+    "isFeaturesEvent",
+    "applyFeatures"
+  ],
+  "fold/holds.ts": [
+    "HOLDS_EVENTS",
+    "HoldsEvent",
+    "isHoldsEvent",
+    "offerAnswered",
+    "applyHolds"
+  ],
+  "fold/grants.ts": [
+    "GRANTS_EVENTS",
+    "GrantsEvent",
+    "isGrantsEvent",
+    "applyGrants"
+  ],
+  "fold/rolls.ts": [
+    "ROLLS_EVENTS",
+    "RollsEvent",
+    "isRollsEvent",
+    "applyRolls"
+  ],
   "fold/apply.ts": [
     "anyCreature",
     "breakLostConcentration",
     "recordCommand",
     "interruptedRests",
-    "offerAnswered",
-    "mergeItems",
-    "removeItems",
-    "withEquipment",
     "endLostFeatures",
     "dropLapsedReady",
     "sustains",

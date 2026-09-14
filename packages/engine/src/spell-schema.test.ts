@@ -1780,9 +1780,11 @@ describe('a format exemption says something that can stop being true', () => {
     expect(writers.map((d) => d.id)).toContain('hideous-laughter');
 
     expect(read('duration.ts')).toContain("readonly onSuccess: 'end-on-target' | 'end-casting'");
-    // IE-039 moved the switch out of `events.ts`, which keeps the union; the
-    // branch this pins is the reducer's, so it is read where the reducer is.
-    expect(read('fold/apply.ts')).toContain("pending.onSuccess === 'end-casting'");
+    // IE-039 moved the switch out of `events.ts`, which keeps the union, and
+    // IE-050 dispatched it by domain; the branch this pins is the reducer's,
+    // so it is read where the reducer is — the seam that owns what a casting
+    // owes later.
+    expect(read('fold/timers.ts')).toContain("pending.onSuccess === 'end-casting'");
   });
 
   /**
@@ -1970,9 +1972,10 @@ describe('no spell is special-cased in the runtime', () => {
    */
   it('excludes only words the engine uses for something else', () => {
     expect([...ALSO_VOCABULARY].sort()).toEqual(['light', 'shield']);
-    // `withEquipment` moved with the rest of the reducer in IE-039; the
-    // construct the allowance excuses is read where it now lives.
-    expect(source('fold/apply.ts')).toContain("category === 'shield'");
+    // `withEquipment` moved with the rest of the reducer in IE-039 and again
+    // with its seam in IE-050; the construct the allowance excuses is read
+    // where it now lives.
+    expect(source('fold/inventory.ts')).toContain("category === 'shield'");
     expect(source('attack.ts')).toContain("weapon.properties.includes('light')");
   });
 

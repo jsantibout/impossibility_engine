@@ -120,3 +120,68 @@ export function sortedRecord<T>(entries: Readonly<Record<string, T>>): Record<st
   }
   return sorted;
 }
+
+/**
+ * What a domain seam is handed: the state before the event, and that same
+ * state with the event counted.
+ *
+ * Both, and named rather than positional. Every case in the reducer reads the
+ * world as it was *and* returns from the world the count has moved on in —
+ * `creatureOf(state, …)` beside `{ ...next, … }` — so a seam that took one
+ * would have to recompute the other, and two bare `GameState` parameters in a
+ * row are a pair a call site can silently swap. `resolveEffects`' own split
+ * names its context for the same reason: what was closed over in one function
+ * becomes a parameter when the function is thirteen.
+ */
+export interface Applying {
+  readonly state: GameState;
+  readonly next: GameState;
+}
+
+/**
+ * The guard that says an event is a given seam's, built from the seam's own
+ * list so the two cannot disagree.
+ *
+ * **The list is the single source and the type is derived from it.** Written
+ * the other way round — a hand-written union beside a hand-written array — the
+ * two drift, and the drift is silent in the direction that matters: an event
+ * the array claims and the switch has no case for. Here the array is the
+ * declaration, `Extract` reads it, and the seam's own `never` binding refuses
+ * to compile if a claimed type has no case.
+ *
+ * A `Set` rather than `includes`, because this runs once per event per seam
+ * and the fold is the hot path the derived passes were measured on.
+ */
+export function seamOf<const Types extends readonly GameEvent['type'][]>(
+  types: Types,
+): (event: GameEvent) => event is Extract<GameEvent, { type: Types[number] }> {
+  const owned: ReadonlySet<string> = new Set(types);
+  return (event): event is Extract<GameEvent, { type: Types[number] }> => owned.has(event.type);
+}
+
+/**
+ * An event no rule claims, which is loud rather than absorbed.
+ *
+ * **A corrupt log is loud**, and this is the case that was quiet. An event the
+ * switch does not recognise used to fall out of it and return `undefined`,
+ * which then failed several derived passes later with a TypeError naming a
+ * function that had nothing to do with it.
+ *
+ * That is tolerable while every log is built in this process by these
+ * commands. It stops being tolerable the moment logs come back from Postgres
+ * as JSON, where a type is a string somebody wrote down last season: a renamed
+ * or retired event silently becomes an undefined world.
+ *
+ * The `never` parameter is the other half, and it is free: it is what makes a
+ * variant added to `GameEvent` and claimed by no seam — or claimed by a seam
+ * and given no case — a compile error rather than a runtime surprise. It is
+ * called from fourteen places now rather than one, and the repetition *is* the
+ * guarantee: each seam carries the same backstop over its own narrowed union,
+ * and `applyOne` carries it over what no seam claimed.
+ */
+export function unhandledEvent(event: never): never {
+  throw new CorruptLogError(
+    event as GameEvent,
+    'the reducer has no rule for this event type; the log and the code disagree',
+  );
+}

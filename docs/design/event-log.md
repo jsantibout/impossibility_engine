@@ -161,9 +161,9 @@ nine files and answers the same. A cycle would have been `ARCHITECTURE_BLOCKED`.
 | `fold/endings.ts` | a casting ended by something that happens |
 | `fold/apply.ts` | `applyOne`, the derived passes `applyEvent` runs, and `fold` |
 
-**`applyOne` stays one switch**, with its `never` default. Dispatching it by
-domain is `resolveEffects`' move and may follow; a split that did both at once
-would have had two things to blame.
+**`applyOne` stayed one switch** through that split, with its `never` default,
+because a move that did both at once would have had two things to blame. It is
+dispatched by domain now — see "One seam per region of the state" below.
 
 **The union stays put because five test files read it by that path**, and most
 of the engine imports from it — so `events.ts` re-exports `state.ts` and
@@ -230,6 +230,109 @@ tests, because it is built from that same map — gains the fold as a **director
 listing**, so an eighth seam joins it on the day it is written rather than when
 somebody remembers. `speed.test.ts` needed no change: it reads the frozen
 fixtures and no source path at all.
+
+### One seam per region of the state
+
+`applyOne` was one switch with a case for every type the union declares, in a
+1,796-line file, and it is what forced a three-way serialisation in the tranche
+that measured it: three tasks in three different subsystems — a monster
+entering the game, a casting held to its turns, an ongoing record deriving what
+it is on — all had to queue behind each other because the
+one-owner-per-primitive rule names the **module**, and the module was every
+subsystem at once. Same shape as `commands.ts`, and as `events.ts` before it,
+one layer further down.
+
+It is a dispatch now, over thirteen partial reducers, each in its own file
+under `fold/`.
+
+**A seam is a region of `GameState`, not a subject somebody grouped by eye.**
+That is the whole discipline, and it is what stops the next split being
+adjusted until the numbers come out right. Where a coarser grouping and the
+rule disagree, the rule wins — which is why `roster.ts` and `vitals.ts` are two
+rather than one "creatures", and `casting.ts` and `ongoing.ts` two rather than
+one "spells". Both of those are cuts the layer above already made:
+`commands/casting.ts` and `commands/ongoing.ts` are the same line drawn from
+the other side.
+
+| | |
+|---|---|
+| `fold/roster.ts` | the `creatures` keyspace, and the sheet behind a creature |
+| `fold/vitals.ts` | hit points, death and conditions — what happens to a creature already in the game |
+| `fold/upkeep.ts` | what a creature spends and recovers, and the clock it recovers against |
+| `fold/casting.ts` | the casting being made: `pendingCastings`, and the sequence that names one |
+| `fold/ongoing.ts` | the spell left running, what it holds, and the two ways it ends |
+| `fold/timers.ts` | what a casting owes later: `timers`, `pendingSaves`, `scheduledDamage` |
+| `fold/combat.ts` | the combat record — the order, the turn and the action economy |
+| `fold/scene.ts` | where everything is, and every event that moves a creature in it |
+| `fold/features.ts` | what a creature has switched on, and what it is holding |
+| `fold/holds.ts` | what the engine is holding mid-resolution, and how each is settled |
+| `fold/inventory.ts` | what a creature carries, wears and holds in coin |
+| `fold/grants.ts` | the six families of granted modifier, and the one rule they share |
+| `fold/rolls.ts` | the generator's own two events |
+
+**The three tasks that could not run together now touch different files**,
+which is the check that says this was not aesthetic: the monster's
+`creature-added` is `roster.ts`; the long casting's turn boundary is
+`combat.ts`, with its `casting-continued` in `casting.ts`; and the derived `on`
+is `vitals.ts` at the `condition-applied` case and `ongoing.ts` at the record.
+No pair of them changes a seam in common. One caveat, stated because it is the
+place the answer turns: that third task also *reads* the `withoutTarget` call
+site, which is in `roster.ts` — and `withoutTarget` is kept, so it changes
+nothing there. Had the design deleted it as well, that task and the monster
+would have queued behind each other again, in the one module a creature
+entering and a creature leaving both have to be in.
+
+Under the coarser six-way grouping the task was proposed with — casting,
+creatures, combat/turns, effects-and-timers, world/scene, inventory — **two
+pairs would still have collided**, on "creatures" and on "casting". That is the
+measurement that chose the granularity; it was not chosen and then justified.
+
+**The exhaustiveness guarantee did not get weaker; it is in three pieces
+now.** The `never` default caught exactly one thing, a union member with no
+case. Each
+seam still carries one over its own narrowed union, so a type a seam *claims*
+and has no case for is a compile error. `applyOne`'s `unhandledEvent` sees
+whatever no guard matched, and that narrows to `never` only when the thirteen
+cover the union, so a type **no** seam claims is a compile error too. What
+neither can see is a type claimed **twice** — two seams listing it type-check,
+the first guard wins, the second case is dead, and editing the dead one is
+silent — so `fold-partition.test.ts` derives the union from `events.ts` and
+asserts exactly-one, driven over synthetic input in both directions. Under a
+real double claim the whole rest of the suite stays green and that one test
+goes red, which is the claim worth making.
+
+The seam's list is the single source and its type is `Extract`ed from it, so
+the array and the union cannot drift; `seamOf` builds the guard from the same
+array. And an event type nothing claims still **throws** — the case the `never`
+was never about, since the real one arrives as JSON from Postgres carrying a
+type somebody wrote down last season, past every compiler.
+
+**The oracle was byte-identity again, and this time the transformation list is
+empty.** A case block inside a seam's `switch` sits at exactly the depth it sat
+at inside `applyOne`'s, so every one of them — its label, its leading comment
+and its body — is the original text with nothing done to it at all; only the
+blank lines *between* blocks were normalised, and those belong to no case. Four
+declarations moved with the cases they serve, and each matches its source after
+reversing the `export` that `roster.ts` now needs on `withEquipment`. The seams
+take `{ state, next }` as one named parameter rather than two bare `GameState`s
+a call site could swap, which is `resolveEffects`' `EffectContext` move for its
+reason and is what lets the bodies be untouched.
+
+**And `fold-graph.ts` is in the suite now.** It was the evidence for the seams
+and then ran only when somebody remembered — and it carried a hand-kept
+`SOURCES`, so it went on answering about eight modules while thirteen more were
+written beside them, which is this repository's most-repeated failure arriving
+inside the guard against it. The measurement moved into `fold-graph-data.ts`
+with no top-level effect, the way `coverage-data.ts` split from `coverage.ts`
+and for its reason; `SOURCES` is a directory listing; and `fold-graph.test.ts`
+asks it for the cycles, the unplaced and the misplaced on every run. The seams
+sit above `common`, `release`, `areas`, `turns` and `expiry`, and below
+`apply`, and the graph is acyclic.
+
+**None of the thirteen is a second authority.** `applyEvent` and `fold` are
+unchanged, the derived passes run in the order they ran in, no seam is exported
+from `fold/index.ts`, and nothing under `commands/` can reach one. A log
+becomes a state by exactly the route it always did.
 
 ## Validate Before Rolling
 

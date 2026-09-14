@@ -1,0 +1,125 @@
+/**
+ * What a casting owes later: `timers`, `pendingSaves` and `scheduledDamage`.
+ *
+ * A deadline filed, a repeat save answered, damage scheduled and collected.
+ * The passes that *find* an expiry are `expiry.ts` and `turns.ts`; this seam
+ * is only the events that file a debt and settle one.
+ */
+import { pendingSaveKey, scheduledDamageKey, timerKey } from '../duration.js';
+import { castingIdOf } from '../spells.js';
+import type { GameEvent } from '../events.js';
+import type { GameState } from '../state.js';
+import {
+  CorruptLogError,
+  sortedRecord,
+  sortedTimers,
+  seamOf,
+  unhandledEvent,
+  type Applying,
+} from './common.js';
+import { casterOf, releaseCasting, releaseOnTarget } from './release.js';
+
+/** The event types this seam owns. Every one of them, and no other seam's. */
+export const TIMERS_EVENTS = [
+  'effect-scheduled',
+  'effect-check-resolved',
+  'damage-scheduled',
+  'scheduled-damage-collected',
+  'effect-save-resolved',
+] as const;
+
+/** The narrowed union this seam reduces, `Extract`ed from the list above. */
+export type TimersEvent = Extract<GameEvent, { type: (typeof TIMERS_EVENTS)[number] }>;
+
+/** Whether an event is this seam's. Built from the same list, so the two cannot drift. */
+export const isTimersEvent = seamOf(TIMERS_EVENTS);
+
+/**
+ * Reduce one of this seam's events.
+ *
+ * Exported so `applyOne` may call it and for no other reason: it is not in
+ * `fold/index.ts`, nothing under `commands/` can reach it, and a log becomes a
+ * state by exactly one route.
+ */
+export function applyTimers({ state, next }: Applying, event: TimersEvent): GameState {
+  switch (event.type) {
+    case 'effect-scheduled':
+      return {
+        ...next,
+        timers: sortedTimers({
+          ...state.timers,
+          [timerKey(event.target)]: {
+            target: event.target,
+            deadline: event.deadline,
+            ...(event.repeatSave === undefined ? {} : { repeatSave: event.repeatSave }),
+            ...(event.check === undefined ? {} : { check: event.check }),
+          },
+        }),
+      };
+
+    case 'effect-check-resolved': {
+      const timer = state.timers[event.effectKey];
+      if (timer === undefined) {
+        throw new CorruptLogError(event, `no effect is filed under ${event.effectKey}`);
+      }
+      if (timer.check === undefined) {
+        throw new CorruptLogError(event, `${event.effectKey} offers no check to attempt`);
+      }
+      if (!event.success || timer.check.onSuccess === 'none') return next;
+
+      // The only consequence this union can express, and it is the one the
+      // repeat save already performs: the casting's effect on that creature
+      // ends, and the casting itself carries on for anyone else it caught.
+      if (timer.target.kind !== 'condition') {
+        throw new CorruptLogError(
+          event,
+          `${event.effectKey} ends on its target, but it is not on a creature`,
+        );
+      }
+      const castingId = castingIdOf(timer.target.instance);
+      if (castingId === null) {
+        throw new CorruptLogError(event, `${event.effectKey} belongs to no casting`);
+      }
+      return releaseOnTarget(next, timer.target.on, castingId);
+    }
+
+    case 'damage-scheduled': {
+      const key = scheduledDamageKey(event.schedule.source, event.schedule.target);
+      return {
+        ...next,
+        scheduledDamage: sortedRecord({ ...state.scheduledDamage, [key]: event.schedule }),
+      };
+    }
+
+    case 'scheduled-damage-collected': {
+      if (state.scheduledDamage[event.key] === undefined) {
+        throw new CorruptLogError(event, `no damage is scheduled under ${event.key}`);
+      }
+      const scheduledDamage = { ...state.scheduledDamage };
+      delete scheduledDamage[event.key];
+      return { ...next, scheduledDamage };
+    }
+
+    case 'effect-save-resolved': {
+      const key = pendingSaveKey(event.effectKey, event.turn);
+      const pending = state.pendingSaves[key];
+      if (pending === undefined) {
+        throw new CorruptLogError(event, `no save is pending for ${event.effectKey} on turn ${event.turn}`);
+      }
+
+      const pendingSaves = { ...state.pendingSaves };
+      delete pendingSaves[key];
+      const cleared: GameState = { ...next, pendingSaves };
+      if (!event.success) return cleared;
+
+      // SRD Hold Person: a success ends the spell "on itself" — on that target,
+      // not on everyone the casting caught. An effect whose hook says otherwise
+      // ends the casting outright.
+      return pending.onSuccess === 'end-casting'
+        ? releaseCasting(cleared, casterOf(cleared, pending.castingId), pending.castingId)
+        : releaseOnTarget(cleared, pending.target, pending.castingId);
+    }
+  }
+
+  return unhandledEvent(event);
+}
