@@ -683,7 +683,14 @@ const CITED_SOURCES: ReadonlyArray<{
   readonly label: string;
   readonly files: readonly string[];
 }> = [
-  { name: 'claude.md', label: 'CLAUDE.md', files: ['CLAUDE.md'] },
+  // **`claude.md` is deliberately not in this table any more.** When CLAUDE.md
+  // became the constitution and router its architecture moved out verbatim,
+  // and with it every sentence these maps quoted — so a `claude.md` entry
+  // would be a name no citation uses, which the non-vacuity assertion below
+  // exists to refuse. It comes back the day a note quotes the constitution
+  // itself. Until then, a description naming only `CLAUDE.md` fails the
+  // *points at prose somebody already reviewed* guard rather than passing
+  // unchecked, so the removal is loud rather than a hole.
   { name: 'progress.md', label: 'PROGRESS.md', files: ['PROGRESS.md'] },
   {
     name: 'audit',
@@ -698,6 +705,59 @@ const CITED_SOURCES: ReadonlyArray<{
     files: ['packages/engine/src/spell-definitions.ts'],
   },
   { name: 'srd', label: 'the SRD', files: [] },
+
+  // The subsystem documents, **each registered on its own** rather than as
+  // successors of `claude.md`. When `CLAUDE.md` became the constitution and
+  // router, its architecture was extracted verbatim into these; the citations
+  // moved with the sentences, so every note still names the document that
+  // actually contains the run it quotes. Widening `claude.md` to resolve
+  // against all of them was refused deliberately — a citation that names one
+  // document and is checked against nine is the corpus-wide search this table
+  // exists to prevent.
+  //
+  // `srd-policy.md` is listed **after** the bare `srd` entry on purpose. Its
+  // path contains that entry's name, so the two match at the same offset, and
+  // `citationsIn` attributes a run to the last such match in this array's
+  // order — so the more specific document wins, and a quotation of the book
+  // still resolves to no file, which is what the `srd` entry is for.
+  {
+    name: 'event-log.md',
+    label: 'docs/design/event-log.md',
+    files: ['docs/design/event-log.md'],
+  },
+  { name: 'casting.md', label: 'docs/design/casting.md', files: ['docs/design/casting.md'] },
+  {
+    name: 'spell-definitions.md',
+    label: 'docs/design/spell-definitions.md',
+    files: ['docs/design/spell-definitions.md'],
+  },
+  {
+    name: 'space-and-areas.md',
+    label: 'docs/design/space-and-areas.md',
+    files: ['docs/design/space-and-areas.md'],
+  },
+  {
+    name: 'time-and-turns.md',
+    label: 'docs/design/time-and-turns.md',
+    files: ['docs/design/time-and-turns.md'],
+  },
+  {
+    name: 'rolls-and-damage.md',
+    label: 'docs/design/rolls-and-damage.md',
+    files: ['docs/design/rolls-and-damage.md'],
+  },
+  {
+    name: 'characters-and-equipment.md',
+    label: 'docs/design/characters-and-equipment.md',
+    files: ['docs/design/characters-and-equipment.md'],
+  },
+  // `docs/design/claude-integration.md` is not registered for the same
+  // reason: nothing quotes it yet. Register it with its first citation.
+  {
+    name: 'srd-policy.md',
+    label: 'docs/rules/srd-policy.md',
+    files: ['docs/rules/srd-policy.md'],
+  },
 ];
 
 /**
@@ -928,8 +988,8 @@ describe('a citation is held against the document it names', () => {
    * exists, the subject is right, and nothing but opening it can tell the two
    * apart. A guard nobody has seen fire is a guard nobody has tested.
    */
-  it('catches a description quoting a sentence CLAUDE.md does not print', () => {
-    const misquoted = 'CLAUDE.md says it outright: "A Goblin Warrior is Humanoid, not Fey".';
+  it('catches a description quoting a sentence the named document does not print', () => {
+    const misquoted = 'docs/rules/srd-policy.md says it outright: "A Goblin Warrior is Humanoid, not Fey".';
     expect(misquotes([['synthetic-shape', misquoted]])).toEqual([
       expect.stringContaining('A Goblin Warrior is Humanoid, not Fey'),
     ]);
@@ -937,7 +997,7 @@ describe('a citation is held against the document it names', () => {
 
   /** And it passes the moment the quotation is the sentence the file prints. */
   it('passes once that quotation is corrected', () => {
-    const quoted = 'CLAUDE.md says it outright: "A Goblin Warrior is Fey, not Humanoid".';
+    const quoted = 'docs/rules/srd-policy.md says it outright: "A Goblin Warrior is Fey, not Humanoid".';
     expect(misquotes([['synthetic-shape', quoted]])).toEqual([]);
   });
 
@@ -945,17 +1005,17 @@ describe('a citation is held against the document it names', () => {
    * **This repository states one sentence two ways, and the guard must not
    * pick for it.**
    *
-   * `CLAUDE.md` writes Mass Cure Wounds' range rule as "the point **rather
-   * than** to each target" and `spell-definitions.ts` writes it as "the point,
-   * **not** to each target". Both are correct in their own file, so the
-   * quotation is resolved by *naming*: a citation of `CLAUDE.md` is checked
-   * against `CLAUDE.md`. Neither document is edited, and neither spelling is
-   * preferred.
+   * `docs/design/spell-definitions.md` writes Mass Cure Wounds' range rule as
+   * "the point **rather than** to each target" and `spell-definitions.ts`
+   * writes it as "the point, **not** to each target". Both are correct in
+   * their own file, so the quotation is resolved by *naming*: a citation of
+   * the design document is checked against the design document. Neither
+   * document is edited, and neither spelling is preferred.
    */
   it('holds each of the two spellings of one sentence against its own file', () => {
     expect(
       misquotes([
-        ['claude-side', 'CLAUDE.md: "The range then belongs to the point rather than to each target".'],
+        ['design-doc-side', 'docs/design/spell-definitions.md: "The range then belongs to the point rather than to each target".'],
         [
           'definition-side',
           'spell-definitions.ts: "The range then belongs to the point, not to each target".',
@@ -975,7 +1035,7 @@ describe('a citation is held against the document it names', () => {
   it('fails each spelling when it is attributed to the other file', () => {
     expect(
       misquotes([
-        ['claude-side', 'CLAUDE.md: "The range then belongs to the point, not to each target".'],
+        ['design-doc-side', 'docs/design/spell-definitions.md: "The range then belongs to the point, not to each target".'],
         [
           'definition-side',
           'spell-definitions.ts: "The range then belongs to the point rather than to each target".',
@@ -994,9 +1054,9 @@ describe('a citation is held against the document it names', () => {
    */
   it('reads an elision forwards and refuses one that runs backwards', () => {
     const forwards =
-      'CLAUDE.md: "Advantage is presence, not arithmetic ... Three advantages against one disadvantage is a *normal* roll".';
+      'docs/rules/srd-policy.md: "Advantage is presence, not arithmetic ... Three advantages against one disadvantage is a *normal* roll".';
     const backwards =
-      'CLAUDE.md: "Three advantages against one disadvantage is a *normal* roll ... Advantage is presence, not arithmetic".';
+      'docs/rules/srd-policy.md: "Three advantages against one disadvantage is a *normal* roll ... Advantage is presence, not arithmetic".';
     expect(misquotes([['forwards', forwards]])).toEqual([]);
     expect(misquotes([['backwards', backwards]])).toHaveLength(1);
   });

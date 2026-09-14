@@ -277,7 +277,7 @@ so no primitive has been built for one.
   `restore()` and `healCreature` were both correct and reached by nothing.
   Three spending shapes now exist (a recovery, a self-heal, a healing touch)
   and they are told apart by what the spending buys, not by which class says
-  it. See CLAUDE.md, "What A Pool Buys".
+  it. See `docs/design/characters-and-equipment.md`, "What A Pool Buys".
 - **A limit of "once until you finish a Long Rest" is a pool of one.** Not a
   second kind of limit; the pool system already says exactly that.
 - **A cap is derived at use, never stored.** A pool's maximum moves, and a
@@ -320,7 +320,7 @@ so no primitive has been built for one.
 - **"An area trigger" is not one mechanic.** A taxonomy audit read the twenty
   spells and found at least eight detections; this batch built two — a turn
   boundary and a creature entering — and named the rest rather than writing a
-  framework from one example. CLAUDE.md, "A Persistent Area Catches You".
+  framework from one example. `docs/design/space-and-areas.md`, "A Persistent Area Catches You".
 - **The clauses are transcribed, not taxonomised.** `AreaTrigger` has three
   fields and each is one SRD sentence; the three frequency behaviours everyone
   names fall out of the combinations. Web caps the *entry* and Insect Plague
@@ -2278,3 +2278,247 @@ npm run lint
 Then pick the top unfinished item in "Next actions". Work in one coherent
 batch, verify the rules against `packages/srd/raw/`, mutate the implementation
 to check the new tests actually bite, and commit that batch alone.
+
+## Known pending work
+
+> Migrated verbatim from `CLAUDE.md` when that file became the constitution
+> and router. It was always this document’s subject; it lived there for
+> historical reasons. Its own standing warning is preserved below: the counts
+> in it are prose the derived blocker map replaced, and `COVERAGE.md` is the
+> authority on any number.
+
+- M0: classes, feats and magic items are vendored but not yet parsed; they can
+  wait for a consumer. Adventuring gear (82 priced rows) and tools (25) are
+  done, and ship as `GEAR` and `TOOLS`, with every pack's contents resolved.
+  `catalogue.ts` is the consumer: creation, purchases and equipping all refer to
+  items by id. Nothing yet reads an item's *weight* — encumbrance is unmodelled.
+  Mounts, vehicles, lifestyle expenses, food, hirelings and
+  spellcasting services are separate sections of `equipment.md` and are still
+  unparsed.
+- M1 spell execution: six spells across four effect shapes. Areas of effect,
+  Temporary Hit Points and cover on a saving throw were the named gaps, each
+  with the reason it was still open; the first two are built, and ending a
+  condition — filed here as "condition-lifting healing", which is where it was
+  misfiled — turned out to be its own effect kind rather than a healing one.
+- **M1 is done.** Its ship criterion — "a scripted 4-round combat between two
+  parties resolves identically from the same seed" — is discharged by
+  `scenario.test.ts`. What that proves is the *engine*: dice, rolls, checks,
+  attacks, damage, conditions, positioning, combat, spell slots,
+  Concentration, durations, turn hooks, rests, the clock, progression and one
+  character path, all reproducible from a seed. Two spells — Fire Bolt and Hold
+  Person — are executable definitions the engine resolves end to end; every
+  other spell can be looked up but not cast, and `resolveSpell` says so rather
+  than guessing. Spell slots, Concentration, casting, rests, the clock,
+  effect durations and one complete character path have landed; the
+  limitations recorded above are the honest edges of that work, each with the
+  reason it is still open. Equipment closes the loop from a creation choice to
+  Armour Class: packages are granted by id, packs are opened, purchases are
+  priced in copper, and what is worn is separate from what is carried.
+- M1 leftovers, none of them blocking: **class feature execution** (91 of 230
+  features run; the rest say what a DM still does), the remaining species and
+  backgrounds, feat *execution*, per-class spell preparation for a character
+  who casts from two classes, and the equipment gaps listed under "Owning Is
+  Not Wearing" — encumbrance, containers, attunement and ammunition.
+- M1 spells: how many are executable and how many tracked lives in
+  `COVERAGE.md`, which is regenerated and diffed in the gauntlet rather than
+  restated here; the shapes that block the rest are counted there and ranked in
+  `PROGRESS.md`. The utility
+  bucket was audited spell by spell rather than by shape: 30 of the 76 open
+  ones became tracked, 42 carry a rule the engine should own, and 4 depend on
+  a world fact nothing can represent. **An ability check a spell offers against
+  its own ongoing effect is now built** — Black Tentacles' escape, and the
+  Investigation check that sees through Disguise Self, Minor Illusion and
+  Silent Image. **A durable record of an ongoing casting is built too** — see
+  "A Casting Is History; What It Left Behind Is State": Dispel Magic reads the
+  level of what it is dispelling, Vampiric Touch and Flame Blade are used again
+  on a later turn, and Mage Hand and Minor Illusion end their own previous
+  casting. **A casting can hold a point** — see that section: Spiritual Weapon
+  appears in a space, strikes from it, and is moved twenty feet on a later
+  Bonus Action. Areas of effect, healing, saving throws for damage or a
+  condition, Temporary Hit Points, lasting bonuses and an interruptible casting
+  all work. **A persistent area catches a creature at a moment the spell
+  names** — see that section: Insect Plague, Web, Grease, Black Tentacles and
+  Stinking Cloud all trigger on the turn boundary the SRD prints, and all but
+  the last on entering, which is the clause Stinking Cloud does not print.
+  **And an
+  area can arrive at a creature standing still** — see "An Area Can Arrive At A
+  Creature Standing Still": Moonbeam's Cylinder is moved by a later Magic
+  action, along a route the caller states, and catches whoever it comes to.
+  **And an area can be carried** — see "An Area Can Be Carried, And Then Its
+  Origin Is Not A Point": Spirit Guardians' Emanation is centred on its caster,
+  moves because the caster does, and catches whoever it arrives on. **And a
+  spell can set an Armour Class rather than adding to one** — see "An Armour
+  Class a spell sets is not one it adds to": Mage Armor replaces the target's
+  base calculation, competes with Unarmoured Defense instead of stacking with
+  it, and ends with the casting through the door every other effect uses.
+  **And a spell can grant a Resistance** — see "A Resistance a spell grants,
+  and the third input to `defensesOf`": Stoneskin, Protection from Energy and
+  Protection from Poison all hand one out, it ends with the casting, and
+  `EffectTarget` gained the member that lets a grant end *before* whatever made
+  it — which is the half SRD Superior Hunter's Defense was missing.
+  **Definitions are validated data** — see "A Definition Is Validated Data,
+  And The SRD Is Its Oracle": a pure validator any definition passes through,
+  SRD or homebrew, and a conformance oracle over the printed range and
+  duration. **And Advantage is a property of a roll rather than of a
+  creature** — see "Advantage Is A Property Of A Roll, Not Of A Creature":
+  Blur puts Disadvantage on attacks *against* the creature it is on, Beacon of
+  Hope puts Advantage on the two rolls it names and on no neighbouring one, and
+  a class feature's grant and a spell's now share one selector and one
+  predicate. **And a casting can be ended by something that happens** — see "A
+  Casting Can Be Ended By Something That Happens": Invisibility ends when its
+  target attacks, deals damage or casts, Mage Armor when the target dons
+  armour, and Animal Friendship, Charm Person, Charm Monster, Suggestion and
+  Mass Suggestion when the caster or a declared ally damages the target —
+  derived in the reducer, with no event, and with the printed scope
+  deciding whether the casting ends or is released on that one creature.
+  **And a spell can change a Speed** — see "A Speed An Effect Changes Is The
+  Fifth Sourced Grant": Longstrider adds its ten feet for an hour, Ray of
+  Frost takes ten away until the start of the caster's next turn, and Hypnotic
+  Pattern holds its targets at 0 — one grant beside the four already on a
+  creature, read by the one reader IE-031 built, and ended through the door
+  every other grant leaves by. **And a casting of a minute or more runs on the
+  clock** — see "A Casting Of A Minute Or More Runs On The Clock": the largest
+  blocker in the book, a declared casting that completes on the clock and
+  concentrates on itself until it does, with a Ritual as the same mechanism ten
+  minutes longer — **and the twelve spells it was the only blocker for are
+  written**, all twelve tracked, which is what took that shape’s `unblocks` to
+  zero while leaving forty-two claimants on it. **And a spell can hang a
+  rider on the caster's later attacks, and a slot can lengthen a duration** —
+  see "A Rider On Later Attacks Is The Sixth Sourced Grant" and "A Duration The
+  Slot Changes Is A Table Per Definition": Divine Favor's 1d4 Radiant on every
+  weapon swing and Hunter's Mark's 1d6 Force on the quarry, each a damage
+  component of its own that a Critical Hit doubles and the target's defences
+  meet separately; and a per-definition table of slot level to seconds that
+  Hunter's Mark, the three Dominates and Mass Suggestion each read at their own
+  bands. **And a spell can put a
+  creature somewhere else without spending a foot** — see "A Teleport Is A
+  Position Change And Not A Move": Misty Step's thirty feet to an unoccupied
+  space it can see and Dimension Door's five hundred, through a
+  `relocateCreature` that provokes nobody, charges nothing and still raises the
+  area entry a Web is owed. **And a casting of a minute or more runs in combat
+  too** — see "In combat the obligation is the turn, and it is one field": the
+  Magic action SRD asks for on each of the caster's turns is `continueCasting`,
+  a turn that ends without it fails the rite derived and with no event, and the
+  fight's own rounds carry the clock to the settlement. What does not work:
+  casting a definition the
+  catalogue does not compile in, summons, an area that
+  moves *by itself* at the start of a turn (Cloudkill, Incendiary Cloud), a
+  standing spatial effect such as the Speed halved inside that Emanation — a
+  Speed derived from where a creature is standing rather than one an effect
+  changed, which is still a different shape — a **doubled** Speed (Haste
+  alone), the Fly, Climb and Swim modes the engine does not distinguish, a
+  path or a distance travelled, an
+  activation that resolves an area at a point chosen now, a Reaction that
+  answers a fall, and an ending triggered by a fact no consequence event holds
+  — any damage at all, a distance drifted, a running total, or one effect of a
+  casting ending while the casting runs on.
+- **The existing shapes are drained, and that is a measured finding rather than
+  a feeling.** "Keep pouring spells into the working shapes" was written when
+  roughly ninety parsed spells were thought to fit one; a spell-by-spell pass
+  over all 211 undefined spells found **two** whose entire printed content the
+  existing effect kinds express — Arcane Sword and Produce Flame, both of them
+  second users of shapes that already had one. Every other candidate is blocked
+  on a *named* mechanic rather than on a definition: three attack rolls from one
+  casting (Scorching Ray), damage with neither an attack roll nor a save (Magic
+  Missile), an outcome-scoped child effect (Ice Knife's explosion, Hideous
+  Laughter's two conditions, Sleet Storm's broken Concentration), a damage type
+  chosen at the casting (Chromatic Orb, Dragon's Breath — *not* Protection from
+  Energy, whose choice is one of a printed list and is `damageTypeStated`'s
+  second user), flat-only healing (Heal's 70, which is the *whole* of what now
+  blocks it — its condition removal is built and Lesser Restoration executes on
+  it), a rider on every weapon
+  attack (Divine Favor, Hex, Hunter's Mark), an area that is several templates
+  or a wall (Fire Storm, every Wall), and a Temporary Hit Point payout that
+  repeats each turn (Heroism). **So the next spell coverage is bought by a
+  mechanism, not by transcription** — which is the opposite of what the "cheapest
+  coverage there is" note assumed, and is worth knowing before the next content
+  task is briefed.
+
+  **That list is now data, and four of its rows have since been built.** Every
+  blocker above is a shape id in `missing-shapes.ts` and every spell above is an
+  entry in `BLOCKED_ON`, so the count is a query rather than this paragraph —
+  see "A Consumer Count Is A Query". The re-reading found **Conjure Fey** needs
+  no mechanism at all, which makes it three spells the existing kinds express
+  rather than two; and one tranche later **condition removal**, **a granted
+  Resistance**, **a damage type chosen at the casting** and **an outcome that
+  varies by creature type** are all built, so Lesser Restoration, Protection
+  from Poison, Stoneskin, Protection from Energy, Blight, Shatter and Divine
+  Smite have all left the undefined and partial populations. Do not count from
+  this bullet at all; it is the prose the map replaced, kept because several
+  shape descriptions still cite it.
+
+  **The rider row is half built now, and the half is the interesting part.**
+  "A rider on every weapon attack (Divine Favor, Hex, Hunter's Mark)" is what
+  `attack-rider` reaches — all three of those spells, the first two defined and
+  Hex left blocked on its chosen ability *alone* — see "A Rider On Later
+  Attacks Is The Sixth Sourced Grant". What it does not reach is the rest of
+  what that row had quietly bundled: a substituted ability, a replaced damage
+  die, a flat bonus of the weapon's own type. Magic Weapon and True Strike were
+  predicted to be finished by it and are not, which is the row being a bundle
+  and the build being how anyone found out.
+- **Every one of the event types the union declares is now emitted by a command**, so a
+  Maestro tool surface can reach all of them. It was seventeen with no producer,
+  in two families: the eight that set up a world for the rules to run in — see
+  "Setting The Stage Is A Command Like Any Other" — and the nine a DM declares
+  mid-play, see "The Other Nine Facts A DM Declares". Neither was a hole in the
+  rules; both were a hole between the rules and anything that could reach them,
+  which is exactly the thing to close before M2 rather than during it.
+
+  **The question that was deferred to M2 is answered, and the answer is the
+  first of the three it was put as.** They were: a declaration command per fact,
+  one general declare-a-fact command, or a tool surface permitted to append
+  these events directly. The third is the one to be careful of, because
+  appending an event is how the model asserts a mechanical fact. The first is
+  what shipped, and the reason it did not have to wait for M2 is that a tool
+  surface calls commands and never folds events itself, so these are engine
+  commands whatever M2 turns out to look like. The distinction the nine were
+  mixed on held all the way through: allegiance is a pure declaration and
+  `creature-died`, `stabilised`, `mounted`, `dismounted` and
+  `free-interaction-used` are outcomes with rules attached — three of which
+  spend from the turn economy and are guarded like any other spender.
+
+  **The claim is a derived sweep, not a number in this file.** The declared
+  types are the `readonly type: '<x>'` literals in the `GameEvent` union — the
+  same reading `persistence.test.ts`'s `declaredEventTypes()` uses — and the
+  emitted ones are those literals **in a `type:` position** (`/\btype: '<x>'/`)
+  in any runtime module under `packages/engine/src` other than `events.ts`,
+  which declares them, and `fold/`, which consumes them and emits none — its
+  reducer `case` labels are not emissions, and after IE-039 that is ninety-eight
+  of them rather than a handful. Tests
+  and the two golden-log generators are excluded, because hand-writing events is
+  the thing being measured. `invariants.test.ts` runs it and fails naming
+  anything it finds, driven over a synthetic source it must catch.
+
+  **The `type:` position is the load-bearing half of that sentence, not
+  pedantry.** It is what tells an emission from a context request *naming* the
+  event that would satisfy it — `satisfyWith: 'creature-placed'` — and under the
+  looser reading `creature-placed` came out already emitted, which it was not.
+  That case is moot now that a command emits it for real, and the distinction is
+  not: a `satisfyWith` still names an event nobody wrote, and the sweep is
+  driven over a synthetic one of those too.
+
+  Two caveats the method carries. It reads literals, so an event type assembled
+  from a computed string would be invisible — there are none today, the thirteen
+  non-literal `type:` sites in the engine being three damage types read off a
+  value, the seven `type: string` annotations and parameters those travel in,
+  and three fragments of prose. And the answer moves with where the command
+  layer is drawn, so the boundary is **named rather than assumed and asserted
+  rather than described**: taking it as the other sweeps do — every module under
+  `commands/`, **plus `rest.ts`** — four types come back, every one of them
+  emitted by `creation.ts`, whose two entry points predate the command layer,
+  take no `CommandIdentity` and are not published through the `commands.ts`
+  barrel. Each carries a written exemption and the test checks its claim. It
+  was five until `addCreature` landed, and `creature-added`'s exemption fell
+  rather than being reworded — `createCharacter` emitting one as well changes
+  no answer, because a type is emitted once something writes it.
+  Dropping `rest.ts` from that reading adds three more — `rest-begun`,
+  `rest-ended` and `temporary-hp-cleared` — which is why that is the wrong line
+  to draw.
+
+  **The count went nine, seventeen, nine, zero, and every move is an argument
+  for stating a number with its method.** The first nine named only the
+  DM-declared family and missed the eight setup facts; the derivation is what
+  found that; the eight were built, giving nine again for a completely
+  different reason; and the nine were built. The number is now a test rather
+  than a sentence, which is where it should have been three counts ago.
+- M2–M5: tools, DM loop, CLI harness, persistence, web app, persona

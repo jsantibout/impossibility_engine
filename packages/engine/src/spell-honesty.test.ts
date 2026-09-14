@@ -217,7 +217,21 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
    * gaps were first written down.
    */
   it('makes every shape point at prose somebody already reviewed', () => {
-    const sources = ['claude.md', 'progress.md', 'the audit', 'spell-definitions.ts'];
+    // **This list is a second spelling of `CITED_SOURCES` and should not be.**
+    // `blocked-on.test.ts` reads its own copy off that table precisely so "the
+    // list a description must name and the list a quotation is checked against
+    // cannot drift apart" — and this one is written out by hand, so it drifted
+    // the moment CLAUDE.md's architecture moved into `docs/design/`. Extended
+    // here to keep the guard true; unifying the two belongs to whoever next
+    // owns these files, because the table lives in a test module and sharing
+    // it is a structural change rather than a documentation one.
+    const sources = [
+      'progress.md',
+      'the audit',
+      'spell-definitions.ts',
+      'docs/design/',
+      'docs/rules/',
+    ];
     for (const [shape, description] of Object.entries(MISSING_SHAPES)) {
       const said = description.toLowerCase();
       expect(

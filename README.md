@@ -80,8 +80,8 @@ more are refused rather than approximated, a rest cannot be resumed after an
 interruption, Reaction timing is recorded rather than enforced, and equipment
 stops at mundane items — nothing weighs anything, no magic item is attuned, and
 ammunition is owned rather than spent — see
-[CLAUDE.md](./CLAUDE.md) for the full list, each with the reason it is still
-open.
+[PROGRESS.md](./PROGRESS.md) for the full list, each with the reason it is
+still open.
 
 ## Getting started
 
@@ -114,7 +114,9 @@ that silently skips everything reports no problems at all.
 
 ## Architecture
 
-See [CLAUDE.md](./CLAUDE.md) for the design decisions and the rules that are
+See [CLAUDE.md](./CLAUDE.md) for the constitution and a router to the design
+documents under [docs/design/](./docs/design/), and
+[docs/rules/srd-policy.md](./docs/rules/srd-policy.md) for the rules that are
 easy to get wrong. In short:
 
 ```
