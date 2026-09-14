@@ -552,18 +552,37 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged so far: IE-020** (`687331c`), 13/13 conditions green, risk gate
-inspected because a foundational primitive changed and classified GREEN.
-`main` verified after the merge at **6712 tests across 104 files**, both frozen
-logs untouched, `COVERAGE.md` byte-clean, pushed.
+**Merged: IE-020** (`687331c`) and **IE-025** (`43fe3d0`) — 2 of 18. Both
+13/13, both risk-gated by inspection rather than lightly: IE-020 because a
+foundational primitive changed, IE-025 because it declared an architectural
+deviation. `main` verified after each merge, now at **6758 tests across 105
+files**, both frozen logs untouched, `COVERAGE.md` byte-clean, pushed.
 
-**Running:** IE-024, IE-025, IE-026 from wave 1; IE-027 and IE-028 from wave 2,
-launched the moment IE-020 merged. Five builders, which is the top of the
-procedure's range and is justified by IE-027 and IE-028 being the critical
-path — every remaining mechanism wave queues behind them.
+**IE-025's deviation was the brief's error and is recorded as mine.** Rule 5
+asserted that a `fixed` spell grant must be on that class's list; SRD Fiend
+Spells grants a Warlock Burning Hands, Command and Scorching Ray, and **not
+one of the three is on the Warlock list**. The builder narrowed the rule to
+existence in the parsed book and pinned the counterexamples. Second time
+`WORKFLOW.md`'s "a brief may not assert a rules fact without quoting the SRD
+line" has earned its keep; rule 5 quoted none.
 
-**Waiting for a slot:** IE-021, IE-022, IE-023 (wave 1) and IE-029 (wave 2,
-after IE-026).
+**IE-026 is at `CHANGES_REQUIRED` with one further bounded pass authorised.**
+Its third review round returned a single prose defect, the builder fixed it,
+and the brief's three-round cap meant **no reviewer had passed the final
+commit** — so condition 3 was false. Round exhaustion is not a failed review:
+findings shrank 4 → 1 → 1, confidence stayed high and no architectural
+question arose, which is precisely the case the procedure lets the foreman
+authorise one more pass for. The foreman then found a **further** defect in
+the same docstring at the gate — it claims `placeCreature` and
+`placeCreatureInScene` "contain" neither the other, and the second is a prefix
+of the first — so the pass carries that fix *and* an independent review of the
+commit that would actually be merged.
+
+**Running:** IE-024 (wave 1), IE-026 (rework), IE-027 and IE-028 (wave 2), and
+IE-022, launched into the slot IE-025 freed.
+
+**Waiting for a slot:** IE-021, IE-023 (wave 1) and IE-029 (wave 2, after
+IE-026 merges).
 
 All nineteen tasks to date are `DONE` and merged; tranche 4 shipped ten of ten,
 nine of them without owner involvement. `main` carries **6,696 tests across 103
@@ -600,6 +619,12 @@ rest" prints both numbers for every shape. Do not re-rank from prose.
 
 | Task | Lane | Note |
 |---|---|---|
+| **A live wrong number: `classLevelFor` returns the starting class's level for any subclass feature.** `creation.ts:2342` derives the class from `featureId.split(':')[0]`, which a *subclass* id never matches, so it falls through to the starting class. A Fighter 5 / Bard 3 of the College of Lore gets a **1d8** Cutting Words die where SRD gives a Bard 3 a **d6** — reproduced through `planCharacter`. Its docstring at `:2334` says "the character level" and is wrong the same way | mechanism | IE-025's builder, pre-existing and out of its scope. **No pool is wrong yet** — the two subclass features that size one both use an ability modifier — which is exactly why it is cheap to fix now and expensive after the third does not. Needs a task in `creation.ts` |
+| `grantsSubclass` has twelve writers and no reader — `creation.ts:412` reads `ClassDefinition.subclassLevel` and asks through the feature's own `choice: { kind: 'subclass' }` | conformance | IE-025. Removal belongs to `progression.ts`'s owner; IE-025's zero-user sweep reports it in both directions meanwhile, so it cannot rot unseen |
+| `FeatureGrant` wants a member for **"a later feature steps an earlier feature's table"** — that is the fact that would end IE-025's two "Improved X" exemptions | conformance | IE-025. An exemption naming the member that would retire it, which is the shape this repository asks of every exemption |
+| **`packages/shared/src/result.ts:67` still documents `satisfyWith` as "The event or command that would establish it"** — the last place in the repository that still offers "event" as an answer | conformance | IE-026's builder, outside its surface. One line, and it is the type's own docstring, so it is what a tool-surface author reads first |
+| `commands/reactions.ts:757` conflates "no scene" with "unplaced" — both return `unplaced` with a `position` request; and `commands/targeting.ts:394` (`placeArea`) and `commands/ongoing.ts:247` still answer `no_scene` as a bare `err` with no request | conformance | IE-026, correctly not acted on: its brief forbids changing what is refused rather than requested, and changing the reactions one would alter a request payload. `CLAUDE.md` already records `placeArea`'s as unreachable |
+| A dead assertion in the `a refused command leaves nothing behind` suite: it re-folds the log and compares, which cannot fail | conformance | IE-026's builder and its round-1 reviewer, independently — the same shape the reviewer had just found in the builder's own new tests |
 | **The 30-second budget on `persistence-2.test.ts`'s fold-at-every-prefix case was set before builders ran five-wide.** IE-020's builder met it as a *red baseline on arrival* under three concurrent builders; it passes alone in ~13s and passed every subsequent full run | tooling | IE-020, reported and correctly not touched. This is the third time that test has been the canary and the first time it fired at **arrival**, which is the dangerous shape: a builder is told to stop on a red baseline, so a flake there can halt a task that had nothing wrong with it. The mitigation in force is a launch-prompt warning; the fix is either a larger budget or a way to run that one case unloaded |
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a tranche has room |
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
@@ -684,3 +709,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | Gate 1 | IE-020 … IE-037 | **presented — `OWNER_APPROVAL_REQUIRED`.** Eighteen tasks, eight waves, operationalised from the delta audit §5 with its premises verified against `main`: four corrected (the settlement function, the movement allowance, the ritual reason's first writer, and `EffectTarget.grants` confirmed) and two scope corrections forced by the standing rules. Estimate 5.5–7 hours, calibrated against tranche 4's actual 2.5 |
 | 2026-09-14 | Gate 1 | IE-020 … IE-037 | approved — "APPROVE TRANCHE 5". Eighteen tasks, eight waves, one approval and no gate between waves. Wave 1 launched with four builders — IE-020, IE-024, IE-025, IE-026 — chosen as the wave's dependency roots (IE-020 for wave 2, IE-026 for IE-029 and IE-031, IE-024 before any union task touches `spell-schema.ts`) plus the longest task. IE-021, IE-022 and IE-023 take slots as they free |
 | 2026-09-14 | merge (tranche authority) | IE-020 | merged `687331c`, 13/13 green, risk gate **inspected** (foundational primitive: `PendingCasting`) and GREEN. One foreman integration change, recorded on the task file: a declared prose imprecision in the branch's own `CLAUDE.md` paragraph corrected from "three call sites" to "three readers", committed separately so the reviewed commit stands as reviewed. IE-027 and IE-028 launched on the merged `main` |
+| 2026-09-14 | merge (tranche authority) | IE-025 | merged `43fe3d0`, 13/13 green, risk gate **inspected** (declared architectural deviation) and GREEN. The deviation was the *brief's* mistaken rules claim — rule 5 required a `fixed` spell grant to be on its class's list, and SRD Fiend Spells grants a Warlock three spells that are on none — corrected by the builder against `classes.md` and pinned, which is IE-011's precedent exactly. Three findings filed under LATER, one of them a live wrong number in `creation.ts` |
+| 2026-09-14 | `CHANGES_REQUIRED` + bounded pass | IE-026 | returned by the foreman. Condition 3 was false — three review rounds ended `DEFECTS` on a prose defect the builder then fixed, leaving the final commit unreviewed. Judged **round exhaustion rather than a failed review** (findings 4 → 1 → 1, confidence high, no architectural question), so one further bounded pass is authorised: fix a second false claim the foreman found in the same docstring, then an independent review of the commit that would be merged. No `ARCHITECTURE_BLOCKED` — there is no architectural question to wake Fable for |
