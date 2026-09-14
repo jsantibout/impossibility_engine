@@ -126,16 +126,23 @@ refused". It gains the rule that a printed later consequence asks for the
 timeline it needs.
 
 **Brief correction, twice — and the second correction is of the first.** This
-section originally told the builder to remove the sentence "outside combat there
-are no turns for it to be the end of, so nothing is scheduled and the caller is
-told" from `CLAUDE.md`. The foreman re-pointed the instruction and wrote that
-**that sentence is not in the repository**.
+section originally told the builder to delete a sentence about turns outside
+combat from the constitutional file, which at the time still held the
+architecture. The foreman re-pointed the instruction and wrote that **that
+sentence is not in the repository**.
 
-**That was wrong, and IE-052's guard caught it.** The sentence *is* in the
-repository, verbatim: it is the docstring on `scheduleDelayed`, which IE-051
+**That was wrong, and IE-052's guard caught it.** The sentence is in the
+repository, verbatim. It is the docstring on `scheduleDelayed`, which IE-051
 moved to `packages/engine/src/commands/spell-effect-riders.ts` — the very
-function this task is about. What the original brief got wrong was not the
-sentence but **the source**: it attributed a code docstring to `CLAUDE.md`.
+function this task is about, and it opens:
+
+> "Outside combat there are no turns for it to be the end of, so nothing is
+> scheduled and the caller is told. Refusing the whole casting would be worse —
+> Acid Arrow is perfectly legal at a fleeing target nobody has rolled Initiative
+> against, and its first 4d4 lands either way."
+
+What the original brief got wrong was not the sentence but **the source**: it
+attributed that docstring to a document which did not contain it.
 
 That distinction is the whole argument for resolving a citation **by naming**
 rather than by searching the repository. A corpus-search guard passes this

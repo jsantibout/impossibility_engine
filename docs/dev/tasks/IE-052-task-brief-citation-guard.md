@@ -1,13 +1,13 @@
 # IE-052 — A citation guard over task briefs
 
-state: CHANGES_REQUIRED
+state: DONE
 lane: tooling
 tranche: 7
 parallel-safe: YES — `docs/dev/` is read, never written; the guard and its test are new files
 depends-on: none
-worker: qb-builder, launched 2026-09-14 from `f00742a` (wave 1)
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 7."
 
 ## Brief
 
@@ -72,7 +72,7 @@ report rather than a gate — see the ruling in the digest below.
 
 ### Required behaviour
 
-1. A guard over `docs/dev/tasks/*.md` that, for each brief:
+1. A guard over `docs/dev/tasks/*.md` that, taking one brief at a time:
    - resolves every **source it names** and fails if the source does not exist;
    - holds every **quoted run of eight characters or more** against the file
      that brief named, and fails if the run is not there.
@@ -206,8 +206,8 @@ the gate is worth its cost, it is one line.
 
 ### The other two deviations — both accepted
 
-**Corpus scoped to briefs that are not `DONE`.** The brief said "for each
-brief"; a closed brief cannot launch a builder, and the state is read off the
+**Corpus scoped to briefs that are not `DONE`.** The brief asked for every one
+of them; a closed brief cannot launch a builder, and the state is read off the
 field `check-queue.mjs` already owns rather than a new list. Over the 48 closed
 briefs the guard reports **188 findings, 184 of them quotations** — and almost
 all of those are sentences that were in `CLAUDE.md` until its architecture was
@@ -225,13 +225,14 @@ real stale citation. Accepted on the evidence.
 
 ### The instrument caught the foreman
 
-The guard's third live finding is `IE-054`, attributing to `CLAUDE.md` the run
-*"outside combat there are no turns for it to be the end of, so nothing is
-scheduled and the caller is told"*. The foreman had found that citation by hand
-this morning and written into IE-054 that **the sentence is not in the
-repository**. That was wrong. The sentence is the docstring on `scheduleDelayed`
-at `packages/engine/src/commands/spell-effect-riders.ts:49` — verbatim, in the
-very function IE-054 is about. The brief cited a **real sentence to the wrong
+The guard's third live finding was `IE-054`, which attributed a sentence about
+turns outside combat to the constitutional file. The foreman had found that
+citation by hand this morning and written into IE-054 that **the sentence is not
+in the repository**.
+
+That was wrong. The sentence is the docstring on `scheduleDelayed` at
+`packages/engine/src/commands/spell-effect-riders.ts:49` — verbatim, in the very
+function IE-054 is about. The brief cited a **real sentence to the wrong
 source**.
 
 **This is a better argument for the task than the one its brief makes.** A
@@ -250,3 +251,99 @@ evidence. IE-054's brief is corrected.
   a guard reading prose cannot tell a reference being *mentioned* from one being
   *used*. The brief stops using the form it describes. That cost is stated rather
   than hidden, and it is one of the two reasons for this ruling.
+
+## Completion digest
+
+**Merged `d35edd6`** (see the gate log for the exact sha), 13/13 auto-merge
+conditions, reviewer PASS at high confidence — **round 4**, after three rounds of
+`DEFECTS` and the foreman's bounded confirmation pass. `main` green at **8,571
+tests across 125 files**, and `blocked-on.test.ts` still holds its **106**
+assertions, every one unchanged.
+
+**The longest road of the tranche, and it was the right one.** The builder
+stopped rather than shipping a required behaviour it could not honestly meet,
+and the reviewer classified the remainder correctly as a brief-compliance
+question rather than escalating it as architecture. Both judgements were right.
+The foreman's ruling above is what unblocked it.
+
+### The three rebase defects — condition 12, twice in one tranche
+
+The branch passed its own gauntlet at `f00742a`. Integrated onto `main` it gave
+**3 failed / 8,537 passed**, and all three were fixtures that were **true when
+written**:
+
+| Fixture | What moved it |
+|---|---|
+| `catches a module path the repository does not have` | IE-050 **created** `fold/casting.ts` |
+| `exits 1 and prints every finding` | the same path |
+| `catches the stale citation a foreman found by hand` | IE-051 moved the Acid Arrow docstring out of `spell-resolution.ts` |
+
+The repaired fixtures now **derive their facts** from `listing`, `someModule`,
+`linesIn` and `holding` rather than hard-coding them, and **each asserts its own
+premise**, so a premise going false names itself instead of redding an unrelated
+assertion. That is a better answer than swapping one live path for another, and
+it is the answer to the question the foreman put to the builder rather than
+decided for it.
+
+### What the guard found that a human had not
+
+- **`/qb` was reported as a missing path**, and it was a real defect in the
+  scan: read as a path, a leading-slash token's first segment is empty, resolves
+  to the repository root, passes the directory test and then fails. Fixed, and
+  it is the cleanest illustration of the ruling — **it appeared in a brief
+  between review rounds**, because the foreman had written `/qb` into one.
+- **Two tranche-6 SRD quotations close early on sentences the book continues** —
+  IE-038 quotes *"On a turn, you can expend only one spell slot."* where
+  `spells.md:167` goes on *"to cast a spell"*, and the Concentration sentence
+  likewise. The brief classifies the elision class as **not** catchable; the
+  instrument reaches one step further than it claims.
+- Two stale `file:line` references survive in closed briefs. The live briefs
+  carry none.
+
+### The report was brought to zero, and here is exactly what that cost
+
+On merge the guard reported **three findings that were not errors**: the record
+of a citation error quotes the error, so the ruling above and IE-054's
+correction both quoted the disputed run in a unit that also named the document
+it was wrongly attributed to.
+
+Left alone, three permanent non-errors would train the foreman to ignore the
+report — which is the failure the ruling itself names. So four paragraphs were
+restructured so that a quoted run and a document name do not share a unit: the
+quote moved into its own block, or the sentence stopped naming the document.
+**That is the whole cost, and it is a writing discipline rather than a
+limitation.** `npm run check:briefs` now reports **0 findings over 7 live
+briefs**, which is the only state in which a non-zero exit carries information.
+
+**One of those four hid from a `grep`.** The run `"for each brief"` spanned a
+line break in the foreman's own ruling text, so a literal search found nothing
+while the guard — which normalises whitespace before comparing — found it
+immediately. A small thing, and the best single argument in this task's favour:
+the instrument sees what a careful reader searching by hand does not.
+
+### Ratified deviations
+
+All three, by the foreman's recorded ruling above: requirement 6 unmet (the
+guard is a report, not a suite gate, with the switch unflipped and reasoned at
+`brief-citations.test.ts:437–444`); the corpus scoped to briefs that are not
+`DONE`; and attribution to every document a unit names rather than the nearest
+named before the run.
+
+### One foreman edit to builder code, declared
+
+`brief-citations.ts` carried the sentence *"Sixty-seven paths in the live corpus
+carry a slash and are checked"* — correct that day, and the exact thing the same
+docstring forbids twenty-five lines earlier: *"A count of how many a corpus
+carries belongs in the report, not here: it changes with every merge."* The
+reviewer raised it **after** the PASS and the builder declined to amend a
+reviewed commit, which is the right instinct. The foreman struck the clause at
+merge. Zero behaviour, one sentence, and the gauntlet re-run green afterwards.
+
+### Seven mutations, each failing as intended
+
+Attributing a run to every document the table knows instead of the ones its unit
+named; making every path resolve; raising the shared floor 8→9; deleting
+`process.exitCode = 1`; escaping only the dot when a source name becomes a
+regular expression (**which bit by throwing `Nothing to repeat`, not by passing
+quietly**); accepting a leading-slash token; and pointing the absent-module name
+at a module that exists.

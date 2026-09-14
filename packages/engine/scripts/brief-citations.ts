@@ -304,9 +304,8 @@ export interface NamedPath {
  * This repository's prose says `common.ts`, `spells.md` and `QUEUE.md`
  * constantly, meaning whichever one the paragraph is about; resolving those
  * would mean searching for a file by its name, which is the one thing this
- * guard may not do. Sixty-seven paths in the live corpus carry a slash and are
- * checked; the bare names are left to the reader, as citations below the
- * quotation floor are.
+ * guard may not do. The bare names are left to the reader, as citations below
+ * the quotation floor are.
  */
 export function namedPathsIn(text: string): readonly NamedPath[] {
   const found: NamedPath[] = [];
