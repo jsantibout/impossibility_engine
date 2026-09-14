@@ -718,6 +718,82 @@ describe('a check is checked wherever a definition writes one', () => {
 });
 
 /**
+ * A removal that removes nothing, which is the same rule with no fix attached.
+ *
+ * Both catalogue definitions that end a condition name a list the SRD prints,
+ * so neither rule fires and **the only way to know either is a guard at all is
+ * to build something that fails it by hand** — the sentence the section below
+ * already carries, arriving a second time.
+ *
+ * They guard two different mistakes and both compile. An **empty** list is the
+ * `resolves_nothing` error arriving one level down: a definition that claims to
+ * end a condition and ends none. A **repeated** one writes two sourceless
+ * `condition-removed` events for one name, and the second has nothing left to
+ * take away — the log recording something that did not happen, which is the
+ * same thing `duplicate_condition` refuses a Paladin who names one twice and
+ * would otherwise be charged five hit points for it twice.
+ */
+describe('a spell that ends a condition ends a real one, once', () => {
+  const only = (effect: unknown): readonly string[] =>
+    codes(checkSpellDefinition({ ...FIRE_DART, effects: [effect] } as SpellDefinition));
+
+  it('refuses a removal that names no condition', () => {
+    expect(only({ kind: 'end-condition', conditions: [] })).toEqual(['ends_nothing']);
+  });
+
+  it('refuses the same condition twice', () => {
+    expect(only({ kind: 'end-condition', conditions: ['poisoned', 'poisoned'] })).toEqual([
+      'duplicate_condition',
+    ]);
+  });
+
+  /** And it says *which* entry is the repeat, so an author can find it. */
+  it('names the repeated entry rather than the list', () => {
+    const problems = checkSpellDefinition({
+      ...FIRE_DART,
+      effects: [{ kind: 'end-condition', conditions: ['blinded', 'poisoned', 'blinded'] }],
+    } as unknown as SpellDefinition);
+    expect(problems.map((p) => p.field)).toEqual(['effects[0].conditions[2]']);
+  });
+
+  /** A name the SRD does not print is not a condition, wherever it is written. */
+  it('refuses a condition the SRD does not have', () => {
+    expect(only({ kind: 'end-condition', conditions: ['cursed'] })).toEqual(['unknown_condition']);
+  });
+
+  /** Several distinct conditions are Heal's own sentence, and are accepted. */
+  it('accepts the plural sentence the SRD writes', () => {
+    expect(only({ kind: 'end-condition', conditions: ['blinded', 'deafened', 'poisoned'] })).toEqual(
+      [],
+    );
+  });
+
+  /**
+   * **A removal needs no lifetime**, so an Instantaneous spell may carry one.
+   *
+   * It grants nothing and leaves nothing standing, which is why
+   * `grant_without_lifetime` has nothing to say about it — and `FIRE_DART` is
+   * Instantaneous, so this assertion is the one that says so.
+   */
+  it('needs no casting to outlast it', () => {
+    expect(only({ kind: 'end-condition', conditions: ['poisoned'] })).toEqual([]);
+  });
+
+  /** Every definition the engine ships already obeys it. */
+  it.each(SPELL_DEFINITIONS.map((d) => [d.id, d] as const))(
+    'is already true of %s',
+    (id, definition) => {
+      expect(
+        checkSpellDefinition(definition).filter(
+          (p) => p.code === 'ends_nothing' || p.code === 'duplicate_condition',
+        ),
+        id,
+      ).toEqual([]);
+    },
+  );
+});
+
+/**
  * A grant the casting cannot hold up, which is the rule with no fix attached.
  *
  * **No definition in the catalogue violates it** — every one was driven

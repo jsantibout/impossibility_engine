@@ -571,6 +571,37 @@ function checkEffect(
       );
       return;
 
+    // A removal names conditions and nothing else — no rider, no lifetime, no
+    // roll — so the only thing there is to be wrong about is the list itself.
+    // **An empty one is refused**, because a spell that ends no condition is a
+    // definition claiming to do something and doing nothing, which is the
+    // `resolves_nothing` mistake arriving one level down; and a repeat is
+    // refused because a second `condition-removed` for the same name removes an
+    // instance that is already gone, exactly as `duplicate_condition` refuses a
+    // Paladin naming one twice and being charged for it twice.
+    case 'end-condition': {
+      if (effect.conditions.length === 0) {
+        found.push({
+          field: `${path}.conditions`,
+          code: 'ends_nothing',
+          reason: 'a spell that ends no condition ends nothing; name the conditions the SRD prints',
+        });
+      }
+      const seen = new Set<string>();
+      effect.conditions.forEach((condition, i) => {
+        checkCondition(condition, `${path}.conditions[${i}]`, found);
+        if (seen.has(condition)) {
+          found.push({
+            field: `${path}.conditions[${i}]`,
+            code: 'duplicate_condition',
+            reason: `the ${condition} condition is ended twice, and the second removal has nothing left to take`,
+          });
+        }
+        seen.add(condition);
+      });
+      return;
+    }
+
     case 'heal':
       checkScaling(effect.healing, level, `${path}.healing`, found);
       return;
@@ -1329,6 +1360,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-damage',
   'save',
   'condition',
+  'end-condition',
   'dispel',
   'interrupt-casting',
   'armor-class',

@@ -28,6 +28,7 @@ import { type DamageComponent, rollAttack, rollAttackDamage } from '../attack.js
 import { bonusesFor } from '../bonuses.js';
 import { modifierFor, spellAttackModifierWith, spellSaveDcWith } from '../character.js';
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
+import { reasonsFor } from '../conditions.js';
 import { type Duration, endOfNextTurn, resolveDuration, timeView } from '../duration.js';
 import {
   applyEvent,
@@ -72,6 +73,7 @@ import {
   triggerRefusal,
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
+import { endConditionsOn } from './conditions.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { unsettledRefusal } from './holds.js';
@@ -1571,6 +1573,44 @@ export function resolveEffects(
         current = landed.value.reduce(applyEvent, current);
         if (rider.outlivesCasting !== true) held.add(target);
         outcomes.push({ target, conditions: [rider.name], affected: true });
+        continue;
+      }
+
+      // SRD Lesser Restoration: "You touch a creature and end one condition on
+      // it: Blinded, Deafened, Paralyzed, or Poisoned." The `condition` branch
+      // above, inverted — and inverted is the only thing it shares, because a
+      // removal has no rider: no deadline, no escape check, no repeat save, and
+      // nothing for the casting to own. Nothing is rolled and the generator
+      // does not move; the spell asked for nothing to be thrown.
+      if (effect.kind === 'end-condition') {
+        // **Ask what there is to remove, of the thing the removal acts on.**
+        // `removeCondition` works over the instances, so the instances are what
+        // decide whether anything happens. `conditions.conditions` is derived
+        // from exactly those and agrees with this today — but `hasCondition`,
+        // the other reader to hand, does **not**: it special-cases Exhaustion,
+        // which is a level rather than an instance, so it would report a
+        // removal for an Exhaustion that `removeCondition` could never take
+        // away. No registered spell ends Exhaustion; that is a reason to write
+        // the direct question down rather than to rely on the agreement.
+        const present = effect.conditions.filter(
+          (condition) => reasonsFor(victim.conditions, condition).length > 0,
+        );
+
+        // **Nothing to cure is not an error, and it is not an event either.**
+        // The casting happened and the slot went; what the log must not carry
+        // is a `condition-removed` for a condition that was never there, which
+        // would be a record of something that did not happen.
+        if (present.length === 0) {
+          outcomes.push({ target, affected: false });
+          continue;
+        }
+
+        // One removal, shared with `useHealingTouch` — see `endConditionsOn`
+        // for why the source is omitted and what that means.
+        const lifted = endConditionsOn(target, present);
+        events.push(...lifted);
+        current = lifted.reduce(applyEvent, current);
+        outcomes.push({ target, ended: present, affected: true });
         continue;
       }
 

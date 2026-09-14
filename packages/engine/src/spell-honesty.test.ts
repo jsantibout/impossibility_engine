@@ -145,6 +145,10 @@ const MISSING_SHAPES = {
     'a casting ends by its deadline, by Concentration, by a dispel or by a recast — CLAUDE.md, "Lifecycle, and the one place it ends". The SRD also ends one when the caster or an ally damages the target and when the target dons armour. `CreatureState.lastDamage` names the dealer and `side` is declared, so the facts are held and nothing hangs an ending on them; the audit (§3.5) reads the Charm clauses as debt.',
   'a-mode-on-the-save-a-spell-forces':
     'CLAUDE.md: "nothing records what a save was against" — the sentence that already blocks Countercharm. A `RollModifier` selects a roll by family, ability and skill, so there is no way to say "the saving throw this casting calls for", and the SRD hands that save Advantage a dozen times.',
+  'a-save-keyed-to-a-condition':
+    'a save selected by what it is *against* rather than by the ability that rolls it. CLAUDE.md names it and names this spell: "A save keyed to a named **condition** rather than an ability | Protection from Poison", in the table of what the roll-modifier vocabulary deliberately does not reach. Distinct from `a-mode-on-the-save-a-spell-forces`, which is the caster’s own save seen from the other end — this one modifies a save some *other* effect will call for.',
+  'a-defence-a-spell-grants':
+    'a Resistance, Vulnerability or Immunity that arrives with a spell and leaves with it. `CreatureState.defenses` is written when a creature enters the game and nothing adds to it afterwards; CLAUDE.md lists the want twice, as "A granted Speed, Resistance, or a push | Ray of Frost, Hypnotic Pattern, Stoneskin, Thunderwave" among what a settled outcome may not carry, and as the class-feature gap "Superior Hunter’s Defense needs a Resistance with a deadline".',
   'an-outcome-that-varies-by-creature-type':
     'creature type is authoritative — `declareCreatureType`, `mustBeType` — and reaches targeting only. No effect varies by it, so an automatic failure, extra dice or a refusal to return goes unapplied. CLAUDE.md names the missing filter beside Protection from Evil and Good.',
   'a-stat-block-created-mid-fight':
@@ -604,6 +608,13 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell." The engine emits all three — an attack roll, damage naming its dealer, a `spell-cast` — and no casting can ask to be ended when one arrives, so the invisibility runs its full hour. It is the whole of the difference between this spell and Greater Invisibility, which prints the sentence and nothing else.',
     },
   ],
+  'lesser-restoration': [
+    {
+      clause: 'a condition chosen at the casting has nowhere to be recorded',
+      why: 'a-choice-made-at-the-casting',
+      note: 'SRD: "end one condition on it: Blinded, Deafened, Paralyzed, or Poisoned." One of four, and the caster picks — so a creature both Blinded and Poisoned is fully cured of both, where the book cures one. It is the same gap Blindness/Deafness carries from the other side, where the choice is between imposing two rather than lifting one.',
+    },
+  ],
   'mage-armor': [
     {
       clause: 'if the target dons armor',
@@ -647,6 +658,18 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'a successful save ends the spell',
       why: 'a-repeat-save-beyond-the-turn-hook',
       note: 'The ending itself is expressible — `onSuccess: end-casting` exists — and it has no save to ride on, because the repeat save that would carry it deals damage the hook cannot roll.',
+    },
+  ],
+  'protection-from-poison': [
+    {
+      clause: 'Advantage on saving throws to avoid or end the Poisoned condition',
+      why: 'a-save-keyed-to-a-condition',
+      note: 'SRD: "the target has Advantage on saving throws to avoid or end the Poisoned condition". A `RollModifier` selects a save by ability and by nothing else, so the nearest sayable thing is Advantage on every Constitution save the target ever makes — which is a different and much larger spell. The engine rolls those saves without it.',
+    },
+    {
+      clause: 'has Resistance to Poison damage',
+      why: 'a-defence-a-spell-grants',
+      note: 'SRD: "it has Resistance to Poison damage". Resistance is read off `CreatureState.defenses`, which is written when a creature enters the game, and no effect adds to it for a while — so every point of Poison damage during the hour lands in full.',
     },
   ],
   'ray-of-frost': [

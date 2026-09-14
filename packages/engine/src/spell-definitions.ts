@@ -570,6 +570,45 @@ export type SpellEffect =
       readonly condition: ConditionRider;
     }
   /**
+   * Conditions the spell **takes away**.
+   *
+   * SRD Protection from Poison, first sentence: "You touch a creature and end
+   * the Poisoned condition on it." SRD Lesser Restoration, whole: "You touch a
+   * creature and end one condition on it: Blinded, Deafened, Paralyzed, or
+   * Poisoned."
+   *
+   * **It names the condition and never a cause of it.** The arithmetic beneath
+   * is `endConditionsOn`, which `useHealingTouch` already reached for Lay On
+   * Hands, so a creature poisoned twice over is fully cured — by the same three
+   * lines rather than by a second implementation that has to remember the same
+   * sentence.
+   *
+   * **A list, because the SRD writes it plural** — Heal ends "the Blinded,
+   * Deafened, and Poisoned conditions" in one sentence, and a spell that ends
+   * one names a list of one. There is deliberately nothing here for a
+   * *lifetime*: a removal grants nothing and leaves nothing standing, so
+   * `grant_without_lifetime` has nothing to say about it — the same silence it
+   * keeps for `heal` and `temp-hp`, and for the same reason.
+   *
+   * **Not the inverse of `condition`**, and folding the two together with a
+   * sign would be wrong twice over: a condition imposed carries a rider — a
+   * deadline, an escape check, a repeat save, a casting link — and every one of
+   * those is a fact about something that is still running. A removal has no
+   * duration to give, nothing to escape from, and nothing for the casting to
+   * own. So it carries no {@link ConditionRider} and cannot host one, which is
+   * what keeps it a leaf.
+   *
+   * **`Lesser Restoration`'s "one" is not executed** — the engine ends every
+   * condition it names that the creature has, because a choice made at the
+   * casting is a named missing shape rather than a field, and the definition's
+   * own clause says so. See `spell-honesty.test.ts`.
+   */
+  | {
+      readonly kind: 'end-condition';
+      /** The conditions the SRD names, in the order it prints them. */
+      readonly conditions: readonly ConditionName[];
+    }
+  /**
    * A saving throw; a condition on a failure.
    *
    * **The one host that keeps its flat spelling.** `condition`, `lasts`,
@@ -6370,6 +6409,87 @@ export const BEACON_OF_HOPE: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Lesser Restoration:
+ *
+ * > _Level 2 Abjuration (Bard, Cleric, Druid, Paladin, Ranger)._
+ * > **Casting Time:** Bonus Action. **Range:** Touch.
+ * > **Duration:** Instantaneous.
+ * > "You touch a creature and end one condition on it: Blinded, Deafened,
+ * > Paralyzed, or Poisoned."
+ *
+ * One sentence, and the whole of the spell — which is what makes it the proof
+ * that `end-condition` is a shape rather than a special case. The removal is
+ * `endConditionsOn`, the same three lines Lay On Hands has used since pools
+ * learned to buy things, so "the condition, not a cause of it" is preserved by
+ * being shared.
+ *
+ * **"One" is the half that is not executed**, and it is a named missing shape
+ * rather than a rounding: a condition chosen at the casting has nowhere to be
+ * recorded, which is the gap Blindness/Deafness already carries. So the engine
+ * ends every one of the four it finds, and the clause below says so.
+ */
+export const LESSER_RESTORATION: SpellDefinition = {
+  id: 'lesser-restoration',
+  name: 'Lesser Restoration',
+  level: 2,
+  school: 'abjuration',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [
+    // "Blinded, Deafened, Paralyzed, or Poisoned", in the order the SRD prints
+    // them. No scaling: the spell prints no *Using a Higher-Level Spell Slot*
+    // line, so a level 5 slot ends the same list.
+    { kind: 'end-condition', conditions: ['blinded', 'deafened', 'paralyzed', 'poisoned'] },
+  ],
+  unmodelled: [
+    'the caster chooses which single condition to end and the engine ends every one of the four that the target has; a condition chosen at the casting has nowhere to be recorded',
+  ],
+};
+
+/**
+ * SRD Protection from Poison:
+ *
+ * > _Level 2 Abjuration (Cleric, Druid, Paladin, Ranger)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** 1 hour.
+ * > "You touch a creature and end the Poisoned condition on it. For the
+ * > duration, the target has Advantage on saving throws to avoid or end the
+ * > Poisoned condition, and it has Resistance to Poison damage."
+ *
+ * The first sentence executes; the other two are debt with names, and the pair
+ * is why this spell is worth defining beside Lesser Restoration. A list of one
+ * is what a spell that names its own condition looks like — nothing is chosen,
+ * so nothing is missing there — and the hour it then runs makes the casting an
+ * ongoing record where an Instantaneous removal leaves none at all.
+ *
+ * **That record is on nobody, and it is right to be.** A casting is on a
+ * creature while it has a live effect there that the casting owns, and a
+ * removal owns nothing: it takes something away and keeps nothing. So `on` is
+ * empty and a Dispel Magic aimed at the target finds no Protection from Poison
+ * to end — which is the *engine's* answer rather than the book's, and it is
+ * the two unmodelled clauses below that make it so. Build either of them and
+ * the casting will own something on the target, and `on` will say so without
+ * anything here changing.
+ */
+export const PROTECTION_FROM_POISON: SpellDefinition = {
+  id: 'protection-from-poison',
+  name: 'Protection from Poison',
+  level: 2,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [{ kind: 'end-condition', conditions: ['poisoned'] }],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the target has Advantage on saving throws to avoid or end the Poisoned condition; a mode is selected by roll family, ability and skill, and there is no way to say "a saving throw against a named condition", so those saves are rolled without it',
+    'the target has Resistance to Poison damage; defences are set when a creature enters the game and no effect grants one for a while, so poison damage during the hour is taken in full',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -6445,6 +6565,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   INVISIBILITY,
   JUMP,
   KNOCK,
+  LESSER_RESTORATION,
   LIGHT,
   LIGHTNING_BOLT,
   LOCATE_ANIMALS_OR_PLANTS,
@@ -6469,6 +6590,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   POISON_SPRAY,
   PRESTIDIGITATION,
   PRODUCE_FLAME,
+  PROTECTION_FROM_POISON,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
   REMOVE_CURSE,

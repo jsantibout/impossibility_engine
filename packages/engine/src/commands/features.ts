@@ -31,7 +31,7 @@ import {
   selfHealAddend,
 } from '../standing.js';
 import { creatureOf, unknownCreature } from './command.js';
-import { schedule } from './conditions.js';
+import { endConditionsOn, schedule } from './conditions.js';
 import { healCreature } from './creatures.js';
 import { mayAct } from './holds.js';
 
@@ -249,10 +249,9 @@ export function useHealingTouch(
     }
 
     // SRD removes *the condition*, not a cause of it — so an ally poisoned twice
-    // over is not half-cured. Omitting the source is how the reducer says that.
-    for (const condition of lift) {
-      events.push({ type: 'condition-removed', id: command.target, condition });
-    }
+    // over is not half-cured. That reading lives in `endConditionsOn`, which a
+    // spell that ends a condition reaches too: one removal, two callers.
+    events.push(...endConditionsOn(command.target, lift));
 
     return ok(events);
   });

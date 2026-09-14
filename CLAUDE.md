@@ -3819,7 +3819,7 @@ leaves only these two. The rest are blocked, and never on this shape:
 | Blocked on | Spells |
 |---|---|
 | A thing with its own state | Conjure Fey, Mirror Image, Mislead's illusory double, Arcane Eye, Clairvoyance, Unseen Servant, Instant Summons |
-| Condition **removal**, which is its own missing shape | Power Word Heal, Heal, Mass Heal, Lesser Restoration, Greater Restoration |
+| Condition **removal** — its own effect kind, now **built**, and Lesser Restoration executes on it | Power Word Heal, Heal, Mass Heal, Greater Restoration, each still blocked on the *other* half of its sentence |
 | Condition *immunity* or prevention | Mind Blank, Heroism, Freedom of Movement, Heroes' Feast, Hallow |
 | A casting ended by a trigger | Sequester, and Mislead again |
 | A condition that ends when its holder leaves an area | Silence's "Deafened **while entirely inside it**" — the gap Web's Restrained already records |
@@ -3831,6 +3831,91 @@ Silence and Mislead are the two the brief named that no prose scan for "has
 the X condition" catches, because the SRD writes them as "creatures **have**
 the Deafened condition" and "you **gain** the Invisible condition" — which is
 why the census above is by condition name rather than by that phrase.
+
+### And A Spell That Takes A Condition Away Is Not That Shape Inverted
+
+Condition **removal** is the line that census names first, and it was a missing
+shape for the reason this file has now recorded fourteen times: **the
+arithmetic existed and nothing could reach it.** `removeConditionInstance` has
+been correct since conditions remembered why, and `useHealingTouch` has removed
+a named condition wholesale for Lay On Hands since pools learned to buy things
+— and no spell could touch either. `end-condition` is the effect kind that
+does, and the removal beneath it is `endConditionsOn`: **one function, two
+callers**, so the reading the SRD insists on is preserved by being shared
+rather than by being remembered twice.
+
+**The SRD removes *the condition*, not a cause of it.** "You touch a creature
+and end the Poisoned condition on it" names a condition and says nothing
+whatever about what caused it, so an ally poisoned by a serpent *and* by a bad
+oyster is not half-cured. Omitting the source is how the reducer is told:
+`removeCondition` lifts every instance of the name, and each instance takes the
+conditions it implied along with it. That was already Lay On Hands' reading,
+and it is a *shared implementation* rather than a shared sentence — the
+mutation that proves it is replacing the extracted call with a fresh removal
+that names a source, which fails Lay On Hands' own tests as well as the
+spell's. Both sides go red, which is the only thing that distinguishes one
+implementation from two that happen to agree today.
+
+**It is not `condition` with a sign on it**, and folding the two together would
+have been the mistake. A condition imposed carries a `ConditionRider` — a
+deadline, an escape check, a repeat save, a casting link — and every one of
+those is a fact about something still running. A removal has no duration to
+give, nothing to escape from, and nothing for the casting to own, so it carries
+no rider and cannot host one. That is also why it is the effect kind
+`grant_without_lifetime` has nothing to say about: it grants nothing.
+
+**Nothing to cure is an outcome, not an error and not an event.** The casting
+happened and the slot went; what the log must not carry is a
+`condition-removed` for a condition that was never there, because that is a
+record of something that did not happen. So the branch asks `reasonsFor` —
+what there is to remove, of the instances `removeCondition` actually acts on —
+and reports `affected: false` with no events at all. The derived name list
+agrees with that today and `hasCondition` does not: it special-cases Exhaustion
+as a *level* rather than an instance, so it would report a removal that
+`removeCondition` could never make. No registered spell ends Exhaustion, which
+is a reason to ask the direct question rather than to lean on the agreement.
+`SpellTargetOutcome.ended` is a field of its own rather than a sign on
+`conditions`: a reader asking whether a spell made somebody Poisoned must not
+be told yes by a Lesser Restoration.
+
+**And the casting a removal leaves behind is on nobody.** A casting is on a
+creature while it has a live effect there that it owns, and a removal owns
+nothing — so Protection from Poison's hour is an ongoing record with an empty
+`on`, and a Dispel Magic aimed at the target finds nothing to end. That is the
+engine's answer rather than the book's, and the two unmodelled clauses are what
+make it so: build either and the casting will own something there, and `on`
+will say so with nothing in the definition changing. It is asserted rather than
+described, because the definition's own docstring claimed the opposite until a
+review read the code.
+
+**Two spells, and the pair is what makes the shape a shape.** Protection from
+Poison names its own condition, so a list of one is the whole sentence and
+nothing is chosen; Lesser Restoration names four and lets the caster pick.
+**That "one" is not executed** — a choice made at the casting is a named
+missing shape, the same one Blindness/Deafness carries from the other side — so
+the engine ends every one of the four it finds, and the definition's own clause
+says so where `spell-honesty.test.ts` can hold it. The fixture that discovers
+the difference is the one where the ally has **two** of the four: with one in
+play, "every condition" and "the first one" are the same events, which is how a
+mutation ending only the first survived a whole file.
+
+Protection from Poison's other two sentences are debt with names, and both
+shapes are new entries in the adjudication map: a **save keyed to a named
+condition** rather than to an ability — `RollModifier` selects a save by
+ability and by nothing else, and CLAUDE.md has listed this exact spell under
+that gap since the roll vocabulary landed — and a **Resistance a spell grants**,
+since `defenses` is written when a creature enters the game and no effect adds
+to it for a while.
+
+**Heal is the third consumer and is deferred**, measured rather than assumed.
+It ends three conditions at once, which this kind already expresses, and
+restores a flat 70 — and `DiceScaling.dice` is required, with `parseNotation`
+refusing a count below one, so `0d6` cannot stand in for "no dice". Making it
+optional is not a one-line format question: `scaledDiceFor` splits it
+unconditionally and six resolution paths hand its result to `rollSpellDice`,
+and the same change would make flat-only *damage* expressible with no consumer
+— which is the speculative-member failure the format's own sweep exists to
+catch.
 
 ### Once Per Turn Is A Turn, Not A Round
 
@@ -4250,9 +4335,12 @@ Reported rather than refused, in `unverified`:
   read by nothing.
 - **No Temporary Hit Points from a spell**, so False Life and Aid have no
   shape. `grantTemporaryHpTo` exists; no effect type reaches it.
-- **Healing restores hit points only.** Lesser Restoration ends a condition,
-  Revivify raises the dead, Aid raises the maximum — three more shapes, none of
-  them here.
+- **Healing restores hit points only.** Revivify raises the dead and Aid raises
+  the maximum — two more shapes, neither of them here. Ending a condition is no
+  longer among them: it turned out not to be a *healing* shape at all but its
+  own effect kind, which is why Lesser Restoration executes and Heal, which
+  does both in one sentence, is still blocked — on the flat-only healing half
+  rather than on the removal.
 - **A second hit at a later moment now works; damage over time still does
   not.** SRD Acid Arrow's "2d4 Acid damage at the end of its next turn" is a
   `delayed` rider on the attack or the save that caused it, and Vitriolic
@@ -5147,8 +5235,10 @@ null and is reported — it never becomes either.
   spellcasting services are separate sections of `equipment.md` and are still
   unparsed.
 - M1 spell execution: six spells across four effect shapes. Areas of effect,
-  Temporary Hit Points, condition-lifting healing and cover on a saving throw
-  are the named gaps, each with the reason it is still open.
+  Temporary Hit Points and cover on a saving throw were the named gaps, each
+  with the reason it was still open; the first two are built, and ending a
+  condition — filed here as "condition-lifting healing", which is where it was
+  misfiled — turned out to be its own effect kind rather than a healing one.
 - **M1 is done.** Its ship criterion — "a scripted 4-round combat between two
   parties resolves identically from the same seed" — is discharged by
   `scenario.test.ts`. What that proves is the *engine*: dice, rolls, checks,
@@ -5221,7 +5311,9 @@ null and is reported — it never becomes either.
   Missile), an outcome-scoped child effect (Ice Knife's explosion, Hideous
   Laughter's two conditions, Sleet Storm's broken Concentration), a damage type
   chosen at the casting (Chromatic Orb, Dragon's Breath, Protection from
-  Energy), condition removal (Lesser Restoration, Heal), a Resistance a
+  Energy), flat-only healing (Heal's 70, which is the *whole* of what now
+  blocks it — its condition removal is built and Lesser Restoration executes on
+  it), a Resistance a
   spell grants (Stoneskin, Protection from Energy), a rider on every weapon
   attack (Divine Favor, Hex, Hunter's Mark), an area that is several templates
   or a wall (Fire Storm, every Wall), and a Temporary Hit Point payout that

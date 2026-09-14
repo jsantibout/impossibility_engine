@@ -73,6 +73,16 @@ export interface SpellTargetOutcome {
    */
   readonly conditions?: readonly ConditionName[];
   /**
+   * The conditions this effect **ended**, when it ended any.
+   *
+   * A field of its own rather than a sign on {@link conditions}, because the
+   * two answer opposite questions and a reader asking "is the target Poisoned
+   * because of this spell" must not be told yes by a Lesser Restoration. Absent
+   * rather than empty where the spell found nothing to cure — which is a real
+   * outcome, reported as `affected: false`, and not an error.
+   */
+  readonly ended?: readonly ConditionName[];
+  /**
    * The Concentration this damage put at risk, and what became of it.
    *
    * Present whenever damage was dealt to a creature that was concentrating:

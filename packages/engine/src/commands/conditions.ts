@@ -100,6 +100,40 @@ export function applyConditionTo(
 }
 
 /**
+ * End named conditions on a creature — **the condition, not a cause of it.**
+ *
+ * SRD Lay On Hands: "you can expend 5 Hit Points ... to remove **one** of the
+ * following conditions"; SRD Lesser Restoration: "You touch a creature and end
+ * one condition on it: Blinded, Deafened, Paralyzed, or Poisoned"; SRD
+ * Protection from Poison: "You touch a creature and end the Poisoned condition
+ * on it." Every one of them names a **condition** and says nothing whatever
+ * about what caused it, so an ally poisoned by a serpent *and* by a bad oyster
+ * is not half-cured. Omitting the source is how the reducer is told that:
+ * `removeCondition` lifts every instance of the name, and each instance takes
+ * the conditions it implied along with it.
+ *
+ * **One removal, two callers**, which is the whole reason this is a function
+ * rather than two loops. `useHealingTouch` wrote it first, for Lay On Hands,
+ * and the `end-condition` spell effect reaches the same line — so the reading
+ * above is preserved by being shared rather than by being remembered twice.
+ * `healing-touch.test.ts` is the guard: a second removal written beside this
+ * one has to diverge from it visibly.
+ *
+ * It reads no state and refuses nothing. **Removing a condition a creature does
+ * not have is not an error** — Lay On Hands has already been paid for and a
+ * spell has already been cast, and `removeCondition` finds nothing and changes
+ * nothing. A caller that wants to report whether anything was actually cured
+ * asks the creature first; that is a question about the outcome rather than
+ * about the removal, and only one of the two callers has an outcome to report.
+ */
+export function endConditionsOn(
+  id: CharacterId,
+  conditions: readonly ConditionName[],
+): readonly GameEvent[] {
+  return conditions.map((condition) => ({ type: 'condition-removed', id, condition }));
+}
+
+/**
  * The event that gives an effect a moment to stop at.
  *
  * The duration is resolved here rather than in the reducer, so a relative
