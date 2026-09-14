@@ -87,6 +87,7 @@ import {
   MULTICLASS_GRANTS,
   characterLevel,
   combinedArmorTraining,
+  hitDicePools,
   meetsPrerequisites,
   multiclassSlots,
   pactSlotsOf,
@@ -2420,6 +2421,46 @@ export function liftsFor(
 }
 
 /**
+ * The Hit Dice this character has, pooled the way the SRD pools them.
+ *
+ * SRD Multiclassing: "If these dice are the same die type, you can pool them
+ * together... If your classes give you Hit Dice of different types, track them
+ * separately." `hitDicePools` has been that derivation, and tested against
+ * both of the SRD's own worked examples, since it was written; what was
+ * missing was anything calling it. This is the call.
+ *
+ * Before it, one pool was declared from the **starting** class at that class's
+ * level, which is wrong in both directions at once: a Cleric 4 / Fighter 1 had
+ * four d8 and no d10 at all, and a Paladin 4 / Fighter 1 — who shares the die
+ * — had four d10 where the SRD gives five.
+ *
+ * A single-class character is untouched, which is the whole compatibility
+ * story: one class in, one entry out, at `choices.level`, with the same key
+ * and the same label `hitDieKey` and the starting class always produced. Both
+ * frozen logs depend on that and `class-pools.test.ts` asserts it directly.
+ *
+ * The classes are read off `choices` rather than taken beside them, for the
+ * same reason `poolsFor` reads the level there: a caller that could hand in a
+ * different class list is a caller that could hand in the wrong one.
+ */
+function hitDiePools(choices: CharacterChoices): readonly PoolDeclaration[] {
+  const byDie = hitDicePools(
+    classLevelsOf(choices),
+    (classId) => classById(classId)?.hitDie ?? null,
+  );
+
+  // Numeric keys iterate in ascending order, so the d8 pool of a Cleric /
+  // Paladin always precedes the d10 — the declarations reach the log, so their
+  // order has to be a property of the character rather than of the choices.
+  return Object.entries(byDie).map(([sides, count]) => ({
+    key: hitDieKey(Number(sides)),
+    label: `Hit Die (d${sides})`,
+    max: count,
+    recovers: 'long-rest' as const,
+  }));
+}
+
+/**
  * Every pool a character of these choices has, at the level they are now.
  *
  * **One derivation, two callers.** Creation declares all of them; advancement
@@ -2437,18 +2478,12 @@ export function liftsFor(
  * could hand in the wrong one.
  */
 function poolsFor(
-  definition: ClassDefinition,
   plan: CharacterPlan,
   features: readonly FeatureDefinition[],
   choices: CharacterChoices,
 ): readonly PoolDeclaration[] {
   const pools: PoolDeclaration[] = [
-    {
-      key: hitDieKey(definition.hitDie),
-      label: `Hit Die (d${definition.hitDie})`,
-      max: choices.level,
-      recovers: 'long-rest',
-    },
+    ...hitDiePools(choices),
     ...slotPools(plan),
   ];
 
@@ -2538,12 +2573,11 @@ function poolsFor(
 /** Creation declares the lot; nothing exists yet for any of them to grow from. */
 function poolEvents(
   id: CharacterId,
-  definition: ClassDefinition,
   plan: CharacterPlan,
   features: readonly FeatureDefinition[],
   choices: CharacterChoices,
 ): GameEvent[] {
-  return poolsFor(definition, plan, features, choices).map((pool) => ({
+  return poolsFor(plan, features, choices).map((pool) => ({
     type: 'resource-pool-declared',
     id,
     pool,
@@ -2605,7 +2639,7 @@ export function createCharacter(
           },
         ]),
     ...choices.equipped.map((itemId) => ({ type: 'item-equipped' as const, id, item: itemId })),
-    ...poolEvents(id, definition, plan.value, plan.value.features, choices),
+    ...poolEvents(id, plan.value, plan.value.features, choices),
   ]);
 }
 
@@ -2748,7 +2782,7 @@ export function advanceCharacter(
   // used to be a second list naming the Hit Die pool and the spell slots and
   // no other kind, which is why a Fighter who reached level 9 in play had
   // Indomitable on the sheet and nothing to spend.
-  for (const pool of poolsFor(definition, plan.value, plan.value.features, choices)) {
+  for (const pool of poolsFor(plan.value, plan.value.features, choices)) {
     const held = creature.resources.pools[pool.key];
     if (held === undefined) {
       events.push({ type: 'resource-pool-declared', id, pool });

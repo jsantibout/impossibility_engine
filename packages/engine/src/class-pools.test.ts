@@ -11,7 +11,15 @@ import {
 } from './creation.js';
 import { FOCUS_POINTS } from './monk.js';
 import { SECOND_WIND_USES } from './fighter.js';
-import { declarePool, remaining, restoreOn, spend, type ResourceState } from './resources.js';
+import {
+  declarePool,
+  remaining,
+  restoreOn,
+  spend,
+  type ResourcePool,
+  type ResourceState,
+} from './resources.js';
+import { hitDieSides } from './rest.js';
 import { expect as unwrapResource } from '@ie/shared';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer, type RollIssuer } from './rolls.js';
@@ -485,6 +493,86 @@ describe('a Short Rest that gives back one use without emptying the pool', () =>
  * derivation both callers reach rather than two lists kept in step by
  * remembering to.
  */
+/**
+ * SRD Multiclassing, Hit Dice: "If these dice are the same die type, you can
+ * pool them together... If your classes give you Hit Dice of different types,
+ * track them separately."
+ *
+ * `hitDicePools` has said exactly that since it was written and was reached by
+ * nothing, so `poolsFor` declared a single pool, from the **starting** class,
+ * sized at that class's level. That is wrong two different ways, and a
+ * multiclassed character meets one or the other whatever they took: a second
+ * class whose die differs got no pool at all, and a second class sharing the
+ * die was simply not counted.
+ */
+describe('Hit Dice pool by die type, reached', () => {
+  /** Just the Hit Dice, by key and maximum — the pools this rule governs. */
+  const hitDiceOf = (pools: Readonly<Record<string, ResourcePool>>) =>
+    Object.fromEntries(
+      Object.entries(pools)
+        .filter(([key]) => hitDieSides(key) !== null)
+        .map(([key, pool]) => [key, pool.max]),
+    );
+
+  /**
+   * A Fighter 4 / Barbarian 1. SRD prints "D10 per Fighter level" and "D12 per
+   * Barbarian level" — different types, so tracked separately. Neither class
+   * casts, which is what keeps the fixture clear of the one-casting-class rule.
+   */
+  const berserker = (): CharacterChoices => ({
+    ...fighter(4),
+    name: 'Hild',
+    multiclass: [{ classId: 'barbarian', level: 1 }],
+  });
+
+  /**
+   * A Paladin 4 / Fighter 1. SRD prints "D10 per Paladin level" and "D10 per
+   * Fighter level" — the **same** type, so one pool of five.
+   */
+  const templar = (): CharacterChoices => ({
+    ...paladin(4),
+    multiclass: [{ classId: 'fighter', level: 1 }],
+    feats: { ...paladin(4).feats, 'fighter:fighting-style': { featId: 'archery' } },
+  });
+
+  /** Different dice: two pools, each sized by its own classes' levels. */
+  it('tracks two classes whose dice differ as two pools', () => {
+    expect(hitDiceOf(poolsOf(berserker()))).toEqual({
+      'hit-die:d10': 4,
+      'hit-die:d12': 1,
+    });
+  });
+
+  /**
+   * The same die: one pool of the combined level, which is the case the
+   * derivation most has to get right — two pools or one of the starting
+   * class's level alone are both wrong, and both look plausible.
+   */
+  it('pools two classes that share a die into one', () => {
+    expect(hitDiceOf(poolsOf(templar()))).toEqual({ 'hit-die:d10': 5 });
+  });
+
+  /**
+   * The whole compatibility story, asserted rather than relied upon: a
+   * single-class character's Hit Die pool is byte-identical to what it always
+   * was — same key, same label, same maximum, same `recovers`. Both frozen
+   * logs fold through this pool, so a change of any of the four moves them.
+   */
+  it('leaves a single-class character’s pool byte-identical', () => {
+    const pools = poolsOf(fighter(9));
+
+    expect(pools['hit-die:d10']).toEqual({
+      key: 'hit-die:d10',
+      label: 'Hit Die (d10)',
+      max: 9,
+      spent: 0,
+      recovers: 'long-rest',
+    });
+    // And exactly one of them, so nobody gained a second pool of their own.
+    expect(Object.keys(hitDiceOf(pools))).toEqual(['hit-die:d10']);
+  });
+});
+
 describe('advancing a level moves every pool the level moves', () => {
   const sorcerer = (level: number): CharacterChoices => ({
     ...common,
@@ -685,6 +773,41 @@ describe('advancing a level moves every pool the level moves', () => {
 
     expect(pools['lay-on-hands']?.max).toBe(20);
     expect(resized(gained)).not.toContain('lay-on-hands');
+  });
+
+  /**
+   * Advancement follows the Hit Dice rule for free, through the same
+   * declare-or-resize loop every other pool goes through: a level in a class
+   * whose die the character does not yet have **declares** that pool, and the
+   * pool they already had is untouched — including what has been spent out of
+   * it, which a re-declaration would have reset.
+   */
+  it('declares a Hit Die pool when a level brings a die the character lacks', () => {
+    const { gained, pools } = levelled(fighter(4), { classId: 'barbarian' }, [
+      { type: 'resource-spent', id: WHO, key: 'hit-die:d10', amount: 2 },
+    ]);
+
+    expect(declared(gained)).toContain('hit-die:d12');
+    expect(pools['hit-die:d12']?.max).toBe(1);
+    expect(pools['hit-die:d10']?.max).toBe(4);
+    expect(pools['hit-die:d10']?.spent).toBe(2);
+  });
+
+  /**
+   * And the other half: a level in a class whose die they already have
+   * **resizes** the one pool rather than declaring a second. A Paladin 4 /
+   * Fighter 1 who takes a second Fighter level has six d10, and has still
+   * spent the three they spent.
+   */
+  it('resizes the shared Hit Die pool when the level brings a die it has', () => {
+    const { gained, pools } = levelled(knight(), { classId: 'fighter' }, [
+      { type: 'resource-spent', id: WHO, key: 'hit-die:d10', amount: 3 },
+    ]);
+
+    expect(resized(gained)).toContain('hit-die:d10');
+    expect(declared(gained)).not.toContain('hit-die:d10');
+    expect(pools['hit-die:d10']?.max).toBe(6);
+    expect(pools['hit-die:d10']?.spent).toBe(3);
   });
 
   /**

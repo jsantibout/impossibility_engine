@@ -2224,6 +2224,46 @@ is the one that grants its proficiencies in full.
 - **Hit Dice pool by die type**, and hit points pay the maximum die once, for
   the starting class, at total character level 1.
 
+**And that last line was a claim about a function nothing called.** SRD: "If
+these dice are the same die type, you can pool them together... If your classes
+give you Hit Dice of different types, track them separately." `hitDicePools`
+has said exactly that, correctly, since it was written, and is tested against
+both of the SRD's own worked examples — and `poolsFor` declared **one** pool,
+from the *starting* class, sized at that class's level. So the rule described
+here was true of the engine's arithmetic and false of every character it built.
+
+That is wrong in two directions at once, and which one a character meets
+depends only on what they took: a Cleric 4 / Fighter 1 had four d8 and **no d10
+at all**, while a Paladin 4 / Fighter 1 — who shares the die, both being "D10
+per level" — had **four** d10 where the SRD gives five. The second is the
+nastier of the two, because one pool of a plausible size is what a correct
+implementation also produces, and only the *number* is wrong.
+
+**The fix is the call, and that is the whole of it.** This is the eleventh
+recorded instance in this file of a pure function that is correct, tested and
+unreachable, and the remedy has never once been to write a second one. The
+derivation is `hitDicePools`; `hitDiePools` in `creation.ts` adapts its
+`{ sides: count }` to pool declarations and does no arithmetic of its own.
+
+**A single-class character comes out byte-identical** — same key, same label,
+same maximum, same `recovers` — which is the entire compatibility story, since
+both frozen logs fold through that pool. One class in gives one entry out at
+`choices.level`, which is what the starting class always produced. It is
+asserted directly rather than relied upon, because "unchanged" is exactly the
+kind of claim that is cheap to believe and cheap to check.
+
+**Advancement needed no change of its own.** IE-008's declare-or-resize loop
+reads whatever `poolsFor` returns, so a level in a class whose die is new
+declares that pool and a level in a class whose die is already held resizes the
+one pool — and both leave what has been spent spent, because `resize` moves
+only the maximum. Two lists of pool kinds that have to agree is the shape the
+bug IE-008 fixed had; this is the payoff for there being one.
+
+Numeric keys iterate in ascending order, so a Cleric / Paladin's d8 pool always
+precedes their d10. The declarations reach the log, so that order has to be a
+property of the character rather than of the order their classes were written
+down.
+
 **Two casting classes is refused**, and the refusal is the honest answer rather
 than a gap. SRD requires each prepared spell to remember which class prepared
 it and to use that class's spellcasting ability; a creature here carries one
