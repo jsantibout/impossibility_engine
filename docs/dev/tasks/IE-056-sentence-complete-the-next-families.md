@@ -1,11 +1,11 @@
 # IE-056 — Sentence-complete the families the next cycle will be briefed from
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: content
 tranche: 7
 parallel-safe: YES — `scripts/missing-shapes.ts` and `blocked-on.test.ts` only
 depends-on: none
-worker: none
+worker: qb-builder, launched 2026-09-14 from `0df95d3` (wave 2, held one wave for IE-052)
 approved: 2026-09-14 — "APPROVE TRANCHE 7."
 merge-approved: none
 
