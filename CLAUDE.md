@@ -6277,7 +6277,7 @@ null and is reported — it never becomes either.
   **The claim is a derived sweep, not a number in this file.** The declared
   types are the `readonly type: '<x>'` literals in the `GameEvent` union — the
   same reading `persistence.test.ts`'s `declaredEventTypes()` uses — and the
-  emitted ones are those literals **in a `type:` position** (`/type: '<x>'/`)
+  emitted ones are those literals **in a `type:` position** (`/\btype: '<x>'/`)
   in any runtime module under `packages/engine/src` other than `events.ts`,
   which declares them and whose reducer `case` labels are not emissions. Tests
   and the two golden-log generators are excluded, because hand-writing events is

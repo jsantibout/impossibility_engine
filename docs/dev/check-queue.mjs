@@ -17,7 +17,8 @@
  * about which tranche a task is in. Adding a task to an approved tranche is
  * the one way autonomy could quietly widen, and it is now loud.
  *
- *   node docs/dev/check-queue.mjs
+ *   node docs/dev/check-queue.mjs            the real queue
+ *   node docs/dev/check-queue.mjs <dir>      a directory shaped like docs/dev
  *
  * Prints the summary a fresh session reads first, lists every problem with
  * the file it is in, and exits 1 if there is one. Never edits anything.
@@ -26,7 +27,14 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DEV = dirname(fileURLToPath(import.meta.url));
+// The directory holding QUEUE.md and tasks/. With no argument it is this
+// script's own — `node docs/dev/check-queue.mjs` is what a fresh session runs
+// and what the workflow documents, and that is unchanged. A path may be given
+// instead, which is the only way to drive the validator over a fixture queue
+// and watch a signal fire rather than assume it does: the flag that says a
+// broad audit is recommended went unprinted for as long as it existed, because
+// nothing had ever run this against a queue that carried one.
+const DEV = process.argv[2] ?? dirname(fileURLToPath(import.meta.url));
 const TASKS = join(DEV, 'tasks');
 const QUEUE = join(DEV, 'QUEUE.md');
 
