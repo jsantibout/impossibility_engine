@@ -442,6 +442,16 @@ reviews against this file, so what is not in it is scope creep.
 finished, reviewed branch reported in a digest; the foreman owns the rebase
 and everything after it.
 
+**A brief may not assert a rules fact without quoting the SRD line it came
+from.** IE-011's acceptance criterion said a Paladin 4 / Fighter 1 has a d10
+pool and a d8 pool; `classes.md` prints D10 for both classes, so the pair
+pools into five d10 and the example was wrong. The builder caught it,
+implemented the required behaviour rather than the mistaken example, and
+pinned both shapes. Every definition in the catalogue is already held to
+quoting its line; a brief is where the numbers a builder will trust come
+from, and it is held to the same rule. Recall is not evidence — which is the
+first thing `CLAUDE.md`'s rules section says.
+
 `merge-approved:` records the authority the merge rested on. Under tranche
 authority it is the tranche's own approval, named as such:
 

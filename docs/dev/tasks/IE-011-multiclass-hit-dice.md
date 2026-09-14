@@ -1,13 +1,13 @@
 # IE-011 — Multiclass Hit Dice: call the function that is already right
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 4
 parallel-safe: YES — `creation.ts` and `multiclass.ts`, touching no spell, no event type, no fold and no command module
 depends-on: none
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a2f4e1019f7a6f93a · worktree-agent-a2f4e1019f7a6f93a
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -111,3 +111,95 @@ dead functions the audit lists (`spellOfSource`, `pendingDamageOf`,
 - A character with two classes sharing a die type must get **one** pool of the
   combined level, not two pools or one of the wrong size. That is the case
   `hitDicePools` already handles and the fixture should pin.
+
+## Completion digest
+
+```
+IE-011 — Completion digest
+Approved architectural intent: Make `poolsFor` declare the Hit Dice pools a multiclassed character actually has, by calling `hitDicePools` — which is correct, tested against both SRD worked examples, and called by nothing. Do not reimplement the derivation.
+Builder: COMPLETE
+Worktree: .claude/worktrees/agent-a2f4e1019f7a6f93a   Branch: worktree-agent-a2f4e1019f7a6f93a   Commit: ebc5acb (rebased by the foreman to ded4e71)   Rebased on main at: not rebased by the builder, per the wave-1 launch instruction; built on base 4b22823
+Opus review: PASS — rounds: 1
+Tests: 5583 passing / 5583 total; new tests: 5; mutation run: two, each failing all four multiclass tests — (a) sizing every pool at `choices.level` instead of the counted levels, (b) passing only `classLevelsOf(choices).slice(0, 1)` to `hitDicePools`. Reverted both. Before implementation all five new tests failed for the right reason: `{d10: 4}` where `{d10: 4, d12: 1}` and `{d10: 5}` were owed — one pool, wrong size — and no hit-die pool declared or resized at advancement.
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓
+Conformance: PASS — COVERAGE.md regenerated, `git diff --exit-code COVERAGE.md` clean. SRD lines quoted beside every number, in the docstring and the tests.
+Architectural deviations: one, declared. The brief's acceptance criterion 1 asks for a Paladin 4 / Fighter 1 to have a d10 pool of 4 and a d8 pool of 1. SRD `classes.md` prints D10 for both classes, so that pair pools into five d10 and has no d8. I implemented Required Behaviour item 1 as written and covered both shapes with discriminating fixtures (Fighter 4 / Barbarian 1 for differing dice; Paladin 4 / Fighter 1 for the shared die). No design change — the derivation called is the one the brief names.
+Foundational primitives touched: resource-pool declaration at creation and advancement — `poolsFor` and `poolEvents` in `creation.ts`, both private, signatures narrowed by dropping `definition`. These declarations reach the event log, which is why single-class byte-identity is asserted directly. No event type, reducer, fold, or command module changed.
+New runtime special cases: none
+Files outside the brief's surface: none — `creation.ts`, `class-pools.test.ts`, `CLAUDE.md`; `multiclass.ts` needed no signature adaptation
+Out-of-scope findings (not acted on): the baseline `npm test` on a fresh worktree showed one failure in `persistence-2.test.ts` ("round-trips at every prefix of the log", 5876ms against a 5000ms limit). It passes in isolation and passed in every subsequent full run; it is vitest's default 5s timeout under load from three concurrent builders, not a logic failure. If CI ever runs builders concurrently, that test is the one that will flake first.
+Unresolved concerns: none
+Reviewer confidence: high
+Recommendation: READY FOR MERGE
+```
+
+The reviewer's verdict was `PASS` at high confidence with no defects, at the
+first round. Its fixture analysis is the part worth keeping: the shared-die
+case kills a starting-class-only mutation's plausible cousin, the
+differing-die case kills a naive total-level mutation, and the single-class
+case plus the pre-existing exact-ordered-declaration guard is what protects
+the frozen logs.
+
+## Risk gate
+
+**The signal was a declared deviation against an acceptance criterion, and
+the criterion was wrong.** Checked directly against the SRD rather than taken
+on either party's word: `packages/srd/raw/classes.md:4591` prints "D10 per
+Fighter level" and `:5302` prints "D10 per Paladin level". A Paladin 4 /
+Fighter 1 therefore pools into **five d10 and no d8**. The brief's acceptance
+criterion 1 asked for a d10 pool of 4 and a d8 pool of 1, which is not the
+SRD's answer.
+
+**That is a foreman error, and a worse one than the two before it.** IE-008's
+brief undercounted the pool kinds and IE-001's file surface was stale; both
+were inventories that the work had overtaken. This one is different in kind:
+**a D&D rules fact asserted from memory, in a brief, in a repository whose
+central discipline is that rules are checked against the SRD text and never
+recalled.** `CLAUDE.md` opens its rules section with exactly that sentence.
+The builder caught it, said so plainly, implemented the *required behaviour*
+rather than the mistaken example, and pinned both shapes — differing dice and
+shared die — rather than the one the brief named.
+
+GREEN on the work. The lesson is recorded in `QUEUE.md` rather than here: a
+brief may not assert a rules fact without quoting the SRD line it came from,
+which is what every definition in the catalogue is already held to.
+
+Nothing else signalled: no new event type, no reducer or fold change, no
+command module, no special case, reviewer PASS at the first round.
+
+## Merge record
+
+Merged to `main` as `ded4e71`, fast-forward, pushed. Worktree retired and
+branch deleted. Rebased by the foreman over the wave-1 launch commit, which
+is `docs/dev/` only — conflict-free.
+
+The thirteen conditions, asserted by name:
+
+1. **Inside the brief** — yes; three files, all on its named surface, and
+   `multiclass.ts` was not even needed.
+2. **Builder COMPLETE** — yes.
+3. **Independent reviewer PASS, confidence high** — yes, first round, no
+   defects.
+4. **Defects resolved** — none were raised.
+5. **Gauntlet in the worktree** — typecheck ✓ lint ✓ test 5583/5583 ✓
+   coverage ✓ `git diff --exit-code COVERAGE.md` ✓.
+6. **Conformance** — `COVERAGE.md` byte-clean; SRD lines quoted beside every
+   number, in the docstring and in the tests.
+7. **No unresolved architecture blocker** — none.
+8. **No material deviation** — one declared, and it is the brief that was
+   wrong rather than the implementation. The derivation called is the one the
+   brief names.
+9. **No unexpected authority-boundary or foundational-state change** — pool
+   declaration changed what creation and advancement *emit*, not how anything
+   folds; no event type, reducer, fold or command module moved.
+10. **No meaningful scope expansion** — none.
+11. **No non-mechanical merge conflict** — none.
+12. **Integration did not invalidate the review** — full gauntlet re-run on
+    `main` after the fast-forward: typecheck ✓ lint ✓ test 5583/5583 ✓
+    coverage byte-clean ✓, both frozen fixtures untouched.
+13. **Risk gate** — GREEN, above.
+
+Verified on `main` at `ded4e71` and pushed to `origin/main`.
+
+**Wave 2 is not launched by this merge.** IE-011 has no dependants; IE-014
+waits on IE-010 and IE-016 on IE-012, both still building.
