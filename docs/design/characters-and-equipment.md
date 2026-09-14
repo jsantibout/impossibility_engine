@@ -564,8 +564,10 @@ call site passed the empty list. It survives as a caller's *addition*, unioned
 rather than overriding: a caller may know an immunity the record does not hold
 and none may take one away that it does. Removing it outright was the preference
 and would have meant editing `commands/casting.ts`, which another builder held
-in the same tranche; `SpellEffectOptions.immuneTo` beneath it has zero writers
-and is the one-line deletion left.
+in the same tranche. **`SpellEffectOptions.immuneTo` beneath it is gone** —
+IE-053 held that file as a reader and made the deletion, so the only `immuneTo`
+left is `applyConditionTo`'s own, and `applySpellEffect` passes it the empty
+list.
 
 **Suppression is deliberately not folded in.** SRD Aura of Courage says a
 Frightened ally's condition "has no effect on that ally while there" — the
@@ -605,7 +607,8 @@ that also left the generator advanced with no events emitted. So the *decision*
 stays in one place and `imposeCondition` in `commands/spell-resolution.ts` reads
 its answer, for both condition sites, rather than each interpreting the code.
 `held` is added **after** the attempt, because a condition that never landed put
-nothing there for `OngoingSpell.on` to claim.
+nothing there for the casting to be holding — and what it is holding is half of
+what `spellOn` answers.
 
 **A qualified entry is withheld and reported, and this command is the only thing
 that ever sees one.** "Charmed (except from its vampire master)" as a flat

@@ -21,7 +21,7 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { allyOfCaster, type GameEvent, type GameState } from '../events.js';
+import { allyOfCaster, isOn, type GameEvent, type GameState } from '../events.js';
 import {
   distanceBetween,
   distanceBetweenPoints,
@@ -48,13 +48,16 @@ import { type ActivateSpellCommand } from './activation.js';
  * the order, which matters because Dispel Magic walks the list rolling checks.
  *
  * A pure query over live state: it looks nothing up in the log, searches no
- * history, and answers only what the rules ask for.
+ * history, and answers only what the rules ask for. **`isOn` is the whole of
+ * what it knows about membership** — the stored half of the record unioned
+ * with what the casting is holding on the creature now — so this reader cannot
+ * drift from the other three that ask the same question.
  */
 export function ongoingSpellsOn(
   state: GameState,
   who: CharacterId,
 ): readonly OngoingSpell[] {
-  return byCastingOrder(state).filter((record) => record.on.includes(who));
+  return byCastingOrder(state).filter((record) => isOn(state, record, who));
 }
 
 /** The spells this creature cast that are still running, oldest first. */

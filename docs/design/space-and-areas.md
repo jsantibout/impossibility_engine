@@ -605,11 +605,11 @@ effect records the condition under the spell's **bare name**: the log still says
 what caused it, the casting's cleanup walks past it, and the casting is not
 *on* the creature.
 
-That last part made the two halves of `on` agree at last. **A casting is on a
-creature while it has a live effect there that the casting owns** — the rule
-`alsoOn` already applied when a triggered effect landed a minute later, now
-applied at the cast as well. Damage alone is not being on somebody: the swarm
-bit you and is carrying nothing of yours.
+That last part is also what keeps the derived half of "what is this casting on"
+honest. **A casting is on a creature while it has a live effect there that the
+casting owns**, and a condition it caused and does not keep is not one of them.
+Damage alone is not being on somebody either: the swarm bit you and is carrying
+nothing of yours. See "Who a casting is on is two facts" below.
 
 ### Entering is a position that actually changed
 
@@ -649,123 +649,95 @@ every 5 feet it travels") is not attempted at all.
 entry fires — the reading the one-slot-per-turn rule and every once-per-turn
 feature already take, preserved rather than invented.
 
-### `OngoingSpell.on` grows, and now it shrinks as well
+### Who a casting is on is two facts, and only one of them is stored
 
-SRD Dispel Magic ends "any ongoing spell ... **on the target**", and `on` was
-written once, at the resolution, because that was the only moment a casting
-could reach anybody. A persistent area breaks that: Web restrains a creature
-that walks in a minute later, and a Dispel Magic aimed at *them* has to find
-it.
+SRD Dispel Magic ends "any ongoing spell ... **on the target**", and the engine
+answered it out of a list written once, at the resolution, because that was the
+only moment a casting could reach anybody. A persistent area breaks that: Web
+restrains a creature that walks in a minute later, and a Dispel Magic aimed at
+*them* has to find it.
 
-So `on` grows, derived, on the link every other cleanup already uses: **a
-casting is on a creature while it has a live effect there that the casting
-owns.** Deliberately not "everyone the area has ever touched" — a creature
-Insect Plague damaged carries nothing of the swarm's, so the swarm is not on
-them.
+So the list grew a second writer, and then a third, and then an editor — and a
+stored derivation kept in step by four hand-written passes is the shape this
+file keeps finding wrong. `derived-on.test.ts` was written as the **gate** on
+removing it: fold a log one event at a time and compare the stored value
+against the rule at every live record, *before* anything is taken away.
 
-**The asymmetry is closed: `expireEffects` shrinks it.** When a condition
-instance lapses on its own deadline, the casting stops being on that creature —
-**if that was the last thing it owned there**. One rule read in both
-directions, rather than a list that only ever grew: a stale name in `on` let a
-creature dispel a spell that was no longer on them. The "last thing" test is
-the same four links `releaseCasting` walks — the conditions, the bonuses, the
-Armour Class and the roll modifiers — asked of one creature, so a Hold Person
-still holding somebody stays on them whatever else lapsed. Scheduled damage is
-deliberately not one of them: a hit still owed is the casting's debt, not
-something it is doing to the creature, which is the same reading that keeps a
-creature Insect Plague merely damaged off the list.
+**The measurement came back no, and it is the reason the field has the shape it
+has.** The rule alone — a casting is on a creature while it has a live effect
+there that the casting owns, which `holdsNothingOf` computes — cannot answer
+the whole question, and two populations say so in opposite directions:
 
-**No executed spell reaches it yet**, and that is worth writing down rather
-than dressing a fixture up as one. A condition needs a deadline *of its own*,
-and the three definitions that give one — Ray of Sickness, Color Spray,
-Sunbeam — are Instantaneous twice over and Range: Self the third time, so the
-first two leave no record and the third is on its caster. The test drives it
-through `applyConditionTo`, which has taken a per-condition `Duration` since
-durations landed and carries the casting in its source like every linked
-effect.
-
-**Web's Restrained is not the case this reaches, and is worse than it.** It is
-not independently timed — it hangs on the casting's own deadline, so the
-casting's timer ends first and takes it along. And what the SRD actually gives
-it is "while in the webs": a condition that ends when its holder walks *out of
-an area* has no shape here at all, so it runs until the casting ends or the
-creature breaks free, and the definition says so in `unmodelled`.
-
-**One finding worth carrying:** Grease's Prone is linked to its casting, so the
-engine lifts it when the Grease ends. SRD leaves Prone standing until the
-creature gets up. That was true before this batch and `on` growing makes it
-reach further; it is a fix to Grease's definition, not to `on`.
-
-#### And it cannot be derived from that rule alone, which is a measurement
-
-`on` is a **stored derivation kept in step by three passes** — written at the
-cast, grown by `alsoOn`, shrunk by `expireEffects`, edited by `withoutTarget` —
-and that is the shape this file keeps finding wrong. The rule is one sentence
-and `holdsNothingOf` already computes it, so replacing the three passes with a
-question asked of the world reads like the obvious move.
-
-**It is not, and `derived-on.test.ts` is the gate that says so.** Written
-before anything was removed, which is the whole of why the answer is worth
-anything: it folds a log one event at a time and compares the stored value
-against the derivation at every live record.
-
-| | |
-|---|---|
-| `golden-log-2.json` | **869 checkpoints, 0 mismatches** |
-| `golden-log.json` | **0 checkpoints** — it predates the record and holds none |
-| the suite, with the comparison wired into `applyEvent` | **disagreements, in two populations** |
-
-The second row is why the first is not evidence on its own, and it is pinned
-rather than left as a green tick beside its neighbour: two passing assertions
-there are one piece of evidence, not two.
-
-**No count is given for the third row, and that is deliberate.** It was one
-instrumented run of a probe that is not in the tree, so a digit here would be a
-number nothing regenerates — this file's own most-repeated finding — and it
-would be worse than merely stale: the two subsets below are counted under
-*different* derivations, so they do not add up to anything. What is durable is
-the **shapes**, and those are three fixtures in `derived-on.test.ts` rather
-than a total.
-
-**Two populations disagree, and they pull in opposite directions.**
-
-| | What the stored value says | What the rule alone says |
+| | What a stored list says | What the rule alone says |
 |---|---|---|
 | A **tracked** spell cast at a creature — Darkvision, Fly, Tongues, Jump, Message, Spider Climb, Water Walk, Water Breathing, True Seeing, Telepathic Bond, Nondetection | on them, which is how Darkvision stays dispellable | **nobody** — it resolves nothing, so it owns nothing there, for ever |
 | A target the casting was **released on** — Bless, Hold Person, Black Tentacles, Charm Person, Suggestion, Hypnotic Pattern, Stoneskin, Sunbeam | gone | gone — and a derivation seeded from the *cast-time* list, which is what would rescue the row above, puts them back |
 
-So neither reading is available: the cast-time list is necessary for the first
-row and wrong for the second. **What separates them is a fact nothing in state
-holds** — whether the casting has *ever* owned anything on that creature — and
-recovering it means either a second field on the record or a different value
-written at the cast, both of which change what `spell-ongoing` carries and need
-a compatibility story for two frozen logs. That is a decision rather than an
-implementation detail, so the removal stopped here.
+Neither reading is available on its own, and what separates the two rows is a
+fact nothing in state holds: whether the casting has ever owned anything on
+that creature. **So the field is two facts of different provenance**, and each
+is kept where it belongs:
 
-**And the gate found the bug it was written to prevent, already live.**
-`expireEffects` shrinks `on` in its **condition** branch and in no other — so a
-`grants` deadline arriving takes the Resistance off the creature and leaves the
-casting claiming to be on them. `holdsNothingOf` says otherwise in the same
-breath, and `ongoingSpellsOn` reports a Stoneskin that a Dispel Magic aimed at
-that fighter would then end. It is the same stale name this section says the
-shrink exists to remove, arriving through the fourth `EffectTarget` member,
-which was built after the shrink was written and threaded into none of it.
+| Bucket | Provenance | Where it lives |
+|---|---|---|
+| the caster of a Range: Self spell — Vampiric Touch attacks somebody else every turn and is on the wizard | a cast-time declaration | **stored**, in `OngoingSpell.aimed` |
+| a target the casting reported nothing about, which the geometry did not choose — the tracked spells | a cast-time declaration | **stored**, same field |
+| whoever the casting hung a live effect on | a world fact | **derived**, at every read |
 
-**It is latent, and saying so is the difference between a finding and an
-alarm.** A `grants` timer has exactly one runtime writer — the `speed-change`
-rider's own `lasts`, scheduled beside the grant — and the only definition in
-the catalogue that writes one is Ray of Frost, a **cantrip**, whose casting is
-over the instant it resolves and which therefore leaves no ongoing record for
-a name to go stale in. So no registered spell can reach it today and the
-fixture hand-writes the `effect-scheduled`. What makes it worth recording is
-that the next `speed-change` rider on a spell that *does* run — or any second
-writer of a `grants` deadline — arrives into a shrink that cannot see it.
+`aimed` is therefore the whole of "on" **minus** what the casting is holding,
+computed once at the cast; `spellOn` in `fold/release.ts` is the union, and the
+four readers that ask the question — `ongoingSpellsOn`, the Dispel resolver,
+`endOngoingSpell`'s refusal and the triggered-endings pass — all ask it. The
+name is deliberate: a reader who mistook the stored subset for "on now" would
+be reading the smaller of two halves, and "on" invited exactly that.
 
-It is **characterised rather than corrected**, because the correction changes
-what the Dispel readers answer and which mechanism should own that answer is
-the question the measurement has opened. What the test asserts is the
-*disagreement* — two parts of the engine giving different answers to one
-question — rather than either answer being right.
+**Deliberately not "everyone the area has ever touched".** A creature Insect
+Plague damaged carries nothing of the swarm's, so the swarm is not on them and
+a Dispel Magic pointed their way finds nothing. Scheduled damage is the
+casting's debt rather than something it is doing to the creature, and
+`grantSourcesOf` leaves it out for that reason; `holdsNothingOf`'s reading did
+not change when the field did.
+
+**Two hand-written passes went, and one was kept.** The growth pass — `alsoOn`,
+wired to `condition-applied` — is gone, and with it a gap of its own: it saw
+conditions and none of the five events that *grant* something, so a Bless that
+reached somebody a minute late was invisible to Dispel Magic. The shrink in
+`expireEffects` is gone too. What stays is `withoutTarget`, because it is the
+only thing that edits the stored half: a dispelled Darkvision has no grant to
+lose, so nothing in the world would say it had stopped.
+
+**And the gate found the bug it was written to prevent, already live — which
+this closed by construction rather than by hand.** `expireEffects` shrank the
+list in its **condition** branch and in no other, so a `grants` deadline
+arriving took the Resistance off the creature and left the casting claiming to
+be on them; `holdsNothingOf` said otherwise in the same breath, and
+`ongoingSpellsOn` reported a Stoneskin that a Dispel Magic aimed at that
+fighter would then end. Adding the missing shrink would have been a third copy
+of a rule that was already right in one place and wrong in another. Deleting
+both copies and asking the world instead is what makes the two branches agree —
+and the fixture that asserted the *disagreement* now asserts the agreement, as
+its own docstring said it should.
+
+It was **latent**, and saying so is the difference between a finding and an
+alarm: a `grants` timer has one runtime writer, the `speed-change` rider's
+`lasts`, and the only definition that writes one is Ray of Frost, a cantrip
+whose casting is over the instant it resolves. The fixtures hand-write the
+`effect-scheduled` for that reason, in both branches it can be aimed at.
+
+**Web's Restrained is not one of the cases any of this reaches, and is worse
+than them.** It is not independently timed — it hangs on the casting's own
+deadline, so the casting's timer ends first and takes it along. And what the
+SRD actually gives it is "while in the webs": a condition that ends when its
+holder walks *out of an area* has no shape here at all, so it runs until the
+casting ends or the creature breaks free, and the definition says so in
+`unmodelled`.
+
+**One finding worth carrying:** Grease's Prone is linked to its casting, so the
+engine lifts it when the Grease ends. SRD leaves Prone standing until the
+creature gets up. That is a fix to Grease's definition, not to any of this —
+`outlivesCasting` records such a condition under the spell's **bare name**, so
+the log still says what caused it, the casting's cleanup walks past it, and the
+casting is not *on* the creature.
 
 ### A test that passes for the wrong reason is what mutation testing is for
 

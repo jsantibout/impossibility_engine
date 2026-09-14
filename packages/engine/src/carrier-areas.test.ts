@@ -28,6 +28,7 @@ import {
   settleAreaEffects,
   type MoveResolution,
 } from './commands.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A persistent area whose origin is a creature's live position.
@@ -1014,7 +1015,7 @@ describe('a Range Self spell is on its caster and on nobody it hurts', () => {
     const { game, aura } = withAura();
     game.walk(CLERIC, ONE_STEP_EAST);
     game.settle();
-    expect(ongoingSpellOf(game.state, aura)?.on).toEqual([CLERIC]);
+    expect(spellOn(game.state, ongoingSpellOf(game.state, aura)!)).toEqual([CLERIC]);
     expect(ongoingSpellsOn(game.state, VICTIM)).toEqual([]);
   });
 
@@ -1023,7 +1024,7 @@ describe('a Range Self spell is on its caster and on nobody it hurts', () => {
     game.walk(WALKER, WALKER_INSIDE);
     game.settle();
     game.walk(WALKER, WALKER_START);
-    expect(ongoingSpellOf(game.state, aura)?.on).toEqual([CLERIC]);
+    expect(spellOn(game.state, ongoingSpellOf(game.state, aura)!)).toEqual([CLERIC]);
   });
 });
 

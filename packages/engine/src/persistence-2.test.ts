@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * The second frozen log, and the half of the vocabulary the first one never
@@ -192,9 +193,17 @@ describe('the second stored log still folds', () => {
     // What each casting left behind, by casting id. An area holds a point; a
     // spell on a creature holds the creature; the level is why the record
     // exists at all, because Dispel Magic reads it.
+    //
+    // **Who each casting is on is `spellOn`'s answer**, not a field — and the
+    // five answers below are byte for byte the ones this engine gave when it
+    // was a field, which is what "an older shape still folds to the same
+    // state" has to mean once the shape stops being stored whole.
     expect(
       Object.fromEntries(
-        Object.entries(state.ongoing).map(([id, o]) => [id, [o.spellId, o.level, [...o.on]]]),
+        Object.entries(state.ongoing).map(([id, o]) => [
+          id,
+          [o.spellId, o.level, [...spellOn(state, o)]],
+        ]),
       ),
     ).toEqual({
       'cast:11': ['web', 2, ['nyx', 'thug']],
@@ -211,16 +220,26 @@ describe('the second stored log still folds', () => {
 
     /**
      * **And the ongoing records were written in an older shape.** This log
-     * predates `OngoingSpell` pinning a casting's area and its clauses, and
-     * predates `concentration` and `route` being dropped from it. Absent means
-     * what it always meant: the area is filled from the catalogue **once**, as
-     * it was read from the catalogue on every fold before, and the two dead
-     * fields do not ride into live state as data nothing can explain.
+     * predates `OngoingSpell` pinning a casting's area and its clauses,
+     * predates `concentration` and `route` being dropped from it, and predates
+     * the field it stores being the half of "on" the world cannot answer.
+     * Absent means what it always meant: the area is filled from the catalogue
+     * **once**, as it was read from the catalogue on every fold before; the
+     * two dead fields do not ride into live state as data nothing can explain;
+     * and the stored subset is computed as the record is folded.
      *
      * This is what makes the rest of this test possible at all — the Web and
      * the Moonbeam above only catch anybody because their areas came back.
+     *
+     * **What is held is always the current shape**, whatever the log said.
+     * `upgradeOngoing` is the only door into `state.ongoing`, so a record in
+     * there is version 3 and carries `aimed`; the version on the *event* is
+     * what the log wrote, and this one wrote none at all.
      */
-    expect(state.ongoing['cast:11']?.version).toBe(2);
+    expect(state.ongoing['cast:11']?.version).toBe(3);
+    // Every one of the five stores nobody: each hung something on everyone it
+    // caught, so the whole of what these records say is derived at every read.
+    expect(Object.values(state.ongoing).map((o) => o.aimed)).toEqual([[], [], [], [], []]);
     expect(state.ongoing['cast:11']?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
     expect(state.ongoing['cast:11']?.areaTrigger?.at).toBe('start-of-turn');
     expect(state.ongoing['cast:11']).not.toHaveProperty('route');

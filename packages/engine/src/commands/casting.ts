@@ -44,6 +44,7 @@ import {
 import {
   applyEvent,
   castingIdFor,
+  isOn,
   type CommandStamp,
   type CreatureState,
   type GameEvent,
@@ -1013,7 +1014,6 @@ function chooseSlotKind(
  * some other effect imposed.
  */
 export interface SpellEffectOptions {
-  readonly immuneTo?: readonly ConditionName[];
   readonly duration?: Duration;
   /** A saving throw this effect takes at a turn boundary. */
   readonly repeatSave?: RepeatSave;
@@ -1070,7 +1070,12 @@ export function applySpellEffect(
     targetId,
     condition,
     options.unowned === true ? casting.spell : castingSource(casting.spell, casting.castingId),
-    options.immuneTo ?? [],
+    // No caller-supplied immunities. `SpellEffectOptions.immuneTo` was a
+    // pass-through with **zero writers** — IE-040 verified that and left it
+    // only because this file was held at the time — and a parameter nothing
+    // passes is a claim about the rules that nothing checks.
+    // `conditionImmunitiesOf` is what actually decides this, off the creature.
+    [],
     options.duration,
     options.repeatSave,
     {},
@@ -1184,12 +1189,12 @@ export function endOngoingSpell(
     if (on !== null) {
       if (creatureOf(state, on) === null) return unknownCreature(on);
       // **A release names a creature the casting is actually on**, which is
-      // `OngoingSpell.on`'s own answer. The command this replaced refused the
-      // same defect by scanning for a condition instance; `on` is the wider
-      // and truer reading, because a tracked spell like Darkvision is on
-      // somebody and hangs nothing there. Same code, because it is the same
+      // `isOn`'s own answer. The command this replaced refused the same defect
+      // by scanning for a condition instance; that is only the derived half of
+      // the question, and it misses a tracked spell like Darkvision, which is
+      // on somebody and hangs nothing there. Same code, because it is the same
       // mistake: the caller is releasing a spell that is not there to release.
-      if (!record.on.includes(on)) {
+      if (!isOn(state, record, on)) {
         return err('no_effect_there', `${record.spell} is not on ${on}, so it cannot end there`);
       }
     }

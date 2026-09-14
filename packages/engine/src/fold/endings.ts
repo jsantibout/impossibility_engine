@@ -19,7 +19,7 @@ import { castingNumber } from '../spells.js';
 
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
-import { casterOf, releaseCasting, releaseOnTarget } from './release.js';
+import { casterOf, isOn, releaseCasting, releaseOnTarget } from './release.js';
 
 /**
  * Whether the creature that dealt this damage is the caster or one of their
@@ -135,10 +135,10 @@ interface Ending {
  * folds of one log end them in one order.
  *
  * **The creature has to be one the casting is on.** Every sentence here says
- * "the target", and `OngoingSpell.on` is the engine's answer to which
- * creatures those are — so a Mage Armor on the wizard is untouched by the
- * fighter putting a breastplate on, and a Charm Person is untouched by damage
- * dealt to somebody it never caught.
+ * "the target", and `spellOn` is the engine's answer to which creatures those
+ * are — so a Mage Armor on the wizard is untouched by the fighter putting a
+ * breastplate on, and a Charm Person is untouched by damage dealt to somebody
+ * it never caught.
  *
  * `settled` is the loop's own memory rather than a rule — see
  * {@link endTriggeredCastings} for why termination is not left to what a
@@ -168,7 +168,7 @@ function nextEnding(
               : null
             : fact.who;
 
-        if (subject === null || !record.on.includes(subject)) continue;
+        if (subject === null || !isOn(state, record, subject)) continue;
         if (settled.has(endingKey(castingId, subject))) continue;
         return { castingId, on: trigger.ends === 'target' ? subject : null, subject };
       }

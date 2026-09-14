@@ -1237,7 +1237,9 @@ export function resolveEffects(
   // — what it does ———————————————————————————————————————————————————————
   let current = events.reduce(applyEvent, state);
   const outcomes: SpellTargetOutcome[] = [];
-  // Whom this casting has left something of its own on — see {@link landedOn}.
+  // Whom this casting has left something of its own on — the half of "what is
+  // this casting on" the world holds, so the half the record does *not* store.
+  // See {@link aimedAt}.
   const held = new Set<CharacterId>();
   const issuedBefore = supply.issuer.count;
 
@@ -1337,26 +1339,36 @@ export function resolveEffects(
         // reason: a sentence corrected in the catalogue next month must not
         // reach a casting made today.
         ...(definition.endsEarly === undefined ? {} : { endsEarly: definition.endsEarly }),
-        // **A casting that holds a point is on its point, not on a creature.**
-        // The force is not on the goblin it hit, so a Dispel Magic aimed at
-        // the goblin must not put it out — and `on: []` is the state the
-        // record already has for a spell that caught nobody.
+        // **What the cast knows and the world will not say** — see
+        // `OngoingSpell.aimed`. Every creature the casting hung something on
+        // is left out of all three branches below, because `spellOn` reads
+        // them off the world at every read; what is written here is the rest.
         //
-        // **A Range: Self casting is on its caster *and* on whoever it holds
-        // something on**, which is one rule rather than two. `[casterId]`
-        // alone was a second rule — "Range: Self means the caster, full stop"
-        // — and it threw `held` away: SRD Sunbeam comes out of the caster and
-        // blinds whoever the Line catches "until the start of your next
-        // turn", so a Dispel Magic aimed at the blinded creature found
-        // nothing to end. The rule the rest of the engine applies is
-        // `alsoOn`'s, and it is the one applied here too: **a casting is on a
-        // creature while it has a live effect there that the casting owns.**
-        on:
+        // **A casting that holds a point is aimed at nobody.** The force is
+        // not on the goblin it hit, so a Dispel Magic aimed at the goblin must
+        // not put it out.
+        //
+        // **A Range: Self casting stores its caster, and only when it is
+        // holding nothing on them.** The caster is the half no world fact can
+        // cover — SRD Vampiric Touch is Range: Self, attacks somebody else
+        // every turn, and hangs nothing on the wizard at all — so without this
+        // the spell would be on nobody. When the casting *is* holding
+        // something there, Divine Favor's die for one, the world answers and
+        // storing the name as well would be storing a derivation.
+        //
+        // The creatures such a casting caught are not here either, and they
+        // used to be: SRD Sunbeam comes out of the caster and blinds whoever
+        // the Line catches "until the start of your next turn", so a Dispel
+        // Magic aimed at the blinded creature has to find it — and it does,
+        // because the casting is holding the Blinded on them.
+        aimed:
           becomes.on === 'caster'
-            ? [...new Set([casterId, ...held])].sort()
+            ? held.has(casterId)
+              ? []
+              : [casterId]
             : becomes.on === 'point'
               ? []
-              : landedOn(targets, outcomes, becomes.fromArea === true, held),
+              : aimedAt(targets, outcomes, becomes.fromArea === true, held),
         ...(becomes.origin === undefined ? {} : { origin: becomes.origin }),
         ...(becomes.towards === undefined ? {} : { towards: becomes.towards }),
         ...(becomes.anchoring === undefined ? {} : { anchoring: becomes.anchoring }),
@@ -1370,56 +1382,57 @@ export function resolveEffects(
 }
 
 /**
- * Which of the creatures a spell was aimed at it is actually **on**.
+ * Which of the creatures a spell was aimed at only the **cast** can say it is
+ * on — `OngoingSpell.aimed`, and nothing wider.
  *
- * A target the spell reported nothing about keeps its place: a tracked spell
- * resolves no effects at all and is still on whoever it was cast on, which is
- * how Darkvision gets dispelled. A target every effect reported as unaffected
- * comes off — a creature that saved against Banishment is not banished, and a
- * spell is not on somebody it failed to touch.
+ * One bucket survives here: a target the spell reported nothing about. A
+ * tracked spell resolves no effects at all and is still on whoever it was cast
+ * on, which is how Darkvision gets dispelled, and there is no world fact that
+ * says so — the casting owns nothing on them, for ever. A target every effect
+ * reported as unaffected comes off: a creature that saved against Banishment
+ * is not banished, and a spell is not on somebody it failed to touch.
  *
  * Sorted, so the record serialises identically however the targets arrived.
  *
- * **`held` is unioned in rather than only used to filter**, because the rule
- * is about creatures and this function was walking a *list*. Every resolver
- * but one holds something on the creature it is resolving, so for the whole
- * catalogue before Divine Favor the two readings agreed exactly — `held` was
- * a subset of `targets` and a filter could not lose anybody.
+ * **`held` is subtracted rather than unioned in**, which is the change IE-053
+ * made and the reason the list finally stops needing maintenance. A creature
+ * the casting is holding something on is on it by a fact `holdsNothingOf`
+ * reads at every read, so storing them is storing a derivation — and a stored
+ * derivation went stale exactly where the hand-written passes did not reach.
  *
- * `attack-rider` is the first effect that hangs its grant somewhere else.
- * SRD Hunter's Mark is Range: 90 feet and the extra die is the **ranger's**,
- * so the casting owns something on a creature who is not in `targets` at all,
- * and filtering dropped them: the record folded to `on: []` and a Dispel Magic
- * could reach the spell from nobody. The rule the rest of the engine states —
- * a casting is on a creature while it has a live effect there that the casting
- * owns — is what this now says in both branches rather than in one.
+ * It also settles the case that forced the union. SRD Hunter's Mark is Range:
+ * 90 feet and the extra die is the **ranger's**, so the casting owns something
+ * on a creature who is not in `targets` at all; a filter over the target list
+ * dropped them and a Dispel Magic could reach the spell from nobody. The
+ * derived half finds them without this function having to know they exist.
+ *
+ * **Standing in an area is not being cast on.** A tracked spell keeps a target
+ * it reported nothing about because somebody *aimed* it there; an area spell
+ * aimed at nobody has the geometry to thank, and a Web that has done nothing
+ * to you yet is not on you.
+ *
+ * **`held` changes no answer today, and that is stated rather than tidied
+ * away.** Every resolver that hangs something on a target also reports an
+ * outcome for it, so the second test already excludes everyone the first one
+ * would; the one effect that hangs a grant elsewhere — `attack-rider`, on the
+ * caster — puts somebody in `held` who is not in `targets` at all. It is here
+ * because the rule is one rule in all three branches of the record's write,
+ * and a resolver that holds without reporting would otherwise store a name the
+ * world was already answering for. The caster branch is where the same
+ * subtraction *is* reachable, and `derived-on.test.ts` drives it.
  */
-function landedOn(
+function aimedAt(
   targets: readonly CharacterId[],
   outcomes: readonly SpellTargetOutcome[],
   fromArea: boolean,
   held: ReadonlySet<CharacterId>,
 ): readonly CharacterId[] {
-  return [...new Set([...held, ...targets])]
-    .filter((target) => {
-      // **A casting is on a creature while it has a live effect there that the
-      // casting owns**, which is the same rule `alsoOn` applies when a
-      // triggered effect lands a minute later. One rule, two moments.
-      //
-      // So damage alone is not being *on* somebody — the swarm bit you and is
-      // not carrying anything of yours — and neither is a condition the
-      // casting caused and does not keep: SRD Grease knocks you Prone and
-      // Prone is yours to stand up from, so a Dispel Magic aimed at you finds
-      // no Grease to end.
-      if (held.has(target)) return true;
-      // **Standing in an area is not being cast on.** A tracked spell keeps a
-      // target it reported nothing about because somebody *aimed* it there —
-      // Darkvision is on the creature it was cast on. An area spell aimed at
-      // nobody: the geometry found them, and a Web that has done nothing to
-      // you yet is not on you.
-      const said = outcomes.filter((outcome) => outcome.target === target);
-      return said.length === 0 && !fromArea;
-    })
+  if (fromArea) return [];
+  return [...new Set(targets)]
+    .filter(
+      (target) =>
+        !held.has(target) && !outcomes.some((outcome) => outcome.target === target),
+    )
     .sort();
 }
 

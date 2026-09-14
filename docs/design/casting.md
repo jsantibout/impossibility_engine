@@ -1143,9 +1143,9 @@ spell stays queryable, and no zombie.
 | No deadline at all | "Until dispelled" runs with no timer — see that section |
 | Dispelled, recast, or dismissed by its caster | `spell-ended`, with a reason |
 | A trigger the spell prints | the derived pass; **no event** — see "A Casting Can Be Ended By Something That Happens" |
-| Target shakes it off | leaves `on`; the casting runs for everyone else |
-| Target's last effect lapses | leaves `on`; derived, by the rule `alsoOn` grew it with |
-| Target leaves the game | leaves `on`; the spell is **not** ended, because the SRD does not end a Bless when one of the blessed walks out |
+| Target shakes it off | `withoutTarget` clears the stored half and the release clears the held half; the casting runs for everyone else |
+| Target's last effect lapses | they stop being on it, with nothing written: `spellOn` asks the world rather than remembering |
+| Target leaves the game | leaves `OngoingSpell.aimed`; the spell is **not** ended, because the SRD does not end a Bless when one of the blessed walks out |
 | Created again afterwards | refused as a corrupt log — `castingsEnded` is what remembers |
 
 **Expiry and a broken Concentration still write nothing.** Nobody decides
@@ -1165,6 +1165,72 @@ carries the casting id in its source exactly as a condition does, and
 hit standing. No ongoing spell schedules one yet — both delayed-damage spells
 are Instantaneous — which is precisely when a convergence point is cheapest to
 complete and easiest to forget.
+
+### What a casting is **on**: stored what the cast knows, derived what the world holds
+
+SRD Dispel Magic ends "any ongoing spell ... **on the target**", so the record
+has to answer who that is. It is **two facts of different provenance**, and the
+record stores only the one nothing else can supply.
+
+| Bucket | Provenance | Disposition |
+|---|---|---|
+| the caster of a Range: Self spell | a cast-time declaration | **stored** — `OngoingSpell.aimed` |
+| a target the casting reported nothing about, which the geometry did not choose | a cast-time declaration — the tracked spells | **stored**, same field |
+| whoever the casting hung a live effect on | a world fact `holdsNothingOf` already answers at every read | **derived** |
+
+So `aimed` is the whole of "on" **minus** what the casting is holding at the
+cast, and **`spellOn(state, record)` is "on now"** — the union, in
+`fold/release.ts`, with `isOn` for the one-creature question. All four readers
+ask it and none of them reads the field: `ongoingSpellsOn`, the Dispel
+resolver's "on this creature and nobody else", `endOngoingSpell`'s
+`no_effect_there`, and the triggered-endings pass. They used to share a
+*field*, which is not the same thing as sharing a rule.
+
+**The name is the point.** `on` invited a reader to take the stored subset for
+the answer, and the stored subset is the *smaller* half — usually empty, because
+most spells hang something on everyone they catch. A field named for the aiming
+cannot be mistaken for a field named for the state.
+
+**Why not derive all of it**, which is the obvious move and is *measured*
+wrong: a tracked spell like Darkvision resolves nothing and therefore owns
+nothing on its target, for ever, so the rule alone answers nobody and Darkvision
+stops being dispellable. And the rescue — seeding the derivation from the
+cast-time list — is wrong in the other direction, because a target the casting
+was released on is still in that list. `docs/design/space-and-areas.md` carries
+the measurement and both populations; `derived-on.test.ts` carries the
+fixtures.
+
+**What edits the stored half, and what does not.** `withoutTarget` is kept and
+is the only writer: a target who shakes the spell off, is dispelled on, or
+leaves the game leaves `aimed`, and a dispelled Darkvision has nothing in the
+world to lose, so without it the casting would stay aimed at them for ever.
+Growth is not an operation at all any more — the `alsoOn` pass on
+`condition-applied` is gone, which also closed its own gap: it saw conditions
+and none of the five events that *grant* something. And `expireEffects` no
+longer shrinks anything; it used to, in its condition branch and in no other,
+which is exactly how a `grants` deadline came to leave a stale name behind.
+
+**Compatibility is two steps and the order matters.** `ONGOING_RECORD_VERSION`
+is **3**, the shape that stores `aimed`; a record below it stored the whole of
+"on", and the subset is computed in the `spell-ongoing` reducer case, which is
+the only place that has the state to compute it from. It is correct there
+because the record is written **last** in every resolution path, so everything
+the casting holds is already on the creatures.
+
+The step that had to come first is in `upgradeOngoing`: its catalogue fill is
+keyed on `version === undefined` and nothing else. Keyed on
+`!== ONGOING_RECORD_VERSION`, as it was, *any* bump would route every version 2
+record through the fill and overwrite an area pinned at the cast with the book
+as it reads now — the exact hazard pinning the area was for, one constant edit
+away, and invisible to both frozen logs because both are pre-versioned and take
+the fill either way. `casting-end-triggers.test.ts` folds a version 2 record
+carrying a 15-foot Cube where the catalogue's Web is a 20-foot one and asserts
+it comes out untouched.
+
+**The event carries `WrittenOngoing`; the fold holds `OngoingSpell`.** They
+were one type only while they happened to agree. A `spell-ongoing` payload is a
+line in a log that may be older than this engine; what reaches `state.ongoing`
+has been through `upgradeOngoing`, so it is version 3 and it carries `aimed`.
 
 ### `spell-ended` carries the whole of Dispel Magic's target distinction
 
@@ -1220,11 +1286,11 @@ bookkeeping, which is the sentence this file already writes about a casting
 that outlives its caster. A guard nobody asserts is what this file keeps
 finding, so it is driven in both directions, beside `resolveCast`'s.
 
-**A release names a creature the casting is on**, which is `OngoingSpell.on`'s
-own answer, and that is where the old command's `no_effect_there` went. It
-scanned for a condition instance; `on` is the wider and truer reading, because
-a tracked spell like Darkvision is on somebody and hangs nothing there. Same
-code, because it is the same mistake.
+**A release names a creature the casting is on**, which is `isOn`'s own answer,
+and that is where the old command's `no_effect_there` went. It scanned for a
+condition instance — only the derived half of the question, and the half a
+tracked spell like Darkvision is invisible to, because Darkvision is on
+somebody and hangs nothing there. Same code, because it is the same mistake.
 
 #### The word that scopes the clause is the easiest thing here to elide
 
@@ -1351,10 +1417,18 @@ trigger list is catalogue data, so a fold that looked it up would let a
 sentence corrected next month reach a casting made today. A **pre-versioned**
 record is filled from the catalogue by `upgradeOngoing`, exactly as its area
 is, because that log never wrote the fact down and there is nowhere else to
-read it. **Version 2 was not bumped**, and that is a decision: `endsEarly`
-changes the meaning of no field already there, and bumping would be *worse* —
-running a version 2 record through the upgrade would overwrite a **pinned**
-area with the book as it reads now, which is the hazard pinning it was for.
+read it. **`endsEarly` did not bump the version**, and that is a decision: it
+changes the meaning of no field already there, so absence on a version 2 record
+means the spell prints no such sentence.
+
+At the time that was also the *only* safe answer, because the catalogue fill
+was keyed on `!== ONGOING_RECORD_VERSION` — any bump would have run every
+version 2 record through it and overwritten a **pinned** area with the book as
+it reads now, the hazard pinning it was for. IE-053 keyed the fill on
+`version === undefined`, which is the condition it always meant, and then bumped
+to version 3; a version 2 record's own `area`, `areaTrigger` and `endsEarly` are
+read off the record and the book is opened only for a record older than the
+fields. See the section on what a casting is on, above.
 
 **A trigger hangs on a consequence event, never on `roll-recorded`.** That
 event changes no state by rule, and an ending hung there would fire on a roll
@@ -1375,8 +1449,8 @@ judged. Same three-valued discipline as declared cover, declared sight and
 Sneak Attack's flanking clause.
 
 **The subject has to be a creature the casting is on.** Every sentence says
-"the target", and `OngoingSpell.on` is the engine's answer to which creatures
-those are — so a Mage Armor on the wizard is untouched by the fighter putting a
+"the target", and `spellOn` is the engine's answer to which creatures those are
+— so a Mage Armor on the wizard is untouched by the fighter putting a
 breastplate on. It is also the reading that made the fixture discriminating:
 an invisible creature who is *also* the one acting cannot tell "read the
 casting's target" from "read the event's id" apart.
@@ -1555,11 +1629,11 @@ them.
 
 ### A casting that holds a point is on nobody
 
-`OngoingSpell.on` answers Dispel Magic's "any ongoing spell **on the target**",
-and the force is not on the goblin it hit. A Dispel Magic aimed at that goblin
-must not put the Cleric's weapon out, so the presence of an origin *is* the
-rule: the spell is on its point, and `on` is the empty list the record already
-supports for a spell that caught nobody.
+`spellOn` answers Dispel Magic's "any ongoing spell **on the target**", and the
+force is not on the goblin it hit. A Dispel Magic aimed at that goblin must not
+put the Cleric's weapon out, so the presence of an origin *is* the rule: the
+spell is on its point, it is aimed at nobody, and it holds nothing on anybody —
+which are the two halves of the answer, both empty.
 
 ### What the SRD scene test had to be
 

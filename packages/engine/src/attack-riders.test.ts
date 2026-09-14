@@ -17,6 +17,7 @@ import {
   resolveSpell,
   takeReady,
 } from './commands.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A rider on the caster's later attacks — the **sixth** sourced grant.
@@ -362,13 +363,13 @@ describe('the sixth grant ends through the one door', () => {
    * target", and Divine Favor is Range: Self — so the casting is on its caster
    * and a Dispel Magic aimed at them finds it. That is also the assertion that
    * the rider makes the casting *on* somebody at all: a grant nothing owned
-   * would leave `ongoing.on` empty and the dispel nothing to reach.
+   * would leave `spellOn` empty and the dispel nothing to reach.
    */
   it('goes when the casting is dispelled', () => {
     const log = cast(table(), 'divine-favor', [CASTER]);
     const running = fold('seed', log);
     expect(running.creatures[CASTER]!.attackRiders).toHaveLength(1);
-    expect(Object.values(running.ongoing)[0]!.on).toEqual([CASTER]);
+    expect(spellOn(running, Object.values(running.ongoing)[0]!)).toEqual([CASTER]);
 
     // The **bystander** dispels it: SRD refuses a Dispel Magic aimed at
     // yourself, which is also what makes this a real second creature reaching
@@ -400,13 +401,13 @@ describe('the sixth grant ends through the one door', () => {
    * nothing of the casting's is running there, which is the same reading that
    * keeps a creature Insect Plague merely damaged off the list.
    *
-   * Without that, `on` folded to the empty list and the spell was dispellable
-   * from nobody at all.
+   * Without that, the record folded to nobody at all and the spell was
+   * dispellable from nowhere.
    */
   it('is on the caster even when the spell was cast at somebody else', () => {
     const log = cast(table(), 'hunters-mark', [QUARRY]);
     const running = fold('seed', log);
-    expect(Object.values(running.ongoing)[0]!.on).toEqual([CASTER]);
+    expect(spellOn(running, Object.values(running.ongoing)[0]!)).toEqual([CASTER]);
 
     const dispelled = [
       ...log,

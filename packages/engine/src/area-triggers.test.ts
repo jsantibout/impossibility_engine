@@ -33,6 +33,7 @@ import {
   useRecovery,
   useSelfHeal,
 } from './commands.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A persistent spell area that catches a creature at a moment the spell names.
@@ -455,7 +456,7 @@ describe('a persistent area is live state, not a number thrown away', () => {
     // that was already standing there, which SRD says does nothing at all.
     const g = new Game([...SETUP, place(RIDER, 'inside cube')], false);
     const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
-    expect(ongoingSpellOf(g.state, web)?.on).toEqual([]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, web)!)).toEqual([]);
     expect(g.owed()).toEqual([]);
     expect(g.has(RIDER, 'restrained')).toBe(false);
   });
@@ -1687,7 +1688,7 @@ describe('a condition a casting caused and does not keep', () => {
     g.walk(MOVER, 'inside cube');
     g.settle('slip');
     expect(g.has(MOVER, 'prone')).toBe(true);
-    expect(ongoingSpellOf(g.state, grease)?.on).toEqual([]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, grease)!)).toEqual([]);
     expect(ongoingSpellsOn(g.state, MOVER)).toEqual([]);
   });
 
@@ -1702,7 +1703,7 @@ describe('a condition a casting caused and does not keep', () => {
     expect(g.has(RIDER, 'prone')).toBe(true);
 
     // Not on them — Dispel Magic aimed at a greased creature finds no Grease.
-    expect(ongoingSpellOf(g.state, grease)?.on).toEqual([]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, grease)!)).toEqual([]);
     expect(ongoingSpellsOn(g.state, RIDER)).toEqual([]);
 
     g.push([{ type: 'spell-ended', castingId: grease, on: null, reason: 'dispelled' }]);

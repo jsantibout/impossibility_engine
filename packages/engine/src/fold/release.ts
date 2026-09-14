@@ -9,10 +9,13 @@
  * `grantSourcesOf` and `withoutGrants`, the one walk over the six sourced
  * grant families that five call sites used to make by hand.
  *
- * `alsoOn` and `withoutTarget` are here for the same reason as each other:
- * they are the two directions of `OngoingSpell.on` membership, and a casting
- * is on a creature while it has a live effect there that the casting owns.
- * Reading that rule in one module is what keeps the two halves agreeing.
+ * `spellOn` and `withoutTarget` are here for the same reason as each other:
+ * they are the two directions of being *on* a creature. `spellOn` is the one
+ * answer to "who is this casting on now" — `OngoingSpell.aimed` unioned with
+ * whoever the casting is holding something on, which is the rule
+ * `holdsNothingOf` states — and `withoutTarget` is the only thing that edits
+ * the stored half. Reading that rule in one module is what keeps the four
+ * readers of it agreeing.
  *
  * It is the bottom of the fold's own graph — it calls nothing else in `fold/`,
  * and expiry, the triggered endings and the switch all call it.
@@ -111,8 +114,9 @@ const countGrants = (held: Record<string, readonly SourcedGrant[]>): number =>
  * **`scheduledDamage` is not a grant and is deliberately not here.** A hit
  * that is still owed is the casting's debt rather than something the casting
  * is *doing* to the creature — the same reading that keeps a creature Insect
- * Plague merely damaged out of `OngoingSpell.on`. It is not even per-creature:
- * `releaseCasting` drops it through `withoutScheduledDamage`, at state level.
+ * Plague merely damaged off {@link spellOn}'s answer. It is not even
+ * per-creature: `releaseCasting` drops it through `withoutScheduledDamage`, at
+ * state level.
  * Nor are the creature's conditions, which are a link of their own with their
  * own instances and implications; {@link holdsNothingOf} asks them separately.
  */
@@ -379,9 +383,16 @@ function withoutScheduledDamage(
  *
  * Two things do this and they are the same thing: a target shaking the spell
  * off, and a target leaving the game. Either way the casting carries on for
- * whoever is left, and `on` has to stop claiming somebody it no longer covers
- * — Dispel Magic reads that list, and a stale name in it would let a creature
- * dispel a spell that is not on them.
+ * whoever is left, and it has to stop being **aimed** at somebody it no longer
+ * covers.
+ *
+ * **It edits the stored half, and that is the whole of why it is kept.** The
+ * derived half needs no help: a Bless released on one creature loses its bonus
+ * there in the same breath, so `spellOn` stops naming them without being told.
+ * A tracked spell holds nothing anywhere — a dispelled Darkvision has no grant
+ * to lose — so `aimed` is the only place it is recorded and this is the only
+ * thing that can take it off. Without it, a dispel on one creature would leave
+ * the casting aimed at them for ever.
  */
 export function withoutTarget(
   state: GameState,
@@ -392,9 +403,9 @@ export function withoutTarget(
 
   for (const [key, record] of Object.entries(state.ongoing)) {
     if (castingId !== null && key !== castingId) continue;
-    if (!record.on.includes(targetId)) continue;
+    if (!record.aimed.includes(targetId)) continue;
     ongoing ??= { ...state.ongoing };
-    ongoing[key] = { ...record, on: record.on.filter((who) => who !== targetId) };
+    ongoing[key] = { ...record, aimed: record.aimed.filter((who) => who !== targetId) };
   }
 
   return ongoing === null ? state : { ...state, ongoing };
@@ -508,45 +519,64 @@ export function releaseGrants(creature: CreatureState, source: string): Creature
 }
 
 /**
- * A casting that has just hung something on a creature is now **on** them.
+ * Whether a casting is on a creature, **now**.
  *
- * `OngoingSpell.on` answers SRD Dispel Magic's "any ongoing spell ... on the
- * target", and it was written once, at the resolution, because that was the
- * only moment a casting could reach anybody. A persistent area breaks that:
- * Web restrains a creature that walks in a minute later, and a Dispel Magic
- * aimed at *them* has to find it.
+ * The single answer to SRD Dispel Magic's "any ongoing spell ... on the
+ * target", and the one function all four readers of that question ask —
+ * `ongoingSpellsOn`, the Dispel resolver, `endOngoingSpell`'s refusal and the
+ * triggered-endings pass. One reader is the point: they used to share a
+ * *field*, which is not the same thing as sharing a rule, and the field went
+ * stale in one of the two places it was maintained by hand.
  *
- * So `on` grows, and the rule is exactly the link every other cleanup already
- * uses: **a casting is on a creature while it has a live effect there that the
- * casting owns.** Derived, so no event has to remember to say it, and a no-op
- * for every spell that reached its targets at the cast.
+ * Two halves of different provenance, unioned:
  *
- * **What it deliberately is not** is "everyone the area has ever touched". A
- * creature Insect Plague damaged is not carrying anything of the swarm's, so
- * the swarm is not on them and a Dispel Magic pointed their way finds nothing
- * — which is right, and is why this reads the *condition* rather than the
- * trigger that produced it.
+ * - **stored** — `OngoingSpell.aimed`, the creatures the cast put the spell on
+ *   and nothing in state can say so: the caster of a Range: Self spell, and a
+ *   target a tracked spell like Darkvision reported nothing about. There is no
+ *   world fact to read for either, which is what the measurement in
+ *   `derived-on.test.ts` established.
+ * - **derived** — every creature the casting is still holding something on,
+ *   which is {@link holdsNothingOf} read the other way. No event has to
+ *   remember to say it, so a Web that restrains somebody an hour later is on
+ *   them the instant the condition lands, and a grant that lapses takes the
+ *   casting off them in the same breath.
  *
- * **And `expireEffects` reads the same link the other way**, which it did not
- * used to: when a condition lapses on its own deadline and it was the last
- * thing the casting owned on that creature, they leave `on`. Growing without
- * shrinking left a stale name in the list Dispel Magic reads, so a creature
- * could dispel a spell the rules had already taken off them.
+ * **What the derived half deliberately is not** is "everyone the area has ever
+ * touched". A creature Insect Plague damaged is not carrying anything of the
+ * swarm's, so the swarm is not on them and a Dispel Magic pointed their way
+ * finds nothing — scheduled damage is a debt the casting owes rather than
+ * something it is doing to them, and `grantSourcesOf` leaves it out for that
+ * reason.
+ *
+ * A creature who is not in the game is on nothing: `holdsNothingOf` says so
+ * for the derived half, and the existence check below says so for the stored
+ * one, which `withoutTarget` has usually emptied already.
  */
-export function alsoOn(state: GameState, who: CharacterId, source: string): GameState {
-  const castingId = castingIdOf(source);
-  if (castingId === null) return state;
+export function isOn(state: GameState, record: OngoingSpell, who: CharacterId): boolean {
+  if (state.creatures[who] === undefined) return false;
+  return record.aimed.includes(who) || !holdsNothingOf(state, who, record.castingId);
+}
 
-  const record = state.ongoing[castingId];
-  if (record === undefined || record.on.includes(who)) return state;
-
-  return {
-    ...state,
-    ongoing: {
-      ...state.ongoing,
-      [castingId]: { ...record, on: [...record.on, who].sort() },
-    },
-  };
+/**
+ * Every creature a casting is on, sorted — {@link isOn} asked of the world.
+ *
+ * Sorted and deduplicated so two readers of one state agree, and so the answer
+ * does not depend on which half a creature arrived in.
+ *
+ * The derived half is a walk over the creatures rather than a lookup, because
+ * the question is "who is holding something of this casting's" and nothing
+ * indexes grants by their source. It is the same walk `releaseCasting` makes,
+ * and the population is the creatures in one scene.
+ */
+export function spellOn(state: GameState, record: OngoingSpell): readonly string[] {
+  const on = new Set<string>();
+  for (const who of record.aimed) {
+    if (state.creatures[who] !== undefined) on.add(who);
+  }
+  for (const creature of Object.values(state.creatures)) {
+    if (!holdsNothingOf(state, creature.id, record.castingId)) on.add(creature.id);
+  }
+  return [...on].sort();
 }
 
 /**
@@ -558,8 +588,8 @@ export function alsoOn(state: GameState, who: CharacterId, source: string): Game
  * Speed it changed.
  * Reading them through the enumerator is what keeps this in step with the
  * release: a family this could see and `releaseCasting` could not would keep a
- * finished casting in `OngoingSpell.on`, which is a wrong answer to Dispel
- * Magic that no frozen log would catch.
+ * finished casting on the creature, which is a wrong answer to Dispel Magic
+ * that no frozen log would catch.
  *
  * The conditions stay a question of their own, because they are a different
  * link — instances, sources and implications rather than a bare grant. And
@@ -567,8 +597,12 @@ export function alsoOn(state: GameState, who: CharacterId, source: string): Game
  * casting's debt rather than something the casting is *doing* to the creature,
  * which is the same reading that keeps a creature Insect Plague merely damaged
  * off the list.
+ *
+ * **`who` is a bare id** rather than a `CharacterId`, because one caller has
+ * one that came out of a log: the compatibility path asks this of the names a
+ * pre-version-3 record wrote, which are strings until something says otherwise.
  */
-export function holdsNothingOf(state: GameState, who: CharacterId, castingId: string): boolean {
+export function holdsNothingOf(state: GameState, who: string, castingId: string): boolean {
   const creature = state.creatures[who];
   if (creature === undefined) return true;
 

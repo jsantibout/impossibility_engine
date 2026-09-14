@@ -32,6 +32,7 @@ import {
   settleAreaEffects,
   takeReady,
 } from './commands.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A casting that is still running, and the mechanics that name it later.
@@ -242,11 +243,11 @@ describe('a casting becomes a live record when it leaves something running', () 
   it('puts a Range: Self spell on its caster and a ranged one on its targets', () => {
     const g = new Game();
     const drain = g.cast(WIZ, 'vampiric-touch', [FOE], 3);
-    expect(ongoingSpellOf(g.state, drain)?.on).toEqual([WIZ]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, drain)!)).toEqual([WIZ]);
     expect(ongoingSpellsOn(g.state, FOE)).toEqual([]);
 
     const bless = g.cast(WIZ, 'bless', [ALLY, FOE], 1);
-    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY, FOE]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, bless)!)).toEqual([ALLY, FOE]);
   });
 
   /**
@@ -259,11 +260,11 @@ describe('a casting becomes a live record when it leaves something running', () 
    * > A casting is on a creature while it has a live effect there that the
    * > casting owns.
    *
-   * `alsoOn` has applied that rule to a triggered effect landing a minute later
-   * since persistent areas landed. The caster branch of the record's own write
-   * applied a *second* rule — "Range: Self means on the caster, full stop" —
-   * and threw the rest away. So Sunbeam blinded the goblin and a Dispel Magic
-   * aimed at the goblin found nothing to end.
+   * `spellOn` applies that rule at every read, so a triggered effect landing a
+   * minute later puts the casting on whoever it landed on. The caster branch
+   * of the record's own write applied a *second* rule — "Range: Self means on
+   * the caster, full stop" — and threw the rest away. So Sunbeam blinded the
+   * goblin and a Dispel Magic aimed at the goblin found nothing to end.
    *
    * One rule: the caster, **and** whoever the casting is holding something on.
    */
@@ -310,7 +311,7 @@ describe('a casting becomes a live record when it leaves something running', () 
     // The rider landed, which is what makes the rest of this a question at all.
     expect(g.state.creatures[FOE]!.conditions.conditions).toContain('blinded');
 
-    expect(ongoingSpellOf(g.state, beam.castingId)?.on).toEqual([FOE, WIZ].sort());
+    expect(spellOn(g.state, ongoingSpellOf(g.state, beam.castingId)!)).toEqual([FOE, WIZ].sort());
     // And the sentence that matters at the table: a Dispel Magic aimed at the
     // blinded creature finds the spell that blinded them.
     expect(ongoingSpellsOn(g.state, FOE).map((o) => o.castingId)).toEqual([beam.castingId]);
@@ -352,7 +353,7 @@ describe('a casting becomes a live record when it leaves something running', () 
     const runs = ['b1', 'b2', 'b3', 'b4', 'b5', 'b6'].map((seed) => {
       const g = new Game();
       const ban = g.cast(WIZ, 'banishment', [FOE], 4, seed);
-      return { saved: ongoingSpellOf(g.state, ban)?.on.length === 0, g, ban };
+      return { saved: spellOn(g.state, ongoingSpellOf(g.state, ban)!).length === 0, g, ban };
     });
 
     const missed = runs.find((r) => r.saved);
@@ -432,10 +433,10 @@ describe('the record lives exactly as long as the spell', () => {
   it('drops a released target from the list and keeps the casting', () => {
     const g = new Game();
     const bless = g.cast(WIZ, 'bless', [ALLY, FOE], 1);
-    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY, FOE]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, bless)!)).toEqual([ALLY, FOE]);
 
     g.push([{ type: 'spell-ended', castingId: bless, on: FOE, reason: 'dispelled' }]);
-    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, bless)!)).toEqual([ALLY]);
     expect(ongoingSpellsOn(g.state, FOE)).toEqual([]);
     expect(ongoingSpellsOn(g.state, ALLY).map((o) => o.castingId)).toEqual([bless]);
   });
@@ -446,7 +447,7 @@ describe('the record lives exactly as long as the spell', () => {
     const bless = g.cast(WIZ, 'bless', [ALLY, FOE], 1);
     g.push(unwrap(removeCreatureEverywhere(g.state, FOE), 'remove'));
 
-    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, bless)!)).toEqual([ALLY]);
   });
 
   /**
@@ -638,7 +639,7 @@ describe('Dispel Magic', () => {
     const bless = g.cast(WIZ, 'bless', [ALLY, FOE], 1);
 
     g.push(unwrap(dispel(g, FOE), 'dispel').events);
-    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, bless)!)).toEqual([ALLY]);
     // And the ally still has the bonus the spell hung on them.
     expect(g.state.creatures[ALLY]?.bonuses).toHaveLength(1);
     expect(g.state.creatures[FOE]?.bonuses).toEqual([]);
@@ -1151,9 +1152,9 @@ describe('a readied spell is a running spell once released', () => {
 
   it('records the release on whom it landed, at the level it was readied at', () => {
     const { g, castingId } = readied(2);
-    const record = ongoingSpellOf(g.state, castingId);
-    expect(record?.on).toEqual([ALLY]);
-    expect(record?.level).toBe(2);
+    const record = ongoingSpellOf(g.state, castingId)!;
+    expect(spellOn(g.state, record)).toEqual([ALLY]);
+    expect(record.level).toBe(2);
     expect(ongoingSpellsOn(g.state, ALLY).map((o) => o.castingId)).toEqual([castingId]);
   });
 
@@ -1838,12 +1839,13 @@ describe('the record holds no second answer to a question state already answers'
 });
 
 /**
- * `on` shrinks when the last thing a casting owns on a creature lapses.
+ * A casting stops being on a creature when the last thing it owns there lapses.
  *
- * The rule is the one `alsoOn` already applies in the other direction: **a
+ * The rule read at every moment rather than maintained at some of them: **a
  * casting is on a creature while it has a live effect there that the casting
- * owns.** Growing without shrinking left a stale name in the list Dispel Magic
- * reads, so a creature could dispel a spell that was no longer on them.
+ * owns.** It was once a list grown and shrunk by hand, which left a stale name
+ * in what Dispel Magic reads, so a creature could dispel a spell that was no
+ * longer on them; `spellOn` asks the question instead of remembering it.
  *
  * SRD Sunbeam is the spell that reaches it: **Concentration, up to 1 minute**,
  * and the Blinded it imposes lasts "until the **start** of your next turn". So
@@ -1888,17 +1890,17 @@ describe('a casting stops being on a creature whose condition lapses', () => {
   it('grows `on` when the casting hangs something, and shrinks it when that lapses', () => {
     const { g, castingId } = held();
     // The casting caught the foe, and nobody else.
-    expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([FOE]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, castingId)!)).toEqual([FOE]);
 
     blind(g, castingId, ALLY);
-    expect([...(ongoingSpellOf(g.state, castingId)?.on ?? [])]).toEqual([ALLY, FOE]);
+    expect([...(spellOn(g.state, ongoingSpellOf(g.state, castingId)!) ?? [])]).toEqual([ALLY, FOE]);
 
     g.push([{ type: 'time-advanced', seconds: 7, reason: 'a moment' }]);
 
     // The Blinded has lapsed, and it was the only thing this casting owned on
     // the ally — so the casting is no longer on them.
     expect(g.state.creatures[ALLY]?.conditions.conditions).toEqual([]);
-    expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([FOE]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, castingId)!)).toEqual([FOE]);
   });
 
   /**
@@ -1915,7 +1917,7 @@ describe('a casting stops being on a creature whose condition lapses', () => {
     g.push([{ type: 'time-advanced', seconds: 7, reason: 'a moment' }]);
 
     expect(g.state.creatures[FOE]?.conditions.conditions).toContain('paralyzed');
-    expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([FOE]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, castingId)!)).toEqual([FOE]);
   });
 });
 
@@ -1962,12 +1964,12 @@ describe('a spell that lasts until dispelled', () => {
   ] as const) {
     it(`${name} leaves a record that anything asking what is running can find`, () => {
       const { g, castingId } = cast(spellId);
-      const record = ongoingSpellOf(g.state, castingId);
+      const record = ongoingSpellOf(g.state, castingId)!;
 
-      expect(record?.spellId).toBe(spellId);
-      expect(record?.level).toBe(2);
+      expect(record.spellId).toBe(spellId);
+      expect(record.level).toBe(2);
       // On nobody: both spells touch an object, and objects are not modelled.
-      expect(record?.on).toEqual([]);
+      expect(spellOn(g.state, record)).toEqual([]);
     });
 
     it(`${name} schedules no timer, because the book prints no deadline`, () => {
@@ -2118,11 +2120,11 @@ describe('a caster dismisses a casting of their own by its id', () => {
   it('releases it on one creature and leaves the casting running', () => {
     const g = new Game();
     const bless = g.cast(WIZ, 'bless', [ALLY, RIVAL], 1, 'blessing');
-    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY, RIVAL]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, bless)!)).toEqual([ALLY, RIVAL]);
 
     g.push(unwrap(endOngoingSpell(g.state, WIZ, bless, ALLY), 'released on the ally'));
 
-    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([RIVAL]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, bless)!)).toEqual([RIVAL]);
     expect(g.state.creatures[ALLY]!.bonuses).toEqual([]);
     expect(g.state.creatures[RIVAL]!.bonuses).toHaveLength(1);
     // The caster is still concentrating, because the spell is still doing
@@ -2275,7 +2277,7 @@ describe('a caster dismisses a casting of their own by its id', () => {
       expect(g.state.creatures[ALLY]!.conditions.conditions).toContain('blinded');
       // Still concentrating, because the spell is still doing something.
       expect(g.state.creatures[WIZ]!.concentration).toMatchObject({ castingId });
-      expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([ALLY]);
+      expect(spellOn(g.state, ongoingSpellOf(g.state, castingId)!)).toEqual([ALLY]);
     });
 
     /** Only what *this* casting put there: the link is the casting id. */
@@ -2302,13 +2304,13 @@ describe('a caster dismisses a casting of their own by its id', () => {
     /**
      * A release names a creature the casting is **on**, and the refusal the
      * old command gave for "that casting put nothing there" survives under the
-     * wider reading `OngoingSpell.on` supplies.
+     * wider reading `isOn` supplies.
      */
     it('refuses a release on a creature the casting is not on', () => {
       const { g, castingId } = holding();
       const out = endOngoingSpell(g.state, WIZ, castingId, RIVAL);
       expect(isErr(out) ? out.code : 'ok').toBe('no_effect_there');
-      expect(ongoingSpellOf(g.state, castingId)?.on).toEqual([ALLY, FOE]);
+      expect(spellOn(g.state, ongoingSpellOf(g.state, castingId)!)).toEqual([ALLY, FOE]);
     });
   });
 
@@ -2322,7 +2324,7 @@ describe('a caster dismisses a casting of their own by its id', () => {
   /**
    * And the same of the creature a release names, which is a **different**
    * answer from the refusal below it and has to be reachable to be one.
-   * `record.on.includes` would say no for a creature nobody has added, so
+   * `isOn` would say no for a creature nobody has added, so
    * without this guard the caller gets `no_effect_there` — a verdict about the
    * rules — where the honest answer is a thin record and a `creature` request
    * naming the fact to go and get.
@@ -2336,7 +2338,7 @@ describe('a caster dismisses a casting of their own by its id', () => {
     expect(isNeedsContext(out)).toBe(true);
     expect(contextRequestsOf(out).map((request) => request.kind)).toEqual(['creature']);
     // And the spell is untouched, because a request spends nothing.
-    expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY, RIVAL]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, bless)!)).toEqual([ALLY, RIVAL]);
   });
 
   /** One id, one dismissal. */

@@ -103,9 +103,9 @@ export function scheduleDelayed(
  * works wherever the rider does.
  *
  * `held` is the other half a caller still does for itself, because it is not
- * an option: `outlivesCasting` keeps the target out of `OngoingSpell.on`, and
- * the branch that knows whether the target was affected at all is the one that
- * decides to add them.
+ * an option: `outlivesCasting` keeps the target out of what the casting is
+ * holding, and the branch that knows whether the target was affected at all is
+ * the one that decides to add them.
  *
  * **`repeats` is here too, and its ability and DC are the host's.** SRD writes
  * "the target repeats **the** save" — the one the spell already asked for — so
@@ -219,7 +219,7 @@ export function applyRiders(
     readonly castLevel: number;
     readonly casterLevel: number;
     readonly unverified: string[];
-    /** Whom the casting is holding something on, for `OngoingSpell.on`. */
+    /** Whom the casting is holding something on, for the record it writes. */
     readonly held: Set<CharacterId>;
     /** The ability the host rolled its saving throw with, or null for none. */
     readonly saveAbility: Ability | null;
@@ -252,10 +252,11 @@ export function applyRiders(
     if (!landed.ok) return landed;
     // **After the attempt, not before it.** A condition the target is immune
     // to put nothing on them, so the casting is not holding anything there and
-    // must not claim to be — `OngoingSpell.on` is what Dispel Magic reads. And
-    // a condition the casting *causes and does not keep* is recorded under the
-    // spell's bare name, linked to nothing that could later take it away, so
-    // it does not put the casting on the target either.
+    // must not claim to be — `spellOn` is what Dispel Magic reads, and one of
+    // its two halves is exactly this set. And a condition the casting *causes
+    // and does not keep* is recorded under the spell's bare name, linked to
+    // nothing that could later take it away, so it does not put the casting on
+    // the target either.
     if (!landed.value.landed) continue;
     if (rider.outlivesCasting !== true) held.add(target);
     events.push(...landed.value.events);

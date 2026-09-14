@@ -20,10 +20,8 @@ import {
   type TimeView,
   type TimedEffect,
 } from '../duration.js';
-import { castingIdOf } from '../spells.js';
-
 import type { GameState } from '../state.js';
-import { releaseCasting, releaseGrants, withoutTarget, holdsNothingOf } from './release.js';
+import { releaseCasting, releaseGrants } from './release.js';
 
 /**
  * Every timer except the ones that end something on a creature who has left.
@@ -214,21 +212,16 @@ export function expireEffects(state: GameState): GameState {
             },
           },
         };
-        // And the casting stops being *on* them, if that was the last thing it
-        // owned there. `alsoOn` grows the list on exactly this link — **a
-        // casting is on a creature while it has a live effect there that the
-        // casting owns** — and growing without shrinking left a stale name in
-        // the list Dispel Magic reads, so a creature could dispel a spell that
-        // was no longer on them.
-        //
-        // Only when nothing of the casting is left: a Hold Person still
-        // holding somebody is still on them, whatever else lapsed.
-        const castingId = castingIdOf(target.instance);
-        if (castingId !== null) {
-          current = holdsNothingOf(current, target.on, castingId)
-            ? withoutTarget(current, target.on, castingId)
-            : current;
-        }
+        // **And nothing about the casting**, which is the difference this file
+        // used to hold and no longer does. A shrink lived here: when the
+        // condition was the last thing the casting owned on the creature, the
+        // creature was taken out of `on` by hand. It was correct and it was
+        // only half the rule — the `grants` branch above releases a grant and
+        // ran no such line, so a `grants` deadline left a name in the list
+        // Dispel Magic reads and `derived-on.test.ts` asserted the
+        // disagreement. Both branches are now right by construction: the
+        // casting is on whoever holds something of its, asked at every read,
+        // so removing the last thing removes them and nothing has to say so.
       }
     }
   }

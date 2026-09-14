@@ -520,7 +520,7 @@ applied to the casting's **own** effects rather than only to an area trigger's
 Three spells execute on it, and the third is the one that shows the shape was a
 gap rather than a want: Protection from Poison's own `unmodelled` clause said
 "defences are set when a creature enters the game and no effect grants one".
-Building it also made that casting's `on` non-empty, which the definition's
+Building it also made that casting *on* its target, which the definition's
 docstring had predicted in those words — a removal owns nothing, and a
 Resistance is something the casting owns and keeps.
 
@@ -1143,20 +1143,23 @@ vocabularies would let recursion in through a name collision — the reason
 `buff`'s rider is `bonus` and `roll-mode`'s is `mode`, asserted as
 `RIDER_KINDS ∩ EFFECT_KINDS = ∅`.
 
-### `OngoingSpell.on` has one rule, and the caster branch was a second one
+### Being *on* a creature has one rule, and the caster branch was a second one
 
 **A casting is on a creature while it has a live effect there that the casting
-owns.** `alsoOn` has applied that since persistent areas landed, and
-`expireEffects` reads it in reverse. The record's own write applied a *different*
-rule in one branch: a Range: Self casting was recorded as `[casterId]` and
-`held` — every creature the casting had just put something on — was thrown
-away.
+owns.** `spellOn` reads that off the world at every read — the derived half of
+its answer. The record's own write applied a *different* rule in one branch: a
+Range: Self casting was recorded as `[casterId]` and `held` — every creature
+the casting had just put something on — was thrown away.
 
 SRD Sunbeam is the spell that meets it. The beam comes out of the caster, so
 the casting is on them; it also blinds whoever the Line catches, and that
 Blinded is a condition the casting owns and will take away again. A Dispel
 Magic aimed at the blinded creature found nothing to end. One rule now: **the
-caster, and whoever the casting is holding something on.**
+caster, and whoever the casting is holding something on** — and the two halves
+are answered in different places, because only the first is a fact the world
+holds. The caster is a cast-time declaration, so `OngoingSpell.aimed` stores
+it; everyone the Line caught is derived. See "Who a casting is on is two facts"
+in `docs/design/space-and-areas.md`.
 
 ## Spells The Engine Executes
 
@@ -1374,11 +1377,12 @@ be told yes by a Lesser Restoration.
 
 **And the casting a removal leaves behind is on nobody.** A casting is on a
 creature while it has a live effect there that it owns, and a removal owns
-nothing — so Protection from Poison's hour is an ongoing record with an empty
-`on`, and a Dispel Magic aimed at the target finds nothing to end. That is the
-engine's answer rather than the book's, and the two unmodelled clauses are what
-make it so: build either and the casting will own something there, and `on`
-will say so with nothing in the definition changing. It is asserted rather than
+nothing — so Protection from Poison's hour is an ongoing record that `spellOn`
+answers for with nobody, and a Dispel Magic aimed at the target finds nothing
+to end. That is the engine's answer rather than the book's, and the two
+unmodelled clauses are what make it so: build either and the casting will own
+something there, and the derived half will say so with nothing in the
+definition changing. It is asserted rather than
 described, because the definition's own docstring claimed the opposite until a
 review read the code.
 

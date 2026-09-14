@@ -18,7 +18,7 @@ import {
   unhandledEvent,
   type Applying,
 } from './common.js';
-import { casterOf, releaseCasting, releaseOnTarget } from './release.js';
+import { casterOf, holdsNothingOf, releaseCasting, releaseOnTarget } from './release.js';
 import { raiseAreaArrivals } from './areas.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
@@ -70,9 +70,21 @@ export function applyOngoing({ state, next }: Applying, event: OngoingEvent): Ga
         ...next,
         ongoing: sortedRecord({
           ...state.ongoing,
-          // A pre-versioned record is filled in here and nowhere else, so
-          // every later read is of a record rather than of the catalogue.
-          [casting.castingId]: upgradeOngoing(casting),
+          // A record older than this engine is brought up to date here and
+          // nowhere else, so every later read is of a record rather than of
+          // the catalogue.
+          //
+          // **The state read is here rather than in the compatibility module
+          // because only this moment has it.** A record below version 3 stored
+          // the whole of "on", and what version 3 stores is the half of it the
+          // world does not already hold — so the upgrade has to ask the
+          // creatures. It is correct at exactly this point: the record is
+          // written last in every resolution path, so everything the casting
+          // holds is already on them, and the subset computed here is the one
+          // the cast would have written.
+          [casting.castingId]: upgradeOngoing(casting, (who) =>
+            holdsNothingOf(state, who, casting.castingId),
+          ),
         }),
       };
     }

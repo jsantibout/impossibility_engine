@@ -29,6 +29,7 @@ import {
   resolveTurn,
   takeDash,
 } from './commands.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A Speed an effect changes — the fifth sourced grant.
@@ -354,7 +355,7 @@ describe('Longstrider adds its ten feet through the one reader', () => {
     const spell = cast();
     const after = applyAll(before, spell.events);
     expect(remaining(after.creatures[CASTER]!.resources, spellSlotKey(1))).toBe(3);
-    expect(after.ongoing[spell.castingId!]?.on).toEqual([CASTER]);
+    expect(spellOn(after, after.ongoing[spell.castingId!]!)).toEqual([CASTER]);
   });
 
   it('is a definition the engine executes rather than one it merely tracks', () => {

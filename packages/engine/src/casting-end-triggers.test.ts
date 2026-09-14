@@ -16,6 +16,7 @@ import {
   resolveSpell,
   withheldEndings,
 } from './commands.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A casting the SRD ends before its time, and the derived pass that ends it.
@@ -217,7 +218,9 @@ class Game {
   }
 
   on(castingId: string): readonly string[] {
-    return ongoingSpellOf(this.state, castingId)?.on ?? [];
+    const state = this.state;
+    const record = ongoingSpellOf(state, castingId);
+    return record === null ? [] : spellOn(state, record);
   }
 
   conditions(who: CharacterId): readonly string[] {
@@ -694,5 +697,82 @@ describe('a pre-versioned record is read from the catalogue, as its area is', ()
 
     legacy.hit(FOE, ALLY);
     expect(legacy.running(casting)).toBe(false);
+  });
+
+  /**
+   * **And a version 2 record's pinned area survives a version bump**, which is
+   * the hazard the paragraph above names and the only thing that catches it.
+   *
+   * The catalogue fill is keyed on `version === undefined` and on nothing
+   * else, so a bump — IE-053's 2 → 3, or any later one — routes a version 2
+   * record past the book rather than through it. Keyed on
+   * `!== ONGOING_RECORD_VERSION`, as it was, every bump silently overwrites an
+   * area pinned at the cast with the catalogue as it reads now, and both
+   * frozen logs would still fold: they are pre-versioned, so they take the
+   * fill either way and see nothing.
+   *
+   * The record below pins a **15-foot** Cube on a casting of Web, whose
+   * catalogue entry is the SRD's 20-foot one — "The webs fill a 20-foot Cube
+   * there for the duration" (SRD 5.2.1, Web). Untouched means 15.
+   */
+  it('leaves a version 2 record its pinned area rather than the catalogue’s', () => {
+    const game = new Game(setup());
+    const casting = game.cast(WIZ, 'invisibility', [ALLY]);
+    const pinned = { kind: 'cube', size: 15, origin: 'point' } as const;
+
+    const legacy = new Game(
+      game.events.map((event) =>
+        event.type !== 'spell-ongoing'
+          ? event
+          : {
+              ...event,
+              casting: {
+                ...event.casting,
+                version: 2,
+                spellId: 'web',
+                spell: 'Web',
+                area: pinned,
+              },
+            },
+      ),
+    );
+
+    // The book says 20 and the record says 15, so only the record can be the
+    // source of the answer.
+    expect(definitionFor('web')?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
+    expect(ongoingSpellOf(legacy.state, casting)?.area).toEqual(pinned);
+  });
+
+  /**
+   * **And a version 2 record with no area does not acquire one**, which is what
+   * pins the *keying* rather than the outcome.
+   *
+   * The two are different claims. The record above survives either way, because
+   * what the record wrote is read before what the catalogue says; this one
+   * cannot, because there is nothing on the record to prefer. A version 2
+   * record that names an area spell and carries no area is a casting whose
+   * spell had no area **when it was cast** — a transcription corrected since,
+   * or a definition that grew one — and the book is not entitled to answer for
+   * it. Key the fill on anything but `version === undefined` and Web's 20-foot
+   * Cube appears in a casting that never had one, and starts raising debts.
+   */
+  it('does not fill a version 2 record’s absent area from the book', () => {
+    const game = new Game(setup());
+    const casting = game.cast(WIZ, 'invisibility', [ALLY]);
+
+    const legacy = new Game(
+      game.events.map((event) =>
+        event.type !== 'spell-ongoing'
+          ? event
+          : {
+              ...event,
+              casting: { ...event.casting, version: 2, spellId: 'web', spell: 'Web' },
+            },
+      ),
+    );
+
+    expect(definitionFor('web')?.area).toBeDefined();
+    expect(ongoingSpellOf(legacy.state, casting)?.area).toBeUndefined();
+    expect(ongoingSpellOf(legacy.state, casting)?.areaTrigger).toBeUndefined();
   });
 });

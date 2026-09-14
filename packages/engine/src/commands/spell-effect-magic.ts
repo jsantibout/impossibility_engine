@@ -12,6 +12,7 @@ import { ABILITY_NAMES, type CharacterId, err, ok, type Result } from '@ie/share
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
 import {
   applyEvent,
+  spellOn,
   type CreatureState,
   type GameEvent,
   type GameState,
@@ -98,7 +99,12 @@ export function resolveDispelEffect(
     // creature, object, or magical effect": a spell that is on this
     // creature and nobody else has nothing left to be, so it ends, while
     // one that caught three creatures loses only this one.
-    const whole = spell.on.length <= 1;
+    //
+    // Asked of `spellOn` rather than of a field on the record: "on this
+    // creature and nobody else" is the stored half unioned with whoever the
+    // casting is still holding something on, and reading the stored half alone
+    // would end a whole Bless because the record remembered aiming at nobody.
+    const whole = spellOn(current, spell).length <= 1;
     const ended: GameEvent = {
       type: 'spell-ended',
       castingId: spell.castingId,

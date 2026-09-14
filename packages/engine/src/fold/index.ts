@@ -36,7 +36,7 @@
  * `@ie/engine`.
  */
 export { castingIdFor } from './common.js';
-export { grantSourcesOf, withoutGrants } from './release.js';
+export { grantSourcesOf, isOn, spellOn, withoutGrants } from './release.js';
 export { allyOfCaster, type AllyVerdict } from './endings.js';
 export { applyEvent, fold, historyOf, wearsHeavyArmor } from './apply.js';
 export { mergeItems } from './inventory.js';

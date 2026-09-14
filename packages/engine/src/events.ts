@@ -47,8 +47,8 @@ import {
   type CastingTime,
   type ConcentrationEndReason,
   type OngoingEndReason,
-  type OngoingSpell,
   type SlotlessReason,
+  type WrittenOngoing,
 } from './spells.js';
 import { type CombatantInput } from './combat.js';
 import { type GrantedAttackRider, type GrantedSpeed } from './standing.js';
@@ -570,8 +570,12 @@ export type GameEvent =
    * this", which is true of Fireball, and this is "and it is still going",
    * which is not. One event, one thing — and a log reader can see exactly
    * where a spell became something a later turn could act on.
+   *
+   * **The payload is `WrittenOngoing`, not `OngoingSpell`**: a log may be
+   * older than this engine, and what the fold *holds* is what
+   * `upgradeOngoing` made of what the log *said*.
    */
-  | { readonly type: 'spell-ongoing'; readonly casting: OngoingSpell }
+  | { readonly type: 'spell-ongoing'; readonly casting: WrittenOngoing }
   /**
    * An ongoing spell stopped because somebody decided it should.
    *

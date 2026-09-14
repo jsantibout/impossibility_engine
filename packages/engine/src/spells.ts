@@ -184,8 +184,13 @@ export interface OngoingSpell {
    * A version rather than "is `area` absent", because absence is ambiguous:
    * most spells have no area at all, and reading every one of them as a legacy
    * record would leave the fold consulting the catalogue for ever.
+   *
+   * **Version 3 is the shape that stores {@link aimed} rather than "on".** The
+   * older shapes are read by {@link WrittenOngoing}; what this engine holds in
+   * `state.ongoing` has always been through `upgradeOngoing`, so it is this
+   * version and no other.
    */
-  readonly version?: 2;
+  readonly version: 3;
   /**
    * The area this casting filled, and the clauses that fire in it — **as
    * cast**.
@@ -248,23 +253,34 @@ export interface OngoingSpell {
    */
   readonly numbers: CastingNumbers;
   /**
-   * The creatures this spell is currently on, sorted.
+   * The creatures the **cast** put this spell on and the world cannot say so,
+   * sorted. **Not "who it is on now"** — `spellOn` in `fold/release.ts` is.
    *
-   * SRD Dispel Magic ends "any ongoing spell ... **on the target**", so this
-   * is the question it asks. It shrinks: a creature that shakes the spell off
-   * — Hold Person's repeat save, an escape check — leaves this list while the
-   * casting carries on for everyone else.
+   * SRD Dispel Magic ends "any ongoing spell ... **on the target**", and that
+   * question has two halves of different provenance:
    *
-   * **Range decides it, not the target list.** A Range: Self spell is on its
-   * caster however many creatures its effects reach: Vampiric Touch attacks
-   * somebody else every turn and is on the wizard. Everything else is on whom
-   * it was cast.
+   * | Bucket | Where the answer lives |
+   * |---|---|
+   * | the caster of a Range: Self spell — Vampiric Touch is on the wizard and hangs nothing there | **here**: a cast-time declaration, and nothing in state records it |
+   * | a target the casting reported nothing about, which the geometry did not choose — the tracked spells, Darkvision and its ten siblings | **here**: same, and it is how Darkvision stays dispellable |
+   * | whoever the casting hung a live effect on | **the world**: `holdsNothingOf` answers it at every read, so it is not stored |
    *
-   * Empty is a real state and not an error — Minor Illusion is on nobody,
-   * which is exactly why Dispel Magic calls that case "a magical effect"
+   * So what is stored is the whole of `on` **minus** what the casting is
+   * holding, computed once at the cast, and the reader unions the two back
+   * together. That is why it is named for the *aiming* rather than for the
+   * state: a name here is a decision somebody took, not a fact about now.
+   *
+   * **The name a target sheds still leaves this list** — `withoutTarget` takes
+   * it off when a creature shakes the spell off, is dispelled on, or leaves
+   * the game. A dispelled Darkvision has nothing in the world to lose, so
+   * without that the casting would still be aimed at them for ever.
+   *
+   * Empty is the common state rather than an error: every spell that hung
+   * something on everyone it caught stores nothing at all, and Minor Illusion
+   * is on nobody, which is why Dispel Magic calls that case "a magical effect"
    * rather than a creature.
    */
-  readonly on: readonly string[];
+  readonly aimed: readonly string[];
   /**
    * Where this casting is, for a spell that holds a point in the scene.
    *
@@ -368,6 +384,33 @@ export interface OngoingSpell {
    * or asked for, never guessed.
    */
   readonly damageType?: string;
+}
+
+/**
+ * An ongoing record **as some log wrote it**, which may be older than this
+ * engine reads.
+ *
+ * `OngoingSpell` is what the fold *holds*: every record in `state.ongoing` has
+ * been through `upgradeOngoing`, so it is version 3 and it carries `aimed`. A
+ * `spell-ongoing` event is the other thing — a line in a log that may have
+ * been written years of commits ago — and the two were one type only while
+ * they happened to agree.
+ *
+ * So the shapes older than version 3 are declared here and nowhere else: a
+ * pre-versioned record, which wrote neither the area nor the version, and a
+ * version 2 record, which wrote the whole of "on" where `aimed` now is. Both
+ * are read in `ongoing-compatibility.ts` and both stop existing there.
+ *
+ * It is a supertype rather than a union, so `OngoingSpell` is assignable to it
+ * and the resolvers that write a record need no cast.
+ */
+export interface WrittenOngoing extends Omit<OngoingSpell, 'version' | 'aimed'> {
+  /** Absent before the field existed; 2 before `aimed` did. */
+  readonly version?: 2 | 3;
+  /** Present from version 3 on. */
+  readonly aimed?: readonly string[];
+  /** What version 2 and every earlier shape wrote where `aimed` now is. */
+  readonly on?: readonly string[];
 }
 
 /**

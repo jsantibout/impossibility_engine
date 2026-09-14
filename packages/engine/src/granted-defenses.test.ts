@@ -14,6 +14,7 @@ import { dealSpellDamage } from './commands/damage.js';
 import { defensesOf } from './standing.js';
 import { adaptMonster, conditionApplicability } from './monster.js';
 import { parseMonsters, type Monster } from '@ie/srd';
+import { spellOn } from './fold/release.js';
 
 /**
  * A Resistance an effect grants, and the deadline it needs.
@@ -195,8 +196,8 @@ describe('Stoneskin grants a Resistance that ends with the spell', () => {
       ),
     );
     const after = applyAll(base(), cast.events);
-    const record = Object.values(after.ongoing)[0];
-    expect(record?.on).toEqual([FIGHTER]);
+    const record = Object.values(after.ongoing)[0]!;
+    expect(spellOn(after, record)).toEqual([FIGHTER]);
   });
 
   /**
@@ -229,12 +230,12 @@ describe('Stoneskin grants a Resistance that ends with the spell', () => {
         applyConditionTo(during, FIGHTER, 'restrained', `Stoneskin#${castingId}`, [], forSeconds(6)),
       ),
     );
-    expect(held.ongoing[castingId]?.on).toEqual([FIGHTER]);
+    expect(spellOn(held, held.ongoing[castingId]!)).toEqual([FIGHTER]);
 
     const later = applyEvent(held, { type: 'time-advanced', seconds: 6, reason: 'the round' });
     expect(later.creatures[FIGHTER]?.conditions.conditions).toEqual([]);
     // The Resistance is still there, so the casting is still on them.
-    expect(later.ongoing[castingId]?.on).toEqual([FIGHTER]);
+    expect(spellOn(later, later.ongoing[castingId]!)).toEqual([FIGHTER]);
     expect(hitFor(later, FIGHTER, 'slashing', 21)).toBe(10);
   });
 });

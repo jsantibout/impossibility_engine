@@ -8,6 +8,7 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { resolveSpell } from './commands.js';
 import { definitionFor } from './spell-definitions.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A spell that takes a condition away.
@@ -301,7 +302,7 @@ describe('Protection from Poison ends the Poisoned condition', () => {
     const next = fold('seed', [...SETUP, applied('poisoned', 'a wyvern'), ...out.events]);
 
     expect(Object.keys(next.ongoing)).toContain(out.castingId);
-    expect(next.ongoing[out.castingId]?.on).toEqual([ALLY]);
+    expect(spellOn(next, next.ongoing[out.castingId]!)).toEqual([ALLY]);
   });
 
   /** Lesser Restoration is Instantaneous, so it leaves no record at all. */

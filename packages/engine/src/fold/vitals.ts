@@ -26,7 +26,6 @@ import {
   unhandledEvent,
   type Applying,
 } from './common.js';
-import { alsoOn } from './release.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const VITALS_EVENTS = [
@@ -131,11 +130,13 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
     case 'condition-applied': {
       const creature = creatureOf(state, event, event.id);
       const conditions = applyCondition(creature.conditions, event.condition, event.source);
-      return alsoOn(
-        withCreature(next, event.id, { conditions }, creature),
-        event.id,
-        event.source,
-      );
+      // **And nothing else.** This case used to also put the creature into the
+      // casting's list of who it was on, by hand — a growth pass called
+      // `alsoOn`. It reached conditions and nothing else, so a Web that
+      // restrained somebody an hour later found them and the five events that
+      // *grant* something never did. `spellOn` reads the same link off the
+      // world at every read, so growth is not an operation any more.
+      return withCreature(next, event.id, { conditions }, creature);
     }
 
     case 'condition-removed': {

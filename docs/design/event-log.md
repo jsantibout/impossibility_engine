@@ -275,12 +275,17 @@ which is the check that says this was not aesthetic: the monster's
 `creature-added` is `roster.ts`; the long casting's turn boundary is
 `combat.ts`, with its `casting-continued` in `casting.ts`; and the derived `on`
 is `vitals.ts` at the `condition-applied` case and `ongoing.ts` at the record.
-No pair of them changes a seam in common. One caveat, stated because it is the
-place the answer turns: that third task also *reads* the `withoutTarget` call
-site, which is in `roster.ts` — and `withoutTarget` is kept, so it changes
-nothing there. Had the design deleted it as well, that task and the monster
-would have queued behind each other again, in the one module a creature
-entering and a creature leaving both have to be in.
+No pair of them changes a seam in common. **The third of them has since
+landed** and touched exactly those two cases: `vitals.ts` lost the growth pass
+and `ongoing.ts`'s `spell-ongoing` case gained the state read that reconstructs
+a pre-version-3 record's stored subset — which is the one place in this seam
+that reads the creatures to write the ongoing region, and is correct there
+because the record is written last in every resolution path. One caveat, stated
+because it is the place the answer turns: that third task also *reads* the
+`withoutTarget` call site, which is in `roster.ts` — and `withoutTarget` is
+kept, so it changed nothing there. Had the design deleted it as well, that task
+and the monster would have queued behind each other again, in the one module a
+creature entering and a creature leaving both have to be in.
 
 Under the coarser six-way grouping the task was proposed with — casting,
 creatures, combat/turns, effects-and-timers, world/scene, inventory — **two

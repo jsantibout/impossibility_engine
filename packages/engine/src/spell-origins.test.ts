@@ -20,6 +20,7 @@ import {
   resolveSpell,
   pendingCastingsOf,
 } from './commands.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A casting that holds a point in the scene.
@@ -293,7 +294,7 @@ describe('a casting can own a point in the scene', () => {
   it('is on its point rather than on the creature it struck', () => {
     const g = new Game();
     const casting = g.conjure(CLERIC, { x: 200, y: 205, z: 0 }, [NEAR]);
-    expect(ongoingSpellOf(g.state, casting)?.on).toEqual([]);
+    expect(spellOn(g.state, ongoingSpellOf(g.state, casting)!)).toEqual([]);
     expect(ongoingSpellsOn(g.state, NEAR)).toEqual([]);
   });
 

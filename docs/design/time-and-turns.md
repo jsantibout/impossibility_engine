@@ -299,7 +299,7 @@ replaces or stacks, and it is not what an *ending* matches on, because Beacon of
 Hope's two modifiers are one casting's grant and one deadline takes both. It
 does not enumerate `scheduledDamage`, because a hit still owed is the casting's
 debt rather than something the casting is doing to the creature — the reading
-that keeps a creature Insect Plague merely damaged out of `OngoingSpell.on`.
+that keeps a creature Insect Plague merely damaged off `spellOn`'s answer.
 And it does not enumerate conditions, which are a different link with their own
 instances and implications; `holdsNothingOf` asks them separately.
 
@@ -316,13 +316,21 @@ together — and `golden-log-2.json`, which is what says the fold itself runs
 through here. Dropping one *family* reddens only that family's suite, which is
 the weaker claim and is why the shared walk is the one to break.
 
-**`expireEffects` is the site the frozen logs could not have protected.** It
+**`holdsNothingOf` is the site the frozen logs could not have protected.** It
 reads the four in reverse, to decide whether a casting still owns anything on a
-creature; an enumerator reporting a grant the old code skipped would keep a
-finished casting in `OngoingSpell.on`, which is a wrong answer to Dispel Magic
+creature; an enumerator reporting a grant the release skipped would keep a
+finished casting **on** that creature, which is a wrong answer to Dispel Magic
 and appears in no log either fixture contains. The set it reports is exactly
 the union of the four the five sites read — nothing added, `scheduledDamage`
 and the conditions still outside it.
+
+**It used to be `expireEffects` that asked, and IE-053 moved the question.**
+That file shrank a casting's list of who it was on when a condition lapsed, in
+its condition branch and in no other — so the `grants` branch beside it left a
+stale name behind. Both shrinks are gone: `spellOn` asks `holdsNothingOf` at
+every read, so releasing the last grant takes the casting off the creature and
+no expiry branch has to remember to say so. See "Who a casting is on is two
+facts" in `docs/design/space-and-areas.md`.
 
 ### What expiry did not buy
 

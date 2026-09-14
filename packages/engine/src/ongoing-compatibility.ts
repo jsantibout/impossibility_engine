@@ -31,45 +31,79 @@
  */
 
 import { definitionFor } from './spell-definitions.js';
-import type { OngoingSpell } from './spells.js';
+import type { OngoingSpell, WrittenOngoing } from './spells.js';
 
 /**
  * The shape of {@link OngoingSpell} this engine writes.
  *
  * Bumped when a field a fold *reads* changes meaning, never for an addition a
- * reader can ignore. Version 2 is the shape that carries `area` and
- * `areaTrigger` and has dropped `concentration` and `route`.
+ * reader can ignore. Version 2 was the shape that carries `area` and
+ * `areaTrigger` and has dropped `concentration` and `route`; **version 3 is
+ * the shape that stores `aimed`** — the half of "on" only the cast knows —
+ * where version 2 stored the whole of it.
  *
  * **`endsEarly` arrived after version 2 and did not bump it**, which is a
- * decision rather than an oversight. It changes the meaning of no field that
- * was already there, and bumping would be *worse*: the upgrade path fills the
- * area from the catalogue, so running a version 2 record through it would
- * overwrite an area pinned at the cast with the book as it reads now — the
- * exact hazard pinning the area was for. So absence on a version 2 record
- * means the spell prints no such sentence, which is true of every such record
- * in the repository: both frozen logs are pre-versioned, and nothing else
- * persists one yet.
+ * decision rather than an oversight: it changes the meaning of no field that
+ * was already there. So absence on a version 2 record means the spell prints
+ * no such sentence.
+ *
+ * **What made a bump safe is the line below it**, and it had to be fixed
+ * first. The catalogue fill was keyed on `!== ONGOING_RECORD_VERSION`, so
+ * *any* bump routed every version 2 record through it and overwrote an area
+ * pinned at the cast with the book as it reads now — the exact hazard pinning
+ * the area was for, one constant edit away, and invisible to both frozen logs
+ * because both are pre-versioned and take the fill either way. It is keyed on
+ * `version === undefined` now, which is the condition it always meant.
  */
-export const ONGOING_RECORD_VERSION = 2;
+export const ONGOING_RECORD_VERSION = 3;
+
+/**
+ * Whether a record is already the shape this engine holds.
+ *
+ * Version 3 *is* an {@link OngoingSpell}, so this is a narrowing rather than a
+ * test — and `aimed` is checked beside the version because a hand-built record
+ * claiming version 3 without it would otherwise reach `state.ongoing` as a
+ * shape the type says cannot exist.
+ */
+const isCurrent = (casting: WrittenOngoing): casting is OngoingSpell =>
+  casting.version === ONGOING_RECORD_VERSION && casting.aimed !== undefined;
 
 /**
  * An ongoing record as this engine reads it, whatever shape it was written in.
  *
- * A version 2 record is returned unchanged — object identity included, so the
+ * A version 3 record is returned unchanged — object identity included, so the
  * common path allocates nothing and a fold of a modern log never touches the
  * catalogue at all.
  *
- * A pre-versioned record is rebuilt from the fields this engine knows, which
- * does two things at once: it fills the area and its clauses from the
- * catalogue, the only place they were ever recorded for such a log, and it
- * drops `concentration` and `route`, which the type no longer declares and
- * which would otherwise ride into `state.ongoing` as data nothing reads and
- * nothing can explain.
+ * An older record is rebuilt from the fields this engine knows, which does
+ * three things at once. It fills the area and its clauses from the catalogue
+ * **for a pre-versioned record only**, that being the only place they were
+ * ever recorded for such a log and a version 2 record having written them down
+ * itself. It drops `concentration` and `route`, which the type no longer
+ * declares and which would otherwise ride into `state.ongoing` as data nothing
+ * reads and nothing can explain. And it takes `aimed` from the caller.
+ *
+ * **`aimed` comes in rather than being computed here, because it reads
+ * state.** A record below version 3 stored the whole of "on", and the half of
+ * that this engine stores is the half the world does *not* hold — a question
+ * about the creatures, which this module has no business knowing. The
+ * `spell-ongoing` reducer asks it, and the answer is right there because the
+ * record is written last in every resolution path: everything the casting
+ * holds is already on the creatures by the time the record arrives.
  */
-export function upgradeOngoing(casting: OngoingSpell): OngoingSpell {
-  if (casting.version === ONGOING_RECORD_VERSION) return casting;
+export function upgradeOngoing(
+  casting: WrittenOngoing,
+  holdsNothingOf: (who: string) => boolean,
+): OngoingSpell {
+  if (isCurrent(casting)) return casting;
 
-  const definition = definitionFor(casting.spellId);
+  // **Pre-versioned only.** A version 2 record wrote its own area, so opening
+  // the book for it would overwrite a fact pinned at the cast with the book as
+  // it reads now — see {@link ONGOING_RECORD_VERSION}.
+  const definition = casting.version === undefined ? definitionFor(casting.spellId) : null;
+  const area = casting.area ?? definition?.area;
+  const areaTrigger = casting.areaTrigger ?? definition?.areaTrigger;
+  const endsEarly = casting.endsEarly ?? definition?.endsEarly;
   return {
     version: ONGOING_RECORD_VERSION,
     castingId: casting.castingId,
@@ -78,16 +112,16 @@ export function upgradeOngoing(casting: OngoingSpell): OngoingSpell {
     spell: casting.spell,
     level: casting.level,
     numbers: casting.numbers,
-    on: casting.on,
-    ...(definition?.area === undefined ? {} : { area: definition.area }),
-    ...(definition?.areaTrigger === undefined ? {} : { areaTrigger: definition.areaTrigger }),
+    aimed: casting.aimed ?? (casting.on ?? []).filter(holdsNothingOf),
+    ...(area === undefined ? {} : { area }),
+    ...(areaTrigger === undefined ? {} : { areaTrigger }),
     // And what ends the casting early, for the same reason and by the same
     // rule: a pre-versioned record never wrote it down, so the catalogue is
     // the only place it was ever recorded. A version 2 record with no
     // `endsEarly` is a spell that prints no such sentence, which is almost all
-    // of them — every version 2 record in the repository was written by code
-    // that writes this field, and the two frozen logs are pre-versioned.
-    ...(definition?.endsEarly === undefined ? {} : { endsEarly: definition.endsEarly }),
+    // of them — and what it *does* write is its own, so it is read off the
+    // record first exactly as the area is.
+    ...(endsEarly === undefined ? {} : { endsEarly }),
     ...(casting.origin === undefined ? {} : { origin: casting.origin }),
     ...(casting.towards === undefined ? {} : { towards: casting.towards }),
     ...(casting.anchoring === undefined ? {} : { anchoring: casting.anchoring }),
