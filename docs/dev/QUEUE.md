@@ -38,9 +38,23 @@ be unsafe, or finishes the tranche and reports it at `TRANCHE_COMPLETE`. An
 isolated bug does not qualify, however serious, when its class is being closed
 directly.
 
-### `WHOLE_ENGINE_AUDIT_RECOMMENDED` — set 2026-09-13, after tranche 4
+### The flag raised after tranche 4 — set 2026-09-13, **answered 2026-09-14**
 
-WHOLE_ENGINE_AUDIT_RECOMMENDED — set 2026-09-13, after tranche 4.
+Raised as the audit flag after tranche 4, on the evidence below, and
+**answered** by the post-tranche-4 delta audit
+(`docs/architecture/post-tranche-4-delta-audit-2026-09-13.md`, commit
+`47b63c0`), which the owner ran in a Fable session with write access against
+`main` at `0ecc84e`.
+
+Its verdict on the question the flag asked: *"The fourth audit's baseline is
+intact and **no whole-engine audit is needed now**. What the tranche found was
+not architectural drift but **instrument** drift."* So the token is retired
+from the line the validator reads, and the four repairs the audit asked for are
+**tasks on tranche 5's roster** (IE-021, IE-022, IE-023, IE-024) rather than a
+standing recommendation nobody is acting on.
+
+The evidence that raised it is kept below, because it is the record of why the
+instruments are being repaired.
 
 **One criterion is met and it is met four times over: repeated stale
 source-of-truth failures.** Each was found by a derivation rather than by
@@ -72,23 +86,40 @@ is not yet closed is the pair of instrument weaknesses in the paragraph above.
 **And setting it found that the flag could never have fired.** The regex in
 `check-queue.mjs` carried a stray `U+0008` immediately after the token —
 introduced when the audit counter was stripped out of the validator on
-2026-09-13 — so `^WHOLE_ENGINE_AUDIT_RECOMMENDED` matched nothing, and the
+2026-09-13 — so `^WHOLE_ENGINE_AUDIT_RECOMMENDED` matched nothing, and the
 one signal the manual-audit design leaves the foreman was invisible to every
 fresh session. Fixed; the flag prints. The lesson is the tranche's own, arriving
 a fifth time: **a guard nobody has seen fire is a guard nobody has tested**, and
 this one was written and never exercised because no tranche had yet had cause
 to raise it.
 
-This is a recommendation and nothing is blocked on it. Continuing without an
-audit is safe; the foreman's reading is that the repository has just replaced
-four hand-kept claims with derivations and that a broad pass is better value
-*now*, before a tranche 5 is briefed off the new numbers, than after.
+This was a recommendation and nothing was blocked on it. The foreman's reading
+at the time was that a broad pass was better value *before* a tranche 5 was
+briefed off the new numbers than after — and that is what happened: the delta
+audit ran first, re-derived the map, and tranche 5 is briefed from it.
 
 A bounded YELLOW escalation inside a tranche is **not** a broad audit: it is an
 architecture consultation on one question, the foreman invokes it, and the
 tranche carries on.
 
 Audit recommendation outstanding: **none**.
+
+### The next audit is a simplification pass, not a fifth retrospective
+
+The delta audit classified the simplification and optimisation audit as
+**APPROACHING** rather than DUE, and said why: IE-027 and IE-028 are targeted
+repairs of the two largest items it would name — a 1,008-line `resolveEffects`
+and four grant arrays enumerated by hand in five places — so the audit should
+**measure the engine after they land rather than recommend them**.
+
+So the checkpoint is recorded here in advance, and it binds the next foreman
+session: **at `TRANCHE_COMPLETE` for tranche 5, recommend the separate Fable
+non-semantic simplification and optimisation audit** — not another broad
+retrospective. The evidence it will be asked to weigh is already listed: four
+grant arrays becoming six by the end of this tranche, a 4,794-line `events.ts`
+that serialises every mechanism task, dead state unchanged across two audits,
+two `sceneFor` copies (IE-037 hoists them, or they stay at two), and two marker
+lists. Owner-initiated as always; the foreman recommends and does not launch.
 
 A broad audit produces a retrospective **and** a next-cycle recommendation —
 `WORKFLOW.md`, "What a broad audit produces". The fourth audit already did
@@ -105,6 +136,7 @@ verified against `main` first.
 | Third | 2026-09-13 | `docs/architecture/whole-engine-audit-2026-09-13.md`, commit `588d7a0` |
 | Scoped gate | 2026-09-13 | `docs/architecture/outcome-scoped-child-effects-2026-09-13.md` — one design question, not a sweep |
 | Fourth | 2026-09-13 | `docs/architecture/whole-engine-audit-fourth-2026-09-13.md` — the current architecture baseline |
+| Delta | 2026-09-13 | `docs/architecture/post-tranche-4-delta-audit-2026-09-13.md`, commit `47b63c0` — a **delta** against the fourth, not a fifth sweep: everything changed since `b1a21f6` read, nothing untouched re-read. Answered the flag above and produced the tranche 5 recommendation |
 
 ## Tranches
 
@@ -357,34 +389,196 @@ foreman.
 
 Recommendation: APPROVE TRANCHE 4.
 
+### Tranche 5 — PROPOSED
+roster: IE-020, IE-021, IE-022, IE-023, IE-024, IE-025, IE-026, IE-027, IE-028, IE-029, IE-030, IE-031, IE-032, IE-033, IE-034, IE-035, IE-036, IE-037
+
+**Eighteen tasks, eight waves, operationalised from the post-tranche-4 delta
+audit §5** — the audit's own roster, re-briefed from repository evidence with
+its premises verified against `main` first. Nothing was added to fill the
+window and nothing audited was dropped.
+
+The shape the audit set, preserved: correctness and instrument repairs lead;
+the `events.ts` chain is serial; the `spell-resolution.ts` union chain is
+serial; movement work serialises as context-request hygiene → refusal hygiene →
+Speed → teleport; conformance, content and tooling fill the parallel lanes; and
+later waves launch the moment their dependencies merge, with **no gate between
+waves**.
+
+#### Roster
+
+| Task | Lane | Wave | What it is |
+|---|---|---|---|
+| IE-020 | mechanism | 1 | A held casting keeps the facts its caster stated |
+| IE-021 | tooling | 1 | `COVERAGE.md` has one writer |
+| IE-022 | conformance | 1 | The citation guard reads the document it names |
+| IE-023 | tooling | 1 | No invisible characters; the validator is itself tested |
+| IE-024 | conformance | 1 | The validator judges untyped input instead of throwing |
+| IE-025 | conformance | 1 | A feature-definition validator |
+| IE-026 | conformance | 1 | Every context request names the command that satisfies it |
+| IE-027 | mechanism | 2 | `resolveEffects` split per kind, behaviour-preserving |
+| IE-028 | mechanism | 2 | One enumerator for a creature's sourced grants |
+| IE-029 | conformance | 2 | Refusal-code hygiene, outside the casting path |
+| IE-030 | mechanism | 3 | The declared "being fought" fact |
+| IE-031 | mechanism | 3 | Speed is read live, through one reader |
+| IE-032 | mechanism | 4 | A casting ended by a trigger |
+| IE-033 | mechanism | 5 | A Speed an effect changes |
+| IE-034 | mechanism | 6 | A long casting time outside combat, and rituals |
+| IE-035 | mechanism | 7 | A rider on later weapon attacks, and a duration the slot changes |
+| IE-036 | content | 7 | The twelve spells a long casting time alone blocked |
+| IE-037 | mechanism | 8 | Teleportation inside the scene — **the tail, deferrable** |
+
+#### Waves and dependencies
+
+| Wave | Tasks | Waits on |
+|---|---|---|
+| 1 | IE-020 · IE-021 · IE-022 · IE-023 · IE-024 · IE-025 · IE-026 | nothing |
+| 2 | IE-027 ∥ IE-028 · IE-029 | IE-027 and IE-028 on IE-020; IE-029 on IE-026 |
+| 3 | IE-030 ∥ IE-031 | IE-030 on IE-028; IE-031 on IE-026 and IE-029 |
+| 4 | IE-032 | IE-027, IE-028, IE-030 |
+| 5 | IE-033 | IE-031, IE-032 |
+| 6 | IE-034 | IE-033 |
+| 7 | IE-035 ∥ IE-036 | IE-034 |
+| 8 | IE-037 | IE-035 |
+
+#### Independence, and what serialises
+
+**By primitive**, which is the only reading that matters:
+
+- `events.ts`: IE-020 → IE-028 → IE-030 → IE-032 → IE-033 → IE-034 → IE-035.
+- `commands/spell-resolution.ts` and the definition types: IE-020 → IE-027 →
+  IE-030 → IE-032 → IE-033 → IE-034 → IE-035 → IE-037.
+- `commands/movement.ts` and `commands/actions.ts`: IE-026 → IE-029 → IE-031 →
+  IE-037.
+- `spell-schema.ts`: IE-024 first, then each union task adds its own rule.
+
+**Genuinely parallel**: the whole of wave 1 — IE-020 owns `events.ts` and
+`spell-resolution.ts` and the other six touch neither; IE-027 beside IE-028,
+which is the one pairing worth stating, because IE-027 is confined to
+`spell-resolution.ts` and IE-028 to `events.ts`; IE-030 beside IE-031, which
+share no file; IE-035 beside IE-036, which collide only on registry lines.
+
+**Concurrency per wave**: 4 (of 7 ready, capped by the builder norm), 3, 2, 1,
+1, 1, 2, 1 — bounded by the independence check and by the two-to-five builder
+range, never by a utilisation target. Wave 1's seven approved tasks are
+launched four at a time, the remaining three taking slots as they free.
+
+#### Expected execution and merge order
+
+Wave 1 merges in completion order, each rebased over what landed before it;
+IE-024 and IE-026 are the two the later waves wait on, so they are launched in
+the first four. Thereafter the order is the wave order, and every mechanism
+task rebases over `main` as the foreman merges it — builders finish at a
+branch and never rebase.
+
+#### Duration, calibrated against tranche 4 rather than against the estimate
+
+Tranche 4 was planned at five hours and took roughly **two and a half**: ten
+tasks, four serial union waves, about **37 minutes per serial wave** inclusive
+of build, independent review, rework, risk gate, merge and push. Eight waves at
+that rate is 5.0 hours; the mechanism tasks here are larger on average — IE-027
+is a 1,000-line behaviour-preserving move and IE-034 is the largest single
+mechanism task any tranche has carried — so the honest band is **40–50 minutes
+per serial wave, or 5.5 to 6.7 hours**, plus 20–40 minutes if IE-034's YELLOW
+fires.
+
+**So: 5.5–7 hours, and that is the estimate rather than the target.** If it
+finishes at the short end, the correct behaviour is to stop at
+`TRANCHE_COMPLETE` and wait, not to find more work.
+
+#### Likely Fable involvement
+
+**One plausible YELLOW, named in advance, in IE-034**: whether a creature's
+Concentration may name a **pending** casting id without breaking a reader that
+assumes the id is in `ongoing` — `holdsNothingOf`, `ongoingSpellsBy`, the
+Dispel readers. The design says it can, because a pending casting owns nothing
+yet. If a reader disagrees, the task stops at `ARCHITECTURE_BLOCKED` and the
+question goes to Fable; it is **not** decided locally and **not** worked around
+by special-casing a reader.
+
+Two more are possible and not foreseen: IE-032, if an SRD ending clause needs a
+fact the log does not hold — in which case it is *filed*, not modelled; and
+IE-031, if the decided Speed order is disputed by evidence.
+
+No RED is foreseen. Nothing on this roster changes a product behaviour the
+owner has not already decided, invalidates a completed system, or touches the
+authority boundary.
+
+#### Changed from the audit's recommendation, and why
+
+Four premise corrections, each verified against `main` before briefing:
+
+| Premise as stated | What `main` says | Effect on the brief |
+|---|---|---|
+| Settlement "passes them to `resolveOnTargets` exactly as the atomic path does" | `resolveDeclaredCast` calls **`resolveEffects`** directly at `spell-resolution.ts:186` and builds its own plan at `:194`; `resolveOnTargets` is the atomic path only | IE-020 names the real function, and forbids refactoring settlement to go through `resolveOnTargets` |
+| The budget must be flipped from remaining to **spent** so the allowance can be read live | Already live for conditions: `combat.ts:527` derives `movedSoFar` and caps at `min(remaining, effectiveSpeed − movedSoFar)`, and `dash` at `:472` reads through `conditionSpeed` | IE-031 does **not** flip the field. What is missing is one reader and feature grants, which is what it builds |
+| IE-034 is `SlotlessReason.ritual`'s **first writer** | False: `casting.ts:446` accepts it and `casting.test.ts:191` already casts a ritual and asserts the event carries it | IE-034 makes the value *mean* something — the tag check, the 600 seconds, the slot-level refusal — and says so rather than claiming a first writer |
+| `EffectTarget.grants` has zero production writers | **True**, verified: declared at `duration.ts:170`, read at `:399`, and constructed only four times in `granted-defenses.test.ts` | IE-033 keeps the claim, and it is the member's first production writer |
+
+Two scope corrections the standing rules force:
+
+- **IE-023 may not touch `docs/dev/QUEUE.md`.** Builders never edit
+  `docs/dev/`, and the foreman rewrites `QUEUE.md` on every merge, so a builder
+  branch holding it would conflict with each one. The foreman removed that
+  file's own control character with this proposal; the builder fixes
+  `CLAUDE.md` and builds the guard, and `check-queue.mjs` stays in scope as an
+  instrument rather than as queue state.
+- **The seven ready tasks of wave 1 are launched four at a time.** Seven
+  concurrent builders is outside the procedure's two-to-five range; the roster
+  is unchanged and only the launch order is the foreman's.
+
+#### Deferred, and still deferred
+
+The audit's §5.6 deferrals are preserved, none of them required by an approved
+task: the **in-combat** long casting (IE-034's second half — the per-turn
+Magic-action obligation); a general "choice made at the casting" bag, which
+wants a third stated fact as evidence and this tranche creates only the second;
+modified healing (two consumers); a condition Immunity a spell grants, which
+needs `conditionApplicability` to read `CreatureState` rather than
+`AdaptedMonster`; Heal's flat 70, which IE-014's builder measured at six
+resolution paths; Superior Hunter's Defense, blocked on three things that are
+not the grant; and `an-action-a-spell-compels-or-forbids`, summons, a second
+scene, walls, falling and movement modes, all unchanged and authority-bound.
+
+**Splitting `events.ts` stays deferred** and is the simplification audit's
+first item: a 4,800-line split would stall every mechanism task behind it.
+
+Recommendation: APPROVE TRANCHE 5.
+
 ## CURRENT
 
-**Nothing. Tranche 4 is complete and no tranche is approved.**
+**Tranche 5 is proposed and waiting at Gate 1. Nothing is approved, so nothing
+executes.**
 
-All ten tasks are `DONE` and merged to `main`; `main` is at `a7013cc` with
-**6,696 tests across 103 files**, both frozen fixtures untouched and
-`COVERAGE.md` byte-clean. Nine merged under tranche authority with no owner
-involvement; IE-015 stopped at Gate 3 because its reviewer `PASS` carried
-medium confidence for a structural reason, and the owner waived that condition
-with a recorded rationale rather than the foreman deciding it.
+All nineteen tasks to date are `DONE` and merged; tranche 4 shipped ten of ten,
+nine of them without owner involvement. `main` carries **6,696 tests across 103
+files**, both frozen fixtures untouched.
 
-The next thing that happens is the owner's: either a broad whole-engine audit
-in a fresh Fable session against clean `main` — which is now the only way one
-starts — or approval of a tranche 5 the foreman proposes from the state below.
+The eighteen tranche 5 briefs are written and committed at
+`state: OWNER_APPROVAL_REQUIRED`. The next thing that happens is the owner's
+word at Gate 1. Until then the foreman launches nothing, and `check-queue.mjs`
+refuses any task that tries to execute outside an approved tranche.
+
+The audit flag raised after tranche 4 is **answered** — see "The flag raised
+after tranche 4" above — and the next audit this repository should run is the
+**simplification and optimisation pass**, recommended at tranche 5's
+`TRANCHE_COMPLETE` rather than a fifth retrospective.
 
 ## NEXT
 
-| Task | Why it is not in tranche 4 |
-|---|---|
-| **Speed modifier** (C3, narrowed — no movement modes) | A fifth sequential union wave would push past the window, and `moveCreature`/`PendingMove` read Speed at declaration, a surface nobody has measured. First task of tranche 5 |
-| **The declared "being fought" fact** | C2's other replacement half, for the five Charm and Dominate spells — a fact on a casting, not a property of a creature |
-| **Modified healing** | Chill Touch and Beacon of Hope; two consumers, dropped from C5 by the audit |
-| **Feature-definition validator** | Named by the third audit and unchanged since; bigger than anything in tranche 4 |
+Three of this list's four rows are now **on tranche 5's roster**, which is what
+the list was for: the Speed modifier is IE-031 and IE-033, the declared "being
+fought" fact is IE-030, and the feature-definition validator is IE-025.
 
-After tranche 4, the next ranking should be **derived** rather than written:
-IE-015 exists so that a shape's consumer count is a query. That is the audit's
-fourth finding closed, and it is why nothing beyond this list is ranked here
-yet.
+| Task | Why it is not in tranche 5 |
+|---|---|
+| **Modified healing** | Chill Touch and Beacon of Hope; two consumers, dropped from C5 by the audit, and IE-028's enumerator makes it a one-slot task next cycle |
+| **The in-combat long casting** | IE-034's second half: a `continueCasting` command and a derived failure at the caster's turn boundary. The first half finishes twelve spells on its own |
+| **A condition Immunity a spell grants** | 10 blocked, 1 finished — and it needs `conditionApplicability` to read `CreatureState` rather than `AdaptedMonster`. The first candidate after this cycle |
+| **A "choice made at the casting" bag** | 24 blocked, 0 finished. Two stated facts exist after IE-030; a third is the evidence, and it finishes nothing alone |
+
+The ranking beneath this is **derived rather than written**: IE-015 exists so
+that a shape's consumer count is a query, and `COVERAGE.md`'s "What blocks the
+rest" prints both numbers for every shape. Do not re-rank from prose.
 
 ## LATER
 
@@ -467,3 +661,7 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | Gate 3 | IE-015 | approved — "MERGE". Condition 3 waived on the owner's recorded rationale: the reviewer's medium confidence is "a limitation of exhaustive semantic re-adjudication, not an unresolved implementation concern". The only merge gate of the tranche |
 | 2026-09-13 | `TRANCHE_COMPLETE` | IE-010 … IE-019 | ten of ten shipped, nine without owner involvement; four waves, one merge gate, no YELLOW and no RED |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |
+| 2026-09-13 | delta audit | — | the **post-tranche-4 delta**, run by the owner in a Fable session against `main` at `0ecc84e`: a delta against the fourth whole-engine audit rather than a fifth sweep. Verdict — the baseline is intact, no whole-engine audit is due, the drift is in the *instruments*. It answers the flag raised after tranche 4 and carries the tranche 5 recommendation. `docs/architecture/post-tranche-4-delta-audit-2026-09-13.md` |
+| 2026-09-14 | audit flag | — | **answered and retired.** The token no longer sits on the line `check-queue.mjs` reads; the four instrument repairs it asked for are IE-021, IE-022, IE-023 and IE-024 on tranche 5's roster. The evidence that raised it is kept |
+| 2026-09-14 | audit checkpoint | — | recorded in advance: at tranche 5's `TRANCHE_COMPLETE` the foreman recommends the **Fable non-semantic simplification and optimisation audit**, not a fifth retrospective. The delta audit classified it APPROACHING and asked that it measure the engine *after* IE-027 and IE-028 land rather than recommend them |
+| 2026-09-14 | Gate 1 | IE-020 … IE-037 | **presented — `OWNER_APPROVAL_REQUIRED`.** Eighteen tasks, eight waves, operationalised from the delta audit §5 with its premises verified against `main`: four corrected (the settlement function, the movement allowance, the ritual reason's first writer, and `EffectTarget.grants` confirmed) and two scope corrections forced by the standing rules. Estimate 5.5–7 hours, calibrated against tranche 4's actual 2.5 |
