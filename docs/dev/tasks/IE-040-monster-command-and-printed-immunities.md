@@ -1,11 +1,11 @@
 # IE-040 — A monster enters through a command, with its printed condition immunities
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `commands/creatures.ts`, `commands/conditions.ts`, `monster.ts`, `fold/creatures`; not beside IE-042
 depends-on: IE-039
-worker: none
+worker: qb-builder in .claude/worktrees/agent-a3d44e2c201680b3a, branch worktree-agent-a3d44e2c201680b3a
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 

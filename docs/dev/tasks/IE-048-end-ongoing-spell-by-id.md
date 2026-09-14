@@ -1,11 +1,11 @@
 # IE-048 — End a casting by its id, and retire the two zero-caller commands
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `commands/casting.ts`, `commands/ongoing.ts`, the barrel; not beside IE-041, IE-042, IE-046 or IE-047
 depends-on: IE-038, IE-041
-worker: none
+worker: qb-builder in .claude/worktrees/agent-a022b921150874866, branch worktree-agent-a022b921150874866
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
