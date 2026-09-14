@@ -754,7 +754,7 @@ export function takeDamageResponse(
             subject: reactor,
             need: `where ${reactor} and ${hurt.by} are standing`,
             because: `${feature.name} answers a creature within ${feature.does.withinFeet} feet`,
-            satisfyWith: 'placeCreature',
+            satisfyWith: `a placeCreatureInScene command for ${reactor} and ${hurt.by}`,
           },
         ],
       );

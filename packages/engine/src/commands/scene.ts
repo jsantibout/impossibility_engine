@@ -43,9 +43,16 @@
  * `needs-context` with a request — a `scene` when there is no room to be in,
  * and a `position` when the *anchor* a placement is measured from is not
  * standing anywhere. Both name a command in `satisfyWith` rather than an
- * event, and both commands are in this file, which is new: `resolveMove` and
- * `resolveSpell` have answered `no_scene` since positioning landed and had
- * nothing to point a caller at.
+ * event, and both commands are in this file, which is what made naming one
+ * possible at all: `resolveMove` and `resolveSpell` had answered `no_scene`
+ * since positioning landed with nothing to point a caller at.
+ *
+ * **They point at `setScene` now**, and it took a second task to notice. The
+ * commands existing is not the same as the requests naming them, and for two
+ * tranches they did not — `resolveSpell`'s requests said "a scene-set event"
+ * and `resolveMove` carried no request whatever. `invariants.test.ts` sweeps
+ * every `satisfyWith` under `commands/` against the `commands.ts` barrel so
+ * the gap cannot reopen quietly.
  *
  * **4. `mayAct` is not consulted.** None of these is an action in the turn
  * economy — they are facts a DM declares, and an outstanding area effect is

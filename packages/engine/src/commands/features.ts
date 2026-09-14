@@ -212,7 +212,7 @@ export function useHealingTouch(
             subject: who,
             need: `where ${who} is standing`,
             because: `${definition.name} reaches five feet`,
-            satisfyWith: 'creature-placed',
+            satisfyWith: `a placeCreatureInScene command for ${who}`,
           })),
         );
       }

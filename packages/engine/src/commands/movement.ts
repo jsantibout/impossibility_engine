@@ -129,9 +129,12 @@ export function moveWithin(
 
     const mover = creatureOf(state, id);
     if (mover === null) return unknownCreature(id, 'has no record here yet; add it first');
-    if (state.scene === null) return needsContext('no_scene', 'there is no scene to move within');
+    // Homework rather than a verdict, through the same helper mounting uses:
+    // the record is thin, and `setScene` is what settles it.
+    const scene = sceneFor(state, id, `${id} to move within`);
+    if (!scene.ok) return scene;
 
-    const from = positionOf(state.scene, id);
+    const from = positionOf(scene.value, id);
     if (from === null) {
       return needsContext(
         'unplaced',
@@ -142,7 +145,7 @@ export function moveWithin(
             subject: id,
             need: `where ${id} is standing`,
             because: 'a move is measured from where the mover starts',
-            satisfyWith: `a creature-placed event for ${id}`,
+            satisfyWith: `a placeCreatureInScene command for ${id}`,
           },
         ],
       );
@@ -150,7 +153,7 @@ export function moveWithin(
 
     // Resolve the destination through the same placement rules everything else
     // uses, so the move is measured on the lattice rather than in a straight line.
-    const moved = moveCreature(state.scene, id, command.placement);
+    const moved = moveCreature(scene.value, id, command.placement);
     if (!moved.ok) return moved;
     const to = positionOf(moved.value.state, id);
     if (to === null) return needsContext('unplaced', `${id} did not land anywhere`);
@@ -161,7 +164,7 @@ export function moveWithin(
     // **A carried area sweeps, and a move of more than one space does not say
     // what it swept.** Checked before any cost, any budget and any Opportunity
     // Attack, so a move that needs its route stated costs nothing to ask about.
-    const sweeping = sweptRoute(state, state.scene, moved.value.state);
+    const sweeping = sweptRoute(state, scene.value, moved.value.state);
     if (sweeping.length > 0) {
       return needsContext(
         'route_required',
@@ -440,11 +443,16 @@ export function declineOpportunity(
 /**
  * The scene, or the request that would make one.
  *
- * `resolveMove` answers `no_scene` with a bare refusal because it predates
- * there being a command that could fix it. Mounting is new, and
- * `commands/scene.ts` now supplies the provider, so this is homework rather
- * than a verdict: nothing is wrong, the record is thin, and `setScene` is what
- * settles it.
+ * Homework rather than a verdict: nothing is wrong, the record is thin, and
+ * `setScene` in `commands/scene.ts` is what settles it.
+ *
+ * **Every caller in this module goes through it now**, which it did not when
+ * it was written. Mounting and dismounting were written after
+ * `commands/scene.ts` existed and got the request; `moveWithin` was written
+ * before and kept a bare `needsContext('no_scene', …)` carrying nothing a
+ * caller could act on — the same refusal, at the same cost, telling the
+ * orchestrator nothing about how to fix it. There is no reason for a second
+ * answer to one question, so there is no longer a second one.
  */
 function sceneFor(state: GameState, subject: CharacterId, because: string): Result<PositionState> {
   if (state.scene !== null) return ok(state.scene);

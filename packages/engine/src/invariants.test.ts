@@ -2132,6 +2132,291 @@ describe('unknown is not no', () => {
   }
 });
 
+/**
+ * Every `satisfyWith` in the command layer, as the source writes it.
+ *
+ * `CLAUDE.md` states the rule — "a request names the command that satisfies
+ * it, and every command-level request has one" — and until IE-012 built the
+ * eight scene commands and IE-016 the nine declarations, several requests had
+ * no command to name and said "a scene-set event" instead. That is the one
+ * instruction the layer above the engine must never be given: a tool surface
+ * calls commands and never appends events, because appending one is the model
+ * asserting a mechanical fact directly.
+ *
+ * So the check is not that the prose is tidy. It is that the only thing a
+ * request can tell a caller to do is something the caller can actually do, and
+ * the vocabulary of what a caller can do is `commands.ts`'s barrel — the list
+ * every other sweep here reads, for the same reason: a helper `export`ed so a
+ * sibling may call it is not a command.
+ */
+const satisfyWithIn = (source: string): readonly string[] =>
+  [...source.matchAll(/satisfyWith: (?:'((?:[^'\\]|\\.)*)'|`((?:[^`\\]|\\.)*)`)/g)].map(
+    (match) => match[1] ?? match[2]!,
+  );
+
+/**
+ * Which of those name nothing a caller could send.
+ *
+ * Two different things catch the two kinds of wrong answer, and conflating
+ * them is how a guard comes to be credited with work it is not doing.
+ *
+ * **A name the barrel does not publish is caught by the lookup**, whatever the
+ * match. The question asked is directional: does this request's **text**
+ * contain a published command name? `'placeCreature'` — the pure function in
+ * `positioning.ts`, which one request named before IE-026 — fails because that
+ * text contains no published name, `placeCreatureInScene` being the only one
+ * in its family. The containment running the other way is real and irrelevant:
+ * `placeCreatureInScene` *does* contain `placeCreature`, and nothing here ever
+ * asks that, because `placeCreature` is not a command to be looked for.
+ *
+ * **The word boundary catches the other kind**: a longer identifier that
+ * merely *contains* a command's name is not that command. That collision is
+ * live — `equipItem` sits inside `unequipItem`, `resolveAttack` inside
+ * `resolveAttackDamage`, `endFeature` inside `extendFeature` — so containment
+ * would accept `'an unequipItem command'` on the strength of `equipItem`. The
+ * two cases below pin one each, and the second measures the nesting off the
+ * barrel rather than asserting it.
+ */
+const namesNoCommand = (
+  sources: Readonly<Record<string, string>>,
+  commands: Iterable<string>,
+): readonly string[] => {
+  const named = [...commands];
+  return Object.values(sources)
+    .flatMap((source) => satisfyWithIn(source))
+    .filter((text) => !named.some((name) => new RegExp(`\\b${name}\\b`).test(text)))
+    .sort();
+};
+
+describe('every context request names the command that satisfies it', () => {
+  const REQUESTING_MODULES: Readonly<Record<string, string>> = Object.fromEntries(
+    COMMAND_MODULES.map((file) => [file, MODULE_SOURCE[file]!]),
+  );
+
+  /**
+   * The one genuine exception, in the shape this file already exempts five
+   * event types with: the reason names the fact that would end it, and the
+   * test below checks the claim rather than taking it on its word.
+   *
+   * **Do not invent a command to close this.** Adding a creature is
+   * `createCharacter`'s, in `creation.ts`, which predates the command layer,
+   * takes no `CommandIdentity` and reaches the outside through `index.ts`
+   * rather than through the barrel — so there is no command a caller could be
+   * told to send, and naming one would be worse than naming the event.
+   */
+  const NAMES_AN_EVENT_ON_PURPOSE: Readonly<Record<string, string>> = {
+    'a creature-added event for ${id}':
+      'no command adds a creature: `createCharacter` in `creation.ts` emits `creature-added`, predates the command layer, takes no CommandIdentity and is not published through the `commands.ts` barrel. A barrel command that adds a creature is what would end this exemption',
+  };
+
+  /**
+   * Not vacuous. An extractor that matched nothing would report no problems
+   * and check nothing — what `animals.md` taught every parser here, and what
+   * every sweep in this file asserts about its own population first.
+   */
+  it('read every satisfyWith in the command layer', () => {
+    const all = Object.values(REQUESTING_MODULES).flatMap((source) => satisfyWithIn(source));
+    // Held against the number of `satisfyWith:` sites in the same sources
+    // rather than a threshold. The extractor only sees a quoted or backticked
+    // literal, so a request assembled from a helper or a variable would be
+    // invisible to it — and a `> 20` guard against twenty-eight sites would
+    // not notice one going that way. This fails on the day one does, which is
+    // the difference between a guard and a number somebody has to maintain.
+    const sites = Object.values(REQUESTING_MODULES).reduce(
+      (n, source) => n + [...source.matchAll(/satisfyWith:/g)].length,
+      0,
+    );
+    expect(all.length).toBe(sites);
+    expect(all.length).toBeGreaterThan(20);
+    expect(all).toContain('a setScene command');
+    // The template-literal form, which the single-quoted one would not reach.
+    // Read as the *source* writes it, escapes and all — a `via` in backticks
+    // is `\`via\`` on disk, and pretending otherwise would be this assertion
+    // quietly testing a string the extractor never produces.
+    expect(all.some((text) => text.startsWith('activateSpell again with'))).toBe(true);
+    expect(all.some((text) => text.includes('\\`via\\`'))).toBe(true);
+  });
+
+  /**
+   * The whole point. Every request tells a caller to send something the caller
+   * can send, and the one that cannot is named with its reason.
+   *
+   * `toEqual` reads both directions: an exemption that stops being needed
+   * fails here rather than sitting on as a licence nobody re-reads.
+   */
+  it('leaves no request naming an event for a fact that has a command', () => {
+    expect(namesNoCommand(REQUESTING_MODULES, PUBLIC_COMMANDS)).toEqual(
+      Object.keys(NAMES_AN_EVENT_ON_PURPOSE).sort(),
+    );
+    expect(Object.values(NAMES_AN_EVENT_ON_PURPOSE).every((why) => why.length > 20)).toBe(true);
+  });
+
+  /**
+   * And the analysis is not vacuous the other way either: shown the exact
+   * string this task removed, it says so.
+   *
+   * Synthetic on both sides, like the action-economy sweep's smuggled spender
+   * and the event sweep's fictional type, because a sweep proved only against
+   * the repository it runs on is one that can quietly stop seeing anything.
+   */
+  it('would catch a request that names an event', () => {
+    const sources = { 'a-module.ts': "satisfyWith: 'a scene-set event'," };
+    expect(namesNoCommand(sources, ['setScene'])).toEqual(['a scene-set event']);
+  });
+
+  it('and accepts the command that replaced it', () => {
+    const sources = { 'a-module.ts': "satisfyWith: 'a setScene command'," };
+    expect(namesNoCommand(sources, ['setScene'])).toEqual([]);
+  });
+
+  /**
+   * The trap the brief named: `placeCreature` is the pure function in
+   * `positioning.ts` and `placeCreatureInScene` is the command, and one
+   * request named the first. It is caught because the barrel publishes no
+   * `placeCreature` **at all** — not because of the word boundary, which does
+   * nothing here: `placeCreature` is never looked for, so no needle is nested
+   * in either fixture. Saying otherwise would be this test claiming a guard it
+   * is not applying.
+   */
+  it('does not accept the pure function in place of the command', () => {
+    const commands = ['placeCreatureInScene'];
+    expect(namesNoCommand({ 'm.ts': "satisfyWith: 'placeCreature'," }, commands)).toEqual([
+      'placeCreature',
+    ]);
+    expect(
+      namesNoCommand(
+        { 'm.ts': 'satisfyWith: `a placeCreatureInScene command for ${id}`,' },
+        commands,
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * **What the word boundary is actually for**, with a fixture only it
+   * rejects: a longer identifier that merely *contains* a command's name is
+   * not that command, and containment would accept it.
+   *
+   * The collision is live rather than hypothetical — three barrel names are
+   * strict substrings of other barrel names, which the first assertion
+   * measures rather than assumes, so the fixture cannot quietly stop being a
+   * real case. `equipItem` inside `unequipItem` is the pair used here, and
+   * under containment a request naming the one would pass on the other.
+   */
+  it('does not accept a longer name that merely contains a command', () => {
+    const nested = PUBLIC_COMMANDS.filter((a) =>
+      PUBLIC_COMMANDS.some((b) => b !== a && b.includes(a)),
+    );
+    expect(nested).toContain('equipItem');
+    expect(PUBLIC_COMMANDS).toContain('unequipItem');
+
+    // Only the boundary rejects this: `'an unequipItem command'.includes('equipItem')`.
+    expect(namesNoCommand({ 'm.ts': "satisfyWith: 'an unequipItem command'," }, ['equipItem']))
+      .toEqual(['an unequipItem command']);
+    expect('an unequipItem command'.includes('equipItem')).toBe(true);
+    // And the command it really names is accepted.
+    expect(
+      namesNoCommand({ 'm.ts': "satisfyWith: 'an unequipItem command'," }, ['unequipItem']),
+    ).toEqual([]);
+  });
+
+  /**
+   * **`route` passes on the rule, not on an exception.** It is the odd kind —
+   * satisfied by re-sending the same command with a field filled in rather
+   * than by declaring a fact through a command of its own — and it still names
+   * that command, so the ordinary check accepts it. A special case for it
+   * would be a hole shaped like an exemption: anything at all could then be
+   * written in a `route` request and nothing would notice, which is what the
+   * second half here pins.
+   */
+  it('accepts a route request because it names a command, not because it is a route', () => {
+    const commands = ['resolveMove', 'activateSpell'];
+    expect(PUBLIC_COMMANDS).toContain('resolveMove');
+    expect(PUBLIC_COMMANDS).toContain('activateSpell');
+    expect(
+      namesNoCommand(
+        { 'm.ts': 'satisfyWith: `resolveMove again as ${n} moves of one space each`,' },
+        commands,
+      ),
+    ).toEqual([]);
+    expect(
+      namesNoCommand({ 'm.ts': "satisfyWith: 'send it again with `via` filled in'," }, commands),
+    ).toEqual(['send it again with `via` filled in']);
+  });
+
+  /** And the exemption's claim is checked rather than taken on its word. */
+  it('and there really is no command that adds a creature', () => {
+    // `creation.ts` emits it...
+    const creation = { 'creation.ts': readFileSync(`${SRC}creation.ts`, 'utf8') };
+    expect(emittedNowhere(['creature-added'], creation)).toEqual([]);
+    // ...nothing in the command layer does...
+    expect(emittedNowhere(['creature-added'], REQUESTING_MODULES)).toEqual(['creature-added']);
+    // ...and the barrel publishes no `createCharacter` for a caller to send.
+    expect(PUBLIC_COMMANDS).not.toContain('createCharacter');
+  });
+});
+
+describe('a move with no scene is homework, not a verdict', () => {
+  /**
+   * `resolveMove` answered `no_scene` with a **bare** `needsContext` carrying
+   * no request, because it predates there being a command that could fix it —
+   * `sceneFor`'s own comment said so in those words. `commands/scene.ts`
+   * supplies the provider now, so the gap was a leftover rather than a
+   * decision: the code stays `no_scene`, and what changes is that the caller
+   * is told what to send.
+   */
+  const NO_SCENE: readonly GameEvent[] = SETUP.filter(
+    (e) =>
+      e.type !== 'scene-set' &&
+      e.type !== 'landmark-added' &&
+      e.type !== 'creature-placed' &&
+      e.type !== 'sight-declared',
+  );
+
+  const move = (dice = supply()) =>
+    resolveMove(
+      fold('s', NO_SCENE),
+      A,
+      { placement: { from: { landmark: 'here' }, feet: 10 } },
+      dice,
+    );
+
+  it('asks rather than refuses, and says which fact', () => {
+    const out = move();
+    expect(isErr(out) ? out.code : 'ok').toBe('no_scene');
+    expect(isNeedsContext(out)).toBe(true);
+    const requests = contextRequestsOf(out);
+    expect(requests.map((r) => r.kind)).toEqual(['scene']);
+    expect(requests[0]?.subject).toBe(A);
+  });
+
+  /** And it names the command, which is the whole of what was missing. */
+  it('names a setScene command', () => {
+    expect(contextRequestsOf(move())[0]?.satisfyWith).toMatch(/setScene command/);
+  });
+
+  /**
+   * Asking costs nothing — the same guarantee every other thin record has.
+   *
+   * The **generator** is what this can actually assert, and it is the half
+   * that is easy to miss: it is the caller's own object, so a refusal that
+   * already rolled has moved it. Re-folding the log and comparing would be
+   * decoration — `fold` is a pure function of the same events either side, so
+   * it cannot come out differently whatever the command did — and an assertion
+   * that cannot fail is worse than none, because it reads as cover.
+   */
+  it('costs nothing to ask — no dice, and no events to apply', () => {
+    const dice = supply();
+    const before = { rng: dice.rng.snapshot(), rolls: dice.issuer.count };
+    const out = move(dice);
+    expect(isNeedsContext(out)).toBe(true);
+    expect(dice.rng.snapshot()).toEqual(before.rng);
+    expect(dice.issuer.count).toBe(before.rolls);
+    // And a refusal is not a batch: there is nothing to apply.
+    expect(contextRequestsOf(out).length).toBeGreaterThan(0);
+    expect('value' in out).toBe(false);
+  });
+});
+
 describe('a refused command leaves nothing behind', () => {
   /**
    * "Validate before rolling" as a behavioural guarantee rather than a

@@ -467,7 +467,7 @@ function reachCheck(
         subject: who,
         need: `where ${who} is standing`,
         because: `${weapon?.name ?? 'an Unarmed Strike'} has a reach to check`,
-        satisfyWith: `a creature-placed event for ${who}`,
+        satisfyWith: `a placeCreatureInScene command for ${who}`,
       })),
     );
   }

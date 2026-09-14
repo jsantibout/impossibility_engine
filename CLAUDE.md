@@ -5100,9 +5100,9 @@ There are three states, not two:
 | The record is thin | `{ kind: 'needs-context', requests }` — nothing spent, no die thrown, go and find out |
 | Fine | `{ kind: 'resolved', ... }` |
 
-A `ContextRequest` says what is missing, which rule wanted it, and the event
-that would establish it. It is addressed to the orchestrator, never to a
-player: "sorry, that creature has no position" is the engine's problem leaking
+A `ContextRequest` says what is missing, which rule wanted it, and the
+**command** that would establish it. It is addressed to the orchestrator, never
+to a player: "sorry, that creature has no position" is the engine's problem leaking
 out as the game's. The caller establishes the fact and casts again exactly as
 they meant to — which is why asking costs nothing.
 
@@ -5138,6 +5138,77 @@ the bare kind; the command that knows which rule wanted the fact attaches the
 request. `route` is the one satisfied by re-sending the same command with a
 field filled in rather than by declaring a fact through a command of its own —
 see "`via` is adjudicated, and asking for it is not a refusal".
+
+**That paragraph was a rule this file stated and the code did not keep**, and
+what closed the gap was a sweep rather than the six fixes. Seventeen requests
+named an *event* — "a scene-set event", "a creature-placed event for …", "a
+sight-declared event from … to …", a bare `'creature-placed'`, and one that
+said `'placeCreature'`, which is the **pure function** rather than the command
+(`placeCreatureInScene`) and is exactly the trap a reader copying the nearest
+string falls into. A tool surface branching on `satisfyWith` was being told to append an
+event, which is the one thing the layer above the engine must never do:
+appending one is the model asserting a mechanical fact directly. It was not a
+hole in the rules but a hole between the rules and anything that could reach
+them, and it had already closed without anybody noticing — IE-012 built the
+eight scene commands and IE-016 the nine declarations, so every fact named
+here has had a command for two tranches, and the prose went on naming the
+event.
+
+So `invariants.test.ts` reads every `satisfyWith` in `commands/` and fails
+unless it names something the `commands.ts` barrel publishes — the same list
+the action-economy and idempotency sweeps read, for the same reason: a helper
+`export`ed so a sibling may call it is not a command. Driven over a synthetic
+`satisfyWith: 'a scene-set event'` it has to catch, like every other sweep in
+that file.
+
+**The match is on a word boundary, and the reason is not the tempting one.**
+The question the sweep asks is **directional**: does this request's *text*
+contain a published command name? `'placeCreature'` is caught because that text
+contains none — `placeCreatureInScene` is the only published name in its
+family. The containment running the other way is real and irrelevant:
+`placeCreatureInScene` *does* contain `placeCreature`, and nothing ever asks
+that, because `placeCreature` is not a command to be looked for. So the
+boundary does nothing whatever in that pair, and the first draft of this sweep
+claimed it did. Review caught it twice — once for crediting the boundary, and
+again for justifying the correction with a symmetry that is itself false —
+which is the second and third time in this file a guard has been explained by a
+mechanism that was not the one doing the work. What the
+boundary really stops is a longer identifier that merely *contains* a command's
+name passing as that command, and the collision is live rather than
+hypothetical: three barrel names are strict substrings of other barrel names —
+`equipItem` inside `unequipItem`, `resolveAttack` inside `resolveAttackDamage`,
+`endFeature` inside `extendFeature`. So the fixture is `'an unequipItem
+command'` held against `equipItem`, which only the boundary rejects, and the
+nesting is **measured off the barrel in the same test** rather than asserted,
+so the case cannot quietly stop being a real one.
+
+**`route` passes on the rule rather than on an exception**, which is what makes
+it safe to have the odd kind at all: it is satisfied by re-sending the same
+command, and it *names* that command, so the ordinary check accepts it. A
+special case for it would be a hole shaped like an exemption — anything
+whatever could then be written in a `route` request — so the test pins the
+other direction too, with a route-shaped string that names no command and is
+caught.
+
+**One request names an event on purpose, and inventing a command would have
+been worse than leaving it.** `unknownCreature` says "a creature-added event
+for …" because adding a creature has no command: `createCharacter` in
+`creation.ts` emits it, predates the command layer, takes no `CommandIdentity`
+and reaches the outside through `index.ts` rather than through the barrel. It
+is a written exemption in the shape the five event-type exemptions beside it
+already use — naming the fact that would end it, with the test checking the
+claim rather than taking it on its word. **A barrel command that adds a
+creature is what ends it.**
+
+**And `resolveMove` answered `no_scene` with a bare refusal**, carrying no
+request at all, while the `sceneFor` helper further down its own module had
+one — and that helper's own docstring *documented* the gap rather than closing
+it. (It said "four hundred lines below" until review measured it at 323, which
+is a line count in prose that nothing regenerates, so it says neither now.) Mounting and dismounting were written after `commands/scene.ts` existed and
+got the request; moving was written before and kept the verdict. Every caller
+in the module goes through the helper now, and the docstring says that instead,
+because a comment describing a gap that has been closed is the next reader's
+wrong answer.
 
 ### Alert rides on the roll by itself
 

@@ -526,7 +526,7 @@ export function placeOrigin(
       subject: casterId,
       need: 'a scene, so that a point in it means something',
       because: `${definition.name} leaves something standing at a point you choose`,
-      satisfyWith: 'a scene-set event',
+      satisfyWith: 'a setScene command',
     });
     return ok(null);
   }
@@ -550,7 +550,7 @@ export function placeOrigin(
         subject: casterId,
         need: `where ${casterId} is standing`,
         because: `${definition.name} appears within ${reach} feet of you`,
-        satisfyWith: `a creature-placed event for ${casterId}`,
+        satisfyWith: `a placeCreatureInScene command for ${casterId}`,
       });
       return ok(null);
     }
@@ -599,7 +599,7 @@ export function areaTargets(
           subject: casterId,
           need: 'a scene, so that an area has somewhere to be',
           because: `${definition.name} fills an area`,
-          satisfyWith: 'a scene-set event',
+          satisfyWith: 'a setScene command',
         },
       ],
     );
@@ -616,7 +616,7 @@ export function areaTargets(
           subject: casterId,
           need: `where ${casterId} is standing`,
           because: `${definition.name} starts its area at the caster`,
-          satisfyWith: `a creature-placed event for ${casterId}`,
+          satisfyWith: `a placeCreatureInScene command for ${casterId}`,
         },
       ],
     );
@@ -732,7 +732,7 @@ export function namedTargets(
             subject: casterId,
             need: 'a scene, so that an area has somewhere to be',
             because: `${definition.name} bounds its targets by an area`,
-            satisfyWith: 'a scene-set event',
+            satisfyWith: 'a setScene command',
           },
         ],
       );
@@ -748,7 +748,7 @@ export function namedTargets(
             subject: casterId,
             need: `where ${casterId} is standing`,
             because: `${definition.name} places its area within range of you`,
-            satisfyWith: `a creature-placed event for ${casterId}`,
+            satisfyWith: `a placeCreatureInScene command for ${casterId}`,
           },
         ],
       );
@@ -809,7 +809,7 @@ export function namedTargets(
         subject: target,
         need: 'a scene, so that distances mean something',
         because: `${definition.name} has a range to check`,
-        satisfyWith: 'a scene-set event',
+        satisfyWith: 'a setScene command',
       });
     } else if (reach !== null) {
       // SRD Hold Person: "a Humanoid that you can see." Unknown is a fact to
@@ -822,7 +822,7 @@ export function namedTargets(
             subject: target,
             need: `whether ${casterId} can see ${target}`,
             because: `${definition.name} targets a creature you can see`,
-            satisfyWith: `a sight-declared event from ${casterId} to ${target}`,
+            satisfyWith: `a declareSightBetween command from ${casterId} to ${target}`,
           });
         } else if (!seen) {
           return err('cannot_see_target', `${casterId} cannot see ${target}`);
@@ -842,7 +842,7 @@ export function namedTargets(
             subject: target,
             need: `where ${target} is standing`,
             because: `${definition.name} reaches ${from} feet from the point it holds`,
-            satisfyWith: `a creature-placed event for ${target}`,
+            satisfyWith: `a placeCreatureInScene command for ${target}`,
           });
         } else if (away.value > from) {
           return err(
@@ -859,7 +859,7 @@ export function namedTargets(
             subject: target,
             need: `where ${target} is standing`,
             because: `${definition.name} may only be aimed at a creature inside its area`,
-            satisfyWith: `a creature-placed event for ${target}`,
+            satisfyWith: `a placeCreatureInScene command for ${target}`,
           });
         } else if (!eligible.has(target)) {
           return err(
@@ -875,7 +875,7 @@ export function namedTargets(
             subject: target,
             need: `where ${target} is standing`,
             because: `${definition.name} reaches ${reach} feet and the distance is unknown`,
-            satisfyWith: `a creature-placed event for ${target}`,
+            satisfyWith: `a placeCreatureInScene command for ${target}`,
           });
         } else if (apart.value > reach) {
           return err(
@@ -981,7 +981,7 @@ export function eligibleTargets(
           subject: target.id,
           need: `where ${target.name} is standing`,
           because: `${definition.name} reaches ${reach} feet`,
-          satisfyWith: `a creature-placed event for ${target.id}`,
+          satisfyWith: `a placeCreatureInScene command for ${target.id}`,
         });
         continue;
       }
@@ -1004,7 +1004,7 @@ export function eligibleTargets(
             subject: target.id,
             need: `whether ${casterId} can see ${target.name}`,
             because: `${definition.name} targets a creature you can see`,
-            satisfyWith: `a sight-declared event from ${casterId} to ${target.id}`,
+            satisfyWith: `a declareSightBetween command from ${casterId} to ${target.id}`,
           });
           continue;
         }
