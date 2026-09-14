@@ -33,6 +33,7 @@ import {
   sentencesOf,
   splitSentences,
   unanchoredClauses,
+  unanchoredPhrases,
   DEFINED_SPELL_IDS,
   type BlockedEntry,
   type ShapeId,
@@ -622,6 +623,426 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     expect(immunity.unblocks).toEqual(['mind-blank']);
     expect(immunity.unblocksRead).toEqual(['mind-blank']);
     expect(immunity.unblocksUnread).toEqual([]);
+  });
+});
+
+/**
+ * The four families the next cycle would be briefed from, read the same way.
+ *
+ * IE-044 backfilled one family and recorded the rule: a shape is briefed only
+ * from a `finishes` list somebody has read. On `main` every family but that one
+ * read **zero**, so the whole capability roster was gated on a reading rather
+ * than on a decision. These are the four the coverage report ranked highest by
+ * what a read count would unblock, taken in that order.
+ *
+ * **Reading them moved three of the four counts off zero and moved the fourth
+ * further down**, which is the instrument working rather than failing:
+ * `a-stat-block-created-mid-fight` was the highest-ranked family in the book and
+ * it now finishes **nothing anybody can read**. Unseen Servant, the one spell of
+ * its four finishes whose paragraph the guard can anchor, prints "If it drops to
+ * 0 Hit Points, the spell ends" — a casting-end trigger with no member — so it
+ * left the column. The other three cannot be read at all; see the block below.
+ *
+ * What the four families are is written out rather than derived, for the reason
+ * the blocked-on-nothing set is: a spell joining or leaving one of these lists
+ * is a reading somebody changed, and it should have to say so here.
+ */
+describe('the four highest-leverage families are read sentence by sentence', () => {
+  /**
+   * Each family, its undefined consumers, and the ones the guard cannot reach.
+   *
+   * The third column is **not** a licence: it is the five spells whose printed
+   * entry contains a marker sentence the book repeats verbatim, which no phrase
+   * can be anchored to. The block below proves that rather than asserting it.
+   */
+  const FAMILIES: readonly (readonly [ShapeId, readonly string[], readonly string[]])[] = [
+    [
+      'a-stat-block-created-mid-fight',
+      [
+        'animate-dead',
+        'animate-objects',
+        'arcane-hand',
+        'awaken',
+        'create-undead',
+        'find-familiar',
+        'find-steed',
+        'giant-insect',
+        'phantom-steed',
+        'planar-ally',
+        'simulacrum',
+        'summon-dragon',
+        'true-polymorph',
+        'unseen-servant',
+        'wall-of-ice',
+        'wall-of-stone',
+      ],
+      ['find-steed', 'giant-insect', 'summon-dragon'],
+    ],
+    [
+      'an-action-a-spell-compels-or-forbids',
+      [
+        'antimagic-field',
+        'antipathy-sympathy',
+        'bestow-curse',
+        'command',
+        'confusion',
+        'conjure-woodland-beings',
+        'expeditious-retreat',
+        'eyebite',
+        'gaseous-form',
+        'haste',
+        'irresistible-dance',
+        'magic-jar',
+        'power-word-heal',
+        'silence',
+        'slow',
+        'symbol',
+        'true-polymorph',
+        'tsunami',
+        'wall-of-stone',
+        'wind-walk',
+      ],
+      [],
+    ],
+    [
+      'a-second-place-to-put-a-creature',
+      [
+        'astral-projection',
+        'blink',
+        'dispel-evil-and-good',
+        'divine-word',
+        'etherealness',
+        'find-familiar',
+        'gate',
+        'imprisonment',
+        'magic-jar',
+        'magnificent-mansion',
+        'maze',
+        'mislead',
+        'prismatic-spray',
+        'prismatic-wall',
+        'project-image',
+        'secret-chest',
+        'sending',
+        'teleport',
+        'teleportation-circle',
+      ],
+      ['prismatic-spray', 'prismatic-wall'],
+    ],
+    [
+      'a-wall-or-several-templates-in-one-area',
+      [
+        'blade-barrier',
+        'fire-storm',
+        'meteor-swarm',
+        'prismatic-wall',
+        'tsunami',
+        'wall-of-fire',
+        'wall-of-ice',
+        'wall-of-stone',
+        'wall-of-thorns',
+        'wind-wall',
+      ],
+      ['prismatic-wall'],
+    ],
+  ];
+
+  /** The family is exactly these spells, so the claim below is about all of them. */
+  it.each(FAMILIES)('covers every spell %s blocks', (shape, consumers) => {
+    expect(consumersOf(shape).undefined).toEqual([...consumers]);
+  });
+
+  /** And every one of them is read, except the ones the guard demonstrably cannot reach. */
+  it.each(FAMILIES)('reads every sentence of every spell %s blocks', (_shape, consumers, skipped) => {
+    for (const spellId of consumers) {
+      expect(isSentenceComplete(spellId), spellId).toBe(!skipped.includes(spellId));
+    }
+  });
+
+  /**
+   * The counts the next cycle would be planned from, before and after.
+   *
+   * Every one of these read **zero** on `main`. Three are now non-zero and the
+   * fourth is honestly still zero, which is the whole point of printing the two
+   * numbers apart: a tranche may be briefed from the first column and not from
+   * the second, and this task's finding is that the book's largest summon family
+   * is not brief-ready however it is ranked.
+   */
+  it('moves three of the four counts off zero, and says why the fourth stays', () => {
+    expect(consumersOf('an-action-a-spell-compels-or-forbids').unblocksRead).toEqual([
+      'conjure-woodland-beings',
+      'expeditious-retreat',
+    ]);
+    expect(consumersOf('a-second-place-to-put-a-creature').unblocksRead).toEqual(['gate']);
+    expect(consumersOf('a-wall-or-several-templates-in-one-area').unblocksRead).toEqual([
+      'fire-storm',
+      'meteor-swarm',
+    ]);
+    const statBlock = consumersOf('a-stat-block-created-mid-fight');
+    expect(statBlock.unblocksRead).toEqual([]);
+    expect(statBlock.unblocksUnread).toEqual(['find-steed', 'giant-insect', 'summon-dragon']);
+  });
+});
+
+/**
+ * **A sentence the book repeats verbatim can be adjudicated by nobody**, and
+ * five spells print one.
+ *
+ * A clause must occur **exactly once** across a spell's printed units, which is
+ * what makes it a citation rather than an assertion. SRD 5.2.1 prints a summon's
+ * stat block inside the spell's own entry as an HTML table, and that table has
+ * three identical `SAVE` header cells; the parser keeps them, the splitter
+ * returns each as its own unit, and every one of them trips the saving-throw
+ * marker. So the coverage guard demands an adjudication of a unit the anchoring
+ * guard forbids anyone to write — the two guards disagree, and no reading can
+ * satisfy both.
+ *
+ * **This is reported rather than worked around.** Relaxing the anchoring rule,
+ * teaching the splitter about table markup, or narrowing the marker list would
+ * each change what "read" means for all two hundred entries, and that is an
+ * architecture decision rather than a reading. What is recorded here is the
+ * measurement: which spells, which unit, and how many times it occurs.
+ *
+ * The cost is exact and it is the highest-leverage family in the book:
+ * `a-stat-block-created-mid-fight` finishes three spells and all three are here.
+ */
+describe('a unit the book repeats verbatim can carry no clause', () => {
+  /** The spell, the repeated unit, and how many of that spell's units contain it. */
+  const REPEATED: readonly (readonly [string, string, number])[] = [
+    ['find-steed', '<td>SAVE</td>', 3],
+    ['giant-insect', '<th>SAVE</th>', 3],
+    ['summon-dragon', '<td>SAVE</td>', 3],
+    ['prismatic-spray', '*Successful Save:* Half as much damage.</td>', 5],
+    ['prismatic-wall', '*Successful Save:* Half as much damage.', 5],
+  ];
+
+  it.each(REPEATED)('cannot anchor a clause in %s', (spellId, unit, times) => {
+    // The unit really is a sentence of the spell's own prose, and it really does
+    // trip a marker — so the coverage guard demands an adjudication for it.
+    expect(sentencesOf(spellId)).toContain(unit);
+    expect(markersIn(unit).length).toBeGreaterThan(0);
+    // And it occurs that many times, so the anchoring guard refuses every phrase
+    // inside it — including the whole unit, which is the longest one available.
+    expect(unanchoredPhrases(spellId, [unit])).toEqual([
+      { spell: spellId, clause: unit, matches: times },
+    ]);
+  });
+
+  /** So those five stay grandfathered, and the count that says so is honest. */
+  it('leaves the five out of the read column rather than pretending', () => {
+    for (const [spellId] of REPEATED) expect(isSentenceComplete(spellId), spellId).toBe(false);
+  });
+
+  /**
+   * And the rule really is per-spell rather than a property of table markup:
+   * Confusion and Divine Word print tables too, and every marker-bearing cell
+   * in them is distinct, so both are read.
+   */
+  it('reads a spell whose table cells happen to differ', () => {
+    expect(isSentenceComplete('confusion')).toBe(true);
+    expect(isSentenceComplete('divine-word')).toBe(true);
+    expect(unanchoredPhrases('divine-word', ['<td>The target dies.</td>'])).toEqual([]);
+  });
+});
+
+/**
+ * Twenty-five spells gained a blocker nobody had recorded, and here they are.
+ *
+ * "The reading found something" is only a claim until the something is named,
+ * which is the rule IE-044 wrote for its own five. Every one below is an
+ * **existing** shape id filed against a sentence the spell prints — no id was
+ * invented — and each is asserted through the clause that records it, so a
+ * later edit cannot quietly drop one.
+ *
+ * Four are worth reading twice:
+ *
+ * | | |
+ * |---|---|
+ * | Unseen Servant | "If it drops to 0 Hit Points, the spell ends" — the trigger that cost the largest family its only readable finish, where Giant Insect and Summon Dragon say the *creature* disappears and the spell does not end |
+ * | Phantom Steed | a one-minute casting time the entry had simply never recorded, while Find Familiar recorded the same field |
+ * | Wall of Stone | "AC 15 and 30 Hit Points per inch of thickness" — a stat block inside a wall spell, which is where the wall family and the summons family turn out to meet |
+ * | Maze | "If it succeeds, it escapes, and the spell ends", which `SpellCheck.onSuccess` had already written down as a gap and named this spell for |
+ *
+ * **Five of the sentences below trip no marker at all**, so none of them was
+ * demanded by the guard and each was found by reading. That is the floor
+ * behaving as a floor, the same way Hallow's refusal and Gaseous Form's
+ * occupancy override were for IE-044.
+ */
+describe('reading four families found blockers the bare lists had missed', () => {
+  const filed = (spellId: string, phrase: string): string | undefined =>
+    clausesIn(BLOCKED_ON[spellId] ?? []).find((clause) => clause.clause === phrase)?.why;
+
+  /** The spell, the sentence that forced it, and the shape it was filed under. */
+  const FOUND: readonly (readonly [string, string, ShapeId])[] = [
+    ['animate-dead', 'a corpse of a Medium or Small Humanoid', 'a-target-rule-the-format-cannot-state'],
+    ['create-undead', 'three corpses of Medium or Small Humanoids', 'a-target-rule-the-format-cannot-state'],
+    ['arcane-hand', 'If it drops to 0 Hit Points, the spell ends', 'a-casting-ended-by-a-trigger'],
+    ['arcane-hand', "The hand doesn't occupy its space", 'a-creature-fact-an-effect-overrides'],
+    ['arcane-hand', 'The hand moves with the target', 'an-area-that-moves-by-itself'],
+    [
+      'arcane-hand',
+      'dealing Bludgeoning damage to the target equal to 4d6',
+      'damage-with-neither-an-attack-roll-nor-a-save',
+    ],
+    ['find-familiar', 'you can temporarily dismiss the familiar to a pocket dimension', 'a-second-place-to-put-a-creature'],
+    [
+      'find-familiar',
+      'your familiar can deliver the touch',
+      'an-activation-taken-by-somebody-other-than-the-caster',
+    ],
+    ['find-familiar', "you can see through the familiar's eyes and hear what it hears", 'senses-beyond-declared-sight'],
+    ['phantom-steed', 'Casting Time: 1 minute or Ritual', 'a-long-casting-time'],
+    ['simulacrum', 'Duration: Until dispelled', 'a-casting-dismissed-early'],
+    ['simulacrum', 'the only way to restore its Hit Points', 'healing-modified-by-an-effect'],
+    ['simulacrum', 'The simulacrum lasts until it drops to 0 Hit Points', 'a-casting-ended-by-a-trigger'],
+    ['true-polymorph', 'the spell lasts until dispelled', 'a-casting-dismissed-early'],
+    ['true-polymorph', "it can't speak or cast spells", 'an-action-a-spell-compels-or-forbids'],
+    ['unseen-servant', 'If it drops to 0 Hit Points, the spell ends', 'a-casting-ended-by-a-trigger'],
+    ['antipathy-sympathy', 'target one creature or object that is Huge or smaller', 'a-target-rule-the-format-cannot-state'],
+    [
+      'antipathy-sympathy',
+      'is immune to it for 1 minute, after which it can be affected again',
+      'an-effect-that-suppresses-other-magic',
+    ],
+    [
+      'irresistible-dance',
+      'the target can take an action to collect itself and repeat the save',
+      'a-repeat-save-raised-by-a-trigger',
+    ],
+    ['symbol', 'Duration: Until dispelled or triggered', 'a-casting-dismissed-early'],
+    ['symbol', 'A creature awakens if it takes damage', 'a-casting-ended-by-a-trigger'],
+    [
+      'astral-projection',
+      "If a target's body or astral form drops to 0 Hit Points, the spell ends for that target",
+      'a-casting-ended-by-a-trigger',
+    ],
+    [
+      'dispel-evil-and-good',
+      'You can end the spell early by using either of the following special functions',
+      'a-casting-dismissed-early',
+    ],
+    ['etherealness', 'you are shunted to the nearest unoccupied space', 'forced-movement-a-spell-causes'],
+    [
+      'etherealness',
+      'take Force damage equal to twice the number of feet you are moved',
+      'a-flat-amount-with-no-dice',
+    ],
+    ['imprisonment', 'Duration: Until dispelled', 'a-casting-dismissed-early'],
+    ['imprisonment', 'The target becomes 1 inch tall', 'a-creature-fact-an-effect-overrides'],
+    ['magic-jar', 'Duration: Until dispelled', 'a-casting-dismissed-early'],
+    ['magic-jar', "You can't move or take Reactions", 'an-action-a-spell-compels-or-forbids'],
+    [
+      'magic-jar',
+      "creatures warded by a _Protection from Evil and Good_ or _Magic Circle_ spell can't be possessed",
+      'an-effect-that-suppresses-other-magic',
+    ],
+    ['maze', 'If it succeeds, it escapes, and the spell ends', 'a-casting-ended-by-a-trigger'],
+    ['mislead', 'You can see through its eyes and hear through its ears', 'senses-beyond-declared-sight'],
+    ['project-image', "You can see through the illusion's eyes and hear through its ears", 'senses-beyond-declared-sight'],
+    ['secret-chest', 'Duration: Until dispelled', 'a-casting-dismissed-early'],
+    ['secret-chest', 'if the Tiny replica chest is destroyed', 'a-casting-ended-by-a-trigger'],
+    [
+      'sending',
+      'a creature can block your ability to reach it again with this spell for 8 hours',
+      'an-effect-that-suppresses-other-magic',
+    ],
+    [
+      'wall-of-fire',
+      'deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side',
+      'damage-with-neither-an-attack-roll-nor-a-save',
+    ],
+    ['wall-of-ice', 'It has AC 12 and 30 Hit Points per 10-foot section', 'a-stat-block-created-mid-fight'],
+    ['wall-of-stone', 'Each panel has AC 15 and 30 Hit Points per inch of thickness', 'a-stat-block-created-mid-fight'],
+    ['wall-of-stone', 'it can use its Reaction to move up to its Speed', 'an-action-a-spell-compels-or-forbids'],
+    ['tsunami', 'Any Huge or smaller creature inside the wall', 'an-area-that-filters-its-catch'],
+    ['tsunami', "If it fails the check, it can't move", 'an-action-a-spell-compels-or-forbids'],
+    ['tsunami', 'A creature caught in the wall can move by swimming', 'movement-modes'],
+    ['tsunami', 'A creature that moves out of the wall falls to the ground', 'falling'],
+  ];
+
+  it.each(FOUND)('records %s: "%s"', (spellId, phrase, shape) => {
+    expect(filed(spellId, phrase)).toBe(shape);
+    expect(blockersOf(spellId), spellId).toContain(shape);
+  });
+
+  /**
+   * And five of them really are invisible to `CLAUSE_MARKERS`, which is what
+   * makes them the floor's counterexamples rather than a guard that fired and
+   * was obeyed. A clause may be written for any sentence precisely so that a
+   * reader who sees one can record it.
+   */
+  it.each([
+    ['arcane-hand', "The hand doesn't occupy its space"],
+    ['true-polymorph', "it can't speak or cast spells"],
+    ['imprisonment', 'The target becomes 1 inch tall'],
+    ['maze', 'If it succeeds, it escapes, and the spell ends'],
+    ['silence', 'Casting a spell that includes a Verbal component is impossible there'],
+  ])('finds %s: "%s" with no marker to demand it', (spellId, phrase) => {
+    const sentence = sentencesOf(spellId).find((text) => text.includes(phrase));
+    expect(sentence, `${spellId}: ${phrase}`).toBeDefined();
+    expect(markersIn(sentence ?? ''), `${spellId}: ${phrase}`).toEqual([]);
+  });
+
+  /**
+   * **No shape id was invented, which is the constraint that makes the rest of
+   * this checkable.** The vocabulary is exactly what it was.
+   */
+  it('names no shape the vocabulary did not already have', () => {
+    const known = new Set<string>(Object.keys(MISSING_SHAPES));
+    for (const [spellId, entry] of Object.entries(BLOCKED_ON)) {
+      for (const shape of blockersIn(entry)) expect(known.has(shape), `${spellId}`).toBe(true);
+    }
+  });
+});
+
+/**
+ * **One sentence in the four families needs an id this vocabulary does not
+ * have**, and it is filed as the table's under protest rather than forced.
+ *
+ * SRD Confusion: "The Sphere's radius increases by 5 feet for each spell slot
+ * level above 4." `SpellArea` holds one fixed size; `docs/design/spell-
+ * definitions.md` says what a slot reaches — "the damage dice from the
+ * definition's scaling ... the target count from the slot" — and an area is not
+ * on that list. So a level 6 casting would be resolved over the level 4 Sphere
+ * and catch too few creatures, which is this map's own definition of debt
+ * rather than of fiction.
+ *
+ * Naming a shape for it is an architecture decision rather than a reading, so
+ * the brief's rule applies: adjudicate to the nearest honest existing option and
+ * say so. `table` is that option and it is **wrong** — nothing here is the DM's
+ * — and the note says as much in its own first sentence, so the placeholder
+ * cannot be mistaken for a finding.
+ *
+ * SRD Fog Cloud prints the only other instance, and this map records that spell
+ * as blocked on nothing at all. That entry is outside these four families and
+ * outside this task; it is named here so the next reader finds both together.
+ */
+describe('one clause is filed under protest, and says so', () => {
+  it('records the slot-scaled area as a placeholder rather than an adjudication', () => {
+    const clause = clausesIn(BLOCKED_ON['confusion'] ?? []).find((entry) =>
+      entry.clause.startsWith("The Sphere's radius increases"),
+    );
+    expect(clause?.why).toBe('table');
+    expect(clause?.note).toContain('placeholder and is wrong on purpose');
+  });
+
+  /** And the sentence really is one the spell prints, anchored like any other. */
+  it('anchors it to the spell that prints it', () => {
+    expect(
+      unanchoredPhrases('confusion', [
+        "The Sphere's radius increases by 5 feet for each spell slot level above 4",
+      ]),
+    ).toEqual([]);
+  });
+
+  /** The second instance, in a spell this map still calls blocked on nothing. */
+  it('names the other spell in the book that prints the same sentence', () => {
+    expect(
+      sentencesOf('fog-cloud').some((sentence) =>
+        sentence.includes("The fog's radius increases by 20 feet for each spell slot level above 1"),
+      ),
+    ).toBe(true);
+    expect(blockersOf('fog-cloud')).toEqual([]);
   });
 });
 
@@ -1750,12 +2171,23 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
    *
    * So the shape stays on it, a narrower id joins it, and the spell is **not**
    * in the blocked-on-nothing set that a naive removal would have put it in.
+   *
+   * **And reading the paragraph sentence by sentence found a third**, which is
+   * the same lesson once more: the borrowed senses are their own blocker rather
+   * than part of the double. Sight here is a pairwise declaration, so one
+   * creature seeing through another's eyes has no state to sit in — and the
+   * clause is filed the same way on Find Familiar and on Project Image, which
+   * print it too, rather than three ways on three spells.
    */
   it('does not call Mislead finished, and records the blocker the entry had missed', () => {
     expect(blockersOf('mislead')).toEqual([
       'a-casting-ended-by-a-trigger',
       'a-second-place-to-put-a-creature',
+      'senses-beyond-declared-sight',
     ]);
+    for (const spellId of ['find-familiar', 'mislead', 'project-image']) {
+      expect(blockersOf(spellId), spellId).toContain('senses-beyond-declared-sight');
+    }
     expect(blockersOf('project-image')).toContain('a-second-place-to-put-a-creature');
     const free = Object.entries(BLOCKED_ON)
       .filter(([, entry]) => blockersIn(entry).length === 0)
