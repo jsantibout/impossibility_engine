@@ -1,12 +1,12 @@
 # IE-016 — The other nine facts a DM declares
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 4
 parallel-safe: YES beside union and conformance work — it is commands over existing pure functions and existing events; NO beside IE-012, which establishes the module and the pattern
 depends-on: IE-012
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief

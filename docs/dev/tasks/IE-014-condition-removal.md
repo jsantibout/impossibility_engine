@@ -1,12 +1,12 @@
 # IE-014 — A spell that takes a condition away
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside another union task — it adds a `SpellEffect` member and edits `resolveEffects`; YES beside conformance, tooling and the scene work
 depends-on: IE-010
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief

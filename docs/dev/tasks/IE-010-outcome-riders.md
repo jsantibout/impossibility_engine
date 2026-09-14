@@ -1,12 +1,12 @@
 # IE-010 — Outcome riders, and the two `on` rules made one
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside any task touching the `SpellEffect` union or `commands/spell-resolution.ts`; YES beside `creation.ts`, a new command module, and conformance work
 depends-on: IE-001, IE-007
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief

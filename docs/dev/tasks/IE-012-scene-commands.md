@@ -1,12 +1,12 @@
 # IE-012 — Scene commands: let something above the engine start an encounter
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 4
 parallel-safe: YES — a new command module wrapping pure functions that already exist; touches no spell, no effect kind, no existing command
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief

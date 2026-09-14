@@ -1,12 +1,12 @@
 # IE-019 — An outcome that varies by creature type
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside another union task; YES beside conformance and command-surface work
 depends-on: IE-017
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief

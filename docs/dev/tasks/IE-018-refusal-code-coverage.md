@@ -1,12 +1,12 @@
 # IE-018 — A sweep for refusal codes nothing asserts
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 4
 parallel-safe: YES — a sweep and the tests it demands; no engine semantic change
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief

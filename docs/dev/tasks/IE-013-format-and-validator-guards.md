@@ -1,12 +1,12 @@
 # IE-013 — Guards that can see a zero-user member, and three that were missing
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 4
 parallel-safe: YES — validator rules, sweeps and one read-site change; no effect kind, no union member, no new event
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief

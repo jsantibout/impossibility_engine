@@ -1,12 +1,12 @@
 # IE-011 — Multiclass Hit Dice: call the function that is already right
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 4
 parallel-safe: YES — `creation.ts` and `multiclass.ts`, touching no spell, no event type, no fold and no command module
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief

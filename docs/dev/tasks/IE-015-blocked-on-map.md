@@ -1,12 +1,12 @@
 # IE-015 — `BLOCKED_ON`: derive the blockers instead of counting them by hand
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 4
 parallel-safe: YES — a derived map and its guard; no engine source, no effect kind, no event
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
 ## Brief
