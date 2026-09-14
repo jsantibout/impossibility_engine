@@ -568,8 +568,28 @@ inside a nested list), which is what says the remaining fix is structural
 rather than a fourth pass of spot-guards. With Fable, with the evidence
 gathered and the three options named.
 
-**IE-026 is at its fifth pass**, a foreman-launched confirming review of the
-head commit. See the gate log.
+**IE-026's confirming review returned `DEFECTS` a third time, and the foreman
+did *not* stop at Gate 3 as it had said it would.** The finding is worth more
+than the delay it caused. The review confirmed the implementation by
+**re-deriving every number** rather than trusting five prior passes — 18
+offenders on `main` against 1 on HEAD, so the sweep genuinely fails without the
+change; 28 extracted literals against 28 `satisfyWith:` sites, exact; 91 barrel
+names with exactly three nested pairs, so the boundary fixture discriminates.
+Every failure since round two has been **documentation prose**, and the same
+false symmetric containment claim has now been written in three different
+places, each time to justify a conclusion that is true for a directional
+reason.
+
+The foreman had told the owner it would stop at `AWAITING_MERGE_APPROVAL` on a
+second defect. It sent the task back instead, because the procedure says a
+failed condition stops "for the builder, for Fable, or for the owner,
+**whichever is honest**" — and there is no judgement here for an owner to make:
+no trade-off, no product question, no architecture, just two false sentences
+with the true ones already written by the reviewer. Waking someone to
+adjudicate that would be passing up a decision that is not theirs. **The
+evidence changed what honest meant, and the foreman said so rather than being
+consistent.** The pass is hard-bounded to the two prescribed clauses, with the
+reviewer confirming only that they are fixed and that no new claim arrived.
 
 **Two mistaken acceptance criteria of mine, both caught by builders and
 confirmed by reviewers.** IE-025's rule 5 asserted a rules fact SRD Fiend
@@ -727,3 +747,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | merge (tranche authority) | IE-028 | merged `7e7717b`, 13/13, risk gate **inspected** (foundational primitive: the reducer's release paths) and GREEN. The family list is derived from `CreatureState`'s shape, so a fifth grant is a compile error rather than a silent omission — stronger than the test the brief asked for. **My acceptance criterion 1 was unsatisfiable** and the builder substituted a stronger mutation, reviewer-reproduced |
 | 2026-09-14 | merge (tranche authority) | IE-027 | merged `71bf406`, 13/13, risk gate **lightweight** — the digest declared no deviation, no special case and one primitive that is the brief's own subject, and two parties had mechanically verified the byte-identity claim. `resolveEffects` 1,008 → 214 lines, thirteen resolvers, zero behaviour change, zero new tests, zero test files edited. Three surviving mutations reported as findings, not fixed — a behaviour-preserving move must not carry a fix |
 | 2026-09-14 | YELLOW → Fable | IE-024 | `ARCHITECTURE_BLOCKED` at the three-round cap, and the foreman agrees rather than overriding. The question: how to guard entries of the two nested effect lists when `checkShape` short-circuits, in a file five later tasks each add a rule to. The builder's three options and the evidence were gathered by the foreman and handed over; the answer will be recorded as an approved deviation if it changes what the brief asked for. **Not the YELLOW the tranche predicted** — IE-034's is still ahead |
+| 2026-09-14 | `CHANGES_REQUIRED`, sixth pass | IE-026 | the confirming review defected a third time on the *same* false claim, in a third place, plus an off-by-one — both in one docstring, both contradicted by correct statements 100 lines above them. The foreman had said it would stop at Gate 3 and **did not**, on the procedure's own "whichever is honest": there is no judgement here for an owner, only two sentences the reviewer has already rewritten. Bounded to those two clauses; the review that follows asks only whether they are fixed and whether a new claim arrived. **The implementation was confirmed by re-derivation** — 18 offenders on `main` against 1 on HEAD, 28 literals against 28 sites, 91 barrel names with three nested pairs |

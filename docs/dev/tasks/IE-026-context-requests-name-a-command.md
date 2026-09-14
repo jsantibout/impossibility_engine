@@ -1,6 +1,6 @@
 # IE-026 — Every context request names the command that satisfies it
 
-state: AWAITING_FOREMAN_REVIEW
+state: CHANGES_REQUIRED
 lane: conformance
 tranche: 5
 parallel-safe: CONDITIONAL — owns `commands/targeting.ts` and `commands/movement.ts` in wave 1; must merge before IE-029 and IE-031, which own those files later
