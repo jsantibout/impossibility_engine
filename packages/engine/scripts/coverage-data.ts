@@ -17,9 +17,17 @@
  * casting costs and leaves the effect to the table, which is the right answer
  * for Disguise Self and would be a lie about Fireball.
  *
- * Every spell is also classified by the *shape* its text needs, because the
- * work is shaped by shapes rather than by spells: one area-of-effect engine
- * unblocks ninety spells, and the next hundred definitions after that are data.
+ * **What shape a spell needs is not measured here, and used to be.** Thirteen
+ * prose regexes filed every parsed spell under "the hardest thing its text
+ * needs" and the report printed the buckets beside a hand-written blocker
+ * column — which put two answers to one question in one file: the classifier
+ * filed 43 spells under a casting time of a minute or more and called them
+ * blocked on machinery IE-034 had built, while the derived table two sections
+ * down counted 54 touched and 12 finished. That is the three-documents-three-
+ * answers failure `missing-shapes.ts` was written to end, arriving inside one
+ * report, and nothing asserted the classifier's output, which is both how it
+ * drifted and why deleting it cost nothing. The shape question is a query over
+ * that map now, and `COVERAGE.md`'s "What blocks the rest" is where it prints.
  *
  * Classes are measured the same way and the three states mean the same things,
  * with one difference worth stating: a class *feature* declares its own
@@ -45,6 +53,7 @@
 import { readFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS, type SpellDefinition } from '../src/spell-definitions.js';
 import { allClasses, allSubclasses } from '../src/creation.js';
+import { ADJUDICATED } from './missing-shapes.js';
 
 export interface ParsedSpell {
   readonly id: string;
@@ -62,117 +71,6 @@ export interface ParsedSpell {
 }
 
 /**
- * The mechanical shapes a spell's text can ask for.
- *
- * Ordered by how much machinery each needs, so a spell is filed under the
- * hardest thing it requires: Fireball is an area spell first and a
- * save-for-damage spell second, and it is the area that is missing.
- */
-export const SHAPES = [
-  {
-    id: 'summon',
-    label: 'Summons and created creatures',
-    test: (s: ParsedSpell) =>
-      /\bsummon(s|ed|ing)?\b/i.test(s.description) || /\bappears? in an unoccupied space/i.test(s.description),
-  },
-  {
-    id: 'area',
-    label: 'Area of effect',
-    test: (s: ParsedSpell) =>
-      /\b\d+-foot(-radius)?(-tall|-high|-long|-wide)?[- ](Sphere|Cone|Cube|Line|Cylinder|Emanation|Hemisphere)\b/i.test(
-        s.description,
-      ) || /each creature in (a|the) \w+/i.test(s.description),
-  },
-  {
-    id: 'reaction',
-    label: 'Reaction timing',
-    test: (s: ParsedSpell) => /^reaction/i.test(s.castingTime),
-  },
-  {
-    id: 'long-casting',
-    label: 'Casting time of a minute or more',
-    test: (s: ParsedSpell) => /\b(minute|hour)s?\b/i.test(s.castingTime),
-  },
-  {
-    id: 'ongoing',
-    label: 'An ongoing effect that acts on later turns',
-    test: (s: ParsedSpell) =>
-      /\bas a (Bonus Action|Magic action)\b/i.test(s.description) &&
-      !/^instantaneous$/i.test(s.duration),
-  },
-  {
-    id: 'attack',
-    label: 'Spell attack roll',
-    test: (s: ParsedSpell) => /\b(ranged|melee) spell attack\b/i.test(s.description),
-  },
-  {
-    id: 'save-damage',
-    label: 'Saving throw for damage',
-    test: (s: ParsedSpell) =>
-      /saving throw/i.test(s.description) && /\b\d+d\d+\b/.test(s.description) && /damage/i.test(s.description),
-  },
-  {
-    id: 'save-condition',
-    label: 'Saving throw for a condition',
-    test: (s: ParsedSpell) => /saving throw/i.test(s.description),
-  },
-  {
-    id: 'heal',
-    label: 'Restores Hit Points',
-    test: (s: ParsedSpell) => /regains? .{0,40}Hit Points/i.test(s.description),
-  },
-  /**
-   * Below `save-condition` because it is that shape with the roll taken out,
-   * and therefore the *lesser* machinery the ordering rule above files under.
-   *
-   * **And below `heal`, which is a correction rather than a preference.** The
-   * test is a prose match, and the phrase it looks for also appears in spells
-   * that *read* a condition rather than impose one: Power Word Heal's "If the
-   * creature has the Prone condition, it can use its Reaction to stand up" is
-   * a healing spell, and filing it here made "Restores Hit Points" read 3 of
-   * 3 — a shape reported as drained while a level 9 spell in it is
-   * unexecuted, which is the exact green tick this report exists to prevent.
-   * Mirror Image's "unaffected by this spell if it has the Blinded condition"
-   * is the same false positive with no shape above it to catch it, so the
-   * blocker column names it. A regex cannot tell imposing from reading, and
-   * parsing the English harder would be the thing `spell-tracking.test.ts`
-   * says prose does not honestly support.
-   */
-  {
-    id: 'condition',
-    label: 'A condition imposed with no saving throw',
-    test: (s: ParsedSpell) => /\bhas the [A-Z][a-z]+ condition\b/.test(s.description),
-  },
-  {
-    id: 'temp-hp',
-    label: 'Temporary Hit Points',
-    test: (s: ParsedSpell) => /Temporary Hit Points/i.test(s.description),
-  },
-  {
-    id: 'buff',
-    label: 'A bonus to later rolls',
-    test: (s: ParsedSpell) =>
-      /\bbonus to\b/i.test(s.description) || /\bAdvantage on\b/i.test(s.description),
-  },
-  {
-    id: 'utility',
-    label: 'Narrative or exploration effect',
-    test: () => true,
-  },
-] as const;
-
-const shapeOf = (spell: ParsedSpell): string =>
-  SHAPES.find((shape) => shape.test(spell))?.id ?? 'utility';
-
-/**
- * Spells an integration test drives end to end.
- *
- * Listed by hand and asserted by `coverage.test.ts`, so it cannot drift from
- * the tests without something going red — a generated claim about test
- * coverage that nothing checks would be the exact failure this file exists to
- * prevent.
- */
-/**
  * Executed spells that still carry an engine-owned clause nobody has built.
  *
  * **The third state, and it exists because two could not tell the truth.**
@@ -182,74 +80,54 @@ const shapeOf = (spell: ParsedSpell): string =>
  * own, and the halved Speed inside the Emanation is a rule the engine owns and
  * has not written.
  *
- * **It is no longer a hand list, and that is the point.** A spell is here
- * because one of its `unmodelled` clauses is adjudicated in
- * `spell-honesty.test.ts` to a named missing shape rather than to the table —
- * so the claim is a consequence of the debts rather than of somebody's memory.
- * That test asserts this list against the derived set in both directions, so
- * the two cannot drift; the list stays written down here because
- * `npm run coverage` runs outside vitest and a report generator that imported
- * the test suite would have the dependency backwards.
+ * **It is derived, and the copy it replaces existed only because the map lived
+ * in a test file.** A spell is partial because one of its `unmodelled` clauses
+ * is adjudicated to a named missing shape rather than to the table — a
+ * consequence of the debts rather than of somebody's memory — and while those
+ * adjudications were `spell-honesty.test.ts`'s, a report generator that
+ * imported the test suite would have had the dependency backwards, so the
+ * consequence was written out here and asserted against the derivation in both
+ * directions. IE-015 moved the map to `missing-shapes.ts`, which is not a test
+ * file for the reason this is not: `npm run coverage` runs outside vitest. With
+ * the map on this side of that line the reason to keep a copy is gone, and the
+ * assertion that held the two in step goes with it — a second spelling of one
+ * derivation is the second place to get it wrong rather than a guard against
+ * the first.
+ *
+ * **It came out equal to the hand list it replaced, entry for entry**, which is
+ * what says this was a deletion and not a measurement.
  *
  * **Partial and verified are different axes.** Web is driven end to end *and*
  * leaves its Difficult Terrain unbuilt, and saying only the first would be the
  * green tick this state was invented to prevent.
  *
- * A spell listed here **must** say in `unmodelled` what it is missing, which
- * `coverage.test.ts` asserts — otherwise this becomes the place claims come to
- * be quietly parked.
+ * A spell derived into this list **must** say in `unmodelled` what it is
+ * missing, which `coverage.test.ts` asserts — otherwise this becomes the place
+ * claims come to be quietly parked.
+ *
+ * Sorted, because the map it reads is one two branches both append to.
  */
-export const PARTIAL_SPELLS: readonly string[] = [
-  'banishment',
-  'beacon-of-hope',
-  'befuddlement',
-  'black-tentacles',
-  'blindness-deafness',
-  'blur',
-  'chain-lightning',
-  'chill-touch',
-  'cloudkill',
-  'compulsion',
-  'contagion',
-  'dimension-door',
-  'disintegrate',
-  'dissonant-whispers',
-  'dominate-beast',
-  'dominate-monster',
-  'dominate-person',
-  'eldritch-blast',
-  'fear',
-  'finger-of-death',
-  'flame-blade',
-  'freezing-sphere',
-  'grease',
-  'guidance',
-  'guiding-bolt',
-  'harm',
-  'hideous-laughter',
-  'hunters-mark',
-  'hypnotic-pattern',
-  'ice-storm',
-  'incendiary-cloud',
-  'insect-plague',
-  'invisibility',
-  'lesser-restoration',
-  'mind-spike',
-  'phantasmal-killer',
-  'protection-from-poison',
-  'shield',
-  'shocking-grasp',
-  'spirit-guardians',
-  'starry-wisp',
-  'stinking-cloud',
-  'sunbeam',
-  'thunderwave',
-  'vampiric-touch',
-  'vicious-mockery',
-  'web',
-  'weird',
-];
+export const PARTIAL_SPELLS: readonly string[] = Object.entries(ADJUDICATED)
+  .filter(([, entries]) => entries.some((entry) => entry.why !== 'table'))
+  .map(([spellId]) => spellId)
+  .sort();
 
+/**
+ * Spells an integration test drives end to end.
+ *
+ * **This one stays written out, and the asymmetry with `PARTIAL_SPELLS` above
+ * is the point rather than an oversight.** Partial is a consequence of the
+ * adjudication map, so it can be derived from it; *verified* is a claim about
+ * which tests drive which spell, and nothing in the engine, the catalogue or
+ * that map says so. There is no second place this could be read from, which is
+ * exactly why it is here: a generated claim about test coverage that nothing
+ * checks would be the failure this file exists to prevent.
+ *
+ * `coverage.test.ts` checks what can be checked — every entry is a spell the
+ * catalogue can execute, named once, in an order two branches can both append
+ * to. That a test really drives it is the reviewer's, because no derivation can
+ * say so; the entry belongs in the commit that writes the test.
+ */
 export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
   'animal-friendship',
@@ -346,7 +224,6 @@ export interface SpellCoverage {
   /** Executed definitions carrying a clause adjudicated to a missing shape. */
   readonly partial: number;
   readonly verified: number;
-  readonly byShape: ReadonlyMap<string, { total: number; executed: number; tracked: number }>;
   readonly spells: readonly ParsedSpell[];
 }
 
@@ -385,25 +262,12 @@ export function auditSpells(): SpellCoverage {
   ) as ParsedSpell[];
   const defined = new Set(SPELL_DEFINITIONS.map((d) => d.id));
 
-  const byShape = new Map<string, { total: number; executed: number; tracked: number }>();
-  for (const shape of SHAPES) byShape.set(shape.id, { total: 0, executed: 0, tracked: 0 });
-
-  for (const spell of spells) {
-    const bucket = byShape.get(shapeOf(spell));
-    if (bucket === undefined) continue;
-    bucket.total += 1;
-    if (!defined.has(spell.id)) continue;
-    if (TRACKED_IDS.has(spell.id)) bucket.tracked += 1;
-    else bucket.executed += 1;
-  }
-
   return {
     total: spells.length,
     executed: defined.size - TRACKED_IDS.size,
     tracked: TRACKED_IDS.size,
     partial: PARTIAL_SPELLS.length,
     verified: VERIFIED_SPELLS.length,
-    byShape,
     spells,
   };
 }

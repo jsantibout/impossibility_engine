@@ -26,7 +26,6 @@ import {
   auditClasses,
   auditSpells,
   PARTIAL_SPELLS,
-  SHAPES,
   TRACKED_IDS,
   VERIFIED_SPELLS,
   type ClassCoverage,
@@ -161,10 +160,10 @@ function render(coverage: SpellCoverage): string {
     '',
     '**Partial and verified are different axes**, so a spell can be both: Web is',
     'driven end to end and still leaves its Difficult Terrain unbuilt. Partial is',
-    'not a hand list either — a spell is partial because one of its `unmodelled`',
-    'clauses is adjudicated in `spell-honesty.test.ts` to a named missing shape',
-    'rather than to the table, and that guard holds this list against the derived',
-    'set in both directions.',
+    'not a list at all — it is derived from the adjudication map in',
+    '`packages/engine/scripts/missing-shapes.ts`: a spell is partial because one',
+    'of its `unmodelled` clauses is adjudicated to a named missing shape rather',
+    'than to the table.',
     '',
     '## Spells',
     '',
@@ -176,46 +175,7 @@ function render(coverage: SpellCoverage): string {
     'never be executed, because what the caster looks like is not arithmetic;',
     'what the engine owes it is the slot, the action, the hour on the clock, and',
     'a plain statement of what the table decides.',
-    '',
-    '### By mechanical shape',
-    '',
-    'A spell is filed under the *hardest* thing its text needs, because that is',
-    'what blocks it. Fireball is an area spell before it is a save-for-damage',
-    'spell, and the area is the part that is missing.',
-    '',
-    '| Shape | Parsed | Tracked | Executed | Blocked on |',
-    '|---|---|---|---|---|',
   ];
-
-  const BLOCKERS: Readonly<Record<string, string>> = {
-    summon: 'creating a creature from a stat block mid-fight',
-    area: '—',
-    reaction: 'falling — Counterspell now has a casting it can hold open',
-    'long-casting': 'a casting-in-progress state machine with a per-turn obligation',
-    ongoing: 'an effect that a later turn can act through',
-    attack: '—',
-    'save-damage': '—',
-    'save-condition': '—',
-    heal: '—',
-    // The shape itself is built; what is left in this bucket is each spell's
-    // *other* clause — and one entry that does not print this shape at all.
-    // See "A Condition With No Saving Throw Is The `save` Shape Minus The
-    // Roll" in CLAUDE.md for the spell-by-spell reading.
-    condition:
-      'per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition")',
-    'temp-hp': '—',
-    buff: '—',
-    utility:
-      'nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing',
-  };
-
-  for (const shape of SHAPES) {
-    const bucket = coverage.byShape.get(shape.id);
-    if (bucket === undefined || bucket.total === 0) continue;
-    lines.push(
-      `| ${shape.label} | ${bucket.total} | ${bucket.tracked} | ${bucket.executed} | ${BLOCKERS[shape.id] ?? '—'} |`,
-    );
-  }
 
   const named = (want: 'tracked' | 'executed') =>
     [...SPELL_DEFINITIONS]
@@ -267,13 +227,4 @@ if (isMainModule) {
     `classes: ${classes.classes}/12 with ${classes.subclasses} subclasses; ` +
       `${classes.executed}/${classes.features} features executed`,
   );
-  for (const shape of SHAPES) {
-    const bucket = coverage.byShape.get(shape.id);
-    if (bucket === undefined || bucket.total === 0) continue;
-    const done = bucket.executed + bucket.tracked;
-    console.log(
-      `  ${shape.label.padEnd(42)} ${String(done).padStart(3)}/${bucket.total}` +
-        (bucket.tracked > 0 ? ` (${bucket.tracked} tracked)` : ''),
-    );
-  }
 }

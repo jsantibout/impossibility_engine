@@ -3995,10 +3995,12 @@ perfectly.
 So `PARTIAL_SPELLS` is the third state, and a spell listed there must say in
 `unmodelled` what it is missing — otherwise it becomes the place claims come to
 be quietly parked. Same move the adjudication map made when `table` and a
-missing shape could not express `engine`. It is no longer kept by hand: every
-entry is *derived* from a clause adjudicated to a missing shape — see "The same
-guard, pointed at the spells the engine executes" — and Spirit Guardians turned
-out to have fifty-two companions.
+missing shape could not express `engine`. It is not kept by hand at all: the
+list *is* the spells with a clause adjudicated to a missing shape — see "The
+same guard, pointed at the spells the engine executes" — and Spirit Guardians
+turned out to have a great many companions. **How many is `COVERAGE.md`'s**,
+which regenerates; this sentence said fifty-two and was wrong by five before
+anybody noticed, which is the argument for not writing a digit here.
 
 ## Turn Boundaries Collect What They Are Owed
 
@@ -6329,8 +6331,19 @@ Advantage if", and the narrow phrase let the audit's own examples through.
 
 **Partial stopped being a list and became a consequence.** A spell is partial
 because one of its clauses is adjudicated to a named missing shape rather than
-to the table, and `PARTIAL_SPELLS` is asserted against that derived set in both
-directions — one entry when it was kept by hand, fifty-three now. Two things fell
+to the table, and `PARTIAL_SPELLS` **is** that filter over `ADJUDICATED` — it
+was one entry when it was kept by hand. For a while it was a written-out copy
+of the answer, asserted against the derivation in both directions, because the
+map lived in this test file and `npm run coverage` runs outside vitest; IE-015
+moved the map to `scripts/missing-shapes.ts` and IE-045 deleted the copy, so
+the equality assertion went with it. **A second spelling of one derivation is
+the second place to get it wrong, not a guard against the first** — the same
+sentence this file applies to every rule kept in two places, arriving on a
+guard rather than on a rule. What is still asserted is what a derivation can
+get wrong on its own: that it reports somebody, that it reports Spirit
+Guardians, and that it reports **none** of the spells whose every clause is the
+table's — a complement the test asserts is non-empty rather than counts, for
+the reason the paragraph above gives up a number of its own. Two things fell
 out of deriving it. **Partial and verified are different axes**: Web is driven
 end to end *and* leaves its Difficult Terrain unbuilt, and the report used to
 print only the tick. And each of the twenty-seven missing shapes an
@@ -6398,6 +6411,41 @@ and 2 came to be three answers to one question. **Neither figure is written
 down here**, and that is deliberate: a per-shape count in prose that nothing
 regenerates is the thing this section is about. `COVERAGE.md`'s "What blocks
 the rest" prints both for every shape.
+
+### And the report was still answering the same question twice
+
+The derived table did not replace the thing it was better than; it was printed
+two sections **below** it. `COVERAGE.md` carried a "By mechanical shape" table
+as well — thirteen prose regexes over every parsed spell's text, filing each
+under "the hardest thing it needs", beside a hand-written `Blocked on` column —
+so one file gave two answers to one question and the worse one came first:
+
+| | |
+|---|---|
+| the classifier | 43 spells under a casting time of a minute or more, blocked on "a casting-in-progress state machine with a per-turn obligation" — machinery IE-034 had built |
+| the derived table | 54 touched, 12 finished, and the shape's own description saying which half is built |
+
+That is the three-documents-three-answers failure this very section exists to
+end, arriving **inside one report**, and a tranche is briefed from that report.
+So the classifier is gone: `SHAPES`, `shapeOf`, the `byShape` bucket, the
+`Blocked on` map and the console breakdown, deleted rather than corrected.
+
+**Nothing asserted its output, which is both why it drifted and why deleting it
+cost nothing.** `coverage.test.ts` held the two lists and the counts and said
+not one word about the buckets — so the regexes were free to file a spell
+anywhere and the column was free to name a blocker that no longer blocked. The
+five top-line counts and the derived table are byte-identical across the
+deletion, which is what says a section came out and no measurement moved.
+
+**And `PARTIAL_SPELLS` stopped being a copy in the same pass.** It is the
+`ADJUDICATED` filter now rather than a written-out answer checked against one —
+see "The same guard, pointed at the spells the engine executes". **`VERIFIED_SPELLS`
+stays written out, and the asymmetry is the point**: partial is a consequence
+of a map the repository holds, and *verified* is a claim about which tests
+drive which spell, which nothing derivable says. A generated claim about test
+coverage that nothing checks would be this file's own failure mode; the entry
+belongs in the commit that writes the test, and its docstring says so where the
+next reader goes looking for symmetry.
 
 ### A blocker is anchored to a sentence, or it is anchored to nothing
 
@@ -7610,7 +7658,8 @@ was wrong when it was found, which is the point — the check that would have
 said so was not running.
 
 The fix is the split, not the guard. `coverage-data.ts` holds the measurement —
-the two hand lists, `isExecuted`, the audits — and has no top-level effect at
+`VERIFIED_SPELLS`, the derivation of `PARTIAL_SPELLS`, `isExecuted`, the
+audits — and has no top-level effect at
 all, so a test wanting `PARTIAL_SPELLS` never reaches the renderer;
 `coverage.ts` keeps the renderer and the write. A guard alone would have left a
 writing module on two test files' import graphs, one `import` away from the

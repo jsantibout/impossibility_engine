@@ -42,9 +42,9 @@ import { SPELL_DEFINITIONS } from './spell-definitions.js';
  *
  * And **partial is a consequence rather than a list**: a spell carrying a
  * shape adjudication is one the engine drives and does not finish, which is
- * exactly what `PARTIAL_SPELLS` claims. The list in `coverage.ts` is asserted
- * against the derived set in both directions, so the report cannot drift from
- * the debts.
+ * exactly what `PARTIAL_SPELLS` claims — so that is the filter it is, taken
+ * over this map in `coverage-data.ts`. The report cannot drift from the debts
+ * because there is nothing for it to drift from.
  */
 
 /**
@@ -291,40 +291,46 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
  * Partial is a consequence, not a list.
  *
  * A spell carrying a shape adjudication is one the engine drives and does not
- * finish, which is exactly what the third coverage state claims. Asserting the
- * hand list against the derived set in **both** directions is what stops the
- * report and the debts drifting apart: a clause newly adjudicated to a shape
- * fails the table until `PARTIAL_SPELLS` says so, and an entry that no longer
- * carries a debt fails until it is removed.
+ * finish, which is exactly what the third coverage state claims — so
+ * `PARTIAL_SPELLS` **is** that filter over {@link ADJUDICATED}, computed in
+ * `coverage-data.ts` where the report reads it.
  *
- * The list stays in `coverage.ts` rather than being derived there, because
- * `npm run coverage` runs the script outside vitest and importing this file
- * would make the report generator depend on the test suite.
+ * It used to be written out there and asserted against a copy of the derivation
+ * here, in both directions, because this map lived in this file and a report
+ * generator that imported the test suite would have had the dependency
+ * backwards. IE-015 moved the map to `scripts/missing-shapes.ts`, so that
+ * reason is gone and **the equality assertion went with the copy**: two
+ * spellings of one derivation check each other rather than checking anything,
+ * which is the second-place-to-get-it-wrong failure this file's whole subject
+ * keeps naming.
+ *
+ * What is left is what a derivation can still get wrong: an inverted filter, or
+ * an empty map. Both are asserted against the list the report actually
+ * publishes rather than against a local copy of the expression.
  */
 describe('the partial set is derived from the debts', () => {
-  const derived = Object.entries(ADJUDICATED)
-    .filter(([, entries]) => entries.some((entry) => entry.why !== 'table'))
-    .map(([spellId]) => spellId)
-    .sort();
-
-  it('has some, so the rule below is not vacuous', () => {
-    expect(derived.length).toBeGreaterThan(0);
-  });
-
-  it('is exactly what the coverage script publishes', () => {
-    expect([...PARTIAL_SPELLS].sort()).toEqual(derived);
+  it('has some, so the rules below are not vacuous', () => {
+    expect(PARTIAL_SPELLS.length).toBeGreaterThan(0);
   });
 
   /** Spirit Guardians was the hand list's only entry, and is still partial. */
   it('keeps the spell the third state was invented for', () => {
-    expect(derived).toContain('spirit-guardians');
+    expect(PARTIAL_SPELLS).toContain('spirit-guardians');
   });
 
-  /** A spell whose every clause is the table's is finished, not partial. */
+  /**
+   * A spell whose every clause is the table's is finished, not partial — the
+   * direction that catches a filter reading "has any adjudication at all".
+   *
+   * The complement is non-empty, and asserted to be: with no all-table spell in
+   * the map this would pass while proving nothing, which is the vacuity the
+   * rule above guards against on the other side.
+   */
   it('leaves a spell whose clauses are all fiction out of it', () => {
     const allTable = Object.entries(ADJUDICATED)
       .filter(([, entries]) => entries.every((entry) => entry.why === 'table'))
       .map(([spellId]) => spellId);
-    expect(derived.filter((id) => allTable.includes(id))).toEqual([]);
+    expect(allTable.length).toBeGreaterThan(0);
+    expect(PARTIAL_SPELLS.filter((id) => allTable.includes(id))).toEqual([]);
   });
 });

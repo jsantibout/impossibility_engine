@@ -19,10 +19,10 @@ spell is unsupported.
 
 **Partial and verified are different axes**, so a spell can be both: Web is
 driven end to end and still leaves its Difficult Terrain unbuilt. Partial is
-not a hand list either — a spell is partial because one of its `unmodelled`
-clauses is adjudicated in `spell-honesty.test.ts` to a named missing shape
-rather than to the table, and that guard holds this list against the derived
-set in both directions.
+not a list at all — it is derived from the adjudication map in
+`packages/engine/scripts/missing-shapes.ts`: a spell is partial because one
+of its `unmodelled` clauses is adjudicated to a named missing shape rather
+than to the table.
 
 ## Spells
 
@@ -34,28 +34,6 @@ A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
 what the engine owes it is the slot, the action, the hour on the clock, and
 a plain statement of what the table decides.
-
-### By mechanical shape
-
-A spell is filed under the *hardest* thing its text needs, because that is
-what blocks it. Fireball is an area spell before it is a save-for-damage
-spell, and the area is the part that is missing.
-
-| Shape | Parsed | Tracked | Executed | Blocked on |
-|---|---|---|---|---|
-| Summons and created creatures | 9 | 0 | 0 | creating a creature from a stat block mid-fight |
-| Area of effect | 73 | 2 | 27 | — |
-| Reaction timing | 4 | 0 | 3 | falling — Counterspell now has a casting it can hold open |
-| Casting time of a minute or more | 43 | 0 | 0 | a casting-in-progress state machine with a per-turn obligation |
-| An ongoing effect that acts on later turns | 18 | 1 | 3 | an effect that a later turn can act through |
-| Spell attack roll | 16 | 0 | 12 | — |
-| Saving throw for damage | 30 | 0 | 13 | — |
-| Saving throw for a condition | 43 | 0 | 19 | — |
-| Restores Hit Points | 4 | 0 | 3 | — |
-| A condition imposed with no saving throw | 4 | 0 | 2 | per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition") |
-| Temporary Hit Points | 3 | 0 | 1 | — |
-| A bonus to later rolls | 5 | 0 | 2 | — |
-| Narrative or exploration effect | 87 | 42 | 12 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
 
 ### Executed today
 
