@@ -1359,6 +1359,11 @@ const FORMAT_TYPES = [
   'SpellCheck',
   'ConditionRider',
   'DelayedDamage',
+  // Both halves of the creature-type clause, so a third outcome added with no
+  // SRD sentence behind it fails here rather than accumulating quietly. The
+  // two it declares are Blight's automatic failure and Shatter's Disadvantage.
+  'TypedSaveOutcome',
+  'TypedExtraDamage',
   'DiceScaling',
   'CastingOrigin',
   'SpellActivation',
@@ -2299,5 +2304,110 @@ describe('a rider is held to what its host can support', () => {
         }),
       ),
     ).toContain('unknown_modifier_rider');
+  });
+});
+
+/**
+ * A clause that varies an outcome by the target's creature type.
+ *
+ * SRD's glossary closes the list of types — "These are the game's creature
+ * types", fourteen of them — and says the thing that makes this checkable:
+ * "The types don't have rules themselves, but some rules in the game affect
+ * creatures of certain types in different ways." So a clause naming
+ * `Goblinoid` is naming a **subtype tag**, which has no rules at all, and one
+ * naming `Plant` is naming a type the engine can compare a creature against.
+ *
+ * Nothing in the catalogue violates any of these — all three consumers were
+ * driven through before the rules were written, as every rule here was — so
+ * the only way to know they are guards is to build something that fails each,
+ * which is what this does.
+ */
+describe('a clause that varies by creature type names a real one', () => {
+  const save = (againstType: unknown): readonly string[] =>
+    codes(
+      checkSpellDefinitionValue({
+        ...FIRE_DART,
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d6' },
+            damageType: 'fire',
+            onSuccess: 'half',
+            againstType,
+          },
+        ],
+      }),
+    );
+
+  const smite = (againstType: unknown): readonly string[] =>
+    codes(
+      checkSpellDefinitionValue({
+        ...FIRE_DART,
+        effects: [
+          { kind: 'attack-damage', damage: { dice: '2d8' }, damageType: 'radiant', againstType },
+        ],
+      }),
+    );
+
+  it('accepts the three clauses the SRD actually prints', () => {
+    expect(save({ types: ['Plant'], outcome: 'automatic-failure' })).toEqual([]);
+    expect(save({ types: ['Construct'], outcome: 'disadvantage' })).toEqual([]);
+    expect(smite({ types: ['Fiend', 'Undead'], extraDice: '1d8' })).toEqual([]);
+  });
+
+  /** A subtype tag is not a type, which is the whole of the Goblin Warrior lesson. */
+  it('refuses a subtype tag, and anything else off the glossary’s list', () => {
+    expect(save({ types: ['Goblinoid'], outcome: 'disadvantage' })).toEqual([
+      'unknown_creature_type',
+    ]);
+    expect(smite({ types: ['Humanoids'], extraDice: '1d8' })).toEqual(['unknown_creature_type']);
+  });
+
+  /**
+   * A clause naming nobody varies nothing — the `ends_nothing` mistake
+   * arriving on a third field, and it compiles just as readily.
+   */
+  it('refuses a clause that singles nobody out', () => {
+    expect(save({ types: [], outcome: 'disadvantage' })).toEqual(['varies_by_nobody']);
+    expect(smite({ types: [], extraDice: '1d8' })).toEqual(['varies_by_nobody']);
+  });
+
+  /** And a type named twice, which would apply one sentence twice over. */
+  it('refuses the same type twice', () => {
+    expect(save({ types: ['Plant', 'Plant'], outcome: 'automatic-failure' })).toEqual([
+      'duplicate_creature_type',
+    ]);
+  });
+
+  it('refuses an outcome the vocabulary does not have', () => {
+    // Nothing in the book gives a *named type* Advantage on a save: the spells
+    // that hand a save Advantage key it on "if you or your allies are fighting
+    // it", which is a fact about the casting rather than about the creature.
+    expect(save({ types: ['Construct'], outcome: 'advantage' })).toEqual(['bad_typed_outcome']);
+  });
+
+  /**
+   * The extra die goes through `parseNotation` exactly as every other notation
+   * does. `scaledDiceFor` never sees it — it does not scale — but
+   * `rollAttackDamage` still throws it, and a malformed one silently rolls
+   * nothing.
+   */
+  it('refuses an extra die that is not dice notation', () => {
+    expect(smite({ types: ['Undead'], extraDice: 'a lot' })).toEqual(['bad_dice']);
+  });
+
+  /**
+   * **It reports rather than throwing**, which is the rule a validator lives
+   * or dies by: `parseSpellDefinition` takes `unknown`, so a clause that is a
+   * string, or one missing the field its branch would read, has to come back
+   * as a problem rather than as a `TypeError`. The re-review of the first
+   * union task caught exactly that shape in a neighbouring branch.
+   */
+  it('reports a malformed clause instead of throwing on it', () => {
+    expect(() => save('Plant')).not.toThrow();
+    expect(save('Plant')).toEqual(['bad_typed_clause']);
+    expect(() => smite({ extraDice: '1d8' })).not.toThrow();
+    expect(smite({ extraDice: '1d8' })).toEqual(['bad_typed_clause']);
   });
 });

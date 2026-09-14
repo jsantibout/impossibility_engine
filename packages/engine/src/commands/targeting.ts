@@ -44,6 +44,7 @@ import { type SlotKind } from '../resources.js';
 import {
   definitionFor,
   DIRECTIONAL_AREAS,
+  isCreatureType,
   type SpellArea,
   type SpellDefinition,
   targetCountFor,
@@ -636,7 +637,11 @@ export function areaTargets(
     const creature = state.creatures[who];
     if (creature === undefined) return false;
     if (creature.vitals.dead) return false;
-    if (wanted !== undefined && creature.creatureType?.toLowerCase() !== wanted.toLowerCase()) {
+    // The same comparison the outcome side makes, rather than a second one
+    // spelled alike: an undeclared type is not a match here, and an area
+    // *filters* rather than asking, because "each Humanoid in the area" leaves
+    // the ogre standing there unbothered.
+    if (wanted !== undefined && !isCreatureType(creature.creatureType, wanted)) {
       return false;
     }
     // SRD: "A spell's area of effect is blocked by Total Cover." Cover here is
@@ -776,7 +781,7 @@ export function namedTargets(
           because: `${definition.name} may only target a ${wanted}`,
           satisfyWith: `declareCreatureType(${target}, …), or a creatureType when the creature is added`,
         });
-      } else if (actual.toLowerCase() !== wanted.toLowerCase()) {
+      } else if (!isCreatureType(actual, wanted)) {
         return err(
           'wrong_creature_type',
           `${definition.name} may only target a ${wanted}; ${target} is ${actual}`,
@@ -962,7 +967,7 @@ export function eligibleTargets(
         });
         continue;
       }
-      if (actual.toLowerCase() !== wanted.toLowerCase()) {
+      if (!isCreatureType(actual, wanted)) {
         excluded.push({ target: target.id, reason: `${target.name} is ${actual}, not ${wanted}` });
         continue;
       }

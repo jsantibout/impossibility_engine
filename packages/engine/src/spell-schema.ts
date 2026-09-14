@@ -12,7 +12,7 @@ import {
 } from '@ie/shared';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
-import { conditionRiderOf, modifierRidersOf } from './spell-definitions.js';
+import { conditionRiderOf, CREATURE_TYPES, modifierRidersOf } from './spell-definitions.js';
 import type {
   ConditionRider,
   DiceScaling,
@@ -170,6 +170,74 @@ function checkScaling(
       reason: 'the Cantrip Upgrade applies to cantrips; a levelled spell scales with its slot',
     });
   }
+}
+
+/**
+ * A clause that varies an outcome by the target's creature type.
+ *
+ * Two hosts carry one and the payloads differ — a saving throw's outcome, or
+ * extra damage dice — so what the clause *does* is checked by the caller and
+ * the half they share is checked here: that it names creature types, that it
+ * names at least one, and that it names none of them twice.
+ *
+ * **Defensive about the value's shape, deliberately.**
+ * `parseSpellDefinition` takes `unknown` and `checkShape` establishes an
+ * effect's `kind` and nothing below it, so a clause that is a string or a
+ * number can reach this reader. A validator that throws on the input it exists
+ * to judge has judged nothing — the shape the re-review of the first union
+ * task caught in a neighbouring branch, which is why this one does not match
+ * that precedent.
+ *
+ * The list is the SRD glossary's fourteen, closed because the book closes it:
+ * "These are the game's creature types". A clause naming `Goblinoid` is naming
+ * a **subtype tag**, which the book gives no rules of its own — and a runtime
+ * matcher that compared loosely enough to accept one would also let a rule
+ * naming Humanoid reach a Goblin Warrior, which is Fey.
+ */
+function checkAgainstType(
+  clause: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+): clause is { readonly types: readonly string[] } {
+  const types = (clause as { types?: unknown } | null)?.types;
+  if (typeof clause !== 'object' || clause === null || !Array.isArray(types)) {
+    found.push({
+      field: path,
+      code: 'bad_typed_clause',
+      reason: 'a clause that varies by creature type names the types it singles out',
+    });
+    return false;
+  }
+
+  if (types.length === 0) {
+    found.push({
+      field: `${path}.types`,
+      code: 'varies_by_nobody',
+      reason:
+        'a clause that singles no creature type out varies nothing; name the types the SRD prints',
+    });
+  }
+
+  const seen = new Set<unknown>();
+  types.forEach((type, i) => {
+    if (typeof type !== 'string' || !CREATURE_TYPES.includes(type)) {
+      found.push({
+        field: `${path}.types[${i}]`,
+        code: 'unknown_creature_type',
+        reason: `"${String(type)}" is not one of the SRD's fourteen creature types; a subtype tag such as Goblinoid is not a type and has no rules of its own`,
+      });
+    }
+    if (seen.has(type)) {
+      found.push({
+        field: `${path}.types[${i}]`,
+        code: 'duplicate_creature_type',
+        reason: `${String(type)} is named twice, and one sentence cannot apply to it twice`,
+      });
+    }
+    seen.add(type);
+  });
+
+  return true;
 }
 
 function checkDamageType(
@@ -537,6 +605,22 @@ function checkEffect(
     case 'save-damage':
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
+      // SRD Blight's "A Plant creature automatically fails the save" and
+      // Shatter's "A Construct has Disadvantage on the save" — two outcomes
+      // and not three, because nothing in the book gives a *named type*
+      // Advantage on a save.
+      if (effect.againstType !== undefined) {
+        if (checkAgainstType(effect.againstType, `${path}.againstType`, found)) {
+          const outcome = (effect.againstType as { outcome?: unknown }).outcome;
+          if (outcome !== 'automatic-failure' && outcome !== 'disadvantage') {
+            found.push({
+              field: `${path}.againstType.outcome`,
+              code: 'bad_typed_outcome',
+              reason: `"${String(outcome)}" is not something a creature type does to a saving throw; the SRD prints an automatic failure and a Disadvantage`,
+            });
+          }
+        }
+      }
       (effect.plus ?? []).forEach((extra, i) => {
         checkScaling(extra.damage, level, `${path}.plus[${i}].damage`, found);
         checkDamageType(extra.damageType, `${path}.plus[${i}].damageType`, found);
@@ -547,6 +631,23 @@ function checkEffect(
     case 'attack-damage':
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
+      // SRD Divine Smite: "The damage increases by 1d8 if the target is a
+      // Fiend or an Undead." A bare notation rather than a `DiceScaling`, so
+      // `checkScaling`'s cantrip and slot rules have nothing to say about it —
+      // what a malformed one would do is what a malformed one always does,
+      // which is roll `NaN` dice.
+      if (effect.againstType !== undefined) {
+        if (checkAgainstType(effect.againstType, `${path}.againstType`, found)) {
+          const extra = (effect.againstType as { extraDice?: unknown }).extraDice;
+          if (typeof extra !== 'string' || !parseNotation(extra).ok) {
+            found.push({
+              field: `${path}.againstType.extraDice`,
+              code: 'bad_dice',
+              reason: `"${String(extra)}" is not dice notation`,
+            });
+          }
+        }
+      }
       return;
 
     // `save` spells its **first** rider flat and `condition` nests its only

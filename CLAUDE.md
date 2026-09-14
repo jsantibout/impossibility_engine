@@ -3543,6 +3543,151 @@ Building it also made that casting's `on` non-empty, which the definition's
 docstring had predicted in those words — a removal owns nothing, and a
 Resistance is something the casting owns and keeps.
 
+### An Outcome That Varies By What The Target Is
+
+SRD's glossary states the rule and then declines to give any: "The types don't
+have rules themselves, but **some rules in the game affect creatures of certain
+types in different ways.**" The engine has held the fact authoritatively since
+`declareCreatureType` landed — a species gives it, a stat block prints it, a
+declaration establishes it, and a contradiction is refused — and exactly one
+thing read it: `TargetRule.mustBeType`, which gates *targeting*. This is the
+second reader, at the outcome.
+
+**Five sentences in the book are about a target's type; three are built and
+the two that are not are blocked on something else.** Every *other* type clause
+in the book is about the **attacker's** — Protection from Evil and Good, Dispel
+Evil and Good, Magic Circle — which this file already names as a different
+missing piece and which this does not touch.
+
+| Spell | SRD | |
+|---|---|---|
+| Blight | "A Plant creature automatically fails the save." | `save-damage.againstType` |
+| Shatter | "A Construct has Disadvantage on the save." | the same |
+| Divine Smite | "The damage increases by 1d8 if the target is a Fiend or an Undead." | `attack-damage.againstType` |
+| Flesh to Stone | "Constructs **automatically succeed** on the save." | a third outcome, and see below |
+| Banishment | "If the target is an Aberration, a Celestial, an Elemental, a Fey, or a Fiend, the target doesn't return..." | not this shape at all — see below |
+
+**It is not a rider, and the distinction is the one `OutcomeRiders` already
+draws from the other side.** A rider hangs off an outcome that has *settled*;
+this decides how the roll comes out. So the slot sits on the host beside
+`ability` and is read before the die rather than after it.
+
+**Two slots, one question, one gatherer.** The payloads differ because the
+sentences differ — a saving throw's outcome against extra damage dice — so
+`creatureTypesRead` is the one thing that asks "does this effect have to know
+what the target is", the move `modifierRidersOf` already makes on the other
+axis. A third host is one case there and nothing anywhere else.
+
+**An automatic failure is `autoFailed`, which the engine already means by the
+phrase.** A Stunned creature's Strength save has worked this way since
+conditions closed the loop: the die is thrown and recorded, because other
+effects can care what it showed, and the total is overridden so no bonus
+applied afterwards rescues it. Building a second mechanism that skipped the
+roll would have had to explain why Shatter's Construct still rolls, and would
+have put an SRD phrase in two places. `D20TestOptions.autoFail` is how the
+caller supplies it — for exactly the reason `modes` and `bonuses` are supplied:
+whether the target is a Plant and whether this spell singles Plants out are
+questions the layer above holds the answers to, and the engine applies the rule.
+
+**Two save outcomes, and the two that are absent are absent for different
+reasons.** An **automatic success** is a sentence the book really prints —
+Flesh to Stone's "Constructs automatically succeed on the save" — and the
+member is still not there, because its only writer cannot be written down:
+that spell's other clauses are a rider on the *success* branch, a repeat save
+counted to three of a kind, and a Petrified outliving the count, all three of
+which this file already names as missing. A member no definition could use is
+what the format's own unused-member sweep exists to catch, so it arrives with
+the spell. **Advantage** is absent for the opposite reason — no SRD sentence
+gives a named *type* Advantage on a save at all. The five that hand a save
+Advantage (Charm Person, Charm Monster, the three Dominates) key it on "if you
+or your allies are fighting it", a declared fact about the casting rather than
+a property of the creature, and that is a task of its own.
+
+**The extra die is a bare notation, not a `DiceScaling`.** Divine Smite's
+*base* grows per slot level and the type sentence does not, so a
+`perSlotLevelAbove` here would be a field no SRD spell writes — and it is a
+second damage **component** rather than a bigger notation, so the log shows two
+contributions and says why the second is there. Same damage type, so the two
+meet the target's defences as one pool and a Critical Hit doubles both.
+
+**Divine Smite is a spell, and the brief that asked for this said it was a
+class feature.** SRD 5.2.1 prints "_Level 1 Evocation (Paladin)_" with a Bonus
+Action casting time, which is why `resolveAttackDamage` casts it through
+`resolveCastWith` and why its clause reaches this vocabulary as data with no
+widening at all.
+
+#### The unknown case is a request, and it is asked before anything is spent
+
+A creature nobody has typed is a **thin record**, not a creature of some other
+type. Taking the default branch quietly is the failure the whole three-valued
+discipline exists to prevent and the easiest thing in this rule to get wrong:
+nothing downstream would ever look different, and a Plant that rolled its save
+is a wrong number with no symptom.
+
+So `creatureTypeNeeds` raises the `creature-type` request targeting has always
+raised — no new `ContextRequest` kind, no change to `declareCreatureType` or to
+`type_established` — and it is asked in **two** places, which is one more than
+it looks:
+
+| | Why it is there |
+|---|---|
+| `castOrRelease`, with the targets settled | before the slot, the action and the first die — and it joins the same list the position and sight requests use, so a caller repairing a thin record is told everything that is thin at once |
+| `resolveEffects`, before the loop | every other path in: an area trigger settling a minute later, a **declared** casting being settled, an activation |
+
+**The declaration is the case that makes the first one load-bearing.**
+`resolveSpell` with `hold` spends the action, drops the Concentration the
+caster held, writes `spell-declared` and stops — the effects do not run until
+the casting settles. SRD Counterspell says that action "is wasted" whatever
+follows, so a declaration that cannot settle has spent it for nothing, and
+without the pre-flight the caster would find out at settlement. And the second
+is load-bearing for the generator: asking mid-loop would leave it advanced for
+the targets already resolved, which is a refused operation that moved the
+world.
+
+#### Type matching is the SRD's, never a substring
+
+`isCreatureType` is the one comparison and **targeting's three call sites go
+through it**, so there is not a second answer to one question — which is worth
+stating as a change rather than as a property, because the three inline
+`toLowerCase()` comparisons it replaced agreed with it exactly, and two
+implementations that agree today are the shape this file records going wrong
+every time. A Goblin Warrior is "Small **Fey**
+(Goblinoid)": the type changed in 2024 and Goblinoid is a subtype **tag**, to
+which the book gives no rules at all. Matching by containment gets that wrong
+in both directions at once — a rule naming Goblinoid would reach a goblin, and
+the looseness that allows it is the same looseness by which every 2014 instinct
+about who is a Humanoid goes on being wrong. `CREATURE_TYPES` is the glossary's
+closed fourteen and the validator holds a clause against it, so a definition
+naming a tag is refused at authoring rather than silently matching nobody.
+
+**The parser already strips the tag**, so no monster in the bestiary carries
+one — which is why the matcher does not try to parse a parenthesis out of a
+declared string. A guard for a shape nothing can produce is not a rule; the
+exactness is the rule.
+
+#### What this closed, and the one that turned out not to be this shape
+
+Blight, Shatter and Divine Smite leave `PARTIAL_SPELLS`, and
+`an-outcome-that-varies-by-creature-type` leaves `MISSING_SHAPES` altogether —
+no **executed** definition is blocked on it any more, and
+`spell-honesty.test.ts` keeps no shape nothing claims. That is the honest
+scope of the claim: Flesh to Stone's automatic success is not carried, and
+Flesh to Stone is not an executed definition, so it has no clause in that map
+to claim a shape with. The day it becomes one, the shape comes back with it —
+which is what a derived list is for.
+
+**Banishment is honestly refused rather than fitted.** "If the target
+is an Aberration, a Celestial, an Elemental, a Fey, or a Fiend, the target
+doesn't return if the spell lasts for 1 minute. The target is instead
+transported to a random location on a plane (GM's choice)." The type is no
+longer the blocker; neither half of what is left is about it. Nobody was
+transported to a demiplane in the first place — there is one scene — so there
+is nothing to fail to return *from*, and the plane it would go to instead is a
+second place the engine has nowhere to put anybody. Its clause is re-filed to
+`a-second-place-to-put-a-creature`, which its *other* clause already claimed. A
+field with one user would have been the wrong answer to that, and this
+repository has just spent a whole audit finding members nobody uses.
+
 ### A spell may declare the footprint its template wants
 
 `SpellDefinition.anchoring` is the geometry pass's one bit of information, in
@@ -4424,15 +4569,19 @@ does not print and one of those was a neighbouring spell's.
 Refused: a spell with no executable definition, a spell the caster has not
 prepared and knows from nothing else, no targets, a duplicate target, a
 stranger, more targets than the slot allows, a target out of range, a target
-behind Total Cover, no action left, no slot left, no free casting left, and
-casting at all while a turn-boundary save is outstanding.
+behind Total Cover, a target of the wrong creature type, no action left, no
+slot left, no free casting left, and casting at all while a turn-boundary save
+is outstanding.
+
+**The creature type a spell demands is checked, and a type nobody has stated is
+asked for.** This list said the opposite for a long time — that `CreatureState`
+carried a sheet and no type, so Hold Person's "Choose a Humanoid" came back in
+`unverified` — and that stopped being true when the type became authoritative.
+It is now read at the outcome as well as at the target; see "An Outcome That
+Varies By What The Target Is".
 
 Reported rather than refused, in `unverified`:
 
-- **The creature type a spell demands.** Hold Person wants a Humanoid.
-  `CreatureState` carries a sheet, not a creature type, so there is nothing to
-  compare against. A silent pass would be the engine claiming to have checked
-  something it cannot see.
 - **Range, when a target has no position**, or when no scene is set. "Refuse,
   don't guess" governs numbers with a right answer; where a creature is
   standing has none until somebody places it, and an unplaced creature is an

@@ -610,6 +610,64 @@ describe('conditions feed into checks', () => {
     expect(result.success).toBe(true);
   });
 
+  /**
+   * An automatic failure a **caller** supplies, which is the other half of the
+   * same rule.
+   *
+   * SRD Blight: "A Plant creature automatically fails the save." Whether the
+   * target is a Plant and whether the spell singles Plants out are questions
+   * the layer above holds the answers to — exactly as with `modes` and
+   * `bonuses` — so the caller states it and the engine applies it. It must
+   * mean what a condition's does: the die is still thrown and recorded,
+   * because other effects can care what it showed, and the total is
+   * overridden.
+   */
+  it('fails a save the caller says fails, whatever the die', () => {
+    const result = save(scriptedRng([20]), sheet(), 'con', {
+      dc: 5,
+      autoFail: 'Blight: a Plant creature automatically fails the save',
+    });
+    expect(result.natural).toBe(20);
+    expect(result.total).toBeGreaterThan(result.dc);
+    expect(result.autoFailed).toMatch(/Plant/);
+    expect(result.success).toBe(false);
+  });
+
+  /** And no bonus applied alongside it rescues the save. */
+  it('is not rescued by a bonus on the same roll', () => {
+    const result = save(scriptedRng([20, 4]), sheet(), 'con', {
+      dc: 5,
+      autoFail: 'Blight: a Plant creature automatically fails the save',
+      bonuses: [{ source: 'Bless', dice: '1d4' }],
+    });
+    expect(result.total).toBeGreaterThan(result.dc);
+    expect(result.success).toBe(false);
+  });
+
+  /**
+   * **The condition's sentence is the one reported when both apply.**
+   *
+   * Unreachable through the catalogue — Blight is the only spell writing an
+   * automatic failure and it is a Constitution save, while every
+   * condition-sourced save failure is Strength or Dexterity — but
+   * `rollSavingThrow` is pure and takes both directly, so the case can simply
+   * be built. The `restoreOn` precedent rather than `placeArea`'s dead
+   * `no_scene`: a guard nothing can reach is not a rule, and a pure function
+   * will take a fixture that reaches it. The outcome is the same either way;
+   * what is pinned is which sentence a log reads, and it is the condition's
+   * because that is the one the creature is carrying.
+   */
+  it('names the condition rather than the caller when both fail the save', () => {
+    const result = save(scriptedRng([20]), sheet(), 'str', {
+      dc: 5,
+      conditions: conditionState(['stunned']),
+      autoFail: 'Blight: a Plant creature automatically fails the save',
+    });
+    expect(result.autoFailed).toMatch(/stunned/i);
+    expect(result.autoFailed).not.toMatch(/Plant/);
+    expect(result.success).toBe(false);
+  });
+
   it('gives a Restrained creature disadvantage on Dexterity saves only', () => {
     const dex = save(scriptedRng([15, 4]), sheet(), 'dex', {
       dc: 10,

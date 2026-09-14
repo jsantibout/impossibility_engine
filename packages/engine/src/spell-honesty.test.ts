@@ -147,8 +147,6 @@ const MISSING_SHAPES = {
     'CLAUDE.md: "nothing records what a save was against" — the sentence that already blocks Countercharm. A `RollModifier` selects a roll by family, ability and skill, so there is no way to say "the saving throw this casting calls for", and the SRD hands that save Advantage a dozen times.',
   'a-save-keyed-to-a-condition':
     'a save selected by what it is *against* rather than by the ability that rolls it. CLAUDE.md names it and names this spell: "A save keyed to a named **condition** rather than an ability | Protection from Poison", in the table of what the roll-modifier vocabulary deliberately does not reach. Distinct from `a-mode-on-the-save-a-spell-forces`, which is the caster’s own save seen from the other end — this one modifies a save some *other* effect will call for.',
-  'an-outcome-that-varies-by-creature-type':
-    'creature type is authoritative — `declareCreatureType`, `mustBeType` — and reaches targeting only. No effect varies by it, so an automatic failure, extra dice or a refusal to return goes unapplied. CLAUDE.md names the missing filter beside Protection from Evil and Good.',
   'a-stat-block-created-mid-fight':
     'summons. CLAUDE.md, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, the four Conjures, Guardian of Faith, Faithful Hound, Phantom Steed, Summon Dragon, Giant Insect".',
   'speed-and-movement-modes':
@@ -242,8 +240,8 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
     {
       clause: 'not returning if the spell runs',
-      why: 'an-outcome-that-varies-by-creature-type',
-      note: 'SRD: "If the target is an Aberration, a Celestial, an Elemental, a Fey, or a Fiend, the target doesn’t return if the spell lasts for 1 minute." The engine holds the type authoritatively and no effect reads it, and the casting’s own expiry carries no consequence either.',
+      why: 'a-second-place-to-put-a-creature',
+      note: 'SRD: "If the target is an Aberration, a Celestial, an Elemental, a Fey, or a Fiend, the target doesn’t return if the spell lasts for 1 minute. The target is instead transported to a random location on a plane (GM’s choice) associated with its creature type." The creature type is no longer the blocker — an effect reads one now — and neither half of what is left is about it: nobody was transported to a demiplane, so there is nothing to fail to return from, and the plane it would go to instead is a second place the engine has nowhere to put anybody.',
     },
   ],
   'beacon-of-hope': [
@@ -270,13 +268,6 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the area is Difficult Terrain',
       why: 'difficult-terrain-an-area-creates',
       note: 'The engine charges Difficult Terrain exactly and takes it as declared feet on the move that crosses it, so an area that makes the ground difficult is invisible to the ruler and every move through the tentacles is charged as open floor.',
-    },
-  ],
-  blight: [
-    {
-      clause: 'a Plant creature automatically fails',
-      why: 'an-outcome-that-varies-by-creature-type',
-      note: 'SRD: "A Plant creature automatically fails the save." The save is rolled by the engine and the type is held by the engine, and no effect lets the second decide the first.',
     },
   ],
   'blindness-deafness': [
@@ -396,13 +387,6 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'spends its Reaction fleeing',
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'SRD: it "must immediately use its Reaction, if available, to move as far away from you as it can, using the safest route". The Reaction and the movement are both real budgets, and nothing lets a spell spend somebody else’s.',
-    },
-  ],
-  'divine-smite': [
-    {
-      clause: 'against a Fiend or an Undead',
-      why: 'an-outcome-that-varies-by-creature-type',
-      note: 'SRD: "The damage increases by 1d8 if the target is a Fiend or an Undead." The damage is assembled before the target is looked at, and no effect varies its dice by the type of the creature it lands on.',
     },
   ],
   'dominate-beast': [
@@ -670,13 +654,6 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'Speed is reduced by 10 feet',
       why: 'speed-and-movement-modes',
       note: 'SRD: "its Speed is reduced by 10 feet until the start of your next turn." A creature has one `baseSpeed` and no effect moves it, so the ray hits for full damage and slows nobody.',
-    },
-  ],
-  shatter: [
-    {
-      clause: 'a Construct has Disadvantage',
-      why: 'a-mode-on-the-save-a-spell-forces',
-      note: 'SRD: "A Construct has Disadvantage on the save." Two things are missing at once and the first blocks the second: no modifier can name the save a casting forces, and no effect varies by the target’s creature type.',
     },
   ],
   shield: [

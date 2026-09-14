@@ -43,8 +43,10 @@ import { remaining } from '../resources.js';
 import {
   type ConditionRider,
   conditionRiderOf,
+  creatureTypesRead,
   definitionFor,
   type DelayedDamage,
+  isCreatureType,
   onCaster,
   outcomeRidersOf,
   type OutcomeRiders,
@@ -430,6 +432,14 @@ export function castOrRelease(
       targets = named.value;
     }
 
+    // What the targets **are**, where the spell answers differently by type.
+    // Asked here, with the targets settled and before anything is spent, so a
+    // Blight aimed at a creature nobody has typed costs its caster nothing —
+    // and joins the same list the position and sight requests use, because a
+    // caller fixing a thin record should be told everything that is thin
+    // rather than one fact at a time.
+    needs.push(...creatureTypeNeeds(state, definition, definition.effects, targets));
+
     if (needs.length > 0) {
       return needsContext(
         'needs_context',
@@ -731,6 +741,50 @@ function scheduleDelayed(
 }
 
 /**
+ * The creature types a casting has to know, and a request for each it does not.
+ *
+ * SRD singles a type out three times — Blight's Plant, Shatter's Construct,
+ * Divine Smite's Fiend or Undead — and every one of them decides an outcome
+ * the engine is about to compute. A creature nobody has typed is a **thin
+ * record**, not a creature of some other type, so the answer is the request
+ * targeting has always raised rather than the default branch taken quietly.
+ * That is the whole of the three-valued discipline, and taking the default is
+ * the easiest thing in this rule to get wrong: nothing downstream would ever
+ * look different.
+ *
+ * Raised over every target and every effect **before the first die**, so a
+ * casting that has to ask costs nothing — not a slot, not an action, and not a
+ * turn of the generator. Asking after the first target had already rolled
+ * would be the "validate before rolling" rule broken in its usual way: the
+ * refusal arrives after it has moved authoritative state.
+ */
+function creatureTypeNeeds(
+  state: GameState,
+  definition: SpellDefinition,
+  effects: readonly SpellEffect[],
+  targets: readonly CharacterId[],
+): readonly ContextRequest[] {
+  const wanted = [...new Set(effects.flatMap(creatureTypesRead))];
+  if (wanted.length === 0) return [];
+
+  const asked: ContextRequest[] = [];
+  for (const target of targets) {
+    const creature = state.creatures[target];
+    // A creature the casting cannot find is somebody else's refusal; this one
+    // is only about a record that exists and does not say what it is.
+    if (creature === undefined || creature.creatureType !== null) continue;
+    asked.push({
+      kind: 'creature-type',
+      subject: target,
+      need: `what kind of creature ${target} is`,
+      because: `${definition.name} resolves differently against ${wanted.join(' or ')}`,
+      satisfyWith: `declareCreatureType(${target}, …), or a creatureType when the creature is added`,
+    });
+  }
+  return asked;
+}
+
+/**
  * The `applySpellEffect` options one condition rider asks for.
  *
  * Four effect kinds impose a condition — an `attack` on a hit, a `save-damage`
@@ -1018,6 +1072,22 @@ export function resolveEffects(
   };
   const attackModifier = numbers.attackModifier;
   const saveDc = numbers.saveDc;
+
+  // **Before the first die, and on every path into here.** `castOrRelease`
+  // asks the same question earlier so an ordinary casting never reaches this
+  // one; what arrives here instead is an area trigger settling a minute later,
+  // a declared casting being settled, and an activation — each of which can
+  // meet a creature nobody had typed when the spell was first cast. Asking
+  // mid-loop would leave the generator advanced for the targets already
+  // resolved, which is a refused operation that moved the world.
+  const untyped = creatureTypeNeeds(state, definition, running, targets);
+  if (untyped.length > 0) {
+    return needsContext(
+      'needs_context',
+      `${label} cannot be resolved until ${untyped.length === 1 ? 'a fact is' : `${untyped.length} facts are`} established: ${untyped.map((n) => n.need).join('; ')}`,
+      untyped,
+    );
+  }
 
   for (const target of targets) {
     for (const effect of running) {
@@ -1409,11 +1479,39 @@ export function resolveEffects(
       // A saving throw that deals damage, with what a success buys stated.
       if (effect.kind === 'save-damage') {
         const support = savingSupport(current, target, victim, effect.ability, supply);
+        // SRD singles a creature type out twice, and both sentences are about
+        // this save: Blight's "A Plant creature automatically fails the save"
+        // and Shatter's "A Construct has Disadvantage on the save". The type
+        // is known — `creatureTypeNeeds` asked for it above, before a die —
+        // so the only question left is which of the two the spell printed.
+        const singled =
+          effect.againstType !== undefined &&
+          effect.againstType.types.some((named) =>
+            isCreatureType(victim.creatureType, named),
+          )
+            ? effect.againstType.outcome
+            : null;
         const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
           dc: saveDc,
           conditions: support.conditions,
-          modes: support.modes,
+          // Presence, not arithmetic: it goes in as a named source and
+          // `combineRollModes` decides, so a Construct that is somehow also
+          // helped rolls a normal save rather than a net-negative one.
+          modes: [
+            ...support.modes,
+            ...(singled === 'disadvantage'
+              ? [{ source: `${definition.name} (${victim.creatureType})`, mode: 'disadvantage' as const }]
+              : []),
+          ],
           bonuses: support.bonuses,
+          // The die is still thrown and recorded; the total is overridden, so
+          // no bonus applied afterwards rescues it — the reading `checks.ts`
+          // has taken for a condition's automatic failure since it was written.
+          ...(singled === 'automatic-failure'
+            ? {
+                autoFail: `${definition.name}: a ${victim.creatureType} creature automatically fails the save`,
+              }
+            : {}),
         });
         if (!save.ok) return save;
 

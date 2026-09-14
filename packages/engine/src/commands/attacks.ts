@@ -31,7 +31,7 @@ import {
   positionOf,
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
-import { definitionFor, scaledDiceFor } from '../spell-definitions.js';
+import { definitionFor, isCreatureType, scaledDiceFor } from '../spell-definitions.js';
 import {
   armorClassOf,
   checkFeatureDamageTypes,
@@ -593,10 +593,10 @@ export function resolveAttackDamage(
 
     // — the spell cast on the blow ——————————————————————————————————————————
     if (command.smite !== undefined) {
-      const smite = castOnHit(state, id, attacker, command.smite);
+      const smite = castOnHit(state, id, attacker, pending.target, command.smite);
       if (!smite.ok) return smite;
       events.push(...smite.value.events);
-      extra.push(smite.value.damage);
+      extra.push(...smite.value.damage);
     }
 
     const current = events.reduce(applyEvent, state);
@@ -691,13 +691,21 @@ export function resolveAttackDamage(
  * damage **from the attack**" — from the attack, so a critical doubles it,
  * which is why it joins the attack's own damage rather than being dealt
  * separately.
+ *
+ * **It reads what the target is, because the spell does.** "The damage
+ * increases by 1d8 if the target is a Fiend or an Undead" is the third SRD
+ * sentence that varies an outcome by creature type, and the only one on a
+ * damage roll rather than a saving throw. A target nobody has typed is asked
+ * about rather than assumed to be neither — and asked **before** the slot, the
+ * Bonus Action and the dice, so a Paladin who has to ask pays nothing.
  */
 function castOnHit(
   state: GameState,
   id: CharacterId,
   attacker: CreatureState,
+  target: CharacterId,
   smite: { readonly spellId: string; readonly slotLevel: number },
-): Result<{ readonly events: readonly GameEvent[]; readonly damage: ExtraDamage }> {
+): Result<{ readonly events: readonly GameEvent[]; readonly damage: readonly ExtraDamage[] }> {
   const definition = definitionFor(smite.spellId);
   if (definition === null) {
     return err('no_definition', `${smite.spellId} has no executable definition`);
@@ -716,6 +724,28 @@ function castOnHit(
   const route = chooseRoute(attacker.spellcasting, smite.spellId, undefined);
   if (!route.ok) return route;
 
+  // **Before the slot and before the dice.** A creature nobody has typed is a
+  // thin record rather than one that is neither a Fiend nor an Undead, so the
+  // engine asks; taking the smaller branch quietly would be a wrong number no
+  // later assertion could see.
+  const varies = effect.againstType;
+  const victim = state.creatures[target];
+  if (varies !== undefined && victim !== undefined && victim.creatureType === null) {
+    return needsContext(
+      'needs_context',
+      `${definition.name} cannot be resolved until what kind of creature ${target} is has been established`,
+      [
+        {
+          kind: 'creature-type',
+          subject: target,
+          need: `what kind of creature ${target} is`,
+          because: `${definition.name} deals extra damage against ${varies.types.join(' or ')}`,
+          satisfyWith: `declareCreatureType(${target}, …), or a creatureType when the creature is added`,
+        },
+      ],
+    );
+  }
+
   // **`resolveCastWith`, not `resolveCast`.** This is inside
   // `resolveAttackDamage`, which settles an attack the engine is already
   // holding open and is exempt from `mayAct` for that reason — a guard here
@@ -732,13 +762,32 @@ function castOnHit(
   }, null);
   if (!cast.ok) return cast;
 
+  // A second component rather than a bigger notation: the SRD writes two
+  // sentences, so the log shows two contributions and says *why* the second
+  // one is there. Same damage type, so they meet the target's defences as one
+  // pool, and a Critical Hit doubles both.
+  const singled =
+    varies !== undefined &&
+    varies.types.some((named) => isCreatureType(victim?.creatureType, named));
+
   return ok({
     events: cast.value,
-    damage: {
-      source: definition.name,
-      type: effect.damageType,
-      dice: scaledDiceFor(effect.damage, definition.level, attacker.sheet.level, smite.slotLevel),
-    },
+    damage: [
+      {
+        source: definition.name,
+        type: effect.damageType,
+        dice: scaledDiceFor(effect.damage, definition.level, attacker.sheet.level, smite.slotLevel),
+      },
+      ...(singled
+        ? [
+            {
+              source: `${definition.name} (${victim!.creatureType})`,
+              type: effect.damageType,
+              dice: varies!.extraDice,
+            },
+          ]
+        : []),
+    ],
   });
 }
 

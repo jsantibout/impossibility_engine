@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 46 (13.6%) | 91 (26.8%) | 55 | 68 (20.1%) |
+| 339 | 46 (13.6%) | 91 (26.8%) | 52 | 69 (20.4%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -69,7 +69,7 @@ spell, and the area is the part that is missing.
 - **Befuddlement** (level 8) — untested, partial — a clause the engine owns is still unbuilt
 - **Black Tentacles** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Bless** (level 1) — verified
-- **Blight** (level 4) — verified, partial — a clause the engine owns is still unbuilt
+- **Blight** (level 4) — verified
 - **Blindness/Deafness** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Blur** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Burning Hands** (level 1) — verified
@@ -88,7 +88,7 @@ spell, and the area is the part that is missing.
 - **Disintegrate** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Dispel Magic** (level 3) — verified
 - **Dissonant Whispers** (level 1) — verified, partial — a clause the engine owns is still unbuilt
-- **Divine Smite** (level 1) — untested, partial — a clause the engine owns is still unbuilt
+- **Divine Smite** (level 1) — verified
 - **Dominate Beast** (level 4) — untested, partial — a clause the engine owns is still unbuilt
 - **Dominate Monster** (level 8) — untested, partial — a clause the engine owns is still unbuilt
 - **Dominate Person** (level 5) — untested, partial — a clause the engine owns is still unbuilt
@@ -133,7 +133,7 @@ spell, and the area is the part that is missing.
 - **Ray of Frost** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
 - **Ray of Sickness** (level 1) — verified
 - **Sacred Flame** (cantrip) — verified
-- **Shatter** (level 2) — verified, partial — a clause the engine owns is still unbuilt
+- **Shatter** (level 2) — verified
 - **Shield** (level 1) — untested, partial — a clause the engine owns is still unbuilt
 - **Shield of Faith** (level 1) — untested
 - **Shocking Grasp** (cantrip) — verified, partial — a clause the engine owns is still unbuilt

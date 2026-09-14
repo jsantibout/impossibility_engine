@@ -173,6 +173,24 @@ export interface D20TestOptions {
   readonly conditions?: ConditionState;
   /** What the check depends on, for Blinded and Deafened, and fear visibility. */
   readonly conditionContext?: CheckContext;
+  /**
+   * Why this test fails regardless of the die, when something other than a
+   * condition decided it — and the sentence a log will read.
+   *
+   * SRD Blight: "A Plant creature **automatically fails the save.**" That is
+   * the same phrase the Stunned condition writes, so it is the same mechanism:
+   * the die is thrown and recorded, because other effects can care what it
+   * showed, and {@link D20TestResult.autoFailed} overrides the total so no
+   * bonus applied afterwards rescues it.
+   *
+   * Supplied by the caller for exactly the reason `modes` and `bonuses` are:
+   * whether the target is a Plant and whether this spell singles Plants out
+   * are questions the layer above already holds the answers to, and the engine
+   * applies the rule. A condition's own automatic failure wins the *message*
+   * where both apply, because it is the one the creature is carrying; the
+   * outcome is the same either way.
+   */
+  readonly autoFail?: string;
 }
 
 export interface D20TestResult {
@@ -246,7 +264,10 @@ function resolve(
   if (!rolled.ok) return rolled;
 
   const { roll, modifier, bonuses, total } = rolled.value;
-  const autoFailed = conditionEffect.autoFail;
+  // A condition's own automatic failure first, because that is the one the
+  // creature is carrying and the one a reader will expect to see named; the
+  // outcome is identical either way, since there is nothing to combine.
+  const autoFailed = conditionEffect.autoFail ?? options.autoFail ?? null;
 
   return ok({
     kind,

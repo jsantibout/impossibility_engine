@@ -364,6 +364,78 @@ export interface OutcomeRiders {
   readonly delayed?: DelayedDamage;
 }
 
+/**
+ * What changes when the target is one of the creature types a spell singles
+ * out, on the saving throw the host is about to make.
+ *
+ * SRD writes three such sentences about a save and this carries two of them:
+ *
+ * > Blight: "A Plant creature **automatically fails** the save."
+ * > Shatter: "A Construct has **Disadvantage** on the save."
+ * > Flesh to Stone: "Constructs **automatically succeed** on the save."
+ *
+ * **It is not a rider**, and the distinction is the same one {@link
+ * OutcomeRiders} draws from the other side: a rider hangs off an outcome that
+ * has already settled, and this decides *how the roll comes out*. So it is
+ * read before the die rather than after it, and the slot sits on the host
+ * beside `ability` rather than inside the riders.
+ *
+ * **An automatic failure is `autoFailed`, which the engine already means by
+ * the phrase.** A Stunned creature's Strength save works this way: the die is
+ * thrown and recorded — other effects can care what it showed — and the total
+ * is overridden, so no bonus applied afterwards rescues it. One mechanism for
+ * one SRD phrase, rather than a second one that skips the roll and would then
+ * have to explain why Shatter's Construct still rolls.
+ *
+ * **Two outcomes, and each of the two missing ones is missing for its own
+ * reason.**
+ *
+ * An **automatic success** is a real SRD sentence and is deliberately not
+ * carried, because its only writer cannot be written down. Flesh to Stone's
+ * other clauses are a rider on the *success* branch ("its Speed is 0 until the
+ * start of your next turn"), a repeat save counted to three of a kind, and a
+ * Petrified that outlives the count — three shapes this format does not have,
+ * every one of which `CLAUDE.md` already names. So a member added for it would
+ * be one no definition could use, which is exactly what the format's own
+ * unused-member sweep exists to catch. It arrives with the spell.
+ *
+ * **Advantage** is different: nothing in the book gives a *named type*
+ * Advantage on a save at all. The spells that hand a save Advantage — Charm
+ * Person, Charm Monster, the three Dominates — key it on "if you or your
+ * allies are fighting it", which is a declared fact about the casting rather
+ * than a property of the creature, and is a task of its own.
+ */
+export interface TypedSaveOutcome {
+  /** The creature types the SRD sentence names, from {@link CREATURE_TYPES}. */
+  readonly types: readonly string[];
+  readonly outcome: 'automatic-failure' | 'disadvantage';
+}
+
+/**
+ * Extra damage dice against the creature types a spell singles out.
+ *
+ * SRD Divine Smite: "The target takes an extra 2d8 Radiant damage from the
+ * attack. **The damage increases by 1d8 if the target is a Fiend or an
+ * Undead.**"
+ *
+ * **A bare notation rather than a {@link DiceScaling}**, because the extra die
+ * does not scale with anything: the *base* grows per slot level and this
+ * sentence does not, and a `perSlotLevelAbove` here would be a field no SRD
+ * spell writes. One consumer, transcribed from one sentence, in the tradition
+ * of `onMiss` and `healsCasterForHalf`.
+ *
+ * The type is the host's. "An extra 2d8 **Radiant** damage ... the damage
+ * increases by 1d8" is one pool of damage of one type, so the extra meets the
+ * target's Radiant defences exactly as the base does, and a Critical Hit
+ * doubles both.
+ */
+export interface TypedExtraDamage {
+  /** The creature types the SRD sentence names, from {@link CREATURE_TYPES}. */
+  readonly types: readonly string[];
+  /** SRD Divine Smite's "1d8". */
+  readonly extraDice: string;
+}
+
 export type SpellEffect =
   /**
    * A spell attack roll; damage on a hit.
@@ -435,6 +507,15 @@ export type SpellEffect =
       readonly damage: DiceScaling;
       readonly damageType: string;
       readonly onSuccess: 'half' | 'none';
+      /**
+       * What a named creature type changes about this save: see
+       * {@link TypedSaveOutcome}.
+       *
+       * Two consumers, and they are the two shapes the SRD prints — Blight's
+       * automatic failure and Shatter's Disadvantage. Absent is every other
+       * saving throw in the book.
+       */
+      readonly againstType?: TypedSaveOutcome;
       /**
        * Further damage of other types, under the **same** saving throw.
        *
@@ -547,6 +628,15 @@ export type SpellEffect =
       readonly kind: 'attack-damage';
       readonly damage: DiceScaling;
       readonly damageType: string;
+      /**
+       * Extra dice against a named creature type: see
+       * {@link TypedExtraDamage}.
+       *
+       * The one host that varies its **damage** by the target's type rather
+       * than its roll, because `attack-damage` is the one kind that rolls no
+       * d20 of its own — the attack it joins has already hit.
+       */
+      readonly againstType?: TypedExtraDamage;
     }
   /**
    * A condition the spell simply imposes, with **no saving throw**.
@@ -1016,6 +1106,58 @@ export interface CastingOrigin {
    */
   readonly movableBy?: number;
 }
+
+/**
+ * The game's creature types, as SRD 5.2.1's glossary prints them.
+ *
+ * > "Every creature, including every player character, has a tag in the rules
+ * > that identifies the type of creature it is. ... The types don't have rules
+ * > themselves, but **some rules in the game affect creatures of certain types
+ * > in different ways.**"
+ *
+ * A closed list because the SRD closes it, and it is what the validator holds
+ * a definition against: a clause naming `Goblinoid` is naming a **subtype
+ * tag**, which is a different thing and has no rules of its own.
+ */
+export const CREATURE_TYPES: readonly string[] = [
+  'Aberration',
+  'Beast',
+  'Celestial',
+  'Construct',
+  'Dragon',
+  'Elemental',
+  'Fey',
+  'Fiend',
+  'Giant',
+  'Humanoid',
+  'Monstrosity',
+  'Ooze',
+  'Plant',
+  'Undead',
+];
+
+/**
+ * Whether a creature's declared type is the one a rule names.
+ *
+ * **The type, never a substring of it.** SRD 5.2.1 prints a Goblin Warrior as
+ * "Small **Fey** (Goblinoid)": the type changed in 2024 and Goblinoid is a
+ * subtype tag riding beside it, so a rule naming Humanoid must not reach a
+ * goblin and a rule naming Goblinoid must not reach anything at all. Matching
+ * by containment gets both of those wrong in opposite directions, and
+ * `CLAUDE.md` records that every 2014 instinct about who is a Humanoid is
+ * worth re-reading.
+ *
+ * Case-insensitive, because the fact arrives from three places — a species, a
+ * stat block, a `creature-type-declared` — and only the last is a caller's
+ * free-typed string.
+ *
+ * **Null is not a match, and it is not a refusal either.** A creature nobody
+ * has typed is a thin record: the caller asks whoever knows and tries again,
+ * which is why every reader of this checks for the absence *before* asking the
+ * question rather than reading `false` as "no".
+ */
+export const isCreatureType = (declared: string | null | undefined, named: string): boolean =>
+  declared !== null && declared !== undefined && declared.toLowerCase() === named.toLowerCase();
 
 /** Who a spell may be aimed at, and how many. */
 export interface TargetRule {
@@ -1567,6 +1709,29 @@ export function modifierRidersOf(effect: SpellEffect): readonly ModifierRider[] 
     case 'save-damage':
     case 'save':
       return effect.modifiers ?? [];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Whether resolving this effect has to know what the target **is**.
+ *
+ * The sibling of {@link modifierRidersOf}, asked of the other axis: two hosts
+ * carry an `againstType` clause and the payloads differ, but both name the
+ * types, so one question answers both and a third host is one case here.
+ *
+ * It exists so the *request* can be raised before anything is spent. A
+ * creature nobody has typed is a thin record, and the whole three-valued
+ * discipline turns on the difference between asking and quietly taking the
+ * default branch — which is what an effect-by-effect check inside the
+ * resolution would have had to do, with the slot already gone.
+ */
+export function creatureTypesRead(effect: SpellEffect): readonly string[] {
+  switch (effect.kind) {
+    case 'save-damage':
+    case 'attack-damage':
+      return effect.againstType?.types ?? [];
     default:
       return [];
   }
@@ -2571,7 +2736,7 @@ export const ACID_SPLASH: SpellDefinition = {
 /**
  * SRD Blight:
  *
- * > _Level 4 Necromancy (Druid, Warlock, Wizard)._ **Casting Time:** Action.
+ * > _Level 4 Necromancy (Druid, Sorcerer, Warlock, Wizard)._ **Casting Time:** Action.
  * > **Range:** 30 feet. **Duration:** Instantaneous.
  * > "A creature that you can see within range makes a Constitution saving
  * > throw, taking 8d8 Necrotic damage on a failed save or half as much damage
@@ -2596,12 +2761,13 @@ export const BLIGHT: SpellDefinition = {
       damage: { dice: '8d8', perSlotLevelAbove: '1d8' },
       damageType: 'necrotic',
       onSuccess: 'half',
+      // SRD: "A Plant creature automatically fails the save." The die is still
+      // thrown and recorded; `autoFailed` overrides the total, exactly as a
+      // Stunned creature's Strength save does.
+      againstType: { types: ['Plant'], outcome: 'automatic-failure' },
     },
   ],
-  unmodelled: [
-    'a Plant creature automatically fails the save',
-    'the alternative target, a nonmagical plant that is not a creature',
-  ],
+  unmodelled: ['the alternative target, a nonmagical plant that is not a creature'],
 };
 
 /**
@@ -2711,7 +2877,7 @@ export const HARM: SpellDefinition = {
 /**
  * SRD Shatter:
  *
- * > _Level 2 Evocation (Bard, Sorcerer, Warlock, Wizard)._ **Casting Time:**
+ * > _Level 2 Evocation (Bard, Sorcerer, Wizard)._ **Casting Time:**
  * > Action. **Range:** 60 feet. **Duration:** Instantaneous.
  * > "Each creature in a 10-foot-radius Sphere centered there makes a
  * > Constitution saving throw, taking 3d8 Thunder damage on a failed save or
@@ -2737,9 +2903,12 @@ export const SHATTER: SpellDefinition = {
       damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
       damageType: 'thunder',
       onSuccess: 'half',
+      // SRD: "A Construct has Disadvantage on the save." Presence, not
+      // arithmetic — it goes in as a `ModeSource` and cancels against an
+      // Advantage from anywhere else rather than outweighing it.
+      againstType: { types: ['Construct'], outcome: 'disadvantage' },
     },
   ],
-  unmodelled: ['a Construct has Disadvantage on the save'],
 };
 
 /**
@@ -5958,7 +6127,7 @@ export const WORD_OF_RECALL: SpellDefinition = {
 /**
  * SRD Divine Smite:
  *
- * > _Level 1 Evocation._ **Casting Time:** Bonus Action, which you take
+ * > _Level 1 Evocation (Paladin)._ **Casting Time:** Bonus Action, which you take
  * > immediately after hitting a target with a Melee weapon or an Unarmed
  * > Strike. **Range:** Self. **Duration:** Instantaneous.
  * > "The target takes an extra 2d8 Radiant damage from the attack. The damage
@@ -5983,10 +6152,11 @@ export const DIVINE_SMITE: SpellDefinition = {
       kind: 'attack-damage',
       damage: { dice: '2d8', perSlotLevelAbove: '1d8' },
       damageType: 'radiant',
+      // SRD: "The damage increases by 1d8 if the target is a Fiend or an
+      // Undead." A flat die rather than a scaling one — the *base* grows per
+      // slot level and this sentence does not.
+      againstType: { types: ['Fiend', 'Undead'], extraDice: '1d8' },
     },
-  ],
-  unmodelled: [
-    'the extra 1d8 against a Fiend or an Undead is not applied: the damage is added before the target is looked at, and nothing yet varies a spell’s damage by the creature type it lands on',
   ],
 };
 
