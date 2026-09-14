@@ -5842,6 +5842,71 @@ names facts a test holds rather than an opinion. A reason must also *say*
 something — the sweep refuses a bare or placeholder entry, the move
 `spell-honesty.test.ts` already makes for an adjudication.
 
+### A code a caller can receive, and a code that never arrives
+
+The sweep asks whether a code is *asserted*; it cannot ask whether a caller can
+**reach** it. IE-018 found and correctly reported seven that were unreachable,
+shadowed or rewritten, because a refusal code is observable behaviour and a
+caller may branch on one. The four outside the casting path are settled here,
+and the four answers are deliberately not the same answer.
+
+**A refusal from the turn economy is passed through under its own code.**
+`resolveMove` asked `spendMovement` for the feet and then **rewrote whatever
+came back** unless it was already about movement, and `spendMounting` copied
+that verbatim. Exactly one other refusal is reachable at either site —
+`not_their_turn`, because SRD gives a creature its movement on its own turn and
+nowhere else — so **mounting, dismounting or moving out of turn reported
+`not_enough_movement` under a reason that said "it is not b's turn".** The code
+and the reason were two different answers to one question, which is precisely
+what a refusal being a value exists to prevent. Both rewrites are gone. They
+also compared against `no_movement`, a code **no site in the engine returns**:
+it lived only in those two comparisons, which is how a dead branch hides inside
+a live one.
+
+**A blank pool key is a value now rather than a thrown corrupt log.**
+`declarePool` has refused one since pools landed, and `declareResourcePool`
+asked only whether the creature already *had* the key — which an empty string
+never is — so the event went out and the fold threw. A corrupt log is the
+backstop for a log claiming something happened, not the answer to a caller's
+bad argument; the command already mirrored `bad_max` for that reason and now
+mirrors both.
+
+**A second site of a rule its own first site settled is deleted, not
+exempted.** `endRest` validates every Hit Die key before rolling any, and the
+rolling loop below it looked each one up again and carried a `bad_hit_die` that
+could not fire. The validated sizes are carried forward instead. Two sites for
+one rule is two places to get it wrong, and the dead one is the one nobody
+would notice changing.
+
+**And two are exempted, because the rule above each is genuinely stricter.**
+`dash`'s `not_a_combatant` and `rollAttackDamage`'s `no_damage` are both
+reachable — each is a function `index.ts` re-exports — and neither can be
+reached through a **command**. Reordering a guard to make the narrower code
+arrive would be a worse answer rather than a fix, so the exemption is the honest
+one, written in the shape `nothing_to_interrupt` already uses: **facts a test
+holds, not an opinion.**
+
+| | The stricter rule above it | The fact that keeps it unreachable |
+|---|---|---|
+| `not_a_combatant` | `spendAction` answers `unknown_combatant` first — a `needs-context` naming a fact to go and get, which is the *better* answer | `order` and `budgets` are kept in exact step by every operation that changes either, so nothing that gets past `spendAction` is outside the order |
+| `no_damage` | a command names its weapon by catalogue id and refuses `unknown_item` for anything else | no weapon the SRD prints lacks both its dice and its flat amount — the Blowgun has only the second |
+
+Both rows are **swept rather than described**. The budgets-and-order agreement
+is asserted when the fight begins, after a turn and after a removal, and a
+mutation that stops `removeCombatant` deleting the budget fails it. The weapon
+sweep reads `WEAPONS` and holds it against `itemFor`, so the day a row arrives
+in the catalogue without damage is the day that exemption falls.
+
+**`dash`'s guard is the type system's, not a rule's**, which is why deleting it
+was never the option: `.find()` returns `T | undefined`, and the printed Speed a
+Dash doubles lives on the Initiative order rather than on the budget beside it.
+
+**One site of this shape is still open and is named rather than fixed.**
+`bad_partial_recovery` is `bad_key`'s twin — `declarePool` refuses a
+non-positive `regainsOnShortRest` and `declareResourcePool` does not ask, so it
+too reaches the reducer and throws. It was not in IE-018's report and is not
+fixed here; it is the next one.
+
 ### `once` makes "the duplicate check comes first" structural
 
 This file records **eight** occasions on which a guard was written above the

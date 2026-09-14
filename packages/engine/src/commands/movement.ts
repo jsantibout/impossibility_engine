@@ -202,12 +202,16 @@ export function moveWithin(
       state.combat.budgets[id] !== undefined &&
       command.forced !== true
     ) {
+      // **The economy's refusal is passed through under its own code.** This
+      // rewrote everything that was not already about movement, and the one
+      // other refusal reachable here is `not_their_turn` — SRD gives a
+      // creature its movement on its own turn and nowhere else — so a move
+      // taken out of turn reported `not_enough_movement` with a reason that
+      // said "it is not b's turn". A caller branching on the code and a DM
+      // reading the reason were given two different answers to one question,
+      // which is exactly what a refusal being a value is meant to prevent.
       const spent = spendMovement(state.combat, id, cost, mover.conditions);
-      if (!spent.ok) {
-        return spent.code === 'not_enough_movement' || spent.code === 'no_movement'
-          ? spent
-          : err('not_enough_movement', spent.reason);
-      }
+      if (!spent.ok) return spent;
       events.push({ type: 'movement-spent', id, feet: cost });
     }
 
@@ -487,12 +491,11 @@ function spendMounting(state: GameState, rider: CharacterId): Result<readonly Ga
   if (combatant === undefined) return ok([]);
 
   const feet = mountingCost(combatant.speed);
+  // The economy's refusal is passed through under its own code, for the reason
+  // `resolveMove` records above — this rewrite was copied from there, and the
+  // rider climbing up out of turn is the case it got wrong.
   const spent = spendMovement(state.combat, rider, feet, creatureOf(state, rider)?.conditions);
-  if (!spent.ok) {
-    return spent.code === 'not_enough_movement' || spent.code === 'no_movement'
-      ? spent
-      : err('not_enough_movement', spent.reason);
-  }
+  if (!spent.ok) return spent;
 
   return ok([{ type: 'movement-spent', id: rider, feet }]);
 }

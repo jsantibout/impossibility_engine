@@ -25,6 +25,13 @@ export function declareResourcePool(
 ): Result<GameEvent[]> {
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id);
+  // A pool is found by its key, so a blank one is a pool nothing can ever
+  // spend from or refill. `declarePool` has always refused it — and this
+  // command asked only whether the creature already *had* the key, which an
+  // empty string never is, so the event went out and the fold threw a corrupt
+  // log. That throw is the backstop for a log claiming something happened, not
+  // the answer to a caller's bad argument: rules-legal refusals are values.
+  if (pool.key.trim() === '') return err('bad_key', 'a pool needs a key');
   if (hasPool(creature.resources, pool.key)) {
     return err('duplicate_pool', `${id} already has a ${pool.key} pool`);
   }

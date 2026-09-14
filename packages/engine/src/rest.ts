@@ -227,6 +227,16 @@ export function endRest(
   const requested = options.hitDice ?? [];
   const events: GameEvent[] = [];
   const spent: HitDieSpent[] = [];
+  /**
+   * The requested dice, with the size the validation pass read off each key.
+   *
+   * Carried forward rather than looked up again in the rolling loop below,
+   * where a second `hitDieSides` could only ever answer what this one already
+   * has — so its refusal was a `bad_hit_die` nothing could reach, spelled
+   * identically to the live one. Two sites for one rule is two places to get
+   * it wrong, and the dead one is the one nobody would notice changing.
+   */
+  const dice: { readonly key: string; readonly sides: number }[] = [];
 
   // SRD: spending Hit Point Dice is a benefit of a Short Rest. A completed
   // Long Rest restores hit points and Hit Dice outright, so spending them
@@ -248,7 +258,9 @@ export function endRest(
     // left must cost neither a die nor a turn of the generator.
     const needed = new Map<string, number>();
     for (const key of requested) {
-      if (hitDieSides(key) === null) return err('bad_hit_die', `${key} is not a Hit Die pool`);
+      const sides = hitDieSides(key);
+      if (sides === null) return err('bad_hit_die', `${key} is not a Hit Die pool`);
+      dice.push({ key, sides });
       needed.set(key, (needed.get(key) ?? 0) + 1);
     }
     for (const [key, count] of needed) {
@@ -271,10 +283,7 @@ export function endRest(
         const issuedBefore = supply.issuer.count;
         let regained = 0;
 
-        for (const key of requested) {
-          const sides = hitDieSides(key);
-          if (sides === null) return err('bad_hit_die', `${key} is not a Hit Die pool`);
-
+        for (const { key, sides } of dice) {
           const rolled = rollRecorded(supply.issuer, supply.rng, `1d${sides}`);
           if (!rolled.ok) return rolled;
 

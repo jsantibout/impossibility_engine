@@ -6,8 +6,9 @@ import {
   expect as unwrap,
   type Result,
 } from '@ie/shared';
-import type { Weapon } from '@ie/srd';
+import { WEAPONS, type Weapon } from '@ie/srd';
 import type { CharacterSheet } from './character.js';
+import { itemFor } from './catalogue.js';
 import { createRng, parseNotation, rerollDice, roll, type Rng } from './dice.js';
 import { createRollIssuer, recordExternalD20, recordExternalDamage } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -22,17 +23,21 @@ import {
   damageCreature,
   declareCreatureDead,
   declareResourcePool,
+  dismountRider,
   equipItem,
   grantTemporaryHpTo,
   healCreature,
+  mountCreature,
   placeCreatureInScene,
   releaseReady,
   removeCreatureEverywhere,
   resolveAttack,
   resolveAttackDamage,
+  resolveMove,
   resolveSpell,
   resolveTurn,
   settleTest,
+  takeDash,
   takeReady,
   takeTestReaction,
   declineTestReaction,
@@ -566,25 +571,103 @@ describe('a fight keeps at least one combatant', () => {
   });
 });
 
+/**
+ * `not_a_combatant` is reachable only at `dash` itself, and that is exempted.
+ *
+ * Dash doubles the Speed the Initiative order is holding, so a creature who is
+ * not in it has no Speed for the rule to act on — and `dash` is a public
+ * function `index.ts` re-exports, so a caller holding a `CombatState` really
+ * can be told this. What no caller can reach is the code **through
+ * `takeDash`**, and the exemption names the two facts that make that so, each
+ * asserted below rather than asserted about:
+ *
+ * 1. `spendAction` runs first and answers `unknown_combatant` — a **stricter**
+ *    rule, and a better one, because it is a `needs-context` naming a fact to
+ *    go and get rather than a verdict. Reordering to reach the narrower code
+ *    would be a worse answer, not a fix.
+ * 2. `order` and `budgets` are kept in exact step by every operation that
+ *    changes either, so a creature that gets past `spendAction` is always in
+ *    the order. The guard below it is the type system's, not a rule's:
+ *    `.find()` returns `T | undefined` and the printed Speed lives on the
+ *    order rather than on the budget.
+ *
+ * The honest answer here is therefore the exemption rather than a reachability
+ * fix — "if a site is unreachable because the rule above it is stricter, the
+ * exemption must name the stricter rule."
+ */
 describe('an action is taken by somebody in the fight', () => {
-  /**
-   * Dash doubles the Speed the Initiative order is holding, so a creature who
-   * is not in it has no Speed for the rule to act on.
-   */
   it('refuses a Dash by a creature who is not in this fight', () => {
     const combat = world().combat!;
     expect(refusal(dash(combat, id('c')))).toBe('not_a_combatant');
   });
+
+  /**
+   * Fact 1: the command above it asks for the fact instead, twice over — a
+   * creature nobody has mentioned is `unknown_creature`, and one in the game
+   * but out of the fight is `unknown_combatant`, which is `spendAction`'s own
+   * answer and the one that stands in front of `dash`'s guard.
+   */
+  it('and the command above it asks who that creature is, rather than refusing', () => {
+    expect(refusal(takeDash(world(), id('nobody'), {}))).toBe('unknown_creature');
+    expect(refusal(takeDash(world([added('c', 'party')]), id('c'), {}))).toBe('unknown_combatant');
+  });
+
+  /**
+   * Fact 2: nothing puts a budget on a creature the order does not hold. There
+   * is no `addCombatant`, so the order is set by `combat-started` and only ever
+   * shrinks; the two are built together and deleted together.
+   */
+  it('and no operation leaves a budget for somebody the order does not hold', () => {
+    const agree = (state: GameState): void => {
+      const combat = state.combat;
+      if (combat === null) return;
+      expect(Object.keys(combat.budgets).sort()).toEqual(
+        combat.order.map((c) => c.id as string).sort(),
+      );
+    };
+
+    const start = world();
+    agree(start);
+    agree(fold('seed', [...SETUP, ...unwrap(resolveTurn(start, supply()), 'turn').events]));
+    agree(fold('seed', [...SETUP, ...unwrap(removeCreatureEverywhere(start, B, {}), 'remove')]));
+  });
 });
 
+/**
+ * `no_damage` is reachable at `rollAttackDamage` and nowhere above it, and
+ * that is exempted rather than fixed.
+ *
+ * Every weapon the SRD prints has damage dice or a flat amount — the Blowgun
+ * is the one with only the second — and a weapon with neither is a homebrew
+ * row the public damage function will be handed sooner or later. Dealing 0
+ * would be the engine inventing a number for a weapon whose damage nobody
+ * stated, so the refusal has to stay; and it cannot be made reachable through
+ * `resolveAttack` without giving the engine a way to be handed a weapon that
+ * is not in the book, which is a mechanism rather than a hygiene fix.
+ *
+ * Two facts make it unreachable from a command, and both are asserted below
+ * rather than asserted about, so the exemption falls the day either stops
+ * being true.
+ */
 describe('a weapon that deals no damage is refused rather than dealing none', () => {
+  /** Fact 1: no weapon the catalogue lists is missing its damage. */
+  it('finds no SRD weapon with neither dice nor a flat amount', () => {
+    const silent = WEAPONS.filter((w) => w.damage.dice === null && w.damage.fixed === null);
+    expect(silent.map((w) => w.id)).toEqual([]);
+    // …and the catalogue a command resolves against is exactly those weapons,
+    // so the sweep above is a sweep of what a command can actually reach.
+    expect(WEAPONS.filter((w) => itemFor(w.id)?.weapon !== w).map((w) => w.id)).toEqual([]);
+  });
+
   /**
-   * Every weapon the SRD prints has damage dice or a flat amount — the Blowgun
-   * is the one with only the second. A weapon with neither is a homebrew row
-   * the public damage function will be handed sooner or later, and the honest
-   * answer is a refusal: dealing 0 would be the engine inventing a number for
-   * a weapon whose damage nobody stated.
+   * Fact 2: a command names its weapon by catalogue id and gets a refusal for
+   * anything that is not one, so a caller cannot introduce a third case.
    */
+  it('and an attack naming a weapon the book does not list is refused as unknown', () => {
+    const out = resolveAttack(world(), A, { weapon: 'feather', target: B }, supply());
+    expect(refusal(out)).toBe('unknown_item');
+  });
+
   it('refuses to roll damage for a weapon with neither dice nor a flat amount', () => {
     const nothing = {
       id: 'feather',
@@ -873,5 +956,151 @@ describe('a route that supplies no slot cannot be paid for with one', () => {
       supply(),
     );
     expect(refusal(out)).toBe('slot_not_allowed');
+  });
+});
+
+/**
+ * A refusal from the turn economy arrives under its own code.
+ *
+ * `resolveMove` and `spendMounting` both asked `spendMovement` for the feet
+ * and then **rewrote whatever came back** unless it was already about
+ * movement. Two codes were passed through and everything else — in practice
+ * `not_their_turn`, since SRD gives a creature its movement on its own turn
+ * and nowhere else — came back as `not_enough_movement` carrying a reason
+ * that said "it is not b's turn". A caller branching on the code and a DM
+ * reading the reason were handed two different answers to one question, which
+ * is the whole of what a refusal-as-a-value is for.
+ *
+ * It is A's turn in `world()`, and B is the one acting in each case below.
+ */
+describe('a refusal from the turn economy keeps its own code', () => {
+  const M = id('m');
+
+  /** A Large mount standing beside B, who is in the fight and is not up. */
+  const stable = (extra: readonly GameEvent[] = []): GameState =>
+    world([
+      added('m', 'foes'),
+      {
+        type: 'creature-placed',
+        id: M,
+        placement: { from: { creature: B }, feet: 5, bearing: 90, size: 'large' },
+      },
+      ...extra,
+    ]);
+
+  it('says whose turn it is not when a rider climbs up out of turn', () => {
+    expect(refusal(mountCreature(stable(), B, M, { willing: true }))).toBe('not_their_turn');
+  });
+
+  it('and says the same when they try to get down again', () => {
+    const riding = stable([{ type: 'mounted', rider: B, mount: M, willing: true }]);
+    const out = dismountRider(riding, B, { from: { landmark: 'here' }, feet: 10, bearing: 180 });
+    expect(refusal(out)).toBe('not_their_turn');
+  });
+
+  /** The same rewrite, at the site `spendMounting` copied it from. */
+  it('says whose turn it is not when the move is somebody else’s', () => {
+    const out = resolveMove(
+      world(),
+      B,
+      { placement: { from: { landmark: 'here' }, feet: 10, bearing: 180 } },
+      supply(),
+    );
+    expect(refusal(out)).toBe('not_their_turn');
+  });
+
+  /**
+   * And the code the rewrite stood in for is still the answer where it is the
+   * true one: A is up, and has spent every foot of the 30 they had.
+   */
+  it('still reports the movement allowance when that is what ran out', () => {
+    const out = resolveMove(
+      world([{ type: 'movement-spent', id: A, feet: 30 }]),
+      A,
+      { placement: { from: { landmark: 'here' }, feet: 10, bearing: 180 } },
+      supply(),
+    );
+    expect(refusal(out)).toBe('not_enough_movement');
+  });
+
+  it('and mounting reports it too, when the rider cannot afford the half-Speed', () => {
+    const out = mountCreature(
+      world([
+        added('m', 'foes'),
+        {
+          type: 'creature-placed',
+          id: M,
+          placement: { from: { creature: A }, feet: 5, bearing: 90, size: 'large' },
+        },
+        { type: 'movement-spent', id: A, feet: 30 },
+      ]),
+      A,
+      M,
+      { willing: true },
+    );
+    expect(refusal(out)).toBe('not_enough_movement');
+  });
+});
+
+describe('a pool needs a key, and the command is what says so', () => {
+  /**
+   * A pool is looked up by its key — `spell-slot:3`, `hit-die:d8` — so a blank
+   * one is a pool nothing can ever spend from or refill. "Declared, never
+   * derived" means the declaration has to say which pool it is declaring.
+   *
+   * `declareResourcePool` did not ask: it checked whether the creature already
+   * *had* the key, which an empty string never is, and emitted the event — so
+   * a blank key arrived at the reducer, where `declarePool` refused and the
+   * fold threw a corrupt log. **A corrupt log is the backstop for a log that
+   * claims something happened, not the answer to a caller's bad argument**, and
+   * rules-legal refusals are values. The command mirrors the declaration's own
+   * two checks, exactly as it already mirrored `bad_max`.
+   */
+  it('refuses a blank key through the command, rather than throwing at the fold', () => {
+    const out = declareResourcePool(world(), A, {
+      key: '   ',
+      label: 'a nameless reserve',
+      max: 3,
+      recovers: 'long-rest',
+    });
+    expect(refusal(out)).toBe('bad_key');
+  });
+
+  /** And the declaration beneath it still answers the same way. */
+  it('and the declaration beneath it says the same', () => {
+    const out = declarePool(resourceState(), {
+      key: '   ',
+      label: 'a nameless reserve',
+      max: 3,
+      recovers: 'long-rest',
+    });
+    expect(refusal(out)).toBe('bad_key');
+  });
+});
+
+describe('every Hit Die in a request is checked before any of them is rolled', () => {
+  /**
+   * "Spending them validates every die before rolling any, so asking for more
+   * than are left costs neither a die nor a turn of the generator." A key
+   * naming no die is the other half of that sentence, and the validation pass
+   * covers the whole request — which is why the rolling loop below it had a
+   * second `bad_hit_die` that nothing could reach. The validated sizes are
+   * carried forward instead, so there is one check rather than a live one and
+   * a dead one spelled alike.
+   *
+   * The bad key stands **second**, so a pass that stopped at the first entry
+   * would have rolled a die before meeting it.
+   */
+  it('refuses a bad key standing among good ones, with the generator unmoved', () => {
+    const resting = unwrap(beginRest(world(), A, 'short', 'begin'), 'begin');
+    const rested = fold('seed', [
+      ...SETUP,
+      ...resting,
+      { type: 'time-advanced', seconds: 60 * 60, reason: 'a breather' },
+    ]);
+    const rolls = supply();
+    const out = endRest(rested, A, { hitDice: ['hit-die:d8', 'test:vigour'] }, rolls);
+    expect(refusal(out)).toBe('bad_hit_die');
+    expect(rolls.issuer.count).toBe(0);
   });
 });
