@@ -1,6 +1,6 @@
 # IE-024 — The validator judges untyped input instead of throwing on it
 
-state: ARCHITECTURE_BLOCKED
+state: IMPLEMENTING
 lane: conformance
 tranche: 5
 parallel-safe: CONDITIONAL — owns `spell-schema.ts`; every later union task adds a rule to that file, so it lands first and alone
@@ -121,3 +121,69 @@ reported for the input that used to reach it legitimately.
 ## Architecture decision
 
 ## Merge record
+
+## Architecture decision
+
+**YELLOW, escalated by the builder at the three-round cap and by the foreman to
+Fable. Answered: option (a).** Recorded here as the decision the rework rests
+on; the rework itself follows below when it lands.
+
+> **Question.** Where does the guard for entries of the two nested effect lists
+> live — the shape phase, the semantic phase, or a helper shared by both — and
+> is `null` absent or malformed?
+
+**Decision.** `checkShape` walks **every** effect list a definition carries
+through **one enumeration** — `effects`, `areaTrigger.effects`,
+`activation.effects` — applying the existing per-entry rules (`not_an_effect`,
+`unknown_effect`, `checkNoNestedEffect`) to each. It walks a nested list only
+when the parent is a non-array object and its `effects` is an array; otherwise
+it says nothing and the semantic pass reports the container as it already does.
+**No entry guard in `checkEffect`, `grantCarried` or the two call sites, and no
+`malformed_field` per entry.** One rule for `??`: `undefined` is absent; any
+other value, `null` included, is read against the declared type and reported
+`malformed_field` — so `unmodelled: null` follows the rider slots rather than
+the other way round.
+
+**Because.** `checkShape`'s own contract is "enough of the shape that the
+semantic rules can read it without throwing", and the semantic rules read three
+lists through one `checkEffect` — which has **no `default` arm** — so the
+guarantee belongs where the sentence is already written, once. The file's own
+rule, "two codes for one defect would be the second place to get one sentence
+wrong", rules out (b). **(c) reports the same defect in a different phase
+depending on which list it sits in** — the same failure by phase rather than by
+code — and `checkNoNestedEffect` would still reach one list of three unless
+duplicated too. `null` is a member of none of the declared types, and the
+catalogue carries none anywhere, so nothing anybody depends on changes.
+
+**The phase change is not a change.** `effects: [null]` already returns shape
+problems only and masks the semantic ones; that has been the two-phase contract
+since the validator was written. Extending it to the nested lists makes the
+contract uniform, and neither caller cares — `parseSpellDefinition` returns the
+first problem regardless, and `checkSpellDefinitionValue`'s "everything"
+already means "everything in the phase that failed".
+
+**Inside the approved brief: YES**, and this is the important procedural half.
+The brief's out-of-scope line names the denylist's *contents*, and no rule is
+added — two existing rules simply reach the lists `CLAUDE.md` already says they
+cover. **Recorded as a clarification rather than a deviation**, in one sentence
+the five later tasks on this file need: *entry-level guards for every effect
+list are `checkShape`'s; `checkEffect` assumes a known kind.*
+
+**The finding that came with the answer, and it is worth more than the
+decision.** The **rider-is-a-leaf denylist has the same hole**:
+`checkNoNestedEffect` is entered only from the top-level walk, so a nested-list
+entry carrying `effects`, `targets` or `area`, or an effect `kind` below a
+rider, **validates clean today**. `CLAUDE.md` says "three places enforce that a
+rider is a leaf" and names the validator as one — the validator enforces it on
+**one list of three**. The test sweep in `spell-schema.test.ts` walks all three,
+which is why the catalogue is clean and why nobody noticed. Option (a) closes it
+for free, and the `CLAUDE.md` sentence is corrected with the change.
+
+**Debt accepted: none new.** One pre-existing asymmetry stays and is written
+down rather than fixed: a top-level `effects` that is not a list is
+`missing_field` (phase 1) while a nested `effects` that is not a list is
+`malformed_field` (phase 2) — different codes for one shape of defect. It is a
+code change and belongs to its own task, and Fable is explicit that it must not
+be discovered by IE-030.
+
+Fable's confidence: **high**. Blast radius: `spell-schema.ts` only.

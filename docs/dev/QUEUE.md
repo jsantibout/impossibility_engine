@@ -556,17 +556,31 @@ satisfied** — with no gate between waves and nothing else.
 `71bf406`, **6767 tests across 105 files**, both frozen logs untouched,
 `COVERAGE.md` byte-clean, pushed after every merge.
 
-**IE-024 is `ARCHITECTURE_BLOCKED` — the tranche's first YELLOW, and not the
-one that was predicted.** Its builder stopped at the three-round cap and I
-agree it is not mine: entries of the two *nested* effect lists
-(`areaTrigger.effects`, `activation.effects`) both **throw** on `[null]` and
-are **accepted** holding nonsense, and every fix turns on `parseSpellDefinition`'s
-two-phase short-circuit — a contract the brief explicitly fenced off, in a file
-five later tasks each add a rule to. Three rounds each found the same class one
-level further out (the branch table, then fields inside an effect, now entries
-inside a nested list), which is what says the remaining fix is structural
-rather than a fourth pass of spot-guards. With Fable, with the evidence
-gathered and the three options named.
+**IE-024's YELLOW is answered and it is building again.** Fable chose
+**option (a)**: `checkShape` walks every effect list through one enumeration,
+applying the per-entry rules the file already has, and no entry guard goes into
+`checkEffect` or the call sites. The reasoning is the repository's own — the
+semantic rules read three lists through one `checkEffect` with no `default`
+arm, so the guarantee belongs where `checkShape`'s docstring already claims it,
+once; and the builder's own preferred option would have made **which phase
+reports a null effect depend on which list it sits in**, which is one defect
+with two answers. The `??` question is settled as one rule: `undefined` is
+absent, anything else including `null` is `malformed_field`.
+
+**It is a clarification, not a deviation** — the brief's out-of-scope names the
+denylist's *contents*, and no rule is added. The sentence recorded for the five
+later tasks on that file: *entry-level guards for every effect list are
+`checkShape`'s; `checkEffect` assumes a known kind.*
+
+**And the escalation found a live hole nobody was looking for.** The
+**rider-is-a-leaf denylist reaches one list of three**: `checkNoNestedEffect`
+is entered only from the top-level walk, so a nested-list entry carrying
+`effects`, `targets` or `area` validates clean today. `CLAUDE.md` claims
+"three places enforce that a rider is a leaf" and names the validator as one
+— it is two places plus a test. The catalogue is clean because the *test* sweep
+walks all three, which is exactly why nobody noticed. Option (a) closes it for
+free. **This is the argument for escalating rather than deciding locally**: the
+foreman would have picked (c), which does not close it.
 
 **IE-026's confirming review returned `DEFECTS` a third time, and the foreman
 did *not* stop at Gate 3 as it had said it would.** The finding is worth more
@@ -748,3 +762,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | merge (tranche authority) | IE-027 | merged `71bf406`, 13/13, risk gate **lightweight** — the digest declared no deviation, no special case and one primitive that is the brief's own subject, and two parties had mechanically verified the byte-identity claim. `resolveEffects` 1,008 → 214 lines, thirteen resolvers, zero behaviour change, zero new tests, zero test files edited. Three surviving mutations reported as findings, not fixed — a behaviour-preserving move must not carry a fix |
 | 2026-09-14 | YELLOW → Fable | IE-024 | `ARCHITECTURE_BLOCKED` at the three-round cap, and the foreman agrees rather than overriding. The question: how to guard entries of the two nested effect lists when `checkShape` short-circuits, in a file five later tasks each add a rule to. The builder's three options and the evidence were gathered by the foreman and handed over; the answer will be recorded as an approved deviation if it changes what the brief asked for. **Not the YELLOW the tranche predicted** — IE-034's is still ahead |
 | 2026-09-14 | `CHANGES_REQUIRED`, sixth pass | IE-026 | the confirming review defected a third time on the *same* false claim, in a third place, plus an off-by-one — both in one docstring, both contradicted by correct statements 100 lines above them. The foreman had said it would stop at Gate 3 and **did not**, on the procedure's own "whichever is honest": there is no judgement here for an owner, only two sentences the reviewer has already rewritten. Bounded to those two clauses; the review that follows asks only whether they are fixed and whether a new claim arrived. **The implementation was confirmed by re-derivation** — 18 offenders on `main` against 1 on HEAD, 28 literals against 28 sites, 91 barrel names with three nested pairs |
+| 2026-09-14 | YELLOW answered | IE-024 | Fable: **option (a)**, high confidence — one enumeration in `checkShape` over all three effect lists, no entry guard in the semantic pass, and one `??` rule (`undefined` absent, anything else `malformed_field`). Recorded as a **clarification of the brief, not a deviation**: no rule is added, two existing rules reach lists `CLAUDE.md` already claims they cover. Blast radius `spell-schema.ts` only; the builder's round count reset, since the three it spent were on a question that was not its to answer |
+| 2026-09-14 | audit finding (from the YELLOW) | — | **The rider-is-a-leaf denylist enforces on one list of three.** `checkNoNestedEffect` is entered only from `checkShape`'s top-level walk, so a nested-list entry carrying `effects`, `targets` or `area` validates clean. `CLAUDE.md`'s "three places enforce that a rider is a leaf" is two places plus a test — and the test sweep walking all three is why the catalogue is clean and why it went unseen. Closed by IE-024's rework; the `CLAUDE.md` sentence is corrected with it. **The foreman's own preference was (c), which would not have closed it** |
