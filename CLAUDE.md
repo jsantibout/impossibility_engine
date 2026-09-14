@@ -283,14 +283,18 @@ applied. Between them the pair covered every type the reducer declared on the
 day the second was written, and `persistence-2.test.ts` carries the list of
 what they do not as a ledger rather than a count.
 
-**That ledger has one entry now, and how it got there is the interesting
-part.** `damage-defense-granted` arrived after both logs were frozen, and
-neither can be regenerated: rewriting a fixture whose whole value is that
-nobody rewrites it turns a compatibility test into a rubber stamp. So a *new*
-event type is uncovered by construction until the next frozen log is written,
-and the honest record is a named entry saying which and why rather than a
-number that quietly drops. The event is driven end to end elsewhere; what is
-missing is specifically the compatibility fixture.
+**That ledger has two entries, and how they got there is the interesting
+part.** `damage-defense-granted` and `speed-modifier-granted` each arrived
+after both logs were frozen, and neither log can be regenerated: rewriting a
+fixture whose whole value is that nobody rewrites it turns a compatibility test
+into a rubber stamp. So a *new* event type is uncovered by construction until
+the next frozen log is written, and the honest record is a named entry saying
+which and why rather than a number that quietly drops. Both events are driven
+end to end elsewhere — the first through Stoneskin, the second through
+Longstrider, Ray of Frost and Hypnotic Pattern; what is missing is specifically
+the compatibility fixture. **The count is written here and derived there**,
+which is why the entry is a name: this sentence goes stale and the test does
+not.
 
 Neither is ever regenerated, and the second is not a replacement for the
 first: three types live only in the older log, which a test names so nobody
@@ -2236,14 +2240,22 @@ both directions before the enumerator was written: a fifth field added to
 `CreatureState` reddens the build, and a family removed from the literal reddens
 it too.
 
+**And the fifth family arrived, so the guard is a measurement rather than a
+prediction.** `speedModifiers` was declared on `CreatureState`, `grantsOf`
+stopped compiling naming the property it lacked, and that one line was the
+whole of it: `releaseCasting`, `releaseOnTarget`, `releaseGrants`,
+`expireEffects` and `holdsNothingOf` all needed nothing. What the fourth family
+cost was five edits and the risk of three; what the fifth cost was one, and the
+compiler would not let it be none.
+
 **`initiativeBonuses` matches the shape and is excluded**, which is the one
 written exemption. Creation derives it from the character's own feats; no
 casting hangs it, and no casting, deadline or dispel takes it away. It was in
 none of the five walks, and putting it in one would end a feat the rules never
 ended.
 
-**Four things it deliberately does not do.** It does not merge the four arrays
-— they are read by different rules, and a mode is not a bonus. It does not
+**Four things it deliberately does not do.** It does not merge the arrays —
+they are read by different rules, and a mode is not a bonus. It does not
 touch `rollModifierKey`: that two-part identity decides whether a **re-grant**
 replaces or stacks, and it is not what an *ending* matches on, because Beacon of
 Hope's two modifiers are one casting's grant and one deadline takes both. It
@@ -4365,13 +4377,18 @@ deadline to borrow and no turn in the order that means a minute.
 `durationSeconds: 60` on the definition was the tempting answer and the wrong
 one — it would make a flash of light an ongoing, dispellable spell.
 
-**And a modifier rider carries no `lasts` at all.** `EffectTarget` ends a
-condition instance, a casting or a feature, and **nothing ends a grant before
-its casting does** — so a rider shorter than its casting is not expressible and
-the type does not pretend otherwise. Phantasmal Killer's "for the duration"
-fits; a future "for 1 minute" on an Instantaneous host needs a fourth
-`EffectTarget` member, which is the gap this file already names for Superior
-Hunter's Defense.
+**A modifier rider carried no `lasts` at all, and now exactly one member
+does.** The sentence that stood here said "nothing ends a grant before its
+casting does — so a rider shorter than its casting is not expressible and the
+type does not pretend otherwise", and it was already half out of date when it
+was written: IE-017 had built the fourth `EffectTarget` member, `grants`, for
+SRD Superior Hunter's Defense. What was genuinely missing was a *rider that
+asked for one*, and Ray of Frost is it — "until the start of your next turn",
+on a cantrip. So `speed-change` carries `lasts` and `bonus` and `mode` still do
+not, because no SRD sentence in their position asks: Phantasmal Killer's "for
+the duration" fits the casting exactly. **A member carries the field its own
+consumer needs**, which is why this is one member and not a widening of the
+union.
 
 ### `roll-mode.save` is gone, and it is what a speculative field looks like
 
@@ -4410,8 +4427,35 @@ excluded for being large:
 | A rider on the **success** or the **miss** branch | Flesh to Stone's "its Speed is 0", Ray of Enfeeblement |
 | Ending another casting, or breaking somebody's Concentration | Sleet Storm |
 | Forbidding or compelling an action | Shocking Grasp, Slow |
-| A granted Speed or a push | Ray of Frost, Hypnotic Pattern, Thunderwave |
+| A push — forced movement a spell causes | Thunderwave |
 | A granted **Resistance** as a rider — the effect kind exists and rides no outcome | no SRD spell; Stoneskin needed the effect and not the rider |
+
+**A granted Speed left that table by the rule below rather than by exception.**
+A Speed change rolls no d20, names no target, spends nothing and opens no
+window, so it is a leaf; it arrived *with* its primitive — `speedOf`'s fifth
+input, built in the same task — and with its validator line. `speed-change` is
+the third `ModifierRider` member, written by Ray of Frost on a hit and by
+Hypnotic Pattern on a failed save.
+
+**It is the first rider that may carry `lasts`**, and that is what its
+primitive needed rather than a widening of the slot. Every other grant a rider
+hangs ends when its casting does, and Ray of Frost's casting is a cantrip's:
+over the moment it resolves, owning nothing. `EffectTarget.grants` — every
+grant one source made on one creature — is the deadline IE-017 built for SRD
+Superior Hunter's Defense, and until this **no runtime path had ever created
+one**; `checkGrantLifetimes` is what insists on it, by the same sentence it
+already applied to a `buff`, a granted `roll-mode`, an `armor-class`, a granted
+defence and a condition rider.
+
+**And walking every modifier rider rather than the first was a latent hole, not
+a nicety.** `grantCarried` read `modifiers[0]`, which agreed with walking the
+whole list only while both members carried a grant unconditionally — the
+`speed-change` rider is the first that may carry a lifetime *or* not, so a Ray
+of Frost written beside a Bless would have gone unreported. It is the argument
+the `conditions` loop beside it already made, arriving on the other slot; and
+with it comes the same guard, because `modifierRidersOf` spreads the slot and
+untyped input putting a number there threw one call before anything could
+report it.
 
 **The rule for admitting a future rider is stated rather than a slot being
 reserved.** A primitive may become a rider member **iff** it is a leaf — rolls
@@ -4419,6 +4463,13 @@ no d20, names no target, spends nothing, opens no window, touches no state it
 did not create — and its lifetime is the casting's or a `lasts`. A closed union
 reserves nothing: do not add a member ahead of its primitive; add it *with* the
 primitive and its validator line.
+
+**A rider kind may never be an effect kind**, which is why this one is
+`speed-change` beside the `speed` effect. `checkShape`'s denylist refuses a
+nested `kind` that is an effect kind, so a name shared between the two
+vocabularies would let recursion in through a name collision — the reason
+`buff`'s rider is `bonus` and `roll-mode`'s is `mode`, asserted as
+`RIDER_KINDS ∩ EFFECT_KINDS = ∅`.
 
 ### `OngoingSpell.on` has one rule, and the caster branch was a second one
 
@@ -5014,19 +5065,88 @@ is excluded on a fact rather than an opinion: `FeatDefinition` has no
 `features` field, so it cannot declare a standing grant of any kind, and the
 test asserts that of every registered feat.
 
-#### No spell moves a Speed yet
+#### A Speed An Effect Changes Is The Fifth Sourced Grant
 
-`combineSpeed`'s `halvings` has no producer in the engine — Spirit Guardians'
-halved Speed and every other spell-granted change are IE-033's — so that branch
-is reached the way `restoreOn`'s Short Rest branch is: by handing the pure
-function the case. A grant added to `CreatureState` joins `flat` and `halvings`
-without a second answer to this question appearing anywhere, which is the whole
-of why the seam is one reader rather than a fourth spelling.
+The paragraph here used to say that no spell moved a Speed and that a grant
+added to `CreatureState` would join `flat` and `halvings` "without a second
+answer to this question appearing anywhere". That is what happened, and the
+payoff is that the *whole* of the spell side is one field, one event and one
+loop: `speedModifiers` beside `bonuses`, `armorClasses`, `rollModifiers` and
+`grantedDefenses`, `speed-modifier-granted` beside their four events, and six
+lines inside `speedOf`. Nothing else in the engine learned that a Speed can
+move — the movement allowance, the Dash and the mounting cost all read
+`speedOf` and were already right.
+
+`GrantedSpeed` therefore has no lifecycle of its own. The casting is in the
+`source`, so `releaseCasting`, `releaseOnTarget` and a `grants` deadline end it
+through the door the other four already use, and `GrantFamily` — derived from
+the shape of `CreatureState` rather than listed — made `grantsOf` a compile
+error until the enumerator named it. That is the guard IE-028 built working
+exactly as it was meant to: the fifth family was **one edit in one place** and
+the compiler insisted on it.
+
+**`SpeedChange` lives beside its reader, not beside the definition format.**
+`ActiveBonus` is in `bonuses.ts`, `GrantedArmorClass` in `character.ts`,
+`ActiveRollModifier` in `roll-modifiers.ts`, `GrantedDefense` and `DefenseKind`
+in `attack.ts` — every grant vocabulary sits with the function that reads it,
+and `spell-definitions.ts` imports it. So this one sits in `standing.ts` with
+`speedOf` and `combineSpeed`. The cost is that the format's own unused-member
+sweep cannot see it: that sweep reads declarations in `spell-definitions.ts`,
+so `DefenseKind`'s three members are outside it too. `speed-grants.test.ts`
+carries the same derived sweep over this union rather than leaving the hole —
+read the members out of the declaration, hold them against what the catalogue
+writes, and require a written exemption for any with no user.
+
+**`halve` is that exemption, and it is the shape `SpellCheck.dc` already
+takes.** SRD Slow prints "An affected target's Speed is halved" and Slow has no
+definition, because it is blocked on a 25 percent chance that is not a d20 roll
+and on the actions it forbids. The reader is live — `speedOf` counts halvings
+and `combineSpeed` applies one however many it finds — so what is absent is a
+definition rather than a use, and the day Slow gets one the exemption fails as
+a stale licence.
+
+**A doubling is not in the union**, and that is the residue rather than an
+oversight. SRD Haste is the only sentence in the book that doubles a Speed, and
+the SRD prints no order for a doubling against a halving — so the member
+arrives with the rule that settles it, which is exactly the shape
+`TypedSaveOutcome`'s missing automatic success takes. It is a named missing
+shape, `a-speed-an-effect-multiplies`, blocking one spell.
 
 **Movement modes are refused outright.** Fly, Climb and Swim have no reader —
 no rule in the engine asks about one — so a vocabulary for them would be shape
 built ahead of every mechanic that could use it. Roving's second sentence is
-where that shows, and its note says so.
+where that shows, and its note says so. `movement-modes` is the shape id that
+remains, and it is what a spell blocked on this is blocked on.
+
+#### One bundle, three populations, sixteen spells
+
+`speed-and-movement-modes` was the only shape id all three population maps
+named, and its own description joined two sentences with an "and" — "a Speed a
+spell changes, **and** the Fly, Climb and Swim modes the engine does not
+distinguish". That is what a bundle looks like from the inside, and splitting
+it found two things a hand reading would not have:
+
+| | |
+|---|---|
+| **Gust of Wind** | "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" is neither a Speed nor a mode. It is the SRD's own arithmetic for Difficult Terrain, over an area, blocked on the path a move does not record — so it re-files to `difficult-terrain-an-area-creates` |
+| **Haste** | a Speed *doubled*, which is the operation the built vocabulary deliberately does not carry |
+
+**`SPLIT_BUNDLES` had to learn to read all three maps**, which is IE-015's
+instrument meeting the case it was written for. Its `held` triples were looked
+up in `ADJUDICATED` alone, because the two bundles it already recorded were
+executed-population only; the middle slot is **what the entry was filed under
+in its own map**, and that is three different things — an adjudication's clause
+phrase, a tracked marker key, or, where a `BLOCKED_ON` entry has no clause at
+all, the bundle id itself. A record that could only reach one population would
+count this bundle ten spells short, which is the error `missing-shapes.ts` was
+assembled to end, arriving in the record of the repair.
+
+**And the split moved a number nobody had asked about.**
+`an-outcome-that-reads-the-targets-hit-points` went from unblocking nothing to
+unblocking one: Power Word Stun's "Otherwise, its Speed is 0" stopped being a
+blocker, and that shape is now the *only* thing standing between the spell and
+a definition. A shape's `unblocks` count is a property of every other shape as
+well as of itself, which is the argument for it being a query.
 
 ### A Feature Definition Is Validated Data Too
 
@@ -5439,6 +5559,11 @@ The guards stay per-population — each still asks its own map its own
 questions — and the one guard that cannot be asked per population, *no shape
 sits unclaimed*, moved to `blocked-on.test.ts` where it can ask all three.
 Asked of one map it would delete every shape only the others name.
+
+**That id is gone now, and splitting it proved the paragraph twice over.** It
+turned out to span all *three* populations rather than two, sixteen spells in
+all, and the record of its split is the second thing that had to learn to read
+them all — see "One bundle, three populations, sixteen spells".
 
 **Two numbers, not one, and the difference is the finding.** `blocks` is every
 spell a shape touches; `unblocks` is the spells it is the **only** blocker
@@ -6996,11 +7121,20 @@ null and is reported — it never becomes either.
   armour, and Animal Friendship, Charm Person, Charm Monster, Suggestion and
   Mass Suggestion when the caster or a declared ally damages the target —
   derived in the reducer, with no event, and with the printed scope
-  deciding whether the casting ends or is released on that one creature. What
-  does not work: casting a definition the catalogue does not
-  compile in, summons, long casting times, an area that moves *by itself* at the
-  start of a turn (Cloudkill, Incendiary Cloud), a standing spatial effect such
-  as the Speed halved inside that Emanation, a path or a distance travelled, an
+  deciding whether the casting ends or is released on that one creature.
+  **And a spell can change a Speed** — see "A Speed An Effect Changes Is The
+  Fifth Sourced Grant": Longstrider adds its ten feet for an hour, Ray of
+  Frost takes ten away until the start of the caster's next turn, and Hypnotic
+  Pattern holds its targets at 0 — one grant beside the four already on a
+  creature, read by the one reader IE-031 built, and ended through the door
+  every other grant leaves by. What does not work: casting a definition the
+  catalogue does not compile in, summons, long casting times, an area that
+  moves *by itself* at the start of a turn (Cloudkill, Incendiary Cloud), a
+  standing spatial effect such as the Speed halved inside that Emanation — a
+  Speed derived from where a creature is standing rather than one an effect
+  changed, which is still a different shape — a **doubled** Speed (Haste
+  alone), the Fly, Climb and Swim modes the engine does not distinguish, a
+  path or a distance travelled, an
   activation that resolves an area at a point chosen now, a Reaction that
   answers a fall, and an ending triggered by a fact no consequence event holds
   — any damage at all, a distance drifted, a running total, or one effect of a

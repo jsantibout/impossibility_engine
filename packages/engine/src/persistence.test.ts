@@ -266,6 +266,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'scene-set',
   'scheduled-damage-collected',
   'sight-declared',
+  'speed-modifier-granted',
   'spell-activated',
   'spell-cast',
   'spell-declared',

@@ -2222,11 +2222,12 @@ describe('a rider is held to what its host can support', () => {
   });
 
   /**
-   * And a `modifiers` rider on such a spell is refused outright, because it
-   * can take neither escape: `EffectTarget` ends a condition instance, a
-   * casting or a feature, and nothing ends a grant before its casting does —
-   * so `ModifierRider` offers no `lasts` rather than offering one it could not
-   * honour.
+   * And a `bonus` or `mode` rider on such a spell is refused outright, because
+   * it can take neither escape: those two members carry no `lasts` and no
+   * `outlivesCasting`, so there is no way to write one correctly on a casting
+   * that is over the moment it resolves. Only `speed-change` has a deadline of
+   * its own — `speed-grants.test.ts` drives both sides of that — so this is a
+   * rule about the member rather than about the slot.
    */
   it('refuses a grant rider on a spell that never becomes a casting', () => {
     expect(
@@ -2610,6 +2611,14 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       kind: 'damage-defense',
       base: { kind: 'damage-defense', damageTypes: ['fire'], defense: 'resistant' },
       fields: { damageTypes: required(ARRAY_JUNK), defense: required(STRING_JUNK) },
+    },
+    {
+      kind: 'speed',
+      base: { kind: 'speed', change: 'add', feet: 10 },
+      // `feet` is `NUMBER_JUNK` rather than `required(NUMBER_JUNK)` where the
+      // change is `add`: absent is exactly the case the pairing rule refuses,
+      // and it is asserted by name below rather than swept as junk.
+      fields: { change: required(STRING_JUNK), feet: NUMBER_JUNK },
     },
   ];
 

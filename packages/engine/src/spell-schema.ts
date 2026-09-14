@@ -17,12 +17,14 @@ import type {
   ConditionRider,
   DiceScaling,
   ModifierRider,
+  RiderDuration,
   SpellArea,
   SpellCheck,
   SpellDefinition,
   SpellEffect,
 } from './spell-definitions.js';
 import type { DefenseKind } from './attack.js';
+import type { SpeedChange } from './standing.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 
@@ -90,6 +92,8 @@ const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
   'immune',
   'vulnerable',
 ]);
+/** The three operations {@link SpeedChange} names, as data, for untyped input. */
+const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>(['add', 'halve', 'zero']);
 const CASTING_TIMES: ReadonlySet<string> = new Set([
   'action',
   'bonus-action',
@@ -425,6 +429,97 @@ function checkSpellCheck(
 }
 
 /**
+ * A deadline a rider carries of its own, wherever it is carried.
+ *
+ * **One rule, two slots.** A condition rider has said `lasts` since Color
+ * Spray needed a Blinded to outlive an Instantaneous casting, and IE-033's
+ * `speed-change` rider says it for the same reason on the `modifiers` slot —
+ * Ray of Frost is a cantrip, so its reduction has no casting to belong to.
+ * Two near-identical blocks is the drift this file records everywhere else, so
+ * the check is shared rather than spelled twice.
+ *
+ * **`typeof lasts === 'object'` is true of `null` as well**, so a rider that
+ * carried one reached `.seconds` and threw. `RiderDuration` is two named
+ * moments or a span of seconds, and anything else is a value no reader of this
+ * field can do anything with.
+ */
+function checkRiderDuration(
+  lasts: RiderDuration | undefined,
+  riderPath: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (lasts === undefined) return;
+  if (typeof lasts === 'object' && lasts !== null && !Array.isArray(lasts)) {
+    // A span of nothing is not a duration, it is the absence of one — the same
+    // argument `durationSeconds` already makes on the definition.
+    if (!Number.isFinite(lasts.seconds) || lasts.seconds <= 0) {
+      found.push({
+        field: `${riderPath}.lasts.seconds`,
+        code: 'bad_rider_duration',
+        reason:
+          'a rider that lasts no seconds does not last; omit it to borrow the casting’s own deadline',
+      });
+    }
+  } else if (lasts !== 'start-of-casters-next-turn' && lasts !== 'end-of-casters-next-turn') {
+    found.push({
+      field: `${riderPath}.lasts`,
+      code: MALFORMED,
+      reason: `a rider lasts until a moment in the turn order or for a span of seconds, and this is ${nameOf(lasts)}`,
+    });
+  }
+}
+
+/**
+ * The two fields a Speed change carries, wherever it is carried.
+ *
+ * **One rule, two carriers**, for the reason above: the standalone `speed`
+ * effect and the `speed-change` rider say the same sentence, and a second copy
+ * is a second place for the pairing to be got wrong.
+ *
+ * The pairing *is* the rule worth having. SRD writes the operation and its
+ * number together — "increases by 10 feet", "reduced by 10 feet" — and writes
+ * no number at all for "is halved" or "a Speed of 0". So `feet` without `add`
+ * is a number nothing reads, and `add` without `feet` is a change of nothing:
+ * `speedOf` would add `0` and the spell would silently do nothing, which is
+ * the wrong-number-with-no-symptom this repository calls its worst failure.
+ */
+function checkSpeedChange(
+  value: { readonly change?: unknown; readonly feet?: unknown },
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const { change, feet } = value;
+  if (typeof change !== 'string' || !SPEED_CHANGES.has(change)) {
+    found.push({
+      field: `${path}.change`,
+      code: 'bad_speed_change',
+      reason: `"${String(change)}" is not something an effect does to a Speed; the SRD adds feet to one, halves one, or sets one to 0`,
+    });
+    return;
+  }
+
+  if (change === 'add') {
+    if (!Number.isInteger(feet) || feet === 0) {
+      found.push({
+        field: `${path}.feet`,
+        code: 'bad_speed_change',
+        reason:
+          'a Speed that changes by a number of feet needs the number, and a change of no feet is no change; the SRD prints it signed — Longstrider adds 10 and Ray of Frost takes 10 away',
+      });
+    }
+    return;
+  }
+
+  if (feet !== undefined) {
+    found.push({
+      field: `${path}.feet`,
+      code: 'bad_speed_change',
+      reason: `"${change}" names the whole operation and the SRD prints no number beside it, so these feet are read by nothing`,
+    });
+  }
+}
+
+/**
  * A condition rider, wherever an effect carries one.
  *
  * One function for the four kinds that impose a condition, because they carry
@@ -476,35 +571,7 @@ function checkConditionRider(
     });
   }
 
-  // A span of nothing is not a duration, it is the absence of one — the same
-  // argument `durationSeconds` already makes on the definition.
-  //
-  // **`typeof lasts === 'object'` was true of `null` as well**, so a rider
-  // that carried one reached `.seconds` and threw. `RiderDuration` is two
-  // named moments or a span of seconds, and anything else is a value no reader
-  // of this field can do anything with.
-  const lasts = rider?.lasts;
-  if (lasts !== undefined) {
-    if (typeof lasts === 'object' && lasts !== null && !Array.isArray(lasts)) {
-      if (!Number.isFinite(lasts.seconds) || lasts.seconds <= 0) {
-        found.push({
-          field: `${riderPath}.lasts.seconds`,
-          code: 'bad_rider_duration',
-          reason:
-            'a rider that lasts no seconds does not last; omit it to borrow the casting’s own deadline',
-        });
-      }
-    } else if (
-      lasts !== 'start-of-casters-next-turn' &&
-      lasts !== 'end-of-casters-next-turn'
-    ) {
-      found.push({
-        field: `${riderPath}.lasts`,
-        code: MALFORMED,
-        reason: `a rider lasts until a moment in the turn order or for a span of seconds, and this is ${nameOf(lasts)}`,
-      });
-    }
-  }
+  checkRiderDuration(rider?.lasts, riderPath, found);
 
   // **A rider with no lifetime is checked once, and not here.** The rule that
   // an effect the casting owns needs something to end it is
@@ -555,10 +622,20 @@ function checkModifierRider(
     checkRollModifier(rider.modifier, `${path}.modifier`, found);
     return;
   }
+  if (rider?.kind === 'speed-change') {
+    checkSpeedChange(rider, path, found);
+    // **The one rider that may carry a deadline of its own.** Whether it
+    // *must* is {@link checkGrantLifetimes}', which reads the definition: a
+    // rider on a casting that never becomes ongoing has nothing that could end
+    // it, and that is one rule over everything a definition leaves standing
+    // rather than a second one here.
+    checkRiderDuration(rider.lasts, path, found);
+    return;
+  }
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus or grants a mode`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, or changes a Speed`,
   });
 }
 
@@ -586,6 +663,20 @@ function withReadableRiders<E extends SpellEffect>(effect: E): E {
   const slot = (effect as { readonly conditions?: unknown }).conditions;
   return slot === undefined || Array.isArray(slot) ? effect : { ...effect, conditions: undefined };
 }
+
+/**
+ * A rider slot a reader can walk: absent, or genuinely a list.
+ *
+ * The sibling of {@link withReadableRiders} for the `modifiers` slot, and it
+ * is a *predicate* rather than a stripped copy because the two slots are read
+ * in different places. `conditions` is handed to `conditionRiderOf`, which is
+ * shared with the runtime and takes a typed effect, so the slot has to come
+ * off before that reader sees it; `modifiers` is walked by
+ * {@link grantCarried} directly, so declining to walk it is enough — and
+ * stripping it would take the slot away from `checkRiders`, which is the thing
+ * that reports what is actually wrong with it.
+ */
+const readableRiderList = (slot: unknown): boolean => slot === undefined || Array.isArray(slot);
 
 /** Every rider one host carries, in the order `applyRiders` applies them. */
 function checkRiders(
@@ -968,6 +1059,14 @@ function checkEffect(
       checkRollModifier(effect.modifier, `${path}.modifier`, found);
       return;
 
+    // A Speed change names an operation and, for one of the three, a number.
+    // There is nothing else to be wrong about: it hangs no rider, offers no
+    // escape and asks for no roll, so the pairing is the whole rule — shared
+    // with the `speed-change` rider, which says the same sentence.
+    case 'speed':
+      checkSpeedChange(effect, path, found);
+      return;
+
     case 'armor-class':
       if (!Number.isInteger(effect.base) || effect.base < 1) {
         found.push({
@@ -1206,11 +1305,16 @@ function checkEndsEarly(
  * definition whose second condition had no deadline would have gone unreported
  * behind a first one that did.
  *
- * A `modifiers` rider is always in the list when there is one. A grant has no
- * `lasts` to give and no `outlivesCasting` — `EffectTarget` ends a condition
- * instance, a casting or a feature, and nothing ends a grant before its casting
- * does — so on a spell with no casting to end it there is no way to write it
- * correctly, and the only honest answer is to refuse it.
+ * **A `modifiers` rider is in the list unless it says how long it lasts**, and
+ * only one member can. `bonus` and `mode` carry no `lasts` and no
+ * `outlivesCasting`, so on a spell with no casting to end them there is no way
+ * to write them correctly and the only honest answer is to refuse; a
+ * `speed-change` may name a deadline of its own, and `EffectTarget.grants` is
+ * what then takes the grant away. That asymmetry is the *reason* this walks
+ * every modifier rider rather than the first: while both members carried
+ * unconditionally the two readings agreed, and the third is the first that may
+ * carry a lifetime or not — so a Ray of Frost written beside a Bless would
+ * have hidden behind it.
  *
  * **Every rider is read through `?.`, because this meets untyped input like
  * every other reader in this file.** `checkShape` establishes an effect's
@@ -1232,6 +1336,12 @@ function grantCarried(effect: SpellEffect): string | null {
       return 'a base Armour Class';
     case 'damage-defense':
       return 'a granted Resistance, Immunity or Vulnerability';
+    // The standalone kind carries no `lasts` at all — SRD Longstrider runs for
+    // the hour the spell does, and no spell changes a Speed for less than its
+    // own casting without a roll to hang the change on. A rider is where the
+    // shorter deadline lives, because a rider is what Ray of Frost writes.
+    case 'speed':
+      return 'a changed Speed';
     default: {
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
@@ -1248,17 +1358,38 @@ function grantCarried(effect: SpellEffect): string | null {
         if (rider.lasts !== undefined || rider.outlivesCasting === true) continue;
         return `the ${String(rider.name)} condition`;
       }
-      // `?.` on the discriminant, so absent, null and a kind this engine does
-      // not know take the same branch — and it is the branch that reports
-      // nothing, because `checkModifierRider` is what says what is wrong.
-      switch (modifierRidersOf(effect)[0]?.kind) {
-        case 'bonus':
-          return 'a bonus';
-        case 'mode':
-          return 'a granted Advantage or Disadvantage';
-        default:
-          return null;
+      // **Every modifier rider, not the first**, for the reason the condition
+      // loop above walks every one: a plural slot is exactly where a second
+      // offender hides behind a first that is fine. It read `[0]` while both
+      // members carried unconditionally, so the two readings agreed; the
+      // `speed-change` rider is the first that may carry a lifetime *or* not,
+      // and a Ray of Frost written beside a Bless would have gone unreported.
+      //
+      // **A slot nobody can walk is not walked**, exactly as an unreadable
+      // `conditions` is not: `modifierRidersOf` spreads the slot, so untyped
+      // input putting a number there threw one call before anything could
+      // report it. What is wrong with the slot is `checkRiders`' to say.
+      if (!readableRiderList((effect as { readonly modifiers?: unknown }).modifiers)) return null;
+      for (const rider of modifierRidersOf(effect)) {
+        // `?.` on the discriminant, so absent, null and a kind this engine does
+        // not know take the same branch — and it is the branch that reports
+        // nothing, because `checkModifierRider` is what says what is wrong.
+        switch (rider?.kind) {
+          case 'bonus':
+            return 'a bonus';
+          case 'mode':
+            return 'a granted Advantage or Disadvantage';
+          case 'speed-change':
+            // The one rider with an escape of its own. `lasts` is a deadline
+            // the rider owns, so a casting that ends the instant it resolves
+            // still has something that takes the Speed back.
+            if (rider.lasts === undefined) return 'a changed Speed';
+            break;
+          default:
+            break;
+        }
       }
+      return null;
     }
   }
 }
@@ -2065,7 +2196,7 @@ const RIDER_DEPTH_LIMIT = 6;
  * a name collision rather than through a type. `spell-schema.test.ts` asserts
  * the intersection is empty.
  */
-export const RIDER_KINDS: ReadonlySet<string> = new Set(['bonus', 'mode']);
+export const RIDER_KINDS: ReadonlySet<string> = new Set(['bonus', 'mode', 'speed-change']);
 
 /**
  * The effect kinds, as a set.
@@ -2092,4 +2223,5 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'armor-class',
   'roll-mode',
   'damage-defense',
+  'speed',
 ]);

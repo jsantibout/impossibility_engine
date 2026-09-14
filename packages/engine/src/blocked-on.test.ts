@@ -588,6 +588,36 @@ describe('the split bundles add back up', () => {
    * clause that vanished under neither reason fails here, which is what keeps
    * the exception a branch rather than a hole.
    */
+  /**
+   * Where an entry is filed **now**, whichever population it belongs to.
+   *
+   * The three maps are keyed three different ways, so the middle slot of a
+   * recorded triple is three different things: an adjudication's `clause`
+   * phrase, a tracked marker key, or — where a `BLOCKED_ON` entry has no
+   * clause at all — the bundle id itself, which is the whole of what that
+   * entry says. A resolver that could only reach the executed population would
+   * count a bundle spanning all three short, which is the very error
+   * `missing-shapes.ts` was assembled to end: `speed-and-movement-modes` held
+   * sixteen spells across all three.
+   */
+  const filedAt = (spellId: string, clause: string, wentTo: string): string | undefined => {
+    const executed = (ADJUDICATED[spellId] ?? []).find((e) => e.clause === clause);
+    if (executed !== undefined) return executed.why;
+    // The tracked map is keyed by *marker*, a closed union, so the lookup goes
+    // through its entries rather than by index: a recorded triple is history
+    // and may name a marker the vocabulary has since dropped.
+    const tracked = Object.entries(TRACKED_ADJUDICATED[spellId] ?? {}).find(
+      ([marker]) => marker === clause,
+    )?.[1];
+    if (tracked !== undefined) return tracked.why;
+    // An undefined spell's entry is a bare shape id, so the question it can
+    // answer is whether the destination is on that spell's list now. That is
+    // weaker than the clause lookup above and it is the strongest thing a list
+    // with no clauses in it supports — and it still catches the loss, because
+    // a destination quietly dropped takes the branch below.
+    return (BLOCKED_ON[spellId] ?? []).find((shape) => shape === wentTo);
+  };
+
   it.each(Object.keys(SPLIT_BUNDLES))('accounts for every adjudication %s held', (bundle) => {
     const split = SPLIT_BUNDLES[bundle]!;
     const live = new Set<string>(Object.keys(MISSING_SHAPES));
@@ -595,14 +625,14 @@ describe('the split bundles add back up', () => {
     const landed = new Map<string, number>();
 
     for (const [spellId, clause, wentTo] of split.held) {
-      const entry = (ADJUDICATED[spellId] ?? []).find((e) => e.clause === clause);
-      if (entry === undefined) {
+      const why = filedAt(spellId, clause, wentTo);
+      if (why === undefined) {
         expect(
           live.has(wentTo) && !built.has(`${spellId}/${clause}`),
           `${spellId}: "${clause}" left the map while ${wentTo} is still missing`,
         ).toBe(false);
       } else {
-        expect(entry.why, `${spellId}/${clause}`).toBe(wentTo);
+        expect(why, `${spellId}/${clause}`).toBe(wentTo);
       }
       landed.set(wentTo, (landed.get(wentTo) ?? 0) + 1);
     }
@@ -843,14 +873,23 @@ describe('a consumer count is a query', () => {
     ]);
   });
 
-  /** A shape both a definition and an undefined spell name is counted once each. */
+  /**
+   * A shape both a definition and an undefined spell name is counted once each.
+   *
+   * `speed-and-movement-modes` was the example and is gone; `movement-modes`
+   * is the half of it that stands, and it still spans two populations — two
+   * tracked definitions and a run of undefined spells — which is the property
+   * being asserted. The executed population has none, and that is the split's
+   * own result rather than an accident: IE-033 built the modifier half, which
+   * is the only half any *definition* had.
+   */
   it('adds all three populations up', () => {
-    const speed = consumersOf('speed-and-movement-modes');
-    expect(speed.executed).toEqual(['hypnotic-pattern', 'ray-of-frost']);
-    expect(speed.tracked).toEqual(['fly', 'longstrider', 'spider-climb']);
-    expect(speed.undefined.length).toBeGreaterThan(5);
-    expect(speed.blocks.length).toBe(
-      speed.executed.length + speed.tracked.length + speed.undefined.length,
+    const modes = consumersOf('movement-modes');
+    expect(modes.executed).toEqual([]);
+    expect(modes.tracked).toEqual(['fly', 'spider-climb']);
+    expect(modes.undefined.length).toBeGreaterThan(5);
+    expect(modes.blocks.length).toBe(
+      modes.executed.length + modes.tracked.length + modes.undefined.length,
     );
   });
 

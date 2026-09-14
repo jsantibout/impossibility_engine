@@ -220,23 +220,23 @@ describe('combineSpeed', () => {
 
   it('halves once however many halving effects apply', () => {
     // "Presence, not count" — the reading Resistance and Advantage already take.
-    expect(combineSpeed(30, 0, 1, none)).toBe(15);
-    expect(combineSpeed(30, 0, 2, none)).toBe(15);
-    expect(combineSpeed(30, 0, 5, none)).toBe(15);
+    expect(combineSpeed(30, 0, 1, false, none)).toBe(15);
+    expect(combineSpeed(30, 0, 2, false, none)).toBe(15);
+    expect(combineSpeed(30, 0, 5, false, none)).toBe(15);
   });
 
   it('halves after the flat changes, not before them', () => {
     // base 30 + 10 = 40, halved = 20. Halving first would give 15 + 10 = 25.
-    expect(combineSpeed(30, 10, 1, none)).toBe(20);
+    expect(combineSpeed(30, 10, 1, false, none)).toBe(20);
   });
 
   it('rounds a halved odd Speed down', () => {
-    expect(combineSpeed(25, 0, 1, none)).toBe(12);
+    expect(combineSpeed(25, 0, 1, false, none)).toBe(12);
   });
 
   it('never goes below 0', () => {
-    expect(combineSpeed(30, -50, 0, none)).toBe(0);
-    expect(combineSpeed(30, -50, 1, none)).toBe(0);
+    expect(combineSpeed(30, -50, 0, false, none)).toBe(0);
+    expect(combineSpeed(30, -50, 1, false, none)).toBe(0);
   });
 });
 

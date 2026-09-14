@@ -376,8 +376,18 @@ function declaredEventTypes(): readonly string[] {
  * it. `granted-defenses.test.ts` folds the event directly and drives it end to
  * end through Stoneskin; what is missing is a *compatibility* fixture, which
  * the next frozen log is where it belongs.
+ *
+ * `speed-modifier-granted` is here for the same reason and by the same
+ * construction: it arrived after both logs were frozen, so no casting in
+ * either could have emitted one. `speed-grants.test.ts` folds it directly and
+ * drives it end to end through Longstrider, Ray of Frost and Hypnotic Pattern.
+ * **A new event type is uncovered by construction until the next frozen log is
+ * written**, and a named entry saying which and why is the honest record.
  */
-const UNCOVERED_EVENT_TYPES: readonly string[] = ['damage-defense-granted'];
+const UNCOVERED_EVENT_TYPES: readonly string[] = [
+  'damage-defense-granted',
+  'speed-modifier-granted',
+];
 
 /** What the pair must cover between them, whatever else changes. */
 const COVERAGE_FLOOR = 80;

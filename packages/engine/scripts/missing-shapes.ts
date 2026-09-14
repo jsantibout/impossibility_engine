@@ -77,10 +77,11 @@ import { SPELL_DEFINITIONS } from '../src/spell-definitions.js';
  * built. The other two are split here, and {@link SPLIT_BUNDLES} records what
  * each bundle claimed so the arithmetic can be checked.
  *
- * **One id is deliberately the same string `spell-tracking.test.ts` used for
+ * **One id was deliberately the same string `spell-tracking.test.ts` used for
  * the same gap** — `speed-and-movement-modes` — and that is no longer a
  * duplication: the tracked vocabulary below names it by importing this one,
  * so the three populations share one description and the query can add them up.
+ * That id is gone; {@link SPLIT_BUNDLES} records what it held.
  */
 export const MISSING_SHAPES = {
   'an-outcome-of-a-spells-own-damage':
@@ -121,8 +122,10 @@ export const MISSING_SHAPES = {
     'CLAUDE.md, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." A score is set at creation and by advancement; no effect moves one, and nothing puts one back.',
   'a-stat-block-created-mid-fight':
     'summons. CLAUDE.md, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn.',
-  'speed-and-movement-modes':
-    'a Speed a spell changes, and the Fly, Climb and Swim modes the engine does not distinguish. PROGRESS.md ranks it: "A Speed a spell changes, and movement modes | 0 / 16 | one `baseSpeed`, no modes"; the engine holds that one Speed and nothing modifies it.',
+  'movement-modes':
+    'the Fly, Climb and Swim Speeds the engine does not distinguish, and the per-foot costs that ride with them. CLAUDE.md refuses the vocabulary by name: "**Movement modes are refused outright.** Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it", and Roving’s own note says the same of its Climb and Swim Speeds. What is left of `speed-and-movement-modes` once IE-033 built the modifier half.',
+  'a-speed-an-effect-multiplies':
+    'a Speed **doubled**. CLAUDE.md fixes both the operations a Speed is composed from and the order they compose in: "Halving is presence rather than count — the reading Resistance and Advantage already take. Zero is last and **wins**". SRD Haste prints the one operation that is neither — "the target’s Speed is doubled" — and is the only sentence in the book that does; the book gives no order for a doubling against a halving, so the member arrives with the rule that settles it. A two-member union missing its third is the shape `an-automatic-success-by-creature-type` already takes, on the other axis.',
   'a-standing-effect-derived-from-where-a-creature-stands':
     'a value derived from current state *and* current geometry rather than from a pair of enter-and-leave events that have to stay matched. CLAUDE.md: "A standing effect derived from where a creature is standing | Spirit Guardians’ halved Speed, every Paladin aura"; PROGRESS.md ranks it above automatic drift.',
   'healing-modified-by-an-effect':
@@ -289,6 +292,15 @@ export interface SplitBundle {
    * filed where the split put it. A re-filing that lost one, or quietly
    * re-worded a clause to duck the question, fails.
    *
+   * **The middle slot is what the entry was filed under in its own map**, and
+   * that is three different things because the three maps are keyed three
+   * different ways: an {@link Adjudication}'s `clause` phrase in the executed
+   * population, a marker key in the tracked one, and — where there is no
+   * clause at all — the **bundle id itself** in the undefined one, which is
+   * the whole of what a `BLOCKED_ON` entry says. A record that could only
+   * reach the executed population would count a bundle spanning all three
+   * short, which is the error this file exists to end.
+   *
    * **A clause may leave the map, and there is exactly one honest reason.**
    * IE-019 executed Shatter, so `['shatter', 'a Construct has Disadvantage']`
    * is no longer an adjudication at all — and that is not a lost fact, it is
@@ -358,6 +370,67 @@ export const SPLIT_BUNDLES: Readonly<Record<string, SplitBundle>> = {
       // so the clause is gone from the map — the second branch, and the only
       // honest reason a held clause may be missing.
       ['shatter', 'a Construct has Disadvantage', 'an-outcome-that-varies-by-creature-type'],
+    ],
+  },
+  // The one bundle that spanned all three populations, and the one whose
+  // description said so in its own words: "a Speed a spell changes, **and**
+  // the Fly, Climb and Swim modes the engine does not distinguish". Two
+  // sentences joined by an "and" is what a bundle looks like from the inside.
+  //
+  // IE-033 built the first half and it retires; `movement-modes` keeps the
+  // second, which CLAUDE.md refuses by name. What the re-reading found is that
+  // neither half covered three of the sixteen: Gust of Wind prints a *movement
+  // cost* rather than a Speed or a mode, and Haste prints an operation the
+  // built vocabulary deliberately does not carry.
+  'speed-and-movement-modes': {
+    adjudications: 16,
+    spells: 16,
+    held: [
+      // — built, so these clauses leave the map altogether ——————————————
+      // The shape `a-speed-an-effect-changes` never appears in
+      // {@link MISSING_SHAPES}: it was built in the same task that split this
+      // bundle, and a shape nothing is blocked on is one the guard deletes.
+      ['hypnotic-pattern', 'Speed of 0 that rides along', 'a-speed-an-effect-changes'],
+      ['ray-of-frost', 'Speed is reduced by 10 feet', 'a-speed-an-effect-changes'],
+      // Tracked no longer: Longstrider's whole printed content is the grant,
+      // so it is an executed definition now and has no tracked entry at all.
+      ['longstrider', 'speed', 'a-speed-an-effect-changes'],
+      // "On a successful save, its Speed is 0 until the start of your next
+      // turn" — expressible now, and what blocks it is the *success branch*
+      // this spell's own entry already names.
+      ['flesh-to-stone', 'speed-and-movement-modes', 'a-speed-an-effect-changes'],
+      // "Otherwise, its Speed is 0", on the other side of a Hit Point
+      // threshold the entry already names.
+      ['power-word-stun', 'speed-and-movement-modes', 'a-speed-an-effect-changes'],
+      // "An affected target's Speed is halved" — `SpeedChange` carries it, and
+      // Slow stays undefined on the two other shapes its entry names.
+      ['slow', 'speed-and-movement-modes', 'a-speed-an-effect-changes'],
+
+      // — the modes, which the audit refused twice ————————————————————
+      ['fly', 'speed', 'movement-modes'],
+      ['spider-climb', 'speed', 'movement-modes'],
+      // "a Swim Speed equal to your Speed".
+      ['alter-self', 'speed-and-movement-modes', 'movement-modes'],
+      // "you can move in any direction", which is flight by another name.
+      ['etherealness', 'speed-and-movement-modes', 'movement-modes'],
+      // "The target also has a Swim Speed equal to its Speed."
+      ['freedom-of-movement', 'speed-and-movement-modes', 'movement-modes'],
+      // "the target's only method of movement is a Fly Speed of 10 feet".
+      ['gaseous-form', 'speed-and-movement-modes', 'movement-modes'],
+      // "it can move as if it were climbing", vertically and by pushing off.
+      ['levitate', 'speed-and-movement-modes', 'movement-modes'],
+      // "a Fly Speed of 300 feet and can hover".
+      ['wind-walk', 'speed-and-movement-modes', 'movement-modes'],
+
+      // — neither half, which is the finding —————————————————————————
+      // "must spend 2 feet of movement for every 1 foot it moves when moving
+      // closer to you" is a movement **cost** an area imposes, which is the
+      // SRD's own arithmetic for Difficult Terrain and is blocked on the path
+      // a move does not record.
+      ['gust-of-wind', 'speed-and-movement-modes', 'difficult-terrain-an-area-creates'],
+      // "the target's Speed is doubled" — the one operation on a Speed the
+      // built vocabulary deliberately does not carry.
+      ['haste', 'speed-and-movement-modes', 'a-speed-an-effect-multiplies'],
     ],
   },
 };
@@ -675,11 +748,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'An area catches every creature standing in it. SRD affects only those that can see the pattern, so a blindfolded creature in the Cube is Charmed here and is not Charmed in the book.',
     },
     {
-      clause: 'Speed of 0 that rides along',
-      why: 'speed-and-movement-modes',
-      note: 'The Charmed and the Incapacitated are both imposed by the one Wisdom save the spell rolls. What is left of the sentence is the Speed, and it is the Speed that is missing rather than the branch: SRD says "a Speed of 0", the engine holds one `baseSpeed` and nothing sets it.',
-    },
-    {
       clause: 'ending for a creature that takes damage',
       why: 'a-casting-ended-by-a-trigger',
       note: 'SRD ends the effect on a creature that takes damage or is shaken awake. The damage is recorded and no casting can be told to release that creature when it lands.',
@@ -763,13 +831,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'Advantage on saving throws to avoid or end the Poisoned condition',
       why: 'a-save-keyed-to-a-condition',
       note: 'SRD: "the target has Advantage on saving throws to avoid or end the Poisoned condition". A `RollModifier` selects a save by ability and by nothing else, so the nearest sayable thing is Advantage on every Constitution save the target ever makes — which is a different and much larger spell. The engine rolls those saves without it.',
-    },
-  ],
-  'ray-of-frost': [
-    {
-      clause: 'Speed is reduced by 10 feet',
-      why: 'speed-and-movement-modes',
-      note: 'SRD: "its Speed is reduced by 10 feet until the start of your next turn." A creature has one `baseSpeed` and no effect moves it, so the ray hits for full damage and slows nobody.',
     },
   ],
   shield: [
@@ -864,9 +925,12 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
 // — the tracked population ———————————————————————————————————————————————————
 //
 // Moved here from `spell-tracking.test.ts` for one reason: without it a shape
-// both populations name — `speed-and-movement-modes` is the one — counts three
-// spells short, which is exactly the class of wrong number this file exists to
-// end. That guard still owns every assertion over this map.
+// both populations name counts spells short, which is exactly the class of
+// wrong number this file exists to end. `speed-and-movement-modes` was the
+// example, and its split is what proved the point — it turned out to span all
+// **three** populations, sixteen spells over the two sentences its own
+// description joined with an "and". That guard still owns every assertion over
+// this map.
 
 /**
  * The guard that keeps `unmodelled` from becoming a dumping ground.
@@ -987,7 +1051,7 @@ export const TRACKED_ADJUDICATED: Readonly<
   },
   fly: {
     speed: {
-      why: 'speed-and-movement-modes',
+      why: 'movement-modes',
       note: 'a Fly Speed of 60 feet and hovering: the engine tracks one Speed and no movement modes.',
     },
   },
@@ -995,12 +1059,6 @@ export const TRACKED_ADJUDICATED: Readonly<
     'movement-cost': {
       why: 'jumping',
       note: '"jump up to 30 feet by spending 10 feet of movement" — the movement is spendable, the jump is not, so charging the 10 feet alone would be half a rule.',
-    },
-  },
-  longstrider: {
-    speed: {
-      why: 'speed-and-movement-modes',
-      note: '"the target’s Speed increases by 10 feet" — Speed comes from the species and nothing modifies it.',
     },
   },
   'see-invisibility': {
@@ -1011,7 +1069,7 @@ export const TRACKED_ADJUDICATED: Readonly<
   },
   'spider-climb': {
     speed: {
-      why: 'speed-and-movement-modes',
+      why: 'movement-modes',
       note: 'a Climb Speed equal to its Speed, and walls and ceilings: the engine tracks one Speed and no movement modes.',
     },
   },
@@ -1115,7 +1173,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   'alter-self': [
     'a-choice-made-at-the-casting',
     'a-rider-on-a-later-weapon-attack',
-    'speed-and-movement-modes',
+    'movement-modes',
   ],
   'animal-messenger': ['a-target-rule-the-format-cannot-state'],
   'animal-shapes': [
@@ -1287,7 +1345,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   ],
   entangle: ['an-area-that-filters-its-catch', 'difficult-terrain-an-area-creates'],
   enthrall: ['a-bonus-narrowed-to-a-skill', 'a-fact-only-the-table-can-declare'],
-  etherealness: ['a-second-place-to-put-a-creature', 'speed-and-movement-modes'],
+  etherealness: ['a-second-place-to-put-a-creature', 'movement-modes'],
   'expeditious-retreat': ['an-action-a-spell-compels-or-forbids'],
   eyebite: [
     'a-casting-ended-by-a-trigger',
@@ -1311,7 +1369,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-success-branch-that-does-something',
     'an-automatic-success-by-creature-type',
     'an-effect-that-fires-when-the-casting-ends',
-    'speed-and-movement-modes',
   ],
   'fog-cloud': [],
   forbiddance: [
@@ -1330,14 +1387,14 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-condition-immunity-a-spell-grants',
     'an-activation-taken-by-somebody-other-than-the-caster',
     'difficult-terrain-an-area-creates',
-    'speed-and-movement-modes',
+    'movement-modes',
   ],
   'gaseous-form': [
     'a-casting-dismissed-early',
     'a-casting-ended-by-a-trigger',
     'a-condition-immunity-a-spell-grants',
     'an-action-a-spell-compels-or-forbids',
-    'speed-and-movement-modes',
+    'movement-modes',
     'what-a-creature-is-holding',
   ],
   gate: ['a-second-place-to-put-a-creature'],
@@ -1374,8 +1431,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   'gust-of-wind': [
     'a-random-outcome-that-is-not-a-d20',
     'an-activation-that-resolves-an-area',
+    'difficult-terrain-an-area-creates',
     'forced-movement-a-spell-causes',
-    'speed-and-movement-modes',
   ],
   hallow: [
     'a-barrier-that-blocks-passage',
@@ -1388,9 +1445,9 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   ],
   'hallucinatory-terrain': ['a-long-casting-time'],
   haste: [
+    'a-speed-an-effect-multiplies',
     'an-action-a-spell-compels-or-forbids',
     'an-effect-that-fires-when-the-casting-ends',
-    'speed-and-movement-modes',
   ],
   heal: ['a-flat-amount-with-no-dice'],
   'heat-metal': ['damage-with-neither-an-attack-roll-nor-a-save', 'what-a-creature-is-holding'],
@@ -1428,7 +1485,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
   levitate: [
     'a-target-rule-the-format-cannot-state',
     'forced-movement-a-spell-causes',
-    'speed-and-movement-modes',
+    'movement-modes',
   ],
   'magic-circle': [
     'a-barrier-that-blocks-passage',
@@ -1497,7 +1554,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'an-outcome-that-reads-the-targets-hit-points',
     'damage-with-neither-an-attack-roll-nor-a-save',
   ],
-  'power-word-stun': ['an-outcome-that-reads-the-targets-hit-points', 'speed-and-movement-modes'],
+  'power-word-stun': ['an-outcome-that-reads-the-targets-hit-points'],
   'prayer-of-healing': [
     'a-deadline-anchored-to-a-rest',
     'a-long-casting-time',
@@ -1597,11 +1654,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'an-outcome-that-reads-the-targets-defences',
   ],
   'sleet-storm': ['an-outcome-that-breaks-concentration', 'difficult-terrain-an-area-creates'],
-  slow: [
-    'a-random-outcome-that-is-not-a-d20',
-    'an-action-a-spell-compels-or-forbids',
-    'speed-and-movement-modes',
-  ],
+  slow: ['a-random-outcome-that-is-not-a-d20', 'an-action-a-spell-compels-or-forbids'],
   'sorcerous-burst': ['a-die-behaviour-a-spell-asks-for'],
   'spare-the-dying': [
     'a-range-that-scales-with-caster-level',
@@ -1694,7 +1747,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-long-casting-time',
     'an-action-a-spell-compels-or-forbids',
     'falling',
-    'speed-and-movement-modes',
+    'movement-modes',
   ],
   'wind-wall': ['a-barrier-that-blocks-passage', 'a-wall-or-several-templates-in-one-area'],
   wish: [

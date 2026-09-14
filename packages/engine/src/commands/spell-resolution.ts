@@ -62,7 +62,7 @@ import {
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
 import { type CastingNumbers, castingSource } from '../spells.js';
-import { armorClassOf, effectiveConditions, evadesHalfDamage } from '../standing.js';
+import { armorClassOf, effectiveConditions, evadesHalfDamage, speedOf } from '../standing.js';
 import {
   applySpellEffect,
   choosePayment,
@@ -76,7 +76,7 @@ import {
   triggerRefusal,
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
-import { endConditionsOn } from './conditions.js';
+import { endConditionsOn, schedule } from './conditions.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { unsettledRefusal } from './holds.js';
@@ -966,8 +966,10 @@ function applyRiders(
     // A grant is always the casting's, so every door that ends the spell — a
     // broken Concentration, the deadline, a dispel, the caster leaving — ends
     // it too, through machinery that already existed. There is no
-    // `outlivesCasting` here and no `lasts`: nothing ends a grant before its
-    // casting does, which `ModifierRider` says rather than papers over.
+    // `outlivesCasting` here: what a rider may say instead is `lasts`, a
+    // deadline of its own that ends the grant **sooner** than the casting,
+    // which is what `EffectTarget.grants` was built for and what an
+    // Instantaneous host has no alternative to.
     held.add(target);
     const granted: GameEvent =
       modifier.kind === 'bonus'
@@ -981,13 +983,42 @@ function applyRiders(
               direction: modifier.direction,
             },
           }
-        : {
-            type: 'roll-modifier-granted',
-            id: target,
-            modifier: { source, modifier: modifier.modifier },
-          };
+        : modifier.kind === 'mode'
+          ? {
+              type: 'roll-modifier-granted',
+              id: target,
+              modifier: { source, modifier: modifier.modifier },
+            }
+          : {
+              type: 'speed-modifier-granted',
+              id: target,
+              modifier: {
+                source,
+                change: modifier.change,
+                ...(modifier.feet === undefined ? {} : { feet: modifier.feet }),
+              },
+            };
     events.push(granted);
     current = applyEvent(current, granted);
+
+    // **A deadline on what this source granted here, and on nothing else.**
+    // SRD Ray of Frost: "until the start of your next turn", on a cantrip
+    // whose casting is over the instant it resolves — so `grants` is the only
+    // `EffectTarget` member that could ever take the reduction back. It names
+    // the source rather than the casting, so it ends what this casting hung on
+    // *this* creature and leaves what it hung on anybody else alone.
+    //
+    // Scheduled after the grant, because the deadline is only meaningful once
+    // there is something to end; and the duration is `resolveDuration`'s to
+    // refuse, which `riderDurations` has already asked before a die was thrown.
+    const lasts = modifier.kind === 'speed-change' ? modifier.lasts : undefined;
+    const duration = riderDuration(lasts, casterId);
+    if (duration !== undefined) {
+      const timer = schedule(current, { kind: 'grants', on: target, source }, duration);
+      if (!timer.ok) return timer;
+      events.push(timer.value);
+      current = applyEvent(current, timer.value);
+    }
   }
 
   if (riders.delayed !== undefined) {
@@ -1488,6 +1519,47 @@ function resolveDamageDefenseEffect(
   });
   current = events.slice(-1).reduce(applyEvent, current);
   outcomes.push({ target, affected: true });
+  return ok(current);
+}
+
+/**
+ * A Speed the spell changes, for as long as it runs. SRD Longstrider
+ * touches a creature and asks nobody to save, so nothing is rolled and
+ * nothing is resisted — the same shape the Armour Class and the
+ * defence above take, on the third thing a spell hands out that is
+ * not a roll.
+ *
+ * The casting is in the source, so `releaseCasting` ends it with the
+ * spell; a `grants` timer is what could end it sooner, and the
+ * standalone kind carries no deadline of its own because no SRD
+ * sentence writes one without a roll to hang it on. A rider does —
+ * see {@link applyRiders}.
+ */
+function resolveSpeedEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'speed'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { definition, castingId, events, outcomes, held } = ctx;
+  let current = world;
+
+  held.add(target);
+  events.push({
+    type: 'speed-modifier-granted',
+    id: target,
+    modifier: {
+      source: castingSource(definition.name, castingId),
+      change: effect.change,
+      ...(effect.feet === undefined ? {} : { feet: effect.feet }),
+    },
+  });
+  current = events.slice(-1).reduce(applyEvent, current);
+  // Reported after the grant, because the number is what the creature's
+  // Speed actually *is* — a Longstrider on a Grappled creature adds ten
+  // feet to a Speed the rules have already pinned at 0, and the outcome
+  // should say 0 rather than what the definition asked for.
+  outcomes.push({ target, speed: speedOf(current, target), affected: true });
   return ok(current);
 }
 
@@ -2113,6 +2185,8 @@ function resolveOneEffect(
       return resolveArmorClassEffect(ctx, effect, target, world);
     case 'damage-defense':
       return resolveDamageDefenseEffect(ctx, effect, target, world);
+    case 'speed':
+      return resolveSpeedEffect(ctx, effect, target, world);
     case 'heal':
       return resolveHealEffect(ctx, effect, target, victim, world);
     case 'save-damage':

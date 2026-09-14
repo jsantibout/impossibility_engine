@@ -3,6 +3,7 @@ import { endOfNextTurn, forSeconds, startOfNextTurn, type Duration } from './dur
 import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
+import type { SpeedChange } from './standing.js';
 import type { PointAnchoring } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
@@ -298,14 +299,15 @@ export interface ConditionRider {
  * those two branches already emit, the source is the casting, and
  * `releaseCasting` ends them through the door every other grant uses.
  *
- * **A modifier rider still carries no `lasts`, and it is no longer because it
- * could not.** `EffectTarget` has a fourth member now — `grants`, every grant
- * one source made on one creature — so a deadline on a grant is expressible;
- * what is missing is a rider that asks for one. No SRD sentence in this
- * position does: Phantasmal Killer's "for the duration" fits, and a field with
- * no user is a guess dressed as a structure. The member is reachable from a
- * `damage-defense` grant and from a class feature, which is where the sentence
- * that wanted it is written — SRD Superior Hunter's Defense.
+ * **Exactly one member carries `lasts`, and it is the one whose consumer asks
+ * for it.** `EffectTarget`'s fourth member — `grants`, every grant one source
+ * made on one creature — made a deadline on a grant expressible when IE-017
+ * built it for SRD Superior Hunter's Defense, and for a while nothing asked.
+ * SRD Ray of Frost does: "until the start of your next turn", on a cantrip, so
+ * the casting is over the instant it resolves and could never take the
+ * reduction back. `bonus` and `mode` still carry none, because no SRD sentence
+ * in *their* position asks — Phantasmal Killer's "for the duration" fits the
+ * casting exactly, and a field with no user is a guess dressed as a structure.
  */
 export type ModifierRider =
   | {
@@ -314,7 +316,44 @@ export type ModifierRider =
       readonly applies: readonly BonusApplies[];
       readonly direction: 'add' | 'subtract';
     }
-  | { readonly kind: 'mode'; readonly modifier: RollModifier };
+  | { readonly kind: 'mode'; readonly modifier: RollModifier }
+  /**
+   * A Speed the same roll changes.
+   *
+   * SRD Ray of Frost: "On a hit, it takes 1d8 Cold damage, and its Speed is
+   * reduced by 10 feet until the start of your next turn." SRD Hypnotic
+   * Pattern: "While Charmed, the creature has the Incapacitated condition and
+   * a Speed of 0." One roll, two consequences, and writing the Speed as a
+   * `speed` effect of its own would roll a second attack or a second save for
+   * the same outcome — the argument every other member of this union makes.
+   *
+   * **It is `speed-change` and not `speed`, because a rider kind may never be
+   * an effect kind.** `checkShape`'s denylist refuses a nested `kind` that is
+   * an effect kind, so a name shared between the two vocabularies would let
+   * recursion in through a name collision — which is why `buff`'s rider is
+   * `bonus` and `roll-mode`'s is `mode`, and `spell-schema.test.ts` asserts
+   * the two sets are disjoint.
+   *
+   * **This is the one rider that carries `lasts`**, and the reason is
+   * Instantaneous hosts. Every other grant a rider hangs ends when its casting
+   * does, and a cantrip's casting is over the moment it resolves — so Ray of
+   * Frost's reduction would have nothing that could ever take it off.
+   * `EffectTarget.grants` is the deadline IE-017 built for exactly this and
+   * nothing had ever created one; `checkGrantLifetimes` is what insists on it.
+   */
+  | {
+      readonly kind: 'speed-change';
+      readonly change: SpeedChange;
+      /** Signed feet, required by `add` and refused by the other two. */
+      readonly feet?: number;
+      /**
+       * A deadline of the rider's own, shorter than the casting's.
+       *
+       * Omitted, it ends with the casting — which a definition that never
+       * becomes an ongoing casting may not say, and the validator refuses.
+       */
+      readonly lasts?: RiderDuration;
+    };
 
 /**
  * Everything a settled outcome may carry with it, in fixed named slots.
@@ -952,6 +991,31 @@ export type SpellEffect =
        */
       readonly damageTypes: readonly string[];
       readonly defense: DefenseKind;
+    }
+  /**
+   * A Speed the spell changes, for as long as it runs.
+   *
+   * SRD Longstrider, whole: "You touch a creature. The target's Speed
+   * increases by 10 feet until the spell ends." Nothing is rolled and nothing
+   * is resisted — the same shape `armor-class` and `damage-defense` take, on
+   * the third thing a spell can hand a creature that is not a roll.
+   *
+   * **Not a `buff`.** `BonusApplies` covers attacks, saves, ability checks and
+   * an Armour Class, and a Speed is none of those: it is a number movement is
+   * measured against rather than a roll. And two of the three operations are
+   * not arithmetic at all — SRD Slow halves and Hypnotic Pattern zeroes, and
+   * a bonus that added would make a halving a negative number nobody printed.
+   *
+   * The casting is in the source, so `releaseCasting`, `releaseOnTarget`, a
+   * dispel, a broken Concentration and the deadline all end it through the
+   * door every other grant already uses. `speedOf` is the one reader, so the
+   * feet reach the movement allowance, the Dash and the mounting cost together.
+   */
+  | {
+      readonly kind: 'speed';
+      readonly change: SpeedChange;
+      /** Signed feet, required by `add` and refused by the other two. */
+      readonly feet?: number;
     }
   | {
       readonly kind: 'interrupt-casting';
@@ -1744,6 +1808,14 @@ export function riderDuration(
  * rider cannot be pinned outside combat, and finding that out at the moment
  * the condition lands is too late: the saving throw has already been rolled,
  * and the caller's generator has already moved for a cast that never happened.
+ *
+ * **Both slots that can carry one**, because a `speed-change` rider carries
+ * `lasts` too and Ray of Frost is the spell that needs the pre-flight most: it
+ * is a cantrip, so its casting owns nothing, and the deadline is the only
+ * thing that could ever take its reduction away. Reading only the conditions
+ * would have let the ray be thrown outside combat, hit, deal its damage, and
+ * then fail to schedule the slow — a refused operation that had already moved
+ * the world.
  */
 export function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
   const found: RiderDuration[] = [];
@@ -1752,6 +1824,9 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
     // that cannot be pinned is not always the first.
     for (const rider of conditionRiderOf(effect)) {
       if (rider.lasts !== undefined) found.push(rider.lasts);
+    }
+    for (const rider of modifierRidersOf(effect)) {
+      if (rider.kind === 'speed-change' && rider.lasts !== undefined) found.push(rider.lasts);
     }
   }
   return found;
@@ -2614,6 +2689,15 @@ function attackCantrip(args: {
   readonly dice: string;
   readonly damageType: string;
   readonly attack?: 'ranged' | 'melee';
+  /**
+   * Grants the hit imposes, alongside the damage.
+   *
+   * SRD Ray of Frost writes one sentence — "it takes 1d8 Cold damage, **and**
+   * its Speed is reduced by 10 feet" — so the reduction rides the attack that
+   * dealt the damage rather than being a second effect that would roll a
+   * second attack for the same swing.
+   */
+  readonly modifiers?: readonly ModifierRider[];
   readonly unmodelled?: readonly string[];
 }): SpellDefinition {
   return {
@@ -2632,6 +2716,7 @@ function attackCantrip(args: {
         // SRD Cantrip Upgrade is the same three levels for every cantrip.
         damage: { dice: args.dice, cantripUpgradesAt: [5, 11, 17] },
         damageType: args.damageType,
+        ...(args.modifiers === undefined ? {} : { modifiers: args.modifiers }),
       },
     ],
     ...(args.unmodelled === undefined ? {} : { unmodelled: args.unmodelled }),
@@ -2672,7 +2757,13 @@ export const RAY_OF_FROST = attackCantrip({
   feet: 60,
   dice: '1d8',
   damageType: 'cold',
-  unmodelled: ['the target\u2019s Speed is reduced by 10 feet until the start of your next turn'],
+  // "until the start of your next turn", on a cantrip \u2014 so the casting is
+  // Instantaneous and cannot own the reduction. `lasts` is the rider's own
+  // deadline, and the `grants` timer it schedules is the only thing that could
+  // ever take the ten feet back.
+  modifiers: [
+    { kind: 'speed-change', change: 'add', feet: -10, lasts: 'start-of-casters-next-turn' },
+  ],
 });
 
 /**
@@ -3752,8 +3843,10 @@ export const PHANTASMAL_KILLER: SpellDefinition = {
       // "ability checks and attack rolls" is two. Neither narrows by ability
       // or skill, which is what "ability checks" with nothing after it means.
       //
-      // "For the duration" is the casting's, which is exactly and only what a
-      // modifier rider can say: nothing ends a grant before its casting does.
+      // "For the duration" is the casting's, so these riders say no `lasts` —
+      // the field exists on the one member whose SRD sentence asks for it, and
+      // a `mode` that borrowed it would be claiming a deadline the spell does
+      // not print.
       modifiers: [
         {
           kind: 'mode',
@@ -3998,18 +4091,21 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
       ability: 'wis',
       condition: 'charmed',
       // "While Charmed, the creature has the Incapacitated condition and a
-      // Speed of 0." One Wisdom save, and the Incapacitated is not a second
+      // Speed of 0." One Wisdom save, and neither of the other two is a second
       // roll — a second `save` effect would ask for one, and a creature could
       // then be Charmed and not Incapacitated, which the spell does not
-      // permit. The Speed is a rule the engine does not hold at all and says
-      // so below.
+      // permit.
       conditions: [{ name: 'incapacitated' }],
+      // The Speed rides the same failure, and it needs no `lasts`: the
+      // casting is a Concentration spell with a minute on it, so both doors
+      // that end it — the Concentration breaking and the deadline — take the
+      // Speed with them, and a release on one target frees that one alone.
+      modifiers: [{ kind: 'speed-change', change: 'zero' }],
     },
   ],
   durationSeconds: 60,
   unmodelled: [
     'only a creature that can see the pattern is affected',
-    'the Speed of 0 that rides along with the Charm',
     'the spell ending for a creature that takes damage or is shaken out of it',
   ],
 };
@@ -4899,12 +4995,17 @@ export const LONGSTRIDER: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1, extraPerSlotLevelAbove: 1 },
-  effects: [],
+  // "You touch a creature", which includes yourself — the reading Mage Armor
+  // and Stoneskin already take of the same clause, and a correction rather
+  // than a consequence of executing the spell: `namedTargets` refuses a caster
+  // who names themselves whatever the definition resolves, so a tracked
+  // Longstrider cast on oneself was refused too, and nothing had asked.
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
+  // The whole of the spell: one sentence, one operation, one number. The hour
+  // is the casting's own deadline, so the grant needs no `lasts` — it ends
+  // through the door `releaseCasting` already opens.
+  effects: [{ kind: 'speed', change: 'add', feet: 10 }],
   durationSeconds: 3600,
-  unmodelled: [
-    'the 10-foot Speed increase is not applied: Speed comes from the species and nothing modifies it yet',
-  ],
 };
 
 /**

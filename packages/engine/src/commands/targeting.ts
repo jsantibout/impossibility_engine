@@ -119,6 +119,16 @@ export interface SpellTargetOutcome {
    * a Barbarian may well be the one that loses.
    */
   readonly armorClass?: number;
+  /**
+   * The target’s Speed after an effect changed it.
+   *
+   * The resulting number rather than the change the definition asked for, and
+   * for {@link armorClass}’s reason: the grant is one input among several to
+   * `speedOf`, so a Longstrider on a Grappled creature adds ten feet to a
+   * Speed the rules have already pinned at 0. What the caller wants is what
+   * the creature can actually move.
+   */
+  readonly speed?: number;
   /** Whether the effect actually landed on this target. */
   readonly affected: boolean;
 }

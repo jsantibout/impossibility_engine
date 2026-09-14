@@ -855,6 +855,66 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
 }
 
 /**
+ * What an effect does to a Speed.
+ *
+ * Three members, one per operation the SRD writes, and the order they compose
+ * in is {@link combineSpeed}'s rather than this union's:
+ *
+ * > Longstrider: "The target's Speed **increases by 10 feet**."
+ * > Ray of Frost: "its Speed is **reduced by 10 feet**."
+ * > Slow: "An affected target's Speed is **halved**."
+ * > Hypnotic Pattern: "the creature has ... **a Speed of 0**."
+ *
+ * **A doubling is not here**, and that is a decision rather than an oversight.
+ * SRD Haste prints "the target's Speed is doubled" and is the only sentence in
+ * the book that does; carrying it would mean a fifth step in `combineSpeed`
+ * whose order against the halving the SRD does not print, so it is a named
+ * missing shape — `a-speed-an-effect-multiplies` — that arrives with a rule
+ * settling that order, exactly as `TypedSaveOutcome`'s automatic success waits
+ * for the spell that can write it.
+ *
+ * Increase and decrease are **one** member with a sign rather than two,
+ * because they are one operation: the argument `interveneAfterRoll`'s
+ * `direction` already settled for adding and subtracting a die.
+ */
+export type SpeedChange =
+  /** A signed number of feet: Longstrider's +10, Ray of Frost's −10. */
+  | 'add'
+  /** SRD Slow. Presence and not count, so two halvings are one halving. */
+  | 'halve'
+  /** SRD Hypnotic Pattern. Last, and it beats every addition. */
+  | 'zero';
+
+/**
+ * A Speed an ongoing effect has changed.
+ *
+ * The fifth member of the family `bonuses`, `armorClasses`, `rollModifiers`
+ * and `grantedDefenses` already form, and it needed no lifecycle of its own:
+ * the casting is in the `source`, so `releaseCasting`, `releaseOnTarget` and a
+ * `grants` deadline all end it through the door the other four already use.
+ *
+ * **It lives here rather than beside the definition format**, with every other
+ * grant type: `ActiveBonus` is in `bonuses.ts`, `GrantedArmorClass` in
+ * `character.ts`, `ActiveRollModifier` in `roll-modifiers.ts` and
+ * `GrantedDefense` in `attack.ts` — each beside the function that reads it.
+ * {@link speedOf} is the reader, and {@link combineSpeed} is the order.
+ *
+ * **`feet` is signed and belongs to `add` alone.** SRD Longstrider increases a
+ * Speed by 10 and Ray of Frost reduces one by 10, which is one operation with
+ * two signs; `halve` and `zero` name a whole operation and have no number to
+ * carry. `checkSpellDefinition` refuses the mismatch at authoring, which is
+ * why this stays one flat record rather than a union the reducer would have to
+ * narrow on every fold.
+ */
+export interface GrantedSpeed {
+  /** The casting (`Longstrider#cast:3`) or the feature that granted it. */
+  readonly source: string;
+  readonly change: SpeedChange;
+  /** Signed feet, for an `add`; absent for the other two. */
+  readonly feet?: number;
+}
+
+/**
  * Compose a Speed out of its parts, in the order the architect fixed.
  *
  * **The SRD prints no order**, and the order is observable, so it is decided
@@ -879,19 +939,27 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
  * rules rather than two.
  *
  * @param halvings how many halving effects apply; any number above zero halves
- *   once. Nothing in the engine produces one yet — **IE-033's spell-granted
- *   Speed change is the first** — so this branch is reached today only by
- *   handing this pure function the case, which is how `restoreOn`'s Short Rest
- *   branch is reached and for the same reason.
+ *   once. IE-033's `speed` grant is the producer: SRD Slow's "An affected
+ *   target's Speed is halved" is the sentence, and no *registered* definition
+ *   writes it yet — Slow is blocked on two other shapes — so the branch is
+ *   still reached the way `restoreOn`'s Short Rest branch is, by handing this
+ *   pure function the case, as well as through a hand-written grant.
+ * @param zeroed whether any zeroing effect applies. **Last, and it wins**, for
+ *   the reason above: a flat change applied afterwards would hand a pinned
+ *   creature feet the rules had already taken away. It is a boolean rather
+ *   than a count because presence is all the SRD asks — two castings of
+ *   Hypnotic Pattern on one goblin are one Speed of 0.
  */
 export function combineSpeed(
   base: number,
   flat: number,
   halvings: number,
+  zeroed: boolean,
   conditions: ConditionState,
 ): number {
   const flattened = conditionSpeed(conditions, base + flat);
-  return Math.max(0, halvings > 0 ? Math.floor(flattened / 2) : flattened);
+  const halved = halvings > 0 ? Math.floor(flattened / 2) : flattened;
+  return zeroed ? 0 : Math.max(0, halved);
 }
 
 /**
@@ -922,10 +990,20 @@ export function combineSpeed(
  * effect's requirements — including Dodge's `has-speed`, which asks this
  * function. Reading only `speed` grants is what keeps that from recursing.
  *
- * **No spell moves a Speed yet.** IE-033 adds that through this reader, which
- * is what `halvings` and the `flat` accumulator are here for; a grant added to
- * `CreatureState` joins them without a second answer to this question
- * appearing anywhere.
+ * **A spell moves a Speed through here too, and through nowhere else.**
+ * `CreatureState.speedModifiers` is the fifth sourced grant and it joins the
+ * same three accumulators a feature's grant already fed, which is the whole
+ * point of there being one reader: Longstrider's ten feet reach the movement
+ * allowance, the Dash and the mounting cost together rather than three times
+ * over, and Hypnotic Pattern's Speed of 0 arrives at the same comparison
+ * Grappled already arrives at.
+ *
+ * **The two kinds of grant are gathered differently on purpose.** A feature's
+ * is derived on every read, because whether a Monk is unarmoured changes the
+ * moment they put a Shield down; a spell's is *stored*, because a casting
+ * started at a moment somebody can write down and ends at another. So one is
+ * filtered by `meetsRequirements` and the other is not — a stored grant whose
+ * requirement was re-evaluated would be a second answer to when it ends.
  */
 export function speedOf(state: GameState, who: CharacterId): number {
   const creature = state.creatures[who];
@@ -940,7 +1018,15 @@ export function speedOf(state: GameState, who: CharacterId): number {
     flat += effect.grant.feet;
   }
 
-  return combineSpeed(base, flat, 0, creature.conditions);
+  let halvings = 0;
+  let zeroed = false;
+  for (const granted of creature.speedModifiers) {
+    if (granted.change === 'add') flat += granted.feet ?? 0;
+    else if (granted.change === 'halve') halvings += 1;
+    else zeroed = true;
+  }
+
+  return combineSpeed(base, flat, halvings, zeroed, creature.conditions);
 }
 
 /**

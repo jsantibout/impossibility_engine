@@ -96,7 +96,7 @@ import {
  * the fence `upgradeOngoing` stands behind is intact and a future correction
  * to the Monk table changes future sheets rather than historical folds.
  */
-import { speedOf } from './standing.js';
+import { speedOf, type GrantedSpeed } from './standing.js';
 import {
   addLandmark,
   areaPointAt,
@@ -319,6 +319,28 @@ export interface CreatureState {
    * not in it either, which is a distinction a merge would quietly flatten.
    */
   readonly grantedDefenses: readonly GrantedDefense[];
+  /**
+   * Speeds a running effect has changed on this creature.
+   *
+   * The fifth member of the family the four above form, and the one whose
+   * reader already existed: IE-031 made `speedOf` the single place the engine
+   * asks what a creature's Speed is, with a `flat` accumulator, a halving
+   * count and a zero — and gave it no *effect* to read. SRD Longstrider, Ray
+   * of Frost, Slow and Hypnotic Pattern all move a Speed, and every one of
+   * them was a sentence in `unmodelled` saying the engine holds one
+   * `baseSpeed` and nothing modifies it.
+   *
+   * Linked by the source exactly as the other four are, so `releaseCasting`,
+   * `releaseOnTarget` and a `grants` deadline end it through the door that
+   * already existed — and the deadline is the one that matters here, because
+   * Ray of Frost is Instantaneous and has no casting to end.
+   *
+   * **Not folded into the sheet's `baseSpeed`.** That number is what the
+   * creature *is*; this is what is being done to it, and a grant written into
+   * the base could never be taken out again — the same reading that keeps
+   * {@link grantedDefenses} out of {@link defenses}.
+   */
+  readonly speedModifiers: readonly GrantedSpeed[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *
@@ -1044,6 +1066,25 @@ export type GameEvent =
       readonly type: 'damage-defense-granted';
       readonly id: CharacterId;
       readonly defense: GrantedDefense;
+    }
+
+  /**
+   * An ongoing effect changes a creature's Speed.
+   *
+   * Its own event rather than a `bonus-applied` carrying feet, because a Speed
+   * is not a roll: `BonusApplies` covers attacks, saves, ability checks and an
+   * Armour Class, and a Speed is none of those — and two of the three things
+   * an effect can do to one are not arithmetic at all. SRD Slow halves and
+   * Hypnotic Pattern zeroes, and presence does not add.
+   *
+   * Ended by the source it carries, exactly as the other four grants are, so
+   * there is no removal event: `releaseCasting`, `releaseOnTarget` and the
+   * `grants` timer are the doors.
+   */
+  | {
+      readonly type: 'speed-modifier-granted';
+      readonly id: CharacterId;
+      readonly modifier: GrantedSpeed;
     }
 
   /**
@@ -2046,11 +2087,11 @@ export const castingIdFor = (n: number): string => `cast:${n}`;
 /**
  * A grant a running effect hung on a creature, read only for what hung it.
  *
- * The four families below all carry more than this — a `Bonus`, a base Armour
- * Class, a `RollModifier`, a list of damage types — and every operation that
- * *ends* one reads nothing but the `source`. So this is the shape the
- * enumerator works in, and it is deliberately the smallest one that answers
- * the question.
+ * The five families below all carry more than this — a `Bonus`, a base Armour
+ * Class, a `RollModifier`, a list of damage types, a change to a Speed — and
+ * every operation that *ends* one reads nothing but the `source`. So this is
+ * the shape the enumerator works in, and it is deliberately the smallest one
+ * that answers the question.
  */
 interface SourcedGrant {
   readonly source: string;
@@ -2085,12 +2126,14 @@ type GrantFamily = Exclude<
 type HeldGrants = { readonly [K in GrantFamily]: readonly SourcedGrant[] };
 
 /**
- * The four families as one value, and the only place the list is written.
+ * The five families as one value, and the only place the list is written.
  *
- * The annotation is a mapped type over {@link GrantFamily}, so a fifth family
+ * The annotation is a mapped type over {@link GrantFamily}, so a family
  * declared on `CreatureState` makes **this literal** a compile error naming the
  * property it lacks. That is the guard: the enumerator cannot quietly stop
- * seeing a family, and there is nowhere else for a hand-kept list to rot.
+ * seeing a family, and there is nowhere else for a hand-kept list to rot. It
+ * fired exactly once, for `speedModifiers` — the fifth was one edit here and
+ * the compiler insisted on it, which is what the guard was built to buy.
  *
  * Nothing is copied — each value is the creature's own array.
  */
@@ -2099,6 +2142,7 @@ const grantsOf = (creature: CreatureState): HeldGrants => ({
   armorClasses: creature.armorClasses,
   rollModifiers: creature.rollModifiers,
   grantedDefenses: creature.grantedDefenses,
+  speedModifiers: creature.speedModifiers,
 });
 
 /** How many grants are in a record of families, which a `filter` can only lower. */
@@ -2108,10 +2152,11 @@ const countGrants = (held: Record<string, readonly SourcedGrant[]>): number =>
 /**
  * Every source that has hung a grant on this creature.
  *
- * One enumerator over the four families — the bonuses Bless adds, the Armour
+ * One enumerator over the five families — the bonuses Bless adds, the Armour
  * Class Mage Armor supplies, the Advantage Blur grants, the Resistance
- * Stoneskin grants — so a reader asking "is this casting still holding
- * anything here" asks it once rather than four times.
+ * Stoneskin grants, the ten feet Longstrider adds — so a reader asking "is
+ * this casting still holding anything here" asks it once rather than five
+ * times.
  *
  * **Sorted and deduplicated**, so the answer is fixed however the families are
  * visited and whatever order the grants arrived in; serialised state reaches
@@ -2139,7 +2184,7 @@ export function grantSourcesOf(creature: CreatureState): readonly string[] {
 }
 
 /**
- * Every grant whose source the predicate names, taken off all four families.
+ * Every grant whose source the predicate names, taken off all five families.
  *
  * The one removal. The three callers differ only in which sources they name —
  * `releaseCasting` and `releaseOnTarget` match the casting id inside the
@@ -3564,7 +3609,8 @@ function expireEffects(state: GameState): GameState {
  *
  * The same links `releaseCasting` walks, asked of one creature: the conditions
  * it hung, and every grant {@link grantSourcesOf} enumerates — the bonuses, the
- * Armour Class it supplied, the roll modifiers and the defences it granted.
+ * Armour Class it supplied, the roll modifiers, the defences it granted and the
+ * Speed it changed.
  * Reading them through the enumerator is what keeps this in step with the
  * release: a family this could see and `releaseCasting` could not would keep a
  * finished casting in `OngoingSpell.on`, which is a wrong answer to Dispel
@@ -4011,6 +4057,7 @@ function applyOne(state: GameState, event: GameEvent): GameState {
             armorClasses: [],
             rollModifiers: [],
             grantedDefenses: [],
+            speedModifiers: [],
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
@@ -5023,6 +5070,21 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         },
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { grantedDefenses }, creature);
+    }
+
+    case 'speed-modifier-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, which
+      // is the rule `bonus-applied`, `armor-class-granted` and
+      // `damage-defense-granted` all follow. **The source alone is the
+      // identity**, as it is for a defence: `roll-modifier-granted` needed a
+      // per-selector key because Beacon of Hope grants two modifiers in one
+      // sentence, and no SRD sentence changes one creature's Speed twice.
+      const speedModifiers = [
+        ...creature.speedModifiers.filter((held) => held.source !== event.modifier.source),
+        event.modifier,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { speedModifiers }, creature);
     }
 
     case 'bonus-removed': {

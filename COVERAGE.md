@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 46 (13.6%) | 91 (26.8%) | 47 | 69 (20.4%) |
+| 339 | 45 (13.3%) | 92 (27.1%) | 46 | 70 (20.6%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -55,7 +55,7 @@ spell, and the area is the part that is missing.
 | A condition imposed with no saving throw | 4 | 0 | 2 | per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition") |
 | Temporary Hit Points | 3 | 0 | 1 | — |
 | A bonus to later rolls | 5 | 0 | 1 | — |
-| Narrative or exploration effect | 87 | 43 | 8 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
+| Narrative or exploration effect | 87 | 42 | 9 | nothing, for the ones whose effect really is the DM’s; the rest carry a rule the engine should own — an ability check against a spell save DC, an Armour Class *floor* (Barkskin’s “if its AC is lower”; a base an effect **sets** now works, and Mage Armor is it), a Speed, a Resistance, healing |
 
 ### Executed today
 
@@ -119,6 +119,7 @@ spell, and the area is the part that is missing.
 - **Invisibility** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Lesser Restoration** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Lightning Bolt** (level 3) — verified
+- **Longstrider** (level 1) — verified
 - **Mage Armor** (level 1) — verified
 - **Mass Cure Wounds** (level 5) — verified
 - **Mass Healing Word** (level 3) — untested
@@ -130,7 +131,7 @@ spell, and the area is the part that is missing.
 - **Produce Flame** (cantrip) — verified
 - **Protection from Energy** (level 3) — verified
 - **Protection from Poison** (level 2) — verified, partial — a clause the engine owns is still unbuilt
-- **Ray of Frost** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
+- **Ray of Frost** (cantrip) — verified
 - **Ray of Sickness** (level 1) — verified
 - **Sacred Flame** (cantrip) — verified
 - **Shatter** (level 2) — verified
@@ -175,7 +176,6 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 - **Locate Animals or Plants** (level 2) — 2 noted
 - **Locate Creature** (level 4) — 2 noted
 - **Locate Object** (level 2) — 2 noted
-- **Longstrider** (level 1) — 1 noted
 - **Mage Hand** (cantrip) — 3 noted
 - **Message** (cantrip) — 3 noted
 - **Minor Illusion** (cantrip) — 3 noted
@@ -227,7 +227,7 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-spell-that-answers-a-later-attack` | 5 | 2 | 0 | 0 | 5 |
 | `a-casting-ended-by-a-trigger` | 21 | 1 | 2 | 0 | 19 |
 | `a-random-outcome-that-is-not-a-d20` | 19 | 1 | 0 | 0 | 19 |
-| `difficult-terrain-an-area-creates` | 18 | 1 | 5 | 0 | 13 |
+| `difficult-terrain-an-area-creates` | 19 | 1 | 5 | 0 | 14 |
 | `a-barrier-that-blocks-passage` | 12 | 1 | 0 | 0 | 12 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 11 | 1 | 1 | 0 | 10 |
 | `a-condition-immunity-a-spell-grants` | 10 | 1 | 0 | 0 | 10 |
@@ -239,6 +239,7 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `healing-that-raises-the-dead` | 6 | 1 | 0 | 0 | 6 |
 | `a-hit-point-maximum-a-spell-moves` | 5 | 1 | 1 | 0 | 4 |
 | `an-activation-that-forces-a-saving-throw` | 5 | 1 | 0 | 0 | 5 |
+| `an-outcome-that-reads-the-targets-hit-points` | 4 | 1 | 0 | 0 | 4 |
 | `an-area-trigger-measured-from-a-point` | 3 | 1 | 0 | 0 | 3 |
 | `falling` | 3 | 1 | 0 | 0 | 3 |
 | `several-attack-rolls-from-one-casting` | 3 | 1 | 1 | 0 | 2 |
@@ -251,9 +252,9 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `an-armor-class-a-spell-floors` | 1 | 1 | 0 | 0 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 1 | 0 | 0 | 1 |
 | `a-choice-made-at-the-casting` | 24 | 0 | 4 | 0 | 20 |
-| `speed-and-movement-modes` | 16 | 0 | 2 | 3 | 11 |
 | `forced-movement-a-spell-causes` | 12 | 0 | 1 | 0 | 11 |
 | `an-effect-that-suppresses-other-magic` | 9 | 0 | 0 | 0 | 9 |
+| `movement-modes` | 8 | 0 | 0 | 2 | 6 |
 | `a-repeat-save-raised-by-a-trigger` | 7 | 0 | 6 | 0 | 1 |
 | `a-deadline-anchored-to-a-rest` | 6 | 0 | 0 | 0 | 6 |
 | `an-activation-that-resolves-an-area` | 6 | 0 | 1 | 0 | 5 |
@@ -268,7 +269,6 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-repeat-save-counted-to-a-tally` | 4 | 0 | 1 | 0 | 3 |
 | `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 4 |
 | `an-ability-score-a-spell-changes` | 4 | 0 | 0 | 0 | 4 |
-| `an-outcome-that-reads-the-targets-hit-points` | 4 | 0 | 0 | 0 | 4 |
 | `a-casting-dismissed-early` | 3 | 0 | 0 | 0 | 3 |
 | `a-fact-only-the-table-can-declare` | 3 | 0 | 0 | 0 | 3 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 |
@@ -294,6 +294,7 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-range-that-scales-with-caster-level` | 1 | 0 | 0 | 0 | 1 |
 | `a-repeat-save-on-the-clock` | 1 | 0 | 1 | 0 | 0 |
 | `a-save-keyed-to-a-condition` | 1 | 0 | 1 | 0 | 0 |
+| `a-speed-an-effect-multiplies` | 1 | 0 | 0 | 0 | 1 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 1 |
 | `an-automatic-success-by-creature-type` | 1 | 0 | 0 | 0 | 1 |
 | `an-effect-that-stabilises-a-dying-creature` | 1 | 0 | 0 | 0 | 1 |

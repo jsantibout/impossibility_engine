@@ -299,10 +299,12 @@ describe('Phantasmal Killer: the grant a failed save imposes', () => {
   });
 
   /**
-   * "For the duration" is the casting's, which is exactly what a modifier
-   * rider can say and all it can say: nothing in the engine ends a grant
-   * before its casting does, so `ModifierRider` offers no `lasts` rather than
-   * offering one it could not honour.
+   * "For the duration" is the casting's, which is all a `mode` rider can say:
+   * that member carries no `lasts`, because no SRD sentence in its position
+   * asks for one. `EffectTarget.grants` makes a shorter deadline expressible
+   * and `speed-change` is the one member that names it — so the grant going
+   * when the casting goes is this rider's whole lifetime rather than the
+   * engine's only answer.
    */
   it('takes the grant away when the casting ends', () => {
     const log = [...SETUP, ...feared(-40).events];
