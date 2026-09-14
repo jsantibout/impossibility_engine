@@ -1,11 +1,11 @@
 # IE-043 — The `end-of-current-turn` moment
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `duration.ts`, `spell-definitions.ts` types, `spell-schema.ts`; content-line collision with IE-036 only, the IE-035 ∥ IE-036 precedent
 depends-on: none
-worker: none
+worker: qb-builder in .claude/worktrees/agent-a7c6e1fab8a892436, branch worktree-agent-a7c6e1fab8a892436
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 

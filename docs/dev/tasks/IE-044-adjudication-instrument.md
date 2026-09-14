@@ -1,11 +1,11 @@
 # IE-044 — Clause-anchored blockers, and a sentence-coverage guard
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: conformance
 tranche: 6
 parallel-safe: CONDITIONAL — `scripts/missing-shapes.ts`, `blocked-on.test.ts`, `scripts/coverage.ts`; before IE-036 and IE-045, which both touch what it changes
 depends-on: none
-worker: none
+worker: qb-builder in .claude/worktrees/agent-a18f14df59a942ff1, branch worktree-agent-a18f14df59a942ff1
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 

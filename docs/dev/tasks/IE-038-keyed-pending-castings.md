@@ -1,11 +1,11 @@
 # IE-038 — `pendingCastings`, keyed by casting id
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 6
 parallel-safe: NO — `events.ts`, `commands/spell-resolution.ts`, `commands/casting.ts`; the whole casting primitive
 depends-on: none
-worker: none
+worker: qb-builder in .claude/worktrees/agent-ac862330ffdaeb2db, branch worktree-agent-ac862330ffdaeb2db
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
