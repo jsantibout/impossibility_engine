@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   ADJUDICATED,
@@ -29,6 +31,7 @@ import {
  */
 
 const PARSED = parsedSpellIds();
+const HERE = fileURLToPath(new URL('.', import.meta.url));
 
 describe('the blocked-on map covers the undefined population', () => {
   /**
@@ -150,13 +153,214 @@ describe('the blocked-on map covers the undefined population', () => {
   });
 });
 
+/**
+ * The documents a citation may name, and what each name resolves to.
+ *
+ * Four entries and deliberately not "any file in the repository": a citation
+ * is worth checking *because* it names a document somebody reviewed, and a
+ * table that matched any path would stop saying where a claim came from.
+ * `docs/architecture` is **read** rather than listed, because the audits are a
+ * directory that grows and a hand-kept list of them is the hand-kept count
+ * this whole map exists to end. That one name therefore resolves to several
+ * files and a run need appear in any of them, which is the honest reading of a
+ * description that says "the audit" without saying which — and still far
+ * narrower than asking whether the word appears.
+ *
+ * **`SRD` is in the table carrying no file, and that is the whole of what it
+ * is for.** A note that names `CLAUDE.md` and then quotes the book must not
+ * have the book's sentence looked up in `CLAUDE.md`. Those quotations already
+ * have a guard — `spell-honesty.test.ts` holds each against that spell's own
+ * paragraph — and this one would check them against the wrong document
+ * entirely.
+ */
+const CITED_SOURCES: ReadonlyArray<{
+  /** What a citation writes, matched as it stands and case-insensitively. */
+  readonly name: string;
+  /** What a failure names, which for the audits is the directory. */
+  readonly label: string;
+  readonly files: readonly string[];
+}> = [
+  { name: 'claude.md', label: 'CLAUDE.md', files: ['CLAUDE.md'] },
+  { name: 'progress.md', label: 'PROGRESS.md', files: ['PROGRESS.md'] },
+  {
+    name: 'audit',
+    label: 'the audit records under docs/architecture/',
+    files: readdirSync(`${HERE}../../../docs/architecture`).map(
+      (file) => `docs/architecture/${file}`,
+    ),
+  },
+  {
+    name: 'spell-definitions.ts',
+    label: 'packages/engine/src/spell-definitions.ts',
+    files: ['packages/engine/src/spell-definitions.ts'],
+  },
+  { name: 'srd', label: 'the SRD', files: [] },
+];
+
+/**
+ * The shortest run worth holding against a document, and what the floor costs.
+ *
+ * Eight characters, which is `spell-honesty.test.ts`'s floor for the same job
+ * on the other axis — one convention in this repository rather than two. What
+ * it costs is that a shorter quotation goes unchecked, and that is the right
+ * way round: `"D20 Tests"` and `"within reach"` are quoted *terms* rather than
+ * citations, and a run that short is as likely to land in a document by
+ * coincidence as by quotation. Measured on this corpus the floor is not
+ * load-bearing — every citation from eight characters upward passes, and so
+ * does every one from thirty upward — so it sits where it under-fires rather
+ * than where it would start guessing.
+ */
+const CITATION_FLOOR = 8;
+
+/**
+ * Emphasis, smart quotes and line wrapping are typesetting; the wording is not.
+ *
+ * Both sides are normalised, so a citation may be typeset differently from the
+ * sentence it quotes and still be that sentence. What survives is every word
+ * and every mark of punctuation between them — a quotation closing with a full
+ * stop where the document goes on with a colon is a different sentence, which
+ * is why the descriptions put the citing sentence's own stop *outside* the
+ * closing quote.
+ */
+const normaliseProse = (text: string): string =>
+  text
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[*_]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const documents = new Map<string, string>();
+const documentText = (path: string): string => {
+  const cached = documents.get(path);
+  if (cached !== undefined) return cached;
+  const text = normaliseProse(readFileSync(`${HERE}../../../${path}`, 'utf8'));
+  documents.set(path, text);
+  return text;
+};
+
+interface Citation {
+  /** The shape, or the spell and clause, the run was written in. */
+  readonly where: string;
+  readonly source: string;
+  readonly run: string;
+  readonly files: readonly string[];
+}
+
+/**
+ * Every quoted run in one piece of prose, attributed to the last document
+ * named before it.
+ *
+ * **Nearest preceding name**, which is a rule an author can hold in their head
+ * rather than a matcher whose behaviour nobody can predict: name the document,
+ * then quote it. Its one cost is that a quotation of something *else* is read
+ * as belonging to whatever was named last, so a description quoting a second
+ * source has to name that one too — which is the habit this guard exists to
+ * enforce rather than a concession. A run with no document named anywhere
+ * before it is nobody's citation and is skipped, as is one attributed to a
+ * name the table gives no file.
+ */
+function citationsIn(where: string, prose: string): Citation[] {
+  const named: Array<{ at: number; source: string; files: readonly string[] }> = [];
+  for (const { name, label, files } of CITED_SOURCES) {
+    const mark = new RegExp(name.replace(/\./g, '\\.'), 'gi');
+    let found: RegExpExecArray | null;
+    while ((found = mark.exec(prose)) !== null) {
+      named.push({ at: found.index, source: label, files });
+    }
+  }
+  named.sort((a, b) => a.at - b.at);
+
+  const cited: Citation[] = [];
+  const quoted = new RegExp(`"[^"]{${CITATION_FLOOR},}"`, 'g');
+  let run: RegExpExecArray | null;
+  while ((run = quoted.exec(prose)) !== null) {
+    const at = run.index;
+    const attributed = named.filter((mention) => mention.at < at).pop();
+    if (attributed === undefined || attributed.files.length === 0) continue;
+    cited.push({
+      where,
+      source: attributed.source,
+      run: run[0].slice(1, -1),
+      files: attributed.files,
+    });
+  }
+  return cited;
+}
+
+/**
+ * Does the cited document contain this run, reading an elision forwards?
+ *
+ * A citation may elide with `...`, which this repository's prose does
+ * constantly, and the parts either side must then appear **in the document's
+ * order** — a quotation that reorders a document is not that document's
+ * sentence. With no elision it is a plain containment test, which is the whole
+ * of the precedent's behaviour.
+ */
+function containsRun(path: string, run: string): boolean {
+  const text = documentText(path);
+  let cursor = 0;
+  for (const part of run.split(/\s*(?:\.\.\.|…)\s*/)) {
+    const fragment = normaliseProse(part);
+    if (fragment.length === 0) continue;
+    const at = text.indexOf(fragment, cursor);
+    if (at < 0) return false;
+    cursor = at + fragment.length;
+  }
+  return true;
+}
+
+/**
+ * The citations a corpus makes that the document it named does not contain.
+ *
+ * Parameterised over the corpus for the reason `coverageGaps` is: a guard that
+ * can only be run against the data it already agrees with is not a guard, so
+ * the tests below drive it with a misquote built to be caught before they run
+ * it on the real maps. Every failure carries the shape or spell, the run, and
+ * the document it was checked against, because a guard that reports only a
+ * failure teaches nobody.
+ */
+function misquotes(corpus: Iterable<readonly [string, string]>): string[] {
+  const found: string[] = [];
+  for (const [where, prose] of corpus) {
+    for (const citation of citationsIn(where, prose)) {
+      if (citation.files.some((path) => containsRun(path, citation.run))) continue;
+      found.push(
+        `${citation.where} attributes to ${citation.source} a run it does not contain: "${normaliseProse(citation.run)}"`,
+      );
+    }
+  }
+  return found;
+}
+
+/** Every piece of prose in these three maps that may cite this repository. */
+function citedProse(): Array<readonly [string, string]> {
+  return [
+    ...Object.entries(MISSING_SHAPES).map(([shape, description]) => [shape, description] as const),
+    ...Object.entries(ADJUDICATED).flatMap(([spellId, entries]) =>
+      entries.map((entry) => [`${spellId}: ${entry.clause}`, entry.note] as const),
+    ),
+    ...Object.entries(TRACKED_ADJUDICATED).flatMap(([spellId, markers]) =>
+      Object.entries(markers).flatMap(([marker, entry]) =>
+        entry === undefined ? [] : [[`${spellId}: ${marker}`, entry.note] as const],
+      ),
+    ),
+  ];
+}
+
 describe('a shape says where this repository already described it', () => {
   /**
    * The rule that keeps the vocabulary from becoming a private language — the
    * one `spell-honesty.test.ts` introduced, now asked of the whole map.
+   *
+   * The names are read off {@link CITED_SOURCES} rather than written out a
+   * second time, so the list a description must name and the list a quotation
+   * is checked against cannot drift apart.
    */
   it('makes every shape point at prose somebody already reviewed', () => {
-    const sources = ['claude.md', 'progress.md', 'the audit', 'spell-definitions.ts'];
+    const sources = CITED_SOURCES.filter((source) => source.files.length > 0).map(
+      (source) => source.name,
+    );
     for (const [shape, description] of Object.entries(MISSING_SHAPES)) {
       const said = description.toLowerCase();
       expect(
@@ -191,6 +395,151 @@ describe('a shape says where this repository already described it', () => {
   it('has a vocabulary that covers every claim', () => {
     const known = new Set<string>(Object.keys(MISSING_SHAPES));
     expect([...claimedShapes()].filter((shape) => !known.has(shape))).toEqual([]);
+  });
+});
+
+/**
+ * Naming a document is not quoting it, and the guard above only ever asked for
+ * the name.
+ *
+ * It is a substring test for a *source name*, so a description could name
+ * `CLAUDE.md` and then quote a sentence `CLAUDE.md` does not contain — which
+ * is exactly what happened: **two misquotes of `CLAUDE.md` shipped inside
+ * tranche 4** and were caught by a reviewer reading rather than by a test.
+ * This is the other half of the same rule, and the shape is
+ * `spell-honesty.test.ts`'s, which holds an `unmodelled` note's SRD quotation
+ * against that spell's own paragraph after four notes were found attributing
+ * to the book a sentence it does not print. Same failure, the other axis: a
+ * claim about a document, checked against the document.
+ */
+describe('a citation is held against the document it names', () => {
+  /**
+   * The guard, driven by a misquote built to be caught.
+   *
+   * The synthetic **inverts a sentence `CLAUDE.md` really prints**, because
+   * that is the failure in its hardest form: the file is named, the file
+   * exists, the subject is right, and nothing but opening it can tell the two
+   * apart. A guard nobody has seen fire is a guard nobody has tested.
+   */
+  it('catches a description quoting a sentence CLAUDE.md does not print', () => {
+    const misquoted = 'CLAUDE.md says it outright: "A Goblin Warrior is Humanoid, not Fey".';
+    expect(misquotes([['synthetic-shape', misquoted]])).toEqual([
+      expect.stringContaining('A Goblin Warrior is Humanoid, not Fey'),
+    ]);
+  });
+
+  /** And it passes the moment the quotation is the sentence the file prints. */
+  it('passes once that quotation is corrected', () => {
+    const quoted = 'CLAUDE.md says it outright: "A Goblin Warrior is Fey, not Humanoid".';
+    expect(misquotes([['synthetic-shape', quoted]])).toEqual([]);
+  });
+
+  /**
+   * **This repository states one sentence two ways, and the guard must not
+   * pick for it.**
+   *
+   * `CLAUDE.md` writes Mass Cure Wounds' range rule as "the point **rather
+   * than** to each target" and `spell-definitions.ts` writes it as "the point,
+   * **not** to each target". Both are correct in their own file, so the
+   * quotation is resolved by *naming*: a citation of `CLAUDE.md` is checked
+   * against `CLAUDE.md`. Neither document is edited, and neither spelling is
+   * preferred.
+   */
+  it('holds each of the two spellings of one sentence against its own file', () => {
+    expect(
+      misquotes([
+        ['claude-side', 'CLAUDE.md: "The range then belongs to the point rather than to each target".'],
+        [
+          'definition-side',
+          'spell-definitions.ts: "The range then belongs to the point, not to each target".',
+        ],
+      ]),
+    ).toEqual([]);
+  });
+
+  /**
+   * And swapped, both fail — which is what resolving *by naming* buys.
+   *
+   * A guard that checked a run against every document the table knows would
+   * pass this, and would then be unable to tell a citation of one file from a
+   * citation of the other. That is the whole distinction the two spellings
+   * exist to test.
+   */
+  it('fails each spelling when it is attributed to the other file', () => {
+    expect(
+      misquotes([
+        ['claude-side', 'CLAUDE.md: "The range then belongs to the point, not to each target".'],
+        [
+          'definition-side',
+          'spell-definitions.ts: "The range then belongs to the point rather than to each target".',
+        ],
+      ]),
+    ).toHaveLength(2);
+  });
+
+  /**
+   * An elision reads forwards, so a quotation cannot reorder its document.
+   *
+   * Citations here elide constantly — seventeen quoted runs in
+   * `missing-shapes.ts` carry a `...` — so the alternative to reading one was
+   * rewriting all of them. What it must not buy is a licence to assemble a
+   * sentence the document never made, so the parts are matched in order.
+   */
+  it('reads an elision forwards and refuses one that runs backwards', () => {
+    const forwards =
+      'CLAUDE.md: "Advantage is presence, not arithmetic ... Three advantages against one disadvantage is a *normal* roll".';
+    const backwards =
+      'CLAUDE.md: "Three advantages against one disadvantage is a *normal* roll ... Advantage is presence, not arithmetic".';
+    expect(misquotes([['forwards', forwards]])).toEqual([]);
+    expect(misquotes([['backwards', backwards]])).toHaveLength(1);
+  });
+
+  /**
+   * A quotation of the book is not a claim about this repository.
+   *
+   * Every `SRD:` note in these maps would otherwise be looked up in whichever
+   * document was named before it. `spell-honesty.test.ts` already holds those
+   * against the spell's own paragraph, which is the only text that can answer
+   * them.
+   */
+  it('leaves a quotation attributed to the SRD to the guard that owns it', () => {
+    const note =
+      'CLAUDE.md files it as debt. SRD: "the sword vanishes into a puff of glittering dust".';
+    expect(misquotes([['synthetic-spell', note]])).toEqual([]);
+  });
+
+  /**
+   * The corpus, and the assertion that the corpus is not vacuous.
+   *
+   * Every document the table names must be quoted somewhere: a name with no
+   * citation is an alias nothing uses, which is the speculative-member failure
+   * this repository sweeps for everywhere else — and it would make the guard
+   * quietly narrower than it reads.
+   */
+  it('checks at least one citation of every document the table names', () => {
+    const cited = new Set(
+      citedProse().flatMap(([where, prose]) =>
+        citationsIn(where, prose).map((citation) => citation.source),
+      ),
+    );
+    expect(
+      CITED_SOURCES.filter((source) => source.files.length > 0 && !cited.has(source.label)).map(
+        (source) => source.label,
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * And the real thing: every description and every note quotes the document
+   * it names.
+   *
+   * Where this found a misquote the **description** was corrected, never the
+   * cited document. Two were stale rather than invented — `PROGRESS.md`'s
+   * ranked map was re-derived and its rows now carry two columns — and one,
+   * "4 printed, far more in play", appears nowhere in this repository at all.
+   */
+  it('quotes every document these maps name', () => {
+    expect(misquotes(citedProse())).toEqual([]);
   });
 });
 

@@ -110,7 +110,7 @@ export const MISSING_SHAPES = {
   'an-outcome-that-reads-the-targets-defences':
     'a defence the target already has, read as an input to something other than damage. CLAUDE.md: "**A creature’s defences are state, and damage reads them**" — `applyDamage` is the only reader, so a save a creature automatically makes because it is immune to a condition has nothing to consult.',
   'an-outcome-that-reads-the-targets-hit-points':
-    'a threshold on the target’s current Hit Points, read before anything is rolled. PROGRESS.md ranks it: "Reads the target’s current Hit Points | 3 | vitals | very low". The vitals are there and no effect asks them a question.',
+    'a threshold on the target’s current Hit Points, read before anything is rolled. PROGRESS.md ranks it: "Reads the target’s current Hit Points | 0 / 4 | vitals". The vitals are there and no effect asks them a question.',
   'a-target-rule-the-format-cannot-state':
     '`TargetRule` in spell-definitions.ts selects by creature type and by whether armour is worn, and by nothing else. The SRD also selects by **size**, by **Challenge Rating** and by an **ability score**, and shapes outcomes by the same three facts. Size is held and CLAUDE.md records the only rules that read it — sharing a space, passing through, and the volume a template tests; an ability score is held and read by nothing here; a Challenge Rating is not held at all. One missing reader, three facts, and the description says which is which.',
   'a-creature-fact-an-effect-overrides':
@@ -120,7 +120,7 @@ export const MISSING_SHAPES = {
   'a-stat-block-created-mid-fight':
     'summons. CLAUDE.md, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn.',
   'speed-and-movement-modes':
-    'a Speed a spell changes, and the Fly, Climb and Swim modes the engine does not distinguish. PROGRESS.md ranks it: "A Speed a spell changes, and movement modes | 4 printed, far more in play"; the engine holds one `baseSpeed` and nothing modifies it.',
+    'a Speed a spell changes, and the Fly, Climb and Swim modes the engine does not distinguish. PROGRESS.md ranks it: "A Speed a spell changes, and movement modes | 0 / 16 | one `baseSpeed`, no modes"; the engine holds that one Speed and nothing modifies it.',
   'a-standing-effect-derived-from-where-a-creature-stands':
     'a value derived from current state *and* current geometry rather than from a pair of enter-and-leave events that have to stay matched. CLAUDE.md: "A standing effect derived from where a creature is standing | Spirit Guardians’ halved Speed, every Paladin aura"; PROGRESS.md ranks it above automatic drift.',
   'healing-modified-by-an-effect':
@@ -144,7 +144,7 @@ export const MISSING_SHAPES = {
   'a-one-shot-roll-modifier':
     'CLAUDE.md: "A one-shot mode is a different mechanic, not a short-lived one." Guiding Bolt’s "the **next** attack roll against it" and Vicious Mockery’s "the next attack roll it makes" need a modifier **consumed** by the roll it changes, and a durable grant applies until its casting ends.',
   'a-selector-for-every-d20-test':
-    'CLAUDE.md: "**There is deliberately no member for “D20 Tests”.** Three SRD spells write the phrase — Foresight, Resurrection, Ray of Enfeeblement — and every one is blocked on something else." The absence is a decision rather than an oversight, and it is still what stands between these spells and a definition once their other blockers go.',
+    'CLAUDE.md: "**There is deliberately no member for “D20 Tests”.** Three SRD spells write the phrase — Foresight, Resurrection, Ray of Enfeeblement — and every one is blocked on something else". The absence is a decision rather than an oversight, and it is still what stands between these spells and a definition once their other blockers go.',
   'a-roll-result-an-effect-replaces':
     'a die whose result an effect overrides or throws again. CLAUDE.md has both halves for damage dice — "Substitute a value | Great Weapon Fighting: 1 or 2 counts as 3 | `treatLowRollsAs`" — and for a D20 Test only `rerollTest`, which is a Reaction a feature takes. No spell effect reaches either.',
   'a-die-behaviour-a-spell-asks-for':
@@ -152,23 +152,23 @@ export const MISSING_SHAPES = {
   'a-reduction-an-effect-applies-to-damage':
     'CLAUDE.md: "`reduceDamage` takes its amount off the **total**, never off a component", and it is reachable only from `takeDamageReaction` — a Reaction a class feature spends. A standing effect that takes a rolled amount off every hit of a chosen type has no path to it.',
   'a-damage-penalty-a-spell-grants':
-    'CLAUDE.md: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`." Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
+    'CLAUDE.md: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`". Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
   'an-action-a-spell-compels-or-forbids':
     'the action economy is the engine’s and `mayAct` guards every spender, and the only lever a spell has on it is a condition the engine names. Forbidding one action, compelling another, granting an extra one, or spending somebody else’s Reaction is a rider nothing expresses — which Befuddlement already says in its own words in `spell-definitions.ts`: "which is not a condition the engine names".',
   'a-turn-a-spell-inserts-into-the-order':
     'CLAUDE.md: "**In combat the clock is derived.** A round ends when the Initiative order wraps, and six seconds have passed; nobody decides that." A spell that hands its caster several turns in a row has no way to say so without a decision somebody makes, which is the one thing the derived clock refuses.',
   'a-choice-made-at-the-casting':
-    'CLAUDE.md names it for the roll-modifier vocabulary — "An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse" — and Guidance says it plainly: "a per-casting choice has nowhere to be recorded". **A damage type is the one choice that is not here**, and it stopped being here when IE-017 gave `damageTypeStated` a second user: spell-definitions.ts records that the mechanism generalised while the reason did not — "what generalises is the field and what stays the spell’s own is the reason". An ability, a condition, one of six wonders, which of five effects to remove: none of those has a field.',
+    'CLAUDE.md names it for the roll-modifier vocabulary — "An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse" — and Guidance’s own clause in spell-definitions.ts says it plainly: "a per-casting choice has nowhere to be recorded". **A damage type is the one choice that is not here**, and it stopped being here when IE-017 gave `damageTypeStated` a second user: spell-definitions.ts records that the mechanism generalised while the reason did not — "what generalises is the field and what stays the spell’s own is the reason". An ability, a condition, one of six wonders, which of five effects to remove: none of those has a field.',
   'several-attack-rolls-from-one-casting':
     'one casting rolls one attack per target. Eldritch Blast’s beams are separate attack rolls that may take different targets, which `spell-definitions.ts` already records in the clause itself — "which is a shape the engine does not have" — and which is the spell-side twin of the class-feature gap CLAUDE.md names: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
   'a-second-roll-sequenced-after-the-first':
-    '`OutcomeRiders` in spell-definitions.ts rejects this by name: "the two that look as though they do — Ice Knife’s explosion and Chromatic Orb’s leap — are different mechanisms (**a second sequenced roll with an area at a target**, and a chained attack on a dice-face trigger). A child that rolls is a parent."',
+    '`OutcomeRiders` in spell-definitions.ts rejects this by name: "the two that look as though they do — Ice Knife’s explosion and Chromatic Orb’s leap — are different mechanisms (**a second sequenced roll with an area at a target**, and a chained attack on a dice-face trigger). A child that rolls is a parent".',
   'a-success-branch-that-does-something':
     '`OutcomeRiders` in spell-definitions.ts again: "**Which branch a rider rides is the host’s, never the author’s.** There is no miss-branch slot and no success-branch slot ... A spell whose success clause does something — Flesh to Stone’s “its Speed is 0” — is one consumer and a different shape."',
   'a-spells-effects-applied-to-different-targets':
     'CLAUDE.md: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that chooses per creature, or divides a pool among them, is the same gap.',
   'a-rider-on-a-later-weapon-attack':
-    'CLAUDE.md, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 7 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". The feature side is built and no `SpellEffect` reaches it — extra damage, a substituted ability, or a different damage die.',
+    'CLAUDE.md, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". The feature side is built and no `SpellEffect` reaches it — extra damage, a substituted ability, or a different damage die.',
   'a-range-that-scales-with-caster-level':
     '`SpellDefinition.range` in spell-definitions.ts is one fixed `SpellRange`, and `ranged(definition.range)` is checked on every casting — tracked or executed, before a target is looked at. CLAUDE.md keeps the two scaling axes apart on purpose — "**Cantrips scale by caster level and levelled spells by slot**, and they are separate fields rather than one overloaded number" — and both of them reach *dice*. Exactly one spell in the book prints a range that grows with the caster, and the engine would refuse the casting the SRD allows.',
   'a-cap-on-how-many-castings-run-at-once':
@@ -196,13 +196,13 @@ export const MISSING_SHAPES = {
   'a-barrier-that-blocks-passage':
     'CLAUDE.md: "Walls and barriers as obstacles | Arcane Eye, Passwall, Wall of Stone, Prismatic Wall", and the reason it stays out — "Cover and line of sight stay declared, not ray-cast ... that is where a rules engine becomes a VTT." A shape that stops a creature crossing it is the geometry’s missing half, distinct from the template that describes it.',
   'an-effect-that-suppresses-other-magic':
-    'PROGRESS.md ranks "An effect that ends another casting | 15 (**unblocked**)", and `spell-ended` is what unblocked it. **Suppression is the half that is not**: an ongoing spell that does not function while its time goes on running has no state to sit in, and an area that stops a spell being cast into it reads a casting the engine resolves elsewhere.',
+    'PROGRESS.md files it among the rows "gone because the shape was built" — "an effect that ends another casting (Dispel Magic)" — and `spell-ended` is what built it. **Suppression is the half that is not**: an ongoing spell that does not function while its time goes on running has no state to sit in, and an area that stops a spell being cast into it reads a casting the engine resolves elsewhere.',
   'a-casting-that-casts-another-spell':
-    'CLAUDE.md, on the interrupted casting: "**Two things this deliberately is not.** It is not a general interruption framework — one pending casting, no stack." A spell that casts another as part of itself, stores one to go off later, or duplicates one of a lower level needs exactly the stack that was declined.',
+    'CLAUDE.md, on the interrupted casting: "**Two things this deliberately is not.** It is not a general interruption framework — one pending casting, no stack". A spell that casts another as part of itself, stores one to go off later, or duplicates one of a lower level needs exactly the stack that was declined.',
   'a-spell-that-answers-a-later-attack':
     'CLAUDE.md’s reaction-window table: `hit-by-attack` and `damaged-by-creature` are real instants, and both are answered by a **Reaction somebody takes** — "Two windows open on the actor’s opt-in ... `hit-by-attack` and `casting-a-spell` open only when the *attacker* holds the attack". An ongoing spell that answers a blow automatically, with no Reaction and nobody deciding, is not that mechanism.',
   'an-effect-that-intercepts-dropping-to-0':
-    'CLAUDE.md, "Transitions Are Engine-Owned Batches": "Dropping to 0 hit points makes a character Unconscious ... The command layer produces these as coherent batches." The engine owns the transition end to end, and nothing may stand in front of it and change the answer — which is why that file already files Death Ward as debt: "Death Ward, because the engine drops creatures to 0 itself".',
+    'CLAUDE.md, "Transitions Are Engine-Owned Batches": "Dropping to 0 hit points makes a character Unconscious ... The command layer produces these as coherent batches". The engine owns the transition end to end, and nothing may stand in front of it and change the answer — which is why that file already files Death Ward as debt: "Death Ward, because the engine drops creatures to 0 itself".',
   'a-second-place-to-put-a-creature':
     'there is one scene, so a creature sent elsewhere has nowhere to be. CLAUDE.md: "A destination *outside* the scene is different in kind ... there is one scene, so Plane Shift and Word of Recall have no position to move anybody to", and "the real fix is the doctrine’s multiple-scenes seam".',
   teleportation:
@@ -210,7 +210,7 @@ export const MISSING_SHAPES = {
   falling:
     'CLAUDE.md lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". Nothing drops, nothing takes fall damage, and no rate of descent has anything to be measured against.',
   jumping:
-    'jumping, which nothing models, so a jump distance has nothing to be measured against. Jump’s own clause in spell-definitions.ts says it: "the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count."',
+    'jumping, which nothing models, so a jump distance has nothing to be measured against. Jump’s own clause in spell-definitions.ts says it: "the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count".',
   'forced-movement-a-spell-causes':
     '`moveCreature` takes `forced: true` and reports who is being shared with, and no `SpellEffect` reaches it — CLAUDE.md records both halves: "forced movement passes `forced: true`", and its recurring finding that a pure function nothing calls is a rule nothing enforces.',
   'an-activation-that-resolves-an-area':
@@ -228,7 +228,7 @@ export const MISSING_SHAPES = {
   'a-condition-benefit-an-effect-takes-away':
     'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. Invisible’s *attack* halves read declared sight, so the table can answer those; `initiativeConditionModes` grants its Initiative Advantage from the condition’s presence alone, and nothing reaches that at all.',
   'a-random-outcome-that-is-not-a-d20':
-    'PROGRESS.md ranks it: "A random outcome that is not a d20 | 11 | the generator, `parseNotation` | low". A percentage chance, a 1d10 behaviour table or a 1d100 mishap roll is a die the engine can throw and no `SpellEffect` asks for.',
+    'PROGRESS.md ranks it: "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`". A percentage chance, a 1d10 behaviour table or a 1d100 mishap roll is a die the engine can throw and no `SpellEffect` asks for.',
   'a-rest-an-effect-gives-or-denies':
     'a rest is a span the engine measures and its payout is `endRest`’s — CLAUDE.md, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
