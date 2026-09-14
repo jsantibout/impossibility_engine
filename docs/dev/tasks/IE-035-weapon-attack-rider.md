@@ -1,13 +1,13 @@
 # IE-035 — A rider on later weapon attacks, and a duration the slot changes
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — a union task; safe beside IE-036, which touches only definitions and the registry
 depends-on: IE-034
-worker: qb-builder · .claude/worktrees/agent-a92c5cdd25ca0fb04 · worktree-agent-a92c5cdd25ca0fb04
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -120,10 +120,120 @@ attack roll" (Hunter's Mark) are **not the same clause** — one is weapon
 attacks, the other any attack roll. Transcribe each rather than sharing one
 predicate, and let the difference be data.
 
+
 ## Completion digest
+
+Builder **COMPLETE**, reviewer **PASS at high confidence**, four rounds
+(8 → 2 → 1 → 0 defects). Branch `worktree-agent-a92c5cdd25ca0fb04`, commit
+`b8e5b59`, rebased to `fbc7e31`. Tests **7648 → 7736 on `main`**, 88 new.
+Gauntlet green; `COVERAGE.md` byte-clean, **executed 92 → 94, verified
+70 → 72**, partial steady at 46.
+
+**Delivered:** Divine Favor and Hunter's Mark defined and verified, Hex's two
+built blockers dropped, and **Mass Suggestion finished as a side effect**.
+
+Six mutations, all biting. The fixture design is the part worth keeping:
+Divine Favor's die is pinned against a target **resisting Radiant and not
+Bludgeoning**, and against one resisting Bludgeoning and not Radiant. An
+undefended dummy could not tell a typed component from a folded bonus — that
+pair is the whole proof the rider is a component.
+
+**IE-028's guard measured a second time.** The sixth grant cost **exactly one
+line in `grantsOf`**; `releaseCasting`, `releaseOnTarget`, `releaseGrants`,
+`expireEffects` and `holdsNothingOf` are untouched. The derived `GrantFamily`
+doing what it was built for, two tranches running.
+
+### Four declared deviations, all accepted
+
+**1. Three acceptance criteria are corrected against the SRD rather than met.**
+My brief said Magic Weapon, True Strike and Major Image's duration clause would
+close. **I verified all three paragraphs myself before accepting:**
+
+| Spell | SRD | Why it is not this shape |
+|---|---|---|
+| True Strike | Instantaneous; "you make one attack with the weapon used in the spell's casting" | It **makes** the attack; it is not a rider on a *later* one |
+| Magic Weapon | "a +1 bonus to **attack rolls and damage rolls**", banded by slot | A flat bonus of the weapon's own type reaching the **attack roll**, not extra typed damage |
+| Major Image | the upcast makes it "until dispelled, **without requiring Concentration**" | A slot changing **what kind** of duration a spell has — one spell in the book |
+
+Both shape ids are **kept with narrowed descriptions naming each residue**
+rather than retired — IE-034's precedent for a half-built shape.
+
+**2. Hex keeps a second blocker, and the near-miss is the instructive part.**
+SRD Hex prints Hunter's Mark's "If the target drops to 0 Hit Points … curse a
+new creature" **word for word**. Filing one end only would have moved that
+shape's `unblocks` from 0 to 1 **on the strength of a spell printing the same
+rule** — *a leverage number a tranche gets planned from*. Found by the reviewer
+in round 2; both ends filed in one pass. **The map was about to acquire a new
+wrong number and the review caught it.**
+
+**3. Four review rounds, not three, declared rather than hidden.** Findings
+shrank 8 → 2 → 1 → 0, every one ordinary, every round `Escalation reason:
+none`. The builder's reasoning is why this is accepted rather than tolerated:
+*"No architectural question arose, so `ARCHITECTURE_BLOCKED` had nothing honest
+to put in 'why the approved design does not cleanly cover it'."* It took a
+fourth round so the foreman would have a `PASS` to gate on — what the foreman
+authorised explicitly for IE-026 and IE-033, reached here unaided and declared.
+
+**4. A guard that failed by succeeding.** `blocked-on.test.ts`'s population
+floor read `> 200` against a map of exactly **201**, so the next task to define
+two spells failed a guard *because it did its job*. Relaxed to `> 150` with the
+reason written in the test; it still fails on an emptied map. The alternative
+was leaving two built spells recorded as undefined — lying in the map to keep a
+guard green.
+
+### Out-of-scope findings
+
+- **A readied spell cannot state a stated fact.** `ReadiedResponse` carries a
+  spell id, a casting id and a level and nothing else, so the three Dominates —
+  which print the "fighting it" clause — are refused `fought_fact_required` on
+  the readied path and **cannot be readied at all**. The same will hold for any
+  future spell stating a damage type. This is IE-030's stated facts meeting the
+  Ready path, and **neither task could have seen it alone**.
+- `resolveAttackEffect` selects the rider's components back out **by readable
+  name**; a definition that both had an `attack` effect and sourced a rider on
+  its own caster would count that component twice. Unreachable today.
 
 ## Risk gate
 
+**Inspected** — a sixth sourced grant, a new event type, and a declared scope
+reduction the reviewer explicitly handed to the foreman to clear.
+
+I verified the three SRD corrections against `packages/srd/raw/spells.md`
+myself rather than accepting the digest, because **this is the third task
+tonight to refuse a "finishes X" claim of mine taken from the derived map**.
+All three are right.
+
+`landedOn`'s union is the one behaviour change outside the new kind, and the
+reviewer established it is a no-op for the whole prior catalogue **by reading
+all nine `held.add` sites** rather than by running the suite. Both frozen logs
+and `scenario.test.ts` run explicitly — 53 tests.
+
+Classification: **GREEN**.
+
 ## Architecture decision
 
+None. No Fable involvement.
+
 ## Merge record
+
+Merged to `main` as `fbc7e31`, fast-forward, pushed. Rebased by the foreman;
+clean.
+
+`main` verified after the merge: typecheck ✓, lint ✓, **7736 tests across 115
+files** ✓, both frozen logs and the scenario determinism explicitly ✓,
+`COVERAGE.md` byte-clean ✓, tree clean.
+
+Thirteen conditions: **1** inside the brief on its two shapes, with three
+acceptance criteria corrected against the book; **2** `COMPLETE`; **3** `PASS`
+at high confidence; **4** defects resolved; **5** gauntlet green; **6**
+conformance — both shape ids narrowed rather than retired, honest for a
+half-built shape; **7** no blocker; **8** four deviations, every one declared
+and each accepted on its own evidence, three of them the brief being wrong
+rather than the work departing from it; **9** the primitives are the brief's,
+with `standing.ts` a **narrower** surface than predicted; **10** no scope
+expansion — `attack.ts` and `commands/attacks.ts` were on the brief's surface
+and proved unnecessary; **11** clean rebase; **12** re-verified on `main`;
+**13** risk gate inspected, GREEN.
+
+**Wave 7 complete** — IE-036, its partner in that wave, is deferred to tranche
+6. **IE-037 launched**, and it is the tranche's last task.

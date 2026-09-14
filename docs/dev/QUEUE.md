@@ -552,11 +552,40 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged: 15 of 18** — IE-020 through IE-034. `main` at `c3fc27e`, **7648
-tests across 114 files**, both frozen logs untouched and run explicitly on
-every fold-touching merge, `COVERAGE.md` byte-clean. **Waves 1–6 complete**;
-IE-035 is running as wave 7. **IE-036 is deferred to tranche 6** and IE-037
-follows IE-035.
+**Merged: 16 of 18** — IE-020 through IE-035. `main` at `fbc7e31`, **7736
+tests across 115 files**, both frozen logs untouched and run explicitly on
+every fold-touching merge, `COVERAGE.md` byte-clean. **Waves 1–7 complete**;
+IE-037 is running as wave 8 and is the tranche's last task. **IE-036 is
+deferred to tranche 6.**
+
+### The derived map's *finishes* column has now been wrong five spells over
+three tasks
+
+Every one was a "this shape finishes X outright" claim in a foreman brief,
+taken from `consumersOf`, and every one was falsified by a builder reading the
+paragraph:
+
+| Task | Spell | What the SRD says |
+|---|---|---|
+| IE-030 | Enthrall | an automatic **success**, not Advantage, plus a −10 narrowed to one skill |
+| IE-032 | Mislead | ends the **invisibility**, not the casting — and the entry never recorded the illusory double |
+| IE-035 | True Strike | Instantaneous, and it **makes** the attack rather than riding a later one |
+| IE-035 | Magic Weapon | a flat bonus reaching the **attack roll**, not extra typed damage |
+| IE-035 | Major Image | a slot changing **what kind** of duration a spell has |
+
+**And IE-035 caught a sixth before it happened.** Hex prints Hunter's Mark's
+"drops to 0 Hit Points" sentence word for word; filing one end only would have
+moved a shape's `unblocks` from 0 to 1 **on the strength of a spell printing
+the same rule**. The reviewer caught it in round 2 and both ends were filed in
+one pass.
+
+**The map is sound about what *blocks*. Its *finishes* column inherits every
+incomplete adjudication beneath it, and no derivation can see a clause nobody
+wrote down.** The rule stands and is now confirmed three times: **a brief may
+not quote a `finishes` figure without reading the spell's own paragraph.** That
+is the single most important thing this tranche produced about its own
+instruments, and it belongs in tranche 6's briefing procedure rather than in
+anybody's memory.
 
 Coverage stands at **45 tracked / 92 executed / 46 partial / 70 verified**, and
 every one of those numbers is derived rather than written.
@@ -964,3 +993,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | LATER (from IE-034's YELLOW) | — | **A rite open when `startCombat` fires wedges the fight**: `resolveTurn` refuses `casting_pending`, settlement refuses `still_casting` until a round-derived clock arrives, and the only exits are the caster giving up Concentration or leaving the game. What `startCombat` should do to an open casting belongs to the deferred in-combat half. Also: `casting_pending` now carries three rules — the same shape `no_trigger` was just split for — and the Counterspell-nesting one is the odd one out, GREEN for whoever opens that file |
 | 2026-09-14 | merge (tranche authority) | IE-034 | merged `c3fc27e`, 13/13, risk gate inspected. **Six rounds**, one of them the YELLOW the foreman adjudicated with Fable and routed to the owner. Eighteen mutations; two survived and are recorded rather than papered over. The **Alarm fixture had to be hand-built** because all ten tagged catalogue spells print "Action or Ritual", so `0 + 600` and `600` are the same number and nothing else can tell the Ritual's sum from a constant. **The debt ships pinned as behaviour** — three tests assert a second caster is refused for the whole rite and that a non-casting creature still acts — so the queued task deletes tests rather than finding a comment |
 | 2026-09-14 | LATER (from IE-034) | — | `long-casting.test.ts:318` asserts `expect(world()).toEqual(before)` where `before = world()` — two identical pure computations, so **that assertion cannot fail**. The block's load-bearing `isErr` assertion can, and duplicates the `it.each` above it. The builder declined to edit after a PASS so the reviewed commit stayed the merged commit, which is right; a vacuous assertion *beside* a working one is a tidy rather than a correctness risk. One line for whoever next opens that file |
+| 2026-09-14 | merge (tranche authority) | IE-035 | merged `fbc7e31`, 13/13, risk gate inspected. Four declared deviations, all accepted: **three acceptance criteria corrected against the SRD** (verified by the foreman personally, the third such task tonight), Hex keeping a second blocker, a fourth review round declared rather than hidden, and a **population floor that failed by succeeding** — `> 200` against a map of exactly 201, so defining two spells broke a guard *because it worked*. The sixth sourced grant cost **exactly one line** in the enumerator, which is IE-028's derived guard measured a second time |
+| 2026-09-14 | LATER (from IE-035) | — | **A readied spell cannot state a stated fact.** `ReadiedResponse` carries a spell id, a casting id and a level and nothing else, so the three Dominates are refused `fought_fact_required` on the readied path and **cannot be readied at all** — and the same will hold for any future spell stating a damage type. This is IE-030's stated facts meeting the Ready path, and **neither task could have seen it alone**. Also: a population floor is itself a hand-kept number, and this one was set one above the live value; deriving it would be better than lowering it again |
