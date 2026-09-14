@@ -585,6 +585,37 @@ roster to transcribe:
   `resolveCast` having no production caller, the 60 stamp declarations, the
   single `no_turns` site, and the blocker counts quoted from `COVERAGE.md`.
 
+**One owner correction, verified and adopted before approval.** The Gate 1
+draft carried Fable's IE-034 invariant — keyed by casting id, **one open
+casting per caster**. The owner challenged the second half; the SRD and the
+engine both agree with the owner, so IE-038's invariant is now **casting
+identity alone**.
+
+The proof case is the rite's own caster, not a Counterspell duel — and the
+owner was right to rule that duel out, because *one slot a turn*
+(`spells.md:167`) can defeat it. Verified sentence by sentence:
+*Longer Casting Times* puts the Magic action obligation on the caster's **own**
+turns and expends no slot until completion; *Concentration*
+(`rules-glossary.md:455`) breaks only on a spell that **requires**
+Concentration, which Shield and Counterspell do not; a *Reaction* is taken on
+another creature's turn. So a wizard mid-rite may legally cast Shield as a
+Reaction, and held open — which is what a window is for — that is **two pending
+castings for one caster, with no nesting and no unbuilt mechanic**. The engine
+refuses it today purely because a record exists.
+
+Deleting uniqueness deletes no rule: the action economy, the one-slot-a-turn
+marker, Concentration's single door and IE-041's per-turn obligation each keep
+enforcing their own. Two consequences the audit had not drawn — the reducer's
+throw becomes id-based rather than per-caster, and **Counterspell must address
+the casting by id**, since a lookup by caster is ambiguous once a caster may
+have two. Both follow established architecture (a casting is addressed by its
+id — IE-007, IE-048), so both are GREEN and decided, not escalated.
+
+The Counterspell-on-Counterspell refusal **stays**, restated as what it is: a
+rule about the answering relationship standing in for the settle-order
+mechanic, not a uniqueness rule, and explicitly not an SRD rule. It remains
+next cycle's work.
+
 **Waves**
 
 ```
@@ -839,3 +870,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | LATER (from IE-035) | — | **A readied spell cannot state a stated fact.** `ReadiedResponse` carries a spell id, a casting id and a level and nothing else, so the three Dominates are refused `fought_fact_required` on the readied path and **cannot be readied at all** — and the same will hold for any future spell stating a damage type. This is IE-030's stated facts meeting the Ready path, and **neither task could have seen it alone**. Also: a population floor is itself a hand-kept number, and this one was set one above the live value; deriving it would be better than lowering it again |
 | 2026-09-14 | merge (tranche authority) | IE-037 | merged `062441c`, 13/13, risk gate inspected. **The last merge of tranche 5.** The discriminating fixture is a **40-foot room with a 30-foot spell** — disabling the scene check reddens exactly that case and nothing else, where a 600-foot hall would have hidden it for ever. `sceneFor` has one home on its third copy, and emptying it now reddens the scene, movement and teleport families together. No new event type, so both frozen logs fold unchanged |
 | 2026-09-14 | `TRANCHE_COMPLETE` | IE-020 … IE-037 | **17 of 18 shipped, 1 deferred.** Three YELLOWs — one predicted and resolved cleanly, two unforeseen, all three answered by Fable and one of those routed onward to the owner. Four brief errors of the foreman's, every one caught by a builder or reviewer and none reaching `main`. Tests 6,696 → 7,812; executed 91 → 96; `resolveEffects` 1,008 lines → 214. `main` verified green after every merge |
+| 2026-09-14 | owner correction (pre-approval) | IE-038 | The owner challenged "one open casting **per caster**" — Fable's IE-034 invariant, carried into the Gate 1 draft. **Re-audited against SRD 5.2.1 and the engine; the owner is right.** The proof case is the rite's *own* caster taking a Reaction, not a Counterspell duel — and the owner was right to rule that duel out, since `spells.md:167` ("on a turn, you can expend only one spell slot") can defeat it. `rules-glossary.md:455` breaks Concentration only for a spell that **requires** it, so Shield and Counterspell leave a rite standing; `spells.md:175` puts the Magic action obligation on the caster's **own** turns. A held Shield beside a pending rite is two pending records for one caster, legal, needing no unbuilt mechanic. Invariant revised to **casting identity alone**; the reducer's throw becomes id-based and **Counterspell addresses the casting by id** (ambiguous by caster once a caster may have two) — both GREEN, following IE-007's and IE-048's established "address a casting by its id". The nesting refusal stays, restated as a relationship rule and explicitly **not** an SRD rule. No YELLOW: nothing here invents foundational architecture |

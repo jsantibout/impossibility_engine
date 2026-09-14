@@ -53,8 +53,17 @@ directly on IE-038's record and is the reason that record is keyed.
    this unblocks.
 5. `resolveTurn` stops refusing for a casting that has a turn to be pending
    across: a pending casting **with `completesAt` set** no longer blocks the
-   turn. An instant Counterspell window (no `completesAt`) still does.
-6. `beginCombat` with an open rite simply enters the obligation — no special
+   turn. An instant Counterspell window (no `completesAt`) still does — and
+   with IE-038's record that is per casting rather than per record count, so a
+   rite pending beside an unsettled window still blocks on the window alone.
+6. **The in-combat half of IE-038's invariant test.** A wizard mid-rite, on
+   another creature's turn, casts Shield as a Reaction held open: two pending
+   castings for one caster, the rite's Concentration untouched, the rite's
+   per-turn obligation unaffected because it is not the wizard's turn, and no
+   slot conflict because "on a turn you can expend only one spell slot" and the
+   rite expends none. IE-038 pins this outside combat; this is where it becomes
+   the sequence the owner named.
+7. `beginCombat` with an open rite simply enters the obligation — no special
    case, no wedge. The recorded wedge and the in-combat
    `unsupported_casting_time` refusal both fall.
 
