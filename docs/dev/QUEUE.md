@@ -552,10 +552,10 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged: 10 of 18** — IE-020 through IE-029, every one 13/13. `main` at
-`ff15526` plus bookkeeping, **7033 tests across 109 files**, both frozen logs
+**Merged: 11 of 18** — IE-020 through IE-030 bar IE-031, every one 13/13.
+`main` at `d185bd6`, **7196 tests across 110 files**, both frozen logs
 untouched, `COVERAGE.md` byte-clean, pushed after every merge. **Waves 1 and 2
-are complete**; wave 3 is running.
+complete; wave 3 is one task from complete.**
 
 **All four instruments the delta audit called broken are repaired, and every
 one of them has fired on a real defect.** IE-022's citation guard found five
@@ -860,3 +860,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | map correction | IE-030 | **the derived blocker map was wrong about Enthrall.** It reported the spell finished by `a-fact-only-the-table-can-declare` alone; SRD prints an automatic **success** plus a −10 narrowed to Wisdom (Perception) and Passive Perception, so it is blocked on two shapes nobody had recorded — one of which, `a-bonus-narrowed-to-a-skill`, the builder minted. IE-015 made the count a query so no hand-written number would be trusted; **a query inherits any adjudication that is wrong beneath it**, and this is the first one caught by reading the paragraph |
 | 2026-09-14 | YELLOW answered | IE-031 | Fable: a **fourth** option, high confidence — the delta audit's original, which the foreman's correction had overridden. Store `movementSpent` and `movementGained`; derive the allowance at every read, in the command **and in the fold**. The rule for the next brief: *store what happened, derive what is left*, and **a working live cap is not evidence that a live allowance exists**. The reducer's guard was the right shape with the wrong inputs — a fork of the Dodge-versus-Fire-Bolt kind, which is how a green suite folded a corrupt log. Stays inside the approved brief; the two `events.ts` lines are **sequenced after IE-030**, not a new task |
 | 2026-09-14 | debts accepted (recorded, not solved) | IE-031 | (1) **a Dash's gained movement survives a later Speed of 0 this turn** — today's arithmetic already allows it, the new formula preserves it exactly, and SRD's "Speed is 0 and can't increase" against banked extra movement is an open reading the engine has not decided; the sentence goes in the code. (2) **the single-reader sweep must add `events.ts` to its population** once the fold calls `speedOf` — the reviewer's "lesser" defect is load-bearing now, since the sweep reads `EVENT_TYPE_SOURCE`, which excludes the very file the defect was in |
+| 2026-09-14 | merge (tranche authority) | IE-030 | merged `d185bd6`, 13/13, risk gate inspected. Two declared deviations, both approved before the work: the foreman's arity decision, and acceptance criterion 1 falsified by the SRD. The fixture that discriminates is an **upcast Charm Person naming one of two targets** — the shape the first round shipped past, and the same lesson as the multiclass fixture and the Rogue who resisted nothing. Clause carriers are held against **each definition's own parsed paragraph** rather than a hand-written list |
+| 2026-09-14 | rebase (foreman) | IE-031 | its worktree conflicted on `COVERAGE.md`, one of the five `merge=binary` paths. Resolved by `CONTRIBUTING.md`'s playbook — **take either side, then regenerate; never hand-merge the numbers** — and the regenerated file came back with exactly the branch's own three features (88 → 91; Barbarian, Monk, Ranger each +1), which is the evidence the resolution was right rather than merely conflict-free |
