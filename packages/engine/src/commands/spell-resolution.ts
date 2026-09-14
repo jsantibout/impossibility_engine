@@ -61,6 +61,8 @@ import { remaining } from '../resources.js';
 import {
   creatureTypesRead,
   definitionFor,
+  delayedDuration,
+  delaysDamage,
   onCaster,
   persists,
   ranged,
@@ -540,6 +542,42 @@ export function castOrRelease(
     // caller fixing a thin record should be told everything that is thin
     // rather than one fact at a time.
     needs.push(...creatureTypeNeeds(state, definition, definition.effects, targets));
+
+    // **A printed later consequence asks for the timeline it needs**, at the
+    // same moment and by the same rule: with the targets settled, before the
+    // slot, the action and the first die.
+    //
+    // SRD writes the moment as "at the end of **its** next turn", so unlike a
+    // rider's deadline it is anchored on the target rather than on the caster
+    // — which is why it is asked here, where the targets exist, rather than in
+    // the `riderDurations` loop above. Outside combat there is no turn whose
+    // end that names, and the one thing this engine may never do is quietly
+    // call the moment six seconds; so the casting asks for the fact instead,
+    // and asks *before* anything is spent, because a `needs-context` promises
+    // nothing was. It used to resolve in part and forgive the rest: the slot
+    // went, the attack rolled, the first hit landed, and the later one was
+    // dropped with a line in `unverified` that reached a caller too late to
+    // act on.
+    //
+    // **The engine asks; it does not answer.** It does not begin a fight, roll
+    // Initiative or decide that this action was hostile enough to start one —
+    // that ruling is the DM's, above this layer, and what arrives back is the
+    // same casting sent again unchanged.
+    //
+    // One request per target that cannot be pinned, because the fact is about
+    // that creature: two targets can be missing from the order independently,
+    // and a caller repairing a thin record is told everything that is thin.
+    if (delaysDamage(definition)) {
+      for (const target of targets) {
+        const owed = delayedDuration(target);
+        const pinned = resolveDuration(timeView(state), owed);
+        if (pinned.ok) continue;
+        const asked = turnContextFor(pinned, owed, target);
+        const requests = contextRequestsOf(asked);
+        if (requests.length === 0) return asked;
+        needs.push(...requests);
+      }
+    }
 
     // And whether the teleport this casting performs can happen at all, asked
     // at the same moment and for the same two reasons. Before the slot and the

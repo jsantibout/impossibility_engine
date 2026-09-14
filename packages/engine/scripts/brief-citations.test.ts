@@ -229,30 +229,44 @@ describe('a brief quotes the document it names', () => {
   });
 
   /**
-   * **The instance this guard was built after.**
+   * **The instance this guard was built after — and the sentence is gone.**
    *
    * IE-054's brief told its builder to remove a sentence from `CLAUDE.md`.
    * IE-046 had rewritten that paragraph, and the sentence the brief quoted
-   * survives only as a docstring in `commands/spell-resolution.ts` — so the
-   * brief named a document that does not contain its own quotation, which is
-   * exactly the shape this half of the guard reports. The foreman found it by
-   * hand; the instrument finds it in a run of the suite.
+   * survived only as a docstring in the command layer — so the brief named a
+   * document that does not contain its own quotation, which is exactly the
+   * shape this half of the guard reports. The foreman found it by hand; the
+   * instrument finds it in a run of the suite.
+   *
+   * **Then IE-054 was built, which is the change this case predicted it would
+   * take.** That task's whole subject was the rule the docstring stated: a
+   * printed later consequence now asks for the turn timeline it needs before
+   * anything is spent, rather than being dropped afterwards with a line in
+   * `unverified`. So the old sentence is in no document and no module, and the
+   * sentence that replaced it is in the command layer — both asserted, because
+   * a case that had merely stopped finding the run would be indistinguishable
+   * from a search that had quietly broken.
+   *
+   * **The verdict on the citation does not move for any of that**, and that is
+   * the point of the case. The guard resolves against the document the brief
+   * *named*, and `CLAUDE.md` never contained this sentence; where else it
+   * lived, or whether it lives anywhere still, was never what made the
+   * citation stale. The live demonstration that a run can sit verbatim in a
+   * *different* document is the case above.
    */
   it('catches the stale citation a foreman found by hand', () => {
     const run =
       'outside combat there are no turns for it to be the end of, so nothing is scheduled and the caller is told';
-    // The same sentence, capitalised, opens a docstring in the command layer —
-    // so the brief is wrong about *where* the sentence lives, not about the
-    // wording, which is the distinction resolving by naming is there to draw.
-    //
-    // **Which file holds it is searched for, not spelled.** It was
-    // `commands/spell-resolution.ts` when this case was written and
-    // `commands/spell-effect-riders.ts` four days later, because IE-051 split
-    // the per-kind resolvers out of it. A test may search the tree to
-    // establish a fact; the guard may not, and that difference is the point
-    // this case is making. What would break it next is the sentence being
-    // reworded or deleted, which is a change worth a red test.
-    expect(holding('packages/engine/src', `O${run.slice(1)}`)).not.toBeUndefined();
+    // **Which file holds a sentence is searched for, not spelled.** A test may
+    // search the tree to establish a fact; the guard may not, and that
+    // difference is the point this case is making.
+    expect(holding('packages/engine/src', `O${run.slice(1)}`)).toBeUndefined();
+    expect(
+      holding(
+        'packages/engine/src',
+        'A printed later consequence that needs a turn timeline is a fact the casting requests before the slot, the action and the first die',
+      ),
+    ).not.toBeUndefined();
     expect(documentText('CLAUDE.md').includes(run)).toBe(false);
     expect(
       report(`Remove the sentence "${run}" from \`CLAUDE.md\`.`),

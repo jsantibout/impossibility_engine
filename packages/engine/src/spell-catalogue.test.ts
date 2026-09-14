@@ -15,6 +15,7 @@ import {
 import {
   SPELL_DEFINITIONS,
   definitionFor,
+  delaysDamage,
   riderDurations,
   statesFoughtFact,
   teleportOf,
@@ -148,10 +149,18 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   // deadline rather than whether there is one: `RiderDuration`'s two string
   // members are the turn-anchored pair, and Sunburst's `{ seconds: 60 }` is
   // the third and wants no fight to be happening.
+  //
+  // **And a printed later consequence is the third way a casting needs one.**
+  // SRD Acid Arrow's "2d4 Acid damage at the end of its next turn" is anchored
+  // on the target rather than on the caster and carries no `lasts` to read, so
+  // `riderDurations` cannot see it: the question is `delaysDamage`, which is
+  // the same rule — which effects need a turn order is the command layer's
+  // answer and not this file's.
   const anchored =
     definition?.durationUntil !== undefined ||
     (definition !== null &&
-      riderDurations(definition).some((lasts) => typeof lasts === 'string'));
+      (delaysDamage(definition) ||
+        riderDurations(definition).some((lasts) => typeof lasts === 'string')));
 
   // A Reaction is cast in answer to something, and the engine now checks that
   // the something happened. Same principle as the creature type above: the

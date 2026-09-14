@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+  type Result,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { spellSlotKey } from './resources.js';
+import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
-import { dueDamageOf, resolveSpell, resolveTurn } from './commands.js';
+import { beginCombat, dueDamageOf, resolveSpell, resolveTurn } from './commands.js';
 import { declaredCasting } from './spellcasting.js';
 
 /**
@@ -102,6 +109,32 @@ const fight = (): GameEvent[] => [
     ],
   },
 ];
+
+/**
+ * The same three creatures in the same room, before anybody has rolled
+ * Initiative.
+ *
+ * Derived from `fight()` by removing the one event, so the two fixtures cannot
+ * drift: everything a casting needs — the slots, the sight, the creature types
+ * — is identical, and the single difference is the thing under test.
+ */
+const gathering = (): GameEvent[] => fight().filter((event) => event.type !== 'combat-started');
+
+/** The same table again, with the fight started through the command layer. */
+const rolled = (): GameEvent[] => {
+  const log = gathering();
+  return [
+    ...log,
+    ...unwrap(
+      beginCombat(fold('seed', log), [
+        { id: id('wizard'), initiative: 20, speed: 30 },
+        { id: id('goblin'), initiative: 10, speed: 30 },
+        { id: id('ogre'), initiative: 5, speed: 30 },
+      ]),
+      'begin combat',
+    ),
+  ];
+};
 
 /** A supply whose flat bonus settles the roll outright, either way. */
 const supplyFor = (state: GameState, flat: number) => ({
@@ -415,5 +448,204 @@ describe('retrying does not schedule or collect twice', () => {
     const again = unwrap(resolveTurn(state, supplyFor(state, 0), { commandId: 't2' }), 'retry');
     expect(again.events).toEqual([]);
     expect(hp(log, 'goblin')).toBe(settled);
+  });
+});
+
+/**
+ * **A consequence that needs a turn timeline asks for one, before anything is
+ * spent.**
+ *
+ * SRD Acid Arrow: "the target takes 4d4 Acid damage and 2d4 Acid damage **at
+ * the end of its next turn**." Outside combat there is no turn whose end that
+ * names, and the engine may not call the moment six seconds — so the later hit
+ * used to be dropped with a line in `unverified`, after the slot had gone, the
+ * attack had rolled and the first 4d4 had landed. That is a consequence
+ * forgiven rather than adjudicated, and the caller was told about it far too
+ * late to do anything with it.
+ *
+ * The honest version is the door the pre-flight already opens for a rider: ask
+ * **before** the slot, the action and the first die, because a `needs-context`
+ * promises nothing was spent, and a request raised after the fact would be a
+ * lie about that promise.
+ *
+ * **The engine asks; it does not answer.** It says which fact is missing and
+ * names the command that would supply it. Whether this hostile action begins a
+ * fight is the DM's ruling and stays above the engine: there is no hostility
+ * rule here, nothing starts combat, and the trigger is a property of the
+ * definition — a printed later consequence — rather than anything about which
+ * spell it is.
+ */
+describe('a later consequence asks for the timeline it needs, before anything is spent', () => {
+  /**
+   * The headline case, and the whole of what makes it worth having: the
+   * generator has not moved, the slot is unspent and the target has taken
+   * nothing, so the caller can settle the fiction and send the very same
+   * casting again.
+   */
+  it('asks for a turn order naming the target, and costs nothing at all', () => {
+    const log = gathering();
+    const before = fold('seed', log);
+    const dice = supplyFor(before, 40);
+    const rng = dice.rng.snapshot();
+
+    const out = resolveSpell(
+      before,
+      id('wizard'),
+      { spellId: 'acid-arrow', targets: [id('goblin')], slotLevel: 2 },
+      dice,
+    );
+
+    expect(isNeedsContext(out)).toBe(true);
+    const requests = contextRequestsOf(out);
+    expect(requests.map((r) => r.kind)).toEqual(['turn-order']);
+    // **The target, not the caster.** The moment is anchored to the creature
+    // the acid is on — "the end of **its** next turn" — so the fact the caller
+    // has to go and establish is about that creature.
+    expect(requests[0]?.subject).toBe('goblin');
+    expect(requests[0]?.because).toContain('until the end of your next turn');
+    expect(requests[0]?.satisfyWith).toContain('beginCombat');
+
+    // **Asserted on the folded state, not on the `Result`.** A refusal that
+    // arrived after the slot had gone would leave a caster paying for a spell
+    // that never happened, and the `Result` alone cannot tell the two apart.
+    const after = fold('seed', log);
+    expect(after).toEqual(before);
+    expect(remaining(after.creatures.wizard!.resources, spellSlotKey(2))).toBe(4);
+    expect(after.creatures.goblin?.vitals.hp).toBe(200);
+    expect(Object.keys(after.scheduledDamage)).toHaveLength(0);
+    // **Before the attack roll**, which is the half nothing can repair
+    // afterwards: a refusal that had already moved the generator is the
+    // validate-before-rolling violation this discipline exists to prevent.
+    expect(dice.issuer.count).toBe(0);
+    expect(dice.rng.snapshot()).toEqual(rng);
+  });
+
+  /**
+   * And the fact repairs it. The caller rules that this hostile action starts
+   * a fight, sends the command the request named, and **the same casting**
+   * resolves — attack, first damage, and the debt hung on the moment the order
+   * now gives it.
+   */
+  it('resolves once the turn order exists, and owes the later hit at the end of the next turn', () => {
+    let log = acidArrow(rolled(), 40);
+    const state = fold('seed', log);
+
+    expect(hp(log, 'goblin')).toBeLessThan(200);
+    const scheduled = Object.values(state.scheduledDamage);
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0]?.target).toBe('goblin');
+    expect(scheduled[0]?.notation).toBe('2d4');
+
+    // And the moment is the end of the **target's** next turn, driven rather
+    // than read off the deadline: the goblin acts after the wizard, so its
+    // turn is the one coming up, and the acid arrives when that turn ends.
+    const afterInitial = hp(log, 'goblin');
+    log = advance(log, 'c1');
+    expect(hp(log, 'goblin')).toBe(afterInitial);
+    log = advance(log, 'c2');
+    expect(hp(log, 'goblin')).toBeLessThan(afterInitial);
+  });
+
+  /**
+   * **The other thin record, and it is a different one.** The fight exists and
+   * the target has no place in it — the goblin came round the corner after
+   * Initiative was rolled — so beginning combat is not the repair and the
+   * request does not offer it. This arm is reachable only because the moment
+   * is anchored on the *target*: a caster-anchored deadline in a fight the
+   * caster is in can never produce it.
+   */
+  it('asks for the target’s place in an order that already exists', () => {
+    const log = gathering();
+    const fighting: GameEvent[] = [
+      ...log,
+      ...unwrap(
+        beginCombat(fold('seed', log), [
+          { id: id('wizard'), initiative: 20, speed: 30 },
+          { id: id('ogre'), initiative: 5, speed: 30 },
+        ]),
+        'begin combat',
+      ),
+    ];
+    const before = fold('seed', fighting);
+    const dice = supplyFor(before, 40);
+
+    const out = resolveSpell(
+      before,
+      id('wizard'),
+      { spellId: 'acid-arrow', targets: [id('goblin')], slotLevel: 2 },
+      dice,
+    );
+
+    expect(isNeedsContext(out)).toBe(true);
+    const requests = contextRequestsOf(out);
+    expect(requests.map((request) => request.subject)).toEqual(['goblin']);
+    expect(requests[0]?.satisfyWith).toContain('rollInitiativeFor');
+    expect(requests[0]?.satisfyWith).toContain('joinCombat');
+    expect(requests[0]?.satisfyWith).not.toContain('beginCombat');
+
+    expect(before).toEqual(fold('seed', fighting));
+    expect(remaining(before.creatures.wizard!.resources, spellSlotKey(2))).toBe(4);
+    expect(before.creatures.goblin?.vitals.hp).toBe(200);
+    expect(dice.issuer.count).toBe(0);
+  });
+
+  /** A miss reaches no rider, so it owes nothing later through this door either. */
+  it('owes nothing later where the attack missed', () => {
+    const log = acidArrow(rolled(), -40);
+    expect(hp(log, 'goblin')).toBeLessThan(200);
+    expect(Object.keys(fold('seed', log).scheduledDamage)).toHaveLength(0);
+  });
+
+  /**
+   * **The other spell with this shape behaves identically, which is what says
+   * this is a mechanism rather than an Acid Arrow rule.**
+   *
+   * Vitriolic Sphere prints the same later consequence off a failed save and
+   * catches everyone in a Sphere, so the pre-flight asks once per target it
+   * could come to owe something to — each of them a creature whose own next
+   * turn has to exist before the debt can be pinned.
+   */
+  it('asks for every target of an area spell that prints the same consequence', () => {
+    const log = gathering();
+    const before = fold('seed', log);
+    const dice = supplyFor(before, -40);
+
+    // Centred on the ogre, which puts the goblin five feet away inside it and
+    // leaves the wizard twenty-five feet off outside it: two targets, both of
+    // them creatures the sphere would come to owe a second hit.
+    const out = resolveSpell(
+      before,
+      id('wizard'),
+      { spellId: 'vitriolic-sphere', targets: [], at: { x: 150, y: 175, z: 0 }, slotLevel: 4 },
+      dice,
+    );
+
+    expect(isNeedsContext(out)).toBe(true);
+    const requests = contextRequestsOf(out);
+    expect(requests.length).toBeGreaterThanOrEqual(2);
+    expect(requests.every((request) => request.kind === 'turn-order')).toBe(true);
+    expect(requests.map((request) => request.subject)).toContain('goblin');
+    expect(requests.map((request) => request.subject)).toContain('ogre');
+
+    expect(remaining(fold('seed', log).creatures.wizard!.resources, spellSlotKey(4))).toBe(4);
+    expect(dice.issuer.count).toBe(0);
+  });
+
+  /** And it lands the same way once there is an order to anchor to. */
+  it('lands the sphere once the turn order exists', () => {
+    const log = rolled();
+    const cast = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        id('wizard'),
+        { spellId: 'vitriolic-sphere', targets: [], at: { x: 150, y: 175, z: 0 }, slotLevel: 4 },
+        supplyFor(fold('seed', log), -40),
+      ),
+      'sphere',
+    );
+    const after = fold('seed', [...log, ...cast.events]);
+    const owed = Object.values(after.scheduledDamage);
+    expect(owed.map((debt) => debt.notation)).toContain('5d4');
+    expect(owed.map((debt) => debt.target).sort()).toEqual(['goblin', 'ogre']);
   });
 });

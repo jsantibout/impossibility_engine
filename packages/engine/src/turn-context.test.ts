@@ -26,6 +26,8 @@ import {
   resolveDuration,
 } from './duration.js';
 import { turnContextFor } from './commands/command.js';
+import { scheduleDelayed } from './commands/spell-effect-riders.js';
+import { conditionRiderOf, definitionFor, riderDurations } from './spell-definitions.js';
 import {
   applyConditionTo,
   beginCombat,
@@ -112,7 +114,14 @@ const PLACED: readonly GameEvent[] = [
     spellcasting: declaredCasting({
       ability: 'int',
       cantrips: ['ray-of-frost'],
-      prepared: ['ray-of-frost', 'color-spray', 'hypnotic-pattern', 'acid-arrow', 'shield'],
+      prepared: [
+        'ray-of-frost',
+        'color-spray',
+        'hypnotic-pattern',
+        'acid-arrow',
+        'shield',
+        'stinking-cloud',
+      ],
     }),
   },
   { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
@@ -220,6 +229,49 @@ describe('a turn-anchored rider outside combat asks for a turn order', () => {
     expect(isNeedsContext(out)).toBe(true);
     expect(contextRequestsOf(out)[0]?.because).toContain('until the end of your next turn');
     expect(remaining(fold('seed', PLACED).creatures.caster!.resources, spellSlotKey(1))).toBe(4);
+  });
+
+  /**
+   * **And what the pre-flight deliberately does not gather**, held in both
+   * directions here so the decision cannot go stale unread.
+   *
+   * An area trigger's effects carry riders too, and `riderDurations` walks the
+   * casting's own list only. SRD Stinking Cloud: "Each creature that starts its
+   * turn in the Sphere must succeed on a Constitution saving throw or have the
+   * Poisoned condition **until the end of the current turn**", on a spell whose
+   * casting does nothing whatever — so a pre-flight that read the trigger's
+   * list would refuse the cloud to anybody who had not rolled Initiative, and
+   * the only command that satisfies that request begins a fight. A gas trap
+   * laid before the door opens is a legal casting, and the engine does not get
+   * to require combat for it.
+   *
+   * The premise is asserted rather than assumed: the trigger really does carry
+   * a turn-anchored rider, so this passes because the pre-flight left it alone
+   * and not because there was nothing to find. What would change the answer is
+   * an **entry** clause with a turn-anchored rider, since an entry fires
+   * outside combat — and the place to ask about that is the moment the trigger
+   * runs, where `creatureTypeNeeds` already asks its own second question.
+   */
+  it('leaves an area trigger’s rider to the moment the trigger fires', () => {
+    const cloud = definitionFor('stinking-cloud')!;
+    const nested = (cloud.areaTrigger?.effects ?? []).flatMap((effect) =>
+      conditionRiderOf(effect).map((rider) => rider.lasts),
+    );
+
+    expect(nested).toContain('end-of-current-turn');
+    expect(cloud.areaTrigger?.at).toBe('start-of-turn');
+    expect(cloud.areaTrigger?.onEntry).toBeUndefined();
+    expect(riderDurations(cloud)).toEqual([]);
+
+    // So the cloud is conjured before anybody has rolled Initiative, which is
+    // what `area-triggers.test.ts` does with every area it drives.
+    const out = resolveSpell(
+      fold('seed', PLACED),
+      CASTER,
+      { spellId: 'stinking-cloud', targets: [], at: { x: 125, y: 125, z: 0 }, slotLevel: 3 },
+      supply('cloud'),
+    );
+    expect(out.ok).toBe(true);
   });
 
   /**
@@ -485,8 +537,8 @@ describe('no command-layer duration site is left refusing', () => {
       'a casting time is a span of seconds and never a moment in the turn order, so no turn-anchored refusal can arrive; the argument itself says so, which is what the assertion below reads',
     'commands/casting.ts: const pinned = resolveDuration(timeView(state), duration);':
       '`mustResolve`, which throws rather than returning: the span was resolved and read back off an `elapsed` deadline at the declaration, so a refusal here is programmer error rather than a thin record',
-    'commands/spell-effect-riders.ts: const deadline = resolveDuration(timeView(state), endOfNextTurn(target));':
-      'the delayed hit is not scheduled and is reported in `unverified` rather than refused — SRD Acid Arrow lands its first damage either way, so the casting succeeds and there is nothing for a caller to repair; converting it would change what that spell does, which is out of IE-046 by the owner',
+    'commands/spell-effect-riders.ts: const deadline = resolveDuration(timeView(state), delayedDuration(target));':
+      'the ask happens earlier, at the pre-flight, where nothing has been spent yet — so an ordinary casting never reaches this line unpinnable, and what still can is a path that arrives long afterwards: an area trigger settling a minute later, an activation, a casting declared and settled after the fight ended. Those have already rolled and already landed the first hit, so the debt is reported in `unverified` rather than refused; refusing once the generator has moved is the very thing asking early exists to prevent',
   };
 
   /**
@@ -550,23 +602,59 @@ describe('no command-layer duration site is left refusing', () => {
   });
 
   /**
-   * And the third's claim is behaviour, so it is driven. SRD Acid Arrow: "the
-   * target takes 4d4 Acid damage and 2d4 Acid damage **at the end of its next
-   * turn**." Outside combat the first half still lands.
+   * The third's claim is behaviour, so it is driven — and it is two claims.
+   *
+   * The first is that an ordinary casting does not reach the exempt line at
+   * all: SRD Acid Arrow's "2d4 Acid damage **at the end of its next turn**" is
+   * asked about at the pre-flight, where nothing has been spent, which is what
+   * makes leaving the site itself unconverted honest rather than a hole.
    */
-  it('checks that the delayed hit reports rather than refusing', () => {
+  it('checks that the casting asks before it could reach the exempt site', () => {
+    const before = fold('seed', PLACED);
+    const dice = supply('arrow');
     const out = resolveSpell(
-      fold('seed', PLACED),
+      before,
       CASTER,
       { spellId: 'acid-arrow', targets: [TARGET], slotLevel: 2 },
-      supply('arrow'),
+      dice,
     );
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
-    expect(out.value.unverified.join(' ')).toMatch(/there are no turns outside combat/);
-    expect(out.value.events.some((e) => e.type === 'damage-scheduled')).toBe(false);
-    // The first hit happened, which is why there is nothing to ask for.
-    expect(out.value.events.some((e) => e.type === 'damage-taken')).toBe(true);
+
+    expect(isNeedsContext(out)).toBe(true);
+    expect(contextRequestsOf(out).map((r) => r.kind)).toEqual(['turn-order']);
+    expect(contextRequestsOf(out)[0]?.subject).toBe(TARGET);
+    // The state handed in, against a fresh fold of the same log: a slot read
+    // back off a log nothing appended to could not have failed whatever the
+    // command did, and this can.
+    expect(before).toEqual(fold('seed', PLACED));
+    expect(remaining(before.creatures.caster!.resources, spellSlotKey(2))).toBe(4);
+    expect(dice.issuer.count).toBe(0);
+  });
+
+  /**
+   * And the second is what the site does for the paths that arrive later
+   * anyway — an area trigger, an activation, a casting settled after the fight
+   * ended. Reached directly, it reports and schedules nothing; it does not
+   * refuse, because by then the first hit has landed and a refusal would
+   * discard a resolution that already moved the world.
+   */
+  it('checks that the site itself reports rather than refusing', () => {
+    const unverified: string[] = [];
+    const event = scheduleDelayed(
+      fold('seed', PLACED),
+      TARGET,
+      { damage: { dice: '2d4' }, damageType: 'acid' },
+      {
+        casterId: CASTER,
+        definition: definitionFor('acid-arrow')!,
+        castingId: 'c1',
+        castLevel: 2,
+        casterLevel: 11,
+        unverified,
+      },
+    );
+
+    expect(event).toBeNull();
+    expect(unverified.join(' ')).toMatch(/there are no turns outside combat/);
   });
 });
 

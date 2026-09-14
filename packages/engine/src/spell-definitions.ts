@@ -2092,6 +2092,51 @@ export function riderDuration(
 }
 
 /**
+ * When a `delayed` hit falls due: the end of the **target's** next turn.
+ *
+ * SRD Acid Arrow writes the moment as "at the end of **its** next turn", and
+ * Vitriolic Sphere the same — anchored to the creature the damage is on rather
+ * than to the caster, which is why this cannot reuse {@link riderDuration}'s
+ * caster-anchored pair. `endOfNextTurn` already encodes the asymmetry that
+ * makes it right: said on the target's own turn, the end of their *next* turn
+ * is two turn-endings away, not one.
+ *
+ * **One reader, one question, asked in the two places that must agree** — the
+ * pre-flight that asks whether the moment can exist at all, and the scheduler
+ * that pins it. That is {@link teleportOf}'s pattern and it is here for the
+ * same reason: the moment was spelled out inside the scheduler, so the
+ * pre-flight could not see it, and a second spelling of one sentence is a
+ * second place for it to be got wrong.
+ *
+ * A `DelayedDamage` carries no `lasts` because there is nothing to choose:
+ * both spells that print this shape print the same moment, and a field the
+ * book never varies is a field nothing would ever read.
+ */
+export function delayedDuration(target: CharacterId): Duration {
+  return endOfNextTurn(target);
+}
+
+/**
+ * Does a casting of this spell owe anybody a later hit?
+ *
+ * Asked of the definition rather than of one effect, for the same reason
+ * {@link statesFoughtFact} is: the *pre-flight* has to know, before a slot or
+ * a die, whether the moment {@link delayedDuration} names is one this world
+ * can supply.
+ *
+ * **The casting's own effect list, and nothing nested**, which is
+ * {@link teleportOf}'s rule for the same reason {@link statesFoughtFact} has
+ * it: the fact is about *this* casting's targets. A delayed hit's moment
+ * belongs to the target, and an area trigger's targets are whoever walks into
+ * the cloud a minute later — creatures the casting has not met and cannot ask
+ * about. No spell prints that combination, and the day one does, the moment
+ * to ask about it is the moment the trigger fires.
+ */
+export function delaysDamage(definition: SpellDefinition): boolean {
+  return definition.effects.some((effect) => outcomeRidersOf(effect).delayed !== undefined);
+}
+
+/**
  * Every rider deadline a casting of this spell is going to need.
  *
  * Gathered so they can be checked before anything is spent. A turn-anchored
@@ -2106,6 +2151,34 @@ export function riderDuration(
  * would have let the ray be thrown outside combat, hit, deal its damage, and
  * then fail to schedule the slow — a refused operation that had already moved
  * the world.
+ *
+ * **The casting's own effect list, and nothing nested — recorded rather than
+ * overlooked.** An area trigger's effects carry riders too, and gathering
+ * those here was tried and rejected on what it costs. SRD Stinking Cloud's
+ * Poisoned lasts "until the end of the current turn" and the casting itself
+ * does nothing at all, so a pre-flight that read the trigger's list would
+ * refuse the cloud to anyone who had not rolled Initiative — and the only way
+ * to satisfy that request is to begin a fight. A gas trap laid before the door
+ * opens is a legal casting the book nowhere forbids, and `area-triggers.test.ts`
+ * conjures every area before Initiative for exactly that reason.
+ *
+ * **They are different moments, which is why one pre-flight cannot answer
+ * both.** A rider on the casting's own effects lands *now*, so the casting is
+ * the moment to ask about it; a rider on a trigger lands whenever the trigger
+ * fires — a minute later, in a fight that has started since — so the casting's
+ * answer would be about the wrong world. `creatureTypeNeeds` already draws
+ * that distinction by asking twice: once here for the casting's own effects,
+ * and once at resolution for whichever list is actually running.
+ *
+ * **And nothing in the book reaches the gap.** The one nested turn-anchored
+ * rider is Stinking Cloud's, on a `start-of-turn` trigger, which cannot fire
+ * without a turn to start — so the deadline always pins. What would end that
+ * is an area trigger carrying an **entry** clause with a turn-anchored rider,
+ * since an entry fires outside combat; and what happens then is not silence
+ * but a late question, because `schedule` converts the refusal into the same
+ * `turn-order` request mid-settlement, after the trigger's save has been
+ * rolled. Honest, and one roll too late — which is the argument for asking
+ * where the *running* list is known, and not here.
  */
 export function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
   const found: RiderDuration[] = [];

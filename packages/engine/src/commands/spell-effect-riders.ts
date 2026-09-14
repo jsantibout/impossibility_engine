@@ -22,10 +22,11 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { endOfNextTurn, resolveDuration, timeView } from '../duration.js';
+import { resolveDuration, timeView } from '../duration.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import {
   type ConditionRider,
+  delayedDuration,
   type DelayedDamage,
   type OutcomeRiders,
   riderDuration,
@@ -40,16 +41,28 @@ import { effectCheckFrom } from './rolls.js';
 /**
  * The `damage-scheduled` event a delayed hit needs, or nothing.
  *
- * SRD writes the moment as "at the end of its next turn" — anchored to the
- * **target**, which is why this cannot reuse `riderDuration`'s caster-anchored
- * pair. `endOfNextTurn` already encodes the asymmetry that makes it right: said
- * on the target's own turn, the end of their *next* turn is two turn-endings
- * away, not one.
+ * The moment is {@link delayedDuration}'s and not this function's: SRD writes
+ * it as "at the end of its next turn", anchored to the **target**, and it is
+ * read from the one place so that the pre-flight and the schedule cannot come
+ * to disagree about which moment they mean.
  *
- * Outside combat there are no turns for it to be the end of, so nothing is
- * scheduled and the caller is told. Refusing the whole casting would be worse
- * — Acid Arrow is perfectly legal at a fleeing target nobody has rolled
- * Initiative against, and its first 4d4 lands either way.
+ * **The question is asked earlier, where nothing has been spent yet.** A
+ * printed later consequence that needs a turn timeline is a fact the casting
+ * requests before the slot, the action and the first die — the engine says it
+ * needs turn context to adjudicate this, and the layer above rules on the
+ * fiction and supplies it. This used to be where the problem surfaced instead:
+ * the slot went, the attack rolled, the first 4d4 landed, and only then was
+ * the second hit dropped with a line in `unverified`. That is a consequence
+ * forgiven rather than adjudicated, and it was reported to a caller who could
+ * no longer do anything about it.
+ *
+ * So the ordinary casting never arrives here with a moment that cannot be
+ * pinned. What still can is a path that reaches this rule long after the
+ * casting was validated — an area trigger settling a minute later, an
+ * activation, a casting declared and settled after the fight ended. Those have
+ * already rolled and already landed the first hit, so the debt is **reported
+ * rather than refused**: discarding a resolution whose generator has moved is
+ * exactly what asking early exists to prevent.
  */
 export function scheduleDelayed(
   state: GameState,
@@ -66,7 +79,7 @@ export function scheduleDelayed(
 ): GameEvent | null {
   const { casterId, definition, castingId, castLevel, casterLevel, unverified } = context;
 
-  const deadline = resolveDuration(timeView(state), endOfNextTurn(target));
+  const deadline = resolveDuration(timeView(state), delayedDuration(target));
   if (!deadline.ok) {
     unverified.push(
       `${definition.name} owes ${target} a second hit at the end of their next turn, and there are no turns outside combat; it was not scheduled`,

@@ -103,9 +103,11 @@ Five modules give an effect a moment to stop at — a condition a DM hangs, a
 casting's own Duration, a readied spell's, a feature's activation, the grant a
 `speed-change` rider makes — and every one of them reaches that function, so a
 sixth gets the request with nothing to remember. The two sites that **ask**
-without going through it are the casting's declaration and `riderDurations`'
-pre-flight — three other sites call `resolveDuration` directly and convert
-nothing, each for a written reason the sweep below checks. The pre-flight sits
+without going through it are the casting's declaration and the casting's
+pre-flight — which gathers a rider's deadline through `riderDurations` and a
+printed later consequence's through `delaysDamage`, for the two different
+reasons set out below. Three other sites call `resolveDuration` directly and
+convert nothing, each for a written reason the sweep below checks. The pre-flight sits
 **before the slot, the action and the first die** by the
 same validate-before-rolling rule the rest of casting obeys — so a Ray of Frost
 asked for in a corridor costs its caster nothing at all, which is asserted on
@@ -120,6 +122,57 @@ population is read out of `resolveDuration`'s own `switch` — the kinds it
 answers `no_turns` for, fall-through and all — and every one is driven through
 the conversion.
 
+**A printed later consequence asks for the timeline it needs, at the same
+moment and by the same rule.** SRD Acid Arrow deals "4d4 Acid damage and 2d4
+Acid damage **at the end of its next turn**", and Vitriolic Sphere prints the
+same sentence off a failed save. Outside combat that moment does not exist, and
+the casting used to resolve anyway: the slot went, the attack rolled, the first
+4d4 landed, and the second hit was dropped with a line in `unverified` — a
+consequence forgiven rather than adjudicated, reported to a caller far too late
+to act on it. So the pre-flight gathers those as well, **per target and
+anchored on the target**, because the moment is the target's own next turn
+rather than the caster's; the refusal becomes the same `turn-order` request,
+raised before the slot, the action and the first die. This is the Ray of Frost
+decision reaching a later consequence instead of a rider, and it is the one
+place a `needs-context` could have become a lie: the promise it makes is that
+nothing was spent, so it has to be made while that is still true.
+
+The moment has **one spelling**, `delayedDuration`, read by the pre-flight that
+asks whether it can exist and by the scheduler that pins it — `teleportOf`'s
+rule, for the reason this repository records about every duplicated sentence.
+
+**What the pre-flight deliberately does not gather is an area trigger's
+riders**, and that is a measured decision rather than an oversight. SRD
+Stinking Cloud's Poisoned lasts "until the end of the current turn" on a spell
+whose casting does nothing at all, so a pre-flight that read the trigger's
+effect list would refuse the cloud to anybody who had not rolled Initiative —
+and the only command that satisfies that request begins a fight. A gas trap
+laid before the door opens is a legal casting, and the engine does not get to
+require combat for it. The moments are different moments: a rider on the
+casting's own effects lands *now*, so the casting is when to ask; a rider on a
+trigger lands whenever the trigger fires, in a fight that may have started
+since, so the casting's answer would be about the wrong world. It is the
+distinction `creatureTypeNeeds` already draws by asking twice, once at the
+pre-flight and once at resolution for whichever effect list is running.
+
+Nothing in the book reaches the gap that leaves: the one nested turn-anchored
+rider is Stinking Cloud's, on a `start-of-turn` trigger, which cannot fire
+without a turn to start. What would end that is an area trigger carrying an
+**entry** clause with a turn-anchored rider, since an entry fires outside
+combat — and what happens then is a late question rather than silence, because
+`schedule` converts the refusal into the same `turn-order` request
+mid-settlement, after the trigger's save has been rolled. Honest, and one roll
+too late, which is the argument for asking where the running list is known.
+`turn-context.test.ts` holds that decision in both directions, premise
+included.
+
+**The engine asks; it does not answer.** It begins no fight, rolls no
+Initiative and holds no rule about which actions are hostile enough to start
+one. That judgement is the DM's, above this layer, and what comes back is the
+same casting sent again unchanged. Nothing here converts printed turn timing
+into seconds, invents a deadline or forgives the consequence — the three
+alternatives to asking, all of which are worse than the question.
+
 **Every such site is converted or carries a written reason, and it is a derived
 sweep rather than a reading.** `turn-context.test.ts` reads every
 `resolveDuration` call in `commands/` and `rest.ts` and fails naming any that
@@ -127,9 +180,15 @@ hands the bare refusal back, because a site left refusing has no symptom
 whatever — no failing test and no wrong number, just an orchestrator that gives
 up on a legal cantrip. Three are exempt and each names the fact that ends it:
 two whose argument is a **span** and therefore cannot be turn-anchored, and
-`scheduleDelayed`, where SRD Acid Arrow's later 2d4 is reported in `unverified`
-and not scheduled rather than refused — the casting succeeded and its first hit
-landed, so there is nothing for a caller to repair.
+`scheduleDelayed`, where the ask has already happened **earlier**. An ordinary
+casting cannot reach that line with a moment it cannot pin, because the
+pre-flight asked while nothing had been spent; what still reaches it is a path
+that arrives long afterwards — an area trigger settling a minute later, an
+activation, a casting declared and settled after the fight ended — and those
+have already rolled and already landed their first hit. There the debt is
+reported rather than refused, because discarding a resolution whose generator
+has moved is exactly what asking early exists to prevent. Both halves of that
+are driven: that the casting asks, and that the site itself reports.
 
 **Start and end of turn are a full round apart**, so combatants count turns
 begun and turns ended separately. Nothing derives one from the other. The
