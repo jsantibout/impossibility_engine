@@ -1,13 +1,13 @@
 # IE-038 — `pendingCastings`, keyed by casting id
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 6
 parallel-safe: NO — `events.ts`, `commands/spell-resolution.ts`, `commands/casting.ts`; the whole casting primitive
 depends-on: none
-worker: qb-builder in .claude/worktrees/agent-ac862330ffdaeb2db, branch worktree-agent-ac862330ffdaeb2db
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 6."
 
 ## Brief
 
@@ -247,3 +247,138 @@ Sixteen sites, six command modules and the reducer in one diff. The reducer
 sites are already id-shaped or one line from it; the command sites hold the
 behaviour that is changing. The guard against a silent miss is the fold: a
 site left reading "the" casting fails the two-castings fixture.
+
+## Completion digest
+
+```
+IE-038 — Completion digest
+Builder: COMPLETE
+Commit: cc7e135 (replayed onto main as 673178b)   Branch: worktree-agent-ac862330ffdaeb2db
+Opus review: PASS — rounds: 2, confidence high, no defects
+Tests: 7836 / 7836 on the branch (baseline 7812); new: 22 in keyed-pending-castings.test.ts,
+  plus two in counterspell.test.ts. On main after the replay: 7874 across 117 files.
+Mutations, each red on a named new test and green before it:
+  (a) settleHoldsInvolving taking only the first of pendingCastingsBy;
+  (b) resolveDeclaredCast settling Object.values(...)[0] instead of the id it was given;
+  (c) disabling the named-id forced-target guard;
+  (d) falling back to the first open casting when the named id is absent;
+  (e) disabling the unnamed-path target-count guard — this one initially SURVIVED against a
+      zero-target fixture, because the same code arrived from the filter below it; the fixture
+      was corrected to two targets and the reason written into the test.
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓; both frozen logs and scenario.test.ts
+  run explicitly, 53 passing, no fixture edit.
+Conformance: PASS
+Architectural deviations: none
+Foundational primitives touched: GameState.pendingCasting → pendingCastings (state-root shape);
+  the spell-declared, spell-interrupted and spell-cast reducer cases and releaseCasting;
+  commands/casting.ts (new answeredCasting); commands/spell-resolution.ts (castOrRelease,
+  resolveDeclaredCast, the resolveEffects context, the interrupt-casting resolver);
+  commands/{holds,turns,activation,reactions}.ts; the commands.ts barrel.
+Public API changes, declared as the brief required:
+  resolveDeclaredCast(state, castingId, supply, command?) gains a required second parameter;
+  pendingCastingOf replaced by pendingCastingsOf(state) and pendingCastingsBy(state, caster),
+  both lists; CastSpellRequest.answers?: string and ReactionOpportunity.casting?: string added.
+  Refusal codes: casting_pending narrowed to resolveTurn alone; answer_cannot_be_held,
+  answer_to_an_answer, ambiguous_casting and no_answer_clause added, each asserted by name.
+New runtime special cases: none
+Files outside the brief's surface: tools/llm-probe/src/{surface.ts,probe.test.ts,parity.test.ts},
+  compile-forced by the state-field rename and required by the probe's own derived debt sweep;
+  scripts/make-golden-log-2.ts, the generator and not the fixture, for the new signature — it
+  passes the same casting id the old code settled implicitly, so its output is unchanged;
+  scripts/missing-shapes.ts, where one shape description quotes the CLAUDE.md sentence this task
+  changed and blocked-on.test.ts's citation guard caught it.
+Out-of-scope findings: (1) withPendingCasting's casting-number sort is a no-op today and cannot
+  be made to fire — ids are sequential and spell-declared is its only caller — so it is structural
+  rather than tested, and says so. (2) resolveTurn's plural branch in its reason string is prose
+  no fixture reaches. (3) Shield cannot be cast outside combat at all: its own rider is
+  turn-anchored and resolveDuration refuses. Pre-existing and unrelated to this record — see the
+  risk gate.
+Reviewer confidence: high
+Recommendation: READY FOR MERGE
+```
+
+## Risk gate
+
+**Inspected in depth**, because this is the owner's approved architectural
+correction and the digest carried every heavy signal at once: a state-root shape
+change, three reducer cases, six command modules, the barrel, four new refusal
+codes, declared public API changes, and five files outside the brief's surface.
+
+**The owner's invariant, checked myself rather than read off the digest.**
+`spell-declared`'s throw is now `pendingCastings[id] !== undefined` and carries a
+comment saying in as many words that there is deliberately **no per-caster
+throw**, because two castings by one caster is not an identity fact. I swept
+`events.ts` and every module under `commands/` for any surviving uniqueness rule
+and found none: `casting_pending` survives at exactly **one** site,
+`resolveTurn`, which is what the brief kept.
+
+**The engine never picks between candidates.** `answeredCasting` is one resolver
+with two readers. A named id that is not open is `no_trigger` (the moment
+passed); a named id whose caster was not the target is `forced_target`; an
+omitted id resolves only where the named caster has exactly one casting open, and
+is `ambiguous_casting` naming every candidate where they have two. That is the
+owner's fifth point built as written.
+
+**The two nesting refusals say what they are.** Both reasons end "which is a
+limit of this engine rather than of the SRD", under `answer_cannot_be_held` and
+`answer_to_an_answer`. The owner's instruction was that these remain explicitly
+non-SRD engine debt, and the refusal a caller actually receives now says so.
+
+**Neither frozen log was touched.** I checked the diff's file list directly: no
+`.json` fixture appears. `make-golden-log-2.ts` — the generator — changed for the
+new signature and passes the same casting id the old code settled implicitly.
+
+**Every out-of-surface file is compile-forced**, and I read all five. The probe's
+`PROJECTED_AS` sweep is derived from the state's own field names, so the rename
+propagates or the sweep fails; the `missing-shapes.ts` edit is IE-022's citation
+guard doing its job on a CLAUDE.md sentence this task rewrote.
+
+**One mutation initially survived and the builder said so.** (e) passed against a
+zero-target fixture because the same code arrived from the filter below it; the
+fixture was corrected to two targets and the reason written into the test. A
+builder reporting a mutation that did not bite is the behaviour this process
+exists to get.
+
+Classification: **GREEN**.
+
+## Architecture decision
+
+None at build time. The architecture was decided by the **owner** before launch —
+casting id as the identity boundary, no uniqueness invariant global or per
+caster, legality by real primitives, ambiguity resolved to an id — and recorded
+in the brief's Architecture constraints. No Fable involvement.
+
+## Merge record
+
+Replayed onto `main` as `673178b` and pushed. `main` had moved by IE-043's merge;
+three files overlapped — `CLAUDE.md`, `missing-shapes.ts`, `spell-definitions.ts`
+— and all three auto-merged cleanly.
+
+`main` verified **after** the merge: typecheck ✓, lint ✓, **7,874 tests across
+117 files** ✓, both frozen logs, the scenario determinism and the new
+keyed-pending suite run explicitly ✓ (75 tests), `COVERAGE.md` regenerated and
+byte-clean ✓, tree clean.
+
+Thirteen conditions: **1** inside the brief — the reviewer walked all ten
+required behaviours and all eight acceptance criteria; **2** `COMPLETE`; **3**
+`PASS` at high confidence; **4** no defects outstanding after two rounds; **5**
+gauntlet green; **6** conformance green; **7** no blocker; **8** no deviation,
+with the public API changes declared as the brief demanded; **9** every primitive
+touched is named by the brief; **10** five files outside the surface, each
+compile-forced and each read by me; **11** integration valid, three overlaps
+auto-merged; **12** re-verified on `main`; **13** risk gate inspected, GREEN.
+
+**What this unblocks:** IE-039 and IE-036 both waited on this record. IE-039
+launches now; IE-036 waits for IE-044, because both edit `missing-shapes.ts` and
+IE-044 changes the entry type IE-036 would be removing entries from.
+
+**And what it does not yet reach, stated plainly.** The owner's sequence — a
+wizard mid-rite taking a Reaction **on another creature's turn** — is not fully
+drivable today, and not because of this record. SRD Shield's own rider is
+turn-anchored, so it cannot be cast outside combat at all; and a rite cannot be
+*declared* inside combat until IE-041. The fixture therefore declares the rite
+outside combat and starts the fight around it, which pins the invariant that
+matters — two pending castings, one caster, coexisting and settling
+independently — and leaves the turn-by-turn half to IE-041, which carries it as
+its own requirement 6. The brief anticipated exactly this and asked for the
+strongest available test rather than an invented mechanic.

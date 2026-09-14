@@ -1,11 +1,11 @@
 # IE-039 — Split `events.ts` along the fold's own seams
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 6
 parallel-safe: NO — it *is* `events.ts`; nothing that touches the fold runs beside it
 depends-on: IE-038
-worker: none
+worker: qb-builder in .claude/worktrees/agent-af3f414fbda44e801, branch worktree-agent-af3f414fbda44e801
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
 merge-approved: none
 
