@@ -547,6 +547,16 @@ with the smaller surface first, then rebase the other yourself and re-verify
 it before merging — condition 12. If a merge invalidates a pending branch,
 that branch goes back to `CHANGES_REQUIRED`.
 
+**A branch whose deliverable is a derived claim is invalidated by a base that
+moves, and the merge stays clean.** Condition 12 asks whether anything merged
+in the meantime "changed an assumption the review rested on", and the easy
+misreading — the foreman's, on IE-009 — is to check whether the tests still
+pass. A task whose output is prose stating counts read out of the repository
+has no test to fail and no line to conflict: its base and the new `main` are
+byte-identical where it wrote, so a wrong number installs silently. **Do not
+merge another branch under a review of one**, and where the sequencing is
+already fixed, re-check such a branch's *claims* and not only its gauntlet.
+
 **Rebases are the foreman's.** The permission model refuses a builder
 `git rebase` — tranche 2 established it twice — so a builder **finishes and
 reports its branch**, and every rebase and integration step is the foreman's,

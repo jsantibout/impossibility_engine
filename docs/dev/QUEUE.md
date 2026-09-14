@@ -204,7 +204,26 @@ still building; **IE-007 is held at `APPROVED_FOR_IMPLEMENTATION`** and
 launches when IE-001 has merged, because they share
 `commands/spell-resolution.ts` and the `SpellEffect` union.
 
-**IE-009 is the first use of the round-exhaustion rule, and it caught the
+**IE-009's bounded pass verified the work and caught a defect the foreman
+caused.** The pass confirmed the derivation independently — 91 declared, 74
+emitted, **17 emitted nowhere**, with its own script implementing the stated
+method; the bare-id reading gives 16 and drops exactly `creature-placed`; the
+eight setup types are genuinely unreachable, `placeCreature`, `declareCover`,
+`declareSight` and `startCombat` all returning `Result<State>` rather than
+`Result<GameEvent[]>`. Then it found that **merging IE-001 under a running
+review had made two of IE-009's prose numbers false** — 130 definitions is
+now 132, eleven exported readers is now twelve — and that the merge would be
+*textually clean*, because base and `main` are byte-identical at those lines.
+A wrong number would have installed silently.
+
+That is a foreman error in sequencing, and `WORKFLOW.md` now carries the
+lesson: condition 12 asks whether anything merged in the meantime changed an
+assumption the review rested on, and the easy misreading is to check whether
+the tests still pass. A task whose deliverable is a derived claim has no test
+to fail and no line to conflict. Do not merge another branch under a review of
+one.
+
+**IE-009 is also the first use of the round-exhaustion rule, and it caught the
 rule's own wording.** Its three rounds went 2 → 2 → 1, every finding a
 precision defect in prose the builder had rewritten that round, confidence
 high and escalation none throughout. The rule as written said "strictly
