@@ -630,6 +630,35 @@ by analogy to a precedent without checking the analogy held in the new design.
 The system caught both, which is the point of it; the brief-writing is mine to
 correct.
 
+**IE-031 is `ARCHITECTURE_BLOCKED` — the tranche's second YELLOW, and my own
+brief correction is what put it there.** The command layer validates a move
+against the feature-aware `speedOf` and emits `movement-spent`; the reducer
+folds that event against the **pinned** `combatant.speed` and throws
+`CorruptLogError`. A Monk with `speedOf` 40 and a pinned 30 cannot take a
+35-foot move: the command says yes and the fold says the log is corrupt.
+
+**The reason is an asymmetry I missed.** The delta audit said flip the budget
+to record what is *spent*; I verified that the live cap already existed for
+conditions and told the builder not to flip it. That holds for **lowering**
+effects and fails for **raising** ones: a cap can only ever lower, and a
+feature grant raises, so nothing but the **seed** can put 40 feet in a budget
+seeded at 30. The builder followed the note and the note is the defect. **Third
+substantive brief error of this tranche, and the first that is architectural
+rather than editorial.**
+
+It survived a 7,044-test suite because the two command-layer fixtures assert on
+the returned `Result` and **never fold the events** — the reviewer found it,
+the builder reproduced it by folding what its own tests had only read. With
+Fable, with the evidence gathered: the reducer is already inconsistent here
+(`dash-taken` passes conditions, `movement-spent` passes nothing), the budget
+is seeded from the pinned Speed at two sites, `beginTurn` holds only a
+`CombatState`, and `standing.ts` imports `GameState` type-only so the obvious
+fix has no runtime cycle.
+
+**Sequencing is the foreman's and is already constrained**: every option needs
+`events.ts`, which IE-030 holds. Nothing starts there until IE-030 merges, and
+no follow-up task will be invented to carry it — that is the owner's roster.
+
 **Running:** IE-021, IE-022, IE-023 (wave 1), IE-026's confirming review, and
 Fable on IE-024.
 
@@ -792,3 +821,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | launch | IE-030, IE-031 | wave 3, launched together on `d53ae63`. Parallel-safe by inspection: IE-030 holds `spell-definitions.ts`, `targeting.ts`, `spell-resolution.ts`, `spell-schema.ts`, `events.ts` and `missing-shapes.ts`; IE-031 holds `standing.ts`, `combat.ts`, `movement.ts`, `actions.ts`, the class files and `invariants.test.ts`. **Both launch prompts carry what changed under them since their briefs were written** — IE-030 the new `effectLists` idiom and the `satisfyWith` sweep, IE-031 the two refusal remaps IE-029 removed — because a brief pointing at stale line numbers is how a builder fixes the wrong thing |
 | 2026-09-14 | `CHANGES_REQUIRED` (condition 12) | IE-021 | the base moved eight merges and **IE-023 added two tests to `packages/engine/scripts/`**, the directory IE-021's sweep is defined over — so its population assertion and its unguarded-write assertion both failed after the rebase, on a test writing fixtures rather than a script writing at import time. **The first time this tranche's integration condition has caught something**, and it caught exactly what it is for: a review that passed a branch whose sweep had a different population. Returned and re-reviewed rather than merged. The `CLAUDE.md` conflict was the known mechanical one — two new `###` sections at one insertion point, both kept |
 | 2026-09-14 | merge (tranche authority) | IE-021 | merged `ff15526`, 13/13, risk gate inspected. **Wave 1 complete.** The payoff was verified by the foreman on `main` — a corrupted `COVERAGE.md` survives a full `npm test` and fails `git diff --exit-code`, where before it vanished after one test file. Condition 12 had returned this branch once when IE-023's two tests landed in the directory its sweep sweeps; the re-reviewed fix asserts the exclusion admits only test files and that the three-name floor still contains real writes. One foreman integration commit, `8ec33c5`: a sentence the builder specified and declined to spend a fifth round on, because the reviewed sha should be the sha that merges |
+| 2026-09-14 | YELLOW → Fable | IE-031 | `ARCHITECTURE_BLOCKED` by builder and `ESCALATE` by reviewer, independently and both at high confidence. The command layer and the reducer disagree about Speed: a feature-raised move is validated by `speedOf` and then refused by the fold as a corrupt log. **The foreman's own brief correction caused it** — the delta audit said flip the budget to `spent`, the foreman verified the live cap already existed for conditions and said not to, and a cap can only lower while a feature grant raises. The question put to Fable is what the reducer's job is when folding `movement-spent` at all, not only which of three patches to take |

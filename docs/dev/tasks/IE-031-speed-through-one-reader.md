@@ -1,6 +1,6 @@
 # IE-031 — Speed is read live, through one reader
 
-state: IMPLEMENTING
+state: ARCHITECTURE_BLOCKED
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `standing.ts`, `combat.ts`, `commands/movement.ts`, `commands/actions.ts`; safe beside IE-030
