@@ -1,6 +1,6 @@
 # IE-015 — `BLOCKED_ON`: derive the blockers instead of counting them by hand
 
-state: CHANGES_REQUIRED
+state: AWAITING_MERGE_APPROVAL
 lane: conformance
 tranche: 4
 parallel-safe: YES — a derived map and its guard; no engine source, no effect kind, no event
@@ -117,3 +117,77 @@ and no evidence yet that it needs one; `PROGRESS.md`, which is the foreman's.
 - Two hundred-odd spells read one at a time is the bulk of this task, and
   IE-002 proved that a shape-level estimate and a paragraph-level audit give
   different answers. Read the paragraph.
+
+
+## Risk gate — GREEN on the work, and one merge condition is the owner's
+
+The branch is `worktree-agent-aa7141e454a68d3a6`, rebased on `main` at
+`22f168f`, verified here at **6,696/6,696 across 103 files**, `COVERAGE.md`
+byte-clean, tree clean.
+
+**Twelve of the thirteen conditions are green.** Condition 3 is not, and it
+cannot be made so: the reviewer's `PASS` carries **medium** confidence, and
+the reason is structural rather than a defect. The deliverable is a 206-entry
+map of which missing shape blocks each undefined spell, read one paragraph at
+a time out of the SRD. A reviewer can verify the *mechanism* exhaustively —
+completeness in both directions, the split arithmetic, the mutation that
+deletes an entry — and can only sample the *readings*. No amount of rework
+raises that to high, so this is Gate 3, the exception: the owner's to weigh.
+
+**What is verified exhaustively.** 40 tests in `blocked-on.test.ts`, including
+completeness in both directions (a spell added to the catalogue without an
+entry or a definition fails), the three former bundles' counts summing to what
+each bundle claimed, and a mutation deleting one entry failing completeness.
+The per-shape counts nothing regenerates are gone. `COVERAGE.md` is
+byte-identical.
+
+**What is sampled.** Which of the 81 shapes blocks each of the 206 spells.
+
+**The map earned its keep before it merged.** Its consumer query *predicted*
+that IE-017 would finish Stoneskin and Mind Blank. Stoneskin was right; Mind
+Blank was wrong — and the failure located a bundle inside the map's own
+vocabulary. The confirming reviewer sharpened it: `conditionApplicability`
+takes an `AdaptedMonster`, not a `CreatureState`, so IE-017 could not have
+reached condition Immunity even in principle. A map whose wrong answers are
+diagnosable is doing the job a hand-kept list never did.
+
+### The citation round, and the one correction the foreman made
+
+Two misquotes were sent back; the builder fixed them and then **built a sweep
+that found five more of the same class** — 119 quoted runs, 19 initially
+unresolved, 12 matcher artefacts, **7 real citation errors** — and
+characterised them correctly: *"Every one of the seven corrections was a
+citation rather than a reading: no entry's blocker changed, no count moved,
+`COVERAGE.md` is byte-identical."*
+
+**Spot-checking two of the seven found the seventh was applied backwards.**
+`targeting-rules-that-differ-within-one-casting` attributes its quote to
+`CLAUDE.md` and was "corrected" to the wording of a different file:
+
+| | |
+|---|---|
+| `CLAUDE.md:3975` — the document the description **names** | "the point **rather than** to each target" |
+| `spell-definitions.ts:1296` — the wording the sweep **resolved against** | "the point, **not** to each target" |
+
+The repository states the same sentence two ways, in two places, and the
+sweep matched the run against the one the description does not cite. Restored
+to CLAUDE.md's wording as `4c066d6`, a foreman integration commit, because
+the correction is determined by the cited document and needs no judgement
+about the code.
+
+**An independent sweep over all 99 quoted runs in the file found no other run
+absent from the document it names**, and the other six corrections were
+verified individually against their sources — `PROGRESS.md:1404`,
+`spell-definitions.ts:1280`, Hypnotic Pattern's SRD paragraph
+(`spells.md:3255`), `CLAUDE.md:1644`, `CLAUDE.md`'s "nothing records what a
+save was against", and the re-described save-mode shape. Gauntlet re-run
+after the correction: typecheck ✓ lint ✓ **6696/6696** ✓ coverage ✓
+`COVERAGE.md` byte-clean ✓.
+
+### Recommendation
+
+**MERGE.** The medium confidence is honest about what review can reach, not a
+signal that something is wrong; everything a test can hold is held, the one
+defect found by sampling was a citation rather than a reading, and the map's
+first prediction already paid for itself. But condition 3 is condition 3, and
+the decision is the owner's.
