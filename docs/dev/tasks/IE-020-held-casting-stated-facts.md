@@ -1,13 +1,13 @@
 # IE-020 — A held casting keeps the facts its caster stated
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `events.ts` and `commands/spell-resolution.ts` for wave 1; safe beside every conformance and tooling task in that wave
 depends-on: none
-worker: qb-builder · .claude/worktrees/agent-a720a755b59ce0aff · worktree-agent-a720a755b59ce0aff
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -140,10 +140,132 @@ validated. Any new stated fact — IE-030 adds the third.
 *ongoing* record; check whether a pending record has a parallel upgrade path
 before adding a field, and if it does, absent must keep meaning absent.
 
+
 ## Completion digest
+
+Builder: **COMPLETE**. Reviewer: **PASS**, two rounds, confidence **high**.
+Branch `worktree-agent-a720a755b59ce0aff`, commit `dbda54e`, built on base
+`8cae095` and rebased by the foreman to `687331c`.
+
+Tests **6712 passing / 6712**, 13 new in one new file,
+`packages/engine/src/held-casting-facts.test.ts`. Gauntlet: typecheck ✓ lint ✓
+test ✓ coverage diff ✓. Conformance PASS — `COVERAGE.md` regenerated and
+unchanged, no spell definition or adjudication touched.
+
+**Two mutations, reddening disjoint sets**, which is the evidence both halves
+of the fix are load-bearing rather than one covering for the other:
+
+- deleting `...stated` from the settlement's `becomesOngoing` plan reddened 8
+  cases, including a Radiant-immune creature taking nothing from a casting
+  declared Necrotic, and the designated creature caught anyway;
+- replacing the settlement's `effects: statedDamageType(...)` with
+  `definition.effects` reddened the other 2 — Protection from Energy granting
+  Acid rather than the declared Cold.
+
+Architectural deviations: **none**. New runtime special cases: **none**.
+
+Foundational primitives touched: `events.ts` (`PendingCasting` gains two
+optional fields — no reducer change, no new event type or union member);
+`commands/casting.ts` (`CastingPlan` and the `spell-declared` write);
+`commands/spell-resolution.ts` (the settlement read, plus one module-private
+helper `statedFacts`). All three named in the brief's file surface.
+
+Files outside that surface: `CLAUDE.md`, one paragraph in "A Casting Can Be
+Interrupted", beside the "Settlement takes no fresh request" paragraph it
+extends.
+
+**Out-of-scope finding, not acted on:** the baseline `npm test` on arrival had
+one failure — `persistence-2.test.ts`'s "round-trips at every prefix of the
+log" timed out at 30s under the load of three concurrent builders. It passes
+alone in ~13s and passed in every subsequent full run. The 30s budget was
+chosen before three builders ran in parallel on one machine. Recorded in
+`QUEUE.md` under LATER.
+
+**Unresolved concern, declared by the builder:** a prose imprecision in its
+`CLAUDE.md` paragraph — "one function, three call sites", where there are two
+calls serving three readers. The reviewer saw it and declined to spend a third
+round on one word.
+
+Reviewer's own verdict, abridged: all five acceptance criteria met; both fields
+optional; settlement still calls `resolveEffects` and was **not** refactored
+through `resolveOnTargets` (IE-027's file); `targeting.ts:332/:348` untouched;
+both frozen logs and both persistence suites unmodified and passing; key
+insertion order on the ongoing record matches between the atomic and held
+paths, so two records meaning the same thing serialise the same. No defects, no
+escalation.
 
 ## Risk gate
 
+**Inspected** — one risk signal: a foundational primitive changed
+(`PendingCasting`, the payload of the `spell-declared` member of the
+`GameEvent` union). The brief named `events.ts`, so condition 9 holds on its
+face; the gate inspects because the signal is present, not because the digest
+was suspect.
+
+What the diff shows, read at `main...worktree-agent-a720a755b59ce0aff`:
+
+- **Two optional fields, no reducer change, no new event type or union
+  member.** `spell-declared` stores `event.casting` verbatim, so a declaration
+  written before this has neither field and folds to exactly the state it
+  always did. No upgrade path is needed and none was added — correctly:
+  `upgradeOngoing` fills an *ongoing* record, and this is a pending one.
+- **One normalisation, not two.** `statedFacts` **replaces** the inline sort
+  and empty-list elision on the atomic path rather than sitting beside it, and
+  is idempotent so the settlement can call it on an already-normalised record.
+  The brief's "no second normalisation" constraint is met in the strong form —
+  the old path was removed, not duplicated.
+- **Key insertion order preserved** (`unaffected`, then `damageType`, spread
+  last in both plans), so the atomic and held paths serialise identically and
+  no existing log's bytes move.
+- **The second substitution is the one that would have rotted**, and it is
+  pinned separately: the stated type reaches the casting's own `effects`
+  through `statedDamageType`, not only the ongoing record, because Protection
+  from Energy states its type for an effect that lands at the cast.
+
+Classification: **GREEN**. Merged under tranche 5 authority.
+
+**One integration change by the foreman, recorded rather than silent.** The
+builder declared a prose imprecision in its `CLAUDE.md` paragraph — "one
+function, three call sites", where there are two calls serving three readers.
+Corrected at integration to "one function, three **readers**", which is what
+`statedFacts`' own docstring says, so the constitutional file and the code
+agree word for word. Committed separately from the merge, so the reviewed
+commit stands as reviewed.
+
 ## Architecture decision
 
+None. No Fable involvement; GREEN throughout.
+
 ## Merge record
+
+Merged to `main` as `687331c`, fast-forward, pushed to `origin/main`. Rebased
+by the foreman over `a38ca78` (a docs-only commit, no conflict) before the
+merge. Worktree retired and branch deleted.
+
+`main` verified **after** the merge rather than only in the worktree:
+`npm run typecheck` ✓, `npm run lint` ✓, `npm test` **6712 passing across 104
+files** ✓, `npm run coverage` with `git diff --exit-code COVERAGE.md` ✓
+byte-clean, working tree clean.
+
+The thirteen conditions, asserted by name:
+
+1. **Inside the brief** — four source files, all named in its surface.
+2. **Builder `COMPLETE`** — yes.
+3. **Independent reviewer `PASS`, confidence high** — yes, two rounds.
+4. **Defects resolved** — none outstanding; round 2 raised none.
+5. **Gauntlet in the worktree** — all five steps ✓.
+6. **Conformance** — `COVERAGE.md` regenerated and byte-clean; no spell
+   definition or adjudication touched, so no honesty or tracking claim moved.
+7. **No architecture blocker** — none raised.
+8. **No material deviation** — none declared, none found on inspection.
+9. **Foundational primitives named by the brief** — nothing unannounced, no
+   change to who owns any state, no new event type, no fold change.
+10. **No scope expansion** — `CLAUDE.md` is the standing convention for a
+    mechanism change and is declared with the section it extends.
+11. **No non-mechanical conflict** — the rebase was clean.
+12. **Integration still valid** — the base moved by one `docs/dev/` commit,
+    which can change no assumption the review rested on, and the full gauntlet
+    was re-run on `main` after the merge.
+13. **Risk gate passed** — inspected, GREEN, above.
+
+**Unblocks IE-027 and IE-028**, both launched on the merged `main`.

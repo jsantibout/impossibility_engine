@@ -1270,7 +1270,7 @@ states its type for an effect that lands at the cast while Spirit Guardians
 states it for an area trigger — so `statedDamageType` is applied at settlement
 exactly as the atomic path applies it, and a mutation dropping only that
 substitution reddens the Protection from Energy cases and nothing else. And the
-sort and the empty-list elision are **one function, three call sites** —
+sort and the empty-list elision are **one function, three readers** —
 `statedFacts`, read by the atomic record, by the declaration, and by the
 settlement. It is idempotent on purpose, which is what lets the settlement call
 it on an already-normalised pending record rather than spelling the copy out a

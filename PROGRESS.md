@@ -122,6 +122,7 @@ still Wizard-shaped are named below.
 | Multiclass Hit Dice | A Paladin 4 / Fighter 1 pools five d10 where it had four; a Cleric/Fighter gets its d10. `hitDicePools` was correct, tested against both SRD worked examples, and called by nothing — the eleventh instance of that finding, closed by calling it | `ded4e71` |
 | A condition with no save | The fourth effect kind that applies a condition, and the first that rolls nothing for it — Greater Invisibility end to end, Invisibility partial on its early-end clause. One `ConditionRider` with four consumers replaces three spellings that had silently drifted apart | `7592efe` |
 | Pools at advancement | Every pool a level grants is granted and every maximum a level moves is resized, through one derivation both creation and advancement reach — a Paladin who reaches level 4 in play no longer lays on fifteen hit points where the SRD prints twenty | `601774c` |
+| A held casting keeps its facts | A casting held open for a Counterspell settled with the definition's printed damage type and none of its caster's exemptions, so a Spirit Guardians declared Necrotic landed Radiant on an Undead immune to one and not the other. `PendingCasting` pins both, `statedFacts` normalises them once for three readers, and the two mutations that break it redden disjoint sets of cases | `687331c` |
 
 ## The LLM boundary checkpoint: validated, and what it does not cover
 

@@ -552,8 +552,18 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-Wave 1 launched with four builders: IE-020, IE-024, IE-025, IE-026. The three
-remaining wave-1 tasks — IE-021, IE-022, IE-023 — take slots as they free.
+**Merged so far: IE-020** (`687331c`), 13/13 conditions green, risk gate
+inspected because a foundational primitive changed and classified GREEN.
+`main` verified after the merge at **6712 tests across 104 files**, both frozen
+logs untouched, `COVERAGE.md` byte-clean, pushed.
+
+**Running:** IE-024, IE-025, IE-026 from wave 1; IE-027 and IE-028 from wave 2,
+launched the moment IE-020 merged. Five builders, which is the top of the
+procedure's range and is justified by IE-027 and IE-028 being the critical
+path — every remaining mechanism wave queues behind them.
+
+**Waiting for a slot:** IE-021, IE-022, IE-023 (wave 1) and IE-029 (wave 2,
+after IE-026).
 
 All nineteen tasks to date are `DONE` and merged; tranche 4 shipped ten of ten,
 nine of them without owner involvement. `main` carries **6,696 tests across 103
@@ -590,6 +600,7 @@ rest" prints both numbers for every shape. Do not re-rank from prose.
 
 | Task | Lane | Note |
 |---|---|---|
+| **The 30-second budget on `persistence-2.test.ts`'s fold-at-every-prefix case was set before builders ran five-wide.** IE-020's builder met it as a *red baseline on arrival* under three concurrent builders; it passes alone in ~13s and passed every subsequent full run | tooling | IE-020, reported and correctly not touched. This is the third time that test has been the canary and the first time it fired at **arrival**, which is the dangerous shape: a builder is told to stop on a red baseline, so a flake there can halt a task that had nothing wrong with it. The mitigation in force is a launch-prompt warning; the fix is either a larger budget or a way to run that one case unloaded |
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a tranche has room |
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
@@ -672,3 +683,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | audit checkpoint | — | recorded in advance: at tranche 5's `TRANCHE_COMPLETE` the foreman recommends the **Fable non-semantic simplification and optimisation audit**, not a fifth retrospective. The delta audit classified it APPROACHING and asked that it measure the engine *after* IE-027 and IE-028 land rather than recommend them |
 | 2026-09-14 | Gate 1 | IE-020 … IE-037 | **presented — `OWNER_APPROVAL_REQUIRED`.** Eighteen tasks, eight waves, operationalised from the delta audit §5 with its premises verified against `main`: four corrected (the settlement function, the movement allowance, the ritual reason's first writer, and `EffectTarget.grants` confirmed) and two scope corrections forced by the standing rules. Estimate 5.5–7 hours, calibrated against tranche 4's actual 2.5 |
 | 2026-09-14 | Gate 1 | IE-020 … IE-037 | approved — "APPROVE TRANCHE 5". Eighteen tasks, eight waves, one approval and no gate between waves. Wave 1 launched with four builders — IE-020, IE-024, IE-025, IE-026 — chosen as the wave's dependency roots (IE-020 for wave 2, IE-026 for IE-029 and IE-031, IE-024 before any union task touches `spell-schema.ts`) plus the longest task. IE-021, IE-022 and IE-023 take slots as they free |
+| 2026-09-14 | merge (tranche authority) | IE-020 | merged `687331c`, 13/13 green, risk gate **inspected** (foundational primitive: `PendingCasting`) and GREEN. One foreman integration change, recorded on the task file: a declared prose imprecision in the branch's own `CLAUDE.md` paragraph corrected from "three call sites" to "three readers", committed separately so the reviewed commit stands as reviewed. IE-027 and IE-028 launched on the merged `main` |
