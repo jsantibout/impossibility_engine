@@ -1,6 +1,6 @@
 # IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts
 
-state: IMPLEMENTING
+state: CHANGES_REQUIRED
 lane: mechanism
 tranche: 3
 parallel-safe: NO beside IE-001 — both are in `commands/spell-resolution.ts` and the fold; YES beside IE-008 (`creation.ts`) and IE-009 (tests and prose)
