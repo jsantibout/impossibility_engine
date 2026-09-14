@@ -1,12 +1,12 @@
 # IE-042 — A condition immunity a spell grants
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: OWNER_APPROVAL_REQUIRED
 lane: mechanism
-tranche: 6
-parallel-safe: CONDITIONAL — `spell-definitions.ts` types, `spell-schema.ts`, `commands/spell-resolution.ts`, `fold/release`; not beside IE-040, IE-043, IE-046, IE-047 or IE-048
-depends-on: IE-040
+tranche: 7
+parallel-safe: CONDITIONAL — `spell-definitions.ts` types, `spell-schema.ts`, its own resolver module, `fold/release.ts`; not beside IE-053 or IE-054
+depends-on: IE-051
 worker: none
-approved: 2026-09-14 — "APPROVE TRANCHE 6."
+approved: none
 merge-approved: none
 
 ## Brief
@@ -109,3 +109,36 @@ beyond reading it. Summons.
 Low — the fifth and sixth families each cost one line and the compiler forces
 the seventh. The content half (nine re-reads) is where the time goes, and it is
 the half that must not be find-and-replaced.
+
+## Re-rostered to tranche 7 — 2026-09-14
+
+**Carried forward because it was never launched.** Tranche 6 approved it and the
+foreman never ran it: it was correctly held out of two waves — it collides with
+IE-046 on `commands/spell-resolution.ts` and with IE-047 on `fold/release.ts` —
+and then never picked back up, and the tranche was closed over it with a report
+that said "thirteen of thirteen delivered". That report is corrected in the gate
+log. The brief is **unchanged**; three bookkeeping lines are not.
+
+- `tranche` becomes **7** and `approved` returns to `none`, to be re-approved
+  with tranche 7. The tranche 6 approval lapses with tranche 6; this is
+  bookkeeping, not a reversal.
+- `depends-on` becomes **IE-051**, which moves the per-kind resolvers into their
+  own modules — your new `condition-immunity` resolver lands there, not in
+  `commands/spell-resolution.ts`.
+- `parallel-safe` names IE-053 and IE-054 as the collisions: IE-053 owns
+  `fold/release.ts`, and IE-054 owns a reader in `spell-definitions.ts`.
+
+Three things to read with the brief, all of which changed under it:
+
+- **IE-040 built the printed half**, which is the gatherer this reads:
+  `conditionImmunitiesOf` in `standing.ts`, `CreatureState.conditionImmunities`,
+  and `applyConditionTo` reading state. Your grant is its **second input**, and
+  it unions — a grant may never weaken what is printed.
+- **`SpellEffectOptions.immuneTo` may already be gone.** IE-040 left it with
+  zero writers because the file was held; IE-053 deletes it. If it is still
+  there when you arrive, say so rather than working around it.
+- **This is the only capability family tranche 7 can honestly carry.** Every
+  other shape in `COVERAGE.md` reads `Finishes (read) = 0`; this one reads 1,
+  because IE-044 backfilled its ten claimants. That is why the roster looks
+  correctness-heavy, and it is also why acceptance criterion 7 — re-reading the
+  nine remaining claimants one at a time — is the part that must not be rushed.

@@ -553,7 +553,13 @@ Recommendation: APPROVE TRANCHE 5.
 
 ### Tranche 6 — COMPLETE 2026-09-14 — "APPROVE TRANCHE 6."
 
-roster: IE-036, IE-038, IE-039, IE-040, IE-041, IE-042, IE-043, IE-044, IE-045, IE-046, IE-047, IE-048, IE-049
+roster: IE-036, IE-038, IE-039, IE-040, IE-041, IE-043, IE-044, IE-045, IE-046, IE-047, IE-048, IE-049
+
+> **IE-042 was on this roster and was never launched** — see the correction row
+> in the gate log. It is **re-rostered to tranche 7**, so the roster line above no
+> longer names it: a task belongs to exactly one tranche, which is what makes a
+> tranche the unit of authority. Twelve of the thirteen this tranche approved
+> shipped.
 
 **Thirteen tasks, five waves, operationalised from the post-tranche-5
 simplification and optimisation audit** (`docs/architecture/post-tranche-5-simplification-audit-2026-09-14.md`),
@@ -688,33 +694,129 @@ overrun, where the chain and not the pool was the wall clock.
 
 Recommendation: APPROVE TRANCHE 6.
 
+### Tranche 7 — PROPOSED
+
+roster: IE-042, IE-050, IE-051, IE-052, IE-053, IE-054, IE-055, IE-056, IE-057
+
+**Nine tasks, four waves, planned from tranche 6's own evidence** rather than
+from the audit's roster — the post-tranche-5 simplification audit remains the
+architecture baseline, and no new audit was run. Every premise below was checked
+against `main` at `b806ef7` first, and three of them were wrong.
+
+**What the verification corrected**
+
+- **The tranche 6 report was wrong and the error is the foreman's.** It said
+  "thirteen of thirteen delivered"; it was **twelve**. IE-042 was never launched
+  and is still `APPROVED_FOR_IMPLEMENTATION`. The validator printed it in every
+  summary and the foreman read past it. It is re-rostered here, and the gate log
+  carries the correction.
+- **`commands/spell-resolution.ts` is a larger measured bottleneck than
+  `fold/apply.ts`**, which the owner's priority 3 did not name. Across tranche
+  6's twelve merges: spell-resolution 4 merges / 3,043 lines, apply 3 merges /
+  1,796 lines. The reducer forced wave 3's three-way serialisation; **the
+  resolver file lost a task entirely** — IE-042 could not run beside IE-046 or
+  IE-047 and was then dropped. Both are briefed (IE-050, IE-051); the second is
+  not in the owner's list and is justified by measurement.
+- **The citation guard would not have caught most of the eight brief errors**,
+  and the brief says so. Classified: two named module paths that do not exist
+  (**catchable**), several stale `file:line` references (**catchable, weakly**),
+  one SRD run quoted accurately with its scoping words elided (**not** catchable
+  — the run is verbatim in the file), two stale engine-state claims and three
+  design imprecisions (**not** catchable). It is worth building for what it
+  catches; it is not the answer to the eight and must not claim to be.
+
+**Why capability is thin, and it is evidence rather than preference**
+
+IE-044's instrument split `finishes` into read and unread. On `main` **every**
+family in the blocker table reads `Finishes (read) = 0` except
+`a-condition-immunity-a-spell-grants`, which reads 1 because IE-044 backfilled
+it. The workflow rule this repository recorded — *no shape is briefed from an
+`unblocks` list whose spells are not sentence-complete* — therefore permits
+exactly one capability task, and it is IE-042, which was already approved. IE-056
+is what ungates the next cycle.
+
+**Waves**
+
+```
+Wave 1   IE-050 (applyOne by domain) ∥ IE-051 (split the resolvers) ∥ IE-052 (brief citation guard)
+Wave 2   IE-053 (store the cast half, derive the rest) ∥ IE-056 (sentence-complete the next families)
+Wave 3   IE-042 (granted condition immunity) ∥ IE-055 (join a running order) ∥ IE-057 (endConcentration and owed debt)
+Wave 4   IE-054 (a later consequence asks for its turn timeline)
+```
+
+**Serial critical path:** IE-050 → IE-053 → IE-054, with IE-051 → IE-053 beside
+it. Wave 2 is two tasks and not three because IE-053's surface is broad — it
+owns `events.ts`, `spells.ts`, `ongoing-compatibility.ts`, `fold/release.ts`,
+`fold/expiry.ts`, a reducer domain and four readers — and every other remaining
+task collides with one of those.
+
+**Concurrency stays capped at three builders.** Four waves × three is twelve
+slots for nine tasks, which leaves the slack a rework round needs without
+padding the roster to fill it.
+
+**What happens early, and why exactly**
+
+Wave 1 is chosen to attack the two things tranche 6 measured as costing it:
+
+| | |
+|---|---|
+| reducer serialisation | IE-050 dispatches `applyOne` by domain. Its acceptance criterion **checks the claim**: it must state which domain module each of tranche 6's three colliding tasks would now touch, and if two of three still land together, the split has not done its job |
+| resolver serialisation | IE-051 moves IE-027's thirteen resolvers out of one file, with the same check over tranche 7's own three would-be colliders |
+| brief-error risk | IE-052 fails a brief that names a source which does not exist or quotes a run absent from the file it names — **before** a builder is launched |
+
+**Deliberately deferred, with reasons**
+
+| Deferred | Why |
+|---|---|
+| **Command-stamp envelope** | A whole-union edit that collides with IE-050 (every reducer case) and IE-053 (the `spell-ongoing` payload). Same reason as tranche 6, still true |
+| **`spell-format.ts` extraction** | **Evaluated and rejected on measurement, not deferred by habit.** It would separate a *content* task from a *types* task, and tranche 7 has no content task adding definitions — IE-042 touches the types and IE-054 touches a reader, and both would land in `spell-format.ts` anyway. It separates no pair in this tranche |
+| **Counterspell-on-Counterspell / settle-order** | Not in tranche 7, so no Fable call was made. The cycle already carries two foundational fold tasks; a third change to pending-casting settlement in the same cycle concentrates risk in exactly the area tranche 6 rebuilt. It is tranche 8's first YELLOW |
+| **Heal's flat healing** | Needs a sum type on `DiceScaling` and a Fable line on the format, which the audit already said. Unchanged |
+| **Modified healing** | Two partials, nothing finished; the audit's own words are "pool filler if a builder is idle, not a slot" |
+| **Compelled actions, summons, second scene, walls, falling, movement modes** | All read `Finishes (read) = 0`. IE-056 is what makes the first four briefable; movement modes remain refused outright, having no reader |
+| **Generalising the stated-fact plumbing** | IE-049 found the four facts declared twice and TypeScript unable to see it. The audit defers it to the fifth fact (Hex's chosen ability); unchanged |
+
+**Likely escalation points**
+
+- **YELLOW, IE-050** — if a partition exists that is exhaustive and disjoint but
+  does not separate tranche 6's three colliders, the question of what the domains
+  should be is architectural. The acceptance criterion surfaces it rather than
+  letting it pass.
+- **YELLOW, IE-051** — if the value graph finds a cycle. None expected; IE-039's
+  precondition found none in a harder file.
+- **YELLOW, IE-057** — named in the brief in advance: the foreman's reading is
+  that `endConcentration` should be guarded on `relocateCreature`'s precedent,
+  and a builder who reads SRD's "at any time (no action required)" against that
+  is to escalate rather than implement either side quietly.
+- **RED — none in the roster.** The nearest is IE-057's rules question, which is
+  bounded and belongs to Fable, not to the owner.
+
+**Duration.** Green path **3.5–4.5 hours**: four waves whose slowest slots run
+roughly 45, 55, 35 and 30 minutes on tranche 6's observed pace, plus about ten
+minutes of foreman integration per wave. Risk-adjusted **5–6.5 hours** with one
+YELLOW and two multi-round reviews.
+
+**That is below the owner's 5–6 hour green target, and deliberately so.**
+Capability is gated by the read/unread rule to a single task, and the honest
+options for filling the gap were padding or briefing families nobody has read —
+the second being precisely what the instrument was built to stop. IE-056 spends
+the slack on making the *next* cycle briefable instead.
+
+Recommendation: APPROVE TRANCHE 7.
+
 ## CURRENT
 
-**Tranche 6 is complete and no tranche is approved. Nothing executes.**
+**Tranche 7 is PROPOSED and awaits the owner. Nothing executes.**
 
-**Twelve of thirteen delivered** — eleven as briefed, one (**IE-047**) re-scoped by
-the foreman on Fable’s decision to the measurement and the tests it produced,
-with its removal briefed for a later tranche. One YELLOW, no RED, and the owner
-was not interrupted once after the approval.
+`main` is at `b806ef7` — **8,433 tests across 122 files**, both frozen logs
+untouched, `COVERAGE.md` byte-clean, the fold graph acyclic, tree clean.
 
-`main` is at `62cb640` — **8,433 tests across 122 files**, both frozen logs
-untouched and folding, `COVERAGE.md` byte-clean, the fold graph acyclic,
-everything pushed. `main` was verified green after **every** merge.
+Tranche 6 is closed at **twelve of thirteen**, corrected: IE-042 was never
+launched and is re-rostered into tranche 7. No new audit was run — the
+post-tranche-5 simplification audit remains the architecture baseline, and
+tranche 7 is planned from tranche 6’s own measurements.
 
-**The next three things are the owner’s, in this order:**
-
-1. **Derive `OngoingSpell.on`**, as Fable specified it in the gate log — one
-   mechanism task running alone, owning the record, the payload, the version and
-   the four readers. It fixes the `grants` defect by deleting the branch a hand
-   fix would edit, and its acceptance criterion already exists on `main`.
-2. **Acid Arrow outside combat** — a genuine product question IE-046 surfaced
-   and deliberately did not answer. Today the casting succeeds and the second
-   hit is forgiven with an `unverified` line; the alternative is a pre-flight
-   that makes the spell **uncastable outside combat**. Neither is obviously
-   right; the engine currently does the first.
-3. **The next tranche**, whose obvious first item is the one the fold split did
-   not buy: dispatch `applyOne` by domain, each partial switch keeping its own
-   `never` default, so two reducer tasks can finally run beside each other.
+**Awaiting: `DEVELOPMENT TRANCHE 7 — OWNER_APPROVAL_REQUIRED`.**
 
 ## NEXT
 
