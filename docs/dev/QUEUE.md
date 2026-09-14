@@ -630,34 +630,37 @@ by analogy to a precedent without checking the analogy held in the new design.
 The system caught both, which is the point of it; the brief-writing is mine to
 correct.
 
-**IE-031 is `ARCHITECTURE_BLOCKED` — the tranche's second YELLOW, and my own
-brief correction is what put it there.** The command layer validates a move
-against the feature-aware `speedOf` and emits `movement-spent`; the reducer
-folds that event against the **pinned** `combatant.speed` and throws
-`CorruptLogError`. A Monk with `speedOf` 40 and a pinned 30 cannot take a
-35-foot move: the command says yes and the fold says the log is corrupt.
+**IE-031's YELLOW is answered, and Fable chose a fourth option — the delta
+audit's original, which the foreman's brief correction had overridden.**
+`TurnBudget` stores `movementSpent` and `movementGained`, and the allowance is
+derived at every read as `max(0, speedOf + gained − spent)` **by the command
+and by the fold alike**. `movedSoFar` and the `min()` clamp are deleted rather
+than re-based. No event shape changes.
 
-**The reason is an asymmetry I missed.** The delta audit said flip the budget
-to record what is *spent*; I verified that the live cap already existed for
-conditions and told the builder not to flip it. That holds for **lowering**
-effects and fails for **raising** ones: a cap can only ever lower, and a
-feature grant raises, so nothing but the **seed** can put 40 feet in a budget
-seeded at 30. The builder followed the note and the note is the defect. **Third
-substantive brief error of this tranche, and the first that is architectural
-rather than editorial.**
+**The general rule, which is what the next brief needs:** *store what happened,
+derive what is left.* A stored remainder is a derived quantity frozen at its
+seed, sound only while the allowance moves in the direction a cap can express.
+**A working live cap is not evidence that a live allowance exists** — the test
+is whether the stored number can represent an allowance *larger than its seed*.
+The foreman's correction was wrong in kind and not merely wrong for grants that
+raise.
 
-It survived a 7,044-test suite because the two command-layer fixtures assert on
-the returned `Result` and **never fold the events** — the reviewer found it,
-the builder reproduced it by folding what its own tests had only read. With
-Fable, with the evidence gathered: the reducer is already inconsistent here
-(`dash-taken` passes conditions, `movement-spent` passes nothing), the budget
-is seeded from the pinned Speed at two sites, `beginTurn` holds only a
-`CombatState`, and `standing.ts` imports `GameState` type-only so the obvious
-fix has no runtime cycle.
+**And the fold's guard was the right shape with the wrong inputs.** A reducer
+backstop is honest only when it is the command's own check with the command's
+own inputs: `events.ts:4360` already passes `sheet.attacksPerAction` and
+`:4371` passes conditions, while `:4388` called the same function with
+*different* inputs and measured against a number the command never used. **That
+is a fork — the Dodge-versus-Fire-Bolt shape this repository already records —
+and it is why a green suite folded a corrupt log.** Calling `speedOf` on the
+fold path opens no catalogue: every input is log-held, so the fence around
+`upgradeOngoing` stands.
 
-**Sequencing is the foreman's and is already constrained**: every option needs
-`events.ts`, which IE-030 holds. Nothing starts there until IE-030 merges, and
-no follow-up task will be invented to carry it — that is the owner's roster.
+**Sequenced, not widened.** The surface gains two reducer lines in `events.ts`,
+which is IE-030's primitive, and Fable ruled the task stays inside its approved
+brief — the objective is unchanged and the same change simply has to reach its
+second caller. The rework launches when IE-030 merges. The brief's superseded
+paragraph is **struck in place where a reviewer reads it**, which is the lesson
+IE-024 cost a round to learn.
 
 **IE-030 escalated too, and the foreman decided it GREEN rather than sending a
 second question to Fable.** `CastSpellRequest.fought` was briefed as one
@@ -855,3 +858,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | YELLOW → Fable | IE-031 | `ARCHITECTURE_BLOCKED` by builder and `ESCALATE` by reviewer, independently and both at high confidence. The command layer and the reducer disagree about Speed: a feature-raised move is validated by `speedOf` and then refused by the fold as a corrupt log. **The foreman's own brief correction caused it** — the delta audit said flip the budget to `spent`, the foreman verified the live cap already existed for conditions and said not to, and a cap can only lower while a feature grant raises. The question put to Fable is what the reducer's job is when folding `movement-spent` at all, not only which of three patches to take |
 | 2026-09-14 | GREEN decision (foreman) | IE-030 | escalated by builder and reviewer on the **arity** of a stated fact: the brief prescribed `fought: boolean` and SRD keys the clause per target, so an upcast Charm Person gave a bystander the Advantage owed to the creature you are fighting — with the `unmodelled` clause removed, a wrong number with no symptom. Decided **GREEN, not sent to Fable**: `fought?: readonly CharacterId[]` is `unaffected`'s existing shape for the neighbouring clause of the same spells, so it invents nothing and follows established architecture. The prescribed arity is recorded as an approved deviation against required behaviour 2 |
 | 2026-09-14 | map correction | IE-030 | **the derived blocker map was wrong about Enthrall.** It reported the spell finished by `a-fact-only-the-table-can-declare` alone; SRD prints an automatic **success** plus a −10 narrowed to Wisdom (Perception) and Passive Perception, so it is blocked on two shapes nobody had recorded — one of which, `a-bonus-narrowed-to-a-skill`, the builder minted. IE-015 made the count a query so no hand-written number would be trusted; **a query inherits any adjudication that is wrong beneath it**, and this is the first one caught by reading the paragraph |
+| 2026-09-14 | YELLOW answered | IE-031 | Fable: a **fourth** option, high confidence — the delta audit's original, which the foreman's correction had overridden. Store `movementSpent` and `movementGained`; derive the allowance at every read, in the command **and in the fold**. The rule for the next brief: *store what happened, derive what is left*, and **a working live cap is not evidence that a live allowance exists**. The reducer's guard was the right shape with the wrong inputs — a fork of the Dodge-versus-Fire-Bolt kind, which is how a green suite folded a corrupt log. Stays inside the approved brief; the two `events.ts` lines are **sequenced after IE-030**, not a new task |
+| 2026-09-14 | debts accepted (recorded, not solved) | IE-031 | (1) **a Dash's gained movement survives a later Speed of 0 this turn** — today's arithmetic already allows it, the new formula preserves it exactly, and SRD's "Speed is 0 and can't increase" against banked extra movement is an open reading the engine has not decided; the sentence goes in the code. (2) **the single-reader sweep must add `events.ts` to its population** once the fold calls `speedOf` — the reviewer's "lesser" defect is load-bearing now, since the sweep reads `EVENT_TYPE_SOURCE`, which excludes the very file the defect was in |
