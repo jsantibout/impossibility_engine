@@ -3510,6 +3510,147 @@ ability's modifier against the other's proficiency. Nothing downstream would
 notice: `rollAbilityCheck` reads `ability` for the modifier and `skill` for
 proficiency and is right to trust both.
 
+### A validator that throws on the input it exists to judge has judged nothing
+
+`parseSpellDefinition` takes `unknown` and returns a `Result`, and for most of
+its life it would **throw** on a good deal of that `unknown`. A throw is not a
+worse answer than a problem; it is *no* answer, and it arrives as a `TypeError`
+out of the one function whose entire contract is to hand back a refusal.
+
+`checkShape` establishes very little on purpose — an object, six primitives, a
+`range`, a `targets`, and an effect list whose entries name a `kind` the engine
+knows. **Everything below that is unchecked, because a field the engine does
+not know is not an error**, and that reading is not the bug. The bug is that
+each semantic rule then dereferenced its own fields as though the compiler had
+been there.
+
+**Three instances were found one at a time, which is what made it a class.**
+Two branches in the granted-defence task, and then a real regression in
+`grantCarried`, where a loop conversion dropped a null guard and the validator
+began throwing where it had reported `unknown_condition`. Found singly each
+looks like a slip; swept, **every branch that reads a field had at least one**,
+and so did the definition's own — `area`, `targetsWithin`, `areaTrigger`,
+`activation`, `origin`, `damageTypeStated` and `unmodelled`. No count is given
+here, because the number a sweep like this produces depends entirely on which
+junk it substitutes, and the tables are the measurement.
+
+**One shared reader rather than a habit each branch is trusted to remember.**
+`readsAsObject` and `readsAsList` report and return false; every rule sits
+behind one. They report one code, `malformed_field`, because this is a single
+defect — *this field is not the shape the rules read* — arriving at every site
+that reads one, exactly as `grant_without_lifetime` is one code over four
+things a casting can leave standing. The `field` path says which. It is
+deliberately not `checkShape`'s `missing_field`: those are a different phase,
+reported before the semantic pass runs at all, and a field that is present and
+wrong is not a field that is missing.
+
+**A guard that swallows the rule it guards is worse than the throw**, and a
+sweep asserting only "it refused" cannot see the difference. So each rule now
+sitting behind a guard is driven with input the guard lets *through* and the
+code it has always reported is asserted by name — and the mutation that proves
+it is folding `unknown_defense` inside the `damageTypes` list guard, which
+fails that case alone.
+
+**A sweep that substitutes the top field of an effect does not reach the field
+inside it**, and branch coverage is what said so. Four guards were added, were
+correct, and were executed by nothing: the notation inside a scaling, the
+notation inside a bonus, a selector that is not an object, and a note inside
+`unmodelled`. Every one replaces a genuine throw — the reader underneath is a
+string operation, `parseNotation` calling `.replace` and a note being
+`.trim()`ed — so deleting any of them restored the throw and left the whole
+suite green, which is precisely the class the pass exists to close. They are
+named rows rather than a deeper generator, because there is no general "one
+level down": each is a specific field a specific reader dereferences, and
+naming them is what makes a fifth one something somebody has to write.
+
+**One rule, one copy, even when the unreachable copy looks harmless.**
+`checkRollModifier` first read the mode twice — once on the readable path and
+once inside the selector guard — and coverage showed nothing reached the
+second. A copy no test can reach is the copy that drifts, so the selector's
+readability is computed once and the mode is checked once between the two
+blocks that depend on it, which also leaves a readable selector's problems
+collecting in the order they always did.
+
+**Two readers had to be guarded from outside**, because `conditionRiderOf` is
+shared with the runtime and takes a *typed* effect: it returns the `conditions`
+slot outright for an `attack` and spreads it for a `save`, and neither is
+iterable when untyped input puts a number there. `withReadableRiders` takes the
+slot off before that reader is asked for it — **removed rather than bailed out
+of**, because a `save` whose extra riders are unreadable still has its flat
+first rider, and dropping the whole effect would turn a reported
+`grant_without_lifetime` into a missing one.
+
+**The sweep asserts the answer is a refusal, not merely that there was one**,
+and that half was a live hole rather than a precaution. A `heal` whose
+`healing` was the string `'nonsense'` validated **clean**: the only reader of a
+scaling asked for `.dice` on a string, got `undefined`, and said nothing. It
+pins no code and no collection order — which problem a malformed field reports
+is the implementation's business, and a sweep that froze them would make every
+future rule in this file a breaking change — so `malformed_field` is named by
+one case of its own instead. `refusal-sweep.test.ts` cannot reach it:
+`parseSpellDefinition` passes `first.code` through as a variable, so no code in
+this file is ever an `err(` literal.
+
+**`mustBeType` was a bare string beside a checked one.**
+`againstType.types` had been held to the glossary's fourteen since it arrived,
+so `mustBeType: 'Goblinoid'` validated while `againstType.types: ['Goblinoid']`
+did not — one question with two answers. SRD 5.2.1 prints a Goblin Warrior as
+"Small Fey (Goblinoid)"; the glossary gives the fourteen types rules and gives
+a subtype tag none, so a spell demanding a tag names nobody. Same
+`unknown_creature_type` code, because it is the same defect.
+
+**It adds no rule that refuses a *readable* value for being incomplete.**
+`origin: {}` and `healing: {}` both still validate, because "an origin names a
+reach" and "a scaling names its dice" are required-field rules rather than
+guards against a throw, and five later tasks each add a rule to this file. The
+second is worth having and is recorded rather than taken: a scaling with no
+`dice` reaches `scaledDiceFor`, which splits the notation and does arithmetic
+on the halves, so it becomes `NaNd6` and the spell silently rolls nothing.
+
+**`undefined` is absent; everything else is read against the declared type.**
+That is one rule for every optional field here, and it had two answers for a
+while: a rider slot that was `null` reported, and `unmodelled: null` was read
+as absent through `??`. `null` is not a member of `readonly string[] |
+undefined` or of a rider slot, and a value the compiler would refuse is exactly
+what a validator over untyped input exists to name. No definition carries a
+null anywhere, so nothing that existed depends on the reading that changed.
+
+### Every effect list is `checkShape`'s, and the entries are its rules
+
+**`checkEffect` is one function reached from three lists**, so the guarantee its
+branches rest on — an entry is an object naming a `kind` this engine knows —
+has to hold for all three or for none. It held for one. `checkShape` walked
+`effects`; `areaTrigger.effects` and `activation.effects` were walked only by
+the semantic pass, which handed their entries straight to a `switch` on
+`effect.kind`. A `null` there **threw**; a string, a number, a list or an
+unknown kind was **accepted with no problem at all** — the same defect from
+both sides, in the two lists a task guarding the *containers* had just touched.
+
+So the entry rules live in one enumeration, `effectLists`, and the rule for
+whatever is added next is: **entry-level guards for every effect list are
+`checkShape`'s; `checkEffect` assumes a known kind.** No entry guard in
+`checkEffect`, none in `grantCarried`, and none at the call sites — once phase
+one establishes every list, there is nothing left for them to check.
+`checkGrantLifetimes` reads the same enumeration rather than naming the three
+lists a second time.
+
+**A nested list is walked only when its parent is readable and is itself a
+list.** Anything else is the *container* being malformed, which the semantic
+pass reports at the container's own path — so saying nothing here leaves one
+defect with one answer instead of two.
+
+**The phase change is not a change.** `effects: [null]` has always come back
+with shape problems only, masking the semantic ones, because `checkShape`
+short-circuits `parseSpellDefinition`; extending the walk makes the nested
+lists behave the way the definition's own list always did.
+
+**One asymmetry is left, and it is pre-existing rather than introduced.** A
+top-level `effects` that is not a list is `missing_field` from phase one, while
+a nested `effects` that is not a list is `malformed_field` from phase two —
+different codes for the same shape of defect, decided by which list it is in.
+Changing either is a code change and a code is observable behaviour, so it is
+written down here rather than fixed in passing.
+
 ### Range and duration had no oracle, and that was the named blind spot
 
 `coverage.test.ts` has held every definition against the book for name, level,
@@ -3936,6 +4077,16 @@ docstring had been making in prose since that kind arrived.
 | the type system | `ConditionRider`, `ModifierRider` and `DelayedDamage` are closed interfaces over primitives; none references `SpellEffect`, `targets` or `area` |
 | `checkShape` | a **denylist**: nothing below an effect may carry `effects`, `targets`, `targetsWithin`, `area`, or a `kind` in `EFFECT_KINDS`, and the nesting is depth-bounded |
 | `spell-schema.test.ts` | a sweep walks every catalogue effect as JSON — the spell's own list, an area trigger's, an activation's — and asserts the same of all of them |
+
+**And for a while the middle row was true of one list in three.**
+`checkNoNestedEffect` is entered only from `checkShape`'s walk, which read
+`effects` and neither `areaTrigger.effects` nor `activation.effects` — so a
+rider carrying `targets` or an effect `kind` below an effect **validated
+clean** whenever it sat in a nested list. The test row walked all three from
+the day it was written, which is exactly why the catalogue is clean and why
+nothing caught it: the sweep and the validator disagreed about the population,
+and only the sweep was right. `effectLists` is that population, asked once —
+see "Every effect list is `checkShape`'s, and the entries are its rules".
 
 A denylist rather than an allowlist, which is the reading `checkShape` takes
 everywhere else: **a field the engine does not know is not an error.** And

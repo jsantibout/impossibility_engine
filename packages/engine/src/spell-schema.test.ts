@@ -1138,13 +1138,27 @@ describe('a condition rider is checked the same way wherever it sits', () => {
    * The general form, driven rather than argued: **no shape of rider makes the
    * validator throw.** `parseSpellDefinition` takes `unknown` and returns a
    * `Result`; a throw is not a worse answer than a problem, it is no answer.
+   *
+   * **And the answer is a refusal**, which is the half this was missing. A
+   * sweep that says only "nothing threw" passes exactly as happily if the
+   * validator ever begins *accepting* the input it exists to judge — the same
+   * hole from the other side, and demonstrably a live one elsewhere in this
+   * file: a `heal` whose `healing` was the string `'nonsense'` validated
+   * clean, because the one reader of a scaling asked for `.dice`, got
+   * `undefined` and said nothing.
+   *
+   * **No code and no order is pinned.** Which problem a given malformed rider
+   * reports is the implementation's business, and the two cases above are
+   * where the codes that matter are held; freezing them here would make every
+   * future rule in this file a breaking change to a sweep that is not about
+   * any particular rule.
    */
   it.each([
     ['missing', undefined],
     ['null', null],
     ['not an object', 'restrained'],
     ['an object with no name', {}],
-  ] as const)('answers rather than throws for a rider that is %s', (_what, rider) => {
+  ] as const)('refuses rather than throws for a rider that is %s', (_what, rider) => {
     for (const lifetime of [{ durationSeconds: 60 }, {}]) {
       for (const effect of [
         { kind: 'condition', condition: rider },
@@ -1158,9 +1172,12 @@ describe('a condition rider is checked the same way wherever it sits', () => {
           conditions: [rider],
         },
       ]) {
-        expect(() =>
-          parseSpellDefinition({ ...FIRE_DART, ...lifetime, effects: [effect] }),
-        ).not.toThrow();
+        const definition = { ...FIRE_DART, ...lifetime, effects: [effect] };
+        let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
+        expect(() => {
+          parsed = parseSpellDefinition(definition);
+        }).not.toThrow();
+        expect(isErr(parsed!)).toBe(true);
       }
     }
   });
@@ -2409,5 +2426,700 @@ describe('a clause that varies by creature type names a real one', () => {
     expect(save('Plant')).toEqual(['bad_typed_clause']);
     expect(() => smite({ extraDice: '1d8' })).not.toThrow();
     expect(smite({ extraDice: '1d8' })).toEqual(['bad_typed_clause']);
+  });
+});
+
+/**
+ * **A validator that throws on the input it exists to judge has judged
+ * nothing**, driven over the whole branch table rather than argued one kind at
+ * a time.
+ *
+ * `parseSpellDefinition` takes `unknown` and returns a `Result`. `checkShape`
+ * establishes that an effect is an object naming a `kind` the engine knows —
+ * and **nothing below that**, deliberately, because a field the engine does
+ * not know is not an error. So every field a branch goes on to dereference can
+ * arrive missing, null, or some other type entirely, and each one is a place
+ * the semantic pass can crash instead of answering.
+ *
+ * Three instances of that were found one at a time — two branches in the
+ * granted-defence task, and a real regression in `grantCarried`, where a loop
+ * conversion dropped a null guard and the validator began throwing where it
+ * had reported `unknown_condition`. Three is a class, so this sweeps the class
+ * rather than waiting for the next instance.
+ *
+ * **It asserts the answer is a refusal, not merely that there was one.** A
+ * sweep that only says "nothing threw" passes just as happily if the validator
+ * ever starts *accepting* malformed input — the same hole from the other side,
+ * and it was a live one: a `heal` whose `healing` was the string `'nonsense'`
+ * validated clean, because the only reader of a scaling asked for `.dice`, got
+ * `undefined` and skipped.
+ *
+ * **It pins no code and no collection order.** Which problem a malformed field
+ * reports is the implementation's business, and the order problems collect in
+ * is not a rule. What is load-bearing is that an answer comes back and that it
+ * refuses. The cases that *do* pin codes are the ones below, where the point
+ * is that a guard did not swallow the problem it was put there to guard.
+ */
+describe('every branch judges untyped input rather than throwing on it', () => {
+  /**
+   * Junk is **per field**, because a value that is wrong for one is right for
+   * another: `7` is malformed as a `damage` and perfectly good as an
+   * `armor-class` base. And `undefined` is junk only for a field its branch
+   * requires — for an optional one it means absent, which is legal, and a row
+   * asserting a refusal for it would assert the opposite of the rule.
+   */
+  const OBJECT_JUNK = [null, 'nonsense', 7, true] as const;
+  const ARRAY_JUNK = [null, 'nonsense', 7, {}] as const;
+  const STRING_JUNK = [null, 7, {}, []] as const;
+  const NUMBER_JUNK = [null, 'nonsense', {}, []] as const;
+
+  /**
+   * **`{}` is junk for no object field here, and that is a scope line rather
+   * than an oversight.**
+   *
+   * An empty object is perfectly *readable*, so the guard this task is about
+   * has nothing to say about it. Refusing one takes a rule that a scaling
+   * names its dice, or that an origin names its reach, or that a bonus names
+   * its source — required-field rules, every one, and this pass adds none.
+   * They are worth having: a scaling with no `dice` reaches `scaledDiceFor`,
+   * which splits the notation and does arithmetic on the halves, so it becomes
+   * `NaNd6` and the spell silently rolls nothing. That is reported as a
+   * finding rather than fixed here.
+   */
+
+  const required = (junk: readonly unknown[]): readonly unknown[] => [undefined, ...junk];
+
+  const BRANCHES: readonly {
+    readonly kind: string;
+    readonly base: Record<string, unknown>;
+    readonly fields: Readonly<Record<string, readonly unknown[]>>;
+  }[] = [
+    {
+      kind: 'attack',
+      base: { kind: 'attack', attack: 'ranged', damage: { dice: '2d6' }, damageType: 'fire' },
+      fields: {
+        damage: required(OBJECT_JUNK),
+        damageType: required(STRING_JUNK),
+        conditions: ARRAY_JUNK,
+        modifiers: ARRAY_JUNK,
+        delayed: OBJECT_JUNK,
+      },
+    },
+    {
+      kind: 'save-damage',
+      base: {
+        kind: 'save-damage',
+        ability: 'con',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'half',
+      },
+      fields: {
+        damage: required(OBJECT_JUNK),
+        damageType: required(STRING_JUNK),
+        againstType: OBJECT_JUNK,
+        plus: ARRAY_JUNK,
+        conditions: ARRAY_JUNK,
+        modifiers: ARRAY_JUNK,
+        delayed: OBJECT_JUNK,
+      },
+    },
+    {
+      kind: 'attack-damage',
+      base: { kind: 'attack-damage', damage: { dice: '2d8' }, damageType: 'radiant' },
+      fields: {
+        damage: required(OBJECT_JUNK),
+        damageType: required(STRING_JUNK),
+        againstType: OBJECT_JUNK,
+      },
+    },
+    {
+      kind: 'save',
+      base: { kind: 'save', ability: 'wis', condition: 'prone', outlivesCasting: true },
+      fields: {
+        condition: required(STRING_JUNK),
+        check: OBJECT_JUNK,
+        lasts: OBJECT_JUNK,
+        conditions: ARRAY_JUNK,
+        modifiers: ARRAY_JUNK,
+        delayed: OBJECT_JUNK,
+      },
+    },
+    {
+      kind: 'condition',
+      base: { kind: 'condition', condition: { name: 'invisible', outlivesCasting: true } },
+      fields: { condition: required(OBJECT_JUNK) },
+    },
+    {
+      kind: 'end-condition',
+      base: { kind: 'end-condition', conditions: ['poisoned'] },
+      fields: { conditions: required(ARRAY_JUNK) },
+    },
+    {
+      kind: 'heal',
+      base: { kind: 'heal', healing: { dice: '1d8' } },
+      fields: { healing: required(OBJECT_JUNK) },
+    },
+    {
+      kind: 'temp-hp',
+      base: { kind: 'temp-hp', amount: { dice: '1d4' } },
+      fields: { amount: required(OBJECT_JUNK) },
+    },
+    {
+      kind: 'buff',
+      base: { kind: 'buff', bonus: { source: 'Fire Dart', flat: 1 }, applies: ['attack'] },
+      fields: { bonus: required(OBJECT_JUNK), applies: required(ARRAY_JUNK) },
+    },
+    {
+      kind: 'roll-mode',
+      base: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: 'saving-throw', relation: 'roller', ability: 'wis' },
+        },
+      },
+      fields: { modifier: required(OBJECT_JUNK) },
+    },
+    {
+      kind: 'armor-class',
+      base: { kind: 'armor-class', base: 13, plusAbility: 'dex' },
+      fields: { base: required(NUMBER_JUNK) },
+    },
+    {
+      kind: 'damage-defense',
+      base: { kind: 'damage-defense', damageTypes: ['fire'], defense: 'resistant' },
+      fields: { damageTypes: required(ARRAY_JUNK), defense: required(STRING_JUNK) },
+    },
+  ];
+
+  /**
+   * The fixtures are real, which is what makes every row below mean anything.
+   *
+   * A base that was itself malformed would make the sweep pass for the wrong
+   * reason: every row would refuse, and none of them because of the junk.
+   */
+  it.each(BRANCHES.map((b) => [b.kind, b.base] as const))(
+    'starts from a %s the validator accepts',
+    (_kind, base) => {
+      expect(
+        checkSpellDefinitionValue({ ...FIRE_DART, durationSeconds: 60, effects: [base] }),
+      ).toEqual([]);
+    },
+  );
+
+  /**
+   * `dispel` and `interrupt-casting` contribute no rows, and that is the
+   * honest entry rather than an omission: their branches read no field at all,
+   * so the `kind` `checkShape` has already established is the whole effect and
+   * there is nothing below it to be malformed.
+   */
+  const READ_NO_FIELD: ReadonlySet<string> = new Set(['dispel', 'interrupt-casting']);
+
+  /**
+   * **The table is held against the union, in both directions.**
+   *
+   * `BRANCHES` is an enumeration of what the runtime derives, and every one of
+   * those this repository has written down has eventually disagreed with its
+   * source — which is the subject of the change this test belongs to. It is
+   * exact today; what makes that worth anything is that a *fifteenth* kind
+   * cannot arrive without a row. Five tasks are queued behind this one on this
+   * very file, and each adds to `checkEffect`: without this, such a kind gets
+   * a branch, no sweep row, no base-validity row — because that one is
+   * generated from the same table — and no failure anywhere.
+   *
+   * The two exclusions are named rather than subtracted silently, so the prose
+   * above is an exemption the test checks rather than one a reader has to
+   * believe, which is the form every other exemption list here takes. Reading
+   * it in reverse is what catches a kind *removed* from the union while its
+   * row stayed.
+   */
+  it('covers every effect kind the engine declares, or names why not', () => {
+    const covered = new Set(BRANCHES.map((b) => b.kind));
+    expect([...covered, ...READ_NO_FIELD].sort()).toEqual([...EFFECT_KINDS].sort());
+    // And the exclusions are real rather than a way of shrinking the table:
+    // neither names a field, so neither could contribute a row.
+    for (const kind of READ_NO_FIELD) expect(covered.has(kind)).toBe(false);
+  });
+
+  const rows = BRANCHES.flatMap(({ kind, base, fields }) =>
+    Object.entries(fields).flatMap(([field, junk]) =>
+      junk.map(
+        (value) =>
+          [`${kind}.${field} = ${JSON.stringify(value) ?? 'undefined'}`, base, field, value] as const,
+      ),
+    ),
+  );
+
+  it.each(rows)('answers with a refusal for %s', (_label, base, field, value) => {
+    // Both lifetimes, because the rule that reads a rider a second time
+    // returns early the moment a casting persists — which is exactly what kept
+    // `grantCarried`'s unguarded walk out of reach of the case that found it.
+    for (const lifetime of [{ durationSeconds: 60 }, {}]) {
+      const definition = { ...FIRE_DART, ...lifetime, effects: [{ ...base, [field]: value }] };
+      let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
+      expect(() => {
+        parsed = parseSpellDefinition(definition);
+      }).not.toThrow();
+      expect(isErr(parsed!)).toBe(true);
+    }
+  });
+
+  /**
+   * **The same class, one level up**, because the contract is
+   * `parseSpellDefinition(unknown)` rather than `checkEffect(unknown)`.
+   *
+   * `checkShape` establishes six primitives, a `range`, a `targets` and the
+   * effect list — and nothing else the semantic pass goes on to read. So an
+   * `areaTrigger` that is a string reached `.effects.length`, an `activation`
+   * that is a number reached the same, and a `damageTypeStated` that is an
+   * object reached `.forEach`. Each is the branch table's defect at the
+   * definition's own fields, and each threw out of the `Result` half exactly
+   * as the branches did.
+   *
+   * `durationUntil` and a **null** `unmodelled` are deliberately absent from
+   * this table. Nothing dereferences the first, and the second has been read
+   * as *absent* through `??` since it was written — a reading this task has no
+   * business changing, because making it a refusal would be a new rule rather
+   * than a guard.
+   */
+  const TOP_LEVEL: readonly (readonly [string, unknown])[] = [
+    ['area', null],
+    ['targetsWithin', null],
+    ...([null, 'nonsense', 7, [], {}] as const).map(
+      (junk) => ['areaTrigger', junk] as readonly [string, unknown],
+    ),
+    ...([null, 'nonsense', 7, [], {}] as const).map(
+      (junk) => ['activation', junk] as readonly [string, unknown],
+    ),
+    // `{}` is deliberately not among the origin's junk. An empty object is
+    // *readable* — the guard's question is whether fields can be taken off a
+    // value, and they can — and refusing it would take a rule saying an origin
+    // names a reach, which is a required-field rule rather than a guard
+    // against a throw. That is a different task's to add.
+    ...([null, 'nonsense', 7, []] as const).map(
+      (junk) => ['origin', junk] as readonly [string, unknown],
+    ),
+    ...([null, 'nonsense', 7, {}] as const).map(
+      (junk) => ['damageTypeStated', junk] as readonly [string, unknown],
+    ),
+    ...(['nonsense', 7, {}] as const).map(
+      (junk) => ['unmodelled', junk] as readonly [string, unknown],
+    ),
+  ];
+
+  it.each(TOP_LEVEL)('answers with a refusal for a definition whose %s is %s', (field, value) => {
+    const definition = { ...FIRE_DART, [field]: value };
+    let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
+    expect(() => {
+      parsed = parseSpellDefinition(definition);
+    }).not.toThrow();
+    expect(isErr(parsed!)).toBe(true);
+  });
+
+  /**
+   * **One level down, which is where the table above stops.**
+   *
+   * Every row above replaces the *top* field of an effect, so a guard that
+   * only fires on a malformed value **inside** one is never executed by any of
+   * them — and four were: the notation inside a scaling, the notation inside a
+   * bonus, a selector that is not an object, and a note inside `unmodelled`.
+   * Each replaces a real throw, because the reader underneath is a string
+   * operation: `parseNotation` calls `.replace`, `ROLL_FAMILIES.has` reads
+   * `selector.roll`, and a note is `.trim()`ed. Branch coverage is what found
+   * them; deleting any one of them left the whole suite green.
+   *
+   * They are separate rows rather than a deeper generator because there is no
+   * general "one level down" — each is a specific field a specific reader
+   * dereferences, and naming them is what makes a fifth one an addition
+   * somebody has to write rather than a case a loop silently covers.
+   */
+  it.each([
+    ['a notation inside a scaling', { kind: 'heal', healing: { dice: 7 } }],
+    [
+      'a growth notation inside a scaling',
+      { kind: 'heal', healing: { dice: '1d8', perSlotLevelAbove: 7 } },
+    ],
+    [
+      'a notation inside a bonus',
+      { kind: 'buff', bonus: { source: 'Fire Dart', dice: 7 }, applies: ['attack'] },
+    ],
+    [
+      'a selector that is not an object',
+      { kind: 'roll-mode', modifier: { mode: 'advantage', selector: null } },
+    ],
+    [
+      'a notation inside a delayed hit',
+      {
+        kind: 'save-damage',
+        ability: 'con',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'half',
+        delayed: { damage: { dice: 7 }, damageType: 'acid' },
+      },
+    ],
+    [
+      'an extra damage component that is not an object',
+      {
+        kind: 'save-damage',
+        ability: 'con',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'half',
+        plus: [null],
+      },
+    ],
+  ] as const)('answers with a refusal for %s', (_what, effect) => {
+    let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
+    expect(() => {
+      parsed = parseSpellDefinition({ ...FIRE_DART, durationSeconds: 60, effects: [effect] });
+    }).not.toThrow();
+    expect(isErr(parsed!)).toBe(true);
+  });
+
+  /**
+   * And the same, one level down inside the definition's own fields.
+   *
+   * `unmodelled` is a list of notes and the walk `.trim()`s each one, so a
+   * list whose *entry* is not a string threw where a list that was not a list
+   * at all is caught by the row above.
+   */
+  it('answers with a refusal for a note that is not a string', () => {
+    let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
+    expect(() => {
+      parsed = parseSpellDefinition({ ...FIRE_DART, unmodelled: [7] });
+    }).not.toThrow();
+    expect(isErr(parsed!)).toBe(true);
+  });
+
+  /**
+   * **`undefined` is absent; everything else is read against the declared
+   * type**, and `null` is the case where that had two answers.
+   *
+   * A rider slot that was null reported, and `unmodelled` read it as absent
+   * through `??` — one question, two answers, decided here in favour of
+   * reporting. `null` is not a member of `readonly string[] | undefined`, and
+   * a value the compiler would refuse is what a validator over untyped input
+   * exists to name. No definition carries a null anywhere, so nothing that
+   * existed depends on the reading that changed.
+   */
+  it('reports a null where an optional list belongs, rather than reading it as absent', () => {
+    expect(codes(checkSpellDefinitionValue({ ...FIRE_DART, unmodelled: null }))).toEqual([
+      'malformed_field',
+    ]);
+  });
+
+  /**
+   * **Every effect list's entries, not just the definition's own.**
+   *
+   * `checkEffect` is one function reached from three lists, so the guarantee
+   * its branches rest on — an entry is an object naming a `kind` this engine
+   * knows — has to hold for all three or for none. It held for one:
+   * `checkShape` walked `effects` and nothing walked `areaTrigger.effects` or
+   * `activation.effects`, whose entries went straight to a `switch` on
+   * `effect.kind`. A `null` there threw; a string, a number, a list or an
+   * unknown kind was accepted with no problem at all, which is the same defect
+   * seen from the other side.
+   *
+   * The codes asserted are the **shape phase's**, because that is where the
+   * rule now lives and `parseSpellDefinition` returns on it — the same answer
+   * the definition's own list has always given for the same input.
+   */
+  const AREA = { kind: 'cube', size: 20, origin: 'point' } as const;
+  const TRIGGER = { at: 'end-of-turn', label: 'Fire Dart (the embers)' } as const;
+  const nestedIn = (where: 'areaTrigger' | 'activation', effects: unknown): unknown =>
+    where === 'areaTrigger'
+      ? { ...FIRE_DART, durationSeconds: 60, area: AREA, areaTrigger: { ...TRIGGER, effects } }
+      : {
+          ...FIRE_DART,
+          durationSeconds: 60,
+          activation: {
+            action: 'action',
+            range: { kind: 'touch' },
+            label: 'Fire Dart (again)',
+            effects,
+          },
+        };
+
+  it.each(['areaTrigger', 'activation'] as const)(
+    'establishes the entries of %s.effects as it does its own',
+    (where) => {
+      // The list is real, so nothing here is the container being malformed.
+      expect(checkSpellDefinitionValue(nestedIn(where, FIRE_DART.effects))).toEqual([]);
+
+      for (const entry of [null, 'nonsense', 7, [], { kind: 'not-a-kind' }] as const) {
+        const what = `${where} holding ${JSON.stringify(entry) ?? 'undefined'}`;
+
+        let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
+        expect(() => {
+          parsed = parseSpellDefinition(nestedIn(where, [entry]));
+        }, what).not.toThrow();
+        expect(isErr(parsed!), what).toBe(true);
+
+        // **The same answer the definition's own list gives**, asserted
+        // against it rather than transcribed — which is what "as it does its
+        // own" actually claims, and the only form of it that cannot drift if
+        // the entry rules are ever changed. Writing the codes out by hand got
+        // `[]` wrong: an array is an object, so it reaches the `kind` check
+        // and comes back `unknown_effect` rather than `not_an_effect`.
+        expect(codes(checkSpellDefinitionValue(nestedIn(where, [entry]))), what).toEqual(
+          codes(checkSpellDefinitionValue({ ...FIRE_DART, effects: [entry] })),
+        );
+      }
+    },
+  );
+
+  /**
+   * **A rider is a leaf in all three lists, which is the larger half of what
+   * that walk was missing.**
+   *
+   * `checkNoNestedEffect` is entered only from the list walk, so a rider
+   * carrying `effects`, `targets`, `targetsWithin` or `area` — the fields that
+   * would make it a parent — validated clean whenever it sat in a nested list.
+   * CLAUDE.md named the validator as one of the three places that enforce the
+   * invariant, and the validator enforced it on one list of three; the sweep
+   * further down this file walks all three, which is why the catalogue is
+   * clean and why nothing caught it.
+   */
+  it.each(['areaTrigger', 'activation'] as const)(
+    'enforces that a rider is a leaf inside %s.effects',
+    (where) => {
+      const parented = {
+        kind: 'save',
+        ability: 'wis',
+        condition: 'prone',
+        outlivesCasting: true,
+        conditions: [{ name: 'blinded', outlivesCasting: true, targets: ['someone-else'] }],
+      };
+      expect(codes(checkSpellDefinitionValue(nestedIn(where, [parented])))).toContain(
+        'nested_effect',
+      );
+    },
+  );
+
+  /**
+   * The mode is read once, whatever the selector is.
+   *
+   * It used to be two copies — one in the readable path and one inside the
+   * guard — and branch coverage showed nothing reached the second, which is
+   * the copy that would have drifted. This is the case that reaches it: a
+   * modifier that is wrong about *both*, whose two problems come back
+   * together.
+   */
+  it('reports a bad mode beside an unreadable selector', () => {
+    const problems = checkSpellDefinitionValue({
+      ...FIRE_DART,
+      durationSeconds: 60,
+      effects: [{ kind: 'roll-mode', modifier: { mode: 'normal', selector: null } }],
+    });
+    expect(codes(problems)).toContain('malformed_field');
+    expect(codes(problems)).toContain('bad_roll_mode');
+  });
+
+  /**
+   * **A guard that swallowed the problem it guards would be worse than the
+   * throw**, and nothing above could tell: every row asserts a refusal, and a
+   * guard that reported `malformed_field` and then skipped the real rule would
+   * go on refusing for a reason that had stopped being true.
+   *
+   * So each rule that now sits behind a guard is driven with input the guard
+   * lets *through* — the shape the rule was always about — and the code it has
+   * always reported is asserted by name.
+   */
+  it.each([
+    [
+      'dice that do not parse, behind the scaling guard',
+      { kind: 'heal', healing: { dice: 'a lot' } },
+      'bad_dice',
+    ],
+    [
+      'a rolled Armour Class, behind the bonus guard',
+      {
+        kind: 'buff',
+        bonus: { source: 'Fire Dart', dice: '1d4' },
+        applies: ['ac'],
+      },
+      'rolled_armor_class',
+    ],
+    [
+      'a bonus that applies to nothing, behind the applies guard',
+      { kind: 'buff', bonus: { source: 'Fire Dart', flat: 1 }, applies: [] },
+      'bonus_applies_to_nothing',
+    ],
+    [
+      'a selector naming no roll the engine makes, behind the modifier guard',
+      {
+        kind: 'roll-mode',
+        modifier: { mode: 'advantage', selector: { roll: 'd20-test', relation: 'roller' } },
+      },
+      'bad_roll_family',
+    ],
+    [
+      'a removal that ends nothing, behind the condition-list guard',
+      { kind: 'end-condition', conditions: [] },
+      'ends_nothing',
+    ],
+    [
+      'a removal naming a condition twice, behind the same guard',
+      { kind: 'end-condition', conditions: ['poisoned', 'poisoned'] },
+      'duplicate_condition',
+    ],
+    [
+      'a defence that defends nothing, behind the damage-type guard',
+      { kind: 'damage-defense', damageTypes: [], defense: 'resistant' },
+      'defends_nothing',
+    ],
+    [
+      'a defence that is not one of the three, beside an unreadable list',
+      { kind: 'damage-defense', damageTypes: 7, defense: 'tough' },
+      'unknown_defense',
+    ],
+    [
+      'a rider lasting no seconds, behind the duration guard',
+      {
+        kind: 'save',
+        ability: 'wis',
+        condition: 'prone',
+        lasts: { seconds: 0 },
+      },
+      'bad_rider_duration',
+    ],
+    [
+      'a check whose skill belongs to another ability, behind the check guard',
+      {
+        kind: 'save',
+        ability: 'wis',
+        condition: 'restrained',
+        outlivesCasting: true,
+        check: { ability: 'str', skill: 'investigation', onSuccess: 'end-on-target' },
+      },
+      'skill_ability_mismatch',
+    ],
+    [
+      'an extra damage component with an unknown type, behind the plus guard',
+      {
+        kind: 'save-damage',
+        ability: 'con',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'half',
+        plus: [{ damage: { dice: '1d6' }, damageType: 'sonic' }],
+      },
+      'unknown_damage_type',
+    ],
+    [
+      'a later hit with dice that do not parse, behind the delayed guard',
+      {
+        kind: 'save-damage',
+        ability: 'con',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'half',
+        delayed: { damage: { dice: 'later' }, damageType: 'acid' },
+      },
+      'bad_dice',
+    ],
+  ] as const)('still reports %s', (_what, effect, code) => {
+    const problems = checkSpellDefinitionValue({
+      ...FIRE_DART,
+      durationSeconds: 60,
+      effects: [effect],
+    });
+    expect(codes(problems)).toContain(code);
+  });
+
+  /**
+   * A rider slot that is unreadable is reported **once**, and the lifetime
+   * rule keeps quiet about it.
+   *
+   * `typeof [] === 'object'` and an array is not null, so a rider that was a
+   * list walked straight past `grantCarried`'s readability guard, found no
+   * `lasts` and no `outlivesCasting`, and drew a second problem about "the
+   * undefined condition" — a grant it never carried, reported beside the real
+   * complaint. Cosmetic, because the first problem is the one a caller reads;
+   * worth closing, because the next reader of that list has no way to tell a
+   * real grant from this.
+   */
+  it('reports a rider that is a list once, not twice', () => {
+    const problems = checkSpellDefinitionValue({
+      ...FIRE_DART,
+      effects: [
+        {
+          kind: 'condition',
+          condition: [],
+        },
+      ],
+    });
+    // Both halves, because the absence on its own would be satisfied by an
+    // effect that reported nothing at all.
+    expect(codes(problems)).toContain('unknown_condition');
+    expect(codes(problems)).not.toContain('grant_without_lifetime');
+  });
+
+  /**
+   * The code a malformed field reports, named once.
+   *
+   * The sweep above deliberately pins none, which leaves the *spelling* of
+   * `malformed_field` held by nothing — and `refusal-sweep.test.ts` cannot see
+   * it either, because it is never an `err(` literal: `parseSpellDefinition`
+   * passes `first.code` through as a variable. A code is observable behaviour
+   * a tool surface branches on, so one representative case names it, and the
+   * path is asserted beside it because the path is what tells an author which
+   * field was unreadable.
+   */
+  it('names the code and the field a malformed value reports', () => {
+    const problems = checkSpellDefinitionValue({
+      ...FIRE_DART,
+      effects: [{ kind: 'heal', healing: 'nonsense' }],
+    });
+    expect(problems).toEqual([
+      expect.objectContaining({ field: 'effects[0].healing', code: 'malformed_field' }),
+    ]);
+  });
+});
+
+/**
+ * The creature type a spell demands is one of the SRD's fourteen.
+ *
+ * SRD 5.2.1 prints a Goblin Warrior as "Small Fey (Goblinoid)". The glossary
+ * gives the fourteen types rules and gives a subtype tag none at all, so a
+ * spell demanding a tag names nobody — `isCreatureType` compares the type and
+ * never a substring of it, which is what makes a tag unmatchable rather than
+ * loosely matchable.
+ *
+ * The asymmetry this closes was one field wide: `againstType.types` had been
+ * held to the glossary since it arrived, and `mustBeType` was a bare string
+ * beside it, so `mustBeType: 'Goblinoid'` validated while
+ * `againstType.types: ['Goblinoid']` did not. One question, two answers.
+ */
+describe('the creature type a spell demands is one the glossary gives rules to', () => {
+  const targeting = (mustBeType: unknown): readonly string[] =>
+    codes(checkSpellDefinitionValue({ ...FIRE_DART, targets: { count: 1, mustBeType } }));
+
+  it('accepts a type the SRD prints', () => {
+    expect(targeting('Fey')).toEqual([]);
+    expect(targeting('Humanoid')).toEqual([]);
+  });
+
+  it('refuses a subtype tag, as the outcome clause already does', () => {
+    expect(targeting('Goblinoid')).toEqual(['unknown_creature_type']);
+  });
+
+  /** Case is the SRD's, and a plural is not a type either. */
+  it('refuses anything else off the glossary’s list', () => {
+    expect(targeting('humanoid')).toEqual(['unknown_creature_type']);
+    expect(targeting('Humanoids')).toEqual(['unknown_creature_type']);
+  });
+
+  /** And it judges untyped input here too, rather than waving it through. */
+  it('refuses a demand that is not a name at all', () => {
+    expect(targeting(7)).toEqual(['unknown_creature_type']);
+    expect(targeting(null)).toEqual(['unknown_creature_type']);
+  });
+
+  /** Absent is the ordinary case: most spells demand no type at all. */
+  it('accepts a spell that demands no type', () => {
+    expect(targeting(undefined)).toEqual([]);
   });
 });

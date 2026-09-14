@@ -119,6 +119,76 @@ const AREA_KINDS: ReadonlySet<string> = new Set([
 const selfOrigin = (area: SpellArea): boolean => area.origin === 'self';
 
 /**
+ * The one code a field the engine cannot read reports, wherever it is found.
+ *
+ * **A validator that throws on the input it exists to judge has judged
+ * nothing.** {@link parseSpellDefinition} takes `unknown` and returns a
+ * `Result`, and {@link checkShape} deliberately establishes very little: that
+ * a definition is an object, that its handful of primitives are primitives,
+ * and that each effect names a `kind` this engine knows. Everything below that
+ * is unchecked on purpose, because *a field the engine does not know is not an
+ * error* — so every field a rule goes on to dereference can arrive missing,
+ * null, or some other type entirely.
+ *
+ * That was found three times one at a time: twice in the branches the granted
+ * defence added, and once as a real regression in {@link grantCarried}, where
+ * a loop conversion dropped a null guard and this function began throwing
+ * where it had reported `unknown_condition`. Three is a class, so the guard is
+ * a shared reader rather than a habit each branch is trusted to remember.
+ *
+ * **One code over many fields, not one code each.** This is a single defect —
+ * *this field is not the shape the rules read* — arriving at every site that
+ * reads one, exactly as `grant_without_lifetime` is one code over four things
+ * a casting can leave standing. Two codes for one defect would be the second
+ * place to get one sentence wrong, and the `field` path is what tells an
+ * author which one it was.
+ *
+ * It is deliberately **not** {@link checkShape}'s `missing_field`: those are a
+ * different phase, reported before the semantic pass runs at all, and a field
+ * that is present and wrong is not a field that is missing.
+ */
+const MALFORMED = 'malformed_field';
+
+/**
+ * Whether this value can have fields read off it, reporting if it cannot.
+ *
+ * An array is refused along with the primitives: nothing in the format is both
+ * a record and a list, so an array where an object belongs is as unreadable as
+ * a number — and reading one as a record is how a rider that is a list came to
+ * draw a problem about a lifetime it could never have had.
+ */
+function readsAsObject(
+  value: unknown,
+  path: string,
+  shape: string,
+  found: SpellDefinitionProblem[],
+): boolean {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) return true;
+  found.push({ field: path, code: MALFORMED, reason: `${shape}, and this is ${nameOf(value)}` });
+  return false;
+}
+
+/** The same, for the fields the rules walk rather than read fields off. */
+function readsAsList(
+  value: unknown,
+  path: string,
+  shape: string,
+  found: SpellDefinitionProblem[],
+): value is readonly unknown[] {
+  if (Array.isArray(value)) return true;
+  found.push({ field: path, code: MALFORMED, reason: `${shape}, and this is ${nameOf(value)}` });
+  return false;
+}
+
+/** What to call the thing that arrived, so the reason says what was wrong. */
+function nameOf(value: unknown): string {
+  if (value === null) return 'null';
+  if (value === undefined) return 'absent';
+  if (Array.isArray(value)) return 'a list';
+  return `a ${typeof value}`;
+}
+
+/**
  * Every notation a scaling carries, with the path each was found at.
  *
  * `scaledDiceFor` splits a notation on `d` and does arithmetic on the halves,
@@ -133,16 +203,28 @@ function checkScaling(
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
+  if (!readsAsObject(scaling, path, 'a dice scaling is an object naming the dice it rolls', found)) {
+    return;
+  }
+
   for (const [key, notation] of [
     ['dice', scaling.dice],
     ['perSlotLevelAbove', scaling.perSlotLevelAbove],
   ] as const) {
+    // **An absent `dice` is not refused here**, and that is a scope decision
+    // rather than a reading. `scaledDiceFor` splits the notation and does
+    // arithmetic on the halves, so a scaling with none becomes `NaNd6` and the
+    // spell silently rolls nothing — a real gap, and a *required-field* rule
+    // on a value this function can perfectly well read, which is a different
+    // kind of rule from the guards around it. `origin: {}` is the same
+    // question and is not refused either; both belong to a task that is adding
+    // a rule to this file rather than to one making it answer at all.
     if (notation === undefined) continue;
-    if (!parseNotation(notation).ok) {
+    if (typeof notation !== 'string' || !parseNotation(notation).ok) {
       found.push({
         field: `${path}.${key}`,
         code: 'bad_dice',
-        reason: `"${notation}" is not dice notation`,
+        reason: `"${String(notation)}" is not dice notation`,
       });
     }
   }
@@ -294,6 +376,12 @@ function checkSpellCheck(
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
+  if (
+    !readsAsObject(check, path, 'a check is an object naming the ability it is rolled with', found)
+  ) {
+    return;
+  }
+
   const ability = check.ability as unknown as string;
   if (!ABILITY_NAMES_SET.has(check.ability)) {
     found.push({
@@ -390,16 +478,32 @@ function checkConditionRider(
 
   // A span of nothing is not a duration, it is the absence of one — the same
   // argument `durationSeconds` already makes on the definition.
+  //
+  // **`typeof lasts === 'object'` was true of `null` as well**, so a rider
+  // that carried one reached `.seconds` and threw. `RiderDuration` is two
+  // named moments or a span of seconds, and anything else is a value no reader
+  // of this field can do anything with.
   const lasts = rider?.lasts;
-  if (
-    typeof lasts === 'object' &&
-    (!Number.isFinite(lasts.seconds) || lasts.seconds <= 0)
-  ) {
-    found.push({
-      field: `${riderPath}.lasts.seconds`,
-      code: 'bad_rider_duration',
-      reason: 'a rider that lasts no seconds does not last; omit it to borrow the casting’s own deadline',
-    });
+  if (lasts !== undefined) {
+    if (typeof lasts === 'object' && lasts !== null && !Array.isArray(lasts)) {
+      if (!Number.isFinite(lasts.seconds) || lasts.seconds <= 0) {
+        found.push({
+          field: `${riderPath}.lasts.seconds`,
+          code: 'bad_rider_duration',
+          reason:
+            'a rider that lasts no seconds does not last; omit it to borrow the casting’s own deadline',
+        });
+      }
+    } else if (
+      lasts !== 'start-of-casters-next-turn' &&
+      lasts !== 'end-of-casters-next-turn'
+    ) {
+      found.push({
+        field: `${riderPath}.lasts`,
+        code: MALFORMED,
+        reason: `a rider lasts until a moment in the turn order or for a span of seconds, and this is ${nameOf(lasts)}`,
+      });
+    }
   }
 
   // **A rider with no lifetime is checked once, and not here.** The rule that
@@ -458,6 +562,31 @@ function checkModifierRider(
   });
 }
 
+/** What a rider slot is, said once because three slots say it. */
+const RIDER_LIST = 'a rider slot is a list of the riders the outcome hangs';
+
+/**
+ * The same effect, with a `conditions` slot no reader could walk taken off.
+ *
+ * {@link conditionRiderOf} is shared with the runtime and takes a *typed*
+ * effect, so it reads the slot as a list — returning it outright for an
+ * `attack`, spreading it for a `save`. Neither is iterable when untyped input
+ * puts a number or a bare object there, and both threw one call before
+ * anything could report it.
+ *
+ * So the slot is read here and the reader is handed an effect it can answer
+ * for. **Removed rather than bailed out of**: a `save` whose extra riders are
+ * unreadable still has its flat first rider, and a guard that dropped the
+ * whole effect would turn a reported `grant_without_lifetime` into a missing
+ * one. What is wrong with the slot itself is {@link checkRiders}' to report,
+ * which is the same division of labour each individual unreadable rider
+ * already follows.
+ */
+function withReadableRiders<E extends SpellEffect>(effect: E): E {
+  const slot = (effect as { readonly conditions?: unknown }).conditions;
+  return slot === undefined || Array.isArray(slot) ? effect : { ...effect, conditions: undefined };
+}
+
 /** Every rider one host carries, in the order `applyRiders` applies them. */
 function checkRiders(
   riders: {
@@ -470,21 +599,43 @@ function checkRiders(
   host: RiderHost,
   found: SpellDefinitionProblem[],
 ): void {
-  (riders.conditions ?? []).forEach((rider, i) =>
-    checkConditionRider(
-      rider,
-      `${path}.conditions[${i}].name`,
-      `${path}.conditions[${i}]`,
-      host,
-      found,
-    ),
-  );
-  (riders.modifiers ?? []).forEach((rider, i) =>
-    checkModifierRider(rider, `${path}.modifiers[${i}]`, found),
-  );
+  // **A slot that is present and not a list is reported, not skipped.** `??`
+  // reads `null` as absent, which is the right answer for a field the author
+  // left out and the wrong one for a field they filled in wrongly: a
+  // `conditions` that is a string has no `forEach`, and walking it was a
+  // throw rather than an answer.
+  if (riders.conditions !== undefined) {
+    if (readsAsList(riders.conditions, `${path}.conditions`, RIDER_LIST, found)) {
+      riders.conditions.forEach((rider, i) =>
+        checkConditionRider(
+          rider as ConditionRider | undefined,
+          `${path}.conditions[${i}].name`,
+          `${path}.conditions[${i}]`,
+          host,
+          found,
+        ),
+      );
+    }
+  }
+  if (riders.modifiers !== undefined) {
+    if (readsAsList(riders.modifiers, `${path}.modifiers`, RIDER_LIST, found)) {
+      riders.modifiers.forEach((rider, i) =>
+        checkModifierRider(rider as ModifierRider | undefined, `${path}.modifiers[${i}]`, found),
+      );
+    }
+  }
   if (riders.delayed !== undefined) {
-    checkScaling(riders.delayed.damage, level, `${path}.delayed.damage`, found);
-    checkDamageType(riders.delayed.damageType, `${path}.delayed.damageType`, found);
+    if (
+      readsAsObject(
+        riders.delayed,
+        `${path}.delayed`,
+        'a later hit is an object naming the dice it deals and their type',
+        found,
+      )
+    ) {
+      checkScaling(riders.delayed.damage, level, `${path}.delayed.damage`, found);
+      checkDamageType(riders.delayed.damageType, `${path}.delayed.damageType`, found);
+    }
   }
 }
 
@@ -495,18 +646,35 @@ function checkBonusGrant(
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
-  if (bonus.dice !== undefined && !parseNotation(bonus.dice).ok) {
+  // The two are independent fields, so each is read on its own terms and a bad
+  // one does not hide the other: a `buff` can perfectly well have an
+  // unreadable bonus *and* apply to nothing, and an author wants both.
+  const readable = readsAsObject(
+    bonus,
+    `${path}.bonus`,
+    'a bonus is an object naming its source and what it adds',
+    found,
+  );
+  const applied = readsAsList(
+    applies,
+    `${path}.applies`,
+    'a bonus names the kinds of roll it reaches as a list',
+    found,
+  );
+
+  const dice = readable ? bonus.dice : undefined;
+  if (dice !== undefined && (typeof dice !== 'string' || !parseNotation(dice).ok)) {
     found.push({
       field: `${path}.bonus.dice`,
       code: 'bad_dice',
-      reason: `"${bonus.dice}" is not dice notation`,
+      reason: `"${String(dice)}" is not dice notation`,
     });
   }
   // SRD writes no rolled Armour Class and there is no moment at which a die
   // could be thrown for a standing number, so `armorClassOf` reads only the
   // flat half. A rolled bonus aimed at `ac` is therefore data nothing can
   // apply — silently, which is what makes it worth refusing here.
-  if (applies.includes('ac') && bonus.dice !== undefined) {
+  if (applied && applies.includes('ac') && dice !== undefined) {
     found.push({
       field: `${path}.bonus.dice`,
       code: 'rolled_armor_class',
@@ -514,7 +682,7 @@ function checkBonusGrant(
         'an Armour Class is a standing number rather than a roll, so only a flat bonus reaches one',
     });
   }
-  if (applies.length === 0) {
+  if (applied && applies.length === 0) {
     found.push({
       field: `${path}.applies`,
       code: 'bonus_applies_to_nothing',
@@ -535,21 +703,50 @@ function checkRollModifier(
   // Every one of these compiles and then matches nothing for ever, or
   // matches far more than the spell says, which is what makes them worth
   // a refusal at authoring rather than a surprise at the table.
+  if (
+    !readsAsObject(
+      modifier,
+      path,
+      'a granted mode is an object naming the mode and the rolls it reaches',
+      found,
+    )
+  ) {
+    return;
+  }
+
+  // **The selector is read once and the mode is checked once**, which is why
+  // this is three guarded blocks rather than an early return with the mode
+  // rule copied into it. The mode is the modifier's own field and is worth
+  // answering for whatever the selector turns out to be; writing it twice
+  // would be one rule in two places, and the copy nothing could reach would
+  // be the one that drifted.
   const selector = modifier.selector;
-  if (!ROLL_FAMILIES.has(selector.roll)) {
-    found.push({
-      field: `${path}.selector.roll`,
-      code: 'bad_roll_family',
-      reason: `"${String(selector.roll)}" is not a kind of roll the engine makes`,
-    });
+  const readable = readsAsObject(
+    selector,
+    `${path}.selector`,
+    'a selector is an object naming the kind of roll it picks out',
+    found,
+  );
+
+  if (readable) {
+    if (!ROLL_FAMILIES.has(selector.roll)) {
+      found.push({
+        field: `${path}.selector.roll`,
+        code: 'bad_roll_family',
+        reason: `"${String(selector.roll)}" is not a kind of roll the engine makes`,
+      });
+    }
+    if (selector.relation !== 'roller' && selector.relation !== 'against-holder') {
+      found.push({
+        field: `${path}.selector.relation`,
+        code: 'bad_roll_relation',
+        reason: `"${String(selector.relation)}" is not a relation; a mode is the roller's or it is on rolls against the holder`,
+      });
+    }
   }
-  if (selector.relation !== 'roller' && selector.relation !== 'against-holder') {
-    found.push({
-      field: `${path}.selector.relation`,
-      code: 'bad_roll_relation',
-      reason: `"${String(selector.relation)}" is not a relation; a mode is the roller's or it is on rolls against the holder`,
-    });
-  }
+
+  // Between the two blocks, so a readable selector's problems collect in the
+  // order they always did.
   if (modifier.mode !== 'advantage' && modifier.mode !== 'disadvantage') {
     found.push({
       field: `${path}.mode`,
@@ -557,6 +754,9 @@ function checkRollModifier(
       reason: 'a granted mode is Advantage or Disadvantage; "normal" grants nothing',
     });
   }
+
+  if (!readable) return;
+
   if (selector.ability !== undefined && !ABILITY_NAMES_SET.has(selector.ability)) {
     found.push({
       field: `${path}.selector.ability`,
@@ -621,10 +821,30 @@ function checkEffect(
           }
         }
       }
-      (effect.plus ?? []).forEach((extra, i) => {
-        checkScaling(extra.damage, level, `${path}.plus[${i}].damage`, found);
-        checkDamageType(extra.damageType, `${path}.plus[${i}].damageType`, found);
-      });
+      if (effect.plus !== undefined) {
+        if (
+          readsAsList(
+            effect.plus,
+            `${path}.plus`,
+            'extra damage is a list of the components the spell adds',
+            found,
+          )
+        ) {
+          effect.plus.forEach((extra, i) => {
+            if (
+              readsAsObject(
+                extra,
+                `${path}.plus[${i}]`,
+                'a damage component is an object naming its dice and their type',
+                found,
+              )
+            ) {
+              checkScaling(extra.damage, level, `${path}.plus[${i}].damage`, found);
+              checkDamageType(extra.damageType, `${path}.plus[${i}].damageType`, found);
+            }
+          });
+        }
+      }
       checkRiders(effect, level, path, host(true), found);
       return;
 
@@ -656,16 +876,28 @@ function checkEffect(
     // which is the whole reason the *name* path is the caller's to supply. The
     // extra riders a `save` carries are at their own path, because that is
     // where an author would look for them.
-    case 'save':
+    // **The extra riders are read before `conditionRiderOf` rather than by
+    // it.** That reader is shared with the runtime and takes a typed effect,
+    // so it spreads `effect.conditions` to build its list — and a non-array
+    // there is not iterable, which threw one call before anything could
+    // report it. Reporting it here and then handing the reader the same
+    // effect *without* the slot keeps the flat rider checked, rather than
+    // rebuilding it and becoming a second place that knows how `save` spells
+    // its first condition.
+    case 'save': {
+      const extra = (effect as { readonly conditions?: unknown }).conditions;
+      if (extra !== undefined) readsAsList(extra, `${path}.conditions`, RIDER_LIST, found);
+      const source = withReadableRiders(effect);
       checkConditionRider(
-        conditionRiderOf(effect)[0],
+        conditionRiderOf(source)[0],
         `${path}.condition`,
         path,
         host(true),
         found,
       );
-      checkRiders(effect, level, path, host(true), found);
+      checkRiders(source, level, path, host(true), found);
       return;
+    }
 
     case 'condition':
       checkConditionRider(
@@ -688,6 +920,16 @@ function checkEffect(
     // instance that is already gone, exactly as `duplicate_condition` refuses a
     // Paladin naming one twice and being charged for it twice.
     case 'end-condition': {
+      if (
+        !readsAsList(
+          effect.conditions,
+          `${path}.conditions`,
+          'a removal names the conditions it ends as a list',
+          found,
+        )
+      ) {
+        return;
+      }
       if (effect.conditions.length === 0) {
         found.push({
           field: `${path}.conditions`,
@@ -745,26 +987,37 @@ function checkEffect(
     // "multiple instances ... count as only one", so a second copy of a type
     // is a sentence the SRD has already answered rather than a second grant.
     case 'damage-defense': {
-      if (effect.damageTypes.length === 0) {
-        found.push({
-          field: `${path}.damageTypes`,
-          code: 'defends_nothing',
-          reason:
-            'a granted defence that names no damage type defends against nothing; name the types the SRD prints',
-        });
-      }
-      const seen = new Set<string>();
-      effect.damageTypes.forEach((type, i) => {
-        checkDamageType(type, `${path}.damageTypes[${i}]`, found);
-        if (seen.has(type)) {
+      // The list and the answer are independent fields, so an unreadable list
+      // does not take the answer's own problem down with it.
+      if (
+        readsAsList(
+          effect.damageTypes,
+          `${path}.damageTypes`,
+          'a granted defence names the damage types it answers as a list',
+          found,
+        )
+      ) {
+        if (effect.damageTypes.length === 0) {
           found.push({
-            field: `${path}.damageTypes[${i}]`,
-            code: 'duplicate_damage_type',
-            reason: `${type} is named twice, and Resistance is a boolean rather than a tally`,
+            field: `${path}.damageTypes`,
+            code: 'defends_nothing',
+            reason:
+              'a granted defence that names no damage type defends against nothing; name the types the SRD prints',
           });
         }
-        seen.add(type);
-      });
+        const seen = new Set<string>();
+        effect.damageTypes.forEach((type, i) => {
+          checkDamageType(type, `${path}.damageTypes[${i}]`, found);
+          if (seen.has(type)) {
+            found.push({
+              field: `${path}.damageTypes[${i}]`,
+              code: 'duplicate_damage_type',
+              reason: `${type} is named twice, and Resistance is a boolean rather than a tally`,
+            });
+          }
+          seen.add(type);
+        });
+      }
       if (!DEFENSE_KINDS.has(effect.defense)) {
         found.push({
           field: `${path}.defense`,
@@ -811,18 +1064,17 @@ function checkGrantLifetimes(
   const persists = lasts || definition.untilDispelled === true || definition.concentration;
   if (persists) return;
 
-  const everywhere: (readonly [string, readonly SpellEffect[]])[] = [
-    ['effects', definition.effects],
-    ...(definition.areaTrigger === undefined
-      ? []
-      : ([['areaTrigger.effects', definition.areaTrigger.effects]] as const)),
-    ...(definition.activation === undefined
-      ? []
-      : ([['activation.effects', definition.activation.effects]] as const)),
-  ];
-
-  for (const [where, effects] of everywhere) {
-    effects.forEach((effect, i) => {
+  // **The same enumeration `checkShape` walks**, rather than a second copy of
+  // the same three lists. This used to name them itself and dereferenced two
+  // of the holders directly, so a `areaTrigger` that untyped input made a
+  // string threw here one call after the rules that report what is wrong with
+  // it. {@link effectLists} answers the one question — which effect lists does
+  // this definition carry — and a list nobody can walk simply does not appear,
+  // so this contributes nothing for it and the report stays at the container,
+  // which is the division of labour {@link grantCarried} already follows for a
+  // rider it cannot read.
+  for (const [where, effects] of effectLists(definition as unknown as Record<string, unknown>)) {
+    (effects as readonly SpellEffect[]).forEach((effect, i) => {
       const carries = grantCarried(effect);
       if (carries === null) return;
       found.push({
@@ -872,11 +1124,18 @@ function grantCarried(effect: SpellEffect): string | null {
     case 'damage-defense':
       return 'a granted Resistance, Immunity or Vulnerability';
     default: {
-      for (const rider of conditionRiderOf(effect)) {
+      for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
         // not an object at all has no lifetime to be wrong about, and is
         // `checkConditionRider`'s to report.
-        if (typeof rider !== 'object' || rider === null) continue;
+        //
+        // **An array is unreadable too**, and saying so is the whole of the
+        // difference: `typeof [] === 'object'` and it is not null, so a list
+        // walked straight past this guard, found no `lasts` and no
+        // `outlivesCasting`, and drew a second problem about "the undefined
+        // condition" — a grant it never carried, reported beside the real
+        // complaint.
+        if (typeof rider !== 'object' || rider === null || Array.isArray(rider)) continue;
         if (rider.lasts !== undefined || rider.outlivesCasting === true) continue;
         return `the ${String(rider.name)} condition`;
       }
@@ -983,6 +1242,31 @@ export function checkSpellDefinition(
     });
   }
 
+  /*
+   * The creature type a spell demands, held to the same fourteen an outcome
+   * clause is.
+   *
+   * `againstType.types` has been checked against the glossary since it
+   * arrived and this was a bare string, so `mustBeType: 'Goblinoid'` validated
+   * while `againstType.types: ['Goblinoid']` did not — one asymmetry, two
+   * answers to one question.
+   *
+   * SRD 5.2.1 prints a Goblin Warrior as "Small Fey (Goblinoid)". The glossary
+   * gives the fourteen types rules and gives a subtype tag none at all, so a
+   * spell demanding one names nobody: `isCreatureType` compares the type and
+   * never a substring of it, which is exactly what makes a tag unmatchable
+   * rather than loosely matchable. The same code as the outcome clause,
+   * because it is the same defect.
+   */
+  const mustBeType = definition.targets.mustBeType;
+  if (mustBeType !== undefined && !CREATURE_TYPES.includes(mustBeType as string)) {
+    found.push({
+      field: 'targets.mustBeType',
+      code: 'unknown_creature_type',
+      reason: `"${String(mustBeType)}" is not one of the SRD's fourteen creature types; a subtype tag such as Goblinoid is not a type and has no rules of its own`,
+    });
+  }
+
   // — geometry —————————————————————————————————————————————————————————————
 
   // One says the geometry chooses who is caught; the other says it bounds a
@@ -1001,6 +1285,7 @@ export function checkSpellDefinition(
     ['targetsWithin', definition.targetsWithin],
   ] as const) {
     if (area === undefined) continue;
+    if (!readsAsObject(area, key, 'a template is an object naming its shape', found)) continue;
     if (!AREA_KINDS.has(area.kind)) {
       found.push({
         field: `${key}.kind`,
@@ -1018,16 +1303,31 @@ export function checkSpellDefinition(
         reason: 'a persistent area trigger needs an area to be persistent in',
       });
     }
-    if (definition.areaTrigger.effects.length === 0) {
-      found.push({
-        field: 'areaTrigger.effects',
-        code: 'trigger_does_nothing',
-        reason: 'a trigger that resolves nothing is a save the engine would roll for no reason',
-      });
+    if (
+      readsAsObject(
+        definition.areaTrigger,
+        'areaTrigger',
+        'an area trigger is an object naming the moment it fires and what it resolves',
+        found,
+      ) &&
+      readsAsList(
+        definition.areaTrigger.effects,
+        'areaTrigger.effects',
+        'a trigger resolves a list of effects',
+        found,
+      )
+    ) {
+      if (definition.areaTrigger.effects.length === 0) {
+        found.push({
+          field: 'areaTrigger.effects',
+          code: 'trigger_does_nothing',
+          reason: 'a trigger that resolves nothing is a save the engine would roll for no reason',
+        });
+      }
+      definition.areaTrigger.effects.forEach((effect, i) =>
+        checkEffect(effect, definition.level, `areaTrigger.effects[${i}]`, found),
+      );
     }
-    definition.areaTrigger.effects.forEach((effect, i) =>
-      checkEffect(effect, definition.level, `areaTrigger.effects[${i}]`, found),
-    );
   }
 
   // The geometry pass's one bit of information, declared in data.
@@ -1061,7 +1361,15 @@ export function checkSpellDefinition(
 
   // — the damage type the SRD decides on a fact the engine does not hold ——
 
-  if (definition.damageTypeStated !== undefined) {
+  if (
+    definition.damageTypeStated !== undefined &&
+    readsAsList(
+      definition.damageTypeStated,
+      'damageTypeStated',
+      'the damage types a spell prints for the caster to choose between are a list',
+      found,
+    )
+  ) {
     if (definition.damageTypeStated.length < 2) {
       found.push({
         field: 'damageTypeStated',
@@ -1156,7 +1464,15 @@ export function checkSpellDefinition(
   );
 
   const activation = definition.activation;
-  if (activation !== undefined) {
+  if (
+    activation !== undefined &&
+    readsAsObject(
+      activation,
+      'activation',
+      'an activation is an object naming what a later action does',
+      found,
+    )
+  ) {
     // Stated in CLAUDE.md and pinned here: a later action reaches from the
     // caster **or** from the point the casting keeps. Two fields saying five
     // feet are two places to get one sentence wrong.
@@ -1191,9 +1507,15 @@ export function checkSpellDefinition(
         });
       }
     }
+    const resolves = readsAsList(
+      activation.effects,
+      'activation.effects',
+      'an activation resolves a list of effects, empty for the one whose whole content is moving the area',
+      found,
+    );
     // SRD Moonbeam's later Magic action *is* the move; every other activation
     // does something. One that does neither spends an action on nothing.
-    if (activation.effects.length === 0 && activation.movesArea === undefined) {
+    if (resolves && activation.effects.length === 0 && activation.movesArea === undefined) {
       found.push({
         field: 'activation.effects',
         code: 'activation_does_nothing',
@@ -1207,12 +1529,22 @@ export function checkSpellDefinition(
         reason: 'a later turn can only act through a casting that is still running',
       });
     }
-    activation.effects.forEach((effect, i) =>
-      checkEffect(effect, definition.level, `activation.effects[${i}]`, found),
-    );
+    if (resolves) {
+      activation.effects.forEach((effect, i) =>
+        checkEffect(effect, definition.level, `activation.effects[${i}]`, found),
+      );
+    }
   }
 
-  if (definition.origin !== undefined) {
+  if (
+    definition.origin !== undefined &&
+    readsAsObject(
+      definition.origin,
+      'origin',
+      'a point the casting holds is an object naming the reach measured from it',
+      found,
+    )
+  ) {
     if (definition.origin.reach < 0) {
       found.push({
         field: 'origin.reach',
@@ -1245,11 +1577,35 @@ export function checkSpellDefinition(
    * the refusal it replaced — and it is the single easiest mistake to make in
    * this format, because it compiles.
    */
+  /*
+   * Read once, so the two rules below cannot disagree about what is declared.
+   *
+   * **`undefined` is absent; everything else is read against the declared
+   * type**, `null` included. That is one rule for every optional field in this
+   * file, and it had two answers for a while: `??` read a null here as absent
+   * while the rider slots reported one. `null` is not a member of
+   * `readonly string[] | undefined`, and a value the compiler would refuse is
+   * exactly what a validator over untyped input exists to name. No definition
+   * in the catalogue carries a null anywhere, so nothing that existed depends
+   * on the reading that changed.
+   */
+  const notes =
+    definition.unmodelled === undefined
+      ? []
+      : readsAsList(
+            definition.unmodelled,
+            'unmodelled',
+            'the clauses a definition declares it does not model are a list of notes',
+            found,
+          )
+        ? definition.unmodelled
+        : [];
+
   if (
     definition.effects.length === 0 &&
     definition.activation === undefined &&
     definition.areaTrigger === undefined &&
-    (definition.unmodelled ?? []).length === 0
+    notes.length === 0
   ) {
     found.push({
       field: 'unmodelled',
@@ -1258,8 +1614,8 @@ export function checkSpellDefinition(
     });
   }
 
-  (definition.unmodelled ?? []).forEach((note, i) => {
-    if (note.trim().length === 0) {
+  notes.forEach((note, i) => {
+    if (typeof note !== 'string' || note.trim().length === 0) {
       found.push({
         field: `unmodelled[${i}]`,
         code: 'empty_note',
@@ -1369,11 +1725,13 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       code: 'missing_field',
       reason: 'every definition carries an effect list, empty for a tracked spell',
     });
-  } else {
-    effects.forEach((effect, i) => {
+  }
+
+  for (const [where, list] of effectLists(d)) {
+    list.forEach((effect, i) => {
       if (typeof effect !== 'object' || effect === null) {
         found.push({
-          field: `effects[${i}]`,
+          field: `${where}[${i}]`,
           code: 'not_an_effect',
           reason: 'an effect is an object naming its kind',
         });
@@ -1382,16 +1740,63 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       const kind = (effect as { kind?: unknown }).kind;
       if (typeof kind !== 'string' || !EFFECT_KINDS.has(kind)) {
         found.push({
-          field: `effects[${i}].kind`,
+          field: `${where}[${i}].kind`,
           code: 'unknown_effect',
           reason: `"${String(kind)}" is not an effect the engine resolves`,
         });
       }
-      checkNoNestedEffect(effect, `effects[${i}]`, found);
+      checkNoNestedEffect(effect, `${where}[${i}]`, found);
     });
   }
 
   return found;
+}
+
+/**
+ * Every effect list a definition carries, as one enumeration.
+ *
+ * **`checkEffect` is one function reached from three lists**, so the guarantee
+ * its branches rely on — that an entry is an object naming a `kind` this
+ * engine knows — has to hold for all three or for none. It held for one.
+ * `areaTrigger.effects` and `activation.effects` were walked only by the
+ * semantic pass, which handed their entries straight to a `switch` on
+ * `effect.kind`: a `null` there threw, and a string, a number, a list or an
+ * unknown kind was accepted with no problem at all.
+ *
+ * So the entry rules live here, once, and `checkEffect` needs no guard of its
+ * own. The rule for the five tasks queued behind this one: **entry-level
+ * guards for every effect list are `checkShape`'s; `checkEffect` assumes a
+ * known kind.**
+ *
+ * **The leaf denylist came along for free, and it was the bigger hole.**
+ * `checkNoNestedEffect` is reached only from this walk, so a rider carrying
+ * `effects`, `targets`, `targetsWithin` or `area` — or an effect `kind` below
+ * an effect — validated clean whenever it sat in a nested list. CLAUDE.md's
+ * "three places enforce that a rider is a leaf" named the validator as one of
+ * them, and the validator enforced it on one list of three; the test sweep
+ * walks all three, which is why the catalogue is clean and why nothing caught
+ * it.
+ *
+ * **A nested list is walked only when its parent is readable and it is a
+ * list.** Anything else is the *container* being malformed, which the semantic
+ * pass already reports at the container's own path — so saying nothing here
+ * leaves one defect with one answer rather than two.
+ */
+function effectLists(d: Record<string, unknown>): (readonly [string, readonly unknown[]])[] {
+  const nested = (parent: string): (readonly [string, readonly unknown[]])[] => {
+    const holder = d[parent];
+    if (typeof holder !== 'object' || holder === null || Array.isArray(holder)) return [];
+    const list = (holder as { readonly effects?: unknown }).effects;
+    return Array.isArray(list) ? [[`${parent}.effects`, list]] : [];
+  };
+
+  return [
+    ...(Array.isArray(d['effects'])
+      ? ([['effects', d['effects']]] as (readonly [string, readonly unknown[]])[])
+      : []),
+    ...nested('areaTrigger'),
+    ...nested('activation'),
+  ];
 }
 
 /**
