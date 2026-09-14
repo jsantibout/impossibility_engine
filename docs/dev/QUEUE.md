@@ -720,6 +720,34 @@ arity here, a wrong correction about the movement seed in IE-031. Four
 substantive brief errors this tranche, every one caught by a builder or a
 reviewer, none reaching `main`.
 
+**IE-033 is at a foreman-launched confirming review, not a YELLOW.** Three
+rounds ran and none returned `PASS`, which its brief treats as an escalation —
+but all three recorded *"Architectural violations: none"*, *"Escalation
+reason: none"* and *"Confidence: high"*, and every finding was ordinary: two
+fixtures that could not fail for the reason their names gave, then **six stale
+docstrings the builder's own change had falsified** plus one dead branch. The
+builder said so itself — "the block is procedural, not architectural" — and it
+was right. **Round exhaustion is not a failed review**, so the foreman
+authorised the pass rather than waking Fable for a question nobody has.
+
+Round 3's fixes have never been independently reviewed, which is the same
+structural gap IE-026 hit three times: a fix that closes a review's findings is
+not itself reviewed, so no `PASS` exists on the commit that would merge. The
+confirming reviewer is told to read the **whole** task and to verify by
+mutation that `grantCarried`'s new `case 'speed'` is reachable — round 3 found
+it **dead**, with every fixture reaching `bad_speed_change` first and the sweep
+asserting only `isErr`, so mutating it to `return null` left all 7,316 tests
+green.
+
+**One behaviour narrowing is carried to the owner rather than decided here.**
+**Ray of Frost is now refused outside combat**, because its rider is
+turn-anchored and a turn-anchored duration outside combat is refused rather
+than approximated — the engine's established rule, and Color Spray already
+behaves that way. It is nonetheless a common damage cantrip that could be
+thrown out of combat before this. Consistent, and a real narrowing; the
+confirming reviewer is asked for an independent read on whether the refusal is
+the honest answer.
+
 **Running:** IE-021, IE-022, IE-023 (wave 1), IE-026's confirming review, and
 Fable on IE-024.
 
@@ -893,3 +921,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | launch | IE-032 | wave 4, alone. Its launch prompt carries the five things that landed under its brief while it waited — IE-030's third stated fact, IE-031's reducer and budget change, IE-024's `effectLists` idiom, IE-026's `satisfyWith` sweep and IE-021's write guard — because a brief pointing at stale line numbers is how a builder fixes the wrong thing, and that has nearly happened twice tonight |
 | 2026-09-14 | merge (tranche authority) | IE-032 | merged `db62430`, 13/13, risk gate inspected — a new derived pass in the reducer pipeline. **Termination is structural rather than argued**: a mutation dropping one check *hung the fold*, so the loop is now bounded by a settled-set keyed on (casting, subject). One declared deviation, verified against the book by three readers: "Mislead is finished" is false — SRD ends the *invisibility*, not the casting. And it found that IE-013's zero-user-member sweep **could not read a multi-line literal union**, so it would have swept this task's own new type with nothing |
 | 2026-09-14 | finding (tooling) | — | **32 orphaned worktree directories** under `.claude/worktrees/`, from this tranche and earlier ones. `git worktree list` is clean and `git worktree prune` has run, so git's registry is correct and new worktrees are unaffected; the directories themselves resist deletion under Windows file locks. Disk clutter rather than a correctness problem, and best cleared when nothing is running |
+| 2026-09-14 | confirming review (foreman-launched) | IE-033 | three rounds, no `PASS`, and the builder correctly called the block **procedural rather than architectural** — every verdict recorded no architectural violation, no escalation reason and high confidence. Round exhaustion, so the foreman authorised the pass instead of an escalation Fable has no question to answer. The reviewer is told to read the whole task and to **verify by mutation** that `grantCarried`'s new `case 'speed'` is reachable, because round 3 found it dead: every fixture hit `bad_speed_change` first and the sweep asserted only `isErr`, so `return null` left 7,316 tests green |
+| 2026-09-14 | behaviour narrowing, for the owner | IE-033 | **Ray of Frost is refused outside combat** once its −10 rider is modelled, because a turn-anchored duration outside combat is refused rather than approximated. That is the engine's established rule and Color Spray already behaves so, but Ray of Frost is a common damage cantrip that worked out of combat before. Recorded rather than decided; the alternative — apply the damage and silently drop the rider — would be a new rule and the wrong kind |

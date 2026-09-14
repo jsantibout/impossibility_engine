@@ -1,6 +1,6 @@
 # IE-033 — A Speed an effect changes
 
-state: IMPLEMENTING
+state: AWAITING_FOREMAN_REVIEW
 lane: mechanism
 tranche: 5
 parallel-safe: NO — a union task touching `events.ts`, `spell-resolution.ts` and `standing.ts`; runs alone
