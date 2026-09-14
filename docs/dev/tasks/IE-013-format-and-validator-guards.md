@@ -1,13 +1,13 @@
 # IE-013 — Guards that can see a zero-user member, and three that were missing
 
-state: IMPLEMENTING
+state: DONE
 lane: conformance
 tranche: 4
 parallel-safe: YES — validator rules, sweeps and one read-site change; no effect kind, no union member, no new event
 depends-on: none
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-ad9a21180a344d5bc · worktree-agent-ad9a21180a344d5bc
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -116,8 +116,11 @@ the format is one test.
 
 ### Dependencies
 
-None on `main`. **Sequenced after IE-010 at merge**, because IE-010 removes
-`roll-mode.save` and item 1 counts it; the foreman rebases.
+~~None on `main`. **Sequenced after IE-010 at merge**~~ — **wrong, and the
+builder flagged it.** This line contradicted `QUEUE.md` and the launch
+message, which both said IE-013 merges *first* precisely because its sweep
+counts `roll-mode.save` while it still exists. The builder built for merging
+first, which is correct. Fourth self-contradicting brief of the wave.
 
 ### Likely file surface
 
@@ -136,3 +139,57 @@ per-event field schemas; `index.ts` tiering.
 - Item 1 may find more than the three zero-user members the audit named. That
   is the guard working; report them, and take the honest answer for each
   rather than inventing users.
+
+
+## Merge record
+
+Merged to `main` as `b1a3b3c`, fast-forward, pushed. Worktree retired.
+PASS at high confidence, round three.
+
+**The guard that can see a zero-user member exists, and it found four**, not
+the three the audit named: `SpellDefinition.anchoring?`, `SpellEffect.save?`,
+`SpellEffect.onSuccess='end-casting'` and `SpellCheck.dc?`. Each takes a
+written exemption with a pinned fact, and none was "fixed" by inventing a
+definition for it — which the brief forbade and which is the temptation the
+rule exists to resist. The special-case sweep now reads a recursive listing of
+every non-test source file, and its non-vacuity is driven **per file**: a
+smuggled `spellId === 'fireball'` appended to each real file must fail by
+name. The mutation that proves the widening is real failed in `duration.ts`,
+a file the old list did not cover.
+
+**One deviation, ratified: `persistence-2.test.ts` gains a 30-second timeout.**
+Out of surface, and measured rather than guessed — base tree 0 failures in 16
+runs, with this work 4 in 15, a control of base plus 314 trivial cases 0 in 8,
+and 10 consecutive clean runs with the timeout. No assertion weakened: the
+test asserts a fold, not a speed. **It also closes a finding two other
+builders had already reported independently** — IE-011 and IE-012 both hit
+this test crossing the 5-second default under concurrent load, at
+5042/5500/5668 ms. Three builders and a foreman met the same flake; one of
+them fixed it while passing.
+
+**The rebase raised the tranche's first conflict**, in `CLAUDE.md`, and it was
+the playbook's case rather than a decision: IE-013's timeout paragraph is new
+and was kept, while its event-count paragraph was the pre-IE-012 wording of
+one IE-012 had already corrected, so `main`'s version stood. Both sides'
+current contribution, which is what "keep both sides' prose" means when one
+side's prose has been superseded in the meantime.
+
+The thirteen conditions: 1 inside the brief, one file outside it and ratified ·
+2 COMPLETE · 3 PASS at high, round three · 4 no defects · 5 gauntlet in the
+worktree ✓ · 6 `COVERAGE.md` byte-clean, correctly — no definition changed ·
+7 no blocker · 8 one deviation, ratified above · 9 no foundational primitive:
+`spell-schema.ts` gains rules only, `events.ts`, the reducer and the type
+declarations untouched, and item 6 stayed one read site in `turns.ts` · 10 no
+scope expansion · 11 the conflict resolved mechanically · 12 gauntlet re-run
+on `main`: typecheck ✓ lint ✓ **6023/6023** ✓ coverage byte-clean ✓, both
+fixtures untouched · 13 risk gate GREEN.
+
+**The handover to IE-010 is deliberate and is working.** `SpellEffect.save?`'s
+exemption and its pin test — *"pins that the member IE-010 removes is still
+there to be removed"* — are built to fail the instant `roll-mode.save` goes.
+IE-010 rebased over this and hit seven conflicts, five of them in
+`spell-schema.ts`, because **the foreman's brief gave that file to both
+tasks**. The conflicts are code decisions — both tasks restructured
+`checkConditionRider`, in different and both-wanted directions — so they went
+back to IE-010's builder with the rebase paused in its worktree, rather than
+being resolved by the foreman in a rebase.
