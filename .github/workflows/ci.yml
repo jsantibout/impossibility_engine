@@ -54,10 +54,17 @@ jobs:
       - name: Typecheck
         run: npm run typecheck:ci
 
-      # Required, not optional. packages/srd/src/generated/ is gitignored, and
-      # coverage.test.ts imports scripts/coverage.ts, whose top-level code reads
-      # generated/spells.json — so without this, `npm test` dies at collection
-      # and takes 274 tests with it.
+      # Required, not optional. packages/srd/src/generated/ is gitignored and
+      # engine modules import @ie/srd as a *value*, not just for types, so
+      # without this `npm test` dies at collection. The `npm run coverage` step
+      # below needs it too: auditSpells() reads generated/spells.json.
+      #
+      # That reason used to name a narrower chain — coverage.test.ts importing
+      # scripts/coverage.ts, whose *top-level* code read spells.json. IE-021
+      # removed both halves: the test imports coverage-data.ts now, and the read
+      # happens inside auditSpells() under a main-module guard. The step is no
+      # less required; the rationale was, and a live step must not rest on a
+      # dead one.
       #
       # ingest.ts asserts hard counts (339 spells, 235 monsters, …) and exits 1
       # on a shortfall, so it is a parser regression test in its own right. It

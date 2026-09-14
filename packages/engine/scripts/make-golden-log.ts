@@ -11,6 +11,7 @@
  * obvious way to write one.
  */
 import { writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '../src/character.js';
 import { createRng } from '../src/dice.js';
@@ -265,32 +266,37 @@ push(
 // And the rat hunkers down, which is a benefit with a turn-anchored deadline.
 push(unwrap(takeDodge(fold('golden', log), RAT, { commandId: 'dodge-rat' }), 'rat dodge'));
 
-const state = fold('golden', log);
-writeFileSync(
-  process.argv[2] ?? 'golden-log.json',
-  `${JSON.stringify(log, null, 2)}\n`,
-  'utf8',
-);
+/** True when Node was asked to run this file, rather than something importing it. */
+const isMainModule = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
 
-console.log(
-  JSON.stringify(
-    {
-      events: log.length,
-      types: [...new Set(log.map((e) => e.type))].sort().length,
-      elapsed: state.elapsed,
-      round: state.combat?.round,
-      clericHp: state.creatures.cleric?.vitals.hp,
-      thugConditions: state.creatures.thug?.conditions.conditions,
-      ratHp: state.creatures.rat?.vitals.hp,
-      slots1: state.creatures.cleric?.resources,
-      castings: state.castingsBegun,
-      commands: Object.keys(state.appliedCommands).length,
-      timers: Object.keys(state.timers).length,
-      pendingSaves: Object.keys(state.pendingSaves).length,
-      activeFeatures: state.creatures.rat?.activeFeatures,
-      concentration: state.creatures.cleric?.concentration?.spell ?? null,
-    },
-    null,
-    2,
-  ),
-);
+if (isMainModule) {
+  const state = fold('golden', log);
+  writeFileSync(
+    process.argv[2] ?? 'golden-log.json',
+    `${JSON.stringify(log, null, 2)}\n`,
+    'utf8',
+  );
+
+  console.log(
+    JSON.stringify(
+      {
+        events: log.length,
+        types: [...new Set(log.map((e) => e.type))].sort().length,
+        elapsed: state.elapsed,
+        round: state.combat?.round,
+        clericHp: state.creatures.cleric?.vitals.hp,
+        thugConditions: state.creatures.thug?.conditions.conditions,
+        ratHp: state.creatures.rat?.vitals.hp,
+        slots1: state.creatures.cleric?.resources,
+        castings: state.castingsBegun,
+        commands: Object.keys(state.appliedCommands).length,
+        timers: Object.keys(state.timers).length,
+        pendingSaves: Object.keys(state.pendingSaves).length,
+        activeFeatures: state.creatures.rat?.activeFeatures,
+        concentration: state.creatures.cleric?.concentration?.spell ?? null,
+      },
+      null,
+      2,
+    ),
+  );
+}

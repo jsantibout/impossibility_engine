@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { EXECUTED_SPELL_IDS, PARTIAL_SPELLS } from '../scripts/coverage.js';
+import { EXECUTED_SPELL_IDS, PARTIAL_SPELLS } from '../scripts/coverage-data.js';
 import {
   ADJUDICATED,
   MISSING_SHAPES,

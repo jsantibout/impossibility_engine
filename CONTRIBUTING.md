@@ -30,7 +30,7 @@ Pours spells into the shapes that already execute. Owns:
 | Path | Notes |
 |---|---|
 | `packages/engine/src/spell-definitions.ts` | Definitions and the registry — everything from the first definition down |
-| `packages/engine/scripts/coverage.ts` | The `VERIFIED_SPELLS` list |
+| `packages/engine/scripts/coverage-data.ts` | The `VERIFIED_SPELLS` list. It was in `coverage.ts` until IE-021 split the measurement from the renderer; the renderer holds no list |
 | `spell-catalogue.test.ts`, `spell-effects.test.ts`, `spell-areas.test.ts`, `coverage.test.ts` | |
 | `COVERAGE.md` | Regenerated, never hand-edited |
 

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SPELL_INDEX, spellById } from '@ie/srd';
 import { SPELL_DEFINITIONS } from './spell-definitions.js';
-import { PARTIAL_SPELLS, VERIFIED_SPELLS, isExecuted } from '../scripts/coverage.js';
+import { PARTIAL_SPELLS, VERIFIED_SPELLS, isExecuted } from '../scripts/coverage-data.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 

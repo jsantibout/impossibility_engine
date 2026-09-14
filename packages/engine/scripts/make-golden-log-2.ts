@@ -44,6 +44,7 @@
  * no character sheet, and that is the case the suite writes by hand.
  */
 import { writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from '../src/character.js';
 import type { Point } from '../src/positioning.js';
@@ -1118,30 +1119,35 @@ if (last.attack?.hit !== true) throw new Error('the fixture meant that swing to 
 
 // ————————————————————————————————————————————————————————————————————————————
 
-const final = state();
-writeFileSync(process.argv[2] ?? 'golden-log-2.json', `${JSON.stringify(log, null, 2)}\n`, 'utf8');
+/** True when Node was asked to run this file, rather than something importing it. */
+const isMainModule = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
 
-const used = [...new Set(log.map((e) => e.type))].sort();
-console.log(
-  JSON.stringify(
-    {
-      events: log.length,
-      types: used.length,
-      usedTypes: used,
-      elapsed: final.elapsed,
-      round: final.combat?.round ?? null,
-      castings: final.castingsBegun,
-      commands: Object.keys(final.appliedCommands).length,
-      timers: Object.keys(final.timers).length,
-      pendingSaves: Object.keys(final.pendingSaves).length,
-      ongoing: Object.keys(final.ongoing).length,
-      pendingDamage: final.pendingDamage !== null,
-      grease: grease.castingId,
-      web: web.castingId,
-      beam: beam.castingId,
-      held: held.castingId,
-    },
-    null,
-    2,
-  ),
-);
+if (isMainModule) {
+  const final = state();
+  writeFileSync(process.argv[2] ?? 'golden-log-2.json', `${JSON.stringify(log, null, 2)}\n`, 'utf8');
+
+  const used = [...new Set(log.map((e) => e.type))].sort();
+  console.log(
+    JSON.stringify(
+      {
+        events: log.length,
+        types: used.length,
+        usedTypes: used,
+        elapsed: final.elapsed,
+        round: final.combat?.round ?? null,
+        castings: final.castingsBegun,
+        commands: Object.keys(final.appliedCommands).length,
+        timers: Object.keys(final.timers).length,
+        pendingSaves: Object.keys(final.pendingSaves).length,
+        ongoing: Object.keys(final.ongoing).length,
+        pendingDamage: final.pendingDamage !== null,
+        grease: grease.castingId,
+        web: web.castingId,
+        beam: beam.castingId,
+        held: held.castingId,
+      },
+      null,
+      2,
+    ),
+  );
+}

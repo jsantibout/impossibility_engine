@@ -115,7 +115,9 @@ Four rules that a session will otherwise break, all of them learned here:
   `persistence.test.ts` or `persistence-2.test.ts` pass converts a
   compatibility test into a rubber stamp, which is worse than deleting it.
 - **Always run `npm run coverage`** after touching a spell definition, and
-  commit the result. CI fails on a stale `COVERAGE.md`.
+  commit the result. CI fails on a stale `COVERAGE.md` — which it did not, for
+  as long as the suite was quietly regenerating the file first. See "A Script
+  That Writes Must Not Write When It Is Imported".
 - **Check the registry before adding a spell.** Two parallel sessions once both
   wrote Vitriolic Sphere; only a duplicate-symbol error caught it. Grep first.
 - **Rebase on `main` before pushing**, and keep pull requests to one logical
@@ -6057,6 +6059,97 @@ Dash doubles lives on the Initiative order rather than on the budget beside it.
 non-positive `regainsOnShortRest` and `declareResourcePool` does not ask, so it
 too reaches the reducer and throws. It was not in IE-018's report and is not
 fixed here; it is the next one.
+
+### A Script That Writes Must Not Write When It Is Imported
+
+`COVERAGE.md` is this repository's answer to every number that matters — the
+reason no count of spells, definitions or features is written down in prose —
+and the gauntlet ends with `npm run coverage && git diff --exit-code
+COVERAGE.md`, which is what makes the committed report trustworthy.
+
+**It was asserting that the suite had run.** `coverage.ts` called
+`writeFileSync('COVERAGE.md', …)` at module top level, and two test files
+imported that module for its data — so `npm test` regenerated the file the
+gauntlet then diffed, and the diff was empty no matter what the committed file
+said. Proved by experiment rather than by reading: append a line to the tracked
+file, run one test file, read an empty diff. **Every merge record saying
+"`COVERAGE.md` byte-clean" was true for the wrong reason.** Nothing downstream
+was wrong when it was found, which is the point — the check that would have
+said so was not running.
+
+The fix is the split, not the guard. `coverage-data.ts` holds the measurement —
+the two hand lists, `isExecuted`, the audits — and has no top-level effect at
+all, so a test wanting `PARTIAL_SPELLS` never reaches the renderer;
+`coverage.ts` keeps the renderer and the write. A guard alone would have left a
+writing module on two test files' import graphs, one `import` away from the
+same failure.
+
+**The write sits inside the guard block, not in a `main()` the guard calls.**
+A block is not callable and a function is, so lexical containment is a claim a
+source sweep can make and a reader can check — which is what
+`coverage-script.test.ts` asserts across the whole of `scripts/`, reading the
+compiler's own AST rather than matching text, so a write nested in a function,
+a branch or a callback is seen exactly as written. Driven over synthetic
+sources in **both** directions — several it must catch, including the `main()`
+shape, because a sweep that can only be run against data it already agrees with
+is not a sweep, and one it must **pass**, because a sweep satisfied by
+reporting everything is not one either. No count is written here: the cases are
+in the file, and a number in prose is the thing this section is about.
+
+**The population is every script Node can run, not every `.ts`.** The directory
+holds only TypeScript today, so a `.ts` filter would have been the files that
+happen to be there rather than the rule — and `packages/srd/scripts` carries a
+`.mjs`, which makes that a file type this repository uses rather than a
+hypothetical. The filter is pinned by its own case, because the directory
+cannot demonstrate a reach it does not yet exercise.
+
+**A test beside a script is an entry point, not a library, and the rule is not
+about it.** IE-023 put two tests in that directory and the sweep reported one
+of them: `check-queue.test.ts` writes throwaway `docs/dev` fixtures so it can
+drive the real validator. The rule was right and its population was wrong.
+Vitest runs a test the way Node runs a script — nothing imports it for its
+exports, and **this sweep's own file** writes a synthetic module into a temp
+directory — so a test is the *second* kind of entry point rather than a
+module something imports for its data, which is the only thing that can be
+imported into writing.
+
+Three things make that an exclusion rather than a hole. The reason is
+**checked**: a test in that directory is something vitest collects, which is a
+glob in `vitest.config.ts`, and the sweep holds the glob against its own
+predicate — delete the glob and the sentence stops being true and the test
+fails. The failure direction is **safe**: if the predicate stopped matching,
+tests would rejoin the population and the sweep would go red rather than
+quiet, because tests write. And the exclusion is **exercised by the real
+directory**, so a predicate nothing reaches says so.
+
+**What replaced the inventory is a floor, and the difference is the finding.**
+The listing pinned every file in the directory, which a reviewer had praised as
+the guard against a population that silently empties — and it was then the only
+thing that failed when somebody added two files the rule has nothing to say
+about, costing a full review round. A hand-kept list of files is the shape this
+repository keeps finding wrong. What a vacuity guard actually has to do is fail
+when the population *empties*, so it names the three scripts that **write**: a
+wrong directory, a filter too narrow and an exclusion too broad all take those
+out of it, and none of them is disturbed by a file arriving. A new script with
+an unguarded write still fails the sweep itself; a new script without one
+should fail nothing, which is exactly what an inventory got wrong.
+
+**One idiom, spelled one way, and executed rather than read.** The sweep holds
+every guarding script to the same line byte for byte, because the looser
+reading — "the condition mentions `import.meta.url`" — accepts
+`const isMainModule = true`, which passes every source check and breaks nothing
+until the report silently stops being written. A synthetic module carrying that
+exact line is run by Node twice, as the entry point and as an import, and
+writes in the first case and not the second. The real script's positive control
+is the gauntlet itself, which regenerates the file on every run.
+
+**The two golden-log generators were in the same population and are guarded
+too.** Nothing imports them today — which is exactly what was true of
+`coverage.ts` until two tests did, so an exemption reading "nobody imports it
+yet" is the reasoning that failed here rather than an alternative to fixing it.
+They are also the two files this repository is loudest about never running by
+accident. Both produce byte-identical output to the version before the guard,
+which is how that was checked.
 
 ### `once` makes "the duplicate check comes first" structural
 
