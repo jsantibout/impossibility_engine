@@ -1964,6 +1964,52 @@ that grew, the sheet the new level derives.
 **Pools grow rather than being re-declared**, for the same reason.
 `resource-pool-resized` changes a maximum and leaves what has been spent spent.
 
+### Two lists of pool kinds is how a level silently stops granting one
+
+Creation declared seven kinds of pool — the Hit Die pool, the spell slots, a
+feat's free casting, a feature that is switched on, a feature that *is* a
+resource, a Reaction with a limit of its own, and a recovery's single daily
+use. **Advancement carried a second list, and that list held two of them.**
+The comment above it said "Pools that already exist grow; pools that did not
+exist are declared", which was true of the two below it and false of the other
+five, which is exactly why it read as complete.
+
+What that cost was a wrong number in a shipped path — the class of failure
+this file calls its worst, because it looks like a rules bug forever after:
+
+| Feature | SRD sizing | A character advanced 3 → 4 had |
+|---|---|---|
+| Lay On Hands | "five times your Paladin level" | 15 hit points in the pool, not 20 |
+| Sorcery Points | the Sorcerer level | 3, not 4 |
+| Rage, Channel Divinity, Wild Shape, Second Wind, Bardic Inspiration | a column of the class table | whatever the table printed at the level they were *created* at |
+
+And a pool that arrives later never arrived at all: a Fighter advanced to 9 had
+Indomitable on the sheet and nothing to spend, so `takeTestReaction` refused a
+Reaction the character was entitled to.
+
+So `poolsFor` is the one derivation and both callers reach it. Creation maps
+every pool to a declaration; advancement declares what the creature does not
+hold, resizes what it holds at a different maximum, and **emits nothing at all
+for a pool the level left alone** — a resize to the number already stored is an
+event recording that nothing happened, and the log should not carry one per
+level per feature. The level is read off `choices` rather than passed beside
+it, because a caller that can hand in a different number is a caller that can
+hand in the wrong one.
+
+**Shrinking is proven absent rather than branched on.** A downward resize would
+clamp `spent` to the new maximum and quietly hand back a use already spent, so
+it wants a rule rather than a guess — and no SRD progression asks for one.
+`class-pools.test.ts` sweeps every pool-declaring feature in the twelve classes
+and asserts no column falls and no per-level multiple is negative, which is
+what says so.
+
+**Two frozen logs fold unchanged, and that is the compatibility story.**
+`golden-log-2.json` contains a real advancement, written before any of these
+events existed. The fixture is a *log*: folding it applies the events it
+records, and a fold that would now emit more of them changes nothing about what
+those events mean. Regenerating it to match a richer batch would have converted
+a compatibility test into a rubber stamp.
+
 **Validation reports every problem, not the first.** `checkCharacter` returns a
 list with a `field` on each, because a caller filling in a character does not
 want to be told about one mistake at a time; `planCharacter` returns the first

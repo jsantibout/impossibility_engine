@@ -2419,44 +2419,47 @@ export function liftsFor(
   return [...new Set([...base, ...added])].sort();
 }
 
-/** The pools a character of this class and level has. */
-function poolEvents(
-  id: CharacterId,
+/**
+ * Every pool a character of these choices has, at the level they are now.
+ *
+ * **One derivation, two callers.** Creation declares all of them; advancement
+ * declares the ones that did not exist and resizes the ones the new level
+ * moved. Before this was one function, advancement carried a second list of
+ * its own, and that list held two of the seven kinds below — so a Paladin who
+ * reached level 4 in play laid on fifteen hit points where the SRD prints
+ * twenty, a Sorcerer's Font of Magic never grew, and a Fighter who reached
+ * level 9 in play had Indomitable on the sheet and no pool to spend it from.
+ * Two lists of pool kinds that have to agree is exactly the shape that bug
+ * had, so there is one.
+ *
+ * The level is read off `choices` rather than passed beside it, for the same
+ * reason: a caller that could hand in a different number is a caller that
+ * could hand in the wrong one.
+ */
+function poolsFor(
   definition: ClassDefinition,
   plan: CharacterPlan,
-  level: number,
   features: readonly FeatureDefinition[],
   choices: CharacterChoices,
-): GameEvent[] {
-  const events: GameEvent[] = [
+): readonly PoolDeclaration[] {
+  const pools: PoolDeclaration[] = [
     {
-      type: 'resource-pool-declared',
-      id,
-      pool: {
-        key: hitDieKey(definition.hitDie),
-        label: `Hit Die (d${definition.hitDie})`,
-        max: level,
-        recovers: 'long-rest',
-      },
+      key: hitDieKey(definition.hitDie),
+      label: `Hit Die (d${definition.hitDie})`,
+      max: choices.level,
+      recovers: 'long-rest',
     },
+    ...slotPools(plan),
   ];
-
-  for (const pool of slotPools(plan)) {
-    events.push({ type: 'resource-pool-declared', id, pool });
-  }
 
   // A feat's free casting is a pool too, one per grant that has one.
   for (const grant of plan.spellcasting.granted) {
     if (grant.freeCastPool === null) continue;
-    events.push({
-      type: 'resource-pool-declared',
-      id,
-      pool: {
-        key: grant.freeCastPool,
-        label: `free casting of ${grant.spellId}`,
-        max: 1,
-        recovers: 'long-rest',
-      },
+    pools.push({
+      key: grant.freeCastPool,
+      label: `free casting of ${grant.spellId}`,
+      max: 1,
+      recovers: 'long-rest',
     });
   }
 
@@ -2467,18 +2470,14 @@ function poolEvents(
   for (const feature of features) {
     const grant = feature.grants;
     if (grant?.kind !== 'activated' || grant.pool === null) continue;
-    events.push({
-      type: 'resource-pool-declared',
-      id,
-      pool: {
-        key: grant.pool,
-        label: grant.poolLabel ?? feature.name,
-        max: usesOf(choices, feature.id, grant.usesByLevel),
-        recovers: grant.recovers ?? 'long-rest',
-        ...(grant.regainsOnShortRest === undefined
-          ? {}
-          : { regainsOnShortRest: grant.regainsOnShortRest }),
-      },
+    pools.push({
+      key: grant.pool,
+      label: grant.poolLabel ?? feature.name,
+      max: usesOf(choices, feature.id, grant.usesByLevel),
+      recovers: grant.recovers ?? 'long-rest',
+      ...(grant.regainsOnShortRest === undefined
+        ? {}
+        : { regainsOnShortRest: grant.regainsOnShortRest }),
     });
   }
 
@@ -2487,18 +2486,14 @@ function poolEvents(
   for (const feature of features) {
     const grant = feature.grants;
     if (grant?.kind !== 'pool') continue;
-    events.push({
-      type: 'resource-pool-declared',
-      id,
-      pool: {
-        key: grant.key,
-        label: grant.label ?? feature.name,
-        max: poolSizeOf(choices, feature.id, grant),
-        recovers: grant.recovers,
-        ...(grant.regainsOnShortRest === undefined
-          ? {}
-          : { regainsOnShortRest: grant.regainsOnShortRest }),
-      },
+    pools.push({
+      key: grant.key,
+      label: grant.label ?? feature.name,
+      max: poolSizeOf(choices, feature.id, grant),
+      recovers: grant.recovers,
+      ...(grant.regainsOnShortRest === undefined
+        ? {}
+        : { regainsOnShortRest: grant.regainsOnShortRest }),
     });
   }
 
@@ -2511,18 +2506,14 @@ function poolEvents(
     if (grant?.kind !== 'reaction' || grant.declares === undefined || grant.pool === undefined) {
       continue;
     }
-    events.push({
-      type: 'resource-pool-declared',
-      id,
-      pool: {
-        key: grant.pool,
-        label: grant.poolLabel ?? feature.name,
-        // The same three sizings every other pool uses, read by the same
-        // function: Indomitable is a column of the Fighter table, Dark One's
-        // Own Luck is a Charisma modifier with a floor.
-        max: poolSizeOf(choices, feature.id, grant.declares),
-        recovers: grant.declares.recovers,
-      },
+    pools.push({
+      key: grant.pool,
+      label: grant.poolLabel ?? feature.name,
+      // The same three sizings every other pool uses, read by the same
+      // function: Indomitable is a column of the Fighter table, Dark One's
+      // Own Luck is a Charisma modifier with a floor.
+      max: poolSizeOf(choices, feature.id, grant.declares),
+      recovers: grant.declares.recovers,
     });
   }
 
@@ -2533,19 +2524,30 @@ function poolEvents(
   for (const feature of features) {
     const grant = feature.grants;
     if (grant?.kind !== 'recovery') continue;
-    events.push({
-      type: 'resource-pool-declared',
-      id,
-      pool: {
-        key: grant.pool,
-        label: grant.poolLabel ?? feature.name,
-        max: 1,
-        recovers: 'long-rest',
-      },
+    pools.push({
+      key: grant.pool,
+      label: grant.poolLabel ?? feature.name,
+      max: 1,
+      recovers: 'long-rest',
     });
   }
 
-  return events;
+  return pools;
+}
+
+/** Creation declares the lot; nothing exists yet for any of them to grow from. */
+function poolEvents(
+  id: CharacterId,
+  definition: ClassDefinition,
+  plan: CharacterPlan,
+  features: readonly FeatureDefinition[],
+  choices: CharacterChoices,
+): GameEvent[] {
+  return poolsFor(definition, plan, features, choices).map((pool) => ({
+    type: 'resource-pool-declared',
+    id,
+    pool,
+  }));
 }
 
 /** Create a character: the creature, its pools, and the choices that made it. */
@@ -2603,7 +2605,7 @@ export function createCharacter(
           },
         ]),
     ...choices.equipped.map((itemId) => ({ type: 'item-equipped' as const, id, item: itemId })),
-    ...poolEvents(id, definition, plan.value, choices.level, plan.value.features, choices),
+    ...poolEvents(id, definition, plan.value, plan.value.features, choices),
   ]);
 }
 
@@ -2737,17 +2739,23 @@ export function advanceCharacter(
   const gained = plan.value.hitPointMaximum - creature.vitals.hpMax;
   if (gained > 0) events.push({ type: 'hit-point-maximum-raised', id, amount: gained });
 
-  // Pools that already exist grow; pools that did not exist are declared. Both
-  // leave what has been spent alone.
-  const hitDice = hitDieKey(definition.hitDie);
-  events.push({ type: 'resource-pool-resized', id, key: hitDice, max: level });
-
-  for (const pool of slotPools(plan.value)) {
-    events.push(
-      creature.resources.pools[pool.key] === undefined
-        ? { type: 'resource-pool-declared', id, pool }
-        : { type: 'resource-pool-resized', id, key: pool.key, max: pool.max },
-    );
+  // Pools that already exist grow; pools that did not exist are declared; a
+  // pool the level left alone says nothing, because a resize to the number
+  // already stored is an event that records nothing happening. All three
+  // leave what has been spent alone — `resize` changes only the maximum.
+  //
+  // **Every kind of pool, through the one derivation creation uses.** This
+  // used to be a second list naming the Hit Die pool and the spell slots and
+  // no other kind, which is why a Fighter who reached level 9 in play had
+  // Indomitable on the sheet and nothing to spend.
+  for (const pool of poolsFor(definition, plan.value, plan.value.features, choices)) {
+    const held = creature.resources.pools[pool.key];
+    if (held === undefined) {
+      events.push({ type: 'resource-pool-declared', id, pool });
+      continue;
+    }
+    if (held.max === pool.max) continue;
+    events.push({ type: 'resource-pool-resized', id, key: pool.key, max: pool.max });
   }
 
   events.push({

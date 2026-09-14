@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { abilityModifier } from './character.js';
 import { fold, type GameEvent } from './events.js';
-import { createCharacter, allClasses, allSubclasses, type CharacterChoices } from './creation.js';
+import {
+  advanceCharacter,
+  createCharacter,
+  allClasses,
+  allSubclasses,
+  type CharacterChoices,
+} from './creation.js';
 import { FOCUS_POINTS } from './monk.js';
 import { SECOND_WIND_USES } from './fighter.js';
 import { declarePool, remaining, restoreOn, spend, type ResourceState } from './resources.js';
 import { expect as unwrapResource } from '@ie/shared';
+import { createRng, type Rng } from './dice.js';
+import { createRollIssuer, type RollIssuer } from './rolls.js';
+import { resolveTest, takeTestReaction } from './commands.js';
 
 /**
  * A feature that *is* a named resource.
@@ -147,8 +156,29 @@ const fighter = (level: number): CharacterChoices => ({
     ...common.feats,
     'fighter:fighting-style': { featId: 'defense' },
     ...(level >= 4 ? { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    // SRD Champion, Additional Fighting Style at level 7 — a second style, and
+    // it must be a different feat, because none may be taken twice.
+    ...(level >= 7 ? { 'champion:additional-fighting-style': { featId: 'archery' } } : {}),
   },
 });
+
+/** Ordered by spell level, because the prepared list below is cut to length. */
+const SORCERER_CANTRIPS: readonly string[] = [
+  'fire-bolt',
+  'ray-of-frost',
+  'shocking-grasp',
+  'acid-splash',
+  'light',
+];
+const SORCERER_SPELLS: readonly string[] = [
+  'magic-missile',
+  'burning-hands',
+  'charm-person',
+  'thunderwave',
+  'sleep',
+  'shatter',
+  'hold-person',
+];
 
 describe('a pool sized by an ability modifier', () => {
   /**
@@ -434,5 +464,301 @@ describe('a Short Rest that gives back one use without emptying the pool', () =>
       'fighter:second-wind',
       'paladin:channel-divinity',
     ]);
+  });
+});
+
+/**
+ * The other half of a pool's life: the level that grows it, and the level that
+ * grants it in the first place.
+ *
+ * `poolEvents` has declared every kind of pool since the nine unreachable ones
+ * were fixed, and `advanceCharacter` declared **two** of them — the Hit Die
+ * pool and the spell slots — because it carried a second list of its own. So a
+ * Paladin who reached level 4 in play laid on fifteen hit points where the SRD
+ * prints twenty, a Sorcerer's Font of Magic stayed the size it was created at,
+ * and a Fighter who reached level 9 in play had Indomitable on the sheet and
+ * nothing to spend: `takeTestReaction` refused a Reaction the character was
+ * entitled to.
+ *
+ * That is the failure this repository calls its worst — a wrong number in a
+ * shipped path, which looks like a rules bug forever after — so the fix is one
+ * derivation both callers reach rather than two lists kept in step by
+ * remembering to.
+ */
+describe('advancing a level moves every pool the level moves', () => {
+  const sorcerer = (level: number): CharacterChoices => ({
+    ...common,
+    name: 'Veska',
+    classId: 'sorcerer',
+    level,
+    abilities: {
+      method: 'standard-array',
+      assignment: { str: 8, dex: 14, con: 13, int: 12, wis: 10, cha: 15 },
+    },
+    abilityIncreases: { con: 2, int: 1 },
+    classSkills: ['arcana', 'persuasion'],
+    ...(level >= 3 ? { subclassId: 'draconic-sorcery' } : {}),
+    cantrips: SORCERER_CANTRIPS.slice(0, level >= 4 ? 5 : 4),
+    preparedSpells: SORCERER_SPELLS.slice(0, level >= 4 ? 7 : 6),
+    featureChoices: {
+      'human:skillful': ['perception'],
+      'sorcerer:metamagic': ['Empowered Spell', 'Quickened Spell'],
+    },
+    feats: {
+      ...common.feats,
+      ...(level >= 4 ? { 'sorcerer:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+    },
+  });
+
+  /** A Paladin 4 / Fighter 1: a level 5 character by two routes at once. */
+  const knight = (): CharacterChoices => ({
+    ...common,
+    name: 'Ser',
+    classId: 'paladin',
+    level: 4,
+    multiclass: [{ classId: 'fighter', level: 1 }],
+    subclassId: 'oath-of-devotion',
+    abilities: {
+      method: 'standard-array',
+      // Strength 15 clears the SRD minimum for both classes, in both
+      // directions, which is what multiclassing checks.
+      assignment: { str: 15, dex: 10, con: 13, int: 8, wis: 12, cha: 14 },
+    },
+    abilityIncreases: { con: 2, int: 1 },
+    classSkills: ['athletics', 'persuasion'],
+    cantrips: [],
+    preparedSpells: ['cure-wounds', 'bless', 'heroism', 'divine-favor', 'shield-of-faith'],
+    featureChoices: { 'human:skillful': ['perception'] },
+    feats: {
+      ...common.feats,
+      'paladin:fighting-style': { featId: 'defense' },
+      'paladin:ability-score-improvement': { featId: 'savage-attacker' },
+      // A different style, because a feat cannot be taken twice.
+      'fighter:fighting-style': { featId: 'archery' },
+    },
+  });
+
+  /** Create, optionally play a little, level up, and hand back both halves. */
+  const levelled = (
+    choices: CharacterChoices,
+    advance: Parameters<typeof advanceCharacter>[2],
+    played: readonly GameEvent[] = [],
+  ) => {
+    const log = [...unwrap(createCharacter(choices, WHO), 'create'), ...played];
+    const gained = unwrap(advanceCharacter(fold('seed', log), WHO, advance), 'advance');
+    return {
+      gained,
+      log: [...log, ...gained],
+      pools: fold('seed', [...log, ...gained]).creatures.who?.resources.pools ?? {},
+    };
+  };
+
+  const resized = (events: readonly GameEvent[]): readonly string[] =>
+    events.filter((e) => e.type === 'resource-pool-resized').map((e) => e.key);
+
+  const declared = (events: readonly GameEvent[]): readonly string[] =>
+    events.filter((e) => e.type === 'resource-pool-declared').map((e) => e.pool.key);
+
+  /**
+   * SRD Font of Magic: Sorcery Points equal to your Sorcerer level. The
+   * cleanest case there is, because the number *is* the level.
+   */
+  it('resizes a pool the new level grew', () => {
+    const { gained, pools } = levelled(sorcerer(3), {
+      cantrips: SORCERER_CANTRIPS,
+      preparedSpells: SORCERER_SPELLS,
+      feats: { 'sorcerer:ability-score-improvement': { featId: 'savage-attacker' } },
+    });
+
+    expect(pools['sorcery-points']?.max).toBe(4);
+    expect(resized(gained)).toContain('sorcery-points');
+    // And declared once, at creation — not a second time here.
+    expect(declared(gained)).not.toContain('sorcery-points');
+  });
+
+  /**
+   * SRD Indomitable arrives at Fighter 9 and not before, so a character who
+   * reached 9 in play has no pool until the level declares one. Without it the
+   * feature is on the sheet, the window opens, and the Reaction is refused.
+   */
+  it('declares a pool the new level grants', () => {
+    const { gained, pools } = levelled(fighter(8), {
+      feats: { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } },
+    });
+
+    expect(declared(gained)).toContain('fighter:indomitable');
+    expect(pools['fighter:indomitable']?.max).toBe(1);
+  });
+
+  /** And the Reaction that pool buys can actually be taken. */
+  it('lets the Fighter who levelled into Indomitable spend it', () => {
+    const { log } = levelled(fighter(8), {
+      feats: { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } },
+    });
+
+    const supply = (seed: string): { issuer: RollIssuer; rng: Rng } => ({
+      issuer: createRollIssuer('r'),
+      rng: createRng(seed) as Rng,
+    });
+
+    // A DC nothing can reach, so the save fails and the window opens.
+    const failed = unwrap(
+      resolveTest(
+        fold('seed', log),
+        WHO,
+        { kind: 'saving-throw', ability: 'dex', dc: 40 },
+        supply('save'),
+      ),
+      'save',
+    );
+    expect(failed.offers.map((o) => o.feature)).toEqual(['fighter:indomitable']);
+
+    const after = fold('seed', [...log, ...failed.events]);
+    const reroll = takeTestReaction(
+      after,
+      WHO,
+      { feature: 'fighter:indomitable' },
+      supply('again'),
+    );
+    expect(isErr(reroll)).toBe(false);
+  });
+
+  /**
+   * A resize to the number already stored is an event that says nothing, and
+   * the log should not carry one per level per feature. Second Wind is three
+   * uses at Fighter 8 and three at 9; Action Surge is one at both.
+   */
+  it('emits nothing for a pool whose maximum did not move', () => {
+    const { gained } = levelled(fighter(8), {
+      feats: { 'fighter:ability-score-improvement': { featId: 'savage-attacker' } },
+    });
+
+    expect(SECOND_WIND_USES[7]).toBe(SECOND_WIND_USES[8]);
+    expect(resized(gained)).not.toContain('second-wind');
+    expect(resized(gained)).not.toContain('action-surge');
+    expect(declared(gained)).not.toContain('second-wind');
+    // The Hit Die pool *did* move, from eight dice to nine.
+    expect(resized(gained)).toContain('hit-die:d10');
+  });
+
+  /**
+   * `resource-pool-resized` changes a maximum and leaves what has been spent
+   * spent. A Sorcerer who has burned two points and levels up has four points
+   * and has still burned two.
+   */
+  it('leaves what has been spent spent', () => {
+    const { pools } = levelled(
+      sorcerer(3),
+      {
+        cantrips: SORCERER_CANTRIPS,
+        preparedSpells: SORCERER_SPELLS,
+        feats: { 'sorcerer:ability-score-improvement': { featId: 'savage-attacker' } },
+      },
+      [{ type: 'resource-spent', id: WHO, key: 'sorcery-points', amount: 2 }],
+    );
+
+    expect(pools['sorcery-points']?.max).toBe(4);
+    expect(pools['sorcery-points']?.spent).toBe(2);
+  });
+
+  /**
+   * SRD Lay On Hands: "five times your **Paladin** level". A Paladin 4 /
+   * Fighter 1 who takes a fifth level of Paladin is a level *six* character
+   * with twenty-five hit points in the pool, not thirty — and a mutation that
+   * reads the character level is exactly what this fixture exists to fail.
+   */
+  it('sizes a pool by its own class’s level, never the character’s', () => {
+    const { pools } = levelled(knight(), {
+      preparedSpells: ['cure-wounds', 'bless', 'heroism', 'divine-favor', 'shield-of-faith', 'aid'],
+    });
+
+    expect(pools['lay-on-hands']?.max).toBe(25);
+  });
+
+  /**
+   * The other side of the same rule: a level taken in the *other* class moves
+   * nothing the first one sized. A Paladin 4 / Fighter 1 who takes a second
+   * level of Fighter is a level 6 character and still lays on twenty.
+   */
+  it('leaves another class’s pool alone when the level goes elsewhere', () => {
+    const { gained, pools } = levelled(knight(), { classId: 'fighter' });
+
+    expect(pools['lay-on-hands']?.max).toBe(20);
+    expect(resized(gained)).not.toContain('lay-on-hands');
+  });
+
+  /**
+   * The refactor guard, and the reason it is an exact ordered list rather than
+   * a set: the declarations reach the log, so their *order* is part of what a
+   * frozen fixture folds. A derivation shared by two callers is where a
+   * behaviour change hides, and this is the assertion that would have caught
+   * one — a kind dropped, a kind reordered, a kind arriving twice.
+   */
+  it('declares the same pools in the same order it always did', () => {
+    const built = unwrap(createCharacter(fighter(9), WHO), 'create');
+
+    expect(declared(built)).toEqual([
+      'hit-die:d10',
+      'sage:magic-initiate-wizard:free-cast',
+      'second-wind',
+      'action-surge',
+      'fighter:indomitable',
+    ]);
+  });
+
+  /**
+   * SRD progression never shrinks a pool, and this is what says so rather than
+   * the code guessing. It is asserted over the *tables* rather than over built
+   * characters, because a level moves a pool by exactly two routes — a column
+   * of the class table and a multiple of the class level — and an ability
+   * modifier does not fall as a character advances.
+   *
+   * If this ever fires, `advanceCharacter` would emit a `resource-pool-resized`
+   * downward, and `resize` clamps `spent` to the new maximum — so a use already
+   * spent would quietly come back. That is a rule to design, not a branch to
+   * add on a guess, which is why the case is proven absent instead.
+   */
+  it('has no class table that shrinks a pool as the level rises', () => {
+    /** Exactly the structural shape `poolSizeOf` reads a level out of. */
+    type Sized = readonly [
+      string,
+      { readonly usesByLevel?: readonly number[]; readonly perClassLevel?: number },
+    ];
+
+    const sizings = allClasses()
+      .flatMap((definition) => [
+        ...definition.features,
+        ...allSubclasses()
+          .filter((s) => s.classId === definition.id)
+          .flatMap((s) => s.features),
+      ])
+      .flatMap((feature): readonly Sized[] => {
+        const grant = feature.grants;
+        if (grant?.kind === 'pool') return [[feature.id, grant]];
+        if (grant?.kind === 'activated' && grant.pool !== null) return [[feature.id, grant]];
+        if (grant?.kind === 'reaction' && grant.declares !== undefined) {
+          return [[feature.id, grant.declares]];
+        }
+        return [];
+      });
+
+    // Not vacuous: every pool-declaring feature in the twelve classes.
+    expect(sizings.length).toBeGreaterThan(10);
+
+    const falling: string[] = [];
+    for (const [featureId, sizing] of sizings) {
+      // A multiple of the class level rises with it by construction, so long
+      // as the multiple is not negative.
+      if (sizing.perClassLevel !== undefined && sizing.perClassLevel < 0) falling.push(featureId);
+
+      const column = sizing.usesByLevel;
+      if (column === undefined) continue;
+      for (let level = 1; level < column.length; level += 1) {
+        if ((column[level] ?? 0) < (column[level - 1] ?? 0)) {
+          falling.push(`${featureId}@${level + 1}`);
+        }
+      }
+    }
+    expect(falling).toEqual([]);
   });
 });
