@@ -4782,6 +4782,21 @@ note can quietly get wrong: **where a note quotes the SRD it is held against
 that spell's own paragraph**, because four of them quoted a sentence the book
 does not print and one of those was a neighbouring spell's.
 
+**And where a note quotes *this repository*, it is held against the document
+it names.** That half was missing for a while and the gap was exactly the
+shape of the other one: the guard resolved a citation by checking that a
+source *name* appeared in the description, so a note could say `CLAUDE.md` and
+then quote a sentence `CLAUDE.md` does not contain — which two of them did.
+A citation now resolves by **naming**, through a small alias table, and the
+quoted run is matched in that file after emphasis, smart quotes and wrapping
+are normalised on both sides. Resolution by naming rather than by searching
+the corpus is the load-bearing half, and the fixture that proves it is the
+pair of sentences this repository writes two ways: a guard that checked every
+known document would pass one and could never fail the other. What it caught
+on its first run was three descriptions quoting a `PROGRESS.md` that had since
+been re-derived — a count of 3 where the row now reads 0 / 4, and a row that no
+longer exists in that form at all.
+
 ### A Consumer Count Is A Query, Because Three Documents Gave Three Answers
 
 `PROGRESS.md`'s ranked map said a granted Resistance was **17** open spells;

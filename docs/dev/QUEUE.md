@@ -556,31 +556,32 @@ satisfied** — with no gate between waves and nothing else.
 `71bf406`, **6767 tests across 105 files**, both frozen logs untouched,
 `COVERAGE.md` byte-clean, pushed after every merge.
 
-**IE-024's YELLOW is answered and it is building again.** Fable chose
-**option (a)**: `checkShape` walks every effect list through one enumeration,
-applying the per-entry rules the file already has, and no entry guard goes into
-`checkEffect` or the call sites. The reasoning is the repository's own — the
-semantic rules read three lists through one `checkEffect` with no `default`
-arm, so the guarantee belongs where `checkShape`'s docstring already claims it,
-once; and the builder's own preferred option would have made **which phase
-reports a null effect depend on which list it sits in**, which is one defect
-with two answers. The `??` question is settled as one rule: `undefined` is
-absent, anything else including `null` is `malformed_field`.
+**IE-024's YELLOW is answered, and the first rework came back `ESCALATE` on
+*authority* with no defect reported — because of a process failure of the
+foreman's.** Fable chose **option (a)**: `checkShape` walks every effect list
+through one enumeration, applying the per-entry rules the file already has.
+The `??` question is settled as one rule: `undefined` is absent, anything else
+including `null` is `malformed_field`.
 
-**It is a clarification, not a deviation** — the brief's out-of-scope names the
-denylist's *contents*, and no rule is added. The sentence recorded for the five
-later tasks on that file: *entry-level guards for every effect list are
-`checkShape`'s; `checkEffect` assumes a known kind.*
+**The escalation found a live hole nobody was looking for.** The
+**rider-is-a-leaf denylist reached one list of three** — `checkNoNestedEffect`
+is entered only from the top-level walk — so `CLAUDE.md`'s "three places
+enforce that a rider is a leaf" was two places plus a test, and the catalogue
+is clean only because the *test* sweep walks all three. The foreman's own
+preference was the builder's option (c), **which does not close it**. That is
+the argument for escalating rather than deciding locally, and it is only
+visible in hindsight.
 
-**And the escalation found a live hole nobody was looking for.** The
-**rider-is-a-leaf denylist reaches one list of three**: `checkNoNestedEffect`
-is entered only from the top-level walk, so a nested-list entry carrying
-`effects`, `targets` or `area` validates clean today. `CLAUDE.md` claims
-"three places enforce that a rider is a leaf" and names the validator as one
-— it is two places plus a test. The catalogue is clean because the *test* sweep
-walks all three, which is exactly why nobody noticed. Option (a) closes it for
-free. **This is the argument for escalating rather than deciding locally**: the
-foreman would have picked (c), which does not close it.
+**Then the review of the rework escalated, correctly, on evidence it could not
+have had.** A reviewer reviews against the brief **on disk in the builder's
+worktree**; builders may not edit `docs/dev/`; so the decision reached the
+builder by message and nobody else, while the brief it read still forbade the
+two things the decision authorised. The reviewer's own words: *"I am
+escalating the authority to take it, not disputing its merit."* Fixed three
+ways — the decision recorded, **the superseded lines struck in place where a
+reviewer reads them**, and the worktree rebased so the brief is the decided
+one — and `WORKFLOW.md` now says answering a YELLOW is those three acts rather
+than one. The code was not touched and the review is being run again.
 
 **IE-026 merged on round six** (`dd97c84`), and the pattern is the finding
 rather than the defect. Every round passed the *implementation* at high
@@ -653,6 +654,9 @@ rest" prints both numbers for every shape. Do not re-rank from prose.
 
 | Task | Lane | Note |
 |---|---|---|
+| **`CLAUDE.md` says "each of the twenty-seven missing shapes" and the vocabulary now holds 83 ids.** The delta audit measured the move from 27 hand-kept to 83 derived | conformance | the foreman, reading that paragraph while merging IE-022. The repository's own answer to a number that matters is a generator and a CI guard, so **the fix is to remove the digit rather than update it** — and it belongs with the queued "a sweep holding `CLAUDE.md`'s counts against `COVERAGE.md`" row, which is the instrument for exactly this |
+| The citation guard's corpus is the 98 quoted runs in `MISSING_SHAPES`: `ADJUDICATED` and `TRACKED_ADJUDICATED` notes carry **no repository citation at all** today, so they are covered by construction rather than by evidence. And a quoted run naming no source anywhere before it is unchecked by this guard and, if it quotes no SRD, by `spell-honesty.test.ts` either | conformance | IE-022's builder, stated as the instrument's reach rather than discovered later. The second half is the one to watch: it is the hole a future note would fall into silently |
+| `readdirSync('docs/architecture')` maps every entry to a file path, so a **subdirectory** added there makes the citation guard throw rather than fail | conformance | IE-022's reviewer, raised as a limitation and not a defect. One line, in a file a later wave may open |
 | **Dispel Magic's inner `continue` now reads like its neighbours and means something else.** `resolveDispelEffect` keeps an inner `for (const spell of running)` whose failed-check `continue` belongs to *that* loop, not the effect loop. Rewriting it the way the other twenty-two resolvers were rewritten **passes the entire suite** | mechanism | IE-027, reported rather than fixed — a behaviour-preserving move must not carry a fix. No fixture aims a Dispel Magic at a target carrying **two** ongoing spells and fails the first check, so `continue` and `return` are indistinguishable today. The fixture is the fix: two ongoing spells, the first above the dispel's level |
 | Two lines the split introduced that the suite cannot see fail: `current = done.value;` (the state threading — no registered definition has one effect reading the world another left) and the `from` wiring (no fixture has a **prone** target attacked from a casting's held point, which is Spiritual Weapon's seam) | mechanism | IE-027, both read and both correct. Named because an unpinned line is an unpinned line, and the second is the brief's own named risk arriving exactly where it was predicted |
 | **A `DiceScaling` with no `dice` reaches `scaledDiceFor`, which splits the notation and does arithmetic on the halves — so it becomes `NaNd6` and the spell silently rolls nothing.** `origin: {}` validates for the same reason | conformance | IE-024's builder implemented the rule, the round-1 reviewer correctly called it a **required-field** rule the brief excluded, and it was removed. It is the class this repository calls its worst — a wrong number with no symptom — and it wants briefing as its own task |
@@ -758,3 +762,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | YELLOW answered | IE-024 | Fable: **option (a)**, high confidence — one enumeration in `checkShape` over all three effect lists, no entry guard in the semantic pass, and one `??` rule (`undefined` absent, anything else `malformed_field`). Recorded as a **clarification of the brief, not a deviation**: no rule is added, two existing rules reach lists `CLAUDE.md` already claims they cover. Blast radius `spell-schema.ts` only; the builder's round count reset, since the three it spent were on a question that was not its to answer |
 | 2026-09-14 | audit finding (from the YELLOW) | — | **The rider-is-a-leaf denylist enforces on one list of three.** `checkNoNestedEffect` is entered only from `checkShape`'s top-level walk, so a nested-list entry carrying `effects`, `targets` or `area` validates clean. `CLAUDE.md`'s "three places enforce that a rider is a leaf" is two places plus a test — and the test sweep walking all three is why the catalogue is clean and why it went unseen. Closed by IE-024's rework; the `CLAUDE.md` sentence is corrected with it. **The foreman's own preference was (c), which would not have closed it** |
 | 2026-09-14 | merge (tranche authority) | IE-026 | merged `dd97c84` on **round six**, 13/13, risk gate inspected (the `moveWithin` control-flow branch) and GREEN. Seventeen requests now name a command; a derived sweep over the barrel keeps it so; the one exemption's claim is checked three ways. The loop's cost was real and its lesson is recorded: **every round passed the implementation and failed on prose**, and the same false symmetric claim was written three times before two independent readers cleared it |
+| 2026-09-14 | merge (tranche authority) | IE-022 | merged `c0d4ca9`, 13/13, risk gate lightweight. The guard resolves a citation by **naming** and found **five real misquotes** on its first run — three of them counts quoted from a `PROGRESS.md` since re-derived, which is the stale-source class the audit flag was raised over, caught mechanically for the first time. The `CLAUDE.md` paragraph was added by the foreman at integration, because **my brief's "Out of scope: editing `CLAUDE.md`" was ambiguous** and the builder correctly flagged rather than decided — the third ambiguous or mistaken brief line of this tranche |
+| 2026-09-14 | process defect (foreman) | IE-024 | a reviewer reviews against the brief **on disk in the builder's worktree**, and a Fable decision relayed by `SendMessage` reaches the builder and nobody else — so the rework's review returned `ESCALATE` on authority with **no defect found**. Corrected by recording the decision, **striking the superseded constraints in place where a reviewer reads them**, and rebasing the worktree; `WORKFLOW.md` now states that answering a YELLOW is three acts, not one. No code changed; the review is being re-run on the same commit |

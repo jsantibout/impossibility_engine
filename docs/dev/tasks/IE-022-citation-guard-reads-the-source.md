@@ -1,13 +1,13 @@
 # IE-022 — The citation guard reads the document it names
 
-state: IMPLEMENTING
+state: DONE
 lane: conformance
 tranche: 5
 parallel-safe: YES — `blocked-on.test.ts` and description text in `missing-shapes.ts`; no engine module
 depends-on: none
-worker: qb-builder · .claude/worktrees/agent-ab94121653ebabfd6 · worktree-agent-ab94121653ebabfd6
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 5" (tranche 5 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -109,10 +109,89 @@ Normalisation is where this kind of guard either over-fires or under-fires.
 Prefer under-firing with a stated floor over a clever matcher whose behaviour
 nobody can predict.
 
+
 ## Completion digest
+
+Builder **COMPLETE**, reviewer **PASS at high confidence on round one**, no
+defects. Branch `worktree-agent-ab94121653ebabfd6`, commit `147c27d`, rebased
+by the foreman to `c0d4ca9`. Tests **6766 → 6786 on `main`**, 8 new. Gauntlet
+green, `COVERAGE.md` byte-identical.
+
+**The guard found five real misquotes on `main`**, which is the whole point of
+it and is what the old name-presence check could never have seen. They split
+into two kinds:
+
+- **Stale numbers quoted from a `PROGRESS.md` that has since been re-derived** —
+  "Reads the target's current Hit Points | 3 | vitals | very low" against a row
+  that now reads "0 / 4"; "4 printed, far more in play" against "0 / 16"; and
+  "An effect that ends another casting | 15 (**unblocked**)" against a row that
+  no longer exists in that form at all. This is precisely the stale-source-of-
+  truth class the delta audit raised the audit flag over, caught mechanically
+  for the first time.
+- **Punctuation inside the quotation marks** that the source does not carry —
+  a trailing period pulled outside the closing quote, in five places.
+
+One attribution was made explicit rather than left to proximity:
+`a-choice-made-at-the-casting` now names `spell-definitions.ts` for Guidance's
+own clause, because the guard resolves a run to the **nearest preceding named
+source** and that is the rule's stated cost.
+
+Three mutations, each failing as intended: making `containsRun` always answer
+yes fails three cases; attributing every run to the union of the alias table's
+files fails "fails each spelling when it is attributed to the other file",
+which is the assertion that pins **resolution by naming**; restoring the
+fabricated quote fails the corpus case naming the shape, the run and the
+document.
+
+**The discriminating fixture is the two-spellings pair**, and it is worth
+naming: `CLAUDE.md` says "the point **rather than** to each target" and
+`spell-definitions.ts` says "the point, **not** to each target". A guard that
+checked every known document would pass the first and could not fail the
+second, so the pair — and its swapped twin — is what proves the guard resolves
+by naming rather than by searching the corpus. Neither document was edited,
+which the brief required.
+
+Out-of-scope findings, none acted on: `readdirSync('docs/architecture')` maps
+every entry to a file, so a subdirectory added there would make the test throw
+rather than fail; `ADJUDICATED` and `TRACKED_ADJUDICATED` notes carry no
+repository citation today, so the corpus actually checked is the 98 runs in
+`MISSING_SHAPES` and the notes are covered by construction rather than by
+evidence; and a quoted run naming no source anywhere before it is unchecked
+here and, if it quotes no SRD, by `spell-honesty.test.ts` either.
 
 ## Risk gate
 
+**Lightweight.** No architectural deviation, no foundational primitive, no new
+runtime special case, no file outside the brief's surface, a reviewer `PASS` at
+high confidence on the first round, and a diff confined to one test file and
+description text in one script. No runtime code changed at all.
+
+Classification: **GREEN**.
+
+**The builder declined to write `CLAUDE.md` and flagged it rather than
+deciding, and it was right to.** My brief's Out of scope said "Editing
+`CLAUDE.md` or `PROGRESS.md`" — I meant *do not edit a cited document to make a
+quote match*, and it read *do not touch that file at all*. Both readings are
+reasonable and the wording was mine. **Third ambiguous or mistaken brief line of
+this tranche**, after IE-025's rule 5 and IE-028's criterion 1. The prose is
+added by the foreman at integration instead, in a separate commit, so the
+reviewed commit stands as reviewed.
+
 ## Architecture decision
 
+None. No Fable involvement.
+
 ## Merge record
+
+Merged to `main` as `c0d4ca9`, fast-forward, pushed. Rebased by the foreman
+over four merges; no conflict, since nothing else touched either file.
+
+`main` verified after the merge: typecheck ✓, lint ✓, **6786 tests across 106
+files** ✓, `COVERAGE.md` byte-clean ✓, tree clean.
+
+Thirteen conditions: **1** inside the brief; **2** `COMPLETE`; **3** `PASS`,
+high, round one; **4** no defects; **5** gauntlet green; **6** conformance —
+and the descriptions do not reach the report, so `COVERAGE.md` could not have
+moved; **7** no blocker; **8** no deviation; **9** no foundational primitive;
+**10** no file outside the surface; **11** clean rebase; **12** re-verified on
+`main`; **13** risk gate lightweight, GREEN.
