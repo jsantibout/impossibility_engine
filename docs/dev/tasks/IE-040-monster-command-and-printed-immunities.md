@@ -1,6 +1,6 @@
 # IE-040 — A monster enters through a command, with its printed condition immunities
 
-state: IMPLEMENTING
+state: AWAITING_FOREMAN_REVIEW
 lane: mechanism
 tranche: 6
 parallel-safe: CONDITIONAL — `commands/creatures.ts`, `commands/conditions.ts`, `monster.ts`, `fold/creatures`; not beside IE-042
