@@ -582,28 +582,21 @@ walks all three, which is exactly why nobody noticed. Option (a) closes it for
 free. **This is the argument for escalating rather than deciding locally**: the
 foreman would have picked (c), which does not close it.
 
-**IE-026's confirming review returned `DEFECTS` a third time, and the foreman
-did *not* stop at Gate 3 as it had said it would.** The finding is worth more
-than the delay it caused. The review confirmed the implementation by
-**re-deriving every number** rather than trusting five prior passes — 18
-offenders on `main` against 1 on HEAD, so the sweep genuinely fails without the
-change; 28 extracted literals against 28 `satisfyWith:` sites, exact; 91 barrel
-names with exactly three nested pairs, so the boundary fixture discriminates.
-Every failure since round two has been **documentation prose**, and the same
-false symmetric containment claim has now been written in three different
-places, each time to justify a conclusion that is true for a directional
-reason.
+**IE-026 merged on round six** (`dd97c84`), and the pattern is the finding
+rather than the defect. Every round passed the *implementation* at high
+confidence and every round returned defects on **documentation prose**, after
+which the fix went unreviewed — so condition 3 was false three separate times
+for one structural reason: no reviewer had seen the commit that would be
+merged. **The same false claim was written three times in three places**, each
+to justify a conclusion true for a *directional* reason.
 
-The foreman had told the owner it would stop at `AWAITING_MERGE_APPROVAL` on a
-second defect. It sent the task back instead, because the procedure says a
-failed condition stops "for the builder, for Fable, or for the owner,
-**whichever is honest**" — and there is no judgement here for an owner to make:
-no trade-off, no product question, no architecture, just two false sentences
-with the true ones already written by the reviewer. Waking someone to
-adjudicate that would be passing up a decision that is not theirs. **The
-evidence changed what honest meant, and the foreman said so rather than being
-consistent.** The pass is hard-bounded to the two prescribed clauses, with the
-reviewer confirming only that they are fixed and that no new claim arrived.
+What the fifth round bought was worth the whole loop: it **re-derived every
+number** rather than trusting five prior passes — 18 offenders on `main`
+against 1 on the branch, so the sweep genuinely fails without the change; 28
+extracted literals against 28 `satisfyWith:` sites, exact; 91 barrel names with
+exactly three nested pairs, so the boundary fixture discriminates. Three
+procedural calls are recorded on the task file, each of which could have gone
+otherwise.
 
 **Two mistaken acceptance criteria of mine, both caught by builders and
 confirmed by reviewers.** IE-025's rule 5 asserted a rules fact SRD Fiend
@@ -764,3 +757,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | `CHANGES_REQUIRED`, sixth pass | IE-026 | the confirming review defected a third time on the *same* false claim, in a third place, plus an off-by-one — both in one docstring, both contradicted by correct statements 100 lines above them. The foreman had said it would stop at Gate 3 and **did not**, on the procedure's own "whichever is honest": there is no judgement here for an owner, only two sentences the reviewer has already rewritten. Bounded to those two clauses; the review that follows asks only whether they are fixed and whether a new claim arrived. **The implementation was confirmed by re-derivation** — 18 offenders on `main` against 1 on HEAD, 28 literals against 28 sites, 91 barrel names with three nested pairs |
 | 2026-09-14 | YELLOW answered | IE-024 | Fable: **option (a)**, high confidence — one enumeration in `checkShape` over all three effect lists, no entry guard in the semantic pass, and one `??` rule (`undefined` absent, anything else `malformed_field`). Recorded as a **clarification of the brief, not a deviation**: no rule is added, two existing rules reach lists `CLAUDE.md` already claims they cover. Blast radius `spell-schema.ts` only; the builder's round count reset, since the three it spent were on a question that was not its to answer |
 | 2026-09-14 | audit finding (from the YELLOW) | — | **The rider-is-a-leaf denylist enforces on one list of three.** `checkNoNestedEffect` is entered only from `checkShape`'s top-level walk, so a nested-list entry carrying `effects`, `targets` or `area` validates clean. `CLAUDE.md`'s "three places enforce that a rider is a leaf" is two places plus a test — and the test sweep walking all three is why the catalogue is clean and why it went unseen. Closed by IE-024's rework; the `CLAUDE.md` sentence is corrected with it. **The foreman's own preference was (c), which would not have closed it** |
+| 2026-09-14 | merge (tranche authority) | IE-026 | merged `dd97c84` on **round six**, 13/13, risk gate inspected (the `moveWithin` control-flow branch) and GREEN. Seventeen requests now name a command; a derived sweep over the barrel keeps it so; the one exemption's claim is checked three ways. The loop's cost was real and its lesson is recorded: **every round passed the implementation and failed on prose**, and the same false symmetric claim was written three times before two independent readers cleared it |
