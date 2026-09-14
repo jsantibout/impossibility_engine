@@ -552,10 +552,13 @@ eighteen tasks on its roster, through implementation, review, rework, clean
 auto-merge, push, bookkeeping **and later waves as their dependencies are
 satisfied** — with no gate between waves and nothing else.
 
-**Merged: 13 of 18** — IE-020 through IE-032, every one 13/13. `main` at
-`db62430`, **7276 tests across 112 files**, both frozen logs untouched and run
-explicitly on every fold-touching merge, `COVERAGE.md` byte-clean. **Waves 1–4
-complete**; IE-033 is running as wave 5.
+**Merged: 14 of 18** — IE-020 through IE-033, every one 13/13. `main` at
+`fcf40cc`, **7318 tests across 113 files**, both frozen logs untouched and run
+explicitly on every fold-touching merge, `COVERAGE.md` byte-clean. **Waves 1–5
+complete**; IE-034 is running as wave 6.
+
+Coverage stands at **45 tracked / 92 executed / 46 partial / 70 verified**, and
+every one of those numbers is derived rather than written.
 
 ### The derived map has been wrong twice, and that is a finding about the
 instrument
@@ -720,33 +723,23 @@ arity here, a wrong correction about the movement seed in IE-031. Four
 substantive brief errors this tranche, every one caught by a builder or a
 reviewer, none reaching `main`.
 
-**IE-033 is at a foreman-launched confirming review, not a YELLOW.** Three
-rounds ran and none returned `PASS`, which its brief treats as an escalation —
-but all three recorded *"Architectural violations: none"*, *"Escalation
-reason: none"* and *"Confidence: high"*, and every finding was ordinary: two
-fixtures that could not fail for the reason their names gave, then **six stale
-docstrings the builder's own change had falsified** plus one dead branch. The
-builder said so itself — "the block is procedural, not architectural" — and it
-was right. **Round exhaustion is not a failed review**, so the foreman
-authorised the pass rather than waking Fable for a question nobody has.
+**IE-033's confirming review returned `PASS`**, and it verified all three of
+round 3's fixes **by mutation rather than by reading** — including the dead
+branch that had left 7,316 tests green when neutered, which is now pinned by a
+case asserting its code **by name** on a fixture built so nothing
+short-circuits first. It found no false sentence and no two that disagree,
+which is what three rounds of prose had been about.
 
-Round 3's fixes have never been independently reviewed, which is the same
-structural gap IE-026 hit three times: a fix that closes a review's findings is
-not itself reviewed, so no `PASS` exists on the commit that would merge. The
-confirming reviewer is told to read the **whole** task and to verify by
-mutation that `grantCarried`'s new `case 'speed'` is reachable — round 3 found
-it **dead**, with every fixture reaching `bad_speed_change` first and the sweep
-asserting only `isErr`, so mutating it to `return null` left all 7,316 tests
-green.
-
-**One behaviour narrowing is carried to the owner rather than decided here.**
-**Ray of Frost is now refused outside combat**, because its rider is
-turn-anchored and a turn-anchored duration outside combat is refused rather
-than approximated — the engine's established rule, and Color Spray already
-behaves that way. It is nonetheless a common damage cantrip that could be
-thrown out of combat before this. Consistent, and a real narrowing; the
-confirming reviewer is asked for an independent read on whether the refusal is
-the honest answer.
+**Ray of Frost's narrowing is filed for the owner, with the honest fix named.**
+The refusal is correct — inventing six seconds is what the engine exists not to
+do, and silently skipping the rider drops a rule with no `unverified` line —
+but this is **the first time it reaches a cantrip, and the shape of the cost
+inverts**. Color Spray's whole printed content *is* its rider; Ray of Frost's
+is 1d8 Cold damage with the slow incidental, so the refusal denies the player
+the part they asked for to protect the part they did not. **The fix is a
+`RiderDuration` member for a moment that does not exist outside combat — the
+same missing `Duration` member Superior Hunter's Defense wants** — in a task
+of its own.
 
 **Running:** IE-021, IE-022, IE-023 (wave 1), IE-026's confirming review, and
 Fable on IE-024.
@@ -923,3 +916,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | finding (tooling) | — | **32 orphaned worktree directories** under `.claude/worktrees/`, from this tranche and earlier ones. `git worktree list` is clean and `git worktree prune` has run, so git's registry is correct and new worktrees are unaffected; the directories themselves resist deletion under Windows file locks. Disk clutter rather than a correctness problem, and best cleared when nothing is running |
 | 2026-09-14 | confirming review (foreman-launched) | IE-033 | three rounds, no `PASS`, and the builder correctly called the block **procedural rather than architectural** — every verdict recorded no architectural violation, no escalation reason and high confidence. Round exhaustion, so the foreman authorised the pass instead of an escalation Fable has no question to answer. The reviewer is told to read the whole task and to **verify by mutation** that `grantCarried`'s new `case 'speed'` is reachable, because round 3 found it dead: every fixture hit `bad_speed_change` first and the sweep asserted only `isErr`, so `return null` left 7,316 tests green |
 | 2026-09-14 | behaviour narrowing, for the owner | IE-033 | **Ray of Frost is refused outside combat** once its −10 rider is modelled, because a turn-anchored duration outside combat is refused rather than approximated. That is the engine's established rule and Color Spray already behaves so, but Ray of Frost is a common damage cantrip that worked out of combat before. Recorded rather than decided; the alternative — apply the damage and silently drop the rider — would be a new rule and the wrong kind |
+| 2026-09-14 | merge (tranche authority) | IE-033 | merged `fcf40cc`, 13/13, `PASS` on a **foreman-launched confirming review** after three rounds of ordinary defects and no PASS — round exhaustion, judged procedural by the builder itself and by the foreman. The reviewer verified all three round-3 fixes **by mutation**: the six corrected sentences hold, the dead `case 'speed'` is live and pinned by code name, and the Longstrider claim is true. **IE-028's derived `GrantFamily` guard forced the one edit** that adds the fifth family to the enumerator — the guard doing exactly what it was built for, one tranche later |
+| 2026-09-14 | LATER (from IE-033) | — | **A `RiderDuration` member for a moment that does not exist outside combat.** Ray of Frost is refused out of combat because its rider is turn-anchored; the refusal is correct and every alternative is worse, but it is the first time the rule reaches a cantrip whose *primary* content is damage, so it denies the player what they asked for to protect what they did not. This is **the same missing `Duration` member Superior Hunter's Defense wants**, and building it once serves both |

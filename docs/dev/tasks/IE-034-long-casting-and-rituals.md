@@ -1,11 +1,11 @@
 # IE-034 — A long casting time outside combat, and rituals
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 5
 parallel-safe: NO — owns `commands/casting.ts`, `spells.ts` and `events.ts`; runs alone
 depends-on: IE-033
-worker: none
+worker: qb-builder · .claude/worktrees/agent-a633d308db72c66e4 · worktree-agent-a633d308db72c66e4
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
