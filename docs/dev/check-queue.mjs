@@ -17,6 +17,45 @@
  * about which tranche a task is in. Adding a task to an approved tranche is
  * the one way autonomy could quietly widen, and it is now loud.
  *
+ * Since V3 it also refuses a tranche that **closes over a live task**. Tranche
+ * 6 was declared complete while IE-042 still read `APPROVED_FOR_IMPLEMENTATION`,
+ * and the closing report said thirteen of thirteen delivered when twelve were
+ * `DONE`. This validator had printed IE-042 on its own line *and* again on the
+ * tranche line in every summary of that tranche, and it was read past twelve
+ * times: an attention rule that has already failed twelve times is not a fix,
+ * so `COMPLETE` is now refused rather than reported.
+ *
+ * That leaves one trap, and avoiding it is most of the design. Once closing
+ * over a live task is refused, the cheapest way to close a tranche becomes
+ * *deleting the id from the roster* — which is quieter than the bug being
+ * fixed, because a deleted entry is visible nowhere at all. So a tranche may
+ * also close over a task that is **recorded as deferred**, and a deferral is
+ * written on both rosters:
+ *
+ *   ### Tranche 6 — COMPLETE …
+ *   roster: IE-036, …, IE-042 (deferred → tranche 7)
+ *
+ *   ### Tranche 7 — APPROVED …
+ *   roster: IE-042 (deferred from tranche 6), IE-050, …
+ *
+ * Half of that pair is a problem, so removing either half is loud, and the
+ * task file itself moves cleanly to its new tranche — one tranche per file,
+ * unchanged — while the closing roster still shows the miss rather than
+ * erasing it. `(deferred)` with no destination is allowed for a task that has
+ * left the queue's tranches entirely; it is refused the moment the task file
+ * claims another tranche, because that is a move and a move is recorded.
+ *
+ * A task deferred *twice* records both halves on one entry — tranche 7 writes
+ * `IE-042 (deferred from tranche 6 → tranche 8)` — because a second slip that
+ * had no legal spelling would leave deleting the tranche 6 marker as the only
+ * way back to a green queue, which is the failure this whole rule exists to
+ * prevent. Arrival and departure are independent facts about one entry.
+ *
+ * The closing counts are then **derived**: a `COMPLETE` tranche prints how
+ * many shipped, how many were deferred and where to, and — until the tranche
+ * is legal — how many are still live. The one number the foreman got wrong on
+ * tranche 6 was the one it typed, so it is no longer typed.
+ *
  *   node docs/dev/check-queue.mjs            the real queue
  *   node docs/dev/check-queue.mjs <dir>      a directory shaped like docs/dev
  *
@@ -63,6 +102,18 @@ const TRANCHE_STATES = ['PROPOSED', 'APPROVED', 'COMPLETE'];
 const DATE = /\b\d{4}-\d{2}-\d{2}\b/;
 const QUOTED = /"[^"]+"/;
 const ID = /\bIE-\d{3}\b/g;
+// A roster entry is an id, optionally annotated with where the task came from,
+// where it went, or both — a task deferred twice needs one entry to say both
+// halves, or the only green spelling of a second slip would be the erasure
+// this rule exists to prevent. Anything else in the brackets is refused rather
+// than read past: a misspelled marker that silently degraded to a plain entry
+// would be the same class of silence.
+//
+//   (deferred)                            left this tranche, nowhere yet
+//   (deferred → tranche 8)                left this tranche for tranche 8
+//   (deferred from tranche 6)             arrived here from tranche 6
+//   (deferred from tranche 6 → tranche 8) arrived from 6, and left again for 8
+const DEFERRAL = /^deferred(?:\s+from\s+tranche\s+(\d+))?(?:\s*(?:→|->)\s*tranche\s+(\d+))?$/;
 
 const problems = [];
 const problem = (file, text) => problems.push(`${file}: ${text}`);
@@ -134,6 +185,46 @@ function checkTask(task, known) {
 }
 
 /**
+ * A roster line, as entries rather than as bare ids. An annotated entry records
+ * where the task came `from`, where it went `to`, or both, and `out` — whether
+ * this tranche let it go — is what decides whether the tranche still owns it.
+ *
+ *   kind 'plain'    IE-005
+ *   kind 'deferral' IE-042 (deferred from tranche 6 → tranche 8)
+ *   kind 'unknown'  IE-042 (anything else)
+ *
+ * `out` is true unless the note is purely an arrival: a bare `(deferred)` is a
+ * departure with no destination yet, and every form carrying an arrow is a
+ * departure too, including the one that also records an arrival.
+ */
+function parseRoster(text) {
+  const entries = [];
+  for (const m of text.matchAll(/\b(IE-\d{3})\b(?:\s*\(([^)]*)\))?/g)) {
+    const [, id, raw] = m;
+    if (raw === undefined) {
+      entries.push({ id, kind: 'plain' });
+      continue;
+    }
+    const note = raw.trim();
+    const deferral = note.match(DEFERRAL);
+    if (deferral === null) {
+      entries.push({ id, kind: 'unknown', note });
+      continue;
+    }
+    const from = deferral[1] === undefined ? undefined : Number(deferral[1]);
+    const to = deferral[2] === undefined ? undefined : Number(deferral[2]);
+    entries.push({ id, kind: 'deferral', from, to, out: to !== undefined || from === undefined, note });
+  }
+  return entries;
+}
+
+/** The roster entry a tranche holds for an id, if it holds one. */
+const entryFor = (tranche, id) => tranche?.roster.find((e) => e.id === id);
+
+/** Where a deferral sent a task, for a human reading the summary. */
+const destination = (entry) => (entry.to === undefined ? 'unrostered' : `tranche ${entry.to}`);
+
+/**
  * Tranches live in QUEUE.md, because no task file can hold what the owner
  * approved as one act. The shape is a heading and a roster line:
  *
@@ -157,10 +248,92 @@ function parseTranches(queue) {
     const roster = line.match(/^roster:\s*(.*)$/);
     if (roster !== null) {
       current.sawRoster = true;
-      current.roster = roster[1].match(ID) ?? [];
+      current.roster = parseRoster(roster[1]);
     }
   }
   return tranches;
+}
+
+/**
+ * The outgoing half: `IE-042 (deferred → tranche 7)` on the tranche letting go.
+ *
+ * The task file must have actually moved — a deferral marker over a task still
+ * claiming this tranche is a claim nothing backs — and the receiving roster
+ * must carry the matching incoming half, so that deleting either one is loud.
+ */
+function checkDeferral(tranche, entry, claimed, tranches, where) {
+  const { id, to } = entry;
+  // Whatever the destination, a deferred task has left. A marker over a task
+  // whose file still claims this tranche is a claim nothing backs.
+  if (claimed === String(tranche.n)) {
+    problem(
+      where,
+      `${id} is marked deferred${to === undefined ? '' : ` to tranche ${to}`} but its task file still says "tranche: ${tranche.n}"`,
+    );
+    return;
+  }
+  if (to === undefined) {
+    if (claimed !== 'none') {
+      problem(
+        where,
+        `${id} is marked deferred with no destination, but its task file says "tranche: ${claimed}" — write "(deferred → tranche ${claimed})" so the move is recorded on both rosters`,
+      );
+    }
+    return;
+  }
+  if (to === tranche.n) {
+    problem(where, `${id} is deferred to tranche ${to}, which is the tranche deferring it`);
+    return;
+  }
+  const target = tranches.get(to);
+  if (target === undefined) {
+    problem(where, `${id} is deferred to tranche ${to}, which QUEUE.md does not define`);
+    return;
+  }
+  const back = entryFor(target, id);
+  if (back === undefined || back.kind !== 'deferral' || back.from !== tranche.n) {
+    problem(
+      where,
+      `${id} is deferred to tranche ${to}, whose roster does not record it as "${id} (deferred from tranche ${tranche.n})" — a deferral is recorded on both rosters, so that deleting either half is loud`,
+    );
+    return;
+  }
+  // Only the *end* of a chain can be checked against the task file, because a
+  // file carries exactly one tranche: a task deferred 6 → 7 → 8 claims 8, and
+  // tranche 6's link is verified by tranche 7's reciprocal rather than by the
+  // file. Every intermediate link is checked the same way, so the chain is
+  // covered end to end without any of it being taken on trust.
+  if (!back.out && claimed !== String(to)) {
+    problem(where, `${id} is marked deferred to tranche ${to} but its task file says "tranche: ${claimed}"`);
+  }
+}
+
+/**
+ * The incoming half: `IE-042 (deferred from tranche 6)` on the tranche picking
+ * it up. This is the check that makes erasure loud — the source roster has to
+ * still name the task, and still say where it sent it.
+ */
+function checkDeferralSource(tranche, entry, tranches, where) {
+  const { id, from } = entry;
+  const source = tranches.get(from);
+  if (source === undefined) {
+    problem(where, `${id} records a deferral from tranche ${from}, which QUEUE.md does not define`);
+    return;
+  }
+  const out = entryFor(source, id);
+  if (out === undefined) {
+    problem(
+      where,
+      `${id} records a deferral from tranche ${from}, whose roster does not name it — a roster entry may not be deleted to close a tranche`,
+    );
+    return;
+  }
+  if (out.kind !== 'deferral' || !out.out || out.to !== tranche.n) {
+    problem(
+      where,
+      `${id} records a deferral from tranche ${from}, whose roster does not record it as "${id} (deferred → tranche ${tranche.n})"`,
+    );
+  }
 }
 
 function checkTranches(tranches, tasks, known) {
@@ -179,14 +352,43 @@ function checkTranches(tranches, tasks, known) {
     }
     if (!tranche.sawRoster) problem(where, 'needs a "roster: IE-NNN, …" line naming exactly the tasks it authorises');
     else if (tranche.roster.length === 0) problem(where, 'roster is empty');
-    for (const id of tranche.roster) {
+    for (const entry of tranche.roster) {
+      const { id } = entry;
       if (!known.has(id)) {
         problem(where, `roster names ${id}, which has no task file`);
         continue;
       }
+      if (entry.kind === 'unknown') {
+        problem(
+          where,
+          `roster entry ${id} carries "(${entry.note})", which is not a deferral — write "(deferred → tranche M)" or "(deferred from tranche M)"`,
+        );
+      }
       const claimed = byId.get(id)?.fields.tranche;
+      // Arrival and departure are independent: a task deferred into a tranche
+      // and out of it again carries both halves on the one entry.
+      if (entry.kind === 'deferral' && entry.from !== undefined) {
+        checkDeferralSource(tranche, entry, tranches, where);
+      }
+      if (entry.kind === 'deferral' && entry.out) {
+        checkDeferral(tranche, entry, claimed, tranches, where);
+        continue;
+      }
       if (claimed !== String(tranche.n)) {
         problem(where, `roster names ${id}, whose task file says "tranche: ${claimed}"`);
+      }
+    }
+    // A tranche cannot close over a live task. Every roster entry is either
+    // shipped or recorded as deferred; anything else is the tranche 6 bug.
+    if (tranche.status === 'COMPLETE') {
+      for (const entry of tranche.roster) {
+        if (entry.kind === 'deferral' && entry.out) continue;
+        const state = byId.get(entry.id)?.fields.state;
+        if (state === undefined || state === 'DONE') continue;
+        problem(
+          where,
+          `COMPLETE but ${entry.id} is ${state} — a tranche cannot close over a live task; finish it, or record the deferral as "${entry.id} (deferred → tranche N)" on this roster`,
+        );
       }
     }
   }
@@ -209,7 +411,7 @@ function checkTranches(tranches, tasks, known) {
       problem(task.name, `claims tranche ${claimed}, which QUEUE.md does not define`);
       continue;
     }
-    if (!tranche.roster.includes(task.id)) {
+    if (entryFor(tranche, task.id) === undefined) {
       problem(
         task.name,
         `claims tranche ${claimed} but is not on its roster — a task may not be added to a tranche the owner approved`,
@@ -281,8 +483,40 @@ function main() {
   // The tranche is the unit of owner authority, so it is printed as one.
   let authority = 'none — no approved tranche; nothing may execute';
   for (const tranche of [...tranches.values()].sort((a, b) => a.n - b.n)) {
-    const outstanding = tranche.roster.filter((id) => stateOf.get(id) !== 'DONE');
-    const roster = tranche.roster.map((id) => `${id} (${stateOf.get(id) ?? 'no task file'})`).join(', ');
+    const deferred = tranche.roster.filter((e) => e.kind === 'deferral' && e.out);
+    const kept = tranche.roster.filter((e) => !(e.kind === 'deferral' && e.out));
+    const outstanding = kept.filter((e) => stateOf.get(e.id) !== 'DONE');
+    // A closed tranche's report is computed, never written: the one number the
+    // foreman got wrong on tranche 6 was the one it typed, so the shipped
+    // count, the deferred list and anything still live all come from the task
+    // states. `rostered = shipped + deferred + live`, always.
+    if (tranche.status === 'COMPLETE') {
+      const shipped = kept.filter((e) => stateOf.get(e.id) === 'DONE');
+      const live = outstanding;
+      const tail = live.length === 0 ? '' : `, ${live.length} STILL LIVE`;
+      console.log(
+        `  Tranche ${tranche.n}  ${tranche.status.padEnd(9)} ${tranche.roster.length} rostered → ${shipped.length} shipped, ${deferred.length} deferred${tail}`,
+      );
+      console.log(`    shipped (${shipped.length}): ${shipped.map((e) => e.id).join(', ') || '—'}`);
+      if (deferred.length > 0) {
+        console.log(
+          `    deferred (${deferred.length}): ${deferred.map((e) => `${e.id} → ${destination(e)}`).join(', ')}`,
+        );
+      }
+      if (live.length > 0) {
+        console.log(
+          `    live (${live.length}): ${live.map((e) => `${e.id} (${stateOf.get(e.id) ?? 'no task file'})`).join(', ')}`,
+        );
+      }
+      continue;
+    }
+    const roster = tranche.roster
+      .map((e) =>
+        e.kind === 'deferral' && e.out
+          ? `${e.id} (deferred → ${destination(e)})`
+          : `${e.id} (${stateOf.get(e.id) ?? 'no task file'})`,
+      )
+      .join(', ');
     const tail =
       tranche.status !== 'APPROVED'
         ? ''
