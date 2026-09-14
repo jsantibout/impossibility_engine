@@ -1,12 +1,12 @@
 # IE-024 — The validator judges untyped input instead of throwing on it
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 5
 parallel-safe: CONDITIONAL — owns `spell-schema.ts`; every later union task adds a rule to that file, so it lands first and alone
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

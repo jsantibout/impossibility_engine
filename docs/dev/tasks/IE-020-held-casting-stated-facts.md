@@ -1,12 +1,12 @@
 # IE-020 — A held casting keeps the facts its caster stated
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `events.ts` and `commands/spell-resolution.ts` for wave 1; safe beside every conformance and tooling task in that wave
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

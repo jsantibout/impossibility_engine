@@ -1,12 +1,12 @@
 # IE-030 — The declared "being fought" fact
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — a union task; safe beside IE-031, which touches no file it touches
 depends-on: IE-028
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

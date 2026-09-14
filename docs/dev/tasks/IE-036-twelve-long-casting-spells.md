@@ -1,12 +1,12 @@
 # IE-036 — The twelve spells a long casting time alone blocked
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: content
 tranche: 5
 parallel-safe: CONDITIONAL — content only; collides with IE-035 on registry lines alone
 depends-on: IE-034
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

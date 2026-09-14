@@ -1,12 +1,12 @@
 # IE-032 — A casting ended by a trigger
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 5
 parallel-safe: NO — a union task touching `events.ts` and `spell-resolution.ts`; runs alone
 depends-on: IE-027, IE-028, IE-030
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

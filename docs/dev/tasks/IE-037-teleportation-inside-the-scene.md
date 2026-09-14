@@ -1,12 +1,12 @@
 # IE-037 — Teleportation inside the scene
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 5
 parallel-safe: NO — a union task touching `spell-resolution.ts` and the movement surface; the tranche's tail, and deferrable
 depends-on: IE-035
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

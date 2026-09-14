@@ -1,12 +1,12 @@
 # IE-022 — The citation guard reads the document it names
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 5
 parallel-safe: YES — `blocked-on.test.ts` and description text in `missing-shapes.ts`; no engine module
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

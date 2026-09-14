@@ -1,12 +1,12 @@
 # IE-029 — Refusal-code hygiene, before a caller can branch on one
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 5
 parallel-safe: CONDITIONAL — owns `commands/actions.ts`, `commands/movement.ts`, `resources.ts` and `rest.ts`; after IE-026, before IE-031
 depends-on: IE-026
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

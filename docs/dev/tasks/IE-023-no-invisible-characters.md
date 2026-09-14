@@ -1,12 +1,12 @@
 # IE-023 — No invisible characters, and a validator that is itself tested
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: tooling
 tranche: 5
 parallel-safe: YES — a new guard, `CLAUDE.md`'s prose, and `docs/dev/check-queue.mjs`; no engine module
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

@@ -1,12 +1,12 @@
 # IE-028 — One enumerator for a creature's sourced grants
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `events.ts` alone; safe beside IE-027 (`spell-resolution.ts` only) and IE-029
 depends-on: IE-020
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

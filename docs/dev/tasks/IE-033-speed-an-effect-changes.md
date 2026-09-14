@@ -1,12 +1,12 @@
 # IE-033 — A Speed an effect changes
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: mechanism
 tranche: 5
 parallel-safe: NO — a union task touching `events.ts`, `spell-resolution.ts` and `standing.ts`; runs alone
 depends-on: IE-031, IE-032
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

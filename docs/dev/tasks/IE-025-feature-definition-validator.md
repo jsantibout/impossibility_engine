@@ -1,12 +1,12 @@
 # IE-025 — A feature-definition validator
 
-state: OWNER_APPROVAL_REQUIRED
+state: APPROVED_FOR_IMPLEMENTATION
 lane: conformance
 tranche: 5
 parallel-safe: YES — a new module, its test, and data-only fixes in the twelve class files
 depends-on: none
 worker: none
-approved: none
+approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
 ## Brief

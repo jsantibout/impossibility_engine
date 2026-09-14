@@ -389,7 +389,7 @@ foreman.
 
 Recommendation: APPROVE TRANCHE 4.
 
-### Tranche 5 — PROPOSED
+### Tranche 5 — APPROVED 2026-09-14 — "APPROVE TRANCHE 5"
 roster: IE-020, IE-021, IE-022, IE-023, IE-024, IE-025, IE-026, IE-027, IE-028, IE-029, IE-030, IE-031, IE-032, IE-033, IE-034, IE-035, IE-036, IE-037
 
 **Eighteen tasks, eight waves, operationalised from the post-tranche-4 delta
@@ -546,8 +546,14 @@ Recommendation: APPROVE TRANCHE 5.
 
 ## CURRENT
 
-**Tranche 5 is proposed and waiting at Gate 1. Nothing is approved, so nothing
-executes.**
+**Tranche 5 is approved and running.** Owner's words at Gate 1, 2026-09-14:
+"APPROVE TRANCHE 5". That approval is the merge authority for exactly the
+eighteen tasks on its roster, through implementation, review, rework, clean
+auto-merge, push, bookkeeping **and later waves as their dependencies are
+satisfied** — with no gate between waves and nothing else.
+
+Wave 1 launched with four builders: IE-020, IE-024, IE-025, IE-026. The three
+remaining wave-1 tasks — IE-021, IE-022, IE-023 — take slots as they free.
 
 All nineteen tasks to date are `DONE` and merged; tranche 4 shipped ten of ten,
 nine of them without owner involvement. `main` carries **6,696 tests across 103
@@ -665,3 +671,4 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | audit flag | — | **answered and retired.** The token no longer sits on the line `check-queue.mjs` reads; the four instrument repairs it asked for are IE-021, IE-022, IE-023 and IE-024 on tranche 5's roster. The evidence that raised it is kept |
 | 2026-09-14 | audit checkpoint | — | recorded in advance: at tranche 5's `TRANCHE_COMPLETE` the foreman recommends the **Fable non-semantic simplification and optimisation audit**, not a fifth retrospective. The delta audit classified it APPROACHING and asked that it measure the engine *after* IE-027 and IE-028 land rather than recommend them |
 | 2026-09-14 | Gate 1 | IE-020 … IE-037 | **presented — `OWNER_APPROVAL_REQUIRED`.** Eighteen tasks, eight waves, operationalised from the delta audit §5 with its premises verified against `main`: four corrected (the settlement function, the movement allowance, the ritual reason's first writer, and `EffectTarget.grants` confirmed) and two scope corrections forced by the standing rules. Estimate 5.5–7 hours, calibrated against tranche 4's actual 2.5 |
+| 2026-09-14 | Gate 1 | IE-020 … IE-037 | approved — "APPROVE TRANCHE 5". Eighteen tasks, eight waves, one approval and no gate between waves. Wave 1 launched with four builders — IE-020, IE-024, IE-025, IE-026 — chosen as the wave's dependency roots (IE-020 for wave 2, IE-026 for IE-029 and IE-031, IE-024 before any union task touches `spell-schema.ts`) plus the longest task. IE-021, IE-022 and IE-023 take slots as they free |
