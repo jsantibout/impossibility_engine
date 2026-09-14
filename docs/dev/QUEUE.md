@@ -25,7 +25,9 @@ the Done table, commit `588d7a0`.
 Engine tasks completed since last audit: 5
 Audit due at: 4 — **reached; the gate is chartered and running**
 
-**The gate is scoped, at the owner's instruction** (2026-09-13): Fable is
+**The gate is answered** — `docs/architecture/outcome-scoped-child-effects-2026-09-13.md`, `APPROVE, narrowed`: outcome **riders**, not child effects, and `onFail: SpellEffect[]` rejected on evidence. **Tranche 4 is not reordered.** The counter is left standing rather than reset, because a scoped gate is not the whole-engine sweep it was counting toward; see below.
+
+**The gate was scoped, at the owner's instruction** (2026-09-13): Fable is
 chartered on one architectural question rather than a whole-engine sweep —
 **the restricted child vocabulary for outcome-scoped child effects**, which
 `docs/architecture/spell-leverage-audit-2026-09-13.md` ranks as the
@@ -264,6 +266,17 @@ the one the definitions decision record deferred pending evidence, and the
 one the foreman may not design. Its output is a design record; tranche 5
 implements it.
 
+**Tranche 4 is not reordered by the gate, and one of its tasks is
+re-briefed.** Fable found that `EffectTarget` ends a condition instance, a
+casting or a feature and **nothing ends a grant before its casting does** —
+so a granted Resistance with a deadline has no shape. C1 is the first task
+that meets it (Superior Hunter's Defense is exactly "a Resistance with a
+deadline"), and its brief must either carry the fourth `EffectTarget` member
+or state the limit as a named gap. That is a re-brief, not a reorder.
+
+Fable also asks that C1 be built as a **source-linked leaf**, because then
+its rider form costs one validator line in tranche 5 rather than a design.
+
 | Recommended for tranche 4 | Family | Consumers (spell + feature) | Level |
 |---|---|---|---|
 | A granted Resistance / Immunity / Vulnerability | C1 | 4 + 5 | GREEN |
@@ -299,6 +312,9 @@ ranked map, which it re-confirmed rather than replaced.
 | a refusal-code coverage sweep; a feature-definition validator; the special-case guard's allowlist; per-event field schemas | conformance | named in the audit, §3.4–3.5 and §3.9; briefed when a tranche has room |
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
+| **`roll-mode.save` has zero users in the catalogue.** Blur and Beacon of Hope are the only `roll-mode` effects and neither saves | content | Fable, §H. A speculative branch field, and the clearest example in the repository of what one looks like. Remove it — and the outcome-rider design makes it redundant besides |
+| **Disintegrate is mis-adjudicated to `outcome-scoped-child-effects`**, and IE-002 mis-filed **Ice Knife** and **Chromatic Orb** to it too | conformance | Fable, §C. Disintegrate needs a third outcome axis (save → damage → 0 HP) with one consumer; Ice Knife is two sequenced rolls plus an area at a target; Chromatic Orb is a chained attack on a dice-face trigger. Re-file all three |
+| **`checkSpellDefinition` has no rule for a casting-owned rider on a definition with no lifetime** — a grant linked to a casting that never becomes ongoing and never ends | conformance | Fable, §E. The foreman drove all 132 definitions: **none today**, so this is a missing guard rather than a defect, and it is cheap because nothing has to be fixed first |
 | Should `save`'s **stored** layout adopt `ConditionRider` too? IE-001 gave it the type through `conditionRiderOf` without moving its storage, because the brief forbade changing the member. Moving it is ~30 definitions, the schema and `riderDurations`, and buys uniformity of storage where uniformity of vocabulary is already had | mechanism | IE-001's builder raised it as a question rather than taking it. A decision, not a defect |
 | `check` and `outlivesCasting` are now reachable on the `attack` and `save-damage` riders, where no definition uses them and no test covers those two combinations | content | the declared cost of one shared rider rather than three; expressible and unexercised |
 | **`alsoOn` cannot grow `on` at the cast**, because `spell-ongoing` is pushed at the end of `resolveEffects` and every `condition-applied` in the batch folds before it. A Range: Self area spell — Sunbeam — blinds a creature and is not recorded as being on them, so a Dispel Magic aimed at that creature finds nothing. **And `CLAUDE.md`'s "now applied at the cast as well" is false for this case** | mechanism | IE-007's builder, pre-existing rather than introduced. A behaviour gap and a false sentence in the constitutional file; the sentence should be corrected when the behaviour is, or by the counts sweep below, whichever reaches it first. Deliberately not stretched into IE-007's bounded pass |
@@ -334,4 +350,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-13 | Gate 1 | IE-008, IE-001, IE-007, IE-009 | approved — "APPROVE TRANCHE 3"; launched with three builders, IE-007 held until IE-001 merges |
 | 2026-09-13 | planning objective | — | the SRD surface is planned as a leverage problem — verified coverage per unit of engine complexity, not raw spell count. A change to the foreman's objective, not to authority: review loop, thirteen conditions, bounded extra pass, escalation and foreman-owned rebases all unchanged. `docs/architecture/spell-leverage-audit-2026-09-13.md` |
 | 2026-09-13 | whole-engine gate | — | chartered, and **scoped by the owner** to one question: the restricted child vocabulary for outcome-scoped child effects. Design record only; `REJECT` and "narrower than asked" are legitimate answers. Tranche 4 not launched |
+| 2026-09-13 | whole-engine gate | — | **answered: `APPROVE, narrowed`.** Outcome *riders*, not child effects — leaf types in fixed slots on `attack`, `save-damage` and `save`, with the branch fixed by the host and the invariant that a rider never rolls. `onFail: SpellEffect[]` rejected on evidence. Tranche 4 not reordered; C1 re-briefed. `docs/architecture/outcome-scoped-child-effects-2026-09-13.md` |
 | 2026-09-13 | Gate 1 (tranche) | IE-005, IE-006, IE-002 | approved — "APPROVE TRANCHE 2"; tranche 2 launched with three builders, no further merge gate |
