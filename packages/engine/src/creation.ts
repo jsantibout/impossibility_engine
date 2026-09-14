@@ -1792,6 +1792,14 @@ export function planCharacter(
         effect = { ...effect, dice: `${count}d${faces}` };
       }
 
+      // SRD Unarmored Movement's feet are a column of the Monk table, read at
+      // that class's own level — the same rule Sneak Attack's dice follow, and
+      // the reason a Monk 2 / Fighter 3 gets the Monk 2 row rather than the
+      // level 5 one.
+      if (grant.feetByLevel !== undefined && effect.kind === 'speed') {
+        effect = { ...effect, feet: usesOf(choices, feature.id, grant.feetByLevel) };
+      }
+
       standing.push({
         feature: feature.id,
         name: feature.name,

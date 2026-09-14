@@ -5,6 +5,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
+import { movementLeftFor } from './standing.js';
 import type { Point } from './positioning.js';
 import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import {
@@ -583,9 +584,7 @@ describe('the caster moves the force, and it is not creature movement', () => {
     g.push(out.events);
 
     expect(g.state.scene?.positions).toEqual(before.scene?.positions);
-    expect(g.state.combat?.budgets[CLERIC]?.movementRemaining).toBe(
-      before.combat?.budgets[CLERIC]?.movementRemaining,
-    );
+    expect(movementLeftFor(g.state, CLERIC)).toBe(movementLeftFor(before, CLERIC));
     expect(out.events.map((e) => e.type)).not.toContain('movement-spent');
     expect(out.events.map((e) => e.type)).not.toContain('creature-moved');
   });

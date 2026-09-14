@@ -27,7 +27,7 @@ import { distanceBetween } from './positioning.js';
 import type { GameState } from './events.js';
 import type { DamageDefenses, DefenseKind } from './attack.js';
 import type { Weapon } from '@ie/srd';
-import { canUseFeatureThisTurn } from './combat.js';
+import { canUseFeatureThisTurn, movementLeft } from './combat.js';
 
 /**
  * Benefits a class feature grants for as long as its rule holds.
@@ -164,6 +164,28 @@ export type StandingGrant =
    * nothing about it.
    */
   | { readonly kind: 'evasion' }
+  /**
+   * Feet added to the holder's Speed while the feature's own clause holds.
+   *
+   * Three SRD features and one sentence between them:
+   *
+   * | | |
+   * |---|---|
+   * | Fast Movement (Barbarian 5) | "Your speed increases by 10 feet while you aren't wearing Heavy armor." |
+   * | Roving (Ranger 6) | "Your Speed increases by 10 feet while you aren't wearing Heavy armor." |
+   * | Unarmored Movement (Monk 2) | "Your speed increases by 10 feet while you aren't wearing armor or wielding a Shield. This bonus increases when you reach certain Monk levels." |
+   *
+   * A flat number rather than a per-level table, because the table is
+   * `FeatureGrant.feetByLevel` and is read at **that class's own** level when
+   * the sheet is built — the same split `diceCountByLevel` already makes for
+   * Sneak Attack, and for the same reason: a standing effect on a sheet knows
+   * nothing about which class granted it.
+   *
+   * Speed *reductions* are not this member's business. Exhaustion's "5 times
+   * your Exhaustion level" is `conditionSpeed`'s, and nothing else in the
+   * engine reduces one yet.
+   */
+  | { readonly kind: 'speed'; readonly feet: number }
   | {
       readonly kind: 'attack-damage';
       readonly dice?: string;
@@ -257,10 +279,35 @@ export type StandingRequirement =
   /**
    * SRD Dodge: "You lose these benefits ... if your Speed is 0."
    *
-   * Speed after conditions, which is what Grappled, Restrained and the rest
-   * set to zero — the same reading movement takes.
+   * The **whole** Speed, through `speedOf`, which is the reading movement
+   * takes — so a spell that sets a Speed to 0 will end a Dodge through the
+   * same door Grappled already does.
+   *
+   * A `speed` grant may not carry this requirement, and that is what keeps the
+   * reading from being circular: `speedOf` asks the requirements of the grants
+   * it is adding up, so a Speed grant conditioned on a Speed would be a
+   * question asked of its own answer. No SRD feature writes one — all three
+   * are conditioned on armour — and `invariants.test.ts` asserts that of every
+   * registered feature source rather than trusting it.
    */
-  | { readonly kind: 'has-speed' };
+  | { readonly kind: 'has-speed' }
+  /**
+   * SRD Fast Movement, and SRD Roving in the same words: "while you aren't
+   * wearing **Heavy** armor."
+   *
+   * Not "unarmoured": a Barbarian in a chain shirt keeps the ten feet, and
+   * reading the clause as the stricter one would quietly take them away.
+   */
+  | { readonly kind: 'not-wearing-heavy-armor' }
+  /**
+   * SRD Unarmored Movement: "while you aren't wearing armor **or wielding a
+   * Shield**."
+   *
+   * Both halves, because the Shield is the half a clause named for armour
+   * alone loses. Read off `equipped` through the sheet's two slots, which is
+   * where "owning is not wearing" already put the answer.
+   */
+  | { readonly kind: 'unarmored' };
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
@@ -499,9 +546,21 @@ function meetsRequirements(state: GameState, who: CharacterId, effect: StandingE
     ) {
       return false;
     }
+    // The whole Speed, not the base one conditions are applied to: `speedOf`
+    // is the one reader, and a feature or (after IE-033) a spell that moves a
+    // Speed has to reach this clause like everything else.
+    if (requirement.kind === 'has-speed' && speedOf(state, who) <= 0) {
+      return false;
+    }
     if (
-      requirement.kind === 'has-speed' &&
-      conditionSpeed(creature.conditions, creature.sheet.baseSpeed) <= 0
+      requirement.kind === 'not-wearing-heavy-armor' &&
+      creature.sheet.armor?.category === 'heavy'
+    ) {
+      return false;
+    }
+    if (
+      requirement.kind === 'unarmored' &&
+      (creature.sheet.armor !== null || creature.sheet.shield !== null)
     ) {
       return false;
     }
@@ -793,6 +852,111 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
     total += active.direction === 'subtract' ? -flat : flat;
   }
   return total;
+}
+
+/**
+ * Compose a Speed out of its parts, in the order the architect fixed.
+ *
+ * **The SRD prints no order**, and the order is observable, so it is decided
+ * once here rather than by whichever caller happens to be looking:
+ *
+ * > base, plus the flat changes, then **halved once** if any halving effect
+ * > applies, then **0** if any zeroing effect applies, never below 0.
+ *
+ * Halving is presence and not count — the reading Resistance and Advantage
+ * already take, so two halvings are one halving. Zero is last and **wins**,
+ * because SRD Grappled and Restrained both print "Your Speed is 0 **and can't
+ * increase**": a flat bonus applied afterwards would hand a pinned creature
+ * ten feet the rules had already taken away.
+ *
+ * `conditionSpeed` is folded in whole rather than reimplemented, and it
+ * carries two of the three steps at once — Exhaustion's "reduced by a number
+ * of feet equal to 5 times your Exhaustion level" is a flat change, and the
+ * five pinning conditions are the zero. That puts its zero *before* the
+ * halving rather than after, and the two orders are the same function:
+ * halving 0 is 0, and no flat change follows either. So the arithmetic is
+ * identical for every input and there is one implementation of the condition
+ * rules rather than two.
+ *
+ * @param halvings how many halving effects apply; any number above zero halves
+ *   once. Nothing in the engine produces one yet — **IE-033's spell-granted
+ *   Speed change is the first** — so this branch is reached today only by
+ *   handing this pure function the case, which is how `restoreOn`'s Short Rest
+ *   branch is reached and for the same reason.
+ */
+export function combineSpeed(
+  base: number,
+  flat: number,
+  halvings: number,
+  conditions: ConditionState,
+): number {
+  const flattened = conditionSpeed(conditions, base + flat);
+  return Math.max(0, halvings > 0 ? Math.floor(flattened / 2) : flattened);
+}
+
+/**
+ * A creature's Speed, with whatever is currently moving it.
+ *
+ * **The one reader.** `spendMovement`'s cap, a Dash's increase, a mounting cost
+ * and a readied move's allowance were three different spellings of this
+ * question — one of them reaching for `sheet.baseSpeed`, one for the pinned
+ * `combatant.speed`, all three passing whichever they found to
+ * `conditionSpeed` — and **none of them could see a class feature**, which is
+ * why a Barbarian's Fast Movement said in its own note that "Speed comes from
+ * the species and nothing modifies it". It is `armorClassOf`'s shape exactly:
+ * a derived number the rules are measured against, gathered in one place.
+ *
+ * **The base is the pinned `combatant.speed` while a fight is running**, and
+ * `sheet.baseSpeed` outside one — two bases for one reader, which is harmless
+ * today because `startCombat` is given the sheet's own number and is written
+ * down rather than left to be discovered. `Combatant.speed` reaching
+ * `combat-started` is what makes it the base inside a fight: it is in both
+ * frozen logs, so a replay measures against the Speed that fight began with.
+ *
+ * **Feature grants are derived on every read**, like every other standing
+ * effect: whether a Monk is unarmoured changes the moment they put a Shield
+ * down, and a stored copy would be an unconditional bonus wearing a feature's
+ * name. They are gathered from the creature's **own** sheet rather than
+ * through `standingFor`, and that is a rule rather than an optimisation: no
+ * SRD feature grants Speed to anybody else, and `standingFor` evaluates every
+ * effect's requirements — including Dodge's `has-speed`, which asks this
+ * function. Reading only `speed` grants is what keeps that from recursing.
+ *
+ * **No spell moves a Speed yet.** IE-033 adds that through this reader, which
+ * is what `halvings` and the `flat` accumulator are here for; a grant added to
+ * `CreatureState` joins them without a second answer to this question
+ * appearing anywhere.
+ */
+export function speedOf(state: GameState, who: CharacterId): number {
+  const creature = state.creatures[who];
+  if (creature === undefined) return 0;
+
+  const base = state.combat?.order.find((c) => c.id === who)?.speed ?? creature.sheet.baseSpeed;
+
+  let flat = 0;
+  for (const effect of creature.sheet.standing ?? []) {
+    if (effect.grant.kind !== 'speed') continue;
+    if (!meetsRequirements(state, who, effect)) continue;
+    flat += effect.grant.feet;
+  }
+
+  return combineSpeed(base, flat, 0, creature.conditions);
+}
+
+/**
+ * What is left of a creature's movement this turn, or null outside combat.
+ *
+ * The `GameState` half of {@link movementLeft}: it looks the allowance up
+ * through `speedOf` and hands it to the one function that does the
+ * subtraction, so a caller reading a budget never has to know the formula.
+ * Null rather than zero when there is no turn to have a budget in — "no
+ * allowance" and "none left" are different answers, and the distinction is the
+ * one `attacksRemaining` already draws.
+ */
+export function movementLeftFor(state: GameState, who: CharacterId): number | null {
+  const budget = state.combat?.budgets[who];
+  if (budget === undefined) return null;
+  return movementLeft(budget, speedOf(state, who));
 }
 
 /** What an attack was, for deciding which features have anything to say about it. */

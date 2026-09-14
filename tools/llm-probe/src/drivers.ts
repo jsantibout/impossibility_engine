@@ -16,7 +16,14 @@
 
 import { readFileSync } from 'node:fs';
 import type { CharacterId } from '@ie/shared';
-import { carrying, distanceBetween, footprintOf, itemFor, type GameState } from '@ie/engine';
+import {
+  carrying,
+  distanceBetween,
+  footprintOf,
+  itemFor,
+  movementLeftFor,
+  type GameState,
+} from '@ie/engine';
 import type { Encounter } from './encounter.js';
 import type { ToolSpec } from './surface.js';
 
@@ -222,7 +229,8 @@ export function createScriptedDriver(
     const scene = state.scene;
     const apart = scene === null ? null : distanceBetween(scene, active, target);
     const feetAway = apart !== null && apart.ok ? apart.value : null;
-    if (feetAway !== null && feetAway > 5 && budget.movementRemaining >= feetAway - 5) {
+    const movement = movementLeftFor(state, active) ?? 0;
+    if (feetAway !== null && feetAway > 5 && movement >= feetAway - 5) {
       const side = encounter.sides.find((s) => s.includes(active)) ?? [];
       // A placement is measured from the target's *anchor*, and a creature
       // occupies volume from that anchor outward — so standing five feet from

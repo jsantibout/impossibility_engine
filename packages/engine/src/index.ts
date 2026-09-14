@@ -42,3 +42,9 @@ export * from './commands.js';
 // internal, so a caller outside the engine could read `armorClass(sheet)` and
 // get the *base* number while the engine attacked against a different one.
 export { armorClassOf } from './standing.js';
+// The effective Speed, and what is left of it this turn — the numbers the
+// rules are actually measured against, with conditions, Exhaustion and every
+// feature grant folded in. Exported for the same reason `armorClassOf` is: a
+// caller outside the engine reading `sheet.baseSpeed` or a budget field would
+// get a number the engine itself never uses.
+export { movementLeftFor, speedOf } from './standing.js';

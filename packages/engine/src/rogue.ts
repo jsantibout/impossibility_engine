@@ -170,7 +170,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Steady Aim',
       level: 3,
       automation: 'manual',
-      note: 'Advantage on the next attack in exchange for a Speed of 0 is not modelled.',
+      note: 'SRD: "you can take a Bonus Action to give yourself Advantage on your next attack roll on the current turn. You can use this Bonus Action only if you haven’t moved during this turn, and after you use it, your Speed is 0 until the end of the current turn." Not modelled, and the Speed is not the blocker — speedOf reads a grant like any other. What is missing is "until the end of the current turn", which is a Duration member with no other consumer, and a one-shot Advantage that is consumed by the roll it changes, which nothing here consumes.',
     },
     {
       id: 'rogue:ability-score-improvement',

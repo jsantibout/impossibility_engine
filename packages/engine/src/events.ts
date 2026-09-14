@@ -84,6 +84,19 @@ import {
   type CombatState,
   type CombatantInput,
 } from './combat.js';
+/**
+ * The one Speed reader, asked by the fold for exactly the reason the command
+ * asks it: a reducer backstop measuring against a different number is a fork
+ * rather than a guard.
+ *
+ * **Not a cycle, and not a catalogue lookup.** `standing.ts` imports
+ * `GameState` from here `type`-only, so the runtime edge runs one way; and
+ * every input `speedOf` reads is log-held — the pinned combatant speed,
+ * `sheet.standing` carried by `character-created`, `equipped`, conditions — so
+ * the fence `upgradeOngoing` stands behind is intact and a future correction
+ * to the Monk table changes future sheets rather than historical folds.
+ */
+import { speedOf } from './standing.js';
 import {
   addLandmark,
   areaPointAt,
@@ -4380,14 +4393,16 @@ function applyOne(state: GameState, event: GameEvent): GameState {
         ).state,
       );
     }
-    case 'dash-taken': {
-      const creature = creatureOf(state, event, event.id);
+    // SRD Dash: "The increase equals your Speed **after applying any
+    // modifiers**." `speedOf` is the one reader of that, so the fold asks it
+    // exactly as `takeDash` does — the command's own check with the command's
+    // own inputs, which is the only thing that makes a reducer backstop honest.
+    case 'dash-taken':
       return withCombat(
         next,
         state,
-        must(event, dash(combatOf(state, event), event.id, creature.conditions)),
+        must(event, dash(combatOf(state, event), event.id, speedOf(state, event.id))),
       );
-    }
     case 'disengage-taken': {
       return withCombat(
         next,
@@ -4398,11 +4413,19 @@ function applyOne(state: GameState, event: GameEvent): GameState {
     case 'reaction-spent':
       return withCombat(next, state, must(event, spendReaction(combatOf(state, event), event.id)));
 
+    // The allowance is `speedOf`'s, here as in `resolveMove`. This call used to
+    // pass no Speed at all and fell back to the pinned one, so the fold
+    // measured the very event the command had emitted against a different
+    // number — and refused a Monk's legal 35-foot move as a corrupt log. A
+    // backstop with the wrong inputs is a fork, not a guard.
     case 'movement-spent':
       return withCombat(
         next,
         state,
-        must(event, spendMovement(combatOf(state, event), event.id, event.feet)),
+        must(
+          event,
+          spendMovement(combatOf(state, event), event.id, event.feet, speedOf(state, event.id)),
+        ),
       );
 
     case 'free-interaction-used':

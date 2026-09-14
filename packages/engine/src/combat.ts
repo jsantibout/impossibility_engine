@@ -11,7 +11,6 @@ import type { Bonus, ModeSource } from './bonuses.js';
 import { initiativeModifier, type CharacterSheet } from './character.js';
 import { rollD20Test, type D20Roll } from './checks.js';
 import {
-  conditionSpeed,
   exhaustionBonus,
   initiativeConditionModes,
   isIncapacitated,
@@ -119,7 +118,38 @@ export interface TurnBudget {
   readonly action: boolean;
   readonly bonusAction: boolean;
   readonly reaction: boolean;
-  readonly movementRemaining: number;
+  /**
+   * Feet of movement already spent this turn.
+   *
+   * **Store what happened, derive what is left.** This was
+   * `movementRemaining` — a *derived* quantity frozen at the moment it was
+   * seeded — and that is sound only while every later change to the allowance
+   * moves in the direction a cap can express: downwards. A feature grant
+   * raises it, and nothing but the seed can raise a remainder, so a Monk whose
+   * Speed is 40 was refused at 30 by whichever reader still held the seed.
+   *
+   * A working live cap is not evidence that a live allowance exists. The test
+   * is whether the stored number can represent an allowance **larger than its
+   * seed**, and a remainder cannot.
+   */
+  readonly movementSpent: number;
+  /**
+   * Feet of extra movement banked this turn, which today is only a Dash.
+   *
+   * SRD Dash: "you gain extra movement for the current turn. The increase
+   * equals your Speed after applying any modifiers." It is banked rather than
+   * folded into the allowance because it was earned at a moment: the Speed it
+   * was measured against was the Speed *then*.
+   *
+   * **A Dash's gained movement survives a later Speed of 0 this turn**, and
+   * that is an open reading rather than a decision. SRD Grappled says "Your
+   * Speed is 0 and can't increase", which is about the Speed and says nothing
+   * about extra movement already banked. Today's arithmetic allowed it before
+   * this field existed and this formula preserves the reading exactly; the
+   * engine has not decided it, and this sentence is where that is written
+   * down rather than discovered.
+   */
+  readonly movementGained: number;
   /**
    * Attacks left in the Attack action, or null if it has not been taken.
    *
@@ -200,11 +230,19 @@ export interface CombatState {
   readonly turnCounts: Readonly<Record<string, TurnCount>>;
 }
 
-const fullBudget = (speed: number): TurnBudget => ({
+/**
+ * A fresh turn, which **takes no Speed**.
+ *
+ * It used to seed `movementRemaining` from the pinned Speed, and that seed was
+ * the ceiling no grant could pass. Nothing is seeded now: the allowance is
+ * `speedOf + gained − spent`, derived by the command and by the fold alike.
+ */
+const fullBudget = (): TurnBudget => ({
   action: true,
   bonusAction: true,
   reaction: true,
-  movementRemaining: Math.max(0, speed),
+  movementSpent: 0,
+  movementGained: 0,
   attacksRemaining: null,
   disengaged: false,
   freeInteraction: true,
@@ -244,7 +282,7 @@ export function startCombat(combatants: readonly CombatantInput[]): Result<Comba
   const budgets: Record<string, TurnBudget> = {};
   const turnCounts: Record<string, TurnCount> = {};
   for (const c of order) {
-    budgets[c.id] = fullBudget(c.speed);
+    budgets[c.id] = fullBudget();
     turnCounts[c.id] = { begun: 0, ended: 0 };
   }
   // The first combatant's turn starts with the fight.
@@ -280,7 +318,7 @@ function beginTurn(state: CombatState): CombatState {
   const combatant = currentCombatant(state);
   return {
     ...state,
-    budgets: { ...state.budgets, [combatant.id]: fullBudget(combatant.speed) },
+    budgets: { ...state.budgets, [combatant.id]: fullBudget() },
     turnCounts: bumped(state.turnCounts, combatant.id, 'begun'),
   };
 }
@@ -449,18 +487,51 @@ export function spendAttack(
 }
 
 /**
+ * What is left of this turn's movement, derived rather than stored.
+ *
+ * `allowance` is the creature's Speed **now** — `speedOf`'s answer, with
+ * conditions, Exhaustion and every feature grant folded in — and the budget
+ * holds only what happened: feet spent, and feet a Dash banked.
+ *
+ * **Store what happened, derive what is left.** The budget used to hold the
+ * remainder, seeded from the pinned Speed, and a remainder is a derived
+ * quantity frozen at its seed: sound only while every later change to the
+ * allowance moves downwards, which is the one direction a cap can express. A
+ * feature grant raises it, and nothing but the seed can raise a remainder — so
+ * a Monk whose Speed is 40 was capped at 30 by whichever reader still held the
+ * seed, and the command and the fold could disagree about which.
+ *
+ * A pure function over a budget and a number, so every caller asks it the same
+ * way: `movementLeftFor` in `standing.ts` is the `GameState` half that looks
+ * the allowance up first.
+ */
+export function movementLeft(budget: TurnBudget, allowance: number): number {
+  return Math.max(0, allowance + budget.movementGained - budget.movementSpent);
+}
+
+/**
  * SRD Dash: "you gain extra movement for the current turn. The increase equals
  * your Speed **after applying any modifiers**."
  *
  * After modifiers is the load-bearing half, and the SRD spells it out: "If
  * your Speed of 30 feet is reduced to 15 feet, you can move up to 30 feet this
- * turn if you Dash." So the increase is read through the same conditions that
- * reduce movement, not off the combatant's printed Speed.
+ * turn if you Dash." So the caller passes `speedOf`'s answer rather than a
+ * printed number, and a Monk's Unarmored Movement reaches the Dash exactly as
+ * it reaches the allowance and the mounting cost.
+ *
+ * **The increase is required, not optional.** An optional parameter defaulting
+ * to `combatant.speed` is how the command and the fold came to measure one
+ * question against two numbers — the fork this whole change exists to close —
+ * so there is nowhere for a second answer to hide.
+ *
+ * **It is banked rather than added to an allowance**, because it was earned at
+ * a moment: the Speed it was measured against was the Speed *then*. See
+ * `TurnBudget.movementGained` for the open reading that follows from it.
  */
 export function dash(
   state: CombatState,
   id: CharacterId,
-  conditions?: ConditionState,
+  increase: number,
 ): Result<CombatState> {
   const combatant = state.order.find((c) => c.id === id);
   if (combatant === undefined) return err('not_a_combatant', `${id} is not in this fight`);
@@ -468,14 +539,11 @@ export function dash(
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
 
-  const increase =
-    conditions === undefined ? combatant.speed : conditionSpeed(conditions, combatant.speed);
-
   return ok(
     withBudget(
       state,
       id,
-      { movementRemaining: budget.value.movementRemaining + Math.max(0, increase) },
+      { movementGained: budget.value.movementGained + Math.max(0, increase) },
       budget.value,
     ),
   );
@@ -499,15 +567,36 @@ export function disengage(
 }
 
 /**
- * SRD: "you can move a distance up to your Speed". Conditions are consulted
- * here rather than at `startCombat`, because a creature can be Grappled or gain
- * Exhaustion partway through a fight.
+ * SRD: "you can move a distance up to your Speed".
+ *
+ * **`allowance` is required, and that is the whole correction.** It is
+ * `speedOf`'s answer — conditions, Exhaustion and every feature grant folded
+ * together — supplied by the caller because this module sits below
+ * `standing.ts`: `speedOf` needs a whole `GameState` and a combat state is not
+ * one.
+ *
+ * It is not optional and must not become optional. The **reducer** calls this
+ * function too, as its corrupt-log backstop, and a backstop is honest only
+ * when it is the command's own check with the command's own inputs. An
+ * optional parameter defaulting to `combatant.speed` is exactly how the two
+ * came to measure one question against two numbers: the command validated a
+ * Monk's 35-foot move against 40 and the fold refused the very event the
+ * command had emitted, against 30. That is the Dodge-versus-Fire-Bolt fork,
+ * and it is why a green suite folded a corrupt log.
+ *
+ * The cap is `movementLeft`, which is `allowance + gained − spent`. There is
+ * no `min` against a stored remainder and no `movedSoFar`: both were the
+ * arithmetic of a seeded remainder, and the remainder is gone. A condition
+ * arriving mid-turn still cannot hand back distance already travelled — a
+ * creature that has walked 20 of 30 feet and is then Grappled has
+ * `max(0, 0 + 0 − 20)`, which is 0 — and the rule now falls out of the
+ * subtraction rather than being arranged for.
  */
 export function spendMovement(
   state: CombatState,
   id: CharacterId,
   feet: number,
-  conditions?: ConditionState,
+  allowance: number,
 ): Result<CombatState> {
   if (!Number.isFinite(feet) || feet < 0) {
     return err('bad_distance', `${feet} is not a distance that can be moved`);
@@ -516,23 +605,13 @@ export function spendMovement(
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
 
-  const combatant = currentCombatant(state);
-  const remaining = budget.value.movementRemaining;
-
-  // A condition arriving mid-turn caps what is left, but cannot hand back
-  // distance already travelled — a creature that has walked 20 feet and is then
-  // Grappled has 0 left, not a fresh allowance measured against its new Speed.
-  const movedSoFar = combatant.speed - remaining;
-  const effectiveSpeed =
-    conditions === undefined ? combatant.speed : conditionSpeed(conditions, combatant.speed);
-  const allowed = Math.max(0, Math.min(remaining, effectiveSpeed - movedSoFar));
-
+  const allowed = movementLeft(budget.value, allowance);
   if (feet > allowed) {
     return err('not_enough_movement', `${id} has only ${allowed} feet of movement left`);
   }
 
   return ok(
-    withBudget(state, id, { movementRemaining: budget.value.movementRemaining - feet }, budget.value),
+    withBudget(state, id, { movementSpent: budget.value.movementSpent + feet }, budget.value),
   );
 }
 

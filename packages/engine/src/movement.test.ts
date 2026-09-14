@@ -5,6 +5,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { positionOf } from './positioning.js';
+import { movementLeftFor } from './standing.js';
 import {
   declineOpportunity,
   pendingMoveOf,
@@ -115,7 +116,7 @@ describe('moving spends movement', () => {
   it('takes the distance out of the turn’s budget', () => {
     const out = move(SETUP, away(20));
     expect(out.feet).toBe(20);
-    expect(fold('seed', out.log).combat?.budgets.rogue?.movementRemaining).toBe(10);
+    expect(movementLeftFor(fold('seed', out.log), ROGUE)).toBe(10);
   });
 
   it('refuses a move further than the Speed left', () => {
@@ -182,7 +183,7 @@ describe('leaving a reach provokes what the SRD says it provokes', () => {
     const out = move(SETUP, away(20, true));
     expect(pendingMoveOf(fold('seed', out.log))).toBeNull();
     // And forced movement is not the creature's own, so it costs no Speed.
-    expect(fold('seed', out.log).combat?.budgets.rogue?.movementRemaining).toBe(30);
+    expect(movementLeftFor(fold('seed', out.log), ROGUE)).toBe(30);
   });
 
   /** An ally watching you leave does not attack you. */
@@ -271,7 +272,7 @@ describe('the move waits until every Reaction is settled', () => {
     const after = fold('seed', [...out.log, ...passed]);
     expect(pendingMoveOf(after)).toBeNull();
     expect(positionOf(after.scene!, ROGUE)).not.toEqual({ x: 100, y: 100, z: 0 });
-    expect(after.combat?.budgets.rogue?.movementRemaining).toBe(10);
+    expect(movementLeftFor(after, ROGUE)).toBe(10);
   });
 
   /**
@@ -370,7 +371,7 @@ describe('difficult terrain costs what the SRD says it costs', () => {
     const out = move(SETUP, { ...away(20), difficultFeet: 5 });
     expect(out.feet).toBe(20);
     expect(out.cost).toBe(25);
-    expect(fold('seed', out.log).combat?.budgets.rogue?.movementRemaining).toBe(5);
+    expect(movementLeftFor(fold('seed', out.log), ROGUE)).toBe(5);
   });
 
   it('charges nothing extra for a move through none of it', () => {
@@ -381,7 +382,7 @@ describe('difficult terrain costs what the SRD says it costs', () => {
   it('doubles a move made entirely through it', () => {
     const out = move(SETUP, { ...away(15), difficultFeet: 15 });
     expect(out.cost).toBe(30);
-    expect(fold('seed', out.log).combat?.budgets.rogue?.movementRemaining).toBe(0);
+    expect(movementLeftFor(fold('seed', out.log), ROGUE)).toBe(0);
   });
 
   it('refuses a move whose real cost is more than the Speed left', () => {
@@ -421,6 +422,6 @@ describe('difficult terrain costs what the SRD says it costs', () => {
   /** Forced movement spends nothing, so the terrain has nothing to charge. */
   it('charges forced movement nothing, as it charges it nothing at all', () => {
     const out = move(SETUP, { ...away(20, true), difficultFeet: 20 });
-    expect(fold('seed', out.log).combat?.budgets.rogue?.movementRemaining).toBe(30);
+    expect(movementLeftFor(fold('seed', out.log), ROGUE)).toBe(30);
   });
 });

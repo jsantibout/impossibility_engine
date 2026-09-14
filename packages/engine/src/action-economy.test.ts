@@ -4,6 +4,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
+import { movementLeftFor } from './standing.js';
 import { pendingMoveOf, resolveAttack, resolveMove, takeDash, takeDisengage } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 
@@ -220,20 +221,28 @@ describe('Dash buys another Speed’s worth of movement', () => {
   it('adds the creature’s Speed to what is left', () => {
     const dashed = unwrap(takeDash(fold('seed', table(5)), FIGHTER, {}), 'dash');
     const after = fold('seed', [...table(5), ...dashed]);
-    expect(budget(after)?.movementRemaining).toBe(60);
+    expect(movementLeftFor(after, FIGHTER)).toBe(60);
     expect(budget(after)?.action).toBe(false);
   });
 
   /**
    * "If your Speed of 30 feet is reduced to 15 feet, you can move up to 30
-   * feet this turn if you Dash" — the SRD's own example, and the reason the
-   * increase is read after modifiers rather than off the sheet.
+   * feet this turn if you Dash" — the SRD's own worked example, and the reason
+   * the increase is read after modifiers rather than off the sheet.
+   *
+   * **This asserted 45 and its own comment said 30**, and the comment was
+   * right. A remainder seeded at the *pinned* 30 and then raised by the
+   * *reduced* 15 gives 45, which is neither number the book prints: the seed
+   * was the un-reduced Speed, so Exhaustion reached the increase and not the
+   * allowance. Storing the spend and deriving the allowance — 15 + 15 — is
+   * what makes the two halves read the same Speed, and the SRD's example is
+   * the thing that says so.
    */
   it('adds the reduced Speed when Exhaustion has taken its share', () => {
     const tired: readonly GameEvent[] = [...table(5), { type: 'exhaustion-set', id: FIGHTER, level: 3 }];
     const dashed = unwrap(takeDash(fold('seed', tired), FIGHTER, {}), 'dash');
     // A Speed of 30 less 15 is 15, so the turn holds 30 in total.
-    expect(budget(fold('seed', [...tired, ...dashed]))?.movementRemaining).toBe(45);
+    expect(movementLeftFor(fold('seed', [...tired, ...dashed]), FIGHTER)).toBe(30);
   });
 
   it('refuses when the action is already gone', () => {

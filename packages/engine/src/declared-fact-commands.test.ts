@@ -18,6 +18,7 @@ import {
 } from './commands.js';
 import { armorClass, type CharacterSheet } from './character.js';
 import { mountingCost, mountOf, positionOf } from './positioning.js';
+import { movementLeftFor } from './standing.js';
 
 /**
  * The other nine facts a DM declares.
@@ -184,11 +185,11 @@ describe('mounting and dismounting spend half the rider’s Speed', () => {
   /** SRD: "Doing so costs an amount of movement equal to half your Speed (round down)." */
   it('spends half the Speed and records the ride', () => {
     const table = fighting();
-    const before = table.state.combat?.budgets[KNIGHT]?.movementRemaining ?? 0;
+    const before = movementLeftFor(table.state, KNIGHT) ?? 0;
     table.do('up', (s) => mountCreature(s, KNIGHT, DESTRIER, { willing: true }));
 
     expect(mountOf(table.state.scene!, KNIGHT)).toBe(DESTRIER);
-    expect(table.state.combat?.budgets[KNIGHT]?.movementRemaining).toBe(before - mountingCost(30));
+    expect(movementLeftFor(table.state, KNIGHT)).toBe(before - mountingCost(30));
     expect(mountingCost(30)).toBe(15);
   });
 
@@ -228,13 +229,13 @@ describe('mounting and dismounting spend half the rider’s Speed', () => {
   it('dismounts to a place, spending the same again', () => {
     const table = fighting();
     table.do('up', (s) => mountCreature(s, KNIGHT, DESTRIER, { willing: true }));
-    const before = table.state.combat?.budgets[KNIGHT]?.movementRemaining ?? 0;
+    const before = movementLeftFor(table.state, KNIGHT) ?? 0;
     table.do('down', (s) =>
       dismountRider(s, KNIGHT, { from: { landmark: 'the post' }, feet: 5, bearing: 270 }),
     );
 
     expect(mountOf(table.state.scene!, KNIGHT)).toBeNull();
-    expect(table.state.combat?.budgets[KNIGHT]?.movementRemaining).toBe(before - mountingCost(30));
+    expect(movementLeftFor(table.state, KNIGHT)).toBe(before - mountingCost(30));
   });
 
   it('tells a dismount retry under one id that its command landed', () => {

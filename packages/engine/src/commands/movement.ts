@@ -12,6 +12,7 @@ import { spendMovement, spendReaction } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
+import { speedOf } from '../standing.js';
 import {
   dismount,
   distanceToPoint,
@@ -210,7 +211,7 @@ export function moveWithin(
       // said "it is not b's turn". A caller branching on the code and a DM
       // reading the reason were given two different answers to one question,
       // which is exactly what a refusal being a value is meant to prevent.
-      const spent = spendMovement(state.combat, id, cost, mover.conditions);
+      const spent = spendMovement(state.combat, id, cost, speedOf(state, id));
       if (!spent.ok) return spent;
       events.push({ type: 'movement-spent', id, feet: cost });
     }
@@ -483,6 +484,20 @@ function sceneFor(state: GameState, subject: CharacterId, because: string): Resu
  * and spends nothing at all outside combat — the reading `resolveMove` already
  * takes, and the reason the command stamp rides on `mounted`/`dismounted`
  * rather than on a `movement-spent` that may not be there.
+ *
+ * **A Speed of 0 is refused rather than charged nothing, and the refusal has
+ * to be its own.** "Half your Speed" of 0 is 0, so a cost check asking whether
+ * the rider can afford it compares 0 against 0 and passes — the guard
+ * cancelling itself out the moment both halves read the same live number. SRD
+ * puts the whole sentence inside "**During your move**", and a creature the
+ * rules have pinned has no move to do it during: Grappled and Restrained both
+ * print "Your Speed is 0", and a Paralyzed knight does not climb onto a horse
+ * for free. It also keeps the log honest — a `movement-spent` of 0 feet is an
+ * event recording that nothing happened.
+ *
+ * It reports `not_enough_movement`, which is the code this refused under
+ * before the allowance became live, because a refusal code is observable
+ * behaviour and a caller may branch on one.
  */
 function spendMounting(state: GameState, rider: CharacterId): Result<readonly GameEvent[]> {
   if (state.combat === null || state.combat.budgets[rider] === undefined) return ok([]);
@@ -490,11 +505,19 @@ function spendMounting(state: GameState, rider: CharacterId): Result<readonly Ga
   const combatant = state.combat.order.find((entry) => entry.id === rider);
   if (combatant === undefined) return ok([]);
 
-  const feet = mountingCost(combatant.speed);
+  // Half the Speed the rider *has*, not half the one the Initiative order
+  // pinned: SRD says "half your Speed", and a Barbarian's Fast Movement is as
+  // much a part of that as Exhaustion is. One reader answers both.
+  const speed = speedOf(state, rider);
+  if (speed <= 0) {
+    return err('not_enough_movement', `${rider} has no Speed to mount or dismount with`);
+  }
+
+  const feet = mountingCost(speed);
   // The economy's refusal is passed through under its own code, for the reason
   // `resolveMove` records above — this rewrite was copied from there, and the
   // rider climbing up out of turn is the case it got wrong.
-  const spent = spendMovement(state.combat, rider, feet, creatureOf(state, rider)?.conditions);
+  const spent = spendMovement(state.combat, rider, feet, speed);
   if (!spent.ok) return spent;
 
   return ok([{ type: 'movement-spent', id: rider, feet }]);

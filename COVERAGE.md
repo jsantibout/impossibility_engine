@@ -310,7 +310,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 230 | 88 |
+| 12 / 12 | 12 / 12 | 230 | 91 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -320,14 +320,14 @@ believe it has twelve working classes when it has twelve validated ones.
 
 | Class | Casting | Features | Executed |
 |---|---|---|---|
-| Barbarian | none | 24 | 8 |
+| Barbarian | none | 24 | 9 |
 | Bard | known | 17 | 8 |
 | Cleric | prepared-from-list | 16 | 6 |
 | Druid | prepared-from-list | 14 | 5 |
 | Fighter | none | 21 | 10 |
-| Monk | none | 26 | 10 |
+| Monk | none | 26 | 11 |
 | Paladin | prepared-from-list | 22 | 12 |
-| Ranger | known | 22 | 7 |
+| Ranger | known | 22 | 8 |
 | Rogue | none | 24 | 7 |
 | Sorcerer | known | 15 | 5 |
 | Warlock | known | 14 | 5 |

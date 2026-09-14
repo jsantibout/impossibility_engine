@@ -10,7 +10,7 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from '../actions.js';
 import { dash, disengage, spendAction, spendReaction, useFreeInteraction } from '../combat.js';
-import { conditionSpeed } from '../conditions.js';
+import { speedOf } from '../standing.js';
 import {
   applyEvent,
   type GameEvent,
@@ -56,7 +56,7 @@ export function takeDash(
     // actually receive.
     const spent = spendAction(state.combat, id, creature.conditions);
     if (!spent.ok) return spent;
-    const dashed = dash(spent.value, id, creature.conditions);
+    const dashed = dash(spent.value, id, speedOf(state, id));
     if (!dashed.ok) return dashed;
 
     return ok([
@@ -499,8 +499,10 @@ export function releaseReady(
  * is what paid for this, so no Speed is spent — a turn budget belongs to a
  * turn and this is somebody else's, which is why `spendMovement` refuses it by
  * construction and is right to. The allowance is the mover's Speed **now**,
- * after whatever conditions have arrived since they readied: a creature
- * Grappled while waiting has a Speed of 0 and goes nowhere.
+ * read through `speedOf` like every other Speed the command layer asks for —
+ * so whatever has arrived since they readied applies: a creature Grappled
+ * while waiting has a Speed of 0 and goes nowhere, and a Monk who put their
+ * Shield down has the ten feet their feature gives back.
  *
  * Everything else is an ordinary move. It provokes, because it is the
  * creature's own movement and SRD offers the Opportunity Attack for leaving a
@@ -523,8 +525,7 @@ function releaseMove(
     return err('not_in_combat', 'there is no Reaction to spend outside combat');
   }
 
-  const declared = combat.order.find((c) => c.id === id)?.speed ?? creature.sheet.baseSpeed;
-  const allowance = Math.max(0, conditionSpeed(creature.conditions, declared));
+  const allowance = speedOf(state, id);
 
   const after = spentSoFar.reduce(applyEvent, state);
   const moved = moveWithin(

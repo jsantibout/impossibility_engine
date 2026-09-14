@@ -208,6 +208,15 @@ export type FeatureGrant =
        */
       readonly diceCountByLevel?: readonly number[];
       /**
+       * How many feet a `speed` grant adds, by class level.
+       *
+       * SRD Unarmored Movement is a column of the Monk table — +10 at level 2
+       * and +30 at 18 — so the feature cannot name a number any more than
+       * Sneak Attack's dice can, and it is read at **that class's own** level.
+       * Fast Movement and Roving print a flat 10 and carry none of this.
+       */
+      readonly feetByLevel?: readonly number[];
+      /**
        * The option this effect belongs to, for a feature that offers several.
        *
        * SRD writes "You gain one of the following options of your choice" on

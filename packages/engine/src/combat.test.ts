@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import type { Rng, RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
-import { conditionState } from './conditions.js';
+import { conditionSpeed, conditionState } from './conditions.js';
 import { halfProficiencyBonus, proficiencyBonus } from './character.js';
 import { rollAbilityCheck } from './checks.js';
 import type { AbilityScores, CharacterSheet } from './character.js';
@@ -20,6 +20,8 @@ import {
   startCombat,
   swapInitiative,
   useFreeInteraction,
+  movementLeft,
+  type CombatState,
 } from './combat.js';
 
 const scriptedRng = (values: readonly number[]): Rng => {
@@ -251,7 +253,10 @@ describe('startCombat', () => {
       action: true,
       bonusAction: true,
       reaction: true,
-      movementRemaining: 30,
+      // Nothing happened yet, so nothing is stored. The 30 feet a fresh turn
+      // offers are `speedOf`'s answer, not a number seeded in here.
+      movementSpent: 0,
+      movementGained: 0,
       // Null rather than 1: the Attack action has not been taken, which is a
       // different state from having taken it and used every attack in it.
       attacksRemaining: null,
@@ -291,12 +296,17 @@ describe('advanceTurn', () => {
   it('refreshes the incoming combatant’s budget', () => {
     let state = threeWay();
     state = unwrap(spendAction(state, id('rogue')), 'spend');
-    state = unwrap(spendMovement(state, id('rogue'), 20), 'move');
+    state = unwrap(spendMovement(state, id('rogue'), 20, 30), 'move');
     expect(budgetFor(state, id('rogue'))?.action).toBe(false);
 
     // Round the table back to the rogue.
     for (let i = 0; i < 3; i++) state = advanceTurn(state);
-    expect(budgetFor(state, id('rogue'))).toMatchObject({ action: true, movementRemaining: 30 });
+    // Nothing spent and nothing banked, so the whole Speed is there again.
+    expect(budgetFor(state, id('rogue'))).toMatchObject({
+      action: true,
+      movementSpent: 0,
+      movementGained: 0,
+    });
   });
 });
 
@@ -366,39 +376,80 @@ describe('reactions', () => {
   });
 });
 
+/**
+ * The budget stores what happened and the allowance is derived.
+ *
+ * `spendMovement`'s fourth argument is the creature's Speed **now** — what
+ * `speedOf` answers in the command layer and in the fold alike — and it is
+ * required rather than optional, because an optional one defaulting to the
+ * pinned Speed is how the command and the reducer came to measure one question
+ * against two numbers. Here it is passed explicitly, which is what a unit test
+ * over a pure function should do.
+ */
 describe('movement', () => {
+  /** The rogue's Speed, pinned at 30 and unraised by anything in this file. */
+  const WALK = 30;
+  const left = (state: CombatState, who = id('rogue'), allowance = WALK) =>
+    movementLeft(budgetFor(state, who)!, allowance);
+
   it('spends from the turn’s allowance', () => {
-    const state = unwrap(spendMovement(threeWay(), id('rogue'), 10), 'move');
-    expect(budgetFor(state, id('rogue'))?.movementRemaining).toBe(20);
+    const state = unwrap(spendMovement(threeWay(), id('rogue'), 10, WALK), 'move');
+    expect(left(state)).toBe(20);
   });
 
   it('allows spending the whole speed across several moves', () => {
-    let state = unwrap(spendMovement(threeWay(), id('rogue'), 15), 'a');
-    state = unwrap(spendMovement(state, id('rogue'), 15), 'b');
-    expect(budgetFor(state, id('rogue'))?.movementRemaining).toBe(0);
+    let state = unwrap(spendMovement(threeWay(), id('rogue'), 15, WALK), 'a');
+    state = unwrap(spendMovement(state, id('rogue'), 15, WALK), 'b');
+    expect(left(state)).toBe(0);
   });
 
   it('refuses to move further than the remaining allowance', () => {
-    const state = unwrap(spendMovement(threeWay(), id('rogue'), 25), 'a');
-    expect(isErr(spendMovement(state, id('rogue'), 10))).toBe(true);
+    const state = unwrap(spendMovement(threeWay(), id('rogue'), 25, WALK), 'a');
+    expect(isErr(spendMovement(state, id('rogue'), 10, WALK))).toBe(true);
   });
 
   it('refuses a negative distance', () => {
-    expect(isErr(spendMovement(threeWay(), id('rogue'), -5))).toBe(true);
+    expect(isErr(spendMovement(threeWay(), id('rogue'), -5, WALK))).toBe(true);
   });
 
-  // Conditions that set Speed to 0 leave nothing to spend.
+  // The allowance is a number the caller reads — `speedOf` in the command
+  // layer, and `conditionSpeed` directly here, which is what `speedOf` folds
+  // in whole. Conditions that set Speed to 0 leave nothing to spend.
   it('refuses movement while Grappled', () => {
-    expect(isErr(spendMovement(threeWay(), id('rogue'), 5, conditionState(['grappled'])))).toBe(
-      true,
-    );
+    const grappled = conditionSpeed(conditionState(['grappled']), WALK);
+    expect(isErr(spendMovement(threeWay(), id('rogue'), 5, grappled))).toBe(true);
   });
 
   it('limits movement to the exhausted speed', () => {
     // Exhaustion 2 reduces a 30-foot Speed to 20.
-    const exhausted = conditionState([], 2);
+    const exhausted = conditionSpeed(conditionState([], 2), WALK);
+    expect(exhausted).toBe(20);
     const state = unwrap(spendMovement(threeWay(), id('rogue'), 20, exhausted), 'ok');
     expect(isErr(spendMovement(state, id('rogue'), 5, exhausted))).toBe(true);
+  });
+
+  /**
+   * A Speed **above** the pinned one is the case a stored remainder could not
+   * express at all: it was seeded from the pinned Speed, so nothing but the
+   * seed could raise it and a feature that adds ten feet was invisible.
+   */
+  it('allows a Speed a feature has raised above the pinned one', () => {
+    const state = unwrap(spendMovement(threeWay(), id('rogue'), 35, 40), 'ok');
+    // Five feet of the forty are left, and a sixth is refused.
+    expect(left(state, id('rogue'), 40)).toBe(5);
+    expect(isErr(spendMovement(state, id('rogue'), 10, 40))).toBe(true);
+    expect(spendMovement(state, id('rogue'), 5, 40).ok).toBe(true);
+  });
+
+  /**
+   * A condition arriving mid-turn caps what is left and cannot hand back
+   * distance already travelled. It now falls out of `allowance + gained −
+   * spent` rather than being arranged for by a `movedSoFar` term.
+   */
+  it('gives a creature Grappled after 20 of 30 feet nothing, not a fresh allowance', () => {
+    const state = unwrap(spendMovement(threeWay(), id('rogue'), 20, WALK), 'ok');
+    expect(left(state, id('rogue'), 0)).toBe(0);
+    expect(isErr(spendMovement(state, id('rogue'), 5, 0))).toBe(true);
   });
 });
 

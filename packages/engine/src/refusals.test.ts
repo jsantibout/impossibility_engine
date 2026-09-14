@@ -530,8 +530,8 @@ describe('a distance is a distance', () => {
    */
   it('refuses a movement spend that is not a distance', () => {
     const combat = world().combat!;
-    expect(refusal(spendMovement(combat, A, -5))).toBe('bad_distance');
-    expect(refusal(spendMovement(combat, A, Number.POSITIVE_INFINITY))).toBe('bad_distance');
+    expect(refusal(spendMovement(combat, A, -5, 30))).toBe('bad_distance');
+    expect(refusal(spendMovement(combat, A, Number.POSITIVE_INFINITY, 30))).toBe('bad_distance');
   });
 
   it('refuses a placement measured by a distance that is not one', () => {
@@ -599,7 +599,7 @@ describe('a fight keeps at least one combatant', () => {
 describe('an action is taken by somebody in the fight', () => {
   it('refuses a Dash by a creature who is not in this fight', () => {
     const combat = world().combat!;
-    expect(refusal(dash(combat, id('c')))).toBe('not_a_combatant');
+    expect(refusal(dash(combat, id('c'), 30))).toBe('not_a_combatant');
   });
 
   /**

@@ -182,8 +182,14 @@ export const BARBARIAN: ClassDefinition = {
       id: 'barbarian:fast-movement',
       name: 'Fast Movement',
       level: 5,
-      automation: 'manual',
-      note: 'The +10 feet of Speed while unarmoured is not applied; Speed comes from the species and nothing modifies it.',
+      automation: 'engine',
+      note: 'SRD: "Your speed increases by 10 feet while you aren’t wearing Heavy armor." Applied by speedOf, which is the one place the command layer asks what a creature’s Speed is — so it reaches the movement allowance, the Dash and the mounting cost together. Note Heavy armour and not "unarmoured": a chain shirt keeps the ten feet.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'speed', feet: 10 }],
+        requires: [{ kind: 'not-wearing-heavy-armor' }],
+      },
     },
     {
       id: 'barbarian:feral-instinct',

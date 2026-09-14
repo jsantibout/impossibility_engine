@@ -160,8 +160,14 @@ export const RANGER: ClassDefinition = {
       id: 'ranger:roving',
       name: 'Roving',
       level: 6,
-      automation: 'manual',
-      note: 'The extra Speed and the Climb and Swim Speeds are not applied; movement has one speed and no modes.',
+      automation: 'engine',
+      note: 'SRD: "Your Speed increases by 10 feet while you aren’t wearing Heavy armor. You also have a Climb Speed and a Swim Speed equal to your Speed." The ten feet are applied by speedOf, so they reach the movement allowance, the Dash and the mounting cost. The Climb and Swim Speeds are not: movement has one speed and no modes, and a mode nothing reads would be a vocabulary with no reader.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'speed', feet: 10 }],
+        requires: [{ kind: 'not-wearing-heavy-armor' }],
+      },
     },
     {
       id: 'ranger:expertise',

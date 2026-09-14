@@ -86,6 +86,15 @@ import {
   useSelfHeal,
 } from './commands.js';
 import { beginRest } from './rest.js';
+import { allClasses, allSubclasses } from './creation.js';
+import {
+  BACKGROUNDS,
+  FIGHTING_STYLE_FEATS,
+  ORIGIN_FEATS,
+  SPECIES,
+  type FeatDefinition,
+} from './origins.js';
+import type { FeatureSource } from './progression.js';
 
 /**
  * Invariants the whole engine owes, checked as a sweep rather than one command
@@ -3029,5 +3038,227 @@ describe('every event a command stamps declares that it carries one', () => {
     expect(EVENT_MEMBERS.has('combat-ended')).toBe(true);
     expect(stamped.has('combat-ended')).toBe(false);
     expect(EVENT_MEMBERS.get('combat-ended')!).not.toMatch(/readonly command\?: CommandStamp/);
+  });
+});
+
+/**
+ * One reader for Speed.
+ *
+ * `spendMovement`'s cap, a Dash's increase, a mounting cost and a readied
+ * move's allowance were **three different spellings** of one question — one
+ * reaching for `sheet.baseSpeed`, one for the pinned `combatant.speed`, all
+ * three handing whichever they found to `conditionSpeed` — and none of them
+ * could see a class feature. `speedOf` is the one gatherer, the shape
+ * `rollModesFor` already applied to modes and `defensesOf` to defences.
+ *
+ * Two claims, because the question has two halves and only one of them lives
+ * in the command layer:
+ *
+ * | | |
+ * |---|---|
+ * | `conditionSpeed` has one caller | the condition rules reach a Speed through one door, wherever in the engine that door is |
+ * | no module under `commands/` names a printed Speed | the command layer asks `speedOf` and derives nothing itself |
+ *
+ * Both are derived rather than listed, and both are driven over a synthetic
+ * second reader they have to catch — the discipline every sweep in this file
+ * follows, because a sweep that can only be run against the source it already
+ * agrees with reports no problems and checks nothing.
+ */
+describe('Speed is read through one reader', () => {
+  /** Every call to a name, attributed to the top-level declaration it sits in. */
+  const callersOf = (name: string, sources: Readonly<Record<string, string>>): ReadonlySet<string> =>
+    new Set(
+      Object.values(sources).flatMap((source) =>
+        functionsIn(source)
+          // The import line is not a call, and a declaration's own name is not
+          // a call of itself.
+          .filter((fn) => fn.name !== name && new RegExp(`\\b${name}\\(`).test(fn.body))
+          .map((fn) => fn.name),
+      ),
+    );
+
+  /**
+   * **The population includes `events.ts`, and that is load-bearing rather
+   * than tidy.** `EVENT_TYPE_SOURCE` excludes the reducer, because the sweep
+   * it was built for is about which module *emits* an event type and
+   * `events.ts` declares them all — and this sweep, reading that map, could
+   * not see the one file the defect was in. The fold calls `speedOf` now; a
+   * sweep claiming "wherever in the engine that door is" has to be able to
+   * look there.
+   *
+   * There are **no exemptions**. `dash` held the only one, and it named the
+   * fact that would end it — the reducer passing `speedOf` — which is exactly
+   * what happened, so the exemption fell rather than being rewritten. A guard
+   * whose exemption list is empty is the one that was worth writing.
+   */
+  const SPEED_SOURCE: Readonly<Record<string, string>> = {
+    ...EVENT_TYPE_SOURCE,
+    'events.ts': readFileSync(`${SRC}events.ts`, 'utf8'),
+  };
+
+  it('reads a population that includes the reducer', () => {
+    // The sweep is only as wide as its map, and the map it inherited stopped
+    // one file short of the defect.
+    expect(Object.keys(EVENT_TYPE_SOURCE)).not.toContain('events.ts');
+    expect(Object.keys(SPEED_SOURCE)).toContain('events.ts');
+  });
+
+  it('calls conditionSpeed from combineSpeed and from nowhere else', () => {
+    expect([...callersOf('conditionSpeed', SPEED_SOURCE)].sort()).toEqual(['combineSpeed']);
+  });
+
+  it('would catch a second caller', () => {
+    const synthetic = {
+      'synthetic.ts': [
+        'function sneaksAnotherSpeedIn(state: ConditionState) {',
+        '  return conditionSpeed(state, 30);',
+        '}',
+      ].join('\n'),
+    };
+    expect(callersOf('conditionSpeed', synthetic).has('sneaksAnotherSpeedIn')).toBe(true);
+  });
+
+  /**
+   * And the fold asks the one reader, which is the other half of the same
+   * claim: a reducer backstop measuring against a different number is a fork
+   * rather than a guard, and that fork is what folded a corrupt log.
+   */
+  it('asks speedOf from the two reducer cases that need it', () => {
+    const reducer = SPEED_SOURCE['events.ts']!;
+    expect(reducer).toMatch(/dash\(combatOf\(state, event\), event\.id, speedOf\(state, event\.id\)\)/);
+    expect(reducer).toMatch(/spendMovement\([\s\S]{0,120}speedOf\(state, event\.id\)/);
+  });
+
+  /**
+   * The command layer derives no Speed of its own.
+   *
+   * `baseSpeed` is the sheet's printed number and `.speed` is the one the
+   * Initiative order pinned; a command that reads either is asking the
+   * question `speedOf` exists to answer. Neither appears in `commands/`, and
+   * the one command that needs a number — `spendMounting`, for SRD's "half
+   * your Speed (round down)" — holds `speedOf`'s answer in a local, which has
+   * no dot in front of it and is the point.
+   */
+  const PRINTED_SPEED = /\bbaseSpeed\b|\.speed\b/;
+
+  it('names no printed Speed anywhere under commands/', () => {
+    const named = Object.entries(MODULE_SOURCE)
+      .filter(([file]) => file.startsWith('commands/'))
+      .filter(([, source]) => PRINTED_SPEED.test(source))
+      .map(([file]) => file);
+    expect(named).toEqual([]);
+  });
+
+  it('would catch a command that read one', () => {
+    expect(PRINTED_SPEED.test('const feet = creature.sheet.baseSpeed;')).toBe(true);
+    expect(PRINTED_SPEED.test('const feet = combat.order.find((c) => c.id === id)?.speed;')).toBe(
+      true,
+    );
+    // And does not fire on the local a command legitimately holds.
+    expect(PRINTED_SPEED.test('const speed = speedOf(state, rider);')).toBe(false);
+  });
+
+  /**
+   * A `speed` grant may not require `has-speed`, which is what keeps the
+   * reading from being circular: `speedOf` asks the requirements of the grants
+   * it is adding up, and `has-speed` asks `speedOf`. A violation would recurse
+   * without bound rather than produce a wrong number, so this is a stack
+   * overflow in a fight and not a rules bug.
+   *
+   * **Every `FeatureSource`, not just the twelve classes.** `allClasses()` was
+   * narrower than the hazard: a subclass carries its own `features`, and so do
+   * a species and a background, and `speedOf` reads whatever reached
+   * `sheet.standing` without caring which of the four put it there. The
+   * population is derived from the registries rather than listed, so a fifth
+   * source joins it by being registered.
+   *
+   * **A feat is not in it, and that is a fact rather than an omission.**
+   * `FeatDefinition` carries an id, a category, a requirement, a repeatable
+   * flag and a note — and no `features` at all — so a feat cannot declare a
+   * standing grant of any kind, circular or otherwise. The type is what says
+   * so, which is why the sweep does not reach for one.
+   */
+  const FEATURE_SOURCES: readonly FeatureSource[] = [
+    ...allClasses(),
+    ...allSubclasses(),
+    ...SPECIES,
+    ...BACKGROUNDS,
+  ];
+
+  it('sweeps every feature source rather than the classes alone', () => {
+    // A floor, not an inventory: it fails if the population empties or the
+    // registries stop being read, and says nothing about a source being added.
+    expect(FEATURE_SOURCES.length).toBeGreaterThan(allClasses().length);
+    expect(allSubclasses().length).toBeGreaterThan(0);
+    // And a feat really has no features to sweep, which is what excuses it.
+    const feats: readonly FeatDefinition[] = [...ORIGIN_FEATS, ...FIGHTING_STYLE_FEATS];
+    expect(feats.length).toBeGreaterThan(0);
+    for (const feat of feats) expect('features' in feat, feat.id).toBe(false);
+  });
+
+  /**
+   * The predicate is extracted so the synthetic below can be driven **through
+   * it** rather than beside it. A test that re-implements the check over a
+   * hand-built literal asserts that `Array.some` works and cannot fail for the
+   * reason it claims — which is the shape `callersOf` and `PRINTED_SPEED`
+   * already avoid by applying the extracted thing to both populations.
+   */
+  const circularSpeedGrants = (sources: readonly FeatureSource[]): readonly string[] =>
+    sources.flatMap((source) =>
+      source.features
+        .filter((feature) => {
+          const grant = feature.grants;
+          if (grant?.kind !== 'standing') return false;
+          if (!(grant.effects ?? []).some((effect) => effect.kind === 'speed')) return false;
+          return (grant.requires ?? []).some((requirement) => requirement.kind === 'has-speed');
+        })
+        .map((feature) => feature.id),
+    );
+
+  it('has no Speed grant conditioned on a Speed', () => {
+    expect(circularSpeedGrants(FEATURE_SOURCES)).toEqual([]);
+  });
+
+  /**
+   * And the guard would see one, which an all-green population cannot say by
+   * itself: the **same function** is handed a feature source it must catch.
+   */
+  it('would catch a Speed grant that required one', () => {
+    const synthetic: FeatureSource = {
+      id: 'synthetic',
+      name: 'Synthetic',
+      features: [
+        {
+          id: 'synthetic:swift-while-swift',
+          name: 'Swift While Swift',
+          level: 1,
+          automation: 'engine',
+          note: 'A grant conditioned on the very number it contributes to.',
+          grants: {
+            kind: 'standing',
+            reach: 'self',
+            effects: [{ kind: 'speed', feet: 10 }],
+            requires: [{ kind: 'has-speed' }],
+          },
+        },
+      ],
+    };
+    expect(circularSpeedGrants([synthetic])).toEqual(['synthetic:swift-while-swift']);
+    // And it does not fire on the shape the three real features have.
+    const armoured: FeatureSource = {
+      ...synthetic,
+      features: [
+        {
+          ...synthetic.features[0]!,
+          grants: {
+            kind: 'standing',
+            reach: 'self',
+            effects: [{ kind: 'speed', feet: 10 }],
+            requires: [{ kind: 'not-wearing-heavy-armor' }],
+          },
+        },
+      ],
+    };
+    expect(circularSpeedGrants([armoured])).toEqual([]);
   });
 });

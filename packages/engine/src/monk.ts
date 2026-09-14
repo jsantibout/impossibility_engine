@@ -114,8 +114,19 @@ export const MONK: ClassDefinition = {
       id: 'monk:unarmored-movement',
       name: 'Unarmored Movement',
       level: 2,
-      automation: 'manual',
-      note: 'The extra Speed while unarmoured is not applied; Speed comes from the species and nothing modifies it.',
+      automation: 'engine',
+      note: 'SRD: "Your speed increases by 10 feet while you aren’t wearing armor or wielding a Shield. This bonus increases when you reach certain Monk levels, as shown on the Monk Features table." Applied by speedOf; the feet are the table\'s column, read at the Monk\'s own level, so a Monk 2 / Fighter 3 gets +10 rather than a level 5 character\'s row. The Shield half is checked as well as the armour half.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'speed', feet: 10 }],
+        requires: [{ kind: 'unarmored' }],
+        // The table's own column, exactly as Monk's Focus reads `FOCUS_POINTS`
+        // beside it. Retyping the twenty numbers would be a second source for
+        // one fact — agreeing today, and held in step by nothing: a correction
+        // to `TABLE` would leave the Monk's Speed on the old column silently.
+        feetByLevel: UNARMORED_MOVEMENT,
+      },
     },
     {
       id: 'monk:uncanny-metabolism',

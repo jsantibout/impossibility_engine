@@ -2348,7 +2348,7 @@ twice: once for a class that casts nothing, and once for the Paladin and Ranger
 both at 2), and SRD's **Multiclass Spellcaster table is identical to every full
 caster's own**, which is why it is read off one rather than transcribed twice.
 
-Class *features* are a different matter from class *tables*: 88 of 230 are
+Class *features* are a different matter from class *tables*: 91 of 230 are
 executed, and every one of the rest carries a note saying what a DM still does.
 `npm run coverage` counts them, because a project that does not count them
 will believe it has twelve working classes when it has twelve validated ones.
@@ -4684,6 +4684,222 @@ recovers at *dawn* and gives one back on a Short Rest can simply be built. That
 is the difference between this and `placeArea`'s dead `no_scene`, which stayed
 dead because nothing could construct its case.
 
+### Speed Is Read Live, Through One Reader
+
+Every allowance in the game is measured against a creature's Speed, and there
+were **three spellings** of that question — `spendMovement`'s cap, a Dash's
+increase, and a readied move's allowance, which reached for
+`sheet.baseSpeed` where the other two reached for the pinned `combatant.speed`
+— all three handing whichever they found to `conditionSpeed`. **None of them
+could see a class feature.** A Barbarian's Fast Movement said so in its own
+note: *"The +10 feet of Speed while unarmoured is not applied; Speed comes
+from the species and nothing modifies it."*
+
+`speedOf(state, id)` is the one gatherer, and it is `armorClassOf`'s shape
+exactly: a derived number the rules are measured against, with several inputs
+and one answer. The move `rollModesFor` made for modes and `defensesOf` for
+defences, arriving at the third.
+
+**The order is decided, because the SRD prints none.** It is stated here
+rather than left to whichever caller a reader happens to be looking at:
+
+> base, plus the flat changes (a feature's grant, and Exhaustion's −5 per
+> level), then **halved once** if any halving effect applies, then **0** if
+> any zeroing effect applies, never below 0.
+
+Halving is presence rather than count — the reading Resistance and Advantage
+already take. Zero is last and **wins**, and that is a transcription rather
+than a preference: SRD Grappled and Restrained both print "Your Speed is 0
+**and can't increase**", so a flat bonus applied afterwards would hand a
+pinned creature ten feet the rules had already taken away.
+
+**`conditionSpeed` is folded in whole rather than reimplemented**, and it
+carries two of the three steps at once: Exhaustion's reduction is a flat
+change and the five pinning conditions are the zero. That puts its zero
+*before* the halving rather than after it, and the two orders are the same
+function — halving 0 is 0, and no flat change follows either — so the
+arithmetic is identical for every input and there is one implementation of the
+condition rules rather than two.
+
+**The base is the pinned `combatant.speed` while a fight is running**, and
+`sheet.baseSpeed` outside one — two bases for one reader, harmless today
+because `startCombat` is given the sheet's own number, and written down rather
+than left to be discovered. `Combatant.speed` reaching `combat-started` is what
+makes it the base inside a fight: it is in both frozen logs, so a replay
+measures against the Speed that fight began with. It is no longer a *seed* for
+anything — see below — which is why nothing now depends on it and the budget
+agreeing.
+
+#### Store what happened, derive what is left
+
+`TurnBudget` held `movementRemaining`, seeded from the pinned Speed when the
+turn began. **A stored remainder is a derived quantity frozen at its seed**,
+and that is sound only while every later change to the allowance moves in the
+direction a cap can express — downwards. A feature grant raises it, and nothing
+but the seed can raise a remainder.
+
+So the budget holds `movementSpent` and `movementGained`, `fullBudget` takes no
+Speed at all, and the allowance is derived at every read:
+
+> `max(0, speedOf + gained − spent)`
+
+**by the command and by the fold alike.** `movedSoFar` and the
+`min(remaining, …)` clamp are **deleted rather than re-based**: both were the
+arithmetic of a seeded remainder. The rule they existed to arrange for now
+falls out of the subtraction — a creature that has walked 20 of 30 feet and is
+then Grappled has `max(0, 0 + 0 − 20)`, which is 0.
+
+**Changing the cap and leaving the seed was tried first and is the instructive
+failure.** Removing the `min` really did let the *command* see a raised Speed,
+and every test of the command passed. It could not work, because the **seed was
+still the ceiling in the reducer**: `movement-spent` folded through the same
+`spendMovement`, which re-derived the same cap from the same seed and refused
+the very event the command had just emitted. A Monk's legal 35-foot move
+folded to `CorruptLogError`. The whole suite stayed green, because the two
+command-layer fixtures asserted on the returned `Result` and never folded the
+events it handed back.
+
+**The rule that replaces the correction**, because the next brief needs the
+rule rather than the incident: *a working live cap is not evidence that a live
+allowance exists*, and the test is **whether the stored number can represent an
+allowance larger than its seed**. A remainder cannot.
+
+#### A reducer backstop is the command's own check with the command's own inputs
+
+The `attack-taken` case passes `sheet.attacksPerAction` and `dash-taken` passed
+conditions, because a fold that re-validates has to re-validate *the same
+question*. The `movement-spent` case called the same function with
+**different** inputs — no Speed at all, falling back to the pinned one — so it
+measured against a number the command never used. (Named by their reducer cases
+rather than by line, which is this file's own lesson about "four hundred lines
+below": a line number in prose is a citation nothing regenerates, and these
+three moved in the commit that first wrote them down.) That is a fork, the Dodge-versus-Fire-Bolt shape this file
+already records, and it is why a green suite folded a corrupt log. Both reducer
+cases pass `speedOf(state, event.id)` now, and `spendMovement`'s allowance is
+**required rather than optional**: an optional parameter with a default is
+exactly where a second answer hides.
+
+**The fold may call `speedOf`, and that was the load-bearing check.** Every
+input it reads is log-held — the pinned combatant speed, `sheet.standing`
+carried by `character-created`, `equipped`, conditions — so no catalogue is
+opened, the fence `upgradeOngoing` stands behind is intact, and a future
+correction to the Monk table changes future sheets rather than historical
+folds. `standing.ts` imports `GameState` type-only, so the edge is not a cycle.
+
+**Both frozen logs fold unchanged, and that is asserted rather than assumed.**
+Neither contains a creature carrying a `speed` grant, so `speedOf` answers
+exactly `conditionSpeed(conditions, pinned)` for every creature in them — which
+is precisely the number `dash` and `spendMovement` used to compute — and
+`speed.test.ts` asserts that equality creature by creature, having first
+asserted that the fixtures contain the `movement-spent` and `dash-taken` events
+that make the claim mean anything.
+
+**One latent wrong number came out with it.** `action-economy.test.ts` asserted
+that a Fighter with Exhaustion 3 who Dashes has **45** feet, and its own
+comment beside the assertion said 30. The comment was right, and so is the SRD:
+"If your Speed of 30 feet is reduced to 15 feet, you can move up to 30 feet
+this turn if you Dash." A remainder seeded at the *un-reduced* 30 and then
+raised by the *reduced* 15 gives 45 — neither number the book prints, because
+Exhaustion reached the increase and not the allowance. 15 + 15 is what the
+derivation gives.
+
+**A Dash's gained movement survives a later Speed of 0 this turn**, and that is
+an open reading written down rather than a decision taken. SRD Grappled says
+"Your Speed is 0 and can't increase", which is about the Speed and says nothing
+about extra movement already banked; today's arithmetic allowed it before this
+field existed and the formula preserves the reading exactly. The sentence is in
+`TurnBudget.movementGained` where the next reader meets it.
+
+#### Three features, and the clause is each feature's own
+
+| Feature | SRD | Requirement |
+|---|---|---|
+| Fast Movement (Barbarian 5) | "Your speed increases by 10 feet while you aren't wearing **Heavy** armor." | `not-wearing-heavy-armor` |
+| Roving (Ranger 6) | the identical sentence | the same |
+| Unarmored Movement (Monk 2) | "...while you aren't wearing armor **or wielding a Shield**." | `unarmored` |
+
+**Heavy armour is not "unarmoured"**, and only a *Medium* suit can tell those
+two readings apart: a Barbarian in a chain shirt keeps the ten feet and a Monk
+in one does not. A fixture in plate against a fixture in nothing passes under
+either reading, which is the discriminating-case lesson this file already
+carries for the multiclass and for the Rogue who resisted nothing.
+
+**The Monk's feet are a column of the class table**, so the feature cannot name
+a number: `FeatureGrant.feetByLevel` is read at **that class's own** level when
+the sheet is built, exactly as Sneak Attack's `diceCountByLevel` is. The
+discriminating fixture is a **Monk 2 / Fighter 4** — character level 6 is the
+table's +15 row and Monk level 2 is +10, so a single-class Monk cannot tell the
+two numbers apart.
+
+**Roving is `engine` with half of it unapplied, and says so.** Its Climb and
+Swim Speeds are not modelled: movement has one speed and no modes, and a mode
+nothing reads would be a vocabulary with no reader. The note names the half
+rather than the feature being demoted to `manual`, which is the shape Colossus
+Slayer's and Deflect Attacks' notes already use.
+
+**Steady Aim stays `manual`, and the Speed is not what blocks it.** `speedOf`
+reads a grant like any other; what is missing is "until the end of the current
+turn", which is a `Duration` member with no other consumer — the same one
+Superior Hunter's Defense wants — and a one-shot Advantage consumed by the roll
+it changes, which nothing here consumes.
+
+#### The requirement that could not read its own answer
+
+`has-speed` is SRD Dodge's "You lose these benefits ... if your Speed is 0",
+and it now reads `speedOf` rather than the base — so a spell that sets a Speed
+to 0 will end a Dodge through the door Grappled already uses.
+
+That closes a loop: `speedOf` asks the requirements of the grants it is adding
+up, and `has-speed` asks `speedOf`. **A `speed` grant may therefore not carry
+`has-speed`** — a question asked of its own answer. No SRD feature writes one,
+all three being conditioned on armour, and `invariants.test.ts` asserts that of
+every registered **feature source** rather than trusting it — see the sweep
+below, which is wider than the twelve classes for exactly that reason. It is
+also why `speedOf`
+gathers from the creature's **own** sheet rather than through `standingFor`:
+no SRD feature grants Speed to anybody else, and `standingFor` evaluates every
+effect's requirements, Dodge's included.
+
+#### The single-reader sweep has to be able to look where the defect was
+
+`conditionSpeed` has exactly one caller, `combineSpeed`, and the sweep that
+says so has **no exemptions at all**. `dash` held the only one, written in the
+shape this file asks for — naming the fact that would end it, which was the
+reducer passing `speedOf` — and that is what happened, so the exemption *fell*
+rather than being rewritten. A guard whose exemption list empties is the one
+that was worth writing.
+
+**Its population had to gain `events.ts`.** It read `EVENT_TYPE_SOURCE`, which
+deliberately excludes the reducer — that map answers "which module *emits* an
+event type", and `events.ts` declares them all — so a sweep claiming "wherever
+in the engine that door is" could not see the one file the defect was in. That
+was reported as a lesser defect and was load-bearing. The sweep now also
+asserts, positively, that both reducer cases ask `speedOf`.
+
+**The circularity guard widened for the same reason.** A `speed` grant may not
+require `has-speed` — `speedOf` asks the requirements of the grants it adds up,
+and `has-speed` asks `speedOf`, so a violation recurses without bound rather
+than producing a wrong number. It swept `allClasses()` only; a subclass carries
+its own `features`, and so do a species and a background, and `speedOf` reads
+whatever reached `sheet.standing` without caring which put it there. A **feat**
+is excluded on a fact rather than an opinion: `FeatDefinition` has no
+`features` field, so it cannot declare a standing grant of any kind, and the
+test asserts that of every registered feat.
+
+#### No spell moves a Speed yet
+
+`combineSpeed`'s `halvings` has no producer in the engine — Spirit Guardians'
+halved Speed and every other spell-granted change are IE-033's — so that branch
+is reached the way `restoreOn`'s Short Rest branch is: by handing the pure
+function the case. A grant added to `CreatureState` joins `flat` and `halvings`
+without a second answer to this question appearing anywhere, which is the whole
+of why the seam is one reader rather than a fourth spelling.
+
+**Movement modes are refused outright.** Fly, Climb and Swim have no reader —
+no rule in the engine asks about one — so a vocabulary for them would be shape
+built ahead of every mechanic that could use it. Roving's second sentence is
+where that shows, and its note says so.
+
 ### A Feature Definition Is Validated Data Too
 
 `feature-schema.ts` is `spell-schema.ts` pointed at the twelve class files, and
@@ -6598,7 +6814,7 @@ null and is reported — it never becomes either.
   reason it is still open. Equipment closes the loop from a creation choice to
   Armour Class: packages are granted by id, packs are opened, purchases are
   priced in copper, and what is worn is separate from what is carried.
-- M1 leftovers, none of them blocking: **class feature execution** (88 of 230
+- M1 leftovers, none of them blocking: **class feature execution** (91 of 230
   features run; the rest say what a DM still does), the remaining species and
   backgrounds, feat *execution*, per-class spell preparation for a character
   who casts from two classes, and the equipment gaps listed under "Owning Is

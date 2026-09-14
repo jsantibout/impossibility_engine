@@ -86,7 +86,7 @@ import {
   type GameEvent,
   type GameState,
 } from '@ie/engine';
-import { carrying } from '@ie/engine';
+import { carrying, movementLeftFor } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd';
 import { actionNamesOf, monsterFor, monsterNamed, weaponsOf } from './bestiary.js';
 import type { Session } from './session.js';
@@ -262,7 +262,10 @@ export function observe(state: GameState): Record<string, unknown> {
               action: budget.action,
               bonus_action: budget.bonusAction,
               reaction: budget.reaction,
-              movement_feet: budget.movementRemaining,
+              // Derived rather than read off the budget, which holds what was
+              // spent rather than what is left — so this is the same number
+              // `resolveMove` will cap against, feature grants included.
+              movement_feet: movementLeftFor(state, c.id) ?? 0,
               spent_a_slot_this_turn: budget.spellSlotSpentOnTurn !== null,
             },
           }),
