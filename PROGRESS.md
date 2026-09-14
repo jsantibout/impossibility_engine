@@ -108,6 +108,7 @@ still Wizard-shaped are named below.
 | Shapes drained | Arcane Sword and Produce Flame poured into the shapes that already execute — 84 of 339; a spell-by-spell pass over all 211 undefined spells found only these two, so the next coverage is bought by a mechanic | `de45194` |
 | Second frozen log | `golden-log-2.json` — 551 events over 88 types, a campaign saved mid-turn; with the first, all 91 types the reducer declares now have a compatibility fixture | `2915909` |
 | Command layer split | `commands.ts` 10,149 lines → 21 domain modules under `commands/` and a 158-line enumerating barrel, behaviour-preserving; `once` makes the duplicate check structural | `4f829e9` |
+| Tranche 2's findings closed | Produce Flame's die size pinned; the "was never code" framing corrected and its rotting counts removed; and the unreachable-event list **derived** — nine was seventeen, and the eight it missed are scene setup, so a tool surface cannot start an encounter | `973129f` |
 | A condition with no save | The fourth effect kind that applies a condition, and the first that rolls nothing for it — Greater Invisibility end to end, Invisibility partial on its early-end clause. One `ConditionRider` with four consumers replaces three spellings that had silently drifted apart | `7592efe` |
 | Pools at advancement | Every pool a level grants is granted and every maximum a level moves is resized, through one derivation both creation and advancement reach — a Paladin who reaches level 4 in play no longer lays on fifteen hit points where the SRD prints twenty | `601774c` |
 
