@@ -1471,6 +1471,13 @@ describe('Produce Flame hurls its fire on later turns', () => {
    * caster, so the novice can never exceed 8 on a hit and the wizard sometimes
    * must. Criticals are skipped rather than bounded, because doubling the dice
    * would widen the novice's ceiling past the wizard's floor.
+   *
+   * **The novice's ceiling is asserted exactly, and that is what pins the die
+   * *size*.** A bound of "no more than 8" is satisfied by a `1d6` just as
+   * happily as by the printed `1d8` — the level 9 caster clears 8 either way,
+   * so the whole suite passed under that mutation. Reaching 8 is the half only
+   * a d8 can do, and not exceeding it is the half only one die of that size
+   * can do; together they are the number, rather than an upper bound on it.
    */
   it('reads the Cantrip Upgrade off the caster’s level', () => {
     let novicesBest = 0;
@@ -1495,8 +1502,10 @@ describe('Produce Flame hurls its fire on later turns', () => {
     }
 
     expect(counted).toBeGreaterThan(30);
-    // One die cannot beat 8, and the level 9 caster throws two.
-    expect(novicesBest).toBeLessThanOrEqual(8);
+    // SRD Produce Flame: "On a hit, the target takes 1d8 Fire damage."
+    // Exactly 8: a d6 never reaches it, and a d10 or a second die passes it.
+    expect(novicesBest).toBe(8);
+    // And the level 9 caster throws two of them.
     expect(wizardsBest).toBeGreaterThan(8);
   });
 
