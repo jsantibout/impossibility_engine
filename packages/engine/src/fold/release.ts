@@ -1,0 +1,581 @@
+/**
+ * What a casting is on, what it hung there, and taking both away.
+ *
+ * `releaseCasting` is the single door every ending converges on — Concentration
+ * broken, a deadline arrived, a dispel, the caster leaving — and
+ * `releaseOnTarget` is the same operation narrowed to one creature, which is
+ * the whole of Dispel Magic's "one creature, object, or magical effect"
+ * distinction. Beneath them is the grant enumerator: `grantsOf`,
+ * `grantSourcesOf` and `withoutGrants`, the one walk over the six sourced
+ * grant families that five call sites used to make by hand.
+ *
+ * `alsoOn` and `withoutTarget` are here for the same reason as each other:
+ * they are the two directions of `OngoingSpell.on` membership, and a casting
+ * is on a creature while it has a live effect there that the casting owns.
+ * Reading that rule in one module is what keeps the two halves agreeing.
+ *
+ * It is the bottom of the fold's own graph — it calls nothing else in `fold/`,
+ * and expiry, the triggered endings and the switch all call it.
+ */
+import type { CharacterId } from '@ie/shared';
+import { removeConditionInstance } from '../conditions.js';
+import { type ScheduledDamage, type TimedEffect } from '../duration.js';
+import { castingIdOf, castingNumber, type AreaTriggerStamp, type OngoingSpell } from '../spells.js';
+
+import type { CreatureState, GameState, PendingCasting } from '../state.js';
+
+/**
+ * A grant a running effect hung on a creature, read only for what hung it.
+ *
+ * The five families below all carry more than this — a `Bonus`, a base Armour
+ * Class, a `RollModifier`, a list of damage types, a change to a Speed — and
+ * every operation that *ends* one reads nothing but the `source`. So this is
+ * the shape the enumerator works in, and it is deliberately the smallest one
+ * that answers the question.
+ */
+interface SourcedGrant {
+  readonly source: string;
+}
+
+/**
+ * The keys of `CreatureState` holding grants a running effect hung there.
+ *
+ * **Derived from the shape rather than listed.** `bonuses`, `armorClasses`,
+ * `rollModifiers` and `grantedDefenses` were enumerated by hand in five
+ * separate places — `releaseCasting`, `releaseOnTarget`, `releaseGrants`,
+ * `expireEffects` and `holdsNothingOf` — and the fourth of them had to be
+ * threaded through every one when it arrived. A fifth added to three of the
+ * five is how a grant comes to be released by a dispel and not by a deadline,
+ * silently, because each site is correct on its own terms. Deriving the set
+ * means a fifth family joins it on the day it is declared, and {@link grantsOf}
+ * then stops compiling until the enumerator names it.
+ *
+ * `initiativeBonuses` matches the shape and is excluded, because it is not a
+ * grant: creation derives it from the character's own feats, nothing hangs it
+ * on them, and no casting, deadline or dispel takes it away. It was in none of
+ * the five walks, and putting it in one would end a feat the rules never ended.
+ */
+type GrantFamily = Exclude<
+  {
+    [K in keyof CreatureState]-?: CreatureState[K] extends readonly SourcedGrant[] ? K : never;
+  }[keyof CreatureState],
+  'initiativeBonuses'
+>;
+
+/** What a creature is carrying, by family. */
+type HeldGrants = { readonly [K in GrantFamily]: readonly SourcedGrant[] };
+
+/**
+ * The five families as one value, and the only place the list is written.
+ *
+ * The annotation is a mapped type over {@link GrantFamily}, so a family
+ * declared on `CreatureState` makes **this literal** a compile error naming the
+ * property it lacks. That is the guard: the enumerator cannot quietly stop
+ * seeing a family, and there is nowhere else for a hand-kept list to rot. It
+ * fired exactly once, for `speedModifiers` — the fifth was one edit here and
+ * the compiler insisted on it, which is what the guard was built to buy.
+ *
+ * Nothing is copied — each value is the creature's own array.
+ */
+const grantsOf = (creature: CreatureState): HeldGrants => ({
+  bonuses: creature.bonuses,
+  armorClasses: creature.armorClasses,
+  rollModifiers: creature.rollModifiers,
+  grantedDefenses: creature.grantedDefenses,
+  speedModifiers: creature.speedModifiers,
+  attackRiders: creature.attackRiders,
+});
+
+/** How many grants are in a record of families, which a `filter` can only lower. */
+const countGrants = (held: Record<string, readonly SourcedGrant[]>): number =>
+  Object.values(held).reduce((n, family) => n + family.length, 0);
+
+/**
+ * Every source that has hung a grant on this creature.
+ *
+ * One enumerator over the five families — the bonuses Bless adds, the Armour
+ * Class Mage Armor supplies, the Advantage Blur grants, the Resistance
+ * Stoneskin grants, the ten feet Longstrider adds — so a reader asking "is
+ * this casting still holding anything here" asks it once rather than five
+ * times.
+ *
+ * **Sorted and deduplicated**, so the answer is fixed however the families are
+ * visited and whatever order the grants arrived in; serialised state reaches
+ * the log. One casting commonly grants in several families at once, and every
+ * caller is asking whether a source granted anything rather than counting.
+ * Beacon of Hope's two roll modifiers come back as one source for the same
+ * reason: `rollModifierKey`'s two-part identity decides whether a **re-grant**
+ * replaces or stacks, and it is not what an ending matches on — a casting that
+ * ends, or a `grants` deadline that arrives, takes both of them.
+ *
+ * **`scheduledDamage` is not a grant and is deliberately not here.** A hit
+ * that is still owed is the casting's debt rather than something the casting
+ * is *doing* to the creature — the same reading that keeps a creature Insect
+ * Plague merely damaged out of `OngoingSpell.on`. It is not even per-creature:
+ * `releaseCasting` drops it through `withoutScheduledDamage`, at state level.
+ * Nor are the creature's conditions, which are a link of their own with their
+ * own instances and implications; {@link holdsNothingOf} asks them separately.
+ */
+export function grantSourcesOf(creature: CreatureState): readonly string[] {
+  const sources = new Set<string>();
+  for (const family of Object.values(grantsOf(creature))) {
+    for (const grant of family) sources.add(grant.source);
+  }
+  return [...sources].sort();
+}
+
+/**
+ * Every grant whose source the predicate names, taken off all five families.
+ *
+ * The one removal. The three callers differ only in which sources they name —
+ * `releaseCasting` and `releaseOnTarget` match the casting id inside the
+ * source, `releaseGrants` matches the bare source a feature's deadline carries
+ * — so the predicate is the whole of what varies and the walk is shared.
+ *
+ * **The creature itself comes back when nothing matched**, by reference, which
+ * is load-bearing rather than an optimisation: `releaseCasting` compares
+ * identity to decide whether a derived pass touched anybody, and a fresh object
+ * every time would mark the whole cast changed on every event.
+ */
+export function withoutGrants(
+  creature: CreatureState,
+  doomed: (source: string) => boolean,
+): CreatureState {
+  const held = grantsOf(creature);
+  const kept: Record<string, readonly SourcedGrant[]> = {};
+  for (const [family, grants] of Object.entries(held)) {
+    kept[family] = grants.filter((grant) => !doomed(grant.source));
+  }
+
+  // `filter` only ever removes, so an unchanged total is an unchanged creature.
+  if (countGrants(kept) === countGrants(held)) return creature;
+
+  // The cast is sound by construction rather than by assertion: the keys came
+  // out of {@link grantsOf}, whose type *is* `GrantFamily`, and `filter`
+  // returns the element type it was given. What it buys is that
+  // {@link grantsOf} is the **only** list of families — writing the four out
+  // again here would be a second place a fifth family has to be added, which is
+  // the failure this whole enumerator exists to end, arriving one level up.
+  return { ...creature, ...(kept as Pick<CreatureState, GrantFamily>) };
+}
+
+/**
+ * End a casting: drop the caster's Concentration and every effect that casting
+ * created, wherever it landed.
+ *
+ * The link is the casting id carried in each effect's source, so this removes
+ * exactly one Cleric's Hold Person and leaves the other Cleric's standing —
+ * and leaves alone anything the casting did not create.
+ */
+export function releaseCasting(
+  state: GameState,
+  casterId: CharacterId | null,
+  castingId: string,
+): GameState {
+  const creatures: Record<string, CreatureState> = {};
+  let changed = false;
+
+  for (const key of Object.keys(state.creatures)) {
+    const creature = state.creatures[key];
+    if (creature === undefined) continue;
+
+    let updated = creature;
+
+    const doomed = creature.conditions.instances.filter(
+      (instance) => castingIdOf(instance.source) === castingId,
+    );
+    if (doomed.length > 0) {
+      let conditions = creature.conditions;
+      for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
+      updated = { ...updated, conditions };
+    }
+
+    // And every grant the casting hung here, through the one enumerator: the
+    // bonus Bless adds, the Armour Class Mage Armor supplies, the Advantage
+    // Blur grants, the Resistance Stoneskin grants. Same link, same door —
+    // Bless stopping when the Cleric's Concentration breaks is not a separate
+    // rule from any of the other three, and a convergence point that forgot
+    // one kind of debt is the hole `releaseOnTarget`’s bonuses were. Naming
+    // them one at a time here is how a fifth would come to be forgotten.
+    updated = withoutGrants(updated, (source) => castingIdOf(source) === castingId);
+
+    if (key === casterId && updated.concentration?.castingId === castingId) {
+      updated = { ...updated, concentration: null };
+    }
+
+    if (updated !== creature) changed = true;
+    creatures[key] = updated;
+  }
+
+  // A casting that ends early takes its own deadlines with it, or a stale timer
+  // would sit waiting to end a spell that is already over. Every per-target
+  // hook it placed goes too.
+  const timers: Record<string, TimedEffect> = {};
+  for (const [key, timer] of Object.entries(state.timers)) {
+    const owned =
+      (timer.target.kind === 'casting' && timer.target.castingId === castingId) ||
+      (timer.target.kind === 'condition' &&
+        castingIdOf(`${timer.target.instance}`) === castingId) ||
+      // A deadline the casting put on its own grant. The grant has just gone;
+      // a timer left waiting to end it is the stale timer this loop exists for.
+      (timer.target.kind === 'grants' && castingIdOf(timer.target.source) === castingId);
+    if (owned) {
+      changed = true;
+      continue;
+    }
+    timers[key] = timer;
+  }
+
+  // A hit the casting promised for a later moment goes with it. No ongoing
+  // casting schedules one yet — both delayed-damage spells are Instantaneous —
+  // but the schedule already names its casting, and a convergence point that
+  // forgot one kind of debt is the hole `releaseOnTarget`'s bonuses were.
+  const scheduledDamage = withoutScheduledDamage(state, castingId, null).scheduledDamage;
+  if (scheduledDamage !== state.scheduledDamage) changed = true;
+
+  // And the live record goes with them. **This is the one place it is removed**
+  // — whether the casting ended because Concentration broke, because its
+  // deadline arrived, or because somebody dispelled it — so there is exactly
+  // one answer to "is this spell still running", and no route by which a
+  // finished spell stays queryable.
+  let ongoing: Readonly<Record<string, OngoingSpell>> = state.ongoing;
+  let castingsEnded = state.castingsEnded;
+  if (ongoing[castingId] !== undefined) {
+    const rest: Record<string, OngoingSpell> = { ...ongoing };
+    delete rest[castingId];
+    ongoing = rest;
+    // And the door records who went through it, so a later `spell-ongoing`
+    // naming the same casting is a corrupt log rather than a resurrection.
+    // Only here: a `releaseCasting` for a casting that never had a record is
+    // not an ending, and marking one would refuse the record its own batch is
+    // still about to write.
+    castingsEnded = [...castingsEnded, castingId].sort(
+      (a, b) => castingNumber(a) - castingNumber(b),
+    );
+    changed = true;
+  }
+
+  // An effect the area owed and the record of who it had already caught this
+  // turn. Both belong to the casting and neither outlives it: a debt against a
+  // Web that has been dispelled is one nothing could settle, and the turn
+  // would refuse to advance past it for ever.
+  const owedAreaEffects = state.owedAreaEffects.filter((owed) => owed.castingId !== castingId);
+  if (owedAreaEffects.length !== state.owedAreaEffects.length) changed = true;
+
+  const areaTriggers: Record<string, AreaTriggerStamp> = {};
+  for (const [key, stamp] of Object.entries(state.areaTriggers)) {
+    if (key.startsWith(`${castingId}|`)) {
+      changed = true;
+      continue;
+    }
+    areaTriggers[key] = stamp;
+  }
+
+  // And a casting that has not taken effect yet. SRD "Longer Casting Times":
+  // "If your Concentration is broken, the spell fails, but you don't expend a
+  // spell slot." A casting of a minute or more is concentrated on from the
+  // moment it begins, so every route by which Concentration ends — damage, a
+  // dismissal, the derived Incapacitated pass, a second Concentration spell —
+  // arrives here, and the pending record has to go with it or the window would
+  // outlive the thing holding it open. Nothing is refunded, because the slot
+  // was never taken: the same asymmetry `spell-interrupted` already writes.
+  //
+  // **The single door stays single.** An ordinary casting's caster is not
+  // concentrating on its pending id — Concentration starts at settlement — so
+  // no other route reaches this with a pending casting's id in hand.
+  //
+  // **And it addresses one casting id**, which is the whole of what the keyed
+  // record changed here: a caster may have two castings open, and the one that
+  // ends is the one this call names. Deleting by key preserves the order of
+  // whatever is left, so the record stays in casting-number order.
+  let pendingCastings = state.pendingCastings;
+  if (pendingCastings[castingId] !== undefined) {
+    pendingCastings = withoutPendingCasting(state, castingId);
+    changed = true;
+  }
+
+  return changed
+    ? {
+        ...state,
+        creatures,
+        timers,
+        ongoing,
+        castingsEnded,
+        scheduledDamage,
+        owedAreaEffects,
+        areaTriggers,
+        pendingCastings,
+      }
+    : state;
+}
+
+/**
+ * Add a declared casting, keeping the record in casting-number order.
+ *
+ * Ids run in sequence and a declaration always allocates the next one, so
+ * insertion order *is* casting-number order today. The sort is what makes that
+ * structural rather than lucky: the record serialises, and a key order that
+ * followed the accidents of declaration would be a fold that is not a pure
+ * function of the log's content. `castingsEnded` is sorted for the same reason
+ * and by the same comparison.
+ */
+export function withPendingCasting(
+  pending: Readonly<Record<string, PendingCasting>>,
+  casting: PendingCasting,
+): Readonly<Record<string, PendingCasting>> {
+  const next: Record<string, PendingCasting> = {};
+  for (const key of [...Object.keys(pending), casting.castingId].sort(
+    (a, b) => castingNumber(a) - castingNumber(b),
+  )) {
+    next[key] = key === casting.castingId ? casting : pending[key]!;
+  }
+  return next;
+}
+
+/**
+ * Drop one declared casting, leaving the rest in the order they were in.
+ *
+ * The settling `spell-cast` closes exactly the window its own id names, and
+ * `releaseCasting` takes the one it was called for; the other castings a
+ * caster or anybody else has open are none of either's business. **One
+ * spelling, two callers**: the removal was written out inline in both, which
+ * is two answers to one question in a single file.
+ */
+export function withoutPendingCasting(
+  state: GameState,
+  castingId: string,
+): Readonly<Record<string, PendingCasting>> {
+  const rest: Record<string, PendingCasting> = { ...state.pendingCastings };
+  delete rest[castingId];
+  return rest;
+}
+
+/**
+ * Drop the hits a casting promised for later — all of them, or one creature's.
+ *
+ * The schedule's source carries the casting id exactly as a condition's does,
+ * so ending a casting can find what it owes without a second index. Returns
+ * the state it was given when nothing matched, so callers can tell.
+ */
+function withoutScheduledDamage(
+  state: GameState,
+  castingId: string,
+  targetId: CharacterId | null,
+): GameState {
+  let scheduled: Record<string, ScheduledDamage> | null = null;
+
+  for (const [key, hit] of Object.entries(state.scheduledDamage)) {
+    if (castingIdOf(hit.source) !== castingId) continue;
+    if (targetId !== null && hit.target !== targetId) continue;
+    scheduled ??= { ...state.scheduledDamage };
+    delete scheduled[key];
+  }
+
+  return scheduled === null ? state : { ...state, scheduledDamage: scheduled };
+}
+
+/**
+ * Take a creature off an ongoing spell without ending the spell.
+ *
+ * Two things do this and they are the same thing: a target shaking the spell
+ * off, and a target leaving the game. Either way the casting carries on for
+ * whoever is left, and `on` has to stop claiming somebody it no longer covers
+ * — Dispel Magic reads that list, and a stale name in it would let a creature
+ * dispel a spell that is not on them.
+ */
+export function withoutTarget(
+  state: GameState,
+  targetId: CharacterId,
+  castingId: string | null,
+): GameState {
+  let ongoing: Record<string, OngoingSpell> | null = null;
+
+  for (const [key, record] of Object.entries(state.ongoing)) {
+    if (castingId !== null && key !== castingId) continue;
+    if (!record.on.includes(targetId)) continue;
+    ongoing ??= { ...state.ongoing };
+    ongoing[key] = { ...record, on: record.on.filter((who) => who !== targetId) };
+  }
+
+  return ongoing === null ? state : { ...state, ongoing };
+}
+
+/** Who is concentrating on a casting, if anybody still is. */
+export const casterOf = (state: GameState, castingId: string): CharacterId | null =>
+  Object.values(state.creatures).find((c) => c.concentration?.castingId === castingId)?.id ?? null;
+
+/**
+ * End one casting's effect on one creature, leaving the casting running.
+ *
+ * SRD Hold Person: a successful repeat save ends the spell "on itself". The
+ * casting carries on for anyone else it caught, and the caster keeps
+ * concentrating, because the spell is still doing something.
+ */
+export function releaseOnTarget(
+  state: GameState,
+  targetId: CharacterId,
+  castingId: string,
+): GameState {
+  const creature = state.creatures[targetId];
+  if (creature === undefined) return state;
+
+  // The live record loses this creature whatever else changes — a tracked
+  // spell like Darkvision is *on* somebody and hangs nothing on them, so the
+  // condition-and-bonus test below would say there was nothing to release.
+  const base = withoutScheduledDamage(
+    withoutTarget(state, targetId, castingId),
+    castingId,
+    targetId,
+  );
+
+  const doomed = creature.conditions.instances.filter(
+    (instance) => castingIdOf(instance.source) === castingId,
+  );
+  // And every grant this casting hung on this creature, through the one
+  // enumerator: a Mage Armor dispelled on one creature stops being that
+  // creature’s calculation, a Dispel Magic aimed at one blurred creature stops
+  // attacks against *that* creature being made at Disadvantage, and a
+  // Stoneskin dispelled on one fighter stops halving *their* damage — each
+  // leaving the rest of the casting alone. The enumerator returns the creature
+  // itself when the casting held nothing here, which is what says so.
+  const released = withoutGrants(creature, (source) => castingIdOf(source) === castingId);
+  if (doomed.length === 0 && released === creature) {
+    return base;
+  }
+
+  let conditions = creature.conditions;
+  for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
+
+  // Every timer this casting hung on this creature goes with it, so no later
+  // turn raises a hook for an effect that has ended. Filtering rather than
+  // rebuilding one key: `doomed` includes the conditions the effect *implied*,
+  // and those sort ahead of it — `incapacitated:...` before `paralyzed:...` —
+  // so guessing from the first entry pointed at the wrong timer and left the
+  // real one running.
+  const timers: Record<string, TimedEffect> = {};
+  for (const [key, timer] of Object.entries(base.timers)) {
+    const mine =
+      (timer.target.kind === 'condition' &&
+        timer.target.on === targetId &&
+        castingIdOf(timer.target.instance) === castingId) ||
+      // The deadline this casting put on its own grant on *this* creature. The
+      // grant is going below; the timer that was going to end it goes too.
+      (timer.target.kind === 'grants' &&
+        timer.target.on === targetId &&
+        castingIdOf(timer.target.source) === castingId);
+    if (!mine) timers[key] = timer;
+  }
+
+  return {
+    ...base,
+    timers,
+    // **The grants go too.** The bonuses were computed and then dropped on the
+    // floor here from the day this function was written, and nothing noticed
+    // because every spell that released on one target hung a *condition* —
+    // Hold Person, Black Tentacles. Dispel Magic is the first thing to release
+    // a spell that hung a bonus, and a Bless the rules had ended went on
+    // adding its d4. Applying `released` rather than four named fields is what
+    // keeps that from happening again to a family nobody has added yet.
+    creatures: {
+      ...base.creatures,
+      [targetId]: { ...released, conditions },
+    },
+  };
+}
+
+/**
+ * Every grant one source made on one creature, taken away.
+ *
+ * The same operation `releaseOnTarget` performs, asked by **source** rather
+ * than by casting — which is what lets a feature and a casting share it. SRD
+ * Superior Hunter's Defense grants a Resistance and no casting exists to hang
+ * it on; a Stoneskin's grant with a deadline of its own is the same sentence
+ * with a casting id inside the source.
+ *
+ * **Every grant kind, not the one the deadline was written for.** What ends is
+ * what that source granted, which is one question however many of the families
+ * answer it — and it is why the `grants` timer needs no per-kind identity. So
+ * it is {@link withoutGrants} with the bare source as its predicate, and the
+ * roll modifiers are matched on that bare source rather than through
+ * `rollModifierKey` for exactly the same reason: Beacon of Hope's two modifiers
+ * are one source's grant, and one deadline ends both.
+ *
+ * Nothing here touches the casting itself. A casting whose grant has expired is
+ * still running, still concentrated on, and still in `ongoing`.
+ */
+export function releaseGrants(creature: CreatureState, source: string): CreatureState {
+  return withoutGrants(creature, (held) => held === source);
+}
+
+/**
+ * A casting that has just hung something on a creature is now **on** them.
+ *
+ * `OngoingSpell.on` answers SRD Dispel Magic's "any ongoing spell ... on the
+ * target", and it was written once, at the resolution, because that was the
+ * only moment a casting could reach anybody. A persistent area breaks that:
+ * Web restrains a creature that walks in a minute later, and a Dispel Magic
+ * aimed at *them* has to find it.
+ *
+ * So `on` grows, and the rule is exactly the link every other cleanup already
+ * uses: **a casting is on a creature while it has a live effect there that the
+ * casting owns.** Derived, so no event has to remember to say it, and a no-op
+ * for every spell that reached its targets at the cast.
+ *
+ * **What it deliberately is not** is "everyone the area has ever touched". A
+ * creature Insect Plague damaged is not carrying anything of the swarm's, so
+ * the swarm is not on them and a Dispel Magic pointed their way finds nothing
+ * — which is right, and is why this reads the *condition* rather than the
+ * trigger that produced it.
+ *
+ * **And `expireEffects` reads the same link the other way**, which it did not
+ * used to: when a condition lapses on its own deadline and it was the last
+ * thing the casting owned on that creature, they leave `on`. Growing without
+ * shrinking left a stale name in the list Dispel Magic reads, so a creature
+ * could dispel a spell the rules had already taken off them.
+ */
+export function alsoOn(state: GameState, who: CharacterId, source: string): GameState {
+  const castingId = castingIdOf(source);
+  if (castingId === null) return state;
+
+  const record = state.ongoing[castingId];
+  if (record === undefined || record.on.includes(who)) return state;
+
+  return {
+    ...state,
+    ongoing: {
+      ...state.ongoing,
+      [castingId]: { ...record, on: [...record.on, who].sort() },
+    },
+  };
+}
+
+/**
+ * Whether a casting has no live effect left on a creature.
+ *
+ * The same links `releaseCasting` walks, asked of one creature: the conditions
+ * it hung, and every grant {@link grantSourcesOf} enumerates — the bonuses, the
+ * Armour Class it supplied, the roll modifiers, the defences it granted and the
+ * Speed it changed.
+ * Reading them through the enumerator is what keeps this in step with the
+ * release: a family this could see and `releaseCasting` could not would keep a
+ * finished casting in `OngoingSpell.on`, which is a wrong answer to Dispel
+ * Magic that no frozen log would catch.
+ *
+ * The conditions stay a question of their own, because they are a different
+ * link — instances, sources and implications rather than a bare grant. And
+ * scheduled damage is deliberately in neither: a hit that is still owed is the
+ * casting's debt rather than something the casting is *doing* to the creature,
+ * which is the same reading that keeps a creature Insect Plague merely damaged
+ * off the list.
+ */
+export function holdsNothingOf(state: GameState, who: CharacterId, castingId: string): boolean {
+  const creature = state.creatures[who];
+  if (creature === undefined) return true;
+
+  const owns = (source: string): boolean => castingIdOf(source) === castingId;
+  return (
+    !creature.conditions.instances.some((instance) => owns(instance.source)) &&
+    !grantSourcesOf(creature).some(owns)
+  );
+}
+

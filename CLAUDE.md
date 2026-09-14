@@ -103,8 +103,9 @@ that has not read it.**
 
 Work is split by file, not by feature, because files are what git resolves.
 **A owns content** — spell definitions, the registry, `VERIFIED_SPELLS`, the
-spell tests. **B owns mechanism** — `commands/`, `events.ts`, the timing and
-positioning modules, and the *type declarations* at the top of
+spell tests. **B owns mechanism** — `commands/`, `fold/`, `events.ts`,
+`state.ts`, the timing and positioning modules, and the *type declarations* at
+the top of
 `spell-definitions.ts`. Stay in your lane; if a change genuinely needs the other
 lane, say so rather than reaching across.
 
@@ -183,11 +184,12 @@ not get wrong.
   `git merge` and ref surgery, and Claude Code's own isolation that refuses
   edits and git aimed at the main checkout. Rework goes builder ↔ reviewer
   without the foreman, and the foreman merges only under tranche authority.
-- **One owner per primitive.** Two tasks that both change `events.ts`, the same
-  module under `commands/`, the types at the top of `spell-definitions.ts` or
-  any other foundational primitive run one after the other, never concurrently.
-  Two that change *different* command domains may run beside each other, which
-  is what splitting that file bought.
+- **One owner per primitive.** Two tasks that both change the same module under
+  `commands/` or under `fold/`, the `GameEvent` union, `state.ts`, the types at
+  the top of `spell-definitions.ts` or any other foundational primitive run one
+  after the other, never concurrently. Two that change *different* command
+  domains, or different seams of the fold, may run beside each other, which is
+  what splitting those two files bought.
   Content, conformance, tooling and docs run beside a mechanism task.
 - **Builders never edit `PROGRESS.md` or `docs/dev/`.** The foreman is the only
   writer there; the Done row is recorded at merge, as it always was.
@@ -246,7 +248,9 @@ React (Vite) ──SSE──► Fastify ──► DM orchestrator (Claude Opus 5
 ## The Event Log
 
 `GameState` is a fold over a list of `GameEvent`s; nothing mutates state by any
-other route. `events.ts` owns the union and the reducer.
+other route. `events.ts` owns the union; `state.ts` owns what a fold adds up
+to, and `fold/` owns the fold itself — see "The fold is a directory, and
+`events.ts` is its schema and its barrel".
 
 **Events carry resolved outcomes, not intents.** A die is rolled once, when it
 is rolled, and the result is recorded forever. Replaying applies those recorded
@@ -344,6 +348,108 @@ exemption naming `creation.ts` as its emitter, which the test then checks. See
 
 Condition sets are sorted on the way in, so a replay compares byte for byte
 regardless of the order effects were applied.
+
+### The fold is a directory, and `events.ts` is its schema and its barrel
+
+It was one 5,432-line module holding the state types, the event union and every
+part of the reducer, and it is the file that serialised tranche 5: seven of ten
+mechanism tasks touched it — IE-020 → 028 → 030 → 032 → 033 → 034 → 035 — and
+that chain *was* the critical path. Read by domain those seven touched four
+different regions, so under a split three of them would have been concurrent.
+Same shape as `commands/`, one layer down, and for the same reason: the
+workflow's one-owner-per-primitive rule serialises tasks on a *file*, so a file
+that is four subsystems serialises four subsystems.
+
+**The seams are where the fold's own declaration graph already cut.**
+`scripts/fold-graph.ts` computes the declaration-level value graph, partitions
+it by `fold-layout.json` and reports the module DAG — the `commands.ts` move's
+precondition, kept as a committed script because it is the evidence for the
+layout rather than a taste for smaller files. Run before any code moved it
+found 88 declarations, 68 of them values, **no strongly connected component
+larger than one**, and an acyclic module graph; run afterwards it reads the
+nine files and answers the same. A cycle would have been `ARCHITECTURE_BLOCKED`.
+
+| | |
+|---|---|
+| `state.ts` | `GameState` and the records it holds, plus `initialState` — the *shape* of the answer, knowing nothing about how it is computed |
+| `events.ts` | the union, and the barrel |
+| `fold/common.ts` | the corrupt-log backstop, the four accessors that throw it, the two sort helpers that keep a fold byte-identical |
+| `fold/release.ts` | what a casting is on and what it hung there — the single door every ending converges on |
+| `fold/areas.ts` | who a persistent area catches, at each of the three moments the SRD writes |
+| `fold/turns.ts` | what a turn boundary owes, and why its two moments are a round apart |
+| `fold/expiry.ts` | what runs out, and what a creature who leaves takes with them |
+| `fold/endings.ts` | a casting ended by something that happens |
+| `fold/apply.ts` | `applyOne`, the derived passes `applyEvent` runs, and `fold` |
+
+**`applyOne` stays one switch**, with its `never` default. Dispatching it by
+domain is `resolveEffects`' move and may follow; a split that did both at once
+would have had two things to blame.
+
+**The union stays put because five test files read it by that path**, and most
+of the engine imports from it — so `events.ts` re-exports `state.ts` and
+`fold/index.ts` and the public surface is the same twenty-five names, with not
+one importing module touched. (No count, deliberately: the figure moves with
+whether tests and the sibling packages are in it, and a number in prose that
+nothing regenerates is this file's own most-repeated finding.) Both of those
+import the union `type`-only, so the edge back is
+erased and the run-time graph is the DAG the script reports. `fold/index.ts`
+enumerates rather than stars, for `commands.ts`'s reason: before the split
+"exported" and "public" were the same word, and `export *` would have made
+`releaseCasting` and `expireEffects` part of `@ie/engine`.
+
+**The oracle was byte-identity, not the suite.** Every moved body is the
+original text after two mechanical transformations — the import block
+rewritten, and `export` added to the thirty-one declarations a sibling seam now
+reads. Reverse those and **all 88 declarations match their source byte for
+byte with comment lines removed on both sides**; run the check with an empty
+transformation list and exactly the thirty-one differ, each by the seven
+characters of its `export` prefix, which is what says nothing else moved. A
+suite passing is the weaker claim: this is a fold, and both frozen logs would
+have caught a behaviour change.
+
+**The claim is stated with comments removed because a *comment-inclusive*
+count is not reproducible, and an independent review proved it.** How many
+declarations match byte for byte including their trivia depends entirely on
+which declaration a comment block is attributed to — the builder's cut says
+"the nearest block above", another segmenter says something else, and the two
+answer 84 and 66 over an identical diff. Neither number is wrong and neither is
+evidence. What is reproducible is the code, and that is what the sentence
+claims.
+
+**The other four are the interesting ones, and they are why "a comment landing
+in the wrong function" is a named hazard rather than a hypothetical.** Two
+docstrings were *already* orphaned on `main` — each sitting above an
+intervening declaration's own docstring, several hundred lines from its
+subject — so a cut that attaches the nearest comment block to the declaration
+below it put them in a different **module** from the function they describe:
+`dropOrphanedSaves`' explanation left in `common.ts` with nothing under it, and
+`breakLostConcentration`'s stranded above `alsoOn` in `release.ts`, which then
+appeared to carry two docstrings, the first about something else. Reuniting
+them is a third transformation, confined to four declaration blocks and
+declared as a defect fix rather than folded into the move. What says it is only
+that is the stronger check the case forced: with **every comment line deleted
+on both sides**, all 88 declarations are identical, so nothing but prose
+changed.
+
+The rule for the next split of this kind: **a body-level oracle cannot see
+leading trivia, so check the trivia too.** An orphan comment is invisible while
+one file holds everything and becomes a wrong answer the moment the file is
+cut.
+
+**Two derived sweeps had populations that had to follow the code**, which is
+this repository's most-repeated failure arriving where it was predicted.
+`invariants.test.ts`'s emitted-type sweep excluded `events.ts` by name and now
+excludes `fold/` as well — not because a `case 'x':` matches a `type: 'x'`
+position, which it does not, but because the question that sweep asks is "which
+module *emits* this type" and the fold structurally emits none: it is handed
+events and returns state. A population holding the consumer is one regex change
+away from marking an unreachable event type reachable. And the `speedOf`
+single-reader sweep — which gained `events.ts` in IE-031 for exactly this
+reason, and which lives in `invariants.test.ts` rather than beside the Speed
+tests, because it is built from that same map — gains the fold as a **directory
+listing**, so an eighth seam joins it on the day it is written rather than when
+somebody remembers. `speed.test.ts` needed no change: it reads the frozen
+fixtures and no source path at all.
 
 ## Validate Before Rolling
 
@@ -1810,7 +1916,8 @@ future rules fix silently rewrote history" arriving through *data* rather than
 through rules, in the one place this file says it must not.
 
 `area` and `areaTrigger` are now pinned on the record at the cast, and
-`events.ts` imports the catalogue **for types only**. The rule is unchanged and
+`fold/areas.ts` — the one seam that needs them — imports the catalogue **for
+types only**. The rule is unchanged and
 now applies to both halves: *pinned for the casting, read live for the creature
 it is happening to.*
 
@@ -5705,12 +5812,18 @@ reducer passing `speedOf` — and that is what happened, so the exemption *fell*
 rather than being rewritten. A guard whose exemption list empties is the one
 that was worth writing.
 
-**Its population had to gain `events.ts`.** It read `EVENT_TYPE_SOURCE`, which
-deliberately excludes the reducer — that map answers "which module *emits* an
-event type", and `events.ts` declares them all — so a sweep claiming "wherever
-in the engine that door is" could not see the one file the defect was in. That
-was reported as a lesser defect and was load-bearing. The sweep now also
-asserts, positively, that both reducer cases ask `speedOf`.
+**Its population had to gain `events.ts`, and then the fold.** It read
+`EVENT_TYPE_SOURCE`, which deliberately excludes the reducer — that map answers
+"which module *emits* an event type", and the reducer emits none — so a sweep
+claiming "wherever in the engine that door is" could not see the one file the
+defect was in. That was reported as a lesser defect and was load-bearing. The
+sweep now also asserts, positively, that both reducer cases ask `speedOf`.
+
+**And the same correction arrived twice**, which is what makes it a shape
+rather than an incident: IE-039 moved the reducer out of `events.ts` into
+`fold/`, so a population still naming only the old file would have gone green
+while looking at a union. It is added as a directory listing rather than a
+name, so an eighth seam joins it on the day it is written.
 
 **The circularity guard widened for the same reason.** A `speed` grant may not
 require `has-speed` — `speedOf` asks the requirements of the grants it adds up,
@@ -7471,8 +7584,8 @@ remembers to look.
 **Every declared event type is emitted somewhere.** The declared types are the
 `readonly type: '<x>'` literals in the union; the emitted ones are those
 literals **in a `type:` position** in any runtime module under `src/` other
-than `events.ts`, which declares them and whose reducer `case` labels are not
-emissions. The `type:` position is load-bearing rather than pedantic: a
+than `events.ts`, which declares them, and `fold/`, which consumes them and
+emits none. The `type:` position is load-bearing rather than pedantic: a
 `ContextRequest`'s `satisfyWith` *names* an event it does not write, and under
 the looser reading `creature-placed` came out emitted while nothing emitted it.
 Both halves are driven over synthetic sources they must catch.
@@ -8225,7 +8338,9 @@ null and is reported — it never becomes either.
   same reading `persistence.test.ts`'s `declaredEventTypes()` uses — and the
   emitted ones are those literals **in a `type:` position** (`/\btype: '<x>'/`)
   in any runtime module under `packages/engine/src` other than `events.ts`,
-  which declares them and whose reducer `case` labels are not emissions. Tests
+  which declares them, and `fold/`, which consumes them and emits none — its
+  reducer `case` labels are not emissions, and after IE-039 that is ninety-eight
+  of them rather than a handful. Tests
   and the two golden-log generators are excluded, because hand-writing events is
   the thing being measured. `invariants.test.ts` runs it and fails naming
   anything it finds, driven over a synthetic source it must catch.

@@ -41,7 +41,9 @@ Builds the shapes and the engine underneath them. Owns:
 | Path | Notes |
 |---|---|
 | `packages/engine/src/commands/` | Twenty-one domain modules; `commands.ts` beside them is a re-export barrel and nothing else |
-| `packages/engine/src/events.ts` | The union, the reducer, `GameState` |
+| `packages/engine/src/events.ts` | The `GameEvent` union, and the barrel that re-exports the two below |
+| `packages/engine/src/state.ts` | `GameState` and the records it holds, plus `initialState` |
+| `packages/engine/src/fold/` | Seven seams; `fold/index.ts` beside them is an enumerating barrel and nothing else |
 | `duration.ts`, `standing.ts`, `positioning.ts`, `combat.ts`, `conditions.ts` | |
 | `spell-definitions.ts` — **the type declarations only** | `SpellEffect`, `SpellDefinition`, `ReactionTrigger`, `DiceScaling`, at the top of the file |
 | `persistence.test.ts`, `invariants.test.ts`, `delayed-damage.test.ts`, `reaction-triggers.test.ts` | |

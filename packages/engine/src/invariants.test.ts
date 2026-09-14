@@ -2841,16 +2841,45 @@ function busyLog(): readonly GameEvent[] {
  * **Derived on both sides, and by the method `CLAUDE.md` already states.** The
  * declared types are the `readonly type: '<x>'` literals in the union; the
  * emitted ones are those literals in a **`type:` position** in any runtime
- * module under `src/` other than `events.ts`, which declares them and whose
- * reducer `case` labels are not emissions. The `type:` position is the
- * load-bearing half rather than pedantry: a `ContextRequest`'s `satisfyWith`
- * *names* an event it does not write, and under the looser reading
- * `creature-placed` came out emitted while nothing emitted it.
+ * module under `src/` other than the union and the fold. The `type:` position
+ * is the load-bearing half rather than pedantry: a `ContextRequest`'s
+ * `satisfyWith` *names* an event it does not write, and under the looser
+ * reading `creature-placed` came out emitted while nothing emitted it.
+ *
+ * **Two exclusions, and they are one reason.** `events.ts` declares every
+ * type, and `fold/` consumes them — neither writes one. IE-039 split the
+ * reducer out of `events.ts`, so the exclusion had to follow the code or the
+ * population would have silently gained 98 `case` labels, which is the
+ * shrinking-population failure this repository keeps finding.
+ *
+ * A `case 'x':` does **not** match `type: 'x'`, so the ninety-eight would not
+ * in fact have been counted as emissions today — and that is exactly why the
+ * exclusion is by *module* rather than left to the regex. The question this
+ * sweep asks is "which module emits this type", and the answer for the fold is
+ * "none of them, structurally": it is handed events and returns state. A
+ * population that includes the consumer is one regex change away from
+ * answering yes on the strength of the reducer branching on a type, which
+ * would mark a genuinely unreachable event type as reachable — the one
+ * direction a guard must never fail in.
  */
 const EVENT_TYPE_SOURCE: Readonly<Record<string, string>> = Object.fromEntries(
   readdirSync(SRC, { recursive: true, encoding: 'utf8' })
     .map((entry) => entry.replace(/\\/g, '/'))
-    .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts') && file !== 'events.ts')
+    .filter(
+      (file) =>
+        file.endsWith('.ts') &&
+        !file.endsWith('.test.ts') &&
+        file !== 'events.ts' &&
+        !file.startsWith('fold/'),
+    )
+    .map((file) => [file, readFileSync(`${SRC}${file}`, 'utf8')]),
+);
+
+/** The fold's own modules, which the sweep above excludes and the one below needs. */
+const FOLD_SOURCE: Readonly<Record<string, string>> = Object.fromEntries(
+  readdirSync(`${SRC}fold/`, { recursive: true, encoding: 'utf8' })
+    .map((entry) => `fold/${entry.replace(/\\/g, '/')}`)
+    .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
     .map((file) => [file, readFileSync(`${SRC}${file}`, 'utf8')]),
 );
 
@@ -2886,6 +2915,35 @@ const emittedNowhere = (
 };
 
 describe('every declared event type is reachable from a command', () => {
+  /**
+   * The population excludes the union and the fold, and nothing else.
+   *
+   * Asserted rather than described, because an exclusion written as a path
+   * prefix is exactly the kind that silently widens: `!file.startsWith('fold')`
+   * would take `folding.ts` with it, and a population that quietly shrinks is
+   * this repository's most-repeated failure. So the two that are out are named,
+   * a module from the command layer and one from the engine's own level are
+   * asserted to still be in, and the fold's modules are asserted to be a real
+   * set rather than an empty one — a sweep whose exclusion excludes nothing is
+   * satisfied by any code at all.
+   */
+  it('excludes the union and the fold, and keeps everything else', () => {
+    const population = Object.keys(EVENT_TYPE_SOURCE);
+    expect(population).not.toContain('events.ts');
+    expect(population.filter((file) => file.startsWith('fold/'))).toEqual([]);
+    expect(population).toContain('commands/scene.ts');
+    expect(population).toContain('creation.ts');
+    expect(population).toContain('state.ts');
+
+    // The fold really is a set of modules, so excluding it excludes something.
+    expect(Object.keys(FOLD_SOURCE)).toEqual(
+      expect.arrayContaining(['fold/apply.ts', 'fold/release.ts', 'fold/index.ts']),
+    );
+    // And it really does hold the reducer's `case` labels, which is what the
+    // exclusion is about.
+    expect(FOLD_SOURCE['fold/apply.ts']).toContain("case 'spell-cast':");
+  });
+
   /**
    * And it read the **whole** union. Cutting the union out of the file bounds
    * the last member's chunk, and a cut that landed early would drop members
@@ -3099,13 +3157,21 @@ describe('Speed is read through one reader', () => {
     );
 
   /**
-   * **The population includes `events.ts`, and that is load-bearing rather
-   * than tidy.** `EVENT_TYPE_SOURCE` excludes the reducer, because the sweep
-   * it was built for is about which module *emits* an event type and
-   * `events.ts` declares them all — and this sweep, reading that map, could
-   * not see the one file the defect was in. The fold calls `speedOf` now; a
-   * sweep claiming "wherever in the engine that door is" has to be able to
-   * look there.
+   * **The population includes the fold, and that is load-bearing rather than
+   * tidy.** `EVENT_TYPE_SOURCE` excludes the reducer, because the sweep it was
+   * built for is about which module *emits* an event type — and this sweep,
+   * reading that map, could not see the one file the defect was in. The fold
+   * calls `speedOf`; a sweep claiming "wherever in the engine that door is"
+   * has to be able to look there.
+   *
+   * **It gained `events.ts` in IE-031 and the fold modules in IE-039**, which
+   * is the same correction arriving twice. The reducer moved out of
+   * `events.ts` into `fold/`, and a population still naming only the old file
+   * would have gone green while looking at a union — the shrinking-population
+   * failure, met on the file the first correction was about. So the fold is
+   * added as a directory listing rather than as a name: an eighth seam joins
+   * on the day it is written, and a hand-kept list of modules is the thing
+   * these sweeps exist to replace.
    *
    * There are **no exemptions**. `dash` held the only one, and it named the
    * fact that would end it — the reducer passing `speedOf` — which is exactly
@@ -3115,13 +3181,17 @@ describe('Speed is read through one reader', () => {
   const SPEED_SOURCE: Readonly<Record<string, string>> = {
     ...EVENT_TYPE_SOURCE,
     'events.ts': readFileSync(`${SRC}events.ts`, 'utf8'),
+    ...FOLD_SOURCE,
   };
 
   it('reads a population that includes the reducer', () => {
     // The sweep is only as wide as its map, and the map it inherited stopped
-    // one file short of the defect.
+    // short of the defect — first by one file, and then by a directory.
     expect(Object.keys(EVENT_TYPE_SOURCE)).not.toContain('events.ts');
+    expect(Object.keys(EVENT_TYPE_SOURCE).filter((f) => f.startsWith('fold/'))).toEqual([]);
     expect(Object.keys(SPEED_SOURCE)).toContain('events.ts');
+    expect(Object.keys(SPEED_SOURCE)).toContain('fold/apply.ts');
+    expect(Object.keys(SPEED_SOURCE)).toContain('fold/expiry.ts');
   });
 
   it('calls conditionSpeed from combineSpeed and from nowhere else', () => {
@@ -3145,7 +3215,7 @@ describe('Speed is read through one reader', () => {
    * rather than a guard, and that fork is what folded a corrupt log.
    */
   it('asks speedOf from the two reducer cases that need it', () => {
-    const reducer = SPEED_SOURCE['events.ts']!;
+    const reducer = SPEED_SOURCE['fold/apply.ts']!;
     expect(reducer).toMatch(/dash\(combatOf\(state, event\), event\.id, speedOf\(state, event\.id\)\)/);
     expect(reducer).toMatch(/spendMovement\([\s\S]{0,120}speedOf\(state, event\.id\)/);
   });
