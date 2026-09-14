@@ -538,6 +538,31 @@ export interface PendingCasting {
      */
     readonly anchoring?: PointAnchoring;
   };
+  /**
+   * The damage type the caster stated, where the spell prints a choice.
+   *
+   * Beside `targets`, `origin` and `area`, and for exactly the same reason:
+   * settlement takes no fresh request, so what the caster said at the casting
+   * is the only place this can come from. SRD Spirit Guardians prints "3d8
+   * Radiant damage (if you are good or neutral) **or** 3d8 Necrotic damage (if
+   * you are evil)" and SRD Protection from Energy "Resistance to one damage
+   * type of your choice" — both decided by the caster, once, at the casting.
+   * Dropped here, a casting declared Necrotic settles Radiant and bounces off
+   * an Undead that is Immune to one and not the other.
+   *
+   * Absent for every other spell in the book, which is what makes a
+   * declaration written before this folds to exactly the state it always did.
+   */
+  readonly damageType?: string;
+  /**
+   * Creatures the caster designated unaffected, for a spell that offers it.
+   *
+   * SRD Spirit Guardians: "When you cast this spell, you can designate
+   * creatures to be unaffected by it." Sorted and absent-when-empty by the
+   * time it arrives, so two declarations that mean the same thing fold to the
+   * same bytes — normalised once, where the request is read.
+   */
+  readonly unaffected?: readonly CharacterId[];
   /** What the definition knowingly leaves out, gathered at declaration. */
   readonly unverified: readonly string[];
   /**

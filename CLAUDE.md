@@ -1251,6 +1251,39 @@ declaration; `resolveDeclaredCast` reads them off the pending record. A
 settlement that accepted a new request could declare Fireball at the goblins
 and settle it at the party, and no rule in the engine would have noticed.
 
+**So everything the caster stated has to be on that record, and two facts were
+not.** `PendingCasting` pinned the targets, the origin and the area for exactly
+the reason above, and carried neither the **damage type** nor the
+**unaffected** list — so a held Spirit Guardians declared Necrotic settled
+Radiant, and a creature the caster had explicitly spared was caught anyway.
+Both are facts the engine refuses to guess at the *atomic* cast — see "Two
+clauses the geometry must not quietly absorb" — and the held path dropped them
+silently, which is this file's own warning arriving through the other door:
+*picking Radiant because most clerics are good is where a Necrotic-immune
+Undead finds the engine out.* The rule is one sentence and it has no exception:
+**whether a casting is settled in one breath or held open for a Counterspell
+changes nothing about what the caster said.**
+
+Two details, and the second is the one that would have rotted. The stated type
+reaches the **effects** as well as the record, because Protection from Energy
+states its type for an effect that lands at the cast while Spirit Guardians
+states it for an area trigger — so `statedDamageType` is applied at settlement
+exactly as the atomic path applies it, and a mutation dropping only that
+substitution reddens the Protection from Energy cases and nothing else. And the
+sort and the empty-list elision are **one function, three call sites** —
+`statedFacts`, read by the atomic record, by the declaration, and by the
+settlement. It is idempotent on purpose, which is what lets the settlement call
+it on an already-normalised pending record rather than spelling the copy out a
+second time: two normalisations of one sentence is the failure this file
+records about every rule kept in two places, and here it would have meant two
+declarations that mean the same thing folding to different bytes.
+
+Both fields are optional, so a declaration written before this has neither and
+means what it always meant — which is the whole compatibility story, and why a
+pending record needed no upgrade path. `upgradeOngoing` fills an *ongoing*
+record from the catalogue; `spell-declared` stores `event.casting` verbatim, so
+absent keeps meaning absent with nothing to migrate.
+
 **The deadline is pinned at declaration, not re-resolved at settlement.**
 `resolveDuration` can refuse — a turn-anchored duration outside combat — and a
 refusal *at settlement* would be a window that could never be closed, which is

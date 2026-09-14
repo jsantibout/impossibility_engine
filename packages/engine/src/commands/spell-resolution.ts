@@ -183,6 +183,12 @@ export function resolveDeclaredCast(
 
     const events: GameEvent[] = settlementEvents(pending, stamp);
 
+    // What the caster stated at the declaration, read back off the record it
+    // was written on. Normalised already — this is the same function that
+    // normalised it, and it is idempotent precisely so that the settlement
+    // does not have to spell the copy out a second time.
+    const stated = statedFacts(pending);
+
     return resolveEffects(state, pending.caster, caster, definition, {
       castLevel: pending.level,
       route: chosen.value,
@@ -191,6 +197,11 @@ export function resolveDeclaredCast(
       supply,
       castingId: pending.castingId,
       events,
+      // SRD Protection from Energy states its type for an effect that lands at
+      // the cast, so the substitution has to reach the casting's own effects
+      // and not only an area trigger's. Identity when nothing was stated,
+      // which is every other spell in the book.
+      effects: statedDamageType(definition.effects, pending.damageType),
       ...(pending.origin === undefined ? {} : { from: pending.origin }),
       ...(persists(definition)
         ? {
@@ -209,6 +220,11 @@ export function resolveDeclaredCast(
               ...(pending.area?.anchoring === undefined
                 ? {}
                 : { anchoring: pending.area.anchoring }),
+              // The designation and the stated type reach the record the area
+              // detectors read, exactly as they do on the atomic path: without
+              // them a held Spirit Guardians catches a creature its caster
+              // spared and burns it with the type it did not choose.
+              ...stated,
             },
           }
         : {}),
@@ -496,6 +512,12 @@ function resolveOnTargets(
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, held, origin, area, stamp } = context;
+
+  // Normalised here, once, and read by both paths out of this file: the
+  // ongoing record an atomic casting writes, and the declaration a held one
+  // writes for its own settlement to read back.
+  const stated = statedFacts(request);
+
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
     // **Three answers, stated rather than inferred.** A Range: Self spell is
@@ -510,10 +532,7 @@ function resolveOnTargets(
     // sentence of the spell reads them and neither can be recovered from
     // anything else. **A carried area records no position**: `caster` and the
     // definition's `origin: 'self'` already say where it is.
-    ...(request.unaffected === undefined || request.unaffected.length === 0
-      ? {}
-      : { unaffected: [...request.unaffected].sort() }),
-    ...(request.damageType === undefined ? {} : { damageType: request.damageType }),
+    ...stated,
   });
 
   /**
@@ -632,6 +651,11 @@ function resolveOnTargets(
               unverified,
               ...(origin === null ? {} : { origin }),
               ...(area === null ? {} : { area }),
+              // The same two stated facts, from the same normalisation the
+              // atomic path uses. A casting held open for a Counterspell is
+              // still the casting its caster described, and the settlement has
+              // no request to read them off.
+              ...stated,
             },
           }
         : {}),
@@ -2035,5 +2059,43 @@ interface OngoingRecordPlan {
   readonly unaffected?: readonly string[];
   /** The damage type the casting was declared with, where the spell prints two. */
   readonly damageType?: string;
+}
+
+/**
+ * The two facts a caster states at the casting, normalised once.
+ *
+ * SRD Spirit Guardians asks for both in one paragraph — "3d8 Radiant damage
+ * (if you are good or neutral) or 3d8 Necrotic damage (if you are evil)", and
+ * "you can designate creatures to be unaffected by it" — and SRD Protection
+ * from Energy asks for the first on its own. Neither can be worked out from
+ * anything else: the engine holds no alignment for a declared NPC cleric, and
+ * allegiance is not the designation.
+ *
+ * **One normalisation, three readers.** The atomic path writes these onto the
+ * ongoing record, a held casting writes them onto the declaration, and the
+ * settlement reads them back off it — and the sort and the empty-list elision
+ * have to be identical in all three, or two declarations that mean the same
+ * thing fold to different bytes. Written out twice they would eventually
+ * disagree, which is the failure this repository records about every rule kept
+ * in two places.
+ *
+ * **Idempotent**, which is what lets the settlement call it on an
+ * already-normalised pending record rather than spelling the copy out a second
+ * time: a sorted list sorts to itself, a non-empty list stays non-empty, and an
+ * absent field stays absent.
+ */
+function statedFacts(stated: {
+  readonly damageType?: string;
+  readonly unaffected?: readonly CharacterId[];
+}): {
+  readonly damageType?: string;
+  readonly unaffected?: readonly CharacterId[];
+} {
+  return {
+    ...(stated.unaffected === undefined || stated.unaffected.length === 0
+      ? {}
+      : { unaffected: [...stated.unaffected].sort() }),
+    ...(stated.damageType === undefined ? {} : { damageType: stated.damageType }),
+  };
 }
 

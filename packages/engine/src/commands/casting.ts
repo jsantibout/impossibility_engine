@@ -330,6 +330,23 @@ export interface CastingPlan {
     /** Absent means `space`, so a log written before intersections existed folds unchanged. */
     readonly anchoring?: PointAnchoring;
   };
+  /**
+   * The damage type the caster stated, where the spell prints a choice.
+   *
+   * Beside the targets and the origin, and for the same reason: settlement
+   * takes no fresh request, so a Spirit Guardians declared Necrotic must not
+   * settle Radiant. Already normalised by the layer that read the request —
+   * copied here rather than re-derived, because a second normalisation is a
+   * second place for one sentence to be got wrong.
+   */
+  readonly damageType?: string;
+  /**
+   * Creatures the caster designated unaffected, for a spell that offers it.
+   *
+   * Sorted and non-empty, or absent. Normalised once, where the request is
+   * read; this is the copy that carries it to the declaration.
+   */
+  readonly unaffected?: readonly CharacterId[];
 }
 
 /**
@@ -532,6 +549,12 @@ function castSpellWith(
         targets: command.hold.targets,
         ...(command.hold.origin === undefined ? {} : { origin: command.hold.origin }),
         ...(command.hold.area === undefined ? {} : { area: command.hold.area }),
+        // The two facts the caster stated, carried verbatim. Already sorted
+        // and already elided when empty by the layer that read the request —
+        // re-normalising here would be the second copy that eventually
+        // disagrees with the first.
+        ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
+        ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
         unverified: command.hold.unverified,
         ...(deadline === undefined ? {} : { deadline }),
         ...(command.check === undefined ? {} : { check: command.check }),
