@@ -1,11 +1,11 @@
 # IE-027 — `resolveEffects` split into per-kind resolvers, behaviour-preserving
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 5
 parallel-safe: CONDITIONAL — owns `commands/spell-resolution.ts` alone; safe beside IE-028 (`events.ts` only) and IE-029
 depends-on: IE-020
-worker: none
+worker: qb-builder · .claude/worktrees/agent-ad3cd09c3ca5ed758 · worktree-agent-ad3cd09c3ca5ed758
 approved: 2026-09-14 — "APPROVE TRANCHE 5"
 merge-approved: none
 
