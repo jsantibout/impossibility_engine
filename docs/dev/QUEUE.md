@@ -247,7 +247,7 @@ them honest rather than optimistic.
 |---|---|---|---|
 | IE-010 — Outcome riders, and the two `on` rules made one | mechanism | 1 | the decided rider design, plus a shipped wrong answer in `on` and a zero-user format member |
 | IE-011 — Multiclass Hit Dice | mechanism | 1 | a shipped wrong number; calls a function that already exists and is tested — **merged `ded4e71`** |
-| IE-012 — Scene commands | mechanism | 1 | nothing above the engine can start an encounter |
+| IE-012 — Scene commands | mechanism | 1 | nothing above the engine can start an encounter — **merged `6d3cb92`** |
 | IE-013 — Guards that can see a zero-user member | conformance | 1 | the guard that would have caught three of the audit's own findings |
 | IE-014 — A spell that takes a condition away | mechanism | 2 | one union member reusing the removal `useHealingTouch` already performs |
 | IE-015 — `BLOCKED_ON` derived blocker map | conformance | 2 | ends three documents ranking one family at 17, 4 and 2 |
@@ -320,11 +320,10 @@ merge — **no owner gate between waves**; the tranche is the autonomy boundary.
 | Wave | Task | Lane |
 |---|---|---|
 | 1 | [IE-010 — Outcome riders, and the two `on` rules made one](tasks/IE-010-outcome-riders.md) | mechanism — **clean, held behind IE-013** |
-| 1 | [IE-012 — Scene commands](tasks/IE-012-scene-commands.md) | mechanism — **PASS at medium; two deviations ratified, confidence pass running** |
 | 1 | [IE-013 — Guards that can see a zero-user member](tasks/IE-013-format-and-validator-guards.md) | conformance |
 | 2 | [IE-014 — A spell that takes a condition away](tasks/IE-014-condition-removal.md) | mechanism |
 | 2 | [IE-015 — `BLOCKED_ON` derived blocker map](tasks/IE-015-blocked-on-map.md) | conformance |
-| 2 | [IE-016 — The other nine facts a DM declares](tasks/IE-016-declared-fact-commands.md) | mechanism |
+| 2 | [IE-016 — The other nine facts a DM declares](tasks/IE-016-declared-fact-commands.md) | mechanism — **launched on IE-012's merge** |
 | 3 | [IE-017 — A granted Resistance, and the deadline it needs](tasks/IE-017-granted-resistance.md) | mechanism |
 | 3 | [IE-018 — A sweep for refusal codes nothing asserts](tasks/IE-018-refusal-code-coverage.md) | conformance |
 | 4 | [IE-019 — An outcome that varies by creature type](tasks/IE-019-creature-type-outcomes.md) | mechanism |

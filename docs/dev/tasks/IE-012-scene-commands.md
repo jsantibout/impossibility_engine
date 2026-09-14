@@ -1,13 +1,13 @@
 # IE-012 — Scene commands: let something above the engine start an encounter
 
-state: AWAITING_FOREMAN_REVIEW
+state: DONE
 lane: mechanism
 tranche: 4
 parallel-safe: YES — a new command module wrapping pure functions that already exist; touches no spell, no effect kind, no existing command
 depends-on: none
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-aab26f5019e2fbd13 · worktree-agent-aab26f5019e2fbd13
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -135,3 +135,61 @@ The tool surface itself, which is M2.
 - A command that merely wraps a pure function can drift from it. The brief's
   answer is that the refusals must be the function's own, surfaced rather than
   restated.
+
+
+## Merge record
+
+Merged to `main` as `6d3cb92`, fast-forward, pushed. Worktree retired.
+
+**A tool surface can now start an encounter.** The scenario that proves it
+builds three characters, a declared spellcasting, an hour on the clock, a
+taproom, two landmarks, three placements — one anchored on another creature —
+two sight declarations, a cover declaration, three rolled Initiatives and a
+started fight, **every event produced by an exported command**. The test reads
+that claim off its own source and the confirming reviewer re-executed the scan
+independently rather than trusting it.
+
+**Two deviations, both ratified by the foreman, and both were foreman errors.**
+
+1. The brief's architecture constraint said "No change to `events.ts`" while
+   its requirement 5 demanded that a retry emit nothing — which needs a
+   `CommandStamp`, which must be **declared** on the member or it is invisible
+   to every reader of the type. `CLAUDE.md` records that trap twice, and the
+   builder's mutation proved it: deleting the declaration left
+   `npm run typecheck` completely silent. Eight optional declarations, no new
+   event type, no reducer change. Verified as declarations-only by the foreman
+   and again by the confirming reviewer.
+2. The brief's requirement 3 said to put the eight on the action-economy
+   allowlist; `invariants.test.ts` asserts every name on that list **is** a
+   derived spender, and these spend nothing, so the instruction was
+   unexecutable and the decision would have lived nowhere.
+   `DECLARED_NOT_ACTED` is the same shape — derived from the module, one
+   written sentence each, asserted both ways — and is checked **behaviourally**
+   by running all eight against the very world the spender sweep refuses every
+   spender in.
+
+**The confidence rating was earned, not asked for.** The task's own reviewer
+returned `PASS` with no defects and no escalation at **medium**, explaining
+that the two deviations were ratification questions for the foreman. Rather
+than send the owner two decisions that were the foreman's, both were ruled and
+a bounded reviewer was asked to rate the work with the questions closed —
+**told explicitly that medium remained a legitimate answer and would send the
+task to the owner.** It verified both rulings against the code, re-derived
+`CLAUDE.md`'s 91/82/9, read the *reducer* to confirm a command cannot emit an
+event the fold throws on, and returned `PASS` at **high**.
+
+The thirteen conditions: 1 inside the brief (six files, all on its surface,
+plus `events.ts` by ratified deviation) · 2 COMPLETE · 3 **PASS at high**, at
+the confidence pass · 4 no defects · 5 gauntlet in the worktree ✓ · 6
+`COVERAGE.md` byte-clean, no definition touched · 7 no blocker · 8 two
+deviations, both ratified above · 9 the `GameEvent` union gained eight
+optional declarations and nothing else; the reducer, the five pure functions
+and persistence are untouched · 10 no scope expansion · 11 no conflict ·
+12 gauntlet re-run on `main`: typecheck ✓ lint ✓ **5697/5697** ✓ coverage
+byte-clean ✓, both fixtures untouched · 13 risk gate GREEN.
+
+**Wave 2 opened on this merge.** IE-016 launched immediately, with IE-012's
+pattern and the two rulings carried into its brief — including the finding
+that `DECLARED_NOT_ACTED` and the stamp test are scoped to `commands/scene.ts`
+by a hard-coded path, so the next family's module must be added to both or it
+is invisible to the sweeps that exist to prevent exactly that.

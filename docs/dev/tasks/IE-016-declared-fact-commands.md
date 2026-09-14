@@ -1,11 +1,11 @@
 # IE-016 — The other nine facts a DM declares
 
-state: APPROVED_FOR_IMPLEMENTATION
+state: IMPLEMENTING
 lane: mechanism
 tranche: 4
 parallel-safe: YES beside union and conformance work — it is commands over existing pure functions and existing events; NO beside IE-012, which establishes the module and the pattern
 depends-on: IE-012
-worker: none
+worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a47b4e98980d2a158 · worktree-agent-a47b4e98980d2a158
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
 merge-approved: none
 
