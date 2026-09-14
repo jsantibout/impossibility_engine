@@ -62,7 +62,16 @@ export interface SpellTargetOutcome {
   readonly healed?: number;
   /** Temporary Hit Points granted. They do not stack; the larger set wins. */
   readonly temporaryHp?: number;
-  readonly condition?: ConditionName;
+  /**
+   * The conditions this effect imposed, when it imposed any.
+   *
+   * **A list, because one outcome can impose several.** SRD Hideous Laughter
+   * gives "the Prone and Incapacitated conditions" on one Wisdom save, and a
+   * singular field would have made a caller pick which of the two to report.
+   * Absent rather than empty where nothing landed, so a reader asking whether
+   * a condition was imposed asks one question.
+   */
+  readonly conditions?: readonly ConditionName[];
   /**
    * The Concentration this damage put at risk, and what became of it.
    *

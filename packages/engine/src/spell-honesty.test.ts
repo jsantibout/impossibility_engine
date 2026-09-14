@@ -137,8 +137,8 @@ type MarkerId = (typeof CLAUSE_MARKERS)[number][0];
  * the other — the gap is, and it is `baseSpeed` with nothing that modifies it.
  */
 const MISSING_SHAPES = {
-  'outcome-scoped-child-effects':
-    'one roll with several consequences: a failed save that applies two conditions, an attack that still does something on a miss, a rider that fires when this spell’s own damage reaches 0 Hit Points. CLAUDE.md, "A Definition Is Validated Data": "Outcome-scoped child effects are deferred", because a naive `onFail: SpellEffect[]` would nest a saving throw inside a saving throw.',
+  'an-outcome-of-a-spells-own-damage':
+    'a third outcome axis, after the saving throw and after the damage: the target reaching 0 Hit Points **because of this spell**. The audit that asked for outcome riders separates it from them by name — a rider rides the roll its host made, and this rides a number the engine went on to compute — and CLAUDE.md’s "Transitions Are Engine-Owned Batches" is where dropping to 0 is already an engine-owned consequence with nowhere for a spell to hang one.',
   'a-repeat-save-beyond-the-turn-hook':
     '`RepeatSave` says a turn boundary, an ability, a DC, and end-on-target or end-casting. The SRD also writes a save on the clock rather than on a turn, a save counted to three successes or three failures, a save that deals damage on a failure, and a save raised by a trigger. PROGRESS.md names the damage half for Ensnaring Strike and Phantasmal Force.',
   'a-casting-ended-by-a-trigger':
@@ -218,13 +218,6 @@ interface Adjudication {
  * append to — the same reason `VERIFIED_SPELLS` and the catalogue are sorted.
  */
 const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
-  'acid-arrow': [
-    {
-      clause: 'On a miss the arrow still splashes',
-      why: 'outcome-scoped-child-effects',
-      note: 'SRD: "On a miss, the arrow splashes the target with acid for half as much of the initial damage only." The attack resolves and the engine knows perfectly well that it missed; an effect list has no miss branch for the halved damage to hang on.',
-    },
-  ],
   'animal-friendship': [
     {
       clause: 'ending early if you or an ally damages',
@@ -392,8 +385,8 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   disintegrate: [
     {
       clause: 'disintegrated to dust',
-      why: 'outcome-scoped-child-effects',
-      note: 'The rider fires on the outcome of this spell’s own damage — the target reaching 0 Hit Points — which the engine computes itself and cannot hang a consequence on. The gear turned to dust and the restriction on reviving it ride on the same missing branch.',
+      why: 'an-outcome-of-a-spells-own-damage',
+      note: 'Not an outcome rider, and the distinction is the whole reason this has a shape of its own: a rider rides the roll its host made, and this fires on a number the engine went on to compute from it — the target reaching 0 Hit Points. The gear turned to dust and the restriction on reviving it ride on the same missing branch.',
     },
   ],
   'dissonant-whispers': [
@@ -549,6 +542,18 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "its Hit Point maximum is reduced by an amount equal to the Necrotic damage it took", and "This spell can’t reduce a target’s Hit Point maximum below 1." The maximum is the engine’s own number, read by healing, by Massive Damage and by every threshold, and no effect moves it.',
     },
   ],
+  'hideous-laughter': [
+    {
+      clause: 'the second Wisdom save each time the target takes damage',
+      why: 'a-repeat-save-beyond-the-turn-hook',
+      note: 'SRD: "At the end of each of its turns and each time it takes damage, it makes another Wisdom saving throw." The turn boundary is exactly what `RepeatSave` names and is rolled; a save raised by a **trigger** is not, and nor is the Advantage that one carries.',
+    },
+    {
+      clause: 'unable to end the Prone condition on itself',
+      why: 'an-action-a-spell-compels-or-forbids',
+      note: 'SRD: "it can\u2019t end the Prone condition on itself." Standing up is something a creature does and the engine does not model it as an action a spell can forbid, so the Prone is lifted by the spell ending and by nothing this clause could stop.',
+    },
+  ],
   'hypnotic-pattern': [
     {
       clause: 'only a creature that can see the pattern',
@@ -556,9 +561,9 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'An area catches every creature standing in it. SRD affects only those that can see the pattern, so a blindfolded creature in the Cube is Charmed here and is not Charmed in the book.',
     },
     {
-      clause: 'Speed 0 that ride along',
-      why: 'outcome-scoped-child-effects',
-      note: 'One Wisdom save produces the Charmed condition, the Incapacitated condition and a Speed of 0. A second effect would roll a second save, and a Speed a spell sets has no home either.',
+      clause: 'Speed of 0 that rides along',
+      why: 'speed-and-movement-modes',
+      note: 'The Charmed and the Incapacitated are both imposed by the one Wisdom save the spell rolls. What is left of the sentence is the Speed, and it is the Speed that is missing rather than the branch: SRD says "a Speed of 0", the engine holds one `baseSpeed` and nothing sets it.',
     },
     {
       clause: 'ending for a creature that takes damage',
@@ -634,11 +639,6 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'phantasmal-killer': [
     {
-      clause: 'Disadvantage on ability checks',
-      why: 'outcome-scoped-child-effects',
-      note: 'One Wisdom save deals the damage and imposes the Disadvantage for the duration. A `roll-mode` effect can say exactly that Disadvantage, and putting it beside the damage would roll a second save for the same failure.',
-    },
-    {
       clause: 'the Wisdom save at the end of each',
       why: 'a-repeat-save-beyond-the-turn-hook',
       note: 'The boundary is one `RepeatSave` already names; what it cannot do is deal damage on the failure, because a repeat save releases effects and rolls nothing else.',
@@ -706,11 +706,6 @@ const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
   ],
   sunburst: [
-    {
-      clause: 'the Blinded condition a failed save imposes',
-      why: 'outcome-scoped-child-effects',
-      note: 'One Constitution save deals the Radiant damage and blinds for a minute, with a save at the end of each of the target’s turns to end it. A second effect would roll a second save for the same failure.',
-    },
     {
       clause: 'dispelling magical Darkness',
       why: 'table',

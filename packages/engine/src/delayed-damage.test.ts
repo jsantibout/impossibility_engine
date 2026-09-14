@@ -70,7 +70,10 @@ const fight = (): GameEvent[] => [
     id: id('wizard'),
     spellcasting: declaredCasting({
       ability: 'int',
-      cantrips: [],
+      // Fire Bolt is the same `attack` kind with no miss clause, which is what
+      // makes it the case that proves `onMiss` is a field rather than a
+      // default.
+      cantrips: ['fire-bolt'],
       prepared: ['acid-arrow', 'vitriolic-sphere'],
     }),
   },
@@ -171,13 +174,70 @@ describe('a second hit that arrives at the end of the target\'s next turn', () =
     expect(hp(log, 'goblin')).toBe(settled);
   });
 
-  it('schedules nothing on a miss, and deals nothing later', () => {
+  /**
+   * **"Only" is the word this test is about.**
+   *
+   * SRD Acid Arrow: "On a miss, the arrow splashes the target with acid for
+   * half as much of the initial damage **only**." So a miss is not nothing —
+   * it is half the first hit and *none* of what the hit would have carried.
+   * The splash is the host's own damage on the other branch; the later 2d4 is
+   * a rider, and riders ride the hit.
+   */
+  it('splashes for half on a miss, and owes nothing later', () => {
     let log = acidArrow(fight(), -40);
-    expect(hp(log, 'goblin')).toBe(200);
+    expect(hp(log, 'goblin')).toBeLessThan(200);
     expect(Object.keys(fold('seed', log).scheduledDamage)).toHaveLength(0);
 
+    const splashed = hp(log, 'goblin');
     log = advance(log, 't1');
     log = advance(log, 't2');
+    expect(hp(log, 'goblin')).toBe(splashed);
+  });
+
+  /**
+   * And it really is *half*, rather than "some damage happened".
+   *
+   * 4d4 is 4 to 16, so a splash is 2 to 8 — a range a full hit cannot reach
+   * below and a range no arithmetic error that dropped the halving could land
+   * in. The outcome still reports the attack as a miss, because that is what
+   * it was: `affected` is the same answer a creature gets when it saves
+   * against Vitriolic Sphere and takes half anyway.
+   */
+  it('halves the initial damage and reports the miss as a miss', () => {
+    const log = fight();
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        id('wizard'),
+        { spellId: 'acid-arrow', targets: [id('goblin')], slotLevel: 2 },
+        supplyFor(fold('seed', log), -40),
+      ),
+      'acid arrow',
+    );
+
+    const [hit] = out.outcomes;
+    expect(hit?.attack?.hit).toBe(false);
+    expect(hit?.affected).toBe(false);
+    expect(hit?.damage).toBeGreaterThanOrEqual(2);
+    expect(hit?.damage).toBeLessThanOrEqual(8);
+  });
+
+  /**
+   * Every other attack in the book, which prints no miss clause at all.
+   *
+   * `onMiss` is a transcribed field with one consumer, so the case that proves
+   * it is a field rather than a new default is the spell beside it: Fire Bolt
+   * is the same `attack` kind and a miss leaves the goblin untouched.
+   */
+  it('leaves an attack with no miss clause dealing nothing on a miss', () => {
+    const log = run(fight(), (s) =>
+      resolveSpell(
+        s,
+        id('wizard'),
+        { spellId: 'fire-bolt', targets: [id('goblin')] },
+        supplyFor(s, -40),
+      ),
+    );
     expect(hp(log, 'goblin')).toBe(200);
   });
 

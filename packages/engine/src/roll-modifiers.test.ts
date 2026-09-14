@@ -403,14 +403,25 @@ describe('the definition validator carries those rules to an author', () => {
     ).toEqual(expect.arrayContaining(['bad_roll_mode', 'bad_roll_relation']));
   });
 
-  it('refuses a save ability that is not an ability', () => {
+  /**
+   * **The saving throw that used to sit on this kind is gone**, and the test
+   * that checked its ability went with it.
+   *
+   * `roll-mode.save` had zero users in the catalogue from the day it was
+   * written — Blur and Beacon of Hope are the only `roll-mode` effects and
+   * neither spell asks anybody to resist — and the rider vocabulary made it
+   * redundant rather than merely unused: a spell whose mode is imposed by a
+   * failed save writes the save as its host and hangs the mode as a
+   * `modifiers` rider, which is one roll shared rather than two spellings of
+   * one sentence. What replaces this case is the rider's own validation,
+   * beside the `buff` rules it shares, in `spell-schema.test.ts`.
+   */
+  it('has no saving throw of its own to get wrong', () => {
     expect(
-      codes({
-        kind: 'roll-mode',
-        save: 'luck',
-        modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
-      }),
-    ).toContain('bad_ability');
+      SPELL_DEFINITIONS.flatMap((definition) => definition.effects).filter(
+        (effect) => effect.kind === 'roll-mode' && 'save' in effect,
+      ),
+    ).toEqual([]);
   });
 
   /**

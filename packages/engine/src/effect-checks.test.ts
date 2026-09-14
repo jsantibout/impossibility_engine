@@ -12,7 +12,7 @@ import {
   resolveSpell,
   type EffectCheckCommand,
 } from './commands.js';
-import { SPELL_DEFINITIONS, definitionFor } from './spell-definitions.js';
+import { SPELL_DEFINITIONS, conditionRiderOf, definitionFor } from './spell-definitions.js';
 
 /**
  * An ability check a spell offers against something it is still doing.
@@ -681,9 +681,13 @@ describe('the shape stops where the SRD stops being expressible', () => {
     const outcomes = new Set<string>();
     for (const definition of SPELL_DEFINITIONS) {
       if (definition.check !== undefined) outcomes.add(definition.check.onSuccess);
+      // Through the reader that knows where each host spells its riders: a
+      // sweep that switched on the kind would go blind the day a host learned
+      // to carry more than one, which is exactly what happened to the three
+      // copies IE-001 removed.
       for (const effect of definition.effects) {
-        if (effect.kind === 'save-damage' && effect.condition?.check !== undefined) {
-          outcomes.add(effect.condition.check.onSuccess);
+        for (const rider of conditionRiderOf(effect)) {
+          if (rider.check !== undefined) outcomes.add(rider.check.onSuccess);
         }
       }
     }

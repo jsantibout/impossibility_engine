@@ -28,7 +28,7 @@ set in both directions.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 46 (13.6%) | 86 (25.4%) | 54 | 62 (18.3%) |
+| 339 | 46 (13.6%) | 87 (25.7%) | 53 | 64 (18.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -50,7 +50,7 @@ spell, and the area is the part that is missing.
 | An ongoing effect that acts on later turns | 18 | 1 | 3 | an effect that a later turn can act through |
 | Spell attack roll | 16 | 0 | 12 | — |
 | Saving throw for damage | 30 | 0 | 13 | — |
-| Saving throw for a condition | 43 | 0 | 17 | — |
+| Saving throw for a condition | 43 | 0 | 18 | — |
 | Restores Hit Points | 4 | 0 | 3 | — |
 | A condition imposed with no saving throw | 4 | 0 | 2 | per spell, and never the condition itself — a casting ended by a trigger (Sequester); Mirror Image is a false positive of the prose test, which cannot tell a condition **imposed** from one merely read ("unaffected by this spell if it has the Blinded condition") |
 | Temporary Hit Points | 3 | 0 | 1 | — |
@@ -59,7 +59,7 @@ spell, and the area is the part that is missing.
 
 ### Executed today
 
-- **Acid Arrow** (level 2) — untested, partial — a clause the engine owns is still unbuilt
+- **Acid Arrow** (level 2) — untested
 - **Acid Splash** (cantrip) — verified
 - **Animal Friendship** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Arcane Sword** (level 7) — verified
@@ -108,6 +108,7 @@ spell, and the area is the part that is missing.
 - **Harm** (level 6) — verified, partial — a clause the engine owns is still unbuilt
 - **Healing Word** (level 1) — verified
 - **Hellish Rebuke** (level 1) — untested
+- **Hideous Laughter** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Hold Monster** (level 5) — verified
 - **Hold Person** (level 2) — verified
 - **Hypnotic Pattern** (level 3) — verified, partial — a clause the engine owns is still unbuilt
@@ -138,7 +139,7 @@ spell, and the area is the part that is missing.
 - **Starry Wisp** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
 - **Suggestion** (level 2) — untested, partial — a clause the engine owns is still unbuilt
 - **Sunbeam** (level 6) — untested, partial — a clause the engine owns is still unbuilt
-- **Sunburst** (level 8) — untested, partial — a clause the engine owns is still unbuilt
+- **Sunburst** (level 8) — verified
 - **Thunderwave** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Vampiric Touch** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Vicious Mockery** (cantrip) — verified, partial — a clause the engine owns is still unbuilt

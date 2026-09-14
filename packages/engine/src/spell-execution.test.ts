@@ -336,7 +336,7 @@ describe('casting Hold Person', () => {
 
   it('paralyses a target that fails its save, and starts Concentration', () => {
     const { state, outcome } = held();
-    expect(outcome.outcomes[0]).toMatchObject({ condition: 'paralyzed', affected: true });
+    expect(outcome.outcomes[0]).toMatchObject({ conditions: ['paralyzed'], affected: true });
     expect(conditionsOf(state, 'goblin')).toContain('paralyzed');
     expect(state.creatures.kessa!.concentration).toMatchObject({ spell: 'Hold Person' });
     // A level 3 Wizard has two level 2 slots; one is now gone.

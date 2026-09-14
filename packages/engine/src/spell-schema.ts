@@ -12,15 +12,18 @@ import {
 } from '@ie/shared';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import { parseNotation } from './dice.js';
-import { conditionRiderOf } from './spell-definitions.js';
+import { conditionRiderOf, modifierRidersOf } from './spell-definitions.js';
 import type {
   ConditionRider,
   DiceScaling,
+  ModifierRider,
   SpellArea,
   SpellCheck,
   SpellDefinition,
   SpellEffect,
 } from './spell-definitions.js';
+import type { Bonus, BonusApplies } from './bonuses.js';
+import type { RollModifier } from './roll-modifiers.js';
 
 /**
  * Whether a spell definition is *coherent*, asked of a value rather than of a
@@ -281,11 +284,230 @@ function checkSpellCheck(
 function checkConditionRider(
   rider: ConditionRider | undefined,
   namePath: string,
-  checkPath: string,
+  riderPath: string,
+  host: RiderHost,
   found: SpellDefinitionProblem[],
 ): void {
   checkCondition(String(rider?.name), namePath, found);
-  if (rider?.check !== undefined) checkSpellCheck(rider.check, checkPath, found);
+
+  // **The check hangs off the rider's own base, in both layouts**, which is
+  // why one path is enough where the docstring above asks for two. A nested
+  // rider at `X` writes `X.check`; `save` writes its rider flat, so the base
+  // *is* the effect and the check is `effects[0].check`. The name is the one
+  // field that does not follow — `save` calls it `condition` — and it stays
+  // the caller's to supply for exactly that reason.
+  if (rider?.check !== undefined) checkSpellCheck(rider.check, `${riderPath}.check`, found);
+
+  // **A rider that repeats a save needs a host that rolled one.** SRD writes
+  // "the target repeats the save" — the one the spell already asked for — so
+  // an `attack` host, which rolls an attack, and a `condition` host, which
+  // rolls nothing at all, have none to repeat. The type cannot say this: one
+  // `ConditionRider` is shared by all four hosts, which is the whole point of
+  // it, and the docstring on the `condition` kind had been making the argument
+  // in prose since that kind arrived.
+  if (rider?.repeats !== undefined && !host.rollsSave) {
+    found.push({
+      field: `${riderPath}.repeats`,
+      code: 'repeats_without_save',
+      reason: `a repeat save repeats the one its host rolled, and a "${host.kind}" effect rolls none`,
+    });
+  }
+
+  // A span of nothing is not a duration, it is the absence of one — the same
+  // argument `durationSeconds` already makes on the definition.
+  const lasts = rider?.lasts;
+  if (
+    typeof lasts === 'object' &&
+    (!Number.isFinite(lasts.seconds) || lasts.seconds <= 0)
+  ) {
+    found.push({
+      field: `${riderPath}.lasts.seconds`,
+      code: 'bad_rider_duration',
+      reason: 'a rider that lasts no seconds does not last; omit it to borrow the casting’s own deadline',
+    });
+  }
+
+  // **A rider with no lifetime is checked once, and not here.** The rule that
+  // an effect the casting owns needs something to end it is
+  // {@link checkGrantLifetimes}, which reads the definition rather than the
+  // host — so it also reaches a `buff`, a `roll-mode` and an `armor-class`,
+  // which are grants with the same problem and no rider at all. Two places
+  // reporting one defect under two codes is the second place to get one
+  // sentence wrong.
+}
+
+/**
+ * Which host a rider is hanging on, as the one fact a rider rule reads.
+ *
+ * Not the effect: a rider knows nothing about its host beyond whether there
+ * was a saving throw to repeat. Passing the effect would let a rule here start
+ * switching on the kind, which is the branching the whole design exists to
+ * keep out — and the `kind` that *is* here is for the refusal's wording, never
+ * for a decision.
+ *
+ * It carried a second fact for one commit, `castingLasts`, and the rule that
+ * read it turned out to be {@link checkGrantLifetimes} written twice. That one
+ * reads the definition, so it needs nothing from the host at all.
+ */
+interface RiderHost {
+  readonly kind: SpellEffect['kind'];
+  /** Whether the host rolled a saving throw a rider could repeat. */
+  readonly rollsSave: boolean;
+}
+
+/**
+ * A grant an outcome imposes, held to exactly what the standalone kinds are.
+ *
+ * `bonus` is `buff` minus its saving throw and `mode` is `roll-mode` minus
+ * its selector's own, so the rules are the ones those two branches already
+ * apply — shared rather than restated, because a second copy is a second
+ * place for a rolled Armour Class to slip through.
+ */
+function checkModifierRider(
+  rider: ModifierRider | undefined,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (rider?.kind === 'bonus') {
+    checkBonusGrant(rider.bonus, rider.applies, path, found);
+    return;
+  }
+  if (rider?.kind === 'mode') {
+    checkRollModifier(rider.modifier, `${path}.modifier`, found);
+    return;
+  }
+  found.push({
+    field: `${path}.kind`,
+    code: 'unknown_modifier_rider',
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus or grants a mode`,
+  });
+}
+
+/** Every rider one host carries, in the order `applyRiders` applies them. */
+function checkRiders(
+  riders: {
+    readonly conditions?: readonly ConditionRider[];
+    readonly modifiers?: readonly ModifierRider[];
+    readonly delayed?: { readonly damage: DiceScaling; readonly damageType: string };
+  },
+  level: number,
+  path: string,
+  host: RiderHost,
+  found: SpellDefinitionProblem[],
+): void {
+  (riders.conditions ?? []).forEach((rider, i) =>
+    checkConditionRider(
+      rider,
+      `${path}.conditions[${i}].name`,
+      `${path}.conditions[${i}]`,
+      host,
+      found,
+    ),
+  );
+  (riders.modifiers ?? []).forEach((rider, i) =>
+    checkModifierRider(rider, `${path}.modifiers[${i}]`, found),
+  );
+  if (riders.delayed !== undefined) {
+    checkScaling(riders.delayed.damage, level, `${path}.delayed.damage`, found);
+    checkDamageType(riders.delayed.damageType, `${path}.delayed.damageType`, found);
+  }
+}
+
+/** The `buff` rules, shared with the `bonus` rider that is `buff` minus its save. */
+function checkBonusGrant(
+  bonus: Bonus,
+  applies: readonly BonusApplies[],
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (bonus.dice !== undefined && !parseNotation(bonus.dice).ok) {
+    found.push({
+      field: `${path}.bonus.dice`,
+      code: 'bad_dice',
+      reason: `"${bonus.dice}" is not dice notation`,
+    });
+  }
+  // SRD writes no rolled Armour Class and there is no moment at which a die
+  // could be thrown for a standing number, so `armorClassOf` reads only the
+  // flat half. A rolled bonus aimed at `ac` is therefore data nothing can
+  // apply — silently, which is what makes it worth refusing here.
+  if (applies.includes('ac') && bonus.dice !== undefined) {
+    found.push({
+      field: `${path}.bonus.dice`,
+      code: 'rolled_armor_class',
+      reason:
+        'an Armour Class is a standing number rather than a roll, so only a flat bonus reaches one',
+    });
+  }
+  if (applies.length === 0) {
+    found.push({
+      field: `${path}.applies`,
+      code: 'bonus_applies_to_nothing',
+      reason: 'a bonus that applies to no kind of roll is a bonus nothing reads',
+    });
+  }
+}
+
+/** The `roll-mode` rules, shared with the `mode` rider that is that kind minus its save. */
+function checkRollModifier(
+  modifier: RollModifier,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  // The selector's own coherence — an ability on a roll made with none, a
+  // skill on a roll that uses none, a skill and an ability that disagree,
+  // or "against the holder" on a roll the engine records no target for.
+  // Every one of these compiles and then matches nothing for ever, or
+  // matches far more than the spell says, which is what makes them worth
+  // a refusal at authoring rather than a surprise at the table.
+  const selector = modifier.selector;
+  if (!ROLL_FAMILIES.has(selector.roll)) {
+    found.push({
+      field: `${path}.selector.roll`,
+      code: 'bad_roll_family',
+      reason: `"${String(selector.roll)}" is not a kind of roll the engine makes`,
+    });
+  }
+  if (selector.relation !== 'roller' && selector.relation !== 'against-holder') {
+    found.push({
+      field: `${path}.selector.relation`,
+      code: 'bad_roll_relation',
+      reason: `"${String(selector.relation)}" is not a relation; a mode is the roller's or it is on rolls against the holder`,
+    });
+  }
+  if (modifier.mode !== 'advantage' && modifier.mode !== 'disadvantage') {
+    found.push({
+      field: `${path}.mode`,
+      code: 'bad_roll_mode',
+      reason: 'a granted mode is Advantage or Disadvantage; "normal" grants nothing',
+    });
+  }
+  if (selector.ability !== undefined && !ABILITY_NAMES_SET.has(selector.ability)) {
+    found.push({
+      field: `${path}.selector.ability`,
+      code: 'bad_ability',
+      reason: `"${String(selector.ability)}" is not an ability`,
+    });
+  }
+  if (selector.skill !== undefined && !SKILL_NAMES.has(selector.skill)) {
+    found.push({
+      field: `${path}.selector.skill`,
+      code: 'bad_skill',
+      reason: `"${String(selector.skill)}" is not a skill`,
+    });
+  }
+  // Only once the vocabulary is known good: the combination rules read
+  // the values, and reading a value that is not an ability at all would
+  // report a second, less useful problem about the first one.
+  if (
+    ROLL_FAMILIES.has(selector.roll) &&
+    (selector.ability === undefined || ABILITY_NAMES_SET.has(selector.ability)) &&
+    (selector.skill === undefined || SKILL_NAMES.has(selector.skill))
+  ) {
+    for (const problem of rollSelectorProblems(selector, (skill: Skill) => SKILL_ABILITY[skill])) {
+      found.push({ field: `${path}.selector`, ...problem });
+    }
+  }
 }
 
 /** One effect, wherever it was found: the spell's own list, an activation, a trigger. */
@@ -295,22 +517,14 @@ function checkEffect(
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
+  const host = (rollsSave: boolean): RiderHost => ({ kind: effect.kind, rollsSave });
+
   switch (effect.kind) {
     case 'attack':
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
-      if (effect.condition !== undefined) {
-        checkConditionRider(
-          effect.condition,
-          `${path}.condition.name`,
-          `${path}.condition.check`,
-          found,
-        );
-      }
-      if (effect.delayed !== undefined) {
-        checkScaling(effect.delayed.damage, level, `${path}.delayed.damage`, found);
-        checkDamageType(effect.delayed.damageType, `${path}.delayed.damageType`, found);
-      }
+      // An attack rolls an attack, so nothing it hangs has a save to repeat.
+      checkRiders(effect, level, path, host(false), found);
       return;
 
     case 'save-damage':
@@ -320,18 +534,7 @@ function checkEffect(
         checkScaling(extra.damage, level, `${path}.plus[${i}].damage`, found);
         checkDamageType(extra.damageType, `${path}.plus[${i}].damageType`, found);
       });
-      if (effect.condition !== undefined) {
-        checkConditionRider(
-          effect.condition,
-          `${path}.condition.name`,
-          `${path}.condition.check`,
-          found,
-        );
-      }
-      if (effect.delayed !== undefined) {
-        checkScaling(effect.delayed.damage, level, `${path}.delayed.damage`, found);
-        checkDamageType(effect.delayed.damageType, `${path}.delayed.damageType`, found);
-      }
+      checkRiders(effect, level, path, host(true), found);
       return;
 
     case 'attack-damage':
@@ -339,24 +542,31 @@ function checkEffect(
       checkDamageType(effect.damageType, `${path}.damageType`, found);
       return;
 
-    // `save` spells its rider flat and `condition` nests it; both go through
-    // one reader, so the two layouts cannot be validated by two rules — and
-    // each names the field its own author wrote, which is the whole reason the
-    // path is the caller's to supply.
+    // `save` spells its **first** rider flat and `condition` nests its only
+    // one; both go through the reader that knows, so the two layouts cannot be
+    // validated by two rules — and each names the field its own author wrote,
+    // which is the whole reason the *name* path is the caller's to supply. The
+    // extra riders a `save` carries are at their own path, because that is
+    // where an author would look for them.
     case 'save':
       checkConditionRider(
-        conditionRiderOf(effect),
+        conditionRiderOf(effect)[0],
         `${path}.condition`,
-        `${path}.check`,
+        path,
+        host(true),
         found,
       );
+      checkRiders(effect, level, path, host(true), found);
       return;
 
     case 'condition':
       checkConditionRider(
         effect.condition,
         `${path}.condition.name`,
-        `${path}.condition.check`,
+        `${path}.condition`,
+        // A condition imposed with no saving throw has none to repeat, which
+        // this kind's own docstring has said in prose since it arrived.
+        host(false),
         found,
       );
       return;
@@ -370,101 +580,12 @@ function checkEffect(
       return;
 
     case 'buff':
-      if (effect.bonus.dice !== undefined && !parseNotation(effect.bonus.dice).ok) {
-        found.push({
-          field: `${path}.bonus.dice`,
-          code: 'bad_dice',
-          reason: `"${effect.bonus.dice}" is not dice notation`,
-        });
-      }
-      // SRD writes no rolled Armour Class and there is no moment at which a die
-      // could be thrown for a standing number, so `armorClassOf` reads only the
-      // flat half. A rolled bonus aimed at `ac` is therefore data nothing can
-      // apply — silently, which is what makes it worth refusing here.
-      if (effect.applies.includes('ac') && effect.bonus.dice !== undefined) {
-        found.push({
-          field: `${path}.bonus.dice`,
-          code: 'rolled_armor_class',
-          reason:
-            'an Armour Class is a standing number rather than a roll, so only a flat bonus reaches one',
-        });
-      }
-      if (effect.applies.length === 0) {
-        found.push({
-          field: `${path}.applies`,
-          code: 'bonus_applies_to_nothing',
-          reason: 'a bonus that applies to no kind of roll is a bonus nothing reads',
-        });
-      }
+      checkBonusGrant(effect.bonus, effect.applies, path, found);
       return;
 
-    case 'roll-mode': {
-      // The selector's own coherence — an ability on a roll made with none, a
-      // skill on a roll that uses none, a skill and an ability that disagree,
-      // or "against the holder" on a roll the engine records no target for.
-      // Every one of these compiles and then matches nothing for ever, or
-      // matches far more than the spell says, which is what makes them worth
-      // a refusal at authoring rather than a surprise at the table.
-      const selector = effect.modifier.selector;
-      if (!ROLL_FAMILIES.has(selector.roll)) {
-        found.push({
-          field: `${path}.modifier.selector.roll`,
-          code: 'bad_roll_family',
-          reason: `"${String(selector.roll)}" is not a kind of roll the engine makes`,
-        });
-      }
-      if (selector.relation !== 'roller' && selector.relation !== 'against-holder') {
-        found.push({
-          field: `${path}.modifier.selector.relation`,
-          code: 'bad_roll_relation',
-          reason: `"${String(selector.relation)}" is not a relation; a mode is the roller's or it is on rolls against the holder`,
-        });
-      }
-      if (effect.modifier.mode !== 'advantage' && effect.modifier.mode !== 'disadvantage') {
-        found.push({
-          field: `${path}.modifier.mode`,
-          code: 'bad_roll_mode',
-          reason: 'a granted mode is Advantage or Disadvantage; "normal" grants nothing',
-        });
-      }
-      if (selector.ability !== undefined && !ABILITY_NAMES_SET.has(selector.ability)) {
-        found.push({
-          field: `${path}.modifier.selector.ability`,
-          code: 'bad_ability',
-          reason: `"${String(selector.ability)}" is not an ability`,
-        });
-      }
-      if (selector.skill !== undefined && !SKILL_NAMES.has(selector.skill)) {
-        found.push({
-          field: `${path}.modifier.selector.skill`,
-          code: 'bad_skill',
-          reason: `"${String(selector.skill)}" is not a skill`,
-        });
-      }
-      if (effect.save !== undefined && !ABILITY_NAMES_SET.has(effect.save)) {
-        found.push({
-          field: `${path}.save`,
-          code: 'bad_ability',
-          reason: `"${String(effect.save)}" is not an ability`,
-        });
-      }
-      // Only once the vocabulary is known good: the combination rules read
-      // the values, and reading a value that is not an ability at all would
-      // report a second, less useful problem about the first one.
-      if (
-        ROLL_FAMILIES.has(selector.roll) &&
-        (selector.ability === undefined || ABILITY_NAMES_SET.has(selector.ability)) &&
-        (selector.skill === undefined || SKILL_NAMES.has(selector.skill))
-      ) {
-        for (const problem of rollSelectorProblems(
-          selector,
-          (skill: Skill) => SKILL_ABILITY[skill],
-        )) {
-          found.push({ field: `${path}.modifier.selector`, ...problem });
-        }
-      }
+    case 'roll-mode':
+      checkRollModifier(effect.modifier, `${path}.modifier`, found);
       return;
-    }
 
     case 'armor-class':
       if (!Number.isInteger(effect.base) || effect.base < 1) {
@@ -529,13 +650,39 @@ function checkGrantLifetimes(
       found.push({
         field: `${where}[${i}]`,
         code: 'grant_without_lifetime',
+        // A `modifiers` rider can take neither escape the sentence offers, so
+        // for that one the first half is the only advice there is — see
+        // {@link grantCarried}, which is where the asymmetry is argued.
         reason: `${carries} lasts as long as the casting, and this casting is over the moment it resolves; give the spell a duration, or the rider a deadline of its own`,
       });
     });
   }
 }
 
-/** What this effect leaves standing, or null if it leaves nothing. */
+/**
+ * What this effect leaves standing, or null if it leaves nothing.
+ *
+ * **Every rider, not the first**, because a host carries several: Hideous
+ * Laughter's failed save imposes the Prone *and* the Incapacitated, and a
+ * definition whose second condition had no deadline would have gone unreported
+ * behind a first one that did.
+ *
+ * A `modifiers` rider is always in the list when there is one. A grant has no
+ * `lasts` to give and no `outlivesCasting` — `EffectTarget` ends a condition
+ * instance, a casting or a feature, and nothing ends a grant before its casting
+ * does — so on a spell with no casting to end it there is no way to write it
+ * correctly, and the only honest answer is to refuse it.
+ *
+ * **Every rider is read through `?.`, because this meets untyped input like
+ * every other reader in this file.** `checkShape` establishes an effect's
+ * `kind` and nothing below it, so a rider can arrive missing, null, or not an
+ * object at all — and `parseSpellDefinition` exists to hand back a *problem*
+ * for exactly that. A validator that throws on the input it exists to judge
+ * has judged nothing, which is the sentence `checkConditionRider` has carried
+ * since it was written; this was the one reader that did not obey it. A rider
+ * nobody can read carries no lifetime worth reporting, so it falls through to
+ * the reader that will report what is actually wrong with it.
+ */
 function grantCarried(effect: SpellEffect): string | null {
   switch (effect.kind) {
     case 'buff':
@@ -545,10 +692,25 @@ function grantCarried(effect: SpellEffect): string | null {
     case 'armor-class':
       return 'a base Armour Class';
     default: {
-      const rider = conditionRiderOf(effect);
-      if (rider === undefined) return null;
-      if (rider.lasts !== undefined || rider.outlivesCasting === true) return null;
-      return `the ${String(rider.name)} condition`;
+      for (const rider of conditionRiderOf(effect)) {
+        // Unreadable first, lifetime second. A rider that is missing, null or
+        // not an object at all has no lifetime to be wrong about, and is
+        // `checkConditionRider`'s to report.
+        if (typeof rider !== 'object' || rider === null) continue;
+        if (rider.lasts !== undefined || rider.outlivesCasting === true) continue;
+        return `the ${String(rider.name)} condition`;
+      }
+      // `?.` on the discriminant, so absent, null and a kind this engine does
+      // not know take the same branch — and it is the branch that reports
+      // nothing, because `checkModifierRider` is what says what is wrong.
+      switch (modifierRidersOf(effect)[0]?.kind) {
+        case 'bonus':
+          return 'a bonus';
+        case 'mode':
+          return 'a granted Advantage or Disadvantage';
+        default:
+          return null;
+      }
     }
   }
 }
@@ -1045,11 +1207,108 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
           reason: `"${String(kind)}" is not an effect the engine resolves`,
         });
       }
+      checkNoNestedEffect(effect, `effects[${i}]`, found);
     });
   }
 
   return found;
 }
+
+/**
+ * The invariant the whole rider design rests on: **a rider is a leaf.**
+ *
+ * A consequence that rolls a d20 is not a consequence, it is a second
+ * resolution — and the moment one is allowed the definition format stops being
+ * data and becomes a small untyped program, with a saving throw nested inside
+ * a saving throw. `onFail: SpellEffect[]` was rejected for exactly that, and
+ * this is where the rejection is enforced against input the compiler never
+ * saw.
+ *
+ * **A denylist rather than an allowlist**, which is the same reading
+ * `checkShape` already takes everywhere else: a field the engine does not know
+ * is data written against a later version rather than data that is wrong. What
+ * is refused is the handful of fields that *would* make a nested object a
+ * parent — an effect list, a target list, an area, or a `kind` this engine
+ * dispatches effects on. A `ModifierRider`'s `bonus` and `mode` are not among
+ * them, which one assertion in `spell-schema.test.ts` pins rather than trusts.
+ *
+ * Depth is bounded, and not for safety: a rider is one object deep by
+ * construction and the deepest legal nesting in the whole format is an
+ * effect's rider's selector. A definition that goes deeper has stopped being
+ * the thing this validates, and reporting that is more useful than recursing
+ * into it.
+ */
+function checkNoNestedEffect(
+  value: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+  depth = 0,
+): void {
+  if (typeof value !== 'object' || value === null) return;
+
+  if (depth > RIDER_DEPTH_LIMIT) {
+    found.push({
+      field: path,
+      code: 'effect_too_deep',
+      reason: `an effect and its riders are at most ${RIDER_DEPTH_LIMIT} objects deep; anything below that is a nested program rather than data`,
+    });
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, i) => checkNoNestedEffect(entry, `${path}[${i}]`, found, depth + 1));
+    return;
+  }
+
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (depth > 0 && FORBIDDEN_BELOW_AN_EFFECT.has(key)) {
+      found.push({
+        field: `${path}.${key}`,
+        code: 'nested_effect',
+        reason: `a rider is a leaf: it rolls no d20, names no target and has no area, so "${key}" cannot appear below an effect`,
+      });
+      continue;
+    }
+    if (depth > 0 && key === 'kind' && typeof entry === 'string' && EFFECT_KINDS.has(entry)) {
+      found.push({
+        field: `${path}.kind`,
+        code: 'nested_effect',
+        reason: `a rider is a leaf, so "${entry}" — an effect the engine resolves — cannot appear below an effect`,
+      });
+      continue;
+    }
+    checkNoNestedEffect(entry, `${path}.${key}`, found, depth + 1);
+  }
+}
+
+/**
+ * What makes a nested object a parent rather than a leaf.
+ *
+ * Each names a thing only a resolution has: its own consequences, its own
+ * targets, its own geometry. Nothing legal inside an effect carries one —
+ * `area` and `targets` are the *definition's*, and `effects` belongs to a
+ * definition, an activation or an area trigger.
+ */
+const FORBIDDEN_BELOW_AN_EFFECT: ReadonlySet<string> = new Set([
+  'effects',
+  'targets',
+  'targetsWithin',
+  'area',
+]);
+
+/** An effect, its rider, and the rider's own selector: three, and a little air. */
+const RIDER_DEPTH_LIMIT = 6;
+
+/**
+ * The kinds a rider may be, as a set.
+ *
+ * The sibling of {@link EFFECT_KINDS}, and the reason it is written down is
+ * that the two must never intersect: a value that is both a rider kind and an
+ * effect kind is the recursion this design exists to refuse, arriving through
+ * a name collision rather than through a type. `spell-schema.test.ts` asserts
+ * the intersection is empty.
+ */
+export const RIDER_KINDS: ReadonlySet<string> = new Set(['bonus', 'mode']);
 
 /**
  * The effect kinds, as a set.
@@ -1061,7 +1320,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
  * `spell-schema.test.ts`, which drives every kind the catalogue uses through
  * this function.
  */
-const EFFECT_KINDS: ReadonlySet<string> = new Set([
+export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack',
   'save-damage',
   'temp-hp',

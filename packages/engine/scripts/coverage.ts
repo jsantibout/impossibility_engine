@@ -189,7 +189,6 @@ const shapeOf = (spell: ParsedSpell): string =>
  * be quietly parked.
  */
 export const PARTIAL_SPELLS: readonly string[] = [
-  'acid-arrow',
   'animal-friendship',
   'banishment',
   'beacon-of-hope',
@@ -220,6 +219,7 @@ export const PARTIAL_SPELLS: readonly string[] = [
   'guidance',
   'guiding-bolt',
   'harm',
+  'hideous-laughter',
   'hypnotic-pattern',
   'ice-storm',
   'incendiary-cloud',
@@ -237,7 +237,6 @@ export const PARTIAL_SPELLS: readonly string[] = [
   'starry-wisp',
   'suggestion',
   'sunbeam',
-  'sunburst',
   'thunderwave',
   'vampiric-touch',
   'vicious-mockery',
@@ -282,6 +281,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'guiding-bolt',
   'harm',
   'healing-word',
+  'hideous-laughter',
   'hold-monster',
   'hold-person',
   'hypnotic-pattern',
@@ -307,6 +307,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // would be the same report telling a different lie.
   'spirit-guardians',
   'spiritual-weapon',
+  'sunburst',
   'thunderwave',
   'vampiric-touch',
   'vicious-mockery',

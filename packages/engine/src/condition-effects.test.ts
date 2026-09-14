@@ -141,7 +141,7 @@ describe('a condition applied with no saving throw', () => {
       'cast',
     );
 
-    expect(out.outcomes).toEqual([{ target: SCOUT, condition: 'invisible', affected: true }]);
+    expect(out.outcomes).toEqual([{ target: SCOUT, conditions: ['invisible'], affected: true }]);
     // The `save` shape minus the roll: no D20 was recorded, and nothing was
     // issued, so a replay of this log restores the same generator state.
     expect(out.events.some((e) => e.type === 'roll-recorded')).toBe(false);

@@ -287,7 +287,7 @@ describe('Sunbeam: a rider shorter than the casting that made it', () => {
     expect(made?.save?.success).toBe(true);
     expect(made?.affected).toBe(false);
     expect(made?.damage).toBeGreaterThan(0);
-    expect(made?.condition).toBeUndefined();
+    expect(made?.conditions).toBeUndefined();
 
     expect(blinded(fold('seed', [...SETUP, ...out.events]), TARGET)).toBe(false);
   });

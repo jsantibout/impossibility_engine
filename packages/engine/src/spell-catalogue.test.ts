@@ -125,14 +125,22 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   //
   // **Which effects carry one is `riderDurations`' answer, not this file's.**
   // The kinds were enumerated by hand here, and that list is the thing the
-  // command layer already derives — so it could disagree, and did: it named
-  // `save`, `attack` and `save-damage` and not `condition`, which has carried
-  // a rider since the standalone kind landed. A definition of that shape with
-  // a turn-anchored rider would have been driven outside combat and refused
-  // for a reason that was the fixture's rather than the spell's.
+  // command layer already derives — so it could disagree, and did, twice over.
+  // It named `save`, `attack` and `save-damage` and not `condition`, which has
+  // carried a rider since the standalone kind landed; and it read one rider
+  // per effect, so it went blind the day a host learned to carry several and
+  // a spell whose *second* condition was turn-anchored would have been driven
+  // outside combat and refused. Either way the refusal would have been the
+  // fixture's rather than the spell's.
+  //
+  // **A span of seconds needs no turns**, so the question is which kind of
+  // deadline rather than whether there is one: `RiderDuration`'s two string
+  // members are the turn-anchored pair, and Sunburst's `{ seconds: 60 }` is
+  // the third and wants no fight to be happening.
   const anchored =
     definition?.durationUntil !== undefined ||
-    (definition !== null && riderDurations(definition).length > 0);
+    (definition !== null &&
+      riderDurations(definition).some((lasts) => typeof lasts === 'string'));
 
   // A Reaction is cast in answer to something, and the engine now checks that
   // the something happened. Same principle as the creature type above: the
@@ -400,7 +408,7 @@ describe('the shapes behave as their spells describe', () => {
       ),
       'hold-monster',
     );
-    expect(monster.outcomes[0]?.condition).toBe('paralyzed');
+    expect(monster.outcomes[0]?.conditions).toEqual(['paralyzed']);
   });
 
   /**

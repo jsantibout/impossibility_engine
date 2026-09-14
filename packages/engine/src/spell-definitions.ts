@@ -1,5 +1,5 @@
 import type { Ability, CharacterId, ConditionName, Skill } from '@ie/shared';
-import { endOfNextTurn, startOfNextTurn, type Duration } from './duration.js';
+import { endOfNextTurn, forSeconds, startOfNextTurn, type Duration } from './duration.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { PointAnchoring } from './positioning.js';
@@ -85,7 +85,27 @@ export interface DiceScaling {
  * fires when the spell *ends*, and the rest are summons or Reaction riders. A
  * value nothing can be written with would be a value nothing reads.
  */
-export type RiderDuration = 'start-of-casters-next-turn' | 'end-of-casters-next-turn';
+/**
+ * **A third member, and it is a span rather than a moment.**
+ *
+ * SRD Sunburst: "has the Blinded condition **for 1 minute**", on a spell whose
+ * own Duration is Instantaneous. The casting is over the moment it happens, so
+ * there is no casting deadline to borrow and no turn in the order to anchor
+ * to — the rider runs on the clock, alone.
+ *
+ * The rejected alternative was `durationSeconds: 60` on the definition, which
+ * would make an Instantaneous spell an ongoing, dispellable record: a Dispel
+ * Magic could then end a flash of light that finished a minute ago.
+ *
+ * **One consumer, transcribed rather than generalised**, in the tradition of
+ * `healsCasterForHalf` and `outlivesCasting` — and it is the member that
+ * keeps the two kinds of "how long" apart rather than folding a minute into
+ * whichever turn boundary happened to be nearest.
+ */
+export type RiderDuration =
+  | 'start-of-casters-next-turn'
+  | 'end-of-casters-next-turn'
+  | { readonly seconds: number };
 
 /**
  * An ability check a creature may attempt against what the spell is doing.
@@ -239,33 +259,140 @@ export interface ConditionRider {
    * not on.
    */
   readonly outlivesCasting?: true;
+  /**
+   * A saving throw the condition repeats at a turn boundary, if it does.
+   *
+   * **Moved in from `save`, and it is legal only where the host rolled a
+   * saving throw.** SRD writes "the target repeats the save", so a host that
+   * asked for none has none to repeat — which is exactly the argument the
+   * `condition` kind's docstring already made for having no `repeats` of its
+   * own, now stated once for every host instead of once per kind.
+   * `checkSpellDefinition` refuses it on a rider hosted by `attack` or
+   * `condition`, because the type cannot: one {@link ConditionRider} is shared
+   * by all four hosts, which is the whole point of it.
+   *
+   * **The ability and the DC are the host's**, and are deliberately not
+   * fields here: SRD Sunburst says "another Constitution saving throw" and
+   * the Constitution is the one the spell already asked for. A rider naming
+   * its own would be a second place for one sentence to be got wrong.
+   */
+  readonly repeats?: {
+    readonly at: 'start-of-turn' | 'end-of-turn';
+    readonly onSuccess: 'end-on-target' | 'end-casting';
+  };
+}
+
+/**
+ * A grant the same roll imposes, riding an outcome its host already settled.
+ *
+ * SRD Phantasmal Killer: "On a failed save, the target takes 4d10 Psychic
+ * damage **and has Disadvantage on ability checks and attack rolls** for the
+ * duration." One Wisdom save, two consequences — and writing the second as a
+ * `roll-mode` effect of its own would roll a second save for the same failure,
+ * which is not the spell. Exactly the argument `plus` and {@link
+ * ConditionRider} already make, on the third thing a failed save can impose.
+ *
+ * **This is `buff` and `roll-mode` with their own saving throw taken out**,
+ * because the host made it. Nothing else changes: the payloads are the ones
+ * those two branches already emit, the source is the casting, and
+ * `releaseCasting` ends them through the door every other grant uses.
+ *
+ * **A modifier rider carries no `lasts`.** `EffectTarget` ends a condition
+ * instance, a casting or a feature, and nothing ends a *grant* before its
+ * casting does — so a rider that lives for less than the casting is not
+ * expressible and this does not pretend otherwise. Phantasmal Killer's "for
+ * the duration" fits; a future "for 1 minute" on an Instantaneous host needs
+ * a fourth `EffectTarget` member, which is the same gap CLAUDE.md already
+ * names for Superior Hunter's Defense.
+ */
+export type ModifierRider =
+  | {
+      readonly kind: 'bonus';
+      readonly bonus: Bonus;
+      readonly applies: readonly BonusApplies[];
+      readonly direction: 'add' | 'subtract';
+    }
+  | { readonly kind: 'mode'; readonly modifier: RollModifier };
+
+/**
+ * Everything a settled outcome may carry with it, in fixed named slots.
+ *
+ * **There are no child effects in the SRD sentences this exists for.** What
+ * the book writes after "On a failed save," or "On a hit," is a *conjunction
+ * of consequences sharing one roll* — one target, one DC, one casting link,
+ * one lifetime — and every consequence in that position is a **leaf**: it
+ * rolls no d20, names no target of its own, opens no window, and spends
+ * nothing. So the restricted child vocabulary the definition format needed is
+ * not a vocabulary of effects at all; it is the set of rider leaves, hosted on
+ * the three kinds that produce an outcome.
+ *
+ * `onFail: SpellEffect[]` was rejected on evidence rather than taste: no SRD
+ * consumer needs a consequence that itself rolls, and the two that look as
+ * though they do — Ice Knife's explosion and Chromatic Orb's leap — are
+ * different mechanisms (a second sequenced roll with an area at a target, and
+ * a chained attack on a dice-face trigger). A child that rolls is a parent,
+ * and recursion enters the format the moment one is allowed.
+ *
+ * **Named slots rather than a `riders: Rider[]` union**, because the type
+ * system can then say which host may carry which rider — `plus` and `delayed`
+ * on a `save` are impossible rather than validated — and because the SRD
+ * writes one slot per sentence shape. The cost is one `applyRiders` with three
+ * loops, which is smaller than a dispatch.
+ *
+ * **Which branch a rider rides is the host's, never the author's.** There is
+ * no miss-branch slot and no success-branch slot: the affirmative outcome is
+ * the only one that carries riders, which is why the slot name *is* the
+ * branch. A spell whose success clause does something — Flesh to Stone's
+ * "its Speed is 0" — is one consumer and a different shape.
+ */
+export interface OutcomeRiders {
+  /**
+   * Conditions the outcome imposes, alongside whatever else it does.
+   *
+   * **Plural, because the SRD writes it plural**: Hideous Laughter's "the
+   * Prone and Incapacitated conditions", Hypnotic Pattern's "While Charmed,
+   * the creature has the Incapacitated condition". One save, several
+   * conditions, one lifetime — and a second effect would roll a second save
+   * for the same failure.
+   */
+  readonly conditions?: readonly ConditionRider[];
+  /** Grants the outcome imposes: see {@link ModifierRider}. */
+  readonly modifiers?: readonly ModifierRider[];
+  /** A second, smaller hit at a later moment: see {@link DelayedDamage}. */
+  readonly delayed?: DelayedDamage;
 }
 
 export type SpellEffect =
-  /** A spell attack roll; damage on a hit. */
-  | {
+  /**
+   * A spell attack roll; damage on a hit.
+   *
+   * **The hit is the affirmative outcome**, so it is the hit that carries the
+   * riders: Ray of Sickness' "On a hit, the target takes 2d8 Poison damage
+   * **and** has the Poisoned condition" is one attack roll with two
+   * consequences, and there is nothing further to roll. See
+   * {@link OutcomeRiders}.
+   */
+  | ({
       readonly kind: 'attack';
       readonly attack: 'ranged' | 'melee';
       readonly damage: DiceScaling;
       readonly damageType: string;
       /**
-       * A condition the **hit** imposes, alongside the damage.
-       *
-       * Ray of Sickness: "On a hit, the target takes 2d8 Poison damage **and**
-       * has the Poisoned condition until the end of your next turn." The
-       * attack roll already decided it, so there is nothing further to roll —
-       * and unlike a saving throw there is no half-measure branch to fall
-       * through to: a miss leaves the target untouched.
-       */
-      readonly condition?: ConditionRider;
-      /**
-       * A second hit at the end of the target's next turn, on a hit only.
+       * What a **miss** still deals, when the spell says a miss deals
+       * something.
        *
        * SRD Acid Arrow: "On a miss, the arrow splashes the target with acid
-       * for half as much of the initial damage **only**." A miss owes nothing
-       * later, which is the same branch the condition rider already takes.
+       * for half as much of the initial damage **only**." Absent is every
+       * other attack in the book: a miss leaves the target untouched.
+       *
+       * **This is the host's own damage and nothing else** — the riders do
+       * not ride a miss, and there is no slot in which they could. "Only" is
+       * the word that says so: the later hit and the condition are the hit's,
+       * and a miss owes neither. One consumer, transcribed as the mirror of
+       * `onSuccess` on a saving throw rather than generalised into a second
+       * outcome axis.
        */
-      readonly delayed?: DelayedDamage;
+      readonly onMiss?: 'half';
       /**
        * SRD Flame Blade: "Fire damage equal to 3d6 **plus your spellcasting
        * ability modifier**."
@@ -285,7 +412,7 @@ export type SpellEffect =
        * is transcribed rather than generalised for exactly that reason.
        */
       readonly healsCasterForHalf?: true;
-    }
+    } & OutcomeRiders)
   /**
    * A saving throw that deals damage, with what a success buys stated.
    *
@@ -293,8 +420,14 @@ export type SpellEffect =
    * gives "half as much damage on a successful one", while Sacred Flame gives
    * nothing at all on a success. Defaulting either way silently rewrites one
    * of them.
+   *
+   * **`onSuccess` governs the host's own damage and nothing else.** The
+   * riders ride the *failure*, because that is the affirmative outcome of a
+   * saving throw: SRD Vitriolic Sphere ends the sentence "half the initial
+   * damage **only**", and Sunbeam's Blinded is on the failure branch of a
+   * sentence the damage only half-shares. See {@link OutcomeRiders}.
    */
-  | {
+  | ({
       readonly kind: 'save-damage';
       readonly ability: Ability;
       readonly damage: DiceScaling;
@@ -314,25 +447,7 @@ export type SpellEffect =
         readonly damage: DiceScaling;
         readonly damageType: string;
       }[];
-      /**
-       * A condition the **same** failed save imposes, alongside the damage.
-       *
-       * Sunbeam: "On a failed save, a creature takes 6d8 Radiant damage **and**
-       * has the Blinded condition until the start of your next turn." Exactly
-       * the argument `plus` already makes for a second damage type — writing
-       * it as a separate effect would roll a second save, and a target could
-       * then fail one and make the other, which is not the spell.
-       */
-      readonly condition?: ConditionRider;
-      /**
-       * A second hit at the end of the target's next turn, on a failure only.
-       *
-       * SRD Vitriolic Sphere: "On a successful save, a creature takes half the
-       * initial damage **only**." A creature that saved owes nothing later,
-       * however much of the initial damage it still took.
-       */
-      readonly delayed?: DelayedDamage;
-    }
+    } & OutcomeRiders)
   /**
    * Temporary Hit Points.
    *
@@ -383,18 +498,21 @@ export type SpellEffect =
   | {
       readonly kind: 'roll-mode';
       /**
-       * A saving throw the target makes first, affected only on a failure.
+       * **There is deliberately no saving throw here.**
        *
-       * Bane's shape, on the effect that is Bless's other half — and named
-       * `save` rather than `ability` even though `buff` above calls it that,
-       * because this effect carries a *second* ability two levels down
-       * (`modifier.selector.ability`, the rolls the mode picks out) and one
-       * field called `ability` beside another called `ability` meaning
-       * something else is a trap worth one word of asymmetry to avoid.
+       * There was one — `save`, Bane's shape moved across from `buff` — and
+       * it had zero users in the catalogue from the day it was written: Blur
+       * and Beacon of Hope are the only `roll-mode` effects and neither spell
+       * asks anybody to resist. It is what a speculative branch field looks
+       * like, and the rider vocabulary made it redundant rather than merely
+       * unused: a `modifiers` rider on a `save` host is the same sentence with
+       * the roll *shared* instead of repeated, which is the shape the SRD
+       * actually writes.
        *
-       * Absent is Bless's shape: nobody resists a blessing.
+       * `buff.ability` stays, because Bane uses it. Folding Bane into a
+       * `save` plus a rider would need `save` to permit no condition at all,
+       * which is a change with no rules gain.
        */
-      readonly save?: Ability;
       readonly modifier: RollModifier;
     }
   /**
@@ -451,11 +569,51 @@ export type SpellEffect =
       readonly kind: 'condition';
       readonly condition: ConditionRider;
     }
-  /** A saving throw; a condition on a failure. */
+  /**
+   * A saving throw; a condition on a failure.
+   *
+   * **The one host that keeps its flat spelling.** `condition`, `lasts`,
+   * `check`, `outlivesCasting` and `repeats` sit directly on the effect rather
+   * than inside a {@link ConditionRider}, because rewriting the twenty-odd
+   * definitions that use them would change no rule. {@link conditionRiderOf}
+   * is the view that folds the flat fields into the shared vocabulary, so
+   * there is one rider type even where there are two layouts — and
+   * {@link OutcomeRiders.conditions} is reached through it: the flat fields
+   * are the **first** rider, and {@link save.conditions} carries the rest.
+   */
   | {
       readonly kind: 'save';
       readonly ability: Ability;
       readonly condition: ConditionName;
+      /**
+       * Further conditions the **same** failed save imposes.
+       *
+       * SRD Hideous Laughter: "it has the **Prone and Incapacitated**
+       * conditions for the duration." Hypnotic Pattern: "or have the Charmed
+       * condition for the duration. **While Charmed, the creature has the
+       * Incapacitated condition.**" One save, several conditions — and a
+       * second `save` effect would roll a second saving throw, so a creature
+       * could fail one and make the other, which is not the spell.
+       *
+       * **The flat fields above are the first rider and these are the rest**,
+       * rather than a second spelling of the same one. That keeps every
+       * existing definition meaning exactly what it meant while letting the
+       * plural sentence be written; `conditionRiderOf` hands back the whole
+       * list, so nothing downstream knows there were two layouts.
+       *
+       * The flat {@link save.repeats} belongs to the saving throw rather than
+       * to any one condition, which is why it stays flat: SRD writes "the
+       * target repeats the save", once, whatever the failure imposed.
+       */
+      readonly conditions?: readonly ConditionRider[];
+      /**
+       * Grants the same failed save imposes: see {@link ModifierRider}.
+       *
+       * SRD Slow: "the target ... takes a −2 penalty to AC and Dexterity
+       * saving throws" — one Wisdom save, a condition-less penalty beside it.
+       * The host made the roll; the rider is the arithmetic.
+       */
+      readonly modifiers?: readonly ModifierRider[];
       /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
@@ -1194,12 +1352,19 @@ export function statedDamageType(
   );
 }
 
-/** The deadline a rider clause names, anchored to the caster's own turn. */
+/**
+ * The deadline a rider clause names.
+ *
+ * Two of the three members are anchored to the caster's own turn; the third is
+ * a span on the clock, and the whole reason it is a separate member is that
+ * the two are not interchangeable — see {@link RiderDuration}.
+ */
 export function riderDuration(
   lasts: RiderDuration | undefined,
   casterId: CharacterId,
 ): Duration | undefined {
   if (lasts === undefined) return undefined;
+  if (typeof lasts === 'object') return forSeconds(lasts.seconds);
   return lasts === 'end-of-casters-next-turn'
     ? endOfNextTurn(casterId)
     : startOfNextTurn(casterId);
@@ -1216,44 +1381,102 @@ export function riderDuration(
 export function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
   const found: RiderDuration[] = [];
   for (const effect of definition.effects) {
-    const lasts = conditionRiderOf(effect)?.lasts;
-    if (lasts !== undefined) found.push(lasts);
+    // Every rider on every host, because a plural `conditions` means the one
+    // that cannot be pinned is not always the first.
+    for (const rider of conditionRiderOf(effect)) {
+      if (rider.lasts !== undefined) found.push(rider.lasts);
+    }
   }
   return found;
 }
 
 /**
- * The condition rider an effect carries, wherever it spells it.
+ * The condition riders an effect carries, however it spells them.
  *
- * Four kinds impose a condition and one of them writes the fields flat, so
- * this is the one place that knows the difference — the reason `save` could
- * keep its layout without the vocabulary forking. Every reader asks this
+ * Four kinds impose a condition and one of them writes the first one's fields
+ * flat, so this is the one place that knows the difference — the reason `save`
+ * could keep its layout without the vocabulary forking. Every reader asks this
  * rather than switching on the kind, so a fifth consumer is one case here and
  * nothing anywhere else.
+ *
+ * **A list, because the SRD writes the sentence plural.** Hideous Laughter
+ * imposes "the Prone and Incapacitated conditions" on one Wisdom save; Ray of
+ * Sickness imposes one on a hit; Greater Invisibility imposes one with nothing
+ * rolled at all. A caller that wants "the rider" is a caller that has assumed
+ * a cardinality, which is what made the second half of two SRD sentences
+ * inexpressible for as long as this returned a single value.
+ *
+ * `save`'s flat {@link save.repeats} is folded onto the **first** rider,
+ * because it belongs to the saving throw the host made rather than to any one
+ * condition: SRD writes "the target repeats the save" once, whatever the
+ * failure imposed, and a copy on each rider would raise one debt per
+ * condition at every turn boundary.
  */
 export function conditionRiderOf(
   effect: Extract<SpellEffect, { kind: 'save' | 'condition' }>,
-): ConditionRider;
-export function conditionRiderOf(effect: SpellEffect): ConditionRider | undefined;
-export function conditionRiderOf(effect: SpellEffect): ConditionRider | undefined {
+): readonly [ConditionRider, ...ConditionRider[]];
+export function conditionRiderOf(effect: SpellEffect): readonly ConditionRider[];
+export function conditionRiderOf(effect: SpellEffect): readonly ConditionRider[] {
   switch (effect.kind) {
     case 'condition':
-      return effect.condition;
+      return [effect.condition];
     case 'attack':
     case 'save-damage':
-      return effect.condition;
+      return effect.conditions ?? [];
     case 'save':
-      return {
-        name: effect.condition,
-        ...(effect.lasts === undefined ? {} : { lasts: effect.lasts }),
-        ...(effect.check === undefined ? {} : { check: effect.check }),
-        ...(effect.outlivesCasting === undefined
-          ? {}
-          : { outlivesCasting: effect.outlivesCasting }),
-      };
+      return [
+        {
+          name: effect.condition,
+          ...(effect.lasts === undefined ? {} : { lasts: effect.lasts }),
+          ...(effect.check === undefined ? {} : { check: effect.check }),
+          ...(effect.outlivesCasting === undefined
+            ? {}
+            : { outlivesCasting: effect.outlivesCasting }),
+          ...(effect.repeats === undefined ? {} : { repeats: effect.repeats }),
+        },
+        ...(effect.conditions ?? []),
+      ];
     default:
-      return undefined;
+      return [];
   }
+}
+
+/**
+ * The grants an effect's outcome imposes, however its host spells them.
+ *
+ * The sibling of {@link conditionRiderOf}, and it needs no view: every host
+ * carries {@link ModifierRider}s in the same named slot. It exists so that a
+ * reader asks one question of an effect rather than switching on three kinds,
+ * and so that a fourth host is one case here.
+ */
+export function modifierRidersOf(effect: SpellEffect): readonly ModifierRider[] {
+  switch (effect.kind) {
+    case 'attack':
+    case 'save-damage':
+    case 'save':
+      return effect.modifiers ?? [];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Everything an effect's settled outcome carries, in one value.
+ *
+ * `applyRiders` takes this rather than an effect, which is what keeps it from
+ * knowing which host it is serving — the whole point of fixing the branch by
+ * the host is that the riders themselves are the same wherever they hang.
+ */
+export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
+  const conditions = conditionRiderOf(effect);
+  const modifiers = modifierRidersOf(effect);
+  const delayed =
+    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.delayed : undefined;
+  return {
+    ...(conditions.length === 0 ? {} : { conditions }),
+    ...(modifiers.length === 0 ? {} : { modifiers }),
+    ...(delayed === undefined ? {} : { delayed }),
+  };
 }
 
 /**
@@ -1492,10 +1715,13 @@ export const ACID_ARROW: SpellDefinition = {
         damage: { dice: '2d4', perSlotLevelAbove: '1d4' },
         damageType: 'acid',
       },
+      // "On a miss, the arrow splashes the target with acid for half as much
+      // of the initial damage **only**." *Only* is the word that makes this a
+      // branch on the host's own damage rather than a rider: the later 2d4 and
+      // everything else a hit would carry are the hit's, and a miss owes none
+      // of them.
+      onMiss: 'half',
     },
-  ],
-  unmodelled: [
-    'On a miss the arrow still splashes for half the initial damage; a miss deals nothing here.',
   ],
 };
 
@@ -2189,7 +2415,7 @@ export const RAY_OF_SICKNESS: SpellDefinition = {
       attack: 'ranged',
       damage: { dice: '2d8', perSlotLevelAbove: '1d8' },
       damageType: 'poison',
-      condition: { name: 'poisoned', lasts: 'end-of-casters-next-turn' },
+      conditions: [{ name: 'poisoned', lasts: 'end-of-casters-next-turn' }],
     },
   ],
 };
@@ -2633,7 +2859,7 @@ export const CONTAGION: SpellDefinition = {
       damage: { dice: '11d8' },
       damageType: 'necrotic',
       onSuccess: 'none',
-      condition: { name: 'poisoned' },
+      conditions: [{ name: 'poisoned' }],
     },
   ],
   durationSeconds: 604800,
@@ -2692,11 +2918,22 @@ export const FREEZING_SPHERE: SpellDefinition = {
  * > has the Blinded condition for 1 minute. On a successful save, it takes
  * > half as much damage only."
  *
- * The Blinded rider is left out rather than approximated. `condition.lasts`
- * offers a moment in the turn order and omitting it borrows the casting's own
- * deadline — but this spell is Instantaneous and the rider runs for a minute
- * on its own clock, repeating a save that ends it. Neither answer is a minute,
- * and picking the nearer one would be the engine inventing a duration.
+ * > "A creature Blinded by this spell makes another Constitution saving throw
+ * > at the end of each of its turns, ending the effect on itself on a
+ * > success."
+ *
+ * **The rider outlives the casting and is still the casting's**, which is the
+ * pair of facts that needed a third `RiderDuration` member. The spell is
+ * Instantaneous, so there is no casting deadline to borrow and no ongoing
+ * record for a Dispel Magic to find; the Blinded runs its minute on the clock,
+ * alone. `durationSeconds: 60` on the definition was the tempting answer and
+ * the wrong one — it would make a flash of light a dispellable ongoing spell.
+ *
+ * **And "another Constitution saving throw" is the one this spell already
+ * asked for**, which is why `repeats` names no ability: the host rolled it,
+ * and a rider restating it would be a second place to get one sentence wrong.
+ * "Ending the effect **on itself**" is `end-on-target`: one creature blinks
+ * the glare away and everybody else in the Sphere is still blind.
  */
 export const SUNBURST: SpellDefinition = {
   id: 'sunburst',
@@ -2715,12 +2952,16 @@ export const SUNBURST: SpellDefinition = {
       damage: { dice: '12d6' },
       damageType: 'radiant',
       onSuccess: 'half',
+      conditions: [
+        {
+          name: 'blinded',
+          lasts: { seconds: 60 },
+          repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+        },
+      ],
     },
   ],
-  unmodelled: [
-    'the Blinded condition a failed save imposes for 1 minute, and the Constitution save that ends it at the end of each of the target\u2019s turns',
-    'dispelling magical Darkness in the area',
-  ],
+  unmodelled: ['dispelling magical Darkness in the area'],
 };
 
 /**
@@ -3003,14 +3244,17 @@ export const BLACK_TENTACLES: SpellDefinition = {
       damage: { dice: '3d6' },
       damageType: 'bludgeoning',
       onSuccess: 'none',
-      condition: {
-        name: 'restrained',
-        // SRD: "A Restrained creature can take an action to make a Strength
-        // (Athletics) check against your spell save DC, ending the condition
-        // on itself on a success." On itself: the tentacles carry on for
-        // everybody else standing in them, which is what `end-on-target` means.
-        check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
-      },
+      conditions: [
+        {
+          name: 'restrained',
+          // SRD: "A Restrained creature can take an action to make a Strength
+          // (Athletics) check against your spell save DC, ending the condition
+          // on itself on a success." On itself: the tentacles carry on for
+          // everybody else standing in them, which is what `end-on-target`
+          // means.
+          check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
+        },
+      ],
     },
   ],
   durationSeconds: 60,
@@ -3028,10 +3272,12 @@ export const BLACK_TENTACLES: SpellDefinition = {
         damage: { dice: '3d6' },
         damageType: 'bludgeoning',
         onSuccess: 'none',
-        condition: {
-          name: 'restrained',
-          check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
-        },
+        conditions: [
+          {
+            name: 'restrained',
+            check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
+          },
+        ],
       },
     ],
   },
@@ -3071,17 +3317,103 @@ export const PHANTASMAL_KILLER: SpellDefinition = {
       damage: { dice: '4d10', perSlotLevelAbove: '1d10' },
       damageType: 'psychic',
       onSuccess: 'half',
+      // "On a failed save, the target takes 4d10 Psychic damage **and has
+      // Disadvantage on ability checks and attack rolls** for the duration."
+      // One save, two consequences — and two `roll-mode` effects beside the
+      // damage would roll two saves for the same failure, so a target could
+      // fail one and make the other, which is not the spell.
+      //
+      // **Two riders rather than one**, because they are two sentences of the
+      // selector's vocabulary: a `RollModifier` names one family of roll, and
+      // "ability checks and attack rolls" is two. Neither narrows by ability
+      // or skill, which is what "ability checks" with nothing after it means.
+      //
+      // "For the duration" is the casting's, which is exactly and only what a
+      // modifier rider can say: nothing ends a grant before its casting does.
+      modifiers: [
+        {
+          kind: 'mode',
+          modifier: {
+            mode: 'disadvantage',
+            selector: { roll: 'ability-check', relation: 'roller' },
+          },
+        },
+        {
+          kind: 'mode',
+          modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
+        },
+      ],
     },
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the Disadvantage on ability checks and attack rolls a failed save imposes for the duration, which is not a condition the engine names',
     'the Wisdom save at the end of each of the target\u2019s turns, which deals the Psychic damage again on a failure',
     'a successful save ends the spell, where the engine leaves the Concentration running',
   ],
 };
 
 // — saving throws that impose a condition ————————————————————————————————————
+
+/**
+ * SRD Hideous Laughter:
+ *
+ * > _Level 1 Enchantment (Bard, Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Concentration, up to 1 minute.
+ * > "One creature of your choice that you can see within range makes a Wisdom
+ * > saving throw. On a failed save, it has the Prone and Incapacitated
+ * > conditions for the duration."
+ * > "At the end of each of its turns and each time it takes damage, it makes
+ * > another Wisdom saving throw. The target has Advantage on the save if the
+ * > save is triggered by damage. On a successful save, the spell ends."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 1."
+ *
+ * **The spell that makes `conditions` plural.** "The Prone **and**
+ * Incapacitated conditions" is one Wisdom saving throw with two consequences,
+ * and writing it as two `save` effects would roll two — a creature could then
+ * fail one and make the other, which is not the spell. Exactly the argument
+ * `plus` makes for a second damage type, on the second thing a failed save can
+ * impose.
+ *
+ * **Both are the casting's, so neither `outlivesCasting`s.** SRD Grease's
+ * Prone is the opposite case and is the reason that field exists: there it is
+ * "or have the Prone condition", full stop, and Prone is the creature's own to
+ * stand up from. Here it is "for the duration" and the spell goes further —
+ * "it can't end the Prone condition on itself" — so the Laughter owns it, ends
+ * it, and a Dispel Magic aimed at the target finds the spell that put them
+ * there.
+ *
+ * The repeat save stays flat: SRD writes "it makes another Wisdom saving
+ * throw" once, about the spell, not once per condition — and "the spell ends"
+ * is `end-casting`, so the success lifts both without either rider naming the
+ * other.
+ */
+export const HIDEOUS_LAUGHTER: SpellDefinition = {
+  id: 'hideous-laughter',
+  name: 'Hideous Laughter',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  requiresSight: true,
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'prone',
+      conditions: [{ name: 'incapacitated' }],
+      repeats: { at: 'end-of-turn', onSuccess: 'end-casting' },
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the second Wisdom save each time the target takes damage, which is made with Advantage',
+    'the target being unable to end the Prone condition on itself, so it may stand up while the spell runs',
+    'laughing uncontrollably, and whether the creature is capable of laughter at all',
+  ],
+};
 
 /**
  * SRD Hold Monster:
@@ -3236,11 +3568,24 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
   area: { kind: 'cube', size: 30, origin: 'point' },
-  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'charmed',
+      // "While Charmed, the creature has the Incapacitated condition and a
+      // Speed of 0." One Wisdom save, and the Incapacitated is not a second
+      // roll — a second `save` effect would ask for one, and a creature could
+      // then be Charmed and not Incapacitated, which the spell does not
+      // permit. The Speed is a rule the engine does not hold at all and says
+      // so below.
+      conditions: [{ name: 'incapacitated' }],
+    },
+  ],
   durationSeconds: 60,
   unmodelled: [
     'only a creature that can see the pattern is affected',
-    'the Incapacitated condition and Speed 0 that ride along with the Charm',
+    'the Speed of 0 that rides along with the Charm',
     'the spell ending for a creature that takes damage or is shaken out of it',
   ],
 };
@@ -3520,7 +3865,7 @@ export const WEIRD: SpellDefinition = {
       damage: { dice: '10d10' },
       damageType: 'psychic',
       onSuccess: 'half',
-      condition: { name: 'frightened' },
+      conditions: [{ name: 'frightened' }],
     },
   ],
   durationSeconds: 60,
@@ -5608,7 +5953,7 @@ export const SUNBEAM: SpellDefinition = {
       damage: { dice: '6d8' },
       damageType: 'radiant',
       onSuccess: 'half',
-      condition: { name: 'blinded', lasts: 'start-of-casters-next-turn' },
+      conditions: [{ name: 'blinded', lasts: 'start-of-casters-next-turn' }],
     },
   ],
   durationSeconds: 60,
@@ -6089,6 +6434,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HARM,
   HEALING_WORD,
   HELLISH_REBUKE,
+  HIDEOUS_LAUGHTER,
   HOLD_MONSTER,
   HOLD_PERSON,
   HYPNOTIC_PATTERN,

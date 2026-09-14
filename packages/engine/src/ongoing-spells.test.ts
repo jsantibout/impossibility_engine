@@ -234,6 +234,73 @@ describe('a casting becomes a live record when it leaves something running', () 
     expect(ongoingSpellOf(g.state, bless)?.on).toEqual([ALLY, FOE]);
   });
 
+  /**
+   * **And "on its caster" was never the whole of it.** SRD Sunbeam is Range:
+   * Self — the beam comes out of the caster, so the casting is on them — and it
+   * blinds whoever the Line catches "until the start of your next turn". That
+   * Blinded is a condition this casting owns and will take away again, which is
+   * the engine's one rule for what a spell is *on*:
+   *
+   * > A casting is on a creature while it has a live effect there that the
+   * > casting owns.
+   *
+   * `alsoOn` has applied that rule to a triggered effect landing a minute later
+   * since persistent areas landed. The caster branch of the record's own write
+   * applied a *second* rule — "Range: Self means on the caster, full stop" —
+   * and threw the rest away. So Sunbeam blinded the goblin and a Dispel Magic
+   * aimed at the goblin found nothing to end.
+   *
+   * One rule: the caster, **and** whoever the casting is holding something on.
+   */
+  it('puts a Range: Self casting on its caster and on whoever it still holds', () => {
+    const g = new Game().push([
+      {
+        type: 'resource-pool-declared',
+        id: WIZ,
+        pool: { key: 'spell-slot:6', label: 'level 6', max: 1, recovers: 'long-rest' },
+      },
+      {
+        type: 'spellcasting-declared',
+        id: WIZ,
+        spellcasting: declaredCasting({ ability: 'int', prepared: [...PREPARED, 'sunbeam'] }),
+      },
+      // In combat, because the Blinded lasts "until the start of your next
+      // turn" and a turn-anchored deadline has nothing to anchor to outside one.
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: WIZ, initiative: 20, speed: 30 },
+          { id: FOE, initiative: 10, speed: 30 },
+        ],
+      },
+    ]);
+
+    // The beam runs along +y, which is the bearing FOE was placed on. ALLY is
+    // behind the caster and RIVAL is off to the side, so exactly one creature
+    // is caught and the assertion is about that one.
+    const beam = unwrap(
+      resolveSpell(
+        g.state,
+        WIZ,
+        { spellId: 'sunbeam', targets: [], towards: { x: 200, y: 260, z: 0 }, slotLevel: 6 },
+        // Forced rather than waiting for a seed that fails the save: this test
+        // is about what the record says once the rider has landed, so the
+        // rider landing is a premise rather than a roll of the dice.
+        { ...supply('sunbeam'), bonuses: [{ source: 'forced', flat: -40 }] },
+      ),
+      'sunbeam',
+    );
+    g.push(beam.events);
+
+    // The rider landed, which is what makes the rest of this a question at all.
+    expect(g.state.creatures[FOE]!.conditions.conditions).toContain('blinded');
+
+    expect(ongoingSpellOf(g.state, beam.castingId)?.on).toEqual([FOE, WIZ].sort());
+    // And the sentence that matters at the table: a Dispel Magic aimed at the
+    // blinded creature finds the spell that blinded them.
+    expect(ongoingSpellsOn(g.state, FOE).map((o) => o.castingId)).toEqual([beam.castingId]);
+  });
+
   /** Two castings of one spell are two things, and nothing merges them. */
   it('keeps two simultaneous castings of the same spell apart', () => {
     const g = new Game();

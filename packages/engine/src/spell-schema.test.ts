@@ -6,7 +6,9 @@ import { SPELL_DEFINITIONS, type SpellDefinition } from './spell-definitions.js'
 import {
   checkSpellDefinition,
   checkSpellDefinitionValue,
+  EFFECT_KINDS,
   parseSpellDefinition,
+  RIDER_KINDS,
   type SpellDefinitionProblem,
 } from './spell-schema.js';
 
@@ -106,7 +108,7 @@ describe('a definition that is not in the SRD is still valid engine data', () =>
         damage: { dice: '4d10', perSlotLevelAbove: '1d10' },
         damageType: 'necrotic',
         onSuccess: 'half',
-        condition: { name: 'poisoned' },
+        conditions: [{ name: 'poisoned' }],
       },
     ],
     durationSeconds: 60,
@@ -616,8 +618,11 @@ describe('a check is checked wherever a definition writes one', () => {
       effects: [effect],
     } as SpellDefinition);
 
-  // One bad check, written into each of the three carriers that nest a rider
-  // and the one that spells it flat.
+  // One bad check, written into every layout a rider has: the two hosts that
+  // nest one, the kind whose rider *is* the effect, the flat spelling `save`
+  // keeps, and the extra riders a `save` carries beside it. The path differs
+  // in every one of them, which is what proves it is one rule rather than
+  // five spelled alike.
   const BAD = { ability: 'int', skill: 'athletics', onSuccess: 'none' } as const;
 
   it.each([
@@ -633,9 +638,9 @@ describe('a check is checked wherever a definition writes one', () => {
         attack: 'ranged',
         damage: { dice: '2d6' },
         damageType: 'fire',
-        condition: { name: 'restrained', check: BAD },
+        conditions: [{ name: 'restrained', check: BAD }],
       },
-      'effects[0].condition.check.skill',
+      'effects[0].conditions[0].check.skill',
     ],
     [
       "a save-damage's rider",
@@ -645,9 +650,19 @@ describe('a check is checked wherever a definition writes one', () => {
         damage: { dice: '2d6' },
         damageType: 'fire',
         onSuccess: 'none',
-        condition: { name: 'restrained', check: BAD },
+        conditions: [{ name: 'restrained', check: BAD }],
       },
-      'effects[0].condition.check.skill',
+      'effects[0].conditions[0].check.skill',
+    ],
+    [
+      "a save's second rider",
+      {
+        kind: 'save',
+        ability: 'dex',
+        condition: 'prone',
+        conditions: [{ name: 'restrained', check: BAD }],
+      },
+      'effects[0].conditions[0].check.skill',
     ],
     [
       "a save's flat check",
@@ -817,7 +832,9 @@ describe('a grant needs a casting that outlasts it', () => {
 describe('a condition rider is checked the same way wherever it sits', () => {
   // A minute on the clock, because a condition that lasts as long as the
   // casting needs the casting to last — see "a grant needs a casting that
-  // outlasts it" above. What is under test here is the rider's own fields.
+  // outlasts it" above. That rule is real and has its own tests; here it would
+  // be a second problem reported about a definition written to test the first.
+  // What is under test here is the rider's own fields.
   const problems = (effect: unknown): readonly SpellDefinitionProblem[] =>
     checkSpellDefinition({
       ...FIRE_DART,
@@ -843,9 +860,9 @@ describe('a condition rider is checked the same way wherever it sits', () => {
         attack: 'ranged',
         damage: { dice: '2d6' },
         damageType: 'fire',
-        condition: { name: 'bewildered' },
+        conditions: [{ name: 'bewildered' }],
       },
-      'effects[0].condition.name',
+      'effects[0].conditions[0].name',
     ],
     [
       'save-damage',
@@ -855,9 +872,19 @@ describe('a condition rider is checked the same way wherever it sits', () => {
         damage: { dice: '2d6' },
         damageType: 'fire',
         onSuccess: 'none',
-        condition: { name: 'bewildered' },
+        conditions: [{ name: 'bewildered' }],
       },
-      'effects[0].condition.name',
+      'effects[0].conditions[0].name',
+    ],
+    [
+      'save with a second condition',
+      {
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        conditions: [{ name: 'bewildered' }],
+      },
+      'effects[0].conditions[0].name',
     ],
   ] as const)('refuses an unknown condition on a %s, pointing at the field', (_kind, effect, field) => {
     expect(problems(effect)).toEqual([
@@ -886,15 +913,85 @@ describe('a condition rider is checked the same way wherever it sits', () => {
    * establishes the effect's `kind` and nothing below it, so untyped input can
    * reach this reader with no rider at all — and a validator that crashes on
    * the input it exists to judge has judged nothing.
+   *
+   * **Both lifetimes, because the rule that reads a rider second is guarded by
+   * a duration.** This case carried `durationSeconds: 60` and therefore drove
+   * only `checkConditionRider`, which reads the rider through `?.` and is
+   * safe. `checkGrantLifetimes` returns early the moment a casting persists,
+   * so the minute on the clock was the exact thing keeping a second unguarded
+   * reader out of reach — and `grantCarried` was that reader, walking the list
+   * and dereferencing every entry. The same input one field shorter threw a
+   * `TypeError` out of the `Result` half of the validator.
    */
-  it('reports a condition effect whose rider is missing', () => {
+  it.each([
+    ['a casting that persists', { durationSeconds: 60 }],
+    ['an Instantaneous one, where the lifetime rule runs', {}],
+  ] as const)('reports a condition effect whose rider is missing, on %s', (_when, lifetime) => {
     const parsed = parseSpellDefinition({
       ...FIRE_DART,
-      durationSeconds: 60,
+      ...lifetime,
       effects: [{ kind: 'condition' }],
     });
     expect(isErr(parsed)).toBe(true);
     if (isErr(parsed)) expect(parsed.code).toBe('unknown_condition');
+  });
+
+  /**
+   * And a rider that is present and **null**, which is the other half of the
+   * same reading.
+   *
+   * `undefined` is what a missing field gives; `null` is what JSON gives, and
+   * this validator exists for input that came out of a file. Every other
+   * reader in this file meets both through `?.`; the check for a
+   * {@link ModifierRider} was written as `=== undefined`, so a null entry sat
+   * one dereference past the guard.
+   */
+  it('reports a grant rider that is null rather than throwing on it', () => {
+    const parsed = parseSpellDefinition({
+      ...FIRE_DART,
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          condition: 'prone',
+          outlivesCasting: true,
+          modifiers: [null],
+        },
+      ],
+    });
+    expect(isErr(parsed)).toBe(true);
+    if (isErr(parsed)) expect(parsed.code).toBe('unknown_modifier_rider');
+  });
+
+  /**
+   * The general form, driven rather than argued: **no shape of rider makes the
+   * validator throw.** `parseSpellDefinition` takes `unknown` and returns a
+   * `Result`; a throw is not a worse answer than a problem, it is no answer.
+   */
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['not an object', 'restrained'],
+    ['an object with no name', {}],
+  ] as const)('answers rather than throws for a rider that is %s', (_what, rider) => {
+    for (const lifetime of [{ durationSeconds: 60 }, {}]) {
+      for (const effect of [
+        { kind: 'condition', condition: rider },
+        { kind: 'save', ability: 'wis', condition: 'prone', conditions: [rider] },
+        { kind: 'save', ability: 'wis', condition: 'prone', modifiers: [rider] },
+        {
+          kind: 'attack',
+          attack: 'ranged',
+          damage: { dice: '2d6' },
+          damageType: 'fire',
+          conditions: [rider],
+        },
+      ]) {
+        expect(() =>
+          parseSpellDefinition({ ...FIRE_DART, ...lifetime, effects: [effect] }),
+        ).not.toThrow();
+      }
+    }
   });
 });
 
@@ -1115,10 +1212,6 @@ const FORMAT_TYPES = [
 const FORMAT_EXEMPTIONS: Readonly<Record<string, string>> = {
   'SpellDefinition.anchoring?':
     'SRD 5.2.1 mandates no footprint convention for an area of effect — its "Playing on a Grid" sidebar covers squares, Speed, entering a square, corners and ranges and says nothing about areas, and the intersection convention comes from a 2014 optional rule. Declaring one per spell would be the engine choosing a rule the book declined to give. The field exists so a deliberate geometry pass, or an author of content the SRD never printed, says it in data rather than in runtime logic, and `spatial-model.test.ts` drives both precedence branches through `anchoringFor`.',
-  "SpellEffect.save?":
-    'The `roll-mode` effect\'s optional saving throw — Bane\'s shape on Bless\'s other half. It has never had a definition: Bane itself is a `buff`, and the audit named it as the first of the three zero-user members. **Its removal is IE-010\'s**, which owns the `SpellEffect` union; this task may not change the format, so the honest answer here is to record it rather than to invent a user for it. When the field goes, this entry must go with it — the rule below that every exemption names a live member is what will say so.',
-  "SpellEffect.onSuccess='end-casting'":
-    'The value a repeat save\'s success may take: not "the spell ends on me" but "the spell ends". No definition writes it, and it is **not** speculative shape — `RepeatSave.onSuccess` and `PendingSave.onSuccess` in `duration.ts` carry the same two values, the reducer branches on it, and `turn-hooks.test.ts` drives that branch with a hand-built hook. So it is the authoring spelling of a mechanic that is built and exercised, and removing it would leave a definition unable to say something the engine resolves.',
   'SpellCheck.dc?':
     'SRD Maze prints "a DC 20 Intelligence (Investigation) check", which is exactly this field, and Maze has no definition because it is blocked on a demiplane the engine does not model. The reader is live on every executed check — `effectCheckFrom` writes `check.dc ?? saveDc` — so what is absent is a definition, not a use. The pin below is the one Sunburst\'s dispel clause already takes: the day Maze gets a definition it must write the number the book prints, and this fails rather than going on excusing a field that now has a user.',
 };
@@ -1264,30 +1357,42 @@ describe('every member of the definition format has a user or a written exemptio
       // unwritten and this sweep cannot see it. Recorded here rather than
       // exempted, because it is a limit of the instrument and not a decision
       // about the format.
-      "SpellEffect.at='end-of-turn' + AreaTrigger.at='end-of-turn'",
-      "SpellEffect.at='start-of-turn' + AreaTrigger.at='start-of-turn'",
-      // `save` spells its rider flat and every other carrier nests it —
+      "SpellEffect.at='end-of-turn' + AreaTrigger.at='end-of-turn' + ConditionRider.at='end-of-turn'",
+      "SpellEffect.at='start-of-turn' + AreaTrigger.at='start-of-turn' + ConditionRider.at='start-of-turn'",
+      // `save` spells its first rider flat and every other carrier nests it —
       // `conditionRiderOf` is the view that makes them one vocabulary. These
-      // three collisions are two spellings of one field and mask nothing.
+      // collisions are two spellings of one field and mask nothing, and
+      // `repeats` moving onto the rider made three of them longer rather than
+      // adding a new kind of masking: the flat field and the rider field are
+      // the same clause read two ways.
       'SpellEffect.check? + SpellDefinition.check? + ConditionRider.check?',
       'SpellEffect.lasts? + ConditionRider.lasts?',
       // A save-damage's success and a check's success are different fields
       // that happen to share two words; both values are written by both.
-      "SpellEffect.onSuccess='end-on-target' + SpellCheck.onSuccess='end-on-target'",
+      "SpellEffect.onSuccess='end-casting' + ConditionRider.onSuccess='end-casting'",
+      "SpellEffect.onSuccess='end-on-target' + SpellCheck.onSuccess='end-on-target' + ConditionRider.onSuccess='end-on-target'",
       "SpellEffect.onSuccess='none' + SpellCheck.onSuccess='none'",
       'SpellEffect.outlivesCasting? + ConditionRider.outlivesCasting?',
+      'SpellEffect.repeats? + ConditionRider.repeats?',
     ]);
   });
 });
 
 /**
- * The three exemptions that pin a fact rather than assert an intention.
+ * What makes an exemption more than prose: a fact that can stop being true.
  *
  * `spell-honesty.test.ts` pins the fact that makes Sunburst's dispel clause
  * the table's — "no Darkness definition compiles in" — so that the day it
  * stops being true the claim fails rather than going quietly on. Each of these
- * is the same move, and between them they are what makes the exemptions above
- * more than prose.
+ * is the same move.
+ *
+ * **Two of the three that were here are gone, and both went the way the sweep
+ * intended.** `roll-mode.save` was a handover and was removed; the
+ * `'end-casting'` outcome acquired a user the moment Hideous Laughter was
+ * written. What is left below is their other side — the assertion that the
+ * first is gone rather than merely unused, and that the second is written
+ * rather than merely resolvable. No count is stated, because the list is the
+ * thing that changes.
  */
 describe('a format exemption says something that can stop being true', () => {
   const here = fileURLToPath(new URL('.', import.meta.url));
@@ -1315,24 +1420,50 @@ describe('a format exemption says something that can stop being true', () => {
   });
 
   /**
-   * `'end-casting'` is built and driven; what it lacks is a definition, and
-   * that is a different thing from speculative shape. If the engine ever
-   * stopped resolving it, the exemption's reason would be false and this says
-   * so.
+   * **`'end-casting'` stopped needing an exemption, which is the sweep working
+   * rather than the sweep being wrong.**
+   *
+   * It was exempted as "built and driven, but no definition writes it" — the
+   * engine resolved it, `duration.ts` declared it, the reducer branched on it,
+   * and `turn-hooks.test.ts` drove that branch with a hand-built hook. What it
+   * lacked was a spell. SRD Hideous Laughter is that spell: "On a successful
+   * save, **the spell ends**", which is the value exactly, and the day it got
+   * a definition the exemption became a stale licence and the sweep said so.
+   *
+   * So this pins the other side. The member has a user *and* the engine still
+   * resolves it — because an exemption removed for the wrong reason would look
+   * identical to one removed for this one.
    */
-  it('pins that the engine resolves a repeat save that ends the casting', () => {
+  it('pins that a definition now writes the value the exemption used to cover', () => {
+    const writers = SPELL_DEFINITIONS.filter((definition) =>
+      definition.effects.some(
+        (effect) => effect.kind === 'save' && effect.repeats?.onSuccess === 'end-casting',
+      ),
+    );
+    expect(writers.map((d) => d.id)).toContain('hideous-laughter');
+
     expect(read('duration.ts')).toContain("readonly onSuccess: 'end-on-target' | 'end-casting'");
     expect(read('events.ts')).toContain("pending.onSuccess === 'end-casting'");
-    expect(read('turn-hooks.test.ts')).toContain("onSuccess: 'end-casting'");
   });
 
   /**
-   * `roll-mode.save` is the one exemption that is a handover rather than a
-   * decision, so what it pins is the handover: the field is still there, and
-   * `spell-resolution.ts` still reads it. IE-010 removes both.
+   * **The handover, discharged.** `roll-mode.save` was the one exemption that
+   * was a handover rather than a decision: IE-013 could not remove it without
+   * changing the format, so it recorded the field and pinned that it was still
+   * there to be removed. IE-010 removed it, both entries went with it, and
+   * what is left is this — the other side of the same claim, which is that
+   * nothing brought it back.
+   *
+   * A resurrected field would be a zero-user member with no exemption at all,
+   * so the sweep above would catch it anyway. This says *why* it is gone,
+   * where the next reader of that sweep will meet the question: a spell whose
+   * mode is imposed by a failed save writes the save as its host and hangs the
+   * mode as a `modifiers` rider, which is one roll shared rather than two
+   * spellings of one sentence.
    */
-  it('pins that the member IE-010 removes is still there to be removed', () => {
-    expect(read('spell-definitions.ts')).toContain('readonly save?: Ability;');
+  it('pins that the member IE-013 handed over is gone rather than unused', () => {
+    expect(read('spell-definitions.ts')).not.toContain('readonly save?: Ability;');
+    expect(read('spell-definitions.ts')).toContain('readonly modifiers?: readonly ModifierRider[]');
   });
 });
 
@@ -1555,5 +1686,447 @@ describe('no spell is special-cased in the runtime', () => {
         expect(IDS, match).not.toContain(literal);
       }
     }
+  });
+});
+
+/**
+ * **A rider is a leaf, and this is the invariant the whole design rests on.**
+ *
+ * The question Fable's record answered was "what restricted vocabulary lets a
+ * saving throw express bounded consequences without the definition format
+ * becoming a recursive rules DSL", and the answer was that there is no child
+ * vocabulary at all: what the SRD writes after "On a failed save," is a
+ * conjunction of consequences sharing one roll, and every one of them rolls no
+ * d20, names no target, opens no window and spends nothing.
+ *
+ * `onFail: SpellEffect[]` was rejected for that reason and not for taste — a
+ * child that rolls is a parent, and the format would have become a small
+ * untyped program with a saving throw nested inside a saving throw. The type
+ * system refuses it for anything compiled here. These are the other two
+ * places it is refused: over untyped input, and over the catalogue, so that a
+ * definition arriving from a file cannot smuggle in what a definition written
+ * here cannot express.
+ */
+describe('a rider never rolls, and nothing below an effect is an effect', () => {
+  /**
+   * The name collision that would let recursion in through the back door.
+   *
+   * `checkShape`'s denylist reads a nested `kind` and refuses it if it is an
+   * effect kind. A rider kind that were *also* an effect kind would therefore
+   * be refused wherever it legitimately appears — or, read the other way, an
+   * effect kind reused as a rider kind would sail past the guard. One
+   * assertion keeps the two vocabularies disjoint.
+   */
+  it('shares no kind between a rider and an effect', () => {
+    expect([...RIDER_KINDS].filter((kind) => EFFECT_KINDS.has(kind))).toEqual([]);
+    // And neither set is empty, or the intersection above is vacuous.
+    expect(RIDER_KINDS.size).toBeGreaterThan(0);
+    expect(EFFECT_KINDS.size).toBeGreaterThan(0);
+  });
+
+  /**
+   * The catalogue sweep. Every effect, wherever it is found — the spell's own
+   * list, an area trigger's, an activation's — walked as JSON, with every
+   * object below the effect asked whether it is secretly an effect.
+   *
+   * Read as data rather than by switching on the kind, because a reader that
+   * switched would only see the slots it had been told about, and the whole
+   * point is to catch a slot nobody told it about.
+   */
+  const EVERY_EFFECT = SPELL_DEFINITIONS.flatMap((definition) => [
+    ...definition.effects.map((effect, i) => [`${definition.id}.effects[${i}]`, effect] as const),
+    ...(definition.areaTrigger?.effects ?? []).map(
+      (effect, i) => [`${definition.id}.areaTrigger.effects[${i}]`, effect] as const,
+    ),
+    ...(definition.activation?.effects ?? []).map(
+      (effect, i) => [`${definition.id}.activation.effects[${i}]`, effect] as const,
+    ),
+  ]);
+
+  /** Every object strictly below `value`, with the path it was found at. */
+  const below = (value: unknown, path: string): readonly (readonly [string, unknown])[] => {
+    if (typeof value !== 'object' || value === null) return [];
+    const entries: (readonly [string, unknown])[] = Array.isArray(value)
+      ? value.map((entry, i) => [`${path}[${i}]`, entry] as const)
+      : Object.entries(value as Record<string, unknown>).map(
+          ([key, entry]) => [`${path}.${key}`, entry] as const,
+        );
+    return entries.flatMap(([at, entry]) => [[at, entry] as const, ...below(entry, at)]);
+  };
+
+  it('has some, so the sweep below is not vacuous', () => {
+    expect(EVERY_EFFECT.length).toBeGreaterThan(50);
+    expect(EVERY_EFFECT.flatMap(([path, effect]) => below(effect, path)).length).toBeGreaterThan(50);
+  });
+
+  it('nests no effect below an effect, anywhere in the catalogue', () => {
+    for (const [path, effect] of EVERY_EFFECT) {
+      for (const [at, nested] of below(effect, path)) {
+        if (typeof nested !== 'object' || nested === null || Array.isArray(nested)) continue;
+        const kind = (nested as { kind?: unknown }).kind;
+        expect(
+          typeof kind === 'string' && EFFECT_KINDS.has(kind) ? kind : null,
+          `${at} carries an effect kind, so a rider has become a parent`,
+        ).toBeNull();
+      }
+    }
+  });
+
+  /** And nothing below an effect brings its own targets, area or effect list. */
+  it('gives nothing below an effect its own targets, area or effects', () => {
+    for (const [path, effect] of EVERY_EFFECT) {
+      for (const [at, nested] of below(effect, path)) {
+        if (typeof nested !== 'object' || nested === null || Array.isArray(nested)) continue;
+        expect(
+          Object.keys(nested as Record<string, unknown>).filter((key) =>
+            ['effects', 'targets', 'targetsWithin', 'area'].includes(key),
+          ),
+          at,
+        ).toEqual([]);
+      }
+    }
+  });
+
+  /** A rider is one object deep, and the deepest legal nesting is its selector. */
+  it('keeps every effect shallow enough to read at a glance', () => {
+    const depthOf = (value: unknown): number =>
+      typeof value !== 'object' || value === null
+        ? 0
+        : 1 +
+          Math.max(
+            0,
+            ...(Array.isArray(value)
+              ? value
+              : Object.values(value as Record<string, unknown>)
+            ).map(depthOf),
+          );
+    for (const [path, effect] of EVERY_EFFECT) {
+      expect(depthOf(effect), path).toBeLessThanOrEqual(6);
+    }
+  });
+
+  // — and the validator refuses what the catalogue does not do ——————————————
+
+  const problems = (effect: unknown): readonly string[] =>
+    codes(checkSpellDefinitionValue({ ...FIRE_DART, durationSeconds: 60, effects: [effect] }));
+
+  /**
+   * The mutation the sweep exists for: an effect nested inside a rider.
+   *
+   * This is `onFail: SpellEffect[]` arriving through a loader rather than
+   * through the compiler, and it is the exact shape the design record rejected
+   * — a saving throw inside a saving throw's consequence.
+   */
+  it('refuses an effect nested inside a rider', () => {
+    expect(
+      problems({
+        kind: 'save-damage',
+        ability: 'dex',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'none',
+        conditions: [
+          {
+            name: 'prone',
+            then: { kind: 'save', ability: 'str', condition: 'restrained' },
+          },
+        ],
+      }),
+    ).toContain('nested_effect');
+  });
+
+  it('refuses a rider that brings its own effect list', () => {
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        conditions: [{ name: 'prone', effects: [] }],
+      }),
+    ).toContain('nested_effect');
+  });
+
+  it('refuses a rider that names its own targets or area', () => {
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        conditions: [{ name: 'prone', targets: { count: 2 } }],
+      }),
+    ).toContain('nested_effect');
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        conditions: [{ name: 'prone', area: { kind: 'sphere', radius: 10, origin: 'point' } }],
+      }),
+    ).toContain('nested_effect');
+  });
+
+  /**
+   * And the denylist really is a denylist: a field the engine has never heard
+   * of is data written against a later version, not data that is wrong. That
+   * is the reading `checkShape` takes everywhere else and this rule does not
+   * get to be the exception.
+   */
+  it('accepts a rider carrying a field this engine does not know', () => {
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        conditions: [{ name: 'prone', tasteOfTheSpell: 'copper' }],
+      }),
+    ).toEqual([]);
+  });
+
+  /** A modifier rider's own `kind` is not an effect kind, so it passes. */
+  it('accepts a modifier rider, whose kind is a rider kind', () => {
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        modifiers: [
+          { kind: 'mode', modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } } },
+        ],
+      }),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * The two rules a rider carries that the type system cannot state, because one
+ * `ConditionRider` is shared by all four hosts — which is the whole point of
+ * it, and therefore the whole reason these live here.
+ */
+describe('a rider is held to what its host can support', () => {
+  const problems = (
+    effect: unknown,
+    over: Partial<SpellDefinition> = { durationSeconds: 60 },
+  ): readonly string[] => codes(checkSpellDefinition({ ...FIRE_DART, ...over, effects: [effect] } as SpellDefinition));
+
+  /**
+   * SRD writes "the target repeats **the** save" — the one the spell already
+   * asked for. An attack rolls an attack and a bare condition rolls nothing,
+   * so neither has one to repeat.
+   */
+  it('refuses a repeat save on a host that rolled none', () => {
+    const repeats = { at: 'end-of-turn', onSuccess: 'end-on-target' } as const;
+    expect(
+      problems({
+        kind: 'attack',
+        attack: 'ranged',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        conditions: [{ name: 'poisoned', repeats }],
+      }),
+    ).toContain('repeats_without_save');
+    expect(
+      problems({ kind: 'condition', condition: { name: 'poisoned', repeats } }),
+    ).toContain('repeats_without_save');
+  });
+
+  /** And allows it on the two hosts that did roll one, or the rule is vacuous. */
+  it('allows a repeat save on a host that rolled one', () => {
+    const repeats = { at: 'end-of-turn', onSuccess: 'end-on-target' } as const;
+    expect(
+      problems({
+        kind: 'save-damage',
+        ability: 'con',
+        damage: { dice: '2d6' },
+        damageType: 'fire',
+        onSuccess: 'half',
+        conditions: [{ name: 'blinded', repeats }],
+      }),
+    ).toEqual([]);
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        conditions: [{ name: 'prone', repeats }],
+      }),
+    ).toEqual([]);
+  });
+
+  /**
+   * **The gap a rider can fall through**, and the reason Sunburst needed a
+   * span of seconds rather than a duration on the spell.
+   *
+   * A rider the casting owns is cleaned up by `releaseCasting`, which runs
+   * when the casting ends — and an Instantaneous spell never becomes an
+   * ongoing casting at all, so nothing would ever end it. Fable asked whether
+   * the catalogue already held one of these; it did not, which is what makes
+   * this a guard rather than a fix.
+   *
+   * **The rule is `checkGrantLifetimes`, and it is one rule.** IE-013 and
+   * IE-010 wrote it independently — once over the three standalone grant kinds
+   * and once over the riders — and the one that survived is the broader:
+   * `grantCarried` now reads every condition rider *and* the `modifiers` slot,
+   * so a `buff`, a `roll-mode`, an `armor-class` and a rider are all one
+   * `grant_without_lifetime`. Two codes for one defect would be the second
+   * place to get one sentence wrong.
+   */
+  it('refuses a casting-owned rider on a spell that never becomes a casting', () => {
+    expect(
+      problems(
+        {
+          kind: 'save-damage',
+          ability: 'con',
+          damage: { dice: '2d6' },
+          damageType: 'fire',
+          onSuccess: 'half',
+          conditions: [{ name: 'blinded' }],
+        },
+        {},
+      ),
+    ).toContain('grant_without_lifetime');
+  });
+
+  /**
+   * **The second rider, not only the first.** A host carries several, and a
+   * definition whose *second* condition had no deadline would have gone
+   * unreported behind a first one that did — which is exactly the failure the
+   * plural slot creates and the reason `grantCarried` walks the whole list.
+   */
+  it('refuses the rider with no lifetime even when an earlier one has one', () => {
+    expect(
+      problems(
+        {
+          kind: 'save-damage',
+          ability: 'con',
+          damage: { dice: '2d6' },
+          damageType: 'fire',
+          onSuccess: 'half',
+          conditions: [{ name: 'blinded', lasts: { seconds: 60 } }, { name: 'prone' }],
+        },
+        {},
+      ),
+    ).toContain('grant_without_lifetime');
+  });
+
+  /**
+   * And a `modifiers` rider on such a spell is refused outright, because it
+   * can take neither escape: `EffectTarget` ends a condition instance, a
+   * casting or a feature, and nothing ends a grant before its casting does —
+   * so `ModifierRider` offers no `lasts` rather than offering one it could not
+   * honour.
+   */
+  it('refuses a grant rider on a spell that never becomes a casting', () => {
+    expect(
+      problems(
+        {
+          kind: 'save',
+          ability: 'wis',
+          condition: 'charmed',
+          outlivesCasting: true,
+          modifiers: [
+            {
+              kind: 'mode',
+              modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
+            },
+          ],
+        },
+        {},
+      ),
+    ).toContain('grant_without_lifetime');
+  });
+
+  it('accepts the same rider once it says how long it lasts', () => {
+    for (const lasts of [{ seconds: 60 }, 'end-of-casters-next-turn'] as const) {
+      expect(
+        problems(
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d6' },
+            damageType: 'fire',
+            onSuccess: 'half',
+            conditions: [{ name: 'blinded', lasts }],
+          },
+          {},
+        ),
+      ).toEqual([]);
+    }
+  });
+
+  /** Or that the casting never owned it in the first place: SRD Grease's Prone. */
+  it('accepts a rider the casting causes and does not keep', () => {
+    expect(
+      problems(
+        {
+          kind: 'save',
+          ability: 'dex',
+          condition: 'prone',
+          outlivesCasting: true,
+        },
+        {},
+      ),
+    ).toEqual([]);
+  });
+
+  /** A span of no seconds is the absence of a duration, not a short one. */
+  it('refuses a rider that lasts no time at all', () => {
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        conditions: [{ name: 'prone', lasts: { seconds: 0 } }],
+      }),
+    ).toContain('bad_rider_duration');
+  });
+
+  /** A modifier rider is `buff` and `roll-mode` minus their save, so it is held to their rules. */
+  it('holds a modifier rider to the rules its standalone kind obeys', () => {
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        modifiers: [{ kind: 'bonus', bonus: { source: 'x', dice: '1d4' }, applies: ['ac'], direction: 'add' }],
+      }),
+    ).toContain('rolled_armor_class');
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        modifiers: [{ kind: 'bonus', bonus: { source: 'x', flat: 2 }, applies: [], direction: 'add' }],
+      }),
+    ).toContain('bonus_applies_to_nothing');
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'charmed',
+        modifiers: [
+          { kind: 'mode', modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'against-holder' } } },
+        ],
+      }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  /** And a grant that is neither is refused rather than silently applied as nothing. */
+  it('refuses a rider that is neither a bonus nor a mode', () => {
+    expect(
+      codes(
+        checkSpellDefinitionValue({
+          ...FIRE_DART,
+          durationSeconds: 60,
+          effects: [
+            {
+              kind: 'save',
+              ability: 'wis',
+              condition: 'charmed',
+              modifiers: [{ kind: 'resistance', to: 'fire' }],
+            },
+          ],
+        }),
+      ),
+    ).toContain('unknown_modifier_rider');
   });
 });

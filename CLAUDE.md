@@ -3456,23 +3456,207 @@ with a name and a cost rather than a mechanism — and the consequence is stated
 plainly: **a non-SRD definition can be validated today and cannot be cast
 today.**
 
-**Outcome-scoped child effects are deferred**, and not because they are large.
-The rider fields are not free child effects: `plus` shares one saving throw
-*and* one damage application, `condition` shares the same save, and `delayed`
-is a debt rather than an effect. A naive `onFail: SpellEffect[]` would let an
-author nest a saving throw inside a failed saving throw, which is the
-definition becoming a miniature untyped program. The branch lists need their
-own restricted child vocabulary, and the evidence for which members it needs is
-what the next two families produce — a condition with no saving throw, and a
-standing Advantage a spell grants. The validator makes that migration safer
-when it comes, because the invariants that must survive it are now in one place
-instead of inferred from four test files.
+**Outcome-scoped child effects are not deferred any more; they turned out not
+to exist.** See "A Settled Outcome Carries Riders, And A Rider Is A Leaf"
+below — the restricted child vocabulary this paragraph was waiting for is not a
+vocabulary of effects at all.
 
 **`SpellEffect.damageType` stays `string`.** Narrowing it to `DamageType`
 ripples through `damageTypeStated`, `applyDamage`'s keys and the monster
 adapter, which is a typing pass rather than a definitions pass. The validator
 checks the value instead, at the same place a homebrew definition would get it
 wrong.
+
+## A Settled Outcome Carries Riders, And A Rider Is A Leaf
+
+The definition format needed a restricted child vocabulary — something that
+could say what the SRD says after "On a failed save," without becoming a small
+untyped program with a saving throw nested inside a saving throw. The answer,
+measured rather than designed, is that **there are no child effects in those
+sentences**:
+
+> Hideous Laughter: "On a failed save, it has the **Prone and Incapacitated**
+> conditions for the duration."
+> Phantasmal Killer: "the target takes 4d10 Psychic damage **and has
+> Disadvantage on ability checks and attack rolls** for the duration."
+> Sunburst: "a creature takes 12d6 Radiant damage and has the Blinded
+> condition **for 1 minute**."
+
+What follows the comma is a **conjunction of consequences sharing one roll** —
+one target, one DC, one casting link, one lifetime — and every consequence in
+that position is a **leaf**: it rolls no d20, names no target of its own, opens
+no window, and spends nothing. The engine already had three of them and called
+them riders; what it lacked was the observation that being a leaf is what makes
+them riders. So `onFail: SpellEffect[]` is rejected on evidence rather than on
+taste — **a child that rolls is a parent** — and the two SRD spells that look
+as though they need one turn out to be different mechanisms: Ice Knife is two
+sequenced rolls with an area centred on a target, and Chromatic Orb is a
+chained attack on a dice-face trigger.
+
+`OutcomeRiders` is the whole vocabulary, in three named slots:
+
+| Slot | Is | Consumers |
+|---|---|---|
+| `conditions` | a list of `ConditionRider` | Hideous Laughter, Hypnotic Pattern, Sunburst, Sunbeam, Ray of Sickness, Contagion, Black Tentacles, Weird |
+| `modifiers` | `ModifierRider`: `buff` and `roll-mode` **minus their own saving throw** | Phantasmal Killer |
+| `delayed` | `DelayedDamage`, unchanged | Acid Arrow, Vitriolic Sphere |
+
+**Named slots rather than a `riders: Rider[]` union.** The type system can then
+say which host may carry which rider — `plus` and `delayed` on a `save` are
+impossible rather than validated — and the SRD writes one slot per sentence
+shape. The cost is one `applyRiders` with three loops, which is smaller than a
+dispatch.
+
+### The branch is the host's, which is why the slot name *is* the branch
+
+Three kinds produce an outcome and therefore host riders: `attack` on a hit,
+`save-damage` and `save` on a failure. There is no success-branch slot and no
+miss-branch slot, so an author cannot write one — which is the invariant, made
+structural rather than validated. `applyRiders` is reached only once the
+affirmative outcome has been decided, so it contains no branch at all.
+
+`condition` is **not** a host: it has no roll, so its rider *is* the effect, and
+`conditionRiderOf` types that as a non-empty list so the single element is not a
+guess. The other eight kinds host nothing because no consumer writes a rider
+after any of them.
+
+**The two outcome selectors govern the host's own damage and nothing else.**
+`save-damage.onSuccess` was already that; `attack.onMiss: 'half'` is Acid
+Arrow's "On a miss, the arrow splashes the target ... for half as much of the
+initial damage **only**". *Only* is the word that makes it a branch on the
+damage rather than a second set of riders: the later 2d4 is a rider and a miss
+owes it nothing. One consumer, transcribed as the mirror of `onSuccess` in the
+tradition of `healsCasterForHalf` and `outlivesCasting`.
+
+### `repeats` moved onto the rider, and its ability is the host's
+
+SRD writes "the target repeats **the** save" — the one the spell already asked
+for — so a repeat save is a property of a condition rather than of the `save`
+kind, and Sunburst proves it by hanging one on a `save-damage`. The rider
+carries the moment and what a success does; the ability and the DC come from
+the host, because a rider naming its own would be a second place for one
+sentence to go wrong.
+
+`save` keeps its **flat** `repeats` beside its flat `condition`, exactly as
+IE-001 kept `lasts` and `check` flat, and `conditionRiderOf` folds it onto the
+first rider. Onto the *first* and not onto each: one boundary owes one save,
+whatever the failure imposed.
+
+**A host that rolled no saving throw has none to repeat**, and the type cannot
+say so, because one `ConditionRider` is shared by all four hosts — which is the
+point of it. `checkSpellDefinition` refuses `repeats` on a rider hosted by an
+`attack` or a `condition`, which is the argument the `condition` kind's own
+docstring had been making in prose since that kind arrived.
+
+### Three places enforce that a rider is a leaf, because one is not enough
+
+| Where | What |
+|---|---|
+| the type system | `ConditionRider`, `ModifierRider` and `DelayedDamage` are closed interfaces over primitives; none references `SpellEffect`, `targets` or `area` |
+| `checkShape` | a **denylist**: nothing below an effect may carry `effects`, `targets`, `targetsWithin`, `area`, or a `kind` in `EFFECT_KINDS`, and the nesting is depth-bounded |
+| `spell-schema.test.ts` | a sweep walks every catalogue effect as JSON — the spell's own list, an area trigger's, an activation's — and asserts the same of all of them |
+
+A denylist rather than an allowlist, which is the reading `checkShape` takes
+everywhere else: **a field the engine does not know is not an error.** And
+`RIDER_KINDS ∩ EFFECT_KINDS = ∅` is one assertion, because a kind that were
+both would be the recursion arriving through a name collision instead of
+through a type.
+
+### A rider the casting owns needs something to end it
+
+`releaseCasting` ends a rider when the casting ends — and a definition with no
+`durationSeconds`, no `durationUntil`, no `concentration` and no
+`untilDispelled` **never becomes an ongoing casting**, so nothing would ever
+end it. So a casting-owned `conditions` rider on such a definition must say
+`lasts`, or say `outlivesCasting`; a `modifiers` rider on one is refused
+outright, because it cannot say either. Fable asked whether the catalogue
+already held a latent never-released condition; it did not, which is what makes
+this a missing guard rather than an unreported defect.
+
+**It is `checkGrantLifetimes`, and it is one rule over four things.** Two tasks
+wrote it independently in the same tranche — once over the standalone grant
+kinds, once over the riders — and what survived is the union: a `buff`, a
+granted `roll-mode`, an `armor-class` and a rider are all `grantCarried`'s
+answer, all one `grant_without_lifetime`, reported at the effect. Two codes for
+one defect would have been the second place to get one sentence wrong, which is
+the failure this file names about every duplicated rule. `grantCarried` walks
+**every** condition rider rather than the first, because a plural slot is
+exactly where a second offender hides behind a first that is fine.
+
+**That is why `RiderDuration` gained a span of seconds.** Sunburst's Blinded
+lasts "for 1 minute" on an **Instantaneous** spell: there is no casting
+deadline to borrow and no turn in the order that means a minute.
+`durationSeconds: 60` on the definition was the tempting answer and the wrong
+one — it would make a flash of light an ongoing, dispellable spell.
+
+**And a modifier rider carries no `lasts` at all.** `EffectTarget` ends a
+condition instance, a casting or a feature, and **nothing ends a grant before
+its casting does** — so a rider shorter than its casting is not expressible and
+the type does not pretend otherwise. Phantasmal Killer's "for the duration"
+fits; a future "for 1 minute" on an Instantaneous host needs a fourth
+`EffectTarget` member, which is the gap this file already names for Superior
+Hunter's Defense.
+
+### `roll-mode.save` is gone, and it is what a speculative field looks like
+
+It had **zero** users in the catalogue from the day it was written — Blur and
+Beacon of Hope are the only `roll-mode` effects and neither spell asks anybody
+to resist. The rider vocabulary made it redundant rather than merely unused: a
+spell whose mode is imposed by a failed save writes the save as its *host* and
+hangs the mode as a `modifiers` rider, which is one roll shared rather than two
+spellings of one sentence. `buff.ability` stays, because Bane uses it; folding
+Bane into a `save` plus a rider would need `save` to permit no condition at
+all, which is a change with no rules gain.
+
+### Order is fixed in one place, and no test can hold it there yet
+
+Conditions, then modifiers, then delayed — decided once in `applyRiders` rather
+than by whichever host branch a reader happens to be looking at. Nothing in the
+engine can see the difference; the audit trail can.
+
+**And no fixture pins the cross-slot half, which is worth saying rather than
+implying.** No castable definition carries two slots at once, so a mutation
+swapping the two loops changes no event anybody can produce — and a homebrew
+definition carrying both would validate and still not be castable, because
+`definitionFor` reads the catalogue rather than state. What *is* driven is the
+order **within** a slot: Phantasmal Killer's two grants and Hideous Laughter's
+two conditions each land in the order their SRD sentence names them.
+
+### What a settled outcome still may not carry
+
+Each is a named missing piece rather than a vague edge, and none of them is
+excluded for being large:
+
+| Missing | Wanted by |
+|---|---|
+| A rider on the outcome of the host's **damage** — a third axis, save → damage → 0 Hit Points | Disintegrate, alone |
+| A rider that names targets or an area | Ice Knife, Chromatic Orb — both different mechanisms |
+| A rider on the **success** or the **miss** branch | Flesh to Stone's "its Speed is 0", Ray of Enfeeblement |
+| Ending another casting, or breaking somebody's Concentration | Sleet Storm |
+| Forbidding or compelling an action | Shocking Grasp, Slow |
+| A granted Speed, Resistance, or a push | Ray of Frost, Hypnotic Pattern, Stoneskin, Thunderwave |
+
+**The rule for admitting a future rider is stated rather than a slot being
+reserved.** A primitive may become a rider member **iff** it is a leaf — rolls
+no d20, names no target, spends nothing, opens no window, touches no state it
+did not create — and its lifetime is the casting's or a `lasts`. A closed union
+reserves nothing: do not add a member ahead of its primitive; add it *with* the
+primitive and its validator line.
+
+### `OngoingSpell.on` has one rule, and the caster branch was a second one
+
+**A casting is on a creature while it has a live effect there that the casting
+owns.** `alsoOn` has applied that since persistent areas landed, and
+`expireEffects` reads it in reverse. The record's own write applied a *different*
+rule in one branch: a Range: Self casting was recorded as `[casterId]` and
+`held` — every creature the casting had just put something on — was thrown
+away.
+
+SRD Sunbeam is the spell that meets it. The beam comes out of the caster, so
+the casting is on them; it also blinds whoever the Line catches, and that
+Blinded is a condition the casting owns and will take away again. A Dispel
+Magic aimed at the blinded creature found nothing to end. One rule now: **the
+caster, and whoever the casting is holding something on.**
 
 ## Spells The Engine Executes
 
@@ -3593,6 +3777,12 @@ candidate writes the sentence, and a field with no user is a guess — the
 argument `RiderDuration` already makes in the other direction. What the shape
 *does* keep is `check`, because "a creature can take an action to make a
 Strength (Athletics) check" is a different sentence and a real one.
+
+That argument is now a **validator rule** rather than a docstring. `repeats`
+moved onto `ConditionRider`, which all four hosts share, so the type can no
+longer say it — and `checkSpellDefinition` refuses it on a rider hosted by a
+`condition` or an `attack`, both of which roll no saving throw. See "A Settled
+Outcome Carries Riders, And A Rider Is A Leaf".
 
 **It is the fourth consumer of one `ConditionRider`, not a fourth spelling of
 one.** `attack`, `save-damage` and `save` each imposed a condition through a
