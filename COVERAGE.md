@@ -220,11 +220,11 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-stat-block-created-mid-fight` | 15 | 4 | 1 | 0 | 14 |
 | `an-action-a-spell-compels-or-forbids` | 26 | 3 | 9 | 0 | 17 |
 | `a-rider-on-a-later-weapon-attack` | 10 | 3 | 0 | 0 | 10 |
+| `a-casting-ended-by-a-trigger` | 29 | 2 | 8 | 0 | 21 |
 | `a-second-place-to-put-a-creature` | 17 | 2 | 1 | 0 | 16 |
 | `a-target-rule-the-format-cannot-state` | 13 | 2 | 0 | 0 | 13 |
 | `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 10 |
 | `teleportation` | 9 | 2 | 0 | 1 | 8 |
-| `a-casting-ended-by-a-trigger` | 29 | 1 | 8 | 0 | 21 |
 | `a-random-outcome-that-is-not-a-d20` | 19 | 1 | 0 | 0 | 19 |
 | `difficult-terrain-an-area-creates` | 18 | 1 | 5 | 0 | 13 |
 | `a-barrier-that-blocks-passage` | 12 | 1 | 0 | 0 | 12 |
@@ -232,7 +232,6 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `a-condition-immunity-a-spell-grants` | 10 | 1 | 0 | 0 | 10 |
 | `a-duration-the-slot-changes` | 10 | 1 | 4 | 0 | 6 |
 | `a-spells-effects-applied-to-different-targets` | 10 | 1 | 0 | 0 | 10 |
-| `a-fact-only-the-table-can-declare` | 9 | 1 | 5 | 0 | 4 |
 | `what-a-creature-is-holding` | 9 | 1 | 3 | 0 | 6 |
 | `a-repeat-save-that-does-something-on-a-failure` | 8 | 1 | 2 | 0 | 6 |
 | `a-flat-amount-with-no-dice` | 6 | 1 | 0 | 0 | 6 |
@@ -271,6 +270,7 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `an-ability-score-a-spell-changes` | 4 | 0 | 0 | 0 | 4 |
 | `an-outcome-that-reads-the-targets-hit-points` | 4 | 0 | 0 | 0 | 4 |
 | `a-casting-dismissed-early` | 3 | 0 | 0 | 0 | 3 |
+| `a-fact-only-the-table-can-declare` | 3 | 0 | 0 | 0 | 3 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 |
 | `a-one-shot-roll-modifier` | 3 | 0 | 2 | 0 | 1 |
 | `a-payout-at-a-turn-boundary` | 3 | 0 | 0 | 0 | 3 |
@@ -285,6 +285,7 @@ ranked at 17, at 4 and at 2 in three different documents.
 | `an-outcome-that-breaks-concentration` | 2 | 0 | 0 | 0 | 2 |
 | `healing-modified-by-an-effect` | 2 | 0 | 2 | 0 | 0 |
 | `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 2 | 0 | 0 |
+| `a-bonus-narrowed-to-a-skill` | 1 | 0 | 0 | 0 | 1 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 |
 | `a-damage-penalty-a-spell-grants` | 1 | 0 | 0 | 0 | 1 |
 | `a-dc-the-caster-does-not-set` | 1 | 0 | 0 | 0 | 1 |

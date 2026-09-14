@@ -47,6 +47,7 @@ import {
   isCreatureType,
   type SpellArea,
   type SpellDefinition,
+  statesFoughtFact,
   targetCountFor,
 } from '../spell-definitions.js';
 import { type SlotlessReason } from '../spells.js';
@@ -236,6 +237,38 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly damageType?: string;
   /**
+   * Which creatures the caster or their allies are fighting.
+   *
+   * SRD Charm Person: "One Humanoid you can see within range makes a Wisdom
+   * saving throw. It does so with Advantage if you or your allies are fighting
+   * **it**." Charm Monster prints it word for word and the three Dominates
+   * print it with the clauses swapped round.
+   *
+   * **A list, because the SRD asks it of the target and not of the casting.**
+   * Both Charms carry `extraPerSlotLevelAbove: 1`, so an upcast casting names
+   * several creatures — and a level 2 Charm Person at the goblin you are
+   * fighting and the bystander you are not has two different answers. One
+   * boolean would have been silently wrong for one of the two saves, with no
+   * refusal and no `unverified` line to say so.
+   *
+   * The engine does not hold the fact and will not derive one. **`side` is a
+   * different question**: allegiance may be undeclared, an enemy may be one
+   * nobody has yet come to blows with, and a Charmed ally may be fought while
+   * still on the party's side — so substituting it would be the engine
+   * answering the question the caster was asked, which is the error recorded
+   * for Spirit Guardians' designated creatures.
+   *
+   * Required by a spell that prints the clause and meaningless on every other,
+   * both of which are refusals rather than quiet defaults: an answer the engine
+   * fills in is a fact it invented.
+   *
+   * **An empty list is an answer and is never elided**, which is the one place
+   * this differs from {@link CastSpellRequest.unaffected} — see
+   * {@link foughtFor}. "We are fighting none of them" is a fact the caster
+   * stated; absence is a caller who has not read the spell.
+   */
+  readonly fought?: readonly CharacterId[];
+  /**
    * How to pay for it.
    *
    * **Default:** a slot when `slotLevel` is given, and nothing at all for a
@@ -277,6 +310,27 @@ export const castingIdentity = ({ anchoring, ...rest }: CastSpellRequest): CastS
   anchoring === undefined || anchoring === 'space' ? rest : { ...rest, anchoring };
 
 /**
+ * The creatures a casting said it was fighting, normalised once.
+ *
+ * Sorted for the reason `statedFacts` sorts the designation: the answer reaches
+ * the pending record, so two declarations that mean the same thing have to fold
+ * to the same bytes.
+ *
+ * **And never elided**, which is exactly where it parts company with the
+ * designation it otherwise copies. An empty `unaffected` means the caster
+ * spared nobody, which is what a spell with no such clause also means, so the
+ * two are the same record. An empty `fought` means the caster answered "none of
+ * them" to a question the spell **insisted** on — and absence means they
+ * answered nothing, which `declaredFacts` refuses. Eliding it would turn a
+ * settled casting into one that could never have been declared. The next reader
+ * will expect these two fields to behave alike; here they must not.
+ */
+export const foughtFor = (request: {
+  readonly fought?: readonly CharacterId[];
+}): readonly CharacterId[] | undefined =>
+  request.fought === undefined ? undefined : [...request.fought].sort();
+
+/**
  * A casting that has already been paid for and is waiting to be let go.
  *
  * SRD Ready is the only thing that produces one: the slot went when the spell
@@ -313,12 +367,13 @@ export const anchoringFor = (
  * The clauses a casting states rather than derives, checked before anything is
  * spent.
  *
- * Two SRD sentences, both about facts the engine cannot see for itself:
+ * Three SRD sentences, all about facts the engine cannot see for itself:
  *
  * | Clause | Spells | Why the engine will not decide it |
  * |---|---|---|
  * | "you can designate creatures to be unaffected by it" | Spirit Guardians, Alarm | it is the caster's choice, and allegiance is a different question |
  * | "Radiant (if you are good or neutral) or Necrotic (if you are evil)" | Spirit Guardians | alignment is held for a character the engine built and for nobody else |
+ * | "with Advantage if you or your allies are fighting it" | the two Charms, the three Dominates | being at war with somebody is not being on the other side, and `side` may be undeclared |
  *
  * **A field a spell does not print is a refusal, not a shrug.** A caller who
  * designates somebody unaffected by a Fireball has misunderstood something,
@@ -343,6 +398,43 @@ export function declaredFacts(
     if (new Set(named).size !== named.length) {
       return err('duplicate_designation', `${definition.name} may not designate the same creature twice`);
     }
+  }
+
+  // — is the caster fighting the target ————————————————————————————————————
+  //
+  // The same shape as the damage type below it and the same two refusals:
+  // **required** where the spell prints the clause, **refused** where it does
+  // not. What differs is the arity: the SRD asks this of the *target*, and an
+  // upcast Charm Person names several — so the answer is a list, and an
+  // **empty** one is the caster saying "none of them". That is why the
+  // required half asks whether the field is `undefined` rather than whether it
+  // is empty, and why {@link foughtFor} never elides it.
+  if (statesFoughtFact(definition)) {
+    if (request.fought === undefined) {
+      return err(
+        'fought_fact_required',
+        `${definition.name} rolls each target's save with Advantage if you or your allies are fighting that creature, and the engine does not know which; name them, or name none`,
+      );
+    }
+    // The same two checks the designation above makes, because it is the same
+    // kind of list: creatures the caller named, which the engine validates and
+    // never invents. A duplicate changes no outcome — both are read as
+    // membership — and is refused for the reason a duplicate designation is,
+    // that a caller listing one creature twice has lost track of its own list.
+    for (const who of request.fought) {
+      if (creatureOf(state, who) === null) return unknownCreature(who);
+    }
+    if (new Set(request.fought).size !== request.fought.length) {
+      return err(
+        'duplicate_fought_target',
+        `${definition.name} may not be told the same creature is being fought twice`,
+      );
+    }
+  } else if (request.fought !== undefined) {
+    return err(
+      'no_fought_clause',
+      `${definition.name} does not change its save for a creature you are fighting; which of them you are fighting is not a fact it asks for`,
+    );
   }
 
   const types = definition.damageTypeStated;

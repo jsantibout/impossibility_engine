@@ -128,6 +128,7 @@ const SETUP: readonly GameEvent[] = [
         'spirit-guardians',
         'vampiric-touch',
         'counterspell',
+        'charm-person',
       ],
     }),
   },
@@ -832,6 +833,60 @@ describe('a casting designates each creature once', () => {
       supply(),
     );
     expect(refusal(out)).toBe('duplicate_designation');
+  });
+});
+
+describe('a casting answers the question its spell asks, and only that one', () => {
+  /**
+   * SRD Charm Person: "It does so with Advantage if you or your allies are
+   * fighting it." The engine does not hold that fact and will not derive one —
+   * `side` is a different question and may be undeclared — so the casting
+   * states it, and a casting that says nothing is refused before a slot goes.
+   *
+   * An answer the engine filled in would be a fact it invented, which is the
+   * one thing this whole three-valued discipline exists to stop. Naming the
+   * **empty** list is a real answer and is not this case: the caster read the
+   * spell and said they were fighting nobody.
+   */
+  it('refuses a casting that does not say which creatures are being fought', () => {
+    const out = resolveSpell(
+      world(),
+      A,
+      { spellId: 'charm-person', targets: [B], slotLevel: 1 },
+      supply(),
+    );
+    expect(refusal(out)).toBe('fought_fact_required');
+  });
+
+  /**
+   * And the other half, which is the mirror of `damage_type_fixed`: a field a
+   * spell does not print is a caller who has misunderstood the spell, not a
+   * field to drop quietly.
+   */
+  it('refuses the fact from a spell that prints no such clause', () => {
+    const out = resolveSpell(
+      world(),
+      A,
+      { spellId: 'hold-person', targets: [B], slotLevel: 2, fought: [B] },
+      supply(),
+    );
+    expect(refusal(out)).toBe('no_fought_clause');
+  });
+
+  /**
+   * The list is a set of facts the caller assembled, so naming one creature
+   * twice means they have lost track of it — the reading the neighbouring
+   * designation already takes, and the one place these two fields agree that
+   * the empty list is not.
+   */
+  it('refuses the same creature named as fought twice', () => {
+    const out = resolveSpell(
+      world(),
+      A,
+      { spellId: 'charm-person', targets: [B], slotLevel: 1, fought: [B, B] },
+      supply(),
+    );
+    expect(refusal(out)).toBe('duplicate_fought_target');
   });
 });
 

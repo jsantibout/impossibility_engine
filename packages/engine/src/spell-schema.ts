@@ -1745,11 +1745,72 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
           reason: `"${String(kind)}" is not an effect the engine resolves`,
         });
       }
+      checkFoughtClause(effect, kind, where, `${where}[${i}]`, found);
       checkNoNestedEffect(effect, `${where}[${i}]`, found);
     });
   }
 
   return found;
+}
+
+/**
+ * Where SRD's "if you or your allies are fighting it" may be written.
+ *
+ * Two rules over one clause, and both are entry-level and list-aware, which is
+ * why they are `checkShape`'s rather than `checkEffect`'s — the division
+ * {@link effectLists} records.
+ *
+ * **On a host that rolls a saving throw.** The clause gives *that save*
+ * Advantage; an `attack` or a `heal` has no save for it to reach, and a field
+ * quietly ignored is an author who thinks they said something. `save` is the
+ * only kind that carries it, because the five spells that print it — Charm
+ * Person, Charm Monster and the three Dominates — all write a bare Wisdom save.
+ *
+ * **In the casting's own effect list, and nowhere nested.** The fact is stated
+ * once, at the casting: `declaredFacts` requires it before a slot is spent and
+ * `PendingCasting` pins it for a settlement. An area trigger fires a minute
+ * later off an `OngoingSpell` that carries no such fact, and an activation the
+ * same — so a clause written there would be read by nothing and the Advantage
+ * would silently not happen, which is the class of failure this repository
+ * calls its worst. Refused here rather than left to be discovered.
+ *
+ * The value is `true` and nothing else, because absence is how a spell says it
+ * does not print the clause and `false` would be a second way to say it.
+ */
+function checkFoughtClause(
+  effect: object,
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const stated = (effect as { advantageIfFought?: unknown }).advantageIfFought;
+  if (stated === undefined) return;
+
+  if (where !== 'effects') {
+    found.push({
+      field: `${path}.advantageIfFought`,
+      code: 'fought_outside_the_casting',
+      reason:
+        'the caster states whether they are fighting the target at the casting, so only the casting’s own saving throw can read it',
+    });
+    return;
+  }
+  if (kind !== 'save') {
+    found.push({
+      field: `${path}.advantageIfFought`,
+      code: 'fought_without_save',
+      reason: 'SRD gives the Advantage to a saving throw, and this effect rolls none',
+    });
+    return;
+  }
+  if (stated !== true) {
+    found.push({
+      field: `${path}.advantageIfFought`,
+      code: 'malformed_field',
+      reason: 'a spell either prints the clause or does not; the only value is true',
+    });
+  }
 }
 
 /**

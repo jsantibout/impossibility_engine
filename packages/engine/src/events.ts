@@ -555,6 +555,23 @@ export interface PendingCasting {
    */
   readonly damageType?: string;
   /**
+   * Which creatures the caster or their allies are fighting.
+   *
+   * SRD Charm Person: "It does so with Advantage if you or your allies are
+   * fighting **it**." The third fact a caster states at the casting, pinned
+   * here beside the other two and for the same reason — settlement takes no
+   * fresh request, so this is the only place it can come from. Dropped, a Charm
+   * Person declared against a creature the party is fighting settles with an
+   * ordinary save and nothing in the log says why.
+   *
+   * A list, because the clause is about the target and an upcast Charm Person
+   * names several. Sorted on the way in, and **empty rather than absent** where
+   * the caster answered "none of them" — absence means the spell never asked,
+   * which is every spell but the five that print the clause, and is what makes
+   * a declaration written before this fold to exactly the state it always did.
+   */
+  readonly fought?: readonly CharacterId[];
+  /**
    * Creatures the caster designated unaffected, for a spell that offers it.
    *
    * SRD Spirit Guardians: "When you cast this spell, you can designate

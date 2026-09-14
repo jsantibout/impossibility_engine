@@ -98,7 +98,9 @@ export const MISSING_SHAPES = {
   'a-mode-on-the-save-a-spell-forces':
     'CLAUDE.md: "nothing records what a save was against" — the sentence that already blocks Countercharm. A `RollModifier` selects a roll by family, ability and skill, so there is no way to select the saving throws an effect from a Fiend forces. **Re-described rather than kept**: the audit found this id claimed by six clauses whose real blockers were three different things, and that the description misstated its own. What is left is the clause that genuinely needs a save to remember its provenance.',
   'a-fact-only-the-table-can-declare':
-    'a fact the engine does not hold and cannot derive, which a rule then reads — "if you or your allies are fighting it", how well you know a creature, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these five clauses were found filed as a selector problem when what they want is the fact.',
+    'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact and this is what it left**: `CastSpellRequest.fought` carries it and the five spells that read it as Advantage are finished, while SRD Enthrall reads the same fact as "Any creature you or your companions are fighting automatically succeeds on this save" — an outcome `checks.ts` has no `autoSucceed` for, beside `autoFail`, and which no definition could write until it does.',
+  'a-bonus-narrowed-to-a-skill':
+    'a bonus or penalty that reaches one **skill** rather than the whole family, and reaches Passive Perception. CLAUDE.md names the axis and its whole membership — "covers attacks, saves and ability checks — all rolls" and now an Armour Class — and a skill is not a member, so SRD Enthrall’s "a −10 penalty to Wisdom (Perception) checks and Passive Perception" would land on every ability check the target ever makes. `passivePerception` reads the sheet and no stored bonus at all, so the second half has no reader whatever. The narrower residue of the fought fact IE-030 built, and the reason Enthrall is not finished by it.',
   'an-automatic-success-by-creature-type':
     'IE-019 built `TypedSaveOutcome`, and spell-definitions.ts says exactly how far: "Two consumers, and they are the two shapes the SRD prints — Blight’s automatic failure and Shatter’s Disadvantage." The book prints a third, and one spell writes it: an automatic **success**. A two-member union missing its third member is a narrower gap than the family it came out of, and is what is left of it on this axis.',
   'a-filter-on-the-attackers-creature-type':
@@ -470,22 +472,12 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'charm-monster': [
     {
-      clause: 'the save has Advantage',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "It does so with Advantage if you or your allies are fighting it." Both facts are held — the sides are declared and the fight is in the log — and no modifier can be aimed at the saving throw a particular casting calls for.',
-    },
-    {
       clause: 'ends early if you or your allies damage',
       why: 'a-casting-ended-by-a-trigger',
       note: 'SRD: the Charmed condition lasts "until the spell ends or until you or your allies damage it". The damage event names its dealer and the sides are declared, and no casting can hang its ending on either.',
     },
   ],
   'charm-person': [
-    {
-      clause: 'the save has Advantage',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "It does so with Advantage if you or your allies are fighting it." The engine rolls that save itself and has no way to be told that this particular save is the one being helped.',
-    },
     {
       clause: 'ends early if you or your allies damage',
       why: 'a-casting-ended-by-a-trigger',
@@ -563,11 +555,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'dominate-beast': [
     {
-      clause: 'the save has Advantage',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "The target has Advantage on the save if you or your allies are fighting it." Nothing records what a save was against, so no grant can reach the one this casting forces.',
-    },
-    {
       clause: 'whenever it takes damage',
       why: 'a-repeat-save-raised-by-a-trigger',
       note: 'SRD: "Whenever the target takes damage, it repeats the save, ending the spell on itself on a success." The save is raised by a damage event rather than by a boundary, and the turn hook is the only thing that raises one.',
@@ -585,11 +572,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'dominate-monster': [
     {
-      clause: 'the save has Advantage',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "The target has Advantage on the save if you or your allies are fighting it." The save this casting rolls has no identity a modifier could name.',
-    },
-    {
       clause: 'whenever it takes damage',
       why: 'a-repeat-save-raised-by-a-trigger',
       note: 'SRD raises another Wisdom save each time the target takes damage; the engine raises repeat saves at turn boundaries and nowhere else.',
@@ -606,11 +588,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     },
   ],
   'dominate-person': [
-    {
-      clause: 'the save has Advantage',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "The target has Advantage on the save if you or your allies are fighting it." Both halves of that condition are facts the engine holds and cannot attach to a save.',
-    },
     {
       clause: 'whenever it takes damage',
       why: 'a-repeat-save-raised-by-a-trigger',
@@ -1350,7 +1327,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'a-target-rule-the-format-cannot-state',
   ],
   entangle: ['an-area-that-filters-its-catch', 'difficult-terrain-an-area-creates'],
-  enthrall: ['a-fact-only-the-table-can-declare'],
+  enthrall: ['a-bonus-narrowed-to-a-skill', 'a-fact-only-the-table-can-declare'],
   etherealness: ['a-second-place-to-put-a-creature', 'speed-and-movement-modes'],
   'expeditious-retreat': ['an-action-a-spell-compels-or-forbids'],
   eyebite: [
@@ -1530,7 +1507,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly ShapeId[]>> = {
     'senses-beyond-declared-sight',
   ],
   mislead: ['a-casting-ended-by-a-trigger'],
-  'modify-memory': ['a-casting-ended-by-a-trigger', 'a-fact-only-the-table-can-declare'],
+  'modify-memory': ['a-casting-ended-by-a-trigger'],
   'pass-without-trace': ['a-standing-effect-derived-from-where-a-creature-stands'],
   'phantasmal-force': ['a-payout-at-a-turn-boundary', 'an-area-trigger-measured-from-a-point'],
   'phantom-steed': ['a-casting-ended-by-a-trigger', 'a-stat-block-created-mid-fight'],

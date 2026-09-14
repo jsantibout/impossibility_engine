@@ -3855,7 +3855,8 @@ the spell. **Advantage** is absent for the opposite reason — no SRD sentence
 gives a named *type* Advantage on a save at all. The five that hand a save
 Advantage (Charm Person, Charm Monster, the three Dominates) key it on "if you
 or your allies are fighting it", a declared fact about the casting rather than
-a property of the creature, and that is a task of its own.
+a property of the creature — which is a different mechanism and is now built.
+See "A Casting States Whether It Is Being Fought".
 
 **The extra die is a bare notation, not a `DiceScaling`.** Divine Smite's
 *base* grows per slot level and the type sentence does not, so a
@@ -3941,6 +3942,123 @@ second place the engine has nowhere to put anybody. Its clause is re-filed to
 `a-second-place-to-put-a-creature`, which its *other* clause already claimed. A
 field with one user would have been the wrong answer to that, and this
 repository has just spent a whole audit finding members nobody uses.
+
+### A Casting States Whether It Is Being Fought
+
+SRD Charm Person, whole sentence: "One Humanoid you can see within range makes
+a Wisdom saving throw. **It does so with Advantage if you or your allies are
+fighting it.**" Charm Monster prints it word for word and the three Dominates
+print it with the clauses swapped round. The engine does not hold that fact and
+cannot derive one, so the casting **states** it — the third fact a caster
+states, beside the damage type and the designation, in exactly the shape those
+two already are.
+
+**It is not `side`, and substituting it would get both directions wrong.**
+Allegiance and being at war with somebody are different questions: a bandit is
+an enemy nobody has yet come to blows with, a Charmed ally is fought and still
+on the party's side, and `side` may simply be undeclared. That is the error
+this file already records for Spirit Guardians' designated creatures —
+*"a cleric may spare an enemy and may decline to spare an ally"* — arriving on
+the other axis. The fixture that says so casts the same spell at a creature on
+the caster's **own** side and at an enemy, and states the fact both ways round;
+a test that declared sides and then asserted the save would prove nothing about
+which of the two facts was read.
+
+**It is not a `RollModifier` either.** `roll-modifiers.ts` selects a roll by
+family, relation, ability and skill, and none of those can say "the saving
+throw *this casting* is calling for" — the sentence that has blocked
+Countercharm since it was written, met from the other side. The fourth audit's
+"C2" proposed a selector axis for these five spells and would have made **zero**
+of them whole; what they want is the fact.
+
+**It is a list, because the SRD asks it of the target and not of the casting.**
+"…if you or your allies are fighting **it**" — and both Charms carry
+`extraPerSlotLevelAbove: 1`, so a level 2 Charm Person names the goblin you are
+fighting *and* the bystander you are not, and those are two different saves out
+of one casting. A boolean answers once and is then silently wrong for one of
+them, with no refusal and no `unverified` line — the wrong-number-with-no-symptom
+this file calls its worst failure. The brief prescribed the boolean and the book
+overrides it, which is the foreman's own correction recorded on the task file.
+
+**The shape is `unaffected`'s**, deliberately: a list of creature ids the caller
+names, validated against the world, refused for a stranger and for a duplicate,
+sorted into the pending record. Nothing about it is invented — it is the
+neighbouring clause of the same paragraph of the same spells.
+
+**And the one place the two part company is the empty list.** An empty
+`unaffected` is elided, because "I spared nobody" is what a spell with no such
+clause also means. An empty `fought` is the caster answering **"none of them"**
+to a question the spell *insisted* on, and absence is a caller who has not read
+the spell — so eliding it would turn a settled casting into one that could never
+have been declared. `foughtFor` is where that is written down, because the next
+reader will expect the two fields to behave alike and here they must not.
+
+**No default, in either direction.** An answer the engine filled in is a fact it
+invented, so a spell that prints the clause and a casting that says nothing is
+`fought_fact_required`, and a spell that prints none being told the fact is
+`no_fought_clause` — the exact mirror of `damage_type_required` and
+`damage_type_fixed`, and refused before a slot, an action or a die.
+
+**The discriminating fixture is the upcast casting**, and every other fought
+fixture names a single target, under which a per-target list and a per-casting
+boolean are indistinguishable. That is the multiclass fixture and the Rogue who
+resisted nothing, met a third time; it is what an independent review found, and
+the boolean had already shipped past a green suite when it did.
+
+**A mode, never a number.** It reaches the roll as a named `ModeSource` and
+`combineRollModes` decides, so a fought target who is also Restrained rolls a
+normal save rather than a net-positive one, and `modeSources` still names both.
+It is read **inside** the per-target loop, which is what the list buys.
+Folding it into a bonus would have been the arithmetic this file refuses
+everywhere else.
+
+**It rides on the pending record, because settlement takes no fresh request.**
+`PendingCasting` pins the targets, the origin, the area and the damage type for
+one reason, and this belongs to that sentence: a Charm Person declared against a
+creature the party is fighting must settle with the Advantage the book gives it.
+It is carried **beside** `statedFacts` rather than through it, because that
+function also feeds the ongoing record and no later sentence of any of the five
+spells re-rolls the save — a field on the record that nothing reads is the
+second answer to one question this file keeps naming.
+
+**The clause has one home, and the validator says so.** It sits on a `save`,
+because the five spells all write a bare Wisdom save and no other host rolls
+one; and it sits in the definition's **own** effect list and in neither an area
+trigger's nor an activation's, because those fire off an `OngoingSpell` that
+carries no stated fact — a clause written there would be read by nothing and the
+Advantage would silently not happen. Both are `checkShape`'s, which is where
+IE-024 put an entry-level, list-aware rule.
+
+#### The query predicted a spell finished, and the book says otherwise
+
+`a-fact-only-the-table-can-declare` blocked nine spells and was the **only**
+blocker recorded for Enthrall, so the derivation said building this would finish
+it. It did not, and the correction is the sharper half of the batch:
+
+| Predicted | What happened |
+|---|---|
+| the two Charms and the three Dominates lose the clause | **five closed** — right |
+| Modify Memory loses the blocker | right, in different words: "If you are fighting the creature, it has Advantage on the save" |
+| Enthrall finished | **wrong**, on two counts |
+
+SRD Enthrall: "Any creature you or your companions are fighting **automatically
+succeeds** on this save." The *fact* is declarable now and the **outcome** is
+not — `checks.ts` carries `autoFail` and no `autoSucceed`, and a member with no
+definition able to write it is what the format's own unused-member sweep exists
+to catch. And its failure branch is "a −10 penalty to Wisdom (Perception) checks
+and Passive Perception", which `BonusApplies` cannot narrow to a skill and which
+nothing reaches on a Passive score at all. That second half was never about the
+fact and the entry had never recorded it, so it is a narrower id of its own,
+`a-bonus-narrowed-to-a-skill` — the move `a-condition-immunity-a-spell-grants`
+already made when IE-017 built the other half of a bundle.
+
+**This is IE-017's lesson arriving a second time**: a count is only as good as
+the shape it counts, and the way to find out which shapes are bundles is to
+build one. `blocked-on.test.ts` records it in the shape that file already uses,
+and the split-bundle arithmetic gained the second reason a clause may honestly
+leave the map — **the shape stands and *this clause* was built** — as a reviewed
+list rather than a blanket escape, because nothing derived can tell a partial
+build from a silent loss.
 
 ### A spell may declare the footprint its template wants
 

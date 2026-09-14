@@ -95,6 +95,7 @@ import {
   castingIdentity,
   type CastSpellRequest,
   declaredFacts,
+  foughtFor,
   type HeldCasting,
   namedTargets,
   placeOrigin,
@@ -203,6 +204,10 @@ export function resolveDeclaredCast(
       // which is every other spell in the book.
       effects: statedDamageType(definition.effects, pending.damageType),
       ...(pending.origin === undefined ? {} : { from: pending.origin }),
+      // The third stated fact, read back off the record rather than from a
+      // fresh request there is none of. A held Charm Person settles with the
+      // Advantage its caster said it had.
+      ...(pending.fought === undefined ? {} : { fought: pending.fought }),
       ...(persists(definition)
         ? {
             becomesOngoing: {
@@ -381,7 +386,7 @@ export function castOrRelease(
     ];
     const needs: ContextRequest[] = [];
 
-    // — the two facts the caster states, and the engine will not guess ————————
+    // — the three facts the caster states, and the engine will not guess ——————
     //
     // Validated here, before a slot or an action is spent, so a casting that
     // names an unknown creature or a damage type the spell never prints costs
@@ -518,6 +523,13 @@ function resolveOnTargets(
   // writes for its own settlement to read back.
   const stated = statedFacts(request);
 
+  // The third stated fact, normalised beside them and **not through them**,
+  // for two reasons that both matter. `statedFacts` also feeds the ongoing
+  // record, and no later sentence of any of the five spells re-rolls the save,
+  // so keeping this there would be a field nothing reads. And it elides an
+  // empty list, which this must never do: see `foughtFor`.
+  const fought = foughtFor(request);
+
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
     // **Three answers, stated rather than inferred.** A Range: Self spell is
@@ -577,6 +589,7 @@ function resolveOnTargets(
       events,
       effects: running,
       ...(origin === null ? {} : { from: origin }),
+      ...(fought === undefined ? {} : { fought }),
       // A released spell leaves the same thing running that a cast one does.
       // This was the one resolution path of three that wrote no record, so a
       // readied Bless was running, concentrated on, and invisible to Dispel
@@ -651,11 +664,15 @@ function resolveOnTargets(
               unverified,
               ...(origin === null ? {} : { origin }),
               ...(area === null ? {} : { area }),
-              // The same two stated facts, from the same normalisation the
+              // The same three stated facts, from the same normalisation the
               // atomic path uses. A casting held open for a Counterspell is
               // still the casting its caster described, and the settlement has
               // no request to read them off.
+              //
+              // `fought` is normalised by `foughtFor` rather than by
+              // `statedFacts` — see where it is bound above.
               ...stated,
+              ...(fought === undefined ? {} : { fought }),
             },
           }
         : {}),
@@ -690,6 +707,7 @@ function resolveOnTargets(
     events,
     effects: running,
     ...(origin === null ? {} : { from: origin }),
+    ...(fought === undefined ? {} : { fought }),
     ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
   });
   if (!resolved.ok) return resolved;
@@ -1033,6 +1051,12 @@ interface EffectContext {
   readonly label: string;
   /** Where the spell acts **from**, when that is not the caster’s own space. */
   readonly from?: Point;
+  /**
+   * Which creatures the caster or their allies are fighting, where the spell
+   * asks. Absent for every spell that does not print the clause; **empty where
+   * the caster answered "none of them"**, which is not the same thing.
+   */
+  readonly fought?: readonly CharacterId[];
   /** What the casting could not check, appended to as it resolves. */
   readonly unverified: string[];
   /** The batch being built. Appended to by every resolver. */
@@ -1716,6 +1740,7 @@ function resolveSaveEffect(
     outcomes,
     held,
     saveDc,
+    fought,
   } = ctx;
   let current = world;
 
@@ -1724,7 +1749,30 @@ function resolveSaveEffect(
   const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
     dc: saveDc,
     conditions: support.conditions,
-    modes: support.modes,
+    // SRD Charm Person: "It does so with Advantage if you or your allies are
+    // fighting **it**." The fact was stated at the casting and refused if it
+    // was not — `declaredFacts` asked before a slot went — so the only
+    // question left is whether the caster named *this* creature.
+    //
+    // **Per target, because that is who the sentence is about.** An upcast
+    // Charm Person names several, and the goblin you are fighting and the
+    // bystander you are not get different saves out of one casting.
+    //
+    // **Presence, not arithmetic.** It goes in as a named source and
+    // `combineRollModes` decides, so a fought target who is also Restrained
+    // rolls a normal save rather than a net-positive one, and `modeSources`
+    // still says both effects were in play.
+    modes: [
+      ...support.modes,
+      ...(effect.advantageIfFought === true && fought?.includes(target) === true
+        ? [
+            {
+              source: `${definition.name} (you or your allies are fighting it)`,
+              mode: 'advantage' as const,
+            },
+          ]
+        : []),
+    ],
     bonuses: support.bonuses,
   });
   if (!save.ok) return save;
@@ -2153,6 +2201,18 @@ export function resolveEffects(
      */
     readonly from?: Point;
     /**
+     * Which creatures the caster or their allies are fighting.
+     *
+     * SRD Charm Person gives a target's save Advantage when they are, and the
+     * engine neither holds the fact nor derives one — so it arrives here from
+     * the casting that stated it, or from the pending record a held casting
+     * wrote it on. It is read **per target**, inside the loop, because the
+     * book asks it of the creature rather than of the casting; it reaches the
+     * roll as a named `ModeSource` and never as a number, because Advantage
+     * cancels rather than stacks.
+     */
+    readonly fought?: readonly CharacterId[];
+    /**
      * Set when this casting leaves something running.
      *
      * Recorded **after** the effects rather than beside the slot, because what
@@ -2245,6 +2305,7 @@ export function resolveEffects(
     outcomes,
     held,
     ...(context.from === undefined ? {} : { from: context.from }),
+    ...(context.fought === undefined ? {} : { fought: context.fought }),
   };
 
   for (const target of targets) {

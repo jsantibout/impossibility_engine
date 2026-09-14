@@ -341,6 +341,20 @@ export interface CastingPlan {
    */
   readonly damageType?: string;
   /**
+   * Which creatures the caster or their allies are fighting.
+   *
+   * The third fact stated at the casting, beside the other two and for the
+   * same reason: SRD Charm Person gives each target's save Advantage "if you
+   * or your allies are fighting **it**", and settlement takes no fresh request
+   * — so a declaration made against a creature the party is fighting must
+   * settle with the Advantage the book gives it.
+   *
+   * Sorted by `foughtFor` and **never elided when empty**: "none of them" is an
+   * answer the spell demanded, and absence is a casting `declaredFacts` would
+   * have refused.
+   */
+  readonly fought?: readonly CharacterId[];
+  /**
    * Creatures the caster designated unaffected, for a spell that offers it.
    *
    * Sorted and non-empty, or absent. Normalised once, where the request is
@@ -549,11 +563,12 @@ function castSpellWith(
         targets: command.hold.targets,
         ...(command.hold.origin === undefined ? {} : { origin: command.hold.origin }),
         ...(command.hold.area === undefined ? {} : { area: command.hold.area }),
-        // The two facts the caster stated, carried verbatim. Already sorted
+        // The three facts the caster stated, carried verbatim. Already sorted
         // and already elided when empty by the layer that read the request —
         // re-normalising here would be the second copy that eventually
         // disagrees with the first.
         ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
+        ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
         unverified: command.hold.unverified,
         ...(deadline === undefined ? {} : { deadline }),

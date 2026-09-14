@@ -7,7 +7,12 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { resolveSpell } from './commands.js';
-import { SPELL_DEFINITIONS, definitionFor, riderDurations } from './spell-definitions.js';
+import {
+  SPELL_DEFINITIONS,
+  definitionFor,
+  riderDurations,
+  statesFoughtFact,
+} from './spell-definitions.js';
 
 /**
  * The spells poured into the shapes, driven rather than inspected.
@@ -236,10 +241,23 @@ const castAt = (
   // about its caster is refused until the caster's layer says which — see
   // `SpellDefinition.damageTypeStated`. The sweep states the first, because
   // the point here is that every definition casts, not which type it dealt.
-  const stated =
-    definition.damageTypeStated === undefined
+  //
+  // The second stated fact is the same shape: SRD Charm Person gives a target's
+  // save Advantage "if you or your allies are fighting **it**", the engine
+  // holds no such fact, and a casting that says nothing is refused. The sweep
+  // answers with the **empty list** — "none of them" — because a fought target
+  // rolls two dice and the point here is that every definition casts rather
+  // than how a save came out. That is also the case that would break if the
+  // empty list were ever elided the way a designation is, so this fixture is
+  // the one that would notice. `statesFoughtFact` is the runtime's own reader
+  // rather than a second reading of the field — the lesson `riderDurations`
+  // taught this file.
+  const stated = {
+    ...(definition.damageTypeStated === undefined
       ? {}
-      : { damageType: definition.damageTypeStated[0]! };
+      : { damageType: definition.damageTypeStated[0]! }),
+    ...(statesFoughtFact(definition) ? { fought: [] as readonly CharacterId[] } : {}),
+  };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —
   // correct by the rules, and a fixture that looked like a broken spell.

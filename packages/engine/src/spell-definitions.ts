@@ -715,6 +715,33 @@ export type SpellEffect =
   | {
       readonly kind: 'save';
       readonly ability: Ability;
+      /**
+       * SRD: "It does so with Advantage if you or your allies are fighting it."
+       *
+       * Five spells print the sentence — Charm Person, Charm Monster and the
+       * three Dominates — and the fact it turns on is one the engine does not
+       * hold and cannot derive. `side` is not it: a bandit may be an enemy
+       * nobody has come to blows with, a Charmed ally may be fought and still
+       * be on the party's side, and allegiance may simply be undeclared. So
+       * the casting **states** it and this records that the spell asks —
+       * exactly the split {@link SpellDefinition.damageTypeStated} already
+       * makes, where the definition prints the question and the request
+       * answers it.
+       *
+       * It reaches the roll as a named `ModeSource` rather than as a number,
+       * because Advantage cancels rather than stacks: a fought target who is
+       * also Restrained rolls a normal save, and only a mode can say that.
+       *
+       * **One outcome, because the book prints one here.** SRD Enthrall keys
+       * the same fact to an automatic *success* — "Any creature you or your
+       * companions are fighting automatically succeeds on this save" — and
+       * that is a second member with no definition able to write it:
+       * `checks.ts` carries `autoFail` and no `autoSucceed`, and Enthrall is
+       * blocked besides on a penalty narrowed to Wisdom (Perception) checks
+       * and to Passive Perception, which `BonusApplies` cannot name. A member
+       * arrives with its primitive and with the spell that writes it.
+       */
+      readonly advantageIfFought?: true;
       readonly condition: ConditionName;
       /**
        * Further conditions the **same** failed save imposes.
@@ -1735,6 +1762,27 @@ export function creatureTypesRead(effect: SpellEffect): readonly string[] {
     default:
       return [];
   }
+}
+
+/**
+ * Does this spell ask its caster whether the target is being fought?
+ *
+ * The sibling of {@link creatureTypesRead}, and asked of the definition rather
+ * than of one effect for the reason that one: the *request* has to be checked
+ * before anything is spent, and "did the caster answer the question this spell
+ * asks" is a question about the spell.
+ *
+ * **The casting's own effect list, and nothing nested.** The fact is stated
+ * once, at the casting, and `CastSpellRequest.fought` is where it is stated —
+ * so the clause belongs to the saving throw the casting itself calls for. A
+ * clause on an area trigger's save would be read a minute later, off a record
+ * that carries no such fact, and would be silently unread; the validator
+ * refuses one there rather than leaving that to be discovered.
+ */
+export function statesFoughtFact(definition: SpellDefinition): boolean {
+  return definition.effects.some(
+    (effect) => effect.kind === 'save' && effect.advantageIfFought === true,
+  );
 }
 
 /**
@@ -3794,12 +3842,9 @@ export const CHARM_PERSON: SpellDefinition = {
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 1, extraPerSlotLevelAbove: 1, mustBeType: 'Humanoid' },
   requiresSight: true,
-  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  effects: [{ kind: 'save', ability: 'wis', advantageIfFought: true, condition: 'charmed' }],
   durationSeconds: 3600,
-  unmodelled: [
-    'the save has Advantage if you or your allies are fighting the target',
-    'the spell ends early if you or your allies damage the target',
-  ],
+  unmodelled: ['the spell ends early if you or your allies damage the target'],
 };
 
 /**
@@ -3973,10 +4018,9 @@ function dominate(args: {
       ...(args.creatureType === undefined ? {} : { mustBeType: args.creatureType }),
     },
     requiresSight: true,
-    effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+    effects: [{ kind: 'save', ability: 'wis', advantageIfFought: true, condition: 'charmed' }],
     durationSeconds: args.durationSeconds,
     unmodelled: [
-      'the save has Advantage if you or your allies are fighting the target',
       'the target repeats the save whenever it takes damage, which is a trigger rather than a turn boundary',
       'the telepathic link that issues commands, and spending your own Reaction to command one of the target\u2019s',
       `a higher-level slot lengthens the Concentration: ${args.longer}`,
@@ -4572,12 +4616,9 @@ export const CHARM_MONSTER: SpellDefinition = {
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 1, extraPerSlotLevelAbove: 1 },
   requiresSight: true,
-  effects: [{ kind: 'save', ability: 'wis', condition: 'charmed' }],
+  effects: [{ kind: 'save', ability: 'wis', advantageIfFought: true, condition: 'charmed' }],
   durationSeconds: 3600,
-  unmodelled: [
-    'the save has Advantage if you or your allies are fighting the target',
-    'the spell ends early if you or your allies damage the target',
-  ],
+  unmodelled: ['the spell ends early if you or your allies damage the target'],
 };
 
 

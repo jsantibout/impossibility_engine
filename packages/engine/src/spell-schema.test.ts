@@ -3123,3 +3123,74 @@ describe('the creature type a spell demands is one the glossary gives rules to',
     expect(targeting(undefined)).toEqual([]);
   });
 });
+
+describe('the fought clause is refused everywhere it could not be read', () => {
+  /**
+   * SRD Charm Person: "It does so with Advantage if you or your allies are
+   * fighting it." The fact is stated at the casting, so the clause has exactly
+   * one home — the casting's own saving throw — and the validator refuses the
+   * two ways it could sit somewhere nothing would read it.
+   *
+   * The second rule guards a silent wrong number rather than tidiness: an area
+   * trigger settles a minute later off an `OngoingSpell` that carries no
+   * stated fact, so a clause written there would simply never apply, and no
+   * test of that spell would say so.
+   */
+  const inList = (where: 'effects' | 'areaTrigger' | 'activation', effect: unknown) =>
+    codes(
+      checkSpellDefinitionValue(
+        where === 'effects'
+          ? { ...FIRE_DART, effects: [effect] }
+          : { ...FIRE_DART, [where]: { effects: [effect] } },
+      ),
+    );
+
+  /**
+   * `outlivesCasting`, because `FIRE_DART` is Instantaneous and a condition the
+   * casting owned would have nothing to end it — `grant_without_lifetime`,
+   * which is a different rule and would drown out this one.
+   */
+  const SAVE = { kind: 'save', ability: 'wis', condition: 'charmed', outlivesCasting: true };
+
+  it('accepts it on the casting’s own saving throw', () => {
+    expect(inList('effects', { ...SAVE, advantageIfFought: true })).toEqual([]);
+  });
+
+  it('refuses it on a host that rolls no saving throw', () => {
+    expect(
+      inList('effects', {
+        kind: 'attack',
+        damage: { dice: '1d10' },
+        damageType: 'fire',
+        advantageIfFought: true,
+      }),
+    ).toEqual(['fought_without_save']);
+  });
+
+  it('refuses it inside an area trigger, where no stated fact reaches it', () => {
+    expect(inList('areaTrigger', { ...SAVE, advantageIfFought: true })).toEqual([
+      'fought_outside_the_casting',
+    ]);
+  });
+
+  it('refuses it inside an activation, for the same reason', () => {
+    expect(inList('activation', { ...SAVE, advantageIfFought: true })).toEqual([
+      'fought_outside_the_casting',
+    ]);
+  });
+
+  /**
+   * Absence is how a spell says it does not print the clause, so `false` would
+   * be a second way to say it — and a definition that wrote one would read as
+   * though it had answered the question a *casting* answers.
+   */
+  it('refuses any value but true', () => {
+    expect(inList('effects', { ...SAVE, advantageIfFought: false })).toEqual(['malformed_field']);
+    expect(inList('effects', { ...SAVE, advantageIfFought: 'yes' })).toEqual(['malformed_field']);
+  });
+
+  /** And a save that says nothing is the ordinary case. */
+  it('accepts a saving throw that does not print it', () => {
+    expect(inList('effects', SAVE)).toEqual([]);
+  });
+});

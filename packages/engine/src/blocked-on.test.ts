@@ -543,6 +543,33 @@ describe('a citation is held against the document it names', () => {
   });
 });
 
+/**
+ * Clauses a build finished while the shape they were filed to lived on.
+ *
+ * The second honest reason a clause may leave the map, and it exists because a
+ * shape can be built **in part**. IE-030 gave a casting the fought fact —
+ * `CastSpellRequest.fought`, refused when the spell prints no such clause and
+ * required when it does — so the five spells that read that fact as Advantage
+ * on their save now roll it, and their clauses are no longer adjudications at
+ * all. `a-fact-only-the-table-can-declare` nonetheless stands, because the
+ * *other* facts under it are not built: Scrying's table of how well you know
+ * the target, Call Lightning's outdoor storm, and Enthrall reading the very
+ * same fought fact as an automatic **success**, which `checks.ts` has no
+ * `autoSucceed` for.
+ *
+ * So this list is the honest residue of a partial build rather than a licence:
+ * every entry must genuinely be gone from `ADJUDICATED`, which the guard below
+ * checks in both directions, and adding one means a reviewer has read the
+ * sentence and agrees the engine now finishes it.
+ */
+const BUILT_CLAUSES: readonly (readonly [string, string])[] = [
+  ['charm-monster', 'the save has Advantage'],
+  ['charm-person', 'the save has Advantage'],
+  ['dominate-beast', 'the save has Advantage'],
+  ['dominate-monster', 'the save has Advantage'],
+  ['dominate-person', 'the save has Advantage'],
+];
+
 describe('the split bundles add back up', () => {
   /**
    * The evidence that splitting three bundle ids preserved the facts.
@@ -552,23 +579,26 @@ describe('the split bundles add back up', () => {
    * Each recorded `[spellId, clause, wentTo]` triple must still be an
    * adjudication filed exactly where the split put it.
    *
-   * **Unless the shape it went to has since been built**, which is the one
-   * honest reason a clause may leave the map: IE-019 built
-   * `an-outcome-that-varies-by-creature-type` and executed Shatter with it, so
-   * that clause is gone. A clause that vanished while its shape still stands
-   * is a silent loss and fails here, which is what makes the exception a
-   * branch rather than a hole.
+   * **Unless what it went to has since been built**, which is the only honest
+   * reason a clause may leave the map, and it comes two ways. The shape may be
+   * gone: IE-019 built `an-outcome-that-varies-by-creature-type` and executed
+   * Shatter with it. Or the shape may stand while *this clause* is finished,
+   * which is {@link BUILT_CLAUSES} — a reviewed list, because a shape can be
+   * built in part and nothing derived can tell that from a silent loss. A
+   * clause that vanished under neither reason fails here, which is what keeps
+   * the exception a branch rather than a hole.
    */
   it.each(Object.keys(SPLIT_BUNDLES))('accounts for every adjudication %s held', (bundle) => {
     const split = SPLIT_BUNDLES[bundle]!;
     const live = new Set<string>(Object.keys(MISSING_SHAPES));
+    const built = new Set(BUILT_CLAUSES.map(([id, clause]) => `${id}/${clause}`));
     const landed = new Map<string, number>();
 
     for (const [spellId, clause, wentTo] of split.held) {
       const entry = (ADJUDICATED[spellId] ?? []).find((e) => e.clause === clause);
       if (entry === undefined) {
         expect(
-          live.has(wentTo),
+          live.has(wentTo) && !built.has(`${spellId}/${clause}`),
           `${spellId}: "${clause}" left the map while ${wentTo} is still missing`,
         ).toBe(false);
       } else {
@@ -617,6 +647,87 @@ describe('the split bundles add back up', () => {
     expect(Object.keys(MISSING_SHAPES)).not.toContain('outcome-scoped-child-effects');
     expect(Object.keys(MISSING_SHAPES)).not.toContain('outcome-riders');
     expect(Object.keys(SPLIT_BUNDLES)).not.toContain('outcome-scoped-child-effects');
+  });
+
+  /**
+   * And a clause claimed as built must really be gone.
+   *
+   * The other direction, without which {@link BUILT_CLAUSES} is a list anybody
+   * could write a spell's name into to make the arithmetic stop complaining.
+   * A stale entry is a claim that the engine finishes something it does not.
+   */
+  it('keeps no built clause that is still adjudicated', () => {
+    for (const [spellId, clause] of BUILT_CLAUSES) {
+      expect(
+        (ADJUDICATED[spellId] ?? []).map((entry) => entry.clause),
+        `${spellId} still adjudicates "${clause}"`,
+      ).not.toContain(clause);
+    }
+  });
+});
+
+describe('the fought fact is a second build that corrected the query', () => {
+  /**
+   * **The map predicted one spell finished and the SRD says none is.**
+   *
+   * `a-fact-only-the-table-can-declare` blocked nine spells and was the *only*
+   * blocker recorded for Enthrall, so the derivation said building the fought
+   * fact would finish it. IE-030 built it and read the paragraph, and Enthrall
+   * prints a different sentence from the five that named the shape with it:
+   *
+   * | Predicted | What happened |
+   * |---|---|
+   * | Charm Person, Charm Monster, the three Dominates lose the clause | **five clauses closed** — right |
+   * | Modify Memory loses the blocker | right, in different words: "If you are fighting the creature, it has Advantage on the save" |
+   * | Enthrall finished | **wrong**, twice over |
+   *
+   * SRD Enthrall: "Any creature you or your companions are fighting
+   * automatically succeeds on this save." The *fact* is now declarable and the
+   * **outcome** is not — `checks.ts` carries `autoFail` and no `autoSucceed` —
+   * and its failure branch is "a −10 penalty to Wisdom (Perception) checks and
+   * Passive Perception", which `BonusApplies` cannot narrow to a skill and
+   * which nothing reaches on a Passive score at all.
+   *
+   * This is IE-017's lesson arriving a second time: a count is only as good as
+   * the shape it counts, and the way to find out which shapes are bundles is
+   * to build one. So the residue is a narrower id, exactly as
+   * `a-condition-immunity-a-spell-grants` was.
+   */
+  it('closes the five spells whose paragraph prints Advantage', () => {
+    for (const id of [
+      'charm-person',
+      'charm-monster',
+      'dominate-beast',
+      'dominate-person',
+      'dominate-monster',
+    ]) {
+      const shapes = (ADJUDICATED[id] ?? []).map((entry) => entry.why);
+      expect(shapes, id).not.toContain('a-fact-only-the-table-can-declare');
+    }
+    // And Modify Memory, which prints the same rule in different words.
+    expect(BLOCKED_ON['modify-memory']).toEqual(['a-casting-ended-by-a-trigger']);
+  });
+
+  /**
+   * Enthrall is the correction, and it keeps **both** halves of why.
+   *
+   * The fought shape stands because Enthrall's reading of that fact is still
+   * unexpressible; the minted id carries the penalty, which was never about
+   * the fact at all and which the entry had never recorded.
+   */
+  it('leaves Enthrall blocked, on the outcome and on the penalty', () => {
+    expect(BLOCKED_ON['enthrall']).toEqual([
+      'a-bonus-narrowed-to-a-skill',
+      'a-fact-only-the-table-can-declare',
+    ]);
+    expect(consumersOf('a-fact-only-the-table-can-declare').unblocks).toEqual([]);
+  });
+
+  /** And the shape survives on the facts nobody has built. */
+  it('keeps the shape for the facts the build did not reach', () => {
+    const fact = consumersOf('a-fact-only-the-table-can-declare');
+    expect(fact.undefined).toEqual(['call-lightning', 'enthrall', 'scrying']);
+    expect(fact.executed).toEqual([]);
   });
 });
 

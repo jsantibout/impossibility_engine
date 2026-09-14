@@ -132,6 +132,9 @@ const AUDIT: readonly {
       ),
       unaffected: because('Spirit Guardians and Alarm print the clause; neither is castable by anyone here'),
       damageType: because('Spirit Guardians reads the caster alignment; same, nobody can cast it'),
+      fought: because(
+        'SRD Charm Person: "It does so with Advantage if you or your allies are fighting it." Five spells print the clause, the engine refuses a casting of one that does not answer it, and the answer is a list because an upcast casting names several targets — so this is required rather than optional the day any of them is castable here, and no benchmark character has one prepared',
+      ),
       payment: because(
         'a free daily casting *and* a slot both serving. Reachable in principle — all three Tier 2 characters carry a Magic Initiate free casting — and measured as unreachable in practice: Shield refuses on its Reaction trigger first and Mage Armor has no executable definition, so the engine never gets as far as asking',
       ),
