@@ -256,6 +256,12 @@ would silently undo. Two operations that both move a creature must not
 disagree about whether the world has to be settled first, and saying so is not
 enough: an independent review found them disagreeing while the sentence stood.
 
+That combination is no longer a lone case. The two doors out of a casting spend
+nothing and are guarded for the mirror-image reason — they *forgive* area debts
+rather than raising them — and the sweep that finds every command of that shape
+is "A command that ends a casting and spends nothing has its own closure",
+below.
+
 ### Where it goes is the caster's, and it is stated or refused
 
 `CastSpellRequest.teleportTo` is an ordinary `Placement` — measured from a
@@ -561,6 +567,66 @@ Both sweeps are driven over a synthetic sample they must catch, so the analysis
 cannot quietly stop seeing anything, and every case is asserted twice — refused
 with the debt outstanding, and *not* refused once it is settled, because a
 fixture in which a command was never reachable would prove nothing.
+
+#### A command that ends a casting and spends nothing has its own closure
+
+**The spender sweep structurally cannot see one**, and that is how
+`endConcentration` stayed unguarded for as long as it existed. The closure above
+classifies *spenders*; a command that takes no Action, Bonus Action, Reaction,
+movement or pool use is never classified and is never asked for an exemption, so
+it appears in neither list and nothing fails. IE-048 found `endConcentration`
+sitting in that blind spot and reported rather than fixed it, because its brief
+named a different command.
+
+The reason such a command needs the guard has nothing to do with the economy:
+**ending a casting forgives what that casting owes.** `releaseCasting` is the
+single door, and it drops the casting's outstanding `OwedAreaEffect`s along with
+its conditions, bonuses and timers — so a Web let go of while somebody's entry
+save was owed loses a rule the boundary had already raised, which is the engine
+losing a rule to its own bookkeeping.
+
+So the question is asked in general rather than one command at a time. A second
+closure in `invariants.test.ts`, seeded on the two events that end a casting —
+`concentration-ended` and `spell-ended` — rather than on the six that spend
+something, over the same modules read as one string. Every command it reaches
+that the spender closure does not must either consult `mayAct` in its own body
+or carry a sentence on its own allowlist, never both and asserted in both
+directions. Both closures are now one fixed-point walk called twice, because two
+hand-written walks answering two questions about one call graph drift on the day
+somebody adds a module.
+
+It finds seven commands, and the partition is three guarded and four exempt:
+
+| Guarded | Why it is not about the economy |
+|---|---|
+| `endConcentration` | SRD: "The creator can end Concentration at any time (no action required)" — and see below |
+| `endOngoingSpell` | SRD dismisses a time-span spell with the same "no action required"; guarded since IE-048 |
+| `resolveTurn` | already on the derived list above; the turn refuses to advance past a debt |
+
+| Exempt, with its sentence | |
+|---|---|
+| `settleAreaEffects` | the settlement itself — a guard refusing its own settlement is a deadlock wearing a rule's clothes |
+| `settleDamage` | the settlement of a window the engine is already holding open; refusing it strands the roll and the Concentration save it may call for |
+| `resolveDamage` | the outcome of damage rather than a decision: SRD ends the Concentration through the save this command rolls |
+| `removeCreatureEverywhere` | the casting leaves with its caster, and a creature leaving the game is bookkeeping about the cast |
+
+**`endConcentration` is guarded, and the SRD sentence is not the objection it
+looks like.** "At any time (no action required)" is the same licence the
+dismissal prints one paragraph away in the same book, and that command has been
+guarded since IE-048 — so the free-and-at-any-time wording was never what
+decided the question. `mayAct` is not a claim about the action economy here: it
+is the engine declining to act into a world that owes a mandatory mechanical
+fact. The refusal says *settle the save, then let go*, never *you may not let
+go*, and nothing in the SRD makes a caster's letting go pre-empt a save already
+triggered. The debt may be what ends this Concentration anyway — damage owed is
+a Constitution save owed — which is the three-move counterexample below arriving
+at the caster instead of at a third creature. And the two doors out of one
+casting must not disagree about whether the world has to be settled first, which
+is `relocateCreature`'s own sentence about two operations that both move a
+creature.
+
+Its refusal is the existing `area_effect_owed`; no new code, and the allowlist
+of nine above is untouched, because a non-spender never belonged on it.
 
 **An owed area effect is global engine debt, and getting that wrong is
 instructive.** It was per-creature for one commit, on the reasoning that a

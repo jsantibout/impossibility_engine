@@ -1042,11 +1042,29 @@ describe('a carried area ends with its casting, through the one door', () => {
     expect(JSON.stringify(game.state.areaTriggers)).not.toContain(aura);
   });
 
+  /**
+   * **The fold still drops it, and the command can no longer get there.**
+   *
+   * `releaseCasting` takes the casting's outstanding `OwedAreaEffect`s with
+   * everything else it owns, which is what this has always asserted — and is
+   * exactly why `endConcentration` is now guarded by `mayAct` (IE-057), as
+   * `endOngoingSpell` already was. A caster who could let go while the debt
+   * stood would forgive a save the boundary had already raised.
+   *
+   * So the claim is made of the two halves separately: the command is refused
+   * `area_effect_owed`, and the event it would have written is pushed to reach
+   * the reducer's behaviour directly. A test that reached it through the
+   * command would now be asserting the hole rather than the rule.
+   */
   it('drops a debt the aura raised but nobody settled', () => {
-    const { game } = withAura();
+    const { game, aura } = withAura();
     game.walk(CLERIC, ONE_STEP_EAST);
     expect(game.owed()).toHaveLength(1);
-    game.push(unwrap(endConcentration(game.state, CLERIC, 'voluntary'), 'ending it'));
+
+    const refused = endConcentration(game.state, CLERIC, 'voluntary');
+    expect(isErr(refused) ? refused.code : 'ok').toBe('area_effect_owed');
+
+    game.push([{ type: 'concentration-ended', id: CLERIC, castingId: aura, reason: 'voluntary' }]);
     expect(game.owed()).toEqual([]);
   });
 

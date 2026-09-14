@@ -1219,6 +1219,29 @@ export function endOngoingSpell(
  *
  * Breaking on Incapacitation or death does not come through here: that is not
  * a decision anybody makes, so the reducer derives it. See `events.ts`.
+ *
+ * **It spends nothing and is guarded anyway**, which is
+ * {@link endOngoingSpell}'s combination and `relocateCreature`'s before it.
+ * The two of them are the doors out of a casting and both converge on
+ * `releaseCasting`, which drops the casting's outstanding `OwedAreaEffect`s —
+ * so a Web let go of while somebody's entry save was owed would forgive a rule
+ * the boundary had already raised, and a guard on one door only would be two
+ * ways out of one room disagreeing about whether the world has to be settled
+ * first.
+ *
+ * **The SRD sentence is not the objection it looks like.** "The creator can end
+ * Concentration at any time (no action required)" is the same licence the
+ * dismissal prints a paragraph away, and `mayAct` is not a claim about the
+ * action economy here: it is the engine declining to act into a world that owes
+ * a mandatory mechanical fact. The refusal says *settle the save, then let go*
+ * and never *you may not let go* — and the debt may be what ends this
+ * Concentration anyway, since damage owed is a Constitution save owed.
+ *
+ * **Invisible to the action-economy sweep, which is why it stayed open.** That
+ * sweep classifies spenders, and a command that ends a casting while spending
+ * nothing is a shape it structurally cannot see; `invariants.test.ts` carries
+ * the derived sweep that does see it, over both doors and every other command
+ * that ends a casting.
  */
 export function endConcentration(
   state: GameState,
@@ -1228,8 +1251,13 @@ export function endConcentration(
 ): Result<GameEvent[]> {
   // The check comes first, or a retry of a dismissal that went through comes
   // back `not_concentrating` — a rules refusal for a command that succeeded,
-  // and the caller cannot tell it from a genuine one.
+  // and the caller cannot tell it from a genuine one. The guard therefore sits
+  // *inside* it, for the reason this file has now recorded nine times: a retry
+  // arrives at the debt its own first run may have raised.
   return once(state, `end-concentration:${id}`, { ...command, reason }, () => [], (stamp) => {
+    const owed = mayAct(state, id);
+    if (owed !== null) return owed;
+
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
     if (creature.concentration === null) {

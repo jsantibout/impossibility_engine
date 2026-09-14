@@ -728,6 +728,73 @@ const greased = (): readonly GameEvent[] => {
   return [...declared, ...unwrap(declineOpportunity(fold('s', declared), A, {}), 'A lets B go')];
 };
 
+/**
+ * `greased()`'s shape with one thing changed: the casting that owes the save is
+ * the one its caster is **concentrating** on.
+ *
+ * SRD Web is "Concentration, up to 1 hour" and calls for its Dexterity save on
+ * entry, so A holds the casting and the save B owes belongs to that same
+ * casting. That is the world the guard on `endConcentration` is about: letting
+ * go runs `releaseCasting`, which drops the casting's outstanding
+ * `OwedAreaEffect`s, so an unguarded door out would forgive a save the boundary
+ * had already raised rather than merely acting while somebody else's debt
+ * stood.
+ *
+ * A second-level slot and a second `spellcasting-declared` are all it takes
+ * over `greased()`: Web is level 2 where Grease is level 1, and the rest of the
+ * choreography — the landmark, the five feet past it, the declared move
+ * completed by A declining the Opportunity Attack — is deliberately the same,
+ * so the two blocks below differ in the casting and in nothing else.
+ */
+const webbed = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(2), label: 'level 2 spell slot', max: 3, recovers: 'long-rest' },
+    },
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['web'] }),
+    },
+    { type: 'landmark-added', name: 'the webs', at: { x: 120, y: 100, z: 0 } },
+  ];
+  const cast = [
+    ...armed,
+    ...unwrap(
+      resolveSpell(
+        fold('s', armed),
+        A,
+        {
+          spellId: 'web',
+          targets: [],
+          at: { x: 120, y: 100, z: 0 },
+          towards: { x: 200, y: 100, z: 0 },
+          slotLevel: 2,
+        },
+        supply(),
+      ),
+      'web',
+    ).events,
+  ];
+  const turned = [...cast, ...unwrap(resolveTurn(fold('s', cast), supply()), 'on to B').events];
+  const declared = [
+    ...turned,
+    ...unwrap(
+      resolveMove(
+        fold('s', turned),
+        B,
+        { placement: { from: { landmark: 'the webs' }, feet: 5, bearing: 90 } },
+        supply(),
+      ),
+      'walking in',
+    ).events,
+  ];
+  return [...declared, ...unwrap(declineOpportunity(fold('s', declared), A, {}), 'A lets B go')];
+};
+
 /** B on the floor at 0 hit points, which is the only state a stabilisation has. */
 const DYING: readonly GameEvent[] = [
   ...SETUP,
@@ -1460,24 +1527,74 @@ const ECONOMY = [
 ];
 const SPENT_EVENTS = ["'resource-spent'", "'spell-cast'"];
 
-const spendersIn = (source: string): ReadonlySet<string> => {
+/**
+ * The transitive closure both sweeps below are made of: every exported
+ * declaration that reaches a seed — a named primitive or a declaration that
+ * writes one of the seed events — through any number of helpers.
+ *
+ * One function rather than two copies of the fixed point, because there are
+ * now two questions asked of this module in the same shape: *what does this
+ * command spend*, and *does it end a casting*. A second hand-written walk would
+ * be a second answer to one question, and the pair would drift at exactly the
+ * moment somebody added a module.
+ */
+const reachedFrom = (
+  source: string,
+  seeds: readonly string[],
+  seedEvents: readonly string[],
+): ReadonlySet<string> => {
   const functions = functionsIn(source);
-  const spends = new Set(ECONOMY);
+  const reached = new Set(seeds);
   for (const fn of functions) {
-    if (SPENT_EVENTS.some((event) => fn.body.includes(event))) spends.add(fn.name);
+    if (seedEvents.some((event) => fn.body.includes(event))) reached.add(fn.name);
   }
   for (let grew = true; grew; ) {
     grew = false;
     for (const fn of functions) {
-      if (spends.has(fn.name)) continue;
-      if ([...spends].some((callee) => new RegExp(`\\b${callee}\\s*\\(`).test(fn.body))) {
-        spends.add(fn.name);
+      if (reached.has(fn.name)) continue;
+      if ([...reached].some((callee) => new RegExp(`\\b${callee}\\s*\\(`).test(fn.body))) {
+        reached.add(fn.name);
         grew = true;
       }
     }
   }
-  return new Set(functions.filter((fn) => fn.exported && spends.has(fn.name)).map((fn) => fn.name));
+  return new Set(functions.filter((fn) => fn.exported && reached.has(fn.name)).map((fn) => fn.name));
 };
+
+const spendersIn = (source: string): ReadonlySet<string> => reachedFrom(source, ECONOMY, SPENT_EVENTS);
+
+/**
+ * Which commands end a casting, spending nothing to do it.
+ *
+ * **The shape the action-economy sweep structurally cannot see.** That sweep
+ * classifies *spenders*, so a command that takes no Action, Bonus Action,
+ * Reaction, movement or pool use is never classified and never asked for an
+ * exemption — and `endConcentration` sat in that blind spot for as long as it
+ * existed, forgiving exactly the outstanding `OwedAreaEffect`s the guard beside
+ * it exists to protect. IE-048 found it and reported rather than fixed it,
+ * because a command that ends a casting while spending nothing is not a thing
+ * the closure above has a name for.
+ *
+ * So it gets its own closure, seeded on the two events that end a casting
+ * rather than on the six that spend something. Everything the seeds reach
+ * transitively is included for the same reason the spender sweep includes it: a
+ * command that ends a casting through a helper ends one just the same.
+ */
+const ENDING_EVENTS = ["'concentration-ended'", "'spell-ended'"];
+
+const castingEndersIn = (source: string): ReadonlySet<string> => reachedFrom(source, [], ENDING_EVENTS);
+
+/** Which declarations ask `mayAct` in their own body — the code, not the prose. */
+const guardedIn = (source: string): ReadonlySet<string> =>
+  new Set(
+    functionsIn(source)
+      .filter((fn) =>
+        /\bmayAct\s*\(/.test(
+          fn.body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''),
+        ),
+      )
+      .map((fn) => fn.name),
+  );
 
 /**
  * One spender, run against a world that owes a mandatory area effect.
@@ -1698,6 +1815,127 @@ describe('every command that spends something asks whether it may', () => {
   });
 
   /**
+   * And so does the **other** door out of a casting, which was the one left
+   * open.
+   *
+   * `endConcentration` and `endOngoingSpell` converge on `releaseCasting`, so
+   * they forgive exactly the same thing — the casting's outstanding
+   * `OwedAreaEffect`s — and a guard on one of them only is two doors out of one
+   * room disagreeing about whether the world has to be settled first. That is
+   * `relocateCreature`'s sentence about two operations that both move a
+   * creature, arriving at the two operations that both end a casting.
+   *
+   * **The SRD sentence is not the objection it looks like.** "The creator can
+   * end Concentration at any time (no action required)" is the same licence the
+   * dismissal one paragraph away prints — "you can dismiss it (no action
+   * required)" — and that command is guarded. `mayAct` is not a claim about the
+   * action economy here: it is the engine refusing to act into a world that
+   * owes a mandatory mechanical fact, and it says *settle the save, then let
+   * go*, never *you may not let go*. Nothing in the book makes a caster's
+   * letting go pre-empt a save that has already been triggered, and the debt
+   * may be what ends the Concentration anyway: damage owed is a Constitution
+   * save owed.
+   *
+   * Asserted in both directions, in a world where the outstanding save belongs
+   * to the casting being let go of.
+   */
+  describe('and so does the other door out of a casting', () => {
+    const letGo = (s: GameState) => endConcentration(s, A, 'voluntary');
+
+    it('really is A’s own Web that A is concentrating on, and it owes the save', () => {
+      const state = fold('s', webbed());
+      expect(state.creatures[A]?.concentration?.castingId).toBe('cast:1');
+      expect(state.owedAreaEffects.map((o) => o.castingId)).toContain('cast:1');
+    });
+
+    it('is refused while that area effect is owed', () => {
+      const out = letGo(fold('s', webbed()));
+      expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
+    });
+
+    it('and lets it through once the debt is settled', () => {
+      const log = webbed();
+      const settled = [...log, ...unwrap(settleAreaEffects(fold('s', log), supply()), 'settle').events];
+      const out = letGo(fold('s', settled));
+      expect(isErr(out) ? out.code : 'ok').toBe('ok');
+      expect(isErr(out) ? [] : out.value.map((event) => event.type)).toEqual(['concentration-ended']);
+    });
+
+    /** And the sweep above is right not to list it: it spends nothing. */
+    it('is not classified as a spender', () => {
+      const spenders = new Set(
+        [...spendersIn(Object.values(MODULE_SOURCE).join('\n'))].filter((name) =>
+          COMMAND_SURFACE.has(name),
+        ),
+      );
+      expect(spenders.has('endConcentration')).toBe(false);
+      expect(COMMAND_SURFACE.has('endConcentration')).toBe(true);
+    });
+
+    /**
+     * And the guard sits **inside** the duplicate check, which is the trap this
+     * repository has now sprung nine times: a retry arrives at the debt its own
+     * first run may have raised, and must be told its command landed.
+     *
+     * A lets go of a Bless nobody's save depends on, and B is then swept back
+     * into the slick by two moves that are nobody's command — so the retry
+     * meets a debt that did not exist when the command was sent.
+     */
+    describe('and asks after the duplicate check, never before it', () => {
+      const LET_GO = 'the-one-letting-go';
+
+      const letGoThenCaught = (): readonly GameEvent[] => {
+        const log = owing();
+        const settled = [
+          ...log,
+          ...unwrap(settleAreaEffects(fold('s', log), supply()), 'settle').events,
+          {
+            type: 'concentration-started',
+            id: A,
+            castingId: 'cast:9',
+            spell: 'Bless',
+            level: 1,
+          } satisfies GameEvent,
+        ];
+        const ended = [
+          ...settled,
+          ...unwrap(endConcentration(fold('s', settled), A, 'voluntary', { commandId: LET_GO }), 'let go'),
+        ];
+        // Out of the slick and back into it: the second step is what the area
+        // catches, and neither is a command A sent.
+        return [
+          ...ended,
+          { type: 'creature-moved', id: B, placement: { from: { landmark: 'the slick' }, feet: 60, bearing: 90 } },
+          { type: 'creature-moved', id: B, placement: { from: { landmark: 'the slick' }, feet: 5, bearing: 90 } },
+        ];
+      };
+
+      it('tells a retry that its command already landed', () => {
+        const state = fold('s', letGoThenCaught());
+        // The fixture really does owe something, or neither assertion means
+        // anything.
+        expect(state.owedAreaEffects.length).toBeGreaterThan(0);
+
+        const retry = endConcentration(state, A, 'voluntary', { commandId: LET_GO });
+        expect(isErr(retry) ? retry.code : 'ok').toBe('ok');
+        expect(isErr(retry) ? ['not empty'] : retry.value).toEqual([]);
+      });
+
+      /**
+       * And a genuinely new command into that same world is refused for the
+       * debt — not told `not_concentrating`, which is the world its own
+       * predecessor made and which the guard precedes.
+       */
+      it('refuses a fresh command sent into that same world', () => {
+        const out = endConcentration(fold('s', letGoThenCaught()), A, 'voluntary', {
+          commandId: 'a-second',
+        });
+        expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
+      });
+    });
+  });
+
+  /**
    * And `resolveCast` keeps its guard, written down here rather than derived.
    *
    * It was on the list above while it was a barrel command; IE-048 demoted it
@@ -1784,6 +2022,76 @@ describe('every command that spends something asks whether it may', () => {
       const out = resolveCast(fold('s', castThenCaught()), B, { ...CAST, commandId: 'a-second' });
       expect(isErr(out) ? out.code : 'ok').toBe('area_effect_owed');
     });
+  });
+});
+
+/**
+ * The commands that end a casting without spending anything — and the sweep
+ * that can see them, which the action-economy closure cannot.
+ *
+ * **Why this is its own sweep.** Ending a casting **forgives what that casting
+ * owes**: `releaseCasting` is the single door and it drops the casting's
+ * outstanding `OwedAreaEffect`s along with its conditions, bonuses and timers.
+ * That is a reason to consult `mayAct` which has nothing to do with the action
+ * economy — and the sweep above finds commands by what they spend, so a command
+ * that ends a casting and spends nothing is invisible to it. Two were:
+ * `endOngoingSpell`, which IE-048 guarded deliberately, and `endConcentration`,
+ * which IE-048 found and reported because its brief did not name it. Nothing
+ * asked the question in general, which is why the second one could sit there.
+ *
+ * So the question is asked in general: every command the ending closure reaches
+ * that the spender closure does not must either consult `mayAct` in its own
+ * body or carry a sentence here saying why not — and never both, in either
+ * direction. A command added to the command layer that ends a casting is then
+ * one of the two, rather than neither.
+ */
+const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
+  removeCreatureEverywhere:
+    'the casting leaves with its caster, and the creature leaving is bookkeeping about the cast rather than an action: refusing it while a debt stood would leave a fight unable to continue without somebody who is already gone',
+  resolveDamage:
+    'the outcome of damage rather than a decision anybody makes: SRD ends the Concentration through the Constitution saving throw this command rolls, and settling the debt is frequently what sent the damage here in the first place',
+  settleAreaEffects:
+    'the settlement itself, and a guard that refused its own settlement would be a deadlock wearing a rule’s clothes — this is the command that discharges the debt every other one is waiting on',
+  settleDamage:
+    'the settlement of a damage window the engine is already holding open; refusing it would strand the roll, and with it the Concentration save that roll may call for',
+};
+
+describe('every command that ends a casting asks whether it may, or says why not', () => {
+  const all = Object.values(MODULE_SOURCE).join('\n');
+  const spenders = new Set([...spendersIn(all)].filter((name) => COMMAND_SURFACE.has(name)));
+  const enders = [...castingEndersIn(all)]
+    .filter((name) => COMMAND_SURFACE.has(name) && !spenders.has(name))
+    .sort();
+  const guarded = guardedIn(all);
+
+  /** The analysis is not vacuous: it finds the shape it is shown. */
+  it('would find a casting-ender if one were added', () => {
+    const smuggled = [
+      'export function letItGoQuietly(state: GameState): Result<GameEvent[]> {',
+      "  return ok([{ type: 'concentration-ended', id, castingId, reason: 'voluntary' }]);",
+      '}',
+    ].join('\n');
+    expect([...castingEndersIn(smuggled)]).toEqual(['letItGoQuietly']);
+    // And a command that ends nothing is not swept up with it.
+    expect([...castingEndersIn('export function lookAtSomething(): number {\n  return 1;\n}')]).toEqual([]);
+  });
+
+  it('finds the two doors out of a casting, and finds them guarded', () => {
+    expect(enders).toContain('endConcentration');
+    expect(enders).toContain('endOngoingSpell');
+    expect(guarded.has('endConcentration')).toBe(true);
+    expect(guarded.has('endOngoingSpell')).toBe(true);
+  });
+
+  it('accounts for every one that is unguarded, and invents none', () => {
+    const unguarded = enders.filter((name) => !guarded.has(name));
+    expect(unguarded).toEqual(Object.keys(ENDS_A_CASTING_UNGUARDED).sort());
+    expect(Object.values(ENDS_A_CASTING_UNGUARDED).every((reason) => reason.length > 20)).toBe(true);
+  });
+
+  /** And no name is on the list *and* guarded, which is an exemption gone stale. */
+  it('holds no exemption for a command that consults mayAct after all', () => {
+    expect(Object.keys(ENDS_A_CASTING_UNGUARDED).filter((name) => guarded.has(name))).toEqual([]);
   });
 });
 

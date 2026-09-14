@@ -1268,6 +1268,14 @@ a fact that is true of one kind of spell.
 care which casting they are holding, and it writes `concentration-ended` with a
 reason of its own. Both converge on `releaseCasting`, still the single door.
 
+**And both are guarded, which took a second task to finish.** The dismissal got
+its `mayAct` when it was written; the Concentration did not, and IE-048 found it
+and reported rather than fixed it because its brief named the other command.
+That asymmetry is the one thing the single door made intolerable: two ways out
+of one casting, one of them settling the world first and one of them forgiving
+what the casting owed. See "Ending a Concentration is the other door, and it is
+guarded too", below.
+
 **`OngoingEndReason` gained `dismissed`** rather than reusing `dispelled`, for
 the reason `ConcentrationEndReason` already keeps `voluntary` apart from it
 four lines away: a dispel is somebody else's magic defeating yours, and this is
@@ -1291,6 +1299,52 @@ and that is where the old command's `no_effect_there` went. It scanned for a
 condition instance — only the derived half of the question, and the half a
 tracked spell like Darkvision is invisible to, because Darkvision is on
 somebody and hangs nothing there. Same code, because it is the same mistake.
+
+#### Ending a Concentration is the other door, and it is guarded too
+
+`endConcentration` consults `mayAct`, inside `once` and after the duplicate
+check, and is refused with the existing `area_effect_owed` — no new code, and
+nothing new for a narrating layer to learn.
+
+**The rules question was real, and the SRD sentence is not the objection it
+looks like.** The book says "The creator can end Concentration at any time (no
+action required)", which is genuinely not an action; `mayAct` is named for
+actions. But the licence one paragraph away — a time-span spell you "can dismiss
+it (no action required)" — is the same licence, and `endOngoingSpell` has been
+guarded since IE-048. So the free-and-at-any-time wording was never what decided
+the question, for either door.
+
+What decides it is what the door does. `releaseCasting` drops the casting's
+outstanding `OwedAreaEffect`s, so letting go while a save stands forgives a rule
+the boundary already raised. `mayAct` here is not a claim about the action
+economy: it is the engine declining to act into a world that owes a mandatory
+mechanical fact, and its refusal says *settle the save, then let go* rather than
+*you may not let go*. Nothing in the SRD makes a caster's letting go pre-empt a
+save already triggered, and the debt may be what ends the Concentration anyway —
+damage owed is a Constitution save owed, which is the global debt's own
+three-move counterexample arriving at the caster rather than at a third
+creature. Two doors out of one casting must not disagree about whether the world
+has to be settled first, which is `relocateCreature`'s sentence about two
+operations that both move a creature.
+
+**It stayed open because the sweep could not see it.** The action-economy sweep
+finds commands by the transitive closure of the six primitives and the two
+spending events, and this one spends nothing, so it was never classified and
+never asked for an exemption — invisible rather than excused. A command that
+ends a casting and spends nothing is a shape that closure has no name for, so
+`invariants.test.ts` now carries a second closure seeded on `concentration-ended`
+and `spell-ended`. It finds seven commands and partitions them three guarded to
+four exempt with a written sentence each; `docs/design/space-and-areas.md` holds
+the table, beside the one `mayAct` policy it belongs to.
+
+**One existing test changed rather than one being added**, and it is worth
+saying which. `carrier-areas.test.ts` asserted that ending a Concentration drops
+a debt the aura raised and nobody settled — a true claim about the *fold*, made
+through a command that may no longer reach that world. It now asserts both
+halves: the command refused for the debt, and the `concentration-ended` it would
+have written pushed straight at the reducer, which still drops everything the
+casting owned. A test that went on reaching it through the command would have
+been asserting the hole rather than the rule.
 
 #### The word that scopes the clause is the easiest thing here to elide
 
