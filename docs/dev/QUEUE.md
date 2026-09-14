@@ -22,7 +22,7 @@ Last whole-engine audit: the third, 2026-09-13 —
 `PROGRESS.md` under "Third architecture audit against the doctrine" and in
 the Done table, commit `588d7a0`.
 
-Engine tasks completed since last audit: 4
+Engine tasks completed since last audit: 5
 Audit due at: 4 — **reached; the gate is chartered and running**
 
 **The gate is scoped, at the owner's instruction** (2026-09-13): Fable is
@@ -45,7 +45,7 @@ emits. The next threshold should either sweep or say again why it did not.
 
 The counter counts tasks that changed engine source outside tests and
 definition prose: IE-003 (`5dfbc39`), IE-005 (`4f829e9`), IE-008
-(`601774c`) and IE-001 (`7592efe`). **The threshold is reached.** The audit
+(`601774c`), IE-001 (`7592efe`) and IE-007 (`b80e0d5`). **The threshold is reached.** The audit
 runs before tranche 4 is proposed at Gate 1, never instead of a gate, and the
 leverage audit recommends its charter: the restricted child vocabulary for
 outcome-scoped child effects. IE-007 is inside an already-approved roster and
@@ -117,7 +117,7 @@ the third audit already measured, and the one structural helper it adds (the
 duplicate-check wrapper) is named in the brief. Recommendation: APPROVE
 TRANCHE 2.
 
-### Tranche 3 — APPROVED 2026-09-13 — "APPROVE TRANCHE 3"
+### Tranche 3 — COMPLETE 2026-09-13 — "APPROVE TRANCHE 3"
 roster: IE-008, IE-001, IE-007, IE-009
 
 The approval authorises these four tasks through implementation, review,
@@ -131,7 +131,7 @@ ordering tranche 2 left behind. Two items moved and one is new.
 |---|---|---|---|
 | PRIMARY | IE-008 — Every pool a level grants, granted at advancement | mechanism | YES beside spell resolution — **merged `601774c`** |
 | PRIMARY | IE-001 — A condition applied with no saving throw | mechanism | CONDITIONAL — **merged `7592efe`** |
-| SEQUENTIAL | IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts | mechanism | NO beside IE-001 |
+| SEQUENTIAL | IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts | mechanism | NO beside IE-001 — **merged `b80e0d5`** |
 | PARALLEL | IE-009 — Close out tranche 2's four findings | conformance | YES — **merged `973129f`** |
 
 **What the re-audit changed.**
@@ -215,91 +215,36 @@ Recommendation: APPROVE TRANCHE 3.
 
 ## CURRENT
 
-Tranche 3 is approved and running. **IE-008 is `DONE`, merged `601774c`** —
-first-round PASS, thirteen conditions green. **IE-009 is at
-`CHANGES_REQUIRED`** with a bounded fourth review pass running. IE-001 is
-still building; **IE-007 is held at `APPROVED_FOR_IMPLEMENTATION`** and
-launches when IE-001 has merged, because they share
-`commands/spell-resolution.ts` and the `SpellEffect` union.
+Nothing running. **Tranche 3 is complete** — four of four merged, in the
+planned order: IE-008 (`601774c`), IE-001 (`7592efe`), IE-009 (`973129f`),
+IE-007 (`b80e0d5`). Each fast-forward, each verified on `main`, each pushed.
+The suite went 5508 → 5578 and `COVERAGE.md` is byte-clean.
 
-**IE-009's bounded pass verified the work and caught a defect the foreman
-caused.** The pass confirmed the derivation independently — 91 declared, 74
-emitted, **17 emitted nowhere**, with its own script implementing the stated
-method; the bare-id reading gives 16 and drops exactly `creature-placed`; the
-eight setup types are genuinely unreachable, `placeCreature`, `declareCover`,
-`declareSight` and `startCombat` all returning `Result<State>` rather than
-`Result<GameEvent[]>`. Then it found that **merging IE-001 under a running
-review had made two of IE-009's prose numbers false** — 130 definitions is
-now 132, eleven exported readers is now twelve — and that the merge would be
-*textually clean*, because base and `main` are byte-identical at those lines.
-A wrong number would have installed silently.
+**The chartered gate is still running.** Fable holds the scoped whole-engine
+gate — the restricted child vocabulary for outcome-scoped child effects — and
+its design record is the input to tranche 4. Nothing is proposed at Gate 1
+until it lands, because its findings may reorder the roster.
 
-That is a foreman error in sequencing, and `WORKFLOW.md` now carries the
-lesson: condition 12 asks whether anything merged in the meantime changed an
-assumption the review rested on, and the easy misreading is to check whether
-the tests still pass. A task whose deliverable is a derived claim has no test
-to fail and no line to conflict. Do not merge another branch under a review of
-one.
+**What tranche 3 cost that the plan did not predict.** Two of its four tasks
+reached the three-round review cap, and both were authorised a bounded fourth
+pass under the corrected rule. Neither was architecture: IE-009's rounds were
+prose precision in claims it had itself rewritten, IE-007's were documentation
+honesty about what its own pinning did and did not achieve. Two merges ran
+to five and six review passes, and in both cases the extra passes found
+something — IE-009's derived seventeen where a digest said nine, IE-007's
+distinction between duplicating live state and duplicating the catalogue.
 
-**IE-009 is also the first use of the round-exhaustion rule, and it caught the
-rule's own wording.** Its three rounds went 2 → 2 → 1, every finding a
-precision defect in prose the builder had rewritten that round, confidence
-high and escalation none throughout. The rule as written said "strictly
-shrinking", which 2 → 2 → 1 is not — so applying it literally would have sent
-a sentence about a derivation method to Fable. The foreman authorised the
-bounded pass under the rule's purpose and then **corrected the rule's text**
-rather than leaving a precedent of quietly bending it: the test that separates
-convergence from churn is whether a finding *repeats*, not whether the count
-falls every round. `WORKFLOW.md`.
+**Two foreman errors, both now guarded rather than noted.** The
+round-exhaustion rule said "strictly shrinking" and meant "converging"; and a
+branch was merged under a running review whose deliverable was a derived
+claim, which no test could fail and no line could conflict. Both corrections
+are in `WORKFLOW.md`.
 
-**Two findings from IE-009 outrank the task that produced them.**
-
-- **The unreachable-event count was 9 and is 17**, and the eight it missed are
-  one family: `scene-set`, `landmark-added`, `creature-placed`,
-  `sight-declared`, `cover-declared`, `combat-started`, `time-advanced`,
-  `spellcasting-declared`. That is scene setup — **a tool surface cannot start
-  an encounter**. `placeCreature`, `declareCover`, `declareSight` and
-  `startCombat` exist as pure functions the *reducer* calls to fold the event,
-  and nothing emits one. This is the twelfth instance of the repository's
-  recurring finding, and the largest: it is not one unreachable rule but the
-  whole opening of a session. It is an **M2 blocker discovered before M2**,
-  which is the best time to find one, and it belongs in the next tranche
-  rather than in `LATER`.
-- **IE-005 opened a guard hole and nothing said so.** `spell-schema.test.ts`'s
-  runtime special-case sweep reads `commands/`, `events.ts`, `spells.ts`,
-  `spellcasting.ts` and `standing.ts`; IE-005 moved seven readers into
-  `spell-definitions.ts`, which is not on that list. No special case exists
-  there today — verified with the sweep's own regex — so this is a hole rather
-  than a breach. Half of it is unclosable, because the sweep's second half
-  asks that a file name no catalogue id and a file of definitions names all
-  130 of its own; the first half could simply be pointed there.
-
-A third, smaller and worth recording because of who made it: **IE-002's
-builder and reviewer both reported having "independently checked" an SRD line
-number that was eleven lines off.** The value they checked — Produce Flame's
-`1d8` — was right, and both of them did read the sentence; what neither
-verified was the pointer they each cited. IE-009 quoted the SRD sentence
-instead of citing a line into `packages/srd/raw/`, which is the convention
-everywhere else and survives a re-vendoring.
-
-| Task | Lane | Parallel-safe | Tranche |
-|---|---|---|---|
-| [IE-007 — The ongoing record: pin the area, drop the dead fields, close the four debts](tasks/IE-007-ongoing-record-hygiene.md) | mechanism | NO beside IE-001 | 3 |
-
-**IE-001 merged `7592efe`, and its unification found what the leverage audit
-predicted it would.** The three condition-rider spellings had each drifted to
-a different idea of which fields they read — an escape check reached two of
-the three, `outlivesCasting` only one — and those differences were accidents
-of the order the spells were written in rather than rules. No spell-by-spell
-test could have surfaced that, because each block was correct on its own
-terms. One type, one option-builder, one schema reader now, and the mutation
-that drops `unowned` from the shared helper fails four *Grease* tests, which
-is the evidence the merge preserved behaviour.
-
-**IE-007 launched on that base** and is the tranche's last task. Its item 2 —
-removing two fields from a persisted record while both frozen logs still fold
-— is the highest-risk thing in tranche 3, and its brief says to stop and
-report rather than regenerate a fixture if it cannot be done compatibly.
+**And two briefs were stale in the same way** — IE-008's inventory said four
+pool kinds where the code had seven, and IE-001's file surface omitted the
+file its own acceptance criterion required, because IE-004 had made that list
+derived after the brief was written. Twice is a pattern: **a brief should
+point at the derivation, not transcribe its inputs.**
 
 ## NEXT
 
