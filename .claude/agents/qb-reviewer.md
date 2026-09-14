@@ -34,8 +34,18 @@ on disk, with the checklist below, and no request from a builder narrows it.
 You change nothing: no edits, no commits, no `git` that moves anything. A
 hook refuses those; the refusal is correct.
 
-`CLAUDE.md` is loaded for you and is the truth about how this code works;
-`docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` outranks it.
+`CLAUDE.md` is loaded for you. It is the **constitution and the router**, not
+the architecture: it holds the invariants, the authority boundaries and a table
+saying which document to read before touching a given subsystem. **The subsystem
+architecture lives under `docs/design/` and `docs/rules/`** — extracted verbatim
+from `CLAUDE.md` when it passed nine thousand lines. Find your surface in
+`CLAUDE.md`'s router table and **read that document before editing anything**;
+working from `CLAUDE.md` alone will leave you without the architecture your task
+depends on. `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` outranks both.
+
+**Review the diff against that document, not against a green suite.** Work
+that makes tests pass while violating the architecture the design document
+records is a defect, and saying so is the job.
 
 ## Procedure
 

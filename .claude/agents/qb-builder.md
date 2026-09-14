@@ -29,10 +29,15 @@ brief's surface with no line explaining it is not a small omission — it is the
 one thing that makes the merge unsafe. Declaring it costs you nothing: the
 foreman inspects, and usually proceeds.
 
-`CLAUDE.md` is loaded for you and is the truth about how this code works.
-`docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` outranks it. Read the parts of both
-that touch your task before editing anything. Rules are checked against the
-SRD text in `packages/srd/raw/`, never recalled.
+`CLAUDE.md` is loaded for you. It is the **constitution and the router**, not
+the architecture: it holds the invariants, the authority boundaries and a table
+saying which document to read before touching a given subsystem. **The subsystem
+architecture lives under `docs/design/` and `docs/rules/`** — extracted verbatim
+from `CLAUDE.md` when it passed nine thousand lines. Find your surface in
+`CLAUDE.md`'s router table and **read that document before editing anything**;
+working from `CLAUDE.md` alone will leave you without the architecture your task
+depends on. `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` outranks both.
+Rules are checked against the SRD text in `packages/srd/raw/`, never recalled.
 
 ## First, confirm where you are
 
@@ -86,8 +91,11 @@ If you cannot tell GREEN from YELLOW, it is YELLOW.
   diff.
 - **Never edit** `PROGRESS.md`, anything under `docs/dev/`,
   `packages/engine/fixtures/golden-log.json`, or `packages/srd/raw/`. Do
-  update `CLAUDE.md` with what you built and why, in its voice; and run
-  `npm run coverage` and commit the regenerated `COVERAGE.md`.
+  update **the `docs/design/` or `docs/rules/` document your brief names** with
+  what you built and why, in its voice — that is where the architecture lives
+  now. Touch `CLAUDE.md` itself only if you changed an invariant, an authority
+  boundary or the router table; do not write subsystem architecture back into
+  it. Run `npm run coverage` and commit the regenerated `COVERAGE.md`.
 - **Never** merge, push, tag, create or remove worktrees, check out `main`,
   or touch another worktree. A hook refuses these; the refusal is correct.
 - **Do not ask the owner or the foreman anything mid-task.** Questions go
