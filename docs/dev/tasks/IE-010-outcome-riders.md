@@ -1,6 +1,6 @@
 # IE-010 — Outcome riders, and the two `on` rules made one
 
-state: AWAITING_FOREMAN_REVIEW
+state: CHANGES_REQUIRED
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside any task touching the `SpellEffect` union or `commands/spell-resolution.ts`; YES beside `creation.ts`, a new command module, and conformance work
