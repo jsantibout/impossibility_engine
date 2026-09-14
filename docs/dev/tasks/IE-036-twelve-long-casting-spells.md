@@ -1,13 +1,13 @@
 # IE-036 — The twelve spells a long casting time alone blocked
 
-state: IMPLEMENTING
+state: DONE
 lane: content
 tranche: 6
 parallel-safe: CONDITIONAL — content only; collides with IE-043 on registry lines alone
 depends-on: IE-038
-worker: qb-builder in .claude/worktrees/agent-a1188d0edebcc7f38, branch worktree-agent-a1188d0edebcc7f38
+worker: none
 approved: 2026-09-14 — "APPROVE TRANCHE 6."
-merge-approved: none
+merge-approved: 2026-09-14 — "APPROVE TRANCHE 6."
 
 ## Brief
 
@@ -221,3 +221,110 @@ Two smaller notes:
 - `a-long-casting-time`'s description was corrected by IE-034's merge and again
   by IE-038's; its "outside combat only" caveat is IE-041's to remove, not
   yours.
+
+## Completion digest
+
+```
+IE-036 — Completion digest
+Builder: COMPLETE
+Commit: 8d78303 (replayed onto main as fe42caf)   Branch: worktree-agent-a1188d0edebcc7f38
+Opus review: PASS — rounds: 3 (PASS, DEFECTS, PASS; the middle round caught a real false claim)
+Tests: 8287 / 8287 on the branch; new: 472 lines in long-casting-spells.test.ts (62 cases),
+  two pinning cases in the generalised sweeps, one new describe in blocked-on.test.ts.
+  On main after the replay: 8314 across 118 files.
+Mutations, three by the builder and five independently by the reviewer, all biting:
+  (a) castingOf's Ritual sum → the bare constant — which survived the entire suite before this
+      task, because all ten tagged catalogue spells print "Action or Ritual" so 0+600 and 600
+      are the same number — now reddens 3 tests in 2 files;
+  (b) Alarm's castingSeconds 60 → 600 reddens 6 across 3 files including the printed-
+      casting-time oracle;
+  (c) dropping Hallucinatory Terrain's `check` reddens 2, one in each direction of the tracked
+      map's `engine` guard.
+Gauntlet: typecheck ✓ lint ✓ test ✓ coverage diff ✓
+Conformance: PASS — every `unmodelled` clause read against its own SRD paragraph.
+Architectural deviations: none
+Foundational primitives touched: none in substance — no declaration, type, field or runtime
+  line changed anywhere. Two comment-only edits, both correcting claims this task falsified.
+New runtime special cases: none
+Files outside the brief's surface: commands/spell-resolution.ts (comment only — castingOf's
+  docstring said "Exported so a fixture can reach the arithmetic no registered spell does" and
+  "a mutation replacing the sum with the constant survives the whole suite", both of which the
+  twelve make false); CLAUDE.md; and three guards the brief did not list — long-casting,
+  spell-schema and blocked-on tests — which carried IE-034's handover or had to learn that a
+  long casting is two events.
+Out-of-scope findings: (1) the tracked guard's marker set cannot see "the spell ends" — see
+  below. (2) COVERAGE.md's shape buckets are a different vocabulary from missing-shapes.ts —
+  **already obsolete**: IE-045 deleted that classifier while this branch was in flight.
+  (3) Brief requirement 3 is satisfied vacuously: IE-034 removed all ten "Ritual casting option
+  is not modelled" clauses when it made the tag mean something. Verified against main rather
+  than by deleting a phrase; the honest answer is zero.
+Reviewer confidence: high
+Recommendation: READY FOR MERGE
+```
+
+## Risk gate
+
+**Light in mechanism, heavy in content, and inspected accordingly.** No runtime
+line changed anywhere — the two edits outside the stated surface are both
+comments correcting claims the twelve definitions falsify, which is the same
+call IE-043 made about a tested note and the right one.
+
+**The mutation worth recording is (a).** `castingOf`'s Ritual arithmetic —
+ten minutes *added to* the spell's own casting time — could not be
+distinguished from a bare constant by any test in the suite, because every one
+of the ten catalogue spells carrying the Ritual tag prints "Action or Ritual",
+so the sum and the constant are both 600. IE-034 knew this and hand-built an
+Alarm fixture to reach it. **Alarm is now a real definition**, printing "1
+minute or Ritual" and coming to 660, so the rule is pinned by the catalogue
+rather than by a fixture standing in for it. That is a guard graduating from
+synthetic to real.
+
+**All twelve were defined**, which is worth stating against my own prediction:
+when IE-044's instrument reported these twelve as *unread*, I told the owner
+the task might return ten or eleven definitions and a finding or two. It
+returned twelve — as **tracked** spells, which is the brief's own disposition
+for a spell whose content is not arithmetic. Tracked 45 → 57; executed
+unchanged at 97; `a-long-casting-time` 54 blocks / 12 finishes → **42 blocks /
+0 finishes**.
+
+**But the concern was not misplaced, and it landed somewhere the instrument
+cannot reach.** Two of the twelve — Instant Summons and Magic Mouth — print a
+dismissal clause that is **engine debt** rather than fiction: it is
+`a-casting-dismissed-early`, the shape IE-048 builds. Neither could be filed in
+`TRACKED_ADJUDICATED`, because an entry there must name a marker its own
+sentence trips and **no `MECHANICAL_MARKER` fires on the phrase "the spell
+ends"**. The brief forbids extending the marker set and calls it a stated
+floor, so the builder reported rather than extended, and both spells say so in
+`unmodelled`. That is the right behaviour and it is also a real hole: an
+instrument that reads English has a blind spot, and this is one of its edges
+found by use rather than by argument.
+
+Classification: **GREEN**.
+
+## Architecture decision
+
+None. No Fable involvement.
+
+## Merge record
+
+Replayed onto `main` as `fe42caf`. The branch was cut before IE-045 and IE-039
+merged; `COVERAGE.md` was the only conflict, regenerated as
+`.gitattributes` requires, and every other file auto-merged.
+
+`main` verified **after** the merge: typecheck ✓, lint ✓, **8,314 tests across
+118 files** ✓, both frozen logs and the scenario determinism explicitly ✓ (53
+tests), `COVERAGE.md` regenerated and byte-clean ✓, tree clean.
+Top line: `339 | 57 tracked | 97 executed | 48 partial | 75 verified`.
+
+Thirteen conditions: **1** inside the brief; **2** `COMPLETE`; **3** `PASS` at
+high confidence, the middle of three rounds having caught a real false claim;
+**4** defects resolved; **5** gauntlet green; **6** conformance green, every
+clause read against its own paragraph; **7** no blocker; **8** no deviation;
+**9** no primitive touched in substance; **10** files outside the surface are
+comments and three guards that had to learn a long casting is two events;
+**11** integration valid, one expected conflict; **12** re-verified on `main`;
+**13** risk gate inspected, GREEN.
+
+**Nothing was waiting on this task**, and nothing can launch behind it: every
+remaining task in the tranche is gated on `fold/apply.ts` or on
+`commands/spell-resolution.ts`, both of which IE-041 owns while it runs.
