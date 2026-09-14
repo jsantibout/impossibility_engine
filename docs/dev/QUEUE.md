@@ -741,6 +741,42 @@ the part they asked for to protect the part they did not. **The fix is a
 same missing `Duration` member Superior Hunter's Defense wants** — in a task
 of its own.
 
+**IE-034 is `ARCHITECTURE_BLOCKED` — the tranche's third YELLOW, and it is not
+the one that was predicted.** The named escalation (whether Concentration may
+name a *pending* casting id) **resolved cleanly in the affirmative**, with no
+reader needing a branch. This is a different consequence of the same premise,
+and neither Fable nor the foreman surfaced it when the design was approved.
+
+**A guard written for an instant now spans ten minutes.** `casting_pending` is
+**global in caster** — written for the Counterspell window, which is open for a
+moment under one caller's control, with a single fixture in which the *same*
+wizard casts over their own held casting. A rite makes `pendingCasting` live
+for ten minutes of game time and across `advanceTime`, so it now refuses
+**every other creature's** spell. The builder probed it rather than reasoning
+about it: a Cleric is refused `casting_pending` *nine minutes into* a Wizard's
+Comprehend Languages. `activation.ts:133` is the same shape. **That is the
+engine forbidding legal play, which the North Star names in terms.**
+
+**And it is not a one-line narrowing, which is why it is Fable's.** The guard
+does two jobs: *"you may not begin a second casting"*, which is per caster and
+is SRD; and *"the engine holds one pending casting at a time"*, which is
+**global and structural** — verified on `main`, `events.ts:4296` throws
+`CorruptLogError` on a second `spell-declared`. Narrowing to the caster alone
+would let a second creature ask to `hold` and **turn a rules refusal into a
+thrown corrupt log**, which is the one thing this repository says a refusal
+must never become. By contrast `turns.ts:742` is also global and is *right*: a
+pending casting is engine debt a turn must not advance past.
+
+The question put to Fable is deliberately wider than the three options on the
+table: **is a single global `pendingCasting` still the right representation**
+once a pending casting can last ten minutes? Patching a guard when the state
+shape is what changed meaning is the mistake IE-031 nearly made — and Fable has
+chosen a fourth option twice tonight.
+
+The task is otherwise **complete and green at 7,637 tests**, every acceptance
+criterion met, both frozen logs folding, and IE-029's two casting-path refusal
+leftovers discharged.
+
 **Running:** IE-021, IE-022, IE-023 (wave 1), IE-026's confirming review, and
 Fable on IE-024.
 
@@ -918,3 +954,5 @@ standing spatial effect; `cause` on events; summons; long casting times.
 | 2026-09-14 | behaviour narrowing, for the owner | IE-033 | **Ray of Frost is refused outside combat** once its −10 rider is modelled, because a turn-anchored duration outside combat is refused rather than approximated. That is the engine's established rule and Color Spray already behaves so, but Ray of Frost is a common damage cantrip that worked out of combat before. Recorded rather than decided; the alternative — apply the damage and silently drop the rider — would be a new rule and the wrong kind |
 | 2026-09-14 | merge (tranche authority) | IE-033 | merged `fcf40cc`, 13/13, `PASS` on a **foreman-launched confirming review** after three rounds of ordinary defects and no PASS — round exhaustion, judged procedural by the builder itself and by the foreman. The reviewer verified all three round-3 fixes **by mutation**: the six corrected sentences hold, the dead `case 'speed'` is live and pinned by code name, and the Longstrider claim is true. **IE-028's derived `GrantFamily` guard forced the one edit** that adds the fifth family to the enumerator — the guard doing exactly what it was built for, one tranche later |
 | 2026-09-14 | LATER (from IE-033) | — | **A `RiderDuration` member for a moment that does not exist outside combat.** Ray of Frost is refused out of combat because its rider is turn-anchored; the refusal is correct and every alternative is worse, but it is the first time the rule reaches a cantrip whose *primary* content is damage, so it denies the player what they asked for to protect what they did not. This is **the same missing `Duration` member Superior Hunter's Defense wants**, and building it once serves both |
+| 2026-09-14 | YELLOW → Fable | IE-034 | `ARCHITECTURE_BLOCKED` by builder and `ESCALATE` by reviewer. **Not the predicted YELLOW** — that one resolved cleanly with no reader needing a branch. A `casting_pending` guard written for the Counterspell instant now spans a ten-minute rite and **refuses every other creature's spell**, probed directly rather than reasoned about. Not a one-line narrowing: the guard does a per-caster SRD job and a global *structural* one, and `events.ts:4296` throws a `CorruptLogError` on a second `spell-declared`, so narrowing to the caster alone would convert a rules refusal into a thrown corrupt log. Asked as a **representation** question, not a patch question |
+| 2026-09-14 | queued for IE-034's rework | — | two ordinary defects, needing no architecture: `long-casting.test.ts:600` puts every assertion behind `if (!answered.events.some(…)) return;`, so a mutation stopping a Counterspell interrupting a rite would pass **vacuously** while claiming to prove the record, the Concentration and the slot are all right; and `castingOf` refuses a Ritual's `payment` on the stated principle that a quietly ignored field is a caller who thinks they said something, while **silently dropping a `slotLevel`** and never checking `slotless` against `ritual: true` — one sentence enforced two ways |

@@ -1,6 +1,6 @@
 # IE-034 — A long casting time outside combat, and rituals
 
-state: IMPLEMENTING
+state: ARCHITECTURE_BLOCKED
 lane: mechanism
 tranche: 5
 parallel-safe: NO — owns `commands/casting.ts`, `spells.ts` and `events.ts`; runs alone
