@@ -254,7 +254,7 @@ them honest rather than optimistic.
 | IE-016 — The other nine facts a DM declares | mechanism | 2 | every declared event type reachable from the command layer — **merged `9847661`; all 91 now are** |
 | IE-017 — A granted Resistance, and the deadline it needs | mechanism | 3 | `defensesOf`'s third input, and the fourth `EffectTarget` member — **merged `6dd56c4`** |
 | IE-018 — A sweep for refusal codes nothing asserts | conformance | 3 | 41 of 112 unasserted, unmoved across two audits — **merged `ad4f0a6`; the real figure was 36 of 170, now 1** |
-| IE-019 — An outcome that varies by creature type | mechanism | 4 | a second reader of a fact the engine holds authoritatively |
+| IE-019 — An outcome that varies by creature type | mechanism | 4 | a second reader of a fact the engine holds authoritatively — **merged `54e8b54`** |
 
 ### Independence, and what serialises
 
@@ -320,7 +320,6 @@ merge — **no owner gate between waves**; the tranche is the autonomy boundary.
 | Wave | Task | Lane |
 |---|---|---|
 | 2 | [IE-015 — `BLOCKED_ON` derived blocker map](tasks/IE-015-blocked-on-map.md) | conformance — **held for one consolidated integration after IE-019; then `AWAITING_MERGE_APPROVAL`** |
-| 4 | [IE-019 — An outcome that varies by creature type](tasks/IE-019-creature-type-outcomes.md) | mechanism — **launched on IE-017's merge** |
 
 ## NEXT
 
@@ -344,6 +343,10 @@ yet.
 | `qb-builder.md`: builders share one scratchpad path and one overwrote another's file — tell them to use task-unique filenames | docs | found by IE-004's builder; the foreman has been saying it in every launch prompt since, which is the workaround rather than the fix |
 | the marker set in `spell-honesty.test.ts` has no word for *object*, so Dispel Magic's "creature, object, or magical effect" clause is unread | conformance | a stated floor; extend when a second clause needs it |
 | **`npm test` rewrites a tracked file, so the gauntlet's `COVERAGE.md` check passes for the wrong reason.** `coverage.ts` calls `writeFileSync('COVERAGE.md', …)` at module top level and two test files import it, so the suite regenerates the file it is then diffed against | conformance | IE-010's builder. Pre-existing and **more serious than it sounds**: `git diff --exit-code COVERAGE.md` has been asserting that the suite just ran, not that the committed file was right. Make the generation explicit and the check meaningful |
+| `TargetRule.mustBeType` is still an unvalidated `string`, so `mustBeType: 'Goblinoid'` validates while `againstType.types: ['Goblinoid']` does not | conformance | IE-019's builder; a pre-existing asymmetry the same `CREATURE_TYPES` set would close |
+| SRD Flesh to Stone prints "Constructs automatically succeed on the save" — a **third** typed outcome the union deliberately does not carry, because its only writer is blocked on three other shapes | content | IE-019, named in the docstring rather than built |
+| The parsed bestiary types six swarms as `Beasts` (plural), so an exact match against `Beast` would miss them. No SRD spell varies an outcome by Beast, so nothing reaches it today | conformance | IE-019's builder |
+| Shatter's "a nonmagical object that isn't being worn or carried also takes the damage" is a real unexecuted clause **no definition claims**, while Blight's parallel sentence is claimed — neither guard catches it, because lowercase "plant" and "object" trip no marker | conformance | IE-019's builder. A gap in the honesty guards' marker set, which is a stated floor |
 | **`checkEffect` branches dereference an effect's fields unguarded**, so untyped input reaching `checkSpellDefinition` directly throws instead of reporting. `end-condition` and `damage-defense` both do it | conformance | IE-017's builder, which matched the precedent rather than making one kind defensive and its neighbour not. **This is the same class the IE-010 re-review caught in `grantCarried`, where it was a real regression** — three instances now, so it is a class rather than a slip, and the fix is one pass over every branch |
 | **`no_trigger` carries five distinct rules across three modules**; `nothing_to_interrupt`, `not_a_combatant` at `dash`, `bad_key`, `slot_not_allowed`, `bad_hit_die`'s second site and `no_damage` are unreachable or shadowed | conformance | IE-018, correctly reported rather than fixed — a refusal code is observable behaviour and a caller may branch on it |
 | **Fire Shield is a fourth candidate for the granted defence** — "the warm shield grants you Resistance to Cold damage, and the chill shield grants you Resistance to Fire damage", a choice at the cast that `damageTypeStated` now expresses — but it is partial on its retaliation clause | content | IE-017's builder |

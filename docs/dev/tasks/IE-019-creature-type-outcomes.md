@@ -1,13 +1,13 @@
 # IE-019 — An outcome that varies by creature type
 
-state: IMPLEMENTING
+state: DONE
 lane: mechanism
 tranche: 4
 parallel-safe: NO beside another union task; YES beside conformance and command-surface work
 depends-on: IE-017
-worker: qb-builder · C:/Users/justi/Code/QuestBarrel/ImpossibilityEngine/.claude/worktrees/agent-a7aa46b24d7952824 · worktree-agent-a7aa46b24d7952824
+worker: none
 approved: 2026-09-13 — "APPROVE TRANCHE 4"
-merge-approved: none
+merge-approved: 2026-09-13 — "APPROVE TRANCHE 4" (tranche 4 authority; 13/13 conditions green)
 
 ## Brief
 
@@ -120,3 +120,61 @@ Good), which `CLAUDE.md` names as a different missing piece.
 
 - Item 2 is the one that will pass by accident if the branch defaults. Drive
   the undeclared case explicitly and assert nothing was spent.
+
+
+## Merge record
+
+Merged to `main` as `54e8b54`, fast-forward, pushed. PASS at high confidence,
+round two. Partial 55 → **52**, verified 68 → **69**. 6,656 tests.
+
+Three spells left `PARTIAL_SPELLS` and `an-outcome-that-varies-by-creature-type`
+left `MISSING_SHAPES`, because it is no longer missing.
+
+**Two corrections to the brief, both checked against the book rather than
+arbitrated, and both mine.**
+
+1. **Acceptance criterion 1 said "the save is not rolled and the failure is
+   automatic". It is rolled.** `CLAUDE.md:5275` has said since conditions
+   landed what this engine means by an automatic failure: *"The roll is still
+   recorded — other effects can care what it showed — but `autoFailed`
+   overrides the total, and no after-the-fact bonus rescues it."* The builder
+   matched that mechanism rather than building a second one for the same SRD
+   phrase, and its supporting argument is the decisive one: a mechanism that
+   skipped the roll would have had to explain why Shatter's Construct — the
+   same clause, the same slot — still rolls. **I wrote an implementation
+   detail where the requirement was an outcome, and the engine already had a
+   meaning for it.**
+2. **Divine Smite is an SRD spell, not a class feature** — `spells.md:1873`,
+   "Level 1 Evocation (Paladin)". The brief said otherwise and offered an
+   escape hatch that was not needed.
+
+**The builder mutation-tested its own tests, and two of them failed that
+test.** Two assertions were rewritten because they *survived* the mutation
+they were written against: the Radiant-immunity bound needed a target with
+nothing left to resist, and "full, not half" was a floor a halved 8d8 also
+clears. Finding that a passing assertion proves nothing is the hardest kind of
+self-check, and it was volunteered.
+
+**Banishment was honestly declined.** The brief left the fourth shape open —
+"an honest 'not this shape' is better than a field with one user" — and it is
+re-filed to `a-second-place-to-put-a-creature` with the reason written, rather
+than bent into a union that did not fit it.
+
+The thirteen conditions: 1 inside the brief · 2 COMPLETE · 3 PASS at high,
+round two · 4 no defects · 5 gauntlet ✓ · 6 `COVERAGE.md` byte-identical;
+`PARTIAL_SPELLS` derived and agreeing both ways; the removed `unmodelled`
+clauses are the ones now executed · 7 no blocker · 8 one deviation, ratified
+above · 9 roll resolution gains an additive optional `autoFail` and one `??`;
+the `SpellEffect` union gains two optional clauses — all authorised, and the
+union task for this wave is where they belong · 10 three files beyond the
+likely surface, each required by a stated criterion · 11 no conflict ·
+12 gauntlet re-run on `main`: typecheck ✓ lint ✓ **6656/6656** ✓ coverage
+byte-clean ✓, both fixtures untouched · 13 GREEN.
+
+### Behaviour change worth naming
+
+An area casting that catches an **untyped bystander now asks instead of
+resolving.** That is precisely the three-valued discipline the brief mandated,
+and nothing in the suite depended on the old silence — but it is a real change
+to what a caller sees, and it is the kind that would be easy to discover in
+play rather than here.
