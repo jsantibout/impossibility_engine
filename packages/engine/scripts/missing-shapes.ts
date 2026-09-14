@@ -186,7 +186,7 @@ export const MISSING_SHAPES = {
   'what-a-creature-is-holding':
     '`inventory` and `equipped` are real and only armour and weapons have a slot; CLAUDE.md: "Nothing checks that two hands are free, either." So a spell that makes a creature drop what it holds, or that hands one a globe to throw later, has nothing authoritative to call.',
   'targeting-rules-that-differ-within-one-casting':
-    'one range and one sight requirement are checked against every named target. The SRD sometimes measures a later target from an earlier one, requires sight of only the first, or prints a reach for the attack that is not the spell’s Range — a third measurement beside the caster and the area point CLAUDE.md added for Mass Cure Wounds ("The range then belongs to the point, **not** to each target"). `spell-definitions.ts` records the reach half on Vampiric Touch, whose clause says the initial attack’s "within reach" goes unchecked.',
+    'one range and one sight requirement are checked against every named target. The SRD sometimes measures a later target from an earlier one, requires sight of only the first, or prints a reach for the attack that is not the spell’s Range — a third measurement beside the caster and the area point CLAUDE.md added for Mass Cure Wounds ("The range then belongs to the point rather than to each target"). `spell-definitions.ts` records the reach half on Vampiric Touch, whose clause says the initial attack’s "within reach" goes unchecked.',
   'a-condition-that-ends-when-its-holder-leaves-an-area':
     'CLAUDE.md says it outright: Web’s Restrained lasts "while in the webs", and "a condition that ends when its holder walks out of an area has no shape here at all".',
   'an-area-that-filters-its-catch':
