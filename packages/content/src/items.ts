@@ -206,6 +206,35 @@ const charges = (
 });
 
 /**
+ * "You can cast _X_ from it", as a grant.
+ *
+ * SRD "Spells Cast from Items" settles what that sentence means and the engine
+ * does not have to have an opinion: the casting runs down the pipeline a
+ * Wizard's casting runs down, and what the item supplies is the price, the
+ * level and — where its own line prints them — the numbers.
+ *
+ * **What is *not* here is as deliberate as what is.** No ability, because the
+ * fallback the SRD prints once ("using your spell save DC", and +0 with
+ * Proficiency where there is none) is a rule in the resolver rather than
+ * something an item could restate; and no caster level, because the book fixes
+ * it at the lowest possible for every item at once.
+ */
+const castsSpell = (
+  spell: string,
+  cost: number,
+  extra: {
+    /** SRD: "you can expend no more than N charges". */
+    readonly upToCharges?: number;
+    /** SRD Wand of Fireballs: "(save DC 15)". */
+    readonly saveDc?: number;
+    /** SRD Circlet of Blasting: "(+5 to hit)". */
+    readonly attackBonus?: number;
+    /** The level the least charge count casts it at, where the line names one. */
+    readonly level?: number;
+  } = {},
+): ItemGrant => ({ kind: 'casts', spell, charges: cost, ...extra });
+
+/**
  * The weapon record a magic weapon is a magical version of.
  *
  * SRD writes a whole family as one entry — "Weapon, +1, +2, or +3: Weapon
@@ -1088,10 +1117,80 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * about rather than refused.
        */
       attunement: { bySpellcaster: true },
-      grants: [charges('wand-of-fireballs', 'Wand of Fireballs', 7, '1d6 + 1')],
+      grants: [
+        charges('wand-of-fireballs', 'Wand of Fireballs', 7, '1d6 + 1'),
+        /**
+         * "you can expend no more than 3 charges to cast _Fireball_ (save DC
+         * 15) from it. For 1 charge, you cast the level 3 version of the
+         * spell. You can increase the spell's level by 1 for each additional
+         * charge you expend."
+         *
+         * **The item that proves both halves of the numbers rule.** The DC is
+         * the wand's — an archmage holding it still saves against 15 — and the
+         * *level* is the charges', which is the only thing about the casting
+         * the wielder decides. Fireball is a level 3 spell, so "the level 3
+         * version" is its own level and the grant names none.
+         */
+        castsSpell('fireball', 1, { upToCharges: 3, saveDc: 15 }),
+      ],
       unmodelled: [
-        'what the charges buy: "you can expend no more than 3 charges to cast _Fireball_ (save DC 15) from it. For 1 charge, you cast the level 3 version of the spell" — a spell cast from an item, at a level the charges decide and a DC the item prints rather than its holder',
         '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself, which nothing removes from an inventory',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'wand-of-web', name: 'Wand of Web', kind: 'wand' },
+    {
+      /**
+       * SRD Wand of Web: "Wand, Uncommon (Requires Attunement by a
+       * Spellcaster). This wand has 7 charges. While holding it, you can
+       * expend 1 charge to cast _Web_ (save DC 13) from it."
+       *
+       * **The item that proves a casting from an item is really a casting.**
+       * Web is Concentration and leaves a persistent area behind, so a wand
+       * that casts it has to drop whatever its wielder was concentrating on,
+       * leave an ongoing record Dispel Magic can find, and go on catching
+       * whoever walks into the webbing on a later turn — against the *wand's*
+       * DC of 13, pinned at the casting, and not the wielder's.
+       *
+       * It is also the whole of the entry: one charge, one spell, and nothing
+       * the engine cannot say, so it carries no `unmodelled` at all.
+       */
+      attunement: { bySpellcaster: true },
+      grants: [
+        charges('wand-of-web', 'Wand of Web', 7, '1d6 + 1'),
+        castsSpell('web', 1, { saveDc: 13 }),
+      ],
+      unmodelled: [
+        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself, which nothing removes from an inventory',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'cape-of-the-mountebank', name: 'Cape of the Mountebank', kind: 'wondrous' },
+    {
+      /**
+       * SRD Cape of the Mountebank: "Wondrous Item, Rare. This cape smells
+       * faintly of brimstone. While wearing it, you can use it to cast
+       * _Dimension Door_ as a Magic action. This property can't be used again
+       * until the next dawn."
+       *
+       * **A per-day property is a pool of one.** "Can't be used again until
+       * the next dawn" is the same sentence a wand's charges print with every
+       * number set to one: one use, spent by the casting, given back whole by
+       * `declareDawn`. So it needs no second mechanism, and the item that has
+       * no charge count in the book still has a charge economy here.
+       *
+       * No attunement — the book prints no bracket — which makes it the one
+       * casting item in the catalogue that a creature of any kind can simply
+       * put on and use.
+       */
+      grants: [
+        charges('cape-of-the-mountebank', 'Cape of the Mountebank', 1),
+        castsSpell('dimension-door', 1),
+      ],
+      unmodelled: [
+        '"When you teleport with that spell, you leave behind a cloud of smoke. The space you left is Lightly Obscured by that smoke until the end of your next turn": obscurement attached to a space rather than to a creature, which the scene has no shape for',
       ],
     },
   ),
@@ -1113,9 +1212,28 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       grants: [
         resistanceWhileWorn(['fire']),
         charges('staff-of-fire', 'Staff of Fire', 10, '1d6 + 4'),
+        /**
+         * "you can cast one of the spells on the following table from it,
+         * using your spell save DC. The table indicates how many charges you
+         * must expend to cast the spell."
+         *
+         * **The item that prints no numbers**, and so the one that proves the
+         * fallback: the DC is the wielder's own, which is a rule in the
+         * resolver because the SRD prints it once and no item restates it. A
+         * staff attuned by a Druid, Sorcerer, Warlock or Wizard will normally
+         * have exactly one spellcasting ability to bring; one with two is
+         * asked which, and one with none rolls +0 with their Proficiency
+         * Bonus.
+         *
+         * A grant per row of the table, which is why the reader is a list: the
+         * book prices each spell separately and the two the catalogue can cast
+         * are priced differently.
+         */
+        castsSpell('burning-hands', 1),
+        castsSpell('fireball', 3),
       ],
       unmodelled: [
-        'what the charges buy: "you can cast one of the spells on the following table from it, using your spell save DC. The table indicates how many charges you must expend to cast the spell" — Burning Hands, Fireball and Wall of Fire, each at its own price',
+        'the third row of the staff\'s table, "_Wall of Fire_" at 4 charges: the catalogue has no definition of that spell, which is blocked on a wall — an area shape the engine does not hold — and on damage with neither an attack roll nor a save',
         '"If you expend the last charge, roll 1d20. On a 1, the staff crumbles into cinders and is destroyed": an item that destroys itself, which nothing removes from an inventory',
       ],
     },

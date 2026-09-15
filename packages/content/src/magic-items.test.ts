@@ -8,6 +8,7 @@ import {
   transcribedItems,
 } from '../scripts/magic-items.js';
 import { SRD_ITEMS, SRD_MAGIC_ITEMS } from './items.js';
+import { SPELL_DEFINITIONS as SRD_SPELLS } from './spells.js';
 import { SRD_CLASSES, SRD_CONTENT_INPUT } from './index.js';
 
 /**
@@ -189,6 +190,23 @@ describe('every transcribed item agrees with the entry it was read from', () => 
       if (pool === undefined) continue;
       if (pool.kind !== 'pool') throw new Error('unreachable');
 
+      // **A per-day property is a pool of one**, and the book prints it as a
+      // sentence rather than as a charge count: "This property can't be used
+      // again until the next dawn." It is the same mechanism with every number
+      // set to one — one use, spent by the thing it buys, given back whole at
+      // a declared dawn — so it is checked against the sentence the entry does
+      // print rather than against a charge count it does not.
+      if (entry.charges === null) {
+        expect(pool.uses, `${item.id} has no charge count in the book`).toBe(1);
+        expect(pool.regainsAtDawn, `${item.id} refills whole`).toBeUndefined();
+        expect(
+          contains(entry.description, "can't be used again until the next dawn"),
+          `${item.id} declares a pool the entry prints nothing for`,
+        ).toBe(true);
+        expect(pool.recovers, item.id).toBe('dawn');
+        continue;
+      }
+
       expect(entry.charges?.maximum, `${item.id} declares charges the book does not`).toBe(
         pool.uses,
       );
@@ -200,7 +218,88 @@ describe('every transcribed item agrees with the entry it was read from', () => 
       expect(contains(entry.description, regain), `${item.id}: "${regain}"`).toBe(true);
     }
   });
+
+  /**
+   * What a charge buys, held against the line that prices it.
+   *
+   * SRD "Spells Cast from Items" makes the casting itself the engine's
+   * business; what is the *item's* is the spell, the price and — where the
+   * entry prints one — the DC. All three are on the page, so all three are
+   * checked against it rather than against a copy: a staff whose table says
+   * three charges and whose grant says one would otherwise be a silently
+   * cheaper staff, and a printed DC mistyped by one is a spell that has been
+   * quietly made easier for ever.
+   *
+   * The spell is matched by the display name the book italicises rather than
+   * by the catalogue slug, which is what the entry actually contains.
+   */
+  it('prices a spell it casts as the item’s own table prices it', () => {
+    let checked = 0;
+    for (const [item, entry] of transcribedItems()) {
+      for (const grant of item.grants ?? []) {
+        if (grant.kind !== 'casts') continue;
+        checked += 1;
+        const name = SRD_SPELLS.find((spell) => spell.id === grant.spell)?.name;
+        expect(name, `${item.id} casts ${grant.spell}, which the catalogue does not define`)
+          .toBeDefined();
+        expect(
+          contains(entry.description, name ?? grant.spell),
+          `${item.id} casts ${name ?? grant.spell}, which its entry never names`,
+        ).toBe(true);
+
+        // The price, in each of the three ways the book prints one: written
+        // out ("expend 1 charge to cast"), named as the floor of a range ("For
+        // 1 charge, you cast the level 3 version"), or in a cell of a staff's
+        // table beside the spell. An entry that prints no charge count at all
+        // is a per-day property, which is a pool of one and priced by the
+        // sentence that says so.
+        const printed =
+          entry.charges === null
+            ? grant.charges === 1 &&
+              contains(entry.description, "can't be used again until the next dawn")
+            : contains(entry.description, `expend ${grant.charges} charge`) ||
+              contains(entry.description, `For ${grant.charges} charge`) ||
+              tablePrices(entry.description).get(name ?? '') === grant.charges;
+        expect(printed, `${item.id} prices ${name} at ${grant.charges}, and its entry does not`)
+          .toBe(true);
+
+        if (grant.saveDc !== undefined) {
+          expect(
+            contains(entry.description, `save DC ${grant.saveDc}`),
+            `${item.id} prints a save DC of ${grant.saveDc} nowhere in its entry`,
+          ).toBe(true);
+        }
+        if (grant.upToCharges !== undefined) {
+          expect(
+            contains(entry.description, `no more than ${grant.upToCharges} charges`),
+            `${item.id} lets ${grant.upToCharges} charges go and its entry does not`,
+          ).toBe(true);
+        }
+      }
+    }
+    // Not vacuous: the catalogue really does have items that cast.
+    expect(checked).toBeGreaterThan(3);
+  });
 });
+
+/**
+ * The charge cost a staff's table prints beside each spell.
+ *
+ * The SRD writes these as an HTML table with the spell in one cell and the
+ * cost in the next, and two spells to a row on the wider ones — so a single
+ * regular expression over pairs reads both shapes, and a spell that is not in
+ * a table simply is not in the map.
+ */
+const tablePrices = (description: string): ReadonlyMap<string, number> => {
+  const prices = new Map<string, number>();
+  const cells = [...description.matchAll(/<td>([^<]*)<\/td>/g)].map((m) => (m[1] ?? '').trim());
+  for (let n = 0; n + 1 < cells.length; n += 2) {
+    const spell = (cells[n] ?? '').replace(/[*_]/g, '').trim();
+    const cost = Number((cells[n + 1] ?? '').trim());
+    if (spell.length > 0 && Number.isInteger(cost)) prices.set(spell, cost);
+  }
+  return prices;
+};
 
 describe('what an item does not do is data, and quotes the page', () => {
   const declared = SRD_MAGIC_ITEMS.filter((item) => item.unmodelled !== undefined);
@@ -295,10 +394,10 @@ describe('what an item does not do is data, and quotes the page', () => {
 });
 
 describe('nothing in the catalogue asks for a reader that does not exist', () => {
-  it('grants only what an item’s two readers read', () => {
+  it('grants only what an item’s three readers read', () => {
     for (const item of SRD_MAGIC_ITEMS) {
       for (const grant of item.grants ?? []) {
-        expect(['standing', 'pool'], item.id).toContain(grant.kind);
+        expect(['standing', 'pool', 'casts'], item.id).toContain(grant.kind);
         if (grant.kind !== 'standing') continue;
         for (const effect of grant.effects ?? []) {
           expect([...ITEM_EFFECT_KINDS], `${item.id}: ${effect.kind}`).toContain(effect.kind);

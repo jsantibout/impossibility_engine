@@ -342,6 +342,93 @@ function itemUnmodelledProblems(item: CatalogueItem): readonly ContentProblem[] 
 }
 
 /**
+ * What an item's `casts` grant has to say, and what it may not.
+ *
+ * SRD "Spells Cast from Items" decides all of it. The spell has to be one the
+ * catalogue can actually execute, because the whole point of the grant is that
+ * the casting runs down the ordinary pipeline; the charges have to come out of
+ * a pool the item declares, because "expend 1 charge" is the item's own
+ * economy and `resources.ts` is where it lives; and the charge range has to
+ * make sense, because "no more than 3 charges" is a maximum above a minimum
+ * rather than an invitation to spend nothing.
+ *
+ * **Two grants naming one spell is refused**, because two prices for one
+ * casting is a choice nothing could make: `itemCasting` reads the first, and
+ * an item whose second line silently never applied is exactly the failure
+ * `unmodelled` exists to prevent.
+ */
+function itemCastsProblems(
+  item: CatalogueItem,
+  grant: Extract<FeatureGrant, { kind: 'casts' }>,
+  at: string,
+  spellExists: (id: string) => boolean,
+  seen: Set<string>,
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  if (!isString(grant.spell) || grant.spell.trim() === '') {
+    say('bad_item_spell', 'an item that casts a spell names which', `${at}.spell`);
+  } else if (!spellExists(grant.spell)) {
+    say(
+      'unknown_spell',
+      `${item.id} casts ${grant.spell}, which this content has no executable definition of`,
+      `${at}.spell`,
+    );
+  } else if (seen.has(grant.spell)) {
+    say(
+      'two_item_castings',
+      `${item.id} casts ${grant.spell} twice, and two prices for one casting is a choice nothing can make`,
+      `${at}.spell`,
+    );
+  } else {
+    seen.add(grant.spell);
+  }
+
+  if (!Number.isInteger(grant.charges) || grant.charges < 1) {
+    say(
+      'bad_charge_cost',
+      `the SRD prints what a casting from an item costs on the item's own line, and ${item.id} names ${String(grant.charges)}`,
+      `${at}.charges`,
+    );
+  }
+  if (grant.upToCharges !== undefined) {
+    if (!Number.isInteger(grant.upToCharges) || grant.upToCharges <= grant.charges) {
+      say(
+        'bad_charge_range',
+        `"no more than N charges" is a maximum above the cost, and ${item.id} names ${String(grant.upToCharges)}`,
+        `${at}.upToCharges`,
+      );
+    }
+  }
+  if (grant.level !== undefined && (!Number.isInteger(grant.level) || grant.level < 0 || grant.level > 9)) {
+    say('bad_level', `a spell's level runs from 0 to 9, got ${String(grant.level)}`, `${at}.level`);
+  }
+  for (const field of ['saveDc', 'attackBonus'] as const) {
+    const printed = grant[field];
+    if (printed !== undefined && !Number.isInteger(printed)) {
+      say('bad_printed_number', `${field} is the number the item's line prints`, `${at}.${field}`);
+    }
+  }
+
+  // The charges come out of the item's own pool, which is the mechanism
+  // `resources.ts` named "a magic item with seven charges" on the day it was
+  // written. An item that casts for a price and declares no pool has an
+  // economy with nothing behind it, and `itemRoute` would refuse every casting.
+  if (itemChargePool(item) === null) {
+    say(
+      'casts_without_charges',
+      `${item.id} casts ${String(grant.spell)} for charges and declares no charge pool for them to come out of`,
+      `${at}.charges`,
+    );
+  }
+
+  return found;
+}
+
+/**
  * What an item is allowed to grant, judged once for both input paths.
  *
  * Typed content and parsed JSON both arrive at `checkContent`, so this is the
@@ -352,7 +439,11 @@ function itemUnmodelledProblems(item: CatalogueItem): readonly ContentProblem[] 
  * real and are coming, but a grant nothing executes is an item whose line in
  * the book quietly does nothing.
  */
-function itemGrantProblems(item: CatalogueItem): readonly ContentProblem[] {
+function itemGrantProblems(
+  item: CatalogueItem,
+  /** Whether this catalogue holds an executable definition of that spell. */
+  spellExists: (id: string) => boolean,
+): readonly ContentProblem[] {
   const found: ContentProblem[] = [];
   const where = `items[${item.id}].grants`;
   const say = (code: string, reason: string, field = where): void => {
@@ -360,6 +451,7 @@ function itemGrantProblems(item: CatalogueItem): readonly ContentProblem[] {
   };
 
   let pools = 0;
+  const casts = new Set<string>();
 
   (item.grants ?? []).forEach((grant, index) => {
     const at = `${where}[${index}]`;
@@ -377,10 +469,14 @@ function itemGrantProblems(item: CatalogueItem): readonly ContentProblem[] {
       found.push(...itemPoolProblems(item, grant, at));
       return;
     }
+    if (grant.kind === 'casts') {
+      found.push(...itemCastsProblems(item, grant, at, spellExists, casts));
+      return;
+    }
     if (grant.kind !== 'standing') {
       say(
         'item_grant_not_read',
-        `nothing executes a "${grant.kind}" grant from an item yet; only a standing grant and a charge pool are read from one`,
+        `nothing executes a "${grant.kind}" grant from an item yet; only a standing grant, a charge pool and a spell it casts are read from one`,
         at,
       );
       return;
@@ -698,6 +794,17 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           reason: `a flat number of uses is how an item's line sizes its charges, and poolSizeOf sizes a feature's pool from its class table, so ${feature.id} would be sized by a number nothing reads`,
         });
       }
+      // The item's own route, on a class feature — the same door again. SRD
+      // "Spells Cast from Items" is about an item, the charges it spends are
+      // looked up by the granting item's id, and a class feature has none. A
+      // feature that grants spells has `kind: 'spells'`, which is executed.
+      if (feature.grants?.kind === 'casts') {
+        problems.push({
+          field: `${where}.grants`,
+          code: 'item_casting_on_a_feature',
+          reason: `"casts" is an item casting a spell from its own charges, looked up by the granting item's id, and ${feature.id} is not an item; a feature that grants a spell declares it with a "spells" grant`,
+        });
+      }
       // A feature executed by another names one on the same source that
       // actually declares something; otherwise the claim just moves.
       if (feature.executedBy !== undefined) {
@@ -766,7 +873,12 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       }
     }
     problems.push(...itemUnmodelledProblems(item));
-    problems.push(...itemGrantProblems(item));
+    // A catalogue with no spells at all judges nothing about which spells an
+    // item casts, on the same rule `byClass` already follows above: a fixture
+    // that holds only items is not a catalogue whose wands cast nothing.
+    problems.push(
+      ...itemGrantProblems(item, (id) => spells.length === 0 || spells.some((s) => s.id === id)),
+    );
   }
 
   return problems;

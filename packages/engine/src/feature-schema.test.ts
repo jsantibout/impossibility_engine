@@ -417,11 +417,29 @@ describe('rule 6 — a pool is sized the three ways the SRD sizes one', () => {
 });
 
 describe('rule 7 — no FeatureGrant member sits unwritten', () => {
-  const written: ReadonlySet<string> = new Set(
-    POPULATION.flatMap((entry) =>
+  /**
+   * Every writer of the vocabulary, which is no longer only the class tables.
+   *
+   * A magic item is a `CatalogueItem` that has grown grants written in this
+   * same `FeatureGrant` vocabulary — see `docs/design/characters-and-equipment.md`
+   * — so an item writing a member is a writer of it, and one member has no
+   * class writer at all: `casts` is an item casting a spell from its own
+   * charges, looked up by the granting item's id, and `checkContent` refuses it
+   * on a feature outright.
+   *
+   * Reading only the classes would report that as a member nobody writes,
+   * which is the one thing this guard must not do: the population is what has
+   * grown, not the vocabulary's honesty. The third case below holds the
+   * widening to exactly that one member, in both directions.
+   */
+  const written: ReadonlySet<string> = new Set([
+    ...POPULATION.flatMap((entry) =>
       entry.feature.grants === undefined ? [] : [String(entry.feature.grants.kind)],
     ),
-  );
+    ...SRD_CONTENT.items.flatMap((item) =>
+      (item.grants ?? []).map((grant) => String(grant.kind)),
+    ),
+  ]);
 
   /**
    * Both directions, which together are a bijection: a member the extraction
@@ -429,12 +447,27 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
    * Names, never a count — a count needs maintaining by whoever next changes
    * the format, and passes for the wrong reason the moment two changes cancel.
    */
-  it('declares every kind a class writes', () => {
+  it('declares every kind a class or an item writes', () => {
     expect([...written].filter((kind) => !DECLARED_KINDS.has(kind)).sort()).toEqual([]);
   });
 
-  it('has a class writing every kind it declares', () => {
+  it('has a class or an item writing every kind it declares', () => {
     expect(unwrittenGrantKinds(DECLARED_KINDS, written)).toEqual([]);
+  });
+
+  /**
+   * And the widening is real rather than a way of going green: the catalogue
+   * has an item writing the one member no class does, and the member the two
+   * populations share is shared rather than quietly item-only.
+   */
+  it('has the item catalogue writing what the class tables do not', () => {
+    const fromClasses = new Set(
+      POPULATION.flatMap((entry) =>
+        entry.feature.grants === undefined ? [] : [String(entry.feature.grants.kind)],
+      ),
+    );
+    expect([...written].filter((kind) => !fromClasses.has(kind)).sort()).toEqual(['casts']);
+    expect(fromClasses.has('pool')).toBe(true);
   });
 
   it('reports a member nobody writes, driven over a synthetic one', () => {

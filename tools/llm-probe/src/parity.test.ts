@@ -150,6 +150,12 @@ const AUDIT: readonly {
       answers: because(
         'which casting a Reaction interrupts, by id. Only Counterspell prints the trigger that reads it, and nothing on this surface opens a pending casting for one to answer — `hold` and `ritual` are both withheld above for that reason. It is also optional where the named caster has exactly one casting open, so the day a settlement command is published this is what a caller re-sends with when they have two',
       ),
+      item: because(
+        'which magic item casts the spell. A real DM decision and a cheap one to publish — but no creature in either benchmark is holding a casting item, and the surface has no way to give one out or to attune to it, so a published field would refuse every value it could be sent. Publish it beside an inventory tool, not before',
+      ),
+      charges: because(
+        'how many of an item\'s charges a casting spends, which is the wielder\'s decision exactly as a slot level is. Refused without `item` above, so it is the same fact and waits on the same tool — and only the seven wands whose line reads "no more than 3 charges" offer a choice at all; everything else is priced at one number the grant already holds',
+      ),
     },
   },
   {

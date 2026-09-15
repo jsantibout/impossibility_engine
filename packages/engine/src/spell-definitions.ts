@@ -2367,6 +2367,142 @@ export function creatureTypesRead(effect: SpellEffect): readonly string[] {
 }
 
 /**
+ * Does resolving this spell roll a D20 Test with the **caster's own**
+ * spellcasting ability?
+ *
+ * SRD Dispel Magic: "make an ability check using your spellcasting ability (DC
+ * 10 plus that spell's level)". A modifier is not enough to answer it — the
+ * ability decides the roll's modes and which conditions fail it outright — so
+ * this is a question about which ability, not about which number, and it is
+ * the one thing a casting's pinned {@link CastingNumbers} cannot stand in for.
+ *
+ * It exists for the same reason {@link creatureTypesRead} does: the answer has
+ * to be had **before anything is spent**. A wand held by a creature with no
+ * spellcasting ability at all can pay for a Fireball perfectly well and cannot
+ * make this check, and finding that out inside the resolution would be a
+ * refusal that had already taken the charge.
+ *
+ * **One case, and the compiler keeps it honest.** `CastingRoute`'s item arm
+ * carries `ability: Ability | null`, so a second resolver that reaches for the
+ * caster's ability fails to typecheck rather than silently reading a null.
+ */
+export function castersAbilityRead(definition: SpellDefinition): boolean {
+  return definition.effects.some((effect) => effect.kind === 'dispel');
+}
+
+/** Which of a casting's own {@link CastingNumbers} resolving this spell reads. */
+export interface NumbersRead {
+  readonly saveDc: boolean;
+  readonly attackModifier: boolean;
+  readonly spellcastingModifier: boolean;
+}
+
+/**
+ * Which of the casting's pinned numbers this spell can actually read.
+ *
+ * The sibling of {@link castersAbilityRead}, and a different question with a
+ * different answer. That one asks which *ability* a D20 Test is made with,
+ * which "+0 for the item" cannot supply; this asks which *numbers* a
+ * resolution will reach for, and every one of them has an answer for a wielder
+ * with no spellcasting ability at all.
+ *
+ * It exists because SRD hands the item and the spell one clause each. "(save
+ * DC 15)" is the *item's* sentence and settles that number outright; "plus
+ * your spellcasting ability modifier" is the *spell's* and is never settled by
+ * an item's line at all. So an item that prints one number and leaves another
+ * to the wielder has deferred exactly the ones it did not print — and whether
+ * the wielder must therefore be asked which of two abilities to bring is a
+ * question about what this spell reads, not about how many numbers the item
+ * happened to print. Without that, a wand printing a DC and casting a spell
+ * attack rolled at a flat Proficiency Bonus for a two-classed wielder and at
+ * their own modifier for a single-classed one, silently.
+ *
+ * **Every list a casting resolves**, not only the definition's own: an area
+ * trigger and a later activation both run through `resolveEffects` with the
+ * numbers this casting pinned, so a clause in either of them reads the same
+ * fields a minute later.
+ *
+ * **One branch per kind and a `never` default**, which is the discipline
+ * `resolveOneEffect` keeps for the same reason: a kind added to the union and
+ * not classified here is a compile error rather than a number quietly read
+ * from a source nobody chose. Erring towards `true` is the safe direction —
+ * it costs a caller one refusal naming a choice the SRD says is theirs, where
+ * erring towards `false` costs a wrong number nobody is told about.
+ */
+export function numbersRead(definition: SpellDefinition): NumbersRead {
+  const running: readonly SpellEffect[] = [
+    ...definition.effects,
+    ...(definition.areaTrigger?.effects ?? []),
+    ...(definition.activation?.effects ?? []),
+  ];
+
+  // SRD Minor Illusion offers a check "against your spell save DC" to anybody
+  // who studies it, which is the casting's DC read by nothing in `effects`.
+  let saveDc = definition.check !== undefined;
+  let attackModifier = false;
+  let spellcastingModifier = false;
+
+  for (const effect of running) {
+    if ((effect as { readonly addSpellcastingModifier?: boolean }).addSpellcastingModifier === true) {
+      spellcastingModifier = true;
+    }
+    switch (effect.kind) {
+      case 'attack':
+        // The roll itself, and every rider it settles — a condition a hit
+        // imposes may offer a repeat save against the casting's DC.
+        attackModifier = true;
+        saveDc = true;
+        break;
+      case 'attack-damage':
+        // Divine Smite rides an attack somebody else already rolled, so it
+        // reads no attack modifier of its own; its riders still read the DC.
+        saveDc = true;
+        break;
+      case 'save':
+      case 'save-damage':
+      case 'condition':
+      case 'end-condition':
+      case 'interrupt-casting':
+        saveDc = true;
+        break;
+      // **The one kind whose answer is conditional**, and the condition is the
+      // resolver's own: SRD Bane is a `buff` that a Charisma save resists, and
+      // SRD Bless is a `buff` that nobody rolls against at all. `ability` is
+      // what tells the two apart in `resolveBuffEffect`, so it is what tells
+      // them apart here — marking the whole kind would ask a Bless wand's
+      // wielder to choose an ability nothing would read.
+      case 'buff':
+        if (effect.ability !== undefined) saveDc = true;
+        break;
+      // The rest reach neither: they heal, grant, defend, move or dispel, and
+      // a dispel's own check is against 10 plus the spell's level rather than
+      // against anything this casting pinned.
+      case 'temp-hp':
+      case 'roll-mode':
+      case 'armor-class':
+      case 'damage-defense':
+      case 'condition-immunity':
+      case 'speed':
+      case 'attack-rider':
+      case 'heal':
+      case 'turn-payout':
+      case 'dispel':
+      case 'teleport':
+        break;
+      default: {
+        const unhandled: never = effect;
+        throw new Error(
+          `no numbers rule for ${(unhandled as SpellEffect).kind}; ` +
+            'the definition and the reader disagree',
+        );
+      }
+    }
+  }
+
+  return { saveDc, attackModifier, spellcastingModifier };
+}
+
+/**
  * Does this spell ask its caster whether the target is being fought?
  *
  * The sibling of {@link creatureTypesRead}, and asked of the definition rather

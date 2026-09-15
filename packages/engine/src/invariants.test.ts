@@ -63,6 +63,7 @@ import {
   resolveEffectCheck,
   endFeature,
   expendCharges,
+  chargesLeft,
   attuneItem,
   endAttunement,
   equipItem,
@@ -272,6 +273,40 @@ const SPENT_A_CHARGE: readonly GameEvent[] = [
   ...CHARGED,
   ...unwrap(expendCharges(fold('s', CHARGED), SRD_CONTENT, A, 'wand-of-secrets'), 'expend'),
 ];
+
+/**
+ * SETUP, plus a Wand of Fireballs in A's hand — a wand whose charges buy a
+ * casting rather than an economy on its own.
+ *
+ * Built twice over, attuned and not, because both are refusals this file is
+ * about: a casting from an item is a real casting, and everything it can be
+ * refused for has to leave the charges exactly where they were. SRD prints the
+ * bracket, so the unattuned copy is a hand that legitimately holds the wand
+ * and gets nothing from it.
+ */
+const wandInHand = (attune: boolean): readonly GameEvent[] => {
+  const owned: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'items-gained',
+      id: A,
+      items: [{ id: 'wand-of-fireballs', quantity: 1 }],
+      source: 'the hoard',
+    },
+  ];
+  const held = [
+    ...owned,
+    ...unwrap(equipItem(fold('s', owned), SRD_CONTENT, A, 'wand-of-fireballs'), 'equip the wand'),
+  ];
+  return attune ? [...held, { type: 'attuned', id: A, item: 'wand-of-fireballs' }] : held;
+};
+
+const FIREBALL_WAND = wandInHand(true);
+const UNATTUNED_WAND = wandInHand(false);
+
+/** What is left in the Wand of Fireballs, for the refusals that must not touch it. */
+const wandCharges = (log: readonly GameEvent[]): number =>
+  chargesLeft(fold('s', log), SRD_CONTENT, A, 'wand-of-fireballs');
 
 /** Events out of whatever shape a command hands back. */
 const eventsOf = (value: unknown): readonly GameEvent[] =>
@@ -3136,10 +3171,63 @@ describe('a refused command leaves nothing behind', () => {
    * generator is the part that is easy to miss, because it is the caller's
    * object and a refusal that already rolled has moved it.
    */
-  const refusals: readonly { readonly name: string; readonly run: (dice: ReturnType<typeof supply>) => Result<unknown> }[] = [
+  const refusals: readonly {
+    readonly name: string;
+    readonly run: (dice: ReturnType<typeof supply>) => Result<unknown>;
+    /** The log the refusal is measured against, when it is not `SETUP`. */
+    readonly log?: readonly GameEvent[];
+    /** Charges that must still be there afterwards, for the item refusals. */
+    readonly charges?: number;
+  }[] = [
     {
       name: 'an attack with a weapon that is not owned',
       run: (dice) => resolveAttack(fold('s', SETUP), B, { target: A, weapon: 'longsword' }, dice),
+    },
+    /**
+     * **The charge survives every refusal**, which is the whole reason a
+     * casting from an item is one command rather than `expendCharges`
+     * followed by a cast: two commands are two ids, and the first would land
+     * while the second refused.
+     *
+     * Two of them, because they are refused in two different places. The
+     * range is refused by the resolution, after the route was built and
+     * before anything was spent; the attunement is refused by the route
+     * itself, before the resolution has looked at a target at all.
+     */
+    {
+      name: 'a wand cast with nobody in range',
+      log: FIREBALL_WAND,
+      charges: 7,
+      run: (dice) =>
+        resolveSpell(
+          fold('s', FIREBALL_WAND),
+          A,
+          {
+            spellId: 'fireball',
+            targets: [],
+            at: { x: 10_000, y: 10_000, z: 0 },
+            item: 'wand-of-fireballs',
+            charges: 2,
+          },
+          dice,
+        ),
+    },
+    {
+      name: 'a wand cast in an unattuned hand',
+      log: UNATTUNED_WAND,
+      charges: 7,
+      run: (dice) =>
+        resolveSpell(
+          fold('s', UNATTUNED_WAND),
+          A,
+          {
+            spellId: 'fireball',
+            targets: [],
+            at: { x: 100, y: 105, z: 0 },
+            item: 'wand-of-fireballs',
+          },
+          dice,
+        ),
     },
     {
       name: 'a cast with no slot of that level',
@@ -3154,15 +3242,21 @@ describe('a refused command leaves nothing behind', () => {
 
   for (const entry of refusals) {
     it(`${entry.name} spends no state and no dice`, () => {
+      const log = entry.log ?? SETUP;
       const dice = supply();
-      const before = { state: fold('s', SETUP), rng: dice.rng.snapshot(), rolls: dice.issuer.count };
+      const before = { state: fold('s', log), rng: dice.rng.snapshot(), rolls: dice.issuer.count };
 
       const out = entry.run(dice);
       expect(isErr(out)).toBe(true);
 
-      expect(fold('s', SETUP)).toEqual(before.state);
+      expect(fold('s', log)).toEqual(before.state);
       expect(dice.rng.snapshot()).toEqual(before.rng);
       expect(dice.issuer.count).toBe(before.rolls);
+      // And, where the refusal was a casting from an item: the charges too.
+      // The state comparison above already covers them, and naming the number
+      // is what makes the claim legible in the failure rather than buried in a
+      // deep-equal of the whole world.
+      if (entry.charges !== undefined) expect(wandCharges(log)).toBe(entry.charges);
     });
   }
 });
@@ -3236,6 +3330,66 @@ describe('one channel for a missing fact', () => {
     expect(dice.rng.snapshot()).toEqual(before.rng);
     expect(dice.issuer.count).toBe(before.rolls);
     expect(remaining(fold('s', withSlot).creatures.b!.resources, spellSlotKey(2))).toBe(0);
+  });
+
+  /**
+   * And no charge either, for the casting whose price is an item's.
+   *
+   * The same claim as the slot above, made about the other thing a casting
+   * can spend: a wand aimed at a creature nobody has typed asks for the fact
+   * and leaves the wand exactly as full as it found it. This is the property
+   * that a two-command implementation — `expendCharges`, then cast — could
+   * not have: the first would land and the second would ask.
+   */
+  it('costs no charge to ask either', () => {
+    // The Cape of the Mountebank casts Dimension Door once a day and needs no
+    // attunement, and SRD Dimension Door teleports "to a location within
+    // range" — so a destination measured from a creature nobody has placed is
+    // a thin record rather than an illegal casting, and the engine asks.
+    const owned: readonly GameEvent[] = [
+      ...SETUP,
+      {
+        type: 'items-gained',
+        id: A,
+        items: [{ id: 'cape-of-the-mountebank', quantity: 1 }],
+        source: 'the hoard',
+      },
+    ];
+    const wearing: readonly GameEvent[] = [
+      ...owned,
+      ...unwrap(
+        equipItem(fold('s', owned), SRD_CONTENT, A, 'cape-of-the-mountebank'),
+        'wear the cape',
+      ),
+    ];
+
+    const dice = supply();
+    const before = {
+      state: fold('s', wearing),
+      rng: dice.rng.snapshot(),
+      rolls: dice.issuer.count,
+    };
+    const full = chargesLeft(before.state, SRD_CONTENT, A, 'cape-of-the-mountebank');
+    expect(full).toBe(1);
+
+    const asked = resolveSpell(
+      before.state,
+      A,
+      {
+        spellId: 'dimension-door',
+        targets: [A],
+        item: 'cape-of-the-mountebank',
+        teleportTo: { from: { creature: C }, feet: 0 },
+      },
+      dice,
+    );
+
+    expect(isNeedsContext(asked)).toBe(true);
+    expect(contextRequestsOf(asked).length).toBeGreaterThan(0);
+    expect(fold('s', wearing)).toEqual(before.state);
+    expect(dice.rng.snapshot()).toEqual(before.rng);
+    expect(dice.issuer.count).toBe(before.rolls);
+    expect(chargesLeft(fold('s', wearing), SRD_CONTENT, A, 'cape-of-the-mountebank')).toBe(full);
   });
 
   /**

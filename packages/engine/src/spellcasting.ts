@@ -1,5 +1,6 @@
 import type { Ability } from '@ie/shared';
 import type { SlotKind } from './resources.js';
+import type { CastingNumbers } from './spells.js';
 
 /**
  * What a creature can actually cast, and by what route.
@@ -114,7 +115,42 @@ export function classCasting(
 export type CastingRoute =
   | { readonly kind: 'cantrip'; readonly ability: Ability; readonly classId: string }
   | { readonly kind: 'prepared'; readonly ability: Ability; readonly classId: string }
-  | { readonly kind: 'granted'; readonly ability: Ability; readonly grant: GrantedSpell };
+  | { readonly kind: 'granted'; readonly ability: Ability; readonly grant: GrantedSpell }
+  /**
+   * The item's route, and the one that is not a fact about the sheet.
+   *
+   * SRD "Spells Cast from Items" makes a wand's Fireball a casting like any
+   * other, so it needs a route like any other — but the three above are
+   * derived from `SpellcastingState` and this is derived from an object the
+   * wielder happens to be holding. `routesFor` therefore never produces one;
+   * `itemRoute` in `commands/item-casting.ts` does, from the state, the
+   * catalogue and the request together.
+   *
+   * **It carries its numbers rather than an ability to re-derive them from.**
+   * A printed DC is the item's and no sheet has it; and even where the item
+   * defers to the wielder, a casting declared with a wand and settled after
+   * the wand was dropped cannot ask the item again. So the numbers are fixed
+   * here, at the one moment everything needed to work them out is in hand.
+   */
+  | {
+      readonly kind: 'item';
+      /**
+       * The wielder's own spellcasting ability, where the item's line defers
+       * to it. Null where the item prints its numbers, and null for a wielder
+       * who has no spellcasting ability at all.
+       */
+      readonly ability: Ability | null;
+      /** The catalogue id of the item doing the casting. */
+      readonly item: string;
+      /** The pool the charges come out of — the item's own. */
+      readonly pool: string;
+      /** How many charges this casting spends. */
+      readonly charges: number;
+      /** The level the item casts it at, which the charges may decide. */
+      readonly castLevel: number;
+      /** Fixed here, because nothing later can ask an item that is not in hand. */
+      readonly numbers: CastingNumbers;
+    };
 
 /**
  * Every route this creature has to this spell.

@@ -13,6 +13,7 @@
 
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
+  type Ability,
   type CharacterId,
   type ConditionName,
   err,
@@ -60,6 +61,7 @@ import { type ReactionTrigger, type SpellDefinition } from '../spell-definitions
 import { type CastingRoute, routesFor, type SpellcastingState } from '../spellcasting.js';
 import {
   castingSource,
+  type CastingNumbers,
   type CastingTime,
   type ConcentrationCheck,
   type ConcentrationEndReason,
@@ -467,6 +469,35 @@ export interface CastingPlan {
    * to normalise.
    */
   readonly teleportTo?: Placement;
+  /**
+   * The numbers this casting was made with, for a casting an item made.
+   *
+   * SRD "Spells Cast from Items" makes a wand's spell an ordinary casting, and
+   * an ordinary casting re-derives its route at settlement because a route is
+   * a fact about a sheet that nothing in between can have changed. An item's
+   * is not that: the wand can be put down, handed over or unattuned while the
+   * casting is held open, and a settlement that asked the catalogue again
+   * would find no route where one demonstrably existed a moment ago.
+   *
+   * So the one route that cannot be re-derived writes its answer down.
+   * **Absent for every casting a class or a feat supplied**, which is what
+   * makes a declaration written before this fold to exactly the state it
+   * always did.
+   */
+  readonly numbers?: CastingNumbers;
+  /**
+   * The spellcasting ability this casting rolls with, for the same casting.
+   *
+   * Beside {@link CastingPlan.numbers} and pinned for the same reason, and a
+   * field of its own because an ability is not a number: SRD Dispel Magic
+   * rolls "an ability check using your spellcasting ability", and the ability
+   * decides the roll's modes and which conditions fail it outright.
+   *
+   * Absent where the casting has none at all, which is a wielder who casts
+   * nothing of their own — and every spell that would read it refuses at the
+   * route, before the charge goes.
+   */
+  readonly ability?: Ability;
 }
 
 /**
@@ -771,6 +802,10 @@ function castSpellWith(
         // And where the teleport goes, which is the one fact a settlement
         // could not possibly work out again.
         ...(command.hold.teleportTo === undefined ? {} : { teleportTo: command.hold.teleportTo }),
+        // And the numbers, and the ability they were worked out with, for the
+        // one route a settlement cannot re-derive.
+        ...(command.hold.numbers === undefined ? {} : { numbers: command.hold.numbers }),
+        ...(command.hold.ability === undefined ? {} : { ability: command.hold.ability }),
         unverified: command.hold.unverified,
         ...(deadline === undefined ? {} : { deadline }),
         ...(completesAt === undefined ? {} : { completesAt }),
@@ -1697,8 +1732,17 @@ export function chooseRoute(
 ): Result<CastingRoute> {
   const routes = routesFor(spellcasting, spellId);
 
+  // A class's own routes, narrowed by the two members that carry a `classId`.
+  // `routesFor` reads a `SpellcastingState` and never produces an item's route
+  // — that one is `itemRoute`'s, built from the state and the catalogue — so
+  // naming the two is a narrowing rather than a filter that could go stale.
+  const classRoutes = routes.filter(
+    (route): route is Extract<CastingRoute, { readonly classId: string }> =>
+      route.kind === 'cantrip' || route.kind === 'prepared',
+  );
+
   if (source === undefined || source === 'class') {
-    const fromClass = routes.filter((route) => route.kind !== 'granted');
+    const fromClass = classRoutes;
 
     if (fromClass.length > 1) {
       const named = fromClass.map((route) => `class:${route.classId}`).join(', ');
@@ -1722,7 +1766,7 @@ export function chooseRoute(
 
   if (source.startsWith('class:')) {
     const classId = source.slice('class:'.length);
-    const chosen = routes.find((route) => route.kind !== 'granted' && route.classId === classId);
+    const chosen = classRoutes.find((route) => route.classId === classId);
     if (chosen === undefined) {
       return err('source_does_not_supply', `this creature's ${classId} half does not supply ${spellId}`);
     }

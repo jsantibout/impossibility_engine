@@ -38,6 +38,7 @@ import {
 } from './duration.js';
 import {
   type AreaTriggerStamp,
+  type CastingNumbers,
   type CastingTime,
   type Concentration,
   type OngoingSpell,
@@ -684,6 +685,40 @@ export interface PendingCasting {
    * always did.
    */
   readonly teleportTo?: Placement;
+  /**
+   * The numbers the casting was made with, for a casting an item made.
+   *
+   * Every other field here is pinned because settlement takes no fresh
+   * request; this one is pinned because settlement cannot ask the *item*. SRD
+   * "Spells Cast from Items" makes a wand's spell an ordinary casting, and an
+   * ordinary casting re-derives its route from the caster's sheet at
+   * settlement — a fact nothing in between can have changed. A wand can be put
+   * down, handed over or unattuned while the casting is held open, so the
+   * route that made it may simply not exist by the time it settles, and the
+   * numbers are the one thing that would be lost with it.
+   *
+   * **Absent for every casting a class or a feat supplied**, which is what
+   * makes a declaration written before this fold to exactly the state it
+   * always did.
+   */
+  readonly numbers?: CastingNumbers;
+  /**
+   * The spellcasting ability the casting rolls its own D20 Tests with.
+   *
+   * Beside {@link PendingCasting.numbers}, pinned for the same reason and kept
+   * apart from it because an ability is not a number: SRD Dispel Magic rolls
+   * "an ability check using your spellcasting ability", and which ability that
+   * is decides the roll's modes and which conditions fail it outright. A
+   * casting an item made cannot re-derive it — the wand may be in somebody
+   * else's hand by the time the spell lands — and a wielder's *sheet* is not
+   * the answer either, because a Fighter whose only spellcasting is a feat's
+   * has a null one and an ability all the same.
+   *
+   * Absent for every casting a class or a feat supplied, and for a wielder who
+   * casts nothing of their own; the spells that would read it refuse at the
+   * route, before the charge goes.
+   */
+  readonly ability?: Ability;
   /** What the definition knowingly leaves out, gathered at declaration. */
   readonly unverified: readonly string[];
   /**

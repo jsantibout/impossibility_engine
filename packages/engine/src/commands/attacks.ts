@@ -46,6 +46,7 @@ import {
   resolveCastWith,
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
+import { routeLabel } from './item-casting.js';
 import { landDamage } from './damage.js';
 import { mayAct } from './holds.js';
 import { quantityOf } from './inventory.js';
@@ -793,7 +794,7 @@ function castOnHit(
     concentration: definition.concentration,
     castingTime: definition.castingTime,
     slotLevel: smite.slotLevel,
-    route: route.value.kind === 'granted' ? route.value.grant.source : `class:${route.value.classId}`,
+    route: routeLabel(route.value),
   }, null);
   if (!cast.ok) return cast;
 

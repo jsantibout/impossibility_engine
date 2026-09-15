@@ -200,6 +200,28 @@ export interface CastSpellRequest extends CommandIdentity {
    * for a `self`-origin area, which is anchored by the caster's own space.
    */
   readonly anchoring?: PointAnchoring;
+  /**
+   * The magic item casting it, by catalogue id.
+   *
+   * SRD "Spells Cast from Items": a wand's Fireball is a casting, and this is
+   * how a caller says which wand. Everything the item decides — the charge,
+   * the level, the save DC — follows from the grant on that item, so this is
+   * the only thing about it the request may state. A DC never arrives here.
+   */
+  readonly item?: string;
+  /**
+   * How many of the item's charges this casting spends.
+   *
+   * SRD Wand of Fireballs: "you can expend no more than 3 charges ... You can
+   * increase the spell's level by 1 for each additional charge you expend."
+   * The charge count is what the wielder decides, exactly as the slot level is
+   * for a spell of their own — and, like a slot level, the *engine* turns it
+   * into a level rather than taking one.
+   *
+   * Refused without an {@link CastSpellRequest.item}, which is the shape every
+   * other stated fact on this request takes.
+   */
+  readonly charges?: number;
   /** The slot to spend. Omitted for a cantrip or a free casting. */
   readonly slotLevel?: number;
   /**
@@ -219,6 +241,11 @@ export interface CastSpellRequest extends CommandIdentity {
    * would serve and the choice matters — a feat brings its own spellcasting
    * ability, so the same spell can have two different save DCs, and so do two
    * classes that both prepared it. `class:<classId>` names one of those.
+   *
+   * **It names the ability for a casting from an item too**, and through the
+   * same vocabulary. SRD: "If the user has more than one spellcasting ability,
+   * the user chooses which one to use with the item" — the same question with
+   * the same answers, so a caller has one field to learn rather than two.
    */
   readonly source?: string;
   /**

@@ -338,7 +338,11 @@ describe('Pact Magic is a second pool, not more of the first', () => {
   it('finds a route through each class that prepared the spell', () => {
     const routes = routesFor(pactState().creatures.kael!.spellcasting, 'charm-person');
     expect(routes).toHaveLength(2);
-    expect(routes.map((r) => (r.kind === 'granted' ? 'granted' : r.classId))).toEqual([
+    // `routesFor` reads a `SpellcastingState`, which holds no items, so the
+    // two members that carry a `classId` are the only ones it can produce.
+    expect(
+      routes.map((r) => (r.kind === 'cantrip' || r.kind === 'prepared' ? r.classId : r.kind)),
+    ).toEqual([
       'warlock',
       'wizard',
     ]);

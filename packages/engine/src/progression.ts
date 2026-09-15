@@ -395,6 +395,72 @@ export type FeatureGrant =
       };
     }
   /**
+   * What a charge buys: the item casts a named spell, and it is a casting.
+   *
+   * SRD "Spells Cast from Items": "The spell is cast at the lowest possible
+   * spell and caster level, doesn't expend any of the user's spell slots, and
+   * requires no components unless the item's description notes otherwise. The
+   * spell uses its normal casting time, range, and duration, and the user of
+   * the item must concentrate if the spell requires Concentration."
+   *
+   * So this is a *route to a casting* and never a second resolver: the cast
+   * runs through `castOrRelease`, gets a casting id, starts the Concentration
+   * the definition asks for, and leaves the ongoing record Dispel Magic reads.
+   * What the grant supplies is the three things the wielder's sheet cannot
+   * say — what it costs, at what level, and with which numbers.
+   *
+   * **An item-only member.** Nothing executes it from a class feature and
+   * `checkContent` refuses it there, for the same reason a flat `uses` is
+   * refused on a feature: the charges it spends are an item's pool, looked up
+   * by the granting item's id, and a feature has none.
+   */
+  | {
+      readonly kind: 'casts';
+      /** The spell's catalogue id, resolved through `Content.spell`. */
+      readonly spell: string;
+      /**
+       * What one casting costs, in the item's own charges.
+       *
+       * SRD Wand of Web: "you can expend 1 charge to cast _Web_". A per-day
+       * property is the same sentence with a pool of one behind it — "this
+       * property can't be used again until the next dawn" — which is why this
+       * is required rather than optional: an item that casts for free would be
+       * a benefit with no economy, and none of them is printed that way.
+       */
+      readonly charges: number;
+      /**
+       * The most this casting may spend, where the item lets the user choose.
+       *
+       * SRD Wand of Fireballs: "you can expend no more than 3 charges to cast
+       * _Fireball_ ... For 1 charge, you cast the level 3 version of the
+       * spell. You can increase the spell's level by 1 for each additional
+       * charge you expend." Seven items in the book print that sentence; the
+       * staff tables print a fixed cost instead and leave this absent.
+       */
+      readonly upToCharges?: number;
+      /**
+       * The level the least charge count casts it at.
+       *
+       * Absent means the spell's own, which is SRD's "lowest possible spell
+       * level" and is what every fixed-cost item comes to. Present where the
+       * item's line names one — the Wand of Fireballs' "the level 3 version"
+       * is Fireball's own level and a Wand of Lightning Bolts' is not.
+       */
+      readonly level?: number;
+      /**
+       * SRD Wand of Fireballs: "(save DC 15)" — the DC the item prints.
+       *
+       * A field rather than a rule, because the number is the *item's*: a wand
+       * held by an archmage still saves against 15. Absent means the item's
+       * line defers to the wielder — "using your spell save DC" — and the
+       * fallback is a rule in the resolver, because the item cannot print a
+       * rule the SRD prints once.
+       */
+      readonly saveDc?: number;
+      /** SRD Circlet of Blasting: "(+5 to hit)", read the same way. */
+      readonly attackBonus?: number;
+    }
+  /**
    * A feature that gives a *different* pool's uses back — see
    * `RecoveryFeature` in `standing.ts`.
    *

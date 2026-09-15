@@ -17,7 +17,7 @@ import {
   REQUIREMENT_KINDS,
   type Content,
 } from './content.js';
-import { activateFeature, attuneItem, equipItem, resolveSpell } from './commands.js';
+import { activateFeature, attuneItem, chargesLeft, equipItem, resolveSpell } from './commands.js';
 import {
   checkCharacter,
   createCharacter,
@@ -470,6 +470,88 @@ describe('a homebrew magic item goes through the same door as the book', () => {
 });
 
 /**
+ * A homebrew wand casting a homebrew spell, written as the JSON a DM's file
+ * would hold.
+ *
+ * The `casts` grant's whole claim, made where the file's other claims are:
+ * an item that casts a spell nobody wrote engine code for is a `CatalogueItem`
+ * carrying a pool and a route, and what comes out the far end is a casting —
+ * an id, a `spell-cast` saying a magic item paid for it, and a charge gone.
+ */
+const EMBER_WAND = JSON.stringify({
+  id: 'wand-of-embers',
+  name: 'Wand of Embers',
+  kind: 'wand',
+  weightLb: 1,
+  costCp: null,
+  armor: null,
+  weapon: null,
+  contents: [],
+  grants: [
+    {
+      kind: 'pool',
+      key: 'wand-of-embers:charges',
+      label: 'Wand of Embers charges',
+      uses: 4,
+      recovers: 'dawn',
+      regainsAtDawn: '1d4',
+    },
+    { kind: 'casts', spell: 'ember-lash', charges: 1, upToCharges: 3, saveDc: 14, attackBonus: 6 },
+  ],
+});
+
+describe('a homebrew wand casting a homebrew spell needs no engine change', () => {
+  const content = unwrap(
+    loadContent({ spells: [JSON.parse(EMBER_LASH)], items: [JSON.parse(EMBER_WAND)] }),
+    'load',
+  );
+  const WAND = 'wand-of-embers';
+
+  it('is parsed from JSON text and validated beside the printed items', () => {
+    const grants = content.item(WAND)?.grants ?? [];
+    expect(grants.map((grant) => grant.kind)).toEqual(['pool', 'casts']);
+    expect(SRD_CONTENT.item(WAND)).toBeNull();
+    expect(SRD_CONTENT.spell('ember-lash')).toBeNull();
+  });
+
+  it('casts it through the public API, spending a charge and no slot', () => {
+    const owned: readonly GameEvent[] = [
+      ...table(content).filter((event) => event.type !== 'resource-pool-declared'),
+      { type: 'items-gained', id: CASTER, items: [{ id: WAND, quantity: 1 }], source: 'a gift' },
+    ];
+    const held = [...owned, ...unwrap(equipItem(fold('seed', owned), content, CASTER, WAND), 'equip')];
+
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', held),
+        CASTER,
+        { spellId: 'ember-lash', targets: [TARGET], item: WAND, charges: 2 },
+        supply(content),
+      ),
+      'the wand casting Ember Lash',
+    );
+
+    const cast = out.events.find((event) => event.type === 'spell-cast');
+    expect(cast && cast.type === 'spell-cast' && cast.slotless).toBe('magic-item');
+    expect(cast && cast.type === 'spell-cast' && cast.route).toBe(`item:${WAND}`);
+    // One charge above the price, so Ember Lash goes off at level 2.
+    expect(cast && cast.type === 'spell-cast' && cast.level).toBe(2);
+    expect(out.outcomes[0]?.affected).toBe(true);
+
+    // The spell attack rolled with the number the wand prints rather than the
+    // caster's own, which would be +7 (Proficiency 3, Intelligence +4). Read
+    // off the contribution the log names, because the roll's total also
+    // carries the fixture's +40 and whatever else the attack path adds.
+    const rolled = out.events.find((event) => event.type === 'roll-recorded');
+    expect(rolled && rolled.type === 'roll-recorded' && rolled.contributions).toContainEqual({
+      source: 'spell attack',
+      amount: 6,
+    });
+    expect(chargesLeft(fold('seed', [...held, ...out.events]), content, CASTER, WAND)).toBe(2);
+  });
+});
+
+/**
  * The two lists an item is validated against are unions in `standing.ts`
  * written out as data, and this is what holds them there.
  *
@@ -631,6 +713,30 @@ describe('the one door refuses what it cannot execute, with a path', () => {
     expect(checkContent({ classes: [cls] }).map((problem) => problem.code)).toContain(
       'item_sizing_on_a_feature',
     );
+  });
+
+  /**
+   * And the third door in the same wall. SRD "Spells Cast from Items" is about
+   * an *item*, the charges it spends are looked up by the granting item's id,
+   * and a class feature has none — so a feature carrying the grant would name
+   * a pool nothing declares and cast nothing at all. A feature that really
+   * does grant a spell has `kind: 'spells'`, which creation executes.
+   */
+  it('refuses a casting grant on a class feature, which is not an item', () => {
+    const cls = JSON.parse(BLOODHUNTER);
+    cls.features = [
+      {
+        id: 'bloodhunter:borrowed-wand-again',
+        name: 'Borrowed Wand Again',
+        level: 1,
+        automation: 'engine',
+        note: 'A feature pretending to be an item.',
+        grants: { kind: 'casts', spell: 'ember-lash', charges: 1 },
+      },
+    ];
+    expect(
+      checkContent({ spells: [JSON.parse(EMBER_LASH)], classes: [cls] }).map((p) => p.code),
+    ).toContain('item_casting_on_a_feature');
   });
 
   it('reports every incoherence in a typed catalogue rather than the first', () => {

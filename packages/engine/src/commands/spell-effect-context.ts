@@ -11,7 +11,7 @@
  * checks and reports.
  */
 
-import { type CharacterId } from '@ie/shared';
+import { type Ability, type CharacterId } from '@ie/shared';
 import { type CreatureState, type GameEvent } from '../events.js';
 import { type Placement, type Point } from '../positioning.js';
 import { type SpellDefinition, type SpellEffect } from '../spell-definitions.js';
@@ -53,6 +53,21 @@ export interface EffectContext {
   readonly castLevel: number;
   /** Null for a later use, which rolls with {@link EffectContext.numbers}. */
   readonly route: CastingRoute | null;
+  /**
+   * The spellcasting ability this casting rolls its own D20 Tests with.
+   *
+   * **An ability rather than a number**, which is why it is not in
+   * {@link EffectContext.numbers}: SRD Dispel Magic rolls "an ability check
+   * using your spellcasting ability", and the ability decides the roll's modes
+   * and which conditions fail it outright as well as its modifier.
+   *
+   * The *chosen* source's — a class's, a feat's, or for a casting from an item
+   * whichever of the wielder's the item's line or the spell's asked for. Null
+   * only where the casting has none at all, which every spell that reads this
+   * refuses at the route before anything is spent — see `castersAbilityRead`
+   * in `spell-definitions.ts`.
+   */
+  readonly ability: Ability | null;
   /** The numbers this casting was made with, pinned at the cast. */
   readonly numbers: CastingNumbers;
   readonly attackModifier: number;

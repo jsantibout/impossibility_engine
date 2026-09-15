@@ -35,8 +35,20 @@ export function resolveDispelEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, casterSheet, definition, castLevel, route, supply, events, outcomes } = ctx;
+  const { casterId, casterSheet, definition, castLevel, ability, supply, events, outcomes } = ctx;
   let current = world;
+
+  // SRD: "make an ability check using your spellcasting ability" — the
+  // *chosen* source's, which is why it is read off the context rather than off
+  // the sheet. See {@link EffectContext.ability}: a casting that has no ability
+  // to roll with is refused at the route, before anything is spent, so this
+  // guard is the statement that the branch is unreachable rather than a rule.
+  if (ability === null) {
+    return err(
+      'no_spellcasting_ability',
+      `${definition.name} is resolved with an ability check using your own spellcasting ability, and ${casterId} has none to make it with`,
+    );
+  }
 
   // SRD Dispel Magic: "Any ongoing spell of level 3 or lower **on the
   // target** ends." What is on the target is live state, and before the
@@ -66,7 +78,13 @@ export function resolveDispelEffect(
         supply.issuer,
         supply.rng,
         casterSheet().sheet,
-        route!.ability,
+        // The caster's own spellcasting ability, which is what the sentence
+        // asks for and is not a number: it decides the roll's modes and which
+        // conditions fail it outright. An item's route may carry none — a wand
+        // that prints its own DC in a hand that casts nothing — and
+        // `castersAbilityRead` refuses such a casting at the route, before
+        // anything is spent, which is why this cannot be null here.
+        ability,
         {
           dc: 10 + spell.level,
           conditions: effectiveConditions(current, casterId),

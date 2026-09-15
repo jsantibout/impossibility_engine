@@ -200,6 +200,35 @@ export function itemChargePool(item: CatalogueItem): PoolDeclaration | null {
   return null;
 }
 
+/** What the item casts, in the grant's own words. */
+export type ItemCastsGrant = Extract<FeatureGrant, { kind: 'casts' }>;
+
+/**
+ * How this item casts that spell, or null if it does not.
+ *
+ * The third half of the item's compiler, beside {@link itemStandingEffects}
+ * and {@link itemChargePool} and running where they run — **in the command** —
+ * so what it says about the casting is pinned into the events the casting
+ * emits and the fold never opens a catalogue to know what a wand did.
+ *
+ * A list rather than one, because the SRD prints a *table* on a staff: "you
+ * can cast one of the spells on the following table from it. The table
+ * indicates how many charges you must expend to cast the spell." One id per
+ * item, though — `checkContent` refuses two grants naming the same spell,
+ * because two prices for one casting is a choice nothing could make.
+ */
+export function itemCasting(item: CatalogueItem, spellId: string): ItemCastsGrant | null {
+  for (const grant of item.grants ?? []) {
+    if (grant.kind === 'casts' && grant.spell === spellId) return grant;
+  }
+  return null;
+}
+
+/** Every spell this item casts, in the order its table prints them. */
+export function itemCastings(item: CatalogueItem): readonly ItemCastsGrant[] {
+  return (item.grants ?? []).filter((grant): grant is ItemCastsGrant => grant.kind === 'casts');
+}
+
 /** SRD Coin Values: 1 gp is 100 cp, and every other coin divides into it. */
 export const COPPER_PER = { cp: 1, sp: 10, ep: 50, gp: 100, pp: 1000 } as const;
 

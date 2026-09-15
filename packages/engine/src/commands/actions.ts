@@ -24,6 +24,7 @@ import { type Content } from '../content.js';
 import { durationSecondsAt } from '../spell-definitions.js';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
+import { routeLabel } from './item-casting.js';
 import { schedule } from './conditions.js';
 import { featureTimer } from './features.js';
 import { mayAct } from './holds.js';
@@ -431,7 +432,7 @@ function holdSpell(
           slotLevel: response.slotLevel,
           ...(response.slotKind === undefined ? {} : { slotKind: response.slotKind }),
         }),
-    route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
+    route: routeLabel(route),
     // No duration. The spell has not taken effect, so its own clock has not
     // started; what *is* capped is the hold, and that is the Ready feature's
     // deadline rather than the spell's.

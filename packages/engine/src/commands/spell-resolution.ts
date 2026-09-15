@@ -38,6 +38,7 @@
 
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
+  type Ability,
   type CharacterId,
   type ContextRequest,
   contextRequestsOf,
@@ -46,7 +47,6 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { modifierFor, spellAttackModifierWith, spellSaveDcWith } from '../character.js';
 import { type Duration, isDue, resolveDuration, timeView } from '../duration.js';
 import {
   applyEvent,
@@ -87,6 +87,14 @@ import {
   triggerRefusal,
 } from './casting.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
+import {
+  chargeSpend,
+  itemCastOf,
+  itemPaysRefusal,
+  itemRoute,
+  numbersFor,
+  routeLabel,
+} from './item-casting.js';
 import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { replacedCastings } from './ongoing.js';
@@ -230,7 +238,17 @@ export function resolveDeclaredCast(
     // sheet, which nothing between the declaration and here can have changed,
     // and a `CastingRoute` in the log would be a derived value pretending to be
     // history.
-    const chosen = chooseRoute(caster.spellcasting, pending.spellId, pending.route);
+    //
+    // **Except where the route was an item's**, which is the one case that is
+    // not a fact about the sheet: the wand can be put down, given away or
+    // unattuned between the declaration and the settlement, and asking the
+    // catalogue again would find no route where one demonstrably existed. So a
+    // declaration made from an item wrote its numbers down, and a record that
+    // carries them settles with them rather than re-deriving anything.
+    const chosen =
+      pending.numbers === undefined
+        ? chooseRoute(caster.spellcasting, pending.spellId, pending.route)
+        : ok(null);
     if (!chosen.ok) return chosen;
 
     const events: GameEvent[] = settlementEvents(state, pending, stamp);
@@ -244,6 +262,8 @@ export function resolveDeclaredCast(
     return resolveEffects(state, pending.caster, caster, definition, {
       castLevel: pending.level,
       route: chosen.value,
+      ...(pending.numbers === undefined ? {} : { numbers: pending.numbers }),
+      ...(pending.ability === undefined ? {} : { ability: pending.ability }),
       targets: pending.targets,
       unverified: [...pending.unverified],
       supply,
@@ -451,8 +471,24 @@ export function castOrRelease(
       );
     }
 
+    // SRD "Spells Cast from Items": a wand's Fireball is a casting, and the
+    // item supplies the route the way a class or a feat does. Read before the
+    // route is chosen and refused before anything is spent — the attunement
+    // included, so an unattuned wand costs no charge.
+    const fromItem = itemCastOf(request);
+    if (!fromItem.ok) return fromItem;
+    if (fromItem.value !== null) {
+      // "doesn't expend any of the user's spell slots", so nothing else may
+      // say how this casting is paid for.
+      const paid = itemPaysRefusal(request);
+      if (!paid.ok) return paid;
+    }
+
     // SRD: you cast what you know or have prepared, and nothing else.
-    const chosen = chooseRoute(caster.spellcasting, request.spellId, request.source);
+    const chosen =
+      fromItem.value === null
+        ? chooseRoute(caster.spellcasting, request.spellId, request.source)
+        : itemRoute(caster, supply.content, definition, fromItem.value);
     if (!chosen.ok) return chosen;
     const route = chosen.value;
 
@@ -463,7 +499,10 @@ export function castOrRelease(
     if (!casting.ok) return casting;
 
     const slotLevel = request.slotLevel ?? definition.level;
-    const castLevel = Math.max(definition.level, slotLevel);
+    // The item's level where an item is casting it — SRD's "lowest possible
+    // spell level", raised by the charges where the item's line says so.
+    const castLevel =
+      route.kind === 'item' ? route.castLevel : Math.max(definition.level, slotLevel);
     // What this definition knowingly leaves out, reported on every casting so
     // the narrating layer can hand the rest to the DM rather than lose it.
     const unverified: string[] = [
@@ -833,6 +872,13 @@ function resolveOnTargets(
    */
   const running = statedDamageType(definition.effects, request.damageType);
 
+  // The numbers this casting is made with, worked out once and read by
+  // everything below: the DC a later examiner rolls against, the DC and the
+  // attack modifier every effect rolls with, and the pair the ongoing record
+  // pins. A class route derives them from the sheet; an item route has already
+  // answered, because nothing later can ask a wand that is not in hand.
+  const numbers = numbersFor(caster.sheet, route);
+
   // — paying for it ——————————————————————————————————————————————————————
   //
   // A free casting from a feat spends its own pool; anything else goes through
@@ -853,6 +899,7 @@ function resolveOnTargets(
   if (held !== null) {
     return resolveEffects(state, casterId, caster, definition, {
       castLevel,
+      numbers,
       route,
       targets,
       unverified,
@@ -881,19 +928,18 @@ function resolveOnTargets(
 
   // SRD: a Ritual "doesn't expend a spell slot" — nor a feat's free casting,
   // nor anything else. So there is no payment to choose and none is asked for;
-  // `castingOf` has already refused a caller who named one.
-  const payment = casting.ritual ? ok(null) : choosePayment(definition, route, request);
+  // `castingOf` has already refused a caller who named one. An item's casting
+  // is the same shape for the same reason: it "doesn't expend any of the
+  // user's spell slots", and what it *does* expend is the charge below.
+  const payment =
+    casting.ritual || route.kind === 'item' ? ok(null) : choosePayment(definition, route, request);
   if (!payment.ok) return payment;
   const freePool = payment.value;
 
-  // The DC a later examiner rolls against, fixed now. `route.ability` is the
-  // *chosen* source's, so a Sage Fighter's Minor Illusion is seen through at
-  // the feat's DC rather than at a class's.
-  const offered = effectCheckFrom(
-    definition.check,
-    definition.name,
-    spellSaveDcWith(caster.sheet, route.ability),
-  );
+  // The DC a later examiner rolls against, fixed now. It is the *chosen*
+  // source's, so a Sage Fighter's Minor Illusion is seen through at the feat's
+  // DC rather than at a class's — and a wand's illusion at the wand's.
+  const offered = effectCheckFrom(definition.check, definition.name, numbers.saveDc);
 
   const castingId = nextCastingId(state);
 
@@ -907,6 +953,24 @@ function resolveOnTargets(
     events.push({ type: 'resource-spent', id: casterId, key: freePool, amount: 1 });
   }
 
+  // **The charge stands exactly where the free casting stands**, and that is
+  // the whole of why a casting from an item is not `expendCharges` followed by
+  // a cast. Two commands are two ids, and the first would land while the
+  // second refused: a wand aimed at nobody would be a charge gone and no
+  // Fireball. Here it is inside the casting's own batch, after every
+  // validation and before the first die.
+  const charge = chargeSpend(route, casterId);
+  if (charge !== null) {
+    const stored = remaining(caster.resources, charge.key);
+    if (stored < charge.amount) {
+      return err(
+        'exhausted',
+        `${definition.name} costs ${charge.amount} charge${charge.amount === 1 ? '' : 's'} from this item and ${stored} ${stored === 1 ? 'is' : 'are'} left`,
+      );
+    }
+    events.push({ type: 'resource-spent', id: casterId, key: charge.key, amount: charge.amount });
+  }
+
   // The identity is the wrapper's: `castOrRelease` established it over the
   // request the caller actually sent, and a second `identify` here would
   // fingerprint this derived command instead and refuse every honest retry.
@@ -915,7 +979,10 @@ function resolveOnTargets(
     casterId,
     {
       spell: definition.name,
-      level: definition.level,
+      // **The level the item casts it at, where an item is casting it.** No
+      // slot decides it, so `castSpell` takes the spell's level as the cast
+      // level — which for a Wand of Fireballs at three charges is level 5.
+      level: route.kind === 'item' ? castLevel : definition.level,
       concentration: definition.concentration,
       castingTime: casting.castingTime,
       ...(casting.castingSeconds === undefined
@@ -923,19 +990,24 @@ function resolveOnTargets(
         : { castingSeconds: casting.castingSeconds }),
       // SRD: a Ritual "doesn't expend a spell slot", and the log says which of
       // the reasons for skipping one this was — the value `SlotlessReason` has
-      // carried since it was written and nothing has ever meant.
+      // carried since it was written and nothing has ever meant. `magic-item`
+      // is the second of those: SRD "Spells Cast from Items" says the casting
+      // "doesn't expend any of the user's spell slots", and the charge that
+      // paid for it is a `resource-spent` in the same batch.
       ...(casting.ritual
         ? { slotless: 'ritual' as const }
-        : freePool !== null || definition.level === 0
-          ? {
-              slotless:
-                definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const),
-            }
-          : {
-              slotLevel: castLevel,
-              ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
-            }),
-      route: route.kind === 'granted' ? route.grant.source : `class:${route.classId}`,
+        : route.kind === 'item'
+          ? { slotless: 'magic-item' as const }
+          : freePool !== null || definition.level === 0
+            ? {
+                slotless:
+                  definition.level === 0 ? ('cantrip' as const) : ('special-ability' as const),
+              }
+            : {
+                slotLevel: castLevel,
+                ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
+              }),
+      route: routeLabel(route),
       ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
       // A span of seconds, or a moment in the turn order. A definition carries
       // one or the other: Shield's "until the start of your next turn" is not
@@ -981,6 +1053,16 @@ function resolveOnTargets(
               // The fourth, and the one settlement could not possibly work
               // out again: where the caster said they were going.
               ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
+              // **And the numbers, for a casting an item made.** A class
+              // casting's route is re-derived at settlement because it is a
+              // fact about a sheet nothing between here and there can change.
+              // An item's is not: the wand can be dropped, given away or
+              // unattuned while the casting is held open, and a settlement
+              // that asked the catalogue again would find no route at all. So
+              // this is the one casting whose numbers are written down.
+              ...(route.kind === 'item'
+                ? { numbers, ...(route.ability === null ? {} : { ability: route.ability }) }
+                : {}),
             },
           }
         : {}),
@@ -1007,6 +1089,7 @@ function resolveOnTargets(
 
   const resolved = resolveEffects(state, casterId, caster, definition, {
     castLevel,
+    numbers,
     route,
     targets,
     unverified,
@@ -1180,6 +1263,16 @@ export function resolveEffects(
     readonly castLevel: number;
     /** Null for a later use, which rolls with {@link context.numbers}. */
     readonly route: CastingRoute | null;
+    /**
+     * The spellcasting ability this casting rolls with, where the route is gone.
+     *
+     * Beside {@link context.numbers} and for the same reason, and it is a
+     * separate field because an ability is not a number — see
+     * `EffectContext.ability`. A casting an item made pins both at the
+     * declaration, because the item that answered the question can be out of
+     * the wielder's hand by the time the casting settles.
+     */
+    readonly ability?: Ability;
     /** The numbers this casting was made with, for every use after the first. */
     readonly numbers?: CastingNumbers;
     readonly targets: readonly CharacterId[];
@@ -1293,12 +1386,7 @@ export function resolveEffects(
   // The *chosen source's* ability, not the class's — a feat brings its own —
   // and a later use of the same casting takes the numbers it was made with
   // rather than asking a sheet that may have levelled since.
-  const numbers: CastingNumbers = context.numbers ?? {
-    attackModifier: spellAttackModifierWith(casterSheet().sheet, route!.ability),
-    saveDc: spellSaveDcWith(casterSheet().sheet, route!.ability),
-    spellcastingModifier: modifierFor(casterSheet().sheet, route!.ability),
-    casterLevel: casterSheet().sheet.level,
-  };
+  const numbers: CastingNumbers = context.numbers ?? numbersFor(casterSheet().sheet, route!);
 
   // **Before the first die, and on every path into here.** `castOrRelease`
   // asks the same question earlier so an ordinary casting never reaches this
@@ -1326,6 +1414,19 @@ export function resolveEffects(
     definition,
     castLevel,
     route,
+    // The chosen source's ability, from the route while there is one and from
+    // what the casting pinned once there is not. The sheet's own is the last
+    // resort and is right for exactly one case: a later use of a casting a
+    // class made, where the route was never written down because it could
+    // always be re-derived.
+    //
+    // **`caster` and not `casterSheet()`**, which is the difference between a
+    // value and a throw: SRD Grease runs its minute whether or not the wizard
+    // does, and the accessor is loud on purpose. A casting that has outlived
+    // its caster has no ability, and the one effect that reads this refuses
+    // rather than resolving — which is the same answer the sheet would have
+    // given for a caster who had none.
+    ability: context.ability ?? route?.ability ?? caster?.sheet.spellcastingAbility ?? null,
     numbers,
     attackModifier: numbers.attackModifier,
     saveDc: numbers.saveDc,

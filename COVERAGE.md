@@ -411,7 +411,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 38 | 195 | 167 | 28 |
+| 258 | 40 | 197 | 167 | 30 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -434,9 +434,9 @@ inventing a column that nothing checks.
 | Rods | 7 | 0 | 0 | 0 | 0 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
 | Staffs | 12 | 1 | 1 | 0 | 1 |
-| Wands | 13 | 2 | 2 | 0 | 2 |
+| Wands | 13 | 3 | 3 | 0 | 3 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 10 | 10 | 3 | 7 |
+| Wondrous Items | 127 | 11 | 11 | 3 | 8 |
 
 ### Entries transcribed
 
@@ -449,6 +449,7 @@ how many of those still carry a clause the engine does not say.
 - **Boots of the Winterlands** (Wondrous Items) — 1 recorded, 1 partial
 - **Bracers of Defense** (Wondrous Items) — 1 recorded, complete
 - **Brooch of Shielding** (Wondrous Items) — 1 recorded, 1 partial
+- **Cape of the Mountebank** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Protection** (Wondrous Items) — 1 recorded, complete
 - **Defender** (Weapons) — 1 recorded, 1 partial
@@ -479,5 +480,6 @@ how many of those still carry a clause the engine does not say.
 - **Vorpal Sword** (Weapons) — 1 recorded, 1 partial
 - **Wand of Fireballs** (Wands) — 1 recorded, 1 partial
 - **Wand of Secrets** (Wands) — 1 recorded, 1 partial
+- **Wand of Web** (Wands) — 1 recorded, 1 partial
 - **Weapon of Warning** (Weapons) — 1 recorded, 1 partial
 - **Weapon, +1, +2, or +3** (Weapons) — 114 recorded, complete

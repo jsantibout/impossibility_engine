@@ -92,6 +92,113 @@ describe('an item says what it does not do, in a field rather than a comment', (
   });
 });
 
+/**
+ * What an item says it casts, judged at the one door.
+ *
+ * SRD "Spells Cast from Items" makes a wand's Fireball an ordinary casting, so
+ * the grant is a *route* to the pipeline rather than a second resolver — and a
+ * route that names a spell nothing can resolve, a price nothing can pay or a
+ * range with no bottom to it is an item whose line silently does nothing. Each
+ * is refused by name, in the `bad_item_grant` shape the other item rules use.
+ */
+describe('an item that casts a spell says which, for what, and out of what', () => {
+  /** A well-formed casting item, so each case below changes exactly one thing. */
+  const WAND = {
+    id: 'wand-of-sparks',
+    name: 'Wand of Sparks',
+    kind: 'wand',
+    weightLb: 1,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      { kind: 'pool', key: 'wand-of-sparks:charges', label: 'Wand of Sparks charges', uses: 5, recovers: 'dawn' },
+      { kind: 'casts', spell: 'ember-lash', charges: 1, upToCharges: 3, saveDc: 14 },
+    ],
+  };
+
+  const EMBER_LASH = {
+    id: 'ember-lash',
+    name: 'Ember Lash',
+    level: 1,
+    school: 'evocation',
+    castingTime: 'action',
+    concentration: false,
+    range: { kind: 'ranged', feet: 60 },
+    targets: { count: 1 },
+    effects: [{ kind: 'attack', attack: 'ranged', damage: { dice: '2d6' }, damageType: 'fire' }],
+  };
+
+  const problemsOf = (grants: unknown): readonly string[] =>
+    checkContent({
+      spells: [EMBER_LASH as never],
+      items: [{ ...WAND, grants } as unknown as CatalogueItem],
+    }).map((problem) => `${problem.code} @ ${problem.field}`);
+
+  const withCasts = (over: Record<string, unknown>): unknown => [
+    WAND.grants[0],
+    { ...WAND.grants[1], ...over },
+  ];
+
+  it('accepts a wand that casts a spell the catalogue holds', () => {
+    expect(problemsOf(WAND.grants)).toEqual([]);
+    const loaded = unwrap(
+      loadContent({ spells: [EMBER_LASH], items: [JSON.parse(JSON.stringify(WAND))] }),
+      'load',
+    );
+    const grants = loaded.item('wand-of-sparks')?.grants ?? [];
+    expect(grants[1]).toEqual({
+      kind: 'casts',
+      spell: 'ember-lash',
+      charges: 1,
+      upToCharges: 3,
+      saveDc: 14,
+    });
+  });
+
+  it('refuses a spell this content cannot resolve', () => {
+    expect(problemsOf(withCasts({ spell: 'ember-flail' }))).toEqual([
+      'unknown_spell @ items[wand-of-sparks].grants[1].spell',
+    ]);
+    expect(problemsOf(withCasts({ spell: '  ' }))).toEqual([
+      'bad_item_spell @ items[wand-of-sparks].grants[1].spell',
+    ]);
+  });
+
+  it('refuses two prices for one casting', () => {
+    expect(problemsOf([...(WAND.grants as unknown[]), WAND.grants[1]])).toEqual([
+      'two_item_castings @ items[wand-of-sparks].grants[2].spell',
+    ]);
+  });
+
+  it('refuses a price that is not a price, and a range with nothing above it', () => {
+    expect(problemsOf(withCasts({ charges: 0 }))).toEqual([
+      'bad_charge_cost @ items[wand-of-sparks].grants[1].charges',
+    ]);
+    expect(problemsOf(withCasts({ upToCharges: 1 }))).toEqual([
+      'bad_charge_range @ items[wand-of-sparks].grants[1].upToCharges',
+    ]);
+    expect(problemsOf(withCasts({ level: 11 }))).toEqual([
+      'bad_level @ items[wand-of-sparks].grants[1].level',
+    ]);
+    expect(problemsOf(withCasts({ saveDc: 'fifteen' }))).toEqual([
+      'bad_printed_number @ items[wand-of-sparks].grants[1].saveDc',
+    ]);
+  });
+
+  /**
+   * The charges come out of the item's own pool, and an item that casts for a
+   * price and declares no pool is an economy with nothing behind it.
+   */
+  it('refuses an item that casts for charges it does not have', () => {
+    expect(problemsOf([WAND.grants[1]])).toEqual([
+      'casts_without_charges @ items[wand-of-sparks].grants[0].charges',
+    ]);
+  });
+
+});
+
 describe('the clause that was a comment is now countable', () => {
   /**
    * SRD Cloak of Elvenkind: "While you wear this cloak, Wisdom (Perception)
