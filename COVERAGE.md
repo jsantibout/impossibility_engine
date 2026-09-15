@@ -20,7 +20,7 @@ spell is unsupported.
 **Partial and verified are different axes**, so a spell can be both: Web is
 driven end to end and still leaves its Difficult Terrain unbuilt. Partial is
 not a list at all — it is derived from the adjudication map in
-`packages/engine/scripts/missing-shapes.ts`: a spell is partial because one
+`packages/content/scripts/missing-shapes.ts`: a spell is partial because one
 of its `unmodelled` clauses is adjudicated to a named missing shape rather
 than to the table.
 
@@ -200,7 +200,7 @@ Cast for real; the effect is narrated. Each says what it leaves to the DM.
 
 ## What blocks the rest
 
-Derived from `packages/engine/scripts/missing-shapes.ts`, which holds one
+Derived from `packages/content/scripts/missing-shapes.ts`, which holds one
 missing-shape vocabulary and every spell blocked on it — the executed
 definitions carrying a clause they do not finish, the tracked ones, and all
 the parsed spells with no definition at all.
