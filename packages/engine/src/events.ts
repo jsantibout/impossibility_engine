@@ -84,6 +84,15 @@ import type {
  * and it is checkable — nothing outside `fold/` imports `./state.js` or
  * `./fold/*`.)
  *
+ * The `./fold/*` half is now checked rather than claimed: the
+ * `no-restricted-imports` zone in `eslint.config.js` refuses a fold import
+ * from any engine module outside `packages/engine/src/fold/`, with the
+ * `export *` below as the one carved-out exception, and
+ * `fold-import-boundary.test.ts` runs ESLint to prove the zone bites and
+ * where it stays quiet. Test files are exempt by design, so the sentence
+ * above is a statement about the shipped import graph; the `./state.js` half
+ * is still held by reading.
+ *
  * Fourteen from `state.js`, ten from `fold/`, and the union below. Each of
  * those two publishes exactly what was public before and no more — a function
  * is `export`ed from its own module so a sibling seam may call it, and that is
