@@ -18,7 +18,6 @@
 import { ABILITY_NAMES, type CharacterId, ok, type Result } from '@ie/shared';
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
-import { castingSource } from '../spells.js';
 import { armorClassOf, speedOf } from '../standing.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
@@ -33,7 +32,7 @@ export function resolveBuffEffect(
   victim: CreatureState,
   world: GameState,
 ): Result<GameState> {
-  const { definition, supply, castingId, events, outcomes, held, saveDc } = ctx;
+  const { name, source, supply, events, outcomes, held, saveDc } = ctx;
   let current = world;
 
   let save: D20TestResult | null = null;
@@ -51,7 +50,7 @@ export function resolveBuffEffect(
     events.push(
       recordD20Test(
         target,
-        `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+        `${ABILITY_NAMES[effect.ability]} save vs ${name}`,
         save,
         save.success ? 'resisted' : 'affected',
       ),
@@ -69,8 +68,8 @@ export function resolveBuffEffect(
     type: 'bonus-applied',
     id: target,
     bonus: {
-      source: castingSource(definition.name, castingId),
-      bonus: { ...effect.bonus, source: definition.name },
+      source,
+      bonus: { ...effect.bonus, source: name },
       applies: effect.applies,
       direction: effect.direction,
     },
@@ -96,7 +95,7 @@ export function resolveRollModeEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { definition, castingId, events, outcomes, held } = ctx;
+  const { source, events, outcomes, held } = ctx;
   let current = world;
 
   // **Nothing is resisted here**, and that is the effect rather than an
@@ -115,7 +114,7 @@ export function resolveRollModeEffect(
     type: 'roll-modifier-granted',
     id: target,
     modifier: {
-      source: castingSource(definition.name, castingId),
+      source,
       modifier: effect.modifier,
     },
   });
@@ -136,7 +135,7 @@ export function resolveArmorClassEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { definition, castingId, events, outcomes, held } = ctx;
+  const { source, events, outcomes, held } = ctx;
   let current = world;
 
   held.add(target);
@@ -144,7 +143,7 @@ export function resolveArmorClassEffect(
     type: 'armor-class-granted',
     id: target,
     armorClass: {
-      source: castingSource(definition.name, castingId),
+      source,
       base: effect.base,
       plusAbility: effect.plusAbility,
       shieldAllowed: effect.shieldAllowed,
@@ -176,7 +175,7 @@ export function resolveDamageDefenseEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { definition, castingId, events, outcomes, held } = ctx;
+  const { source, events, outcomes, held } = ctx;
   let current = world;
 
   held.add(target);
@@ -184,7 +183,7 @@ export function resolveDamageDefenseEffect(
     type: 'damage-defense-granted',
     id: target,
     defense: {
-      source: castingSource(definition.name, castingId),
+      source,
       damageTypes: effect.damageTypes,
       defense: effect.defense,
     },
@@ -213,7 +212,7 @@ export function resolveSpeedEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { definition, castingId, events, outcomes, held } = ctx;
+  const { source, events, outcomes, held } = ctx;
   let current = world;
 
   held.add(target);
@@ -221,7 +220,7 @@ export function resolveSpeedEffect(
     type: 'speed-modifier-granted',
     id: target,
     modifier: {
-      source: castingSource(definition.name, castingId),
+      source,
       change: effect.change,
       ...(effect.feet === undefined ? {} : { feet: effect.feet }),
     },
@@ -262,14 +261,14 @@ export function resolveAttackRiderEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, definition, castingId, events, outcomes, held } = ctx;
+  const { casterId, source, events, outcomes, held } = ctx;
 
   held.add(casterId);
   events.push({
     type: 'attack-rider-granted',
     id: casterId,
     rider: {
-      source: castingSource(definition.name, castingId),
+      source,
       dice: effect.dice,
       damageType: effect.damageType,
       ...(effect.weaponOnly === undefined ? {} : { weaponOnly: effect.weaponOnly }),
@@ -308,7 +307,7 @@ export function resolveConditionImmunityEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { definition, castingId, events, outcomes, held } = ctx;
+  const { source, events, outcomes, held } = ctx;
   let current = world;
 
   held.add(target);
@@ -316,7 +315,7 @@ export function resolveConditionImmunityEffect(
     type: 'condition-immunity-granted',
     id: target,
     immunity: {
-      source: castingSource(definition.name, castingId),
+      source,
       conditions: effect.conditions,
     },
   });

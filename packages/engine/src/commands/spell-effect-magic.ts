@@ -35,7 +35,7 @@ export function resolveDispelEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, casterSheet, definition, castLevel, ability, supply, events, outcomes } = ctx;
+  const { casterId, casterSheet, name, castLevel, ability, supply, events, outcomes } = ctx;
   let current = world;
 
   // SRD: "make an ability check using your spellcasting ability" — the
@@ -46,7 +46,7 @@ export function resolveDispelEffect(
   if (ability === null) {
     return err(
       'no_spellcasting_ability',
-      `${definition.name} is resolved with an ability check using your own spellcasting ability, and ${casterId} has none to make it with`,
+      `${name} is resolved with an ability check using your own spellcasting ability, and ${casterId} has none to make it with`,
     );
   }
 
@@ -100,7 +100,7 @@ export function resolveDispelEffect(
       events.push(
         recordD20Test(
           casterId,
-          `${definition.name} vs ${spell.spell} (level ${spell.level})`,
+          `${name} vs ${spell.spell} (level ${spell.level})`,
           check.value,
           check.value.success ? 'dispelled' : 'held',
         ),
@@ -157,7 +157,7 @@ export function resolveInterruptCastingEffect(
   victim: CreatureState,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, definition, supply, events, outcomes, saveDc, answers } = ctx;
+  const { casterId, name, supply, events, outcomes, saveDc, answers } = ctx;
   let current = world;
 
   // SRD Counterspell: "The creature makes a Constitution saving throw.
@@ -177,7 +177,7 @@ export function resolveInterruptCastingEffect(
   if (open === undefined) {
     return err(
       'nothing_to_interrupt',
-      `${definition.name} found no casting in progress to interrupt`,
+      `${name} found no casting in progress to interrupt`,
     );
   }
 
@@ -193,7 +193,7 @@ export function resolveInterruptCastingEffect(
   events.push(
     recordD20Test(
       target,
-      `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+      `${ABILITY_NAMES[effect.ability]} save vs ${name}`,
       save.value,
       save.value.success ? 'resisted' : 'affected',
     ),

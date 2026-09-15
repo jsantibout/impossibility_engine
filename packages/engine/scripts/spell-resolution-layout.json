@@ -1,5 +1,10 @@
 {
-  "commands/spell-effect-context.ts": ["EffectContext", "EffectOfKind"],
+  "commands/spell-effect-context.ts": [
+    "EffectOrigin",
+    "CastingOrigin",
+    "EffectContext",
+    "EffectOfKind"
+  ],
   "commands/spell-effect-riders.ts": [
     "scheduleDelayed",
     "riderOptions",
@@ -17,12 +22,25 @@
     "resolveArmorClassEffect",
     "resolveDamageDefenseEffect",
     "resolveSpeedEffect",
-    "resolveAttackRiderEffect"
+    "resolveAttackRiderEffect",
+    "resolveConditionImmunityEffect"
   ],
-  "commands/spell-effect-hit-points.ts": ["resolveTempHpEffect", "resolveHealEffect"],
-  "commands/spell-effect-conditions.ts": ["resolveConditionEffect", "resolveEndConditionEffect"],
-  "commands/spell-effect-magic.ts": ["resolveDispelEffect", "resolveInterruptCastingEffect"],
-  "commands/spell-effect-teleport.ts": ["resolveTeleportEffect"],
+  "commands/spell-effect-hit-points.ts": [
+    "resolveTempHpEffect",
+    "resolveHealEffect",
+    "resolveTurnPayoutEffect"
+  ],
+  "commands/spell-effect-conditions.ts": [
+    "resolveConditionEffect",
+    "resolveEndConditionEffect"
+  ],
+  "commands/spell-effect-magic.ts": [
+    "resolveDispelEffect",
+    "resolveInterruptCastingEffect"
+  ],
+  "commands/spell-effect-teleport.ts": [
+    "resolveTeleportEffect"
+  ],
   "commands/spell-resolution.ts": [
     "resolveSpell",
     "resolveDeclaredCast",
@@ -36,6 +54,10 @@
     "resolveEffects",
     "landedOn",
     "OngoingRecordPlan",
-    "statedFacts"
+    "statedFacts",
+    "EffectRun",
+    "EffectRunOutcome",
+    "runEffects",
+    "aimedAt"
   ]
 }

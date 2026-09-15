@@ -12,6 +12,7 @@
  */
 
 import { type Ability, type CharacterId } from '@ie/shared';
+import { type CatalogueItem } from '../catalogue.js';
 import { type CreatureState, type GameEvent } from '../events.js';
 import { type Placement, type Point } from '../positioning.js';
 import { type SpellDefinition, type SpellEffect } from '../spell-definitions.js';
@@ -19,6 +20,36 @@ import { type CastingRoute } from '../spellcasting.js';
 import { type CastingNumbers } from '../spells.js';
 import { type Supply } from './casting.js';
 import { type SpellTargetOutcome } from './targeting.js';
+
+/**
+ * What is resolving this effect list: a casting, or an item that confers
+ * without casting one.
+ *
+ * SRD "Magic Items" prints the fork in one sentence — "Many items, such as
+ * Potions, **bypass the casting of a spell** and confer the spell's effects
+ * with its usual duration" — and this is that sentence as a type. The two arms
+ * carry what only that origin has: a casting has an identity and a definition,
+ * and an item has neither.
+ *
+ * **The casting is absent rather than faked.** An item arm that carried a
+ * made-up `cast:N` would put a casting in the log that nothing cast, would
+ * make `ongoing` answerable for a potion, and would offer Dispel Magic a
+ * casting to end. `castingIdOf` matches `cast:N` and nothing else, so
+ * `releaseCasting`, `releaseOnTarget`, `ongoingSpellsOn`, `spellOn` and the
+ * Dispel resolver all pass over an item's effects by construction — which is
+ * a guarantee about the string rather than a list of places that were
+ * remembered.
+ */
+export type EffectOrigin =
+  | {
+      readonly kind: 'casting';
+      readonly castingId: string;
+      readonly definition: SpellDefinition;
+    }
+  | { readonly kind: 'item'; readonly item: CatalogueItem };
+
+/** The casting arm of {@link EffectOrigin}, named once. */
+export type CastingOrigin = Extract<EffectOrigin, { kind: 'casting' }>;
 
 /**
  * Everything a per-kind resolver reads, gathered once before the loop.
@@ -49,7 +80,44 @@ export interface EffectContext {
   readonly caster: CreatureState | null;
   /** The caster’s sheet, loud rather than absent when there is none. */
   readonly casterSheet: () => CreatureState;
-  readonly definition: SpellDefinition;
+  /** What is resolving this list — see {@link EffectOrigin}. */
+  readonly origin: EffectOrigin;
+  /**
+   * The casting this is, **loud rather than absent when it is not one**.
+   *
+   * {@link casterSheet}'s pattern, for the same reason and with the same
+   * consequence: five resolvers need a casting id or the definition itself —
+   * a condition instance is welded to a casting in the fold, and the riders a
+   * settled outcome carries hang off one — and every effect kind that reaches
+   * them is refused on an item by `checkContent` before any content is loaded.
+   * So arriving here from an item is the validator and the resolver
+   * disagreeing, which is a bug in this repository rather than a rules
+   * dispute.
+   */
+  readonly casting: () => CastingOrigin;
+  /**
+   * The name the log reads this effect's work under: the spell's, or the
+   * item's.
+   *
+   * Nine resolvers wrote `definition.name` and wanted exactly this — what to
+   * call the thing that happened — which is why it is a field rather than a
+   * dereference through {@link origin}.
+   */
+  readonly name: string;
+  /**
+   * The level the dice scale from: the spell's own, or `CONFERRED_LEVEL` for
+   * an item, whose printed line is the same whoever uses it.
+   */
+  readonly level: number;
+  /**
+   * What everything this hangs on a creature is filed under.
+   *
+   * `Hold Person#cast:3` from a casting and `item:potion-of-heroism` from an
+   * item — one string, written by one function per origin, and the only thing
+   * that can later take the grant away. Eleven resolver sites wrote
+   * `castingSource(definition.name, castingId)` and are now one read.
+   */
+  readonly source: string;
   readonly castLevel: number;
   /** Null for a later use, which rolls with {@link EffectContext.numbers}. */
   readonly route: CastingRoute | null;
@@ -73,7 +141,6 @@ export interface EffectContext {
   readonly attackModifier: number;
   readonly saveDc: number;
   readonly supply: Supply;
-  readonly castingId: string;
   /** How the log reads, when an activation wants its own wording. */
   readonly label: string;
   /** Where the spell acts **from**, when that is not the caster’s own space. */

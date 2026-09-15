@@ -86,6 +86,8 @@ export {
   purchaseItem,
   unequipItem,
 } from './commands/inventory.js';
+export { useItem } from './commands/item-use.js';
+export type { ItemUse, UseItemCommand } from './commands/item-use.js';
 export {
   ongoingSpellOf,
   ongoingSpellsBy,

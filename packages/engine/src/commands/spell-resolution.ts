@@ -36,6 +36,7 @@
  * each kind a separate function over one gathered context.
  */
 
+import { CONFERRED_LEVEL, itemSource } from '../catalogue.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
@@ -74,7 +75,7 @@ import {
   statedDamageType,
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
-import { type CastingNumbers, type CastingTime } from '../spells.js';
+import { castingSource, type CastingNumbers, type CastingTime } from '../spells.js';
 import {
   answeredCasting,
   choosePayment,
@@ -99,7 +100,11 @@ import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { replacedCastings } from './ongoing.js';
 import { effectCheckFrom } from './rolls.js';
-import { type EffectContext } from './spell-effect-context.js';
+import {
+  type CastingOrigin,
+  type EffectContext,
+  type EffectOrigin,
+} from './spell-effect-context.js';
 import {
   resolveConditionEffect,
   resolveEndConditionEffect,
@@ -583,7 +588,7 @@ export function castOrRelease(
     // and joins the same list the position and sight requests use, because a
     // caller fixing a thin record should be told everything that is thin
     // rather than one fact at a time.
-    needs.push(...creatureTypeNeeds(state, definition, definition.effects, targets));
+    needs.push(...creatureTypeNeeds(state, definition.name, definition.effects, targets));
 
     // **A printed later consequence asks for the timeline it needs**, at the
     // same moment and by the same rule: with the targets settled, before the
@@ -1145,7 +1150,8 @@ function resolveOnTargets(
  */
 function creatureTypeNeeds(
   state: GameState,
-  definition: SpellDefinition,
+  /** What the request calls the thing that wants the fact: a spell, or an item. */
+  name: string,
   effects: readonly SpellEffect[],
   targets: readonly CharacterId[],
 ): readonly ContextRequest[] {
@@ -1162,7 +1168,7 @@ function creatureTypeNeeds(
       kind: 'creature-type',
       subject: target,
       need: `what kind of creature ${target} is`,
-      because: `${definition.name} resolves differently against ${wanted.join(' or ')}`,
+      because: `${name} resolves differently against ${wanted.join(' or ')}`,
       satisfyWith: `declareCreatureType(${target}, …), or a creatureType when the creature is added`,
     });
   }
@@ -1350,68 +1356,10 @@ export function resolveEffects(
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, castingId, events } = context;
-  const running = context.effects ?? definition.effects;
-  const label = context.label ?? definition.name;
 
-  /**
-   * The caster's sheet, for the rolls that genuinely need one.
-   *
-   * A casting that outlives its caster keeps its *numbers* and loses its
-   * *sheet*, and the two are not the same thing: a save DC is pinned, while
-   * the dice a caster throws are thrown by a creature. Every effect that needs
-   * this is refused before it gets here — `settleAreaEffects` checks, and a
-   * test asserts no registered spell can reach it — so arriving here with no
-   * caster is a programmer error rather than a rules dispute, and is loud.
-   */
-  const casterSheet = (): CreatureState => {
-    if (caster === null) {
-      throw new Error(
-        `${definition.name} needs its caster's sheet to resolve and ${casterId} has left the game; ` +
-          'the caller should have refused this effect rather than reaching here',
-      );
-    }
-    return caster;
-  };
-
-  // — what it does ———————————————————————————————————————————————————————
-  let current = events.reduce(applyEvent, state);
-  const outcomes: SpellTargetOutcome[] = [];
-  // Whom this casting has left something of its own on — the half of "what is
-  // this casting on" the world holds, so the half the record does *not* store.
-  // See {@link aimedAt}.
-  const held = new Set<CharacterId>();
-  const issuedBefore = supply.issuer.count;
-
-  // **Derived once, at the casting, and read from the record ever after.**
-  // The *chosen source's* ability, not the class's — a feat brings its own —
-  // and a later use of the same casting takes the numbers it was made with
-  // rather than asking a sheet that may have levelled since.
-  const numbers: CastingNumbers = context.numbers ?? numbersFor(casterSheet().sheet, route!);
-
-  // **Before the first die, and on every path into here.** `castOrRelease`
-  // asks the same question earlier so an ordinary casting never reaches this
-  // one; what arrives here instead is an area trigger settling a minute later,
-  // a declared casting being settled, and an activation — each of which can
-  // meet a creature nobody had typed when the spell was first cast. Asking
-  // mid-loop would leave the generator advanced for the targets already
-  // resolved, which is a refused operation that moved the world.
-  const untyped = creatureTypeNeeds(state, definition, running, targets);
-  if (untyped.length > 0) {
-    return needsContext(
-      'needs_context',
-      `${label} cannot be resolved until ${untyped.length === 1 ? 'a fact is' : `${untyped.length} facts are`} established: ${untyped.map((n) => n.need).join('; ')}`,
-      untyped,
-    );
-  }
-
-  // Named once, for thirteen resolvers that used to read them out of this
-  // function's scope. Nothing here is derived: every field is a binding the
-  // branches already had, under the name they already had it under.
-  const ctx: EffectContext = {
-    casterId,
-    caster,
-    casterSheet,
-    definition,
+  const resolved = runEffects(state, casterId, caster, {
+    origin: { kind: 'casting', castingId, definition },
+    effects: context.effects ?? definition.effects,
     castLevel,
     route,
     // The chosen source's ability, from the route while there is one and from
@@ -1420,47 +1368,25 @@ export function resolveEffects(
     // class made, where the route was never written down because it could
     // always be re-derived.
     //
-    // **`caster` and not `casterSheet()`**, which is the difference between a
-    // value and a throw: SRD Grease runs its minute whether or not the wizard
-    // does, and the accessor is loud on purpose. A casting that has outlived
-    // its caster has no ability, and the one effect that reads this refuses
-    // rather than resolving — which is the same answer the sheet would have
-    // given for a caster who had none.
+    // **`caster` and not the sheet accessor**, which is the difference between
+    // a value and a throw: SRD Grease runs its minute whether or not the
+    // wizard does. A casting that has outlived its caster has no ability, and
+    // the one effect that reads this refuses rather than resolving — the same
+    // answer the sheet would have given for a caster who had none.
     ability: context.ability ?? route?.ability ?? caster?.sheet.spellcastingAbility ?? null,
-    numbers,
-    attackModifier: numbers.attackModifier,
-    saveDc: numbers.saveDc,
-    supply,
-    castingId,
-    label,
+    targets,
     unverified,
+    supply,
     events,
-    outcomes,
-    held,
+    ...(context.numbers === undefined ? {} : { numbers: context.numbers }),
+    ...(context.label === undefined ? {} : { label: context.label }),
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
-  };
-
-  for (const target of targets) {
-    for (const effect of running) {
-      const victim = current.creatures[target];
-      if (victim === undefined) continue;
-
-      const done = resolveOneEffect(ctx, effect, target, victim, current);
-      if (!done.ok) return done;
-      current = done.value;
-    }
-  }
-
-  if (supply.issuer.count > issuedBefore) {
-    events.push({
-      type: 'rolls-issued',
-      count: supply.issuer.count - issuedBefore,
-      rng: supply.rng.snapshot(),
-    });
-  }
+  });
+  if (!resolved.ok) return resolved;
+  const { numbers, outcomes, held } = resolved.value;
 
   // The live half of the casting, now that it is known what the casting
   // actually caught. See `OngoingSpell` for why each field is there.
@@ -1526,6 +1452,208 @@ export function resolveEffects(
   }
 
   return ok({ events, castingId, outcomes, unverified });
+}
+
+/** What a run of an effect list is: the list, whose it is, and what it reads. */
+export interface EffectRun {
+  /** A casting, or an item that confers without casting — see {@link EffectOrigin}. */
+  readonly origin: EffectOrigin;
+  /** The list to resolve. Never derived here: the caller knows which list it means. */
+  readonly effects: readonly SpellEffect[];
+  readonly castLevel: number;
+  /** Null for a later use, and for an item, which rolls with {@link numbers}. */
+  readonly route: CastingRoute | null;
+  readonly ability: Ability | null;
+  /**
+   * The numbers this run is made with.
+   *
+   * Absent only where a route can still be asked — a class's first casting —
+   * which is why an item supplies them and never omits them: an item has no
+   * route to derive a save DC from, and a conferral rolls no D20 Test that
+   * would want one.
+   */
+  readonly numbers?: CastingNumbers;
+  readonly targets: readonly CharacterId[];
+  readonly unverified: string[];
+  readonly supply: Supply;
+  /** The batch being built; every event this run produces is appended to it. */
+  readonly events: GameEvent[];
+  /** How the log reads, when the caller wants its own wording. */
+  readonly label?: string;
+  readonly from?: Point;
+  readonly fought?: readonly CharacterId[];
+  readonly teleportTo?: Placement;
+  readonly answers?: string;
+}
+
+/** What a run leaves behind, for whoever has to write the record of it. */
+export interface EffectRunOutcome {
+  /** The world with this run's events folded in. */
+  readonly state: GameState;
+  /** The numbers it was made with, derived here where the caller supplied none. */
+  readonly numbers: CastingNumbers;
+  readonly outcomes: readonly SpellTargetOutcome[];
+  /** Whom this run has left something of its own on — see `landedOn`. */
+  readonly held: ReadonlySet<CharacterId>;
+}
+
+/**
+ * Resolve one effect list over one gathered context: **the loop, and nothing
+ * either side of it**.
+ *
+ * The half of {@link resolveEffects} that has nothing to do with castings.
+ * Everything a casting needs and a conferral does not — the slot, the route,
+ * the casting id, the ongoing record, Concentration — is the caller's, and
+ * what is left here is the thing both of them actually do: gather the context
+ * once, ask for any creature type an effect reads before a die moves, run each
+ * effect on each target in order, and record how far the generator went.
+ *
+ * SRD "Magic Items": "Many items, such as Potions, **bypass the casting of a
+ * spell** and confer the spell's effects with its usual duration." Two callers
+ * because the book prints two sentences, and one loop because the effects
+ * themselves are the same effects — an item with a resolver of its own would
+ * be a second place for every rules fix to be missed.
+ */
+export function runEffects(
+  state: GameState,
+  casterId: CharacterId,
+  /**
+   * Null when the casting has outlived its caster — see {@link resolveEffects}.
+   * An item's conferral always has one, because somebody used the item.
+   */
+  caster: CreatureState | null,
+  run: EffectRun,
+): Result<EffectRunOutcome> {
+  const { origin, effects, castLevel, route, targets, unverified, supply, events } = run;
+  const name = origin.kind === 'casting' ? origin.definition.name : origin.item.name;
+  const level = origin.kind === 'casting' ? origin.definition.level : CONFERRED_LEVEL;
+  const source =
+    origin.kind === 'casting'
+      ? castingSource(origin.definition.name, origin.castingId)
+      : itemSource(origin.item.id);
+  const label = run.label ?? name;
+
+  /**
+   * The caster's sheet, for the rolls that genuinely need one.
+   *
+   * A casting that outlives its caster keeps its *numbers* and loses its
+   * *sheet*, and the two are not the same thing: a save DC is pinned, while
+   * the dice a caster throws are thrown by a creature. Every effect that needs
+   * this is refused before it gets here — `settleAreaEffects` checks, and a
+   * test asserts no registered spell can reach it — so arriving here with no
+   * caster is a programmer error rather than a rules dispute, and is loud.
+   */
+  const casterSheet = (): CreatureState => {
+    if (caster === null) {
+      throw new Error(
+        `${name} needs its caster's sheet to resolve and ${casterId} has left the game; ` +
+          'the caller should have refused this effect rather than reaching here',
+      );
+    }
+    return caster;
+  };
+
+  /**
+   * The casting this is, for the five resolvers that cannot be anything else.
+   *
+   * {@link casterSheet}'s pattern and its argument: a condition instance is
+   * welded to a casting in the fold and a rider hangs off one, so `attack`,
+   * `save`, `save-damage`, `condition` and the two magic kinds are refused on
+   * an item by `checkContent` before any content loads. Reaching here from an
+   * item is therefore the validator and the resolver disagreeing.
+   */
+  const casting = (): CastingOrigin => {
+    if (origin.kind !== 'casting') {
+      throw new Error(
+        `${name} confers its effects without casting a spell, and an effect that needs the casting reached it; ` +
+          'checkContent refuses that effect kind on an item, so the validator and the resolver disagree',
+      );
+    }
+    return origin;
+  };
+
+  // — what it does ———————————————————————————————————————————————————————
+  let current = events.reduce(applyEvent, state);
+  const outcomes: SpellTargetOutcome[] = [];
+  // Whom this run has left something of its own on — the half of "what is this
+  // casting on" the world holds, so the half the record does *not* store.
+  // See {@link aimedAt}.
+  const held = new Set<CharacterId>();
+  const issuedBefore = supply.issuer.count;
+
+  // **Derived once, at the casting, and read from the record ever after.**
+  // The *chosen source's* ability, not the class's — a feat brings its own —
+  // and a later use of the same casting takes the numbers it was made with
+  // rather than asking a sheet that may have levelled since.
+  const numbers: CastingNumbers = run.numbers ?? numbersFor(casterSheet().sheet, route!);
+
+  // **Before the first die, and on every path into here.** `castOrRelease`
+  // asks the same question earlier so an ordinary casting never reaches this
+  // one; what arrives here instead is an area trigger settling a minute later,
+  // a declared casting being settled, and an activation — each of which can
+  // meet a creature nobody had typed when the spell was first cast. Asking
+  // mid-loop would leave the generator advanced for the targets already
+  // resolved, which is a refused operation that moved the world.
+  const untyped = creatureTypeNeeds(state, name, effects, targets);
+  if (untyped.length > 0) {
+    return needsContext(
+      'needs_context',
+      `${label} cannot be resolved until ${untyped.length === 1 ? 'a fact is' : `${untyped.length} facts are`} established: ${untyped.map((n) => n.need).join('; ')}`,
+      untyped,
+    );
+  }
+
+  // Named once, for the resolvers that used to read them out of the enclosing
+  // scope. Nothing here is derived that the caller could have derived: what
+  // varies between a casting and a conferral is `origin`, and `name`, `level`
+  // and `source` are the three questions every resolver asked of it.
+  const ctx: EffectContext = {
+    casterId,
+    caster,
+    casterSheet,
+    origin,
+    casting,
+    name,
+    level,
+    source,
+    castLevel,
+    route,
+    ability: run.ability,
+    numbers,
+    attackModifier: numbers.attackModifier,
+    saveDc: numbers.saveDc,
+    supply,
+    label,
+    unverified,
+    events,
+    outcomes,
+    held,
+    ...(run.from === undefined ? {} : { from: run.from }),
+    ...(run.fought === undefined ? {} : { fought: run.fought }),
+    ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
+    ...(run.answers === undefined ? {} : { answers: run.answers }),
+  };
+
+  for (const target of targets) {
+    for (const effect of effects) {
+      const victim = current.creatures[target];
+      if (victim === undefined) continue;
+
+      const done = resolveOneEffect(ctx, effect, target, victim, current);
+      if (!done.ok) return done;
+      current = done.value;
+    }
+  }
+
+  if (supply.issuer.count > issuedBefore) {
+    events.push({
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    });
+  }
+
+  return ok({ state: current, numbers, outcomes, held });
 }
 
 /**

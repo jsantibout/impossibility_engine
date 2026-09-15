@@ -55,11 +55,9 @@ export function resolveAttackEffect(
     casterId,
     caster,
     casterSheet,
-    definition,
     castLevel,
     numbers,
     supply,
-    castingId,
     label,
     unverified,
     events,
@@ -70,6 +68,10 @@ export function resolveAttackEffect(
     saveDc,
     from,
   } = ctx;
+  // A rider is welded to the casting that hung it and a `damage-scheduled`
+  // names one, so the three kinds that roll a D20 Test are refused on an item
+  // by `checkContent` and the accessor is loud here — see `EffectContext.casting`.
+  const { definition, castingId } = ctx.casting();
   let current = world;
 
   // **A spell attack is an attack roll.** SRD Dodge says "any attack
@@ -314,17 +316,19 @@ export function resolveSaveDamageEffect(
   const {
     casterId,
     casterSheet,
-    definition,
     castLevel,
     numbers,
     supply,
-    castingId,
     unverified,
     events,
     outcomes,
     held,
     saveDc,
   } = ctx;
+  // A rider is welded to the casting that hung it and a `damage-scheduled`
+  // names one, so the three kinds that roll a D20 Test are refused on an item
+  // by `checkContent` and the accessor is loud here — see `EffectContext.casting`.
+  const { definition, castingId } = ctx.casting();
   let current = world;
 
   const support = savingSupport(current, target, victim, effect.ability, supply);
@@ -486,11 +490,9 @@ export function resolveSaveEffect(
 ): Result<GameState> {
   const {
     casterId,
-    definition,
     castLevel,
     numbers,
     supply,
-    castingId,
     unverified,
     events,
     outcomes,
@@ -498,6 +500,10 @@ export function resolveSaveEffect(
     saveDc,
     fought,
   } = ctx;
+  // A rider is welded to the casting that hung it and a `damage-scheduled`
+  // names one, so the three kinds that roll a D20 Test are refused on an item
+  // by `checkContent` and the accessor is loud here — see `EffectContext.casting`.
+  const { definition, castingId } = ctx.casting();
   let current = world;
 
   // A saving throw, and a condition on a failure.

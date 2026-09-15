@@ -1264,12 +1264,119 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
   ),
 ];
 
+/**
+ * The Potions, which are the items the book uses up rather than wears.
+ *
+ * SRD "Magic Items": "Many items, such as Potions, **bypass the casting of a
+ * spell** and confer the spell's effects with its usual duration", and
+ * "Drinking a potion or administering it to another creature requires a Bonus
+ * Action. Once used, a potion takes effect immediately, and it is used up."
+ * That is the `confers` grant in one paragraph: an action, an effect list, and
+ * no casting anywhere in it.
+ *
+ * Two of them, which are the two whose whole text the vocabulary can say. Most
+ * of the rest of the book's potions give "the effect of the X spell (no
+ * Concentration required)" and need a conferral that names a *spell* rather
+ * than an effect list, or set an ability score, or hand out a condition — all
+ * of which are named in `docs/design/casting.md` and none of which is here.
+ */
+const POTIONS: readonly CatalogueItem[] = [
+  {
+    /**
+     * SRD Potion of Healing, printed in the equipment table as well as the
+     * magic-item chapter: "As a Bonus Action, you can drink it or administer
+     * it to another creature within 5 feet of yourself. The creature that
+     * drinks the magical red fluid in this vial regains 2d4 + 2 Hit Points."
+     *
+     * The whole sentence, with nothing left out: the action, the reach and the
+     * dice are the three things the grant carries, and
+     * `addSpellcastingModifier: false` is the fourth — a potion has no caster,
+     * so the modifier a healing *spell* adds is not added here.
+     *
+     * The greater, superior and supreme rows of the same table are the same
+     * grant with different dice and are not transcribed, because the SRD files
+     * all four under one entry with one id and item instance identity is what
+     * would tell four potions apart on one line of an inventory.
+     */
+    id: 'potion-of-healing',
+    name: 'Potion of Healing',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: 50 * COPPER_PER.gp,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        effects: [
+          { kind: 'heal', healing: { dice: '2d4', flat: 2 }, addSpellcastingModifier: false },
+        ],
+      },
+    ],
+    unmodelled: [
+      'the three other rows of the Potions of Healing table — "Potion of Healing (greater)" 4d4 + 4, "(superior)" 8d4 + 8, "(supreme)" 10d4 + 20 — which the SRD files under one entry and which would need four ids, or an item instance record, to sit on one inventory line',
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Heroism: "When you drink this potion, you gain 10
+     * Temporary Hit Points that last for 1 hour. For the same duration, you
+     * are under the effect of the _Bless_ spell (no Concentration required)."
+     *
+     * **Bless written out rather than named.** A conferral carries an effect
+     * list and not a spell id, so the Bless half is Bless's own effect —
+     * `{ dice: '1d4' }` on attack rolls and saving throws — transcribed here.
+     * "No Concentration required" is then not a clause the engine has to
+     * honour but a description of what a conferral already is: there is no
+     * casting to concentrate on.
+     *
+     * **The Temporary Hit Points are not here**, and the note below says so.
+     * Transcribing the half the vocabulary can say and declaring the half it
+     * cannot is rule 2 of the three above; the clause left out *adds* to the
+     * benefit rather than limiting it, so what is transcribed is a subset of
+     * the printed potion and never a better one.
+     */
+    id: 'potion-of-heroism',
+    name: 'Potion of Heroism',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        // "For the same duration" — SRD Bless runs a minute and this one runs
+        // the potion's hour, which is why the number is the item's.
+        durationSeconds: 3600,
+        effects: [
+          {
+            kind: 'buff',
+            bonus: { source: 'Potion of Heroism', dice: '1d4' },
+            applies: ['attack', 'save'],
+            direction: 'add',
+          },
+        ],
+      },
+    ],
+    unmodelled: [
+      '"you gain 10 Temporary Hit Points": a `temp-hp` amount with no dice in it. `DiceScaling.dice` is required and `parseNotation` refuses a notation that rolls no dice at all, so there is no way to write a flat ten; every other temp-hp amount in the catalogue rolls something',
+      '"that last for 1 hour": the hour on those Temporary Hit Points. `temporary-hp-granted` carries no source and no EffectTarget names Temporary Hit Points, so even once they can be granted there is nothing for a deadline to end. The Bless half does expire on the hour',
+    ],
+  },
+];
+
 const MAGIC_ITEMS: readonly CatalogueItem[] = [
   ...PLUS_WEAPONS,
   ...PLUS_ARMOR,
   ...PLUS_SHIELDS,
   ...MITHRAL_ARMOR,
   ...NAMED_ITEMS,
+  ...POTIONS,
 ];
 
 function build(): readonly CatalogueItem[] {
@@ -1290,6 +1397,15 @@ function build(): readonly CatalogueItem[] {
       contents: entry.contents.map((line) => ({ id: line.gearId, quantity: line.quantity })),
     });
   }
+
+  // **The Potion of Healing is printed twice**, and the magic-item record is
+  // the one that keeps: SRD's Adventuring Gear table lists it with a price and
+  // its whole description, and the magic-item chapter prints it under the
+  // Potions of Healing entry. The gear loop above has just overwritten it with
+  // a `gear` row that confers nothing, so the transcription is laid back down.
+  // Re-setting an id a `Map` already holds leaves it where it was, so the order
+  // of `SRD_ITEMS` is the order it has always been.
+  for (const potion of POTIONS) items.set(potion.id, potion);
 
   // SRD prices ammunition by the bundle — "Arrows (20)" costs 1 GP — so the
   // catalogue entry is one arrow and `bundleSize` says what a purchase buys.

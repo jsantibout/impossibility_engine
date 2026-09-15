@@ -554,10 +554,12 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
    *
    * A magic item is a `CatalogueItem` that has grown grants written in this
    * same `FeatureGrant` vocabulary — see `docs/design/characters-and-equipment.md`
-   * — so an item writing a member is a writer of it, and one member has no
-   * class writer at all: `casts` is an item casting a spell from its own
-   * charges, looked up by the granting item's id, and `checkContent` refuses it
-   * on a feature outright.
+   * — so an item writing a member is a writer of it, and two members have no
+   * class writer at all. They are the two halves of one SRD sentence: `casts`
+   * is an item casting a spell from its own charges, and `confers` is an item
+   * that "bypasses the casting of a spell" and hands the effects over
+   * directly. Both are looked up by the granting item's id and `checkContent`
+   * refuses either on a feature outright.
    *
    * Reading only the classes would report that as a member nobody writes,
    * which is the one thing this guard must not do: the population is what has
@@ -589,8 +591,8 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
 
   /**
    * And the widening is real rather than a way of going green: the catalogue
-   * has an item writing the one member no class does, and the member the two
-   * populations share is shared rather than quietly item-only.
+   * has an item writing each member no class does, and the members the two
+   * populations share are shared rather than quietly item-only.
    */
   it('has the item catalogue writing what the class tables do not', () => {
     const fromClasses = new Set(
@@ -598,7 +600,10 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
         entry.feature.grants === undefined ? [] : [String(entry.feature.grants.kind)],
       ),
     );
-    expect([...written].filter((kind) => !fromClasses.has(kind)).sort()).toEqual(['casts']);
+    expect([...written].filter((kind) => !fromClasses.has(kind)).sort()).toEqual([
+      'casts',
+      'confers',
+    ]);
     expect(fromClasses.has('pool')).toBe(true);
   });
 

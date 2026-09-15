@@ -96,6 +96,7 @@ import {
   takeTestReaction,
   unequipItem,
   useHealingTouch,
+  useItem,
   useRecovery,
   useSelfHeal,
 } from './commands.js';
@@ -217,6 +218,29 @@ const SETUP: readonly GameEvent[] = [
     ],
   },
 ];
+
+/**
+ * SETUP, plus a potion in A's pack and a wound for it to close.
+ *
+ * The wound matters: a drink that heals nobody would leave the sweep asserting
+ * only that the bottle emptied, and the retry it is about is the *healing*
+ * happening twice.
+ */
+const POTIONED: readonly GameEvent[] = (() => {
+  const owned: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'items-gained',
+      id: A,
+      items: [{ id: 'potion-of-healing', quantity: 1 }],
+      source: 'the hoard',
+    },
+  ];
+  return [
+    ...owned,
+    ...unwrap(damageCreature(fold('s', owned), A, { amount: 20, source: 'a trap' }), 'wounded'),
+  ];
+})();
 
 /**
  * SETUP, plus what attuning needs: an attunable item owned, and the Short Rest
@@ -1542,6 +1566,16 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) =>
       dismountRider(s, A, { from: { creature: HORSE }, feet: 15, bearing: 90 }, { commandId }),
   },
+  /**
+   * A potion drunk. The most retry-vulnerable shape an item has: the bottle is
+   * emptied and the healing rolled in one batch, so an unguarded retry is a
+   * second heal from a potion that no longer exists.
+   */
+  {
+    name: 'useItem',
+    log: POTIONED,
+    run: (s, commandId) => useItem(s, A, { item: 'potion-of-healing', commandId }, supply()),
+  },
 ];
 
 describe('a retried command changes nothing the first one did not', () => {
@@ -1936,6 +1970,13 @@ const SPENDERS: readonly Spender[] = [
     name: 'expendCharges',
     run: (s) => expendCharges(s, SRD_CONTENT, B, 'wand-of-secrets'),
   },
+  /**
+   * A potion drunk. SRD spends a Bonus Action on it, and a creature owing a
+   * mandatory area effect may not reach for a bottle any more than for a
+   * spell. The potion need not even be owned: `mayAct` is asked immediately
+   * after the duplicate check and before the item is looked up at all.
+   */
+  { name: 'useItem', run: (s) => useItem(s, B, { item: 'potion-of-healing' }, supply()) },
 ];
 
 /**

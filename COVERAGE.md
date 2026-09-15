@@ -411,7 +411,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 40 | 197 | 167 | 30 |
+| 258 | 42 | 199 | 167 | 32 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -429,7 +429,7 @@ inventing a column that nothing checks.
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
 | Armor | 19 | 9 | 53 | 48 | 5 |
-| Potions | 24 | 0 | 0 | 0 | 0 |
+| Potions | 24 | 2 | 2 | 0 | 2 |
 | Rings | 22 | 1 | 1 | 1 | 0 |
 | Rods | 7 | 0 | 0 | 0 | 0 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
@@ -466,6 +466,8 @@ how many of those still carry a clause the engine does not say.
 - **Mithral Armor** (Armor) — 8 recorded, complete
 - **Nine Lives Stealer** (Weapons) — 1 recorded, 1 partial
 - **Periapt of Proof against Poison** (Wondrous Items) — 1 recorded, 1 partial
+- **Potion of Heroism** (Potions) — 1 recorded, 1 partial
+- **Potions of Healing** (Potions) — 1 recorded, 1 partial
 - **Quarterstaff of the Acrobat** (Weapons) — 1 recorded, 1 partial
 - **Ring of Protection** (Rings) — 1 recorded, complete
 - **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial

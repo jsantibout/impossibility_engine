@@ -1,5 +1,5 @@
 import { err, ok, SKILL_ABILITY, type Result } from '@ie/shared';
-import { itemChargePool, type CatalogueItem } from './catalogue.js';
+import { CONFERRED_LEVEL, itemChargePool, type CatalogueItem } from './catalogue.js';
 import {
   checkFeatureDefinition,
   duplicateFeatureIds,
@@ -23,7 +23,7 @@ import {
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import type { SpellDefinition } from './spell-definitions.js';
-import { checkSpellDefinition, parseSpellDefinition } from './spell-schema.js';
+import { checkEffectValue, checkSpellDefinition, parseSpellDefinition } from './spell-schema.js';
 
 /**
  * Content: what exists in a campaign's world, as opposed to how the world works.
@@ -434,15 +434,226 @@ function itemCastsProblems(
 }
 
 /**
+ * The effect kinds an item may confer **without casting a spell**, as data.
+ *
+ * Two rules decide the list, and both are about what a casting has that an
+ * item's conferral does not:
+ *
+ * - **A casting id.** So no kind that hangs a *condition* is here: the fold
+ *   welds a condition instance to a casting (`fold/timers.ts` reads a
+ *   non-casting condition as a corrupt log), and a potion's condition is a
+ *   brief of its own rather than a line in this set.
+ * - **A D20 Test somebody paid for.** A conferral has no attack modifier and
+ *   no save DC, so `attack`, `save`, `save-damage`, `dispel` and
+ *   `interrupt-casting` are refused by name. So is `teleport`, whose
+ *   destination is stated at a casting, and `attack-damage`, which rides on an
+ *   attack this is not.
+ *
+ * What is left is the three that move hit points or lift a condition, and the
+ * eight sourced-grant families — exactly the kinds that need nothing from the
+ * casting they would otherwise have come from.
+ */
+export const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
+  'heal',
+  'temp-hp',
+  'end-condition',
+  'buff',
+  'roll-mode',
+  'armor-class',
+  'damage-defense',
+  'speed',
+  'attack-rider',
+  'condition-immunity',
+  'turn-payout',
+]);
+
+/**
+ * The conferred kinds that **hang a sourced grant** on somebody.
+ *
+ * The eight families `grantsOf` enumerates, which is the same list
+ * `commands/spell-effect-grants.ts` resolves. The question this set answers is
+ * one a conferral has to answer and a casting does not: a casting's grant ends
+ * when the casting does, and there is no casting here — so an item that hangs
+ * one of these says for how long, and an item that hangs none of them may not.
+ */
+const CONFERRED_GRANT_KINDS: ReadonlySet<string> = new Set([
+  'buff',
+  'roll-mode',
+  'armor-class',
+  'damage-defense',
+  'speed',
+  'attack-rider',
+  'condition-immunity',
+  'turn-payout',
+]);
+
+/**
+ * The `DiceScaling` fields that read a level nothing here has.
+ *
+ * A conferral resolves at {@link CONFERRED_LEVEL} with no slot and no caster,
+ * so every one of these would quietly come to nothing. Refused by name,
+ * because a printed number that never applies is what `unmodelled` exists to
+ * prevent, one field lower down.
+ */
+const SCALES_WITH_A_CASTING: readonly string[] = [
+  'perSlotLevelAbove',
+  'flatPerSlotLevelAbove',
+  'cantripUpgradesAt',
+];
+
+/** Where an admitted effect kind writes its dice, for the rule above. */
+const scalingFieldOf = (kind: unknown): string | null =>
+  kind === 'heal' ? 'healing' : kind === 'temp-hp' ? 'amount' : null;
+
+/**
+ * What an item's `confers` grant has to say, and what it may not.
+ *
+ * SRD "Magic Items" decides the shape: "Many items, such as Potions, bypass
+ * the casting of a spell and confer the spell's effects with its usual
+ * duration." So this is an effect list with no casting behind it, and every
+ * rule below is one consequence of the casting's absence.
+ *
+ * **The effects themselves are judged by `checkEffectValue`**, which is the
+ * spell validator's own two passes — so an item's list is held to the rules a
+ * spell's list is held to rather than to a second vocabulary kept in step by
+ * hand. What is added here is only what is true of an item and false of a
+ * casting.
+ */
+function itemConfersProblems(
+  item: CatalogueItem,
+  grant: Extract<FeatureGrant, { kind: 'confers' }>,
+  at: string,
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  if (grant.action !== 'action' && grant.action !== 'bonus-action') {
+    say(
+      'bad_conferral_action',
+      `SRD prints what using the item costs — "Drinking a potion ... requires a Bonus Action" — and "${String(grant.action)}" is neither an Action nor a Bonus Action`,
+      `${at}.action`,
+    );
+  }
+
+  // The two fields the type carries for the day they are read, refused today
+  // rather than ignored. See the `confers` grant in `progression.ts`.
+  if (grant.charges !== undefined) {
+    say(
+      'conferral_charges_unread',
+      `nothing spends a charge for a conferral yet — an item that confers is used up — so ${item.id}'s price would be a cost nobody pays`,
+      `${at}.charges`,
+    );
+  }
+  if (grant.saveDc !== undefined) {
+    say(
+      'conferral_save_dc_unread',
+      `no effect an item may confer rolls a saving throw yet, so ${item.id}'s printed DC would be a number no die is thrown against`,
+      `${at}.saveDc`,
+    );
+  }
+
+  if (!Array.isArray(grant.effects)) {
+    say('bad_conferral_effects', 'an item confers a list of effects', `${at}.effects`);
+    return found;
+  }
+  if (grant.effects.length === 0) {
+    say('empty_conferral', 'an item that confers an empty list confers nothing', `${at}.effects`);
+  }
+
+  let hangs = false;
+  grant.effects.forEach((effect, index) => {
+    const on = `${at}.effects[${index}]`;
+    // The engine's own rules for an effect, whoever hosts the list.
+    const problems = checkEffectValue(effect, CONFERRED_LEVEL, on);
+    found.push(...problems);
+    if (problems.length > 0) return;
+
+    const record = effect as unknown as Record<string, unknown>;
+    const kind = String(record['kind']);
+    if (!CONFERRED_EFFECT_KINDS.has(kind)) {
+      say(
+        'conferral_effect_not_read',
+        `"${kind}" needs the casting an item bypasses — an id to hang itself on, a D20 Test somebody paid for, or a destination stated at the cast — so ${item.id} may not confer one`,
+        `${on}.kind`,
+      );
+      return;
+    }
+    if (CONFERRED_GRANT_KINDS.has(kind)) hangs = true;
+
+    // "Your spellcasting ability modifier" is the caster's, and a conferral
+    // has no caster: the modifier would silently be zero.
+    if (record['addSpellcastingModifier'] === true) {
+      say(
+        'conferral_has_no_caster',
+        'an item confers its effect without casting a spell, so there is no spellcasting ability modifier to add',
+        `${on}.addSpellcastingModifier`,
+      );
+    }
+    // The save a `buff` may print is rolled against a DC an item has none of.
+    if (kind === 'buff' && record['ability'] !== undefined) {
+      say(
+        'conferral_save_dc_unread',
+        'a conferred bonus that offers a saving throw would be rolled against a DC an item has no way to print yet',
+        `${on}.ability`,
+      );
+    }
+    const field = scalingFieldOf(record['kind']);
+    const scaling = field === null ? undefined : record[field];
+    if (field !== null && typeof scaling === 'object' && scaling !== null) {
+      for (const scaled of SCALES_WITH_A_CASTING) {
+        if ((scaling as Record<string, unknown>)[scaled] !== undefined) {
+          say(
+            'conferral_scales_with_a_casting',
+            `${scaled} reads a slot level or a caster level, and an item's printed line is the same whoever uses it`,
+            `${on}.${field}.${scaled}`,
+          );
+        }
+      }
+    }
+  });
+
+  // **Required exactly when something hangs, and refused when nothing does.**
+  // There is no casting for `releaseCasting` to end, so a grant with no
+  // deadline would run for ever; and a deadline with nothing to end would file
+  // a timer that takes nothing away.
+  if (grant.durationSeconds === undefined) {
+    if (hangs) {
+      say(
+        'conferral_without_lifetime',
+        `${item.id} hangs a grant and no casting ends it, so its line has to say how long that lasts`,
+        `${at}.durationSeconds`,
+      );
+    }
+  } else if (!Number.isInteger(grant.durationSeconds) || grant.durationSeconds <= 0) {
+    say(
+      'bad_conferral_duration',
+      `a conferral lasts a whole number of seconds, got ${String(grant.durationSeconds)}`,
+      `${at}.durationSeconds`,
+    );
+  } else if (!hangs) {
+    say(
+      'conferral_lifetime_ends_nothing',
+      `${item.id} confers nothing that outlasts the moment it is used, so a duration would end nothing`,
+      `${at}.durationSeconds`,
+    );
+  }
+
+  return found;
+}
+
+/**
  * What an item is allowed to grant, judged once for both input paths.
  *
  * Typed content and parsed JSON both arrive at `checkContent`, so this is the
  * one gate — which is why it reads defensively rather than trusting the type.
  *
- * **A `standing` grant and a `pool` grant.** Those are the two an item's
- * readers execute — a benefit derived on every read, and charges. The rest are
- * real and are coming, but a grant nothing executes is an item whose line in
- * the book quietly does nothing.
+ * **A `standing` grant, a `pool` grant, a `casts` grant and a `confers`
+ * grant.** Those are the four an item's readers execute — a benefit derived on
+ * every read, charges, a spell it casts, and the effects it confers without
+ * casting one. The rest are real and are coming, but a grant nothing executes
+ * is an item whose line in the book quietly does nothing.
  */
 function itemGrantProblems(
   item: CatalogueItem,
@@ -456,6 +667,7 @@ function itemGrantProblems(
   };
 
   let pools = 0;
+  let conferrals = 0;
   const casts = new Set<string>();
 
   (item.grants ?? []).forEach((grant, index) => {
@@ -478,10 +690,25 @@ function itemGrantProblems(
       found.push(...itemCastsProblems(item, grant, at, spellExists, casts));
       return;
     }
+    if (grant.kind === 'confers') {
+      conferrals += 1;
+      if (conferrals > 1) {
+        // "When you drink this potion" is one sentence and one thing that
+        // happens; `itemConferral` reads the first, and an item whose second
+        // line silently never applied is the failure `unmodelled` prevents.
+        say(
+          'two_item_conferrals',
+          `${item.id} confers twice, and two things happening when one item is used is a choice nothing can make`,
+          at,
+        );
+      }
+      found.push(...itemConfersProblems(item, grant, at));
+      return;
+    }
     if (grant.kind !== 'standing') {
       say(
         'item_grant_not_read',
-        `nothing executes a "${grant.kind}" grant from an item yet; only a standing grant, a charge pool and a spell it casts are read from one`,
+        `nothing executes a "${grant.kind}" grant from an item yet; only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one`,
         at,
       );
       return;
@@ -816,6 +1043,18 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           field: `${where}.grants`,
           code: 'item_casting_on_a_feature',
           reason: `"casts" is an item casting a spell from its own charges, looked up by the granting item's id, and ${feature.id} is not an item; a feature that grants a spell declares it with a "spells" grant`,
+        });
+      }
+      // And the other half of the same SRD sentence, refused for the same
+      // reason: a conferral is used up and the thing used up is the *item*,
+      // so `useItem` looks it up by catalogue id and takes one off the
+      // inventory. A feature that resolves an effect list declares it with an
+      // `activated` grant, which is executed.
+      if (feature.grants?.kind === 'confers') {
+        problems.push({
+          field: `${where}.grants`,
+          code: 'item_conferral_on_a_feature',
+          reason: `"confers" is an item conferring an effect without casting a spell, and the item is used up doing it; ${feature.id} is not an item, so nothing would be spent and nothing would execute it`,
         });
       }
       // A feature executed by another names one on the same source that

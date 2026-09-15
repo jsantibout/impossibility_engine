@@ -1,0 +1,204 @@
+/**
+ * Using an item that confers its effects **without casting a spell**.
+ *
+ * SRD "Magic Items" settles the fork in one sentence and the engine does not
+ * have to have an opinion about which side an item falls on: "Many items, such
+ * as Potions, **bypass the casting of a spell** and confer the spell's effects
+ * with its usual duration." The other side is `commands/item-casting.ts`, where
+ * a wand's Fireball goes down the pipeline a Wizard's goes down and comes out
+ * with a casting id; this side has no casting at all.
+ *
+ * **The casting is absent rather than faked**, which is the whole of the
+ * decision this file implements. What the effects hang on a creature is filed
+ * under `item:<catalogue id>` — a bare source, exactly as a feature's own id
+ * already is — and `castingIdOf` matches `cast:N` and nothing else, so
+ * `releaseCasting`, `releaseOnTarget`, `ongoingSpellsOn`, `spellOn` and the
+ * Dispel resolver pass over a potion's bonus by construction rather than by
+ * having been told to. A made-up casting id would have put a casting in the
+ * log that nobody cast, and offered Dispel Magic something to end.
+ *
+ * **What ends it is what already ended a feature's grant.** `expireEffects`
+ * releases a `grants` timer by its bare source, `removeBonusFrom` takes one
+ * off early — its docstring has named "a potion wearing off" since it was
+ * written — and `fold/grants.ts` replaces rather than stacks when the same
+ * source grants twice, which is SRD "Combining Magical Effects" and is why a
+ * second potion inside the hour refreshes instead of doubling.
+ *
+ * **Every refusal is reached before anything is spent.** The creature, the
+ * hold, the item, what it confers, whether it is owned, who it is aimed at and
+ * whether they are in reach are all settled before the action goes and before
+ * the first die — so a potion aimed at nobody, or at somebody across the room,
+ * costs its holder nothing at all.
+ */
+
+import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { CONFERRED_LEVEL, itemConferral, itemSource } from '../catalogue.js';
+import { type GameEvent, type GameState } from '../events.js';
+import { type CommandIdentity, once } from '../idempotency.js';
+import { type Supply } from './casting.js';
+import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
+import { schedule } from './conditions.js';
+import { mayAct } from './holds.js';
+import { quantityOf } from './inventory.js';
+import { runEffects } from './spell-resolution.js';
+import { type SpellTargetOutcome } from './targeting.js';
+
+export interface UseItemCommand extends CommandIdentity {
+  /** The catalogue id of the item being used. */
+  readonly item: string;
+  /**
+   * Who gets the benefit. Absent is the user themselves.
+   *
+   * SRD Potion of Healing: "you can drink it **or administer it to another
+   * creature within 5 feet of yourself**." The default is not a convenience:
+   * a potion with no stated target is a potion somebody drank, which is the
+   * common case and the one a caller should not have to spell out.
+   */
+  readonly target?: CharacterId;
+}
+
+/** What using an item did. */
+export interface ItemUse {
+  readonly events: readonly GameEvent[];
+  /** What it did, target by target — a `SpellResolution`'s half that applies. */
+  readonly outcomes: readonly SpellTargetOutcome[];
+  /** What the use could not check. */
+  readonly unverified: readonly string[];
+}
+
+const NOTHING: ItemUse = { events: [], outcomes: [], unverified: [] };
+
+/**
+ * Drink a potion, or administer one — and everything else an item confers
+ * without casting.
+ *
+ * The item is used up in the same batch that resolves it: one off the
+ * inventory, then the effects, then the deadline on anything they hung. There
+ * is no second command and no second id, for the reason a wand's charge is
+ * spent inside its casting's own batch — two commands would be two ids, and
+ * the first would land while the second refused.
+ *
+ * **Everything mechanical is the item's, not the user's.** SRD fixes a
+ * spell from an item at "the lowest possible spell and caster level", and a
+ * conferral is that with the casting taken out: the dice are the ones the
+ * line prints, there is no spellcasting ability modifier to add and no save
+ * DC to beat, and `checkContent` refuses an item that tries to say otherwise.
+ * So a Potion of Healing heals the same 2d4 + 2 whoever drinks it.
+ */
+export function useItem(
+  state: GameState,
+  id: CharacterId,
+  command: UseItemCommand,
+  supply: Supply,
+): Result<ItemUse> {
+  return once(state, `use-item:${id}`, command, () => NOTHING, (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const holding = mayAct(state, id);
+    if (holding !== null) return holding;
+
+    const item = supply.content.item(command.item);
+    if (item === null) return err('unknown_item', `${command.item} is not in the catalogue`);
+
+    const conferral = itemConferral(item);
+    if (conferral === null) {
+      return err(
+        'item_confers_nothing',
+        `${item.name} confers nothing by being used: a benefit it gives while worn is had by equipping it, and a spell it casts is cast`,
+      );
+    }
+
+    if (quantityOf(state, id, command.item) < 1) {
+      return err('not_owned', `${id} does not have ${item.name}`);
+    }
+    // **Owning and wearing are two facts**, and using the item up moves only
+    // the first: a conferring item still in hand would leave `equipped` naming
+    // something nobody owns. Taking it off is a decision and `unequipItem` is
+    // where it looks like one — the reading `loseItems` already takes.
+    if (creature.equipped.some((worn) => worn.id === command.item)) {
+      return err('equipped', `${item.name} is worn or wielded by ${id}; take it off first`);
+    }
+
+    const target = command.target ?? id;
+    if (creatureOf(state, target) === null) return unknownCreature(target);
+
+    // SRD: "administer it to another creature within 5 feet of yourself" — the
+    // rule a Paladin's touch already asks, asked from the one place.
+    const beyond = reachedBy(state, id, target, item.name);
+    if (beyond !== null) return beyond;
+
+    // — from here it costs something ——————————————————————————————————————
+    const events: GameEvent[] = [];
+
+    // The action economy only exists in combat; outside it there is nothing to
+    // spend, exactly as every feature finds.
+    if (state.combat !== null) {
+      const spent = spendFor(state, id, conferral.action);
+      if (!spent.ok) return spent;
+      events.push(spent.value);
+    }
+
+    // SRD: "Once used, a potion takes effect immediately, and it is used up."
+    // Before the effects rather than after, so the batch never holds a state
+    // in which the benefit has landed and the bottle is still full.
+    events.push({
+      type: 'items-lost',
+      id,
+      items: [{ id: item.id, quantity: 1 }],
+      source: `${item.name}, used`,
+      ...(stamp === null ? {} : { command: stamp }),
+    });
+
+    const unverified: string[] = [];
+    const resolved = runEffects(state, id, creature, {
+      origin: { kind: 'item', item },
+      effects: conferral.effects,
+      // **No route, no ability, and numbers that are all zero.** A conferral
+      // rolls no D20 Test — `checkContent` admits no effect kind that would —
+      // so there is nothing for an attack modifier or a save DC to reach, and
+      // "your spellcasting ability modifier" has no caster to be about. The
+      // printed DC the grant may one day carry is read here so that the day it
+      // is admitted there is one place to change.
+      route: null,
+      ability: null,
+      castLevel: CONFERRED_LEVEL,
+      numbers: {
+        attackModifier: 0,
+        saveDc: conferral.saveDc ?? 0,
+        spellcastingModifier: 0,
+        casterLevel: CONFERRED_LEVEL,
+      },
+      targets: [target],
+      unverified,
+      supply,
+      events,
+    });
+    if (!resolved.ok) return resolved;
+
+    // **A deadline on what this actually hung, and on nothing else.** SRD
+    // Potion of Heroism: "you are under the effect of the _Bless_ spell" for an
+    // hour. There is no casting for `releaseCasting` to end, so the timer is
+    // the only door — and it is filed per creature the run is *holding*
+    // something on rather than per effect, because `timerKey` is
+    // `grants|<who>|<source>` and what a deadline ends is everything that
+    // source granted there. `held` is also the only answer that covers an
+    // `attack-rider`, which lands on the user and not on the target.
+    //
+    // `checkContent` has already refused a conferral that hangs a grant and
+    // names no duration, and one that names a duration and hangs nothing.
+    if (conferral.durationSeconds !== undefined) {
+      for (const on of [...resolved.value.held].sort()) {
+        const timer = schedule(
+          resolved.value.state,
+          { kind: 'grants', on, source: itemSource(item.id) },
+          { kind: 'seconds', seconds: conferral.durationSeconds },
+        );
+        if (!timer.ok) return timer;
+        events.push(timer.value);
+      }
+    }
+
+    return ok({ events, outcomes: resolved.value.outcomes, unverified });
+  });
+}

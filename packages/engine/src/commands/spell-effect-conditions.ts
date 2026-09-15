@@ -28,7 +28,10 @@ export function resolveConditionEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, definition, castingId, events, outcomes, held, saveDc } = ctx;
+  const { casterId, name, events, outcomes, held, saveDc } = ctx;
+  // A condition instance is welded to a casting in the fold, so this kind is
+  // refused on an item by `checkContent` and the accessor is loud here.
+  const { castingId } = ctx.casting();
   let current = world;
 
   // **Not a rider host**, because it has no outcome: there is no roll
@@ -43,7 +46,7 @@ export function resolveConditionEffect(
     casterId,
     riderOptions(rider, {
       castingId,
-      spell: definition.name,
+      spell: name,
       casterId,
       saveDc,
       target,

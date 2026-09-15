@@ -394,10 +394,14 @@ describe('what an item does not do is data, and quotes the page', () => {
 });
 
 describe('nothing in the catalogue asks for a reader that does not exist', () => {
-  it('grants only what an item’s three readers read', () => {
+  it('grants only what an item’s four readers read', () => {
     for (const item of SRD_MAGIC_ITEMS) {
       for (const grant of item.grants ?? []) {
-        expect(['standing', 'pool', 'casts'], item.id).toContain(grant.kind);
+        expect(['standing', 'pool', 'casts', 'confers'], item.id).toContain(grant.kind);
+        // SRD's two sides of one sentence: a spell an item casts is judged
+        // against the spell vocabulary by `checkContent`, and so is the effect
+        // list it confers — see `CONFERRED_EFFECT_KINDS`. Only the `standing`
+        // grant is read against the item-specific vocabularies below.
         if (grant.kind !== 'standing') continue;
         for (const effect of grant.effects ?? []) {
           expect([...ITEM_EFFECT_KINDS], `${item.id}: ${effect.kind}`).toContain(effect.kind);

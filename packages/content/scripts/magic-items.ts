@@ -83,6 +83,13 @@ const FAMILY: readonly {
     matches: (item) => /^\+[123] /.test(item.name) && item.armor !== null,
   },
   { entry: 'Mithral Armor', matches: (item) => item.name.startsWith('Mithral ') },
+  /**
+   * The fourth template, and the one the book writes over a table of its own
+   * rows rather than over an equipment table: "Potions of Healing" is one
+   * entry holding four potions — Healing, greater, superior and supreme — and
+   * the catalogue carries the first of them.
+   */
+  { entry: 'Potions of Healing', matches: (item) => item.name === 'Potion of Healing' },
 ];
 
 const RAW = () =>

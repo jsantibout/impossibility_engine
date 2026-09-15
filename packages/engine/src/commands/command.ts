@@ -19,10 +19,11 @@
  * `commands/teleport.ts` is the third place that needs it.
  */
 
-import { type CharacterId, type Err, needsContext, ok, type Result } from '@ie/shared';
+import { type CharacterId, err, type Err, needsContext, ok, type Result } from '@ie/shared';
+import { spendAction, spendBonusAction } from '../combat.js';
 import { type Duration } from '../duration.js';
-import { type GameState } from '../events.js';
-import { type PositionState } from '../positioning.js';
+import { type GameEvent, type GameState } from '../events.js';
+import { distanceBetween, positionOf, type PositionState } from '../positioning.js';
 
 /**
  * The source recorded for unconsciousness that comes from having no hit points
@@ -212,4 +213,95 @@ export function turnContextFor(refused: Err, duration: Duration, holder: string)
   }
 
   return refused;
+}
+
+/**
+ * SRD's "a creature you touch", and "administer it to another creature within
+ * 5 feet of yourself" — one rule, asked by two commands.
+ *
+ * It was written once in `commands/features.ts` for a Paladin's Lay On Hands,
+ * and a potion is the second thing in the book that reaches across a table to
+ * do somebody good — which is the moment it stops being one command's
+ * business.
+ *
+ * **Three answers, and all three are load-bearing:**
+ *
+ * - **Null** — it reaches. Which includes *no scene at all*: a table not using
+ *   positions is not a table where everybody is out of reach, and refusing a
+ *   touch for want of a map the DM never drew would be the engine inventing a
+ *   rule. Reaching yourself is null too; you are always within five feet of
+ *   yourself.
+ * - **A request** — somebody's position is unstated. The scene exists, so the
+ *   table *is* keeping positions and one of them is missing; that is a gap in
+ *   a record rather than a fact about the world, and unknown is not false.
+ * - **A refusal** — the distance is known, and it is too far.
+ */
+export function reachedBy(
+  state: GameState,
+  who: CharacterId,
+  target: CharacterId,
+  /** What is reaching, for the refusal and the request to name. */
+  what: string,
+  feet = 5,
+): Err | null {
+  if (target === who || state.scene === null) return null;
+
+  const scene = state.scene;
+  const measured = distanceBetween(scene, who, target);
+  if (!measured.ok) {
+    const off = [who, target].filter((absent) => positionOf(scene, absent) === null);
+    return needsContext(
+      'unplaced',
+      `nobody has said where ${off.join(' or ')} ${off.length === 1 ? 'is' : 'are'} standing, and ${what} reaches ${feet} feet`,
+      off.map((absent) => ({
+        kind: 'position' as const,
+        subject: absent,
+        need: `where ${absent} is standing`,
+        because: `${what} reaches ${feet} feet`,
+        satisfyWith: `a placeCreatureInScene command for ${absent}`,
+      })),
+    );
+  }
+  if (measured.value > feet) {
+    return err(
+      'out_of_reach',
+      `${target} is ${measured.value} feet away, and ${what} reaches ${feet} feet`,
+    );
+  }
+  return null;
+}
+
+/**
+ * The Action or Bonus Action a command spends, or the refusal for a turn with
+ * none left.
+ *
+ * Here rather than in `commands/features.ts`, where it was written, for the
+ * reason {@link sceneFor} and the two creature readers are here: a third
+ * module wants it. **The action economy exists only in combat** — outside one
+ * there is nothing to spend, which every feature and every potion finds alike
+ * — so a caller asks this only when `state.combat` is not null, and the
+ * refusal inside is for a caller who forgot.
+ */
+export function spendFor(
+  state: GameState,
+  id: CharacterId,
+  action: 'action' | 'bonus-action',
+): Result<GameEvent> {
+  const combat = state.combat;
+  if (combat === null) {
+    return err('not_in_combat', 'there is no action economy outside combat');
+  }
+  const conditions = creatureOf(state, id)?.conditions;
+
+  const spent =
+    action === 'bonus-action'
+      ? spendBonusAction(combat, id, conditions)
+      : spendAction(combat, id, conditions);
+  if (!spent.ok) return spent;
+
+  return ok(
+    action === 'bonus-action'
+      ? { type: 'bonus-action-spent', id }
+      : { type: 'action-spent', id },
+  );
 }

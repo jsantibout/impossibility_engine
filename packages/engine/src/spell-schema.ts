@@ -2289,28 +2289,86 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
 
   for (const [where, list] of effectLists(d)) {
     list.forEach((effect, i) => {
-      if (typeof effect !== 'object' || effect === null) {
-        found.push({
-          field: `${where}[${i}]`,
-          code: 'not_an_effect',
-          reason: 'an effect is an object naming its kind',
-        });
-        return;
-      }
-      const kind = (effect as { kind?: unknown }).kind;
-      if (typeof kind !== 'string' || !EFFECT_KINDS.has(kind)) {
-        found.push({
-          field: `${where}[${i}].kind`,
-          code: 'unknown_effect',
-          reason: `"${String(kind)}" is not an effect the engine resolves`,
-        });
-      }
-      checkFoughtClause(effect, kind, where, `${where}[${i}]`, found);
-      checkTeleportPlacement(kind, where, `${where}[${i}]`, found);
-      checkNoNestedEffect(effect, `${where}[${i}]`, found);
+      const at = `${where}[${i}]`;
+      const entry = checkEffectKind(effect, at, found);
+      if (entry === null) return;
+      // The two clause rules a *definition's* list has and a list hosted
+      // anywhere else does not: both ask which of the lists the effect is in.
+      checkFoughtClause(effect as object, entry.kind, where, at, found);
+      checkTeleportPlacement(entry.kind, where, at, found);
+      checkNoNestedEffect(effect, at, found);
     });
   }
 
+  return found;
+}
+
+/**
+ * The first entry rule for one thing in an effect list: it is an object, and
+ * it names a `kind` this engine resolves.
+ *
+ * **One copy, because a `SpellDefinition` is no longer the only host of an
+ * effect list.** {@link effectLists} enumerates a definition's three; an
+ * item's `confers` grant is the fourth, validated by `checkContent` in
+ * another file over another problem type. A private copy of this guard there
+ * is exactly the drift {@link effectLists} was written to end, because the
+ * guarantee every branch of {@link checkEffect} relies on — that the entry is
+ * an object naming a known kind — has to hold for all four lists or for none.
+ *
+ * Null when the entry is not an object at all, and otherwise the `kind` as
+ * written beside whether the engine knows it: a caller's own rules may have
+ * something to say about a malformed entry that this one has already reported.
+ */
+export function checkEffectKind(
+  effect: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+): { readonly kind: unknown; readonly known: boolean } | null {
+  if (typeof effect !== 'object' || effect === null) {
+    found.push({
+      field: path,
+      code: 'not_an_effect',
+      reason: 'an effect is an object naming its kind',
+    });
+    return null;
+  }
+  const kind = (effect as { kind?: unknown }).kind;
+  const known = typeof kind === 'string' && EFFECT_KINDS.has(kind);
+  if (!known) {
+    found.push({
+      field: `${path}.kind`,
+      code: 'unknown_effect',
+      reason: `"${String(kind)}" is not an effect the engine resolves`,
+    });
+  }
+  return { kind, known };
+}
+
+/**
+ * One effect, checked whole, for a list that is not a spell definition's.
+ *
+ * The entry rules and then the per-kind rules, which is the order
+ * `checkSpellDefinition` runs its two passes in and the order every branch of
+ * {@link checkEffect} assumes. Exported for `content.ts`, so an item that
+ * confers an effect list is judged by the rules a spell's list is judged by
+ * rather than by a second vocabulary kept in step by hand.
+ *
+ * The two clause rules {@link checkFoughtClause} and
+ * {@link checkTeleportPlacement} are not here, because both ask *which list*
+ * the effect sits in and the answer for a host outside a definition is the
+ * host's own to give.
+ */
+export function checkEffectValue(
+  effect: unknown,
+  level: number,
+  path: string,
+): readonly SpellDefinitionProblem[] {
+  const found: SpellDefinitionProblem[] = [];
+  const entry = checkEffectKind(effect, path, found);
+  if (entry === null) return found;
+  checkNoNestedEffect(effect, path, found);
+  if (!entry.known) return found;
+  checkEffect(effect as SpellEffect, level, path, found);
   return found;
 }
 

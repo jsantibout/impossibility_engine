@@ -37,10 +37,10 @@ export function resolveTeleportEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { definition, events, outcomes, unverified } = ctx;
+  const { name, events, outcomes, unverified } = ctx;
   if (ctx.teleportTo === undefined) {
     throw new Error(
-      `${definition.name} teleports its target and no destination was stated; ` +
+      `${name} teleports its target and no destination was stated; ` +
         'the caller should have been refused `destination_required` before reaching here',
     );
   }
@@ -53,7 +53,7 @@ export function resolveTeleportEffect(
   if (!moved.ok) return moved;
 
   events.push(...moved.value.events);
-  unverified.push(...moved.value.unverified.map((gap) => `${definition.name}: ${gap}`));
+  unverified.push(...moved.value.unverified.map((gap) => `${name}: ${gap}`));
   outcomes.push({ target, affected: true });
   return ok(moved.value.events.reduce(applyEvent, world));
 }

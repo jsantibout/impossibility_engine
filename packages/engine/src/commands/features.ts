@@ -11,17 +11,14 @@ import {
   type CharacterId,
   type ConditionName,
   err,
-  needsContext,
   ok,
   type Result,
 } from '@ie/shared';
-import { spendAction, spendBonusAction } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { type Rng } from '../dice.js';
 import { endOfNextTurn, startOfNextTurn } from '../duration.js';
 import { type CommandStamp, type GameEvent, type GameState, wearsHeavyArmor } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { distanceBetween, positionOf } from '../positioning.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
 import {
@@ -30,7 +27,7 @@ import {
   recoveryCap,
   selfHealAddend,
 } from '../standing.js';
-import { creatureOf, unknownCreature } from './command.js';
+import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
 import { healCreature } from './creatures.js';
 import { mayAct } from './holds.js';
@@ -194,35 +191,11 @@ export function useHealingTouch(
       return err('exhausted', `${definition.name} has ${left} left, and ${drawn} was drawn`);
     }
 
-    // SRD: "you can touch a creature." A Paladin always reaches themselves; for
-    // anyone else it is the reach a fist has, measured the way everything else
-    // is. The three-valued discipline positioning keeps everywhere: no scene is
-    // a table not using positions and the touch lands, a scene with somebody
-    // unplaced is a gap in a record the table *is* keeping and is asked about.
-    if (command.target !== id && state.scene !== null) {
-      const measured = distanceBetween(state.scene, id, command.target);
-      if (!measured.ok) {
-        const scene = state.scene;
-        const off = [id, command.target].filter((who) => positionOf(scene, who) === null);
-        return needsContext(
-          'unplaced',
-          `nobody has said where ${off.join(' or ')} ${off.length === 1 ? 'is' : 'are'} standing, and ${definition.name} is a touch`,
-          off.map((who) => ({
-            kind: 'position' as const,
-            subject: who,
-            need: `where ${who} is standing`,
-            because: `${definition.name} reaches five feet`,
-            satisfyWith: `a placeCreatureInScene command for ${who}`,
-          })),
-        );
-      }
-      if (measured.value > 5) {
-        return err(
-          'out_of_reach',
-          `${command.target} is ${measured.value} feet away, and ${definition.name} is a touch`,
-        );
-      }
-    }
+    // SRD: "you can touch a creature." The reach a fist has, measured the way
+    // everything else is — and the same rule a potion administered to somebody
+    // else asks, which is why it is `reachedBy` and not a copy of it here.
+    const beyond = reachedBy(state, id, command.target, definition.name);
+    if (beyond !== null) return beyond;
 
     const events: GameEvent[] = [];
 
@@ -621,27 +594,4 @@ export function featureTimer(
  * take any action, Bonus Action, or Reaction", and that check belongs in one
  * place rather than in every caller that spends one.
  */
-function spendFor(
-  state: GameState,
-  id: CharacterId,
-  action: 'action' | 'bonus-action',
-): Result<GameEvent> {
-  const combat = state.combat;
-  if (combat === null) {
-    return err('not_in_combat', 'there is no action economy outside combat');
-  }
-  const conditions = creatureOf(state, id)?.conditions;
-
-  const spent =
-    action === 'bonus-action'
-      ? spendBonusAction(combat, id, conditions)
-      : spendAction(combat, id, conditions);
-  if (!spent.ok) return spent;
-
-  return ok(
-    action === 'bonus-action'
-      ? { type: 'bonus-action-spent', id }
-      : { type: 'action-spent', id },
-  );
-}
 

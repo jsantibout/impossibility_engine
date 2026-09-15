@@ -11,7 +11,6 @@
 import { type CharacterId, ok, type Result } from '@ie/shared';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
-import { castingSource } from '../spells.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { rollSpellDice } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
@@ -25,14 +24,14 @@ export function resolveTempHpEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { casterSheet, definition, castLevel, numbers, supply, events, outcomes } = ctx;
+  const { casterSheet, name, level, castLevel, numbers, supply, events, outcomes } = ctx;
   let current = world;
 
-  const dice = scaledDiceFor(effect.amount, definition.level, numbers.casterLevel, castLevel);
-  const rolled = rollSpellDice(supply, casterSheet().sheet, definition.name, 'temporary', dice);
+  const dice = scaledDiceFor(effect.amount, level, numbers.casterLevel, castLevel);
+  const rolled = rollSpellDice(supply, casterSheet().sheet, name, 'temporary', dice);
   if (!rolled.ok) return rolled;
 
-  const flat = scaledFlatFor(effect.amount, definition.level, castLevel);
+  const flat = scaledFlatFor(effect.amount, level, castLevel);
   const modifier = effect.addSpellcastingModifier
     ? numbers.spellcastingModifier
     : 0;
@@ -60,17 +59,17 @@ export function resolveHealEffect(
   victim: CreatureState,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, casterSheet, definition, castLevel, numbers, supply, events, outcomes } = ctx;
+  const { casterId, casterSheet, name, level, castLevel, numbers, supply, events, outcomes } = ctx;
   let current = world;
 
-  const dice = scaledDiceFor(effect.healing, definition.level, numbers.casterLevel, castLevel);
-  const rolled = rollSpellDice(supply, casterSheet().sheet, definition.name, 'healing', dice);
+  const dice = scaledDiceFor(effect.healing, level, numbers.casterLevel, castLevel);
+  const rolled = rollSpellDice(supply, casterSheet().sheet, name, 'healing', dice);
   if (!rolled.ok) return rolled;
 
   // SRD: "2d8 plus your spellcasting ability modifier" — and it is the
   // *chosen route's* ability, so a feat's version heals by its own.
   const bonus = effect.addSpellcastingModifier ? numbers.spellcastingModifier : 0;
-  const addend = scaledFlatFor(effect.healing, definition.level, castLevel);
+  const addend = scaledFlatFor(effect.healing, level, castLevel);
   const amount = Math.max(
     0,
     rolled.value.reduce((sum, c) => sum + c.total, 0) + bonus + addend,
@@ -79,7 +78,7 @@ export function resolveHealEffect(
   events.push({
     type: 'roll-recorded',
     who: casterId,
-    label: `${definition.name} healing`,
+    label: `${name} healing`,
     natural: 0,
     total: amount,
     contributions: [{ source: 'spellcasting modifier', amount: bonus }],
@@ -131,7 +130,7 @@ export function resolveTurnPayoutEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { definition, castingId, numbers, events, outcomes, held } = ctx;
+  const { source, numbers, events, outcomes, held } = ctx;
 
   const modifier = effect.addSpellcastingModifier === true ? numbers.spellcastingModifier : 0;
 
@@ -140,7 +139,7 @@ export function resolveTurnPayoutEffect(
     type: 'turn-payout-granted',
     id: target,
     payout: {
-      source: castingSource(definition.name, castingId),
+      source,
       at: effect.at,
       payout: effect.payout,
       // A negative modifier cannot make a ward hurt its own recipient, and the

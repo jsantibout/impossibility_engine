@@ -36,7 +36,13 @@ import {
   spellSaveDcWith,
   type CharacterSheet,
 } from '../character.js';
-import { itemCasting, itemCastings, itemChargePool, type ItemCastsGrant } from '../catalogue.js';
+import {
+  itemCasting,
+  itemCastings,
+  itemChargePool,
+  itemSource,
+  type ItemCastsGrant,
+} from '../catalogue.js';
 import type { Content } from '../content.js';
 import type { CreatureState } from '../events.js';
 import { hasPool } from '../resources.js';
@@ -357,12 +363,17 @@ export function numbersFor(sheet: CharacterSheet, route: CastingRoute): CastingN
  * a log that says "cast Fireball" can say which wand did it — and so that a
  * settlement reading the record back can tell an item casting from a class's
  * without having to guess from the numbers.
+ *
+ * **Through {@link itemSource} rather than a second template literal**, which
+ * is the same argument `castingSource` already makes: a potion's conferral
+ * writes that string as the source of everything it hangs, and two spellings
+ * of one name is a second place for them to drift apart.
  */
 export function routeLabel(route: CastingRoute): string {
   return route.kind === 'granted'
     ? route.grant.source
     : route.kind === 'item'
-      ? `item:${route.item}`
+      ? itemSource(route.item)
       : `class:${route.classId}`;
 }
 

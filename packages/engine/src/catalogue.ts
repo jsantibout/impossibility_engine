@@ -231,6 +231,63 @@ export function itemCastings(item: CatalogueItem): readonly ItemCastsGrant[] {
   return (item.grants ?? []).filter((grant): grant is ItemCastsGrant => grant.kind === 'casts');
 }
 
+/** What the item confers without casting it, in the grant's own words. */
+export type ItemConfersGrant = Extract<FeatureGrant, { kind: 'confers' }>;
+
+/**
+ * What this item confers without casting anything, or null if it confers
+ * nothing.
+ *
+ * The fourth half of the item's compiler, beside {@link itemStandingEffects},
+ * {@link itemChargePool} and {@link itemCasting}, and running where they run —
+ * **in the command** — so the effects it names are resolved into events the
+ * fold can read without opening a catalogue.
+ *
+ * **One, and the first**, unlike {@link itemCastings}: a staff prints a table
+ * of spells and one charge price each, and a Potion prints one sentence.
+ * `checkContent` refuses an item that carries two conferrals, because two
+ * things happening when one potion is drunk is a choice nothing could make.
+ */
+export function itemConferral(item: CatalogueItem): ItemConfersGrant | null {
+  for (const grant of item.grants ?? []) {
+    if (grant.kind === 'confers') return grant;
+  }
+  return null;
+}
+
+/**
+ * How the log names an item, wherever an item is what something came from.
+ *
+ * One spelling, in one function, because two readers already ask the question:
+ * `routeLabel` writes it on a `spell-cast` to say which wand cast the spell,
+ * and a conferral writes it as the **source** of everything it hangs, so
+ * `releaseGrants` and `removeBonusFrom` can take it off again by name.
+ *
+ * **It is deliberately not a casting source.** `castingSource` writes
+ * `Hold Person#cast:3` and `castingIdOf` reads the id back out; this writes
+ * `item:potion-of-heroism`, which `castingIdOf` answers null for — so
+ * `releaseCasting`, `ongoingSpellsOn`, `spellOn` and the Dispel resolver pass
+ * over an item's effect by construction rather than by being told about it.
+ */
+export const itemSource = (itemId: string): string => `item:${itemId}`;
+
+/**
+ * The spell level an item's conferred effect is resolved at, and the level its
+ * effect list is validated against.
+ *
+ * SRD "Spells Cast from Items" fixes a casting from an item at "the lowest
+ * possible spell and caster level", and a conferral is that sentence with the
+ * casting taken out of it: nothing about a Potion of Healing depends on who
+ * drinks it. One rather than zero, because zero is a cantrip and a cantrip
+ * scales with the *character's* level — exactly the dependency an item's
+ * printed line does not have.
+ *
+ * Read in two places that must agree: `checkContent`, which refuses the
+ * scaling fields that would read a level nothing here has, and the resolution,
+ * which passes it as both the definition's level and the cast level.
+ */
+export const CONFERRED_LEVEL = 1;
+
 /** SRD Coin Values: 1 gp is 100 cp, and every other coin divides into it. */
 export const COPPER_PER = { cp: 1, sp: 10, ep: 50, gp: 100, pp: 1000 } as const;
 

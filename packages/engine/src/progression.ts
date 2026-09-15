@@ -10,6 +10,7 @@ import type { ArmorTraining } from './character.js';
 import type { D20TestKind } from './checks.js';
 import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';
+import type { SpellEffect } from './spell-definitions.js';
 import type { ActivationEnd, StandingGrant, StandingRequirement } from './standing.js';
 
 /**
@@ -509,6 +510,75 @@ export type FeatureGrant =
       readonly saveDc?: number;
       /** SRD Circlet of Blasting: "(+5 to hit)", read the same way. */
       readonly attackBonus?: number;
+    }
+  /**
+   * What the item does **without casting anything**.
+   *
+   * SRD "Magic Items" writes the fork in one sentence, so the engine does not
+   * have to have an opinion about which side a given item falls on: "Many
+   * items, such as Potions, **bypass the casting of a spell** and confer the
+   * spell's effects with its usual duration." The other side of that sentence
+   * is {@link FeatureGrant} `casts`, and the two are separate kinds because
+   * they differ in the thing everything downstream reads — a casting has an
+   * identity and this has none. One kind with two behaviours would report
+   * itself read when only half of it was.
+   *
+   * **A `SpellEffect[]` carried directly**, which makes this the third host of
+   * an effect list after a definition's own and an `AreaTrigger`'s. The
+   * alternative — a spell definition with an item's name on it — would put a
+   * catalogue entry in the spell index that nobody may cast, and would leave
+   * `Content.spell` answering for something that is not a spell.
+   *
+   * **An item-only member.** A class feature that hands out an effect list has
+   * `activated` and `standing` already, and `checkContent` refuses this on a
+   * feature for the same reason it refuses `casts` there.
+   */
+  | {
+      readonly kind: 'confers';
+      /**
+       * SRD: "Drinking a potion or administering it to another creature
+       * requires a Bonus Action."
+       *
+       * On the grant rather than derived from the item's kind, because the
+       * book prints the cost per item and a `potion` is not the only thing
+       * that will ever confer without casting.
+       */
+      readonly action: 'action' | 'bonus-action';
+      readonly effects: readonly SpellEffect[];
+      /**
+       * How long what it hangs lasts, in seconds — SRD Potion of Heroism's
+       * "for 1 hour".
+       *
+       * Required exactly when one of the effects hangs a grant on somebody,
+       * and refused when none does: a grant with no deadline would run for
+       * ever, because there is no casting for `releaseCasting` to end, and a
+       * deadline with nothing to end would file a timer that takes nothing
+       * away. `checkContent` decides which of the two an item is.
+       */
+      readonly durationSeconds?: number;
+      /**
+       * The DC the item's own line prints — SRD Potion of Poison's "DC 13
+       * Constitution saving throw".
+       *
+       * Declared here and **refused by `checkContent`** in this first cut,
+       * because no effect that rolls a saving throw is admitted from a
+       * conferral yet: a DC with nothing to roll against it is a number that
+       * never reaches a die. It is in the type because it is the field the
+       * save-rolling effects will read on the day they are admitted, and
+       * because refusing a named field is a better answer than silently
+       * ignoring one.
+       */
+      readonly saveDc?: number;
+      /**
+       * What one use costs, in the item's own charges.
+       *
+       * Absent is the common case and means the item is **used up** — which is
+       * every Potion in the book. Declared and refused together with
+       * {@link saveDc}, and for the same reason: nothing spends it yet, and an
+       * item whose price was quietly ignored would be a free benefit wearing a
+       * charged item's name.
+       */
+      readonly charges?: number;
     }
   /**
    * A feature that gives a *different* pool's uses back — see
