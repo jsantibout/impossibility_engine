@@ -209,7 +209,7 @@ the parsed spells with no definition at all.
 **Blocks** is every spell a shape touches. **Finishes** is the spells it is
 the *only* blocker for — the ones building it would complete. Those are
 different numbers, and reporting only the first is how one family came to be
-ranked at 17, at 4 and at 2 in three different documents.
+ranked three different ways in three different documents.
 
 **Finishes is split in two**, and that difference is the second finding.
 *Read* counts the spells whose SRD paragraph has been read sentence by
@@ -348,3 +348,134 @@ believe it has twelve working classes when it has twelve validated ones.
 | Sorcerer | known | 15 | 5 |
 | Warlock | known | 14 | 5 |
 | Wizard | spellbook | 15 | 5 |
+
+## Origins
+
+| Species | Backgrounds | Features | Executed by the engine |
+|---|---|---|---|
+| 9 | 4 | 37 | 7 |
+
+A species trait and a class feature are the same `FeatureDefinition` and
+declare automation the same way, so this is the column above read by the
+same predicate — `isExecutedFeature` in
+`packages/content/scripts/coverage-data.ts`, which both tables call.
+**Manual is not failure** here either: most of what a species grants is
+Darkvision, a Breath Weapon or a Resistance whose damage type is read off a
+sibling choice, and each carries a note saying exactly what is left to the
+table and why.
+
+**Feats are not counted.** A `FeatDefinition` declares no automation — it
+carries a note about what a DM still applies and nothing the engine reads —
+so there is no predicate to read one with, and a column claiming to be
+derived would be somebody’s opinion instead.
+
+| Origin | Kind | Features | Executed |
+|---|---|---|---|
+| Acolyte | background | 1 | 1 |
+| Criminal | background | 1 | 1 |
+| Dragonborn | species | 5 | 0 |
+| Dwarf | species | 4 | 0 |
+| Elf | species | 5 | 1 |
+| Gnome | species | 3 | 1 |
+| Goliath | species | 3 | 0 |
+| Halfling | species | 4 | 0 |
+| Human | species | 3 | 2 |
+| Orc | species | 3 | 0 |
+| Sage | background | 1 | 1 |
+| Soldier | background | 1 | 0 |
+| Tiefling | species | 3 | 0 |
+
+## Magic items
+
+Five states, and *transcribed* and *instances* count different things and
+are never divided by each other:
+
+| | Means |
+|---|---|
+| **Parsed** | `@ie/srd` has the entry: name, category, rarity line, attunement bracket, charges, prose |
+| **Transcribed** | at least one catalogue record was read out of that entry |
+| **Instances** | the catalogue records those entries expand to |
+| **Complete** | a record that carries no `unmodelled` note: it does everything its entry says |
+| **Partial** | a record carrying at least one, quoting the clause it leaves to the table |
+
+**One entry is not one item.** The SRD writes _Weapon, +1, +2, or +3_ once,
+as a template over the weapon table; the catalogue holds a +1, a +2 and a +3
+of every weapon in it, because an inventory holds a sword rather than a
+template. A handful of template entries account for most of the records
+below, which is why *transcribed* counts entries and *instances* counts
+records. *Transcribed* against *parsed* is a fraction of the book and is
+meant to be read as one; *instances* against either is not a fraction of
+anything, and reading it as one would report the Weapons chapter as
+covered several times over — the Weapons row below says by how much, which
+is where a figure like that belongs.
+
+| Parsed | Transcribed | Instances | of which complete | of which partial |
+|---|---|---|---|---|
+| 258 | 36 | 193 | 166 | 27 |
+
+An entry with **no** record is one whose whole text is beyond the grant
+vocabulary. `packages/content/src/items.ts` states the three rules that
+decide it — and the third is the sharp one: an item is left out when the
+clause the engine cannot say is the one that *limits* the benefit, because
+a Cloak of Displacement without its "if you take damage" is a better cloak
+than the book prints.
+
+**Whether a test drives an item end to end is not counted here.** That is
+the spells table’s *verified*, and it is a hand-kept list precisely because
+no derivation can say it: the claim belongs to the commit that writes the
+test. There is no such list for items, so this says nothing rather than
+inventing a column that nothing checks.
+
+| Category | Parsed | Transcribed | Instances | Complete | Partial |
+|---|---|---|---|---|---|
+| Armor | 19 | 9 | 53 | 48 | 5 |
+| Potions | 24 | 0 | 0 | 0 | 0 |
+| Rings | 22 | 1 | 1 | 1 | 0 |
+| Rods | 7 | 0 | 0 | 0 | 0 |
+| Scrolls | 1 | 0 | 0 | 0 | 0 |
+| Staffs | 12 | 1 | 1 | 0 | 1 |
+| Wands | 13 | 2 | 2 | 0 | 2 |
+| Weapons | 33 | 13 | 126 | 114 | 12 |
+| Wondrous Items | 127 | 10 | 10 | 3 | 7 |
+
+### Entries transcribed
+
+Each is one entry of "Magic Items A–Z", with the records it expands to and
+how many of those still carry a clause the engine does not say.
+
+- **Armor of Invulnerability** (Armor) — 1 recorded, 1 partial
+- **Armor, +1, +2, or +3** (Armor) — 36 recorded, complete
+- **Boots of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
+- **Boots of the Winterlands** (Wondrous Items) — 1 recorded, 1 partial
+- **Bracers of Defense** (Wondrous Items) — 1 recorded, complete
+- **Brooch of Shielding** (Wondrous Items) — 1 recorded, 1 partial
+- **Cloak of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
+- **Cloak of Protection** (Wondrous Items) — 1 recorded, complete
+- **Defender** (Weapons) — 1 recorded, 1 partial
+- **Dragon Slayer** (Weapons) — 1 recorded, 1 partial
+- **Dwarven Plate** (Armor) — 1 recorded, 1 partial
+- **Elven Chain** (Armor) — 1 recorded, 1 partial
+- **Eyes of Charming** (Wondrous Items) — 1 recorded, 1 partial
+- **Frost Brand** (Weapons) — 1 recorded, 1 partial
+- **Giant Slayer** (Weapons) — 1 recorded, 1 partial
+- **Glamoured Studded Leather** (Armor) — 1 recorded, 1 partial
+- **Hammer of Thunderbolts** (Weapons) — 1 recorded, 1 partial
+- **Holy Avenger** (Weapons) — 1 recorded, 1 partial
+- **Mace of Smiting** (Weapons) — 1 recorded, 1 partial
+- **Mithral Armor** (Armor) — 8 recorded, complete
+- **Nine Lives Stealer** (Weapons) — 1 recorded, 1 partial
+- **Periapt of Proof against Poison** (Wondrous Items) — 1 recorded, 1 partial
+- **Quarterstaff of the Acrobat** (Weapons) — 1 recorded, 1 partial
+- **Ring of Protection** (Rings) — 1 recorded, complete
+- **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial
+- **Scimitar of Speed** (Weapons) — 1 recorded, 1 partial
+- **Sentinel Shield** (Armor) — 1 recorded, complete
+- **Shield of the Cavalier** (Armor) — 1 recorded, 1 partial
+- **Shield, +1, +2, or +3** (Armor) — 3 recorded, complete
+- **Staff of Fire** (Staffs) — 1 recorded, 1 partial
+- **Stone of Good Luck (Luckstone)** (Wondrous Items) — 1 recorded, complete
+- **Vorpal Sword** (Weapons) — 1 recorded, 1 partial
+- **Wand of Fireballs** (Wands) — 1 recorded, 1 partial
+- **Wand of Secrets** (Wands) — 1 recorded, 1 partial
+- **Weapon of Warning** (Weapons) — 1 recorded, 1 partial
+- **Weapon, +1, +2, or +3** (Weapons) — 114 recorded, complete

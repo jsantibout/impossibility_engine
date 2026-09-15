@@ -1,14 +1,12 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { parseMagicItems, type MagicItem, type MagicItemCategory } from '@ie/srd';
-import {
-  ITEM_EFFECT_KINDS,
-  REQUIREMENT_KINDS,
-  checkContent,
-  type CatalogueItem,
-} from '@ie/engine';
+import { ITEM_EFFECT_KINDS, REQUIREMENT_KINDS, checkContent } from '@ie/engine';
 import { normaliseProse, quotedRunsIn } from '../scripts/citations.js';
+import {
+  MAGIC_ITEM_KIND_OF,
+  entryFor,
+  magicItemParse,
+  transcribedItems,
+} from '../scripts/magic-items.js';
 import { SRD_ITEMS, SRD_MAGIC_ITEMS } from './items.js';
 import { SRD_CLASSES, SRD_CONTENT_INPUT } from './index.js';
 
@@ -28,75 +26,21 @@ import { SRD_CLASSES, SRD_CONTENT_INPUT } from './index.js';
  * two are checked through what they decide — the kind against the category the
  * book files the item under, and the rarity through the number the rarity
  * picks, which is the qualifier the book prints beside it ("Rare (+2)").
+ *
+ * **The join itself moved to `scripts/magic-items.ts`.** `COVERAGE.md` counts
+ * entries as well as instances, and it must count them the way this guard
+ * checks them — a second spelling of "which entry is this item" is the second
+ * place to get it wrong, which is the record `coverage-data.ts`'s `isExecuted`
+ * already carries.
  */
 
-const RAW = readFileSync(
-  fileURLToPath(new URL('../../srd/raw/magic-items.md', import.meta.url)),
-  'utf8',
-);
-const PARSED = parseMagicItems(RAW, 'magic-items.md');
+const PARSED = magicItemParse();
 
 /** The analysis is not vacuous: the parse that everything below reads worked. */
 it('reads the book the catalogue was transcribed from', () => {
   expect(PARSED.problems).toEqual([]);
   expect(PARSED.items).toHaveLength(258);
 });
-
-const BY_NAME = new Map(PARSED.items.map((entry) => [entry.name, entry]));
-
-/**
- * The three entries the SRD writes as a template over an equipment table, and
- * the one it writes over half of one.
- *
- * A catalogue item is one *instance* of such an entry — a +2 Rapier, a Mithral
- * Breastplate — and its name is therefore not the entry's. This is the whole
- * of the hand-written link between the two, and it is deliberately the only
- * thing hand-written here: everything else about the instance is read off the
- * entry it resolves to, so a mistyped rarity or a forgotten attunement bracket
- * fails rather than agreeing with itself.
- */
-const FAMILY: readonly {
-  readonly entry: string;
-  readonly matches: (item: CatalogueItem) => boolean;
-}[] = [
-  {
-    entry: 'Weapon, +1, +2, or +3',
-    matches: (item) => /^\+[123] /.test(item.name) && item.weapon !== null,
-  },
-  {
-    entry: 'Shield, +1, +2, or +3',
-    matches: (item) => /^\+[123] /.test(item.name) && item.armor?.category === 'shield',
-  },
-  {
-    entry: 'Armor, +1, +2, or +3',
-    matches: (item) => /^\+[123] /.test(item.name) && item.armor !== null,
-  },
-  { entry: 'Mithral Armor', matches: (item) => item.name.startsWith('Mithral ') },
-];
-
-const entryOf = (item: CatalogueItem): MagicItem => {
-  const named = BY_NAME.get(item.name);
-  if (named !== undefined) return named;
-  const family = FAMILY.find((template) => template.matches(item));
-  const entry = family === undefined ? undefined : BY_NAME.get(family.entry);
-  if (entry === undefined) {
-    throw new Error(`${item.name} resolves to no entry in the SRD's magic items`);
-  }
-  return entry;
-};
-
-/** The Magic Item Categories table, against the kinds `ItemKind` has. */
-const KIND_OF: Readonly<Record<MagicItemCategory, CatalogueItem['kind']>> = {
-  Armor: 'armor',
-  Potions: 'potion',
-  Rings: 'ring',
-  Rods: 'rod',
-  Scrolls: 'scroll',
-  Staffs: 'staff',
-  Wands: 'wand',
-  Weapons: 'weapon',
-  'Wondrous Items': 'wondrous',
-};
 
 /**
  * "Requires Attunement by a Druid, Sorcerer, Warlock, or Wizard", as the
@@ -131,23 +75,20 @@ const contains = (text: string, run: string): boolean => {
   return true;
 };
 
-const each = (): readonly (readonly [CatalogueItem, MagicItem])[] =>
-  SRD_MAGIC_ITEMS.map((item) => [item, entryOf(item)] as const);
-
 describe('every transcribed item agrees with the entry it was read from', () => {
   it('resolves every one of them to an entry the parser found', () => {
     // Not vacuous, and not a handful either: the guard below runs on all of
     // them, and the number is a consequence of the tables rather than a target.
     expect(SRD_MAGIC_ITEMS.length).toBeGreaterThan(150);
-    for (const [item, entry] of each()) {
+    for (const [item, entry] of transcribedItems()) {
       expect(entry.name, item.id).toBeTruthy();
     }
   });
 
   it('files each under the kind the book files its category under', () => {
-    for (const [item, entry] of each()) {
+    for (const [item, entry] of transcribedItems()) {
       expect(item.kind, `${item.id} is filed under ${entry.category}`).toBe(
-        KIND_OF[entry.category],
+        MAGIC_ITEM_KIND_OF[entry.category],
       );
     }
   });
@@ -159,7 +100,7 @@ describe('every transcribed item agrees with the entry it was read from', () => 
    * common answer.
    */
   it('requires attunement exactly where the book prints the bracket', () => {
-    for (const [item, entry] of each()) {
+    for (const [item, entry] of transcribedItems()) {
       expect(item.attunement !== undefined, `${item.id}: ${entry.rarity.text}`).toBe(
         entry.requiresAttunement,
       );
@@ -168,7 +109,7 @@ describe('every transcribed item agrees with the entry it was read from', () => 
 
   it('asks of whoever attunes exactly what the book asks', () => {
     const classIds = new Set(SRD_CLASSES.map((klass) => klass.id));
-    for (const [item, entry] of each()) {
+    for (const [item, entry] of transcribedItems()) {
       const printed = entry.attunementPrerequisite;
       const attunement = item.attunement;
       if (printed === null) {
@@ -201,7 +142,7 @@ describe('every transcribed item agrees with the entry it was read from', () => 
    * them, because it reads the bracket off the page.
    */
   it('makes every benefit the book brackets wait for the attunement', () => {
-    for (const [item, entry] of each()) {
+    for (const [item, entry] of transcribedItems()) {
       if (!entry.requiresAttunement) continue;
       for (const grant of item.grants ?? []) {
         if (grant.kind !== 'standing') continue;
@@ -226,7 +167,7 @@ describe('every transcribed item agrees with the entry it was read from', () => 
     expect(plussed.length).toBeGreaterThan(100);
 
     for (const item of plussed) {
-      const entry = entryOf(item);
+      const entry = entryFor(item);
       const plus = Number(item.name[1]);
       const option = entry.rarity.options.find((one) => one.qualifier === `+${plus}`);
       expect(option?.rarity, `${item.id} against "${entry.rarity.text}"`).toBeTruthy();
@@ -243,7 +184,7 @@ describe('every transcribed item agrees with the entry it was read from', () => 
    * parser already extracts, and the regain line is quoted back at the page.
    */
   it('sizes a charge pool as the item’s own line sizes it', () => {
-    for (const [item, entry] of each()) {
+    for (const [item, entry] of transcribedItems()) {
       const pool = item.grants?.find((grant) => grant.kind === 'pool');
       if (pool === undefined) continue;
       if (pool.kind !== 'pool') throw new Error('unreachable');
@@ -296,7 +237,7 @@ describe('what an item does not do is data, and quotes the page', () => {
   it('quotes the item’s own entry and no other', () => {
     const misquoted: string[] = [];
     for (const item of declared) {
-      const entry = entryOf(item);
+      const entry = entryFor(item);
       for (const note of item.unmodelled ?? []) {
         for (const { run } of quotedRunsIn(note)) {
           if (contains(entry.description, run)) continue;
@@ -310,7 +251,7 @@ describe('what an item does not do is data, and quotes the page', () => {
   /** The guard bites: a run the entry does not contain is reported. */
   it('would catch a note that quoted something the page does not say', () => {
     const cloak = SRD_MAGIC_ITEMS.find((item) => item.id === 'cloak-of-elvenkind');
-    const entry = entryOf(cloak!);
+    const entry = entryFor(cloak!);
     expect(contains(entry.description, 'Wisdom (Perception) checks made to perceive you')).toBe(
       true,
     );

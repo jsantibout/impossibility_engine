@@ -1,9 +1,21 @@
 import { readFileSync } from 'node:fs';
-import { SPELL_DEFINITIONS } from '@ie/content';
+import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SPELL_INDEX, spellById } from '@ie/srd';
-import { PARTIAL_SPELLS, VERIFIED_SPELLS, isExecuted } from '../scripts/coverage-data.js';
+import {
+  PARTIAL_SPELLS,
+  VERIFIED_SPELLS,
+  auditClasses,
+  auditMagicItems,
+  auditOrigins,
+  coverageInconsistencies,
+  inconsistencies,
+  isExecuted,
+  isExecutedFeature,
+} from '../scripts/coverage-data.js';
+import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
+import { renderReport } from '../scripts/coverage.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -212,5 +224,234 @@ describe('the catalogue is a list a merge cannot quietly damage', () => {
 
     expect(declared.length).toBeGreaterThan(80);
     expect([...declared].sort()).toEqual([...ids()].sort());
+  });
+});
+
+/**
+ * Every population the report counts, held to the predicate the code uses.
+ *
+ * **The class column is trustworthy because `isExecuted` is exported and
+ * shared rather than copied** — `coverage-data.ts` records what a drifting
+ * copy of it cost — and the populations added here are held to the same rule:
+ * the count in the table and the count asserted below come out of one
+ * predicate, so a test agreeing with a second spelling of it would agree with
+ * the wrong answer.
+ */
+describe('the report counts what the catalogue holds', () => {
+  const originFeatures = [
+    ...SRD_CONTENT.species.flatMap((one) => one.features),
+    ...SRD_CONTENT.backgrounds.flatMap((one) => one.features),
+  ];
+  const classFeatures = [
+    ...SRD_CONTENT.classes.flatMap((one) => one.features),
+    ...SRD_CONTENT.subclasses.flatMap((one) => one.features),
+  ];
+
+  /**
+   * Nine species and four backgrounds were transcribed with every
+   * unexecutable trait marked `manual` and a note saying what a DM is left
+   * holding — honest, and invisible, because `auditClasses` audits classes.
+   */
+  it('counts an origin’s features, and reads their automation rather than guessing', () => {
+    const origins = auditOrigins();
+    expect(origins.features).toBe(originFeatures.length);
+    expect(origins.executed).toBe(originFeatures.filter(isExecutedFeature).length);
+    expect(origins.species).toBe(SRD_CONTENT.species.length);
+    expect(origins.backgrounds).toBe(SRD_CONTENT.backgrounds.length);
+  });
+
+  /** The rows are the totals, so neither can drift from the other. */
+  it('totals its origin rows', () => {
+    const origins = auditOrigins();
+    expect(origins.rows.reduce((sum, row) => sum + row.features, 0)).toBe(origins.features);
+    expect(origins.rows.reduce((sum, row) => sum + row.executed, 0)).toBe(origins.executed);
+    expect(origins.rows).toHaveLength(SRD_CONTENT.species.length + SRD_CONTENT.backgrounds.length);
+  });
+
+  /**
+   * Neither column is vacuous: something is executed and something is not, so
+   * a predicate that answered one way for everything would be caught.
+   */
+  it('finds both answers among the origin features', () => {
+    expect(originFeatures.some(isExecutedFeature)).toBe(true);
+    expect(originFeatures.some((feature) => !isExecutedFeature(feature))).toBe(true);
+  });
+
+  /** And the class table reads that same predicate, which is the point of it. */
+  it('counts a class feature with the predicate the origins table uses', () => {
+    const classes = auditClasses();
+    expect(classes.features).toBe(classFeatures.length);
+    expect(classes.executed).toBe(classFeatures.filter(isExecutedFeature).length);
+  });
+
+  /**
+   * **A feat declares no automation**, so nothing counts one. It carries a
+   * note saying what a DM still applies and no field the engine reads, which
+   * makes "how many feats are executed" a question with no derivation — and an
+   * underived count is the prose number this file exists to keep out.
+   */
+  it('has nothing to read on a feat, which is why none is counted', () => {
+    expect(SRD_CONTENT.feats.length).toBeGreaterThan(0);
+    for (const feat of SRD_CONTENT.feats) {
+      expect(Object.keys(feat), feat.id).not.toContain('automation');
+      expect(feat.note.length, feat.id).toBeGreaterThan(0);
+    }
+  });
+});
+
+/**
+ * Magic items, where **one entry is not one item** and saying otherwise would
+ * be the report's largest lie.
+ *
+ * The book writes _Weapon, +1, +2, or +3_ once and the catalogue holds a +1, a
+ * +2 and a +3 of every weapon in the table. Dividing the catalogue's record
+ * count by the parsed entry count would claim the Weapons chapter was covered
+ * several times over. Entries and instances are different claims, and the
+ * report never adds them.
+ */
+describe('the magic-item counts keep entries and instances apart', () => {
+  const items = auditMagicItems();
+
+  it('measures against every entry the book prints', () => {
+    expect(items.parsed).toBe(magicItemEntries().length);
+  });
+
+  it('counts an instance for every catalogue record', () => {
+    expect(items.instances).toBe(SRD_MAGIC_ITEMS.length);
+    expect(items.complete + items.partial).toBe(items.instances);
+    expect(items.complete).toBe(SRD_MAGIC_ITEMS.filter(isCompleteItem).length);
+  });
+
+  /**
+   * The finding this section exists for: far fewer entries are transcribed
+   * than there are records, because four of them are templates. A report that
+   * could not tell the two apart would print the larger number.
+   */
+  it('counts an entry once however many records it expands to', () => {
+    const entries = new Set(SRD_MAGIC_ITEMS.map((item) => entryFor(item).id));
+    expect(items.transcribed).toBe(entries.size); // shared join
+    expect(items.transcribed).toBeLessThan(items.instances);
+    expect(items.transcribed).toBeLessThanOrEqual(items.parsed);
+  });
+
+  /** Both answers are present, so neither `complete` nor `partial` is vacuous. */
+  it('finds items that finish their entry and items that do not', () => {
+    expect(items.complete).toBeGreaterThan(0);
+    expect(items.partial).toBeGreaterThan(0);
+  });
+
+  /** The rows are the totals, by the category the book files each entry under. */
+  it('totals its category rows', () => {
+    expect(items.rows.reduce((sum, row) => sum + row.parsed, 0)).toBe(items.parsed);
+    expect(items.rows.reduce((sum, row) => sum + row.transcribed, 0)).toBe(items.transcribed);
+    expect(items.rows.reduce((sum, row) => sum + row.instances, 0)).toBe(items.instances);
+  });
+
+  /** The entry list is those entries, in an order a merge cannot scramble. */
+  it('names each transcribed entry once, sorted', () => {
+    const names = items.entries.map((entry) => entry.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toEqual([...names].sort());
+    expect(names).toHaveLength(items.transcribed);
+  });
+});
+
+/**
+ * The inconsistency that started this: a spell the report calls verified and
+ * cannot execute.
+ *
+ * It **happened**, because `npm run coverage` measured `SPELL_DEFINITIONS` out
+ * of a stale `dist` while reading `VERIFIED_SPELLS` out of the script's own
+ * source — two different days in one table. The old report wrote the
+ * contradiction into the file as a line of prose, which is a report describing
+ * its own brokenness and carrying on regardless. It stops the run now.
+ */
+describe('a report that contradicts itself is not written', () => {
+  it('finds nothing to report about the catalogue as it stands', () => {
+    expect(coverageInconsistencies()).toEqual([]);
+  });
+
+  it('reports a verified spell the catalogue cannot execute', () => {
+    const found = inconsistencies(['fireball', 'wish'], new Set(['fireball']));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain('wish');
+  });
+
+  it('says nothing when every verified spell is executable', () => {
+    expect(inconsistencies(['fireball'], new Set(['fireball', 'wish']))).toEqual([]);
+  });
+});
+
+/**
+ * **No count in the report's prose**, which is rule 8 pointed at the one file
+ * that is allowed to hold numbers at all.
+ *
+ * A number in a sentence goes stale the moment the thing it describes moves,
+ * and nothing fails — the sentence just becomes false. A number in a table
+ * cell is regenerated on every run and diffed by the gauntlet. So the rule is
+ * that the report's sentences carry no integer: every figure it states lives
+ * in a row.
+ *
+ * Two runs of digits are not measurements and are removed before looking: a
+ * version (SRD 5.2.1), and a bonus the book prints inside an item's name
+ * (_Weapon, +1, +2, or +3_). Neither can be falsified by anything the engine
+ * or the catalogue does — a version is a citation and a bonus is part of a
+ * title. A version needs **two** dots, so a percentage is not exempted along
+ * with it. A generated bullet (`- **Fireball** (level 3) — verified`) is a row
+ * in all but punctuation and is not prose; it is recognised by its generated
+ * shape rather than by being a bullet.
+ *
+ * Both the committed file and the text the script would write next are
+ * checked. The committed one is what a reader sees; the rendered one is what
+ * the next run produces, and checking only the first would let a prose number
+ * be introduced and noticed one commit late.
+ */
+describe('the report states no number outside a row', () => {
+  const REPORT = fileURLToPath(new URL('../../../COVERAGE.md', import.meta.url));
+
+  /**
+   * A bullet the report *generates*: a bold name, a parenthesised kind, and a
+   * dash before what is claimed about it. Anchored on that shape rather than
+   * on `- **`, which would exempt a hand-written `- **Note:** 43 spells are
+   * blocked` — prose with a falsifiable count in it, wearing a bullet.
+   */
+  const GENERATED = /^- \*\*.+\*\* \(.+\) — /;
+
+  const proseIntegers = (text: string): readonly string[] =>
+    text
+      .split('\n')
+      .filter((line) => !line.startsWith('|') && !GENERATED.test(line))
+      // A version needs two dots. `\d+(?:\.\d+)+` would take a percentage
+      // with it, and `render` builds percentages — they are inside rows
+      // today, and an exemption that survives being moved into a sentence is
+      // not an exemption.
+      .map((line) => line.replace(/\d+(?:\.\d+){2,}/g, ' ').replace(/\+\d+/g, ' '))
+      .flatMap((line) => line.match(/\d+/g) ?? []);
+
+  it('says so about the committed report', () => {
+    expect(proseIntegers(readFileSync(REPORT, 'utf8'))).toEqual([]);
+  });
+
+  it('says so about the report the script would write next', () => {
+    expect(proseIntegers(renderReport())).toEqual([]);
+  });
+
+  /** And the reading bites: a count smuggled into a sentence is caught. */
+  it('would catch a count written into a sentence', () => {
+    expect(proseIntegers('The engine executes 84 spells.\n| 84 |\n- **X** (level 3) — ok\n')).toEqual(
+      ['84'],
+    );
+  });
+
+  /** A percentage in a sentence is a count, and only a version is exempt. */
+  it('would catch a percentage written into a sentence', () => {
+    expect(proseIntegers('The engine executes 29.2% of spells.\n')).toEqual(['29', '2']);
+    expect(proseIntegers('# SRD 5.2.1 coverage\n')).toEqual([]);
+  });
+
+  /** A bullet is exempt because it is generated, not because it is a bullet. */
+  it('would catch a count in a hand-written bullet', () => {
+    expect(proseIntegers('- **Note:** 43 spells are blocked\n')).toEqual(['43']);
+    expect(proseIntegers('- **Fireball** (level 3) — verified\n')).toEqual([]);
   });
 });

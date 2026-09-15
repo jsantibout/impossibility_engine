@@ -36,6 +36,20 @@
  * should never take from a DM — but a project that does not count them will
  * believe it has twelve working classes when it has twelve validated ones.
  *
+ * **Species and backgrounds declare automation exactly as a class does**, and
+ * were counted nowhere until they were, which is how a week of honest
+ * transcription came to be invisible in the one file that holds this
+ * project's numbers. `auditOrigins` reads them with the class column's own
+ * predicate. Feats are not counted, because a `FeatDefinition` declares no
+ * automation and there is nothing to read.
+ *
+ * **Magic items have two populations rather than one**, and the difference is
+ * the whole of what `auditMagicItems` is careful about: the SRD writes
+ * _Weapon, +1, +2, or +3_ once, as a template over the weapon table, and the
+ * catalogue holds a record per version because an inventory holds a sword.
+ * Entries transcribed and records held are different claims about different
+ * things and are never divided by each other.
+ *
  * **This module is the measurement; `coverage.ts` is the report.** The split is
  * not tidiness. The two claims live here because tests want them —
  * `coverage.test.ts` and `spell-honesty.test.ts` both hold this file's lists
@@ -51,9 +65,15 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
-import { type SpellDefinition } from '@ie/engine';
+import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
+import { type FeatureDefinition, type SpellDefinition } from '@ie/engine';
 import { ADJUDICATED } from './missing-shapes.js';
+import {
+  MAGIC_ITEM_CATEGORIES,
+  entryFor,
+  isCompleteItem,
+  magicItemEntries,
+} from './magic-items.js';
 
 export interface ParsedSpell {
   readonly id: string;
@@ -274,6 +294,20 @@ export function auditSpells(): SpellCoverage {
   };
 }
 
+/**
+ * A feature the engine applies, rather than one it records and hands to a DM.
+ *
+ * **A feature declares its own automation**, which is why this column is read
+ * rather than inferred the way a spell's is. It is one line, and it is
+ * exported for the reason `isExecuted` above is: the class table, the origins
+ * table and the guard that holds them honest must ask one question. A species
+ * trait and a class feature are the same `FeatureDefinition` and the same
+ * claim is being made about both, so a second spelling of this would be a
+ * second answer to one question — the failure this file keeps a record of.
+ */
+export const isExecutedFeature = (feature: FeatureDefinition): boolean =>
+  feature.automation === 'engine';
+
 export interface ClassCoverage {
   readonly classes: number;
   readonly subclasses: number;
@@ -299,7 +333,7 @@ export function auditClasses(): ClassCoverage {
       name: definition.name,
       style: definition.spellcasting?.style ?? 'none',
       features: own.length,
-      executed: own.filter((f) => f.automation === 'engine').length,
+      executed: own.filter(isExecutedFeature).length,
     };
   });
 
@@ -310,4 +344,199 @@ export function auditClasses(): ClassCoverage {
     executed: rows.reduce((sum, r) => sum + r.executed, 0),
     rows,
   };
+}
+
+export interface OriginCoverage {
+  readonly species: number;
+  readonly backgrounds: number;
+  readonly features: number;
+  readonly executed: number;
+  readonly rows: readonly {
+    readonly name: string;
+    readonly kind: 'species' | 'background';
+    readonly features: number;
+    readonly executed: number;
+  }[];
+}
+
+/**
+ * Species and backgrounds, measured exactly as classes are.
+ *
+ * **They were transcribed honestly and counted nowhere.** Every trait the
+ * engine cannot execute is marked `manual` and carries a note saying what a DM
+ * is left holding — the standard the class corpus set — and `auditClasses`
+ * audits classes, so the whole of that work was invisible in the report. A
+ * population that is not counted is a population a reader concludes does not
+ * exist.
+ *
+ * **A separate audit rather than extra rows in the class table**, because the
+ * class table's totals answer "how much of a class does the engine run". A
+ * species is not a class, it has no casting style and no subclasses, and
+ * folding its traits into that total would change what the existing numbers
+ * mean without changing their names. Same predicate, different denominator,
+ * so: same column, different table.
+ *
+ * Feats are **not** here. A `FeatDefinition` declares no automation — it
+ * carries a note about what a DM applies and nothing the engine reads — so
+ * there is no predicate to read one with, and a count of executed feats would
+ * be somebody's opinion in a column that claims to be derived. The report says
+ * so in prose instead.
+ */
+export function auditOrigins(): OriginCoverage {
+  const row = (
+    kind: 'species' | 'background',
+    definition: { readonly name: string; readonly features: readonly FeatureDefinition[] },
+  ) => ({
+    name: definition.name,
+    kind,
+    features: definition.features.length,
+    executed: definition.features.filter(isExecutedFeature).length,
+  });
+
+  const rows = [
+    ...SRD_CONTENT.species.map((one) => row('species', one)),
+    ...SRD_CONTENT.backgrounds.map((one) => row('background', one)),
+  ];
+
+  return {
+    species: SRD_CONTENT.species.length,
+    backgrounds: SRD_CONTENT.backgrounds.length,
+    features: rows.reduce((sum, r) => sum + r.features, 0),
+    executed: rows.reduce((sum, r) => sum + r.executed, 0),
+    rows,
+  };
+}
+
+export interface MagicItemCoverage {
+  /** Entries `@ie/srd` reads out of "Magic Items A–Z". */
+  readonly parsed: number;
+  /** Entries at least one catalogue record was read from. */
+  readonly transcribed: number;
+  /** Catalogue records those entries expand to. */
+  readonly instances: number;
+  /** Records carrying no `unmodelled` note. */
+  readonly complete: number;
+  /** Records carrying at least one, in the book's own words. */
+  readonly partial: number;
+  readonly rows: readonly {
+    readonly category: string;
+    readonly parsed: number;
+    readonly transcribed: number;
+    readonly instances: number;
+    readonly complete: number;
+    readonly partial: number;
+  }[];
+  readonly entries: readonly {
+    readonly name: string;
+    readonly category: string;
+    readonly instances: number;
+    readonly partial: number;
+  }[];
+}
+
+/**
+ * Magic items, in the two populations they actually have.
+ *
+ * **One entry is not one item.** The SRD writes _Weapon, +1, +2, or +3_ once,
+ * as a template over the weapon table, and an inventory holds a +2 Longsword
+ * rather than a template — so four entries become most of the catalogue's
+ * magic items. `transcribed / parsed` and `instances` are therefore different
+ * claims about different things, kept apart here for the same reason tracked
+ * and executed are kept apart above: added together, or divided by each other,
+ * they would report the Weapons chapter as covered several times over.
+ *
+ * **Complete and partial are per record, not per entry**, because
+ * `unmodelled` is per record: a +1 Longsword finishes everything its entry
+ * says and a Sun Blade does not, and those are two answers the entry count
+ * cannot hold. The two together are the instances and nothing else.
+ *
+ * Whether a test drives an item end to end is **not** measured. That is the
+ * spells table's `verified`, and it is a hand list precisely because no
+ * derivation can say it — the claim belongs to the commit that writes the
+ * test. There is no such list for items, so the report says nothing rather
+ * than inventing a column.
+ */
+export function auditMagicItems(): MagicItemCoverage {
+  const entries = magicItemEntries();
+  const transcribed = new Map<
+    string,
+    { name: string; category: string; instances: number; partial: number }
+  >();
+
+  for (const item of SRD_MAGIC_ITEMS) {
+    const entry = entryFor(item);
+    const seen = transcribed.get(entry.id) ?? {
+      name: entry.name,
+      category: entry.category,
+      instances: 0,
+      partial: 0,
+    };
+    seen.instances += 1;
+    if (!isCompleteItem(item)) seen.partial += 1;
+    transcribed.set(entry.id, seen);
+  }
+
+  // Code-unit order, which is what `[...names].sort()` in the guard means.
+  // `localeCompare` agrees with it for the names the book happens to print
+  // today and disagrees about punctuation in general, and a list ordered one
+  // way and checked another is a guard that passes by coincidence.
+  const covered = [...transcribed.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const rows = MAGIC_ITEM_CATEGORIES.map((category) => {
+    const mine = covered.filter((one) => one.category === category);
+    const instances = mine.reduce((sum, one) => sum + one.instances, 0);
+    const partial = mine.reduce((sum, one) => sum + one.partial, 0);
+    return {
+      category,
+      parsed: entries.filter((entry) => entry.category === category).length,
+      transcribed: mine.length,
+      instances,
+      complete: instances - partial,
+      partial,
+    };
+  });
+
+  const instances = SRD_MAGIC_ITEMS.length;
+  const partial = SRD_MAGIC_ITEMS.filter((item) => !isCompleteItem(item)).length;
+
+  return {
+    parsed: entries.length,
+    transcribed: covered.length,
+    instances,
+    complete: instances - partial,
+    partial,
+    rows,
+    entries: covered,
+  };
+}
+
+/**
+ * What the report found that it cannot honestly print.
+ *
+ * **This existed as a line of prose and it should always have been a
+ * failure.** The old renderer computed the verified spells the catalogue
+ * cannot execute and, if it found any, wrote "**Inconsistent:** verified but
+ * not executable: …" into `COVERAGE.md` — a report describing its own
+ * brokenness and shipping anyway. It really fired, because `npm run coverage`
+ * measured a stale `dist` against a `VERIFIED_SPELLS` read from source; the
+ * two lists were a day apart and the contradiction was the symptom.
+ *
+ * Taking the arguments rather than reading the module's own data is what lets
+ * the guard drive it in both directions. `coverageInconsistencies` is the real
+ * question.
+ */
+export function inconsistencies(
+  verified: readonly string[],
+  executable: ReadonlySet<string>,
+): readonly string[] {
+  return verified
+    .filter((id) => !executable.has(id))
+    .map(
+      (id) =>
+        `${id} is listed as verified and the catalogue cannot execute it: either a test drives a spell that is not defined, or the definitions being measured are older than the list`,
+    );
+}
+
+/** The same question, of the catalogue and the list the report would print. */
+export function coverageInconsistencies(): readonly string[] {
+  return inconsistencies(VERIFIED_SPELLS, new Set(SPELL_DEFINITIONS.map((d) => d.id)));
 }

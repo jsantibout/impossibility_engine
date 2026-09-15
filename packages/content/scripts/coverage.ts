@@ -15,20 +15,35 @@
  * not — which is the claim `coverage-script.test.ts` checks across the whole
  * of `scripts/`, driven over a synthetic write it has to catch.
  *
+ * **Two things stop the run before the write, and both used to be neither.**
+ * A build older than the source it would be measured from is refused, because
+ * `tsx` resolves `@ie/content` through `dist` while the lists here are source
+ * — the two can be a day apart. And a measurement that contradicts itself is
+ * refused, where it used to be written into the file as a line of prose
+ * beginning "**Inconsistent:**", which is a report describing its own
+ * brokenness and shipping anyway. `coverage-script.test.ts` reads the order of
+ * those two against the write off this file's own source.
+ *
  * Run with `npm run coverage`.
  */
 
 import { writeFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS } from '@ie/content';
 import { pathToFileURL } from 'node:url';
+import { dryBuild, refuseStaleBuild } from './build-freshness.js';
 import { allShapeConsumers } from './missing-shapes.js';
 import {
   auditClasses,
+  auditMagicItems,
+  auditOrigins,
   auditSpells,
+  coverageInconsistencies,
   PARTIAL_SPELLS,
   TRACKED_IDS,
   VERIFIED_SPELLS,
   type ClassCoverage,
+  type MagicItemCoverage,
+  type OriginCoverage,
   type SpellCoverage,
 } from './coverage-data.js';
 
@@ -53,6 +68,134 @@ function renderClasses(coverage: ClassCoverage): readonly string[] {
 
   for (const row of [...coverage.rows].sort((a, b) => a.name.localeCompare(b.name))) {
     lines.push(`| ${row.name} | ${row.style} | ${row.features} | ${row.executed} |`);
+  }
+
+  return lines;
+}
+
+/**
+ * Species and backgrounds, counted with the class column's own predicate.
+ *
+ * **They were honest and uncounted at the same time.** Every trait the engine
+ * cannot execute is marked `manual` and says what a DM is left holding — the
+ * standard the class corpus set — and none of it appeared anywhere, because
+ * the only audit there was audits classes.
+ *
+ * Its own section rather than rows in the table above, because that table's
+ * totals answer "how much of a class does the engine run". A species has no
+ * casting style and no subclasses; folding its traits into that total would
+ * change what the existing numbers mean without changing their names.
+ */
+function renderOrigins(coverage: OriginCoverage): readonly string[] {
+  const lines = [
+    '',
+    '## Origins',
+    '',
+    '| Species | Backgrounds | Features | Executed by the engine |',
+    '|---|---|---|---|',
+    `| ${coverage.species} | ${coverage.backgrounds} | ${coverage.features} | ${coverage.executed} |`,
+    '',
+    'A species trait and a class feature are the same `FeatureDefinition` and',
+    'declare automation the same way, so this is the column above read by the',
+    'same predicate — `isExecutedFeature` in',
+    '`packages/content/scripts/coverage-data.ts`, which both tables call.',
+    '**Manual is not failure** here either: most of what a species grants is',
+    'Darkvision, a Breath Weapon or a Resistance whose damage type is read off a',
+    'sibling choice, and each carries a note saying exactly what is left to the',
+    'table and why.',
+    '',
+    '**Feats are not counted.** A `FeatDefinition` declares no automation — it',
+    'carries a note about what a DM still applies and nothing the engine reads —',
+    'so there is no predicate to read one with, and a column claiming to be',
+    'derived would be somebody’s opinion instead.',
+    '',
+    '| Origin | Kind | Features | Executed |',
+    '|---|---|---|---|',
+  ];
+
+  for (const row of [...coverage.rows].sort((a, b) => a.name.localeCompare(b.name))) {
+    lines.push(`| ${row.name} | ${row.kind} | ${row.features} | ${row.executed} |`);
+  }
+
+  return lines;
+}
+
+/**
+ * Magic items, where the two populations must never be divided by each other.
+ *
+ * The SRD writes _Weapon, +1, +2, or +3_ **once**, as a template over the
+ * weapon table, and the catalogue holds a +1, a +2 and a +3 of each weapon
+ * because an inventory holds a sword rather than a template. Four entries
+ * account for most of the catalogue's magic items. So "how much of the book is
+ * transcribed" is a count of entries and "how many magic items are there" is a
+ * count of records, and printing the second under the first would claim the
+ * Weapons chapter was covered nearly four times over.
+ */
+function renderMagicItems(coverage: MagicItemCoverage): readonly string[] {
+  const lines = [
+    '',
+    '## Magic items',
+    '',
+    'Five states, and *transcribed* and *instances* count different things and',
+    'are never divided by each other:',
+    '',
+    '| | Means |',
+    '|---|---|',
+    '| **Parsed** | `@ie/srd` has the entry: name, category, rarity line, attunement bracket, charges, prose |',
+    '| **Transcribed** | at least one catalogue record was read out of that entry |',
+    '| **Instances** | the catalogue records those entries expand to |',
+    '| **Complete** | a record that carries no `unmodelled` note: it does everything its entry says |',
+    '| **Partial** | a record carrying at least one, quoting the clause it leaves to the table |',
+    '',
+    '**One entry is not one item.** The SRD writes _Weapon, +1, +2, or +3_ once,',
+    'as a template over the weapon table; the catalogue holds a +1, a +2 and a +3',
+    'of every weapon in it, because an inventory holds a sword rather than a',
+    'template. A handful of template entries account for most of the records',
+    'below, which is why *transcribed* counts entries and *instances* counts',
+    'records. *Transcribed* against *parsed* is a fraction of the book and is',
+    'meant to be read as one; *instances* against either is not a fraction of',
+    'anything, and reading it as one would report the Weapons chapter as',
+    'covered several times over — the Weapons row below says by how much, which',
+    'is where a figure like that belongs.',
+    '',
+    `| Parsed | Transcribed | Instances | of which complete | of which partial |`,
+    `|---|---|---|---|---|`,
+    `| ${coverage.parsed} | ${coverage.transcribed} | ${coverage.instances} | ${coverage.complete} | ${coverage.partial} |`,
+    '',
+    'An entry with **no** record is one whose whole text is beyond the grant',
+    'vocabulary. `packages/content/src/items.ts` states the three rules that',
+    'decide it — and the third is the sharp one: an item is left out when the',
+    'clause the engine cannot say is the one that *limits* the benefit, because',
+    'a Cloak of Displacement without its "if you take damage" is a better cloak',
+    'than the book prints.',
+    '',
+    '**Whether a test drives an item end to end is not counted here.** That is',
+    'the spells table’s *verified*, and it is a hand-kept list precisely because',
+    'no derivation can say it: the claim belongs to the commit that writes the',
+    'test. There is no such list for items, so this says nothing rather than',
+    'inventing a column that nothing checks.',
+    '',
+    '| Category | Parsed | Transcribed | Instances | Complete | Partial |',
+    '|---|---|---|---|---|---|',
+  ];
+
+  for (const row of coverage.rows) {
+    lines.push(
+      `| ${row.category} | ${row.parsed} | ${row.transcribed} | ${row.instances} | ${row.complete} | ${row.partial} |`,
+    );
+  }
+
+  lines.push(
+    '',
+    '### Entries transcribed',
+    '',
+    'Each is one entry of "Magic Items A–Z", with the records it expands to and',
+    'how many of those still carry a clause the engine does not say.',
+    '',
+  );
+  for (const entry of coverage.entries) {
+    const gaps = entry.partial === 0 ? 'complete' : `${entry.partial} partial`;
+    lines.push(`- **${entry.name}** (${entry.category}) — ${entry.instances} recorded, ${gaps}`);
   }
 
   return lines;
@@ -94,7 +237,7 @@ function renderBlockers(): readonly string[] {
     '**Blocks** is every spell a shape touches. **Finishes** is the spells it is',
     'the *only* blocker for — the ones building it would complete. Those are',
     'different numbers, and reporting only the first is how one family came to be',
-    'ranked at 17, at 4 and at 2 in three different documents.',
+    'ranked three different ways in three different documents.',
     '',
     '**Finishes is split in two**, and that difference is the second finding.',
     '*Read* counts the spells whose SRD paragraph has been read sentence by',
@@ -133,7 +276,6 @@ function renderBlockers(): readonly string[] {
 }
 
 function render(coverage: SpellCoverage): string {
-  const defined = new Set(SPELL_DEFINITIONS.map((d) => d.id));
   const verified = new Set(VERIFIED_SPELLS);
   const partial = new Set(PARTIAL_SPELLS);
   const pct = (n: number) => `${((n / coverage.total) * 100).toFixed(1)}%`;
@@ -201,21 +343,44 @@ function render(coverage: SpellCoverage): string {
     lines.push(`- **${definition.name}** (${level}) — ${(definition.unmodelled ?? []).length} noted`);
   }
 
-  const missing = [...verified].filter((id) => !defined.has(id));
-  if (missing.length > 0) {
-    lines.push('', `**Inconsistent:** verified but not executable: ${missing.join(', ')}`);
-  }
-
   lines.push(...renderBlockers());
   lines.push(...renderClasses(auditClasses()));
+  lines.push(...renderOrigins(auditOrigins()));
+  lines.push(...renderMagicItems(auditMagicItems()));
 
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * The whole report as text, measured but not written.
+ *
+ * Exported so `coverage.test.ts` can hold the text the *next* run would
+ * produce to the same rules it holds the committed file to — a prose number
+ * introduced here should fail on the commit that introduces it, not one commit
+ * later when somebody regenerates. It writes nothing, which is the only thing
+ * the sweep in `coverage-script.test.ts` cares about.
+ */
+export function renderReport(): string {
+  return render(auditSpells());
 }
 
 /** True when Node was asked to run this file, rather than something importing it. */
 const isMainModule = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
 
 if (isMainModule) {
+  // Two refusals, both before anything is written, because a report is worse
+  // than no report when it is wrong. The first: `tsx` resolves `@ie/content`
+  // through `dist`, so a build behind its source measures yesterday's
+  // catalogue against today's lists. The second: the contradiction that used
+  // to be written into the file as a line of prose.
+  refuseStaleBuild(dryBuild());
+  const found = coverageInconsistencies();
+  if (found.length > 0) {
+    throw new Error(
+      ['COVERAGE.md was not written: the measurement contradicts itself.', ...found].join('\n'),
+    );
+  }
+
   const coverage = auditSpells();
   writeFileSync('COVERAGE.md', render(coverage), 'utf8');
   console.log(
@@ -226,5 +391,15 @@ if (isMainModule) {
   console.log(
     `classes: ${classes.classes}/12 with ${classes.subclasses} subclasses; ` +
       `${classes.executed}/${classes.features} features executed`,
+  );
+  const origins = auditOrigins();
+  console.log(
+    `origins: ${origins.species} species and ${origins.backgrounds} backgrounds; ` +
+      `${origins.executed}/${origins.features} features executed`,
+  );
+  const items = auditMagicItems();
+  console.log(
+    `magic items: ${items.transcribed}/${items.parsed} entries transcribed as ` +
+      `${items.instances} records, ${items.partial} of them partial`,
   );
 }

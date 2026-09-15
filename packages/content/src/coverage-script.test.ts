@@ -367,3 +367,83 @@ describe('the guard idiom itself', () => {
 function pathToPosix(path: string): string {
   return `file:///${path.replace(/\\/g, '/')}`;
 }
+
+/**
+ * **A refusal after the write is not a refusal.**
+ *
+ * `npm run coverage` stops for two things: a build older than the source it
+ * would be measured from, and a measurement that contradicts itself. Both are
+ * reasons the file should not exist, so both have to happen before it is
+ * written — a check that threw afterwards would leave the wrong report on disk
+ * and the gauntlet's `git diff --exit-code COVERAGE.md` would then report the
+ * damage as a change to commit.
+ *
+ * Read off the source in the same lexical way the sweep above reads writes,
+ * because the order of statements in a block is exactly what the compiler can
+ * see and a comment cannot promise.
+ */
+describe('nothing is written before the report is known to be worth writing', () => {
+  /** The statements of `coverage.ts`'s main-module block, in order. */
+  const guardBlock = (): readonly ts.Statement[] => {
+    const source = SCRIPT_SOURCE['coverage.ts'] ?? '';
+    const file = ts.createSourceFile('coverage.ts', source, ts.ScriptTarget.ESNext, true);
+    for (const statement of file.statements) {
+      if (!isGuard(statement)) continue;
+      const { thenStatement } = statement;
+      if (ts.isBlock(thenStatement)) return [...thenStatement.statements];
+    }
+    throw new Error('coverage.ts has no main-module guard block');
+  };
+
+  /** The index of the first statement whose subtree mentions `name`. */
+  const firstMentioning = (statements: readonly ts.Statement[], name: string): number => {
+    const mentions = (node: ts.Node): boolean =>
+      (ts.isIdentifier(node) && node.text === name) ||
+      ts.forEachChild(node, mentions) === true;
+    return statements.findIndex(mentions);
+  };
+
+  it('refuses a stale build, a contradiction, and only then writes', () => {
+    const statements = guardBlock();
+    const stale = firstMentioning(statements, 'refuseStaleBuild');
+    const contradiction = firstMentioning(statements, 'coverageInconsistencies');
+    const write = firstMentioning(statements, 'writeFileSync');
+
+    expect(stale, 'coverage.ts does not refuse a stale build').toBeGreaterThanOrEqual(0);
+    expect(contradiction, 'coverage.ts does not check its own consistency').toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(write, 'coverage.ts writes nothing').toBeGreaterThanOrEqual(0);
+    expect(stale).toBeLessThan(write);
+    expect(contradiction).toBeLessThan(write);
+  });
+
+  /** And the reading bites, in both directions, over a block it must judge. */
+  it('sees a check that happens after the write', () => {
+    const file = ts.createSourceFile(
+      'synthetic.ts',
+      `${GUARD}\nif (isMainModule) {\n  writeFileSync('x', 'y');\n  refuseStaleBuild(dryBuild());\n}\n`,
+      ts.ScriptTarget.ESNext,
+      true,
+    );
+    const block = file.statements.find(isGuard)?.thenStatement;
+    if (block === undefined || !ts.isBlock(block)) throw new Error('no guard block');
+    const statements = [...block.statements];
+    expect(firstMentioning(statements, 'refuseStaleBuild')).toBeGreaterThan(
+      firstMentioning(statements, 'writeFileSync'),
+    );
+  });
+
+  /** A name the block never mentions is reported as absent, not as first. */
+  it('reports a missing check rather than passing it', () => {
+    const file = ts.createSourceFile(
+      'synthetic.ts',
+      `${GUARD}\nif (isMainModule) {\n  writeFileSync('x', 'y');\n}\n`,
+      ts.ScriptTarget.ESNext,
+      true,
+    );
+    const block = file.statements.find(isGuard)?.thenStatement;
+    if (block === undefined || !ts.isBlock(block)) throw new Error('no guard block');
+    expect(firstMentioning([...block.statements], 'refuseStaleBuild')).toBe(-1);
+  });
+});
