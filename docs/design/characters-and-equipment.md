@@ -56,11 +56,13 @@ content's tests hold every full caster's own table against it.
 
 ## Equipment
 
-Items are content (`CatalogueItem`: id, kind, price in copper, weight, and
-the armour or weapon record). Inventory is owned, `equipped` is worn or
-held, and the sheet's armour is a **view** of what is equipped, derived in
-the fold from the armour record the equip event pinned. Purchases price the
-bundle the SRD prints; packs open into their contents.
+Items are content (`CatalogueItem`: id, kind, price in copper, weight, the
+armour or weapon record, and — for the magic ones below — grants, an
+attunement requirement, a charge pool and what it leaves to the table).
+Inventory is owned, `equipped` is worn or held, and the sheet's armour is a
+**view** of what is equipped, derived in the fold from the armour record the
+equip event pinned. Purchases price the bundle the SRD prints; packs open
+into their contents.
 
 ## Monsters
 
@@ -74,10 +76,12 @@ data handed to the engine, like everything else.
 
 ## Magic items
 
-Decided before any of them was built, and counted rather than guessed: of the
-258 items `@ie/srd` now parses, 19 are expressible with the grant vocabulary
-exactly as it stands, 147 need one of a small number of named additions, and
-92 are not grants at all and stay `manual` with a note.
+Decided before any of them was built, and counted rather than guessed: every
+item the SRD prints was read against the grant vocabulary one at a time. A
+small minority were expressible as the vocabulary then stood, most needed one
+of a few named additions, and a long tail are not grants at all. Those
+proportions moved the same day the flat bonus landed — twice — which is why
+counting them is the report's job and not this note's.
 
 **A magic item is a `CatalogueItem` that has grown three things**, not a
 fourth population beside spells and classes: grants written in the existing
