@@ -20,7 +20,7 @@
  * something above the engine appended an event no command produced, and it was
  * the engine that left no other way to be correct.
  *
- * Widening `beginCombat` would have put a `Supply` in front of the
+ * Widening `beginCombat` *to roll* would have put a `Supply` in front of the
  * `CommandIdentity` every existing caller already passes, and made one command
  * mean two things depending on the shape of its list. So the rolling lives
  * here, in the module that owns Initiative, and the *event* stays exactly
@@ -28,6 +28,13 @@
  * no `combat-started` of its own — it hands its combatants to `beginCombat`,
  * so there is still one door to a fight starting. Two functions writing one
  * event by hand is the shape of bug M2.6 spent a week on.
+ *
+ * `beginCombat` does take an optional `Supply` now, and neither half of that
+ * objection moved: it is the **last** argument rather than the first, so no
+ * caller's arguments shifted, and it does not change what the command means —
+ * the fight opening is a turn boundary, and the generator is what pays a
+ * payout that boundary owes. A caller with a payout in the room passes one; a
+ * caller with none passes nothing, here and there alike.
  *
  * {@link recordInitiativeRolls} is the other half of the same repair, for a DM
  * who asks for Initiative before deciding there is a fight: the dice it throws
@@ -44,6 +51,7 @@ import {
   type InitiativeRoll,
   rollInitiative,
 } from '../combat.js';
+import { type Content } from '../content.js';
 import { type Rng } from '../dice.js';
 import { type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -300,10 +308,21 @@ function rollFor(
  * then refuse the retry the id exists to absorb. The stamp for the whole
  * operation rides the `rolls-issued`.
  *
+ * **The content is optional and travels through**, because the fight opening
+ * is a turn boundary: the first combatant's turn starts with it, and a
+ * creature holding SRD Heroism when that happens is owed its Temporary Hit
+ * Points there. `beginCombat` is what pays them, and it can only do so with
+ * the book — so a caller that supplies one gets the payout, a caller that
+ * supplies none is refused `payout_owed` when something is actually owed, and
+ * the callers that have always passed `{ issuer, rng }` to open a fight
+ * nobody is owed anything at pass exactly that still.
+ *
  * **A refusal emits nothing**, including the rolls. The dice the local
  * generator threw before the refusal are discarded with them, which is sound
  * because a caller resumes its generator from state — where nothing
- * happened — rather than from the object it passed in.
+ * happened — rather than from the object it passed in. That now covers the
+ * payout refusal too: it comes from `beginCombat`, after the rolling, and it
+ * takes the Initiative with it.
  *
  * Nothing here decides that combat has begun; that is the DM's authority, and
  * this is what the layer above calls once the judgement is made.
@@ -311,7 +330,12 @@ function rollFor(
 export function rollInitiativeAndBeginCombat(
   state: GameState,
   entrants: readonly InitiativeEntrant[],
-  supply: { readonly issuer: RollIssuer; readonly rng: Rng },
+  supply: {
+    readonly issuer: RollIssuer;
+    readonly rng: Rng;
+    /** The book, for the boundary the fight opens on; see above. */
+    readonly content?: Content;
+  },
   command: CommandIdentity = {},
 ): Result<GameEvent[]> {
   return once(
@@ -323,7 +347,13 @@ export function rollInitiativeAndBeginCombat(
       const rolled = rollFor(state, entrants, supply, stamp);
       if (!rolled.ok) return rolled;
 
-      const started = beginCombat(state, rolled.value.combatants);
+      const { content } = supply;
+      const started = beginCombat(
+        state,
+        rolled.value.combatants,
+        {},
+        content === undefined ? undefined : { ...supply, content },
+      );
       if (!started.ok) return started;
 
       return ok([...rolled.value.events, ...started.value]);

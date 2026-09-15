@@ -69,8 +69,8 @@
  */
 
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
-import { type CombatantInput, startCombat } from '../combat.js';
-import { type GameEvent, type GameState } from '../events.js';
+import { type CombatantInput, currentCombatant, startCombat } from '../combat.js';
+import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   addLandmark,
@@ -85,7 +85,9 @@ import {
 import { type Rng } from '../dice.js';
 import { rollRecorded, type RollIssuer } from '../rolls.js';
 import { type SpellcastingState } from '../spellcasting.js';
+import { type Supply } from './casting.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
+import { settleBoundaryPayouts } from './turns.js';
 
 /**
  * Set the scene, and with it what the room can contain.
@@ -258,19 +260,57 @@ export function declareCoverBetween(
  * A scene is *not* required: SRD rolls Initiative whenever a fight begins, and
  * a fight in a place nobody has mapped is a fight. The reducer agrees — no
  * `combat-started` has ever reached `sceneOf`.
+ *
+ * **Starting the fight is a turn boundary**, which is the whole of why this
+ * command takes a `Supply` at all: `startCombat` has said in a comment since
+ * the beginning that "the first combatant's turn starts with the fight", and a
+ * turn starting is a moment the rules pay out at. A creature holding SRD
+ * Heroism — "at the start of each of its turns, that creature gains Temporary
+ * Hit Points" — when the fight opens on its own turn is owed them there, and
+ * the fold cannot hand them over because a payout is settled rather than
+ * filed. So the boundary is asked here exactly as `resolveTurn` asks it, and
+ * answers the same three ways: nothing due, paid, or `payout_owed` for want of
+ * a generator.
+ *
+ * **The `Supply` is optional and last.** Optional because most fights open on
+ * nobody who is owed anything, and a caller with no payout in the room must
+ * not be made to carry the book to start a fight; last because a `Supply` in
+ * front of the `CommandIdentity` would have moved an argument every existing
+ * caller already passes, which is the objection `initiative.ts` records
+ * against widening this command at all.
+ *
+ * The area half of the same moment is *not* settled here. A trigger is a debt
+ * the fold files (`owedAreaEffects`) and `settleAreaEffects` is the command
+ * that pays it, so the moment leaves it standing exactly as any other turn
+ * boundary would.
  */
 export function beginCombat(
   state: GameState,
   combatants: readonly CombatantInput[],
   command: CommandIdentity = {},
+  supply?: Supply,
 ): Result<GameEvent[]> {
   return once(state, 'begin-combat', { ...command, combatants }, () => [], (stamp) => {
     const started = startCombat(combatants);
     if (!started.ok) return started;
 
-    return ok([
-      { type: 'combat-started', combatants, ...(stamp === null ? {} : { command: stamp }) },
-    ]);
+    const opened: GameEvent = {
+      type: 'combat-started',
+      combatants,
+      ...(stamp === null ? {} : { command: stamp }),
+    };
+
+    // Whose turn has begun is read off the order the fold built, never off the
+    // list as it arrived: the ranking is `startCombat`'s and the reducer's, and
+    // a second reader of "who is first" is how a command and the fold come to
+    // disagree. Nothing has *ended*, so the boundary is asked for one half.
+    const after = applyEvent(state, opened);
+    const beginning = after.combat === null ? undefined : currentCombatant(after.combat).id;
+
+    const paid = settleBoundaryPayouts(after, supply, undefined, beginning);
+    if (!paid.ok) return paid;
+
+    return ok([opened, ...paid.value]);
   });
 }
 

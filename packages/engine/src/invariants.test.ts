@@ -711,6 +711,35 @@ const draining = (): readonly GameEvent[] => {
 };
 
 /**
+ * A holding a Heroism on itself, which owes it Temporary Hit Points at the
+ * start of each of its turns.
+ *
+ * The fixture for the boundary a fight *opens* on: `beginCombat` starts the
+ * first combatant's turn, so opening a fight on A pays the payout — and a
+ * retried opening that got past the guard would pay one turn twice.
+ */
+const heroic = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({
+        ability: 'int',
+        prepared: ['inflict-wounds', 'disguise-self', 'heroism'],
+      }),
+    },
+  ];
+  return [
+    ...armed,
+    ...unwrap(
+      resolveSpell(fold('s', armed), A, { spellId: 'heroism', targets: [A], slotLevel: 1 }, supply()),
+      'heroism',
+    ).events,
+  ];
+};
+
+/**
  * A Spiritual Weapon standing in the scene, one turn old.
  *
  * A different shape from `draining()` above and the reason it is here: the
@@ -1340,6 +1369,24 @@ const GUARDED: readonly Guarded[] = [
       ),
   },
   {
+    // And the same command where the opening boundary owes something. Starting
+    // the fight starts the first combatant's turn, so a creature holding SRD
+    // Heroism is paid its Temporary Hit Points here — and a retry that got
+    // past the guard would pay a second time for the one turn.
+    name: 'beginCombat (paying the opening boundary)',
+    log: heroic(),
+    run: (s, commandId) =>
+      beginCombat(
+        s,
+        [
+          { id: A, initiative: 21, speed: 30 },
+          { id: B, initiative: 3, speed: 30 },
+        ],
+        { commandId },
+        supply(),
+      ),
+  },
+  {
     // The dangerous retry of the two: a second run rolls Initiative again,
     // which moves the generator for a fight that already started. The order
     // would look well-formed and every number after it would be off by two
@@ -1351,6 +1398,25 @@ const GUARDED: readonly Guarded[] = [
         s,
         [
           { id: A, speed: 30 },
+          { id: B, speed: 30 },
+        ],
+        supply(),
+        { commandId },
+      ),
+  },
+  {
+    // The same, over a world where the opening boundary owes a payout: the
+    // rolls and the payment are one command, so a retry that ran again would
+    // move the generator *and* pay a second time. A's place in the order is
+    // bought rather than rolled for, because the payout is only due if the
+    // fight opens on the creature holding the spell.
+    name: 'rollInitiativeAndBeginCombat (paying the opening boundary)',
+    log: heroic(),
+    run: (s, commandId) =>
+      rollInitiativeAndBeginCombat(
+        s,
+        [
+          { id: A, speed: 30, options: { bonuses: [{ source: 'the fixture', flat: 100 }] } },
           { id: B, speed: 30 },
         ],
         supply(),
@@ -2207,6 +2273,10 @@ describe('every command that spends something asks whether it may', () => {
  * one of the two, rather than neither.
  */
 const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
+  beginCombat:
+    'the moment the turn economy starts existing, so there is nobody yet acting for a guard to ask about: the first combatant’s turn starts with the fight, the payout that boundary owes is settled by the command that opened it, and a casting can end only because that settlement was damage — refusing to start a fight while something stood owed would leave the debt with no turn to be settled on',
+  rollInitiativeAndBeginCombat:
+    'the same moment reached through the dice, which is the whole of what it adds: it rolls Initiative and hands the order to beginCombat, so the casting it can end is the one that boundary’s payout ends, and it is exempt for the same reason and no other',
   removeCreatureEverywhere:
     'the casting leaves with its caster, and the creature leaving is bookkeeping about the cast rather than an action: refusing it while a debt stood would leave a fight unable to continue without somebody who is already gone',
   resolveDamage:

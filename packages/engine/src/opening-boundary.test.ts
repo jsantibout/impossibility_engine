@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
+import { asCharacterId, expect as unwrap, isErr, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import type { Point } from './positioning.js';
 import { declaredCasting } from './spellcasting.js';
+import type { CombatantInput } from './combat.js';
 import {
+  beginCombat,
   mayAct,
   owedAreaEffectsOf,
   resolveSpell,
   resolveTurn,
+  rollInitiativeAndBeginCombat,
   settleAreaEffects,
 } from './commands.js';
 
@@ -255,34 +258,35 @@ describe('a fight that opens on a start-of-turn area', () => {
 
 describe('a fight that opens on a payout', () => {
   /**
-   * **The half this task could not close, recorded rather than hidden.**
+   * **The other half of the same moment, and the same sentence of the SRD's.**
    *
-   * SRD Heroism pays "at the start of each of its turns", so a creature
-   * holding the casting when the fight opens is owed the very moment the Web
-   * above now raises — and it is not paid. The two are one bug, and the engine
-   * holds them differently:
+   * Heroism pays "at the start of each of its turns", so a creature holding
+   * the casting when the fight opens is owed the very moment the Web above
+   * raises — and for as long as the Web half was broken this one was too. The
+   * two are one bug; they are not one repair, because the engine holds the two
+   * kinds of debt differently:
    *
    * | | an area trigger | a payout |
    * |---|---|---|
    * | What the fold does at the moment | files a debt (`owedAreaEffects`) | nothing; the arrangement is already on the creature |
-   * | What settles it | `settleAreaEffects`, a command carrying a generator | `resolveTurn`, which *is* the boundary |
+   * | What settles it | `settleAreaEffects`, a command carrying a generator | the boundary command itself |
    *
    * A payout is deliberately not a debt — see {@link GrantedPayout} — because
-   * the boundary command reads it and pays it in one breath, so nothing is ever
-   * owed between turns. The command that opens a fight is `beginCombat`, and it
-   * carries no generator: it takes a `CommandIdentity` and nothing else, and
-   * `rollInitiativeAndBeginCombat` hands it an `{ issuer, rng }` with no
-   * `Content` in it. So the moment now arrives with nothing present that could
-   * pay it.
+   * the boundary command reads it and pays it in one breath, so nothing is
+   * ever owed between turns. Filing one at this single moment would have made
+   * it a second kind of debt beside `owedAreaEffects`, raised in one place and
+   * settled by a command that settles nothing else. So `beginCombat` took what
+   * `resolveTurn` already had instead: the **optional** `Supply`, and the
+   * `payout_owed` refusal in the same words under the same code. A fight
+   * opening on a creature that is owed a payout pays it, or refuses for want
+   * of a generator to settle it with.
    *
-   * Closing that needs a decision this task was not given: give `beginCombat`
-   * the optional `Supply` and the `payout_owed` refusal `resolveTurn` already
-   * has, or file the payout as a debt at this one moment, or leave it. Until
-   * one is taken the behaviour is what it has always been, and it is asserted
-   * here so that whoever closes it is told by a failing test rather than by
-   * nothing at all.
+   * **Optional, and that is the load-bearing word.** Most fights open on
+   * nobody who is owed anything, and a caller with no payout in the room must
+   * not be made to carry the book to start a fight — which is also why every
+   * caller that passed no `Supply` before still passes none.
    */
-  it('still pays nothing at the opening boundary', () => {
+  const heroic = (): GameEvent[] => {
     const log = [...SETUP];
     const cast = must(
       resolveSpell(
@@ -294,27 +298,122 @@ describe('a fight that opens on a payout', () => {
       'casting Heroism',
     );
     log.push(...cast.events);
+    return log;
+  };
 
-    // The arrangement is on the caster, and the fight opens on the caster's
-    // turn — so this is the moment Heroism names.
+  /** The caster first, so the fight opens on the turn Heroism names. */
+  const OPENS_ON_CASTER: readonly CombatantInput[] = [
+    { id: CASTER, initiative: 30, speed: 30 },
+    { id: VICTIM, initiative: 10, speed: 30 },
+  ];
+
+  /** How many times this creature has actually been handed the payout. */
+  const paidTo = (log: readonly GameEvent[], who: CharacterId): number =>
+    log.filter((event) => event.type === 'temporary-hp-granted' && event.id === who).length;
+
+  const tempHp = (log: readonly GameEvent[], who: CharacterId): number =>
+    fold('seed', log).creatures[who]?.vitals.temporaryHp ?? 0;
+
+  it('pays it at the opening boundary, and pays it once', () => {
+    const log = heroic();
+
+    // The arrangement is on the caster, and the fight is about to open on the
+    // caster's turn — so this is the moment Heroism names.
     const holding = fold('seed', log);
     expect(holding.creatures[CASTER]?.payouts).toHaveLength(1);
     expect(holding.creatures[CASTER]?.payouts[0]?.at).toBe('start-of-turn');
+    expect(tempHp(log, CASTER)).toBe(0);
 
-    log.push({
-      type: 'combat-started',
-      combatants: [
-        { id: CASTER, initiative: 30, speed: 30 },
-        { id: VICTIM, initiative: 10, speed: 30 },
-      ],
-    });
-    // Nothing: the boundary arrived and no command was there to pay it.
-    expect(fold('seed', log).creatures[CASTER]?.vitals.temporaryHp ?? 0).toBe(0);
+    log.push(
+      ...must(
+        beginCombat(fold('seed', log), OPENS_ON_CASTER, {}, supply('open')),
+        'opening the fight',
+      ),
+    );
 
-    // What does work is the next one: the caster's second turn is reached the
-    // ordinary way, and `resolveTurn` pays it there.
+    // SRD Heroism: "that creature gains Temporary Hit Points equal to your
+    // spellcasting ability modifier" — Wisdom 18, so four, and they are there
+    // the moment the fight opens.
+    expect(tempHp(log, CASTER)).toBe(4);
+    expect(paidTo(log, CASTER)).toBe(1);
+
+    // And the next one still arrives the ordinary way: the caster's turn ends,
+    // the victim's begins owing nothing, and the caster's second turn is paid
+    // for once — not once more for the turn the opening already paid.
     advance(log, 'p1');
+    expect(paidTo(log, CASTER)).toBe(1);
     advance(log, 'p2');
-    expect(fold('seed', log).creatures[CASTER]?.vitals.temporaryHp ?? 0).toBe(4);
+    expect(paidTo(log, CASTER)).toBe(2);
+    expect(tempHp(log, CASTER)).toBe(4);
+  });
+
+  /**
+   * The refusal `resolveTurn` already gives at the same moment, in the same
+   * words: a boundary that owes a payout and has no generator to settle it
+   * says so rather than passing it by. A refusal emits nothing, so the fight
+   * has not started and the caller opens it again with the content.
+   */
+  it('refuses to open with no Supply, and starts no fight', () => {
+    const log = heroic();
+    const refused = beginCombat(fold('seed', log), OPENS_ON_CASTER);
+
+    expect(refused.ok).toBe(false);
+    if (isErr(refused)) expect(refused.code).toBe('payout_owed');
+    expect(fold('seed', log).combat).toBeNull();
+  });
+
+  /** And an opening that owes nothing is exactly what it always was. */
+  it('opens a fight nobody is owed anything at with no Supply at all', () => {
+    const log = [...SETUP];
+    const opened = must(beginCombat(fold('seed', log), OPENS_ON_CASTER), 'opening the fight');
+
+    expect(opened.map((event) => event.type)).toEqual(['combat-started']);
+    log.push(...opened);
+    expect(fold('seed', log).combat?.turnsTaken).toBe(0);
+  });
+
+  /**
+   * The whole path, not the inner command alone: a caller that rolls
+   * Initiative and starts the fight in one breath arrives at the same
+   * boundary, and a payout only `beginCombat` paid would be missed by the
+   * command most callers reach for.
+   *
+   * The caster's place in the order is bought rather than hoped for — the dice
+   * decide it, and a test that needed a particular creature to win the roll
+   * would be a test of the seed.
+   */
+  it('pays through the command that rolls Initiative too', () => {
+    const log = heroic();
+    const entrants = [
+      { id: CASTER, speed: 30, options: { bonuses: [{ source: 'the fixture', flat: 100 }] } },
+      { id: VICTIM, speed: 30 },
+    ];
+
+    log.push(
+      ...must(
+        rollInitiativeAndBeginCombat(fold('seed', log), entrants, supply('rolled')),
+        'rolling and opening',
+      ),
+    );
+
+    expect(fold('seed', log).combat?.order[0]?.id).toBe(CASTER);
+    expect(tempHp(log, CASTER)).toBe(4);
+    expect(paidTo(log, CASTER)).toBe(1);
+  });
+
+  /** And refuses through it, emitting nothing — including the rolls it threw. */
+  it('refuses through it with no content, and records no Initiative', () => {
+    const log = heroic();
+    const entrants = [
+      { id: CASTER, speed: 30, options: { bonuses: [{ source: 'the fixture', flat: 100 }] } },
+      { id: VICTIM, speed: 30 },
+    ];
+    const bare = { issuer: createRollIssuer('r'), rng: createRng('rolled') as Rng };
+
+    const refused = rollInitiativeAndBeginCombat(fold('seed', log), entrants, bare);
+
+    expect(refused.ok).toBe(false);
+    if (isErr(refused)) expect(refused.code).toBe('payout_owed');
+    expect(fold('seed', log).combat).toBeNull();
   });
 });

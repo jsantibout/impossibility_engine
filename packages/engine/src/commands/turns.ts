@@ -191,10 +191,12 @@ interface DuePayout {
  * boundary that threw would wedge the fight over a sentence about Temporary
  * Hit Points.
  *
- * **`who` is optional because the *beginning* of a turn can be nobody's**: the
- * boundary's own settlements can end the fight, and a fight that has ended has
- * no turn beginning for anything to be due at. The creature whose turn *ended*
- * is never absent, so it is passed as a creature rather than as a maybe.
+ * **`who` is optional because either half of a boundary can be nobody's.** The
+ * beginning of a turn can be: the boundary's own settlements can end the
+ * fight, and a fight that has ended has no turn beginning for anything to be
+ * due at. The *ending* can be too, and at exactly one moment — the boundary a
+ * fight opens on, where the first combatant's turn starts and no turn has
+ * finished for an end-of-turn payout to fall due at.
  */
 function payoutsAt(
   state: GameState,
@@ -219,7 +221,7 @@ function payoutsAt(
  */
 function payoutsDue(
   state: GameState,
-  ended: CharacterId,
+  ended: CharacterId | undefined,
   begun: CharacterId | undefined,
 ): readonly DuePayout[] {
   return [...payoutsAt(state, ended, 'end-of-turn'), ...payoutsAt(state, begun, 'start-of-turn')];
@@ -244,12 +246,8 @@ function payoutsDue(
 function settleTurnPayouts(
   state: GameState,
   supply: Supply,
-  ended: CharacterId,
-  begun: CharacterId | undefined,
+  due: readonly DuePayout[],
 ): Result<readonly GameEvent[]> {
-  const due = payoutsDue(state, ended, begun);
-  if (due.length === 0) return ok([]);
-
   const events: GameEvent[] = [];
   let current = state;
 
@@ -305,6 +303,45 @@ function settleTurnPayouts(
   }
 
   return ok(events);
+}
+
+/**
+ * What a turn boundary owes in payouts, paid or refused — the whole of it, so
+ * that every boundary answers the same way.
+ *
+ * Two boundaries reach it. `resolveTurn` is the ordinary one: a turn ends, the
+ * next begins, and both halves may be owed something. `beginCombat` is the
+ * other, and it is a boundary for the same reason `startCombat` has said in a
+ * comment since the beginning — "the first combatant's turn starts with the
+ * fight". Nothing has ended there, so it passes no creature for the end.
+ *
+ * **The `Supply` is optional and the refusal is the alternative to it.** A
+ * payout is not a debt in state — see {@link GrantedPayout} — because the
+ * boundary reads the arrangement off the creature and settles it in one
+ * breath; so a boundary that cannot settle one must not pass it, and there is
+ * nowhere to leave it for later. Both boundaries therefore refuse with
+ * `payout_owed` rather than advancing quietly past a sentence of the SRD's,
+ * and a caller with a payout in the room supplies the generator and asks
+ * again. A boundary that owes nothing needs nothing, which is why both may be
+ * called with no `Supply` at all.
+ */
+export function settleBoundaryPayouts(
+  state: GameState,
+  supply: Supply | undefined,
+  ended: CharacterId | undefined,
+  begun: CharacterId | undefined,
+): Result<readonly GameEvent[]> {
+  const due = payoutsDue(state, ended, begun);
+  if (due.length === 0) return ok([]);
+
+  if (supply === undefined) {
+    return err(
+      'payout_owed',
+      `${due.length} payout(s) fall due at this boundary; advancing needs a generator to settle them`,
+    );
+  }
+
+  return settleTurnPayouts(state, supply, due);
 }
 
 /** Every turn-boundary save still owed, in a stable order. */
@@ -998,21 +1035,16 @@ export function resolveTurn(
     // has an owner. The turn that *begins* may not: the boundary's own
     // settlements can end the fight, and a fight that has ended has no turn
     // beginning for a payout to fall due at.
+    //
+    // The paying and the refusal are `settleBoundaryPayouts`', which is also
+    // what the boundary a fight *opens* on calls — one answer to "what does
+    // this moment hand over", rather than two that could drift apart.
     const ending = currentCombatant(state.combat).id;
     const beginning = after.combat === null ? undefined : currentCombatant(after.combat).id;
-    const owedPayouts = payoutsDue(after, ending, beginning);
-    if (owedPayouts.length > 0) {
-      if (supply === undefined) {
-        return err(
-          'payout_owed',
-          `${owedPayouts.length} payout(s) fall due at this boundary; advancing needs a generator to settle them`,
-        );
-      }
-      const paid = settleTurnPayouts(after, supply, ending, beginning);
-      if (!paid.ok) return paid;
-      advanced.push(...paid.value);
-      after = paid.value.reduce(applyEvent, after);
-    }
+    const paid = settleBoundaryPayouts(after, supply, ending, beginning);
+    if (!paid.ok) return paid;
+    advanced.push(...paid.value);
+    after = paid.value.reduce(applyEvent, after);
 
     // SRD: "Whenever you start your turn with 0 Hit Points, you must make a
     // Death Saving Throw." Whenever — nobody decides it, so the turn owes it the
