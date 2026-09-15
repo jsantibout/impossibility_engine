@@ -15,6 +15,9 @@
  * `failUnsustainedCastings` is the third thing a boundary does and the only one
  * that *ends* something: SRD's per-turn Magic action for a casting of a minute
  * or more, which nobody decides has gone unspent.
+ *
+ * `openTurnStart` is the boundary a fight *opens* on, which is the same moment
+ * arriving by a different door — see its own docstring.
  */
 import { isDue, pendingSaveKey, type PendingSave } from '../duration.js';
 import { castingIdOf } from '../spells.js';
@@ -179,6 +182,44 @@ export function raiseTurnEnd(state: GameState, before: CombatState, after: Comba
   return begun === undefined
     ? ended
     : { ...ended, pendingTurnStart: { who: begun, turn: after.turnsTaken } };
+}
+
+/**
+ * The start of the first turn of a fight, which nothing used to raise.
+ *
+ * `startCombat` has always said it in a comment of its own — "the first
+ * combatant's turn starts with the fight", and it bumps that creature's
+ * `begun` count to prove it — but only `turn-advanced` ever recorded a start
+ * for anything to be caught by. So a creature that had been standing in a Web
+ * since before anybody rolled Initiative began the fight in it and saved
+ * against nothing, and every other consequence of a turn beginning was missed
+ * with it.
+ *
+ * **It goes through `pendingTurnStart` rather than raising the debts itself**,
+ * which is what makes this a repair rather than a second authority on what a
+ * turn's start owes. {@link reachStartOfTurn} is the one place a start is
+ * reached, and it is reached by the same route whichever door the moment came
+ * through — so a consequence added there arrives at the opening turn too,
+ * without anybody remembering that fights have two beginnings.
+ *
+ * **Only `combat-started`**, and only the creature at the front of the order.
+ * A fight beginning starts exactly one turn; the rest of the order is waiting,
+ * and a boundary raised for a creature whose turn has not come would catch it
+ * a round early. `combatant-joined` raises nothing for the same reason —
+ * joining an order does not begin a turn.
+ */
+export function openTurnStart(state: GameState): GameState {
+  const combat = state.combat;
+  if (combat === null) return state;
+
+  // `startCombat` refuses an empty order, so this is a defensive read rather
+  // than a case: a fold that got here with no combatant has nothing to raise
+  // for, and throwing would be the corrupt-log backstop's job and not this
+  // pass's.
+  const first = combat.order[combat.turnIndex];
+  if (first === undefined) return state;
+
+  return { ...state, pendingTurnStart: { who: first.id, turn: combat.turnsTaken } };
 }
 
 /**

@@ -28,6 +28,18 @@ import type { RollIssuer } from './rolls.js';
  * Rules verified against SRD 5.2.1 (see ATTRIBUTION.md).
  */
 
+/**
+ * What a roll of Initiative is called in the log.
+ *
+ * One spelling, in the module that owns Initiative, because two rules read it
+ * from opposite ends of the engine: `commands/initiative.ts` writes it onto
+ * the `roll-recorded` it emits, and the fold's rest-interruption pass matches
+ * on it to obey SRD's "Rolling Initiative". A string one module spells and
+ * another matches is a rule that stops applying the day somebody rewords a
+ * label, and neither end would say so.
+ */
+export const INITIATIVE_LABEL = 'Initiative';
+
 export interface InitiativeOptions {
   readonly modes?: readonly (RollMode | ModeSource)[];
   /**

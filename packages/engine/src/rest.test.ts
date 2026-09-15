@@ -7,7 +7,12 @@ import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
-import { castSpell, setExhaustionLevel } from './commands.js';
+import {
+  castSpell,
+  recordInitiativeRolls,
+  rollInitiativeAndBeginCombat,
+  setExhaustionLevel,
+} from './commands.js';
 import {
   LONG_REST,
   LONG_REST_COOLDOWN,
@@ -420,6 +425,73 @@ describe('the engine notices a rest being interrupted', () => {
     ]);
     expect(state.creatures.wizard!.resting?.interruptedBy).toBeNull();
     expect(state.creatures.fighter!.resting?.interruptedBy).toBe('Initiative');
+  });
+
+  /**
+   * SRD names the *roll*, not the fight: "Rolling Initiative" is the first of
+   * the four interruptions printed under both rests. A DM who asks the table
+   * for Initiative before deciding whether the bandits attack has rolled it,
+   * and the rest is over whether or not a fight follows.
+   */
+  it('marks a rest broken by Initiative rolled with no fight following', () => {
+    const rolled = run(resting().log, (s) =>
+      recordInitiativeRolls(s, [{ id: id('wizard'), speed: 30 }], roller(s)),
+    );
+    // No fight: the only thing that happened is that dice were thrown.
+    expect(rolled.state.combat).toBeNull();
+    expect(rolled.state.creatures.wizard!.resting?.interruptedBy).toBe('Initiative');
+  });
+
+  /** The roller's rest, and nobody else's: one creature rolled. */
+  it('leaves a resting creature who did not roll alone', () => {
+    const both = run(resting().log, (s) => beginRest(s, id('fighter'), 'long'));
+    const rolled = run(both.log, (s) =>
+      recordInitiativeRolls(s, [{ id: id('fighter'), speed: 30 }], roller(s)),
+    );
+    expect(rolled.state.creatures.wizard!.resting?.interruptedBy).toBeNull();
+    expect(rolled.state.creatures.fighter!.resting?.interruptedBy).toBe('Initiative');
+  });
+
+  /**
+   * And it pays what a broken Long Rest pays: "If you rested at least 1 hour
+   * before the interruption, you gain the benefits of a Short Rest." The point
+   * of marking the roll rather than the fight is that this arithmetic happens
+   * at all — before, a rest ran on through the dice and collected the whole
+   * eight hours.
+   */
+  it('pays a Long Rest broken by the roll as a Short one', () => {
+    const log = [...party(), hurt('wizard', 20)];
+    const begun = run(log, (s) => beginRest(s, id('wizard'), 'long'));
+    const rolled = run([...begun.log, clock(hours(3))], (s) =>
+      recordInitiativeRolls(s, [{ id: id('wizard'), speed: 30 }], roller(s)),
+    );
+    const start = fold('seed', rolled.log);
+
+    const { state, result } = resolve(rolled.log, (s) =>
+      endRest(s, id('wizard'), { hitDice: [hitDieKey(6)] }, roller(start)),
+    );
+    expect(result.benefit).toBe('short');
+    expect(state.creatures.wizard!.vitals.hp).toBeLessThan(30);
+    expect(state.creatures.wizard!.lastLongRestAt).toBeNull();
+  });
+
+  /** And when a fight does follow, it is still the one cause and one moment. */
+  it('marks it once when the roll starts a fight', () => {
+    const rolled = run([...resting().log, clock(hours(3))], (s) =>
+      rollInitiativeAndBeginCombat(
+        s,
+        [
+          { id: id('wizard'), speed: 30 },
+          { id: id('fighter'), speed: 30 },
+        ],
+        roller(s),
+      ),
+    );
+    const rest = rolled.state.creatures.wizard!.resting;
+    expect(rest?.interruptedBy).toBe('Initiative');
+    // The roll and the fight are one batch, so the moment is the same either
+    // way — what matters is that the second cause did not overwrite the first.
+    expect(rest?.interruptedAt).toBe(hours(3));
   });
 
   /** The first interruption is the one that broke it; later ones change nothing. */

@@ -21,6 +21,10 @@ import { isIncapacitated } from '../conditions.js';
 import type { Content } from '../content.js';
 import { READY, universalAction } from '../actions.js';
 import { type TimedEffect } from '../duration.js';
+// The one spelling of Initiative's label, from the module that owns
+// Initiative — the fold matches on what `commands/initiative.ts` writes, and
+// neither end may spell it for itself. See `INITIATIVE_LABEL`.
+import { INITIATIVE_LABEL } from '../combat.js';
 
 import type { GameEvent } from '../events.js';
 import type { CreatureState, GameState } from '../state.js';
@@ -28,7 +32,7 @@ import { initialState } from '../state.js';
 import { type Applying, unhandledEvent } from './common.js';
 import { releaseCasting } from './release.js';
 import { dropOrphanedAreaEffects } from './areas.js';
-import { reachStartOfTurn } from './turns.js';
+import { openTurnStart, reachStartOfTurn } from './turns.js';
 import { dropOrphanedSaves, dropStrandedDamage, expireEffects } from './expiry.js';
 import { endTriggeredCastings } from './endings.js';
 
@@ -154,6 +158,23 @@ function recordCommand(state: GameState, event: GameEvent): GameState {
  * the rules had already broken — which is the same reasoning that makes
  * Concentration derived. The first cause is the one that broke it; later ones
  * change nothing.
+ *
+ * **"Rolling Initiative" is the roll, and the fight is a second door to the
+ * same moment.** The book names the roll — it is the first bullet under both
+ * rests — and for a while this read only `combat-started`, so a DM who asked
+ * the table for Initiative before deciding whether the bandits attacked left a
+ * Long Rest running through the dice. `recordInitiativeRolls` made that
+ * reachable from the public surface; `rollInitiativeFor` had always been able
+ * to do it silently.
+ *
+ * Both are kept rather than one replacing the other, because a fight can start
+ * without a roll this engine can see: `beginCombat` takes the totals from the
+ * caller, and the SRD's own glossary says "sometimes a GM might have combatants
+ * use their Initiative scores **instead of rolling Initiative**". That is the
+ * same moment of the same fiction, and a creature resting through the start of
+ * a fight is not resting. When both arrive together — which is what
+ * `rollInitiativeAndBeginCombat` emits — the first cause wins, and they name
+ * the same cause anyway.
  */
 function interruptedRests(state: GameState, event: GameEvent): GameState {
   const broken: [CharacterId, string][] = [];
@@ -172,8 +193,11 @@ function interruptedRests(state: GameState, event: GameEvent): GameState {
       // the caster still stopped resting to cast.
       if (event.casting.level > 0) broken.push([event.casting.caster, 'a spell']);
       break;
+    case 'roll-recorded':
+      if (event.label === INITIATIVE_LABEL) broken.push([event.who, INITIATIVE_LABEL]);
+      break;
     case 'combat-started':
-      for (const combatant of event.combatants) broken.push([combatant.id, 'Initiative']);
+      for (const combatant of event.combatants) broken.push([combatant.id, INITIATIVE_LABEL]);
       break;
     default:
       return state;
@@ -219,7 +243,24 @@ export function applyEventWith(
 }
 
 function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | null): GameState {
-  const applied = applyOne(state, event, legacy);
+  // **A fight beginning starts a turn**, and `turn-advanced` used to be the
+  // only event that said so.
+  //
+  // Derived rather than a seam's, for the reason every pass in this file is:
+  // nobody *decides* that the first combatant's turn has begun — `startCombat`
+  // settled it when it ranked the order, and says so in a comment of its own.
+  //
+  // **Here rather than further out, so the marker is standing before anything
+  // below reads it.** What this sets is `pendingTurnStart`; what *reaches* the
+  // start is `reachStartOfTurn` at the end of the chain, which is the same one
+  // place every other turn's start is reached — so the moment arrives after
+  // the expiries and the drops, exactly as it does on the ordinary path, and a
+  // consequence added there arrives at the opening turn without anybody
+  // remembering that fights have two beginnings.
+  const applied =
+    event.type === 'combat-started'
+      ? openTurnStart(applyOne(state, event, legacy))
+      : applyOne(state, event, legacy);
   return reachStartOfTurn(
     // After the drops rather than before them: what ends an attunement is a
     // death or an item gone, and both are facts the event itself left behind.

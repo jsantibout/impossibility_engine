@@ -39,6 +39,7 @@ import { flatBonusTotal, type ModeSource } from '../bonuses.js';
 import {
   addCombatant,
   type CombatantInput,
+  INITIATIVE_LABEL,
   type InitiativeOptions,
   type InitiativeRoll,
   rollInitiative,
@@ -256,7 +257,7 @@ function rollFor(
     events.push({
       type: 'roll-recorded',
       who: entrant.id,
-      label: 'Initiative',
+      label: INITIATIVE_LABEL,
       natural: roll.roll.natural,
       total: roll.total,
       contributions: [

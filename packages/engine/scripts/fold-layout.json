@@ -75,6 +75,7 @@
     "failUnsustainedCastings",
     "forgetSustainedTurns",
     "raiseTurnEnd",
+    "openTurnStart",
     "reachStartOfTurn"
   ],
   "fold/expiry.ts": [
