@@ -508,7 +508,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 42 | 208 | 2 | 4 | 2 |
+| 258 | 42 | 207 | 2 | 4 | 3 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -546,8 +546,8 @@ Strength waits on the same missing reader SRD Feeblemind does.
 |---|---|---|---|
 | `a-spell-an-item-casts-that-nothing-executes` | 55 | 0 | 24 |
 | `an-item-instance-with-a-state-of-its-own` | 41 | 2 | 4 |
-| `a-condition-an-item-imposes` | 30 | 0 | 5 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
+| `a-condition-an-item-imposes` | 29 | 0 | 4 |
 | `a-stat-block-created-mid-fight` | 17 | 0 | 4 |
 | `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
 | `a-rider-on-the-face-the-die-showed` | 17 | 0 | 3 |
@@ -572,9 +572,9 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `a-target-rule-the-format-cannot-state` | 1 | 0 | 1 |
-| `a-damage-roll-an-item-makes` | 13 | 0 | 0 |
 | `movement-modes` | 13 | 0 | 0 |
-| `a-save-an-item-forces` | 10 | 0 | 0 |
+| `a-damage-roll-an-item-makes` | 12 | 0 | 0 |
+| `a-save-an-item-forces` | 11 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 7 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |
