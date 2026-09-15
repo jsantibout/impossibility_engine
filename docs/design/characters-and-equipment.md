@@ -71,3 +71,47 @@ apply, and qualified ones ("except from its vampire master") are withheld and
 reported. `addCreature(state, id, monster)` takes the stat block itself,
 because there is no monster registry to look one up in — a stat block is
 data handed to the engine, like everything else.
+
+## Magic items
+
+Decided before any of them was built, and counted rather than guessed: of the
+258 items `@ie/srd` now parses, 19 are expressible with the grant vocabulary
+exactly as it stands, 147 need one of a small number of named additions, and
+92 are not grants at all and stay `manual` with a note.
+
+**A magic item is a `CatalogueItem` that has grown three things**, not a
+fourth population beside spells and classes: grants written in the existing
+`FeatureGrant` vocabulary, an optional attunement requirement, and an
+optional charge pool declared through the existing `pool` shape. The SRD
+argues the same way — a magic weapon is "a magical version of" the equipment
+entry — and `Content.item(id)` has eleven readers outside tests, every one of
+which a separate population would have to be threaded through before a +1
+longsword could be swung.
+
+**Attunement is a relation on the creature, not a ninth sourced grant.** The
+eight families `grantsOf` enumerates are running effects *hung* on a creature:
+stored, unconditional, ended by a source match. A worn item's benefit is the
+other lifetime — the conditional kind `standing.ts` already insists must be
+derived on every read, because "a stored copy would be an unconditional bonus
+wearing a feature's name". So `attuned` is one sorted list beside `equipped`,
+"while attuned" and "while worn" are two new `StandingRequirement` members
+beside `unarmored` and `has-speed`, and the whole release path —
+`releaseCasting`, `releaseGrants`, `holdsNothingOf`, `spellOn` — is untouched.
+
+**Charges are the pool mechanism reused.** `resources.ts` already names "a
+magic item with seven charges" as a designed use, `Recovery` already includes
+`dawn`, and a class pool already recovers on it end to end. What is missing is
+only that some items regain a *rolled* number rather than refilling, which is
+a field beside `regainsOnShortRest` and a roll the engine makes.
+
+**"The next dawn" is declared, never derived.** The clock has no calendar and
+no time of day — those are fiction, and the DM owns them — and the SRD hands
+the moment to the GM in as many words. Dawn is a command that emits the
+restoration the rests already emit, with no span and no movement of the
+clock.
+
+Two things a brief will have to decide before it can finish: an item
+**instance identity** (charges keyed on a catalogue id cannot tell two wands
+apart, and a wand given away carries its charges while pools are per
+creature), and what ends attunement besides a command — death, losing the
+item, another creature attuning to it.
