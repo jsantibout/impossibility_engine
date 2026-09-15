@@ -551,9 +551,9 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
 | `an-object-with-statistics-of-its-own` | 17 | 0 | 3 |
 | `an-ability-score-a-spell-changes` | 15 | 0 | 3 |
-| `a-mode-on-the-save-a-spell-forces` | 8 | 1 | 2 |
 | `a-speed-an-item-grants` | 14 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
+| `a-mode-on-the-save-a-spell-forces` | 6 | 1 | 1 |
 | `a-casting-an-item-stores-or-gives-back` | 4 | 0 | 2 |
 | `a-save-an-item-forces` | 49 | 0 | 1 |
 | `a-condition-an-item-imposes` | 26 | 0 | 1 |
@@ -568,6 +568,7 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
+| `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `a-damage-roll-an-item-makes` | 20 | 0 | 0 |

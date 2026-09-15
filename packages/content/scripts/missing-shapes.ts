@@ -5101,6 +5101,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-bonus-narrowed-to-a-skill',
     'an-ability-score-a-spell-changes',
     'senses-beyond-declared-sight',
+    'a-save-keyed-to-a-condition',
   ],
   'belt-of-giant-strength': [
     'an-ability-score-a-spell-changes',
@@ -5409,7 +5410,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-stat-block-created-mid-fight',
     'a-selector-for-every-d20-test',
   ],
-  'necklace-of-adaptation': ['a-mode-on-the-save-a-spell-forces'],
+  'necklace-of-adaptation': ['a-save-keyed-to-a-condition'],
   'necklace-of-fireballs': [
     'a-save-an-item-forces',
     'an-item-instance-with-a-state-of-its-own',
@@ -5437,7 +5438,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'pearl-of-power': ['a-casting-an-item-stores-or-gives-back'],
   'periapt-of-health': [
     'a-charge-spent-on-something-other-than-a-casting',
-    'a-mode-on-the-save-a-spell-forces',
+    'a-save-keyed-to-a-condition',
   ],
   'periapt-of-wound-closure': [
     'a-roll-result-an-effect-replaces',
