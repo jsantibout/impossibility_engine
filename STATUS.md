@@ -33,6 +33,8 @@ to homebrew.
 - **Content** — `createContent` / `loadContent` validate a catalogue from
   typed input or JSON; `SRD_CONTENT` is built through it; a homebrew spell or
   class using existing mechanics needs no engine change (`content.test.ts`).
+  Languages and alignments are content too, so a world may declare its own
+  tongues, its own alignment axis, or none.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -45,8 +47,7 @@ to homebrew.
   costed, timed, and the effect left to the table) rather than executed;
   `COVERAGE.md` lists which and names the missing shape.
 - Most class features past the common shapes are `manual` with a note.
-- Species and backgrounds: one of each (Human, Sage). Languages and
-  alignments are engine constants rather than content. Feats: the origin and
+- Species and backgrounds: one of each (Human, Sage). Feats: the origin and
   fighting-style feats, recorded, two executed.
 - Equipment stops at mundane items: no weight, attunement, magic items or
   ammunition spent. Objects that are not creatures are not modelled.
@@ -58,8 +59,7 @@ to homebrew.
 1. **The tool surface** (`@ie/tools`): the Zod-validated commands a DM or a
    model calls, holding one `Content` and one log per campaign.
 2. **Content as files**: a loader in the app layer that reads homebrew JSON
-   (and, later, a database) into `loadContent`; move languages and alignments
-   into content.
+   (and, later, a database) into `loadContent`.
 3. **More species and backgrounds** in `@ie/content` — transcription onto the
    existing shapes.
 4. **The next mechanical shapes** the coverage report ranks highest, each

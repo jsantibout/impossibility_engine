@@ -23,11 +23,11 @@ line: **AI interprets possibility; the Engine adjudicates reality.**
 3. **State changes only through `GameEvent`.** `GameState` is `fold(events)`.
    Same seed and same log fold to a byte-identical state, forever.
 4. **The engine holds no catalogue.** Spells, classes, features, species,
-   backgrounds, feats and items are *content*, supplied by the caller as a
-   validated `Content` value. The SRD's catalogue is `@ie/content`; homebrew
-   goes through the same door (`createContent` / `loadContent`). Adding
-   content that uses mechanics the engine already has must not touch the
-   engine.
+   backgrounds, feats, items, languages and alignments are *content*,
+   supplied by the caller as a validated `Content` value. The SRD's
+   catalogue is `@ie/content`; homebrew goes through the same door
+   (`createContent` / `loadContent`). Adding content that uses mechanics the
+   engine already has must not touch the engine.
 5. **What a command reads from content is pinned into the events it emits.**
    A casting pins its area and numbers; an equip event pins the armour
    record. The fold never opens a catalogue, so replaying last year's log
@@ -55,7 +55,7 @@ React/Fastify/orchestrator (M2+, not built) ──► @ie/tools (not built)
 | `@ie/shared` | Branded ids, D&D vocabulary, the `Result` type (`ok` / `err` / `needsContext`) |
 | `@ie/srd` | SRD 5.2.1 parsed into typed, schema-validated data: spells index, monsters, equipment |
 | `@ie/engine` | The rules: dice, rolls, checks, attacks, damage, conditions, positioning, combat, casting, durations, rests, creation, the fold. Plus the **vocabulary** content is written in (`SpellDefinition`, `FeatureGrant`, …), the two validators (`spell-schema.ts`, `feature-schema.ts`) and the registry (`content.ts`) |
-| `@ie/content` | The SRD catalogue as data: spell definitions, the twelve classes and subclasses, species, backgrounds, feats, items. Built once into `SRD_CONTENT` through `createContent`, the same call homebrew uses |
+| `@ie/content` | The SRD catalogue as data: spell definitions, the twelve classes and subclasses, species, backgrounds, feats, items, languages, alignments. Built once into `SRD_CONTENT` through `createContent`, the same call homebrew uses |
 
 Dependency direction is strict: content depends on engine; engine never
 imports content. Engine tests that drive SRD spells import `@ie/content` as a

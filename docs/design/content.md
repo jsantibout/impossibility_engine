@@ -9,8 +9,8 @@ Read before changing `content.ts`, the definition vocabulary at the top of
 The engine owns **mechanics**: the closed vocabularies a spell effect, a
 feature grant or an item can be written in, and the rules that execute them.
 It owns **no catalogue**. Every spell, class, subclass, feature, species,
-background, feat and item is content, supplied by the caller as one
-immutable, validated `Content` value.
+background, feat, item, language and alignment is content, supplied by the
+caller as one immutable, validated `Content` value.
 
 | | Where |
 |---|---|
@@ -30,9 +30,11 @@ and `content.test.ts` proves the input round-trips through JSON and
 `spell(id)` — the executable definition, or null. `spellEntry(id)` — the
 spell's identity and class lists (the SRD index shape), whether or not it
 executes. `classById`, `subclassById`, `speciesById`, `backgroundById`,
-`featById`, `item`, `expandPack`, plus the arrays behind each. A definition
-with no entry still exists and can be cast; it is on nobody's class list
-until an entry says whose.
+`featById`, `item`, `expandPack`, plus the arrays behind each.
+`languageNamed` and `alignmentNamed` are the two looked up by the name on a
+character sheet rather than by id, because the name is what a choice carries
+and what a stored log already holds. A definition with no entry still exists
+and can be cast; it is on nobody's class list until an entry says whose.
 
 ## How it reaches the engine
 
@@ -53,8 +55,10 @@ class table that is not twenty rows, a Spellcasting class that does not say
 whether it is a full or half caster (`spellcasting.progression`), a Pact Magic
 class that does, a fixed spell grant or granted feat naming nothing, an
 `executedBy` naming a sibling that declares nothing, a pack containing an
-absent item. It does **not** ask whether content is official; that is the SRD
-oracle's question and it lives with the SRD content.
+absent item, two languages or two alignments sharing a name (`duplicate_name`,
+the coherence a name-keyed lookup needs). It does **not** ask whether content
+is official; that is the SRD oracle's question and it lives with the SRD
+content.
 
 ## Adding content
 
