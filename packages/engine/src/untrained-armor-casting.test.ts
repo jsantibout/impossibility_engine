@@ -27,16 +27,18 @@ import {
  * **you can't cast spells**."
  *
  * The refusal is one line in `castSpellWith`, which is the only place a
- * casting is paid for — so every door that pays reaches it, and this file is
- * the sweep that says so rather than a paragraph claiming it. A rule kept at
- * four doors out of five is not a rule, and the two that were open were the
- * two where being late costs something: a wand's charge, and a spell already
- * held.
+ * casting is paid for — so every door that pays already reaches it. **Nothing
+ * here fixes anything.** STATUS said a character in untrained armour could
+ * still cast and that the clause had never been modelled; this file is what
+ * establishes that neither was true, because a rule believed to be missing is
+ * as good as missing until something fails when it goes. Delete the line in
+ * `castSpellWith` and the four refusals below all fail.
  *
  * **The armour is worn rather than written on the sheet.** `sheet.armor` is
- * derived from what is equipped, so a fixture that states it and then equips
- * anything at all has quietly taken the armour off again — which is how the
- * wand below looked compliant.
+ * derived from what is equipped, so a fixture that states armour and then
+ * equips anything at all has quietly taken it off again. That is how the wand
+ * came to look like the gap: the obvious fixture put chain mail on the sheet
+ * and a wand in the hand, and the wand's own equip event undressed the caster.
  */
 
 const id = (s: string) => asCharacterId(s);

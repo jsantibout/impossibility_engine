@@ -6,7 +6,7 @@ import { attackRollModes } from './attack.js';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { resolveSpell } from './commands.js';
+import { resolveAttack, resolveSpell } from './commands.js';
 import { createRollIssuer } from './rolls.js';
 import { declaredCasting, type SpellcastingState } from './spellcasting.js';
 
@@ -96,6 +96,11 @@ const scene = (extra: readonly GameEvent[] = [], bruteFeet = 5): readonly GameEv
   ...extra,
 ];
 
+/** The brute, declared unable to see the creature at its elbow. */
+const BLIND: readonly GameEvent[] = [
+  { type: 'sight-declared', from: BRUTE, to: CASTER, seen: false },
+];
+
 const state = (log: readonly GameEvent[]): GameState => fold('seed', log);
 
 const supply = (seed = 'bolt') => ({
@@ -174,10 +179,44 @@ describe('a ranged spell attack with an enemy at the caster’s elbow', () => {
 describe('the three ways out of the sentence', () => {
   /** "…an enemy who **can see you**." */
   it('spares a caster the enemy cannot see', () => {
-    const blind: readonly GameEvent[] = [
-      { type: 'sight-declared', from: BRUTE, to: CASTER, seen: false },
-    ];
-    expect(modeOf(scene(blind), 'fire-bolt', VICTIM)).toBe('normal');
+    expect(modeOf(scene(BLIND), 'fire-bolt', VICTIM)).toBe('normal');
+  });
+
+  /**
+   * **And the bow answers the same**, because it is the same gatherer.
+   *
+   * This clause is the one thing about the rule that did change: sight was
+   * left out on the grounds that it is usually unsaid, and undeclared still
+   * leaves the rule standing — but a creature *declared* unable to see the
+   * archer is out of the SRD sentence, and was not before. The claim is
+   * asserted through `resolveAttack` as well as through a casting so that a
+   * weapon attack cannot quietly grow its own answer again.
+   */
+  it('spares an archer the enemy cannot see, by the same clause', () => {
+    const shooting = (log: readonly GameEvent[]): string => {
+      const out = unwrap(
+        resolveAttack(
+          state([
+            ...log,
+            {
+              type: 'items-gained',
+              id: CASTER,
+              items: [{ id: 'shortbow', quantity: 1 }],
+              source: 'the quiver',
+            },
+          ]),
+          CASTER,
+          { target: VICTIM, weapon: 'shortbow' },
+          supply(),
+        ),
+        'the bow',
+      );
+      expect(out.attack).not.toBeNull();
+      return out.attack!.mode;
+    };
+
+    expect(shooting(scene())).toBe('disadvantage');
+    expect(shooting(scene(BLIND))).toBe('normal');
   });
 
   /** "…and who **isn't Incapacitated**." */
