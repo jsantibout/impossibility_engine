@@ -60,6 +60,20 @@ the coherence a name-keyed lookup needs). It does **not** ask whether content
 is official; that is the SRD oracle's question and it lives with the SRD
 content.
 
+Two later shapes are refused by the same rule — a reference must reach
+something, and a table must answer for every option it claims to. A feature
+whose choice carries a meaning per option is refused a table on a feature that
+asks nothing, a table that misses one of its options or holds a key that is not
+one of them, and a meaning of a shape the vocabulary does not know; a grant
+reading a **sibling's** choice is refused a feature that does not exist on this
+source, one that is itself, one that asks no choice, one that arrives at a
+later level than the grant that reads it, and a table supplying nothing the
+reading grant came for. An item that confers an effect without casting one is
+refused an effect kind a conferral cannot resolve, one that scales by a slot or
+a caster level an item does not have, a lifetime that ends nothing, a grant
+hung with no lifetime at all, and — until each is built — a save DC or a charge
+count.
+
 ## Adding content
 
 A spell that fits an existing effect kind, or a class whose features use
@@ -71,4 +85,7 @@ the content.
 
 Content-specific assumptions the engine may **not** grow back: class names
 as strings, feature ids as strings, spell ids compared to literals. The
-sweep in `spell-schema.test.ts` fails on any of them.
+sweep in `spell-schema.test.ts` holds the spell and class half of that and
+fails on any of them. The species and feature half is held by review and by
+nothing else — a gap noticed while the sibling-choice grant was built, and
+worth closing with a test rather than a habit.

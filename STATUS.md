@@ -20,8 +20,8 @@ to homebrew.
   mounting.
 - **Combat and time** — Initiative, the action budget, joining a running
   fight, the clock, spans and turn-anchored deadlines, repeat saves and
-  delayed damage raised by the boundary, payouts a casting makes at one,
-  Short and Long Rests.
+  delayed damage raised by the boundary, payouts a casting makes at one —
+  the boundary a fight opens on included — Short and Long Rests.
 - **Casting** — slots and Pact slots as pools, castings with identities,
   Concentration, interruptible declared castings, long castings and rituals,
   reaction spells, ongoing records that later activations act through.
@@ -44,7 +44,12 @@ to homebrew.
   to the item that gave it, so a +1 sword does not improve the bow beside
   it; and a charge buys a casting — a wand's spell has an id, Concentration
   when the definition asks for it, and an ongoing record Dispel Magic can
-  find. The catalogue holds what those shapes express.
+  find. An item may also confer an effect **without** casting one: a potion's
+  effects run through the same resolvers under a source that is a bare
+  `item:` string rather than a casting id, so the ordinary timer expires it
+  and the ordinary command ends it early, while Dispel Magic and the ongoing
+  records pass it by without being told to. The catalogue holds what those
+  shapes express.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -58,16 +63,24 @@ to homebrew.
   `COVERAGE.md` lists which and names the missing shape.
 - Most class features past the common shapes are `manual` with a note.
 - Species and background traits past the shapes that already exist are
-  `manual` with a note — Darkvision, breath weapons, ancestry tables,
-  lineage spells.
+  `manual` with a note — Darkvision, breath weapons, lineage spells. An
+  ancestry table is no longer among them: a trait may read the choice its
+  sibling made and look it up in a table content declares, which is what
+  Dragonborn's Damage Resistance is written in terms of.
 - Feats: the origin and fighting-style feats, recorded, two executed — and
   uncounted, because a `FeatDefinition` declares no automation and the report
   refuses to guess at one.
-- An item that confers an effect *without* casting — every potion, and the
-  items that simply deal damage or grant a save — needs a second grant kind
-  and a source that is not a casting. The largest gap left in the catalogue.
+- A conferral carries the shapes a potion needs and refuses the rest by name:
+  an item that grants a save, one paid for with charges, and one that inflicts
+  a condition are each still ahead. The last is the deepest — the fold welds a
+  condition to a casting, and reads one without a casting id as a corrupt log.
   Bonuses to spell attack rolls, ability scores an item sets, senses, curses
   and Speed from an item are each named and refused rather than half-built.
+- A flat amount cannot be written where dice are expected: `DiceScaling` makes
+  its notation required, so Potion of Heroism's ten Temporary Hit Points are
+  in its `unmodelled` note rather than in its grant. Temporary Hit Points also
+  have no lifetime of their own — the event carries no source and no effect
+  target names them — so the hour they last is a note as well.
 - Two copies of one item cannot be told apart: an inventory line is an id
   and a count, so a charged item is refused in multiples and a wand given
   away would not carry its charges. Items need a record of their own before
@@ -79,31 +92,27 @@ to homebrew.
 
 ## Next
 
-1. **An item that confers an effect without casting one.** Every potion, and
-   the items that simply deal damage or grant a save: a second grant kind,
-   and a source that is not a casting but which the release path can still
-   address. The largest gap left in the catalogue.
-2. **An item's own record.** An inventory line is an id and a count, so two
+1. **An item's own record.** An inventory line is an id and a count, so two
    wands share a pool, a charged item is refused in multiples, and nothing
    can be given away with its charges. It also blocks a rolled charge
    maximum and every item whose benefit the GM picks when it is found.
-3. **The tool surface** (`@ie/tools`): the Zod-validated commands a DM or a
+2. **The tool surface** (`@ie/tools`): the Zod-validated commands a DM or a
    model calls. Its session boundary is decided —
    `docs/design/claude-integration.md` — and `tools/llm-probe` already drives
    a live model through a smaller version of it, so this is promotion more
    than authorship.
-4. **Content as files**: a loader in the app layer that reads homebrew JSON
+3. **Content as files**: a loader in the app layer that reads homebrew JSON
    (and, later, a database) into `loadContent`.
-5. **Three small ones left over**: a fight that opens on a per-turn payout
-   still does not pay it, and a passing test at the foot of
-   `opening-boundary.test.ts` names the three ways to close it; nothing
-   mechanically stops a module outside `fold/` importing `fold/*`, which is
-   a rule `events.ts` states and a reviewer had to catch by reading; and a
-   grant that reads a sibling feature's choice through a content-declared
-   table blocks four species on its own.
-6. **Three the spell-attack fix found beside it**: a ranged spell attack
-   takes no Disadvantage from an enemy within five feet, because that rule
-   reads the weapon; untrained armour does not stop a character casting,
-   which is the half of the Armor Training clause the engine has never
-   modelled; and an attack result still reports Strength as the ability in
-   the one case where a spell attack names none.
+4. **The rest of what an item confers.** A conferral that costs charges, one
+   that grants a save, and one that inflicts a condition. The third needs the
+   fold's weld between a condition and a casting broken first, and is the
+   larger piece of work.
+5. **Two the potion asked and could not answer.** Whether `DiceScaling` should
+   admit an amount with no dice in it — a flat ten is a shape the book writes
+   often — and whether Temporary Hit Points should carry a lifetime, which
+   needs either a new effect target or a new event. Both are decisions before
+   they are work.
+6. **Rule 4's other half has no test.** The sweep in `spell-schema.test.ts`
+   fails on a class name or a spell id in engine code; a species id or a
+   feature id is caught by a reader and by nothing else. A sweep, on the
+   pattern of the one beside it.
