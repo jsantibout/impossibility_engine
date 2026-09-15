@@ -565,8 +565,16 @@ describe('starting equipment, ownership and what is worn', () => {
     rejects({ equipped: ['plate-armor'] }, 'not_owned');
   });
 
+  /**
+   * The id is invented rather than borrowed from the book on purpose. This
+   * case once named the Vorpal Sword, which was absent only because nobody had
+   * transcribed it yet — so the day it was transcribed the refusal became a
+   * `not_owned` and this test failed for a reason that had nothing to do with
+   * it. What is being checked is an id the catalogue does not hold, and only a
+   * name the SRD never prints stays that way.
+   */
   it('refuses equipping something that is not in the catalogue at all', () => {
-    rejects({ equipped: ['vorpal-sword'] }, 'unknown_item');
+    rejects({ equipped: ['sword-of-nothing-at-all'] }, 'unknown_item');
   });
 
   /**

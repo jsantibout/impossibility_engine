@@ -302,6 +302,46 @@ function itemPoolProblems(
 }
 
 /**
+ * Whether what an item declares it does *not* do is readable.
+ *
+ * The same two rules `checkSpellDefinition` makes about the same field, in the
+ * same words, because it is the same field: a note that is not a list of
+ * strings is honesty nothing can read, and an empty one declares nothing.
+ * `undefined` is absent — the answer for everything mundane — and every other
+ * value is judged against the declared type, `null` included, which is the
+ * rule this validator keeps for every optional field.
+ *
+ * Nothing here asks whether the notes are *enough*. Whether a transcription
+ * left out more than it admits is a question about the SRD's text, which is
+ * the catalogue's own business and is answered where the text is: this only
+ * refuses a note that could never be read aloud.
+ */
+function itemUnmodelledProblems(item: CatalogueItem): readonly ContentProblem[] {
+  if (item.unmodelled === undefined) return [];
+  const where = `items[${item.id}].unmodelled`;
+  if (!Array.isArray(item.unmodelled)) {
+    return [
+      {
+        field: where,
+        code: 'bad_unmodelled',
+        reason: 'what an item declares it does not do is a list of notes',
+      },
+    ];
+  }
+  const found: ContentProblem[] = [];
+  item.unmodelled.forEach((note, index) => {
+    if (!isString(note) || note.trim().length === 0) {
+      found.push({
+        field: `${where}[${index}]`,
+        code: 'empty_note',
+        reason: 'an empty note declares nothing',
+      });
+    }
+  });
+  return found;
+}
+
+/**
  * What an item is allowed to grant, judged once for both input paths.
  *
  * Typed content and parsed JSON both arrive at `checkContent`, so this is the
@@ -719,6 +759,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         problems.push({ field: `items[${item.id}].attunement.byClass`, code: 'unknown_class', reason: `${item.id} may be attuned by a ${wanted}, which this content does not hold` });
       }
     }
+    problems.push(...itemUnmodelledProblems(item));
     problems.push(...itemGrantProblems(item));
   }
 
@@ -1256,6 +1297,12 @@ function parseItem(value: unknown): Result<CatalogueItem> {
     ...(Array.isArray(value['grants'])
       ? { grants: value['grants'] as NonNullable<CatalogueItem['grants']> }
       : {}),
+    // Carried as given for the reason `grants` is: `checkContent` is the one
+    // gate, so a homebrew item's honesty is judged by the same rule a
+    // transcribed one's is rather than being quietly dropped here.
+    ...(value['unmodelled'] === undefined
+      ? {}
+      : { unmodelled: value['unmodelled'] as NonNullable<CatalogueItem['unmodelled']> }),
   };
   const problems = s.problems();
   if (problems.length > 0) return err('bad_item', problems.join('; '));

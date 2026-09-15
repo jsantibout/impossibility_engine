@@ -106,6 +106,28 @@ export interface CatalogueItem {
    * nothing runs.
    */
   readonly grants?: readonly FeatureGrant[];
+  /**
+   * Parts of the printed item this record does **not** do.
+   *
+   * `SpellDefinition.unmodelled` for an item, and for the same reason: almost
+   * every SRD magic item is one clean mechanic plus a rider — a cloak that
+   * grants Advantage on Stealth *and* makes the Perception checks against its
+   * wearer Disadvantaged, a sword that is +1 *and* burns Dragons — and the
+   * riders need machinery the engine does not have. The choice is between
+   * leaving the item out of the catalogue entirely and transcribing the part
+   * it can while saying plainly what it left out.
+   *
+   * Saying so in a docstring is not enough, and one item proves it: the Cloak
+   * of Elvenkind's second clause sat in a **code comment**, which nothing can
+   * count, no report can total and no narrating layer can hand to a DM. This
+   * is the same sentence somewhere a program can reach it.
+   *
+   * An item that does everything its line says carries none of these, and an
+   * item whose whole text is beyond the engine is not in the catalogue at all
+   * — a record with nothing but notes would be a benefit that never arrives
+   * wearing an item's name.
+   */
+  readonly unmodelled?: readonly string[];
 }
 
 /**
