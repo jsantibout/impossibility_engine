@@ -546,7 +546,7 @@ Strength waits on the same missing reader SRD Feeblemind does.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
-| `a-spell-an-item-casts-that-nothing-executes` | 49 | 0 | 18 |
+| `a-spell-an-item-casts-that-nothing-executes` | 48 | 0 | 18 |
 | `an-item-instance-with-a-state-of-its-own` | 41 | 2 | 4 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
 | `a-condition-an-item-imposes` | 29 | 0 | 4 |
@@ -568,8 +568,8 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-bonus-narrowed-to-a-skill` | 7 | 1 | 0 |
 | `a-benefit-an-item-suspends-on-a-trigger` | 5 | 0 | 1 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
+| `a-spell-an-item-casts-at-will` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
-| `a-spell-an-item-casts-at-will` | 4 | 0 | 1 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
 | `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |

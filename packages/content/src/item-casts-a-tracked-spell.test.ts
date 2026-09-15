@@ -328,6 +328,14 @@ describe('a Ring of Animal Influence casts what its table prices', () => {
     expect(left([...log, ...out.events], RING)).toBe(2);
     expect(castOf(out.events)?.slotless).toBe('magic-item');
     expect(out.unverified.join(' ')).toContain('Speak with Animals');
+
+    // **And it is the ring's 13 it pins, on the row that rolls nothing.**
+    // "(save DC 13)" is printed once, before the list, so it governs all
+    // three; leaving it off this grant would not leave the field empty but
+    // substitute the wielder's own number, which the book contradicts.
+    const record = ongoingSpellOf(fold('seed', [...log, ...out.events]), out.castingId);
+    expect(record?.numbers.saveDc).toBe(13);
+    expect(fallbackDcOfTheWielder()).not.toBe(13);
   });
 
   /** Fear is not on the ring, because "(affects Beasts only)" is not writable. */
