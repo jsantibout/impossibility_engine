@@ -17,7 +17,7 @@ import {
   type RollMode,
 } from '@ie/shared';
 import { type DamageComponent, rollAttackDamage } from '../attack.js';
-import { type Bonus, bonusesFor, type ModeSource } from '../bonuses.js';
+import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type CharacterSheet } from '../character.js';
 import { type D20TestResult, skillName } from '../checks.js';
 import { type ConditionState } from '../conditions.js';
@@ -25,7 +25,12 @@ import { type EffectCheck } from '../duration.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { sightBetween } from '../positioning.js';
 import { type SpellCheck } from '../spell-definitions.js';
-import { effectiveConditions, rollModesFor, standingSaveBonuses } from '../standing.js';
+import {
+  effectiveConditions,
+  rollModesFor,
+  standingBonuses,
+  standingSaveBonuses,
+} from '../standing.js';
 import { type Supply } from './casting.js';
 
 /**
@@ -48,7 +53,13 @@ export function recordD20Test(
     natural: result.natural,
     total: result.total,
     contributions: [
-      { source: 'modifier', amount: result.modifier },
+      // What is left of the modifier once every named flat bonus inside it has
+      // been named: the ability, the proficiency, and whatever else the sheet
+      // contributed. The named ones follow, so the sum is unchanged and a +1
+      // Longsword or an Aura of Protection reads as itself rather than as a
+      // bigger number nobody can account for.
+      { source: 'modifier', amount: result.modifier - flatBonusTotal(result.flatBonuses) },
+      ...result.flatBonuses.map((bonus) => ({ source: bonus.source, amount: bonus.flat ?? 0 })),
       ...result.bonuses.map((bonus) => ({ source: bonus.source, amount: bonus.total })),
     ],
     ...(outcome === undefined ? {} : { outcome }),
@@ -139,6 +150,10 @@ export function savingSupport(
   const merged = new Map<string, Bonus>();
   for (const bonus of bonusesFor(victim.bonuses, 'save')) merged.set(bonus.source, bonus);
   for (const bonus of standingSaveBonuses(state, who, ability)) merged.set(bonus.source, bonus);
+  // And the flat half: a Ring of Protection's "+1 bonus to ... saving throws".
+  // No narrowing is offered because a saving throw is not made *with* anything,
+  // which is the pairing `checkContent` refuses outright.
+  for (const bonus of standingBonuses(state, who, 'save')) merged.set(bonus.source, bonus);
   for (const bonus of supply.bonuses ?? []) merged.set(bonus.source, bonus);
 
   // A bare RollMode has no source to deduplicate on, so it rides through as
@@ -159,6 +174,41 @@ export function savingSupport(
     modes: [...bare, ...named.values()],
     conditions: effectiveConditions(state, who),
   };
+}
+
+/**
+ * The flat bonuses standing on a creature that reach an ability check.
+ *
+ * {@link savingSupport}'s thin counterpart, and thin for a reason: a saving
+ * throw has one command behind it and an ability check has four, each
+ * gathering its own modes from its own question. What they all lacked was the
+ * *bonuses* — a Stone of Good Luck's "+1 bonus to ability checks" reached none
+ * of them — so this is the one place that answer is worked out, rather than
+ * four places that could come to disagree.
+ *
+ * Deduplicated by source and the caller's copy wins, exactly as
+ * {@link savingSupport} merges, so a DM who also knows about the stone does not
+ * apply it twice.
+ *
+ * Initiative is one of the four: SRD makes it an ability check, which is why
+ * "a magic item's bonus applies" to it and why `rollInitiativeFor` asks here.
+ *
+ * No narrowing is offered. An ability check is not made *with* an object the
+ * way an attack is — the SRD's tool bonuses are worded as the character's, not
+ * the tool's — and `checkContent` refuses the pairing outright.
+ */
+export function checkBonuses(
+  state: GameState,
+  who: CharacterId,
+  supplied: readonly Bonus[] | undefined,
+): readonly Bonus[] {
+  const standing = standingBonuses(state, who, 'ability-check');
+  if (standing.length === 0) return supplied ?? [];
+
+  const merged = new Map<string, Bonus>();
+  for (const bonus of standing) merged.set(bonus.source, bonus);
+  for (const bonus of supplied ?? []) merged.set(bonus.source, bonus);
+  return [...merged.values()];
 }
 
 /**

@@ -52,7 +52,7 @@ import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
-import { recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
+import { checkBonuses, recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
 import { resolveEffects } from './spell-resolution.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
@@ -490,7 +490,9 @@ export function resolveEffectCheck(
       conditions: effectiveConditions(state, who),
       modes: [...fromFeatures, ...(command.modes ?? [])],
       ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
-      ...(command.bonuses === undefined ? {} : { bonuses: command.bonuses }),
+      // A worn item's "+1 bonus to ability checks", read rather than
+      // remembered — the rule the modes above already follow.
+      bonuses: checkBonuses(state, who, command.bonuses),
     });
     if (!rolled.ok) return rolled;
 

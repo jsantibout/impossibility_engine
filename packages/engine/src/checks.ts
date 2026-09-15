@@ -113,6 +113,22 @@ export interface D20Roll {
   readonly roll: RecordedD20;
   /** Everything static added to the die: ability, proficiency, flat bonuses. */
   readonly modifier: number;
+  /**
+   * The named flat bonuses inside {@link modifier}, so a log can say which.
+   *
+   * `modifier` is one number because that is what the die is rolled with; this
+   * is what it was made of. Without it a +1 Longsword, an Aura of Protection
+   * and an Exhaustion penalty all vanish into an unexplained total, which is
+   * the thing `roll-recorded.contributions` exists to prevent — and the
+   * arithmetic stays honest because these are a *part* of `modifier` rather
+   * than an addition to it.
+   *
+   * A bonus carrying both halves — a flat number *and* dice — appears twice
+   * under its one source, once here and once in {@link bonuses}. That is the
+   * truthful reading: the two halves land at different moments and only one of
+   * them is in `modifier`, and merging them would report a die as static.
+   */
+  readonly flatBonuses: readonly Bonus[];
   /** Bonuses that rolled dice. Flat ones are already in `modifier`. */
   readonly bonuses: readonly ResolvedBonus[];
   readonly total: number;
@@ -148,6 +164,7 @@ export function rollD20Test(
     modeSources,
     roll,
     modifier,
+    flatBonuses: bonuses.filter((bonus) => (bonus.flat ?? 0) !== 0),
     bonuses: rolled.value,
     total: roll.total + sumResolved(rolled.value),
   });
@@ -208,6 +225,8 @@ export interface D20TestResult {
   readonly natural: number;
   /** Everything static added to the die: ability, proficiency, flat bonuses. */
   readonly modifier: number;
+  /** The named flat bonuses inside `modifier` — see {@link D20Roll.flatBonuses}. */
+  readonly flatBonuses: readonly Bonus[];
   /** Bonuses that rolled dice, e.g. Guidance. Flat ones are already in `modifier`. */
   readonly bonuses: readonly ResolvedBonus[];
   readonly total: number;
@@ -263,7 +282,7 @@ function resolve(
   const rolled = rollD20Test(issuer, rng, baseModifier, modeSources, allBonuses);
   if (!rolled.ok) return rolled;
 
-  const { roll, modifier, bonuses, total } = rolled.value;
+  const { roll, modifier, flatBonuses, bonuses, total } = rolled.value;
   // A condition's own automatic failure first, because that is the one the
   // creature is carrying and the one a reader will expect to see named; the
   // outcome is identical either way, since there is nothing to combine.
@@ -280,6 +299,7 @@ function resolve(
     rolls: roll.rolls,
     natural: roll.natural,
     modifier,
+    flatBonuses,
     bonuses,
     total,
     autoFailed,

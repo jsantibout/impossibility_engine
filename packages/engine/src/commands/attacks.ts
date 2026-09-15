@@ -17,7 +17,7 @@ import {
   rollAttack,
   rollAttackDamage,
 } from '../attack.js';
-import { type Bonus, bonusesFor, type ModeSource } from '../bonuses.js';
+import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type Content } from '../content.js';
 import { spendAttack } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
@@ -37,6 +37,7 @@ import {
   checkFeatureDamageTypes,
   effectiveConditions,
   standingAttackDamage,
+  standingBonuses,
 } from '../standing.js';
 import {
   chooseRoute,
@@ -267,6 +268,17 @@ export function resolveAttack(
     const defending = defendingModes(state, id, command.target);
     unverified.push(...defending.unverified);
 
+    // Everything flat that reaches this roll, gathered before it is thrown so
+    // the log can name each piece. SRD Weapon, +1: "a bonus to attack rolls …
+    // made with this magic weapon" — the weapon in hand is what narrows it, so
+    // the bow in the same pack gets nothing.
+    const attackBonuses: readonly Bonus[] = [
+      ...standingBonuses(state, id, 'attack', { withItem: command.weapon }),
+      // Bless is on the creature, not in the caller's head.
+      ...bonusesFor(attacker.bonuses, 'attack'),
+      ...(command.attackBonuses ?? []),
+    ];
+
     const attack = rollAttack(supply.issuer, supply.rng, attacker.sheet, {
       weapon,
       targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
@@ -282,11 +294,7 @@ export function resolveAttack(
       modes: [...defending.modes, ...(command.modes ?? [])],
       beyondNormalRange: reach.value.beyondNormal,
       nearbyEnemy: nearby.near,
-      attackBonuses: [
-        // Bless is on the creature, not in the caller's head.
-        ...bonusesFor(attacker.bonuses, 'attack'),
-        ...(command.attackBonuses ?? []),
-      ],
+      attackBonuses,
       ...(command.damageBonuses === undefined ? {} : { damageBonuses: command.damageBonuses }),
       ...(command.extraDamage === undefined ? {} : { extraDamage: command.extraDamage }),
       // What actually bites: a condition a feature has suppressed gives nobody
@@ -297,13 +305,21 @@ export function resolveAttack(
     });
     if (!attack.ok) return attack;
 
+    const namedFlat = attackBonuses.filter((bonus) => (bonus.flat ?? 0) !== 0);
+
     events.push({
       type: 'roll-recorded',
       who: id,
       label: `${weapon?.name ?? 'Unarmed Strike'} attack`,
       natural: attack.value.roll.natural,
       total: attack.value.total,
-      contributions: [{ source: 'attack', amount: attack.value.roll.modifier }],
+      // The modifier, less every flat bonus that can name itself, and then
+      // those by name — so the sum is what it always was and what a +1 did is
+      // legible rather than folded into one unexplained number.
+      contributions: [
+        { source: 'attack', amount: attack.value.roll.modifier - flatBonusTotal(namedFlat) },
+        ...namedFlat.map((bonus) => ({ source: bonus.source, amount: bonus.flat ?? 0 })),
+      ],
       outcome: attack.value.hit ? 'hit' : 'miss',
       // Stamped on the roll rather than on the damage, because a miss deals none
       // and a missed swing must not be retryable.
@@ -380,7 +396,13 @@ export function resolveAttack(
         ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
         ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
         ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
-        damageBonuses: [...fromFeatures.bonuses, ...(command.damageBonuses ?? [])],
+        damageBonuses: [
+          // "…and damage rolls made with this magic weapon": a bonus of the
+          // weapon's own type, so it meets Resistance with the blade.
+          ...standingBonuses(state, id, 'damage', { withItem: command.weapon }),
+          ...fromFeatures.bonuses,
+          ...(command.damageBonuses ?? []),
+        ],
         extraDamage: [...fromFeatures.extra, ...(command.extraDamage ?? [])],
       },
       attack.value.critical,
@@ -630,7 +652,12 @@ export function resolveAttackDamage(
         ...(pending.finesseAbility === undefined
           ? {}
           : { finesseAbility: pending.finesseAbility }),
-        damageBonuses: [...fromFeatures.bonuses, ...(command.damageBonuses ?? [])],
+        damageBonuses: [
+          // The weapon the hit was made with was written down when it landed.
+          ...standingBonuses(current, id, 'damage', { withItem: pending.weapon }),
+          ...fromFeatures.bonuses,
+          ...(command.damageBonuses ?? []),
+        ],
         extraDamage: [...fromFeatures.extra, ...extra],
       },
       pending.critical,

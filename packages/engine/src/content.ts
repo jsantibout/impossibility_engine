@@ -169,11 +169,44 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set(['choice', '
 export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'roll-mode',
   'save-bonus',
+  'flat-bonus',
   'condition-immunity',
   'damage-resistance',
   'evasion',
   'attack-damage',
 ]);
+
+/**
+ * What a flat bonus may be aimed at — `StandingBonusApplies`, written out as
+ * data for a catalogue validated at runtime.
+ *
+ * Exported and held equal to the union by a derived test, for the reason
+ * {@link ITEM_EFFECT_KINDS} is: a member added to the type and not to this
+ * line would turn every item that used it into a refusal nobody meant, and a
+ * member here that the type does not have would be a benefit nothing applies.
+ *
+ * **`attack` is a weapon attack roll**, and an item whose line says "spell
+ * attack rolls" may not be written with it: the member that says that is
+ * `a-bonus-to-spell-attack-rolls` and it does not exist yet. See
+ * `StandingBonusApplies` for why it is a member of its own rather than a
+ * widening of this one.
+ */
+export const BONUS_APPLIES: ReadonlySet<string> = new Set([
+  'attack',
+  'save',
+  'ability-check',
+  'ac',
+  'damage',
+]);
+
+/**
+ * The two a roll can be *made with*, and so the two a narrowing may name.
+ *
+ * SRD Weapon, +1 writes "attack rolls and damage rolls made with this magic
+ * weapon" and stops there, because there is nothing else an object is used to
+ * gain: an Armour Class and a saving throw are had rather than made.
+ */
+const MADE_WITH_AN_ITEM: ReadonlySet<string> = new Set(['attack', 'damage']);
 
 /**
  * What an item's standing grant may require: every member of the union, held
@@ -346,6 +379,44 @@ function itemGrantProblems(item: CatalogueItem): readonly ContentProblem[] {
       }
       if (!ITEM_EFFECT_KINDS.has(effect.kind)) {
         say('bad_item_effect', `"${effect.kind}" is not a standing effect this engine grants`, on);
+        return;
+      }
+      if (effect.kind === 'flat-bonus') {
+        const applies = Array.isArray(effect.applies) ? effect.applies : null;
+        if (applies === null) {
+          say('bad_bonus_applies', 'a flat bonus names what it applies to as a list', `${on}.applies`);
+          return;
+        }
+        if (applies.length === 0) {
+          say(
+            'bonus_applies_to_nothing',
+            'a bonus that applies to nothing is a bonus nothing reads',
+            `${on}.applies`,
+          );
+        }
+        for (const aimed of applies) {
+          if (!BONUS_APPLIES.has(aimed)) {
+            say('bad_bonus_applies', `"${String(aimed)}" is not something a flat bonus reaches`, `${on}.applies`);
+          }
+        }
+        // A number, and a number that does something: the SRD's rarities print
+        // 1, 2 and 3, and a +0 is an item whose line silently does nothing.
+        if (!Number.isInteger(effect.flat)) {
+          say('bad_bonus_amount', 'a flat bonus is a whole number of points', `${on}.flat`);
+        } else if (effect.flat === 0) {
+          say('bonus_of_nothing', 'a bonus of zero adds nothing to anything', `${on}.flat`);
+        }
+        // "Made with this magic weapon" is a clause about a roll somebody makes
+        // with an object in hand. An Armour Class is not one, so a narrowing on
+        // it could never hold, and a benefit that never holds is the failure
+        // this validator exists to refuse.
+        if (effect.onlyWithItem === true && applies.some((aimed) => !MADE_WITH_AN_ITEM.has(aimed))) {
+          say(
+            'narrowing_without_a_roll',
+            `only ${[...MADE_WITH_AN_ITEM].join(' and ')} rolls are made *with* an item, so "made with this item" could never hold for the rest`,
+            `${on}.onlyWithItem`,
+          );
+        }
         return;
       }
       if (effect.kind === 'roll-mode') {
@@ -553,6 +624,18 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
               field: `${where}.grants.requires[${position}]`,
               code: 'item_requirement_on_a_feature',
               reason: `"${requirement.kind}" is read against the id of the item granting it, and a class feature is not an item, so this would never hold`,
+            });
+          }
+        });
+        // And the narrowing, which is the same door in the same wall: it is
+        // keyed on the granting item's id, and a class feature has none, so
+        // the benefit would never reach a roll at all.
+        (feature.grants.effects ?? []).forEach((effect, position) => {
+          if (effect.kind === 'flat-bonus' && effect.onlyWithItem === true) {
+            problems.push({
+              field: `${where}.grants.effects[${position}].onlyWithItem`,
+              code: 'item_narrowing_on_a_feature',
+              reason: `"made with this item" is read against the id of the item granting it, and a class feature is not an item, so ${feature.id} would grant nothing`,
             });
           }
         });

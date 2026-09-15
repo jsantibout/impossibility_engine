@@ -19,7 +19,7 @@ import {
 } from '../events.js';
 import { effectiveConditions } from '../standing.js';
 import { ongoingSpellsOn } from './ongoing.js';
-import { recordD20Test, savingSupport } from './rolls.js';
+import { checkBonuses, recordD20Test, savingSupport } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /**
@@ -71,7 +71,10 @@ export function resolveDispelEffect(
           dc: 10 + spell.level,
           conditions: effectiveConditions(current, casterId),
           ...(supply.modes === undefined ? {} : { modes: supply.modes }),
-          ...(supply.bonuses === undefined ? {} : { bonuses: supply.bonuses }),
+          // A worn item's "+1 bonus to ability checks" reaches this one too:
+          // the SRD makes it an ability check, and says nothing that excludes
+          // it. One gatherer, so the four check sites cannot disagree.
+          bonuses: checkBonuses(current, casterId, supply.bonuses),
         },
       );
       if (!check.ok) return check;

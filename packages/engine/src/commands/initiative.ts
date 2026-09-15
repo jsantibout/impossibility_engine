@@ -28,6 +28,7 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import { type RollIssuer } from '../rolls.js';
 import { effectiveConditions, rollModesFor } from '../standing.js';
 import { creatureOf, unknownCreature } from './command.js';
+import { checkBonuses } from './rolls.js';
 
 /**
  * Roll Initiative for a creature, with whatever its own features contribute.
@@ -48,8 +49,11 @@ export function rollInitiativeFor(
   const creature = creatureOf(state, id);
   if (creature === null) return unknownCreature(id);
 
+  // SRD makes Initiative an ability check, so "a magic item's bonus applies" —
+  // gathered by the one function that answers that for every check, and merged
+  // with the caller's before the feat's own bonuses are.
+  const supplied = checkBonuses(state, id, options.bonuses);
   const own = creature.initiativeBonuses;
-  const supplied = options.bonuses ?? [];
   const mine = own.filter((bonus) => !supplied.some((other) => other.source === bonus.source));
 
   // SRD Feral Instinct and Remarkable Athlete both say "Advantage on

@@ -7,7 +7,7 @@ import {
   type Result,
   type RollMode,
 } from '@ie/shared';
-import type { Bonus, ModeSource } from './bonuses.js';
+import type { Bonus, ModeSource, StandingBonusApplies } from './bonuses.js';
 import {
   grantedRollModes,
   selectorMatches,
@@ -113,6 +113,58 @@ export type StandingGrant =
    * sheet rather than the beneficiary's.
    */
   | { readonly kind: 'save-bonus'; readonly fromAbility: Ability; readonly minimum: number }
+  /**
+   * A flat number added to something, with the item or feature's name on it.
+   *
+   * **The commonest sentence in the book, and the one shape this union did not
+   * have.** `save-bonus` above is Aura of Protection's — a number *derived*
+   * from an ability, which is why it is its own member — and `attack-damage`
+   * below is a feature's extra die. Between them they could not say "+1 bonus
+   * to Armor Class", which the SRD prints on dozens of items and on nothing
+   * else in the engine.
+   *
+   * **It is the spell side's shape admitted here**, the way `roll-mode` is
+   * `RollModifier` admitted here: `ActiveBonus` has carried `applies` and a
+   * flat number since Shield of Faith, and reading a second vocabulary for the
+   * same arithmetic is how two mechanisms come to disagree. What differs is
+   * the lifetime — a spell's bonus starts at a moment and is stored, this one
+   * is derived on every read — and the one thing a spell never needed:
+   *
+   * **the narrowing.** SRD Weapon, +1: "a bonus to attack rolls and damage
+   * rolls **made with this magic weapon**". A spell hangs its bonus on a
+   * creature and is done; an item's rides on the *object*, so a +1 Longsword
+   * must do nothing for the bow in the same pack. {@link onlyWithItem} is that
+   * clause, and {@link StandingEffect.feature} is the item it names.
+   *
+   * Flat, and only flat. Every bonus the SRD prints in this shape is a number
+   * — the rarity decides whether it is 1, 2 or 3 — and an Armour Class has no
+   * moment at which a die could be thrown for it. A feature that rolled would
+   * be `attack-damage` or a caller's `Bonus`, both of which already exist.
+   */
+  | {
+      readonly kind: 'flat-bonus';
+      /**
+       * SRD "to Armor Class and saving throws": one sentence, two targets.
+       *
+       * `attack` is a **weapon** attack roll here. A spell attack gathers no
+       * standing bonus, and the member that would reach one is
+       * `a-bonus-to-spell-attack-rolls`, named and deliberately absent — see
+       * {@link StandingBonusApplies}.
+       */
+      readonly applies: readonly StandingBonusApplies[];
+      /** Signed, so a cursed item's penalty needs no second mechanism. */
+      readonly flat: number;
+      /**
+       * SRD Weapon, +1: "made with this magic weapon" — and with no other.
+       *
+       * Keyed on {@link StandingEffect.feature}, which carries the granting
+       * item's id, so the narrowing needs no second field to look anything up
+       * in. Legal only where a roll is *made with* something: an Armour Class
+       * and a saving throw are not, and `checkContent` refuses the pairing
+       * rather than accepting a benefit that could never hold.
+       */
+      readonly onlyWithItem?: boolean;
+    }
   /**
    * SRD Aura of Courage: "Immunity to the Frightened condition while in your
    * Aura of Protection. If a Frightened ally enters the aura, that condition
@@ -750,6 +802,70 @@ export function standingSaveBonuses(
 }
 
 /**
+ * What a roll is being made *with*, for the one clause that asks.
+ *
+ * The catalogue id of the weapon in hand, or null for an Unarmed Strike and
+ * for every roll no object is made with — an Armour Class, a saving throw, a
+ * Dexterity check. Absent is not null: a caller that does not know reads the
+ * same as a roll made with nothing, which is the conservative direction.
+ */
+export interface BonusContext {
+  readonly withItem?: string | null;
+}
+
+/**
+ * Flat bonuses this creature's standing effects add to one kind of thing.
+ *
+ * {@link standingSaveBonuses}' sibling, and the general one: that answers only
+ * for Aura of Protection's ability-derived shape, this for the flat number an
+ * item prints. Both are here rather than at their readers because whether a
+ * benefit applies changes when somebody walks away, and neither is stored.
+ *
+ * **Stacking is the SRD's own sentence**, and it is the reason the best is
+ * keyed by `feature`. "Different game features can affect a target at the same
+ * time. But when two or more game features have the same name, only the
+ * effects of one of them — the most potent — apply while the durations of the
+ * effects overlap." The granting item's id *is* the name, so a Ring of
+ * Protection and a Cloak of Protection are +2 and two rings are +1 — the same
+ * reading `standingSaveBonuses` takes for two Paladins' auras.
+ *
+ * "Most potent" is read as the larger number, which is right for every bonus
+ * the SRD prints and **unsettled for a penalty**: two same-named cursed items
+ * would keep the gentler of the two, where "most potent" arguably means the
+ * harsher. It is written down rather than guessed because no such item exists
+ * to decide it — `flat` is signed so one could — and a test freezing today's
+ * answer would be the engine settling a question the book has not asked.
+ *
+ * `withItem` narrows: an effect that says "made with this magic weapon" is
+ * withheld from every roll made with anything else, including the rolls no
+ * object is made with at all.
+ */
+export function standingBonuses(
+  state: GameState,
+  who: CharacterId,
+  applies: StandingBonusApplies,
+  context: BonusContext = {},
+): readonly Bonus[] {
+  const best = new Map<string, Bonus>();
+  const withItem = context.withItem ?? null;
+
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'flat-bonus') continue;
+    if (!effect.grant.applies.includes(applies)) continue;
+    // "Made with this magic weapon", and with no other.
+    if (effect.grant.onlyWithItem === true && withItem !== effect.feature) continue;
+
+    const flat = effect.grant.flat;
+    const current = best.get(effect.feature);
+    if (current === undefined || (current.flat ?? 0) < flat) {
+      best.set(effect.feature, { source: effect.name, flat });
+    }
+  }
+
+  return [...best.values()];
+}
+
+/**
  * Every Advantage and Disadvantage that reaches this roll, from anywhere.
  *
  * **The one gatherer.** A class feature's derived grant and a spell's durable
@@ -996,6 +1112,11 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
     const flat = active.bonus.flat ?? 0;
     total += active.direction === 'subtract' ? -flat : flat;
   }
+  // And the other lifetime: what a worn item is granting right now. Derived
+  // rather than stored, so taking the ring off takes the +1 with it without
+  // anything having to remember to. No item is used to *gain* an Armour Class,
+  // so there is nothing for a narrowing to match and none may be declared.
+  for (const bonus of standingBonuses(state, who, 'ac')) total += bonus.flat ?? 0;
   return total;
 }
 

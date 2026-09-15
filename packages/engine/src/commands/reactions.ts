@@ -68,7 +68,7 @@ import {
   spendReactionCost,
 } from './damage.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
-import { recordD20Test, savingSupport } from './rolls.js';
+import { checkBonuses, recordD20Test, savingSupport } from './rolls.js';
 
 export interface DamageReactionCommand extends CommandIdentity {
   readonly feature: string;
@@ -455,7 +455,10 @@ export function resolveTest(
               ...(command.modes ?? []),
             ],
             ...(command.senses === undefined ? {} : { conditionContext: command.senses }),
-            ...(command.bonuses === undefined ? {} : { bonuses: command.bonuses }),
+            // The other half of "everything standing on this creature": the
+            // saving-throw branch above gets it from `savingSupport`, and a
+            // worn item's "+1 bonus to ability checks" reaches this one.
+            bonuses: checkBonuses(state, who, command.bonuses),
           });
     if (!rolled.ok) return rolled;
 

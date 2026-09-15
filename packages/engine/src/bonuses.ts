@@ -54,6 +54,38 @@ export interface Bonus {
 export type BonusApplies = 'attack' | 'save' | 'ability-check' | 'ac';
 
 /**
+ * What a *standing* flat bonus applies to: everything above, and damage.
+ *
+ * **Damage is on this side only, and that is a fact about the two lifetimes
+ * rather than an oversight.** A spell that adds damage adds it as a rider or
+ * as `extraDamage` on the casting that deals it — there is a moment, a source
+ * and a type — so `bonusesFor` has never had a damage reader and a member
+ * here would be data nothing applies. A magic weapon has no such moment: "a
+ * bonus to attack rolls **and damage rolls** made with this magic weapon" is
+ * one sentence with two halves, derived on every swing, and splitting it
+ * across two grant kinds would let an item carry half of a line the SRD never
+ * writes by halves.
+ *
+ * Widening `BonusApplies` itself would put an unread member in the spell
+ * vocabulary, which is the failure the content validator exists to prevent.
+ *
+ * **`attack` is narrower on this side than on the other, and the difference is
+ * a named missing shape rather than a decision.** A spell's `ActiveBonus`
+ * aimed at `attack` reaches a spell attack roll as well as a weapon one; a
+ * standing bonus aimed at it reaches the weapon attack alone, because that is
+ * the only attack path that gathers one. Closing the gap by wiring it into
+ * `resolveEffects` would be the *wrong* fix, because every SRD item that
+ * bonuses a spell attack bonuses **only** that — Rod of the Pact Keeper's "+1
+ * bonus to spell attack rolls and to the saving throw DCs", Staff of Power's
+ * "+2 bonus to Armor Class, saving throws, and spell attack rolls" — so the
+ * member they want is `spell-attack`, beside this one and not inside it. It is
+ * named here (`a-bonus-to-spell-attack-rolls`) so that whoever transcribes
+ * those items finds the gap before writing `attack` and getting a weapon bonus
+ * they did not mean.
+ */
+export type StandingBonusApplies = BonusApplies | 'damage';
+
+/**
  * A bonus an ongoing effect has hung on a creature.
  *
  * `Bonus` is a modifier a caller passes to one roll. This is the same thing
