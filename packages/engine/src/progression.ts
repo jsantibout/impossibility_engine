@@ -76,6 +76,29 @@ export type FeatureChoice =
   | { readonly kind: 'subclass'; readonly choose: 1 }
   | { readonly kind: 'feat'; readonly choose: number; readonly category?: string };
 
+/**
+ * What one option of a feature's choice *means* to whatever is written in
+ * terms of it.
+ *
+ * The other half of a table the SRD prints beside a choice: one column is the
+ * options the player picks from, and the rest of the row is what the picked
+ * one supplies to the traits written as "determined by" it — an ancestry and
+ * the damage type that goes with it. Without this the second column could not
+ * be transcribed at all, because nothing could read it, and a table with no
+ * reader is worse than an absent one.
+ *
+ * **Every field is optional and the reader is the judge.** A meaning carrying
+ * nothing this engine knows is data written against a later one rather than
+ * data that is wrong — the rule the feature validator already follows for an
+ * unknown field. What refuses it is the grant that came to read something
+ * specific and found nothing, which `checkContent` asks because only it can
+ * see both halves.
+ */
+export interface FeatureOptionMeaning {
+  /** The damage types this option supplies to a grant that reads them. */
+  readonly damageTypes?: readonly string[];
+}
+
 export interface FeatureDefinition {
   /** Namespaced and stable: `wizard:arcane-recovery`. */
   readonly id: string;
@@ -89,6 +112,16 @@ export interface FeatureDefinition {
   readonly note: string;
   /** What the player must decide when they gain it. */
   readonly choice?: FeatureChoice;
+  /**
+   * What each option of that choice means to the features written in terms of
+   * it — see {@link FeatureOptionMeaning}.
+   *
+   * Keyed by the option exactly as the choice offers it, and the validator
+   * holds the keys to *exactly* the options: a table missing one would leave a
+   * legal character with a benefit that silently did nothing, and a table with
+   * a key nobody can choose is a row of a different book.
+   */
+  readonly optionMeans?: Readonly<Record<string, FeatureOptionMeaning>>;
   /** Set on the feature that opens a subclass, so creation knows to ask. */
   readonly grantsSubclass?: boolean;
   /**
@@ -210,6 +243,23 @@ export type FeatureGrant =
       readonly requires?: readonly StandingRequirement[];
       /** The damage types come from the choice this feature asked for. */
       readonly damageTypesFromChoice?: boolean;
+      /**
+       * Where that choice was made, when it was not made on this feature.
+       *
+       * The SRD writes a species as one trait that asks which ancestry,
+       * lineage or legacy you have and later traits written as "determined by"
+       * it. The choice is one fact and belongs to one feature; a second
+       * feature restating it would be the player typing an answer they have
+       * already given, and two places to disagree about it.
+       *
+       * So a grant may name the feature whose choice it reads, and the
+       * validator holds the name to a **sibling** — a feature of the same
+       * class, subclass, species or background — that asks a choice and does
+       * not arrive later than this one. Both things a grant reads off a choice
+       * follow it: the damage types above and the option gate below. Absent
+       * means this feature's own choice, which is the ordinary case.
+       */
+      readonly choiceFrom?: string;
       /** SRD Aura Expansion: this feature makes the aura this many feet. */
       readonly auraFeet?: number;
       /**

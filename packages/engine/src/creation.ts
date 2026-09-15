@@ -1765,18 +1765,25 @@ export function planCharacter(
     0,
   );
 
+  const byFeatureId = new Map(features.map((feature) => [feature.id, feature]));
+
   const standing: StandingEffect[] = [];
   for (const feature of features) {
     const grant = feature.grants;
     if (grant?.kind !== 'standing') continue;
+    // Where the choice this grant reads was made. Its own feature unless the
+    // grant names a sibling — which is how the SRD writes a species: one trait
+    // asks which ancestry, lineage or legacy you are and the later ones are
+    // written in terms of it. The content validator has already held the name
+    // to a sibling that asks something.
+    const chooser = byFeatureId.get(grant.choiceFrom ?? feature.id);
+    const picked = choices.featureChoices[chooser?.id ?? feature.id] ?? [];
+
     // SRD "You gain one of the following options of your choice": a feature
     // whose player took the other option grants nothing at all. Checked before
     // the effects rather than inside them, because the whole grant belongs to
     // the option.
-    if (
-      grant.onlyIfChoice !== undefined &&
-      !(choices.featureChoices[feature.id] ?? []).includes(grant.onlyIfChoice)
-    ) {
+    if (grant.onlyIfChoice !== undefined && !picked.includes(grant.onlyIfChoice)) {
       continue;
     }
 
@@ -1785,13 +1792,22 @@ export function planCharacter(
       // SRD Elemental Affinity chooses its damage type at the table; the grant
       // says the types come from the choice rather than naming them, because
       // the feature does not know which one the player picked.
+      //
+      // And where the option is not itself a damage type — an ancestry, a
+      // legacy — the feature that asked declares what each of its options
+      // *means*, which is the other column of the table the book prints beside
+      // the choice. Read from the chooser, because the table belongs to the
+      // question rather than to any of the traits written in terms of it.
+      const meanings = chooser?.optionMeans;
       let effect: StandingGrant =
         grant.damageTypesFromChoice === true && declared.kind === 'damage-resistance'
           ? {
               ...declared,
-              damageTypes: (choices.featureChoices[feature.id] ?? []).map((type) =>
-                type.toLowerCase(),
-              ),
+              damageTypes: picked
+                .flatMap((option) =>
+                  meanings === undefined ? [option] : (meanings[option]?.damageTypes ?? []),
+                )
+                .map((type) => type.toLowerCase()),
             }
           : declared;
 

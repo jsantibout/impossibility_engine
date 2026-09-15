@@ -148,7 +148,12 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
 ]);
 
 /** The optional `FeatureDefinition` fields a reader dereferences — see {@link READABLE_GRANT_KINDS}. */
-export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set(['choice', 'grants', 'grantsFeat']);
+export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
+  'choice',
+  'grants',
+  'grantsFeat',
+  'optionMeans',
+]);
 
 /**
  * The `StandingGrant` kinds an item may carry, and the one it may not.
@@ -820,6 +825,59 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             code: 'bad_executed_by',
             reason: `${feature.id} says ${feature.executedBy} executes it, and no feature of that id on ${source.where} declares anything a reader reads`,
           });
+        }
+      }
+      // A grant written in terms of another feature's choice — the SRD's
+      // ancestries, lineages and legacies. The half a definition cannot check
+      // for itself: whether the feature it names is a sibling that asks
+      // anything, and whether the table on that sibling supplies what this
+      // grant came to read. Both failures look perfectly well formed one
+      // definition at a time and grant nothing at all.
+      if (feature.grants?.kind === 'standing') {
+        const grant = feature.grants;
+        const from = grant.choiceFrom;
+        const chooser = from === undefined ? feature : own.get(from);
+        if (from !== undefined && (chooser === undefined || chooser.id === feature.id)) {
+          problems.push({
+            field: `${where}.grants.choiceFrom`,
+            code: 'bad_choice_from',
+            reason:
+              chooser === undefined
+                ? `${feature.id} reads the choice made on ${from}, and ${source.where} has no such feature — a choice is read from a sibling of the same source, because that is the only place one is guaranteed to have been asked`
+                : `${feature.id} names itself as where its choice was made, which is what leaving the field out already says`,
+          });
+        } else if (chooser !== undefined) {
+          if (from !== undefined && chooser.choice === undefined) {
+            problems.push({
+              field: `${where}.grants.choiceFrom`,
+              code: 'choice_from_asks_nothing',
+              reason: `${feature.id} reads the choice made on ${chooser.id}, and ${chooser.id} asks the player for nothing`,
+            });
+          } else if (from !== undefined && chooser.level > feature.level) {
+            problems.push({
+              field: `${where}.grants.choiceFrom`,
+              code: 'choice_from_arrives_later',
+              reason: `${feature.id} arrives at level ${feature.level} and reads a choice ${chooser.id} does not ask until ${chooser.level}, so it would grant nothing in between and say so nowhere`,
+            });
+          }
+          // And the table, wherever it sits: a grant reading damage types out
+          // of one needs every meaning to carry some. A meaning carrying
+          // nothing this engine knows is legal until something reads it.
+          const table = chooser.optionMeans;
+          if (table !== undefined && grant.damageTypesFromChoice === true) {
+            // The path points at the table, which is on the feature that asked
+            // the question rather than on the one reading the answer.
+            const at = source.features.indexOf(chooser);
+            for (const [option, meaning] of Object.entries(table)) {
+              if (meaning?.damageTypes === undefined) {
+                problems.push({
+                  field: `${source.where}.features[${at}].optionMeans.${option}`,
+                  code: 'option_means_unusable',
+                  reason: `${feature.id} reads damage types out of ${chooser.id}'s table, and ${option} names none, so a character who took it would resist nothing`,
+                });
+              }
+            }
+          }
         }
       }
       // A feat a feature grants outright has to exist, when the catalogue holds feats at all.

@@ -27,7 +27,7 @@ import {
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent } from './events.js';
 import { declaredCasting } from './spellcasting.js';
-import { rollModesFor } from './standing.js';
+import { defensesOf, rollModesFor } from './standing.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
 
@@ -380,6 +380,227 @@ describe('a homebrew class goes through the same door as the book', () => {
     const refused = createCharacter(SRD_CONTENT, bloodhunter(), WHO);
     expect(isErr(refused)).toBe(true);
     if (isErr(refused)) expect(refused.code).toBe('unknown_class');
+  });
+});
+
+/**
+ * A homebrew species whose second trait is written in terms of the first's
+ * choice, through a table the species itself declares.
+ *
+ * The shape the SRD prints on every ancestry, lineage and legacy: one trait
+ * asks which you are, and later traits say "determined by" it. Two halves in
+ * the vocabulary and neither is a catalogue — a grant that names the sibling
+ * whose choice it reads, and a table on that sibling saying what each option
+ * supplies. The ten dragons and their ten damage types live in `@ie/content`,
+ * where the rest of the book does.
+ */
+const EMBERKIN = JSON.stringify({
+  id: 'emberkin',
+  name: 'Emberkin',
+  creatureType: 'Humanoid',
+  sizes: ['Medium'],
+  speed: 30,
+  features: [
+    {
+      id: 'emberkin:elemental-kinship',
+      name: 'Elemental Kinship',
+      level: 1,
+      automation: 'engine',
+      note: 'The chosen kinship is recorded, and the damage type printed beside it is what the Kindled Hide trait reads.',
+      choice: { kind: 'option', choose: 1, from: ['Ember', 'Frost'] },
+      optionMeans: {
+        Ember: { damageTypes: ['fire'] },
+        Frost: { damageTypes: ['cold'] },
+      },
+    },
+    {
+      id: 'emberkin:kindled-hide',
+      name: 'Kindled Hide',
+      level: 1,
+      automation: 'engine',
+      note: 'Resistance to the damage type your Elemental Kinship names.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'damage-resistance', damageTypes: [] }],
+        damageTypesFromChoice: true,
+        choiceFrom: 'emberkin:elemental-kinship',
+      },
+    },
+  ],
+});
+
+/** A level 1 Criminal Fighter of whichever kinship, or of none. */
+const emberkin = (kinship: readonly string[] | null): CharacterChoices => ({
+  name: 'Sable',
+  classId: 'fighter',
+  level: 1,
+  speciesId: 'emberkin',
+  backgroundId: 'criminal',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 },
+  },
+  abilityIncreases: { dex: 2, con: 1 },
+  classSkills: ['athletics', 'survival'],
+  languages: ['Draconic', 'Elvish'],
+  alignment: 'Neutral',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices:
+    kinship === null ? {} : { 'emberkin:elemental-kinship': kinship },
+  feats: {
+    'fighter:fighting-style': { featId: 'defense' },
+    'criminal:alert': { featId: 'alert' },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+});
+
+describe('a homebrew species reads a sibling trait’s choice, and needs no engine change', () => {
+  // Through the JSON door first, exactly as a DM's file would arrive, and then
+  // beside the book so a character can have a class as well as a species.
+  const loaded = unwrap(loadContent({ species: [JSON.parse(EMBERKIN)] }), 'load');
+  const content = unwrap(
+    extendContent(SRD_CONTENT, { species: [...loaded.species] }),
+    'extend',
+  );
+  const WHO = id('sable');
+
+  const defensesFor = (kinship: string): Readonly<Record<string, unknown>> => {
+    const log = unwrap(createCharacter(content, emberkin([kinship]), WHO), 'create');
+    return defensesOf(fold('seed', log), WHO);
+  };
+
+  it('is parsed from JSON and validated beside the printed species', () => {
+    expect(content.speciesById('emberkin')?.features).toHaveLength(2);
+    expect(SRD_CONTENT.speciesById('emberkin')).toBeNull();
+  });
+
+  it('resists the type its sibling’s choice names, and nothing else', () => {
+    expect(defensesFor('Ember').fire).toMatchObject({ resistant: true });
+    expect(defensesFor('Ember').cold).toBeUndefined();
+    expect(defensesFor('Frost').cold).toMatchObject({ resistant: true });
+    expect(defensesFor('Frost').fire).toBeUndefined();
+  });
+
+  /**
+   * And the choice is a choice: creation refuses a character who never made
+   * it, rather than building one whose second trait quietly resists nothing.
+   *
+   * A **refusal** and not a `needs-context`, which is the honest answer here:
+   * `needs-context` is for a fact about the world that an authoritative
+   * provider can establish — a position, a sight line, a creature's type — and
+   * every one has a command that supplies it. A creation choice is the
+   * caller's own form, answered by filling the field the problem names, and
+   * every other missing choice in `checkCharacter` already reads that way.
+   */
+  it('refuses a character who never made the sibling’s choice', () => {
+    const refused = createCharacter(content, emberkin(null), WHO);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) {
+      expect(refused.code).toBe('missing_feature_choice');
+      expect(refused.kind).toBe('refusal');
+      expect(refused.reason).toContain('emberkin:elemental-kinship');
+    }
+    expect(
+      checkCharacter(content, emberkin(null)).map((problem) => problem.field),
+    ).toContain('featureChoices');
+  });
+});
+
+/**
+ * The half of that shape a single definition cannot answer: whether the
+ * sibling a grant names is really a sibling, really asks a choice, and really
+ * supplies what the grant came to read.
+ */
+describe('a grant that reads a sibling’s choice is held to a sibling', () => {
+  const species = JSON.parse(EMBERKIN) as {
+    features: { id: string; level: number; choice?: unknown; optionMeans?: unknown; grants?: Record<string, unknown> }[];
+  };
+
+  /** The Emberkin with its two features altered, through the whole validator. */
+  const codesOf = (
+    change: (parsed: typeof species) => void,
+  ): readonly string[] => {
+    const copy = JSON.parse(EMBERKIN) as typeof species;
+    change(copy);
+    return checkContent({ species: [copy as never] }).map((problem) => problem.code);
+  };
+
+  it('accepts the species as written, so the refusals below are not free', () => {
+    expect(codesOf(() => {})).toEqual([]);
+  });
+
+  it('refuses a sibling id no feature of this species carries', () => {
+    expect(
+      codesOf((copy) => {
+        copy.features[1]!.grants!['choiceFrom'] = 'emberkin:a-trait-nobody-wrote';
+      }),
+    ).toContain('bad_choice_from');
+  });
+
+  /** A class feature is a fine feature and is not this species' sibling. */
+  it('refuses a feature that exists, on somebody else’s source', () => {
+    const codes = checkContent({
+      classes: [JSON.parse(BLOODHUNTER)],
+      species: [
+        (() => {
+          const copy = JSON.parse(EMBERKIN) as typeof species;
+          copy.features[1]!.grants!['choiceFrom'] = 'bloodhunter:crimson-rite';
+          return copy as never;
+        })(),
+      ],
+    }).map((problem) => problem.code);
+    expect(codes).toContain('bad_choice_from');
+  });
+
+  it('refuses a grant that names itself, which is the field saying nothing', () => {
+    expect(
+      codesOf((copy) => {
+        copy.features[1]!.grants!['choiceFrom'] = 'emberkin:kindled-hide';
+      }),
+    ).toContain('bad_choice_from');
+  });
+
+  it('refuses a sibling that asks no choice', () => {
+    expect(
+      codesOf((copy) => {
+        delete copy.features[0]!.choice;
+        delete copy.features[0]!.optionMeans;
+      }),
+    ).toContain('choice_from_asks_nothing');
+  });
+
+  /**
+   * A choice made at level 5 and read at level 1 is a benefit that grants
+   * nothing for four levels and says so nowhere.
+   */
+  it('refuses a sibling whose choice is not made until later', () => {
+    expect(
+      codesOf((copy) => {
+        copy.features[0]!.level = 5;
+      }),
+    ).toContain('choice_from_arrives_later');
+  });
+
+  /**
+   * And the table has to supply what the reader came for. A meaning carrying
+   * nothing this engine knows is legal data — it may be written for a later
+   * one — right up until a grant reads damage types out of it.
+   */
+  it('refuses a table whose meanings the reading grant cannot use', () => {
+    const copy = JSON.parse(EMBERKIN) as typeof species;
+    copy.features[0]!.optionMeans = { Ember: {}, Frost: { damageTypes: ['cold'] } };
+    const problems = checkContent({ species: [copy as never] });
+    expect(problems.map((problem) => problem.code)).toEqual(['option_means_unusable']);
+    // And the path points at the table, which is on the feature that asked the
+    // question rather than on the one that came to read the answer.
+    expect(problems[0]?.field).toBe('species[emberkin].features[0].optionMeans.Ember');
   });
 });
 

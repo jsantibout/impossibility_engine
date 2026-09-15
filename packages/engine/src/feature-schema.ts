@@ -1,5 +1,5 @@
 import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
-import type { FeatureDefinition, PoolSizing } from './progression.js';
+import type { FeatureDefinition, FeatureOptionMeaning, PoolSizing } from './progression.js';
 
 /**
  * Whether a feature definition is *coherent*, asked of a value rather than of a
@@ -330,6 +330,87 @@ export function checkFeatureDefinition(
     }
   }
 
+  // Rule 8, the half a definition can answer about itself — rule 7 is the
+  // population's and lives below. The other half, whether the sibling a grant
+  // names exists and asks anything, is `checkContent`'s: it needs the source
+  // this feature belongs to, which a feature does not know.
+  const table = feature.optionMeans;
+  if (table !== undefined) {
+    const asked = feature.choice;
+    if (asked === undefined || asked.kind !== 'option') {
+      found.push({
+        field: 'optionMeans',
+        code: 'table_without_a_choice',
+        reason:
+          asked === undefined
+            ? 'a table of what each option means is keyed by a choice, and this feature asks for none'
+            : `a "${asked.kind}" choice offers no named options for a table to be keyed by`,
+      });
+    } else {
+      const offered = new Set(asked.from);
+      for (const option of asked.from) {
+        if (!Object.prototype.hasOwnProperty.call(table, option)) {
+          found.push({
+            field: `optionMeans.${option}`,
+            code: 'option_missing_from_table',
+            reason: `the choice offers ${option} and the table says nothing about it, so a character who took it would get nothing and nothing would say so`,
+          });
+        }
+      }
+      for (const key of Object.keys(table)) {
+        if (!offered.has(key)) {
+          found.push({
+            field: `optionMeans.${key}`,
+            code: 'unknown_option_in_table',
+            reason: `the table says what ${key} means and the choice does not offer it, so nobody can pick it`,
+          });
+        }
+      }
+    }
+
+    // The values, whatever the keys came to. An unknown *field* on a meaning
+    // is left alone — see {@link FeatureOptionMeaning} — but a field this
+    // engine does know has to be the shape it knows.
+    for (const [key, meaning] of Object.entries(table)) {
+      if (typeof meaning !== 'object' || meaning === null || Array.isArray(meaning)) {
+        found.push({
+          field: `optionMeans.${key}`,
+          code: 'bad_option_meaning',
+          reason: 'what an option means is an object saying what it supplies',
+        });
+        continue;
+      }
+      const types = (meaning as FeatureOptionMeaning).damageTypes;
+      if (
+        types !== undefined &&
+        (!Array.isArray(types) ||
+          types.length === 0 ||
+          types.some((type) => typeof type !== 'string' || type.trim().length === 0))
+      ) {
+        found.push({
+          field: `optionMeans.${key}.damageTypes`,
+          code: 'bad_option_meaning',
+          reason: 'damage types an option supplies are a non-empty list of named types',
+        });
+      }
+    }
+  }
+
+  // And the reading end of the same rule: the field says where a choice is
+  // read *from*, so a grant that reads no choice names a source for nothing.
+  if (
+    grant?.kind === 'standing' &&
+    grant.choiceFrom !== undefined &&
+    grant.damageTypesFromChoice !== true &&
+    grant.onlyIfChoice === undefined
+  ) {
+    found.push({
+      field: 'grants.choiceFrom',
+      code: 'choice_from_reads_nothing',
+      reason: `${feature.id} says its choice is made on ${grant.choiceFrom} and nothing on the grant reads a choice`,
+    });
+  }
+
   return found;
 }
 
@@ -375,6 +456,16 @@ function checkFeatureShape(value: unknown): FeatureDefinitionProblem | null {
   if (record['executedBy'] !== undefined && typeof record['executedBy'] !== 'string') {
     return { field: 'executedBy', code: 'bad_feature_shape', reason: 'executedBy names a feature id' };
   }
+  // Rule 8 walks the table's keys and its values; a string here would walk as
+  // an array of characters and report options nobody wrote.
+  const table = record['optionMeans'];
+  if (table !== undefined && (typeof table !== 'object' || table === null || Array.isArray(table))) {
+    return {
+      field: 'optionMeans',
+      code: 'bad_feature_shape',
+      reason: 'a table of what each option means is an object keyed by the option',
+    };
+  }
   for (const field of ['id', 'name', 'automation', 'note'] as const) {
     if (typeof record[field] !== 'string') {
       return {
@@ -403,6 +494,15 @@ function checkFeatureShape(value: unknown): FeatureDefinitionProblem | null {
       field: 'grants.kind',
       code: 'bad_feature_shape',
       reason: 'a grant says which kind it is, as a string',
+    };
+  }
+
+  // Rule 8's reading end names a feature, exactly as `executedBy` does.
+  if (grant['choiceFrom'] !== undefined && typeof grant['choiceFrom'] !== 'string') {
+    return {
+      field: 'grants.choiceFrom',
+      code: 'bad_feature_shape',
+      reason: 'choiceFrom names the feature whose choice this grant reads',
     };
   }
 

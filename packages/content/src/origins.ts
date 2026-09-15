@@ -13,32 +13,66 @@ import type {
   AlignmentDefinition,
   BackgroundDefinition,
   FeatDefinition,
+  FeatureOptionMeaning,
   LanguageDefinition,
   SpeciesDefinition,
 } from '@ie/engine';
 
 /**
- * SRD Draconic Ancestors: the ten dragons the table prints, in its own order.
+ * A table of options against the damage type each one names, as a feature's
+ * `optionMeans` — the second column of a table the SRD prints beside a choice.
  *
- * The damage type beside each is the other half of that table and is *not*
- * transcribed, because nothing could read it: a grant takes its damage types
- * from the choice made on its **own** feature, and the Damage Resistance trait
- * is a different feature from the one that chooses a dragon. Listing the types
- * here would be a table with no reader, which is the failure the coverage
- * report exists to catch.
+ * Two species print one: the Draconic Ancestors and the Fiendish Legacies. The
+ * shape is the engine's and the rows are the book's, which is the whole of the
+ * split: a trait written as "the damage type determined by your X trait" reads
+ * the choice made on X and looks the option up here.
  */
-const DRACONIC_ANCESTORS = [
-  'Black',
-  'Blue',
-  'Brass',
-  'Bronze',
-  'Copper',
-  'Gold',
-  'Green',
-  'Red',
-  'Silver',
-  'White',
-] as const;
+const meansDamage = (
+  table: Readonly<Record<string, string>>,
+): Readonly<Record<string, FeatureOptionMeaning>> =>
+  Object.fromEntries(
+    Object.entries(table).map(([option, type]) => [option, { damageTypes: [type] }]),
+  );
+
+/**
+ * SRD Draconic Ancestors: the ten dragons the table prints and the damage type
+ * beside each, in the book's own order.
+ *
+ * **Both columns, because both are now read.** The types used to be left out
+ * on purpose — a grant took its damage types only from a choice made on its
+ * own feature, the Damage Resistance trait is a different feature from the one
+ * that chooses a dragon, and "listing the types here would be a table with no
+ * reader". A grant can now name the sibling whose choice it reads and look the
+ * option up in that sibling's table, so the reader exists and the other half
+ * of the book's table can be transcribed.
+ */
+const DRACONIC_ANCESTORS: Readonly<Record<string, string>> = {
+  Black: 'acid',
+  Blue: 'lightning',
+  Brass: 'fire',
+  Bronze: 'lightning',
+  Copper: 'acid',
+  Gold: 'fire',
+  Green: 'poison',
+  Red: 'fire',
+  Silver: 'cold',
+  White: 'cold',
+};
+
+/**
+ * SRD Fiendish Legacies: the three legacies and the damage type each one's
+ * level 1 benefit names.
+ *
+ * The other columns of that table are the cantrip each legacy knows and the
+ * level 3 and level 5 spells, and those are **not** transcribed, for the
+ * reason the damage types were not until now: a species feature granting a
+ * spell reaches no spellcasting route, so there would be nothing to read them.
+ */
+const FIENDISH_LEGACIES: Readonly<Record<string, string>> = {
+  Abyssal: 'poison',
+  Chthonic: 'necrotic',
+  Infernal: 'fire',
+};
 
 export const DRAGONBORN: SpeciesDefinition = {
   id: 'dragonborn',
@@ -52,8 +86,9 @@ export const DRAGONBORN: SpeciesDefinition = {
       name: 'Draconic Ancestry',
       level: 1,
       automation: 'manual',
-      note: 'The chosen dragon is recorded and nothing more. It is what the Breath Weapon and Damage Resistance traits are written in terms of, and each of those says separately what a DM is left holding.',
-      choice: { kind: 'option', choose: 1, from: [...DRACONIC_ANCESTORS] },
+      note: 'Half of what the chosen dragon decides is applied, which is why this is not marked as executed. The Damage Resistance trait reads this choice and the damage type printed beside the dragon, and applies the Resistance. The Breath Weapon is written in terms of the same choice and none of it is applied - see its own note - and the appearance the trait also decides is fiction the DM narrates.',
+      choice: { kind: 'option', choose: 1, from: Object.keys(DRACONIC_ANCESTORS) },
+      optionMeans: meansDamage(DRACONIC_ANCESTORS),
     },
     {
       id: 'dragonborn:breath-weapon',
@@ -66,8 +101,18 @@ export const DRAGONBORN: SpeciesDefinition = {
       id: 'dragonborn:damage-resistance',
       name: 'Damage Resistance',
       level: 1,
-      automation: 'manual',
-      note: 'The Resistance is not applied, and the shape is not what is missing: a standing damage-resistance grant is read on every hit. What is missing is the reading of the type. It is "determined by your Draconic Ancestry trait", and a grant takes its damage types only from a choice made on its own feature - there is no route from a sibling feature choice, and none from a dragon to a damage type. A DM applies Resistance to the type the chosen dragon names.',
+      automation: 'engine',
+      note: 'Applied whole: the Resistance is a standing grant measured against every hit, and the type is "determined by your Draconic Ancestry trait" - so the grant names that trait as where its choice was made and takes the damage type the Draconic Ancestors table prints beside the chosen dragon.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        // The types come from a choice made on another trait, through that
+        // trait's own table. SRD prints no condition on this Resistance, so
+        // nothing takes it away.
+        effects: [{ kind: 'damage-resistance', damageTypes: [] }],
+        damageTypesFromChoice: true,
+        choiceFrom: 'dragonborn:draconic-ancestry',
+      },
     },
     {
       id: 'dragonborn:darkvision',
@@ -408,8 +453,17 @@ export const TIEFLING: SpeciesDefinition = {
       name: 'Fiendish Legacy',
       level: 1,
       automation: 'manual',
-      note: 'The legacy is recorded and its benefits are the DM. The Resistance each legacy names - Poison, Necrotic or Fire - is a shape the engine has and cannot reach from here: a damage-resistance grant takes its types from a choice made on its own feature, and this choice is a legacy rather than a damage type. The cantrip beside it, and the level 3 and level 5 spells, reach nothing at all: the engine gathers a spells grant only from the features of a class that casts.',
-      choice: { kind: 'option', choose: 1, from: ['Abyssal', 'Chthonic', 'Infernal'] },
+      note: 'The Resistance each legacy names is applied and the rest is the DM, which is why this is not marked as executed. The choice is a legacy rather than a damage type, and the legacy names one - Poison, Necrotic or Fire - so the trait declares what each of its options means and the grant reads the type out of that table. The cantrip beside it, and the level 3 and level 5 spells, reach nothing: the engine gathers a spells grant only from the features of a class that casts, so a species cannot grant one, and the spellcasting ability this trait chooses has nowhere to be recorded.',
+      choice: { kind: 'option', choose: 1, from: Object.keys(FIENDISH_LEGACIES) },
+      optionMeans: meansDamage(FIENDISH_LEGACIES),
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        // The choice is on this feature, so the grant names no other — what it
+        // needed was the table, which turns a legacy into a damage type.
+        effects: [{ kind: 'damage-resistance', damageTypes: [] }],
+        damageTypesFromChoice: true,
+      },
     },
     {
       id: 'tiefling:otherworldly-presence',

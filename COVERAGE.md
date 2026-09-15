@@ -353,7 +353,7 @@ believe it has twelve working classes when it has twelve validated ones.
 
 | Species | Backgrounds | Features | Executed by the engine |
 |---|---|---|---|
-| 9 | 4 | 37 | 7 |
+| 9 | 4 | 37 | 8 |
 
 A species trait and a class feature are the same `FeatureDefinition` and
 declare automation the same way, so this is the column above read by the
@@ -373,7 +373,7 @@ derived would be somebody’s opinion instead.
 |---|---|---|---|
 | Acolyte | background | 1 | 1 |
 | Criminal | background | 1 | 1 |
-| Dragonborn | species | 5 | 0 |
+| Dragonborn | species | 5 | 1 |
 | Dwarf | species | 4 | 0 |
 | Elf | species | 5 | 1 |
 | Gnome | species | 3 | 1 |

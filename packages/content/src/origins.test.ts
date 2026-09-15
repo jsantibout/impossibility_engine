@@ -332,6 +332,74 @@ const ORIGIN_FEATURES: readonly FeatureDefinition[] = [
 ];
 
 /**
+ * What one cantrip actually takes off a character the catalogue built.
+ *
+ * A real cast rather than a hand-made damage packet: Resistance is read inside
+ * the one place damage is applied, so this is the only way to show it reaches
+ * a character creation produced. The caster's Intelligence is absurd on
+ * purpose — a spell that cannot miss and cannot be saved against takes the
+ * roll out of the comparison and leaves the halving. The seed is fixed, so two
+ * characters hit by the same cantrip are hit by the same numbers.
+ */
+const hurtBy = (choices: CharacterChoices, spellId: string): number => {
+  const log: GameEvent[] = [
+    ...(unwrap(createCharacter(SRD_CONTENT, choices, WHO), 'creation') as GameEvent[]),
+    {
+      type: 'creature-added',
+      id: CASTER,
+      name: 'the caster',
+      sheet: {
+        level: 1,
+        abilities: { str: 10, dex: 10, con: 10, int: 40, wis: 10, cha: 10 },
+        skills: {},
+        saveProficiencies: [],
+        armor: null,
+        shield: null,
+        armorTraining: { light: true, medium: true, heavy: true, shields: true },
+        baseSpeed: 30,
+        spellcastingAbility: 'int',
+      },
+      maxHp: 50,
+      diesAtZero: false,
+      creatureType: 'Humanoid',
+    },
+    { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
+    { type: 'landmark-added', name: 'the door', at: { x: 50, y: 50, z: 0 } },
+    { type: 'creature-placed', id: CASTER, placement: { from: { landmark: 'the door' }, feet: 0 } },
+    { type: 'creature-placed', id: WHO, placement: { from: { creature: CASTER }, feet: 5, bearing: 90 } },
+    { type: 'sight-declared', from: CASTER, to: WHO, seen: true },
+    {
+      type: 'spellcasting-declared',
+      id: CASTER,
+      spellcasting: declaredCasting({
+        ability: 'int',
+        classId: 'wizard',
+        cantrips: [spellId],
+        prepared: [],
+      }),
+    },
+    // In a fight, and on the caster's turn: a cantrip whose rider lasts "until
+    // the start of your next turn" has nothing to anchor to outside one, and
+    // asks for a turn order rather than rolling.
+    {
+      type: 'combat-started',
+      combatants: [
+        { id: CASTER, initiative: 20, speed: 30 },
+        { id: WHO, initiative: 10, speed: 30 },
+      ],
+    },
+  ];
+
+  const before = fold('seed', log);
+  const cast = unwrap(
+    resolveSpell(before, CASTER, { spellId, targets: [WHO] }, supply('spray')),
+    spellId,
+  );
+  const after = fold('seed', [...log, ...cast.events]);
+  return (before.creatures[WHO]?.vitals.hp ?? 0) - (after.creatures[WHO]?.vitals.hp ?? 0);
+};
+
+/**
  * The claim the coverage report cannot check for itself.
  *
  * `class-pools.test.ts` made it for class features — "a feature that claims a
@@ -462,68 +530,162 @@ describe('a species or background feature marked engine is one something reads',
    * Poisoned condition is not, so the halving is a claim this file owes.
    */
   it('halves Poison damage for a Dwarf and nobody else', () => {
-    /**
-     * A real cast rather than a hand-made damage packet: Resistance is read
-     * inside the one place damage is applied, so this is the only way to show
-     * it reaches a character the catalogue built. The caster's Intelligence is
-     * absurd on purpose — a spell attack that cannot miss takes the roll out
-     * of the comparison and leaves the halving.
-     */
-    const hurt = (speciesId: string): number => {
-      const choices = choicesFor(speciesId, 'sage');
-      const log: GameEvent[] = [
-        ...(unwrap(createCharacter(SRD_CONTENT, choices, WHO), 'creation') as GameEvent[]),
-        {
-          type: 'creature-added',
-          id: CASTER,
-          name: 'the caster',
-          sheet: {
-            level: 1,
-            abilities: { str: 10, dex: 10, con: 10, int: 40, wis: 10, cha: 10 },
-            skills: {},
-            saveProficiencies: [],
-            armor: null,
-            shield: null,
-            armorTraining: { light: true, medium: true, heavy: true, shields: true },
-            baseSpeed: 30,
-            spellcastingAbility: 'int',
-          },
-          maxHp: 50,
-          diesAtZero: false,
-          creatureType: 'Humanoid',
-        },
-        { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
-        { type: 'landmark-added', name: 'the door', at: { x: 50, y: 50, z: 0 } },
-        { type: 'creature-placed', id: CASTER, placement: { from: { landmark: 'the door' }, feet: 0 } },
-        { type: 'creature-placed', id: WHO, placement: { from: { creature: CASTER }, feet: 5, bearing: 90 } },
-        { type: 'sight-declared', from: CASTER, to: WHO, seen: true },
-        {
-          type: 'spellcasting-declared',
-          id: CASTER,
-          spellcasting: declaredCasting({
-            ability: 'int',
-            classId: 'wizard',
-            cantrips: ['poison-spray'],
-            prepared: [],
-          }),
-        },
-      ];
-
-      const before = fold('seed', log);
-      const cast = unwrap(
-        resolveSpell(before, CASTER, { spellId: 'poison-spray', targets: [WHO] }, supply('spray')),
-        'poison spray',
-      );
-      const after = fold('seed', [...log, ...cast.events]);
-      return (
-        (before.creatures[WHO]?.vitals.hp ?? 0) - (after.creatures[WHO]?.vitals.hp ?? 0)
-      );
-    };
+    const hurt = (speciesId: string): number =>
+      hurtBy(choicesFor(speciesId, 'sage'), 'poison-spray');
 
     const toDwarf = hurt('dwarf');
     const toHuman = hurt('human');
     expect(toHuman).toBeGreaterThan(0);
     expect(toDwarf).toBe(Math.floor(toHuman / 2));
+  });
+
+  /**
+   * And the same claim on the trait whose choice is *not* a damage type.
+   *
+   * SRD Fiendish Legacy names a Resistance in the level 1 column of its table —
+   * Poison, Necrotic or Fire — and the choice the player makes is a legacy. The
+   * note says the Resistance is applied and the spells are not, so the halving
+   * is a claim this file owes for each of the three.
+   */
+  it('halves the damage type a Tiefling’s legacy names', () => {
+    const legacies = blockFor('Tiefling')
+      .join('\n')
+      .matchAll(/<td>(Abyssal|Chthonic|Infernal)<\/td>\s*<td>You have Resistance to (\w+) damage/g);
+    const printed = [...legacies].map(([, legacy, type]) => [legacy ?? '', type ?? ''] as const);
+    expect(printed).toHaveLength(3);
+
+    const tiefling = SRD_CONTENT.speciesById('tiefling')?.features.find(
+      (feature) => feature.choice?.kind === 'option',
+    );
+    for (const [legacy, type] of printed) {
+      expect(tiefling?.optionMeans?.[legacy]?.damageTypes, legacy).toEqual([type.toLowerCase()]);
+    }
+
+    // And the one of the three the engine has a cantrip for, driven through a
+    // real cast: an Abyssal Tiefling halves the Poison a Human takes whole.
+    const abyssal: CharacterChoices = {
+      ...choicesFor('tiefling', 'sage'),
+      featureChoices: { 'tiefling:fiendish-legacy': ['Abyssal'] },
+    };
+    const toHuman = hurtBy(choicesFor('human', 'sage'), 'poison-spray');
+    expect(toHuman).toBeGreaterThan(0);
+    expect(hurtBy(abyssal, 'poison-spray')).toBe(Math.floor(toHuman / 2));
+    // An Infernal one resists Fire instead, and takes the Poison whole.
+    const infernal: CharacterChoices = {
+      ...choicesFor('tiefling', 'sage'),
+      featureChoices: { 'tiefling:fiendish-legacy': ['Infernal'] },
+    };
+    expect(hurtBy(infernal, 'poison-spray')).toBe(toHuman);
+    expect(hurtBy(infernal, 'fire-bolt')).toBe(
+      Math.floor(hurtBy(choicesFor('human', 'sage'), 'fire-bolt') / 2),
+    );
+  });
+});
+
+/**
+ * A trait written in terms of a *sibling* trait's choice, which is the shape
+ * the SRD prints on every ancestry and lineage.
+ *
+ * SRD Damage Resistance: "You have Resistance to the damage type determined by
+ * your Draconic Ancestry trait." The Resistance itself was never the missing
+ * piece — a standing damage-resistance grant is read on every hit — and what
+ * was missing was the reading of the type: the choice is made on one feature
+ * and the resistance is granted by another, and there was no route from one to
+ * the other, nor from a dragon to a damage type.
+ *
+ * Both halves are now vocabulary the engine holds and data the catalogue
+ * writes, so the whole of the Draconic Ancestors table can be transcribed —
+ * and it is held to the book below rather than typed out twice.
+ */
+describe('a Dragonborn resists what its Draconic Ancestry names', () => {
+  /** The table the book prints: two dragon/damage-type pairs to a row. */
+  const printedAncestors = (): ReadonlyMap<string, string> => {
+    const cells = [...blockFor('Dragonborn').join('\n').matchAll(/<td>([^<]*)<\/td>/g)].map(
+      (match) => (match[1] ?? '').trim(),
+    );
+    if (cells.length === 0 || cells.length % 4 !== 0) {
+      throw new Error(`the Draconic Ancestors table read as ${cells.length} cells`);
+    }
+    const printed = new Map<string, string>();
+    for (let at = 0; at < cells.length; at += 4) {
+      printed.set(cells[at] ?? '', cells[at + 1] ?? '');
+      printed.set(cells[at + 2] ?? '', cells[at + 3] ?? '');
+    }
+    return printed;
+  };
+
+  const ancestry = SRD_CONTENT.speciesById('dragonborn')?.features.find(
+    (feature) => feature.choice?.kind === 'option',
+  );
+
+  it('offers exactly the dragons the book prints', () => {
+    const printed = printedAncestors();
+    expect(printed.size).toBe(10);
+    expect(ancestry?.choice?.kind === 'option' ? [...ancestry.choice.from].sort() : []).toEqual(
+      [...printed.keys()].sort(),
+    );
+  });
+
+  /**
+   * The column that could not be transcribed before, because nothing could
+   * read it: "listing the types here would be a table with no reader."
+   */
+  it('says what each dragon means, as the book’s second column prints it', () => {
+    for (const [dragon, type] of printedAncestors()) {
+      expect(ancestry?.optionMeans?.[dragon]?.damageTypes, dragon).toEqual([type.toLowerCase()]);
+    }
+    // And nothing beyond the ten, which is what the validator holds it to.
+    expect(Object.keys(ancestry?.optionMeans ?? {}).length).toBe(10);
+  });
+
+  /**
+   * The proof the vocabulary reaches the real case: two characters who differ
+   * in nothing but the dragon they chose, each halving the type their own
+   * ancestor names and taking the other whole.
+   */
+  it('halves the chosen ancestor’s damage type and no other', () => {
+    const dragonborn = (dragon: string): CharacterChoices => ({
+      ...choicesFor('dragonborn', 'sage'),
+      featureChoices: { 'dragonborn:draconic-ancestry': [dragon] },
+    });
+    const hurt = (dragon: string, spellId: string): number =>
+      hurtBy(dragonborn(dragon), spellId);
+    const toHuman = (spellId: string): number => hurtBy(choicesFor('human', 'sage'), spellId);
+
+    // SRD Draconic Ancestors: Red is Fire and White is Cold.
+    expect(toHuman('fire-bolt')).toBeGreaterThan(0);
+    expect(toHuman('ray-of-frost')).toBeGreaterThan(0);
+
+    expect(hurt('Red', 'fire-bolt')).toBe(Math.floor(toHuman('fire-bolt') / 2));
+    expect(hurt('Red', 'ray-of-frost')).toBe(toHuman('ray-of-frost'));
+
+    expect(hurt('White', 'ray-of-frost')).toBe(Math.floor(toHuman('ray-of-frost') / 2));
+    expect(hurt('White', 'fire-bolt')).toBe(toHuman('fire-bolt'));
+  });
+
+  /**
+   * And the choice the second trait reads is a choice the character has to
+   * have made: creation refuses one who never made it rather than building a
+   * Dragonborn whose Resistance quietly names no type.
+   *
+   * A refusal rather than a `needs-context`, for the reason every other
+   * missing choice in `checkCharacter` is one: `needs-context` is for a fact
+   * about the world an authoritative provider establishes through a command,
+   * and a creation choice is the caller's own form, answered by filling in the
+   * field the problem points at.
+   */
+  it('refuses a Dragonborn who never chose an ancestor', () => {
+    const refused = createCharacter(
+      SRD_CONTENT,
+      { ...choicesFor('dragonborn', 'sage'), featureChoices: {} },
+      WHO,
+    );
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) {
+      expect(refused.code).toBe('missing_feature_choice');
+      expect(refused.kind).toBe('refusal');
+      expect(refused.reason).toContain('dragonborn:draconic-ancestry');
+    }
   });
 });
 

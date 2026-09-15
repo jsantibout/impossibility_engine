@@ -416,6 +416,138 @@ describe('rule 6 — a pool is sized the three ways the SRD sizes one', () => {
   });
 });
 
+/**
+ * A choice on one feature, and a table saying what each of its options *means*
+ * to the features written in terms of it.
+ *
+ * The SRD writes this several times over — a species trait that asks which
+ * ancestry, lineage or legacy you take, and later traits written as
+ * "determined by" that choice. Two halves, and this rule is the half a
+ * definition can answer about itself: the table's keys are exactly the options
+ * the choice offers, and each value is a shape the vocabulary knows. Whether
+ * the *reading* grant's sibling exists is a question about a population, so it
+ * lives in `checkContent` beside the other cross-definition rules.
+ */
+describe('rule 8 — a table of what each option means, and a grant that reads one', () => {
+  /** The choosing half: three options and what each means to a reader. */
+  const chooses: FeatureDefinition = {
+    ...sound,
+    id: 'wizard:an-ancestry',
+    level: 1,
+    choice: { kind: 'option', choose: 1, from: ['Ember', 'Frost', 'Gale'] },
+    optionMeans: {
+      Ember: { damageTypes: ['fire'] },
+      Frost: { damageTypes: ['cold'] },
+      Gale: { damageTypes: ['lightning'] },
+    },
+  };
+
+  it('accepts a table whose keys are exactly the options offered', () => {
+    expect(codes(chooses)).toEqual([]);
+  });
+
+  it('reports a table on a feature that asks nothing', () => {
+    const noChoice: FeatureDefinition = {
+      ...sound,
+      id: chooses.id,
+      ...(chooses.optionMeans === undefined ? {} : { optionMeans: chooses.optionMeans }),
+    };
+    expect(codes(noChoice)).toContain('table_without_a_choice');
+  });
+
+  /**
+   * A skill or a feat choice has no named option list for a table to key on,
+   * so the table would cover nothing whatever it said.
+   */
+  it('reports a table beside a choice that is not a list of options', () => {
+    expect(codes({ ...chooses, choice: { kind: 'skill', choose: 1 } })).toContain(
+      'table_without_a_choice',
+    );
+  });
+
+  it('reports an option the table leaves out', () => {
+    const short = { Ember: { damageTypes: ['fire'] }, Frost: { damageTypes: ['cold'] } };
+    expect(codes({ ...chooses, optionMeans: short })).toContain('option_missing_from_table');
+  });
+
+  it('reports a key the choice does not offer', () => {
+    const surplus = { ...chooses.optionMeans, Storm: { damageTypes: ['thunder'] } };
+    expect(codes({ ...chooses, optionMeans: surplus })).toContain('unknown_option_in_table');
+  });
+
+  it('reports a meaning that is not a shape the vocabulary knows', () => {
+    const wrong = { ...chooses.optionMeans, Gale: { damageTypes: 'lightning' } } as never;
+    expect(codes({ ...chooses, optionMeans: wrong })).toContain('bad_option_meaning');
+    const empty = { ...chooses.optionMeans, Gale: { damageTypes: [] } };
+    expect(codes({ ...chooses, optionMeans: empty })).toContain('bad_option_meaning');
+    const notAnObject = { ...chooses.optionMeans, Gale: 'lightning' } as never;
+    expect(codes({ ...chooses, optionMeans: notAnObject })).toContain('bad_option_meaning');
+  });
+
+  /**
+   * A meaning the vocabulary has no field for is *not* refused here: a table
+   * written against a later engine is data this one does not understand rather
+   * than data that is wrong, which is the rule `checkFeatureShape` already
+   * follows for an unknown field. What refuses it is the reading grant, in
+   * `checkContent`, which knows what it came to read.
+   */
+  it('accepts a meaning this engine has no reader for', () => {
+    const later = { ...chooses.optionMeans, Gale: {} };
+    expect(codes({ ...chooses, optionMeans: later })).toEqual([]);
+  });
+
+  /** The reading half: a grant that says where its choice is read from. */
+  const reads: FeatureDefinition = {
+    ...sound,
+    id: 'wizard:an-inheritance',
+    level: 1,
+    automation: 'engine',
+    grants: {
+      kind: 'standing',
+      reach: 'self',
+      effects: [{ kind: 'damage-resistance', damageTypes: [] }],
+      damageTypesFromChoice: true,
+      choiceFrom: 'wizard:an-ancestry',
+    },
+  };
+
+  it('accepts a grant that names where its choice is read from', () => {
+    expect(codes(reads)).toEqual([]);
+  });
+
+  /**
+   * The field says where a choice is read *from*, so a grant that reads no
+   * choice at all is naming a source for nothing.
+   */
+  it('reports a grant that names a source and reads no choice', () => {
+    const idle: FeatureDefinition = {
+      ...reads,
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'speed', feet: 5 }],
+        choiceFrom: 'wizard:an-ancestry',
+      },
+    };
+    expect(codes(idle)).toContain('choice_from_reads_nothing');
+  });
+
+  /** And the option gate reads a choice too, which is the other thing one says. */
+  it('accepts a grant that gates on a sibling’s option', () => {
+    const gated: FeatureDefinition = {
+      ...reads,
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'speed', feet: 5 }],
+        onlyIfChoice: 'Gale',
+        choiceFrom: 'wizard:an-ancestry',
+      },
+    };
+    expect(codes(gated)).toEqual([]);
+  });
+});
+
 describe('rule 7 — no FeatureGrant member sits unwritten', () => {
   /**
    * Every writer of the vocabulary, which is no longer only the class tables.
@@ -542,7 +674,12 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
     const unread = [...declared].filter((field) => !READABLE_FIELDS.has(field)).sort();
     expect(unread).toEqual(Object.keys(UNREAD_FIELDS).sort());
     // Not vacuous: the fields that *are* read are read.
-    expect([...READABLE_FIELDS].sort()).toEqual(['choice', 'grants', 'grantsFeat']);
+    expect([...READABLE_FIELDS].sort()).toEqual([
+      'choice',
+      'grants',
+      'grantsFeat',
+      'optionMeans',
+    ]);
   });
 
   it('has a reason on the unread field, and it says something', () => {
@@ -697,6 +834,15 @@ describe('parseFeatureDefinition is the Result half', () => {
       [
         'a declared pool whose column is a number',
         { ...sound, grants: { kind: 'reaction', declares: { usesByLevel: 3 } } },
+      ],
+      // Rule 8's two, which a rule walks the same way: a string table would
+      // walk as its characters and report options nobody wrote, and a
+      // sibling named by a number names nothing.
+      ['a table that is a string', { ...sound, optionMeans: 'fire' }],
+      ['a table that is a list', { ...sound, optionMeans: [{ damageTypes: ['fire'] }] }],
+      [
+        'a sibling reference that is not an id',
+        { ...sound, grants: { kind: 'standing', reach: 'self', choiceFrom: 7 } },
       ],
     ];
 
