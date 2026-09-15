@@ -16,7 +16,7 @@
 import { expect as unwrap, type CharacterId } from '@ie/shared';
 import {
   fold,
-  rollInitiativeFor,
+  rollInitiativeAndBeginCombat,
   speed,
   type GameEvent,
   type GameState,
@@ -55,32 +55,35 @@ export interface RunOptions {
 /**
  * Start the fight.
  *
- * Done by the harness rather than the model, and that is a finding rather than
- * a shortcut: **there is no engine command that begins combat.** `combat-started`
- * is an event a caller assembles by hand, so a tool for it would either take
- * initiative values the model invented or wrap an event the doctrine says the
- * layer above should never assemble. Rolling it here keeps the experiment
- * honest about where the surface actually stops.
+ * Done by the harness rather than the model, because when a fight starts is
+ * the DM's judgement and the experiment scripts it. **It is no longer done by
+ * hand**: the finding this function used to record — that `combat-started` and
+ * the `rolls-issued` beside it were events a caller assembled itself, the one
+ * place anything above the engine appended an event no command produced — is
+ * closed. `rollInitiativeAndBeginCombat` rolls, records the generator and
+ * starts the fight, and everything the harness pushes here came out of it.
  */
 function beginCombat(session: Session, order: readonly CharacterId[]): void {
-  const combatants = order.map((who) => {
-    const { issuer, rng } = session.supply();
-    const before = issuer.count;
-    const roll = unwrap(rollInitiativeFor(session.state(), who, issuer, rng), 'initiative');
-    session.push([{ type: 'rolls-issued', count: issuer.count - before, rng: rng.snapshot() }]);
-    // Read off the creature, never assumed. A flat 30 was correct for every
-    // combatant in the tavern and is wrong for the first thing that is not a
-    // person: an SRD Ogre walks at 40, and a harness that told the engine 30
-    // would have quietly given every later Tier 2 measurement a monster that
-    // could not reach where it was trying to go.
-    const sheet = session.state().creatures[who]?.sheet;
-    return {
-      id: who,
-      initiative: roll.total,
-      speed: sheet === undefined ? 30 : speed(sheet),
-    };
-  });
-  session.push([{ type: 'combat-started', combatants }]);
+  const state = session.state();
+  session.push(
+    unwrap(
+      rollInitiativeAndBeginCombat(
+        state,
+        order.map((who) => {
+          // Read off the creature, never assumed. A flat 30 was correct for
+          // every combatant in the tavern and is wrong for the first thing
+          // that is not a person: an SRD Ogre walks at 40, and a harness that
+          // told the engine 30 would have quietly given every later Tier 2
+          // measurement a monster that could not reach where it was trying to
+          // go.
+          const sheet = state.creatures[who]?.sheet;
+          return { id: who, speed: sheet === undefined ? 30 : speed(sheet) };
+        }),
+        session.supply(),
+      ),
+      'initiative',
+    ),
+  );
 }
 
 const activeIn = (state: GameState): CharacterId | null => {

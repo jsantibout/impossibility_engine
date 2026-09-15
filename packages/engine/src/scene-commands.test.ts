@@ -22,7 +22,7 @@ import {
   declareSightBetween,
   declareSpellcasting,
   placeCreatureInScene,
-  rollInitiativeFor,
+  rollInitiativeAndBeginCombat,
   setScene,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -634,13 +634,16 @@ describe('an encounter, from nothing, through commands only', () => {
     table.do('and is seen', (s) => declareSightBetween(s, ROWAN, BREN, true));
     table.do('the bar shields Bren', (s) => declareCoverBetween(s, ROWAN, BREN, 'half'));
 
-    // Rolled, not chosen: the order is whatever the dice said.
-    const dice = supply();
-    const rolled = [BREN, PRIEST, ROWAN].map((who) => {
-      const roll = unwrap(rollInitiativeFor(table.state, who, dice.issuer, dice.rng), 'initiative');
-      return { id: who, initiative: roll.total, speed: 30 };
-    });
-    table.do('roll for Initiative', (s) => beginCombat(s, rolled));
+    // Rolled, not chosen: the order is whatever the dice said. One command
+    // does the rolling and the starting, so the log says the generator moved
+    // — which the three lines this replaced did not, and no caller was told.
+    table.do('roll for Initiative', (s) =>
+      rollInitiativeAndBeginCombat(
+        s,
+        [BREN, PRIEST, ROWAN].map((who) => ({ id: who, speed: 30 })),
+        supply(),
+      ),
+    );
 
     return table;
   };

@@ -21,7 +21,7 @@ import {
   placeCreatureInScene,
   resolveAttack,
   resolveSpell,
-  rollInitiativeFor,
+  rollInitiativeAndBeginCombat,
   setScene,
 } from './commands.js';
 import { expandConditions, hasCondition } from './conditions.js';
@@ -538,13 +538,16 @@ const encounter = (): Table => {
     placeCreatureInScene(s, ZOMBIE, { from: { creature: BREN }, feet: 5, bearing: 90 }),
   );
 
-  // Rolled, not chosen: the order is whatever the dice said.
-  const dice = supply('initiative');
-  const rolled = [BREN, ZOMBIE].map((who) => {
-    const roll = unwrap(rollInitiativeFor(table.state, who, dice.issuer, dice.rng), 'initiative');
-    return { id: who, initiative: roll.total, speed: 30 };
-  });
-  table.do('roll for Initiative', (s) => beginCombat(s, rolled));
+  // Rolled, not chosen: the order is whatever the dice said. One command does
+  // the rolling and the starting, so the log records that the generator moved
+  // rather than leaving the dice unaccounted for.
+  table.do('roll for Initiative', (s) =>
+    rollInitiativeAndBeginCombat(
+      s,
+      [BREN, ZOMBIE].map((who) => ({ id: who, speed: 30 })),
+      supply('initiative'),
+    ),
+  );
 
   return table;
 };

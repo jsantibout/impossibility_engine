@@ -38,7 +38,9 @@ import {
   loseItems,
   mountCreature,
   placeCreatureInScene,
+  recordInitiativeRolls,
   removeBonusFrom,
+  rollInitiativeAndBeginCombat,
   setScene,
   stabiliseCreature,
   swapInitiativeBetween,
@@ -1301,6 +1303,32 @@ const GUARDED: readonly Guarded[] = [
         ],
         { commandId },
       ),
+  },
+  {
+    // The dangerous retry of the two: a second run rolls Initiative again,
+    // which moves the generator for a fight that already started. The order
+    // would look well-formed and every number after it would be off by two
+    // dice.
+    name: 'rollInitiativeAndBeginCombat',
+    log: SETUP,
+    run: (s, commandId) =>
+      rollInitiativeAndBeginCombat(
+        s,
+        [
+          { id: A, speed: 30 },
+          { id: B, speed: 30 },
+        ],
+        supply(),
+        { commandId },
+      ),
+  },
+  {
+    // And the same hazard without a fight to show for it: the rolls happened,
+    // and a retry that threw them again would leave the log saying the
+    // generator moved twice as far as it did.
+    name: 'recordInitiativeRolls',
+    log: SETUP,
+    run: (s, commandId) => recordInitiativeRolls(s, [{ id: A, speed: 30 }], supply(), { commandId }),
   },
   {
     // A retried join is the duplicate that adds a **second** creature to the
@@ -2713,6 +2741,27 @@ describe('unknown is not no', () => {
           { kind: 'saving-throw', ability: 'dex', dc: 12 },
           supply(),
         ),
+    },
+    {
+      // A fight the DM says is starting, with somebody in it the engine has
+      // never been told about. The bandits exist because the DM said so, and
+      // `addCreature` is what settles it — refusing the whole fight would be a
+      // verdict on a thin record.
+      name: 'starting a fight with somebody nobody has added in it',
+      run: () =>
+        rollInitiativeAndBeginCombat(
+          fold('s', SETUP),
+          [
+            { id: A, speed: 30 },
+            { id: id('the-second-bandit'), speed: 30 },
+          ],
+          supply(),
+        ),
+    },
+    {
+      name: 'rolling Initiative for somebody nobody has added',
+      run: () =>
+        recordInitiativeRolls(fold('s', SETUP), [{ id: id('the-porter'), speed: 30 }], supply()),
     },
     {
       name: 'moving a creature nobody has placed',

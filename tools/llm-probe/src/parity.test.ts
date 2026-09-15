@@ -30,7 +30,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { expect as unwrap } from '@ie/shared';
-import { rollInitiativeFor, speed } from '@ie/engine';
+import { rollInitiativeAndBeginCombat, speed } from '@ie/engine';
 import { TOOLS, dispatch } from './surface.js';
 import { createSession, type Session } from './session.js';
 import { CLERIC, FIGHTER, MAGE, OGRE, OGRE_SEED, ogreEncounter } from './ogre.js';
@@ -325,14 +325,17 @@ describe('the parameters this audit published actually work', () => {
   const mill = (): Session => {
     const encounter = ogreEncounter();
     const session = createSession(OGRE_SEED, encounter.prelude);
-    const combatants = encounter.roster.map((id) => {
-      const { issuer, rng } = session.supply();
-      const before = issuer.count;
-      const roll = unwrap(rollInitiativeFor(session.state(), id, issuer, rng), 'initiative');
-      session.push([{ type: 'rolls-issued', count: issuer.count - before, rng: rng.snapshot() }]);
-      return { id, initiative: roll.total, speed: speed(session.state().creatures[id]!.sheet) };
-    });
-    session.push([{ type: 'combat-started', combatants }]);
+    const state = session.state();
+    session.push(
+      unwrap(
+        rollInitiativeAndBeginCombat(
+          state,
+          encounter.roster.map((id) => ({ id, speed: speed(state.creatures[id]!.sheet) })),
+          session.supply(),
+        ),
+        'initiative',
+      ),
+    );
     return session;
   };
 

@@ -203,7 +203,13 @@ export type {
   ReadyResponse,
   ReleaseCommand,
 } from './commands/actions.js';
-export { joinCombat, rollInitiativeFor } from './commands/initiative.js';
+export {
+  joinCombat,
+  recordInitiativeRolls,
+  rollInitiativeAndBeginCombat,
+  rollInitiativeFor,
+} from './commands/initiative.js';
+export type { InitiativeEntrant } from './commands/initiative.js';
 export {
   addSceneLandmark,
   advanceTime,
