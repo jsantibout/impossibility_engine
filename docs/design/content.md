@@ -74,9 +74,14 @@ a caster level an item does not have, a lifetime that ends nothing, a grant
 hung with no lifetime at all, a save DC on a conferral where nothing rolls
 against it and a conferral that rolls without one, a rider on a conferred
 effect — all three riders are welded to a casting — and, until it is built, a
-charge count. A conferral may now print a DC and be rolled against; what a
-save may still not do is impose a condition, and that is the fold's weld
-between a condition and a casting rather than anything about the DC.
+charge count; and, on a conferred condition, a lifetime that outlives a
+casting there is none of, a check, a second duration, or an end trigger that
+is malformed, names an unknown cause, or ends no condition. A conferral may
+print a DC and be rolled against, and may impose a condition that its own
+timer ends — on its deadline, or early on a cause the item's line prints.
+What the `save` kind still may not do is carry its repeat, which is a
+`PendingSave` naming a casting id; that is the last of the weld rather than
+anything about the DC.
 
 ## Adding content
 

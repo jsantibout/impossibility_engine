@@ -70,17 +70,26 @@ to homebrew.
 - Feats: the origin and fighting-style feats, recorded, two executed — and
   uncounted, because a `FeatDefinition` declares no automation and the report
   refuses to guess at one.
-- A conferral carries the shapes a potion needs and refuses the rest by name:
-  an item that grants a save, one paid for with charges, and one that inflicts
-  a condition are each still ahead. The last is the deepest — the fold welds a
-  condition to a casting, and reads one without a casting id as a corrupt log.
-  Bonuses to spell attack rolls, ability scores an item sets, senses, curses
-  and Speed from an item are each named and refused rather than half-built.
-- A flat amount cannot be written where dice are expected: `DiceScaling` makes
-  its notation required, so Potion of Heroism's ten Temporary Hit Points are
-  in its `unmodelled` note rather than in its grant. Temporary Hit Points also
-  have no lifetime of their own — the event carries no source and no effect
-  target names them — so the hour they last is a note as well.
+- A conferral carries the shapes a potion needs and refuses the rest by name.
+  A conferred save may be rolled against a DC the item prints, and a conferred
+  condition ends on its own timer — on its deadline, or early on a cause the
+  item's line prints — so the weld between a condition and a casting is gone
+  except at the `save` kind's repeat, which is a `PendingSave` naming a casting
+  id. What is still ahead: a conferral paid for with charges, and an item that
+  casts a spell at will, which a `casts` grant cannot say. Bonuses to spell
+  attack rolls, ability scores an item sets, senses, curses and Speed from an
+  item are each named and refused rather than half-built.
+- `condition-removed` lifts a condition's instance and leaves its timer
+  standing, so a repeat save can be raised at a later boundary against a
+  condition that is gone; and a repeat save handed to `applyConditionTo` under
+  a source of the caller's own is silently unhonoured. Both are on the casting
+  side and both predate the items that found them.
+- Temporary Hit Points have no lifetime of their own — the event carries no
+  source and no effect target names them — so the hour Potion of Heroism's ten
+  last is a note rather than a deadline. The ten themselves are in its grant:
+  an amount may now be a printed number with no dice in it, which the two
+  scaling fields that add dice to a notation refuse and the one that adds a
+  flat number does not.
 - Two copies of one item cannot be told apart: an inventory line is an id
   and a count, so a charged item is refused in multiples and a wand given
   away would not carry its charges. Items need a record of their own before
@@ -103,16 +112,18 @@ to homebrew.
    than authorship.
 3. **Content as files**: a loader in the app layer that reads homebrew JSON
    (and, later, a database) into `loadContent`.
-4. **The rest of what an item confers.** A conferral that costs charges, one
-   that grants a save, and one that inflicts a condition. The third needs the
-   fold's weld between a condition and a casting broken first, and is the
-   larger piece of work.
-5. **Two the potion asked and could not answer.** Whether `DiceScaling` should
-   admit an amount with no dice in it — a flat ten is a shape the book writes
-   often — and whether Temporary Hit Points should carry a lifetime, which
-   needs either a new effect target or a new event. Both are decisions before
-   they are work.
-6. **Rule 4's other half has no test.** The sweep in `spell-schema.test.ts`
+4. **A spell an item casts at will.** A `casts` grant spends a charge, and
+   `content.ts` refuses a cost of none three separate ways — so a helm, a hat
+   and two rings that cast without a pool are each blocked on the absence of a
+   price rather than on anything about the spell. The cheapest entry in the
+   report, and `COVERAGE.md` names who is waiting.
+5. **The rest of what an item confers.** A conferral paid for with charges,
+   and the `save` kind's repeat, which is the last of the condition weld.
+6. **The one the potion asked and could not answer.** Whether Temporary Hit
+   Points should carry a lifetime, which needs either a new effect target or a
+   new event: the event carries no source and nothing names them, so the hour
+   Potion of Heroism's ten last is a note. A decision before it is work.
+7. **Rule 4's other half has no test.** The sweep in `spell-schema.test.ts`
    fails on a class name or a spell id in engine code; a species id or a
    feature id is caught by a reader and by nothing else. A sweep, on the
    pattern of the one beside it.
