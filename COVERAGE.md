@@ -411,7 +411,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 42 | 199 | 167 | 32 |
+| 258 | 44 | 201 | 168 | 33 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -430,11 +430,11 @@ inventing a column that nothing checks.
 |---|---|---|---|---|---|
 | Armor | 19 | 9 | 53 | 48 | 5 |
 | Potions | 24 | 2 | 2 | 0 | 2 |
-| Rings | 22 | 1 | 1 | 1 | 0 |
+| Rings | 22 | 2 | 2 | 1 | 1 |
 | Rods | 7 | 0 | 0 | 0 | 0 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
 | Staffs | 12 | 1 | 1 | 0 | 1 |
-| Wands | 13 | 3 | 3 | 0 | 3 |
+| Wands | 13 | 4 | 4 | 1 | 3 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
 | Wondrous Items | 127 | 11 | 11 | 3 | 8 |
 
@@ -469,6 +469,7 @@ how many of those still carry a clause the engine does not say.
 - **Potion of Heroism** (Potions) — 1 recorded, 1 partial
 - **Potions of Healing** (Potions) — 1 recorded, 1 partial
 - **Quarterstaff of the Acrobat** (Weapons) — 1 recorded, 1 partial
+- **Ring of Animal Influence** (Rings) — 1 recorded, 1 partial
 - **Ring of Protection** (Rings) — 1 recorded, complete
 - **Robe of Stars** (Wondrous Items) — 1 recorded, 1 partial
 - **Scimitar of Speed** (Weapons) — 1 recorded, 1 partial
@@ -481,6 +482,7 @@ how many of those still carry a clause the engine does not say.
 - **Vicious Weapon** (Weapons) — 1 recorded, complete
 - **Vorpal Sword** (Weapons) — 1 recorded, 1 partial
 - **Wand of Fireballs** (Wands) — 1 recorded, 1 partial
+- **Wand of Magic Detection** (Wands) — 1 recorded, complete
 - **Wand of Secrets** (Wands) — 1 recorded, 1 partial
 - **Wand of Web** (Wands) — 1 recorded, 1 partial
 - **Weapon of Warning** (Weapons) — 1 recorded, 1 partial
@@ -508,7 +510,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 42 | 207 | 2 | 4 | 3 |
+| 258 | 44 | 205 | 2 | 4 | 3 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -544,7 +546,7 @@ Strength waits on the same missing reader SRD Feeblemind does.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
-| `a-spell-an-item-casts-that-nothing-executes` | 55 | 0 | 24 |
+| `a-spell-an-item-casts-that-nothing-executes` | 49 | 0 | 18 |
 | `an-item-instance-with-a-state-of-its-own` | 41 | 2 | 4 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
 | `a-condition-an-item-imposes` | 29 | 0 | 4 |
@@ -567,6 +569,7 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-benefit-an-item-suspends-on-a-trigger` | 5 | 0 | 1 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
+| `a-spell-an-item-casts-at-will` | 4 | 0 | 1 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
 | `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
@@ -581,7 +584,9 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 | 0 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 2 | 0 | 0 |
+| `a-target-rule-an-item-narrows` | 2 | 0 | 0 |
 | `difficult-terrain-an-area-creates` | 2 | 0 | 0 |
+| `a-casting-ended-by-a-trigger` | 1 | 0 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 | 0 |
 | `a-deadline-anchored-to-a-rest` | 1 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 1 | 0 | 0 |

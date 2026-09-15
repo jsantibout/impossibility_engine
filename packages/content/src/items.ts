@@ -1167,6 +1167,70 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     },
   ),
   wornItem(
+    { id: 'wand-of-magic-detection', name: 'Wand of Magic Detection', kind: 'wand' },
+    {
+      /**
+       * SRD Wand of Magic Detection: "Wand, Uncommon. This wand has 3 charges.
+       * While holding it, you can expend 1 charge to cast _Detect Magic_ from
+       * it. The wand regains 1d3 expended charges daily at dawn."
+       *
+       * **The first item whose spell the engine tracks rather than executes**,
+       * and the reason that is an item rather than a stub is SRD's own
+       * sentence about what a casting from an item is: "The spell uses its
+       * normal casting time, range, and duration, and the user of the item
+       * must concentrate if the spell requires Concentration." Detect Magic
+       * does, so a charge off this wand costs its wielder whatever they were
+       * already holding and starts a ten-minute clock — every bit of which is
+       * arithmetic the engine owns. What the *spell* leaves to the table is
+       * Detect Magic's own `unmodelled`, which the casting hands over through
+       * `unverified`; it is not this wand's gap and does not belong in this
+       * wand's notes.
+       *
+       * No bracket, no printed DC, no crumbling clause: the entry is four
+       * sentences and the record says all four, so it carries no `unmodelled`
+       * at all.
+       */
+      grants: [
+        charges('wand-of-magic-detection', 'Wand of Magic Detection', 3, '1d3'),
+        castsSpell('detect-magic', 1),
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'ring-of-animal-influence', name: 'Ring of Animal Influence', kind: 'ring' },
+    {
+      /**
+       * SRD Ring of Animal Influence: "Ring, Rare. This ring has 3 charges,
+       * and it regains 1d3 expended charges daily at dawn. While wearing the
+       * ring, you can expend 1 charge to cast one of the following spells
+       * (save DC 13) from it: _Animal Friendship_ / _Fear_ (affects Beasts
+       * only) / _Speak with Animals_."
+       *
+       * **A grant per row of the table**, exactly as the Staff of Fire writes
+       * one — and, as there, the row the engine would get wrong is left out
+       * and said out loud rather than written wider than the book.
+       *
+       * **The DC sits on the row that rolls.** The ring prints "(save DC 13)"
+       * once, governing all three spells, and only Animal Friendship asks
+       * anybody to save; Speak with Animals rolls nothing, so pinning a number
+       * on its casting would put an unread DC in the log. The number is the
+       * ring's either way — a Druid wearing it still charms the wolf at 13.
+       *
+       * No bracket on the type line, so anybody may put it on, which is what
+       * makes it the item that proves a casting from an item needs no
+       * spellcaster behind it when the item printed its own number.
+       */
+      grants: [
+        charges('ring-of-animal-influence', 'Ring of Animal Influence', 3, '1d3'),
+        castsSpell('animal-friendship', 1, { saveDc: 13 }),
+        castsSpell('speak-with-animals', 1),
+      ],
+      unmodelled: [
+        'the middle row of the ring\'s table, "_Fear_ (affects Beasts only)": the parenthesis narrows the spell\'s catch to one creature type and a `casts` grant has no field that says so, so a ring granted this row would Frighten everything in the cone — which is rule 3 of this file, the clause the engine cannot say being the one that limits the benefit',
+      ],
+    },
+  ),
+  wornItem(
     { id: 'cape-of-the-mountebank', name: 'Cape of the Mountebank', kind: 'wondrous' },
     {
       /**
