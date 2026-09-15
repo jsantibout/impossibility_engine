@@ -5560,6 +5560,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'rod-of-lordly-might': [
     'a-benefit-an-item-switches-on-and-off',
     'a-condition-an-item-imposes',
+    'a-save-an-item-forces',
     'a-rider-on-a-later-weapon-attack',
   ],
   'rod-of-resurrection': ['a-spell-an-item-casts-that-nothing-executes'],

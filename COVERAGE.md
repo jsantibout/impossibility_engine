@@ -573,8 +573,8 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `a-target-rule-the-format-cannot-state` | 1 | 0 | 1 |
 | `movement-modes` | 13 | 0 | 0 |
+| `a-save-an-item-forces` | 12 | 0 | 0 |
 | `a-damage-roll-an-item-makes` | 11 | 0 | 0 |
-| `a-save-an-item-forces` | 11 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 7 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |
