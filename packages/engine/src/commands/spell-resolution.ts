@@ -1554,13 +1554,17 @@ export function runEffects(
   };
 
   /**
-   * The casting this is, for the five resolvers that cannot be anything else.
+   * The casting this is, for the resolvers that cannot be anything else.
    *
-   * {@link casterSheet}'s pattern and its argument: a condition instance is
-   * welded to a casting in the fold and a rider hangs off one, so `attack`,
-   * `save`, `save-damage`, `condition` and the two magic kinds are refused on
-   * an item by `checkContent` before any content loads. Reaching here from an
-   * item is therefore the validator and the resolver disagreeing.
+   * {@link casterSheet}'s pattern and its argument. `attack`, `save`,
+   * `save-damage` and `condition` reach for it, because a condition instance
+   * is welded to a casting in the fold and a rider hangs off one; every one of
+   * them is refused on an item by `checkContent` before any content loads, so
+   * reaching here from an item is the validator and the resolver disagreeing.
+   *
+   * The two magic kinds and `teleport` are refused on an item too and never
+   * ask — they read a name, which both origins have — which is the difference
+   * between what the validator guarantees and what this accessor is for.
    */
   const casting = (): CastingOrigin => {
     if (origin.kind !== 'casting') {

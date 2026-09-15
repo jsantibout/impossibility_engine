@@ -1274,11 +1274,13 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
  * That is the `confers` grant in one paragraph: an action, an effect list, and
  * no casting anywhere in it.
  *
- * Two of them, which are the two whose whole text the vocabulary can say. Most
- * of the rest of the book's potions give "the effect of the X spell (no
- * Concentration required)" and need a conferral that names a *spell* rather
- * than an effect list, or set an ability score, or hand out a condition — all
- * of which are named in `docs/design/casting.md` and none of which is here.
+ * Two of them, by the three rules above {@link NAMED_ITEMS}. Most of the rest
+ * of the book's potions say "you gain the effect of the X spell (no
+ * Concentration required)", which a conferral cannot express: it carries an
+ * effect list and not a spell id, so the whole of such a potion's text is
+ * beyond the vocabulary and rule 1 leaves it out. The others set an ability
+ * score, or hand out a condition — and a condition is welded to a casting in
+ * the fold, which a conferral has none of.
  */
 const POTIONS: readonly CatalogueItem[] = [
   {

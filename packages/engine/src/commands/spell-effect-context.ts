@@ -86,22 +86,22 @@ export interface EffectContext {
    * The casting this is, **loud rather than absent when it is not one**.
    *
    * {@link casterSheet}'s pattern, for the same reason and with the same
-   * consequence: five resolvers need a casting id or the definition itself —
-   * a condition instance is welded to a casting in the fold, and the riders a
-   * settled outcome carries hang off one — and every effect kind that reaches
-   * them is refused on an item by `checkContent` before any content is loaded.
-   * So arriving here from an item is the validator and the resolver
-   * disagreeing, which is a bug in this repository rather than a rules
-   * dispute.
+   * consequence. Two rules need the casting itself rather than a name or a
+   * source: a condition instance is welded to a casting in the fold, and the
+   * riders a settled outcome carries hang off one. So the kinds that impose a
+   * condition or settle a D20 Test call this — and every one of them is
+   * refused on an item by `checkContent` before any content is loaded. Arriving
+   * here from an item is therefore the validator and the resolver disagreeing,
+   * which is a bug in this repository rather than a rules dispute.
    */
   readonly casting: () => CastingOrigin;
   /**
    * The name the log reads this effect's work under: the spell's, or the
    * item's.
    *
-   * Nine resolvers wrote `definition.name` and wanted exactly this — what to
-   * call the thing that happened — which is why it is a field rather than a
-   * dereference through {@link origin}.
+   * What a resolver reaching for `definition.name` always actually wanted —
+   * what to call the thing that happened — which is why it is a field rather
+   * than a dereference through {@link origin} that only one arm answers.
    */
   readonly name: string;
   /**
@@ -113,9 +113,12 @@ export interface EffectContext {
    * What everything this hangs on a creature is filed under.
    *
    * `Hold Person#cast:3` from a casting and `item:potion-of-heroism` from an
-   * item — one string, written by one function per origin, and the only thing
-   * that can later take the grant away. Eleven resolver sites wrote
-   * `castingSource(definition.name, castingId)` and are now one read.
+   * item — one string, derived once by the loop and the only thing that can
+   * later take the grant away. Every standalone resolver that hangs something
+   * reads this; what still writes `castingSource` by hand is
+   * `spell-effect-riders.ts`, whose two helpers take their context as
+   * parameters rather than through an {@link EffectContext} and are reached
+   * only from a casting.
    */
   readonly source: string;
   readonly castLevel: number;

@@ -586,12 +586,3 @@ export function featureTimer(
   return ok(timer.value);
 }
 
-/**
- * Spend the action a feature costs, whichever kind it is.
- *
- * The same two functions `resolveCast` uses, because they are the ones that
- * know the Incapacitated rule: SRD says a creature with that condition "can't
- * take any action, Bonus Action, or Reaction", and that check belongs in one
- * place rather than in every caller that spends one.
- */
-

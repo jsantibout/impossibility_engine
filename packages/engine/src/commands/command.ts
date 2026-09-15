@@ -272,8 +272,12 @@ export function reachedBy(
 }
 
 /**
- * The Action or Bonus Action a command spends, or the refusal for a turn with
- * none left.
+ * Spend the Action or Bonus Action a command costs, whichever kind it is.
+ *
+ * The same two functions `resolveCast` uses, because they are the ones that
+ * know the Incapacitated rule: SRD says a creature with that condition "can't
+ * take any action, Bonus Action, or Reaction", and that check belongs in one
+ * place rather than in every caller that spends one.
  *
  * Here rather than in `commands/features.ts`, where it was written, for the
  * reason {@link sceneFor} and the two creature readers are here: a third
