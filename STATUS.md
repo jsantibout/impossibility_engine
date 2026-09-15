@@ -42,7 +42,9 @@ to homebrew.
   its prerequisites and costs a rest; charges are pools that refill at a
   declared dawn, some by a roll the engine makes; a flat bonus is narrowed
   to the item that gave it, so a +1 sword does not improve the bow beside
-  it. The catalogue holds what those shapes express.
+  it; and a charge buys a casting — a wand's spell has an id, Concentration
+  when the definition asks for it, and an ongoing record Dispel Magic can
+  find. The catalogue holds what those shapes express.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -61,11 +63,18 @@ to homebrew.
 - Feats: the origin and fighting-style feats, recorded, two executed — and
   uncounted, because a `FeatDefinition` declares no automation and the report
   refuses to guess at one.
-- A charge buys nothing yet: an item's pool is spent and regained, but what
-  a wand's charge *does* needs the grant that resolves a spell or an effect
-  list from an item — the largest single gap in the catalogue. Bonuses to
-  spell attack rolls, ability scores an item sets, senses, curses and Speed
-  from an item are each named and refused rather than half-built.
+- **Every spell attack roll is wrong.** `attackModifier` treats a spell
+  attack as an unarmed one: it adds the caster's Strength modifier and a
+  second Proficiency Bonus on top of the spell attack bonus the caster
+  already built. A level-5 wizard's Fire Bolt is +9 where the book says +7,
+  and a strong cleric's is further out. Long-standing, and the suite did not
+  catch it because the spell-attack tests assert the engine's arithmetic
+  rather than the book's.
+- An item that confers an effect *without* casting — every potion, and the
+  items that simply deal damage or grant a save — needs a second grant kind
+  and a source that is not a casting. The largest gap left in the catalogue.
+  Bonuses to spell attack rolls, ability scores an item sets, senses, curses
+  and Speed from an item are each named and refused rather than half-built.
 - Two copies of one item cannot be told apart: an inventory line is an id
   and a count, so a charged item is refused in multiples and a wand given
   away would not carry its charges. Items need a record of their own before
@@ -77,18 +86,15 @@ to homebrew.
 
 ## Next
 
-The magic-item tranche's own digest is the best-evidenced list here: each of
-the first three was hit by someone transcribing the book, not guessed from a
-ranking.
-
-1. **What a charge buys.** The grant that resolves a spell or an effect list
-   from an item, at a printed level and DC, spending charges. Around ninety
-   items wait on it, and roughly thirty more are worth transcribing only
-   once it exists.
-2. **Extra damage narrowed to the weapon that dealt it.** The field the flat
-   bonus just got, on the neighbouring member — it finishes ten items already
-   in the catalogue rather than unlocking new ones. Most of them also want a
-   test of what the target *is*, which is a second and larger shape.
+1. **Fix the spell attack roll.** It is the only outright wrongness in the
+   engine's arithmetic rather than a gap in it, it predates this milestone,
+   and every spell attack and every item casting rides on it. The tests that
+   should have caught it assert the engine's sum rather than the book's, so
+   the fix is a reading of the SRD sentence first and a code change second.
+2. **An item that confers an effect without casting one.** Every potion, and
+   the items that simply deal damage or grant a save: a second grant kind,
+   and a source that is not a casting but which the release path can still
+   address. The largest gap left in the catalogue.
 3. **An item's own record.** An inventory line is an id and a count, so two
    wands share a pool, a charged item is refused in multiples, and nothing
    can be given away with its charges. It also blocks a rolled charge
@@ -100,9 +106,10 @@ ranking.
    than authorship.
 5. **Content as files**: a loader in the app layer that reads homebrew JSON
    (and, later, a database) into `loadContent`.
-6. **Three small ones left over**: `rollInitiativeFor` returns a roll rather
-   than events, so every caller hand-writes the one `rolls-issued` nobody
-   should; `combat-started` raises no start-of-turn boundary, so a payout or
-   an area trigger is missed when a fight opens on one; and a grant that
-   reads a sibling feature's choice through a content-declared table blocks
-   four species on its own.
+6. **Three small ones left over**: a fight that opens on a per-turn payout
+   still does not pay it, and a passing test at the foot of
+   `opening-boundary.test.ts` names the three ways to close it; nothing
+   mechanically stops a module outside `fold/` importing `fold/*`, which is
+   a rule `events.ts` states and a reviewer had to catch by reading; and a
+   grant that reads a sibling feature's choice through a content-declared
+   table blocks four species on its own.
