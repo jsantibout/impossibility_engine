@@ -161,9 +161,11 @@ something. All seven packs are transcribed from `equipment.md` as exact
 a tool can make is asserted to resolve to something the SRD actually lists — or
 to a category phrase like "Any Melee weapon (except Club, Greatclub,
 Quarterstaff, and Whip)", whose commas sit inside parentheses and are exactly
-the trap that bit the weapon parser. `Spell Scroll` is the single exception and
-an honest one: it is a magic item, and `magic-items.md` is not parsed. The test
-names it, so parsing that file will make the test say so.
+the trap that bit the weapon parser. `Spell Scroll` is the single exception:
+it is a magic item, and the catalogue that test resolves against is built from
+`equipment.md`'s parsers alone. `magic-items.md` is parsed now, so the
+exception is a seam between two parsers rather than a gap in the data, and
+whoever closes it should make the test resolve across both.
 
 **A default is how a format change becomes a wrong number.** An optional
 capture group defaulting the proficiency bonus to +2 gave 32 legendary
