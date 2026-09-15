@@ -1,5 +1,5 @@
 import { err, ok, SKILL_ABILITY, type Result } from '@ie/shared';
-import type { CatalogueItem } from './catalogue.js';
+import { itemChargePool, type CatalogueItem } from './catalogue.js';
 import {
   checkFeatureDefinition,
   duplicateFeatureIds,
@@ -17,8 +17,10 @@ import {
   MAX_LEVEL,
   type ClassDefinition,
   type FeatureDefinition,
+  type FeatureGrant,
   type SubclassDefinition,
 } from './progression.js';
+import { dawnRollProblem, type Recovery } from './resources.js';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import { checkSpellDefinition, parseSpellDefinition } from './spell-schema.js';
@@ -196,16 +198,86 @@ export const REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
  */
 const ITEM_ONLY_REQUIREMENTS: ReadonlySet<string> = new Set(['while-attuned', 'while-worn']);
 
+/** The four things a pool may recover on — `Recovery`, written out as data. */
+const RECOVERIES: ReadonlySet<string> = new Set<Recovery>([
+  'short-rest',
+  'long-rest',
+  'dawn',
+  'special',
+]);
+
+/**
+ * What an item's charge pool has to say, and what it may not.
+ *
+ * Charges are the pool mechanism reused, so this judges the same shape a class
+ * feature declares a pool in — with the three class-table sizings ruled out,
+ * because an item has no class level and no ability score and `poolSizeOf`
+ * would read a number that is not there. A flat `uses` is how the SRD prints
+ * an item's charges and is therefore required.
+ */
+function itemPoolProblems(
+  item: CatalogueItem,
+  grant: Extract<FeatureGrant, { kind: 'pool' }>,
+  at: string,
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  for (const field of ['usesByLevel', 'perClassLevel', 'fromAbilityModifier', 'minimum'] as const) {
+    if (grant[field] !== undefined) {
+      say(
+        'item_grant_reads_a_level',
+        `an item has no class level and no ability scores, so ${field} would never size its charges`,
+        `${at}.${field}`,
+      );
+    }
+  }
+  // Both hang a *feature's* payout off the pool — hit points for its holder,
+  // and a touch that lifts conditions — and nothing runs either from an item.
+  for (const field of ['heals', 'touchHeals'] as const) {
+    if (grant[field] !== undefined) {
+      say(
+        'item_pool_not_read',
+        `nothing spends an item's charges on ${field} yet; this pool's charges are spent by expendCharges and nothing else`,
+        `${at}.${field}`,
+      );
+    }
+  }
+
+  if (!isString(grant.key) || grant.key.trim() === '') {
+    say('bad_pool_key', 'a pool is found by its key, and a blank one finds nothing', `${at}.key`);
+  }
+  if (!Number.isInteger(grant.uses) || (grant.uses ?? 0) < 1) {
+    say(
+      'item_pool_without_uses',
+      `${item.id} declares charges without saying how many; the SRD prints a number on the item's own line`,
+      `${at}.uses`,
+    );
+  }
+  if (!RECOVERIES.has(grant.recovers)) {
+    say('bad_recovery', `"${String(grant.recovers)}" is not something a pool recovers on`, `${at}.recovers`);
+  } else {
+    // The same question `declarePool` asks, asked by the same function, so a
+    // catalogue cannot hold a pool the fold would throw on.
+    const dawn = dawnRollProblem(grant.regainsAtDawn, grant.recovers);
+    if (dawn !== null) say(dawn.code, dawn.reason, `${at}.regainsAtDawn`);
+  }
+
+  return found;
+}
+
 /**
  * What an item is allowed to grant, judged once for both input paths.
  *
  * Typed content and parsed JSON both arrive at `checkContent`, so this is the
  * one gate — which is why it reads defensively rather than trusting the type.
  *
- * **Only `standing` grants today.** The other kinds are real and are coming —
- * a charge pool is the existing `pool` shape, and the design note says so —
- * but nothing executes one from an item yet, and a grant nothing executes is
- * an item whose line in the book quietly does nothing.
+ * **A `standing` grant and a `pool` grant.** Those are the two an item's
+ * readers execute — a benefit derived on every read, and charges. The rest are
+ * real and are coming, but a grant nothing executes is an item whose line in
+ * the book quietly does nothing.
  */
 function itemGrantProblems(item: CatalogueItem): readonly ContentProblem[] {
   const found: ContentProblem[] = [];
@@ -214,16 +286,28 @@ function itemGrantProblems(item: CatalogueItem): readonly ContentProblem[] {
     found.push({ field, code, reason });
   };
 
+  let pools = 0;
+
   (item.grants ?? []).forEach((grant, index) => {
     const at = `${where}[${index}]`;
     if (grant === null || typeof grant !== 'object' || !isString((grant as { kind?: unknown }).kind)) {
       say('bad_item_grant', 'an item grant is an object naming its kind', at);
       return;
     }
+    if (grant.kind === 'pool') {
+      pools += 1;
+      if (pools > 1) {
+        // "This wand has 7 charges" is one sentence and one pool. Two would be
+        // two pools on one id, and `itemChargePool` reads the first.
+        say('two_item_pools', `${item.id} declares two charge pools, and an item has one`, at);
+      }
+      found.push(...itemPoolProblems(item, grant, at));
+      return;
+    }
     if (grant.kind !== 'standing') {
       say(
         'item_grant_not_read',
-        `nothing executes a "${grant.kind}" grant from an item yet; only a standing grant is read from one`,
+        `nothing executes a "${grant.kind}" grant from an item yet; only a standing grant and a charge pool are read from one`,
         at,
       );
       return;
@@ -473,6 +557,18 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           }
         });
       }
+      // The item's own sizing, on a class feature. `poolSizeOf` reads a column,
+      // a modifier or a multiple of the level and never a flat count, so a
+      // feature naming one would be sized by a number nothing reads — the same
+      // failure `item_requirement_on_a_feature` above names, in the other
+      // direction.
+      if (feature.grants?.kind === 'pool' && feature.grants.uses !== undefined) {
+        problems.push({
+          field: `${where}.grants.uses`,
+          code: 'item_sizing_on_a_feature',
+          reason: `a flat number of uses is how an item's line sizes its charges, and poolSizeOf sizes a feature's pool from its class table, so ${feature.id} would be sized by a number nothing reads`,
+        });
+      }
       // A feature executed by another names one on the same source that
       // actually declares something; otherwise the claim just moves.
       if (feature.executedBy !== undefined) {
@@ -506,6 +602,27 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   }
 
   const itemOf = byId(items);
+  /**
+   * One key, one pool. Two items sharing a charge key would be one pool on
+   * whoever held both: the wand's charges would empty the staff's, and
+   * `declarePool` would refuse the second item outright at the moment it was
+   * picked up. Cross-item because that is the scope a collision has.
+   */
+  const poolKeys = new Map<string, string>();
+  for (const item of items) {
+    const pool = itemChargePool(item);
+    if (pool === null) continue;
+    const owner = poolKeys.get(pool.key);
+    if (owner !== undefined) {
+      problems.push({
+        field: `items[${item.id}].grants`,
+        code: 'duplicate_pool_key',
+        reason: `${item.id} and ${owner} both keep their charges under ${pool.key}, and a creature holding both would have one pool`,
+      });
+    } else {
+      poolKeys.set(pool.key, item.id);
+    }
+  }
   for (const item of items) {
     for (const line of item.contents) {
       if (!itemOf.has(line.id)) {

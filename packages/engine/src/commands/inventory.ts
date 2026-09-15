@@ -7,11 +7,13 @@
  */
 
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
-import { type CatalogueItem, itemStandingEffects, type ItemKind } from '../catalogue.js';
+import { type CatalogueItem, itemChargePool, itemStandingEffects, type ItemKind } from '../catalogue.js';
 import { type Content } from '../content.js';
 import { type CreatureState, type GameEvent, type GameState, type InventoryLine } from '../events.js';
 import { creatureOf, unknownCreature } from './command.js';
+import { mayAct } from './holds.js';
 import { once } from '../idempotency.js';
+import { hasPool, remaining } from '../resources.js';
 
 /** Everything this creature is carrying, by catalogue id. */
 export function carrying(state: GameState, id: CharacterId): readonly InventoryLine[] {
@@ -163,6 +165,30 @@ export function equipItem(
     }
 
     const grants = itemStandingEffects(item);
+    const charges = itemChargePool(item);
+
+    /**
+     * **A second copy of a charged item is refused**, and the refusal names
+     * the record that is missing rather than pretending it is a rule.
+     *
+     * `InventoryLine` is `{ id, quantity }`: two Wands of Secrets are one line
+     * of two, and a creature's pools are keyed by name, so one pool would hold
+     * both wands' charges — spend three from one and the other is empty too.
+     * Item instance identity is the decision that fixes it and it is named as
+     * a later brief's subject in `docs/design/characters-and-equipment.md`.
+     *
+     * **A brief that adds item *transfer* cannot defer it.** Charges follow
+     * the creature and not the object today, so a wand handed over would leave
+     * its charges behind and arrive full — which no refusal here can catch,
+     * because by then nothing says the two wands were ever the same wand.
+     */
+    const copies = quantityOf(state, id, itemId);
+    if (charges !== null && copies > 1) {
+      return err(
+        'no_item_instance',
+        `${id} has ${copies} of ${item.name}, and the engine has no item instance record to tell them apart — their charges would be one pool across all of them. Put all but one down, or split them between creatures`,
+      );
+    }
 
     return ok([
       {
@@ -178,6 +204,17 @@ export function equipItem(
         ...(grants.length === 0 ? {} : { grants }),
         ...(stamp === null ? {} : { command: stamp }),
       },
+      // And the charges, declared as the pool they are. Pinned by construction:
+      // `resource-pool-declared` carries the whole declaration, so the fold
+      // never opens a catalogue to know how many charges a wand had.
+      //
+      // Declared **once**, on the equip that finds no pool. Putting a wand down
+      // does not empty it — `unequipItem` leaves the pool alone — so picking it
+      // back up finds the charges where it left them rather than refilling
+      // them, which is what a fresh declaration would quietly do.
+      ...(charges === null || hasPool(creature.resources, charges.key)
+        ? []
+        : [{ type: 'resource-pool-declared' as const, id, pool: charges }]),
     ]);
   });
 }
@@ -202,6 +239,129 @@ export function unequipItem(
 
     return ok([
       { type: 'item-unequipped', id, item: itemId, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/**
+ * Charges left in an item this creature has held, or 0.
+ *
+ * Zero for an item that has no charges at all and for one whose pool nobody
+ * has declared yet, on the same rule `remaining` follows: a pool nobody
+ * declared has none, rather than throwing.
+ *
+ * **Held, rather than still holding.** The pool is keyed by catalogue id and
+ * outlives both `unequipItem` and `loseItems`, which is deliberate for the
+ * first — putting a wand down does not empty it — and an artefact of the
+ * missing item instance record for the second: a wand taken by a thief leaves
+ * its charges behind, and one re-acquired later is picked up as spent as the
+ * last one was. `expendCharges` is the guard that matters, and it asks whether
+ * the thing is in hand; this answers about a pool, and says so.
+ */
+export function chargesLeft(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  itemId: string,
+): number {
+  const item = content.item(itemId);
+  const pool = item === null ? null : itemChargePool(item);
+  const creature = creatureOf(state, id);
+  if (pool === null || creature === null) return 0;
+  return remaining(creature.resources, pool.key);
+}
+
+/**
+ * Spend charges from a magic item.
+ *
+ * **What the charges buy is not here**, and that is the boundary of this
+ * command rather than an omission: a Wand of Fireballs casts _Fireball_ and a
+ * Staff of Healing casts _Cure Wounds_, and resolving a spell from an item is
+ * a grant kind nothing executes yet. What this owns is the economy — how many
+ * are left, what a use costs, and what running out looks like — which is the
+ * half `resources.ts` has had since the day it named "a magic item with seven
+ * charges" as a designed use of a pool.
+ *
+ * Three conditions, each the item's own line rather than a general rule:
+ *
+ * - **"While holding it"** — SRD writes it on every charged item in the book,
+ *   so the item has to be equipped. Owning a wand in a backpack is not holding
+ *   it, on the same distinction Armour Class already draws.
+ * - **"(Requires Attunement)"** — an item that asks for it gives nothing until
+ *   it has it, so its charges are not spendable either.
+ * - **Running out is a refusal, not an exception.** `spend` has said so since
+ *   pools landed, and this says it in the pool's own words.
+ */
+export function expendCharges(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  itemId: string,
+  charges = 1,
+  commandId?: string,
+): Result<GameEvent[]> {
+  const inputs: { commandId?: string; itemId: string; charges: number } =
+    commandId === undefined ? { itemId, charges } : { commandId, itemId, charges };
+  return once(state, `expend-charges:${id}`, inputs, () => [], (stamp) => {
+    // A mandatory effect this creature has been caught by, or a turn whose
+    // start has not arrived. **After the duplicate check, never before it.**
+    const owedHere = mayAct(state, id);
+    if (owedHere !== null) return owedHere;
+
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const item = content.item(itemId);
+    if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
+
+    const pool = itemChargePool(item);
+    if (pool === null) return err('no_charges', `${item.name} has no charges to spend`);
+
+    if (!creature.equipped.some((held) => held.id === itemId)) {
+      return err('not_equipped', `${item.name}'s charges are spent while holding it, and ${id} is not`);
+    }
+    if (item.attunement !== undefined && !creature.attuned.some((held) => held.id === itemId)) {
+      return err(
+        'not_attuned',
+        `${item.name} requires attunement, and ${id} has not attuned to it`,
+      );
+    }
+    if (!Number.isInteger(charges) || charges < 1) {
+      return err('bad_amount', `spending takes a positive whole number of charges, got ${charges}`);
+    }
+    if (!hasPool(creature.resources, pool.key)) {
+      /**
+       * The pool arrives with the equip event, so this is what is left when
+       * the item was equipped by something that is not `equipItem`.
+       *
+       * **Creation is that something, today.** `createCharacter` writes its
+       * own `item-equipped` straight from `choices.equipped` and pins only the
+       * armour record — it does not pin an item's `grants` either, which is
+       * the same gap this one sits in and which predates charges. A character
+       * born holding a wand therefore holds a wand with no pool, and is told
+       * so here rather than silently finding it empty. Closing it properly is
+       * `creation.ts`'s to do, in the brief that gives creation the item
+       * compiler; `charges.test.ts` pins the hole so it is a recorded fact.
+       */
+      return err(
+        'unknown_pool',
+        `nothing has declared ${item.name}'s charges for ${id}; take it off and put it back on`,
+      );
+    }
+
+    const left = remaining(creature.resources, pool.key);
+    if (left < charges) {
+      return err('exhausted', `${pool.label} has ${left} left, and ${charges} were asked for`);
+    }
+
+    return ok([
+      {
+        type: 'resource-spent',
+        id,
+        key: pool.key,
+        amount: charges,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
     ]);
   });
 }

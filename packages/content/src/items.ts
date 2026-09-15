@@ -113,6 +113,74 @@ const MAGIC_ITEMS: readonly CatalogueItem[] = [
       },
     ],
   },
+  {
+    /**
+     * SRD Wand of Secrets: "Wand, Uncommon. This wand has 3 charges and
+     * regains 1d3 expended charges daily at dawn. While holding it, you can
+     * take a Magic action to expend 1 charge, and if a secret door or trap is
+     * within 60 feet of you, the wand pulses and points at the one nearest to
+     * you."
+     *
+     * **The charges are transcribed and the pointing is not**, and that is the
+     * whole of what is deferred here. A wand that finds a secret door is a
+     * fact about a room the engine has no walls for — the DM already owns
+     * whether there is a door and where — so what the engine owns is the
+     * economy: three charges, one spent per look, and a die at dawn. The
+     * Magic action the SRD spends is not taken either, for the same reason the
+     * effect is not resolved: a `use` grant that spends an action and resolves
+     * what the charge buys is the next brief's subject, and half of it written
+     * here would be an action spent on nothing.
+     */
+    id: 'wand-of-secrets',
+    name: 'Wand of Secrets',
+    kind: 'wand',
+    weightLb: null,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'pool',
+        key: 'wand-of-secrets:charges',
+        label: 'Wand of Secrets charges',
+        uses: 3,
+        recovers: 'dawn',
+        regainsAtDawn: '1d3',
+      },
+    ],
+  },
+  {
+    /**
+     * SRD Eyes of Charming: "Wondrous Item, Uncommon (requires attunement).
+     * These crystal lenses fit over the eyes. They have 3 charges. While
+     * wearing them, you can expend 1 or more charges to cast _Charm Person_
+     * (save DC 13)... The lenses regain all expended charges daily at dawn."
+     *
+     * Here for the other half of the dawn rule: "all expended charges" is the
+     * `dawn` recovery tag on its own, with no dice beside it, and it is what
+     * `restoreOn` has always done. Casting _Charm Person_ from an item is the
+     * same deferred `use` grant the Wand of Secrets is waiting on.
+     */
+    id: 'eyes-of-charming',
+    name: 'Eyes of Charming',
+    kind: 'wondrous',
+    weightLb: null,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    attunement: {},
+    grants: [
+      {
+        kind: 'pool',
+        key: 'eyes-of-charming:charges',
+        label: 'Eyes of Charming charges',
+        uses: 3,
+        recovers: 'dawn',
+      },
+    ],
+  },
 ];
 
 function build(): readonly CatalogueItem[] {

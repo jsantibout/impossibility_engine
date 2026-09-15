@@ -30,6 +30,7 @@ import {
   declareCoverBetween,
   declareCreatureDead,
   declareCreatureSide,
+  declareDawn,
   declareSightBetween,
   declareSpellcasting,
   dismountRider,
@@ -59,6 +60,7 @@ import {
   availableChecks,
   resolveEffectCheck,
   endFeature,
+  expendCharges,
   attuneItem,
   endAttunement,
   equipItem,
@@ -229,6 +231,45 @@ const ATTUNING: readonly GameEvent[] = [
 ];
 
 const supply = (seed = 's') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
+
+/**
+ * SETUP, plus a charged wand in A's hand — which is what declares its pool.
+ *
+ * The Wand of Secrets needs no attunement and its charges recover on a *rolled*
+ * dawn, so this one fixture serves both `expendCharges` and `declareDawn`: the
+ * dawn below is a dawn with something to give back and a die to throw for it,
+ * which is the retry that would be dangerous if it ran twice.
+ */
+const CHARGED: readonly GameEvent[] = [
+  ...SETUP,
+  { type: 'items-gained', id: A, items: [{ id: 'wand-of-secrets', quantity: 1 }], source: 'the hoard' },
+  ...unwrap(
+    equipItem(
+      fold(
+        's',
+        [
+          ...SETUP,
+          {
+            type: 'items-gained',
+            id: A,
+            items: [{ id: 'wand-of-secrets', quantity: 1 }],
+            source: 'the hoard',
+          },
+        ],
+      ),
+      SRD_CONTENT,
+      A,
+      'wand-of-secrets',
+    ),
+    'equip the wand',
+  ),
+];
+
+/** And one charge out of it, so a dawn has something to roll for. */
+const SPENT_A_CHARGE: readonly GameEvent[] = [
+  ...CHARGED,
+  ...unwrap(expendCharges(fold('s', CHARGED), SRD_CONTENT, A, 'wand-of-secrets'), 'expend'),
+];
 
 /** Events out of whatever shape a command hands back. */
 const eventsOf = (value: unknown): readonly GameEvent[] =>
@@ -1309,6 +1350,21 @@ const GUARDED: readonly Guarded[] = [
     ],
     run: (s, commandId) => endAttunement(s, SRD_CONTENT, A, 'cloak-of-elvenkind', commandId),
   },
+  {
+    name: 'expendCharges',
+    log: CHARGED,
+    run: (s, commandId) => expendCharges(s, SRD_CONTENT, A, 'wand-of-secrets', 1, commandId),
+  },
+  /**
+   * Dawn, over a world where something was spent that a die gives back. A
+   * retried dawn that ran twice would roll twice and hand back twice, which is
+   * the same shape `restoreResourcesOn` is not idempotent by construction for.
+   */
+  {
+    name: 'declareDawn',
+    log: SPENT_A_CHARGE,
+    run: (s, commandId) => declareDawn(s, supply(), { commandId }),
+  },
   // The nine facts a DM declares, which had no command at all until IE-016.
   {
     name: 'declareCreatureSide',
@@ -1706,6 +1762,18 @@ const SPENDERS: readonly Spender[] = [
     run: (s) => dismountRider(s, B, { from: { creature: A }, feet: 5, bearing: 180 }),
   },
   { name: 'useFreeObjectInteraction', run: (s) => useFreeObjectInteraction(s, B) },
+  /**
+   * A wand's charge. It spends no Action here — what a charge *buys* is not
+   * resolved from an item yet — but it takes a pool use, which is the sweep's
+   * own definition of spending, and a creature owing a mandatory area effect
+   * may not reach for a wand any more than for a spell. The wand need not even
+   * be owned: `mayAct` is asked immediately after the duplicate check and
+   * before the item is looked up at all.
+   */
+  {
+    name: 'expendCharges',
+    run: (s) => expendCharges(s, SRD_CONTENT, B, 'wand-of-secrets'),
+  },
 ];
 
 /**
@@ -2182,6 +2250,8 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: it is the moment the economy starts existing, so there is no budget yet for it to spend',
   advanceTime:
     'not an action in the turn economy: outside combat there are no turns, and how long the party spent searching the vault is narration',
+  declareDawn:
+    'not an action in the turn economy: the sun coming up is a fact the DM declares, it happens to the world rather than to anybody in it, and no SRD rule spends a turn’s budget on a sunrise — it costs the fighter mid-swing exactly nothing',
   declareSpellcasting:
     'not an action in the turn economy: it states what a creature with no class table can cast, which is a fact about the creature and not a casting',
   declareCreatureSide:
@@ -2271,6 +2341,7 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
         ]),
     },
     { name: 'advanceTime', run: (s) => advanceTime(s, 600, 'the storm passes') },
+    { name: 'declareDawn', run: (s) => declareDawn(s, supply()) },
     {
       name: 'declareSpellcasting',
       run: (s) => declareSpellcasting(s, B, declaredCasting({ ability: 'wis', prepared: ['bless'] })),
@@ -2624,6 +2695,14 @@ describe('unknown is not no', () => {
       name: 'ending an attunement for somebody nobody has added',
       run: () =>
         endAttunement(fold('s', SETUP), SRD_CONTENT, id('the-porter'), 'cloak-of-elvenkind'),
+    },
+    {
+      // Spending a wand's charge names a creature and an item. The item is in
+      // the catalogue and the creature is not in the record, which is a thin
+      // record rather than a broken rule.
+      name: 'spending a charge for somebody nobody has added',
+      run: () =>
+        expendCharges(fold('s', SETUP), SRD_CONTENT, id('the-porter'), 'wand-of-secrets'),
     },
     {
       name: 'rolling a test for somebody nobody has declared',

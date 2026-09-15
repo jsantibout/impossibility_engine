@@ -339,9 +339,27 @@ export type FeatureGrant =
       readonly minimum?: number;
       /** SRD Lay On Hands: "five times your Paladin level". */
       readonly perClassLevel?: number;
+      /**
+       * A flat number of uses — the fourth sizing, and the **item's**.
+       *
+       * SRD prints a magic item's charges as a number on the item's own line:
+       * "This wand has 3 charges." An item has no class level and no ability
+       * scores, so the three sizings above have nothing to read, and `minimum`
+       * is a floor under a modifier rather than a count. A class feature that
+       * named this would be sized by a number `poolSizeOf` never reads, so
+       * `checkContent` refuses it there for the same reason it refuses
+       * `while-worn` on a feature.
+       */
+      readonly uses?: number;
       readonly recovers: Recovery;
       /** SRD: "you regain one expended use when you finish a Short Rest." */
       readonly regainsOnShortRest?: number;
+      /**
+       * SRD: "regains 1d3 expended charges daily at dawn" — dice the engine
+       * rolls at a declared dawn, rather than a refill. See
+       * {@link ResourcePool.regainsAtDawn}.
+       */
+      readonly regainsAtDawn?: string;
       /**
        * What one use buys, where what it buys is hit points for the holder.
        *

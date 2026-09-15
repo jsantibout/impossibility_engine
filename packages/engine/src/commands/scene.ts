@@ -82,6 +82,8 @@ import {
   type Point,
   type SceneExtent,
 } from '../positioning.js';
+import { type Rng } from '../dice.js';
+import { rollRecorded, type RollIssuer } from '../rolls.js';
 import { type SpellcastingState } from '../spellcasting.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
 
@@ -298,6 +300,111 @@ export function advanceTime(
     return ok([
       { type: 'time-advanced', seconds, reason, ...(stamp === null ? {} : { command: stamp }) },
     ]);
+  });
+}
+
+/**
+ * Declare that dawn has come, and give back what a dawn gives back.
+ *
+ * **Dawn is declared, never derived**, and `clock.ts` says why in as many
+ * words: "There is no calendar and no time of day: those are fiction, and the
+ * DM owns them." The clock counts seconds since the campaign began, and no
+ * number of seconds is a sunrise — a party that rests eight hours underground
+ * has not seen one, and a party that walks out at noon will. The SRD hands the
+ * moment to the GM, so this is the GM saying it.
+ *
+ * **It is a moment, not a duration.** No `time-advanced` goes out, nothing
+ * expires and no turn ends — declaring dawn during a fight is legal and changes
+ * nothing about the fight, because sunrise is not a thing anybody spends a turn
+ * on. Whoever wants the night to have passed advances the clock through
+ * `advanceTime` or rests, which are the two commands that own elapsed time.
+ *
+ * Two kinds of recovery come out of it, because the SRD prints two:
+ *
+ * - **"regains all expended charges daily at dawn"** — the `resources-restored`
+ *   event a rest already emits, with the `dawn` tag `Recovery` has carried
+ *   since pools landed. The fold refills every pool that recovers on it.
+ * - **"regains 1d3 expended charges daily at dawn"** — a roll, and the engine
+ *   makes it: forty-four of the SRD's magic items say a number of dice rather
+ *   than "all", and a caller supplying that number would be the model producing
+ *   one. It lands as `resource-regained`, the event Sorcerous Restoration
+ *   already uses, with the roll and the generator's state beside it.
+ *
+ * Everybody at once, because dawn happens to the world rather than to a person
+ * — which is the difference between this and a rest, and the reason it takes no
+ * creature id. Creatures are walked in sorted key order and pools in sorted key
+ * order, so the same seed gives the same log.
+ */
+export function declareDawn(
+  state: GameState,
+  supply: { readonly issuer: RollIssuer; readonly rng: Rng },
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, 'declare-dawn', { ...command }, () => [], (stamp) => {
+    const events: GameEvent[] = [];
+
+    for (const key of Object.keys(state.creatures).sort()) {
+      const creature = state.creatures[key];
+      if (creature === undefined) continue;
+      const pools = Object.keys(creature.resources.pools)
+        .sort()
+        .flatMap((poolKey) => {
+          const pool = creature.resources.pools[poolKey];
+          return pool === undefined || pool.recovers !== 'dawn' ? [] : [pool];
+        });
+      if (pools.length === 0) continue;
+
+      // One restoration for the creature, whatever it holds: `restoreOn` is
+      // all-or-nothing by tag and steps over the pools whose recovery is a
+      // roll, which is what lets the two share one dawn.
+      //
+      // The stamp rides the first of them, because which event a dawn is
+      // guaranteed to write depends on what the world is holding: a dawn over a
+      // party with no dawn pool writes nothing, gives nothing back, and is a
+      // no-op however many times it is sent.
+      events.push({
+        type: 'resources-restored',
+        id: creature.id,
+        recovers: 'dawn',
+        ...(stamp === null || events.length > 0 ? {} : { command: stamp }),
+      });
+
+      for (const pool of pools) {
+        if (pool.regainsAtDawn === undefined) continue;
+        // Nothing expended, nothing rolled. A die thrown for a full pool would
+        // move the generator for a recovery that could not happen, which is the
+        // quiet way a replay stops matching.
+        if (pool.spent === 0) continue;
+
+        const issuedBefore = supply.issuer.count;
+        const rolled = rollRecorded(supply.issuer, supply.rng, pool.regainsAtDawn);
+        if (!rolled.ok) return rolled;
+
+        // "Regains 1d6 + 1 expended charges": what is expended is the ceiling,
+        // the same way a recovery feature's cap is. The roll stands in the log
+        // as it fell; the pool takes what it had room for.
+        const amount = Math.min(rolled.value.total, pool.spent);
+        events.push(
+          {
+            type: 'roll-recorded',
+            who: creature.id,
+            label: `${pool.label} at dawn (${pool.regainsAtDawn})`,
+            natural: rolled.value.total,
+            total: rolled.value.total,
+            contributions: [],
+            outcome: `${amount} back`,
+          },
+          {
+            type: 'rolls-issued',
+            count: supply.issuer.count - issuedBefore,
+            rng: supply.rng.snapshot(),
+          },
+          { type: 'resource-regained', id: creature.id, key: pool.key, amount },
+        );
+      }
+    }
+
+    return ok(events);
   });
 }
 

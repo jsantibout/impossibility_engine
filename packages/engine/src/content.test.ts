@@ -536,11 +536,20 @@ describe('the one door refuses what it cannot execute, with a path', () => {
       );
 
     const gloves = JSON.parse(QUIET_HAND);
-    // A charge pool is the next brief's subject; nothing runs one from an item
-    // today, so an item declaring one is refused rather than accepted inert.
-    expect(codesOf({ ...gloves, grants: [{ kind: 'pool', pool: 'charges', uses: 3 }] })).toContain(
+    // Two of the grant kinds are executed from an item — a standing benefit and
+    // a charge pool — and the rest are not. Extra Attack is one nothing reads
+    // off an item, so declaring it is refused rather than accepted inert.
+    expect(codesOf({ ...gloves, grants: [{ kind: 'extra-attack', attacks: 2 }] })).toContain(
       'item_grant_not_read @ items[gloves-of-the-quiet-hand].grants[0]',
     );
+    // And the charge pool that *is* executed still has to be one an item can
+    // size: the class-table sizings have nothing on an item to read.
+    expect(
+      codesOf({
+        ...gloves,
+        grants: [{ kind: 'pool', key: 'gloves:charges', recovers: 'dawn' }],
+      }),
+    ).toContain('item_pool_without_uses @ items[gloves-of-the-quiet-hand].grants[0].uses');
     // A Speed from an item is read by nothing: `speedOf` gathers Speed off the
     // sheet alone, because it is the function a `has-speed` requirement asks.
     expect(
@@ -599,6 +608,28 @@ describe('the one door refuses what it cannot execute, with a path', () => {
     ];
     expect(checkContent({ classes: [cls] }).map((problem) => problem.code)).toContain(
       'item_requirement_on_a_feature',
+    );
+  });
+
+  /**
+   * And the same claim in the other direction. A flat number of uses is how an
+   * item's line sizes its charges — "This wand has 7 charges" — and a class
+   * feature's pool is sized off its table, so `poolSizeOf` would never read it.
+   */
+  it('refuses a flat number of uses on a class feature, which is not an item', () => {
+    const cls = JSON.parse(BLOODHUNTER);
+    cls.features = [
+      {
+        id: 'bloodhunter:borrowed-wand',
+        name: 'Borrowed Wand',
+        level: 1,
+        automation: 'engine',
+        note: 'A feature pretending to be an item.',
+        grants: { kind: 'pool', key: 'borrowed-wand', uses: 7, recovers: 'dawn' },
+      },
+    ];
+    expect(checkContent({ classes: [cls] }).map((problem) => problem.code)).toContain(
+      'item_sizing_on_a_feature',
     );
   });
 

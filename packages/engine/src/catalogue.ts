@@ -1,5 +1,6 @@
 import type { Armor, Weapon } from '@ie/srd';
 import type { FeatureGrant } from './progression.js';
+import type { PoolDeclaration } from './resources.js';
 import type { StandingEffect } from './standing.js';
 
 /**
@@ -100,8 +101,9 @@ export interface CatalogueItem {
    * item's benefit is a {@link FeatureGrant} and is executed by the readers
    * that already execute one. See `docs/design/characters-and-equipment.md`.
    *
-   * Today only `standing` grants are executed from an item, and `checkContent`
-   * refuses the others by name rather than accepting a grant nothing runs.
+   * Today a `standing` grant and a `pool` grant are executed from an item, and
+   * `checkContent` refuses the others by name rather than accepting a grant
+   * nothing runs.
    */
   readonly grants?: readonly FeatureGrant[];
 }
@@ -137,6 +139,43 @@ export function itemStandingEffects(item: CatalogueItem): readonly StandingEffec
     }
   }
   return effects;
+}
+
+/**
+ * The charge pool an item declares, or null for the almost everything that
+ * declares none.
+ *
+ * The other half of the item's compiler, beside {@link itemStandingEffects}
+ * and running where that one runs — **in the command** — so what comes out is
+ * pinned into a `resource-pool-declared` event and the fold never opens a
+ * catalogue to know how many charges a wand has.
+ *
+ * Charges are the pool mechanism reused rather than a second one: `resources.ts`
+ * named "a magic item with seven charges" as a designed use of pools on the day
+ * it was written, and `Recovery` has carried `dawn` since. So an item's line —
+ * "This wand has 3 charges and regains 1d3 expended charges daily at dawn" — is
+ * a `pool` grant with a flat `uses` and a `regainsAtDawn`, and everything that
+ * spends, refuses and refills a Warlock's slots spends, refuses and refills
+ * these.
+ *
+ * The **first** pool grant, because `checkContent` refuses an item that carries
+ * two: an item's charges are one pool in the book and one pool here.
+ */
+export function itemChargePool(item: CatalogueItem): PoolDeclaration | null {
+  for (const grant of item.grants ?? []) {
+    if (grant.kind !== 'pool') continue;
+    return {
+      key: grant.key,
+      label: grant.label ?? `${item.name} charges`,
+      max: grant.uses ?? 0,
+      recovers: grant.recovers,
+      ...(grant.regainsOnShortRest === undefined
+        ? {}
+        : { regainsOnShortRest: grant.regainsOnShortRest }),
+      ...(grant.regainsAtDawn === undefined ? {} : { regainsAtDawn: grant.regainsAtDawn }),
+    };
+  }
+  return null;
 }
 
 /** SRD Coin Values: 1 gp is 100 cp, and every other coin divides into it. */

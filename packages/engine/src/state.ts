@@ -86,10 +86,20 @@ export interface EquippedItem {
  * today: `InventoryLine` counts copies and gives none of them an identity, so
  * two Wands of Magic Missiles cannot be told apart. That is survivable here —
  * attunement is a yes or no per kind of item, and attuning to the second of
- * two identical wands grants exactly what the first one does — and it will
- * stop being survivable the moment charges land, because charges are spent
- * from *one* wand. Item instance identity is named as a later brief's subject
- * in `docs/design/characters-and-equipment.md`.
+ * two identical wands grants exactly what the first one does — and it stops
+ * being survivable the moment two of a **charged** item are in one pack,
+ * because charges are spent from *one* wand.
+ *
+ * Charges have landed and that line is held by a refusal rather than by a
+ * record: `equipItem` declines to put a second copy of a charged item in
+ * anybody's hand, naming the missing instance record in its reason. The one
+ * door past that refusal is creation, which writes its own `item-equipped` —
+ * and it declares no charge pool at all, so what comes of it is an
+ * `unknown_pool` refusal rather than two wands sharing one. Item
+ * instance identity is still a later brief's subject in
+ * `docs/design/characters-and-equipment.md`, and the brief that adds item
+ * *transfer* cannot defer it — a wand handed over leaves its charges behind,
+ * and no refusal can catch that.
  */
 export interface AttunedItem {
   readonly id: string;

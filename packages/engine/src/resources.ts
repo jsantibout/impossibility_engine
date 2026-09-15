@@ -1,4 +1,5 @@
-import { err, ok, type Result } from '@ie/shared';
+import { err, ok, type Err, type Result } from '@ie/shared';
+import { parseNotation } from './dice.js';
 
 /**
  * Limited-use pools: spell slots, Channel Divinity, Ki, Second Wind, the
@@ -52,6 +53,22 @@ export interface ResourcePool {
    * flag would be a rule that could only ever mean one.
    */
   readonly regainsOnShortRest?: number;
+  /**
+   * Dice a **dawn** gives back, instead of a refill.
+   *
+   * SRD writes it forty-four times across the magic items and never once as
+   * "all" and a number together: the Wand of Secrets "regains 1d3 expended
+   * charges daily at dawn", the Staff of Power "2d8 + 4". The `recovers` tag
+   * beside it is all-or-nothing and cannot say that, and `regainsOnShortRest`
+   * cannot either, because that one is a *stated* number and these are rolled.
+   *
+   * Dice notation rather than a count, because the SRD prints dice — and the
+   * number is therefore the engine's to roll (`declareDawn`), never a
+   * caller's to supply. A pool carrying this is left alone by `restoreOn`: the
+   * roll is the whole of its recovery, so refilling it as well would hand back
+   * everything and then roll for it.
+   */
+  readonly regainsAtDawn?: string;
 }
 
 export interface PoolDeclaration {
@@ -73,6 +90,8 @@ export interface PoolDeclaration {
    * flag would be a rule that could only ever mean one.
    */
   readonly regainsOnShortRest?: number;
+  /** Dice a dawn gives back instead of a refill — see {@link ResourcePool.regainsAtDawn}. */
+  readonly regainsAtDawn?: string;
 }
 
 export interface ResourceState {
@@ -104,7 +123,7 @@ export function declarePool(
   state: ResourceState,
   declaration: PoolDeclaration,
 ): Result<ResourceState> {
-  const { key, label, max, recovers, regainsOnShortRest } = declaration;
+  const { key, label, max, recovers, regainsOnShortRest, regainsAtDawn } = declaration;
 
   if (key.trim() === '') return err('bad_key', 'a pool needs a key');
   if (!Number.isInteger(max) || max < 0) {
@@ -124,6 +143,9 @@ export function declarePool(
     );
   }
 
+  const dawn = dawnRollProblem(regainsAtDawn, recovers);
+  if (dawn !== null) return dawn;
+
   return ok(
     derive({
       ...state.pools,
@@ -134,9 +156,37 @@ export function declarePool(
         spent: 0,
         recovers,
         ...(regainsOnShortRest === undefined ? {} : { regainsOnShortRest }),
+        ...(regainsAtDawn === undefined ? {} : { regainsAtDawn }),
       },
     }),
   );
+}
+
+/**
+ * What is wrong with a rolled dawn recovery, or null.
+ *
+ * Exported because `checkContent` asks the same question of an item's charge
+ * grant before any pool exists, and two copies of "is this dice, and does this
+ * pool even see a dawn" would be two places to answer it differently.
+ */
+export function dawnRollProblem(
+  regainsAtDawn: string | undefined,
+  recovers: Recovery,
+): Err | null {
+  if (regainsAtDawn === undefined) return null;
+  // A roll for a dawn this pool never sees is a recovery that never happens,
+  // which is the quiet kind of wrong: the pool looks recharging and is not.
+  if (recovers !== 'dawn') {
+    return err(
+      'dawn_roll_without_dawn',
+      `a pool that regains ${regainsAtDawn} at dawn recovers at dawn, not on a ${recovers}`,
+    );
+  }
+  const notation = parseNotation(regainsAtDawn);
+  if (!notation.ok) {
+    return err('bad_dawn_roll', `"${regainsAtDawn}" is not dice: ${notation.reason}`);
+  }
+  return null;
 }
 
 export function hasPool(state: ResourceState, key: string): boolean {
@@ -189,7 +239,12 @@ export function restore(state: ResourceState, key: string, amount: number): Resu
 export function restoreOn(state: ResourceState, recovers: Recovery): ResourceState {
   const pools: Record<string, ResourcePool> = {};
   for (const [key, pool] of Object.entries(state.pools)) {
-    if (pool.recovers === recovers) {
+    // A pool that regains a *rolled* number at dawn is not refilled by one.
+    // SRD: "The wand has 3 charges and regains 1d3 expended charges daily at
+    // dawn" — the roll is the whole of its recovery, and only the engine may
+    // produce the number, so `declareDawn` gives it back as a
+    // `resource-regained` and this leaves it alone.
+    if (pool.recovers === recovers && pool.regainsAtDawn === undefined) {
       pools[key] = { ...pool, spent: 0 };
       continue;
     }
