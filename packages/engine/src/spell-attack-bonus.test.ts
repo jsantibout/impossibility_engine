@@ -180,7 +180,10 @@ describe('a spell attack rolls at the spell attack modifier, and nothing else', 
    * untrained in reaches their fist and not their Fire Bolt.
    *
    * (The same rule's other clause — that untrained armour stops you casting at
-   * all — is not modelled; this is about which ability the roll involves.)
+   * all — is modelled, in `castSpellWith`, and swept door by door in
+   * `untrained-armor-casting.test.ts`. It cannot fire here because this asks
+   * `attackRollModes` directly, which is the arithmetic below a casting rather
+   * than a casting. What is under test is which ability the roll involves.)
    */
   it('does not take the Strength penalty untrained armour puts on a fist', () => {
     const encumbered = sheet({
