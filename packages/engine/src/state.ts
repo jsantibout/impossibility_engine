@@ -29,6 +29,7 @@ import { type SpellcastingState } from './spellcasting.js';
 import type { RestState } from './rest.js';
 import {
   type Deadline,
+  type GrantedPayout,
   type PendingSave,
   type EffectCheck,
   type ScheduledDamage,
@@ -321,6 +322,29 @@ export interface CreatureState {
    * flatten a distinction `conditionApplicability` exists to keep.
    */
   readonly grantedConditionImmunities: readonly GrantedConditionImmunity[];
+  /**
+   * What a running casting hands this creature at each of its turn boundaries.
+   *
+   * The eighth member of the family the seven above form, and the first of them
+   * that is *read by a moment* rather than by a roll: SRD Heroism's "gains
+   * Temporary Hit Points equal to your spellcasting ability modifier at the
+   * start of each of its turns" is a standing arrangement, and the turn
+   * boundary is the only thing that ever looks at it.
+   *
+   * **It is a grant rather than a debt, and that is the design.** Nothing is
+   * ever *owed* between turns: `resolveTurn` reads this as it passes the
+   * boundary and pays it there, exactly as it reads a creature's vitals for the
+   * Death Saving Throw it owes. A queue would be a second place for the same
+   * fact to live, kept in step by remembering to file and to discharge — and a
+   * payout that was filed and never settled would wedge the fight over a
+   * sentence that hands out Temporary Hit Points.
+   *
+   * Linked by the casting in its `source` exactly as the other seven are, so
+   * `releaseCasting`, `releaseOnTarget`, a dispel, a broken Concentration, the
+   * deadline and a `grants` timer all end it through the door that already
+   * existed.
+   */
+  readonly payouts: readonly GrantedPayout[];
   /**
    * Bonuses this creature's own features add to Initiative.
    *

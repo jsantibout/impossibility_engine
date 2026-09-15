@@ -446,6 +446,15 @@ function declaredEventTypes(): readonly string[] {
  * through Mind Blank: the refusal, a Charm Person that finds nothing to charm,
  * the union with a Zombie's printed entries, and all three doors the grant ends
  * by.
+ *
+ * `turn-payout-granted` is the seventh, and by the same construction a last
+ * time: neither log was written when a casting could hand a creature anything
+ * at a turn boundary — the eighth sourced grant did not exist and Heroism had
+ * no definition — so no casting in either emits one.
+ * `turn-payouts.test.ts` folds it and drives it end to end: Temporary Hit
+ * Points at the start of a recipient's turn, damage at the end of one, the
+ * boundary that pays nothing because it is the other moment, and Heroism's two
+ * halves ending together on a broken Concentration.
  */
 const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'attack-rider-granted',
@@ -454,6 +463,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'condition-immunity-granted',
   'damage-defense-granted',
   'speed-modifier-granted',
+  'turn-payout-granted',
 ];
 
 /** What the pair must cover between them, whatever else changes. */

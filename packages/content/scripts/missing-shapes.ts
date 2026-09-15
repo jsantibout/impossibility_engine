@@ -143,8 +143,6 @@ export const MISSING_SHAPES = {
     'PROGRESS.md ranks "Healing that lifts a condition, **raises the dead**, or raises the maximum"; `docs/design/spell-definitions.md` states the refusal it has to get past — "hit points alone will not raise the dead — `healCreature` refuses a corpse, and the refusal costs no slot".',
   'a-hit-point-maximum-a-spell-moves':
     'the maximum is set when a creature is added and by advancement, and no effect moves it. PROGRESS.md ranks "Healing that lifts a condition, raises the dead, or raises the maximum"; the audit names Harm’s reduction as debt.',
-  'a-payout-at-a-turn-boundary':
-    'damage, healing or Temporary Hit Points delivered at every turn boundary for the duration, with no save and no area to be standing in. `PROGRESS.md` names it among the mechanics the drained shapes left behind: "a Temporary Hit Point payout that repeats each turn (Heroism)". `pendingSaves` is raised at a boundary and pays nothing out.',
   'difficult-terrain-an-area-creates':
     'Difficult Terrain is charged exactly and **declared by the foot** on the move that crosses it (`MoveCommand.difficultFeet`). Deriving it from a spell’s area needs the path a move does not record — CLAUDE.md’s own named gap — so five executed areas are invisible to the ruler. The audit counts "three Difficult Terrain areas" among the clauses that are rules rather than fiction.',
   'an-area-that-moves-by-itself':
@@ -2832,24 +2830,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The maximum is set when a creature is added and by advancement, and no effect moves one — so the Hit Points gained with it would be capped at a maximum the spell was supposed to have raised.',
     },
   ],
-  heroism: [
-    {
-      clause: 'immune to the Frightened condition',
-      why: 'expressible',
-      note: 'IE-042\'s `condition-immunity` effect. The spell\'s whole first half — "Until the spell ends, the creature is immune to the Frightened condition" — is unconditional and lasts as long as the casting, which is the shape the kind was built for. What keeps Heroism undefined is the second half, below.',
-    },
-    {
-      clause:
-        'gains Temporary Hit Points equal to your spellcasting ability modifier at the start of each of its turns',
-      why: 'a-payout-at-a-turn-boundary',
-      note: 'A turn boundary raises saves and pays nothing out: `grantTemporaryHpTo` exists and no effect reaches it on a schedule, so Temporary Hit Points every turn for the duration have no hook.',
-    },
-    {
-      clause: 'one additional creature for each spell slot level above 1',
-      why: 'expressible',
-      note: '`TargetRule.extraPerSlotLevelAbove`, which is what Bless and every other upcast target count already writes.',
-    },
-  ],
   // **Both of IE-035's shapes reached it**, which is what that task was for:
   // the extra 1d6 Necrotic "to the target whenever you hit it with an attack
   // roll" is `attack-rider` word for word, and "level 2 (up to 4 hours), 3–4
@@ -3274,7 +3254,18 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   ],
   'modify-memory': ['a-casting-ended-by-a-trigger'],
   'pass-without-trace': ['a-standing-effect-derived-from-where-a-creature-stands'],
-  'phantasmal-force': ['a-payout-at-a-turn-boundary', 'an-area-trigger-measured-from-a-point'],
+  // **The payout entry was mis-filed, and the printed sentence is what says
+  // so.** "**On each of your turns**, such a phantasm can deal 2d8 Psychic
+  // damage to the target if it is in the phantasm's area or within 5 feet of
+  // the phantasm" is the *caster's* boundary rather than the target's — the
+  // shape filed separately as `an-area-trigger-on-the-casters-turn` — and the
+  // damage is owed only while the target stands near a point. So a payout at
+  // the recipient's own boundary reaches none of this clause, and the honest
+  // correction is the two shapes that do.
+  'phantasmal-force': [
+    'an-area-trigger-measured-from-a-point',
+    'an-area-trigger-on-the-casters-turn',
+  ],
   // **The bare list had missed the field.** A minute is a long casting and this
   // entry never said so, which is the kind of omission only reading the printed
   // entry rather than the paragraph finds.
@@ -3462,7 +3453,11 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-selector-for-every-d20-test',
     'a-success-branch-that-does-something',
   ],
-  regenerate: ['a-long-casting-time', 'a-payout-at-a-turn-boundary'],
+  // **The payout half is built and this entry is re-read rather than edited.**
+  // "For the duration, the target regains 1 Hit Point at the start of each of
+  // its turns" is a `turn-payout` of healing carrying a printed number, word
+  // for word, so what is left of the spell is the minute it takes to cast.
+  regenerate: ['a-long-casting-time'],
   reincarnate: [
     'a-long-casting-time',
     'a-random-outcome-that-is-not-a-d20',

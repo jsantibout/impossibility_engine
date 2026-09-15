@@ -1,8 +1,8 @@
 /**
- * The seven families of granted modifier, and the one rule they share.
+ * The eight families of granted modifier, and the one rule they share.
  *
  * A bonus, an Armour Class, a roll modifier, a damage defence, a Speed, an
- * attack rider and a condition Immunity. **Re-granting from the same source
+ * attack rider, a condition Immunity and a payout at a turn boundary. **Re-granting from the same source
  * replaces rather than stacks** in every one of them; what differs is only what
  * counts as the source's identity, which each case states where it departs.
  */
@@ -20,6 +20,7 @@ export const GRANTS_EVENTS = [
   'speed-modifier-granted',
   'attack-rider-granted',
   'condition-immunity-granted',
+  'turn-payout-granted',
   'bonus-removed',
 ] as const;
 
@@ -164,6 +165,21 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         },
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { grantedConditionImmunities }, creature);
+    }
+
+    case 'turn-payout-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, the
+      // rule every grant in the family follows. **The source alone is the
+      // identity**, as it is for a defence, a Speed, a rider and an Immunity:
+      // no SRD sentence pays one creature twice a turn out of one casting, and
+      // a second copy of Heroism's clause from the same casting is the same
+      // clause.
+      const payouts = [
+        ...creature.payouts.filter((held) => held.source !== event.payout.source),
+        event.payout,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { payouts }, creature);
     }
 
     case 'bonus-removed': {

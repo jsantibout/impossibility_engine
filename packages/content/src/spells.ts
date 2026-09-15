@@ -1979,6 +1979,65 @@ export const HIDEOUS_LAUGHTER: SpellDefinition = {
 };
 
 /**
+ * SRD Heroism, whole:
+ *
+ * > _Level 1 Enchantment (Bard, Paladin)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** Concentration, up to 1 minute.
+ * > "A willing creature you touch is imbued with bravery. Until the spell ends,
+ * > the creature is immune to the Frightened condition and gains Temporary Hit
+ * > Points equal to your spellcasting ability modifier at the start of each of
+ * > its turns."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
+ * > for each spell slot level above 1."
+ *
+ * **One sentence, two clauses, and they were built two tranches apart.** The
+ * Immunity is IE-042's `condition-immunity` word for word — unconditional, for
+ * as long as the casting runs, which is the shape that kind was built for. The
+ * Temporary Hit Points are the other half, and for four tranches they were the
+ * spell's only blocker: a turn boundary raised saves and paid nothing out, so
+ * `grantTemporaryHpTo` existed and no effect reached it on a schedule.
+ *
+ * **"Equal to your spellcasting ability modifier" and nothing else**, which is
+ * why the payout prints no dice and no number of its own: `addSpellcastingModifier`
+ * is the whole amount, pinned at the cast like every other casting number.
+ *
+ * **"Each of *its* turns" is the recipient's boundary**, which is the `at` the
+ * payout carries. A paladin who casts this on the barbarian and then walks away
+ * still pays at the barbarian's turn, because the arrangement is on the
+ * barbarian.
+ *
+ * The upcast buys targets rather than Temporary Hit Points —
+ * `extraPerSlotLevelAbove`, the same field Bless and Hideous Laughter write.
+ */
+export const HEROISM: SpellDefinition = {
+  id: 'heroism',
+  name: 'Heroism',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  // "Duration: Concentration, up to 1 minute."
+  concentration: true,
+  durationSeconds: 60,
+  // "Range: Touch."
+  range: { kind: 'touch' },
+  // "A willing creature you touch", and one more per slot level above 1.
+  targets: { count: 1, self: true, extraPerSlotLevelAbove: 1 },
+  effects: [
+    { kind: 'condition-immunity', conditions: ['frightened'] },
+    {
+      kind: 'turn-payout',
+      at: 'start-of-turn',
+      payout: 'temporary-hit-points',
+      addSpellcastingModifier: true,
+    },
+  ],
+  unmodelled: [
+    'whether the target is willing is not modelled; willingness is fiction',
+    'being imbued with bravery is narration',
+  ],
+};
+
+/**
  * SRD Hold Monster:
  *
  * > _Level 5 Enchantment (Bard, Sorcerer, Warlock, Wizard)._ **Casting Time:**
@@ -6033,6 +6092,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HARM,
   HEALING_WORD,
   HELLISH_REBUKE,
+  HEROISM,
   HIDEOUS_LAUGHTER,
   HOLD_MONSTER,
   HOLD_PERSON,

@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 57 (16.8%) | 98 (28.9%) | 48 | 76 (22.4%) |
+| 339 | 57 (16.8%) | 99 (29.2%) | 48 | 77 (22.7%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -88,6 +88,7 @@ a plain statement of what the table decides.
 - **Harm** (level 6) — verified, partial — a clause the engine owns is still unbuilt
 - **Healing Word** (level 1) — verified
 - **Hellish Rebuke** (level 1) — untested
+- **Heroism** (level 1) — verified
 - **Hideous Laughter** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Hold Monster** (level 5) — verified
 - **Hold Person** (level 2) — verified
@@ -237,6 +238,7 @@ always made in the same words.
 | `a-wall-or-several-templates-in-one-area` | 10 | 2 | 0 | 0 | 0 | 10 |
 | `a-rider-on-a-later-weapon-attack` | 7 | 0 | 2 | 0 | 0 | 7 |
 | `a-spell-that-answers-a-later-attack` | 5 | 0 | 2 | 0 | 0 | 5 |
+| `a-long-casting-time` | 43 | 0 | 1 | 0 | 0 | 43 |
 | `a-casting-ended-by-a-trigger` | 28 | 0 | 1 | 2 | 0 | 26 |
 | `a-second-place-to-put-a-creature` | 20 | 1 | 0 | 1 | 0 | 19 |
 | `a-random-outcome-that-is-not-a-d20` | 19 | 0 | 1 | 0 | 0 | 19 |
@@ -254,7 +256,6 @@ always made in the same words.
 | `an-activation-that-forces-a-saving-throw` | 5 | 0 | 1 | 0 | 0 | 5 |
 | `a-duration-the-slot-changes` | 4 | 0 | 1 | 0 | 0 | 4 |
 | `falling` | 4 | 0 | 1 | 0 | 0 | 4 |
-| `a-payout-at-a-turn-boundary` | 3 | 1 | 0 | 0 | 0 | 3 |
 | `an-area-trigger-measured-from-a-point` | 3 | 0 | 1 | 0 | 0 | 3 |
 | `several-attack-rolls-from-one-casting` | 3 | 0 | 1 | 1 | 0 | 2 |
 | `a-die-behaviour-a-spell-asks-for` | 2 | 0 | 1 | 0 | 0 | 2 |
@@ -264,7 +265,6 @@ always made in the same words.
 | `a-second-roll-sequenced-after-the-first` | 1 | 0 | 1 | 0 | 0 | 1 |
 | `an-armor-class-a-spell-floors` | 1 | 0 | 1 | 0 | 0 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 0 | 1 | 0 | 0 | 1 |
-| `a-long-casting-time` | 43 | 0 | 0 | 0 | 0 | 43 |
 | `a-choice-made-at-the-casting` | 25 | 0 | 0 | 4 | 0 | 21 |
 | `an-effect-that-suppresses-other-magic` | 16 | 0 | 0 | 0 | 0 | 16 |
 | `forced-movement-a-spell-causes` | 13 | 0 | 0 | 1 | 0 | 12 |
@@ -275,9 +275,9 @@ always made in the same words.
 | `an-area-that-filters-its-catch` | 7 | 0 | 0 | 1 | 0 | 6 |
 | `a-deadline-anchored-to-a-rest` | 6 | 0 | 0 | 0 | 0 | 6 |
 | `an-activation-that-resolves-an-area` | 6 | 0 | 0 | 1 | 0 | 5 |
+| `an-area-trigger-on-the-casters-turn` | 6 | 0 | 0 | 0 | 0 | 6 |
 | `senses-beyond-declared-sight` | 6 | 0 | 0 | 1 | 0 | 5 |
 | `a-creature-type-predicate-an-area-reads` | 5 | 0 | 0 | 0 | 0 | 5 |
-| `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 0 | 5 |
 | `an-effect-that-fires-when-the-casting-ends` | 5 | 0 | 0 | 0 | 0 | 5 |
 | `a-casting-that-casts-another-spell` | 4 | 0 | 0 | 0 | 0 | 4 |
 | `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 0 | 4 |

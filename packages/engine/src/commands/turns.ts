@@ -29,6 +29,7 @@ import { type CheckContext } from '../conditions.js';
 import {
   isDue,
   mayAttempt,
+  type GrantedPayout,
   type PendingSave,
   type ScheduledDamage,
   timeView,
@@ -36,11 +37,19 @@ import {
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { needsCasterSheet, statedDamageType } from '../spell-definitions.js';
-import { type AreaMoment, castingNumber, type OwedAreaEffect } from '../spells.js';
+import {
+  type AreaMoment,
+  castingIdOf,
+  castingNumber,
+  type OwedAreaEffect,
+  spellOfSource,
+} from '../spells.js';
 import { effectiveConditions, rollModesFor } from '../standing.js';
 import { isDown, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
+import { type DamageComponent } from '../attack.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
+import { grantTemporaryHpTo, healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
 import { recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
@@ -151,6 +160,148 @@ function collectDueDamage(
     const cleared: GameEvent = { type: 'scheduled-damage-collected', key: scheduled.key };
     events.push(cleared, ...hurt.value.events);
     current = [cleared, ...hurt.value.events].reduce(applyEvent, current);
+  }
+
+  return ok(events);
+}
+
+/** One creature's payout, and the arrangement that owes it. */
+interface DuePayout {
+  readonly target: CharacterId;
+  readonly payout: GrantedPayout;
+}
+
+/**
+ * What a creature's own boundary hands it, read off the arrangements it holds.
+ *
+ * SRD Heroism: "gains Temporary Hit Points equal to your spellcasting ability
+ * modifier **at the start of each of its turns**." The recipient's boundary and
+ * nobody else's, which is why this takes one creature rather than walking the
+ * ongoing castings: the question a boundary asks is about whoever is starting
+ * or finishing a turn.
+ *
+ * **Read at settlement, not at the moment.** A casting that ended earlier in
+ * this same boundary — a scheduled hit that broke its Concentration, an area
+ * effect that dropped its caster — has already taken its grant back, and the
+ * creature is owed nothing by a spell that is over. That is the same answer
+ * `settleAreaEffects` gives for a debt whose casting has gone, arrived at
+ * without a debt to forgive.
+ *
+ * A dead recipient is skipped rather than refused: they take no turns, and a
+ * boundary that threw would wedge the fight over a sentence about Temporary
+ * Hit Points.
+ *
+ * **`who` is optional because the *beginning* of a turn can be nobody's**: the
+ * boundary's own settlements can end the fight, and a fight that has ended has
+ * no turn beginning for anything to be due at. The creature whose turn *ended*
+ * is never absent, so it is passed as a creature rather than as a maybe.
+ */
+function payoutsAt(
+  state: GameState,
+  who: CharacterId | undefined,
+  at: 'start-of-turn' | 'end-of-turn',
+): readonly DuePayout[] {
+  if (who === undefined) return [];
+  const creature = state.creatures[who];
+  if (creature === undefined || creature.vitals.dead) return [];
+  return creature.payouts
+    .filter((payout) => payout.at === at)
+    .map((payout) => ({ target: who, payout }));
+}
+
+/**
+ * Everything this boundary hands over: the finishing creature's end, then the
+ * beginning creature's start.
+ *
+ * The same order `settleAreaEffects` settles its own two moments in, and for
+ * the same reason — they are a round apart, and one `turn-advanced` raises
+ * both.
+ */
+function payoutsDue(
+  state: GameState,
+  ended: CharacterId,
+  begun: CharacterId | undefined,
+): readonly DuePayout[] {
+  return [...payoutsAt(state, ended, 'end-of-turn'), ...payoutsAt(state, begun, 'start-of-turn')];
+}
+
+/**
+ * Hand over what the boundary owes, through the doors every other spell uses.
+ *
+ * `grantTemporaryHpTo`, `healCreature` and `dealSpellDamage` — so a payout of
+ * damage meets the target's Resistance, puts their Concentration at risk and
+ * drops them to 0 exactly as any other damage would, and a payout of healing
+ * caps at the maximum and lifts the unconsciousness that having no hit points
+ * caused. There is no second hit-point calculator here.
+ *
+ * **The die is thrown at the boundary**, not at the cast: a payout that repeats
+ * throws a new one each turn, and the notation is what the grant carries. The
+ * *recipient's* sheet is handed to `rollSpellDice` for the reason a scheduled
+ * hit's is — the components kept are the ones whose source is the spell, and
+ * the caster may be dead by now — so the sheet contributes nothing and the
+ * roll cannot fail for want of a caster.
+ */
+function settleTurnPayouts(
+  state: GameState,
+  supply: Supply,
+  ended: CharacterId,
+  begun: CharacterId | undefined,
+): Result<readonly GameEvent[]> {
+  const due = payoutsDue(state, ended, begun);
+  if (due.length === 0) return ok([]);
+
+  const events: GameEvent[] = [];
+  let current = state;
+
+  for (const { target, payout } of due) {
+    const recipient = current.creatures[target];
+    // Settling an earlier payout can kill the creature the next one is for —
+    // one fight, one combatant, a curse that drops them — so this is re-read
+    // each pass rather than taken from the list.
+    if (recipient === undefined || recipient.vitals.dead) continue;
+
+    const label = spellOfSource(payout.source);
+    // The same three words `resolveHealEffect` and `resolveTempHpEffect` label
+    // their own rolls with, so one spell reads the same in the log whether the
+    // dice were thrown at the cast or at a boundary.
+    const type =
+      payout.damageType ?? (payout.payout === 'healing' ? 'healing' : 'temporary');
+
+    let rolled = payout.flat;
+    let components: readonly DamageComponent[] = [];
+    if (payout.dice !== undefined) {
+      const dice = rollSpellDice(supply, recipient.sheet, label, type, payout.dice);
+      if (!dice.ok) return dice;
+      components = dice.value;
+      rolled += components.reduce((sum, component) => sum + component.total, 0);
+    }
+    if (rolled <= 0) continue;
+
+    if (payout.payout === 'damage') {
+      const whole: readonly DamageComponent[] =
+        payout.flat === 0
+          ? components
+          : [...components, { source: label, type, roll: null, flat: payout.flat, total: payout.flat }];
+      // The caster is named so the hit can be answered and attributed, and is
+      // omitted rather than guessed at when the casting has outlived them.
+      const castingId = castingIdOf(payout.source);
+      const by = castingId === null ? undefined : current.ongoing[castingId]?.caster;
+      const hurt = dealSpellDamage(current, target, whole, label, supply, {
+        ...(by === undefined ? {} : { by: by as CharacterId }),
+      });
+      if (!hurt.ok) return hurt;
+      events.push(...hurt.value.events);
+      current = hurt.value.events.reduce(applyEvent, current);
+      continue;
+    }
+
+    const paid =
+      payout.payout === 'healing'
+        ? healCreature(current, target, rolled)
+        : grantTemporaryHpTo(current, target, rolled);
+    if (!paid.ok) return paid;
+    events.push(...paid.value);
+    current = paid.value.reduce(applyEvent, current);
   }
 
   return ok(events);
@@ -824,6 +975,41 @@ export function resolveTurn(
         advanced.push(...dealt.value.events);
         after = dealt.value.events.reduce(applyEvent, after);
       }
+    }
+
+    // What the boundary's running castings hand over: SRD Heroism's Temporary
+    // Hit Points "at the start of each of its turns". No save to raise and no
+    // area to be standing in — the arrangement is on the creature, and the
+    // boundary is the only thing that reads it.
+    //
+    // **After the areas and before the Death Saving Throw.** The areas first
+    // because their debts were already standing when this command began and a
+    // payout is derived here; the death save last for the reason the areas are
+    // ahead of it too — only that order leaves room for a start-of-turn *heal*
+    // to matter, which is exactly what a payout of healing is.
+    //
+    // **Whose turn ended and whose began are read off the two combat states**,
+    // never off the creature the caller named: the same two moments
+    // `settleAreaEffects` orders, a round apart.
+    // The fight is running — `no_combat` refused above, and the guard beside it
+    // already reads `currentCombatant(state.combat)` — so the turn that ended
+    // has an owner. The turn that *begins* may not: the boundary's own
+    // settlements can end the fight, and a fight that has ended has no turn
+    // beginning for a payout to fall due at.
+    const ending = currentCombatant(state.combat).id;
+    const beginning = after.combat === null ? undefined : currentCombatant(after.combat).id;
+    const owedPayouts = payoutsDue(after, ending, beginning);
+    if (owedPayouts.length > 0) {
+      if (supply === undefined) {
+        return err(
+          'payout_owed',
+          `${owedPayouts.length} payout(s) fall due at this boundary; advancing needs a generator to settle them`,
+        );
+      }
+      const paid = settleTurnPayouts(after, supply, ending, beginning);
+      if (!paid.ok) return paid;
+      advanced.push(...paid.value);
+      after = paid.value.reduce(applyEvent, after);
     }
 
     // SRD: "Whenever you start your turn with 0 Hit Points, you must make a

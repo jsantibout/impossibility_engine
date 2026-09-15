@@ -5,6 +5,7 @@ import {
   forSeconds,
   startOfNextTurn,
   type Duration,
+  type PayoutKind,
 } from './duration.js';
 import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
@@ -676,6 +677,64 @@ export type SpellEffect =
       readonly kind: 'heal';
       readonly healing: DiceScaling;
       readonly addSpellcastingModifier: boolean;
+    }
+  /**
+   * Something handed over at every one of the target's turn boundaries, for as
+   * long as the casting runs.
+   *
+   * SRD Heroism: "Until the spell ends, the creature is immune to the Frightened
+   * condition and **gains Temporary Hit Points equal to your spellcasting
+   * ability modifier at the start of each of its turns**."
+   *
+   * **Not an area trigger, and that is the whole reason this kind exists.**
+   * {@link AreaTrigger} is what a *place* does to whoever is standing in it,
+   * and every clause it carries is answered by asking where a creature is.
+   * This asks nobody anything: there is no save to raise, no geometry to be
+   * inside of, and the recipient was chosen once, at the cast. What the two
+   * share is the vocabulary for *when* — see {@link at}, which is the same
+   * start-or-end the areas have distinguished since durations landed, because
+   * where the two moments fall is a full round apart.
+   *
+   * **The recipient's own turn, never the caster's.** "each of **its** turns"
+   * is what the SRD writes here, and a payout on the caster's turn is a
+   * different sentence that no spell in the book prints on this shape.
+   *
+   * **A grant, so it ends through the doors every grant ends through.** The
+   * casting is in the source, so a dispel, a broken Concentration, the deadline
+   * and the caster leaving all take it away — see `GrantedPayout`.
+   */
+  | {
+      readonly kind: 'turn-payout';
+      /**
+       * SRD "at the start of each of its turns" / "at the end of each of its
+       * turns", in {@link AreaTrigger.at}'s own two words.
+       */
+      readonly at: 'start-of-turn' | 'end-of-turn';
+      /** Which of the three the boundary hands over. */
+      readonly payout: PayoutKind;
+      /**
+       * A notation the spell prints, rolled **at each boundary** rather than
+       * once at the cast: a payout that repeats is a die thrown every time.
+       *
+       * Absent where the spell prints none, which is Heroism — and absent is
+       * why this is a bare notation rather than a {@link DiceScaling}. Nothing
+       * in the book scales a per-turn payout by the slot it was cast at; the
+       * upcast sentences on this shape buy more *targets*, which
+       * `TargetRule.extraPerSlotLevelAbove` already says.
+       */
+      readonly dice?: string;
+      /** A printed number: Regenerate's "regains 1 Hit Point". */
+      readonly flat?: number;
+      /**
+       * SRD Heroism: "equal to your **spellcasting ability modifier**".
+       *
+       * The same field `heal`, `temp-hp` and `attack` already carry, and the
+       * modifier is the *chosen route's* — resolved at the cast and pinned, so
+       * a bard who levels mid-minute pays what they promised.
+       */
+      readonly addSpellcastingModifier?: boolean;
+      /** Required when {@link payout} is `damage`, and refused otherwise. */
+      readonly damageType?: string;
     }
   /**
    * Extra damage on a weapon attack that has already hit.

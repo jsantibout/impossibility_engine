@@ -553,7 +553,6 @@ describe('the condition-immunity family is read sentence by sentence', () => {
       ],
     ],
     ['heroes-feast', ['a-hit-point-maximum-a-spell-moves', 'a-long-casting-time']],
-    ['heroism', ['a-payout-at-a-turn-boundary']],
     [
       'magic-circle',
       [
@@ -677,21 +676,29 @@ describe('the condition-immunity family is read sentence by sentence', () => {
   });
 
   /**
-   * **And building this shape handed a `finishes` to another one**, which is
-   * the arithmetic a build does to the map and the reason every entry is
-   * re-read rather than edited.
+   * **And building this shape handed a `finishes` to another one, which has
+   * since been built and collected it.**
    *
-   * Heroism printed two blockers and prints one now: the Immunity is
-   * `expressible` and the Temporary Hit Points every turn are not. So
-   * `a-payout-at-a-turn-boundary` gained a spell it finishes outright, without
-   * anything about that shape changing — and it gained it in the column that
-   * says somebody read the paragraph.
+   * IE-042 left Heroism printing one blocker where it had printed two: the
+   * Immunity was `expressible` and the Temporary Hit Points every turn were
+   * not, so `a-payout-at-a-turn-boundary` gained a spell it finished outright,
+   * in the column that says somebody had read the paragraph. That is the
+   * prediction this row existed to make, and the honest check now is that it
+   * came true rather than that it is still pending — the move Mind Blank's own
+   * row made one build earlier.
+   *
+   * So the spell is defined, out of the blocked population entirely, and
+   * carries no adjudicated debt: all three of its clauses are executed, which
+   * is the state a `finishes` is supposed to end in.
    */
-  it('hands Heroism to the shape that is now its only blocker', () => {
-    const payout = consumersOf('a-payout-at-a-turn-boundary');
-    expect(payout.unblocks).toContain('heroism');
-    expect(payout.unblocksRead).toContain('heroism');
-    expect(payout.unblocksUnread).not.toContain('heroism');
+  it('collected the spell it handed on, once the payout shape was built', () => {
+    expect(BLOCKED_ON['heroism']).toBeUndefined();
+    expect(ADJUDICATED['heroism']).toBeUndefined();
+    expect(DEFINED_SPELL_IDS.has('heroism')).toBe(true);
+    // And the shape itself is gone from the vocabulary, because nothing claims
+    // it any more — the retirement every built shape ends in.
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-payout-at-a-turn-boundary');
+    expect(claimedShapes().has('a-payout-at-a-turn-boundary')).toBe(false);
   });
 });
 
@@ -1990,12 +1997,6 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     ['revivify', 'healing-that-raises-the-dead'],
     // "Choose up to five falling creatures within range."
     ['feather-fall', 'falling'],
-    // "Until the spell ends, the creature is immune to the Frightened
-    // condition" is `condition-immunity` now, so the Temporary Hit Points at
-    // the start of each turn are the whole of what is left. Mind Blank stood
-    // here until IE-042 defined it, and Stoneskin until IE-017 did — which is
-    // this row emptying twice for the same reason.
-    ['heroism', 'a-payout-at-a-turn-boundary'],
   ];
 
   it.each(SOLE)('%s is blocked on %s and nothing else', (spellId, shape) => {
@@ -2129,7 +2130,14 @@ describe('a shape may finish nothing and still block forty-two spells', () => {
    */
   it('has finished every spell it was the only blocker for', () => {
     const casting = consumersOf('a-long-casting-time');
-    expect(casting.unblocks).toEqual([]);
+    // **One, and it arrived from another shape being built.** Regenerate named
+    // this and the payout at a turn boundary; the payout was built, so "the
+    // target regains 1 Hit Point at the start of each of its turns" stopped
+    // being a blocker and the minute it takes to cast became the only one
+    // left. That is the arithmetic a build does to the map, and it moves a
+    // count in a column a tranche is planned from — which is why it is
+    // asserted rather than loosened.
+    expect(casting.unblocks).toEqual(['regenerate']);
     expect(casting.blocks.length).toBeGreaterThan(40);
     expect(claimedShapes().has('a-long-casting-time')).toBe(true);
   });

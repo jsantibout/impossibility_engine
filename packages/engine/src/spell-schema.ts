@@ -24,6 +24,7 @@ import type {
   SpellDefinition,
   SpellEffect,
 } from './spell-definitions.js';
+import type { PayoutKind } from './duration.js';
 import type { DefenseKind } from './attack.js';
 import type { SpeedChange } from './standing.js';
 import type { Bonus, BonusApplies } from './bonuses.js';
@@ -95,6 +96,12 @@ const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
 ]);
 /** The three operations {@link SpeedChange} names, as data, for untyped input. */
 const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>(['add', 'halve', 'zero']);
+/** The three things {@link PayoutKind} hands over, as data, for untyped input. */
+const PAYOUT_KINDS: ReadonlySet<string> = new Set<PayoutKind>([
+  'temporary-hit-points',
+  'healing',
+  'damage',
+]);
 const CASTING_TIMES: ReadonlySet<string> = new Set([
   'action',
   'bonus-action',
@@ -1060,6 +1067,92 @@ function checkEffect(
       checkScaling(effect.amount, level, `${path}.amount`, found);
       return;
 
+    /**
+     * A payout at a turn boundary: when, what, and how much.
+     *
+     * Four rules, and each is a sentence the SRD either prints or refuses to:
+     *
+     * - **The moment** is the start or the end of a turn and nothing vaguer,
+     *   the same two words `AreaTrigger.at` transcribes — where they fall is a
+     *   full round apart.
+     * - **The kind** is one of the three the book pays out on this schedule.
+     * - **The amount** must be *something*. Dice, a printed number, the
+     *   caster's modifier: a payout that names none of the three hands over
+     *   nothing every turn for a minute, and it compiles — the reading that
+     *   refuses an `end-condition` list that removes nothing and a granted
+     *   defence that defends against nothing.
+     * - **A damage type is required exactly when the payout is damage**, and
+     *   refused otherwise. A typed pool of healing is a sentence the engine
+     *   would have to invent a meaning for, and untyped damage is one nothing
+     *   downstream could meet a Resistance with.
+     */
+    case 'turn-payout': {
+      if (effect.at !== 'start-of-turn' && effect.at !== 'end-of-turn') {
+        found.push({
+          field: `${path}.at`,
+          code: 'bad_payout_moment',
+          reason: `"${String(effect.at)}" is not the start or the end of a turn, and the two are a round apart`,
+        });
+      }
+      if (!PAYOUT_KINDS.has(effect.payout)) {
+        found.push({
+          field: `${path}.payout`,
+          code: 'unknown_payout',
+          reason: `"${String(effect.payout)}" is not damage, healing or Temporary Hit Points`,
+        });
+      }
+      // `typeof` first, exactly as `checkScaling` does: `parseNotation` reads a
+      // string and this function meets untyped input, so judging it must not
+      // throw on it.
+      if (
+        effect.dice !== undefined &&
+        (typeof effect.dice !== 'string' || !parseNotation(effect.dice).ok)
+      ) {
+        found.push({
+          field: `${path}.dice`,
+          code: 'bad_dice',
+          reason: `"${String(effect.dice)}" is not dice notation`,
+        });
+      }
+      if (effect.flat !== undefined && !Number.isInteger(effect.flat)) {
+        found.push({
+          field: `${path}.flat`,
+          code: 'bad_payout_amount',
+          reason: `a printed payout is a whole number, got "${String(effect.flat)}"`,
+        });
+      }
+      if (
+        effect.dice === undefined &&
+        effect.flat === undefined &&
+        effect.addSpellcastingModifier !== true
+      ) {
+        found.push({
+          field: path,
+          code: 'pays_nothing',
+          reason:
+            'a payout that names no dice, no printed number and no spellcasting modifier hands over nothing at every turn boundary',
+        });
+      }
+      if (effect.payout === 'damage') {
+        if (effect.damageType === undefined) {
+          found.push({
+            field: `${path}.damageType`,
+            code: 'missing_damage_type',
+            reason: 'damage meets a creature’s defences by type, so a payout of damage names one',
+          });
+        } else {
+          checkDamageType(effect.damageType, `${path}.damageType`, found);
+        }
+      } else if (effect.damageType !== undefined) {
+        found.push({
+          field: `${path}.damageType`,
+          code: 'damage_type_on_a_payout',
+          reason: `a payout of ${String(effect.payout)} has no damage type; nothing reads one`,
+        });
+      }
+      return;
+    }
+
     case 'buff':
       checkBonusGrant(effect.bonus, effect.applies, path, found);
       return;
@@ -1454,6 +1547,13 @@ function grantCarried(effect: SpellEffect): string | null {
     // casting has no moment at which the Immunity could ever lift.
     case 'condition-immunity':
       return 'a granted Immunity to a condition';
+    // The eighth, and it carries no deadline of its own for the reason the
+    // fifth, sixth and seventh do not: SRD Heroism says "until the spell ends"
+    // and Regenerate prints a span the definition carries, so the casting is
+    // the only thing that could stop the payments — and an Instantaneous
+    // casting would be an arrangement with no turns left to pay out on.
+    case 'turn-payout':
+      return 'a payout at every turn boundary';
     default: {
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
@@ -2473,4 +2573,5 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'speed',
   'attack-rider',
   'teleport',
+  'turn-payout',
 ]);

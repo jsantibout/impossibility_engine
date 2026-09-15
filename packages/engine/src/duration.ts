@@ -403,6 +403,73 @@ export const scheduledDamageKey = (source: string, target: CharacterId): string 
   `${source}|${target}`;
 
 /**
+ * What a payout at a turn boundary hands over.
+ *
+ * Three members, and the adjudication map's own evidence is why there are three
+ * rather than one: Heroism pays Temporary Hit Points, Regenerate pays Hit
+ * Points, and Phantasmal Force deals damage — all three at a turn boundary, all
+ * three with no save and no area. The engine already had one route to each
+ * (`grantTemporaryHpTo`, `healCreature`, `dealSpellDamage`) and no schedule to
+ * reach them on, which is the gap rather than three missing mechanisms.
+ *
+ * Spelled out rather than borrowed from the effect kinds that share the words:
+ * `temp-hp` and `heal` are *effects*, with their own scaling and their own
+ * riders, and a payout reusing those names would read as one of them repeated.
+ *
+ * Declared here rather than in `spell-definitions.ts` because the *record* is
+ * what the fold and the boundary read, and the definitions module already
+ * depends on this one — the reverse edge would be a cycle that survives only
+ * because a type is erased.
+ */
+export type PayoutKind = 'temporary-hit-points' | 'healing' | 'damage';
+
+/**
+ * What a running casting hands a creature at every one of its turn boundaries.
+ *
+ * SRD Heroism: "gains Temporary Hit Points equal to your spellcasting ability
+ * modifier **at the start of each of its turns**." The neighbour above is the
+ * shape this is most easily confused with, and the difference is the whole
+ * reason it is a separate record:
+ *
+ * | | {@link ScheduledDamage} | This |
+ * |---|---|---|
+ * | How often | once, at one named moment | every turn, until the casting ends |
+ * | Where it lives | `state.scheduledDamage`, keyed by casting and target | on the creature, as the eighth sourced grant |
+ * | What ends it | collecting it | the casting ending, by any of its doors |
+ * | What it can be | damage | damage, healing or Temporary Hit Points |
+ *
+ * So a debt with a due date is filed and discharged, and this is a standing
+ * arrangement that is *read* at each boundary and never filed at all. That is
+ * what keeps a payout out of the pending-debt machinery: nothing can be owed
+ * between turns, because the arrangement is the fact and the boundary is the
+ * only thing that reads it.
+ *
+ * **Every number here was pinned at the cast** — {@link flat} already carries
+ * the caster's spellcasting modifier, resolved against the sheet they cast
+ * with — for the reason `CastingNumbers` is pinned: a spell already cast does
+ * not change when its caster does, and the fold opens no catalogue.
+ *
+ * **{@link dice} is a notation and not a total**, exactly as a scheduled hit's
+ * is: a payout that repeats throws its die at each boundary, and rolling once
+ * at the cast would put the number in the log before the moment that produced
+ * it.
+ */
+export interface GrantedPayout {
+  /** The casting (`Heroism#cast:3`) that promised it. */
+  readonly source: string;
+  /** The recipient's own boundary — never the caster's. */
+  readonly at: 'start-of-turn' | 'end-of-turn';
+  readonly payout: PayoutKind;
+  /** Rolled when the boundary arrives, never before. Absent when none is printed. */
+  readonly dice?: string;
+  /** The printed number plus the spellcasting modifier, resolved at the cast. */
+  readonly flat: number;
+  /** Present exactly when {@link payout} is `damage`. */
+  readonly damageType?: string;
+}
+
+
+/**
  * Whether a scheduled hit is due **now**.
  *
  * The difference from {@link hasExpired} is the whole reason this exists. That

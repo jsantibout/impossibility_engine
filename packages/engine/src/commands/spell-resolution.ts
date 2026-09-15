@@ -105,7 +105,11 @@ import {
   resolveRollModeEffect,
   resolveSpeedEffect,
 } from './spell-effect-grants.js';
-import { resolveHealEffect, resolveTempHpEffect } from './spell-effect-hit-points.js';
+import {
+  resolveHealEffect,
+  resolveTempHpEffect,
+  resolveTurnPayoutEffect,
+} from './spell-effect-hit-points.js';
 import {
   resolveDispelEffect,
   resolveInterruptCastingEffect,
@@ -1119,6 +1123,8 @@ function resolveOneEffect(
       return resolveAttackRiderEffect(ctx, effect, target, world);
     case 'heal':
       return resolveHealEffect(ctx, effect, target, victim, world);
+    case 'turn-payout':
+      return resolveTurnPayoutEffect(ctx, effect, target, world);
     case 'save-damage':
       return resolveSaveDamageEffect(ctx, effect, target, victim, world);
     case 'save':

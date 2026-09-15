@@ -1695,6 +1695,16 @@ describe('every member of the definition format has a user or a written exemptio
       // adding a new kind of masking: the flat field and the rider field are
       // the same clause read two ways.
       'SpellEffect.check? + SpellDefinition.check? + ConditionRider.check?',
+      // A payout's printed number and a scaling's printed addend are the same
+      // word for the same idea — "plus 4", "regains 1 Hit Point" — and the
+      // collision masks nothing today: False Life writes the scaling's, and a
+      // payout's is unwritten because the one SRD spell of that shape the
+      // catalogue defines, Heroism, prints no number at all and adds only the
+      // caster's modifier. What it costs is that a definition writing one
+      // would report the other as written; recorded here rather than renamed,
+      // because renaming a field to satisfy a probe is the instrument
+      // deciding the format.
+      'SpellEffect.flat? + DiceScaling.flat?',
       'SpellEffect.lasts? + ConditionRider.lasts?',
       // A save-damage's success and a check's success are different fields
       // that happen to share two words; both values are written by both.
@@ -2779,6 +2789,29 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { dice: required(STRING_JUNK), damageType: required(STRING_JUNK) },
     },
     {
+      kind: 'turn-payout',
+      base: {
+        kind: 'turn-payout',
+        at: 'start-of-turn',
+        payout: 'temporary-hit-points',
+        addSpellcastingModifier: true,
+      },
+      // The moment and the kind are **required**, because a payout with
+      // neither hands something unnamed over at a moment nobody chose. The
+      // amounts are junk-swept rather than required individually: each of the
+      // three is optional on its own and the rule is that *some* one of them
+      // is written, which the pairing rule below asserts by name — the shape
+      // `speed` and `teleport` already take for a clause the book either
+      // prints or does not.
+      fields: {
+        at: required(STRING_JUNK),
+        payout: required(STRING_JUNK),
+        dice: STRING_JUNK,
+        flat: NUMBER_JUNK,
+        damageType: STRING_JUNK,
+      },
+    },
+    {
       kind: 'teleport',
       base: { kind: 'teleport', feet: 30, requiresSight: true },
       // The destination is the **casting's** to state and is nowhere on the
@@ -3449,6 +3482,88 @@ describe('the fought clause is refused everywhere it could not be read', () => {
     expect(inList('effects', { kind: 'teleport', feet: 2 })).toEqual(['bad_teleport_distance']);
     expect(inList('effects', { kind: 'teleport', feet: 0 })).toEqual(['bad_teleport_distance']);
     expect(inList('effects', { kind: 'teleport' })).toEqual(['bad_teleport_distance']);
+  });
+});
+
+/**
+ * A payout at a turn boundary, and the four things a definition can get wrong.
+ *
+ * Each is a sentence the SRD either prints or refuses to, and each is asserted
+ * by name here rather than swept as junk — the shape `speed`'s pairing rule and
+ * `teleport`'s lattice already take, for the same reason: what makes a rule a
+ * *guard* is a definition built to fail it.
+ */
+describe('a payout at a turn boundary names its moment, its kind and its amount', () => {
+  /** A minute, because the eighth grant carries no lifetime of its own. */
+  const lasting = (effect: unknown): readonly string[] =>
+    codes(checkSpellDefinitionValue({ ...FIRE_DART, durationSeconds: 60, effects: [effect] }));
+
+  const PAYOUT = {
+    kind: 'turn-payout',
+    at: 'start-of-turn',
+    payout: 'temporary-hit-points',
+    addSpellcastingModifier: true,
+  };
+
+  it('accepts Heroism’s own clause', () => {
+    expect(lasting(PAYOUT)).toEqual([]);
+  });
+
+  /**
+   * "At the start of each of its turns" and "at the end of each of its turns"
+   * are a full round apart, which is why the moment is two words and not a
+   * vaguer one — the reading `AreaTrigger.at` has taken since durations landed.
+   */
+  it('refuses a moment that is neither the start nor the end of a turn', () => {
+    expect(lasting({ ...PAYOUT, at: 'each-round' })).toEqual(['bad_payout_moment']);
+    expect(lasting({ ...PAYOUT, at: undefined })).toEqual(['bad_payout_moment']);
+  });
+
+  it('refuses a payout of something the engine cannot hand over', () => {
+    expect(lasting({ ...PAYOUT, payout: 'inspiration' })).toEqual(['unknown_payout']);
+  });
+
+  /**
+   * A payout naming no dice, no number and no modifier hands over nothing
+   * every turn for a minute, and it compiles — the reading that already
+   * refuses a granted Immunity to no condition and a defence against no
+   * damage type.
+   */
+  it('refuses a payout that hands over nothing', () => {
+    expect(lasting({ kind: 'turn-payout', at: 'end-of-turn', payout: 'healing' })).toEqual([
+      'pays_nothing',
+    ]);
+  });
+
+  /**
+   * Damage meets a creature's defences by type, so a payout of damage names
+   * one and a payout of anything else may not: nothing reads a type off
+   * healing, and a definition that wrote one would be stating a rule the
+   * engine would silently drop.
+   */
+  it('pairs a damage type with a payout of damage, and refuses it anywhere else', () => {
+    const hurt = { kind: 'turn-payout', at: 'end-of-turn', payout: 'damage', dice: '1d6' };
+    expect(lasting({ ...hurt, damageType: 'psychic' })).toEqual([]);
+    expect(lasting(hurt)).toEqual(['missing_damage_type']);
+    expect(lasting({ ...hurt, damageType: 'sonic' })).toEqual(['unknown_damage_type']);
+    expect(lasting({ ...PAYOUT, damageType: 'psychic' })).toEqual(['damage_type_on_a_payout']);
+  });
+
+  /** And the dice are dice, judged rather than thrown on. */
+  it('refuses a notation that is not one', () => {
+    expect(lasting({ ...PAYOUT, dice: 'a handful' })).toEqual(['bad_dice']);
+    expect(lasting({ ...PAYOUT, flat: 1.5 })).toEqual(['bad_payout_amount']);
+  });
+
+  /**
+   * And it is a **grant**, so an Instantaneous spell cannot carry one: the
+   * casting is the only thing that could stop the payments, and a casting that
+   * is over the moment it happens has no turns left to pay out on.
+   */
+  it('refuses one on a casting with nothing to end it', () => {
+    expect(codes(checkSpellDefinitionValue({ ...FIRE_DART, effects: [PAYOUT] }))).toEqual([
+      'grant_without_lifetime',
+    ]);
   });
 });
 

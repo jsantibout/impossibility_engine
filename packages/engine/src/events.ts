@@ -40,6 +40,7 @@ import type { RestBenefit, RestKind } from './rest.js';
 import {
   type Deadline,
   type EffectTarget,
+  type GrantedPayout,
   type RepeatSave,
   type EffectCheck,
   type ScheduledDamage,
@@ -303,6 +304,30 @@ export type GameEvent =
       readonly type: 'condition-immunity-granted';
       readonly id: CharacterId;
       readonly immunity: GrantedConditionImmunity;
+    }
+
+  /**
+   * A payout this creature now receives at each of its turn boundaries.
+   *
+   * SRD Heroism: "gains Temporary Hit Points equal to your spellcasting ability
+   * modifier at the start of each of its turns." The eighth sourced grant, and
+   * it is the arrangement rather than any of the payments: what lands each turn
+   * is an ordinary `temporary-hp-granted`, `hit-points-healed` or
+   * `damage-taken`, from the same functions every other spell reaches.
+   *
+   * **Every number the definition printed is on this event.** `flat` already
+   * carries the caster's spellcasting modifier, resolved at the cast, and
+   * `dice` is the notation the boundary will throw — so the boundary reads the
+   * log rather than the catalogue, and a definition corrected next year does
+   * not change what a casting made this year pays out.
+   *
+   * Ended by the source it carries, exactly as the other seven grants are, so
+   * there is no removal event.
+   */
+  | {
+      readonly type: 'turn-payout-granted';
+      readonly id: CharacterId;
+      readonly payout: GrantedPayout;
     }
 
   /**

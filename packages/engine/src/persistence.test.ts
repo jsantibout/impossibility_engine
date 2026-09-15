@@ -288,6 +288,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'test-settled',
   'time-advanced',
   'turn-advanced',
+  'turn-payout-granted',
 ];
 
 describe('the event vocabulary is a contract', () => {

@@ -168,6 +168,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'guiding-bolt',
   'harm',
   'healing-word',
+  'heroism',
   'hideous-laughter',
   'hold-monster',
   'hold-person',
