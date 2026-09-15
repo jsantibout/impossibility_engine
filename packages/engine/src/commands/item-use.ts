@@ -33,7 +33,8 @@
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { CONFERRED_LEVEL, itemConferral, itemSource } from '../catalogue.js';
-import { type GameEvent, type GameState } from '../events.js';
+import { conditionInstanceId } from '../conditions.js';
+import { grantSourcesOf, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
@@ -185,21 +186,66 @@ export function useItem(
     // **A deadline on what this actually hung, and on nothing else.** SRD
     // Potion of Heroism: "you are under the effect of the _Bless_ spell" for an
     // hour. There is no casting for `releaseCasting` to end, so the timer is
-    // the only door — and it is filed per creature the run is *holding*
-    // something on rather than per effect, because `timerKey` is
-    // `grants|<who>|<source>` and what a deadline ends is everything that
-    // source granted there. `held` is also the only answer that covers an
-    // `attack-rider`, which lands on the user and not on the target.
+    // the only door — and there are two kinds of it, because there are two
+    // kinds of thing a conferral leaves behind and they are ended by different
+    // doors and keyed by different strings.
     //
-    // `checkContent` has already refused a conferral that hangs a grant and
+    // A **grant** is filed per creature the run is holding one on rather than
+    // per effect, because `timerKey` is `grants|<who>|<source>` and what such a
+    // deadline ends is everything that source granted there; `held` is also the
+    // only answer that covers an `attack-rider`, which lands on the user and
+    // not on the target. A **condition** is filed per instance, because that is
+    // what identifies it and what a refresh has to replace.
+    //
+    // `checkContent` has already refused a conferral that hangs either and
     // names no duration, and one that names a duration and hangs nothing.
     if (conferral.durationSeconds !== undefined) {
+      const source = itemSource(item.id);
+      const lasts = { kind: 'seconds', seconds: conferral.durationSeconds } as const;
+      const world = resolved.value.state;
+
+      // **A condition is its own timer, keyed by the instance.** SRD Potion of
+      // Invisibility: "you have the Invisible condition for 1 hour. The effect
+      // ends early if you make an attack roll, deal damage, or cast a spell."
+      // There is no casting, so this timer is the whole record of it — the
+      // hour is the deadline and the sentence is `endsEarly` — and
+      // `endTimedCondition` is the one door both ends go through.
+      //
+      // Read off the outcomes rather than off `held`, because what has to be
+      // named is the **condition**: `timerKey` is `condition|<who>|<instance>`,
+      // which is what makes a second draught of the same potion refresh the
+      // deadline instead of filing a second one.
+      for (const outcome of resolved.value.outcomes) {
+        for (const condition of outcome.conditions ?? []) {
+          const timer = schedule(
+            world,
+            {
+              kind: 'condition',
+              on: outcome.target,
+              instance: conditionInstanceId(condition, source),
+            },
+            lasts,
+            undefined,
+            undefined,
+            conferral.endsEarly,
+          );
+          if (!timer.ok) return timer;
+          events.push(timer.value);
+        }
+      }
+
+      // **And a `grants` timer only where a grant is actually held.** `held`
+      // is whom the run left *something* of its own on, and a condition is one
+      // of the things it can be — so a condition-only potion used to file a
+      // `grants|<who>|item:<id>` deadline against a creature holding no grant
+      // at all: a timer that takes nothing away, standing until the hour, and
+      // keyed where a later grant from the same item would have landed.
+      // `grantSourcesOf` is the one enumerator of the eight sourced families,
+      // and it is the honest question here.
       for (const on of [...resolved.value.held].sort()) {
-        const timer = schedule(
-          resolved.value.state,
-          { kind: 'grants', on, source: itemSource(item.id) },
-          { kind: 'seconds', seconds: conferral.durationSeconds },
-        );
+        const creature = world.creatures[on];
+        if (creature === undefined || !grantSourcesOf(creature).includes(source)) continue;
+        const timer = schedule(world, { kind: 'grants', on, source }, lasts);
         if (!timer.ok) return timer;
         events.push(timer.value);
       }

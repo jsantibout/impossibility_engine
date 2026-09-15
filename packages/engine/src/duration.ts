@@ -308,6 +308,45 @@ export interface EffectCheck {
   readonly label: string;
 }
 
+/**
+ * What has to **happen** for a timed effect to stop before its deadline.
+ *
+ * The four causes that are a fact about *one creature* — they name who did it,
+ * and nothing else — which is why they can be read by a timer that knows only
+ * whom it sits on. SRD Potion of Invisibility prints three of them in one
+ * sentence: "The effect ends early if you make an attack roll, deal damage, or
+ * cast a spell."
+ *
+ * **Here rather than in `spell-definitions.ts`, and the import direction is
+ * what decides it.** A timer is a duration's business and `duration.ts` is
+ * beneath the definition vocabulary; `CastingEndCause` is this list plus the
+ * one cause that needs a caster to be about ("you or one of your allies"), so
+ * the definition side is expressed over this and not the other way round.
+ *
+ * `fold/endings.ts` reads the same facts off the same four events for both
+ * readers — `EndingFact` already splits the who-shaped causes from the one
+ * that names a victim and a dealer — so a condition an item confers and a
+ * casting the SRD ends early are stopped by one reading of one log.
+ *
+ * As data as well as a type, because untyped content has to be checked against
+ * the vocabulary: `checkContent` reads this, exactly as `checkSpellDefinition`
+ * reads `END_TRIGGER_CAUSES`, and `item-condition.test.ts` holds the two lists
+ * to their containment.
+ */
+export const EFFECT_END_CAUSES = [
+  /** SRD: "if you make an attack roll" — `attack-made`, the Attack action. */
+  'target-attacks',
+  /** "... deal damage ..." — `damage-taken` naming its dealer. */
+  'target-deals-damage',
+  /** "... or cast a spell." A settled casting, never a declared one. */
+  'target-casts',
+  /** SRD Mage Armor: "ends early if the target dons armor." */
+  'target-dons-armor',
+] as const;
+
+/** One of {@link EFFECT_END_CAUSES}. */
+export type EffectEndCause = (typeof EFFECT_END_CAUSES)[number];
+
 export interface TimedEffect {
   readonly target: EffectTarget;
   readonly deadline: Deadline;
@@ -315,6 +354,20 @@ export interface TimedEffect {
   readonly repeatSave?: RepeatSave;
   /** A check a creature may attempt against it, if the spell offers one. */
   readonly check?: EffectCheck;
+  /**
+   * What ends this effect **before** its deadline, when something does.
+   *
+   * On a `condition` target and no other, because every cause is a fact about
+   * a creature and that is the only member naming one. A casting's own early
+   * endings are the casting's — they live on its `ongoing` record, where a
+   * scope ("the casting" or "this target") can be written beside them — and
+   * a `grants` or `feature` timer has no SRD sentence asking for one yet.
+   * `endTriggeredEffects` therefore walks past anything that is not a
+   * condition rather than the fold refusing it: a log cannot say this today,
+   * because nothing that writes an `effect-scheduled` will put the field on
+   * another target.
+   */
+  readonly endsEarly?: readonly EffectEndCause[];
 }
 
 /**

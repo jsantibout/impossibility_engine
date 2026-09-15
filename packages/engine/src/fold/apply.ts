@@ -34,7 +34,7 @@ import { releaseCasting } from './release.js';
 import { dropOrphanedAreaEffects } from './areas.js';
 import { openTurnStart, reachStartOfTurn } from './turns.js';
 import { dropOrphanedSaves, dropStrandedDamage, expireEffects } from './expiry.js';
-import { endTriggeredCastings } from './endings.js';
+import { endTriggeredCastings, endTriggeredEffects } from './endings.js';
 
 import { applyRoster, isRosterEvent } from './roster.js';
 import { applyVitals, isVitalsEvent } from './vitals.js';
@@ -276,8 +276,21 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
                   // deadline below — because it is the same kind of fact, and
                   // because the four `drop*` passes below are the safety net
                   // for anything a release orphaned.
-                  endTriggeredCastings(
-                    breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+                  //
+                  // **Two populations, one reading of the event.** The inner
+                  // pass ends castings a trigger pulled; this one ends timed
+                  // conditions nothing ever cast — a potion's Invisible — and
+                  // both read the same `EndingFact`s. Outermost of the two so
+                  // a casting released above has already taken its own
+                  // conditions with it, leaving this walk only what a casting
+                  // never owned.
+                  endTriggeredEffects(
+                    endTriggeredCastings(
+                      breakLostConcentration(
+                        recordCommand(interruptedRests(applied, event), event),
+                      ),
+                      event,
+                    ),
                     event,
                   ),
                 ),

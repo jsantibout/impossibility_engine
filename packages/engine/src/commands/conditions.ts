@@ -12,6 +12,7 @@ import { conditionInstanceId, reasonsFor } from '../conditions.js';
 import {
   type Duration,
   type EffectCheck,
+  type EffectEndCause,
   type EffectTarget,
   type RepeatSave,
   resolveDuration,
@@ -193,6 +194,15 @@ export function schedule(
   duration: Duration,
   repeatSave?: RepeatSave,
   check?: EffectCheck,
+  /**
+   * What ends this before its deadline, for the one caller that has such a
+   * sentence to write — see {@link TimedEffect.endsEarly}.
+   *
+   * Appended rather than folded into an options object, the reading
+   * {@link applyConditionTo}'s ninth parameter already took: a field no
+   * existing call site passes should not move any of them.
+   */
+  endsEarly?: readonly EffectEndCause[],
 ): Result<GameEvent> {
   const deadline = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, duration);
   if (!deadline.ok) return turnContextFor(deadline, duration, holderOf(target));
@@ -202,6 +212,7 @@ export function schedule(
     deadline: deadline.value,
     ...(repeatSave === undefined ? {} : { repeatSave }),
     ...(check === undefined ? {} : { check }),
+    ...(endsEarly === undefined ? {} : { endsEarly }),
   });
 }
 

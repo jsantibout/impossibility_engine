@@ -12,7 +12,6 @@
  * again, which is what `dropOrphanedSaves` exists to prevent.
  */
 import type { CharacterId } from '@ie/shared';
-import { removeConditionInstance } from '../conditions.js';
 import {
   hasExpired,
   type PendingSave,
@@ -21,7 +20,7 @@ import {
   type TimedEffect,
 } from '../duration.js';
 import type { GameState } from '../state.js';
-import { releaseCasting, releaseGrants } from './release.js';
+import { endTimedCondition, releaseCasting, releaseGrants } from './release.js';
 
 /**
  * Every timer except the ones that end something on a creature who has left.
@@ -155,6 +154,15 @@ export function expireEffects(state: GameState): GameState {
     if (key === undefined) return current;
 
     const timer = current.timers[key];
+    // **Through the one door, which deletes the key itself.** A condition on a
+    // timer ends the same way whether the clock reached it or SRD's "ends
+    // early if you make an attack roll" did, so both callers reach
+    // `endTimedCondition` and neither owns the rule.
+    if (timer !== undefined && timer.target.kind === 'condition') {
+      current = endTimedCondition(current, key, timer.target);
+      continue;
+    }
+
     const timers = { ...current.timers };
     delete timers[key];
     current = { ...current, timers };
@@ -199,30 +207,6 @@ export function expireEffects(state: GameState): GameState {
         (c) => c.concentration?.castingId === castingId,
       );
       current = releaseCasting(current, caster?.id ?? null, castingId);
-    } else {
-      const creature = current.creatures[target.on];
-      if (creature !== undefined) {
-        current = {
-          ...current,
-          creatures: {
-            ...current.creatures,
-            [target.on]: {
-              ...creature,
-              conditions: removeConditionInstance(creature.conditions, target.instance),
-            },
-          },
-        };
-        // **And nothing about the casting**, which is the difference this file
-        // used to hold and no longer does. A shrink lived here: when the
-        // condition was the last thing the casting owned on the creature, the
-        // creature was taken out of `on` by hand. It was correct and it was
-        // only half the rule — the `grants` branch above releases a grant and
-        // ran no such line, so a `grants` deadline left a name in the list
-        // Dispel Magic reads and `derived-on.test.ts` asserted the
-        // disagreement. Both branches are now right by construction: the
-        // casting is on whoever holds something of its, asked at every read,
-        // so removing the last thing removes them and nothing has to say so.
-      }
     }
   }
 }

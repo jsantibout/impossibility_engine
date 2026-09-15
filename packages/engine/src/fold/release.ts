@@ -22,7 +22,7 @@
  */
 import type { CharacterId } from '@ie/shared';
 import { removeConditionInstance } from '../conditions.js';
-import { type ScheduledDamage, type TimedEffect } from '../duration.js';
+import { type EffectTarget, type ScheduledDamage, type TimedEffect } from '../duration.js';
 import { castingIdOf, castingNumber, type AreaTriggerStamp, type OngoingSpell } from '../spells.js';
 
 import type { CreatureState, GameState, PendingCasting } from '../state.js';
@@ -525,6 +525,57 @@ export function releaseOnTarget(
  */
 export function releaseGrants(creature: CreatureState, source: string): CreatureState {
   return withoutGrants(creature, (held) => held === source);
+}
+
+/**
+ * A timed condition ending, **however its moment arrived**.
+ *
+ * One door, and for the reason {@link releaseCasting} is one: a condition on a
+ * timer can stop two ways — the deadline passes, or something the SRD printed
+ * happens — and the two used to be one branch inside `expireEffects` with no
+ * name and no second caller. `endTriggeredEffects` is that second caller, and a
+ * near-copy of this five lines long would have been correct until the day
+ * somebody fixed one of them.
+ *
+ * **The key goes before the instance does**, which is not tidiness: it is what
+ * makes the trigger pass terminate. A pass that acts on a timer it has not
+ * consumed can be handed the same timer again by whatever its own release
+ * changed, and the version of that mistake on the casting side **hung the
+ * fold** rather than failing a test. The deletion is inside this function so a
+ * caller cannot forget it.
+ *
+ * **And nothing about the casting.** There is usually none — an item's
+ * condition is filed under `item:<id>`, which `castingIdOf` answers null for —
+ * and where there is one, the casting is on whoever holds something of its,
+ * asked at every read: removing the last thing removes them, and nothing has
+ * to say so. A shrink written here would be half a rule, exactly as the one
+ * this branch used to carry was.
+ *
+ * A condition whose creature has left is the deletion and nothing else, which
+ * is the right answer rather than a missing case: there is nobody to take it
+ * off.
+ */
+export function endTimedCondition(
+  state: GameState,
+  key: string,
+  target: Extract<EffectTarget, { kind: 'condition' }>,
+): GameState {
+  const timers = { ...state.timers };
+  delete timers[key];
+  const current: GameState = { ...state, timers };
+
+  const creature = current.creatures[target.on];
+  if (creature === undefined) return current;
+  return {
+    ...current,
+    creatures: {
+      ...current.creatures,
+      [target.on]: {
+        ...creature,
+        conditions: removeConditionInstance(creature.conditions, target.instance),
+      },
+    },
+  };
 }
 
 /**

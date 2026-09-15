@@ -12,15 +12,36 @@ import { type CharacterId, ok, type Result } from '@ie/shared';
 import { reasonsFor } from '../conditions.js';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { conditionRiderOf } from '../spell-definitions.js';
-import { endConditionsOn } from './conditions.js';
+import { applyConditionTo, endConditionsOn } from './conditions.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
-import { imposeCondition, riderOptions } from './spell-effect-riders.js';
+import { conditionLanding, imposeCondition, riderOptions } from './spell-effect-riders.js';
 
 /**
  * SRD Greater Invisibility: "A creature you touch has the Invisible
  * condition until the spell ends." The `save` branch above, minus the
  * roll — no die, no `roll-recorded`, and the generator does not move,
  * because the spell asked for nothing to be thrown.
+ *
+ * **Two origins and one condition.** SRD Potion of Invisibility confers the
+ * same condition with nothing cast at all — "When you drink the potion, you
+ * have the Invisible condition for 1 hour" — so this is the one resolver that
+ * branches on {@link EffectContext.origin}, and it branches over exactly what
+ * the two origins differ by: what the condition is filed under, and who owns
+ * how long it lasts.
+ *
+ * - A **casting** files it under `Spell#cast:N` and hands the rider's own
+ *   sentences — a lifetime, an escape check, a repeat save, a mark that the
+ *   casting does not keep it — to `riderOptions`, every one of which needs a
+ *   casting id somewhere downstream.
+ * - An **item** files it under `item:<id>`, which `castingIdOf` answers null
+ *   for, and passes **none** of those four: `checkContent` refuses all four on
+ *   a conferred condition, so a conferral has nothing to translate. What holds
+ *   it is the timer `useItem` files afterwards, whose deadline is the item's
+ *   printed hour and whose `endsEarly` is the item's printed sentence.
+ *
+ * Nothing else moves. `SpellEffectOptions`, `riderOptions` and
+ * `applySpellEffect` are untouched and still require a casting, because the
+ * item arm never reaches them.
  */
 export function resolveConditionEffect(
   ctx: EffectContext,
@@ -29,9 +50,6 @@ export function resolveConditionEffect(
   world: GameState,
 ): Result<GameState> {
   const { casterId, name, events, outcomes, held, saveDc } = ctx;
-  // A condition instance is welded to a casting in the fold, so this kind is
-  // refused on an item by `checkContent` and the accessor is loud here.
-  const { castingId } = ctx.casting();
   let current = world;
 
   // **Not a rider host**, because it has no outcome: there is no roll
@@ -39,20 +57,26 @@ export function resolveConditionEffect(
   // effect and there is exactly one of it. `conditionRiderOf` types that
   // as a non-empty list, which is why the first element is not a guess.
   const [rider] = conditionRiderOf(effect);
-  const landed = imposeCondition(
-    current,
-    target,
-    rider,
-    casterId,
-    riderOptions(rider, {
-      castingId,
-      spell: name,
-      casterId,
-      saveDc,
-      target,
-      saveAbility: null,
-    }),
-  );
+  const landed =
+    ctx.origin.kind === 'item'
+      ? // No duration, no repeat save, no escape check and no casting: the
+        // conferral's own deadline is filed by `useItem`, and the other three
+        // are fields `checkContent` refuses an item for printing.
+        conditionLanding(applyConditionTo(current, target, rider.name, ctx.source))
+      : imposeCondition(
+          current,
+          target,
+          rider,
+          casterId,
+          riderOptions(rider, {
+            castingId: ctx.casting().castingId,
+            spell: name,
+            casterId,
+            saveDc,
+            target,
+            saveAbility: null,
+          }),
+        );
   if (!landed.ok) return landed;
 
   // A target immune to the one condition this kind imposes is **unaffected**,

@@ -51,6 +51,7 @@
     "casterOf",
     "releaseOnTarget",
     "releaseGrants",
+    "endTimedCondition",
     "holdsNothingOf",
     "isOn",
     "spellOn"
@@ -94,7 +95,8 @@
     "Ending",
     "nextEnding",
     "endingKey",
-    "endTriggeredCastings"
+    "endTriggeredCastings",
+    "endTriggeredEffects"
   ],
   "fold/inventory.ts": [
     "INVENTORY_EVENTS",

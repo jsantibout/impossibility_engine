@@ -39,6 +39,7 @@ import { type SpellcastingState } from './spellcasting.js';
 import type { RestBenefit, RestKind } from './rest.js';
 import {
   type Deadline,
+  type EffectEndCause,
   type EffectTarget,
   type GrantedPayout,
   type RepeatSave,
@@ -877,6 +878,13 @@ export type GameEvent =
       readonly repeatSave?: RepeatSave;
       /** A check a creature may attempt against it, if the spell offers one. */
       readonly check?: EffectCheck;
+      /**
+       * What ends this effect before its deadline — see {@link TimedEffect}.
+       *
+       * Optional, and the reducer spreads it conditionally, so a log written
+       * before the field existed folds to a timer that has no such key.
+       */
+      readonly endsEarly?: readonly EffectEndCause[];
       readonly command?: CommandStamp;
     }
   /**

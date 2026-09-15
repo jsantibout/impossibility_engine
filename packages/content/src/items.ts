@@ -1342,20 +1342,26 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
  * That is the `confers` grant in one paragraph: an action, an effect list, and
  * no casting anywhere in it.
  *
- * Two of them, by the three rules above {@link NAMED_ITEMS}. Most of the rest
- * of the book's potions say "you gain the effect of the X spell (no
+ * Three of them, by the three rules above {@link NAMED_ITEMS}. Most of the
+ * rest of the book's potions say "you gain the effect of the X spell (no
  * Concentration required)", which a conferral cannot express: it carries an
  * effect list and not a spell id, so the whole of such a potion's text is
  * beyond the vocabulary and rule 1 leaves it out. The others set an ability
- * score, or hand out a condition — and a condition is welded to a casting in
- * the fold, which a conferral has none of.
+ * score, or roll a save to impose a condition.
+ *
+ * **A condition handed over outright is now sayable**, which is what the
+ * Potion of Invisibility is: no casting, no roll, a condition filed under
+ * `item:<id>` and a timer that holds the hour and the sentence that cuts it
+ * short. What is still not sayable is a condition a *save* imposes.
  *
  * **Potion of Poison is the one worth naming, because it looks admissible and
  * is not.** SRD: "If you drink this potion, you take 4d6 Poison damage and
  * must succeed on a DC 13 Constitution saving throw or have the Poisoned
  * condition for 1 hour." A conferral may now print a DC and roll a save
  * against it, so the middle clause is sayable; the other two are not. The
- * Poisoned condition is a casting id again. And the 4d6 is **not** on the
+ * `save` kind carries a `repeats`, and a repeat save is a `PendingSave` that
+ * names a casting id — so a condition a save imposes still waits, even though
+ * one handed over outright no longer does. And the 4d6 is **not** on the
  * save — it lands whether the save is made or not — which is a hit with no
  * roll to make it, the shape Magic Missile is blocked on and the one
  * `save-damage` cannot be bent into without inventing a rule the book does
@@ -1460,6 +1466,53 @@ const POTIONS: readonly CatalogueItem[] = [
     ],
     unmodelled: [
       '"that last for 1 hour": the hour on those Temporary Hit Points. The ten are granted; the hour is not. `temporary-hp-granted` carries no source and no EffectTarget names Temporary Hit Points, so there is nothing for a deadline to end. The Bless half does expire on the hour',
+    ],
+  },
+  {
+    /**
+     * SRD Potion of Invisibility: "This potion's container looks empty but
+     * feels as though it holds liquid. When you drink the potion, you have the
+     * Invisible condition for 1 hour. The effect ends early if you make an
+     * attack roll, deal damage, or cast a spell."
+     *
+     * **The first item that confers a condition, and it needed no casting to
+     * do it.** What lands is a condition instance filed under
+     * `item:potion-of-invisibility` — a source `castingIdOf` answers null for,
+     * so there is nothing in `ongoing`, nothing for Dispel Magic to find and
+     * nothing for `releaseCasting` to address. The record of it is the
+     * condition's own timer: the hour is its deadline, and the sentence that
+     * cuts the hour short is `endsEarly`.
+     *
+     * **The three causes are the three the SRD prints, and they are the same
+     * three Invisibility prints** — the spell and the potion say the sentence
+     * in the same words, which is why the engine reads them off one
+     * vocabulary. `target-dons-armor` is the fourth cause and is Mage Armor's;
+     * no potion prints it, so this line does not.
+     *
+     * A second draught inside the hour **refreshes** rather than stacks, and
+     * nothing here says so: one item, one condition, one creature is one
+     * instance, and the timer is keyed by it. That is SRD "Combining Magical
+     * Effects" falling out of the identity.
+     */
+    id: 'potion-of-invisibility',
+    name: 'Potion of Invisibility',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'confers',
+        action: 'bonus-action',
+        durationSeconds: 3600,
+        endsEarly: ['target-attacks', 'target-deals-damage', 'target-casts'],
+        effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
+      },
+    ],
+    unmodelled: [
+      '"if you make an attack roll": the engine reads `target-attacks` off `attack-made`, which is the Attack action rather than every attack roll. A free swing that misses — an Opportunity Attack, an attack outside combat — leaves the potion running, because the only event naming the roller of one is `roll-recorded` and that event changes no state by rule. A free swing that lands deals damage, and `target-deals-damage` catches it. The same residue SRD Invisibility records',
     ],
   },
 ];

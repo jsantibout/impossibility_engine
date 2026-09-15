@@ -1,5 +1,5 @@
 /**
- * A casting ended by something that happens.
+ * An effect ended by something that happens.
  *
  * The fifth way a casting ends, and the only one that is neither a moment on
  * the clock nor somebody's decision: Invisibility ends when its target
@@ -8,17 +8,26 @@
  * reducer finds it — derived, with no event, exactly as it finds a lost
  * Concentration.
  *
+ * **Two populations and one reading of the log.** SRD prints the same sentence
+ * on things that were never cast — Potion of Invisibility ends "if you make an
+ * attack roll, deal damage, or cast a spell", word for word what Invisibility
+ * says — so {@link endingFactsOf} is read once and two passes consume it:
+ * {@link endTriggeredCastings} over `ongoing`, and {@link endTriggeredEffects}
+ * over the timers a conferral filed. One shared *rule*, not one shared loop:
+ * the two end different things through different doors.
+ *
  * Two things this module is careful about. A trigger hangs on a consequence
  * event and never on `roll-recorded`, which changes no state by rule. And
  * "ally" is declared allegiance with three answers, of which only two end
  * anything — `allyOfCaster` withholds rather than inventing.
  */
 import type { CharacterId } from '@ie/shared';
+import type { EffectEndCause } from '../duration.js';
 import { castingNumber } from '../spells.js';
 
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
-import { casterOf, isOn, releaseCasting, releaseOnTarget } from './release.js';
+import { casterOf, endTimedCondition, isOn, releaseCasting, releaseOnTarget } from './release.js';
 
 /**
  * Whether the creature that dealt this damage is the caster or one of their
@@ -70,7 +79,8 @@ export function allyOfCaster(
  */
 type EndingFact =
   | {
-      readonly cause: 'target-attacks' | 'target-deals-damage' | 'target-casts' | 'target-dons-armor';
+      /** {@link EffectEndCause} — the four that name one creature and nothing else. */
+      readonly cause: EffectEndCause;
       readonly who: CharacterId;
     }
   | {
@@ -234,3 +244,63 @@ export function endTriggeredCastings(state: GameState, event: GameEvent): GameSt
   }
 }
 
+/**
+ * A timed effect ended by something that happens, with no casting anywhere.
+ *
+ * SRD Potion of Invisibility: "you have the Invisible condition for 1 hour.
+ * The effect ends early if you make an attack roll, deal damage, or cast a
+ * spell." The same three sentences Invisibility prints, on a thing that was
+ * never cast — so there is no `ongoing` record for {@link
+ * endTriggeredCastings} to walk and nothing for `releaseCasting` to address.
+ * What holds it is the **timer**, and the timer is what this pass reads.
+ *
+ * Beside that function rather than inside it, and reading the same
+ * {@link EndingFact}s off the same four events: one reading of the log, two
+ * populations. Folding the two loops together would mean one walk over two
+ * unrelated records answering to two different release doors, which is a
+ * shared loop rather than a shared rule.
+ *
+ * **Only the who-shaped causes can reach a timer.** A timer knows the creature
+ * it sits on and nothing else — no caster, no allegiance — so
+ * `caster-or-ally-damages-target` has nothing here to be about, and
+ * {@link EffectEndCause} is exactly the four that do. That is a property of
+ * the type rather than a filter written by hand: the `'who' in fact` narrowing
+ * below is what the compiler checks `endsEarly.includes` against.
+ *
+ * **Derived, and it writes nothing**, for the reason every pass in the fold's
+ * chain does: nobody decides that the drinker swung. And it terminates
+ * structurally — the candidate keys are read from the state this pass was
+ * handed, each is visited once, and `endTimedCondition` deletes the key before
+ * it touches the condition, so nothing a release does can hand the loop back
+ * a timer it has already settled.
+ *
+ * **Cheap first.** Four event types can say anything at all, and every other
+ * one returns before `timers` is touched.
+ */
+export function endTriggeredEffects(state: GameState, event: GameEvent): GameState {
+  const facts = endingFactsOf(state, event);
+  if (facts.length === 0) return state;
+
+  let current = state;
+  // Sorted, as every walk over a keyed record in the fold is, so two folds of
+  // one log settle them in one order.
+  for (const key of Object.keys(state.timers).sort()) {
+    const timer = current.timers[key];
+    if (timer === undefined) continue;
+
+    const target = timer.target;
+    const triggers = timer.endsEarly;
+    // A casting's own early endings live on its `ongoing` record, where a
+    // scope can be written beside them; nothing else a timer can end has an
+    // SRD sentence asking for one.
+    if (target.kind !== 'condition' || triggers === undefined) continue;
+
+    const pulled = facts.some(
+      (fact) => 'who' in fact && fact.who === target.on && triggers.includes(fact.cause),
+    );
+    if (!pulled) continue;
+
+    current = endTimedCondition(current, key, target);
+  }
+  return current;
+}

@@ -899,14 +899,26 @@ describe('what a conferral may not say yet', () => {
     ).toContain('conferral_rider_needs_a_casting');
   });
 
+  /**
+   * **The `condition` kind has moved off this list**, because SRD Potion of
+   * Invisibility confers one with nothing cast at all and the four fields that
+   * would need a casting are refused one by one instead — see
+   * `item-condition.test.ts`. What is still refused is every kind that needs
+   * the casting for something other than a condition's source: an attack
+   * modifier nobody printed, a destination stated at the cast, a casting read
+   * from both ends, and a `save` whose `repeats` is a debt naming a casting id.
+   */
   it('refuses an effect kind an item cannot resolve without a casting', () => {
-    expect(
-      problems({
-        kind: 'confers',
-        action: 'action',
-        effects: [{ kind: 'condition', condition: { name: 'poisoned' } }],
-      }),
-    ).toContain('conferral_effect_not_read');
+    for (const effect of [
+      { kind: 'attack', damage: { dice: '1d10' }, damageType: 'fire' },
+      { kind: 'save', ability: 'con', condition: 'poisoned' },
+      { kind: 'teleport', feet: 30 },
+      { kind: 'dispel', maxLevel: 3 },
+    ]) {
+      expect(problems({ kind: 'confers', action: 'action', effects: [effect] })).toContain(
+        'conferral_effect_not_read',
+      );
+    }
   });
 
   it('refuses a grant with no lifetime, and a lifetime with nothing to end', () => {

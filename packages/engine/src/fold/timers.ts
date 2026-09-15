@@ -53,6 +53,10 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
             deadline: event.deadline,
             ...(event.repeatSave === undefined ? {} : { repeatSave: event.repeatSave }),
             ...(event.check === undefined ? {} : { check: event.check }),
+            // Conditionally, like the two above it: an event written before
+            // the field existed folds to a timer with no such key, so the two
+            // frozen logs are byte-identical to what they always folded to.
+            ...(event.endsEarly === undefined ? {} : { endsEarly: event.endsEarly }),
           },
         }),
       };

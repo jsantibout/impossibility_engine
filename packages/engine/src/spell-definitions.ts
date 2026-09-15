@@ -5,6 +5,7 @@ import {
   forSeconds,
   startOfNextTurn,
   type Duration,
+  type EffectEndCause,
   type PayoutKind,
 } from './duration.js';
 import type { DefenseKind } from './attack.js';
@@ -1903,6 +1904,11 @@ export interface SpellDefinition {
  * Guardian of Faith's running total, and the several spells that end on
  * **any** damage rather than on the caster's, are all still there.
  *
+ * Four of the five are {@link EffectEndCause}, declared in `duration.ts`
+ * because a timer an item filed reads them too; the fifth is the one a casting
+ * adds, because only a casting has a caster for "you or one of your allies" to
+ * be about.
+ *
  * **`target-attacks` is `attack-made`, which is the Attack action rather than
  * every attack roll.** The only thing that names the roller of an attack that
  * costs nothing — an Opportunity Attack, an attack outside combat — is
@@ -1912,14 +1918,18 @@ export interface SpellDefinition {
  * one that lands deals damage and `target-deals-damage` catches it.
  */
 export type CastingEndCause =
-  /** Invisibility: "immediately after the target makes an attack roll". */
-  | 'target-attacks'
-  /** Invisibility: "... deals damage ...". The damage names its dealer. */
-  | 'target-deals-damage'
-  /** Invisibility: "... or casts a spell." A settled casting, not a declared one. */
-  | 'target-casts'
-  /** Mage Armor: "The spell ends early if the target dons armor." */
-  | 'target-dons-armor'
+  /**
+   * The four that are a fact about one creature, declared in `duration.ts`.
+   *
+   * **The same four sentences, whether a casting or a potion is what ends.**
+   * SRD prints "the target makes an attack roll, deals damage, or casts a
+   * spell" on Invisibility *and* on the Potion of Invisibility, and "dons
+   * armor" on Mage Armor; a timer an item filed reads them off the same events
+   * through the same `EndingFact`. A second spelling here would be one
+   * sentence written twice, so this is `EffectEndCause` and the member below
+   * is what a casting adds to it.
+   */
+  | EffectEndCause
   /**
    * Animal Friendship: "If you or one of your allies deals damage to the
    * target, the spells ends." — transcribed as the raw file prints it.

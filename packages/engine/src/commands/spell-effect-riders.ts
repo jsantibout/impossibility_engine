@@ -204,8 +204,29 @@ export function imposeCondition(
   rider: ConditionRider,
   casterId: CharacterId,
   options: SpellEffectOptions,
-): Result<{ readonly events: readonly GameEvent[]; readonly landed: boolean }> {
-  const out = applySpellEffect(state, target, rider.name, casterId, options);
+): Result<ConditionLanding> {
+  return conditionLanding(applySpellEffect(state, target, rider.name, casterId, options));
+}
+
+/** What landing a condition leaves behind, and whether it landed at all. */
+export interface ConditionLanding {
+  readonly events: readonly GameEvent[];
+  readonly landed: boolean;
+}
+
+/**
+ * The immunity reading above, over a bare `applyConditionTo` result.
+ *
+ * **Immunity is the answer and not the error**, which is the whole of the
+ * paragraph above and is just as true of a potion as of a spell: a Zombie
+ * cannot be made Poisoned by a flask either, and the flask is still drunk. The
+ * item route has no casting and therefore cannot go through
+ * {@link applySpellEffect}, so the two share this rather than the sentence
+ * being written twice and drifting once.
+ */
+export function conditionLanding(
+  out: Result<readonly GameEvent[]>,
+): Result<ConditionLanding> {
   if (out.ok) return ok({ events: out.value, landed: true });
   if (out.code === 'immune') return ok({ events: [], landed: false });
   return out;

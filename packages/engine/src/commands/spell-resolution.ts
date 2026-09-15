@@ -1556,11 +1556,15 @@ export function runEffects(
   /**
    * The casting this is, for the resolvers that cannot be anything else.
    *
-   * {@link casterSheet}'s pattern and its argument. `attack`, `save` and
-   * `condition` reach for it, because a condition instance is welded to a
-   * casting in the fold and a rider hangs off one; every one of them is
-   * refused on an item by `checkContent` before any content loads, so reaching
-   * here from an item is the validator and the resolver disagreeing.
+   * {@link casterSheet}'s pattern and its argument. `attack` and `save` reach
+   * for it, because the riders a settled outcome carries hang off a casting;
+   * both are refused on an item by `checkContent` before any content loads, so
+   * reaching here from an item is the validator and the resolver disagreeing.
+   *
+   * **`condition` no longer reaches for it at all.** An item may confer one —
+   * SRD Potion of Invisibility — so that resolver branches on the origin and
+   * the item arm files the condition under `item:<id>`, with the deadline on
+   * the timer `useItem` writes.
    *
    * **`save-damage` reaches for it only when it has a rider to hang.** An item
    * may confer one — the DC is the item's printed number — and a conferral may

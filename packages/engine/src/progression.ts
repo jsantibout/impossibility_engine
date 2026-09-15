@@ -7,6 +7,7 @@ import {
   type Skill,
 } from '@ie/shared';
 import type { ArmorTraining } from './character.js';
+import type { EffectEndCause } from './duration.js';
 import type { D20TestKind } from './checks.js';
 import type { ReactionReach } from './reactions.js';
 import type { Recovery } from './resources.js';
@@ -549,13 +550,36 @@ export type FeatureGrant =
        * How long what it hangs lasts, in seconds — SRD Potion of Heroism's
        * "for 1 hour".
        *
-       * Required exactly when one of the effects hangs a grant on somebody,
-       * and refused when none does: a grant with no deadline would run for
-       * ever, because there is no casting for `releaseCasting` to end, and a
-       * deadline with nothing to end would file a timer that takes nothing
-       * away. `checkContent` decides which of the two an item is.
+       * Required exactly when one of the effects hangs something on somebody —
+       * a sourced grant, or a condition — and refused when none does: a grant
+       * with no deadline would run for ever, because there is no casting for
+       * `releaseCasting` to end, and a deadline with nothing to end would file
+       * a timer that takes nothing away. `checkContent` decides which of the
+       * two an item is.
        */
       readonly durationSeconds?: number;
+      /**
+       * What ends the conferred condition **before** its hour is up.
+       *
+       * SRD Potion of Invisibility prints the sentence right after the
+       * duration: "you have the Invisible condition for 1 hour. The effect ends
+       * early if you make an attack roll, deal damage, or cast a spell." So it
+       * is transcribed beside {@link durationSeconds}, which is the other half
+       * of the same clause.
+       *
+       * On the **grant** rather than on the effect, because the SRD writes it
+       * about the whole draught rather than about one clause of it, and because
+       * a conferral hangs at most one condition today; the day an item confers
+       * two with different escapes it becomes a field on the rider, which is
+       * a move a conferral's own validator can make without touching a casting.
+       *
+       * Refused when the conferral hangs no condition
+       * (`conferral_end_trigger_ends_nothing`), for the reason a duration that
+       * ends nothing is: a sentence that could never fire is one that reads as
+       * transcribed and is not. A `grants` timer takes no trigger — no SRD
+       * item asks for one — so this is a condition's field in practice.
+       */
+      readonly endsEarly?: readonly EffectEndCause[];
       /**
        * The DC the item's own line prints — SRD Potion of Poison's "DC 13
        * Constitution saving throw".

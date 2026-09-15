@@ -21,6 +21,7 @@ import {
   type SubclassDefinition,
 } from './progression.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
+import { EFFECT_END_CAUSES } from './duration.js';
 import { rollSelectorProblems } from './roll-modifiers.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import { checkEffectValue, checkSpellDefinition, parseSpellDefinition } from './spell-schema.js';
@@ -439,28 +440,36 @@ function itemCastsProblems(
  * Two rules decide the list, and both are about what a casting has that an
  * item's conferral does not:
  *
- * - **A casting id.** So no kind that hangs a *condition* is here: the fold
- *   welds a condition instance to a casting (`fold/timers.ts` reads a
- *   non-casting condition as a corrupt log), and a potion's condition is a
- *   brief of its own rather than a line in this set.
+ * - **A casting id.** `dispel` and `interrupt-casting` read a casting from
+ *   both ends, and `teleport`'s destination is stated at a casting.
  * - **An attack modifier nobody printed.** `attack` is refused by name, and so
- *   is `attack-damage`, which rides on an attack this is not. `dispel` and
- *   `interrupt-casting` read a casting from both ends; `teleport`'s
- *   destination is stated at a casting.
+ *   is `attack-damage`, which rides on an attack this is not.
  *
  * **A saving throw is not on that list any more.** SRD writes the DC as the
  * *item's* own clause — Wand of Fireballs' "(save DC 15)" — so `saveDc` on the
  * grant is a number the item printed and `save-damage` resolves against it
  * through the resolver a casting uses.
  *
- * **`save` is still refused, and not for want of a DC**: its `condition` is a
- * required field, so every `save` imposes a condition on its failure, and that
- * is a casting id again. A condition from an item is a brief of its own.
+ * **Nor is a condition any more.** SRD Potion of Invisibility confers one with
+ * nothing cast at all, and what it is filed under is `item:<id>` — a source
+ * `castingIdOf` answers null for, so `releaseCasting`, `releaseOnTarget` and
+ * the Dispel resolver pass over it by construction. What ends it is the
+ * condition's own timer, whose deadline is the conferral's `durationSeconds`
+ * and whose `endsEarly` is the item's printed sentence. The rider fields that
+ * would need a casting are refused one by one below, which is why admitting
+ * the kind admits no casting with it.
+ *
+ * **`save` is still refused, and not for want of a DC.** Its `condition` is a
+ * required field and its `repeats` is the repeat save that goes with one, and
+ * a repeat save is a `PendingSave` that names a casting id. An item that rolls
+ * a save to impose a condition waits for that, and `Potion of Poison` is the
+ * SRD entry that wants it.
  */
 export const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'heal',
   'temp-hp',
   'save-damage',
+  'condition',
   'end-condition',
   'buff',
   'roll-mode',
@@ -568,6 +577,33 @@ const rollsASave = (record: Record<string, unknown>): boolean =>
 const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed'];
 
 /**
+ * What a {@link ConditionRider} can say that a conferral has no casting for.
+ *
+ * The `condition` kind is conferrable — SRD Potion of Invisibility — and what
+ * makes that safe is that none of these arrives with it:
+ *
+ * | Field | What it needs |
+ * |---|---|
+ * | `lasts` | a lifetime the *casting* owns; a conferral's is `durationSeconds`, on the grant |
+ * | `check` | an escape whose `effect-check-resolved` releases the casting the instance names |
+ * | `outlivesCasting` | a mark that says the casting does not keep it, on a thing with no casting |
+ *
+ * **`repeats` is the fourth and is not here, because it is already refused one
+ * step earlier and for a better reason.** `checkEffectValue` answers
+ * `repeats_without_save` for *every* `condition` host, cast or conferred: SRD
+ * writes "the target repeats **the** save" and this kind rolled none. A second
+ * refusal of the same field would report two codes for one defect, and the one
+ * that fires first names the rule the author actually broke.
+ *
+ * Refused one by one rather than by admitting a narrowed type, because the
+ * validator reads untyped JSON as well as a typed value and the compiler is
+ * not there for half of its input. The day an item prints an escape check —
+ * Iron Bands of Binding, Rope of Entanglement — this is the list that shortens
+ * and `fold/timers.ts` is the guard that narrows with it.
+ */
+const CONFERRED_CONDITION_FIELDS: readonly string[] = ['lasts', 'check', 'outlivesCasting'];
+
+/**
  * What an item's `confers` grant has to say, and what it may not.
  *
  * SRD "Magic Items" decides the shape: "Many items, such as Potions, bypass
@@ -630,6 +666,7 @@ function itemConfersProblems(
 
   let hangs = false;
   let rolls = false;
+  let conditions = 0;
   grant.effects.forEach((effect, index) => {
     const on = `${at}.effects[${index}]`;
     // The engine's own rules for an effect, whoever hosts the list.
@@ -649,6 +686,27 @@ function itemConfersProblems(
     }
     if (CONFERRED_GRANT_KINDS.has(kind)) hangs = true;
     if (rollsASave(record)) rolls = true;
+
+    // **A condition hangs too, and not as a grant.** It is a condition
+    // instance filed under the item's source, which nothing but its own timer
+    // can take off — so the lifetime rule below is the same rule, asked of a
+    // second kind of thing left behind. What it must not carry is anything
+    // that needs the casting it has not got.
+    if (kind === 'condition') {
+      hangs = true;
+      conditions += 1;
+      const rider = record['condition'];
+      if (typeof rider === 'object' && rider !== null) {
+        for (const field of CONFERRED_CONDITION_FIELDS) {
+          if ((rider as Record<string, unknown>)[field] === undefined) continue;
+          say(
+            'conferral_condition_needs_a_casting',
+            `"${field}" is owned by the casting that imposed the condition — a lifetime, an escape check, a repeat save, a mark that the casting does not keep it — and ${item.id} casts nothing; a conferral's lifetime is durationSeconds and what ends it early is endsEarly`,
+            `${on}.condition.${field}`,
+          );
+        }
+      }
+    }
 
     // "Your spellcasting ability modifier" is the caster's, and a conferral
     // has no caster: the modifier would silently be zero.
@@ -726,6 +784,38 @@ function itemConfersProblems(
       `${item.id} confers nothing that outlasts the moment it is used, so a duration would end nothing`,
       `${at}.durationSeconds`,
     );
+  }
+
+  // **And the same rule about the other half of the same clause.** SRD Potion
+  // of Invisibility prints the duration and what cuts it short in one breath —
+  // "for 1 hour. The effect ends early if you make an attack roll ..." — so a
+  // trigger with no condition to end is `conferral_lifetime_ends_nothing`
+  // asked about the sentence rather than about the number: a line that reads as
+  // transcribed and could never fire.
+  if (grant.endsEarly !== undefined) {
+    if (!Array.isArray(grant.endsEarly) || grant.endsEarly.length === 0) {
+      say(
+        'bad_conferral_end_trigger',
+        'what ends a conferred condition early is a non-empty list of causes, and an item that prints no such sentence omits the field',
+        `${at}.endsEarly`,
+      );
+    } else {
+      grant.endsEarly.forEach((cause, index) => {
+        if (EFFECT_END_CAUSES.includes(cause)) return;
+        say(
+          'unknown_conferral_end_trigger',
+          `"${String(cause)}" is not something the engine can see happen to the creature a timer sits on; a conferral has no caster, so the one cause that needs one is not among them either`,
+          `${at}.endsEarly[${index}]`,
+        );
+      });
+      if (conditions === 0) {
+        say(
+          'conferral_end_trigger_ends_nothing',
+          `${item.id} confers no condition, and what a trigger ends early is the condition's own timer — so this sentence could never fire`,
+          `${at}.endsEarly`,
+        );
+      }
+    }
   }
 
   return found;
