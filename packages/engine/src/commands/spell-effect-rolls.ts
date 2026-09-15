@@ -15,6 +15,7 @@ import { rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { apartFromSource } from '../positioning.js';
 import {
+  hasOutcomeRiders,
   isCreatureType,
   outcomeRidersOf,
   scaledDiceFor,
@@ -322,6 +323,8 @@ export function resolveSaveDamageEffect(
   const {
     casterId,
     casterSheet,
+    name,
+    level,
     castLevel,
     numbers,
     supply,
@@ -331,10 +334,6 @@ export function resolveSaveDamageEffect(
     held,
     saveDc,
   } = ctx;
-  // A rider is welded to the casting that hung it and a `damage-scheduled`
-  // names one, so the three kinds that roll a D20 Test are refused on an item
-  // by `checkContent` and the accessor is loud here — see `EffectContext.casting`.
-  const { definition, castingId } = ctx.casting();
   let current = world;
 
   const support = savingSupport(current, target, victim, effect.ability, supply);
@@ -359,7 +358,7 @@ export function resolveSaveDamageEffect(
     modes: [
       ...support.modes,
       ...(singled === 'disadvantage'
-        ? [{ source: `${definition.name} (${victim.creatureType})`, mode: 'disadvantage' as const }]
+        ? [{ source: `${name} (${victim.creatureType})`, mode: 'disadvantage' as const }]
         : []),
     ],
     bonuses: support.bonuses,
@@ -368,7 +367,7 @@ export function resolveSaveDamageEffect(
     // has taken for a condition's automatic failure since it was written.
     ...(singled === 'automatic-failure'
       ? {
-          autoFail: `${definition.name}: a ${victim.creatureType} creature automatically fails the save`,
+          autoFail: `${name}: a ${victim.creatureType} creature automatically fails the save`,
         }
       : {}),
   });
@@ -377,7 +376,7 @@ export function resolveSaveDamageEffect(
   events.push(
     recordD20Test(
       target,
-      `${ABILITY_NAMES[effect.ability]} save vs ${definition.name}`,
+      `${ABILITY_NAMES[effect.ability]} save vs ${name}`,
       save.value,
       save.value.success ? 'resisted' : 'affected',
     ),
@@ -405,11 +404,11 @@ export function resolveSaveDamageEffect(
   ];
   const rolledParts: DamageComponent[] = [];
   for (const part of parts) {
-    const dice = scaledDiceFor(part.damage, definition.level, numbers.casterLevel, castLevel);
+    const dice = scaledDiceFor(part.damage, level, numbers.casterLevel, castLevel);
     const rolled = rollSpellDice(
       supply,
       casterSheet().sheet,
-      definition.name,
+      name,
       part.damageType,
       dice,
     );
@@ -417,7 +416,7 @@ export function resolveSaveDamageEffect(
     rolledParts.push(
       ...withFlatAddend(
         rolled.value,
-        scaledFlatFor(part.damage, definition.level, castLevel),
+        scaledFlatFor(part.damage, level, castLevel),
       ),
     );
   }
@@ -436,7 +435,7 @@ export function resolveSaveDamageEffect(
     current,
     target,
     components,
-    definition.name,
+    name,
     supply,
     { by: casterId },
   );
@@ -451,9 +450,17 @@ export function resolveSaveDamageEffect(
   // affirmative outcome and the riders are all on it — a success buys
   // whatever `onSuccess` says about the *damage* and nothing else,
   // however much of it still landed.
+  //
+  // **And the casting is reached for only here.** A conferred save rolls
+  // against the item's printed DC and hangs nothing, so an item that carries
+  // no rider never asks for a casting it has not got; `checkContent` refuses
+  // a rider on a conferral, which is what makes that guarantee rather than a
+  // hope. See `EffectContext.casting`.
   let imposed: readonly ConditionName[] = [];
-  if (!save.value.success) {
-    const riders = applyRiders(current, target, outcomeRidersOf(effect), {
+  const hosted = outcomeRidersOf(effect);
+  if (!save.value.success && hasOutcomeRiders(hosted)) {
+    const { definition, castingId } = ctx.casting();
+    const riders = applyRiders(current, target, hosted, {
       definition,
       castingId,
       casterId,

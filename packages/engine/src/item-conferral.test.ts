@@ -39,8 +39,10 @@ import {
  * `cast:N`, so `releaseCasting`, `ongoingSpellsOn`, `spellOn` and the Dispel
  * resolver skip an item's effect by construction rather than by being told to.
  *
- * Two potions carry the file: Potion of Healing end to end, and Potion of
- * Heroism as the case with something to address.
+ * Two printed potions carry the file — Potion of Healing end to end, and
+ * Potion of Heroism as the case with something to address — and two homebrew
+ * flasks carry the saving throw, because no SRD item this catalogue has
+ * transcribed rolls one.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -432,6 +434,199 @@ describe('a homebrew potion goes through the same door as the book', () => {
   });
 });
 
+/**
+ * **A conferral that prints a save DC**, which is the largest single family in
+ * the magic-item chapter: sixty-four of the SRD's 258 entries name one.
+ *
+ * The DC is the **item's**. SRD writes it as the item's own clause — Wand of
+ * Fireballs' "(save DC 15)" — so a wand held by an archmage still saves
+ * against fifteen, and the number reaches the roll from the grant rather than
+ * from anybody's sheet. It is read at resolution and never by the fold: what
+ * the log keeps is the die, the total and what the outcome did.
+ *
+ * Both potions here are homebrew, because **no SRD item this brief transcribed
+ * fits**: Potion of Poison's 4d6 lands whether the save is made or not, and an
+ * unconditional hit is the shape Magic Missile is blocked on. See the note
+ * above `POTIONS` in `packages/content/src/items.ts`.
+ */
+const VENOM = JSON.stringify({
+  id: 'flask-of-plain-venom',
+  name: 'Flask of Plain Venom',
+  kind: 'potion',
+  weightLb: 0.5,
+  costCp: null,
+  armor: null,
+  weapon: null,
+  contents: [],
+  grants: [
+    {
+      kind: 'confers',
+      action: 'bonus-action',
+      saveDc: 13,
+      effects: [
+        {
+          kind: 'save-damage',
+          ability: 'con',
+          // A printed number rather than dice, so the halving is exact and the
+          // assertion is about the rule instead of about the seed.
+          damage: { flat: 8 },
+          damageType: 'poison',
+          onSuccess: 'half',
+        },
+      ],
+    },
+  ],
+});
+
+const BILE = JSON.stringify({
+  id: 'flask-of-rolled-bile',
+  name: 'Flask of Rolled Bile',
+  kind: 'potion',
+  weightLb: 0.5,
+  costCp: null,
+  armor: null,
+  weapon: null,
+  contents: [],
+  grants: [
+    {
+      kind: 'confers',
+      action: 'bonus-action',
+      saveDc: 18,
+      effects: [
+        {
+          kind: 'save-damage',
+          ability: 'con',
+          damage: { dice: '2d6' },
+          damageType: 'poison',
+          onSuccess: 'none',
+        },
+      ],
+    },
+  ],
+});
+
+describe('an item that prints a save DC, and the saves rolled against it', () => {
+  const content = unwrap(
+    loadContent({ items: [JSON.parse(VENOM), JSON.parse(BILE)] }),
+    'load',
+  );
+  const VENOMOUS = 'flask-of-plain-venom';
+  const BILIOUS = 'flask-of-rolled-bile';
+
+  /** Forced past the DC, or forced under it, so the branch is the assertion. */
+  const drink = (item: string, push: number, seed = 'venom') => {
+    const issuer = createRollIssuer('r');
+    const log = [...TABLE, ...carrying(item)];
+    const out = unwrap(
+      useItem(fold('seed', log), DRINKER, { item }, {
+        ...supply(seed, content),
+        issuer,
+        bonuses: [{ source: 'the test insists', flat: push }],
+      }),
+      'drink',
+    );
+    return { log, out, issuer };
+  };
+
+  it('lays exactly the DC the item prints, and not the drinker’s own', () => {
+    const { out } = drink(VENOMOUS, 40);
+    expect(out.outcomes.map((outcome) => outcome.save?.dc)).toEqual([13]);
+    // And the second potion's line is its own number, not a shared one.
+    expect(drink(BILIOUS, 40).out.outcomes.map((outcome) => outcome.save?.dc)).toEqual([18]);
+  });
+
+  it('takes the whole of it on a failure and half on a success', () => {
+    const failed = drink(VENOMOUS, -40);
+    expect(failed.out.outcomes[0]?.save?.success).toBe(false);
+    expect(fold('seed', [...failed.log, ...failed.out.events]).creatures['drinker']!.vitals.hp)
+      .toBe(40 - 8);
+
+    const saved = drink(VENOMOUS, 40);
+    expect(saved.out.outcomes[0]?.save?.success).toBe(true);
+    expect(fold('seed', [...saved.log, ...saved.out.events]).creatures['drinker']!.vitals.hp)
+      .toBe(40 - 4);
+  });
+
+  /** SRD's other success clause: nothing at all, and no damage roll either. */
+  it('rolls no damage at all where a success buys none', () => {
+    const { out, issuer } = drink(BILIOUS, 40);
+    expect(out.outcomes[0]?.save?.success).toBe(true);
+    expect(out.events.some((e) => e.type === 'damage-taken')).toBe(false);
+    expect(issuer.count).toBe(1);
+  });
+
+  it('rolls the damage the item prints, and the log carries the number', () => {
+    const { log, out, issuer } = drink(BILIOUS, -40);
+    // The saving throw and the damage: two rolls, both the engine's.
+    expect(issuer.count).toBe(2);
+    expect(out.events.filter((e) => e.type === 'rolls-issued').map((e) => e.count)).toEqual([2]);
+
+    const taken = out.events.find((e) => e.type === 'damage-taken');
+    expect(taken?.amount).toBeGreaterThanOrEqual(2);
+    expect(taken?.amount).toBeLessThanOrEqual(12);
+    expect(fold('seed', [...log, ...out.events]).creatures['drinker']!.vitals.hp).toBe(
+      40 - taken!.amount,
+    );
+  });
+
+  /** Same seed, same numbers; the determinism ship criterion again. */
+  it('rolls the same from the same seed and differently from another', () => {
+    expect(drink(BILIOUS, -40, 'a').out.events).toEqual(drink(BILIOUS, -40, 'a').out.events);
+    expect(drink(BILIOUS, -40, 'b').out.events).not.toEqual(drink(BILIOUS, -40, 'a').out.events);
+  });
+
+  /**
+   * **Every refusal before anything is spent**, and this is the case that
+   * matters most: the save is a die, and a refused use must not have thrown
+   * one or taken the flask off the shelf.
+   */
+  it('refuses out of reach with no die thrown and the flask still held', () => {
+    const issuer = createRollIssuer('r');
+    const log = [...TABLE, ...carrying(VENOMOUS)];
+    const out = useItem(
+      fold('seed', log),
+      DRINKER,
+      { item: VENOMOUS, target: STRANGER },
+      { ...supply('venom', content), issuer },
+    );
+    expect(isErr(out) ? out.code : 'ok').toBe('out_of_reach');
+    expect(issuer.count).toBe(0);
+    expect(fold('seed', log).creatures['drinker']!.inventory).toEqual([
+      { id: VENOMOUS, quantity: 1 },
+    ]);
+  });
+
+  it('administers it to somebody else, who rolls their own save', () => {
+    const issuer = createRollIssuer('r');
+    const log = [...TABLE, ...carrying(VENOMOUS)];
+    const out = unwrap(
+      useItem(fold('seed', log), DRINKER, { item: VENOMOUS, target: FRIEND }, {
+        ...supply('venom', content),
+        issuer,
+        bonuses: [{ source: 'the test insists', flat: -40 }],
+      }),
+      'administer',
+    );
+    const after = fold('seed', [...log, ...out.events]);
+    expect(after.creatures['friend']!.vitals.hp).toBe(40 - 8);
+    expect(after.creatures['drinker']!.vitals.hp).toBe(40);
+  });
+
+  /** Rule 5: the DC was read at resolution and the fold never needs it. */
+  it('folds the same with the catalogue and without it', () => {
+    const { log, out } = drink(BILIOUS, -40);
+    const whole = [...log, ...out.events];
+    expect(fold('seed', whole)).toStrictEqual(fold('seed', whole, content));
+    expect(fold('seed', whole)).toStrictEqual(fold('seed', whole, SRD_CONTENT));
+  });
+
+  /** Rule 4: it came through the same door, as JSON text, with no engine change. */
+  it('is a homebrew item the SRD catalogue has never heard of', () => {
+    expect(SRD_CONTENT.item(VENOMOUS)).toBeNull();
+    expect(itemConferral(content.item(VENOMOUS)!)?.saveDc).toBe(13);
+  });
+});
+
 describe('what a conferral may not say yet', () => {
   const potion = (grant: unknown) => ({
     id: 'a-potion',
@@ -445,11 +640,17 @@ describe('what a conferral may not say yet', () => {
     grants: [grant],
   });
 
+  /** Every code the registry finds, whether or not there are any. */
+  const problemsOf = (grant: unknown): readonly string[] =>
+    checkContent({ items: [potion(grant) as unknown as CatalogueItem] }).map(
+      (problem) => problem.code,
+    );
+
   const problems = (grant: unknown): readonly string[] => {
-    const found = checkContent({ items: [potion(grant) as unknown as CatalogueItem] });
+    const found = problemsOf(grant);
     // And the same input is refused at the door a DM's file comes through.
     expect(isErr(loadContent({ items: [potion(grant)] }))).toBe(true);
-    return found.map((problem) => problem.code);
+    return found;
   };
 
   it('refuses charges, which nothing pays yet', () => {
@@ -463,7 +664,12 @@ describe('what a conferral may not say yet', () => {
     ).toContain('conferral_charges_unread');
   });
 
-  it('refuses a printed save DC, because nothing it could roll is admitted', () => {
+  /**
+   * The mirror of `conferral_lifetime_ends_nothing`: a number the item prints
+   * and nothing on its list ever rolls against is a number that never reaches
+   * a die, which is what `unmodelled` exists to prevent one field lower down.
+   */
+  it('refuses a printed save DC that nothing on the list rolls against', () => {
     expect(
       problems({
         kind: 'confers',
@@ -471,7 +677,165 @@ describe('what a conferral may not say yet', () => {
         saveDc: 13,
         effects: [{ kind: 'heal', healing: { dice: '1d4' }, addSpellcastingModifier: false }],
       }),
-    ).toContain('conferral_save_dc_unread');
+    ).toContain('conferral_dc_rolls_nothing');
+  });
+
+  it('refuses a DC that is not a DC', () => {
+    const bad = (saveDc: unknown) =>
+      problems({
+        kind: 'confers',
+        action: 'action',
+        saveDc,
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d6' },
+            damageType: 'poison',
+            onSuccess: 'half',
+          },
+        ],
+      });
+    expect(bad(0)).toContain('bad_conferral_dc');
+    expect(bad(13.5)).toContain('bad_conferral_dc');
+    expect(bad('13')).toContain('bad_conferral_dc');
+  });
+
+  /** And the other way round: a save with no number to beat. */
+  it('refuses a save on a conferral that prints no DC', () => {
+    expect(
+      problems({
+        kind: 'confers',
+        action: 'action',
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d6' },
+            damageType: 'poison',
+            onSuccess: 'half',
+          },
+        ],
+      }),
+    ).toContain('conferral_save_without_dc');
+
+    // A `buff` that offers a save is the second kind that rolls one, and it
+    // was refused for exactly this reason and no other.
+    expect(
+      problems({
+        kind: 'confers',
+        action: 'action',
+        durationSeconds: 60,
+        effects: [
+          {
+            kind: 'buff',
+            ability: 'wis',
+            bonus: { source: 'A Potion', flat: 1 },
+            applies: ['attack'],
+            direction: 'subtract',
+          },
+        ],
+      }),
+    ).toContain('conferral_save_without_dc');
+  });
+
+  /**
+   * The codes this brief admits: with a DC printed, neither the old blanket
+   * refusal nor the `buff`-offers-a-save one fires any more.
+   */
+  it('admits a save DC that something rolls against', () => {
+    const codes = problemsOf({
+      kind: 'confers',
+      action: 'action',
+      saveDc: 13,
+      effects: [
+        {
+          kind: 'save-damage',
+          ability: 'con',
+          damage: { dice: '2d6' },
+          damageType: 'poison',
+          onSuccess: 'half',
+        },
+      ],
+    });
+    expect(codes).toEqual([]);
+
+    expect(
+      problemsOf({
+        kind: 'confers',
+        action: 'action',
+        saveDc: 15,
+        durationSeconds: 60,
+        effects: [
+          {
+            kind: 'buff',
+            ability: 'wis',
+            bonus: { source: 'A Potion', flat: 1 },
+            applies: ['attack'],
+            direction: 'subtract',
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  /**
+   * **A `save` is still refused, and not for want of a DC.** Every `save`
+   * effect imposes a condition on its failure — `condition` is required on the
+   * effect — and the fold welds a condition instance to a casting, which a
+   * conferral has none of. A condition from an item is its own brief.
+   */
+  it('refuses a save whose failure imposes a condition', () => {
+    const found = checkContent({
+      items: [
+        potion({
+          kind: 'confers',
+          action: 'action',
+          saveDc: 13,
+          effects: [{ kind: 'save', ability: 'con', condition: 'poisoned', lasts: { seconds: 3600 } }],
+        }) as unknown as CatalogueItem,
+      ],
+    });
+    expect(found.map((problem) => problem.code)).toContain('conferral_effect_not_read');
+    expect(found.map((problem) => problem.reason).join(' ')).toContain('condition');
+  });
+
+  /**
+   * A rider hangs off an outcome and is welded to the casting that hung it —
+   * a condition instance, a granted modifier, a `damage-scheduled` naming the
+   * casting. A conferral has none, so an admitted save may carry none.
+   */
+  it('refuses a rider on a conferred save, whichever of the three it is', () => {
+    const riding = (over: Record<string, unknown>) =>
+      problems({
+        kind: 'confers',
+        action: 'action',
+        saveDc: 13,
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d6' },
+            damageType: 'poison',
+            onSuccess: 'half',
+            ...over,
+          },
+        ],
+      });
+
+    expect(riding({ conditions: [{ name: 'poisoned', lasts: { seconds: 3600 } }] })).toContain(
+      'conferral_rider_needs_a_casting',
+    );
+    expect(
+      riding({ delayed: { damage: { dice: '1d6' }, damageType: 'poison' } }),
+    ).toContain('conferral_rider_needs_a_casting');
+    expect(
+      riding({
+        modifiers: [
+          { kind: 'speed-change', change: 'add', feet: -10, lasts: { seconds: 60 } },
+        ],
+      }),
+    ).toContain('conferral_rider_needs_a_casting');
   });
 
   it('refuses an effect kind an item cannot resolve without a casting', () => {
@@ -525,6 +889,43 @@ describe('what a conferral may not say yet', () => {
             kind: 'heal',
             healing: { dice: '1d4', perSlotLevelAbove: '1d4' },
             addSpellcastingModifier: false,
+          },
+        ],
+      }),
+    ).toContain('conferral_scales_with_a_casting');
+
+    // And the same question of a save's damage, which is the third place an
+    // item can now write an amount down — including under `plus`.
+    expect(
+      problems({
+        kind: 'confers',
+        action: 'action',
+        saveDc: 13,
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d6', perSlotLevelAbove: '1d6' },
+            damageType: 'poison',
+            onSuccess: 'half',
+          },
+        ],
+      }),
+    ).toContain('conferral_scales_with_a_casting');
+
+    expect(
+      problems({
+        kind: 'confers',
+        action: 'action',
+        saveDc: 13,
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'con',
+            damage: { dice: '2d6' },
+            damageType: 'poison',
+            onSuccess: 'half',
+            plus: [{ damage: { dice: '1d6', flatPerSlotLevelAbove: 2 }, damageType: 'fire' }],
           },
         ],
       }),

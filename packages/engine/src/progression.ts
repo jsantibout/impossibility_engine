@@ -560,23 +560,27 @@ export type FeatureGrant =
        * The DC the item's own line prints — SRD Potion of Poison's "DC 13
        * Constitution saving throw".
        *
-       * Declared here and **refused by `checkContent`** in this first cut,
-       * because no effect that rolls a saving throw is admitted from a
-       * conferral yet: a DC with nothing to roll against it is a number that
-       * never reaches a die. It is in the type because it is the field the
-       * save-rolling effects will read on the day they are admitted, and
-       * because refusing a named field is a better answer than silently
-       * ignoring one.
+       * **The item's number, not the wielder's.** SRD writes it as the item's
+       * own clause — Wand of Fireballs' "(save DC 15)" — so a flask in an
+       * archmage's hand still saves against what the flask prints, and this
+       * reaches the roll as `EffectContext.saveDc` without passing through
+       * anybody's sheet.
+       *
+       * Required exactly when one of the effects rolls a saving throw against
+       * it, and refused when none does: a save against no number is a save
+       * nobody can fail, and a DC nothing rolls against never reaches a die.
+       * `checkContent` decides which of the two an item is.
        */
       readonly saveDc?: number;
       /**
        * What one use costs, in the item's own charges.
        *
        * Absent is the common case and means the item is **used up** — which is
-       * every Potion in the book. Declared and refused together with
-       * {@link saveDc}, and for the same reason: nothing spends it yet, and an
-       * item whose price was quietly ignored would be a free benefit wearing a
-       * charged item's name.
+       * every Potion in the book. Declared and **refused by `checkContent`**,
+       * because nothing spends it yet: an item whose price was quietly ignored
+       * would be a free benefit wearing a charged item's name. It is in the
+       * type because refusing a named field is a better answer than silently
+       * ignoring one — the reading {@link saveDc} was admitted out of.
        */
       readonly charges?: number;
     }

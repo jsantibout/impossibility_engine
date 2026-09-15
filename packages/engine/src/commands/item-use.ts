@@ -81,9 +81,10 @@ const NOTHING: ItemUse = { events: [], outcomes: [], unverified: [] };
  * **Everything mechanical is the item's, not the user's.** SRD fixes a
  * spell from an item at "the lowest possible spell and caster level", and a
  * conferral is that with the casting taken out: the dice are the ones the
- * line prints, there is no spellcasting ability modifier to add and no save
- * DC to beat, and `checkContent` refuses an item that tries to say otherwise.
- * So a Potion of Healing heals the same 2d4 + 2 whoever drinks it.
+ * line prints, the save DC is the one the line prints, there is no
+ * spellcasting ability modifier to add, and `checkContent` refuses an item
+ * that tries to say otherwise. So a Potion of Healing heals the same 2d4 + 2
+ * whoever drinks it, and a flask saves against its own number in any hand.
  */
 export function useItem(
   state: GameState,
@@ -154,12 +155,17 @@ export function useItem(
     const resolved = runEffects(state, id, creature, {
       origin: { kind: 'item', item },
       effects: conferral.effects,
-      // **No route, no ability, and numbers that are all zero.** A conferral
-      // rolls no D20 Test — `checkContent` admits no effect kind that would —
-      // so there is nothing for an attack modifier or a save DC to reach, and
-      // "your spellcasting ability modifier" has no caster to be about. The
-      // printed DC the grant may one day carry is read here so that the day it
-      // is admitted there is one place to change.
+      // **No route, no ability, and every number the item's own.** A conferral
+      // has no caster, so there is nothing for "your spellcasting ability
+      // modifier" to be about and no attack modifier to derive — the kinds
+      // that would need one are refused by `checkContent`.
+      //
+      // **The save DC is the exception, and it is the item's.** SRD writes it
+      // as the item's own clause — "(save DC 15)" — so it arrives from the
+      // grant rather than from the drinker's sheet, and a flask in an
+      // archmage's hand still saves against what the flask prints. Zero where
+      // the item prints none, which `checkContent` has already refused for any
+      // list that rolls one.
       route: null,
       ability: null,
       castLevel: CONFERRED_LEVEL,

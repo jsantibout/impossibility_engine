@@ -2551,6 +2551,24 @@ export function statesFoughtFact(definition: SpellDefinition): boolean {
  * knowing which host it is serving — the whole point of fixing the branch by
  * the host is that the riders themselves are the same wherever they hang.
  */
+/**
+ * Does this outcome carry anything at all for `applyRiders` to hang?
+ *
+ * The question a host has to ask when its riders are **optional in a way the
+ * casting is not**: every rider is welded to a casting — a condition instance
+ * in the fold, a granted modifier's source, a `damage-scheduled`'s link — and
+ * an item's conferral has no casting at all. `checkContent` refuses a rider
+ * there, so this answering false is what lets a save-rolling effect resolve
+ * from an item without reaching for a casting that does not exist.
+ */
+export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
+  return (
+    riders.conditions !== undefined ||
+    riders.modifiers !== undefined ||
+    riders.delayed !== undefined
+  );
+}
+
 export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
   const conditions = conditionRiderOf(effect);
   const modifiers = modifierRidersOf(effect);

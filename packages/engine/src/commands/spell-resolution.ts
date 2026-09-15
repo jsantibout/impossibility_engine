@@ -1556,11 +1556,16 @@ export function runEffects(
   /**
    * The casting this is, for the resolvers that cannot be anything else.
    *
-   * {@link casterSheet}'s pattern and its argument. `attack`, `save`,
-   * `save-damage` and `condition` reach for it, because a condition instance
-   * is welded to a casting in the fold and a rider hangs off one; every one of
-   * them is refused on an item by `checkContent` before any content loads, so
-   * reaching here from an item is the validator and the resolver disagreeing.
+   * {@link casterSheet}'s pattern and its argument. `attack`, `save` and
+   * `condition` reach for it, because a condition instance is welded to a
+   * casting in the fold and a rider hangs off one; every one of them is
+   * refused on an item by `checkContent` before any content loads, so reaching
+   * here from an item is the validator and the resolver disagreeing.
+   *
+   * **`save-damage` reaches for it only when it has a rider to hang.** An item
+   * may confer one — the DC is the item's printed number — and a conferral may
+   * carry no rider at all, so that resolver asks the question only on the
+   * branch where the answer is needed.
    *
    * The two magic kinds and `teleport` are refused on an item too and never
    * ask — they read a name, which both origins have — which is the difference

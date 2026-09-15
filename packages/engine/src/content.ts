@@ -443,19 +443,25 @@ function itemCastsProblems(
  *   welds a condition instance to a casting (`fold/timers.ts` reads a
  *   non-casting condition as a corrupt log), and a potion's condition is a
  *   brief of its own rather than a line in this set.
- * - **A D20 Test somebody paid for.** A conferral has no attack modifier and
- *   no save DC, so `attack`, `save`, `save-damage`, `dispel` and
- *   `interrupt-casting` are refused by name. So is `teleport`, whose
- *   destination is stated at a casting, and `attack-damage`, which rides on an
- *   attack this is not.
+ * - **An attack modifier nobody printed.** `attack` is refused by name, and so
+ *   is `attack-damage`, which rides on an attack this is not. `dispel` and
+ *   `interrupt-casting` read a casting from both ends; `teleport`'s
+ *   destination is stated at a casting.
  *
- * What is left is the three that move hit points or lift a condition, and the
- * eight sourced-grant families — exactly the kinds that need nothing from the
- * casting they would otherwise have come from.
+ * **A saving throw is not on that list any more.** SRD writes the DC as the
+ * *item's* own clause — Wand of Fireballs' "(save DC 15)" — so `saveDc` on the
+ * grant is a number the item printed and `save-damage` resolves against it
+ * through the resolver a casting uses. Sixty-four of the book's 258 entries
+ * name one, which is the largest family there was.
+ *
+ * **`save` is still refused, and not for want of a DC**: its `condition` is a
+ * required field, so every `save` imposes a condition on its failure, and that
+ * is a casting id again. A condition from an item is a brief of its own.
  */
 export const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'heal',
   'temp-hp',
+  'save-damage',
   'end-condition',
   'buff',
   'roll-mode',
@@ -503,7 +509,64 @@ const SCALES_WITH_A_CASTING: readonly string[] = [
 
 /** Where an admitted effect kind writes its dice, for the rule above. */
 const scalingFieldOf = (kind: unknown): string | null =>
-  kind === 'heal' ? 'healing' : kind === 'temp-hp' ? 'amount' : null;
+  kind === 'heal'
+    ? 'healing'
+    : kind === 'temp-hp'
+      ? 'amount'
+      : kind === 'save-damage'
+        ? 'damage'
+        : null;
+
+/**
+ * Every amount an admitted effect writes down, with the path each is at.
+ *
+ * One kind writes more than one: `save-damage` carries its own amount and a
+ * `plus` list of further types under the same saving throw, and each of them
+ * scales on its own.
+ */
+function scalingsOf(
+  record: Record<string, unknown>,
+  on: string,
+): readonly (readonly [string, Record<string, unknown>])[] {
+  const found: (readonly [string, Record<string, unknown>])[] = [];
+  const field = scalingFieldOf(record['kind']);
+  const own = field === null ? undefined : record[field];
+  if (field !== null && typeof own === 'object' && own !== null) {
+    found.push([`${on}.${field}`, own as Record<string, unknown>]);
+  }
+  const plus = record['plus'];
+  if (Array.isArray(plus)) {
+    plus.forEach((part, index) => {
+      const amount = (part as Record<string, unknown> | null)?.['damage'];
+      if (typeof amount === 'object' && amount !== null) {
+        found.push([`${on}.plus[${index}].damage`, amount as Record<string, unknown>]);
+      }
+    });
+  }
+  return found;
+}
+
+/**
+ * The effect kinds that roll a saving throw, and therefore need a DC.
+ *
+ * `save-damage` is one by construction; a `buff` is one only when it names an
+ * `ability`, because that field is what makes it Bane's shape rather than
+ * Bless's. Both reach `EffectContext.saveDc`, which is where the item's
+ * printed number arrives.
+ */
+const rollsASave = (record: Record<string, unknown>): boolean =>
+  record['kind'] === 'save-damage' ||
+  (record['kind'] === 'buff' && record['ability'] !== undefined);
+
+/**
+ * The three riders, which every one of them needs a casting for.
+ *
+ * A condition instance is welded to a casting in the fold, a granted modifier
+ * carries the casting as its source, and a `damage-scheduled` names the
+ * casting that promised it. `applyRiders` reaches for all three through
+ * `EffectContext.casting`, which a conferral has none of.
+ */
+const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed'];
 
 /**
  * What an item's `confers` grant has to say, and what it may not.
@@ -546,10 +609,14 @@ function itemConfersProblems(
       `${at}.charges`,
     );
   }
-  if (grant.saveDc !== undefined) {
+  // **The DC is the item's own number**, so it is a whole number to beat and
+  // not a derivation of anybody's sheet. Required exactly when something on
+  // the list rolls against it and refused when nothing does, which is the rule
+  // `durationSeconds` already keeps about the other thing a grant can print.
+  if (grant.saveDc !== undefined && (!Number.isInteger(grant.saveDc) || grant.saveDc < 1)) {
     say(
-      'conferral_save_dc_unread',
-      `no effect an item may confer rolls a saving throw yet, so ${item.id}'s printed DC would be a number no die is thrown against`,
+      'bad_conferral_dc',
+      `a save DC is a whole number to beat, got ${String(grant.saveDc)}`,
       `${at}.saveDc`,
     );
   }
@@ -563,6 +630,7 @@ function itemConfersProblems(
   }
 
   let hangs = false;
+  let rolls = false;
   grant.effects.forEach((effect, index) => {
     const on = `${at}.effects[${index}]`;
     // The engine's own rules for an effect, whoever hosts the list.
@@ -575,12 +643,13 @@ function itemConfersProblems(
     if (!CONFERRED_EFFECT_KINDS.has(kind)) {
       say(
         'conferral_effect_not_read',
-        `"${kind}" needs the casting an item bypasses — an id to hang itself on, a D20 Test somebody paid for, or a destination stated at the cast — so ${item.id} may not confer one`,
+        `"${kind}" needs the casting an item bypasses — an id to weld a condition to, an attack modifier nobody printed, or a destination stated at the cast — so ${item.id} may not confer one`,
         `${on}.kind`,
       );
       return;
     }
     if (CONFERRED_GRANT_KINDS.has(kind)) hangs = true;
+    if (rollsASave(record)) rolls = true;
 
     // "Your spellcasting ability modifier" is the caster's, and a conferral
     // has no caster: the modifier would silently be zero.
@@ -591,28 +660,48 @@ function itemConfersProblems(
         `${on}.addSpellcastingModifier`,
       );
     }
-    // The save a `buff` may print is rolled against a DC an item has none of.
-    if (kind === 'buff' && record['ability'] !== undefined) {
-      say(
-        'conferral_save_dc_unread',
-        'a conferred bonus that offers a saving throw would be rolled against a DC an item has no way to print yet',
-        `${on}.ability`,
-      );
+    // A rider hangs off the outcome and is welded to the casting that hung it.
+    // Admitting the saving throw does not admit what a spell's failure branch
+    // carries — see {@link RIDER_FIELDS}.
+    for (const rider of RIDER_FIELDS) {
+      if (record[rider] !== undefined) {
+        say(
+          'conferral_rider_needs_a_casting',
+          `a "${rider}" rider is welded to the casting that hung it — a condition instance, a granted modifier's source, a scheduled hit's link — and ${item.id} casts nothing`,
+          `${on}.${rider}`,
+        );
+      }
     }
-    const field = scalingFieldOf(record['kind']);
-    const scaling = field === null ? undefined : record[field];
-    if (field !== null && typeof scaling === 'object' && scaling !== null) {
+    for (const [where, scaling] of scalingsOf(record, on)) {
       for (const scaled of SCALES_WITH_A_CASTING) {
-        if ((scaling as Record<string, unknown>)[scaled] !== undefined) {
+        if (scaling[scaled] !== undefined) {
           say(
             'conferral_scales_with_a_casting',
             `${scaled} reads a slot level or a caster level, and an item's printed line is the same whoever uses it`,
-            `${on}.${field}.${scaled}`,
+            `${where}.${scaled}`,
           );
         }
       }
     }
   });
+
+  // **Required exactly when something rolls against it**, the rule the
+  // lifetime below keeps about the other number a grant prints. A save with no
+  // DC would be rolled against zero and never fail; a DC nothing rolls against
+  // is a number that never reaches a die.
+  if (grant.saveDc === undefined && rolls) {
+    say(
+      'conferral_save_without_dc',
+      `${item.id} confers a saving throw and prints no DC, and a save against no number is a save nobody can fail`,
+      `${at}.saveDc`,
+    );
+  } else if (grant.saveDc !== undefined && !rolls) {
+    say(
+      'conferral_dc_rolls_nothing',
+      `${item.id} confers nothing that rolls a saving throw, so its printed DC would be a number no die is thrown against`,
+      `${at}.saveDc`,
+    );
+  }
 
   // **Required exactly when something hangs, and refused when nothing does.**
   // There is no casting for `releaseCasting` to end, so a grant with no

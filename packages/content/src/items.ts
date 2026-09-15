@@ -1281,6 +1281,18 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
  * beyond the vocabulary and rule 1 leaves it out. The others set an ability
  * score, or hand out a condition — and a condition is welded to a casting in
  * the fold, which a conferral has none of.
+ *
+ * **Potion of Poison is the one worth naming, because it looks admissible and
+ * is not.** SRD: "If you drink this potion, you take 4d6 Poison damage and
+ * must succeed on a DC 13 Constitution saving throw or have the Poisoned
+ * condition for 1 hour." A conferral may now print a DC and roll a save
+ * against it, so the middle clause is sayable; the other two are not. The
+ * Poisoned condition is a casting id again. And the 4d6 is **not** on the
+ * save — it lands whether the save is made or not — which is a hit with no
+ * roll to make it, the shape Magic Missile is blocked on and the one
+ * `save-damage` cannot be bent into without inventing a rule the book does
+ * not print. What would be left is a saving throw that decides nothing, on a
+ * potion that does nothing, so rule 1 leaves it out.
  */
 const POTIONS: readonly CatalogueItem[] = [
   {
