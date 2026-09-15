@@ -29,14 +29,19 @@ import {
  * fight in it and saved against nothing, and the same moment's other
  * consequence — a casting's per-turn payout — was missed with it.
  *
- * Both halves are one SRD sentence apiece and one moment of the engine's. The
- * area half is fixed here; the payout half is not, and the reason is written
- * down at the foot of this file rather than left to be rediscovered.
+ * Both halves are one SRD sentence apiece and one moment of the engine's, and
+ * both are closed here. The area half is above: the fold raises the debt when
+ * the fight opens, and `settleAreaEffects` pays it. The payout half is at the
+ * foot of the file, where `beginCombat` settles it the way `resolveTurn`
+ * settles the same thing at every other boundary — the two are one bug and
+ * two repairs, and that docstring says why they could not be one.
  *
- * Web is the spell throughout because it is the book's plainest start-of-turn
- * area — "each creature that starts its turn in the webs" — and because its
- * entry clause is capped separately from its boundary clause, so a fix that
- * confused the two moments would show up here.
+ * Web is the spell throughout the first half because it is the book's
+ * plainest start-of-turn area — "each creature that starts its turn in the
+ * webs" — and because its entry clause is capped separately from its boundary
+ * clause, so a fix that confused the two moments would show up here. Heroism
+ * is the spell throughout the second for the same kind of reason: it is the
+ * book's plainest start-of-turn payout.
  */
 
 const id = (s: string) => asCharacterId(s);

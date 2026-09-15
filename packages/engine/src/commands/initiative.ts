@@ -57,6 +57,7 @@ import { type CommandStamp, type GameEvent, type GameState } from '../events.js'
 import { type CommandIdentity, once } from '../idempotency.js';
 import { type RollIssuer } from '../rolls.js';
 import { effectiveConditions, rollModesFor } from '../standing.js';
+import { type Supply } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { checkBonuses } from './rolls.js';
 import { beginCombat } from './scene.js';
@@ -330,9 +331,10 @@ function rollFor(
 export function rollInitiativeAndBeginCombat(
   state: GameState,
   entrants: readonly InitiativeEntrant[],
-  supply: {
-    readonly issuer: RollIssuer;
-    readonly rng: Rng;
+  // A `Supply` with the book made optional, rather than a hand-written pair:
+  // whatever a caller passes travels whole to `beginCombat`, so the modes and
+  // bonuses on a `Supply` reach the payout's roll and the type says they do.
+  supply: Omit<Supply, 'content'> & {
     /** The book, for the boundary the fight opens on; see above. */
     readonly content?: Content;
   },

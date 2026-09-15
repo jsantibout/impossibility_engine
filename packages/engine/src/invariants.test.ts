@@ -1605,6 +1605,34 @@ describe('a retried command changes nothing the first one did not', () => {
   });
 
   /**
+   * And the same for the opening boundary, for the same reason. Both paying
+   * arms above are `combat-started` plus a payment, and the sweep's only claim
+   * about what the first run did is that it emitted *something* — which
+   * `combat-started` satisfies on its own. So a Heroism that stopped falling
+   * due, or an ability modifier that dropped the grant to nothing, would leave
+   * two arms that read as tests of the payment and are copies of the arms
+   * above it. This is what makes them arms.
+   */
+  it('the opening-boundary fixture really does owe a payout', () => {
+    const state = fold('s', heroic());
+    expect(state.creatures[A]?.payouts.map((payout) => payout.at)).toEqual(['start-of-turn']);
+
+    const opened = unwrap(
+      beginCombat(
+        state,
+        [
+          { id: A, initiative: 21, speed: 30 },
+          { id: B, initiative: 3, speed: 30 },
+        ],
+        { commandId: 'opening' },
+        supply(),
+      ),
+      'opening the fight',
+    );
+    expect(opened.map((event) => event.type)).toEqual(['combat-started', 'temporary-hp-granted']);
+  });
+
+  /**
    * Reusing an id for different work is refused rather than swallowed. A
    * silent no-op there is the worst available outcome: the second command
    * never runs and nobody is told.
