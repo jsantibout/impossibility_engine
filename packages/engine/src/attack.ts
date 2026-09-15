@@ -132,9 +132,37 @@ export function rangeOf(
   return weapon.kind === 'ranged' ? weapon.ammunitionRange : null;
 }
 
+/**
+ * A spell attack, and the bonus its caster brings to it.
+ *
+ * SRD "Spells" → "Attack Rolls": **"Spell attack modifier = your spellcasting
+ * ability modifier + your Proficiency Bonus."** Both terms are already inside
+ * `modifier`, pinned at the casting — so the weapon derivation must not run
+ * beside it and add either of them again.
+ *
+ * **This exists because `weapon: null` cannot say it.** That sentinel is an
+ * Unarmed Strike, whose bonus "equals your Strength modifier plus your
+ * Proficiency Bonus", and the spell path borrowing it inherited an Unarmed
+ * Strike's arithmetic on top of its own: a level 5 Wizard with Strength 16
+ * rolled a Fire Bolt at +13 where the book says +7.
+ *
+ * `ability` is the spellcasting ability the attack is made with — "Varies (the
+ * ability used is determined by the spellcaster's spellcasting feature)" in
+ * the Attack Roll Abilities table. Null where nobody's spellcasting feature
+ * decided it: an item that prints its own bonus in the hands of a wielder with
+ * no spellcasting ability, which SRD answers with the number and names no
+ * ability for. Nothing that reads an ability then reads one.
+ */
+export interface SpellAttack {
+  readonly modifier: number;
+  readonly ability: Ability | null;
+}
+
 export interface AttackOptions {
   /** The weapon used, or null for an Unarmed Strike. */
   readonly weapon: Weapon | null;
+  /** Set when this is a spell attack rather than a weapon's or a fist's. */
+  readonly spellAttack?: SpellAttack;
   readonly targetAc: number;
   /**
    * The lowest natural d20 that scores a Critical Hit. 20 unless a feature
@@ -191,9 +219,17 @@ function isRangedAttack(options: AttackOptions): boolean {
  * Finesse lets you choose between them — and Thrown keeps a melee weapon on its
  * melee ability, so a thrown Dagger is still Finesse rather than automatically
  * Dexterity.
+ *
+ * The table's third row is "Varies" — a spell attack uses whichever ability
+ * the caster's spellcasting feature named, which is why a {@link SpellAttack}
+ * carries its own rather than falling through to the Strength an Unarmed
+ * Strike shares its sentinel with.
  */
 export function attackAbility(sheet: CharacterSheet, options: AttackOptions): Ability {
   const weapon = options.weapon;
+
+  const spell = options.spellAttack;
+  if (spell !== undefined && spell.ability !== null) return spell.ability;
 
   if (has(weapon, 'finesse')) {
     if (options.finesseAbility !== undefined) return options.finesseAbility;
@@ -210,17 +246,26 @@ export function attackAbility(sheet: CharacterSheet, options: AttackOptions): Ab
  *
  * SRD Unarmed Strike: "Your bonus to the roll equals your Strength modifier
  * plus your Proficiency Bonus" — there is no unproficient unarmed strike.
+ *
+ * SRD "Spells" → "Attack Rolls": "**Spell attack modifier** = your spellcasting
+ * ability modifier + your Proficiency Bonus." A spell attack states that sum
+ * outright, so the derivation above it — an ability modifier and a Proficiency
+ * Bonus — is the *same two terms* and adding them again is adding them twice.
+ * See {@link SpellAttack} for why one sentinel could not say both.
  */
 export function attackModifier(sheet: CharacterSheet, options: AttackOptions): number {
-  const ability = attackAbility(sheet, options);
-  const proficient = options.weapon === null || (options.proficient ?? true);
   const exhaustion =
     options.attackerConditions === undefined ? null : exhaustionBonus(options.attackerConditions);
+  const situational = flatBonusTotal(options.attackBonuses) + (exhaustion?.flat ?? 0);
+
+  // Stated, not derived: the caster's own two terms are already in it, and an
+  // item that printed a bonus has settled it for a wielder who has neither.
+  if (options.spellAttack !== undefined) return options.spellAttack.modifier + situational;
+
+  const ability = attackAbility(sheet, options);
+  const proficient = options.weapon === null || (options.proficient ?? true);
   return (
-    modifierFor(sheet, ability) +
-    (proficient ? proficiencyBonus(sheet) : 0) +
-    flatBonusTotal(options.attackBonuses) +
-    (exhaustion?.flat ?? 0)
+    modifierFor(sheet, ability) + (proficient ? proficiencyBonus(sheet) : 0) + situational
   );
 }
 
@@ -252,8 +297,13 @@ export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): 
   }
 
   // Untrained armour hampers any Strength or Dexterity D20 Test, attacks
-  // included.
-  modes.push(...characterRollModes(sheet, ability, null));
+  // included. A spell attack whose bonus an item printed for a wielder with no
+  // spellcasting ability involves no ability of theirs at all, so the rule has
+  // nothing to read and gives no answer rather than reading the Strength the
+  // weaponless sentinel falls back to.
+  if (options.spellAttack === undefined || options.spellAttack.ability !== null) {
+    modes.push(...characterRollModes(sheet, ability, null));
+  }
 
   // Conditions on both sides of the attack.
   const targetContext: TargetContext = {

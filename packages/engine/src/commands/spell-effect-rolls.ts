@@ -64,6 +64,7 @@ export function resolveAttackEffect(
     events,
     outcomes,
     held,
+    ability,
     attackModifier,
     saveDc,
     from,
@@ -81,10 +82,18 @@ export function resolveAttackEffect(
 
   const attack = rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
     weapon: null,
+    // **SRD: "Spell attack modifier = your spellcasting ability modifier plus
+    // your Proficiency Bonus."** Both terms are inside `attackModifier`
+    // already — pinned at the casting, or printed by the item that supplied
+    // it — so it goes in as the modifier the roll is *made with* rather than
+    // as a bonus beside a derivation of the same two terms. Handed in as a
+    // flat bonus, the weaponless branch derived an Unarmed Strike's Strength
+    // and a second Proficiency Bonus underneath it and every spell attack in
+    // the engine rolled high by exactly that.
+    spellAttack: { modifier: attackModifier, ability },
     targetAc: armorClassOf(current, target),
     modes: [...defending.modes, ...(supply.modes ?? [])],
     attackBonuses: [
-      { source: `${definition.name} (spell attack)`, flat: attackModifier },
       // Bless is on the caster, not in the caller's head.
       ...bonusesFor((caster?.bonuses ?? []), 'attack'),
       ...(supply.bonuses ?? []),
