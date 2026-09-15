@@ -356,7 +356,7 @@ describe('two of the same potion refresh rather than stack', () => {
     // does not stack — the second draught moves the hour, it does not add one.
     expect(state.timers[KEY]?.deadline).toEqual({ kind: 'elapsed', at: 4200 });
 
-    const late = run(state === state ? again : again, (s) => advanceTime(s, 3599, 'nearly'));
+    const late = run(again, (s) => advanceTime(s, 3599, 'nearly'));
     expect(conditionsOf(late)).toContain('invisible');
     expect(conditionsOf(run(late, (s) => advanceTime(s, 2, 'and past')))).not.toContain('invisible');
   });
@@ -410,6 +410,78 @@ describe('a homebrew condition goes through the same door as the book', () => {
       resolveSpell(s, DRINKER, { spellId: 'fire-bolt', targets: [FOE] }, supply('bolt')),
     );
     expect(conditionsOf(cast)).not.toContain('invisible');
+  });
+});
+
+/**
+ * A drinker the condition cannot touch, so the immunity reading is exercised
+ * from the item's end and not only from a casting's.
+ *
+ * SRD files the answer under the creature rather than under the potion, and it
+ * is an **outcome** rather than a refusal: the flask is drunk, the Bonus Action
+ * goes, the bottle is used up, and nothing lands. `applyConditionTo` answers
+ * `immune`, `conditionLanding` reads it as "did not land", and the potion
+ * reports `affected: false` — the same sentence `imposeCondition` writes for a
+ * casting, shared rather than written twice.
+ */
+const FOG_FLASK = {
+  id: 'draught-of-the-green-fog',
+  name: 'Draught of the Green Fog',
+  kind: 'potion',
+  weightLb: 0.5,
+  costCp: null,
+  armor: null,
+  weapon: null,
+  contents: [],
+  grants: [
+    {
+      kind: 'confers',
+      action: 'bonus-action',
+      durationSeconds: 600,
+      effects: [{ kind: 'condition', condition: { name: 'poisoned' } }],
+    },
+  ],
+};
+
+describe('a drinker immune to the condition is unaffected, not refused', () => {
+  const content = unwrap(loadContent({ items: [JSON.parse(JSON.stringify(FOG_FLASK))] }), 'load');
+  const FLASK = 'draught-of-the-green-fog';
+  const GOLEM = id('golem');
+
+  const log: readonly GameEvent[] = [
+    ...TABLE,
+    {
+      type: 'creature-added',
+      id: GOLEM,
+      name: GOLEM,
+      sheet: sheet(),
+      maxHp: 60,
+      diesAtZero: true,
+      creatureType: 'Construct',
+      side: 'party',
+      conditionImmunities: ['poisoned'],
+    },
+    {
+      type: 'creature-placed',
+      id: GOLEM,
+      placement: { from: { creature: DRINKER }, feet: 5, bearing: 270 },
+    },
+    ...carrying(FLASK, 1, GOLEM),
+  ];
+
+  it('drinks the flask, lands nothing, and files no timer', () => {
+    const out = unwrap(
+      useItem(fold('seed', log), GOLEM, { item: FLASK }, supply('fog', content)),
+      'drink',
+    );
+    expect(out.outcomes).toEqual([{ target: GOLEM, affected: false }]);
+
+    const after = fold('seed', [...log, ...out.events]);
+    expect(after.creatures['golem']!.conditions.conditions).toEqual([]);
+    // The bottle still went, which is the whole difference between this and a
+    // refusal — and nothing has a deadline, because nothing was hung.
+    expect(after.creatures['golem']!.inventory).toEqual([]);
+    expect(after.timers).toEqual({});
   });
 });
 

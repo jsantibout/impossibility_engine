@@ -701,7 +701,7 @@ function itemConfersProblems(
           if ((rider as Record<string, unknown>)[field] === undefined) continue;
           say(
             'conferral_condition_needs_a_casting',
-            `"${field}" is owned by the casting that imposed the condition — a lifetime, an escape check, a repeat save, a mark that the casting does not keep it — and ${item.id} casts nothing; a conferral's lifetime is durationSeconds and what ends it early is endsEarly`,
+            `"${field}" is owned by the casting that imposed the condition — a lifetime, an escape check, a mark that the casting does not keep it — and ${item.id} casts nothing; a conferral's lifetime is durationSeconds and what ends it early is endsEarly`,
             `${on}.condition.${field}`,
           );
         }
