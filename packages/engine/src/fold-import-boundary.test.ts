@@ -118,6 +118,14 @@ describe('the fold/* import zone', () => {
     expect(messages).toEqual([]);
   });
 
+  it('refuses a fold import from outside the engine package', async () => {
+    const messages = await restrictedImports(
+      'packages/content/src/spells.ts',
+      "export { spellOn } from '../../engine/src/fold/release.js';\n",
+    );
+    expect(messages).toHaveLength(1);
+  });
+
   it('does not bite on a path that merely starts with the letters', async () => {
     const messages = await restrictedImports(
       'packages/engine/src/spells.ts',

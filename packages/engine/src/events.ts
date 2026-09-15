@@ -86,7 +86,7 @@ import type {
  *
  * The `./fold/*` half is now checked rather than claimed: the
  * `no-restricted-imports` zone in `eslint.config.js` refuses a fold import
- * from any engine module outside `packages/engine/src/fold/`, with the
+ * from any module outside `packages/engine/src/fold/`, with the
  * `export *` below as the one carved-out exception, and
  * `fold-import-boundary.test.ts` runs ESLint to prove the zone bites and
  * where it stays quiet. Test files are exempt by design, so the sentence

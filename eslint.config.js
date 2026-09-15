@@ -69,8 +69,12 @@ export default tseslint.config(
     // reach in for `spellOn` — widening the barrel to buy a lint rule would
     // cost more than the rule is worth. The zone governs the shipped import
     // graph. Both halves are tested in `fold-import-boundary.test.ts`.
-    files: ['packages/engine/**/*.ts'],
-    ignores: ['packages/engine/src/fold/**', 'packages/engine/**/*.test.ts'],
+    //
+    // Every file, not just the engine's: `@ie/engine` publishes only `.`, so
+    // no other package can reach a seam today, and saying so here costs
+    // nothing and means the zone matches the sentence it enforces.
+    files: ['**/*.ts'],
+    ignores: ['packages/engine/src/fold/**', '**/*.test.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [{ regex: FOLD_MODULE, message: FOLD_DOOR }] }],
     },
