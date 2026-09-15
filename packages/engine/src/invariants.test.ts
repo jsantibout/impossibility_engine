@@ -1630,6 +1630,11 @@ describe('a retried command changes nothing the first one did not', () => {
       'opening the fight',
     );
     expect(opened.map((event) => event.type)).toEqual(['combat-started', 'temporary-hp-granted']);
+    // And it hands over something. A grant worth nothing is skipped before the
+    // event is written, so the type alone would not catch the modifier going
+    // to zero — but a caller reading `amount` would notice either way, and the
+    // claim above is about the arm exercising a payment.
+    expect(opened.some((event) => event.type === 'temporary-hp-granted' && event.amount > 0)).toBe(true);
   });
 
   /**
