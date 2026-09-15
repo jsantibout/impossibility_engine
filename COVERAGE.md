@@ -561,8 +561,8 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `an-area-an-item-creates` | 17 | 0 | 1 |
 | `a-benefit-an-item-switches-on-and-off` | 12 | 0 | 1 |
 | `a-fact-only-the-table-can-declare` | 11 | 0 | 1 |
+| `a-rider-on-a-later-weapon-attack` | 11 | 0 | 1 |
 | `senses-beyond-declared-sight` | 10 | 1 | 0 |
-| `a-rider-on-a-later-weapon-attack` | 8 | 0 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 7 | 1 | 0 |
 | `a-benefit-an-item-suspends-on-a-trigger` | 5 | 0 | 1 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
@@ -573,7 +573,7 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `a-target-rule-the-format-cannot-state` | 1 | 0 | 1 |
 | `movement-modes` | 13 | 0 | 0 |
-| `a-damage-roll-an-item-makes` | 12 | 0 | 0 |
+| `a-damage-roll-an-item-makes` | 11 | 0 | 0 |
 | `a-save-an-item-forces` | 11 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 7 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |

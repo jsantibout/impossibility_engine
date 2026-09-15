@@ -5276,6 +5276,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'headband-of-intellect': ['an-ability-score-a-spell-changes'],
   'helm-of-brilliance': [
     'an-area-an-item-creates',
+    'a-rider-on-a-later-weapon-attack',
     'a-damage-roll-an-item-makes',
     'a-spell-an-item-casts-that-nothing-executes',
     'a-rider-on-the-face-the-die-showed',
@@ -5420,7 +5421,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'portable-hole': ['a-container-with-a-space-of-its-own'],
   'potion-of-animal-friendship': {
     unread:
-      'read, and the blocker cannot be named without inventing a shape. "you can cast the level 3 version of the _Animal Friendship_ spell (save DC 13)" is a **consumable whose one use is a casting**, and neither door fits: a `confers` grant is refused the `save` kind that spell is written in, while a `casts` grant is the shape Cape of the Mountebank already uses and `checkContent` accepts it here — a one-charge pool and the spell, DC and level the line prints. What it accepts is not the potion, because that pool recovers at dawn and `useItem` is the only command that takes an item off an inventory. Filing it under the condition weld would name a blocker the engine does not give; naming the missing one would be an architecture decision smuggled in as a note.',
+      'read, and the blocker cannot be named without inventing a shape. "you can cast the level 3 version of the _Animal Friendship_ spell (save DC 13)" is a **consumable whose one use is a casting**, and neither door fits: a `confers` grant is refused the `save` kind that spell is written in, while a `casts` grant is the shape Cape of the Mountebank already uses and `checkContent` accepts it here — a one-charge pool and the spell, DC and level the line prints. What it accepts is not the potion, because that pool recovers at dawn and nothing spends the flask itself: `useItem` is the only command that uses an item **up** as part of using it, and it refuses anything whose grant is not a conferral. Filing it under the condition weld would name a blocker the engine does not give; naming the missing one would be an architecture decision smuggled in as a note.',
   },
   'potion-of-clairvoyance': ['a-spell-an-item-casts-that-nothing-executes'],
   'potion-of-climbing': [
@@ -5559,7 +5560,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'rod-of-lordly-might': [
     'a-benefit-an-item-switches-on-and-off',
     'a-condition-an-item-imposes',
-    'a-damage-roll-an-item-makes',
+    'a-rider-on-a-later-weapon-attack',
   ],
   'rod-of-resurrection': ['a-spell-an-item-casts-that-nothing-executes'],
   'rod-of-rulership': ['a-condition-an-item-imposes'],
@@ -5687,6 +5688,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-area-an-item-creates',
     'a-save-an-item-forces',
     'a-condition-an-item-imposes',
+    'a-rider-on-a-later-weapon-attack',
     'a-damage-roll-an-item-makes',
   ],
   'tome-of-clear-thought': [
