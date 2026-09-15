@@ -2,8 +2,12 @@
  * SRD 5.2.1 species, backgrounds, feats, languages and alignments,
  * transcribed as data.
  *
- * Only what the supported creation paths need is here; adding the rest is
- * transcription onto the same structures, not design.
+ * Every species and background the SRD prints is here, transcribed from
+ * `packages/srd/raw/character-origins.md` sentence by sentence. Most of what a
+ * species trait does is a mechanic the engine has never had — a sense, a
+ * breath weapon, a lineage's spells — so most of these features are `manual`
+ * and each note says what the DM is left holding and why. A trait that is one
+ * of the shapes already built is wired to it.
  */
 import type {
   AlignmentDefinition,
@@ -12,6 +16,314 @@ import type {
   LanguageDefinition,
   SpeciesDefinition,
 } from '@ie/engine';
+
+/**
+ * SRD Draconic Ancestors: the ten dragons the table prints, in its own order.
+ *
+ * The damage type beside each is the other half of that table and is *not*
+ * transcribed, because nothing could read it: a grant takes its damage types
+ * from the choice made on its **own** feature, and the Damage Resistance trait
+ * is a different feature from the one that chooses a dragon. Listing the types
+ * here would be a table with no reader, which is the failure the coverage
+ * report exists to catch.
+ */
+const DRACONIC_ANCESTORS = [
+  'Black',
+  'Blue',
+  'Brass',
+  'Bronze',
+  'Copper',
+  'Gold',
+  'Green',
+  'Red',
+  'Silver',
+  'White',
+] as const;
+
+export const DRAGONBORN: SpeciesDefinition = {
+  id: 'dragonborn',
+  name: 'Dragonborn',
+  creatureType: 'Humanoid',
+  sizes: ['Medium'],
+  speed: 30,
+  features: [
+    {
+      id: 'dragonborn:draconic-ancestry',
+      name: 'Draconic Ancestry',
+      level: 1,
+      automation: 'manual',
+      note: 'The chosen dragon is recorded and nothing more. It is what the Breath Weapon and Damage Resistance traits are written in terms of, and each of those says separately what a DM is left holding.',
+      choice: { kind: 'option', choose: 1, from: [...DRACONIC_ANCESTORS] },
+    },
+    {
+      id: 'dragonborn:breath-weapon',
+      name: 'Breath Weapon',
+      level: 1,
+      automation: 'manual',
+      note: 'None of it is applied. Replacing one of the Attack action attacks with a 15-foot Cone or a 30-foot Line, the Dexterity save against DC 8 plus Constitution modifier and Proficiency Bonus, and the 1d10 that becomes 2d10, 3d10 and 4d10 at character levels 5, 11 and 17 are the DM to adjudicate. Not even the uses are declared: the engine sizes a pool from a class table column, an ability modifier or a multiple of a class level, and "a number of times equal to your Proficiency Bonus" is none of the three.',
+    },
+    {
+      id: 'dragonborn:damage-resistance',
+      name: 'Damage Resistance',
+      level: 1,
+      automation: 'manual',
+      note: 'The Resistance is not applied, and the shape is not what is missing: a standing damage-resistance grant is read on every hit. What is missing is the reading of the type. It is "determined by your Draconic Ancestry trait", and a grant takes its damage types only from a choice made on its own feature - there is no route from a sibling feature choice, and none from a dragon to a damage type. A DM applies Resistance to the type the chosen dragon names.',
+    },
+    {
+      id: 'dragonborn:darkvision',
+      name: 'Darkvision',
+      level: 1,
+      automation: 'manual',
+      note: 'Darkvision with a range of 60 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+    },
+    {
+      id: 'dragonborn:draconic-flight',
+      name: 'Draconic Flight',
+      level: 5,
+      automation: 'manual',
+      note: 'Not applied: the Bonus Action, the 10 minutes of spectral wings, the Fly Speed equal to your Speed and the ending on Incapacitated are all the DM. A creature has one Speed and there is no Fly Speed beside it; a placement carries an elevation and nothing grants the movement that would use it.',
+    },
+  ],
+};
+
+export const DWARF: SpeciesDefinition = {
+  id: 'dwarf',
+  name: 'Dwarf',
+  creatureType: 'Humanoid',
+  sizes: ['Medium'],
+  speed: 30,
+  features: [
+    {
+      id: 'dwarf:darkvision',
+      name: 'Darkvision',
+      level: 1,
+      automation: 'manual',
+      note: 'Darkvision with a range of 120 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+    },
+    {
+      id: 'dwarf:dwarven-resilience',
+      name: 'Dwarven Resilience',
+      level: 1,
+      automation: 'manual',
+      note: 'Half of it is applied, which is why it is not marked as executed. "You have Resistance to Poison damage" is a standing grant that every hit is measured against. "Advantage on saving throws you make to avoid or end the Poisoned condition" is not: a roll selector names a family, an ability and a skill, and has no way to say which condition a save is about, so a DM gives that Advantage.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'damage-resistance', damageTypes: ['poison'] }],
+      },
+    },
+    {
+      id: 'dwarf:dwarven-toughness',
+      name: 'Dwarven Toughness',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level" needs a feature that raises the hit point maximum, which the engine does not have - Draconic Resilience wants the same thing and says so. A DM adds one hit point per character level.',
+    },
+    {
+      id: 'dwarf:stonecunning',
+      name: 'Stonecunning',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: the engine has no Tremorsense and no notion of a stone surface, so the 60-foot sense and the 10 minutes it lasts are the DM. The uses are not declared either - "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool.',
+    },
+  ],
+};
+
+export const ELF: SpeciesDefinition = {
+  id: 'elf',
+  name: 'Elf',
+  creatureType: 'Humanoid',
+  sizes: ['Medium'],
+  speed: 30,
+  features: [
+    {
+      id: 'elf:darkvision',
+      name: 'Darkvision',
+      level: 1,
+      automation: 'manual',
+      note: 'Darkvision with a range of 60 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+    },
+    {
+      id: 'elf:elven-lineage',
+      name: 'Elven Lineage',
+      level: 1,
+      automation: 'manual',
+      note: 'One of the three level 1 benefits is applied and the rest are the DM, which is why this is not marked as executed. The Wood Elf "Speed increases to 35 feet" is five feet of standing Speed, granted only to the lineage that chose it and read by speedOf like any other. The Drow longer Darkvision is not - sight is a pairwise declaration and there is nothing else. Neither is the cantrip each lineage knows, nor the level 3 and level 5 spells that are always prepared and free once per Long Rest: the engine gathers a spells grant only from the features of a class that casts, so a species cannot grant one.',
+      choice: { kind: 'option', choose: 1, from: ['Drow', 'High Elf', 'Wood Elf'] },
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        // SRD: an Elf's Speed is 30 and the Wood Elf's "increases to 35 feet",
+        // so the grant is the difference — and only for the lineage that took
+        // it, which is what `onlyIfChoice` says.
+        onlyIfChoice: 'Wood Elf',
+        effects: [{ kind: 'speed', feet: 5 }],
+      },
+    },
+    {
+      id: 'elf:fey-ancestry',
+      name: 'Fey Ancestry',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: "Advantage on saving throws you make to avoid or end the Charmed condition" names a condition, and a roll selector names a family, an ability and a skill and has no condition axis. A DM gives the Advantage on those saves.',
+    },
+    {
+      id: 'elf:keen-senses',
+      name: 'Keen Senses',
+      level: 1,
+      automation: 'engine',
+      note: 'The chosen skill proficiency is applied to the sheet, and the choice is held to the three the trait offers.',
+      choice: { kind: 'skill', choose: 1, from: ['insight', 'perception', 'survival'] },
+    },
+    {
+      id: 'elf:trance',
+      name: 'Trance',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: a Long Rest is eight hours for everybody in this engine, one constant with no per-creature answer, so finishing one in four hours of meditation is a DM ruling. Not needing to sleep, and magic not being able to put you to sleep, are the same: nothing models sleep.',
+    },
+  ],
+};
+
+export const GNOME: SpeciesDefinition = {
+  id: 'gnome',
+  name: 'Gnome',
+  creatureType: 'Humanoid',
+  sizes: ['Small'],
+  speed: 30,
+  features: [
+    {
+      id: 'gnome:darkvision',
+      name: 'Darkvision',
+      level: 1,
+      automation: 'manual',
+      note: 'Darkvision with a range of 60 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+    },
+    {
+      id: 'gnome:gnomish-cunning',
+      name: 'Gnomish Cunning',
+      level: 1,
+      automation: 'engine',
+      note: 'Applied whole: three standing roll modes, one per ability the trait names, gathered at the save like any other Advantage and settled by the same presence rule - so a Gnome saving against a spell that imposes Disadvantage rolls one die rather than three.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'saving-throw', relation: 'roller', ability: 'int' },
+            },
+          },
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'saving-throw', relation: 'roller', ability: 'wis' },
+            },
+          },
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'saving-throw', relation: 'roller', ability: 'cha' },
+            },
+          },
+        ],
+      },
+    },
+    {
+      id: 'gnome:gnomish-lineage',
+      name: 'Gnomish Lineage',
+      level: 1,
+      automation: 'manual',
+      note: 'The lineage is recorded and its benefits are the DM. Both options are spells - the Forest Gnome Minor Illusion and a Speak with Animals free a Proficiency Bonus of times a day, the Rock Gnome Mending and Prestidigitation and the clockwork device - and a species feature cannot grant a spell, because the engine gathers a spells grant only from the features of a class that casts.',
+      choice: { kind: 'option', choose: 1, from: ['Forest Gnome', 'Rock Gnome'] },
+    },
+  ],
+};
+
+export const GOLIATH: SpeciesDefinition = {
+  id: 'goliath',
+  name: 'Goliath',
+  creatureType: 'Humanoid',
+  sizes: ['Medium'],
+  speed: 35,
+  features: [
+    {
+      id: 'goliath:giant-ancestry',
+      name: 'Giant Ancestry',
+      level: 1,
+      automation: 'manual',
+      note: 'The chosen boon is recorded and none of the six is applied, and for two different reasons. Four of them are mechanisms the engine does not have: a teleport on a Bonus Action, extra damage a feature adds to a hit of the holder own choosing, a Speed reduction until the start of your next turn, and the Prone condition given on a hit. Stone\'s Endurance is not one of those - "take a Reaction to roll 1d12, add your Constitution modifier and reduce the damage by that total" is the shape Uncanny Dodge already answers the damage window with - and it is still not wired, because a Reaction grant has no way to say it belongs to one option of six (only a standing grant can), and because "a number of times equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool. Storm\'s Thunder, which deals damage back rather than reducing it, is a mechanism that really is absent.',
+      choice: {
+        kind: 'option',
+        choose: 1,
+        from: [
+          "Cloud's Jaunt",
+          "Fire's Burn",
+          "Frost's Chill",
+          "Hill's Tumble",
+          "Stone's Endurance",
+          "Storm's Thunder",
+        ],
+      },
+    },
+    {
+      id: 'goliath:large-form',
+      name: 'Large Form',
+      level: 5,
+      automation: 'manual',
+      note: 'Not applied: a creature size in this engine belongs to the scene rather than to the sheet, and nothing changes one mid-fight, so the Bonus Action, the 10 minutes, the Advantage on Strength checks and the extra 10 feet of Speed are the DM.',
+    },
+    {
+      id: 'goliath:powerful-build',
+      name: 'Powerful Build',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: "Advantage on any ability check you make to end the Grappled condition" names a condition, and a roll selector names a family, an ability and a skill and has no condition axis. Counting as one size larger for carrying capacity reaches nothing either: the catalogue records a weight for every item and nothing adds them up, so there is no capacity to widen.',
+    },
+  ],
+};
+
+export const HALFLING: SpeciesDefinition = {
+  id: 'halfling',
+  name: 'Halfling',
+  creatureType: 'Humanoid',
+  sizes: ['Small'],
+  speed: 30,
+  features: [
+    {
+      id: 'halfling:brave',
+      name: 'Brave',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: "Advantage on saving throws you make to avoid or end the Frightened condition" names a condition, and a roll selector names a family, an ability and a skill and has no condition axis. A DM gives the Advantage on those saves.',
+    },
+    {
+      id: 'halfling:halfling-nimbleness',
+      name: 'Halfling Nimbleness',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: moving through the space of a creature one size larger is a rule the engine writes for a two-size difference and for nothing else, and it is not read off a feature. A DM allows the move.',
+    },
+    {
+      id: 'halfling:luck',
+      name: 'Luck',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: rerolling a 1 on the d20 is a reroll the engine has, and only as a Reaction offered at a named window - Indomitable takes it that way. This one costs no Reaction, is not offered, and fires on the die rather than on the outcome. A DM applies the reroll, and it must be the new roll that stands.',
+    },
+    {
+      id: 'halfling:naturally-stealthy',
+      name: 'Naturally Stealthy',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: the engine takes no Hide action at all, so there is no ordinary case for this exception to widen. A DM allows the Hide behind a creature one size larger.',
+    },
+  ],
+};
 
 export const HUMAN: SpeciesDefinition = {
   id: 'human',
@@ -42,6 +354,135 @@ export const HUMAN: SpeciesDefinition = {
       automation: 'engine',
       note: 'The chosen Origin feat is validated, and applied as far as that feat is executed - see the feat own note, which says what a DM still has to do.',
       choice: { kind: 'feat', choose: 1, category: 'origin' },
+    },
+  ],
+};
+
+export const ORC: SpeciesDefinition = {
+  id: 'orc',
+  name: 'Orc',
+  creatureType: 'Humanoid',
+  sizes: ['Medium'],
+  speed: 30,
+  features: [
+    {
+      id: 'orc:adrenaline-rush',
+      name: 'Adrenaline Rush',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: the engine spends a Bonus Action on what a feature declares, and nothing lets a feature say that an action anybody can take becomes one. The Temporary Hit Points equal to your Proficiency Bonus are real state the engine holds, and no feature route reaches them. The uses are not declared either - "equal to your Proficiency Bonus" is not one of the three ways the engine sizes a pool.',
+    },
+    {
+      id: 'orc:darkvision',
+      name: 'Darkvision',
+      level: 1,
+      automation: 'manual',
+      note: 'Darkvision with a range of 120 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+    },
+    {
+      id: 'orc:relentless-endurance',
+      name: 'Relentless Endurance',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: dropping to 1 Hit Point instead of 0 is a decision taken at the moment damage lands, and the only thing a feature may do there is reduce the damage as a Reaction. A DM holds the Orc at 1 hit point once between Long Rests.',
+    },
+  ],
+};
+
+export const TIEFLING: SpeciesDefinition = {
+  id: 'tiefling',
+  name: 'Tiefling',
+  creatureType: 'Humanoid',
+  sizes: ['Medium', 'Small'],
+  speed: 30,
+  features: [
+    {
+      id: 'tiefling:darkvision',
+      name: 'Darkvision',
+      level: 1,
+      automation: 'manual',
+      note: 'Darkvision with a range of 60 feet is not applied: sight in this engine is a pairwise declaration and there is nothing else, so what a creature can see in the dark is answered by whoever declares the sight line rather than by a sense on the sheet.',
+    },
+    {
+      id: 'tiefling:fiendish-legacy',
+      name: 'Fiendish Legacy',
+      level: 1,
+      automation: 'manual',
+      note: 'The legacy is recorded and its benefits are the DM. The Resistance each legacy names - Poison, Necrotic or Fire - is a shape the engine has and cannot reach from here: a damage-resistance grant takes its types from a choice made on its own feature, and this choice is a legacy rather than a damage type. The cantrip beside it, and the level 3 and level 5 spells, reach nothing at all: the engine gathers a spells grant only from the features of a class that casts.',
+      choice: { kind: 'option', choose: 1, from: ['Abyssal', 'Chthonic', 'Infernal'] },
+    },
+    {
+      id: 'tiefling:otherworldly-presence',
+      name: 'Otherworldly Presence',
+      level: 1,
+      automation: 'manual',
+      note: 'Not applied: knowing the Thaumaturgy cantrip is a spells grant the engine gathers only from the features of a class that casts, so a species feature granting one reaches no spellcasting route and the spellcasting ability the Fiendish Legacy trait chose has nowhere to be recorded. A DM lets the Tiefling cast it.',
+    },
+  ],
+};
+
+export const ACOLYTE: BackgroundDefinition = {
+  id: 'acolyte',
+  name: 'Acolyte',
+  abilities: ['int', 'wis', 'cha'],
+  feat: 'Magic Initiate (Cleric)',
+  skillProficiencies: ['insight', 'religion'],
+  toolProficiency: "Calligrapher's Supplies",
+  startingEquipment: [
+    {
+      option: 'A',
+      items: [
+        { id: 'calligraphers-supplies', quantity: 1 },
+        { id: 'book', quantity: 1, detail: 'prayers' },
+        { id: 'holy-symbol', quantity: 1 },
+        { id: 'parchment', quantity: 10, detail: 'sheets' },
+        { id: 'robe', quantity: 1 },
+      ],
+      goldPieces: 8,
+    },
+    { option: 'B', items: [], goldPieces: 50 },
+  ],
+  features: [
+    {
+      id: 'acolyte:magic-initiate-cleric',
+      name: 'Magic Initiate (Cleric)',
+      level: 1,
+      automation: 'engine',
+      note: 'The chosen spells reach usable state: castable through resolveSpell on the feat own spellcasting ability, and the level 1 spell free daily casting is a long-rest pool. The list is pinned to the Cleric one the background names, and a spell chosen off another list is refused. What is missing is a definition for each spell - the engine executes only the spells it has been taught.',
+      grantsFeat: { featId: 'magic-initiate', spellList: 'cleric' },
+    },
+  ],
+};
+
+export const CRIMINAL: BackgroundDefinition = {
+  id: 'criminal',
+  name: 'Criminal',
+  abilities: ['dex', 'con', 'int'],
+  feat: 'Alert',
+  skillProficiencies: ['sleight-of-hand', 'stealth'],
+  toolProficiency: "Thieves' Tools",
+  startingEquipment: [
+    {
+      option: 'A',
+      items: [
+        { id: 'dagger', quantity: 2 },
+        { id: 'thieves-tools', quantity: 1 },
+        { id: 'crowbar', quantity: 1 },
+        { id: 'pouch', quantity: 2 },
+        { id: 'clothes-travelers', quantity: 1 },
+      ],
+      goldPieces: 16,
+    },
+    { option: 'B', items: [], goldPieces: 50 },
+  ],
+  features: [
+    {
+      id: 'criminal:alert',
+      name: 'Alert',
+      level: 1,
+      automation: 'engine',
+      note: 'The granted feat is validated, and applied as far as that feat is executed: the Initiative Proficiency comes back from creation as a named bonus rollInitiative takes like any other. The Initiative swap does not - see the feat own note, which says what a DM still has to do.',
+      grantsFeat: { featId: 'alert' },
     },
   ],
 };
@@ -79,8 +520,58 @@ export const SAGE: BackgroundDefinition = {
   ],
 };
 
-export const SPECIES: readonly SpeciesDefinition[] = [HUMAN];
-export const BACKGROUNDS: readonly BackgroundDefinition[] = [SAGE];
+export const SOLDIER: BackgroundDefinition = {
+  id: 'soldier',
+  name: 'Soldier',
+  abilities: ['str', 'dex', 'con'],
+  feat: 'Savage Attacker',
+  skillProficiencies: ['athletics', 'intimidation'],
+  // SRD: "Choose one kind of Gaming Set." The kind is the player's and the
+  // sheet holds one string, the way the Bard's "Musical Instrument" does.
+  toolProficiency: 'Gaming Set',
+  startingEquipment: [
+    {
+      option: 'A',
+      items: [
+        { id: 'spear', quantity: 1 },
+        { id: 'shortbow', quantity: 1 },
+        { id: 'arrows', quantity: 20 },
+        { id: 'gaming-set', quantity: 1, detail: 'the kind chosen above' },
+        { id: 'healers-kit', quantity: 1 },
+        { id: 'quiver', quantity: 1 },
+        { id: 'clothes-travelers', quantity: 1 },
+      ],
+      goldPieces: 14,
+    },
+    { option: 'B', items: [], goldPieces: 50 },
+  ],
+  features: [
+    {
+      id: 'soldier:savage-attacker',
+      name: 'Savage Attacker',
+      level: 1,
+      automation: 'manual',
+      note: 'The feat is granted and its being the right one is checked, and that is the whole of what happens: Savage Attacker is executed nowhere. Rolling the weapon damage dice twice once per turn and using either roll is the DM, or the caller reproducing it through the dice module - see the feat own note.',
+      grantsFeat: { featId: 'savage-attacker' },
+    },
+  ],
+};
+
+/** Every species the SRD publishes, in the order the book prints them. */
+export const SPECIES: readonly SpeciesDefinition[] = [
+  DRAGONBORN,
+  DWARF,
+  ELF,
+  GNOME,
+  GOLIATH,
+  HALFLING,
+  HUMAN,
+  ORC,
+  TIEFLING,
+];
+
+/** Every background the SRD publishes, in the order the book prints them. */
+export const BACKGROUNDS: readonly BackgroundDefinition[] = [ACOLYTE, CRIMINAL, SAGE, SOLDIER];
 
 /** SRD "Origin Feats". The four the SRD publishes, no more. */
 export const ORIGIN_FEATS: readonly FeatDefinition[] = [

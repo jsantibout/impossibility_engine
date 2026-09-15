@@ -461,8 +461,8 @@ describe('the SRD catalogue is content like any other', () => {
   it('answers the same lookups the engine used to hold as globals', () => {
     expect(SRD_CONTENT.classes).toHaveLength(12);
     expect(SRD_CONTENT.subclasses).toHaveLength(12);
-    expect(SRD_CONTENT.species.map((s) => s.id)).toEqual(['human']);
-    expect(SRD_CONTENT.backgrounds.map((b) => b.id)).toEqual(['sage']);
+    expect(SRD_CONTENT.speciesById('human')?.name).toBe('Human');
+    expect(SRD_CONTENT.backgroundById('sage')?.name).toBe('Sage');
     expect(SRD_CONTENT.featById('magic-initiate')?.requires.kind).toBe('magic-initiate');
     expect(SRD_CONTENT.item('chain-shirt')?.armor?.category).toBe('medium');
     expect(SRD_CONTENT.expandPack('scholars-pack').length).toBeGreaterThan(1);
