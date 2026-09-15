@@ -4876,13 +4876,13 @@ export const ITEM_SHAPES = {
   'a-spell-an-item-casts-that-nothing-executes':
     'the item’s line says it casts a named spell and the catalogue has no executable definition of that spell. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Plane Shift cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist.',
   'a-save-an-item-forces':
-    'a saving throw an item makes somebody roll, against a DC the item itself prints. docs/design/content.md lists it among the shapes an item’s conferral is refused "until each is built — a save DC or a charge count", and packages/engine/src/content.ts says why: "no effect an item may confer rolls a saving throw yet". The SRD prints a DC on an item’s own line constantly — a horn, a wand, a dust — and there is nowhere for it to go.',
+    'a saving throw an item makes somebody roll — **half built, and the half that is missing is not the DC**. The roll and the number are there: packages/engine/src/content.ts admits the first, "A saving throw is not on that list any more.", and says where the second comes from, "`saveDc` on the grant is a number the item printed and `save-damage` resolves against it through the resolver a casting uses". So a save whose failure is **damage** is writable today, which is why Dust of Dryness’s 10d6 and Javelin of Lightning’s 4d6 no longer name this shape. What is not built is every *other* thing a failed save can do, and the same file gives the reason: "`save` is still refused, and not for want of a DC" — "its `condition` is a required field, so every `save` imposes a condition on its failure, and that is a casting id again", because "the fold welds a condition instance to a casting". What still names this shape is therefore a save whose outcome is neither damage nor anything a shape already covers: a wielder who goes berserk, a creature trapped in a flask or a mirror, an Undead simply destroyed. A save that imposes a **condition** is that same weld seen from the other end and names `a-condition-an-item-imposes` instead, which is the id the vocabulary already had for it.',
   'a-charge-spent-on-something-other-than-a-casting':
-    'a charge the item’s line spends on something that is not a spell. A `casts` grant takes its price out of the pool and nothing else does: packages/engine/src/content.ts refuses a conferral that names one — "nothing spends a charge for a conferral yet" — so a staff that spends a charge for extra damage on a hit, or a periapt that spends its one daily use to heal, would declare a pool nothing can draw on.',
+    'a charge the item’s line spends on something that is not a spell. A `casts` grant takes its price out of the pool and nothing else does: packages/engine/src/content.ts refuses a conferral that names one — "nothing spends a charge for a conferral yet" — so a staff that spends a charge for extra damage on a hit, or a periapt that spends its one daily use to heal, would declare a pool nothing can draw on. docs/design/content.md files it beside the save DC an item prints, as the two things a conferral is refused "until each is built — a save DC or a charge count"; the DC has since been built, so the charge is the whole of what that pair still names.',
   'a-condition-an-item-imposes':
     'a condition an item puts on a creature, its user or its victim. The conferral vocabulary excludes every kind that hangs one, and packages/engine/src/content.ts gives the reason: "the fold welds a condition instance to a casting", so a condition with no casting behind it reads as a corrupt log. A potion that makes you Invisible and a wand that Paralyzes are the same gap from the two ends.',
   'a-damage-roll-an-item-makes':
-    'damage an item deals without a casting. packages/engine/src/content.ts enumerates what a conferral may carry and stops short of it — "What is left is the three that move hit points or lift a condition, and the eight sourced-grant families" — so a horn that blasts, a talisman that burns whoever holds it and a poison that harms its drinker each have a number the engine can roll and nowhere to write it.',
+    'damage an item deals without a casting, and **what is left of it is damage no roll decides**. A conferral may now carry one damaging kind: packages/engine/src/content.ts admits the saving throw — "A saving throw is not on that list any more." — so a horn that blasts and a javelin that forks into lightning have somewhere to write their dice, and every entry whose damage a save decides has come off this shape. What has not moved is damage that simply lands: a talisman that burns whoever touches it, a staff’s explosion on its own wielder, and Potion of Poison’s 4d6, which arrives whether the save is made or not. The same file refuses the only other kind that could carry one — "`attack` is refused by name, and so is `attack-damage`, which rides on an attack this is not" — so there is no effect left to put an unconditional number in. **That residue is the gap the spell vocabulary calls `damage-with-neither-an-attack-roll-nor-a-save`**, which Magic Missile is blocked on; whether an item still needs an id of its own for it, now that the save-gated half is built, is a question this map owes an answer to and a re-derivation may not settle by itself.',
   'a-speed-an-item-grants':
     'a Speed a worn item gives its wearer. `ITEM_EFFECT_KINDS` omits `speed` on purpose and packages/engine/src/content.ts records the omission as a gap rather than as a decision — "An item granting a Swim Speed is a real SRD item and a real gap; refusing it by name is how the gap stays visible instead of becoming a transcribed item whose benefit silently never applies." Boots, gloves, rings, horseshoes and slippers all print one.',
   'a-reaction-an-item-grants':
@@ -5048,8 +5048,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'adamantine-armor': ['a-critical-hit-an-effect-downgrades'],
   'ammunition-1-2-or-3': ['an-item-instance-with-a-state-of-its-own'],
   'ammunition-of-slaying': [
-    'a-save-an-item-forces',
-    'a-damage-roll-an-item-makes',
+    'a-rider-on-a-later-weapon-attack',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'an-item-instance-with-a-state-of-its-own',
   ],
@@ -5072,7 +5071,8 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'arrow-catching-shield': ['a-reaction-an-item-grants'],
   'bag-of-beans': [
     'a-save-an-item-forces',
-    'a-damage-roll-an-item-makes',
+    'a-condition-an-item-imposes',
+    'an-area-an-item-creates',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'an-item-instance-with-a-state-of-its-own',
   ],
@@ -5083,12 +5083,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'an-item-instance-with-a-state-of-its-own',
   ],
-  'bead-of-force': [
-    'an-area-an-item-creates',
-    'a-save-an-item-forces',
-    'a-damage-roll-an-item-makes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  'bead-of-force': ['an-area-an-item-creates', 'an-item-instance-with-a-state-of-its-own'],
   'bead-of-nourishment': [
     {
       clause: 'provides as much nourishment as 1 day of Rations',
@@ -5135,11 +5130,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-item-instance-with-a-state-of-its-own',
   ],
   'circlet-of-blasting': ['a-spell-an-item-casts-that-nothing-executes'],
-  'cloak-of-arachnida': [
-    'movement-modes',
-    'a-speed-an-item-grants',
-    'a-save-an-item-forces',
-  ],
+  'cloak-of-arachnida': ['movement-modes', 'a-speed-an-item-grants'],
   'cloak-of-displacement': ['a-benefit-an-item-suspends-on-a-trigger'],
   'cloak-of-invisibility': [
     'a-condition-an-item-imposes',
@@ -5158,19 +5149,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-spell-an-item-casts-that-nothing-executes',
     'senses-beyond-declared-sight',
   ],
-  'cube-of-force': ['a-spell-an-item-casts-that-nothing-executes', 'a-save-an-item-forces'],
+  'cube-of-force': ['a-spell-an-item-casts-that-nothing-executes'],
   'cubic-gate': ['a-spell-an-item-casts-that-nothing-executes'],
-  'dagger-of-venom': [
-    'a-save-an-item-forces',
-    'a-condition-an-item-imposes',
-    'a-benefit-an-item-switches-on-and-off',
-  ],
+  'dagger-of-venom': ['a-condition-an-item-imposes', 'a-benefit-an-item-switches-on-and-off'],
   'dancing-sword': ['an-object-with-statistics-of-its-own'],
-  'decanter-of-endless-water': [
-    'a-save-an-item-forces',
-    'a-damage-roll-an-item-makes',
-    'a-condition-an-item-imposes',
-  ],
+  'decanter-of-endless-water': ['a-condition-an-item-imposes'],
   'deck-of-illusions': [
     'a-stat-block-created-mid-fight',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
@@ -5184,7 +5167,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'dimensional-shackles': ['a-condition-an-item-imposes', 'a-fact-only-the-table-can-declare'],
   'dragon-orb': [
     'a-spell-an-item-casts-that-nothing-executes',
-    'a-save-an-item-forces',
     'a-condition-an-item-imposes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'an-object-with-statistics-of-its-own',
@@ -5198,13 +5180,8 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-benefit-an-item-suspends-on-a-trigger',
     'an-item-instance-with-a-state-of-its-own',
   ],
-  'dust-of-dryness': [
-    'a-save-an-item-forces',
-    'a-damage-roll-an-item-makes',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  'dust-of-dryness': ['an-item-instance-with-a-state-of-its-own'],
   'dust-of-sneezing-and-choking': [
-    'a-save-an-item-forces',
     'a-condition-an-item-imposes',
     'an-area-an-item-creates',
     'an-item-instance-with-a-state-of-its-own',
@@ -5233,11 +5210,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'an `end-condition` effect on a `confers` grant, which is exactly the kind packages/engine/src/content.ts admits for an item: it needs no casting id, no D20 Test and no save DC, and it outlasts nothing so the grant states no lifetime. Four condition names, printed in the book’s own order.',
     },
   ],
-  'energy-bow': [
-    'a-save-an-item-forces',
-    'a-condition-an-item-imposes',
-    'a-spell-an-item-casts-that-nothing-executes',
-  ],
+  'energy-bow': ['a-condition-an-item-imposes', 'a-spell-an-item-casts-that-nothing-executes'],
   'eversmoking-bottle': ['an-area-an-item-creates', 'a-benefit-an-item-switches-on-and-off'],
   'eyes-of-minute-seeing': ['senses-beyond-declared-sight', 'a-bonus-narrowed-to-a-skill'],
   'eyes-of-the-eagle': ['a-fact-only-the-table-can-declare'],
@@ -5256,7 +5229,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'folding-boat': ['an-object-with-statistics-of-its-own', 'a-container-with-a-space-of-its-own'],
   'gauntlets-of-ogre-power': ['an-ability-score-a-spell-changes'],
   'gem-of-brightness': [
-    'a-save-an-item-forces',
     'a-condition-an-item-imposes',
     'an-area-an-item-creates',
     'a-charge-spent-on-something-other-than-a-casting',
@@ -5296,14 +5268,12 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'hat-of-many-spells': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-    'a-save-an-item-forces',
   ],
   'headband-of-intellect': ['an-ability-score-a-spell-changes'],
   'helm-of-brilliance': [
     'an-area-an-item-creates',
     'a-damage-roll-an-item-makes',
     'a-spell-an-item-casts-that-nothing-executes',
-    'a-save-an-item-forces',
     'a-rider-on-the-face-the-die-showed',
     'an-item-instance-with-a-state-of-its-own',
   ],
@@ -5315,7 +5285,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'helm-of-teleportation': ['a-spell-an-item-casts-that-nothing-executes'],
   'horn-of-blasting': [
     'an-area-an-item-creates',
-    'a-save-an-item-forces',
     'a-damage-roll-an-item-makes',
     'a-condition-an-item-imposes',
     'an-item-instance-with-a-state-of-its-own',
@@ -5344,11 +5313,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-stat-block-created-mid-fight',
     'an-item-instance-with-a-state-of-its-own',
   ],
-  'javelin-of-lightning': [
-    'an-area-an-item-creates',
-    'a-save-an-item-forces',
-    'a-damage-roll-an-item-makes',
-  ],
+  'javelin-of-lightning': ['an-area-an-item-creates'],
   'lantern-of-revealing': [
     'senses-beyond-declared-sight',
     'a-benefit-an-item-switches-on-and-off',
@@ -5364,7 +5329,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-condition-an-item-imposes',
   ],
   'mace-of-terror': [
-    'a-save-an-item-forces',
     'a-condition-an-item-imposes',
     'a-charge-spent-on-something-other-than-a-casting',
     'an-action-a-spell-compels-or-forbids',
@@ -5411,10 +5375,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-selector-for-every-d20-test',
   ],
   'necklace-of-adaptation': ['a-save-keyed-to-a-condition'],
-  'necklace-of-fireballs': [
-    'a-save-an-item-forces',
-    'an-item-instance-with-a-state-of-its-own',
-  ],
+  'necklace-of-fireballs': ['an-item-instance-with-a-state-of-its-own'],
   'necklace-of-prayer-beads': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
@@ -5445,7 +5406,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'healing-modified-by-an-effect',
   ],
   'philter-of-love': ['a-condition-an-item-imposes'],
-  'pipes-of-haunting': ['a-save-an-item-forces', 'a-condition-an-item-imposes'],
+  'pipes-of-haunting': ['a-condition-an-item-imposes'],
   'pipes-of-the-sewers': [
     'a-stat-block-created-mid-fight',
     'a-save-an-item-forces',
@@ -5453,7 +5414,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'plate-armor-of-etherealness': ['a-spell-an-item-casts-that-nothing-executes'],
   'portable-hole': ['a-container-with-a-space-of-its-own'],
-  'potion-of-animal-friendship': ['a-save-an-item-forces'],
+  'potion-of-animal-friendship': ['a-condition-an-item-imposes'],
   'potion-of-clairvoyance': ['a-spell-an-item-casts-that-nothing-executes'],
   'potion-of-climbing': [
     'a-speed-an-item-grants',
@@ -5492,11 +5453,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     },
   ],
   'potion-of-mind-reading': ['a-spell-an-item-casts-that-nothing-executes'],
-  'potion-of-poison': [
-    'a-damage-roll-an-item-makes',
-    'a-save-an-item-forces',
-    'a-condition-an-item-imposes',
-  ],
+  'potion-of-poison': ['a-damage-roll-an-item-makes', 'a-condition-an-item-imposes'],
   'potion-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
   'potion-of-speed': ['a-spell-an-item-casts-that-nothing-executes'],
   'potion-of-vitality': ['an-exhaustion-level-a-spell-changes', 'healing-modified-by-an-effect'],
@@ -5507,10 +5464,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'breathing is not modelled — nothing drowns, nothing suffocates and no rule asks — so this is a fact the table keeps, and a record carrying it would carry nothing else.',
     },
   ],
-  'ring-of-animal-influence': [
-    'a-spell-an-item-casts-that-nothing-executes',
-    'a-save-an-item-forces',
-  ],
+  'ring-of-animal-influence': ['a-spell-an-item-casts-that-nothing-executes'],
   'ring-of-djinni-summoning': [
     'a-stat-block-created-mid-fight',
     'a-concentration-with-no-casting-behind-it',
@@ -5519,7 +5473,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'a-language-or-a-proficiency-an-item-grants',
     'a-spell-an-item-casts-that-nothing-executes',
-    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
     'movement-modes',
     'a-speed-an-item-grants',
   ],
@@ -5552,8 +5506,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'ring-of-shooting-stars': [
     'a-spell-an-item-casts-that-nothing-executes',
     'an-area-an-item-creates',
-    'a-save-an-item-forces',
-    'a-damage-roll-an-item-makes',
     'a-concentration-with-no-casting-behind-it',
   ],
   'ring-of-spell-storing': ['a-casting-an-item-stores-or-gives-back'],
@@ -5573,18 +5525,15 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'ring-of-x-ray-vision': [
     'senses-beyond-declared-sight',
     'a-benefit-an-item-switches-on-and-off',
-    'a-save-an-item-forces',
     'an-exhaustion-level-a-spell-changes',
   ],
   'robe-of-eyes': [
     'a-fact-only-the-table-can-declare',
     'senses-beyond-declared-sight',
     'a-condition-an-item-imposes',
-    'a-save-an-item-forces',
   ],
   'robe-of-scintillating-colors': [
     'a-condition-an-item-imposes',
-    'a-save-an-item-forces',
     'a-charge-spent-on-something-other-than-a-casting',
     'an-area-an-item-creates',
   ],
@@ -5602,19 +5551,14 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'rod-of-lordly-might': [
     'a-benefit-an-item-switches-on-and-off',
-    'a-save-an-item-forces',
     'a-condition-an-item-imposes',
     'a-damage-roll-an-item-makes',
   ],
   'rod-of-resurrection': ['a-spell-an-item-casts-that-nothing-executes'],
-  'rod-of-rulership': ['a-save-an-item-forces', 'a-condition-an-item-imposes'],
+  'rod-of-rulership': ['a-condition-an-item-imposes'],
   'rod-of-security': ['a-fact-only-the-table-can-declare', 'healing-modified-by-an-effect'],
   'rope-of-climbing': ['an-object-with-statistics-of-its-own', 'a-bonus-narrowed-to-a-skill'],
-  'rope-of-entanglement': [
-    'an-object-with-statistics-of-its-own',
-    'a-save-an-item-forces',
-    'a-condition-an-item-imposes',
-  ],
+  'rope-of-entanglement': ['an-object-with-statistics-of-its-own', 'a-condition-an-item-imposes'],
   'scarab-of-protection': [
     'a-reaction-an-item-grants',
     'a-mode-on-the-save-a-spell-forces',
@@ -5644,11 +5588,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-item-instance-with-a-state-of-its-own',
   ],
   'spellguard-shield': ['a-mode-on-the-save-a-spell-forces'],
-  'sphere-of-annihilation': [
-    'an-object-with-statistics-of-its-own',
-    'a-save-an-item-forces',
-    'a-damage-roll-an-item-makes',
-  ],
+  'sphere-of-annihilation': ['an-object-with-statistics-of-its-own', 'a-damage-roll-an-item-makes'],
   'staff-of-charming': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-reaction-an-item-grants',
@@ -5668,7 +5608,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-bonus-to-spell-attack-rolls',
     'a-rider-on-the-face-the-die-showed',
     'an-area-an-item-creates',
-    'a-save-an-item-forces',
     'a-damage-roll-an-item-makes',
   ],
   'staff-of-striking': ['a-charge-spent-on-something-other-than-a-casting'],
@@ -5683,7 +5622,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-bonus-to-spell-attack-rolls',
     'a-casting-an-item-stores-or-gives-back',
     'an-area-an-item-creates',
-    'a-save-an-item-forces',
     'a-damage-roll-an-item-makes',
   ],
   'staff-of-the-python': [
@@ -5698,7 +5636,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'staff-of-thunder-and-lightning': [
     'a-rider-on-a-later-weapon-attack',
-    'a-save-an-item-forces',
     'a-condition-an-item-imposes',
     'an-area-an-item-creates',
     'a-damage-roll-an-item-makes',
@@ -5758,10 +5695,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-ability-score-a-spell-changes',
     'an-item-instance-with-a-state-of-its-own',
   ],
-  'trident-of-fish-command': [
-    'a-target-rule-the-format-cannot-state',
-    'a-save-an-item-forces',
-  ],
+  'trident-of-fish-command': ['a-target-rule-the-format-cannot-state'],
   'universal-solvent': [
     {
       clause: 'a tube contains 1d6 + 1 ounces',
@@ -5774,7 +5708,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
       note: 'reach here is the arm’s, not a weapon’s: nothing is targeted, no roll is made, and the engine’s ruler is never asked. Dissolving an adhesive is the table’s.',
     },
   ],
-  'wand-of-binding': ['a-save-an-item-forces', 'a-rider-on-the-face-the-die-showed'],
+  'wand-of-binding': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-enemy-detection': [
     'senses-beyond-declared-sight',
     'a-rider-on-the-face-the-die-showed',
@@ -5782,23 +5716,15 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'wand-of-fear': [
     'a-spell-an-item-casts-that-nothing-executes',
-    'a-save-an-item-forces',
     'a-rider-on-the-face-the-die-showed',
   ],
-  'wand-of-lightning-bolts': [
-    'a-save-an-item-forces',
-    'a-rider-on-the-face-the-die-showed',
-  ],
+  'wand-of-lightning-bolts': ['a-rider-on-the-face-the-die-showed'],
   'wand-of-magic-detection': ['a-spell-an-item-casts-that-nothing-executes'],
   'wand-of-magic-missiles': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-rider-on-the-face-the-die-showed',
   ],
-  'wand-of-paralysis': [
-    'a-save-an-item-forces',
-    'a-condition-an-item-imposes',
-    'a-rider-on-the-face-the-die-showed',
-  ],
+  'wand-of-paralysis': ['a-condition-an-item-imposes', 'a-rider-on-the-face-the-die-showed'],
   'wand-of-polymorph': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-rider-on-the-face-the-die-showed',
@@ -5810,7 +5736,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'wand-of-wonder': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
-    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
     'a-rider-on-the-face-the-die-showed',
   ],
   'well-of-many-worlds': {

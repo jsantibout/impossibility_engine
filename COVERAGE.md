@@ -544,26 +544,26 @@ Strength waits on the same missing reader SRD Feeblemind does.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
-| `a-spell-an-item-casts-that-nothing-executes` | 55 | 0 | 22 |
+| `a-spell-an-item-casts-that-nothing-executes` | 55 | 0 | 24 |
+| `an-item-instance-with-a-state-of-its-own` | 41 | 2 | 4 |
+| `a-condition-an-item-imposes` | 30 | 0 | 5 |
 | `a-container-with-a-space-of-its-own` | 6 | 0 | 5 |
-| `an-item-instance-with-a-state-of-its-own` | 41 | 2 | 2 |
 | `a-stat-block-created-mid-fight` | 17 | 0 | 4 |
 | `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
+| `a-rider-on-the-face-the-die-showed` | 17 | 0 | 3 |
 | `an-object-with-statistics-of-its-own` | 17 | 0 | 3 |
 | `an-ability-score-a-spell-changes` | 15 | 0 | 3 |
 | `a-speed-an-item-grants` | 14 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
 | `a-mode-on-the-save-a-spell-forces` | 6 | 1 | 1 |
 | `a-casting-an-item-stores-or-gives-back` | 4 | 0 | 2 |
-| `a-save-an-item-forces` | 49 | 0 | 1 |
-| `a-condition-an-item-imposes` | 26 | 0 | 1 |
 | `a-charge-spent-on-something-other-than-a-casting` | 18 | 0 | 1 |
-| `a-rider-on-the-face-the-die-showed` | 17 | 0 | 1 |
+| `an-area-an-item-creates` | 17 | 0 | 1 |
 | `a-benefit-an-item-switches-on-and-off` | 12 | 0 | 1 |
 | `a-fact-only-the-table-can-declare` | 11 | 0 | 1 |
 | `senses-beyond-declared-sight` | 10 | 1 | 0 |
+| `a-rider-on-a-later-weapon-attack` | 8 | 0 | 1 |
 | `a-bonus-narrowed-to-a-skill` | 7 | 1 | 0 |
-| `a-rider-on-a-later-weapon-attack` | 7 | 0 | 1 |
 | `a-benefit-an-item-suspends-on-a-trigger` | 5 | 0 | 1 |
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
@@ -571,9 +571,10 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
 | `a-critical-hit-an-effect-downgrades` | 1 | 0 | 1 |
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
-| `a-damage-roll-an-item-makes` | 20 | 0 | 0 |
-| `an-area-an-item-creates` | 16 | 0 | 0 |
+| `a-target-rule-the-format-cannot-state` | 1 | 0 | 1 |
+| `a-damage-roll-an-item-makes` | 13 | 0 | 0 |
 | `movement-modes` | 13 | 0 | 0 |
+| `a-save-an-item-forces` | 10 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 7 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 3 | 0 | 0 |
@@ -585,7 +586,6 @@ Strength waits on the same missing reader SRD Feeblemind does.
 | `a-deadline-anchored-to-a-rest` | 1 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 1 | 0 | 0 |
 | `a-speed-an-effect-multiplies` | 1 | 0 | 0 |
-| `a-target-rule-the-format-cannot-state` | 1 | 0 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 1 | 0 | 0 |
 | `what-a-creature-is-holding` | 1 | 0 | 0 |
 
