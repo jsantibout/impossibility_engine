@@ -63,13 +63,6 @@ to homebrew.
 - Feats: the origin and fighting-style feats, recorded, two executed — and
   uncounted, because a `FeatDefinition` declares no automation and the report
   refuses to guess at one.
-- **Every spell attack roll is wrong.** `attackModifier` treats a spell
-  attack as an unarmed one: it adds the caster's Strength modifier and a
-  second Proficiency Bonus on top of the spell attack bonus the caster
-  already built. A level-5 wizard's Fire Bolt is +9 where the book says +7,
-  and a strong cleric's is further out. Long-standing, and the suite did not
-  catch it because the spell-attack tests assert the engine's arithmetic
-  rather than the book's.
 - An item that confers an effect *without* casting — every potion, and the
   items that simply deal damage or grant a save — needs a second grant kind
   and a source that is not a casting. The largest gap left in the catalogue.
@@ -86,30 +79,31 @@ to homebrew.
 
 ## Next
 
-1. **Fix the spell attack roll.** It is the only outright wrongness in the
-   engine's arithmetic rather than a gap in it, it predates this milestone,
-   and every spell attack and every item casting rides on it. The tests that
-   should have caught it assert the engine's sum rather than the book's, so
-   the fix is a reading of the SRD sentence first and a code change second.
-2. **An item that confers an effect without casting one.** Every potion, and
+1. **An item that confers an effect without casting one.** Every potion, and
    the items that simply deal damage or grant a save: a second grant kind,
    and a source that is not a casting but which the release path can still
    address. The largest gap left in the catalogue.
-3. **An item's own record.** An inventory line is an id and a count, so two
+2. **An item's own record.** An inventory line is an id and a count, so two
    wands share a pool, a charged item is refused in multiples, and nothing
    can be given away with its charges. It also blocks a rolled charge
    maximum and every item whose benefit the GM picks when it is found.
-4. **The tool surface** (`@ie/tools`): the Zod-validated commands a DM or a
+3. **The tool surface** (`@ie/tools`): the Zod-validated commands a DM or a
    model calls. Its session boundary is decided —
    `docs/design/claude-integration.md` — and `tools/llm-probe` already drives
    a live model through a smaller version of it, so this is promotion more
    than authorship.
-5. **Content as files**: a loader in the app layer that reads homebrew JSON
+4. **Content as files**: a loader in the app layer that reads homebrew JSON
    (and, later, a database) into `loadContent`.
-6. **Three small ones left over**: a fight that opens on a per-turn payout
+5. **Three small ones left over**: a fight that opens on a per-turn payout
    still does not pay it, and a passing test at the foot of
    `opening-boundary.test.ts` names the three ways to close it; nothing
    mechanically stops a module outside `fold/` importing `fold/*`, which is
    a rule `events.ts` states and a reviewer had to catch by reading; and a
    grant that reads a sibling feature's choice through a content-declared
    table blocks four species on its own.
+6. **Three the spell-attack fix found beside it**: a ranged spell attack
+   takes no Disadvantage from an enemy within five feet, because that rule
+   reads the weapon; untrained armour does not stop a character casting,
+   which is the half of the Armor Training clause the engine has never
+   modelled; and an attack result still reports Strength as the ability in
+   the one case where a spell attack names none.
