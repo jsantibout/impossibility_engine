@@ -28,11 +28,13 @@ import {
  *
  * The refusal is one line in `castSpellWith`, which is the only place a
  * casting is paid for — so every door that pays already reaches it. **Nothing
- * here fixes anything.** STATUS said a character in untrained armour could
- * still cast and that the clause had never been modelled; this file is what
- * establishes that neither was true, because a rule believed to be missing is
- * as good as missing until something fails when it goes. Delete the line in
- * `castSpellWith` and the four refusals below all fail.
+ * here fixes anything.** STATUS records that a character in untrained armour
+ * can still cast and that this is the half of the Armor Training clause the
+ * engine has never modelled; neither is true, and this file is what
+ * establishes it, because a rule believed to be missing is as good as missing
+ * until something fails when it goes. Delete the line in `castSpellWith` and
+ * the four refusals below all fail. (STATUS itself is the coordinator's to
+ * correct, and until it is, this comment is where the correction lives.)
  *
  * **The armour is worn rather than written on the sheet.** `sheet.armor` is
  * derived from what is equipped, so a fixture that states armour and then
