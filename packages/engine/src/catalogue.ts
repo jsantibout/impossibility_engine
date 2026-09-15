@@ -150,10 +150,12 @@ export function itemStandingEffects(item: CatalogueItem): readonly StandingEffec
       effects.push({
         feature: item.id,
         name: item.name,
-        // An item has no class level and makes no choices, so the three
-        // level-read fields a feature's grant may carry — `diceCountByLevel`,
-        // `feetByLevel`, `onlyIfChoice` — have nothing to read and are refused
-        // on an item by `checkContent` rather than silently ignored here.
+        // An item has no class level, makes no choices and has no siblings, so
+        // the fields a feature's grant reads off its table or its choice —
+        // `diceCountByLevel`, `feetByLevel`, `onlyIfChoice`,
+        // `damageTypesFromChoice`, `choiceFrom` — have nothing to read and are
+        // refused on an item by `checkContent` rather than silently ignored
+        // here.
         reach: grant.reach === 'self' ? { kind: 'self' } : { kind: 'aura', feet: grant.auraFeet ?? 0 },
         grant: effect,
         ...(grant.requires === undefined ? {} : { requires: grant.requires }),

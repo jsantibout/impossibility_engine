@@ -489,7 +489,15 @@ function itemGrantProblems(
 
     // An item has no class level and makes no choices, so the fields a class
     // feature reads off its table have nothing here to read.
-    for (const field of ['diceCountByLevel', 'feetByLevel', 'onlyIfChoice', 'damageTypesFromChoice'] as const) {
+    for (const field of [
+      'diceCountByLevel',
+      'feetByLevel',
+      'onlyIfChoice',
+      'damageTypesFromChoice',
+      // And where a choice was made, which is the same answer one step out: an
+      // item has no siblings to read one from either.
+      'choiceFrom',
+    ] as const) {
       if ((grant as unknown as Record<string, unknown>)[field] !== undefined) {
         say('item_grant_reads_a_level', `an item has no class level and no feature choices, so ${field} would never be read`, `${at}.${field}`);
       }

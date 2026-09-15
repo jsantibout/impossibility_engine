@@ -845,6 +845,25 @@ describe('the one door refuses what it cannot execute, with a path', () => {
     expect(codesOf({ ...gloves, grants: [{ kind: 'extra-attack', attacks: 2 }] })).toContain(
       'item_grant_not_read @ items[gloves-of-the-quiet-hand].grants[0]',
     );
+    // A choice made on a sibling feature is the same door: an item has no
+    // siblings, `itemStandingEffects` reads nothing of the field, and a wand
+    // carrying it would grant a Resistance to no damage type at all.
+    expect(
+      codesOf({
+        ...gloves,
+        grants: [
+          {
+            kind: 'standing',
+            reach: 'self',
+            effects: [{ kind: 'damage-resistance', damageTypes: [] }],
+            damageTypesFromChoice: true,
+            choiceFrom: 'emberkin:elemental-kinship',
+          },
+        ],
+      }),
+    ).toContain(
+      'item_grant_reads_a_level @ items[gloves-of-the-quiet-hand].grants[0].choiceFrom',
+    );
     // And the charge pool that *is* executed still has to be one an item can
     // size: the class-table sizings have nothing on an item to read.
     expect(
