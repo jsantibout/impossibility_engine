@@ -53,8 +53,8 @@ area down.
 
 ## The effect vocabulary
 
-Eighteen `SpellEffect` kinds (`EFFECT_KINDS` in `spell-schema.ts`), each with
-one resolver; three rider kinds hang on a settled outcome (a condition, a
+The `SpellEffect` kinds (`EFFECT_KINDS` in `spell-schema.ts`), each with one
+resolver; three rider kinds hang on a settled outcome (a condition, a
 modifier, a delayed hit). A rider is a leaf: it rolls nothing and targets
 nobody of its own. A spell that needs a new kind is engine work; a spell that
 fits an existing one is content.

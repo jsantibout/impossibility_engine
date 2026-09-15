@@ -24,8 +24,8 @@ to homebrew.
 - **Casting** — slots and Pact slots as pools, castings with identities,
   Concentration, interruptible declared castings, long castings and rituals,
   reaction spells, ongoing records that later activations act through.
-- **Spell execution** — eighteen effect kinds and three rider kinds; the
-  SRD spells the catalogue defines run end to end.
+- **Spell execution** — the effect kinds and three rider kinds; the SRD
+  spells the catalogue defines run end to end.
 - **Characters** — all twelve SRD classes with their SRD subclass, creation
   and advancement validated against the book, multiclassing, feats recorded
   and a few executed, class features executed where a reader exists and
