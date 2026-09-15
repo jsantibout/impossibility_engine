@@ -30,6 +30,7 @@ import { healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import {
   defendingModes,
+  enemyWithinFiveFeet,
   recordD20Test,
   rollSpellDice,
   savingSupport,
@@ -80,6 +81,16 @@ export function resolveAttackEffect(
   const defending = defendingModes(current, casterId, target);
   unverified.push(...defending.unverified);
 
+  // **A ranged spell attack is a ranged attack.** SRD "Ranged Attacks": "You
+  // have Disadvantage on the attack roll if you are within 5 feet of an enemy
+  // who can see you and who isn't Incapacitated." That is a sentence about the
+  // attack's range, and `attack: 'ranged'` is where the spell states which of
+  // the two it is. The weapon attack has always asked this question — it asked
+  // it of the *weapon*, and a spell attack names none, so a Fire Bolt loosed
+  // past an ogre's elbow answered no every time.
+  const crowding = enemyWithinFiveFeet(current, casterId);
+  unverified.push(...crowding.unverified);
+
   const attack = rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
     weapon: null,
     // **SRD: "Spell attack modifier = your spellcasting ability modifier plus
@@ -90,9 +101,13 @@ export function resolveAttackEffect(
     // flat bonus, the weaponless branch derived an Unarmed Strike's Strength
     // and a second Proficiency Bonus underneath it and every spell attack in
     // the engine rolled high by exactly that.
-    spellAttack: { modifier: attackModifier, ability },
+    //
+    // `ranged` is the spell's own word for its range, and the only thing that
+    // can answer it here: `isRangedAttack` reads it instead of the weapon.
+    spellAttack: { modifier: attackModifier, ability, ranged: effect.attack === 'ranged' },
     targetAc: armorClassOf(current, target),
     modes: [...defending.modes, ...(supply.modes ?? [])],
+    nearbyEnemy: crowding.near,
     attackBonuses: [
       // Bless is on the caster, not in the caller's head.
       ...bonusesFor((caster?.bonuses ?? []), 'attack'),

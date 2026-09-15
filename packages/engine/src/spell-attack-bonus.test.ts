@@ -195,7 +195,7 @@ describe('a spell attack rolls at the spell attack modifier, and nothing else', 
         attackRollModes(encumbered, {
           weapon: null,
           targetAc: 10,
-          spellAttack: { modifier: BY_THE_BOOK, ability: 'int' },
+          spellAttack: { modifier: BY_THE_BOOK, ability: 'int', ranged: true },
         }),
       ),
     ).toEqual([]);
@@ -218,7 +218,7 @@ describe('a spell attack rolls at the spell attack modifier, and nothing else', 
         attackRollModes(encumbered, {
           weapon: null,
           targetAc: 10,
-          spellAttack: { modifier: 9, ability: null },
+          spellAttack: { modifier: 9, ability: null, ranged: true },
         }),
       ),
     ).toEqual([]);

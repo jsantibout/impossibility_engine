@@ -241,7 +241,14 @@ describe('a spell attack measures the same way a weapon does', () => {
       return out.outcomes[0]?.attack?.mode;
     };
 
-    expect(bolt(5)).toBe('advantage');
+    // **Point-blank, two rules meet and cancel.** SRD Prone gives an attack
+    // from within 5 feet Advantage; SRD "Ranged Attacks" gives a ranged attack
+    // Disadvantage while an enemy who can see you is within 5 feet, and the
+    // Prone ogre is exactly that. Both fire, so the roll is normal — and that
+    // is still Prone being read off the real distance, because the bug this
+    // test was written against assumed Disadvantage at every range and would
+    // give `disadvantage` at both.
+    expect(bolt(5)).toBe('normal');
     expect(bolt(60)).toBe('disadvantage');
   });
 });

@@ -217,8 +217,22 @@ describe('Dodge helps a Dexterity saving throw and nothing else', () => {
  * answer again.
  */
 describe('Dodge reaches a spell attack, not only a weapon', () => {
+  /**
+   * **The ogre casts from thirty feet, not from the rogue's elbow.** SRD gives
+   * a ranged attack Disadvantage while an enemy who can see you stands within
+   * 5 feet, and that reaches a ranged spell attack exactly as it always did a
+   * bow — so a Fire Bolt loosed from arm's length arrives hampered before
+   * Dodge has said anything. This is a claim about Dodge, and the distance is
+   * what isolates it.
+   */
+  const atRange: readonly GameEvent[] = SETUP.map((event) =>
+    event.type === 'creature-placed' && event.id === OGRE
+      ? { ...event, placement: { from: { creature: ROGUE }, feet: 30, bearing: 0 } }
+      : event,
+  );
+
   const casting: readonly GameEvent[] = [
-    ...SETUP,
+    ...atRange,
     {
       type: 'resource-pool-declared',
       id: OGRE,

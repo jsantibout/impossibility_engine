@@ -156,6 +156,17 @@ export function rangeOf(
 export interface SpellAttack {
   readonly modifier: number;
   readonly ability: Ability | null;
+  /**
+   * Whether the book calls this a **ranged** spell attack.
+   *
+   * SRD prints one of two sentences and never neither: "Make a ranged spell
+   * attack against the target" (Fire Bolt) or "Make a melee spell attack"
+   * (Shocking Grasp). It is the attack's own range, stated by the spell, and
+   * it is what {@link isRangedAttack} has to read here — a spell attack names
+   * no weapon, so a rule that asks the weapon whether an attack is ranged gets
+   * "no" for every spell in the book.
+   */
+  readonly ranged: boolean;
 }
 
 export interface AttackOptions {
@@ -207,8 +218,18 @@ export interface AttackOptions {
 const has = (weapon: Weapon | null, property: string): boolean =>
   weapon?.properties.some((p) => p === property) === true;
 
-/** A ranged attack: a ranged weapon, or a melee weapon being thrown. */
+/**
+ * A ranged attack: one made at a range rather than in reach.
+ *
+ * **The attack's own range answers this, not the weapon behind it.** A spell
+ * attack has no weapon at all and states which of the two it is — so asking
+ * `weapon.kind` made every Fire Bolt in the engine a melee attack, and the
+ * Disadvantage SRD puts on a ranged attack with an enemy at your elbow never
+ * once reached a caster. Where a weapon *is* behind it, the weapon is the only
+ * thing that can say: a ranged weapon, or a melee one being thrown.
+ */
 function isRangedAttack(options: AttackOptions): boolean {
+  if (options.spellAttack !== undefined) return options.spellAttack.ranged;
   return options.weapon?.kind === 'ranged' || options.thrown === true;
 }
 

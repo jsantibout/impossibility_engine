@@ -500,6 +500,27 @@ describe('Blur puts Disadvantage on attacks against the creature it is on', () =
    * spell-attack path never asked the defender anything at all.
    */
   it('reaches a spell attack, which the weapon path used to reach alone', () => {
+    /**
+     * **The ogre casts from thirty feet.** SRD gives a ranged attack
+     * Disadvantage while an enemy who can see the attacker stands within 5
+     * feet, and that reaches a ranged spell attack exactly as it always did a
+     * bow — so a Fire Bolt loosed from the wizard's own square is hampered
+     * before Blur says anything, and the ally at the ogre's elbow hampers it
+     * too. This is a claim about Blur; the distance is what isolates it.
+     */
+    const atRange: readonly GameEvent[] = SETUP.map((event) =>
+      event.type === 'creature-placed' && (event.id === OGRE || event.id === ALLY)
+        ? {
+            ...event,
+            placement: {
+              from: { creature: WIZARD },
+              feet: event.id === OGRE ? 30 : 5,
+              bearing: event.id === OGRE ? 0 : 90,
+            },
+          }
+        : event,
+    );
+
     const bolt = (log: readonly GameEvent[]) =>
       unwrap(
         resolveSpell(
@@ -511,10 +532,10 @@ describe('Blur puts Disadvantage on attacks against the creature it is on', () =
         'bolt',
       ).outcomes.find((o) => o.target === WIZARD)?.attack;
 
-    expect(bolt(SETUP)?.mode).toBe('normal');
-    expect(bolt(SETUP)?.roll.rolls).toHaveLength(1);
+    expect(bolt(atRange)?.mode).toBe('normal');
+    expect(bolt(atRange)?.roll.rolls).toHaveLength(1);
 
-    const hampered = bolt(blurred());
+    const hampered = bolt(blurred(atRange));
     expect(hampered?.mode).toBe('disadvantage');
     expect(hampered?.roll.rolls).toHaveLength(2);
 

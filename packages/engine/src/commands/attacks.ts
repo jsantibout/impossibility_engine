@@ -20,7 +20,6 @@ import {
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type Content } from '../content.js';
 import { spendAttack } from '../combat.js';
-import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -50,7 +49,7 @@ import { routeLabel } from './item-casting.js';
 import { landDamage } from './damage.js';
 import { mayAct } from './holds.js';
 import { quantityOf } from './inventory.js';
-import { defendingModes } from './rolls.js';
+import { defendingModes, enemyWithinFiveFeet } from './rolls.js';
 
 export interface AttackCommand extends CommandIdentity {
   readonly target: CharacterId;
@@ -516,60 +515,6 @@ function reachCheck(
     return err('out_of_range', `${weapon?.name ?? 'this attack'} carries ${range.long} feet; ${target} is ${apart} away`);
   }
   return ok({ apart, beyondNormal: apart > range.normal });
-}
-
-/**
- * SRD: a ranged attack has Disadvantage while an enemy is within 5 feet of you.
- *
- * "Enemy" is the declared side, the same fact an aura reads for "ally". A
- * creature nobody has placed on a side is nobody's enemy either, so it hampers
- * nothing — the conservative direction, and the same one `standingFor` takes.
- */
-function enemyWithinFiveFeet(
-  state: GameState,
-  id: CharacterId,
-): { readonly near: boolean; readonly unverified: readonly string[] } {
-  const scene = state.scene;
-  const mine = state.creatures[id]?.side ?? null;
-  if (scene === null) return { near: false, unverified: [] };
-
-  let near = false;
-  const unsided: CharacterId[] = [];
-
-  for (const key of Object.keys(state.creatures).sort()) {
-    const other = state.creatures[key];
-    if (other === undefined || other.id === id) continue;
-    // SRD says an enemy "that can see you and isn't Incapacitated"; sight is
-    // declared and often unsaid, so only the half the engine can see is applied
-    // and the other half is left to the caller's modes.
-    if (isIncapacitated(other.conditions) || other.vitals.dead) continue;
-
-    const apart = distanceBetween(scene, id, other.id);
-    if (!apart.ok || apart.value > 5) continue;
-
-    // Declared and allied: the rule does not apply, and nothing is missing.
-    if (mine !== null && other.side === mine) continue;
-    // Declared and opposed: the rule applies.
-    if (mine !== null && other.side !== null) {
-      near = true;
-      continue;
-    }
-    // Nobody has said. Withholding is the conservative direction and it was
-    // also **silent** — a creature standing at the archer's elbow either is or
-    // is not an enemy, and an unfired rule looks exactly like a rule that
-    // checked and found nothing.
-    unsided.push(other.id);
-  }
-
-  return {
-    near,
-    unverified:
-      unsided.length === 0
-        ? []
-        : [
-            `nobody has said whose side ${unsided.join(', ')} ${unsided.length === 1 ? 'is' : 'are'} on, so the Disadvantage a ranged attack takes with an enemy within 5 feet was not applied`,
-          ],
-  };
 }
 
 export interface AttackDamageCommand extends CommandIdentity {

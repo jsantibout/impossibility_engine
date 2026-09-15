@@ -20,10 +20,10 @@ import { type DamageComponent, rollAttackDamage } from '../attack.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type CharacterSheet } from '../character.js';
 import { type D20TestResult, skillName } from '../checks.js';
-import { type ConditionState } from '../conditions.js';
+import { type ConditionState, isIncapacitated } from '../conditions.js';
 import { type EffectCheck } from '../duration.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
-import { sightBetween } from '../positioning.js';
+import { distanceBetween, sightBetween } from '../positioning.js';
 import { type SpellCheck } from '../spell-definitions.js';
 import {
   effectiveConditions,
@@ -239,6 +239,72 @@ export function defendingModes(
     { family: 'attack', roller: attacker, against: target },
     { seenByHolder: state.scene === null ? null : sightBetween(state.scene, target, attacker) },
   );
+}
+
+/**
+ * SRD "Ranged Attacks": "You have Disadvantage on the attack roll if you are
+ * within 5 feet of an enemy who can see you and who isn't Incapacitated."
+ *
+ * Four conditions, and the function is the four of them in order. "Enemy" is
+ * the declared side, the same fact an aura reads for "ally"; a creature nobody
+ * has placed on a side is nobody's enemy either, so it hampers nothing and
+ * says so rather than applying the rule silently.
+ *
+ * Sight is the target-of-the-rule's view of the attacker — *can the enemy see
+ * you* — and it is three-valued: a creature **declared** unable to see the
+ * attacker is out of the sentence, and one nobody has mentioned is left in it,
+ * because undeclared is not blind.
+ *
+ * **It lives beside `defendingModes` for the same reason that does.** A spell
+ * attack is a ranged attack when the spell says so, and the weapon attack's
+ * copy of this walk was in a module the caster's path could not reach without
+ * a cycle. One gatherer, or two spellings of one sentence drifting apart.
+ */
+export function enemyWithinFiveFeet(
+  state: GameState,
+  id: CharacterId,
+): { readonly near: boolean; readonly unverified: readonly string[] } {
+  const scene = state.scene;
+  const mine = state.creatures[id]?.side ?? null;
+  if (scene === null) return { near: false, unverified: [] };
+
+  let near = false;
+  const unsided: CharacterId[] = [];
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const other = state.creatures[key];
+    if (other === undefined || other.id === id) continue;
+    if (isIncapacitated(other.conditions) || other.vitals.dead) continue;
+    // "…who can see you." Declared blindness is a fact and excuses the
+    // attacker; an undeclared sight line is not, and leaves the rule standing.
+    if (sightBetween(scene, other.id, id) === false) continue;
+
+    const apart = distanceBetween(scene, id, other.id);
+    if (!apart.ok || apart.value > 5) continue;
+
+    // Declared and allied: the rule does not apply, and nothing is missing.
+    if (mine !== null && other.side === mine) continue;
+    // Declared and opposed: the rule applies.
+    if (mine !== null && other.side !== null) {
+      near = true;
+      continue;
+    }
+    // Nobody has said. Withholding is the conservative direction and it was
+    // also **silent** — a creature standing at the archer's elbow either is or
+    // is not an enemy, and an unfired rule looks exactly like a rule that
+    // checked and found nothing.
+    unsided.push(other.id);
+  }
+
+  return {
+    near,
+    unverified:
+      unsided.length === 0
+        ? []
+        : [
+            `nobody has said whose side ${unsided.join(', ')} ${unsided.length === 1 ? 'is' : 'are'} on, so the Disadvantage a ranged attack takes with an enemy within 5 feet was not applied`,
+          ],
+  };
 }
 
 /**
