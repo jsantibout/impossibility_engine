@@ -374,6 +374,53 @@ describe('a casting from an item', () => {
       ),
     ).toBe(9);
   });
+
+  /**
+   * **And the result says so: no ability, rather than Strength.**
+   *
+   * SRD's Attack Roll Abilities table gives a spell attack "Varies (the ability
+   * used is determined by the spellcaster's spellcasting feature)", and this
+   * wielder has no spellcasting feature — SRD answers them with the item's
+   * number and names no ability at all. `ability` reported `str` because that
+   * is where `attackAbility` lands when nothing else claims the roll, which is
+   * the Unarmed Strike's row wearing a spell attack's clothes. A result that
+   * names an ability the attack was not made with is the same audit-trail
+   * failure as a total that does not add up.
+   */
+  it('names no ability where the item stated the bonus and the wielder has none', () => {
+    const mundane: readonly GameEvent[] = [
+      // No `spellcasting-declared`, and no spellcasting ability on the sheet:
+      // the fighter who picked the wand up off the floor.
+      added(CASTER, { spellcastingAbility: null }),
+      ...scene().slice(1).filter((e) => e.type !== 'spellcasting-declared'),
+      {
+        type: 'items-gained',
+        id: CASTER,
+        items: [{ id: PRINTED, quantity: 1 }],
+        source: 'the hoard',
+      },
+    ];
+    const log: readonly GameEvent[] = [
+      ...mundane,
+      ...unwrap(equipItem(state(mundane), withWands, CASTER, PRINTED), 'equipping the wand'),
+    ];
+
+    const out = unwrap(
+      resolveSpell(
+        state(log),
+        CASTER,
+        { spellId: 'guiding-bolt', targets: [VICTIM], item: PRINTED },
+        supply('wand', withWands),
+      ),
+      'the wand',
+    );
+    const attack = out.outcomes[0]?.attack;
+    expect(attack).toBeDefined();
+    // The number is still the item's, so this is the report changing and not
+    // the roll.
+    expect(attack!.total - attack!.roll.natural).toBe(9);
+    expect(attack!.ability).toBeNull();
+  });
 });
 
 /** The arithmetic the fixture claims, so a changed sheet cannot go unnoticed. */

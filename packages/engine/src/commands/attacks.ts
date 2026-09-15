@@ -9,6 +9,8 @@
 import { type CharacterId, err, needsContext, ok, type Result, type RollMode } from '@ie/shared';
 import { type Weapon } from '@ie/srd';
 import {
+  attackAbility,
+  type AttackOptions,
   type AttackResult,
   type ExtraDamage,
   meleeReach,
@@ -279,7 +281,7 @@ export function resolveAttack(
       ...(command.attackBonuses ?? []),
     ];
 
-    const attack = rollAttack(supply.issuer, supply.rng, attacker.sheet, {
+    const swing: AttackOptions = {
       weapon,
       targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
       proficient: proficientWith(attacker.sheet, weapon),
@@ -302,8 +304,17 @@ export function resolveAttack(
       attackerConditions: effectiveConditions(state, id),
       targetConditions: effectiveConditions(state, command.target),
       ...(withinFiveFeet === undefined ? {} : { withinFiveFeet }),
-    });
+    };
+
+    const attack = rollAttack(supply.issuer, supply.rng, attacker.sheet, swing);
     if (!attack.ok) return attack;
+
+    // **A weapon attack always names an ability.** `AttackResult.ability` is
+    // null only for a spell attack whose bonus an item printed, and no spell
+    // attack comes through here — so this asks the same question of the same
+    // options rather than widening `attack-landed` to carry a null it could
+    // never hold.
+    const ability = attackAbility(attacker.sheet, swing);
 
     const namedFlat = attackBonuses.filter((bonus) => (bonus.flat ?? 0) !== 0);
 
@@ -356,7 +367,7 @@ export function resolveAttack(
             ? {}
             : { finesseAbility: command.finesseAbility }),
           critical: attack.value.critical,
-          ability: attack.value.ability,
+          ability,
           targetAc: attack.value.targetAc,
           total: attack.value.total,
           natural: attack.value.roll.natural,
@@ -374,7 +385,7 @@ export function resolveAttack(
     // parsed. A *bonus* is of the weapon's own type and rides with it through
     // Resistance; *extra* damage of another type does not.
     const fromFeatures = standingAttackDamage(state, id, {
-      ability: attack.value.ability,
+      ability,
       melee: rangeOf(weapon, command.thrown === true) === null,
       weapon,
       // SRD Vicious Weapon: "*this magic weapon* deals an extra 2d6 damage" —

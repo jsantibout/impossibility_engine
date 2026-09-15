@@ -342,7 +342,26 @@ export function attackRollModes(sheet: CharacterSheet, options: AttackOptions): 
 }
 
 export interface AttackResult {
-  readonly ability: Ability;
+  /**
+   * The ability this attack was actually made with, or null where it was made
+   * with none.
+   *
+   * There is exactly one of the second: a spell attack whose bonus the item
+   * printed, in the hands of a wielder with no spellcasting ability. SRD's
+   * Attack Roll Abilities table gives a spell attack "Varies (the ability used
+   * is determined by the spellcaster's spellcasting feature)" and that wielder
+   * has no such feature — the book answers them with the item's number and
+   * names no ability at all.
+   *
+   * It said `str` until this was nullable, because that is where
+   * {@link attackAbility} lands when nothing else claims the roll, and that
+   * fallback is the Unarmed Strike's row. A result naming an ability the
+   * attack was not made with is the same failure as a total that does not add
+   * up: the audit trail says something the dice did not do. Nothing reads it
+   * for arithmetic — the modifier was stated, not derived — so nothing is
+   * being asked to handle a null it would have to invent an answer for.
+   */
+  readonly ability: Ability | null;
   readonly mode: RollMode;
   readonly roll: RecordedD20;
   /** Bonuses that rolled dice, e.g. Bless. Flat bonuses are already in `roll`. */
@@ -365,7 +384,14 @@ export function rollAttack(
   const valid = validateBonusDice(options.attackBonuses);
   if (!valid.ok) return valid;
 
-  const ability = attackAbility(sheet, options);
+  // **What the attack was made with, and what it can honestly say it was made
+  // with.** For everything but one case these are the same answer.
+  // `attackAbility` has to return an `Ability` because the damage modifier is
+  // read off it, and its last line is the Unarmed Strike's `str` — which is a
+  // real answer for a fist and a fabricated one for a spell attack whose bonus
+  // an item printed. See {@link AttackResult.ability}.
+  const named =
+    options.spellAttack === undefined ? attackAbility(sheet, options) : options.spellAttack.ability;
   const mode = combineRollModes([...attackRollModes(sheet, options), ...(options.modes ?? [])]);
 
   // Flat bonuses ride on the d20's own modifier; dice bonuses are rolled after.
@@ -402,7 +428,7 @@ export function rollAttack(
     isAutomaticCritical(options.targetConditions, options.withinFiveFeet === true);
 
   return ok({
-    ability,
+    ability: named,
     mode,
     roll,
     bonuses: bonuses.value,

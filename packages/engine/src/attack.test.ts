@@ -194,6 +194,58 @@ describe('attackRollModes', () => {
   });
 });
 
+describe('rollAttack reports the ability it was actually made with', () => {
+  /**
+   * SRD's Attack Roll Abilities table has three rows and the third is
+   * "Varies (the ability used is determined by the spellcaster's spellcasting
+   * feature)". `attackAbility` has to answer with an `Ability` because the
+   * damage modifier reads it, and its last line is the Unarmed Strike's
+   * Strength — so the *report* is a separate question from the arithmetic,
+   * and this is the one case where the two answers differ.
+   */
+  it('names the weapon’s ability for a weapon attack', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([12]), sheet(), {
+        weapon: weaponFixture({ kind: 'ranged' }),
+        targetAc: 10,
+      }),
+      'attack',
+    );
+    expect(result.ability).toBe('dex');
+  });
+
+  it('names the spellcasting ability the caster cast with', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([12]), sheet(), {
+        weapon: null,
+        targetAc: 10,
+        spellAttack: { modifier: 7, ability: 'int', ranged: true },
+      }),
+      'attack',
+    );
+    expect(result.ability).toBe('int');
+  });
+
+  /**
+   * The wielder with no spellcasting feature, whom SRD answers with the item's
+   * number and no ability at all. It said `str` — an ability nothing about
+   * this roll ever read, sitting in the record as though it had.
+   */
+  it('names none where the attack was made with none', () => {
+    const result = unwrap(
+      rollAttack(issuer(), scriptedRng([12]), sheet(), {
+        weapon: null,
+        targetAc: 10,
+        spellAttack: { modifier: 9, ability: null, ranged: true },
+      }),
+      'attack',
+    );
+    expect(result.ability).toBeNull();
+    // The number is untouched: +9 stated, and nothing derived beside it.
+    expect(result.roll.modifier).toBe(9);
+  });
+});
+
 describe('rollAttack', () => {
   it('hits when the total equals AC', () => {
     const s = sheet({ abilities: scores({ str: 14 }) });
