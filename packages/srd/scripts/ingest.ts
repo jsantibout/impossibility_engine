@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEquipment } from '../src/parse/equipment.js';
 import { parseGear } from '../src/parse/gear.js';
+import { parseMagicItems } from '../src/parse/magic-items.js';
 import { parseMonsters } from '../src/parse/monsters.js';
 import { parseSpells } from '../src/parse/spells.js';
 import type { ParseProblem } from '../src/schemas.js';
@@ -35,6 +36,12 @@ const EXPECTED = {
   gear: 82,
   ammunition: 5,
   tools: 25,
+  /**
+   * 258, not the 264 that `grep -c '^#### '` reports: four of those headings
+   * are rules subsections and two are creature stat blocks printed inside an
+   * entry. See `parse/magic-items.ts`.
+   */
+  magicItems: 258,
 } as const;
 
 function report(label: string, count: number, expected: number, problems: readonly ParseProblem[]): string[] {
@@ -56,6 +63,7 @@ const monsters = parseMonsters(raw('monsters-A-Z.md'), 'monsters-A-Z.md');
 const animals = parseMonsters(raw('animals.md'), 'animals.md');
 const equipment = parseEquipment(raw('equipment.md'), 'equipment.md');
 const gear = parseGear(raw('equipment.md'), 'equipment.md');
+const magicItems = parseMagicItems(raw('magic-items.md'), 'magic-items.md');
 
 const failures = [
   ...report('spells', spells.items.length, EXPECTED.spells, spells.problems),
@@ -66,6 +74,7 @@ const failures = [
   ...report('gear', gear.gear.length, EXPECTED.gear, gear.problems),
   ...report('ammunition', gear.ammunition.length, EXPECTED.ammunition, []),
   ...report('tools', gear.tools.length, EXPECTED.tools, []),
+  ...report('magicItems', magicItems.items.length, EXPECTED.magicItems, magicItems.problems),
 ];
 
 if (failures.length > 0) {
@@ -85,6 +94,7 @@ write('armor', equipment.armor);
 write('gear', gear.gear);
 write('ammunition', gear.ammunition);
 write('tools', gear.tools);
+write('magic-items', magicItems.items);
 
 /**
  * The engine is pure and cannot read a file at runtime, so the data it needs
@@ -136,5 +146,15 @@ indexFile(
   ' * Every row of the Ammunition table: id, name, how many a purchase buys,',
   gear.ammunition,
 );
+
+/*
+ * Magic items get JSON and no `magic-item-index.ts`.
+ *
+ * An index exists to ship the engine data it must have at runtime, stripped of
+ * prose. Nothing in the engine reads a magic item yet, and a magic item is
+ * mostly prose — so what a compact index would keep is exactly the open
+ * question of what a magic item is to the engine. Generating one now would
+ * answer that question by accident, in a file nobody imports.
+ */
 
 process.stdout.write(`\nwrote JSON to ${outDir}\n`);

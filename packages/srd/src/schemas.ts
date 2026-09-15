@@ -408,3 +408,125 @@ export const ToolSchema = z.object({
   cost: GearCostSchema,
 });
 export type Tool = z.infer<typeof ToolSchema>;
+
+/**
+ * The nine categories the SRD files every magic item under, spelled as the
+ * Magic Item Categories table spells them. The italic type line under an
+ * entry's heading uses the singular — `_Potion, Common_`, `_Ring, Legendary_`
+ * — so the parser maps one onto the other rather than storing two spellings.
+ */
+export const MAGIC_ITEM_CATEGORIES = [
+  'Armor',
+  'Potions',
+  'Rings',
+  'Rods',
+  'Scrolls',
+  'Staffs',
+  'Wands',
+  'Weapons',
+  'Wondrous Items',
+] as const;
+export const MagicItemCategorySchema = z.enum(MAGIC_ITEM_CATEGORIES);
+export type MagicItemCategory = z.infer<typeof MagicItemCategorySchema>;
+
+export const MAGIC_ITEM_RARITIES = [
+  'Common',
+  'Uncommon',
+  'Rare',
+  'Very Rare',
+  'Legendary',
+  'Artifact',
+] as const;
+export const MagicItemRaritySchema = z.enum(MAGIC_ITEM_RARITIES);
+export type MagicItemRarity = z.infer<typeof MagicItemRaritySchema>;
+
+/** One rarity a type line names, with the parenthesis that distinguishes it. */
+export const MagicItemRarityOptionSchema = z.object({
+  rarity: MagicItemRaritySchema,
+  /**
+   * What the book prints beside the rarity to say which version it is: `+2`
+   * for _Ammunition, +1, +2, or +3_, `Bronze` for the Horn of Valhalla. Null
+   * when the entry names a single unqualified rarity.
+   */
+  qualifier: z.string().min(1).nullable(),
+});
+export type MagicItemRarityOption = z.infer<typeof MagicItemRarityOptionSchema>;
+
+/**
+ * The rarity clause of a type line.
+ *
+ * Three shapes, and — as with the gear table's `—` versus `Varies` — two of
+ * them are opposites that must not collapse into one absence. `_Potion,
+ * Common_` names one rarity; `_Armor, +1, +2, or +3_` names three, one per
+ * version; `_Scroll, Rarity Varies_` names none, because a Spell Scroll's
+ * rarity is read off a table by spell level. Letting "Rarity Varies" fall
+ * through to an empty list would make those seven entries indistinguishable
+ * from an entry whose rarity the parser simply failed to read.
+ */
+export const MagicItemRarityLineSchema = z
+  .object({
+    /** The clause as printed, e.g. `Uncommon (+1), Rare (+2), or Very Rare (+3)`. */
+    text: z.string().min(1),
+    /** The book printed "Rarity Varies". */
+    varies: z.boolean(),
+    /** Every rarity named, in print order. Empty only when `varies`. */
+    options: z.array(MagicItemRarityOptionSchema),
+  })
+  .refine((rarity) => rarity.varies === (rarity.options.length === 0), {
+    message: 'rarity must either vary or name at least one rarity, never both and never neither',
+  });
+export type MagicItemRarityLine = z.infer<typeof MagicItemRarityLineSchema>;
+
+/**
+ * How many charges an entry says the item holds.
+ *
+ * Printed either as a number ("This wand has 7 charges") or as a die roll
+ * ("The weapon has 1d8 + 1 charges"), never as both, so exactly one field is
+ * set. The clause that says how they come back is prose and stays in the
+ * description.
+ */
+export const MagicItemChargesSchema = z
+  .object({
+    maximum: z.number().int().min(1).nullable(),
+    /** Dice notation, e.g. `1d8 + 1`. */
+    formula: z.string().min(1).nullable(),
+  })
+  .refine((charges) => (charges.maximum === null) !== (charges.formula === null), {
+    message: 'charges are printed as a number or as dice, never both and never neither',
+  });
+export type MagicItemCharges = z.infer<typeof MagicItemChargesSchema>;
+
+/**
+ * One entry of "Magic Items A–Z", transcribed rather than interpreted.
+ *
+ * Every field is something the page prints under the entry's heading. What a
+ * magic item *is* to the engine — which of these it can execute, and how — is
+ * not decided here, and no field anticipates it.
+ */
+export const MagicItemSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9-]+$/),
+    name: z.string().min(1),
+    category: MagicItemCategorySchema,
+    /**
+     * The parenthesised restriction on the type line: `Shield`, `Longsword`,
+     * `Any Medium or Heavy, Except Hide Armor`. Null when none is printed,
+     * which is every entry outside Armor and Weapons.
+     */
+    subtype: z.string().min(1).nullable(),
+    rarity: MagicItemRarityLineSchema,
+    requiresAttunement: z.boolean(),
+    /**
+     * The prerequisite as printed, minus the words "Requires Attunement":
+     * `by a Druid`, `by a Spellcaster`, `by a Dwarf or a Creature Attuned to
+     * a Belt of Dwarvenkind`. Null when attunement is unconditional.
+     */
+    attunementPrerequisite: z.string().min(1).nullable(),
+    charges: MagicItemChargesSchema.nullable(),
+    /** The entry's prose, verbatim, tables included. */
+    description: z.string().min(1),
+  })
+  .refine((item) => item.requiresAttunement || item.attunementPrerequisite === null, {
+    message: 'an item that needs no attunement cannot carry an attunement prerequisite',
+  });
+export type MagicItem = z.infer<typeof MagicItemSchema>;
