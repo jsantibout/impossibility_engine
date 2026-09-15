@@ -2,13 +2,6 @@
 
 The 2024 rules this engine gets right on purpose because they are easy to get wrong, and the discipline for parsing a third-party transcription of the book. **Read this before adjudicating a rule or touching `packages/srd/`.**
 
-> **Authority.** This document is authoritative for its subject. It was
-> extracted verbatim from `CLAUDE.md` when that file became the
-> constitution and router; the sentences below are the repository's own
-> reasoning, unchanged. `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` outranks it,
-> and `CLAUDE.md` outranks it on anything it still states directly.
-
----
 ## Rules That Are Easy To Get Wrong
 
 Checked against the SRD text, not recalled. Each has a test pinning it.

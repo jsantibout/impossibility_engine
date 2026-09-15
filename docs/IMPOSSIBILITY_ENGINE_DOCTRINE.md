@@ -6,7 +6,7 @@
 > do next*. Where the two disagree, this wins and `CLAUDE.md` is the thing that
 > needs correcting.
 >
-> Conformance is audited in `PROGRESS.md`, not assumed here. An invariant this
+> Conformance is recorded in `STATUS.md`, not assumed here. An invariant this
 > document states and the code does not yet satisfy is a **debt with a name**,
 > which is the point of writing it down.
 
@@ -118,6 +118,13 @@ paying for.
 12. **Agents are users of the Engine, not part of its authority.** Maestro,
     future NPC cognition systems, human players, and other controllers should
     ultimately interact with reality through controlled Engine operations.
+13. **The Engine holds no catalogue.** Spells, classes, features, species,
+    backgrounds, feats and items are content, supplied to the Engine as a
+    validated value. The SRD's catalogue and a table's homebrew enter through
+    the same door and the same checks; content that uses mechanics the Engine
+    already has never requires changing the Engine; and what a command reads
+    from content is pinned into the events it emits, so replay never depends
+    on the catalogue loaded today.
 
 ## How the invariants are kept, in this codebase
 
@@ -136,6 +143,7 @@ Each of these is enforced by something that fails, not by a paragraph.
 | 10 | Every event that a command produced carries `command: { id, fingerprint }`; every roll names its sources and signs. See the debt below. |
 | 11 | Nothing in the engine renders; positions are a lattice Maestro never speaks in. |
 | 12 | The tool surface (M2) is the only door; the engine does not know an LLM exists. |
+| 13 | `createContent` / `loadContent` are the only way content reaches the engine; `SRD_CONTENT` is built through them; the sweep in `spell-schema.test.ts` fails on any catalogue id, class name or fixed grant under `packages/engine`; `content.test.ts` adds a spell and a class from JSON and drives both through the public API. |
 
 ## Generalization Rule
 

@@ -14,5 +14,5 @@ packages/srd/reference/*.pdf
 
 # Mutation-testing backups and other working files; never part of the build
 scratchpad/
-# Builders' isolated worktrees (see docs/dev/WORKFLOW.md); separate checkouts, never tracked
+# Builders' isolated worktrees (docs/dev/WORKFLOW.md); separate checkouts, never tracked
 .claude/worktrees/

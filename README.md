@@ -1,132 +1,67 @@
-# InfiniteRealms
+# Impossibility Engine
 
-An AI Dungeon Master for D&D 2024, built on a deterministic SRD 5.2.1 rules engine.
+An AI Dungeon Master for D&D 2024, built on a deterministic SRD 5.2.1 rules
+engine.
 
-The premise: existing AI DMs pick one of two things. Some enforce the rules but
-narrate without personality; others have a voice but let the model adjudicate,
-so outcomes can't be trusted. InfiniteRealms does both by putting the mechanics
-somewhere the model cannot reach.
+The premise: existing AI DMs pick one of two things. Some enforce the rules
+but narrate without personality; others have a voice but let the model
+adjudicate, so outcomes can't be trusted. This project does both by putting
+the mechanics somewhere the model cannot reach.
 
-**The model never produces a number.** It cannot roll a die, write an HP total,
-or decide whether a save succeeded. It calls a tool; the engine rolls, validates
-legality, and returns the outcome; the model narrates what actually happened.
-Because the rules are safe, the DM's voice is free to have some bite.
+**The model never produces a number.** It cannot roll a die, write an HP
+total, or decide whether a save succeeded. It calls a tool; the engine rolls,
+validates legality, and returns the outcome; the model narrates what actually
+happened. Because the rules are safe, the DM's voice is free to have some
+bite.
 
-## Status
+## Where it stands
 
-Early, and honest about it: this is a **rules engine**, not yet a game.
+A pure, event-sourced rules engine with the SRD catalogue as a separate
+content package, and the same door open to homebrew. There is no tool
+surface, orchestration, persistence or web app yet.
+[STATUS.md](./STATUS.md) says what runs and what does not;
+[COVERAGE.md](./COVERAGE.md) is regenerated and holds every count.
 
-**What runs today** — all of it pure, deterministic and tested:
+```
+@ie/shared    ids, D&D vocabulary, the Result type
+@ie/srd       SRD 5.2.1 parsed into typed, validated data
+@ie/engine    the rules — pure functions and a reducer over GameEvent; the
+              vocabulary content is written in, and its validators
+@ie/content   the SRD catalogue as data: spells, classes, species, backgrounds,
+              feats, items — validated through the same call homebrew uses
+```
 
-| | |
-|---|---|
-| Dice | Seeded and replayable, with per-die effects (Great Weapon Fighting, Sorcerous Burst, rerolls) |
-| Rolls | Provenance on every roll: engine, physical dice, or a DM's override |
-| Characters | Derived AC, saves, skills, proficiency, spell save DC |
-| D20 Tests | Checks, saves, attacks, with named bonuses and attributed advantage |
-| Interventions | Bardic Inspiration, Cutting Words, Indomitable — effects used *after* a roll |
-| Damage | Typed components, resistance per type, criticals, Cutting Words reductions |
-| Conditions | All fifteen, source-aware, feeding back into every roll |
-| Vitals | Hit points, temporary HP, death saves, stabilisation, death |
-| Combat | Initiative, turn economy, reactions, the action budget |
-| Positioning | A 5-foot cube lattice, Chebyshev distance, all six area shapes, cover, mounting |
-| Monsters | 235 stat blocks adapted into fightable creatures |
-| Resources | Generic limited-use pools — spell slots, Ki, charges — declared, not derived |
-| Casting | Slots, upcasting, slot-free casting, one slot per turn, the action it costs |
-| Concentration | Started, replaced, dismissed, broken by damage, Incapacitation or death |
-| Commands | Engine-owned batches, with idempotency keys so a retry is a no-op |
-| Rests | Short and Long, Hit Dice, recharges, and the interruptions the engine can see |
-| The clock | Seconds since the campaign began; a combat round costs six of them |
-| Durations | Elapsed deadlines and turn-anchored ones, expiring by effect instance |
-| Turn hooks | Repeat saves raised by the turn itself, rolled by the engine, never forgotten |
-| Spellcasting | Six spells resolved end to end: attacks, saves, damage, healing, scaling |
-| Defences | Resistance, Vulnerability and Immunity carried on the creature and applied |
-| Targeting | Type, range, cover and sight checked; a missing fact comes back as a request |
-| Progression | Class tables, features by level, and what the engine does or does not run |
-| Creation | All twelve classes, levels 1–20: origin, scores, skills, feats, spells, kit |
-| Classes | Every class and its SRD subclass, with every feature's automation declared |
-| Equipment | One catalogue over gear, tools, weapons and armour, keyed by stable id |
-| Inventory | Starting packages opened, purchases priced in copper, worn armour reaching AC |
-| Determinism | A scripted four-round fight, replayed byte-identically from its seed |
-| Spell data | 339 SRD spells indexed by id, class list, level and school |
-| Event log | `GameState` as a fold; replay is a pure function of the record |
-
-**Parsed from the SRD** — 339 spells, 330 creatures, 38 weapons, 13 armour,
-82 pieces of gear and 25 tools, with every pack's contents resolved to the rows
-it names.
-Parsing a spell's text is not the same as *executing* it: the engine tracks what
-a casting costs and what it keeps alive, but no spell's own effects are scripted
-— a spell that imposes a condition is applied by the caller, linked to the
-casting that caused it.
-
-**Spells the engine executes** — Fire Bolt, Sacred Flame, Hold Person, Inflict
-Wounds, Cure Wounds and Healing Word. Every other SRD spell can be looked up
-but not cast, and the engine says so rather than guessing. Areas of effect are
-the next shape and are not done: a spell that picks its targets from geometry
-is a different operation from one handed a list of ids.
-
-**Classes** — all twelve, each with the subclass the SRD publishes and a full
-level 1–20 table. Creation and advancement are validated against the book:
-ability scores, skills, feats, languages, equipment and spells. Class
-*features* are a different matter — 46 of 230 are executed by the engine and
-every one of the rest carries a note saying what a DM still has to do. Run
-`npm run coverage` for the current numbers.
-
-**Not built yet**: feat execution, multiclassing, the tool
-surface Claude would call, the DM orchestration, persistence, and the web app.
-One character path — Human Sage Wizard through level 3 — is complete; the rest
-is transcription onto the same structures. There is no frontend and no database. Casting times of a minute or
-more are refused rather than approximated, a rest cannot be resumed after an
-interruption, Reaction timing is recorded rather than enforced, and equipment
-stops at mundane items — nothing weighs anything, no magic item is attuned, and
-ammunition is owned rather than spent — see
-[PROGRESS.md](./PROGRESS.md) for the full list, each with the reason it is
-still open.
+The engine holds no catalogue. A campaign hands it a `Content` value; the
+SRD's is `SRD_CONTENT`, and a DM's homebrew arrives as JSON through
+`loadContent`. Adding a spell or class that uses mechanics the engine already
+has touches no engine code — `packages/engine/src/content.test.ts` does
+exactly that, from JSON text, through the public API.
 
 ## Getting started
 
 ```bash
 npm install
+npm run srd:ingest && npm run srd:index   # generated SRD data is gitignored
 npm test
 ```
 
-Requires Node 22.13+ or 24+ — the floor ESLint 10 and Vitest 4 set.
-Postgres is not needed until persistence lands.
-
-Other commands:
+Requires Node 22.13+ or 24+.
 
 ```bash
 npm run typecheck      # tsc for sources and tests
-npm run lint           # ESLint 10
+npm run lint           # ESLint
 npm run coverage       # regenerate COVERAGE.md — commit the result
 npm run srd:ingest     # re-parse the vendored SRD and write JSON
 npm run srd:index      # rebuild the typed indexes from that JSON
 ```
 
-`packages/srd/src/generated/` is gitignored, so a fresh clone needs
-`npm run srd:ingest` before `npm test` — one test file reads it at import.
+## Reading order
 
-Contributing, and working alongside someone else on it: see
-[CONTRIBUTING.md](CONTRIBUTING.md).
-
-`srd:ingest` asserts counts rather than only the absence of errors — a parser
-that silently skips everything reports no problems at all.
-
-## Architecture
-
-See [CLAUDE.md](./CLAUDE.md) for the constitution and a router to the design
-documents under [docs/design/](./docs/design/), and
-[docs/rules/srd-policy.md](./docs/rules/srd-policy.md) for the rules that are
-easy to get wrong. In short:
-
-```
-@ie/shared   ids, D&D vocabulary, the Result type
-@ie/srd      SRD 5.2.1 parsed into typed, validated data
-@ie/engine   the rules — pure functions plus a reducer over GameEvent
-```
-
-Nothing below the (not yet built) tool boundary knows an LLM exists, which is
-what lets the same engine serve a human DM as readily as an AI one.
+[CLAUDE.md](./CLAUDE.md) is the constitution and the router: the rules that
+may never break, the architecture, and which short note to read before
+changing a subsystem. [docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md](./docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md)
+outranks it. [CONTRIBUTING.md](./CONTRIBUTING.md) is how two people share
+the tree. `docs/archive/` is frozen history.
 
 ## Licence and attribution
 

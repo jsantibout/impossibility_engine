@@ -2,13 +2,6 @@
 
 The orchestration layer above the engine. Verified against the bundled `claude-api` skill; re-check that skill before changing any of it.
 
-> **Authority.** This document is authoritative for its subject. It was
-> extracted verbatim from `CLAUDE.md` when that file became the
-> constitution and router; the sentences below are the repository's own
-> reasoning, unchanged. `docs/IMPOSSIBILITY_ENGINE_DOCTRINE.md` outranks it,
-> and `CLAUDE.md` outranks it on anything it still states directly.
-
----
 ## Claude Integration (M2+)
 
 Verified against the bundled `claude-api` skill — these are current API shapes,
