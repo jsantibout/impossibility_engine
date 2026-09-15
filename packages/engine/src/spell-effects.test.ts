@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CURE_WOUNDS, HEALING_WORD, INFLICT_WOUNDS, SACRED_FLAME, SRD_CONTENT } from '@ie/content';
 import { declaredCasting } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId , isNeedsContext, contextRequestsOf } from '@ie/shared';
 import type { DamageDefenses } from './attack.js';
@@ -8,13 +9,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { damageCreature, removeCreatureEverywhere, resolveSpell } from './commands.js';
-import {
-  CURE_WOUNDS,
-  HEALING_WORD,
-  INFLICT_WOUNDS,
-  SACRED_FLAME,
-  scaledDiceFor,
-} from './spell-definitions.js';
+import { scaledDiceFor } from './spell-definitions.js';
 
 /**
  * Two spell shapes, wired end to end: hit points restored, and a saving throw
@@ -124,7 +119,7 @@ const wound = (who: CharacterId, amount: number): GameEvent[] =>
 
 const supply = (seed: string) => {
   const rng: Rng = createRng(seed);
-  return { issuer: createRollIssuer('r'), rng };
+  return { issuer: createRollIssuer('r'), rng, content: SRD_CONTENT };
 };
 
 describe('healing restores hit points and nothing else', () => {

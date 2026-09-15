@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import { armorClass, type CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -100,7 +101,7 @@ const simpleOnly = (): readonly GameEvent[] =>
       ? { ...e, sheet: sheet({ weaponProficiencies: ['simple'] }) }
       : e,
   );
-const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** Swing, and hand back the events and the state they fold to. */
 const swing = (
@@ -478,7 +479,7 @@ describe('a character made from choices swings with what their class allows', ()
   const KESSA = id('kessa');
 
   const table = (): readonly GameEvent[] => [
-    ...(unwrap(createCharacter(wizard(), KESSA), 'create') as GameEvent[]),
+    ...(unwrap(createCharacter(SRD_CONTENT,wizard(), KESSA), 'create') as GameEvent[]),
     { type: 'creature-side-declared', id: KESSA, side: 'party' },
     added(GOBLIN, 'goblins', {}, 20),
     {

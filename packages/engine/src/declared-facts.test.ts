@@ -1,3 +1,4 @@
+import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import {
   asCharacterId,
@@ -86,7 +87,7 @@ const TABLE: readonly GameEvent[] = [
   { type: 'sight-declared', from: CLERIC, to: THUG, seen: true },
 ];
 
-const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('facts') });
+const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('facts'), content: SRD_CONTENT });
 
 const hold = (log: readonly GameEvent[]) =>
   resolveSpell(

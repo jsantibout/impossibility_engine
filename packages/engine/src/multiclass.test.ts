@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { BARBARIAN, CLERIC, DRUID, FIGHTER, PALADIN, SRD_CONTENT, WIZARD } from '@ie/content';
 import { isErr } from '@ie/shared';
 import { proficiencyBonusForLevel } from './character.js';
 import { slotsAt } from './progression.js';
 import {
-  MULTICLASS_GRANTS,
   MULTICLASS_MINIMUM,
+  MULTICLASS_SPELL_SLOTS,
   casterLevel,
   characterLevel,
   combinedArmorTraining,
@@ -13,14 +14,9 @@ import {
   multiclassSlots,
   pactSlotsOf,
 } from './multiclass.js';
-import { allClasses, classById } from './creation.js';
-import { WIZARD } from './wizard.js';
-import { WARLOCK } from './warlock.js';
-import { BARBARIAN } from './barbarian.js';
-import { DRUID } from './druid.js';
-import { CLERIC } from './cleric.js';
-import { PALADIN } from './paladin.js';
-import { FIGHTER } from './fighter.js';
+
+/** The registry's lookup, which every rule that reads across the set takes. */
+const classOf = SRD_CONTENT.classById;
 
 /**
  * The rules that only exist between classes.
@@ -34,9 +30,6 @@ import { FIGHTER } from './fighter.js';
  * and not from adding the two classes' slot tables together. **Pact Magic
  * stays separate**, so a Warlock/Wizard has two pools rather than a bigger one.
  */
-
-/** The full-caster slot rows, which the multiclass table is identical to. */
-const FULL_CASTER_TABLE = WIZARD.table.map((row) => row.spellSlots ?? []);
 
 describe('prerequisites read both directions', () => {
   const scores = { str: 15, dex: 10, con: 14, int: 13, wis: 8, cha: 12 };
@@ -115,30 +108,30 @@ describe('character level and Proficiency Bonus come from the total', () => {
 describe('spell slots come from a weighted sum, not from adding two tables', () => {
   /** SRD: all levels in Bard, Cleric, Druid, Sorcerer and Wizard. */
   it('counts a full caster’s levels in full', () => {
-    expect(casterLevel([{ classId: 'wizard', level: 5 }])).toBe(5);
+    expect(casterLevel([{ classId: 'wizard', level: 5 }], classOf)).toBe(5);
     expect(
       casterLevel([
         { classId: 'wizard', level: 3 },
         { classId: 'cleric', level: 2 },
-      ]),
+      ], classOf),
     ).toBe(5);
   });
 
   /** SRD: half your levels, **rounded up**, in Paladin and Ranger. */
   it('counts a half caster’s levels at half, rounding up', () => {
-    expect(casterLevel([{ classId: 'ranger', level: 4 }])).toBe(2);
-    expect(casterLevel([{ classId: 'ranger', level: 5 }])).toBe(3);
-    expect(casterLevel([{ classId: 'paladin', level: 1 }])).toBe(1);
+    expect(casterLevel([{ classId: 'ranger', level: 4 }], classOf)).toBe(2);
+    expect(casterLevel([{ classId: 'ranger', level: 5 }], classOf)).toBe(3);
+    expect(casterLevel([{ classId: 'paladin', level: 1 }], classOf)).toBe(1);
   });
 
   it('counts a class that does not cast as nothing', () => {
-    expect(casterLevel([{ classId: 'fighter', level: 10 }])).toBe(0);
-    expect(casterLevel([{ classId: 'rogue', level: 20 }])).toBe(0);
+    expect(casterLevel([{ classId: 'fighter', level: 10 }], classOf)).toBe(0);
+    expect(casterLevel([{ classId: 'rogue', level: 20 }], classOf)).toBe(0);
   });
 
   /** SRD is explicit that Pact Magic is not in this sum. */
   it('leaves the Warlock out of the combined total', () => {
-    expect(casterLevel([{ classId: 'warlock', level: 5 }])).toBe(0);
+    expect(casterLevel([{ classId: 'warlock', level: 5 }], classOf)).toBe(0);
   });
 
   /**
@@ -151,31 +144,44 @@ describe('spell slots come from a weighted sum, not from adding two tables', () 
       { classId: 'ranger', level: 4 },
       { classId: 'sorcerer', level: 3 },
     ];
-    expect(casterLevel(levels)).toBe(5);
-    expect(multiclassSlots(levels, FULL_CASTER_TABLE)).toEqual({ 1: 4, 2: 3, 3: 2 });
+    expect(casterLevel(levels, classOf)).toBe(5);
+    expect(multiclassSlots(levels, classOf)).toEqual({ 1: 4, 2: 3, 3: 2 });
   });
 
   /**
-   * The printed Multiclass Spellcaster table is identical to the full-caster
-   * table, which is why it is read off one rather than transcribed twice.
-   * Every caster's table must agree, or reading off the Wizard's is a lie.
+   * The printed Multiclass Spellcaster table is identical to every full
+   * caster's own slot column, so the engine's transcription of it is held
+   * against each of them — the class says it is a full caster, and its table
+   * had better agree.
    */
   it('agrees with every full caster’s own table at every level', () => {
-    const fullCasters = ['bard', 'cleric', 'druid', 'sorcerer', 'wizard'];
-    for (const classId of fullCasters) {
-      const definition = classById(classId);
-      if (definition === null) throw new Error(`${classId} is not registered`);
+    const fullCasters = SRD_CONTENT.classes.filter(
+      (definition) => definition.spellcasting?.progression === 'full',
+    );
+    expect(fullCasters.map((c) => c.id)).toEqual(['bard', 'cleric', 'druid', 'sorcerer', 'wizard']);
+    for (const definition of fullCasters) {
       for (let level = 1; level <= 20; level += 1) {
         expect(
-          multiclassSlots([{ classId, level }], FULL_CASTER_TABLE),
-          `${classId} at ${level}`,
+          multiclassSlots([{ classId: definition.id, level }], classOf),
+          `${definition.id} at ${level}`,
         ).toEqual(slotsAt(definition, level));
+        expect(definition.table[level - 1]?.spellSlots ?? []).toEqual(
+          MULTICLASS_SPELL_SLOTS[level - 1],
+        );
       }
     }
   });
 
+  /** And the half casters say so on the class, which is what the sum reads. */
+  it('reads half casters off the class rather than off a list of names', () => {
+    const half = SRD_CONTENT.classes.filter((c) => c.spellcasting?.progression === 'half');
+    expect(half.map((c) => c.id)).toEqual(['paladin', 'ranger']);
+    const pact = SRD_CONTENT.classes.filter((c) => c.spellcasting?.feature === 'pact-magic');
+    expect(pact.map((c) => c.id)).toEqual(['warlock']);
+  });
+
   it('gives a character with no caster levels no slots at all', () => {
-    expect(multiclassSlots([{ classId: 'fighter', level: 5 }], FULL_CASTER_TABLE)).toEqual({});
+    expect(multiclassSlots([{ classId: 'fighter', level: 5 }], classOf)).toEqual({});
   });
 });
 
@@ -190,18 +196,18 @@ describe('Pact Magic is a second pool, not more of the first', () => {
       { classId: 'wizard', level: 3 },
     ];
     // Three Wizard levels: a level 3 full caster's slots.
-    expect(multiclassSlots(levels, FULL_CASTER_TABLE)).toEqual({ 1: 4, 2: 2 });
+    expect(multiclassSlots(levels, classOf)).toEqual({ 1: 4, 2: 2 });
     // And two level 2 Pact slots, separately.
-    expect(pactSlotsOf(levels, WARLOCK.table)).toEqual({ 2: 2 });
+    expect(pactSlotsOf(levels, classOf)).toEqual({ 2: 2 });
   });
 
   it('gives a character with no Warlock levels no Pact slots', () => {
-    expect(pactSlotsOf([{ classId: 'wizard', level: 5 }], WARLOCK.table)).toEqual({});
+    expect(pactSlotsOf([{ classId: 'wizard', level: 5 }], classOf)).toEqual({});
   });
 });
 
 describe('Hit Dice pool by die type', () => {
-  const dieOf = (classId: string) => classById(classId)?.hitDie ?? null;
+  const dieOf = (classId: string) => SRD_CONTENT.classById(classId)?.hitDie ?? null;
 
   /** SRD's own example: a level 5 Fighter / level 5 Paladin has ten d10s. */
   it('pools two classes that share a die', () => {
@@ -231,33 +237,28 @@ describe('Hit Dice pool by die type', () => {
 });
 
 describe('a later class grants only some of its proficiencies', () => {
-  /** Every registered class must say what it grants as a second class. */
-  it('has a grant for every class the engine knows', () => {
-    for (const definition of allClasses()) {
-      expect(MULTICLASS_GRANTS[definition.id], definition.name).toBeDefined();
-    }
-  });
-
   /**
    * SRD gives a multiclassing Fighter Martial weapons and Light and Medium
    * armour and Shields — but not Heavy armour, which the class itself has.
+   * The grant is a field of the class, so a class the engine has never heard
+   * of says its own.
    */
   it('withholds what the class’s own traits would have given', () => {
     expect(FIGHTER.armorTraining.heavy).toBe(true);
-    expect(MULTICLASS_GRANTS.fighter?.armorTraining.heavy).toBe(false);
+    expect(FIGHTER.multiclass.armorTraining.heavy).toBe(false);
   });
 
   /** Nobody gains a saving throw proficiency from a second class. */
   it('grants no saving throws at all', () => {
-    for (const grant of Object.values(MULTICLASS_GRANTS)) {
-      expect(Object.keys(grant)).not.toContain('saveProficiencies');
+    for (const definition of SRD_CONTENT.classes) {
+      expect(Object.keys(definition.multiclass)).not.toContain('saveProficiencies');
     }
   });
 
   /** Nobody gains a full class skill list either — one skill at most. */
   it('grants at most one skill, where a class grants two to four', () => {
-    for (const [classId, grant] of Object.entries(MULTICLASS_GRANTS)) {
-      expect(grant.skills?.choose ?? 0, classId).toBeLessThanOrEqual(1);
+    for (const definition of SRD_CONTENT.classes) {
+      expect(definition.multiclass.skills?.choose ?? 0, definition.id).toBeLessThanOrEqual(1);
     }
     expect(CLERIC.skillChoices.choose).toBe(2);
   });
@@ -265,7 +266,7 @@ describe('a later class grants only some of its proficiencies', () => {
   /** Monk, Sorcerer and Wizard grant nothing but a Hit Die. */
   it('gives the three feature-heavy classes nothing but their die', () => {
     for (const classId of ['monk', 'sorcerer', 'wizard']) {
-      const grant = MULTICLASS_GRANTS[classId];
+      const grant = SRD_CONTENT.classById(classId)?.multiclass;
       expect(grant?.weapons, classId).toEqual([]);
       expect(grant?.tools, classId).toEqual([]);
       expect(grant?.armorTraining, classId).toEqual({
@@ -280,7 +281,7 @@ describe('a later class grants only some of its proficiencies', () => {
   /** Armour training is the union: what you had, plus what the subset adds. */
   it('unions the first class’s training with every later class’s subset', () => {
     // A Wizard (none) who takes Cleric levels gains Light, Medium and Shields.
-    expect(combinedArmorTraining(WIZARD, ['cleric'])).toEqual({
+    expect(combinedArmorTraining(WIZARD, [CLERIC])).toEqual({
       light: true,
       medium: true,
       // A multiclassing Cleric grants no Heavy armour, and a Wizard had none.
@@ -288,10 +289,6 @@ describe('a later class grants only some of its proficiencies', () => {
       shields: true,
     });
     // A Paladin (everything) who takes Wizard levels loses nothing.
-    expect(combinedArmorTraining(PALADIN, ['wizard'])).toEqual(PALADIN.armorTraining);
-  });
-
-  it('ignores a class nobody registered rather than throwing', () => {
-    expect(combinedArmorTraining(WIZARD, ['artificer'])).toEqual(WIZARD.armorTraining);
+    expect(combinedArmorTraining(PALADIN, [WIZARD])).toEqual(PALADIN.armorTraining);
   });
 });

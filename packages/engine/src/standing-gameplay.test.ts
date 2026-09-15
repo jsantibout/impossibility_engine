@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -106,7 +107,7 @@ const added = (who: CharacterId, side: string, over: Partial<CharacterSheet> = {
 
 /** The paladin, an ally beside them, and an enemy caster ten feet off. */
 const table = (over: Partial<CharacterChoices> = {}): readonly GameEvent[] => [
-  ...(unwrap(createCharacter(paladin(over), AELRIC), 'create') as GameEvent[]),
+  ...(unwrap(createCharacter(SRD_CONTENT,paladin(over), AELRIC), 'create') as GameEvent[]),
   { type: 'creature-side-declared', id: AELRIC, side: 'party' },
   added(ALLY, 'party'),
   added(WITCH, 'coven', { spellcastingAbility: 'int', abilities: { str: 10, dex: 10, con: 10, int: 18, wis: 10, cha: 10 } }),
@@ -129,7 +130,7 @@ const table = (over: Partial<CharacterChoices> = {}): readonly GameEvent[] => [
   { type: 'sight-declared', from: WITCH, to: AELRIC, seen: true },
 ];
 
-const supply = (seed = 'cast') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'cast') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** Hold Person at the ally, and the saving throw it made them roll. */
 const holdPerson = (log: readonly GameEvent[], seed = 'cast') => {
@@ -253,6 +254,7 @@ describe('two auras, and the rule that they are one', () => {
       ...table(),
       ...(unwrap(
         createCharacter(
+          SRD_CONTENT,
           paladin({
             name: 'Brynn',
             // Charisma 12 is +1, against Aelric's +2.
@@ -285,6 +287,7 @@ describe('a multiclassed paladin still radiates, and a junior one does not', () 
       'seed',
       unwrap(
         createCharacter(
+          SRD_CONTENT,
           paladin({
             multiclass: [{ classId: 'sorcerer', level: 2 }],
             spellsByClass: {
@@ -313,6 +316,7 @@ describe('a multiclassed paladin still radiates, and a junior one does not', () 
       'seed',
       unwrap(
         createCharacter(
+          SRD_CONTENT,
           paladin({
             level: 5,
             // A level 5 Paladin prepares 6.
@@ -457,7 +461,7 @@ describe('a chosen resistance reaches the damage command', () => {
   const burned = (type: string): number => {
     const VESKA = id('veska');
     const log: readonly GameEvent[] = [
-      ...(unwrap(createCharacter(veska(type), VESKA), 'create') as GameEvent[]),
+      ...(unwrap(createCharacter(SRD_CONTENT,veska(type), VESKA), 'create') as GameEvent[]),
       { type: 'creature-side-declared', id: VESKA, side: 'party' },
       added(WITCH, 'coven', { spellcastingAbility: 'int' }),
       {

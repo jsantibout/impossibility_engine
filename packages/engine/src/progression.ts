@@ -109,6 +109,20 @@ export interface FeatureDefinition {
    * for the kind.
    */
   readonly grants?: FeatureGrant;
+  /**
+   * The feature whose declaration executes this one, when this one declares
+   * nothing of its own.
+   *
+   * SRD Improved Blessed Strikes: "The extra damage of your Divine Strike
+   * increases to 2d8." An "Improved X" that only raises a number is a step in
+   * the first feature's table — Blessed Strikes carries the `diceCountByLevel`
+   * column and the engine reads it at the class's own level — so this feature
+   * is the level at which that table steps and has no effect of its own to
+   * declare. Naming the feature that does is what lets it honestly claim
+   * `automation: 'engine'`; the content validator holds the name to a feature
+   * on the same source that declares something a reader reads.
+   */
+  readonly executedBy?: string;
 }
 
 /**
@@ -583,6 +597,18 @@ export interface ClassSpellcasting {
    */
   readonly feature?: 'spellcasting' | 'pact-magic';
   /**
+   * How much of this class's level counts towards the combined multiclass
+   * spell-slot table: all of it, or half rounded up.
+   *
+   * SRD Multiclassing: "all your levels in Bard, Cleric, Druid, Sorcerer, and
+   * Wizard; half your levels (round up) in Paladin and Ranger." Stated on the
+   * class rather than kept as a list of class names in the multiclass rules,
+   * so a class this engine has never heard of can say which it is. Required
+   * for a Spellcasting class and refused for Pact Magic, which stays out of
+   * the table entirely.
+   */
+  readonly progression?: 'full' | 'half';
+  /**
    * The level at which the class starts casting.
    *
    * Wizards and Clerics cast at 1; Paladins and Rangers at 2; a Fighter or
@@ -591,8 +617,28 @@ export interface ClassSpellcasting {
   readonly startsAtLevel: number;
 }
 
+/**
+ * What a class grants when it is **not** your first.
+ *
+ * SRD: "you gain only some of the new class's starting proficiencies, as
+ * detailed in each class's description." Every class prints its own "As a
+ * Multiclass Character" paragraph, so it is a field of the class rather than
+ * a table keyed by class name somewhere else.
+ */
+export interface MulticlassGrant {
+  /** Weapon categories, in the same vocabulary a class definition uses. */
+  readonly weapons: readonly string[];
+  readonly armorTraining: ArmorTraining;
+  /** How many skills the character chooses, and from where. */
+  readonly skills?: { readonly choose: number; readonly from?: readonly Skill[] };
+  /** Tools granted outright, by name as the SRD prints them. */
+  readonly tools: readonly string[];
+}
+
 export interface ClassDefinition extends FeatureSource {
   readonly primaryAbility: Ability;
+  /** What taking this class after another one grants. */
+  readonly multiclass: MulticlassGrant;
   /** How this class casts, or absent for a class that does not. */
   readonly spellcasting?: ClassSpellcasting;
   readonly hitDie: number;

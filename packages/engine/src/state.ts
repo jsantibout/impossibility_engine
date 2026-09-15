@@ -14,6 +14,7 @@
  * is erased and the cycle is a cycle in nothing that runs.
  */
 import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
+import type { Armor } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import type { RngState } from './dice.js';
@@ -52,6 +53,19 @@ import {
 import { type Vitals } from './vitals.js';
 
 import type { GameEvent } from './events.js';
+
+/**
+ * Something a creature has equipped, with the one record the fold reads.
+ *
+ * The id is what inventory tracks; the armour record is what `item-equipped`
+ * pinned when it went on, so that what a creature wears is a fact of the log
+ * and not of whichever item catalogue is loaded today. Null for anything that
+ * is not armour — a held weapon is equipped and contributes nothing here.
+ */
+export interface EquippedItem {
+  readonly id: string;
+  readonly armor: Armor | null;
+}
 
 export interface CreatureState {
   readonly id: CharacterId;
@@ -322,7 +336,7 @@ export interface CreatureState {
    */
   readonly inventory: readonly InventoryLine[];
   /** The ids actually worn or wielded, which is what Armour Class reads. */
-  readonly equipped: readonly string[];
+  readonly equipped: readonly EquippedItem[];
   /** Money, in copper — the unit every SRD coin divides into. */
   readonly coins: number;
   /**

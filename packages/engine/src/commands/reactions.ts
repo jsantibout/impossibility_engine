@@ -52,12 +52,12 @@ import {
   type SpellReactionWindow,
 } from '../reactions.js';
 import { remaining } from '../resources.js';
-import { definitionFor } from '../spell-definitions.js';
+import { type Content } from '../content.js';
 import { defensesOf, effectiveConditions, rollModesFor } from '../standing.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
 import {
   type ConcentrationConsequence,
-  type ConcentrationSaveSupply,
+  type Supply,
   resolveDamage,
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
@@ -113,7 +113,7 @@ export function takeDamageReaction(
   state: GameState,
   reactor: CharacterId,
   command: DamageReactionCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<ReactionResolution> {
   // Before the offer is checked, exactly as `takeOpportunityAttack` does it: a
   // retry arrives at a window its own first run has already answered, and
@@ -267,7 +267,7 @@ export interface SettledDamage {
  */
 export function settleDamage(
   state: GameState,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   command: CommandIdentity = {},
 ): Result<SettledDamage> {
   return once(state, 'settle-damage', command, () => {
@@ -394,7 +394,7 @@ export function resolveTest(
   state: GameState,
   who: CharacterId,
   command: TestCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<TestResolution> {
   return once(state, `test:${who}`, command, () => {
     return { events: [], test: null, offers: [], unverified: [], duplicate: true };
@@ -527,7 +527,7 @@ export function takeTestReaction(
   state: GameState,
   reactor: CharacterId,
   command: TestReactionCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<TestReactionResolution> {
   return once(state, `test-reaction:${reactor}`, command, () => ({ events: [], test: null, duplicate: true }), (stamp) => {
     const pending = state.pendingTest;
@@ -717,7 +717,7 @@ export function takeDamageResponse(
   state: GameState,
   reactor: CharacterId,
   command: DamageResponseCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<AttackResolution> {
   return once(state, `damage-response:${reactor}`, command, () => {
     return { events: [], attack: null, unverified: [], duplicate: true };
@@ -843,7 +843,7 @@ export function takeDamageResponse(
  * check either because the engine has never modelled which castings a creature
  * perceives. A listed opportunity is legal as far as the engine can see.
  */
-export function reactionOpportunities(state: GameState): readonly ReactionOpportunity[] {
+export function reactionOpportunities(state: GameState, content: Content): readonly ReactionOpportunity[] {
   const found: ReactionOpportunity[] = [];
 
   const canReact = (who: CharacterId): boolean => {
@@ -863,7 +863,7 @@ export function reactionOpportunities(state: GameState): readonly ReactionOpport
       ...creature.spellcasting.granted.map((g) => g.spellId),
     ];
     return [...new Set(known)].sort().flatMap((spellId): ReactionOpportunity[] => {
-      const definition = definitionFor(spellId);
+      const definition = content.spell(spellId);
       if (definition?.trigger !== window) return [];
       return [
         {

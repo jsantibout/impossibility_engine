@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RAGE_DAMAGE, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -6,7 +7,6 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent } from './events.js';
 import { activateFeature, resolveAttack } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
-import { RAGE_DAMAGE } from './barbarian.js';
 
 /**
  * Damage a feature adds to a weapon's own.
@@ -99,7 +99,7 @@ const barbarian = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
 const RAGE = 'barbarian:rage';
 
 const table = (over: Partial<CharacterChoices> = {}, defenses?: Record<string, { resistant?: boolean }>): readonly GameEvent[] => [
-  ...(unwrap(createCharacter(barbarian(over), GRUM), 'create') as GameEvent[]),
+  ...(unwrap(createCharacter(SRD_CONTENT,barbarian(over), GRUM), 'create') as GameEvent[]),
   { type: 'creature-side-declared', id: GRUM, side: 'party' },
   target({}, defenses),
   {
@@ -117,7 +117,7 @@ const table = (over: Partial<CharacterChoices> = {}, defenses?: Record<string, {
   { type: 'creature-placed', id: GOBLIN, placement: { from: { creature: GRUM }, feet: 5, bearing: 0 } },
 ];
 
-const supply = (seed = 'hit') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'hit') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 const raging = (log: readonly GameEvent[]): readonly GameEvent[] => [
   ...log,
@@ -285,7 +285,7 @@ describe('a feature can add damage of another type instead', () => {
     feet: number,
     defenses?: Record<string, { resistant?: boolean }>,
   ): readonly GameEvent[] => [
-    ...(unwrap(createCharacter(who, PALADIN), 'create') as GameEvent[]),
+    ...(unwrap(createCharacter(SRD_CONTENT,who, PALADIN), 'create') as GameEvent[]),
     { type: 'creature-side-declared', id: PALADIN, side: 'party' },
     target({}, defenses),
     {

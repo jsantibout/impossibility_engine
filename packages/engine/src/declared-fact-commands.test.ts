@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, contextRequestsOf, isErr, isNeedsContext, expect as unwrap } from '@ie/shared';
 import { fold, type GameEvent, type GameState } from './events.js';
 import {
@@ -572,7 +573,7 @@ describe('a DM can take something away', () => {
    */
   it('refuses taking something that is being worn', () => {
     const table = carrying();
-    table.push([{ type: 'item-equipped', id: KNIGHT, item: 'chain-shirt' }]);
+    table.push([{ type: 'item-equipped', id: KNIGHT, item: 'chain-shirt', armor: SRD_CONTENT.item('chain-shirt')?.armor ?? null }]);
     expect(armorClass(table.state.creatures[KNIGHT]!.sheet)).toBeGreaterThan(10);
 
     const out = loseItems(table.state, KNIGHT, [{ id: 'chain-shirt', quantity: 1 }], 'a mimic');

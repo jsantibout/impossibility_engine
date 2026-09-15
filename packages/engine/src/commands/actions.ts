@@ -20,8 +20,9 @@ import {
 } from '../events.js';
 import { type Placement, type Point } from '../positioning.js';
 import { type SlotKind } from '../resources.js';
-import { definitionFor, durationSecondsAt } from '../spell-definitions.js';
-import { castSpell, chooseRoute, type ConcentrationSaveSupply, nextCastingId } from './casting.js';
+import { type Content } from '../content.js';
+import { durationSecondsAt } from '../spell-definitions.js';
+import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { schedule } from './conditions.js';
 import { featureTimer } from './features.js';
@@ -281,6 +282,7 @@ export function takeReady(
   state: GameState,
   id: CharacterId,
   command: ReadyCommand,
+  content: Content,
 ): Result<GameEvent[]> {
   return once(state, `ready:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
@@ -319,7 +321,7 @@ export function takeReady(
     let response: ReadiedResponse;
 
     if (command.response.kind === 'spell') {
-      const held = holdSpell(state, id, command.response);
+      const held = holdSpell(state, content, id, command.response);
       if (!held.ok) return held;
       events.push(...held.value.events);
       response = held.value.response;
@@ -363,10 +365,11 @@ export function takeReady(
  */
 function holdSpell(
   state: GameState,
+  content: Content,
   id: CharacterId,
   response: ReadyResponse & { readonly kind: 'spell' },
 ): Result<{ readonly events: readonly GameEvent[]; readonly response: ReadiedResponse }> {
-  const definition = definitionFor(response.spellId);
+  const definition = content.spell(response.spellId);
   if (definition === null) {
     return err(
       'no_definition',
@@ -543,7 +546,7 @@ export function releaseReady(
   state: GameState,
   id: CharacterId,
   command: ReleaseCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<ReadyRelease> {
   // Without this the retry came back `nothing_readied` — a refusal, telling
   // the caller the hold never existed when in fact their first call consumed
@@ -617,7 +620,7 @@ function releaseMove(
   state: GameState,
   id: CharacterId,
   command: ReleaseCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   spentSoFar: readonly GameEvent[],
 ): Result<ReadyRelease> {
   if (command.placement === undefined) {
@@ -665,10 +668,10 @@ function releaseSpell(
   id: CharacterId,
   response: ReadiedResponse & { readonly kind: 'spell' },
   command: ReleaseCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   spentSoFar: readonly GameEvent[],
 ): Result<ReadyRelease> {
-  const definition = definitionFor(response.spellId);
+  const definition = supply.content.spell(response.spellId);
   if (definition === null) {
     return err('no_definition', `${response.spellId} has no executable definition`);
   }

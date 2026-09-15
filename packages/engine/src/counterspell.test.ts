@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -125,6 +126,7 @@ const TABLE: readonly GameEvent[] = [
 const supply = (flat = 0) => ({
   issuer: createRollIssuer('r'),
   rng: createRng('counterspell'),
+  content: SRD_CONTENT,
   bonuses: [{ source: 'the test insists', flat }],
 });
 

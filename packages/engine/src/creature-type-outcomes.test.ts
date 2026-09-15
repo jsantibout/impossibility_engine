@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { BLIGHT, SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseMonsters } from '@ie/srd';
@@ -23,7 +24,7 @@ import { pendingCastingsOf, resolveAttack, resolveAttackDamage, resolveSpell } f
 import { resolveEffects } from './commands/spell-resolution.js';
 import { declaredCasting } from './spellcasting.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
-import { BLIGHT, isCreatureType, SPELL_DEFINITIONS } from './spell-definitions.js';
+import { isCreatureType } from './spell-definitions.js';
 
 /**
  * An outcome that varies by the target's creature type.
@@ -152,6 +153,7 @@ const supply = (seed = 'blight', bonus?: number) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   ...(bonus === undefined ? {} : { bonuses: [{ source: 'forced', flat: bonus }] }),
+  content: SRD_CONTENT,
 });
 
 const cast = (
@@ -307,7 +309,7 @@ describe('an undeclared creature type is a request, not a pass', () => {
     // and the roll ids the next casting is going to want.
     const issuer = createRollIssuer('r');
     const rng = createRng('blight') as Rng;
-    const again = resolveSpell(before, WIZARD, { spellId: 'blight', targets: [STRANGER], slotLevel: 4 }, { issuer, rng });
+    const again = resolveSpell(before, WIZARD, { spellId: 'blight', targets: [STRANGER], slotLevel: 4 }, { issuer, rng, content: SRD_CONTENT });
     expect(again.ok).toBe(false);
     expect(issuer.count).toBe(0);
     expect(remaining(before.creatures[WIZARD]!.resources, 'spell-slot:4')).toBe(4);
@@ -414,7 +416,7 @@ describe('an undeclared creature type is a request, not a pass', () => {
       numbers: { attackModifier: 7, saveDc: 16, spellcastingModifier: 5, casterLevel: 9 },
       targets: [STRANGER],
       unverified: [],
-      supply: { issuer, rng: createRng('blight') as Rng },
+      supply: { issuer, rng: createRng('blight') as Rng, content: SRD_CONTENT },
       castingId: 'cast:1',
       events: [],
     });
@@ -554,7 +556,7 @@ describe('Divine Smite deals an extra die against a Fiend or an Undead', () => {
   });
 
   const field = (who: CharacterId, creature: GameEvent): readonly GameEvent[] => [
-    ...(unwrap(createCharacter(paladin(), PALADIN), 'create') as GameEvent[]),
+    ...(unwrap(createCharacter(SRD_CONTENT,paladin(), PALADIN), 'create') as GameEvent[]),
     creature,
     { type: 'items-gained', id: PALADIN, items: [{ id: 'greatsword', quantity: 1 }], source: 'loot' },
     { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
@@ -574,7 +576,7 @@ describe('Divine Smite deals an extra die against a Fiend or an Undead', () => {
         fold('seed', log),
         PALADIN,
         { target: who, weapon: 'greatsword', twoHanded: true, hold: true },
-        { issuer: createRollIssuer('a'), rng: createRng(seed) as Rng },
+        { issuer: createRollIssuer('a'), rng: createRng(seed) as Rng, content: SRD_CONTENT },
       ),
       'attack',
     );
@@ -584,7 +586,7 @@ describe('Divine Smite deals an extra die against a Fiend or an Undead', () => {
       fold('seed', held),
       PALADIN,
       { smite: { spellId: 'divine-smite', slotLevel: 1 } },
-      { issuer, rng: createRng(seed) as Rng },
+      { issuer, rng: createRng(seed) as Rng, content: SRD_CONTENT },
     );
     return { swung, held, settled, issuer, before: fold('seed', held) };
   };

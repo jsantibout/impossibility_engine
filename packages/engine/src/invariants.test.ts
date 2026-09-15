@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { BACKGROUNDS, FIGHTING_STYLE_FEATS, ORIGIN_FEATS, SPECIES, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -95,14 +96,7 @@ import {
 // `resolveSpell`, kept here so the `mayAct` guard it gained stays exercised.
 import { resolveCast } from './commands/casting.js';
 import { beginRest } from './rest.js';
-import { allClasses, allSubclasses } from './creation.js';
-import {
-  BACKGROUNDS,
-  FIGHTING_STYLE_FEATS,
-  ORIGIN_FEATS,
-  SPECIES,
-  type FeatDefinition,
-} from './origins.js';
+import { type FeatDefinition } from './origins.js';
 import type { FeatureSource } from './progression.js';
 
 /**
@@ -217,7 +211,7 @@ const SETUP: readonly GameEvent[] = [
   },
 ];
 
-const supply = (seed = 's') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 's') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** Events out of whatever shape a command hands back. */
 const eventsOf = (value: unknown): readonly GameEvent[] =>
@@ -240,7 +234,7 @@ interface Guarded {
 const readied = (): readonly GameEvent[] => {
   const held = [
     ...SETUP,
-    ...unwrap(takeReady(fold('s', SETUP), A, { trigger: 'when it moves', response: { kind: 'action' } }), 'ready'),
+    ...unwrap(takeReady(fold('s', SETUP), A, { trigger: 'when it moves', response: { kind: 'action' } }, SRD_CONTENT), 'ready'),
   ];
   return [...held, ...unwrap(resolveTurn(fold('s', held), supply()), 'turn').events];
 };
@@ -534,7 +528,7 @@ const blunting = (): readonly GameEvent[] => {
       items: [{ id: 'longsword', quantity: 1 }],
       source: 'kit',
     },
-    { type: 'item-equipped', id: B, item: 'longsword' },
+    { type: 'item-equipped', id: B, item: 'longsword', armor: SRD_CONTENT.item('longsword')?.armor ?? null },
   ];
   // B's turn, so B may take the Attack action.
   const turned = [...log, ...unwrap(resolveTurn(fold('s', log), supply()), 'turn').events];
@@ -925,7 +919,7 @@ const GUARDED: readonly Guarded[] = [
   {
     name: 'takeReady',
     log: SETUP,
-    run: (s, commandId) => takeReady(s, A, { trigger: 'when it moves', response: { kind: 'action' }, commandId }),
+    run: (s, commandId) => takeReady(s, A, { trigger: 'when it moves', response: { kind: 'action' }, commandId }, SRD_CONTENT),
   },
   { name: 'releaseReady', log: readied(), run: (s, commandId) => releaseReady(s, A, { commandId }, supply()) },
   {
@@ -1272,12 +1266,12 @@ const GUARDED: readonly Guarded[] = [
         commandId,
       }),
   },
-  { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, A, 'rope', 1, commandId) },
-  { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, A, 'chain-shirt', commandId) },
+  { name: 'purchaseItem', log: SETUP, run: (s, commandId) => purchaseItem(s, SRD_CONTENT, A, 'rope', 1, commandId) },
+  { name: 'equipItem', log: SETUP, run: (s, commandId) => equipItem(s, SRD_CONTENT, A, 'chain-shirt', commandId) },
   {
     name: 'unequipItem',
-    log: [...SETUP, ...unwrap(equipItem(fold('s', SETUP), A, 'chain-shirt'), 'eq')],
-    run: (s, commandId) => unequipItem(s, A, 'chain-shirt', commandId),
+    log: [...SETUP, ...unwrap(equipItem(fold('s', SETUP), SRD_CONTENT, A, 'chain-shirt'), 'eq')],
+    run: (s, commandId) => unequipItem(s, SRD_CONTENT, A, 'chain-shirt', commandId),
   },
   // The nine facts a DM declares, which had no command at all until IE-016.
   {
@@ -1626,7 +1620,7 @@ const SPENDERS: readonly Spender[] = [
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
   {
     name: 'takeReady',
-    run: (s) => takeReady(s, B, { trigger: 'when it moves', response: { kind: 'action' } }),
+    run: (s) => takeReady(s, B, { trigger: 'when it moves', response: { kind: 'action' } }, SRD_CONTENT),
   },
   { name: 'resolveMove', run: (s) => resolveMove(s, B, { placement: CIRCLING }, supply()) },
   { name: 'resolveAttack', run: (s) => resolveAttack(s, B, { target: A, weapon: null }, supply()) },
@@ -3333,7 +3327,7 @@ function busyLog(): readonly GameEvent[] {
     ...log,
     ...unwrap(damageCreature(fold('s', log), B, { amount: 12, source: 'a falling rock' }), 'dmg'),
   ];
-  log = [...log, ...unwrap(equipItem(fold('s', log), A, 'chain-shirt'), 'eq')];
+  log = [...log, ...unwrap(equipItem(fold('s', log), SRD_CONTENT, A, 'chain-shirt'), 'eq')];
   return log;
 }
 
@@ -3775,7 +3769,7 @@ describe('Speed is read through one reader', () => {
    * without bound rather than produce a wrong number, so this is a stack
    * overflow in a fight and not a rules bug.
    *
-   * **Every `FeatureSource`, not just the twelve classes.** `allClasses()` was
+   * **Every `FeatureSource`, not just the twelve classes.** `SRD_CONTENT.classes` was
    * narrower than the hazard: a subclass carries its own `features`, and so do
    * a species and a background, and `speedOf` reads whatever reached
    * `sheet.standing` without caring which of the four put it there. The
@@ -3789,8 +3783,8 @@ describe('Speed is read through one reader', () => {
    * so, which is why the sweep does not reach for one.
    */
   const FEATURE_SOURCES: readonly FeatureSource[] = [
-    ...allClasses(),
-    ...allSubclasses(),
+    ...SRD_CONTENT.classes,
+    ...SRD_CONTENT.subclasses,
     ...SPECIES,
     ...BACKGROUNDS,
   ];
@@ -3798,8 +3792,8 @@ describe('Speed is read through one reader', () => {
   it('sweeps every feature source rather than the classes alone', () => {
     // A floor, not an inventory: it fails if the population empties or the
     // registries stop being read, and says nothing about a source being added.
-    expect(FEATURE_SOURCES.length).toBeGreaterThan(allClasses().length);
-    expect(allSubclasses().length).toBeGreaterThan(0);
+    expect(FEATURE_SOURCES.length).toBeGreaterThan(SRD_CONTENT.classes.length);
+    expect(SRD_CONTENT.subclasses.length).toBeGreaterThan(0);
     // And a feat really has no features to sweep, which is what excuses it.
     const feats: readonly FeatDefinition[] = [...ORIGIN_FEATS, ...FIGHTING_STYLE_FEATS];
     expect(feats.length).toBeGreaterThan(0);

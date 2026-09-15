@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -128,7 +129,7 @@ const monk = (level: number): CharacterChoices => ({
 
 /** Built, or the refusal — so a broken fixture says which rule it broke. */
 const sheetOf = (choices: CharacterChoices): CharacterSheet => {
-  const plan = planCharacter(choices);
+  const plan = planCharacter(SRD_CONTENT,choices);
   if (!plan.ok) throw new Error(`${choices.classId} ${choices.level}: ${plan.code} — ${plan.reason}`);
   return plan.value.sheet;
 };

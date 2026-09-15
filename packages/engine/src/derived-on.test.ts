@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
-import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
+import { applyEvent, applyEventWith, fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { holdsNothingOf, spellOn } from './fold/release.js';
@@ -131,8 +132,9 @@ function checkEveryEvent(seed: string, log: readonly GameEvent[]): Checked {
   };
 
   compare(0);
+  const step = applyEventWith(SRD_CONTENT);
   log.forEach((event, index) => {
-    state = applyEvent(state, event);
+    state = step(state, event);
     compare(index + 1);
   });
 
@@ -307,10 +309,11 @@ const must = <T,>(result: Result<T>): T => unwrap(result, 'derived on');
 const supply = (seed = 'cast') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const applyAll = (state: GameState, events: readonly GameEvent[]): GameState =>
-  events.reduce(applyEvent, state);
+  events.reduce(applyEventWith(SRD_CONTENT), state);
 
 /**
  * Three cases the pair of frozen logs does not contain, and the whole suite

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   contextRequestsOf,
@@ -12,7 +13,6 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
-import { definitionFor } from './spell-definitions.js';
 import { remaining } from './resources.js';
 import { forSeconds } from './duration.js';
 import { castingSource } from './spells.js';
@@ -126,6 +126,7 @@ const casts = (who: CharacterId): readonly GameEvent[] => [
 const supply = (seed = 'cast') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const SETUP: readonly GameEvent[] = [
@@ -1139,7 +1140,7 @@ describe('a readied spell is a running spell once released', () => {
         takeReady(g.state, WIZ, {
           trigger: 'when the foe moves',
           response: { kind: 'spell', spellId: 'bless', slotLevel },
-        }),
+        }, SRD_CONTENT),
         'ready',
       ),
     );
@@ -1481,6 +1482,7 @@ describe('Produce Flame hurls its fire on later turns', () => {
   const hitting = (seed: string) => ({
     issuer: createRollIssuer('r'),
     rng: createRng(seed) as Rng,
+    content: SRD_CONTENT,
     bonuses: [{ source: 'forced', flat: 40 }],
   });
 
@@ -1709,7 +1711,7 @@ describe('a casting pins its area and the clauses that fire in it', () => {
     // record: the *fold* reads the four that decide who is caught and when —
     // `at`, `onEntry`, `onAreaEntry`, `oncePerTurn` — and `settleAreaEffects`
     // reads `effects` and `label`, which decide what it costs them.
-    expect(record?.areaTrigger).toEqual(definitionFor('web')?.areaTrigger);
+    expect(record?.areaTrigger).toEqual(SRD_CONTENT.spell('web')?.areaTrigger);
     expect(record?.areaTrigger).toMatchObject({ at: 'start-of-turn', onEntry: 'first-per-turn' });
   });
 
@@ -1728,14 +1730,14 @@ describe('a casting pins its area and the clauses that fire in it', () => {
     // Not vacuous: the fold really does reconstruct a debt from the area.
     expect(before.owedAreaEffects).toHaveLength(1);
 
-    const web = definitionFor('web');
+    const web = SRD_CONTENT.spell('web');
     if (web === null) throw new Error('Web has no definition');
     const mutable = web as { area?: unknown };
     const original = mutable.area;
     try {
       mutable.area = { kind: 'cube', size: 5, origin: 'point' };
       // The catalogue really did change, or the assertion below proves nothing.
-      expect(definitionFor('web')?.area).toEqual({ kind: 'cube', size: 5, origin: 'point' });
+      expect(SRD_CONTENT.spell('web')?.area).toEqual({ kind: 'cube', size: 5, origin: 'point' });
       expect(fold('seed', log)).toStrictEqual(before);
     } finally {
       mutable.area = original;
@@ -1785,7 +1787,7 @@ describe('a casting pins its area and the clauses that fire in it', () => {
     // discharging the debt in silence.
     expect(before.events.some((event) => event.type === 'roll-recorded')).toBe(true);
 
-    const web = definitionFor('web');
+    const web = SRD_CONTENT.spell('web');
     if (web === null) throw new Error('Web has no definition');
     const mutable = web as { areaTrigger?: unknown };
     const original = mutable.areaTrigger;
@@ -1797,7 +1799,7 @@ describe('a casting pins its area and the clauses that fire in it', () => {
         effects: [{ kind: 'save', ability: 'str', condition: 'blinded' }],
       };
       // The catalogue really did change, or the assertion below proves nothing.
-      expect(definitionFor('web')?.areaTrigger?.label).toBe('Web (corrected)');
+      expect(SRD_CONTENT.spell('web')?.areaTrigger?.label).toBe('Web (corrected)');
       expect(
         unwrap(settleAreaEffects(fold('seed', log), supply('settle')), 'settle').events,
       ).toStrictEqual(before.events);

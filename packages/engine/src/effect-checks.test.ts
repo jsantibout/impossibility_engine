@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, isNeedsContext, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -12,7 +13,7 @@ import {
   resolveSpell,
   type EffectCheckCommand,
 } from './commands.js';
-import { SPELL_DEFINITIONS, conditionRiderOf, definitionFor } from './spell-definitions.js';
+import { conditionRiderOf } from './spell-definitions.js';
 
 /**
  * An ability check a spell offers against something it is still doing.
@@ -116,6 +117,7 @@ const SETUP: readonly GameEvent[] = [
 const supply = (seed = 'check') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 /** Cast a spell and hand back the log it produced. */
@@ -124,7 +126,7 @@ const after = (
   request: Partial<Parameters<typeof resolveSpell>[2]> = {},
   log: readonly GameEvent[] = SETUP,
 ): readonly GameEvent[] => {
-  const definition = definitionFor(spellId);
+  const definition = SRD_CONTENT.spell(spellId);
   if (definition === null) throw new Error(`${spellId} has no definition`);
   const out = unwrap(
     resolveSpell(
@@ -672,7 +674,7 @@ describe('the shape stops where the SRD stops being expressible', () => {
   it.each([['maze'], ['phantasmal-force'], ['detect-thoughts'], ['entangle']])(
     'has not quietly implemented %s',
     (spellId) => {
-      expect(definitionFor(spellId)).toBeNull();
+      expect(SRD_CONTENT.spell(spellId)).toBeNull();
     },
   );
 

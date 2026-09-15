@@ -8,6 +8,7 @@
     "probe": "tsx src/run.ts"
   },
   "dependencies": {
+    "@ie/content": "*",
     "@ie/engine": "*",
     "@ie/shared": "*",
     "@ie/srd": "*",

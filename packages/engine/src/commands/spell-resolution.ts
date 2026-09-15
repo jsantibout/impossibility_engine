@@ -60,7 +60,6 @@ import { type Placement, type Point, type PointAnchoring } from '../positioning.
 import { remaining } from '../resources.js';
 import {
   creatureTypesRead,
-  definitionFor,
   delayedDuration,
   delaysDamage,
   onCaster,
@@ -80,7 +79,7 @@ import {
   answeredCasting,
   choosePayment,
   chooseRoute,
-  type ConcentrationSaveSupply,
+  type Supply,
   deflectTriggeringAttack,
   nextCastingId,
   resolveCastWith,
@@ -149,7 +148,7 @@ export function resolveSpell(
   state: GameState,
   casterId: CharacterId,
   request: CastSpellRequest,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<SpellResolution> {
   return castOrRelease(state, casterId, request, supply, null);
 }
@@ -178,7 +177,7 @@ export function resolveSpell(
 export function resolveDeclaredCast(
   state: GameState,
   castingId: string,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   command: CommandIdentity = {},
 ): Result<SpellResolution> {
   // Before the pending casting is even read. A retry that arrives after the
@@ -215,7 +214,7 @@ export function resolveDeclaredCast(
     const caster = creatureOf(state, pending.caster);
     if (caster === null) return unknownCreature(pending.caster);
 
-    const definition = definitionFor(pending.spellId);
+    const definition = supply.content.spell(pending.spellId);
     if (definition === null) {
       return err(
         'no_definition',
@@ -299,7 +298,7 @@ export function castOrRelease(
   state: GameState,
   casterId: CharacterId,
   request: CastSpellRequest,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   held: HeldCasting | null,
 ): Result<SpellResolution> {
   // **The duplicate check comes first, always.** A retry arrives at whatever
@@ -338,7 +337,7 @@ export function castOrRelease(
     const caster = creatureOf(state, casterId);
     if (caster === null) return unknownCreature(casterId);
 
-    const definition = definitionFor(request.spellId);
+    const definition = supply.content.spell(request.spellId);
     if (definition === null) {
       return err(
         'no_definition',
@@ -411,7 +410,7 @@ export function castOrRelease(
       );
     }
     if (answering !== null && answering.ok) {
-      const answered = definitionFor(answering.value.spellId);
+      const answered = supply.content.spell(answering.value.spellId);
       if (answered?.trigger === 'casting-a-spell') {
         return err(
           'answer_to_an_answer',
@@ -758,7 +757,7 @@ function resolveOnTargets(
     readonly route: CastingRoute;
     readonly targets: readonly CharacterId[];
     readonly unverified: string[];
-    readonly supply: ConcentrationSaveSupply;
+    readonly supply: Supply;
     /** Set when the casting was paid for earlier — a readied spell. */
     readonly held: HeldCasting | null;
     /** The point this casting keeps, for a spell that holds one. */
@@ -1179,7 +1178,7 @@ export function resolveEffects(
     readonly numbers?: CastingNumbers;
     readonly targets: readonly CharacterId[];
     readonly unverified: string[];
-    readonly supply: ConcentrationSaveSupply;
+    readonly supply: Supply;
     readonly castingId: string;
     readonly events: GameEvent[];
     /**

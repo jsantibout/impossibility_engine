@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
@@ -8,7 +9,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
-import { definitionFor, statesFoughtFact, SPELL_DEFINITIONS } from './spell-definitions.js';
+import { statesFoughtFact } from './spell-definitions.js';
 import { pendingCastingsOf, resolveDeclaredCast, resolveSpell } from './commands.js';
 
 /**
@@ -112,6 +113,7 @@ const world = (extra: readonly GameEvent[] = []): GameState => fold('seed', [...
 const supply = (seed = 'fought') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const refusal = (out: { readonly ok: boolean }): string =>
@@ -196,7 +198,7 @@ describe('a casting states whether the target is being fought', () => {
       world(),
       WIZARD,
       { spellId: 'charm-person', targets: [TURNCOAT], slotLevel: 1 },
-      { issuer: createRollIssuer('r'), rng },
+      { issuer: createRollIssuer('r'), rng, content: SRD_CONTENT },
     );
     expect(refusal(out)).toBe('fought_fact_required');
 
@@ -436,7 +438,7 @@ describe('the clause is transcribed, spell by spell', () => {
       'dominate-person',
       'dominate-monster',
     ]) {
-      const clauses = definitionFor(spellId)!.unmodelled ?? [];
+      const clauses = SRD_CONTENT.spell(spellId)!.unmodelled ?? [];
       expect(
         clauses.filter((clause) => clause.includes('fighting')),
         spellId,

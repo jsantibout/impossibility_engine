@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   contextRequestsOf,
@@ -14,7 +15,6 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import type { Point } from './positioning.js';
-import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import { areaStampKey, type AreaMoment } from './spells.js';
 import {
   endConcentration,
@@ -129,6 +129,7 @@ const casts = (who: CharacterId): readonly GameEvent[] => [
 const supply = (seed = 'aura', flat = -40) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
   bonuses: [{ source: 'the fixture', flat }],
 });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -96,7 +97,7 @@ const paladin = (): CharacterChoices => ({
 });
 
 const SETUP: readonly GameEvent[] = [
-  ...(unwrap(createCharacter(paladin(), AELRIC), 'create') as GameEvent[]),
+  ...(unwrap(createCharacter(SRD_CONTENT,paladin(), AELRIC), 'create') as GameEvent[]),
   { type: 'creature-side-declared', id: AELRIC, side: 'party' },
   {
     type: 'creature-added',
@@ -115,7 +116,7 @@ const SETUP: readonly GameEvent[] = [
   { type: 'creature-placed', id: GOBLIN, placement: { from: { creature: AELRIC }, feet: 5, bearing: 0 } },
 ];
 
-const supply = (seed = 'hit') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'hit') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /**
  * The same table with an unhittable target.

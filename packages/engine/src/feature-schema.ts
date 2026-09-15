@@ -76,6 +76,17 @@ export interface FeatureContext {
   readonly readableFields: ReadonlySet<string>;
   /** Whether the parsed SRD prints a spell with this id. */
   readonly spellExists: (id: string) => boolean;
+  /**
+   * Feature ids the granting source itself executes, through a declaration
+   * on the source rather than on the feature.
+   *
+   * A class's `spellcasting` block executes exactly one of its features —
+   * the one `ClassSpellcasting.feature` names, `<class>:spellcasting` or
+   * `<class>:pact-magic` — so that feature declares nothing of its own and
+   * is not the failure rule 4 exists to catch. Derived from the class by
+   * whoever builds the context, never typed out.
+   */
+  readonly executedBySource?: ReadonlySet<string>;
 }
 
 const ABILITY_NAMES: ReadonlySet<string> = new Set<Ability>(ABILITIES);
@@ -200,7 +211,12 @@ export function checkFeatureDefinition(
     const declares = [...context.readableFields].filter(
       (field) => (feature as unknown as Record<string, unknown>)[field] !== undefined,
     );
-    if (declares.length === 0) {
+    // Executed through another feature's declaration, or through the source's
+    // own — see {@link FeatureDefinition.executedBy} and
+    // {@link FeatureContext.executedBySource}.
+    const elsewhere =
+      feature.executedBy !== undefined || context.executedBySource?.has(feature.id) === true;
+    if (declares.length === 0 && !elsewhere) {
       found.push({
         field: 'automation',
         code: 'engine_declares_nothing',
@@ -356,6 +372,9 @@ function checkFeatureShape(value: unknown): FeatureDefinitionProblem | null {
   }
   const record = value as Record<string, unknown>;
 
+  if (record['executedBy'] !== undefined && typeof record['executedBy'] !== 'string') {
+    return { field: 'executedBy', code: 'bad_feature_shape', reason: 'executedBy names a feature id' };
+  }
   for (const field of ['id', 'name', 'automation', 'note'] as const) {
     if (typeof record[field] !== 'string') {
       return {

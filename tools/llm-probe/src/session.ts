@@ -12,13 +12,15 @@
  * operation handed it.
  */
 
-import { createRollIssuer, type RollIssuer } from '@ie/engine';
+import { SRD_CONTENT } from '@ie/content';
+import { type Content, createRollIssuer, type RollIssuer } from '@ie/engine';
 import { createRng, restoreRng, type Rng } from '@ie/engine';
 import { fold, type GameEvent, type GameState } from '@ie/engine';
 
 export interface Supply {
   readonly issuer: RollIssuer;
   readonly rng: Rng;
+  readonly content: Content;
 }
 
 export interface Session {
@@ -45,6 +47,7 @@ export function createSession(seed: string, prelude: readonly GameEvent[]): Sess
       return {
         issuer: createRollIssuer('r', now.rollsIssued),
         rng: now.rng === null ? createRng(seed) : restoreRng(now.rng),
+        content: SRD_CONTENT,
       };
     },
     push(events: readonly GameEvent[]): void {

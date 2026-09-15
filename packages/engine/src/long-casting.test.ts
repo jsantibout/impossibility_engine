@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -6,7 +7,6 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
-import { SPELL_DEFINITIONS, definitionFor } from './spell-definitions.js';
 import { checkSpellDefinition } from './spell-schema.js';
 import { castingOf } from './commands/spell-resolution.js';
 // Not a command: `resolveCast` is the low-level half beneath `resolveSpell`,
@@ -127,6 +127,7 @@ const SETUP: readonly GameEvent[] = [
 const supply = (seed = 'cast') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const world = (extra: readonly GameEvent[] = []): GameState => fold('seed', [...SETUP, ...extra]);
@@ -1075,7 +1076,7 @@ describe('a Ritual adds ten minutes, and the catalogue can tell you so at last',
    * edit here and a first one printing an hour would be caught by the same
    * loop.
    */
-  const ALARM = definitionFor('alarm')!;
+  const ALARM = SRD_CONTENT.spell('alarm')!;
 
   it('is the spell’s own casting time plus ten minutes, not ten minutes flat', () => {
     expect(unwrap(castingOf(ALARM, { spellId: 'alarm', targets: [], ritual: true }), 'ritual')).toEqual(
@@ -1112,7 +1113,7 @@ describe('a Ritual adds ten minutes, and the catalogue can tell you so at last',
     expect(tagged.filter((d) => d.castingSeconds === undefined).map((d) => d.id)).not.toEqual([]);
     // Every one of them comes to its own span plus the Ritual's ten minutes.
     for (const id of own) {
-      const definition = definitionFor(id)!;
+      const definition = SRD_CONTENT.spell(id)!;
       expect(
         unwrap(castingOf(definition, { spellId: id, targets: [], ritual: true }), id).castingSeconds,
         id,

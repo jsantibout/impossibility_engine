@@ -35,7 +35,7 @@ import { remaining } from '../resources.js';
 import { defensesOf } from '../standing.js';
 import {
   type ConcentrationConsequence,
-  type ConcentrationSaveSupply,
+  type Supply,
   resolveDamage,
 } from './casting.js';
 import { unknownCreature } from './command.js';
@@ -113,7 +113,7 @@ export function landDamage(
   target: CharacterId,
   components: readonly DamageComponent[],
   source: string,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   options: {
     readonly critical?: boolean;
     readonly by?: CharacterId;
@@ -240,7 +240,7 @@ export function dealSpellDamage(
   target: CharacterId,
   components: readonly DamageComponent[],
   source: string,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   options: { readonly critical?: boolean; readonly by?: CharacterId },
 ): Result<{
   readonly events: readonly GameEvent[];

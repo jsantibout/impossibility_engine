@@ -18,8 +18,7 @@ import { spendAction, spendBonusAction } from '../combat.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import { type Point } from '../positioning.js';
-import { definitionFor } from '../spell-definitions.js';
-import { type ConcentrationSaveSupply } from './casting.js';
+import { type Supply } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
 import { reachFromCaster, reachFromOrigin, relocateOrigin } from './ongoing.js';
@@ -104,7 +103,7 @@ export function activateSpell(
   state: GameState,
   casterId: CharacterId,
   command: ActivateSpellCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<SpellResolution> {
   // Before the casting is even looked up. A retry arrives after the first run
   // has already spent the action, and reporting "no such casting" for a
@@ -154,7 +153,7 @@ export function activateSpell(
     const caster = creatureOf(state, casterId);
     if (caster === null) return unknownCreature(casterId);
 
-    const definition = definitionFor(record.spellId);
+    const definition = supply.content.spell(record.spellId);
     if (definition?.activation === undefined) {
       return err(
         'no_activation',

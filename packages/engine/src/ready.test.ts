@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   isErr,
@@ -104,7 +105,7 @@ const SETUP: readonly GameEvent[] = [
   },
 ];
 
-const supply = (seed = 'ready') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'ready') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 const TRIGGER = 'if the cultist steps on the trapdoor';
 
@@ -113,7 +114,7 @@ const ready = (
   response: Parameters<typeof takeReady>[2]['response'],
   log: readonly GameEvent[] = SETUP,
 ) => {
-  const out = unwrap(takeReady(fold('seed', log), ARCHER, { trigger: TRIGGER, response }), 'ready');
+  const out = unwrap(takeReady(fold('seed', log), ARCHER, { trigger: TRIGGER, response }, SRD_CONTENT), 'ready');
   return [...log, ...out];
 };
 
@@ -154,7 +155,7 @@ describe('readying costs the action now', () => {
   it('keeps the trigger as written, whatever it says', () => {
     const odd = 'if the chandelier creaks a third time';
     const out = unwrap(
-      takeReady(fold('seed', SETUP), ARCHER, { trigger: odd, response: { kind: 'action' } }),
+      takeReady(fold('seed', SETUP), ARCHER, { trigger: odd, response: { kind: 'action' } }, SRD_CONTENT),
       'ready',
     );
     expect(readiedBy(fold('seed', [...SETUP, ...out]), ARCHER)?.trigger).toBe(odd);
@@ -164,7 +165,7 @@ describe('readying costs the action now', () => {
     expect(isErr(takeReady(fold('seed', ready({ kind: 'action' })), ARCHER, {
       trigger: TRIGGER,
       response: { kind: 'action' },
-    }))).toBe(true);
+    }, SRD_CONTENT))).toBe(true);
   });
 
   /**
@@ -177,7 +178,7 @@ describe('readying costs the action now', () => {
     const out = takeReady(fold('seed', ready({ kind: 'action' })), ARCHER, {
       trigger: 'if the other one moves',
       response: { kind: 'action' },
-    });
+    }, SRD_CONTENT);
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('already_readied');
   });
@@ -189,7 +190,7 @@ describe('readying costs the action now', () => {
         commandId: 'ready-1',
         trigger: TRIGGER,
         response: { kind: 'action' },
-      }),
+      }, SRD_CONTENT),
       'ready',
     );
     const again = unwrap(
@@ -197,7 +198,7 @@ describe('readying costs the action now', () => {
         commandId: 'ready-1',
         trigger: TRIGGER,
         response: { kind: 'action' },
-      }),
+      }, SRD_CONTENT),
       'retry',
     );
     expect(again).toEqual([]);
@@ -284,7 +285,7 @@ describe('a readied spell is cast now and released later', () => {
     const out = takeReady(fold('seed', bonus), ARCHER, {
       trigger: TRIGGER,
       response: { kind: 'spell', spellId: 'healing-word', slotLevel: 1 },
-    });
+    }, SRD_CONTENT);
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('not_readiable');
   });
@@ -636,7 +637,7 @@ describe('a readied move spends the Reaction, not the Speed', () => {
     expect(isErr(takeReady(fold('seed', disengaged), ARCHER, {
       trigger: TRIGGER,
       response: { kind: 'move' },
-    }))).toBe(true);
+    }, SRD_CONTENT))).toBe(true);
   });
 });
 
@@ -754,7 +755,7 @@ describe('a readied casting can state what a casting states', () => {
   ];
 
   const readyRefusal = (response: SpellReady): string =>
-    refusal(takeReady(fold('seed', CASTER), ARCHER, { trigger: TRIGGER, response }));
+    refusal(takeReady(fold('seed', CASTER), ARCHER, { trigger: TRIGGER, response }, SRD_CONTENT));
 
   /**
    * Named among the fought, the released save carries a named source and the
@@ -805,7 +806,7 @@ describe('a readied casting can state what a casting states', () => {
         takeReady(before, ARCHER, {
           trigger: TRIGGER,
           response: { kind: 'spell', spellId: 'dominate-person', slotLevel: 5 },
-        }),
+        }, SRD_CONTENT),
       ),
     ).toBe('fought_fact_required');
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, isNeedsContext, expect as unwrap } from '@ie/shared';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createCharacter, liftsFor, type CharacterChoices } from './creation.js';
@@ -127,7 +128,7 @@ class Game {
 
 /** Built, or the refusal — so a broken fixture says which rule it broke. */
 const game = (level: number): Game => {
-  const out = createCharacter(paladin(level), SER);
+  const out = createCharacter(SRD_CONTENT,paladin(level), SER);
   if (!out.ok) throw new Error(`paladin ${level}: ${out.code} — ${out.reason}`);
   return new Game([
     ...out.value,

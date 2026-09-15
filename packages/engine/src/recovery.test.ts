@@ -1,4 +1,6 @@
+import { type Content } from './content.js';
 import { describe, expect, it } from 'vitest';
+import { SORCERY_POINTS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -8,7 +10,6 @@ import { recoveryCap, type RecoveryFeature } from './standing.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer, type RollIssuer } from './rolls.js';
 import { pactSlotKey, remaining } from './resources.js';
-import { SORCERY_POINTS } from './sorcerer.js';
 
 /**
  * A feature that gives a pool's uses back at a moment that is not a rest.
@@ -43,9 +44,10 @@ const id = (s: string) => asCharacterId(s);
  * they resume it from the state they are already holding — and the two
  * recoveries that roll nothing never touch it.
  */
-const supply = (seed = 'r'): { issuer: RollIssuer; rng: Rng } => ({
+const supply = (seed = 'r'): { issuer: RollIssuer; rng: Rng; content: Content } => ({
   issuer: createRollIssuer('roll'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 const VESKA = id('veska');
 const KAEL = id('kael');
@@ -203,7 +205,7 @@ class Game {
 
 /** Built, or the refusal — so a broken fixture says which rule it broke. */
 const game = (choices: CharacterChoices, who: string): Game => {
-  const out = createCharacter(choices, id(who));
+  const out = createCharacter(SRD_CONTENT,choices, id(who));
   if (!out.ok) throw new Error(`${choices.classId} ${choices.level}: ${out.code} — ${out.reason}`);
   return new Game(out.value);
 };

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -18,7 +19,6 @@ import { remaining, spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { combineSpeed, movementLeftFor, speedOf } from './standing.js';
 import { conditionState } from './conditions.js';
-import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import { parseSpellDefinition } from './spell-schema.js';
 import {
   applyConditionTo,
@@ -164,6 +164,7 @@ const SETUP: readonly GameEvent[] = [
 const supply = (seed: string) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const must = <T,>(result: Result<T>): T => unwrap(result, 'speed grants');
@@ -464,7 +465,7 @@ describe('Ray of Frost is the first production writer of a grants deadline', () 
       fold('seed', PLACED),
       CASTER,
       { spellId: 'ray-of-frost', targets: [TARGET] },
-      { issuer: createRollIssuer('r'), rng },
+      { issuer: createRollIssuer('r'), rng, content: SRD_CONTENT },
     );
     expect(isErr(asked) && asked.code).toBe('no_turns');
     expect(isNeedsContext(asked)).toBe(true);

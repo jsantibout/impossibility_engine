@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -103,6 +104,7 @@ const must = <T,>(result: Result<T>): T => unwrap(result, 'effect resolvers');
 const supply = (seed: string) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const applyAll = (state: GameState, events: readonly GameEvent[]): GameState =>

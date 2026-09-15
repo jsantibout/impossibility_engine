@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   isErr,
@@ -29,7 +30,7 @@ import {
   type RollSelector,
 } from './roll-modifiers.js';
 import { SKILL_ABILITY } from '@ie/shared';
-import { SPELL_DEFINITIONS, type SpellDefinition } from './spell-definitions.js';
+import { type SpellDefinition } from './spell-definitions.js';
 import {
   checkSpellDefinition,
   checkSpellDefinitionValue,
@@ -185,7 +186,7 @@ const scripted = (values: readonly number[]): Rng => {
   let i = 0;
   return { int: () => values[i++ % values.length]!, snapshot: (): RngState => [0, 0, 0, 0] };
 };
-const supply = (seed = 'roll') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'roll') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** Cast against a log and hand back the longer one, so casts can stack. */
 const cast = (
@@ -614,6 +615,7 @@ describe('Beacon of Hope grants Advantage on the saves it names and no others', 
         resolveTurn(fold('seed', dying(log)), {
           issuer: createRollIssuer('r'),
           rng: scripted([3, 18]),
+          content: SRD_CONTENT,
         }),
         'turn',
       );

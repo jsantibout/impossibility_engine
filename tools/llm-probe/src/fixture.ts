@@ -26,6 +26,7 @@
  */
 
 import { asCharacterId, type CharacterId } from '@ie/shared';
+import { SRD_CONTENT } from '@ie/content';
 import { adaptMonster, createCharacter, type CharacterChoices } from '@ie/engine';
 import { monsterFor, weaponsOf } from './bestiary.js';
 import { levelGrantedSpells, type SpellbookEntry } from '@ie/engine';
@@ -168,7 +169,7 @@ export type FixtureVariant = 'established' | 'thin';
  */
 export function prelude(variant: FixtureVariant): readonly GameEvent[] {
   const events: GameEvent[] = [
-    ...unwrap(createCharacter(KESSA, WIZARD), 'create Kessa'),
+    ...unwrap(createCharacter(SRD_CONTENT, KESSA, WIZARD), 'create Kessa'),
     { type: 'creature-side-declared', id: WIZARD, side: 'party' },
     ...goblin(GOBLIN_A),
     ...goblin(GOBLIN_B),

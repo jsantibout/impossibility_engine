@@ -1,0 +1,848 @@
+import { err, ok, type Result } from '@ie/shared';
+import type { CatalogueItem } from './catalogue.js';
+import {
+  checkFeatureDefinition,
+  duplicateFeatureIds,
+  parseFeatureDefinition,
+  type FeatureContext,
+} from './feature-schema.js';
+import type { BackgroundDefinition, FeatDefinition, SpeciesDefinition } from './origins.js';
+import {
+  MAX_LEVEL,
+  type ClassDefinition,
+  type FeatureDefinition,
+  type SubclassDefinition,
+} from './progression.js';
+import type { SpellDefinition } from './spell-definitions.js';
+import { checkSpellDefinition, parseSpellDefinition } from './spell-schema.js';
+
+/**
+ * Content: what exists in a campaign's world, as opposed to how the world works.
+ *
+ * The engine owns the *mechanics* — the closed vocabularies a spell effect, a
+ * class feature or an item can be written in, and the rules that execute
+ * them. It owns no spell, no class, no item. Those are **content**, supplied
+ * by whoever runs the engine: the SRD 5.2.1 catalogue in `@ie/content`, a
+ * DM's homebrew, or both. Every catalogue enters through {@link createContent}
+ * (typed) or {@link loadContent} (untyped JSON), and both run the same checks,
+ * so the built-in book has no privileged path.
+ *
+ * A `Content` is a plain immutable value. Commands take it beside the dice
+ * (see `Supply`), creation takes it as its first argument, and the fold never
+ * reads it at all: a command pins whatever it read into the events it emits,
+ * so replaying a log does not depend on which catalogue is loaded today. The
+ * one exception is a log written before the engine pinned those facts — see
+ * `fold(seed, events, legacy)`.
+ */
+
+/**
+ * A spell that exists: its identity and who may learn it.
+ *
+ * Separate from {@link SpellDefinition}, which says what a spell *does*. The
+ * SRD prints every spell's identity and the engine executes a subset, so the
+ * two are different populations; a homebrew spell supplies both, an entry to
+ * put it on a class list and a definition to make it castable.
+ */
+export interface SpellEntry {
+  readonly id: string;
+  readonly name: string;
+  /** 0 for a cantrip. */
+  readonly level: number;
+  readonly school: string;
+  /** Class ids whose spell list carries it. */
+  readonly classes: readonly string[];
+  /** As printed: `Action`, `Bonus Action`, `1 minute`. */
+  readonly castingTime: string;
+  readonly ritual: boolean;
+  readonly concentration: boolean;
+}
+
+/** Everything a catalogue may contribute. Every field is optional and additive. */
+export interface ContentInput {
+  readonly spells?: readonly SpellDefinition[];
+  readonly spellEntries?: readonly SpellEntry[];
+  readonly classes?: readonly ClassDefinition[];
+  readonly subclasses?: readonly SubclassDefinition[];
+  readonly species?: readonly SpeciesDefinition[];
+  readonly backgrounds?: readonly BackgroundDefinition[];
+  readonly feats?: readonly FeatDefinition[];
+  readonly items?: readonly CatalogueItem[];
+}
+
+export interface Content {
+  readonly spells: readonly SpellDefinition[];
+  readonly spellEntries: readonly SpellEntry[];
+  readonly classes: readonly ClassDefinition[];
+  readonly subclasses: readonly SubclassDefinition[];
+  readonly species: readonly SpeciesDefinition[];
+  readonly backgrounds: readonly BackgroundDefinition[];
+  readonly feats: readonly FeatDefinition[];
+  readonly items: readonly CatalogueItem[];
+
+  /** The executable definition, or null: the engine can look a spell up but only executes the ones it has been given. */
+  readonly spell: (id: string) => SpellDefinition | null;
+  /** What exists under this id, whether or not it executes. */
+  readonly spellEntry: (id: string) => SpellEntry | null;
+  readonly classById: (id: string) => ClassDefinition | null;
+  readonly subclassById: (id: string) => SubclassDefinition | null;
+  readonly speciesById: (id: string) => SpeciesDefinition | null;
+  readonly backgroundById: (id: string) => BackgroundDefinition | null;
+  readonly featById: (id: string) => FeatDefinition | null;
+  readonly item: (id: string) => CatalogueItem | null;
+  /**
+   * Everything a pack puts in your hands, the pack itself included.
+   *
+   * SRD prices a pack as a bundle and lists its contents, so buying one gets
+   * you the pack and everything in it. An item that is not a pack is itself.
+   */
+  readonly expandPack: (id: string) => readonly { readonly id: string; readonly quantity: number }[];
+}
+
+/** One thing wrong with a catalogue, and where. */
+export interface ContentProblem {
+  /** `spells[fireball].effects[0].damage`, `classes[wizard].features[3].note`. */
+  readonly field: string;
+  readonly code: string;
+  readonly reason: string;
+}
+
+/**
+ * The `FeatureGrant` kinds the engine's readers execute.
+ *
+ * A feature that claims `automation: 'engine'` must declare a grant one of
+ * the readers discriminates on, or nothing executes it. This is the list as
+ * data, for a catalogue validated at runtime; `feature-schema.test.ts` derives
+ * the same set from the readers' source and holds the two equal, so a reader
+ * added or removed without this line changing fails there.
+ */
+export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
+  'activated',
+  'critical-range',
+  'expertise',
+  'extra-attack',
+  'lifts-conditions',
+  'pool',
+  'reaction',
+  'recovery',
+  'save-proficiency',
+  'spells',
+  'standing',
+  'unarmored-defense',
+  'widens-reaction',
+]);
+
+/** The optional `FeatureDefinition` fields a reader dereferences — see {@link READABLE_GRANT_KINDS}. */
+export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set(['choice', 'grants', 'grantsFeat']);
+
+const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+const byId = <T extends { readonly id: string }>(rows: readonly T[]): ReadonlyMap<string, T> =>
+  new Map(rows.map((row) => [row.id, row]));
+
+function duplicates(ids: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const twice = new Set<string>();
+  for (const id of ids) (seen.has(id) ? twice : seen).add(id);
+  return [...twice];
+}
+
+/**
+ * Whether a catalogue is coherent. Every problem, not the first.
+ *
+ * Three kinds of rule, kept apart on purpose:
+ *
+ * - **each definition is well formed** — the spell validator and the feature
+ *   validator, run on every spell and on every feature of every class,
+ *   subclass, species and background, exactly as they would run on homebrew;
+ * - **the population is consistent** — no two things share an id, a subclass
+ *   names a class that exists, a fixed spell grant names a spell that exists,
+ *   an entry and a definition for the same spell agree on level and school;
+ * - **nothing here asks whether the content is official.** That is the SRD
+ *   oracle's question, and it lives with the SRD content, because a DM's
+ *   invented spell is valid engine data and is not in the book.
+ */
+export function checkContent(input: ContentInput): readonly ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const spells = input.spells ?? [];
+  const entries = input.spellEntries ?? [];
+  const classes = input.classes ?? [];
+  const subclasses = input.subclasses ?? [];
+  const species = input.species ?? [];
+  const backgrounds = input.backgrounds ?? [];
+  const feats = input.feats ?? [];
+  const items = input.items ?? [];
+
+  for (const [what, rows] of [
+    ['spells', spells],
+    ['spellEntries', entries],
+    ['classes', classes],
+    ['subclasses', subclasses],
+    ['species', species],
+    ['backgrounds', backgrounds],
+    ['feats', feats],
+    ['items', items],
+  ] as const) {
+    for (const id of duplicates(rows.map((row) => row.id))) {
+      problems.push({ field: `${what}[${id}]`, code: 'duplicate_id', reason: `${what} holds ${id} twice` });
+    }
+    for (const row of rows) {
+      if (!ID.test(row.id)) {
+        problems.push({ field: `${what}[${row.id}]`, code: 'bad_id', reason: `"${row.id}" is not a lower-case hyphenated id` });
+      }
+    }
+  }
+
+  const entryOf = byId(entries);
+  const known = new Set([...entries.map((e) => e.id), ...spells.map((s) => s.id)]);
+  const spellExists = (id: string): boolean => known.has(id);
+
+  for (const spell of spells) {
+    for (const problem of checkSpellDefinition(spell)) {
+      problems.push({ ...problem, field: `spells[${spell.id}].${problem.field}` });
+    }
+    const entry = entryOf.get(spell.id);
+    if (entry !== undefined && (entry.level !== spell.level || entry.school !== spell.school)) {
+      problems.push({
+        field: `spells[${spell.id}]`,
+        code: 'entry_disagrees',
+        reason: `the definition says level ${spell.level} ${spell.school} and the entry says level ${entry.level} ${entry.school}`,
+      });
+    }
+  }
+
+  const classOf = byId(classes);
+  const featureSources: {
+    readonly where: string;
+    readonly levels: number;
+    readonly features: readonly FeatureDefinition[];
+    readonly executedBySource?: ReadonlySet<string>;
+  }[] = [];
+  const featOf = byId(feats);
+
+  for (const definition of classes) {
+    const where = `classes[${definition.id}]`;
+    if (definition.table.length !== MAX_LEVEL) {
+      problems.push({ field: `${where}.table`, code: 'bad_table', reason: `a class table has ${MAX_LEVEL} rows, not ${definition.table.length}` });
+    }
+    definition.table.forEach((row, index) => {
+      if (row.level !== index + 1) {
+        problems.push({ field: `${where}.table[${index}]`, code: 'bad_table', reason: `row ${index} is level ${row.level}` });
+      }
+    });
+    if (definition.spellcasting !== undefined) {
+      const casting = definition.spellcasting;
+      const feature = casting.feature ?? 'spellcasting';
+      if (feature === 'spellcasting' && casting.progression === undefined) {
+        problems.push({ field: `${where}.spellcasting.progression`, code: 'no_progression', reason: 'a Spellcasting class says whether it is a full or a half caster; the multiclass slot table reads it' });
+      }
+      if (feature === 'pact-magic' && casting.progression !== undefined) {
+        problems.push({ field: `${where}.spellcasting.progression`, code: 'pact_progression', reason: 'Pact Magic stays out of the multiclass slot table, so it has no progression' });
+      }
+    }
+    if (!Number.isInteger(definition.hitDie) || definition.hitDie < 4) {
+      problems.push({ field: `${where}.hitDie`, code: 'bad_hit_die', reason: `a Hit Die has at least four faces, not ${definition.hitDie}` });
+    }
+    // The class's own spellcasting block executes exactly one of its features.
+    const casting = definition.spellcasting;
+    const executedBySource =
+      casting === undefined
+        ? undefined
+        : new Set([`${definition.id}:${casting.feature ?? 'spellcasting'}`]);
+    featureSources.push({
+      where,
+      levels: definition.table.length,
+      features: definition.features,
+      ...(executedBySource === undefined ? {} : { executedBySource }),
+    });
+  }
+
+  for (const subclass of subclasses) {
+    const where = `subclasses[${subclass.id}]`;
+    const parent = classOf.get(subclass.classId);
+    if (parent === undefined) {
+      problems.push({ field: `${where}.classId`, code: 'unknown_class', reason: `${subclass.id} belongs to ${subclass.classId}, which this content does not hold` });
+    }
+    featureSources.push({ where, levels: parent?.table.length ?? MAX_LEVEL, features: subclass.features });
+  }
+  for (const one of species) {
+    featureSources.push({ where: `species[${one.id}]`, levels: MAX_LEVEL, features: one.features });
+  }
+  for (const one of backgrounds) {
+    featureSources.push({ where: `backgrounds[${one.id}]`, levels: MAX_LEVEL, features: one.features });
+  }
+
+  for (const source of featureSources) {
+    const context: FeatureContext = {
+      levels: source.levels,
+      readableGrants: READABLE_GRANT_KINDS,
+      readableFields: READABLE_FEATURE_FIELDS,
+      spellExists,
+      ...(source.executedBySource === undefined ? {} : { executedBySource: source.executedBySource }),
+    };
+    const own = byId(source.features);
+    source.features.forEach((feature, index) => {
+      const where = `${source.where}.features[${index}]`;
+      for (const problem of checkFeatureDefinition(feature, context)) {
+        problems.push({ ...problem, field: `${where}.${problem.field}` });
+      }
+      // A feature executed by another names one on the same source that
+      // actually declares something; otherwise the claim just moves.
+      if (feature.executedBy !== undefined) {
+        const executor = own.get(feature.executedBy);
+        const declares =
+          executor !== undefined &&
+          [...READABLE_FEATURE_FIELDS].some(
+            (field) => (executor as unknown as Record<string, unknown>)[field] !== undefined,
+          );
+        if (executor === undefined || executor.id === feature.id || !declares) {
+          problems.push({
+            field: `${where}.executedBy`,
+            code: 'bad_executed_by',
+            reason: `${feature.id} says ${feature.executedBy} executes it, and no feature of that id on ${source.where} declares anything a reader reads`,
+          });
+        }
+      }
+      // A feat a feature grants outright has to exist, when the catalogue holds feats at all.
+      const granted = feature.grantsFeat?.featId;
+      if (granted !== undefined && feats.length > 0 && !featOf.has(granted)) {
+        problems.push({
+          field: `${where}.grantsFeat.featId`,
+          code: 'unknown_feat',
+          reason: `${feature.id} grants the feat ${granted}, which this content does not hold`,
+        });
+      }
+    });
+  }
+  for (const id of duplicateFeatureIds(featureSources.flatMap((source) => source.features))) {
+    problems.push({ field: `features[${id}]`, code: 'duplicate_feature_id', reason: `two features share the id ${id}` });
+  }
+
+  const itemOf = byId(items);
+  for (const item of items) {
+    for (const line of item.contents) {
+      if (!itemOf.has(line.id)) {
+        problems.push({ field: `items[${item.id}].contents`, code: 'unknown_item', reason: `${item.id} contains ${line.id}, which this content does not hold` });
+      }
+    }
+  }
+
+  return problems;
+}
+
+/**
+ * A catalogue, validated, or the first few things wrong with it.
+ *
+ * Typed input: the compiler has already shaped it, and this checks what the
+ * compiler cannot. Untyped input goes through {@link loadContent}, which parses
+ * first and then arrives here; the two share every rule.
+ */
+export function createContent(input: ContentInput): Result<Content> {
+  const problems = checkContent(input);
+  if (problems.length > 0) {
+    const shown = problems.slice(0, 5).map((p) => `${p.field}: ${p.reason}`);
+    const more = problems.length > 5 ? `; and ${problems.length - 5} more` : '';
+    return err('invalid_content', `${shown.join('; ')}${more}`);
+  }
+
+  const spells = input.spells ?? [];
+  const entries = [
+    ...(input.spellEntries ?? []),
+    // A definition with no entry still exists: it can be declared and cast,
+    // it is just on nobody's class list until an entry says whose.
+    ...spells
+      .filter((spell) => (input.spellEntries ?? []).every((entry) => entry.id !== spell.id))
+      .map((spell) => entryOf(spell)),
+  ];
+  const classes = input.classes ?? [];
+  const subclasses = input.subclasses ?? [];
+  const species = input.species ?? [];
+  const backgrounds = input.backgrounds ?? [];
+  const feats = input.feats ?? [];
+  const items = input.items ?? [];
+
+  const spellMap = byId(spells);
+  const entryMap = byId(entries);
+  const classMap = byId(classes);
+  const subclassMap = byId(subclasses);
+  const speciesMap = byId(species);
+  const backgroundMap = byId(backgrounds);
+  const featMap = byId(feats);
+  const itemMap = byId(items);
+
+  return ok({
+    spells,
+    spellEntries: entries,
+    classes,
+    subclasses,
+    species,
+    backgrounds,
+    feats,
+    items,
+    spell: (id) => spellMap.get(id) ?? null,
+    spellEntry: (id) => entryMap.get(id) ?? null,
+    classById: (id) => classMap.get(id) ?? null,
+    subclassById: (id) => subclassMap.get(id) ?? null,
+    speciesById: (id) => speciesMap.get(id) ?? null,
+    backgroundById: (id) => backgroundMap.get(id) ?? null,
+    featById: (id) => featMap.get(id) ?? null,
+    item: (id) => itemMap.get(id) ?? null,
+    expandPack: (id) => {
+      const item = itemMap.get(id);
+      if (item === undefined) return [];
+      if (item.contents.length === 0) return [{ id, quantity: 1 }];
+      return [{ id, quantity: 1 }, ...item.contents.map((line) => ({ ...line }))];
+    },
+  });
+}
+
+const entryOf = (spell: SpellDefinition): SpellEntry => ({
+  id: spell.id,
+  name: spell.name,
+  level: spell.level,
+  school: spell.school,
+  classes: [],
+  castingTime: spell.castingTime,
+  ritual: spell.ritual === true,
+  concentration: spell.concentration,
+});
+
+/**
+ * More content on top of what is already loaded — homebrew beside the book.
+ *
+ * Rebuilt and re-checked as one population, so a homebrew subclass may name a
+ * printed class and a homebrew spell may not shadow a printed one: the same
+ * duplicate rule applies across the seam as within either side.
+ */
+export function extendContent(base: Content, extra: ContentInput): Result<Content> {
+  return createContent({
+    spells: [...base.spells, ...(extra.spells ?? [])],
+    spellEntries: [...base.spellEntries, ...(extra.spellEntries ?? [])],
+    classes: [...base.classes, ...(extra.classes ?? [])],
+    subclasses: [...base.subclasses, ...(extra.subclasses ?? [])],
+    species: [...base.species, ...(extra.species ?? [])],
+    backgrounds: [...base.backgrounds, ...(extra.backgrounds ?? [])],
+    feats: [...base.feats, ...(extra.feats ?? [])],
+    items: [...base.items, ...(extra.items ?? [])],
+  });
+}
+
+/** An empty world: no spells, no classes, nothing to buy. */
+export const emptyContent = (): Content => {
+  const built = createContent({});
+  if (!built.ok) throw new Error(`empty content failed its own checks: ${built.reason}`);
+  return built.value;
+};
+
+// ---------------------------------------------------------------------------
+// Untyped input: JSON in, the same checks, a Content out.
+// ---------------------------------------------------------------------------
+
+type Shape = Record<string, unknown>;
+
+const isShape = (value: unknown): value is Shape =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isString = (value: unknown): value is string => typeof value === 'string';
+const isStringList = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(isString);
+const isInt = (value: unknown): value is number => Number.isInteger(value);
+
+class Shaped {
+  private readonly bad: string[] = [];
+  constructor(private readonly where: string) {}
+
+  string(shape: Shape, key: string): string {
+    const value = shape[key];
+    if (!isString(value) || value.length === 0) this.bad.push(`${key} must be a non-empty string`);
+    return isString(value) ? value : '';
+  }
+
+  optionalString(shape: Shape, key: string): string | undefined {
+    const value = shape[key];
+    if (value !== undefined && !isString(value)) this.bad.push(`${key} must be a string`);
+    return isString(value) ? value : undefined;
+  }
+
+  int(shape: Shape, key: string): number {
+    const value = shape[key];
+    if (!isInt(value)) this.bad.push(`${key} must be a whole number`);
+    return isInt(value) ? value : 0;
+  }
+
+  optionalInt(shape: Shape, key: string): number | undefined {
+    const value = shape[key];
+    if (value !== undefined && !isInt(value)) this.bad.push(`${key} must be a whole number`);
+    return isInt(value) ? value : undefined;
+  }
+
+  bool(shape: Shape, key: string): boolean {
+    const value = shape[key];
+    if (typeof value !== 'boolean') this.bad.push(`${key} must be true or false`);
+    return value === true;
+  }
+
+  strings(shape: Shape, key: string): readonly string[] {
+    const value = shape[key];
+    if (!isStringList(value)) this.bad.push(`${key} must be a list of strings`);
+    return isStringList(value) ? value : [];
+  }
+
+  list(shape: Shape, key: string): readonly unknown[] {
+    const value = shape[key];
+    if (!Array.isArray(value)) this.bad.push(`${key} must be a list`);
+    return Array.isArray(value) ? value : [];
+  }
+
+  object(shape: Shape, key: string): Shape {
+    const value = shape[key];
+    if (!isShape(value)) this.bad.push(`${key} must be an object`);
+    return isShape(value) ? value : {};
+  }
+
+  problems(): readonly string[] {
+    return this.bad.map((reason) => `${this.where}: ${reason}`);
+  }
+}
+
+function parseFeatures(
+  value: readonly unknown[],
+  where: string,
+  problems: string[],
+  executedBySource?: ReadonlySet<string>,
+): FeatureDefinition[] {
+  const features: FeatureDefinition[] = [];
+  // Shape only, at this step: the coherence checks run again in checkContent
+  // with the real table length and the real spell population.
+  const shapeOnly: FeatureContext = {
+    levels: MAX_LEVEL,
+    readableGrants: READABLE_GRANT_KINDS,
+    readableFields: READABLE_FEATURE_FIELDS,
+    spellExists: () => true,
+    ...(executedBySource === undefined ? {} : { executedBySource }),
+  };
+  value.forEach((raw, index) => {
+    const parsed = parseFeatureDefinition(raw, shapeOnly);
+    if (parsed.ok) features.push(parsed.value);
+    else problems.push(`${where}.features[${index}]: ${parsed.reason}`);
+  });
+  return features;
+}
+
+function parseArmorTraining(shape: Shape, where: string, problems: string[]) {
+  const s = new Shaped(`${where}.armorTraining`);
+  const training = {
+    light: s.bool(shape, 'light'),
+    medium: s.bool(shape, 'medium'),
+    heavy: s.bool(shape, 'heavy'),
+    shields: s.bool(shape, 'shields'),
+  };
+  problems.push(...s.problems());
+  return training;
+}
+
+/**
+ * A class definition out of untyped input.
+ *
+ * Structural: every field the engine reads is present and of the right shape,
+ * and every feature goes through `parseFeatureDefinition`. Whether the class
+ * is *coherent* — a twenty-row table, a progression on a caster, features at
+ * reachable levels — is {@link checkContent}'s question, asked once the whole
+ * catalogue is assembled, because half of those rules read across definitions.
+ */
+export function parseClassDefinition(value: unknown): Result<ClassDefinition> {
+  if (!isShape(value)) return err('bad_class', 'a class definition is an object');
+  const problems: string[] = [];
+  const id = isString(value['id']) ? value['id'] : '?';
+  const where = `classes[${id}]`;
+  const s = new Shaped(where);
+
+  const table = s.list(value, 'table').map((row, index) => {
+    const r = new Shaped(`${where}.table[${index}]`);
+    const shape = isShape(row) ? row : {};
+    if (!isShape(row)) problems.push(`${where}.table[${index}]: a row is an object`);
+    const parsed = {
+      level: r.int(shape, 'level'),
+      proficiencyBonus: r.int(shape, 'proficiencyBonus'),
+      ...(shape['cantripsKnown'] === undefined ? {} : { cantripsKnown: r.int(shape, 'cantripsKnown') }),
+      ...(shape['preparedSpells'] === undefined ? {} : { preparedSpells: r.int(shape, 'preparedSpells') }),
+      ...(shape['spellSlots'] === undefined
+        ? {}
+        : { spellSlots: r.list(shape, 'spellSlots').map((slot) => (isInt(slot) ? slot : 0)) }),
+    };
+    problems.push(...r.problems());
+    return parsed;
+  });
+
+  const skillChoices = s.object(value, 'skillChoices');
+  const sc = new Shaped(`${where}.skillChoices`);
+  const choose = sc.int(skillChoices, 'choose');
+  const from = skillChoices['from'] === undefined ? undefined : sc.strings(skillChoices, 'from');
+  problems.push(...sc.problems());
+
+  const multiclassShape = s.object(value, 'multiclass');
+  const mc = new Shaped(`${where}.multiclass`);
+  const multiclass = {
+    weapons: mc.strings(multiclassShape, 'weapons'),
+    armorTraining: parseArmorTraining(mc.object(multiclassShape, 'armorTraining'), `${where}.multiclass`, problems),
+    tools: mc.strings(multiclassShape, 'tools'),
+    ...(multiclassShape['skills'] === undefined
+      ? {}
+      : {
+          skills: (() => {
+            const sk = mc.object(multiclassShape, 'skills');
+            const parsed = {
+              choose: mc.int(sk, 'choose'),
+              ...(sk['from'] === undefined ? {} : { from: mc.strings(sk, 'from') }),
+            };
+            return parsed;
+          })(),
+        }),
+  };
+  problems.push(...mc.problems());
+
+  const castingShape = value['spellcasting'];
+  let spellcasting: ClassDefinition['spellcasting'];
+  if (castingShape !== undefined) {
+    const cs = new Shaped(`${where}.spellcasting`);
+    const shape = isShape(castingShape) ? castingShape : {};
+    if (!isShape(castingShape)) problems.push(`${where}.spellcasting: an object`);
+    const feature = cs.optionalString(shape, 'feature');
+    const progression = cs.optionalString(shape, 'progression');
+    spellcasting = {
+      ability: cs.string(shape, 'ability') as ClassDefinition['primaryAbility'],
+      style: cs.string(shape, 'style') as NonNullable<ClassDefinition['spellcasting']>['style'],
+      startsAtLevel: cs.int(shape, 'startsAtLevel'),
+      ...(feature === undefined ? {} : { feature: feature as 'spellcasting' | 'pact-magic' }),
+      ...(progression === undefined ? {} : { progression: progression as 'full' | 'half' }),
+    };
+    problems.push(...cs.problems());
+  }
+
+  const startingEquipment = s.list(value, 'startingEquipment').map((pack, index) => {
+    const p = new Shaped(`${where}.startingEquipment[${index}]`);
+    const shape = isShape(pack) ? pack : {};
+    const parsed = {
+      option: p.string(shape, 'option'),
+      goldPieces: p.int(shape, 'goldPieces'),
+      items: p.list(shape, 'items').map((line) => {
+        const l = isShape(line) ? line : {};
+        const detail = p.optionalString(l, 'detail');
+        return {
+          id: p.string(l, 'id'),
+          quantity: p.int(l, 'quantity'),
+          ...(detail === undefined ? {} : { detail }),
+        };
+      }),
+    };
+    problems.push(...p.problems());
+    return parsed;
+  });
+
+  const definition: ClassDefinition = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    primaryAbility: s.string(value, 'primaryAbility') as ClassDefinition['primaryAbility'],
+    hitDie: s.int(value, 'hitDie'),
+    saveProficiencies: s.strings(value, 'saveProficiencies') as ClassDefinition['saveProficiencies'],
+    skillChoices: from === undefined ? { choose } : { choose, from: from as NonNullable<ClassDefinition['skillChoices']['from']> },
+    weaponProficiencies: s.strings(value, 'weaponProficiencies'),
+    armorTraining: parseArmorTraining(s.object(value, 'armorTraining'), where, problems),
+    subclassLevel: s.int(value, 'subclassLevel'),
+    table,
+    startingEquipment,
+    multiclass: multiclass as ClassDefinition['multiclass'],
+    // The class's own spellcasting block executes the feature it names.
+    features: parseFeatures(
+      s.list(value, 'features'),
+      where,
+      problems,
+      spellcasting === undefined ? undefined : new Set([`${id}:${spellcasting.feature ?? 'spellcasting'}`]),
+    ),
+    ...(spellcasting === undefined ? {} : { spellcasting }),
+  };
+  problems.push(...s.problems());
+
+  if (problems.length > 0) return err('bad_class', problems.join('; '));
+  return ok(definition);
+}
+
+export function parseSubclassDefinition(value: unknown): Result<SubclassDefinition> {
+  if (!isShape(value)) return err('bad_subclass', 'a subclass definition is an object');
+  const problems: string[] = [];
+  const id = isString(value['id']) ? value['id'] : '?';
+  const where = `subclasses[${id}]`;
+  const s = new Shaped(where);
+  const definition: SubclassDefinition = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    classId: s.string(value, 'classId'),
+    features: parseFeatures(s.list(value, 'features'), where, problems),
+  };
+  problems.push(...s.problems());
+  if (problems.length > 0) return err('bad_subclass', problems.join('; '));
+  return ok(definition);
+}
+
+function parseSpeciesDefinition(value: unknown): Result<SpeciesDefinition> {
+  if (!isShape(value)) return err('bad_species', 'a species definition is an object');
+  const problems: string[] = [];
+  const where = `species[${isString(value['id']) ? value['id'] : '?'}]`;
+  const s = new Shaped(where);
+  const definition: SpeciesDefinition = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    creatureType: s.string(value, 'creatureType'),
+    sizes: s.strings(value, 'sizes'),
+    speed: s.int(value, 'speed'),
+    features: parseFeatures(s.list(value, 'features'), where, problems),
+  };
+  problems.push(...s.problems());
+  if (problems.length > 0) return err('bad_species', problems.join('; '));
+  return ok(definition);
+}
+
+function parseBackgroundDefinition(value: unknown): Result<BackgroundDefinition> {
+  if (!isShape(value)) return err('bad_background', 'a background definition is an object');
+  const problems: string[] = [];
+  const where = `backgrounds[${isString(value['id']) ? value['id'] : '?'}]`;
+  const s = new Shaped(where);
+  const definition: BackgroundDefinition = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    abilities: s.strings(value, 'abilities') as BackgroundDefinition['abilities'],
+    feat: s.string(value, 'feat'),
+    skillProficiencies: s.strings(value, 'skillProficiencies') as BackgroundDefinition['skillProficiencies'],
+    toolProficiency: s.string(value, 'toolProficiency'),
+    startingEquipment: s.list(value, 'startingEquipment').map((pack) => {
+      const shape = isShape(pack) ? pack : {};
+      return {
+        option: s.string(shape, 'option'),
+        goldPieces: s.int(shape, 'goldPieces'),
+        items: s.list(shape, 'items').map((line) => {
+          const l = isShape(line) ? line : {};
+          return { id: s.string(l, 'id'), quantity: s.int(l, 'quantity') };
+        }),
+      };
+    }),
+    features: parseFeatures(s.list(value, 'features'), where, problems),
+  };
+  problems.push(...s.problems());
+  if (problems.length > 0) return err('bad_background', problems.join('; '));
+  return ok(definition);
+}
+
+function parseFeatDefinition(value: unknown): Result<FeatDefinition> {
+  if (!isShape(value)) return err('bad_feat', 'a feat definition is an object');
+  const where = `feats[${isString(value['id']) ? value['id'] : '?'}]`;
+  const s = new Shaped(where);
+  const requiresShape = s.object(value, 'requires');
+  const kind = s.string(requiresShape, 'kind');
+  const requires: FeatDefinition['requires'] =
+    kind === 'magic-initiate'
+      ? { kind, lists: s.strings(requiresShape, 'lists') }
+      : kind === 'proficiencies'
+        ? { kind, choose: s.int(requiresShape, 'choose') }
+        : { kind: 'none' };
+  const definition: FeatDefinition = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    category: s.string(value, 'category') as FeatDefinition['category'],
+    requires,
+    repeatable: s.bool(value, 'repeatable'),
+    note: s.string(value, 'note'),
+  };
+  const problems = s.problems();
+  if (problems.length > 0) return err('bad_feat', problems.join('; '));
+  return ok(definition);
+}
+
+function parseSpellEntry(value: unknown): Result<SpellEntry> {
+  if (!isShape(value)) return err('bad_spell_entry', 'a spell entry is an object');
+  const s = new Shaped(`spellEntries[${isString(value['id']) ? value['id'] : '?'}]`);
+  const entry: SpellEntry = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    level: s.int(value, 'level'),
+    school: s.string(value, 'school'),
+    classes: s.strings(value, 'classes'),
+    castingTime: s.string(value, 'castingTime'),
+    ritual: s.bool(value, 'ritual'),
+    concentration: s.bool(value, 'concentration'),
+  };
+  const problems = s.problems();
+  if (problems.length > 0) return err('bad_spell_entry', problems.join('; '));
+  return ok(entry);
+}
+
+function parseItem(value: unknown): Result<CatalogueItem> {
+  if (!isShape(value)) return err('bad_item', 'an item is an object');
+  const s = new Shaped(`items[${isString(value['id']) ? value['id'] : '?'}]`);
+  const kind = s.string(value, 'kind');
+  const bundleSize = s.optionalInt(value, 'bundleSize');
+  const weightLb = value['weightLb'];
+  const costCp = value['costCp'];
+  const item: CatalogueItem = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    kind: kind as CatalogueItem['kind'],
+    weightLb: typeof weightLb === 'number' ? weightLb : null,
+    costCp: typeof costCp === 'number' ? costCp : null,
+    // Armour and weapon records are the SRD's own schema; untyped input
+    // carries them as given and the engine reads only the fields it names.
+    armor: isShape(value['armor']) ? (value['armor'] as CatalogueItem['armor']) : null,
+    weapon: isShape(value['weapon']) ? (value['weapon'] as CatalogueItem['weapon']) : null,
+    contents: (Array.isArray(value['contents']) ? value['contents'] : []).map((line) => {
+      const l = isShape(line) ? line : {};
+      return { id: s.string(l, 'id'), quantity: s.int(l, 'quantity') };
+    }),
+    ...(bundleSize === undefined ? {} : { bundleSize }),
+  };
+  const problems = s.problems();
+  if (problems.length > 0) return err('bad_item', problems.join('; '));
+  return ok(item);
+}
+
+function parseAll<T>(
+  value: unknown,
+  what: string,
+  parse: (raw: unknown) => Result<T>,
+  problems: string[],
+): T[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    problems.push(`${what} must be a list`);
+    return [];
+  }
+  const parsed: T[] = [];
+  value.forEach((raw, index) => {
+    const one = parse(raw);
+    if (one.ok) parsed.push(one.value);
+    else problems.push(`${what}[${index}]: ${one.code}: ${one.reason}`);
+  });
+  return parsed;
+}
+
+/**
+ * A catalogue out of untyped input — a JSON file, a database row, a model's
+ * proposal — through exactly the checks the typed path runs.
+ *
+ * Parsing narrows the shape; {@link createContent} judges the meaning. A
+ * definition that parses and is incoherent is refused there with the same
+ * path-bearing problem the built-in catalogue would get.
+ */
+export function loadContent(value: unknown): Result<Content> {
+  if (!isShape(value)) return err('bad_content', 'content is an object with lists of definitions');
+  const problems: string[] = [];
+  const input: ContentInput = {
+    spells: parseAll(value['spells'], 'spells', parseSpellDefinition, problems),
+    spellEntries: parseAll(value['spellEntries'], 'spellEntries', parseSpellEntry, problems),
+    classes: parseAll(value['classes'], 'classes', parseClassDefinition, problems),
+    subclasses: parseAll(value['subclasses'], 'subclasses', parseSubclassDefinition, problems),
+    species: parseAll(value['species'], 'species', parseSpeciesDefinition, problems),
+    backgrounds: parseAll(value['backgrounds'], 'backgrounds', parseBackgroundDefinition, problems),
+    feats: parseAll(value['feats'], 'feats', parseFeatDefinition, problems),
+    items: parseAll(value['items'], 'items', parseItem, problems),
+  };
+  if (problems.length > 0) return err('bad_content', problems.slice(0, 5).join('; '));
+  return createContent(input);
+}

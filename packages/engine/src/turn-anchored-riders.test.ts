@@ -1,3 +1,4 @@
+import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import {
   asCharacterId,
@@ -114,6 +115,7 @@ const supply = (seed: string, saveBonus?: number) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   ...(saveBonus === undefined ? {} : { bonuses: [{ source: 'forced', flat: saveBonus }] }),
+  content: SRD_CONTENT,
 });
 
 /** Advance to whoever is next, settling anything the boundary owes. */

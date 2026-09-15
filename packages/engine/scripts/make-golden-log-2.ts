@@ -44,6 +44,7 @@
  * no character sheet, and that is the case the suite writes by hand.
  */
 import { writeFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { pathToFileURL } from 'node:url';
 import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from '../src/character.js';
@@ -55,11 +56,7 @@ import { currentCombatant } from '../src/combat.js';
 import { spellSlotKey } from '../src/resources.js';
 import { declaredCasting } from '../src/spellcasting.js';
 import { beginRest, endRest } from '../src/rest.js';
-import {
-  advanceCharacter,
-  createCharacter,
-  type CharacterChoices,
-} from '../src/creation.js';
+import { advanceCharacter, createCharacter, type CharacterChoices } from '../src/creation.js';
 import {
   activateFeature,
   activateSpell,
@@ -142,6 +139,7 @@ const supply = (flat?: number) => {
     issuer: createRollIssuer('h', now.rollsIssued),
     rng: now.rng === null ? createRng(SEED) : restoreRng(now.rng),
     ...(flat === undefined ? {} : { bonuses: [{ source: 'the fixture insists', flat }] }),
+    content: SRD_CONTENT,
   };
 };
 
@@ -344,15 +342,15 @@ const barbarian = (): CharacterChoices => ({
   feats: { ...SAGE_FEAT, ...asi('barbarian', 10, [4, 8]) },
 });
 
-act('create nyx', createCharacter(rogue(4), NYX));
-act('create bram', createCharacter(fighter(9), BRAM));
-act('create zel', createCharacter(sorcerer(), ZEL));
-act('create grim', createCharacter(barbarian(), GRIM));
+act('create nyx', createCharacter(SRD_CONTENT,rogue(4), NYX));
+act('create bram', createCharacter(SRD_CONTENT,fighter(9), BRAM));
+act('create zel', createCharacter(SRD_CONTENT,sorcerer(), ZEL));
+act('create grim', createCharacter(SRD_CONTENT,barbarian(), GRIM));
 
 // The Rogue levels up in play, which is the only way a character grows: the
 // differences, never a rebuild — and Uncanny Dodge, which the rest of this
 // scenario leans on, arrives on that level rather than at creation.
-act('nyx reaches 5', advanceCharacter(state(), NYX, { featureChoices: {} }));
+act('nyx reaches 5', advanceCharacter(state(), SRD_CONTENT, NYX, { featureChoices: {} }));
 
 /** A sheet for a creature that came from no character sheet. */
 const npcSheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
@@ -520,7 +518,7 @@ push([
 // Kit: the thug's sword, and a purse for the cleric to spend out of.
 push([
   { type: 'items-gained', id: THUG, items: [{ id: 'longsword', quantity: 1 }], source: 'the gang' },
-  { type: 'item-equipped', id: THUG, item: 'longsword' },
+  { type: 'item-equipped', id: THUG, item: 'longsword', armor: SRD_CONTENT.item('longsword')?.armor ?? null },
   {
     type: 'items-gained',
     id: MIRA,
@@ -532,11 +530,11 @@ push([
   },
   { type: 'coins-changed', id: MIRA, copper: 40_000, source: 'a patron' },
 ]);
-act('mira buys rope', purchaseItem(state(), MIRA, 'rope', 2, 'buy-rope'));
-act('mira wears the shirt', equipItem(state(), MIRA, 'chain-shirt', 'wear-shirt'));
+act('mira buys rope', purchaseItem(state(), SRD_CONTENT, MIRA, 'rope', 2, 'buy-rope'));
+act('mira wears the shirt', equipItem(state(), SRD_CONTENT, MIRA, 'chain-shirt', 'wear-shirt'));
 // …and takes it off again, because Mage Armor will not touch a creature in
 // armour and the two facts are separate: owning is not wearing.
-act('mira takes it off', unequipItem(state(), MIRA, 'chain-shirt', 'doff-shirt'));
+act('mira takes it off', unequipItem(state(), SRD_CONTENT, MIRA, 'chain-shirt', 'doff-shirt'));
 
 // A horse, which is a relationship rather than an offset. Neither getting on
 // it nor getting off it is adjudicated by anything.

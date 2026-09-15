@@ -1,0 +1,465 @@
+import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT, SRD_CONTENT_INPUT } from '@ie/content';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import type { CharacterSheet } from './character.js';
+import {
+  checkContent,
+  createContent,
+  emptyContent,
+  extendContent,
+  loadContent,
+  parseClassDefinition,
+  parseSubclassDefinition,
+  type Content,
+} from './content.js';
+import { activateFeature, resolveSpell } from './commands.js';
+import { checkCharacter, createCharacter, type CharacterChoices } from './creation.js';
+import { createRng, type Rng } from './dice.js';
+import { fold, type GameEvent } from './events.js';
+import { declaredCasting } from './spellcasting.js';
+import { remaining, spellSlotKey } from './resources.js';
+import { createRollIssuer } from './rolls.js';
+
+/**
+ * The boundary this file exists to prove: **the engine holds no catalogue**.
+ *
+ * Every spell, class, species, background, feat and item a campaign uses is
+ * content, handed to the engine as a validated `Content` value. The SRD's
+ * catalogue is one such value and a DM's homebrew is another, and both go
+ * through the same door — so a spell or a class that uses mechanics the
+ * engine already has can be added without touching the engine at all. The
+ * tests below add one of each **from JSON text**, through the public API,
+ * and drive them through the same commands the SRD content goes through.
+ */
+
+const id = (s: string): CharacterId => asCharacterId(s);
+const CASTER = id('caster');
+const TARGET = id('target');
+
+const sheet = (): CharacterSheet => ({
+  level: 5,
+  abilities: { str: 10, dex: 10, con: 10, int: 18, wis: 10, cha: 10 },
+  skills: {},
+  saveProficiencies: [],
+  armor: null,
+  shield: null,
+  armorTraining: { light: true, medium: true, heavy: true, shields: true },
+  baseSpeed: 30,
+  spellcastingAbility: 'int',
+});
+
+const added = (who: CharacterId): GameEvent => ({
+  type: 'creature-added',
+  id: who,
+  name: who,
+  sheet: sheet(),
+  maxHp: 100,
+  diesAtZero: false,
+  creatureType: 'Humanoid',
+});
+
+/** A homebrew spell, written as the JSON a DM's file or a database row would hold. */
+const EMBER_LASH = JSON.stringify({
+  id: 'ember-lash',
+  name: 'Ember Lash',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      damage: { dice: '2d6', perSlotLevelAbove: '1d6' },
+      damageType: 'fire',
+    },
+  ],
+});
+
+/** Everything a caster of Ember Lash needs: a table, a target it can see, a slot. */
+const table = (content: Content): readonly GameEvent[] => [
+  added(CASTER),
+  added(TARGET),
+  {
+    type: 'resource-pool-declared',
+    id: CASTER,
+    pool: { key: spellSlotKey(1), label: 'level 1 spell slot', max: 2, recovers: 'long-rest' },
+  },
+  { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
+  { type: 'landmark-added', name: 'here', at: { x: 50, y: 50, z: 0 } },
+  { type: 'creature-placed', id: CASTER, placement: { from: { landmark: 'here' }, feet: 0 } },
+  {
+    type: 'creature-placed',
+    id: TARGET,
+    placement: { from: { creature: CASTER }, feet: 30, bearing: 0 },
+  },
+  { type: 'sight-declared', from: CASTER, to: TARGET, seen: true },
+  {
+    type: 'spellcasting-declared',
+    id: CASTER,
+    spellcasting: declaredCasting({
+      ability: 'int',
+      cantrips: [],
+      prepared: content.spells.map((spell) => spell.id),
+    }),
+  },
+];
+
+const supply = (content: Content) => ({
+  issuer: createRollIssuer('r'),
+  rng: createRng('ember') as Rng,
+  content,
+  // Force the hit, so the assertion is about the definition and not the die.
+  bonuses: [{ source: 'the test insists', flat: 40 }],
+});
+
+describe('a homebrew spell goes through the same door as the book', () => {
+  const homebrew = unwrap(loadContent({ spells: [JSON.parse(EMBER_LASH)] }), 'load');
+
+  it('is loaded from JSON, validated, and cast end to end with no engine change', () => {
+    const state = fold('seed', table(homebrew));
+    const before = state.creatures[TARGET]?.vitals.hp;
+
+    const cast = resolveSpell(
+      state,
+      CASTER,
+      { spellId: 'ember-lash', targets: [TARGET], slotLevel: 1 },
+      supply(homebrew),
+    );
+    expect(isErr(cast)).toBe(false);
+    if (!cast.ok) return;
+
+    const after = fold('seed', [...table(homebrew), ...cast.value.events]);
+    expect(after.creatures[TARGET]?.vitals.hp).toBeLessThan(before ?? 0);
+    expect(cast.value.events.some((event) => event.type === 'damage-taken')).toBe(true);
+    // The slot was the engine's to spend, and it spent it.
+    expect(remaining(after.creatures[CASTER]!.resources, spellSlotKey(1))).toBe(1);
+  });
+
+  it('is unknown to a world that was not given it', () => {
+    const state = fold('seed', table(SRD_CONTENT));
+    const cast = resolveSpell(
+      state,
+      CASTER,
+      { spellId: 'ember-lash', targets: [TARGET], slotLevel: 1 },
+      supply(SRD_CONTENT),
+    );
+    expect(isErr(cast)).toBe(true);
+    if (isErr(cast)) expect(cast.code).toBe('no_definition');
+  });
+
+  it('sits beside the book, on a class list, once an entry says whose it is', () => {
+    const content = unwrap(
+      extendContent(SRD_CONTENT, {
+        spells: [JSON.parse(EMBER_LASH)],
+        spellEntries: [
+          {
+            id: 'ember-lash',
+            name: 'Ember Lash',
+            level: 1,
+            school: 'evocation',
+            classes: ['wizard'],
+            castingTime: 'Action',
+            ritual: false,
+            concentration: false,
+          },
+        ],
+      }),
+      'extend',
+    );
+    expect(content.spell('fireball')).not.toBeNull();
+    expect(content.spell('ember-lash')).not.toBeNull();
+    expect(content.spellEntry('ember-lash')?.classes).toEqual(['wizard']);
+
+    // A level 1 Wizard writes it into the book and prepares it, and creation
+    // — which validates every spell against the class list — is satisfied.
+    const problems = checkCharacter(content, wizardWith(['ember-lash']));
+    expect(problems.map((p) => p.code)).not.toContain('unknown_spell');
+    expect(problems.map((p) => p.code)).not.toContain('spell_not_on_class_list');
+    // And the same character against the plain book is refused for it.
+    expect(checkCharacter(SRD_CONTENT, wizardWith(['ember-lash'])).map((p) => p.code)).toContain(
+      'unknown_spell',
+    );
+  });
+
+  it('may not shadow a printed spell', () => {
+    const shadow = extendContent(SRD_CONTENT, {
+      spells: [{ ...JSON.parse(EMBER_LASH), id: 'fireball', name: 'Fireball' }],
+    });
+    expect(isErr(shadow)).toBe(true);
+    if (isErr(shadow)) expect(shadow.reason).toContain('fireball twice');
+  });
+});
+
+/** A level 1 Human Sage Wizard whose spellbook holds `extra` beside the printed spells. */
+const wizardWith = (extra: readonly string[]): CharacterChoices => ({
+  name: 'Kessa',
+  classId: 'wizard',
+  level: 1,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 8, dex: 14, con: 13, int: 15, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { int: 2, con: 1 },
+  classSkills: ['investigation', 'insight'],
+  languages: ['Draconic', 'Elvish'],
+  alignment: 'Chaotic Good',
+  cantrips: ['fire-bolt', 'light', 'prestidigitation'],
+  spellbook: ['magic-missile', 'shield', 'detect-magic', 'feather-fall', 'mage-armor', ...extra]
+    .slice(0, 6)
+    .map((spellId) => ({ spellId, acquiredAt: 1, origin: 'level' as const })),
+  preparedSpells: [...extra, 'shield', 'magic-missile', 'mage-armor'].slice(0, 4),
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: {
+    'wizard:scholar': ['arcana'],
+    'human:skillful': ['perception'],
+  },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'ray-of-frost'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'skilled', proficiencies: ['stealth', 'nature', 'survival'] },
+  },
+});
+
+/** A homebrew class, as JSON: a martial class with one activated feature and one standing one. */
+const BLOODHUNTER = JSON.stringify({
+  id: 'bloodhunter',
+  name: 'Blood Hunter',
+  primaryAbility: 'str',
+  hitDie: 10,
+  saveProficiencies: ['str', 'wis'],
+  skillChoices: { choose: 2, from: ['athletics', 'arcana', 'survival', 'insight'] },
+  weaponProficiencies: ['simple', 'martial'],
+  armorTraining: { light: true, medium: true, heavy: false, shields: true },
+  subclassLevel: 3,
+  table: Array.from({ length: 20 }, (_, i) => ({
+    level: i + 1,
+    proficiencyBonus: 2 + Math.floor(i / 4),
+  })),
+  startingEquipment: [
+    { option: 'A', items: [{ id: 'longsword', quantity: 1 }], goldPieces: 10 },
+  ],
+  multiclass: {
+    weapons: ['martial'],
+    armorTraining: { light: true, medium: true, heavy: false, shields: true },
+    tools: [],
+  },
+  features: [
+    {
+      id: 'bloodhunter:crimson-rite',
+      name: 'Crimson Rite',
+      level: 1,
+      automation: 'engine',
+      note: 'A Bonus Action out of a pool of two per Long Rest; resistance to necrotic damage while it runs.',
+      grants: {
+        kind: 'activated',
+        action: 'bonus-action',
+        pool: 'crimson-rite',
+        usesByLevel: Array.from({ length: 20 }, () => 2),
+        poolLabel: 'Crimson Rite',
+        recovers: 'long-rest',
+        lasts: 'end-of-next-turn',
+        whileActive: [{ kind: 'damage-resistance', damageTypes: ['necrotic'] }],
+      },
+    },
+    {
+      id: 'bloodhunter:hunters-bane',
+      name: "Hunter's Bane",
+      level: 1,
+      automation: 'engine',
+      note: 'Advantage on Wisdom (Survival) checks, applied from state.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: { roll: 'ability-check', relation: 'roller', skill: 'survival' },
+            },
+          },
+        ],
+      },
+    },
+  ],
+});
+
+const bloodhunter = (): CharacterChoices => ({
+  name: 'Ruben',
+  classId: 'bloodhunter',
+  level: 1,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 },
+  },
+  abilityIncreases: { con: 2, wis: 1 },
+  classSkills: ['athletics', 'survival'],
+  languages: ['Draconic', 'Elvish'],
+  alignment: 'Neutral',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: ['longsword'],
+  hitPoints: { method: 'fixed' },
+  featureChoices: { 'human:skillful': ['perception'] },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'ray-of-frost'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'skilled', proficiencies: ['stealth', 'nature', 'medicine'] },
+  },
+});
+
+describe('a homebrew class goes through the same door as the book', () => {
+  const parsed = unwrap(parseClassDefinition(JSON.parse(BLOODHUNTER)), 'parse');
+  const content = unwrap(extendContent(SRD_CONTENT, { classes: [parsed] }), 'extend');
+  const WHO = id('ruben');
+
+  it('is parsed from JSON and validated beside the printed classes', () => {
+    expect(content.classes.map((c) => c.id)).toContain('bloodhunter');
+    expect(content.classById('bloodhunter')?.hitDie).toBe(10);
+    expect(SRD_CONTENT.classById('bloodhunter')).toBeNull();
+  });
+
+  it('creates a character of it, pools and features included', () => {
+    const log = unwrap(createCharacter(content, bloodhunter(), WHO), 'create');
+    const state = fold('seed', log);
+    const creature = state.creatures[WHO];
+    expect(creature?.resources.pools['crimson-rite']?.max).toBe(2);
+    expect(creature?.sheet.activated?.map((a) => a.feature)).toEqual(['bloodhunter:crimson-rite']);
+    expect(creature?.character?.classId).toBe('bloodhunter');
+    // What the character wears was pinned into the log, not looked up later.
+    expect(creature?.equipped.map((held) => held.id)).toEqual(['longsword']);
+  });
+
+  it('runs the feature through the engine’s own command', () => {
+    const log = unwrap(createCharacter(content, bloodhunter(), WHO), 'create');
+    const state = fold('seed', log);
+    const on = unwrap(
+      activateFeature(state, WHO, { feature: 'bloodhunter:crimson-rite' }),
+      'activate',
+    );
+    const after = fold('seed', [...log, ...on]);
+    expect(after.creatures[WHO]?.activeFeatures).toContain('bloodhunter:crimson-rite');
+    expect(remaining(after.creatures[WHO]!.resources, 'crimson-rite')).toBe(1);
+  });
+
+  it('is refused by creation against a world that does not hold it', () => {
+    const refused = createCharacter(SRD_CONTENT, bloodhunter(), WHO);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('unknown_class');
+  });
+});
+
+describe('the one door refuses what it cannot execute, with a path', () => {
+  it('reports every incoherence in a typed catalogue rather than the first', () => {
+    const problems = checkContent({
+      spells: [{ ...JSON.parse(EMBER_LASH), effects: [{ kind: 'attack', attack: 'ranged', damage: { dice: 'lots' }, damageType: 'fire' }] }],
+      classes: [{ ...JSON.parse(BLOODHUNTER), table: [], hitDie: 2, spellcasting: { ability: 'int', style: 'known', startsAtLevel: 1 } }],
+      subclasses: [{ id: 'order-of-nothing', name: 'Order of Nothing', classId: 'nobody', features: [] }],
+    });
+    const codes = problems.map((p) => `${p.code} @ ${p.field}`);
+    expect(codes.some((c) => c.startsWith('bad_notation @ spells[ember-lash]') || c.includes('spells[ember-lash].effects[0]'))).toBe(true);
+    expect(codes).toContain('bad_table @ classes[bloodhunter].table');
+    expect(codes).toContain('bad_hit_die @ classes[bloodhunter].hitDie');
+    expect(codes).toContain('no_progression @ classes[bloodhunter].spellcasting.progression');
+    expect(codes).toContain('unknown_class @ subclasses[order-of-nothing].classId');
+    const refused = createContent({ subclasses: [{ id: 'x', name: 'X', classId: 'nobody', features: [] }] });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('invalid_content');
+  });
+
+  it('refuses a duplicate id and a feature executed by nobody', () => {
+    const twice = checkContent({ spells: [JSON.parse(EMBER_LASH), JSON.parse(EMBER_LASH)] });
+    expect(twice.map((p) => p.code)).toContain('duplicate_id');
+
+    const orphan = JSON.parse(BLOODHUNTER);
+    orphan.features[0] = { ...orphan.features[0], grants: undefined, executedBy: 'bloodhunter:nobody' };
+    const problems = checkContent({ classes: [orphan] });
+    expect(problems.map((p) => p.code)).toContain('bad_executed_by');
+  });
+
+  it('narrows untyped input before judging it, one code per kind', () => {
+    const codeOf = (value: unknown): string => {
+      const result = loadContent(value);
+      expect(isErr(result)).toBe(true);
+      return result.ok ? '' : `${result.code}: ${result.reason}`;
+    };
+    // The door's own code, with the parser's code and path inside the reason.
+    expect(codeOf(null)).toContain('bad_content');
+    expect(codeOf({ spells: [{ id: 'nope' }] })).toContain('bad_content');
+    expect(codeOf({ classes: [null] })).toContain('classes[0]: bad_class');
+    expect(codeOf({ classes: [{ id: 'x' }] })).toContain('bad_class');
+    expect(codeOf({ subclasses: ['x'] })).toContain('bad_subclass');
+    expect(codeOf({ species: [{ id: 'x' }] })).toContain('bad_species');
+    expect(codeOf({ backgrounds: [{ id: 'x' }] })).toContain('bad_background');
+    expect(codeOf({ feats: [{ id: 'x' }] })).toContain('bad_feat');
+    expect(codeOf({ spellEntries: [{ id: 'x' }] })).toContain('bad_spell_entry');
+    expect(codeOf({ items: [{ id: 'x' }] })).toContain('bad_item');
+    // And the two parsers a caller may reach directly answer with their own.
+    const cls = parseClassDefinition(null);
+    expect(isErr(cls) && cls.code).toBe('bad_class');
+    const sub = parseSubclassDefinition('x');
+    expect(isErr(sub) && sub.code).toBe('bad_subclass');
+  });
+
+  it('starts empty, and an empty world executes nothing', () => {
+    const nothing = emptyContent();
+    expect(nothing.spells).toEqual([]);
+    expect(nothing.spell('fireball')).toBeNull();
+    expect(nothing.classById('wizard')).toBeNull();
+    expect(nothing.item('longsword')).toBeNull();
+    expect(nothing.expandPack('explorers-pack')).toEqual([]);
+  });
+});
+
+describe('the SRD catalogue is content like any other', () => {
+  it('is data: it round-trips through JSON and the untyped door', () => {
+    const reloaded = unwrap(loadContent(JSON.parse(JSON.stringify(SRD_CONTENT_INPUT))), 'reload');
+    expect(reloaded.spells.length).toBe(SRD_CONTENT.spells.length);
+    expect(reloaded.classes.map((c) => c.id)).toEqual(SRD_CONTENT.classes.map((c) => c.id));
+    expect(reloaded.subclasses.length).toBe(SRD_CONTENT.subclasses.length);
+    expect(reloaded.items.length).toBe(SRD_CONTENT.items.length);
+    expect(reloaded.spell('fireball')).toEqual(SRD_CONTENT.spell('fireball'));
+    expect(reloaded.classById('wizard')).toEqual(SRD_CONTENT.classById('wizard'));
+  });
+
+  it('passes the same checks homebrew does, and every printed spell has an entry', () => {
+    expect(checkContent(SRD_CONTENT_INPUT)).toEqual([]);
+    for (const spell of SRD_CONTENT.spells) {
+      expect(SRD_CONTENT.spellEntry(spell.id)?.level, spell.id).toBe(spell.level);
+    }
+    expect(SRD_CONTENT.spellEntries.length).toBeGreaterThan(SRD_CONTENT.spells.length);
+  });
+
+  it('answers the same lookups the engine used to hold as globals', () => {
+    expect(SRD_CONTENT.classes).toHaveLength(12);
+    expect(SRD_CONTENT.subclasses).toHaveLength(12);
+    expect(SRD_CONTENT.species.map((s) => s.id)).toEqual(['human']);
+    expect(SRD_CONTENT.backgrounds.map((b) => b.id)).toEqual(['sage']);
+    expect(SRD_CONTENT.featById('magic-initiate')?.requires.kind).toBe('magic-initiate');
+    expect(SRD_CONTENT.item('chain-shirt')?.armor?.category).toBe('medium');
+    expect(SRD_CONTENT.expandPack('scholars-pack').length).toBeGreaterThan(1);
+  });
+});

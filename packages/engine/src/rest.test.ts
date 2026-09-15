@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { HOUR, hours, minutes } from './clock.js';
@@ -85,6 +86,7 @@ const resolve = (
 const roller = (state: GameState) => ({
   issuer: createRollIssuer('r', state.rollsIssued),
   rng: state.rng === null ? createRng('seed') : restoreRng(state.rng),
+  content: SRD_CONTENT,
 });
 
 const clock = (seconds: number, reason = 'resting'): GameEvent => ({

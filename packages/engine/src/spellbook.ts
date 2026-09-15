@@ -1,5 +1,3 @@
-import { spellById, type SpellIndexEntry } from '@ie/srd';
-
 /**
  * A Wizard's spellbook, and where each spell in it came from.
  *
@@ -45,5 +43,3 @@ export const spellIds = (book: readonly SpellbookEntry[]): readonly string[] =>
 /** The highest spell level the character has slots for, which gates preparation. */
 export const highestSlotLevel = (slots: Readonly<Record<number, number>>): number =>
   Object.keys(slots).reduce((highest, level) => Math.max(highest, Number(level)), 0);
-
-export const lookupSpell = (id: string): SpellIndexEntry | null => spellById(id);

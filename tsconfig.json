@@ -4,6 +4,7 @@
     { "path": "./packages/shared" },
     { "path": "./packages/srd" },
     { "path": "./packages/engine" },
+    { "path": "./packages/content" },
     { "path": "./tools/llm-probe" }
   ]
 }

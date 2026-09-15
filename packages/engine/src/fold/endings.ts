@@ -14,7 +14,6 @@
  * anything — `allyOfCaster` withholds rather than inventing.
  */
 import type { CharacterId } from '@ie/shared';
-import { itemFor } from '../catalogue.js';
 import { castingNumber } from '../spells.js';
 
 import type { GameEvent } from '../events.js';
@@ -89,12 +88,14 @@ type EndingFact =
  * refuses. Asked of the item the event names rather than of the creature,
  * because the event is what says the moment arrived.
  */
-function isBodyArmor(itemId: string): boolean {
-  const piece = itemFor(itemId)?.armor ?? null;
+function isBodyArmor(state: GameState, event: { readonly id: CharacterId; readonly item: string }): boolean {
+  // Read off the creature rather than off a catalogue: the inventory seam has
+  // already put the pinned record on the creature by the time this pass runs.
+  const piece = state.creatures[event.id]?.equipped.find((held) => held.id === event.item)?.armor ?? null;
   return piece !== null && piece.category !== 'shield';
 }
 
-function endingFactsOf(event: GameEvent): readonly EndingFact[] {
+function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[] {
   switch (event.type) {
     case 'attack-made':
       return [{ cause: 'target-attacks', who: event.id }];
@@ -104,7 +105,7 @@ function endingFactsOf(event: GameEvent): readonly EndingFact[] {
     case 'spell-cast':
       return [{ cause: 'target-casts', who: event.id }];
     case 'item-equipped':
-      return isBodyArmor(event.item) ? [{ cause: 'target-dons-armor', who: event.id }] : [];
+      return isBodyArmor(state, event) ? [{ cause: 'target-dons-armor', who: event.id }] : [];
     case 'damage-taken':
       // A trap names nobody, and that is a real answer rather than a gap:
       // there is no creature that dealt it, so neither cause can fire.
@@ -216,7 +217,7 @@ const endingKey = (castingId: string, subject: CharacterId): string =>
  * one `damage-taken`.
  */
 export function endTriggeredCastings(state: GameState, event: GameEvent): GameState {
-  const facts = endingFactsOf(event);
+  const facts = endingFactsOf(state, event);
   if (facts.length === 0) return state;
 
   const settled = new Set<string>();

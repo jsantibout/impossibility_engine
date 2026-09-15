@@ -8,7 +8,8 @@
     "paths": {
       "@ie/shared": ["./packages/shared/src/index.ts"],
       "@ie/srd": ["./packages/srd/src/index.ts"],
-      "@ie/engine": ["./packages/engine/src/index.ts"]
+      "@ie/engine": ["./packages/engine/src/index.ts"],
+      "@ie/content": ["./packages/content/src/index.ts"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "packages/*/scripts/**/*.ts", "tools/*/src/**/*.ts"]

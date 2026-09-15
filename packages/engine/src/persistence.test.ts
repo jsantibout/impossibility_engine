@@ -1,3 +1,4 @@
+import { SRD_CONTENT } from '@ie/content';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -64,7 +65,7 @@ const throughJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 describe('a stored log still folds', () => {
   it('folds at all', () => {
-    expect(() => fold('golden', GOLDEN)).not.toThrow();
+    expect(() => fold('golden', GOLDEN, SRD_CONTENT)).not.toThrow();
   });
 
   it('is worth folding: it exercises a real campaign, not a stub', () => {
@@ -78,7 +79,7 @@ describe('a stored log still folds', () => {
    * rule moved.
    */
   it('folds to the state it has always folded to', () => {
-    const state = fold('golden', GOLDEN);
+    const state = fold('golden', GOLDEN, SRD_CONTENT);
 
     // The clock, which combat derives and narration advances.
     expect(state.elapsed).toBe(624);
@@ -102,7 +103,7 @@ describe('a stored log still folds', () => {
     expect(Object.keys(state.appliedCommands)).toHaveLength(28);
 
     // Equipment, and the sheet view derived from it.
-    expect(state.creatures.cleric?.equipped).toContain('chain-shirt');
+    expect(state.creatures.cleric?.equipped.map((held) => held.id)).toContain('chain-shirt');
     expect(state.creatures.cleric?.sheet.armor).not.toBeNull();
   });
 
@@ -113,7 +114,7 @@ describe('a stored log still folds', () => {
    * has ever been, so a log that ended tidily would have tested nothing here.
    */
   it('folds the derived rules to what they have always derived', () => {
-    const state = fold('golden', GOLDEN);
+    const state = fold('golden', GOLDEN, SRD_CONTENT);
 
     // A Concentration still held, and the condition it is holding up.
     expect(state.creatures.cleric?.concentration?.spell).toBe('Hold Person');
@@ -130,7 +131,7 @@ describe('a stored log still folds', () => {
   });
 
   it('folds the same way twice', () => {
-    expect(fold('golden', GOLDEN)).toStrictEqual(fold('golden', GOLDEN));
+    expect(fold('golden', GOLDEN, SRD_CONTENT)).toStrictEqual(fold('golden', GOLDEN, SRD_CONTENT));
   });
 
   /**
@@ -139,8 +140,8 @@ describe('a stored log still folds', () => {
    * reopened under a different seed is the same campaign.
    */
   it('folds the same way under a different seed', () => {
-    expect(fold('somebody-elses-seed', GOLDEN)).toStrictEqual({
-      ...fold('golden', GOLDEN),
+    expect(fold('somebody-elses-seed', GOLDEN, SRD_CONTENT)).toStrictEqual({
+      ...fold('golden', GOLDEN, SRD_CONTENT),
       seed: 'somebody-elses-seed',
     });
   });
@@ -154,11 +155,11 @@ describe('the log survives the database', () => {
    * is the point of these two.
    */
   it('folds identically after a round trip through JSON', () => {
-    expect(fold('golden', throughJson(GOLDEN))).toStrictEqual(fold('golden', GOLDEN));
+    expect(fold('golden', throughJson(GOLDEN), SRD_CONTENT)).toStrictEqual(fold('golden', GOLDEN, SRD_CONTENT));
   });
 
   it('produces a state that is itself JSON, exactly', () => {
-    const state: GameState = fold('golden', GOLDEN);
+    const state: GameState = fold('golden', GOLDEN, SRD_CONTENT);
     expect(throughJson(state)).toStrictEqual(state);
   });
 
@@ -166,7 +167,7 @@ describe('the log survives the database', () => {
   it('round-trips at every prefix of the log', () => {
     for (let n = 0; n <= GOLDEN.length; n += 1) {
       const prefix = GOLDEN.slice(0, n);
-      expect(fold('golden', throughJson(prefix))).toStrictEqual(fold('golden', prefix));
+      expect(fold('golden', throughJson(prefix), SRD_CONTENT)).toStrictEqual(fold('golden', prefix, SRD_CONTENT));
     }
   });
 });

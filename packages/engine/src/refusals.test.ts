@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   contextRequestsOf,
@@ -8,7 +9,6 @@ import {
 } from '@ie/shared';
 import { WEAPONS, type Weapon } from '@ie/srd';
 import type { CharacterSheet } from './character.js';
-import { itemFor } from './catalogue.js';
 import { createRng, parseNotation, rerollDice, roll, type Rng } from './dice.js';
 import { createRollIssuer, recordExternalD20, recordExternalDamage } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -153,7 +153,7 @@ const SETUP: readonly GameEvent[] = [
 
 const world = (extra: readonly GameEvent[] = []): GameState => fold('seed', [...SETUP, ...extra]);
 
-const supply = (seed = 'seed') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'seed') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** The code a refusal carried, or what it did instead. */
 const refusal = (out: Result<unknown>): string =>
@@ -321,8 +321,8 @@ describe('what is worn is worn once', () => {
    * reads it.
    */
   it('refuses to equip what is already equipped', () => {
-    const on = unwrap(equipItem(world(), A, 'chain-shirt', 'first'), 'equip');
-    const out = equipItem(world(on), A, 'chain-shirt', 'second');
+    const on = unwrap(equipItem(world(), SRD_CONTENT, A, 'chain-shirt', 'first'), 'equip');
+    const out = equipItem(world(on), SRD_CONTENT, A, 'chain-shirt', 'second');
     expect(refusal(out)).toBe('already_equipped');
   });
 });
@@ -682,7 +682,7 @@ describe('a weapon that deals no damage is refused rather than dealing none', ()
     expect(silent.map((w) => w.id)).toEqual([]);
     // …and the catalogue a command resolves against is exactly those weapons,
     // so the sweep above is a sweep of what a command can actually reach.
-    expect(WEAPONS.filter((w) => itemFor(w.id)?.weapon !== w).map((w) => w.id)).toEqual([]);
+    expect(WEAPONS.filter((w) => SRD_CONTENT.item(w.id)?.weapon !== w).map((w) => w.id)).toEqual([]);
   });
 
   /**
@@ -776,7 +776,7 @@ describe('a readied move needs somewhere to go', () => {
    */
   it('refuses to release a readied move with nowhere to go', () => {
     const held = unwrap(
-      takeReady(world(), A, { trigger: 'when it charges', response: { kind: 'move' } }),
+      takeReady(world(), A, { trigger: 'when it charges', response: { kind: 'move' } }, SRD_CONTENT),
       'ready',
     );
     // Round the order to somebody else, so the Reaction is available.
@@ -978,6 +978,7 @@ describe('a Counterspell answers an open casting, and the window is read before 
         trigger: 'when the ogre casts',
         response: { kind: 'spell', spellId: 'counterspell', slotLevel: 3 },
       },
+      SRD_CONTENT,
     );
     expect(refusal(out)).toBe('not_readiable');
   });
@@ -1359,7 +1360,7 @@ describe('one code said five things, and two of them were different questions', 
     const out = takeReady(world(), A, {
       trigger: '   ',
       response: { kind: 'move' },
-    });
+    }, SRD_CONTENT);
     expect(refusal(out)).toBe('no_trigger_stated');
   });
 

@@ -26,7 +26,7 @@ import { type CreatureState, type GameEvent, type GameState } from '../events.js
 import { sightBetween } from '../positioning.js';
 import { type SpellCheck } from '../spell-definitions.js';
 import { effectiveConditions, rollModesFor, standingSaveBonuses } from '../standing.js';
-import { type ConcentrationSaveSupply } from './casting.js';
+import { type Supply } from './casting.js';
 
 /**
  * Turn a completed D20 test into the log's record of it.
@@ -87,7 +87,7 @@ export function withFlatAddend(
 }
 
 export function rollSpellDice(
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   sheet: CharacterSheet,
   source: string,
   type: string,

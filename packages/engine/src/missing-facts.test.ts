@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   contextRequestsOf,
@@ -92,7 +93,7 @@ const PLACED: readonly GameEvent[] = [
   { type: 'creature-placed', id: OGRE, placement: { from: { creature: FIGHTER }, feet: 5, bearing: 0 } },
 ];
 
-const supply = (seed = 'm') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'm') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 const swing = (log: readonly GameEvent[], weapon: string | null = 'longsword', dice = supply()) =>
   resolveAttack(fold('s', log), FIGHTER, { target: OGRE, weapon }, dice);
@@ -132,6 +133,7 @@ describe('reach is a precondition, so an unknown distance is asked about', () =>
     const before = {
       state: fold('s', MAP_WITHOUT_THE_OGRE),
       rng: dice.rng.snapshot(),
+      content: SRD_CONTENT,
       rolls: dice.issuer.count,
     };
 

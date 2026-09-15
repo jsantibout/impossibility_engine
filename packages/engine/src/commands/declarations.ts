@@ -261,7 +261,7 @@ export function loseItems(
       if (held < line.quantity) {
         return err('not_owned', `${id} has ${held} of ${line.id}, not ${line.quantity}`);
       }
-      if (creature.equipped.includes(line.id)) {
+      if (creature.equipped.some((held) => held.id === line.id)) {
         return err('equipped', `${line.id} is worn or wielded by ${id}; take it off first`);
       }
     }

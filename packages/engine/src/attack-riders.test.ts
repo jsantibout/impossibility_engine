@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -6,7 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, grantSourcesOf, type GameEvent } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
-import { SPELL_DEFINITIONS, durationSecondsAt } from './spell-definitions.js';
+import { durationSecondsAt } from './spell-definitions.js';
 import type { DamageDefenses } from './attack.js';
 import {
   advanceTime,
@@ -157,7 +158,7 @@ const table = (
   { type: 'sight-declared', from: CASTER, to: BYSTANDER, seen: true },
 ];
 
-const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 const must = <T,>(result: Result<T>): T => unwrap(result, 'attack riders');
 
@@ -566,7 +567,7 @@ describe('the band reaches a readied spell too', () => {
         takeReady(fold('seed', combat), CASTER, {
           trigger: 'when the quarry breaks cover',
           response: { kind: 'spell', spellId: 'mass-suggestion', slotLevel },
-        }),
+        }, SRD_CONTENT),
       ),
     ];
     const released = [

@@ -17,7 +17,7 @@ import { type Placement, type Point } from '../positioning.js';
 import { type SpellDefinition, type SpellEffect } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
 import { type CastingNumbers } from '../spells.js';
-import { type ConcentrationSaveSupply } from './casting.js';
+import { type Supply } from './casting.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
 /**
@@ -57,7 +57,7 @@ export interface EffectContext {
   readonly numbers: CastingNumbers;
   readonly attackModifier: number;
   readonly saveDc: number;
-  readonly supply: ConcentrationSaveSupply;
+  readonly supply: Supply;
   readonly castingId: string;
   /** How the log reads, when an activation wants its own wording. */
   readonly label: string;

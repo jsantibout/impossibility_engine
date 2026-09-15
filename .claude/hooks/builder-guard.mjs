@@ -13,9 +13,9 @@
  * architect (`--reviewer --role=qb-architect`) is the same read-only shape —
  * it judges and returns a decision; the foreman records it.
  *
- * The foreman is deliberately not behind this hook. It is the one role that
- * may merge and push, and it does so only under the owner's tranche approval
- * with the thirteen conditions in docs/dev/WORKFLOW.md green.
+ * The coordinating session is deliberately not behind this hook. It is the
+ * one role that may merge and push, and it does so only for a task the owner
+ * approved that came back clean (docs/dev/WORKFLOW.md).
  *
  * Reads the hook JSON on stdin. Exit 2 blocks the call and shows stderr to
  * the agent; exit 0 lets it through. Anything unparseable lets the call
@@ -25,15 +25,15 @@
 import { readFileSync } from 'node:fs';
 
 const FORBIDDEN = [
-  [/\bgit\s+push\b/, 'git push: nobody but the foreman publishes, and only under tranche authority'],
-  [/\bgit\s+merge\b/, 'git merge: integration is the foreman\'s, under the owner\'s tranche approval'],
+  [/\bgit\s+push\b/, 'git push: nobody but the coordinating session publishes'],
+  [/\bgit\s+merge\b/, 'git merge: integration is the coordinating session\'s'],
   [/\bgit\s+(?:update-ref|symbolic-ref)\b/, 'ref surgery'],
   [/\bgit\s+branch\b[^\n]*\s(?:-f|--force|-D|-d|--delete|-M|-m|--move|-c|-C|--copy)\b/, 'moving, forcing, copying or deleting a branch'],
   [/\bgit\s+(?:checkout|switch)\b[^\n]*\bmain\b/, 'checking out main: it is checked out in the primary worktree'],
   [/\bgit\s+worktree\s+(?:add|remove|prune|move|lock|unlock|repair)\b/, 'creating, removing or moving worktrees'],
   [/\bgit\s+tag\b/, 'tags publish refs'],
   [/\bgit\s+config\s+(?:--global|--system)\b/, 'global git configuration'],
-  [/\bgh\s+pr\s+(?:merge|create)\b/, 'pull requests belong to the foreman and the owner'],
+  [/\bgh\s+pr\s+(?:merge|create)\b/, 'pull requests belong to the coordinating session and the owner'],
   [/\bnpm\s+publish\b/, 'publishing'],
 ];
 
@@ -69,8 +69,8 @@ for (const [pattern, why] of rules) {
       `${role} guard: refused — ${why}.\n` +
         `Command: ${command}\n` +
         (reviewer
-          ? 'Report what you found in your verdict instead; the builder makes the changes and the foreman integrates.\n'
-          : 'A builder commits on its own worktree branch and reports; the foreman integrates under the tranche the owner approved. If this command is genuinely needed, say so in your digest instead of retrying.\n'),
+          ? 'Report what you found in your verdict instead; the builder makes the changes and the coordinating session integrates.\n'
+          : 'A builder commits on its own worktree branch and reports; the coordinating session integrates what the owner approved. If this command is genuinely needed, say so in your digest instead of retrying.\n'),
     );
     process.exit(2);
   }

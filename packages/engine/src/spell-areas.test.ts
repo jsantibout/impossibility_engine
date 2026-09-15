@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { declaredCasting } from './spellcasting.js';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId , isNeedsContext, contextRequestsOf } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
@@ -108,6 +109,7 @@ const base = (): GameState => fold('seed', SETUP);
 const supply = (seed: string, bonus: number) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
   bonuses: [{ source: 'forced', flat: bonus }],
 });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -7,7 +8,6 @@ import { fold, type GameEvent } from './events.js';
 import { resolveSpell } from './commands.js';
 import { declaredCasting } from './spellcasting.js';
 import { planCharacter, type CharacterChoices } from './creation.js';
-import { SPELL_DEFINITIONS } from './spell-definitions.js';
 
 /**
  * SRD Evasion, which the Rogue and the Monk both have under that name.
@@ -110,7 +110,7 @@ const monkChoices: CharacterChoices = {
 };
 
 const built = (choices: CharacterChoices): CharacterSheet =>
-  unwrap(planCharacter(choices), choices.classId).sheet;
+  unwrap(planCharacter(SRD_CONTENT,choices), choices.classId).sheet;
 
 const added = (who: CharacterId, character: CharacterSheet): GameEvent => ({
   type: 'creature-added',
@@ -162,6 +162,7 @@ const supply = (bonus: number, seed = 'boom') => ({
   // The save is forced either way, so the test is about what the damage does
   // rather than about which way a die fell.
   bonuses: [{ source: 'forced', flat: bonus }],
+  content: SRD_CONTENT,
 });
 
 /**

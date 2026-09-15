@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -83,7 +84,7 @@ const fighter = (level: number): CharacterChoices => ({
 });
 
 const table = (level: number, gap = 5): readonly GameEvent[] => [
-  ...(unwrap(createCharacter(fighter(level), FIGHTER), 'create') as GameEvent[]),
+  ...(unwrap(createCharacter(SRD_CONTENT,fighter(level), FIGHTER), 'create') as GameEvent[]),
   { type: 'creature-side-declared', id: FIGHTER, side: 'party' },
   {
     type: 'creature-added',
@@ -110,7 +111,7 @@ const table = (level: number, gap = 5): readonly GameEvent[] => [
   },
 ];
 
-const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** Swing, and hand back the longer log. */
 const swing = (log: readonly GameEvent[], seed = 'swing') => {

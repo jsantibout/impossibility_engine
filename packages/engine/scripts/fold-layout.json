@@ -12,6 +12,7 @@
     "ReadiedResponse",
     "ReadiedAction",
     "InventoryLine",
+    "EquippedItem",
     "GameState",
     "initialState"
   ],
@@ -186,6 +187,8 @@
     "wearsHeavyArmor",
     "applyOne",
     "applyEvent",
+    "applyEventWith",
+    "applyEventUnder",
     "fold",
     "historyOf"
   ]

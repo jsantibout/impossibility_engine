@@ -20,10 +20,10 @@ import {
   carrying,
   distanceBetween,
   footprintOf,
-  itemFor,
   movementLeftFor,
   type GameState,
 } from '@ie/engine';
+import { SRD_CONTENT } from '@ie/content';
 import type { Encounter } from './encounter.js';
 import type { ToolSpec } from './surface.js';
 
@@ -164,7 +164,7 @@ export function createScriptedDriver(
     carrying(state, who)
       .map((line) => line.id)
       .find((id) => {
-        const item = itemFor(id);
+        const item = SRD_CONTENT.item(id);
         return item !== null && item.weapon !== null && item.weapon !== undefined;
       }) ?? null;
 

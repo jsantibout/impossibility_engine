@@ -1,8 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isErr } from '@ie/shared';
-import { SPELL_DEFINITIONS, type SpellDefinition } from './spell-definitions.js';
+import { type SpellDefinition } from './spell-definitions.js';
 import {
   checkSpellDefinition,
   checkSpellDefinitionValue,
@@ -1909,21 +1910,17 @@ describe('no spell is special-cased in the runtime', () => {
   };
 
   /**
-   * The one comparison in the engine that matches the shape and is not one.
-   *
-   * `creation.ts` asks which of a character's classes is the Wizard, because
-   * the Evoker's free spells go in the Wizard's book and nowhere else — a
-   * **class** definition's id, in a file that holds no spell definitions at
-   * all. It is unchanged since the third whole-engine audit and is recorded
-   * rather than removed, because removing it belongs to the feature-definition
-   * validator and not to this sweep.
-   *
-   * Allowlisted as the exact text in the exact file, so a genuine
-   * `definition.id === 'fireball'` in `creation.ts` still fails.
+   * Nothing in the engine compares an id against a literal, and there is no
+   * allowance left. The one there used to be — `creation.ts` asking which of
+   * a character's classes was the Wizard, so the Evoker's free spells went in
+   * the Wizard's book — is gone with the catalogue: a feature that offers a
+   * spell choice says which class it belongs to, and creation reads that.
    */
-  const ALLOWED_COMPARISONS: Readonly<Record<string, readonly string[]>> = {
-    'creation.ts': ["definition.id === 'wizard'"],
-  };
+  const ALLOWED_COMPARISONS: Readonly<Record<string, readonly string[]>> = {};
+
+  /** The SRD catalogue's source, where the two data constructs actually live now. */
+  const content = (path: string): string =>
+    readFileSync(fileURLToPath(new URL(`../../content/src/${path}`, import.meta.url)), 'utf8');
 
   it.each(RUNTIME.map((file) => [file] as const))('%s branches on no spell id', (file) => {
     // The direct shape: an id compared against a **literal**. Two ids compared
@@ -1964,6 +1961,22 @@ describe('no spell is special-cased in the runtime', () => {
   });
 
   /**
+   * **The engine holds no catalogue.** Not one definition's `id:` line, not
+   * one fixed spell grant, not one class named as a string: every one of
+   * those is content, and content enters through `createContent`. This is
+   * the boundary the whole split exists to keep, asserted over every runtime
+   * file rather than promised.
+   */
+  it.each(RUNTIME.map((file) => [file] as const))('%s holds no content', (file) => {
+    const text = source(file);
+    expect(text.split('\n').filter((line) => ID_LINE.test(line)), file).toEqual([]);
+    expect([...text.matchAll(SPELL_GRANT)], file).toEqual([]);
+    for (const classId of SRD_CONTENT.classes.map((c) => c.id)) {
+      expect(text.includes(`'${classId}'`), `${file} names the class ${classId}`).toBe(false);
+    }
+  });
+
+  /**
    * And the allowances are real rather than blankets.
    *
    * Each is asserted to be *needed* — the construct it excuses is really
@@ -1981,10 +1994,11 @@ describe('no spell is special-cased in the runtime', () => {
 
   it('allows the two data constructs and nothing around them', () => {
     // Each is needed: the catalogue really writes its ids that way, and the
-    // class tables really write their grants that way, or it excuses nothing.
-    expect(source('spell-definitions.ts').split('\n').filter((line) => ID_LINE.test(line)).length)
+    // class tables really write their grants that way, or it excuses nothing
+    // — in the content package, which is the only place either construct is.
+    expect(content('spells.ts').split('\n').filter((line) => ID_LINE.test(line)).length)
       .toBeGreaterThan(100);
-    expect([...source('cleric.ts').matchAll(SPELL_GRANT)]).not.toEqual([]);
+    expect([...content('classes/cleric.ts').matchAll(SPELL_GRANT)]).not.toEqual([]);
 
     // Each is narrow: a spell named anywhere else on the same line, or in a
     // construct that merely looks like one, still counts.
@@ -2011,8 +2025,9 @@ describe('no spell is special-cased in the runtime', () => {
    * message is about the allowance — rather than in the sweep.
    */
   it('reaches every fixed spell grant the class tables write', () => {
-    const grants = RUNTIME.flatMap((file) =>
-      [...source(file).matchAll(/fixed: \[[^\]]*\]/g)].map((match) => [file, match[0]] as const),
+    const classFiles = SRD_CONTENT.classes.map((c) => `classes/${c.id}.ts`);
+    const grants = classFiles.flatMap((file) =>
+      [...content(file).matchAll(/fixed: \[[^\]]*\]/g)].map((match) => [file, match[0]] as const),
     );
     // Not vacuous: the class tables really do grant spells this way.
     expect(grants.length).toBeGreaterThan(3);
@@ -2021,15 +2036,9 @@ describe('no spell is special-cased in the runtime', () => {
     }
   });
 
-  it('allowlists a comparison that is needed and no wider', () => {
-    for (const [file, matches] of Object.entries(ALLOWED_COMPARISONS)) {
-      for (const match of matches) {
-        expect(comparedIn(source(file)), file).toContain(match);
-        // Not a spell id, which is the whole reason it is allowed.
-        const literal = /'([a-z0-9-]+)'$/.exec(match)?.[1];
-        expect(IDS, match).not.toContain(literal);
-      }
-    }
+  it('allowlists nothing', () => {
+    expect(ALLOWED_COMPARISONS).toEqual({});
+    for (const file of RUNTIME) expect(comparedIn(source(file)), file).toEqual([]);
   });
 });
 

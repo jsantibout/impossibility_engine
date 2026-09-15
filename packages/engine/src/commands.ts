@@ -96,7 +96,7 @@ export type {
   CastCommand,
   CastingPlan,
   ConcentrationConsequence,
-  ConcentrationSaveSupply,
+  Supply,
   DamageResolution,
   SpellEffectOptions,
 } from './commands/casting.js';

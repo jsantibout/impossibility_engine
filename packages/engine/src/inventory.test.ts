@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import { armorClass } from './character.js';
-import { expandPack, goldToCopper, itemFor } from './catalogue.js';
+import { goldToCopper } from './catalogue.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
-import {
-  advanceCharacter,
-  createCharacter,
-  type CharacterChoices,
-  type DmGrants,
-} from './creation.js';
+import { advanceCharacter, createCharacter, type CharacterChoices, type DmGrants } from './creation.js';
 import { carrying, coinsOf, equipItem, purchaseItem, unequipItem } from './commands.js';
 
 /**
@@ -83,7 +79,7 @@ const kessa = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
 });
 
 const made = (over: Partial<CharacterChoices> = {}): GameEvent[] =>
-  unwrap(createCharacter(kessa(over), KESSA), 'create');
+  unwrap(createCharacter(SRD_CONTENT,kessa(over), KESSA), 'create');
 
 const run = (
   log: readonly GameEvent[],
@@ -106,7 +102,7 @@ const held = (state: GameState, itemId: string): number =>
 const sheetAgreesWithEquipment = (state: GameState): void => {
   const creature = state.creatures.kessa;
   if (creature === undefined) return;
-  const pieces = creature.equipped.map((itemId) => itemFor(itemId)?.armor ?? null);
+  const pieces = creature.equipped.map((held) => held.armor);
   expect(creature.sheet.armor).toEqual(
     pieces.find((piece) => piece !== null && piece.category !== 'shield') ?? null,
   );
@@ -122,23 +118,23 @@ describe('the catalogue is keyed by id, not by display text', () => {
    * is how a package silently stops containing a lantern.
    */
   it('finds an item whose printed name nobody would type', () => {
-    expect(itemFor('lantern-hooded')?.name).toBe('Lantern, Hooded');
-    expect(itemFor('quarterstaff')?.kind).toBe('weapon');
-    expect(itemFor('calligraphers-supplies')?.kind).toBe('tool');
-    expect(itemFor('chain-shirt')?.kind).toBe('armor');
-    expect(itemFor('not-a-thing')).toBeNull();
+    expect(SRD_CONTENT.item('lantern-hooded')?.name).toBe('Lantern, Hooded');
+    expect(SRD_CONTENT.item('quarterstaff')?.kind).toBe('weapon');
+    expect(SRD_CONTENT.item('calligraphers-supplies')?.kind).toBe('tool');
+    expect(SRD_CONTENT.item('chain-shirt')?.kind).toBe('armor');
+    expect(SRD_CONTENT.item('not-a-thing')).toBeNull();
   });
 
   it('prices everything in copper, the unit the coins divide into', () => {
     // SRD: a Backpack is 2 GP.
-    expect(itemFor('backpack')?.costCp).toBe(goldToCopper(2));
+    expect(SRD_CONTENT.item('backpack')?.costCp).toBe(goldToCopper(2));
     // And a Blanket is 5 SP, which no gold-only arithmetic could hold.
-    expect(itemFor('blanket')?.costCp).toBe(50);
+    expect(SRD_CONTENT.item('blanket')?.costCp).toBe(50);
   });
 
   /** SRD: a Scholar's Pack "contains the following items: ..." */
   it('expands a pack into the pack and everything in it', () => {
-    const contents = expandPack('scholars-pack');
+    const contents = SRD_CONTENT.expandPack('scholars-pack');
     expect(contents[0]).toEqual({ id: 'scholars-pack', quantity: 1 });
     expect(contents).toContainEqual({ id: 'oil', quantity: 10 });
     expect(contents).toContainEqual({ id: 'parchment', quantity: 10 });
@@ -146,7 +142,7 @@ describe('the catalogue is keyed by id, not by display text', () => {
   });
 
   it('leaves an ordinary item as itself', () => {
-    expect(expandPack('backpack')).toEqual([{ id: 'backpack', quantity: 1 }]);
+    expect(SRD_CONTENT.expandPack('backpack')).toEqual([{ id: 'backpack', quantity: 1 }]);
   });
 });
 
@@ -217,12 +213,12 @@ describe('created already wearing what the GM granted', () => {
   it('owns it, wears it, and has the Armour Class to show for it', () => {
     const state = fold('seed', inArmour());
     expect(held(state, 'chain-shirt')).toBe(1);
-    expect(state.creatures.kessa!.equipped).toEqual(['chain-shirt']);
+    expect(state.creatures.kessa!.equipped.map((held) => held.id)).toEqual(['chain-shirt']);
     expect(armorClass(state.creatures.kessa!.sheet)).toBe(15);
   });
 
   it('can take off what creation put on, and is back to 12', () => {
-    const { state } = run(inArmour(), (s) => unequipItem(s, KESSA, 'chain-shirt'));
+    const { state } = run(inArmour(), (s) => unequipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
     expect(armorClass(state.creatures.kessa!.sheet)).toBe(12);
     expect(held(state, 'chain-shirt')).toBe(1);
   });
@@ -232,28 +228,28 @@ describe('buying things with what is left', () => {
   const shopping = () => made({ classEquipment: 'B', backgroundEquipment: 'B' });
 
   it('adds the item and takes the money', () => {
-    const { state } = run(shopping(), (s) => purchaseItem(s, KESSA, 'chain-shirt', 1));
+    const { state } = run(shopping(), (s) => purchaseItem(s, SRD_CONTENT, KESSA, 'chain-shirt', 1));
     expect(held(state, 'chain-shirt')).toBe(1);
     // Chain Shirt is 50 GP out of 105.
     expect(coinsOf(state, KESSA)).toBe(goldToCopper(55));
   });
 
   it('multiplies the price by the quantity', () => {
-    const { state } = run(shopping(), (s) => purchaseItem(s, KESSA, 'torch', 10));
+    const { state } = run(shopping(), (s) => purchaseItem(s, SRD_CONTENT, KESSA, 'torch', 10));
     expect(held(state, 'torch')).toBe(10);
     // A Torch is 1 CP.
     expect(coinsOf(state, KESSA)).toBe(goldToCopper(105) - 10);
   });
 
   it('buys a pack and gets everything in it', () => {
-    const { state } = run(shopping(), (s) => purchaseItem(s, KESSA, 'scholars-pack', 1));
+    const { state } = run(shopping(), (s) => purchaseItem(s, SRD_CONTENT, KESSA, 'scholars-pack', 1));
     expect(held(state, 'oil')).toBe(10);
     expect(coinsOf(state, KESSA)).toBe(goldToCopper(65));
   });
 
   it('refuses what cannot be afforded, spending nothing', () => {
     const before = fold('seed', shopping());
-    const result = purchaseItem(before, KESSA, 'plate-armor', 1);
+    const result = purchaseItem(before, SRD_CONTENT, KESSA, 'plate-armor', 1);
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('cannot_afford');
     expect(fold('seed', shopping())).toEqual(before);
@@ -261,21 +257,21 @@ describe('buying things with what is left', () => {
 
   it('refuses an item nobody sells, and a quantity that is not a count', () => {
     const before = fold('seed', shopping());
-    expect(isErr(purchaseItem(before, KESSA, 'vorpal-sword', 1))).toBe(true);
-    expect(isErr(purchaseItem(before, KESSA, 'torch', 0))).toBe(true);
-    expect(isErr(purchaseItem(before, KESSA, 'torch', 1.5))).toBe(true);
+    expect(isErr(purchaseItem(before, SRD_CONTENT, KESSA, 'vorpal-sword', 1))).toBe(true);
+    expect(isErr(purchaseItem(before, SRD_CONTENT, KESSA, 'torch', 0))).toBe(true);
+    expect(isErr(purchaseItem(before, SRD_CONTENT, KESSA, 'torch', 1.5))).toBe(true);
   });
 
   /** SRD prints "Varies" for some rows; a price nobody stated cannot be paid. */
   it('refuses an item whose price the SRD leaves open', () => {
-    const result = purchaseItem(fold('seed', shopping()), KESSA, 'arcane-focus', 1);
+    const result = purchaseItem(fold('seed', shopping()), SRD_CONTENT, KESSA, 'arcane-focus', 1);
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('no_price');
   });
 
   it('is a no-op when the same purchase is retried', () => {
-    const first = run(shopping(), (s) => purchaseItem(s, KESSA, 'torch', 5, 'buy-1'));
-    const retry = unwrap(purchaseItem(first.state, KESSA, 'torch', 5, 'buy-1'), 'retry');
+    const first = run(shopping(), (s) => purchaseItem(s, SRD_CONTENT, KESSA, 'torch', 5, 'buy-1'));
+    const retry = unwrap(purchaseItem(first.state, SRD_CONTENT, KESSA, 'torch', 5, 'buy-1'), 'retry');
     expect(retry).toEqual([]);
     expect(fold('seed', [...first.log, ...retry])).toEqual(first.state);
   });
@@ -285,8 +281,8 @@ describe('buying things with what is left', () => {
    * same id is a caller bug, and swallowing it would lose a purchase silently.
    */
   it('refuses the same command id carrying different inputs', () => {
-    const first = run(shopping(), (s) => purchaseItem(s, KESSA, 'torch', 5, 'buy-1'));
-    const different = purchaseItem(first.state, KESSA, 'torch', 6, 'buy-1');
+    const first = run(shopping(), (s) => purchaseItem(s, SRD_CONTENT, KESSA, 'torch', 5, 'buy-1'));
+    const different = purchaseItem(first.state, SRD_CONTENT, KESSA, 'torch', 6, 'buy-1');
     expect(isErr(different)).toBe(true);
     if (isErr(different)) expect(different.code).toBe('command_id_reused');
     expect(fold('seed', first.log)).toEqual(first.state);
@@ -296,9 +292,9 @@ describe('buying things with what is left', () => {
 describe('owning, wearing, and Armour Class', () => {
   const armoured = () => {
     const bought = run(made({ classEquipment: 'B', backgroundEquipment: 'B' }), (s) =>
-      purchaseItem(s, KESSA, 'chain-shirt', 1),
+      purchaseItem(s, SRD_CONTENT, KESSA, 'chain-shirt', 1),
     );
-    return run(bought.log, (s) => purchaseItem(s, KESSA, 'shield', 1));
+    return run(bought.log, (s) => purchaseItem(s, SRD_CONTENT, KESSA, 'shield', 1));
   };
 
   /** No armour and no training: 10 + Dexterity. */
@@ -314,10 +310,10 @@ describe('owning, wearing, and Armour Class', () => {
   });
 
   it('raises Armour Class when the armour goes on', () => {
-    const { state } = run(armoured().log, (s) => equipItem(s, KESSA, 'chain-shirt'));
+    const { state } = run(armoured().log, (s) => equipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
     // Chain Shirt is 13 + Dexterity, capped at +2.
     expect(armorClass(state.creatures.kessa!.sheet)).toBe(15);
-    expect(state.creatures.kessa!.equipped).toEqual(['chain-shirt']);
+    expect(state.creatures.kessa!.equipped.map((held) => held.id)).toEqual(['chain-shirt']);
   });
 
   /**
@@ -326,59 +322,59 @@ describe('owning, wearing, and Armour Class', () => {
    * point here is that equipping does not quietly grant the benefit.
    */
   it('holds a shield without granting an untrained wizard its bonus', () => {
-    const worn = run(armoured().log, (s) => equipItem(s, KESSA, 'chain-shirt'));
-    const { state } = run(worn.log, (s) => equipItem(s, KESSA, 'shield'));
-    expect([...state.creatures.kessa!.equipped].sort()).toEqual(['chain-shirt', 'shield']);
+    const worn = run(armoured().log, (s) => equipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
+    const { state } = run(worn.log, (s) => equipItem(s, SRD_CONTENT, KESSA, 'shield'));
+    expect(state.creatures.kessa!.equipped.map((held) => held.id).sort()).toEqual(['chain-shirt', 'shield']);
     expect(armorClass(state.creatures.kessa!.sheet)).toBe(15);
   });
 
   it('puts it back down again', () => {
-    const worn = run(armoured().log, (s) => equipItem(s, KESSA, 'chain-shirt'));
-    const { state } = run(worn.log, (s) => unequipItem(s, KESSA, 'chain-shirt'));
+    const worn = run(armoured().log, (s) => equipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
+    const { state } = run(worn.log, (s) => unequipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
     expect(armorClass(state.creatures.kessa!.sheet)).toBe(12);
-    expect(state.creatures.kessa!.equipped).toEqual([]);
+    expect(state.creatures.kessa!.equipped.map((held) => held.id)).toEqual([]);
     // And it is still owned: taking it off is not throwing it away.
     expect(held(state, 'chain-shirt')).toBe(1);
   });
 
   it('refuses to equip what is not owned, changing nothing', () => {
     const before = fold('seed', made());
-    const result = equipItem(before, KESSA, 'plate-armor');
+    const result = equipItem(before, SRD_CONTENT, KESSA, 'plate-armor');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('not_owned');
     expect(fold('seed', made())).toEqual(before);
   });
 
   it('refuses to equip something that is not worn or wielded', () => {
-    const result = equipItem(fold('seed', made()), KESSA, 'parchment');
+    const result = equipItem(fold('seed', made()), SRD_CONTENT, KESSA, 'parchment');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('not_equippable');
   });
 
   /** SRD: one suit of armour at a time; a second is a different suit. */
   it('refuses a second suit of body armour', () => {
-    const bought = run(armoured().log, (s) => purchaseItem(s, KESSA, 'leather-armor', 1));
-    const worn = run(bought.log, (s) => equipItem(s, KESSA, 'chain-shirt'));
-    const result = equipItem(worn.state, KESSA, 'leather-armor');
+    const bought = run(armoured().log, (s) => purchaseItem(s, SRD_CONTENT, KESSA, 'leather-armor', 1));
+    const worn = run(bought.log, (s) => equipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
+    const result = equipItem(worn.state, SRD_CONTENT, KESSA, 'leather-armor');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('slot_taken');
     expect(fold('seed', worn.log)).toEqual(worn.state);
   });
 
   it('refuses to equip the same thing twice', () => {
-    const worn = run(armoured().log, (s) => equipItem(s, KESSA, 'chain-shirt'));
-    expect(isErr(equipItem(worn.state, KESSA, 'chain-shirt'))).toBe(true);
+    const worn = run(armoured().log, (s) => equipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
+    expect(isErr(equipItem(worn.state, SRD_CONTENT, KESSA, 'chain-shirt'))).toBe(true);
   });
 
   it('refuses to take off what is not on', () => {
-    const result = unequipItem(fold('seed', made()), KESSA, 'chain-shirt');
+    const result = unequipItem(fold('seed', made()), SRD_CONTENT, KESSA, 'chain-shirt');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('not_equipped');
   });
 
   it('is a no-op when the same equip is retried', () => {
-    const worn = run(armoured().log, (s) => equipItem(s, KESSA, 'chain-shirt', 'wear-1'));
-    const retry = unwrap(equipItem(worn.state, KESSA, 'chain-shirt', 'wear-1'), 'retry');
+    const worn = run(armoured().log, (s) => equipItem(s, SRD_CONTENT, KESSA, 'chain-shirt', 'wear-1'));
+    const retry = unwrap(equipItem(worn.state, SRD_CONTENT, KESSA, 'chain-shirt', 'wear-1'), 'retry');
     expect(retry).toEqual([]);
     expect(fold('seed', [...worn.log, ...retry])).toEqual(worn.state);
   });
@@ -416,7 +412,7 @@ describe('advancement keeps the equipment and redoes the arithmetic', () => {
   });
 
   const levelUp = (log: readonly GameEvent[], dmGrants: DmGrants) =>
-    run(log, (st) => advanceCharacter(st, KESSA, { ...ADVANCE_TO_4, dmGrants }));
+    run(log, (st) => advanceCharacter(st, SRD_CONTENT, KESSA, { ...ADVANCE_TO_4, dmGrants }));
 
   /**
    * The GM's note for level 4 is about level 4. It does not re-list the shirt
@@ -429,7 +425,7 @@ describe('advancement keeps the equipment and redoes the arithmetic', () => {
     const levelled = levelUp(start, { items: [], goldPieces: 0, magicItems: [], note: 'nothing new' });
 
     expect(levelled.state.creatures.kessa!.character?.level).toBe(4);
-    expect(levelled.state.creatures.kessa!.equipped).toEqual(['chain-shirt']);
+    expect(levelled.state.creatures.kessa!.equipped.map((held) => held.id)).toEqual(['chain-shirt']);
     expect(armorClass(levelled.state.creatures.kessa!.sheet)).toBe(15);
     expect(held(levelled.state, 'chain-shirt')).toBe(1);
   });
@@ -437,9 +433,9 @@ describe('advancement keeps the equipment and redoes the arithmetic', () => {
   /** Bought and worn after creation, so no creation choice mentions it at all. */
   it('keeps armour that was bought and put on after the character existed', () => {
     const bought = run(made({ classEquipment: 'B', backgroundEquipment: 'B' }), (st) =>
-      purchaseItem(st, KESSA, 'chain-shirt', 1),
+      purchaseItem(st, SRD_CONTENT, KESSA, 'chain-shirt', 1),
     );
-    const worn = run(bought.log, (st) => equipItem(st, KESSA, 'chain-shirt'));
+    const worn = run(bought.log, (st) => equipItem(st, SRD_CONTENT, KESSA, 'chain-shirt'));
     expect(armorClass(worn.state.creatures.kessa!.sheet)).toBe(15);
 
     const levelled = levelUp(worn.log, {
@@ -448,7 +444,7 @@ describe('advancement keeps the equipment and redoes the arithmetic', () => {
       magicItems: [],
       note: 'nothing new',
     });
-    expect(levelled.state.creatures.kessa!.equipped).toEqual(['chain-shirt']);
+    expect(levelled.state.creatures.kessa!.equipped.map((held) => held.id)).toEqual(['chain-shirt']);
     expect(armorClass(levelled.state.creatures.kessa!.sheet)).toBe(15);
   });
 
@@ -460,10 +456,10 @@ describe('advancement keeps the equipment and redoes the arithmetic', () => {
    */
   it('does not put back armour the character took off before levelling', () => {
     const start = made({ dmGrants: grant('salvaged'), equipped: ['chain-shirt'] });
-    const bare = run(start, (st) => unequipItem(st, KESSA, 'chain-shirt'));
+    const bare = run(start, (st) => unequipItem(st, SRD_CONTENT, KESSA, 'chain-shirt'));
     const levelled = levelUp(bare.log, { items: [], goldPieces: 0, magicItems: [], note: 'nothing new' });
 
-    expect(levelled.state.creatures.kessa!.equipped).toEqual([]);
+    expect(levelled.state.creatures.kessa!.equipped.map((held) => held.id)).toEqual([]);
     expect(levelled.state.creatures.kessa!.sheet.armor).toBeNull();
     expect(armorClass(levelled.state.creatures.kessa!.sheet)).toBe(12);
   });
@@ -487,11 +483,11 @@ describe('advancement keeps the equipment and redoes the arithmetic', () => {
 describe('the whole path replays', () => {
   const played = (): GameEvent[] => {
     const bought = run(made({ classEquipment: 'B', backgroundEquipment: 'B' }), (s) =>
-      purchaseItem(s, KESSA, 'chain-shirt', 1),
+      purchaseItem(s, SRD_CONTENT, KESSA, 'chain-shirt', 1),
     );
-    const more = run(bought.log, (s) => purchaseItem(s, KESSA, 'scholars-pack', 1));
-    const worn = run(more.log, (s) => equipItem(s, KESSA, 'chain-shirt'));
-    return run(worn.log, (s) => unequipItem(s, KESSA, 'chain-shirt')).log;
+    const more = run(bought.log, (s) => purchaseItem(s, SRD_CONTENT, KESSA, 'scholars-pack', 1));
+    const worn = run(more.log, (s) => equipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
+    return run(worn.log, (s) => unequipItem(s, SRD_CONTENT, KESSA, 'chain-shirt')).log;
   };
 
   it('folds to the same state twice', () => {
@@ -528,12 +524,12 @@ describe('the whole path replays', () => {
    * second starting package or its gold either.
    */
   it('keeps what is worn, and grants nothing again, when a level is gained', () => {
-    const worn = run(played(), (s) => equipItem(s, KESSA, 'chain-shirt'));
+    const worn = run(played(), (s) => equipItem(s, SRD_CONTENT, KESSA, 'chain-shirt'));
     expect(armorClass(worn.state.creatures.kessa!.sheet)).toBe(15);
 
     const before = coinsOf(worn.state, KESSA);
     const levelled = run(worn.log, (s) =>
-      advanceCharacter(s, KESSA, {
+      advanceCharacter(s, SRD_CONTENT, KESSA, {
         cantrips: ['fire-bolt', 'light', 'prestidigitation', 'mending'],
         // Level 4 has no level 3 slot, and a Wizard copies only spells "of a
         // level you can prepare" — so these are both level 2 or lower.
@@ -561,7 +557,7 @@ describe('the whole path replays', () => {
     );
 
     expect(armorClass(levelled.state.creatures.kessa!.sheet)).toBe(15);
-    expect(levelled.state.creatures.kessa!.equipped).toEqual(['chain-shirt']);
+    expect(levelled.state.creatures.kessa!.equipped.map((held) => held.id)).toEqual(['chain-shirt']);
     expect(coinsOf(levelled.state, KESSA)).toBe(before);
     expect(held(levelled.state, 'chain-shirt')).toBe(1);
     expect(held(levelled.state, 'oil')).toBe(10);

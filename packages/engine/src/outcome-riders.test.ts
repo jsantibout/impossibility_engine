@@ -1,3 +1,4 @@
+import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
@@ -118,6 +119,7 @@ const supply = (seed: string, flat?: number) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   ...(flat === undefined ? {} : { bonuses: [{ source: 'the test insists', flat }] }),
+  content: SRD_CONTENT,
 });
 
 const cast = (

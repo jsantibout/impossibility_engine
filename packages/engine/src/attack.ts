@@ -1,7 +1,7 @@
 import { err, ok, type Ability, type Result, type RollMode } from '@ie/shared';
 import type { Weapon } from '@ie/srd';
 import { parseNotation, type DieEffect, type Rng } from './dice.js';
-import { itemFor } from './catalogue.js';
+import type { Content } from './content.js';
 // Type-only, and deliberately: `events.ts` reads this module's damage types
 // the same way, so a value edge in either direction would be a real cycle.
 import type { CreatureState } from './events.js';
@@ -107,10 +107,10 @@ export function meleeReach(weapon: Weapon | null): number {
 }
 
 /** The melee reach of whatever this creature is actually holding. */
-export function reachOf(creature: CreatureState): number {
+export function reachOf(content: Content, creature: CreatureState): number {
   let reach = 5;
-  for (const itemId of creature.equipped) {
-    const weapon = itemFor(itemId)?.weapon;
+  for (const held of creature.equipped) {
+    const weapon = content.item(held.id)?.weapon;
     if (weapon === undefined || weapon === null || weapon.kind !== 'melee') continue;
     reach = Math.max(reach, meleeReach(weapon));
   }

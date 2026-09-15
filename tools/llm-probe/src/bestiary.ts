@@ -18,7 +18,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseMonsters, type Monster } from '@ie/srd';
-import { itemFor } from '@ie/engine';
+import { SRD_CONTENT } from '@ie/content';
 
 const RAW = fileURLToPath(new URL('../../../packages/srd/raw/monsters-A-Z.md', import.meta.url));
 
@@ -71,7 +71,7 @@ export function weaponsOf(monster: Monster): readonly string[] {
       .replace(/^-|-$/g, ''),
   );
   return slugs.filter((slug) => {
-    const item = itemFor(slug);
+    const item = SRD_CONTENT.item(slug);
     return item !== null && item.weapon !== null && item.weapon !== undefined;
   });
 }

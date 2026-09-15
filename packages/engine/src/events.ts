@@ -24,6 +24,7 @@
  * graph is the DAG `scripts/fold-graph.ts` reports.
  */
 import type { CharacterId, ConditionName } from '@ie/shared';
+import type { Armor } from '@ie/srd';
 import type { CharacterSheet, GrantedArmorClass } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import type { RngState } from './dice.js';
@@ -438,6 +439,18 @@ export type GameEvent =
       readonly type: 'item-equipped';
       readonly id: CharacterId;
       readonly item: string;
+      /**
+       * The armour record this item is, pinned at the moment it was put on —
+       * or null for an item that is not armour.
+       *
+       * The fold derives what a creature wears from what it has equipped, and
+       * before this field it opened the item catalogue to do so: a corrected
+       * transcription of Chain Mail would have changed how last week's log
+       * folded. Pinned for the same reason a casting pins its area. Absent
+       * only on a log written before the field existed, which the fold reads
+       * through the legacy content it is handed — see `fold`.
+       */
+      readonly armor?: Armor | null;
       readonly command?: CommandStamp;
     }
   | {

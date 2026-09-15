@@ -8,7 +8,7 @@ export * from './catalogue.js';
 export * from './resources.js';
 export * from './rest.js';
 export * from './progression.js';
-export * from './wizard.js';
+export * from './multiclass.js';
 export * from './origins.js';
 export * from './spellbook.js';
 export * from './spellcasting.js';
@@ -24,6 +24,10 @@ export * from './spell-schema.js';
 // on, and a validator nothing outside its own test can reach is a rule nothing
 // enforces.
 export * from './feature-schema.js';
+// The content registry: what a campaign's world holds, validated through the
+// two validators above. The engine ships no catalogue of its own — the SRD's
+// is `@ie/content`, and it goes through this door like any homebrew.
+export * from './content.js';
 export * from './creation.js';
 export * from './spells.js';
 export * from './character.js';

@@ -45,7 +45,7 @@ export const isOngoingEvent = seamOf(ONGOING_EVENTS);
  * `fold/index.ts`, nothing under `commands/` can reach it, and a log becomes a
  * state by exactly one route.
  */
-export function applyOngoing({ state, next }: Applying, event: OngoingEvent): GameState {
+export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEvent): GameState {
   switch (event.type) {
     case 'spell-ongoing': {
       const casting = event.casting;
@@ -82,8 +82,10 @@ export function applyOngoing({ state, next }: Applying, event: OngoingEvent): Ga
           // written last in every resolution path, so everything the casting
           // holds is already on them, and the subset computed here is the one
           // the cast would have written.
-          [casting.castingId]: upgradeOngoing(casting, (who) =>
-            holdsNothingOf(state, who, casting.castingId),
+          [casting.castingId]: upgradeOngoing(
+            casting,
+            (who) => holdsNothingOf(state, who, casting.castingId),
+            legacy === null ? null : legacy.spell,
           ),
         }),
       };

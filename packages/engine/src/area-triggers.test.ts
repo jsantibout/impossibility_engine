@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
@@ -8,7 +9,6 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import type { Point } from './positioning.js';
-import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import type { AreaMoment } from './spells.js';
 import {
   activateFeature,
@@ -132,6 +132,7 @@ const casts = (who: CharacterId): readonly GameEvent[] => [
 const supply = (seed = 'area', flat = -40) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
   bonuses: [{ source: 'the fixture', flat }],
 });
 
@@ -1626,7 +1627,7 @@ describe('a creature owing a mandatory effect may take no action at all', () => 
   it('refuses Dodge', () => refuses(takeDodge(owingAtStart().state, MOVER, {})));
   it('refuses Ready', () =>
     refuses(
-      takeReady(owingAtStart().state, MOVER, { trigger: 'when it moves', response: { kind: 'action' } }),
+      takeReady(owingAtStart().state, MOVER, { trigger: 'when it moves', response: { kind: 'action' } }, SRD_CONTENT),
     ));
   it('refuses activating a feature', () =>
     refuses(activateFeature(owingAtStart().state, MOVER, { feature: 'test:stance' })));
@@ -1867,7 +1868,7 @@ describe('every guarded command checks the duplicate first', () => {
     {
       name: 'takeReady',
       run: (g, commandId) =>
-        takeReady(g.state, MOVER, { trigger: 'when it moves', response: { kind: 'action' }, commandId }),
+        takeReady(g.state, MOVER, { trigger: 'when it moves', response: { kind: 'action' }, commandId }, SRD_CONTENT),
     },
     {
       name: 'activateFeature',
@@ -2082,7 +2083,7 @@ describe('no ordinary voluntary action crosses an outstanding area effect', () =
     {
       name: 'takeReady',
       run: (state) =>
-        takeReady(state, MOVER, { trigger: 'when it moves', response: { kind: 'action' } }),
+        takeReady(state, MOVER, { trigger: 'when it moves', response: { kind: 'action' } }, SRD_CONTENT),
     },
     {
       name: 'activateFeature',

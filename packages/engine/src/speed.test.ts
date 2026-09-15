@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
@@ -288,7 +289,7 @@ describe('Unarmored Movement is read at the Monk’s own level', () => {
   });
 
   const speedFeetOf = (choices: CharacterChoices): number => {
-    const plan = unwrap(planCharacter(choices), 'plan');
+    const plan = unwrap(planCharacter(SRD_CONTENT,choices), 'plan');
     const state = fold('seed', [
       {
         type: 'creature-added',
@@ -325,7 +326,7 @@ describe('Unarmored Movement is read at the Monk’s own level', () => {
         'fighter:fighting-style': { featId: 'defense' },
       },
     });
-    expect(unwrap(planCharacter(multiclassed), 'plan').sheet.level).toBe(5);
+    expect(unwrap(planCharacter(SRD_CONTENT,multiclassed), 'plan').sheet.level).toBe(5);
     // A level 5 *Monk* would also have +10, so the discriminating pair is this
     // fixture against the Monk 6 above: read at character level, a Monk 2 /
     // Fighter 4 would reach the table's +15 row and be wrong by 5 feet.
@@ -350,7 +351,7 @@ describe('Unarmored Movement is read at the Monk’s own level', () => {
         'fighter:ability-score-improvement': { featId: 'savage-attacker' },
       },
     });
-    expect(unwrap(planCharacter(deeper), 'plan').sheet.level).toBe(6);
+    expect(unwrap(planCharacter(SRD_CONTENT,deeper), 'plan').sheet.level).toBe(6);
     // Character level 6 is the Monk table's +15 row; Monk level 2 is +10.
     expect(speedFeetOf(deeper)).toBe(40);
   });
@@ -421,7 +422,7 @@ describe('a feature grant reaches the command layer', () => {
     },
   ];
 
-  const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('speed') as Rng });
+  const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('speed') as Rng, content: SRD_CONTENT });
 
   const walk = (standing: readonly StandingEffect[], feet: number) =>
     resolveMove(
@@ -575,7 +576,7 @@ describe('the frozen logs are untouched by a live Speed', () => {
 
   it.each(LOGS)('%s folds, and its movement events are in it', (name) => {
     const log = logOf(name);
-    const state = fold('seed', log);
+    const state = fold('seed', log, SRD_CONTENT);
     // A fold that exercised none of the changed paths would prove nothing, so
     // the fixture is asserted to contain them rather than assumed to.
     const types = new Set(log.map((event) => event.type));
@@ -596,7 +597,7 @@ describe('the frozen logs are untouched by a live Speed', () => {
    * strongest form of "the fold measures against the same number it did".
    */
   it.each(LOGS)('%s gives every creature the Speed the old code computed', (name) => {
-    const state = fold('seed', logOf(name));
+    const state = fold('seed', logOf(name), SRD_CONTENT);
     for (const [who, creature] of Object.entries(state.creatures)) {
       const id = asCharacterId(who);
       // No `speed` grant anywhere in either fixture — which is *why* the pinned

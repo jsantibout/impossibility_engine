@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   contextRequestsOf,
@@ -25,6 +26,7 @@ import {
 const supply = (seed = 'teleport') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 /**

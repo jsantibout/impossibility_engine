@@ -1,4 +1,4 @@
-import { err, ok, type Ability, type Result, type Skill } from '@ie/shared';
+import { err, ok, type Ability, type Result } from '@ie/shared';
 import type { ArmorTraining } from './character.js';
 import type { ClassDefinition } from './progression.js';
 
@@ -59,46 +59,67 @@ export const characterLevel = (levels: readonly ClassLevel[]): number =>
 /**
  * How much each class contributes to the combined spell-slot table.
  *
- * SRD: all levels in Bard, Cleric, Druid, Sorcerer and Wizard; **half, rounded
- * up**, in Paladin and Ranger. A class that does not cast contributes nothing,
- * and the Warlock contributes nothing *here* because Pact Magic is its own
- * table — see {@link pactSlotsOf}.
+ * SRD: all levels in a full caster; **half, rounded up**, in a half caster. A
+ * class that does not cast contributes nothing, and a Pact Magic class
+ * contributes nothing *here* because Pact Magic is its own table — see
+ * {@link pactSlotsOf}. Which a class is, the class says: nothing here names
+ * one.
  */
-const FULL_CASTERS: ReadonlySet<string> = new Set([
-  'bard',
-  'cleric',
-  'druid',
-  'sorcerer',
-  'wizard',
-]);
-const HALF_CASTERS: ReadonlySet<string> = new Set(['paladin', 'ranger']);
-
-export function casterLevel(levels: readonly ClassLevel[]): number {
+export function casterLevel(
+  levels: readonly ClassLevel[],
+  classOf: (classId: string) => ClassDefinition | null,
+): number {
   let total = 0;
   for (const entry of levels) {
-    if (FULL_CASTERS.has(entry.classId)) total += entry.level;
-    else if (HALF_CASTERS.has(entry.classId)) total += Math.ceil(entry.level / 2);
+    const casting = classOf(entry.classId)?.spellcasting;
+    if (casting === undefined || (casting.feature ?? 'spellcasting') !== 'spellcasting') continue;
+    if (casting.progression === 'full') total += entry.level;
+    else if (casting.progression === 'half') total += Math.ceil(entry.level / 2);
   }
   return total;
 }
 
 /**
- * SRD "Multiclass Spellcaster: Spell Slots per Spell Level".
+ * SRD "Multiclass Spellcaster: Spell Slots per Spell Level", by caster level.
  *
- * **Not transcribed a second time.** The printed table is identical to the
- * full-caster table every single-class caster already uses, so it is read off
- * one of them and a test asserts the two agree. Two copies of the same twenty
- * rows is two chances to typo one of them.
+ * A rule of the multiclassing chapter, printed once, so it is held here as
+ * one. It is identical to every full caster's own slot column, and the SRD
+ * content's tests hold each of those against this table rather than
+ * transcribing it a sixth time.
  */
+export const MULTICLASS_SPELL_SLOTS: readonly (readonly number[])[] = [
+  [2],
+  [3],
+  [4, 2],
+  [4, 3],
+  [4, 3, 2],
+  [4, 3, 3],
+  [4, 3, 3, 1],
+  [4, 3, 3, 2],
+  [4, 3, 3, 3, 1],
+  [4, 3, 3, 3, 2],
+  [4, 3, 3, 3, 2, 1],
+  [4, 3, 3, 3, 2, 1],
+  [4, 3, 3, 3, 2, 1, 1],
+  [4, 3, 3, 3, 2, 1, 1],
+  [4, 3, 3, 3, 2, 1, 1, 1],
+  [4, 3, 3, 3, 2, 1, 1, 1],
+  [4, 3, 3, 3, 2, 1, 1, 1, 1],
+  [4, 3, 3, 3, 3, 1, 1, 1, 1],
+  [4, 3, 3, 3, 3, 2, 1, 1, 1],
+  [4, 3, 3, 3, 3, 2, 2, 1, 1],
+];
+
+/** The combined slots for these class levels, off the printed table. */
 export function multiclassSlots(
   levels: readonly ClassLevel[],
-  fullCasterTable: readonly (readonly number[])[],
+  classOf: (classId: string) => ClassDefinition | null,
 ): Record<number, number> {
-  const level = casterLevel(levels);
+  const level = casterLevel(levels, classOf);
   const slots: Record<number, number> = {};
   if (level < 1) return slots;
 
-  const row = fullCasterTable[Math.min(level, fullCasterTable.length) - 1] ?? [];
+  const row = MULTICLASS_SPELL_SLOTS[Math.min(level, MULTICLASS_SPELL_SLOTS.length) - 1] ?? [];
   row.forEach((count, index) => {
     if (count > 0) slots[index + 1] = count;
   });
@@ -115,21 +136,22 @@ export function multiclassSlots(
  * feature to cast Warlock spells."
  *
  * So they are a second pool at a possibly different level, not more of the
- * first. A Warlock 3 / Wizard 3 has two level 2 Pact slots *and* four level 1
- * and two level 2 ordinary slots, and merging them would invent a slot.
+ * first. Read off whichever class declares `feature: 'pact-magic'`; the SRD
+ * has one, and a homebrew catalogue may have another.
  */
 export function pactSlotsOf(
   levels: readonly ClassLevel[],
-  warlockTable: readonly ClassDefinition['table'][number][],
+  classOf: (classId: string) => ClassDefinition | null,
 ): Record<number, number> {
-  const warlock = levels.find((entry) => entry.classId === 'warlock');
-  if (warlock === undefined || warlock.level < 1) return {};
-
-  const row = warlockTable[warlock.level - 1]?.spellSlots ?? [];
   const slots: Record<number, number> = {};
-  row.forEach((count, index) => {
-    if (count > 0) slots[index + 1] = count;
-  });
+  for (const entry of levels) {
+    const definition = classOf(entry.classId);
+    if (definition?.spellcasting?.feature !== 'pact-magic' || entry.level < 1) continue;
+    const row = definition.table[entry.level - 1]?.spellSlots ?? [];
+    row.forEach((count, index) => {
+      if (count > 0) slots[index + 1] = (slots[index + 1] ?? 0) + count;
+    });
+  }
   return slots;
 }
 
@@ -152,73 +174,14 @@ export function hitDicePools(
   return pools;
 }
 
-/**
- * What a class grants when it is **not** your first.
- *
- * SRD: "you gain only some of the new class's starting proficiencies, as
- * detailed in each class's description." Transcribed from each class's "As a
- * Multiclass Character" section, which is the only place the SRD says it.
- *
- * The pattern worth seeing: nobody gets saving throw proficiencies, nobody
- * gets the full skill list, and the three classes that grant nothing but a
- * Hit Die are the three whose power is entirely in their features — Monk,
- * Sorcerer and Wizard.
- */
-export interface MulticlassGrant {
-  /** Weapon categories, in the same vocabulary a class definition uses. */
-  readonly weapons: readonly string[];
-  readonly armorTraining: ArmorTraining;
-  /** How many skills the character chooses, and from where. */
-  readonly skills?: { readonly choose: number; readonly from?: readonly Skill[] };
-  /** Tools granted outright, by name as the SRD prints them. */
-  readonly tools: readonly string[];
-}
-
-const NONE: ArmorTraining = { light: false, medium: false, heavy: false, shields: false };
-const LIGHT: ArmorTraining = { ...NONE, light: true };
-const LIGHT_SHIELDS: ArmorTraining = { ...LIGHT, shields: true };
-const LIGHT_MEDIUM_SHIELDS: ArmorTraining = { ...LIGHT_SHIELDS, medium: true };
-const SHIELDS_ONLY: ArmorTraining = { ...NONE, shields: true };
-
-export const MULTICLASS_GRANTS: Readonly<Record<string, MulticlassGrant>> = {
-  barbarian: { weapons: ['martial'], armorTraining: SHIELDS_ONLY, tools: [] },
-  bard: {
-    weapons: [],
-    armorTraining: LIGHT,
-    skills: { choose: 1 },
-    tools: ['Musical Instrument'],
-  },
-  cleric: { weapons: [], armorTraining: LIGHT_MEDIUM_SHIELDS, tools: [] },
-  druid: { weapons: [], armorTraining: LIGHT_SHIELDS, tools: [] },
-  fighter: { weapons: ['martial'], armorTraining: LIGHT_MEDIUM_SHIELDS, tools: [] },
-  monk: { weapons: [], armorTraining: NONE, tools: [] },
-  paladin: { weapons: ['martial'], armorTraining: LIGHT_MEDIUM_SHIELDS, tools: [] },
-  ranger: {
-    weapons: ['martial'],
-    armorTraining: LIGHT_MEDIUM_SHIELDS,
-    skills: { choose: 1 },
-    tools: [],
-  },
-  rogue: {
-    weapons: [],
-    armorTraining: LIGHT,
-    skills: { choose: 1 },
-    tools: ["Thieves' Tools"],
-  },
-  sorcerer: { weapons: [], armorTraining: NONE, tools: [] },
-  warlock: { weapons: [], armorTraining: LIGHT, tools: [] },
-  wizard: { weapons: [], armorTraining: NONE, tools: [] },
-};
-
 /** Armour training from every class, the first in full and the rest in part. */
 export function combinedArmorTraining(
   first: ClassDefinition,
-  others: readonly string[],
+  others: readonly ClassDefinition[],
 ): ArmorTraining {
   let training = first.armorTraining;
-  for (const classId of others) {
-    const grant = MULTICLASS_GRANTS[classId];
-    if (grant === undefined) continue;
+  for (const other of others) {
+    const grant = other.multiclass;
     training = {
       light: training.light || grant.armorTraining.light,
       medium: training.medium || grant.armorTraining.medium,

@@ -16,6 +16,7 @@
  * seams — the turn boundary, the area detectors and the switch — which is the
  * evidence this module is shared rather than a drawer.
  */
+import type { Content } from '../content.js';
 import type { CharacterId } from '@ie/shared';
 import { ROUND } from '../clock.js';
 import { type TimedEffect } from '../duration.js';
@@ -136,6 +137,17 @@ export function sortedRecord<T>(entries: Readonly<Record<string, T>>): Record<st
 export interface Applying {
   readonly state: GameState;
   readonly next: GameState;
+  /**
+   * The content a log **older than pinning** was written against, or null.
+   *
+   * A log this engine writes pins every fact the fold reads — a casting's
+   * area, the armour an equip event puts on — so the fold opens no catalogue.
+   * The two frozen fixtures predate that, and the only honest way to fold
+   * them is with the catalogue they were written against, handed in
+   * explicitly; a seam that meets an unpinned record with nothing here
+   * throws rather than folding with the rule switched off.
+   */
+  readonly legacy: Content | null;
 }
 
 /**

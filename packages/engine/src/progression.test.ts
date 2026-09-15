@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EVOKER, SRD_CONTENT, WIZARD } from '@ie/content';
 import { isErr, expect as unwrap } from '@ie/shared';
 import { proficiencyBonusForLevel } from './character.js';
 import {
@@ -12,8 +13,6 @@ import {
   spellSlotTable,
   type ClassDefinition,
 } from './progression.js';
-import { allClasses, allSubclasses } from './creation.js';
-import { EVOKER, WIZARD } from './wizard.js';
 
 /** The twelve classes SRD 5.2.1 publishes, by name. */
 const SRD_CLASSES: readonly string[] = [
@@ -139,7 +138,7 @@ const wellFormed = (definition: ClassDefinition) => {
 };
 
 // Every class the engine knows, not just the one the suite was written for.
-for (const definition of allClasses()) wellFormed(definition);
+for (const definition of SRD_CONTENT.classes) wellFormed(definition);
 
 describe('every class the engine knows is registered and coherent', () => {
   /**
@@ -150,29 +149,29 @@ describe('every class the engine knows is registered and coherent', () => {
    * finished. What a test can say is that nothing invented a class.
    */
   it('registers only classes the SRD publishes', () => {
-    for (const definition of allClasses()) {
+    for (const definition of SRD_CONTENT.classes) {
       expect(SRD_CLASSES, `${definition.name} is not an SRD class`).toContain(definition.name);
     }
   });
 
   it('gives every class a unique id and a unique name', () => {
-    const ids = allClasses().map((c) => c.id);
+    const ids = SRD_CONTENT.classes.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
-    const names = allClasses().map((c) => c.name);
+    const names = SRD_CONTENT.classes.map((c) => c.name);
     expect(new Set(names).size).toBe(names.length);
   });
 
   /** A subclass that names a class nobody registered can never be chosen. */
   it('points every subclass at a class that exists', () => {
-    for (const subclass of allSubclasses()) {
-      expect(allClasses().some((c) => c.id === subclass.classId)).toBe(true);
+    for (const subclass of SRD_CONTENT.subclasses) {
+      expect(SRD_CONTENT.classes.some((c) => c.id === subclass.classId)).toBe(true);
     }
   });
 
   /** SRD publishes exactly one subclass per class. */
   it('gives every class at least one subclass', () => {
-    for (const definition of allClasses()) {
-      expect(allSubclasses().some((s) => s.classId === definition.id)).toBe(true);
+    for (const definition of SRD_CONTENT.classes) {
+      expect(SRD_CONTENT.subclasses.some((s) => s.classId === definition.id)).toBe(true);
     }
   });
 
@@ -182,7 +181,7 @@ describe('every class the engine knows is registered and coherent', () => {
    * morning, and there are now hundreds of them.
    */
   it('explains every feature it does not execute', () => {
-    for (const source of [...allClasses(), ...allSubclasses()]) {
+    for (const source of [...SRD_CONTENT.classes, ...SRD_CONTENT.subclasses]) {
       for (const feature of source.features) {
         expect(feature.note.length, `${feature.id} has no note`).toBeGreaterThan(20);
       }
@@ -190,7 +189,7 @@ describe('every class the engine knows is registered and coherent', () => {
   });
 
   it('namespaces every feature id and never repeats one', () => {
-    const ids = [...allClasses(), ...allSubclasses()].flatMap((s) =>
+    const ids = [...SRD_CONTENT.classes, ...SRD_CONTENT.subclasses].flatMap((s) =>
       s.features.map((f) => f.id),
     );
     for (const featureId of ids) expect(featureId).toContain(':');
@@ -199,7 +198,7 @@ describe('every class the engine knows is registered and coherent', () => {
 
   /** A class either casts or it does not; there is no half-declared state. */
   it('gives a spell table only to a class that declares spellcasting', () => {
-    for (const definition of allClasses()) {
+    for (const definition of SRD_CONTENT.classes) {
       const casts = definition.spellcasting !== undefined;
       const hasSlots = definition.table.some((row) => (row.spellSlots ?? []).length > 0);
       expect(hasSlots, `${definition.name}`).toBe(casts);

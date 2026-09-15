@@ -7,9 +7,8 @@
  * recompute that view rather than keeping a second copy of the rule.
  */
 import type { CharacterSheet } from '../character.js';
-import { itemFor } from '../catalogue.js';
 import type { GameEvent } from '../events.js';
-import type { GameState, InventoryLine } from '../state.js';
+import type { EquippedItem, GameState, InventoryLine } from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -71,8 +70,11 @@ const removeItems = (
  * Anything that is not armour or a shield contributes nothing: a dagger in
  * hand is tracked, but it is not Armour Class.
  */
-export function withEquipment(sheet: CharacterSheet, equipped: readonly string[]): CharacterSheet {
-  const pieces = equipped.map((itemId) => itemFor(itemId)?.armor ?? null);
+export function withEquipment(
+  sheet: CharacterSheet,
+  equipped: readonly EquippedItem[],
+): CharacterSheet {
+  const pieces = equipped.map((held) => held.armor);
   return {
     ...sheet,
     armor: pieces.find((piece) => piece !== null && piece.category !== 'shield') ?? null,
@@ -87,7 +89,7 @@ export function withEquipment(sheet: CharacterSheet, equipped: readonly string[]
  * `fold/index.ts`, nothing under `commands/` can reach it, and a log becomes a
  * state by exactly one route.
  */
-export function applyInventory({ state, next }: Applying, event: InventoryEvent): GameState {
+export function applyInventory({ state, next, legacy }: Applying, event: InventoryEvent): GameState {
   switch (event.type) {
     case 'items-gained': {
       const creature = creatureOf(state, event, event.id);
@@ -120,10 +122,24 @@ export function applyInventory({ state, next }: Applying, event: InventoryEvent)
 
     case 'item-equipped': {
       const creature = creatureOf(state, event, event.id);
-      if (creature.equipped.includes(event.item)) {
+      if (creature.equipped.some((held) => held.id === event.item)) {
         throw new CorruptLogError(event, `${event.item} is already equipped`);
       }
-      const equipped = [...creature.equipped, event.item].sort();
+      // What the item is was pinned on the event; a log older than that field
+      // is read through the content it was written against, or refused.
+      let armor = event.armor;
+      if (armor === undefined) {
+        if (legacy === null) {
+          throw new CorruptLogError(
+            event,
+            `${event.item} was equipped by a log that predates pinned armour; replay it with the content it was written against`,
+          );
+        }
+        armor = legacy.item(event.item)?.armor ?? null;
+      }
+      const equipped = [...creature.equipped, { id: event.item, armor }].sort((a, b) =>
+        a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+      );
       return withCreature(
         next,
         event.id,
@@ -134,10 +150,10 @@ export function applyInventory({ state, next }: Applying, event: InventoryEvent)
 
     case 'item-unequipped': {
       const creature = creatureOf(state, event, event.id);
-      if (!creature.equipped.includes(event.item)) {
+      if (!creature.equipped.some((held) => held.id === event.item)) {
         throw new CorruptLogError(event, `${event.item} is not equipped`);
       }
-      const equipped = creature.equipped.filter((held) => held !== event.item);
+      const equipped = creature.equipped.filter((held) => held.id !== event.item);
       return withCreature(
         next,
         event.id,

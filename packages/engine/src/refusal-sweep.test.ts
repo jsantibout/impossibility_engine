@@ -50,7 +50,20 @@ const sourceFiles = (dir = ''): readonly string[] =>
 
 const ALL = sourceFiles();
 const ENGINE_SOURCE = ALL.filter((file) => !file.endsWith('.test.ts'));
-const TEST_SOURCE = ALL.filter((file) => file.endsWith('.test.ts') && file !== SELF);
+
+/**
+ * The content package's tests count too: the SRD catalogue drives the engine
+ * through the same commands, and a refusal a catalogue test provokes is a
+ * refusal a test has seen. Absolute paths, because they are not under `SRC`.
+ */
+const CONTENT_SRC = fileURLToPath(new URL('../../content/src/', import.meta.url));
+const CONTENT_TESTS = readdirSync(CONTENT_SRC)
+  .filter((file) => file.endsWith('.test.ts'))
+  .map((file) => `${CONTENT_SRC}${file}`);
+const TEST_SOURCE = [
+  ...ALL.filter((file) => file.endsWith('.test.ts') && file !== SELF).map((file) => `${SRC}${file}`),
+  ...CONTENT_TESTS,
+];
 
 /**
  * Where each code is returned from.
@@ -105,7 +118,7 @@ const CODES: ReadonlySet<string> = new Set(SITES.keys());
  * otherwise assert it, and a sweep that can satisfy itself is not a sweep.
  */
 const assertedIn = (files: readonly string[]): ReadonlySet<string> => {
-  const text = files.map((file) => readFileSync(`${SRC}${file}`, 'utf8')).join('\n');
+  const text = files.map((file) => readFileSync(file, 'utf8')).join('\n');
   return new Set([...CODES].filter((code) => text.includes(`'${code}'`) || text.includes(`"${code}"`)));
 };
 

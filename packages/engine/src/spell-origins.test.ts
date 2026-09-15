@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -7,7 +8,6 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { movementLeftFor } from './standing.js';
 import type { Point } from './positioning.js';
-import { SPELL_DEFINITIONS } from './spell-definitions.js';
 import {
   activateSpell,
   eligibleTargets,
@@ -123,6 +123,7 @@ const casts = (who: CharacterId): readonly GameEvent[] => [
 const supply = (seed = 'weapon') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 /**
@@ -1215,7 +1216,7 @@ describe('a definition says where its reach is measured from, once', () => {
 
   /** The shortlist bounds a target by both numbers, not by the spell's Range. */
   it('shortlists a creature the force could reach but the caster cannot', () => {
-    const shortlist = eligibleTargets(new Game().state, CLERIC, 'spiritual-weapon', 2);
+    const shortlist = eligibleTargets(new Game().state, SRD_CONTENT, CLERIC, 'spiritual-weapon', 2);
     expect(shortlist.eligible).toContain(FAR);
   });
 });
@@ -1375,6 +1376,7 @@ describe('Arcane Sword strikes from the point it hovers at', () => {
   const hitting = (seed: string) => ({
     issuer: createRollIssuer('r'),
     rng: createRng(seed) as Rng,
+    content: SRD_CONTENT,
     bonuses: [{ source: 'forced', flat: 40 }],
   });
 

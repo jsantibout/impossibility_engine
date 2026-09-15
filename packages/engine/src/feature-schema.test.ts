@@ -1,10 +1,10 @@
+import { READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
 import { readFileSync } from 'node:fs';
+import { BACKGROUNDS, SPECIES, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isErr } from '@ie/shared';
 import { spellById } from '@ie/srd';
-import { allClasses, allSubclasses } from './creation.js';
-import { BACKGROUNDS, SPECIES } from './origins.js';
 import { MAX_LEVEL, type FeatureDefinition } from './progression.js';
 import {
   checkFeatureDefinition,
@@ -63,12 +63,12 @@ interface Entry {
 
 const population = (): readonly Entry[] => {
   const rows: Entry[] = [];
-  for (const definition of allClasses()) {
+  for (const definition of SRD_CONTENT.classes) {
     const levels = definition.table.length;
     for (const feature of definition.features) {
       rows.push({ source: definition.id, classId: definition.id, levels, feature });
     }
-    for (const sub of allSubclasses().filter((s) => s.classId === definition.id)) {
+    for (const sub of SRD_CONTENT.subclasses.filter((s) => s.classId === definition.id)) {
       for (const feature of sub.features) {
         rows.push({ source: sub.id, classId: definition.id, levels, feature });
       }
@@ -96,6 +96,8 @@ const contextFor = (entry: Entry): FeatureContext => ({
   readableGrants: READABLE_KINDS,
   readableFields: READABLE_FIELDS,
   spellExists: (id) => spellById(id) !== null,
+  // The class's own spellcasting block executes the feature it names.
+  executedBySource: new Set(spellcastingFeatureIds().filter((id) => id.startsWith(`${entry.source}:`))),
 });
 
 /** A minimal feature that passes every rule, for a synthetic pair to vary. */
@@ -117,29 +119,9 @@ const CONTEXT: FeatureContext = {
 const codes = (feature: FeatureDefinition, context: FeatureContext = CONTEXT): string[] =>
   checkFeatureDefinition(feature, context).map((problem) => problem.code);
 
-/**
- * An `engine` feature the instrument cannot see a reader for.
- *
- * Rule 4 asks whether an `engine` feature declares anything the readers read.
- * Ten do not, in two families, and both are genuinely executed — through a
- * declaration that is **not on the feature**, which is exactly where a
- * derivation over feature fields is blind. The brief's own instruction for
- * that case is to say so rather than to pretend, so each entry names the fact
- * that would end it.
- *
- * The spellcasting eight are *derived* below rather than typed out, because
- * the class's own `spellcasting` block names which feature it is.
- */
-const EXECUTED_ELSEWHERE: Readonly<Record<string, string>> = {
-  'cleric:improved-blessed-strikes':
-    'SRD: "The extra damage of your Divine Strike increases to 2d8." An "Improved X" that only raises a number is a step in the first feature’s table, not a second grant — `cleric:blessed-strikes` carries the `diceCountByLevel` column and the engine reads it at the Cleric’s own level. Ends when `FeatureGrant` gains a member for "a later feature steps an earlier feature’s table", which is `progression.ts`’s owner to add.',
-  'druid:improved-elemental-fury':
-    'SRD: "The extra damage of your Primal Strike increases to 2d8." The same shape, reading `druid:elemental-fury`’s column. Ends with the same member.',
-};
-
 /** `<class>:<the feature its own spellcasting block names>`. */
 const spellcastingFeatureIds = (): readonly string[] =>
-  allClasses()
+  SRD_CONTENT.classes
     .filter((definition) => definition.spellcasting !== undefined)
     .map((definition) => `${definition.id}:${definition.spellcasting?.feature ?? 'spellcasting'}`);
 
@@ -510,9 +492,17 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
    * held in both directions so it cannot silently grow a second entry.
    */
   const UNREAD_FIELDS: Readonly<Record<string, string>> = {
+    executedBy:
+      'Read by the content validator and by nothing that executes a feature: it is a claim about which sibling feature’s declaration carries this one’s effect, held to a sibling that declares something a reader reads. A reader dereferencing it would be a reader executing a feature twice.',
     grantsSubclass:
       'Written `true` by all twelve classes and dereferenced by no reader. Creation decides a subclass is due from `ClassDefinition.subclassLevel` and asks for it through the feature’s own `choice: { kind: "subclass" }`, so this field records a third time what two other declarations already say. Ends when `progression.ts`’s owner removes it, or when a reader is written that prefers it to `subclassLevel`.',
   };
+
+  /** The engine's runtime copies of the derived sets are held to the derivation, both ways. */
+  it('keeps the runtime vocabulary the content validator uses equal to the derived one', () => {
+    expect([...READABLE_FEATURE_FIELDS].sort()).toEqual([...READABLE_FIELDS].sort());
+    expect([...READABLE_GRANT_KINDS].sort()).toEqual([...READABLE_KINDS].sort());
+  });
 
   it('names every optional feature field no reader reads, and exempts none that is read', () => {
     const declared = declaredOptionalFields(PROGRESSION);
@@ -556,46 +546,22 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
   });
 });
 
-describe('the whole engine’s features validate', () => {
-  it('reports nothing but the rule-4 blind spot', () => {
+describe('the whole SRD catalogue’s features validate', () => {
+  it('reports nothing', () => {
     const problems = POPULATION.flatMap((entry) =>
       checkFeatureDefinition(entry.feature, contextFor(entry)).map(
         (problem) => `${entry.feature.id} ${problem.code}: ${problem.reason}`,
       ),
     );
-    const exempt = new Set([...Object.keys(EXECUTED_ELSEWHERE), ...spellcastingFeatureIds()]);
-    expect(
-      problems.filter(
-        (line) =>
-          !(line.includes('engine_declares_nothing') && exempt.has(line.split(' ')[0] ?? '')),
-      ),
-    ).toEqual([]);
+    expect(problems).toEqual([]);
   });
 
   /**
-   * The exemption list is held in **both** directions, so a stale entry fails
-   * rather than sitting there — the discipline `invariants.test.ts` established
-   * and the one thing that keeps an allowlist from becoming a licence.
-   */
-  it('exempts nothing that the rule does not actually catch', () => {
-    const caught = new Set(
-      POPULATION.filter((entry) =>
-        checkFeatureDefinition(entry.feature, contextFor(entry)).some(
-          (problem) => problem.code === 'engine_declares_nothing',
-        ),
-      ).map((entry) => entry.feature.id),
-    );
-    for (const id of Object.keys(EXECUTED_ELSEWHERE)) expect(caught.has(id)).toBe(true);
-    for (const id of spellcastingFeatureIds()) expect(caught.has(id)).toBe(true);
-    expect(caught.size).toBe(Object.keys(EXECUTED_ELSEWHERE).length + spellcastingFeatureIds().length);
-  });
-
-  /**
-   * The spellcasting eight are derived from the class's own `spellcasting`
-   * block rather than typed out — `ClassSpellcasting.feature` names which of
-   * the two features it is, and a thirteenth casting class needs no edit here.
-   * Checked to be real features, because a derived id that matches nothing
-   * would exempt nothing and pass silently.
+   * Rule 4's second half has two honest escapes and both are derived from the
+   * definitions rather than typed out here: the feature a class's own
+   * `spellcasting` block executes, and a feature that names the sibling whose
+   * table steps at its level. Held in both directions, so a stale claim fails
+   * rather than sitting there.
    */
   it('derives the spellcasting exemptions from the class declarations', () => {
     const byId = new Set(POPULATION.map((entry) => entry.feature.id));
@@ -605,13 +571,38 @@ describe('the whole engine’s features validate', () => {
     expect(derived).toContain('warlock:pact-magic');
   });
 
-  /** A written reason has to say something; whether it is *true* is review's. */
-  it('has a reason on every exemption, and no placeholder', () => {
-    const hollow = /^(todo|tbd|n\/?a|none|later|unknown)\.?$/i;
-    for (const [id, reason] of Object.entries(EXECUTED_ELSEWHERE)) {
-      expect(reason.length, id).toBeGreaterThan(80);
-      expect(hollow.test(reason.trim()), id).toBe(false);
+  it('holds every executedBy to a sibling that declares something', () => {
+    const claims = POPULATION.filter((entry) => entry.feature.executedBy !== undefined);
+    expect(claims.map((entry) => entry.feature.id).sort()).toEqual([
+      'cleric:improved-blessed-strikes',
+      'druid:improved-elemental-fury',
+    ]);
+    for (const entry of claims) {
+      const sibling = POPULATION.find(
+        (other) => other.source === entry.source && other.feature.id === entry.feature.executedBy,
+      );
+      expect(sibling, entry.feature.id).toBeDefined();
+      expect(sibling?.feature.grants, entry.feature.id).toBeDefined();
     }
+  });
+
+  /** And without either escape the rule still fires: the exemption is not a licence. */
+  it('still catches an engine feature that declares nothing and names nothing', () => {
+    const bare = POPULATION.filter(
+      (entry) =>
+        entry.feature.automation === 'engine' &&
+        entry.feature.executedBy === undefined &&
+        !spellcastingFeatureIds().includes(entry.feature.id) &&
+        READABLE_FIELDS.size > 0 &&
+        [...READABLE_FIELDS].every(
+          (field) => (entry.feature as unknown as Record<string, unknown>)[field] === undefined,
+        ),
+    );
+    expect(bare).toEqual([]);
+    expect(codes({ ...sound, automation: 'engine' })).toContain('engine_declares_nothing');
+    expect(
+      codes({ ...sound, automation: 'engine', executedBy: 'wizard:scholar' }),
+    ).not.toContain('engine_declares_nothing');
   });
 });
 

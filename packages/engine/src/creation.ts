@@ -32,22 +32,18 @@ import type {
   ReactionEffect,
   ReactionFeature,
 } from './reactions.js';
-import { expandPack, goldToCopper, itemFor } from './catalogue.js';
+import { goldToCopper } from './catalogue.js';
+import type { Content } from './content.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
 import {
   ALIGNMENTS,
-  BACKGROUNDS,
   COMMON,
   LANGUAGES_CHOSEN,
   POINT_BUY_BUDGET,
   POINT_COSTS,
-  SPECIES,
   STANDARD_ARRAY,
   STANDARD_LANGUAGES,
-  backgroundById,
-  featById,
-  speciesById,
   type BackgroundDefinition,
   type FeatDefinition,
   type SpeciesDefinition,
@@ -75,16 +71,11 @@ import {
   countOf,
   highestSlotLevel,
   levelGrantedSpells,
-  lookupSpell,
   spellIds,
   type SpellbookEntry,
 } from './spellbook.js';
 import type { GrantedSpell, SpellcastingClass, SpellcastingState } from './spellcasting.js';
-import { BARBARIAN, BARBARIAN_SUBCLASSES } from './barbarian.js';
-import { BARD, BARD_SUBCLASSES } from './bard.js';
-import { CLERIC, CLERIC_SUBCLASSES } from './cleric.js';
 import {
-  MULTICLASS_GRANTS,
   characterLevel,
   combinedArmorTraining,
   hitDicePools,
@@ -93,15 +84,6 @@ import {
   pactSlotsOf,
   type ClassLevel,
 } from './multiclass.js';
-import { DRUID, DRUID_SUBCLASSES } from './druid.js';
-import { MONK, MONK_SUBCLASSES } from './monk.js';
-import { FIGHTER, FIGHTER_SUBCLASSES } from './fighter.js';
-import { PALADIN, PALADIN_SUBCLASSES } from './paladin.js';
-import { RANGER, RANGER_SUBCLASSES } from './ranger.js';
-import { ROGUE, ROGUE_SUBCLASSES } from './rogue.js';
-import { SORCERER, SORCERER_SUBCLASSES } from './sorcerer.js';
-import { WARLOCK, WARLOCK_SUBCLASSES } from './warlock.js';
-import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
 
 /**
  * Character creation: choices in, a validated character out.
@@ -119,54 +101,6 @@ import { WIZARD, WIZARD_SUBCLASSES } from './wizard.js';
  * Validation returns *every* problem, not the first. A caller filling in a
  * character does not want to be told about one mistake at a time.
  */
-
-const CLASSES: readonly ClassDefinition[] = [
-  BARBARIAN,
-  BARD,
-  CLERIC,
-  DRUID,
-  FIGHTER,
-  MONK,
-  PALADIN,
-  RANGER,
-  ROGUE,
-  SORCERER,
-  WARLOCK,
-  WIZARD,
-];
-const SUBCLASSES: readonly SubclassDefinition[] = [
-  ...BARBARIAN_SUBCLASSES,
-  ...BARD_SUBCLASSES,
-  ...CLERIC_SUBCLASSES,
-  ...DRUID_SUBCLASSES,
-  ...FIGHTER_SUBCLASSES,
-  ...MONK_SUBCLASSES,
-  ...PALADIN_SUBCLASSES,
-  ...RANGER_SUBCLASSES,
-  ...ROGUE_SUBCLASSES,
-  ...SORCERER_SUBCLASSES,
-  ...WARLOCK_SUBCLASSES,
-  ...WIZARD_SUBCLASSES,
-];
-
-/**
- * Every class the engine knows, so a test suite can run against all of them.
- *
- * Exported rather than reachable only by id, because the checks that matter —
- * the Proficiency Bonus against the formula, slots never going backwards, a
- * subclass granted at the level the class says — must run on *every* class, or
- * the next one to land quietly disagrees with the engine instead of failing.
- */
-export const allClasses = (): readonly ClassDefinition[] => CLASSES;
-
-/** Every subclass, for the same reason. */
-export const allSubclasses = (): readonly SubclassDefinition[] => SUBCLASSES;
-
-export const classById = (id: string): ClassDefinition | null =>
-  CLASSES.find((c) => c.id === id) ?? null;
-
-const subclassById = (id: string): SubclassDefinition | null =>
-  SUBCLASSES.find((s) => s.id === id) ?? null;
 
 export type AbilityMethod = 'standard-array' | 'point-buy' | 'manual';
 
@@ -379,25 +313,25 @@ interface Parts {
   readonly subclass: SubclassDefinition | null;
 }
 
-function resolveParts(choices: CharacterChoices): { parts: Parts | null; problems: CreationProblem[] } {
+function resolveParts(content: Content, choices: CharacterChoices): { parts: Parts | null; problems: CreationProblem[] } {
   const problems: CreationProblem[] = [];
 
-  const definition = classById(choices.classId);
+  const definition = content.classById(choices.classId);
   if (definition === null) {
     problems.push(
-      problem('unknown_class', 'classId', `no class called ${choices.classId}; have ${CLASSES.map((c) => c.id).join(', ')}`),
+      problem('unknown_class', 'classId', `no class called ${choices.classId}; have ${content.classes.map((c) => c.id).join(', ')}`),
     );
   }
-  const species = speciesById(choices.speciesId);
+  const species = content.speciesById(choices.speciesId);
   if (species === null) {
     problems.push(
-      problem('unknown_species', 'speciesId', `no species called ${choices.speciesId}; have ${SPECIES.map((s) => s.id).join(', ')}`),
+      problem('unknown_species', 'speciesId', `no species called ${choices.speciesId}; have ${content.species.map((s) => s.id).join(', ')}`),
     );
   }
-  const background = backgroundById(choices.backgroundId);
+  const background = content.backgroundById(choices.backgroundId);
   if (background === null) {
     problems.push(
-      problem('unknown_background', 'backgroundId', `no background called ${choices.backgroundId}; have ${BACKGROUNDS.map((b) => b.id).join(', ')}`),
+      problem('unknown_background', 'backgroundId', `no background called ${choices.backgroundId}; have ${content.backgrounds.map((b) => b.id).join(', ')}`),
     );
   }
 
@@ -421,7 +355,7 @@ function resolveParts(choices: CharacterChoices): { parts: Parts | null; problem
         problem('subclass_too_early', 'subclassId', `a ${definition.name} has no subclass until level ${definition.subclassLevel}`),
       );
     } else {
-      subclass = subclassById(choices.subclassId);
+      subclass = content.subclassById(choices.subclassId);
       if (subclass === null || subclass.classId !== definition.id) {
         problems.push(
           problem('unknown_subclass', 'subclassId', `no ${definition.name} subclass called ${choices.subclassId}`),
@@ -575,13 +509,13 @@ function totalLevelOf(choices: CharacterChoices): number {
  * level." A level 3 Fighter / level 2 Wizard has the Fighter's level 3
  * features and the Wizard's level 2 ones, not either at level 5.
  */
-function grantedFeatures(choices: CharacterChoices, parts: Parts): readonly FeatureDefinition[] {
+function grantedFeatures(content: Content, choices: CharacterChoices, parts: Parts): readonly FeatureDefinition[] {
   const extra: FeatureDefinition[] = [];
   for (const entry of choices.multiclass ?? []) {
-    const definition = classById(entry.classId);
+    const definition = content.classById(entry.classId);
     if (definition === null) continue;
     extra.push(...cumulativeFeatures(definition, entry.level));
-    const subclass = entry.subclassId === undefined ? null : subclassById(entry.subclassId);
+    const subclass = entry.subclassId === undefined ? null : content.subclassById(entry.subclassId);
     if (subclass !== null) extra.push(...cumulativeFeatures(subclass, entry.level));
   }
 
@@ -601,7 +535,7 @@ function grantedFeatures(choices: CharacterChoices, parts: Parts): readonly Feat
  * do not allow: a class nobody registered, the same class twice, and scores
  * below the 13 every class involved demands.
  */
-function checkMulticlass(choices: CharacterChoices): CreationProblem[] {
+function checkMulticlass(content: Content, choices: CharacterChoices): CreationProblem[] {
   const extra = choices.multiclass ?? [];
   if (extra.length === 0) return [];
 
@@ -610,7 +544,7 @@ function checkMulticlass(choices: CharacterChoices): CreationProblem[] {
   const seen = new Set<string>([choices.classId]);
 
   for (const entry of extra) {
-    const definition = classById(entry.classId);
+    const definition = content.classById(entry.classId);
     if (definition === null) {
       problems.push(problem('unknown_class', 'multiclass', `no class called ${entry.classId}`));
       continue;
@@ -630,7 +564,7 @@ function checkMulticlass(choices: CharacterChoices): CreationProblem[] {
       );
     }
     if (entry.subclassId !== undefined) {
-      const subclass = subclassById(entry.subclassId);
+      const subclass = content.subclassById(entry.subclassId);
       if (subclass === null || subclass.classId !== entry.classId) {
         problems.push(
           problem('wrong_subclass', 'multiclass', `${entry.subclassId} is not a ${definition.name} subclass`),
@@ -650,7 +584,7 @@ function checkMulticlass(choices: CharacterChoices): CreationProblem[] {
     );
   }
 
-  const starting = classById(choices.classId);
+  const starting = content.classById(choices.classId);
   const all = starting === null ? definitions : [starting, ...definitions];
   const qualified = meetsPrerequisites(finalScores(choices), all);
   if (!qualified.ok) {
@@ -688,8 +622,8 @@ function choicesGranting(
 }
 
 /** Skills a feature granted Expertise in, whichever feature it was. */
-function expertiseSkills(choices: CharacterChoices, parts: Parts): readonly string[] {
-  return choicesGranting(choices, grantedFeatures(choices, parts), 'expertise');
+function expertiseSkills(content: Content, choices: CharacterChoices, parts: Parts): readonly string[] {
+  return choicesGranting(choices, grantedFeatures(content, choices, parts), 'expertise');
 }
 
 
@@ -769,6 +703,7 @@ function checkFeatureChoices(
  * through and leave a character holding a spell that does not exist.
  */
 function checkSpellId(
+  content: Content,
   id: string,
   field: string,
   classId: string,
@@ -779,7 +714,7 @@ function checkSpellId(
     readonly what: string;
   },
 ): CreationProblem[] {
-  const spell = lookupSpell(id);
+  const spell = content.spellEntry(id);
   if (spell === null) {
     return [problem('unknown_spell', field, `no SRD spell with the id ${id}`)];
   }
@@ -843,9 +778,9 @@ interface CasterChoices {
  * keep the flat fields too. Null when that is genuinely ambiguous, and then
  * anything written in the flat fields is refused rather than filed by guess.
  */
-function defaultSpellClass(choices: CharacterChoices): string | null {
+function defaultSpellClass(content: Content, choices: CharacterChoices): string | null {
   const casters = classLevelsOf(choices).filter(
-    (entry) => classById(entry.classId)?.spellcasting !== undefined,
+    (entry) => content.classById(entry.classId)?.spellcasting !== undefined,
   );
   const uncovered = casters.filter(
     (entry) => choices.spellsByClass?.[entry.classId] === undefined,
@@ -855,12 +790,12 @@ function defaultSpellClass(choices: CharacterChoices): string | null {
 }
 
 /** Which of a character's classes cast, each with the spells chosen for it. */
-function castingClassesOf(choices: CharacterChoices): readonly CasterChoices[] {
-  const flatOwner = defaultSpellClass(choices);
+function castingClassesOf(content: Content, choices: CharacterChoices): readonly CasterChoices[] {
+  const flatOwner = defaultSpellClass(content, choices);
   const casters: CasterChoices[] = [];
 
   for (const entry of classLevelsOf(choices)) {
-    const definition = classById(entry.classId);
+    const definition = content.classById(entry.classId);
     if (definition === null || definition.spellcasting === undefined) continue;
 
     const named = choices.spellsByClass?.[entry.classId];
@@ -890,8 +825,8 @@ function castingClassesOf(choices: CharacterChoices): readonly CasterChoices[] {
  * spells are *Cleric* spells cast off Wisdom, and a Cleric/Wizard's Wizard
  * half must not inherit them.
  */
-function classFeatureSpells(choices: CharacterChoices, caster: CasterChoices): readonly string[] {
-  const subclass = caster.subclassId === undefined ? null : subclassById(caster.subclassId);
+function classFeatureSpells(content: Content, choices: CharacterChoices, caster: CasterChoices): readonly string[] {
+  const subclass = caster.subclassId === undefined ? null : content.subclassById(caster.subclassId);
   const features = [
     ...cumulativeFeatures(caster.definition, caster.level),
     ...(subclass === null ? [] : cumulativeFeatures(subclass, caster.level)),
@@ -907,9 +842,9 @@ function classFeatureSpells(choices: CharacterChoices, caster: CasterChoices): r
  * a guess would give them the wrong spellcasting ability for the rest of the
  * campaign.
  */
-function checkSpells(choices: CharacterChoices, definition: ClassDefinition): CreationProblem[] {
-  const casters = castingClassesOf(choices);
-  const problems: CreationProblem[] = [...checkSpellAttribution(choices, casters)];
+function checkSpells(content: Content, choices: CharacterChoices, definition: ClassDefinition): CreationProblem[] {
+  const casters = castingClassesOf(content, choices);
+  const problems: CreationProblem[] = [...checkSpellAttribution(content, choices, casters)];
 
   // A character with no casting class at all casts nothing, and the difference
   // between that and "has none at this level" matters: a Fighter does not know
@@ -932,7 +867,7 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
   }
 
   for (const caster of casters) {
-    problems.push(...checkClassSpells(choices, caster));
+    problems.push(...checkClassSpells(content, choices, caster));
   }
   return problems;
 }
@@ -945,6 +880,7 @@ function checkSpells(choices: CharacterChoices, definition: ClassDefinition): Cr
  * whose two casting classes both named their own lists.
  */
 function checkSpellAttribution(
+  content: Content,
   choices: CharacterChoices,
   casters: readonly CasterChoices[],
 ): CreationProblem[] {
@@ -957,7 +893,7 @@ function checkSpellAttribution(
       problems.push(
         problem('not_a_class_of_this_character', field, `this character has no levels in ${classId}`),
       );
-    } else if (classById(classId)?.spellcasting === undefined) {
+    } else if (content.classById(classId)?.spellcasting === undefined) {
       problems.push(problem('no_spellcasting', field, `a ${classId} casts nothing`));
     }
   }
@@ -966,7 +902,7 @@ function checkSpellAttribution(
     choices.cantrips.length > 0 ||
     choices.spellbook.length > 0 ||
     choices.preparedSpells.length > 0;
-  if (flat && casters.length > 0 && defaultSpellClass(choices) === null) {
+  if (flat && casters.length > 0 && defaultSpellClass(content, choices) === null) {
     problems.push(
       problem('unattributed_spells', 'spellsByClass', `${casters.map((c) => c.definition.name).join(' and ')} both cast, so every spell must say which class it belongs to; put these under spellsByClass`),
     );
@@ -976,7 +912,7 @@ function checkSpellAttribution(
 }
 
 /** One casting class's spells, on that class's own terms. */
-function checkClassSpells(choices: CharacterChoices, caster: CasterChoices): CreationProblem[] {
+function checkClassSpells(content: Content, choices: CharacterChoices, caster: CasterChoices): CreationProblem[] {
   const problems: CreationProblem[] = [];
   const { definition, level, at } = caster;
 
@@ -993,7 +929,7 @@ function checkClassSpells(choices: CharacterChoices, caster: CasterChoices): Cre
   // reach them even though the count rule does not measure them. Gathered by
   // what the feature grants rather than by naming the Evoker's, so a second
   // subclass with free spells needs no change here.
-  const fromFeatures = classFeatureSpells(choices, caster);
+  const fromFeatures = classFeatureSpells(content, choices, caster);
 
   // — cantrips ————————————————————————————————————————————————————————————
   const cantrips = row.value.cantripsKnown ?? 0;
@@ -1007,7 +943,7 @@ function checkClassSpells(choices: CharacterChoices, caster: CasterChoices): Cre
   }
   for (const id of caster.cantrips) {
     problems.push(
-      ...checkSpellId(id, at('cantrips'), definition.id, {
+      ...checkSpellId(content, id, at('cantrips'), definition.id, {
         minLevel: 0,
         maxLevel: 0,
         what: 'a cantrip',
@@ -1028,7 +964,7 @@ function checkClassSpells(choices: CharacterChoices, caster: CasterChoices): Cre
         problem('no_spellbook', at('spellbook'), `a ${definition.name} has no spellbook to write spells in`),
       );
     }
-    problems.push(...checkPreparedFromList(caster, row.value, topSlot, style, fromFeatures));
+    problems.push(...checkPreparedFromList(content, caster, row.value, topSlot, style, fromFeatures));
     return problems;
   }
 
@@ -1047,7 +983,7 @@ function checkClassSpells(choices: CharacterChoices, caster: CasterChoices): Cre
   }
   for (const entry of caster.spellbook) {
     problems.push(
-      ...checkSpellId(entry.spellId, at('spellbook'), definition.id, {
+      ...checkSpellId(content, entry.spellId, at('spellbook'), definition.id, {
         minLevel: 1,
         maxLevel: topSlot,
         what: 'a spellbook',
@@ -1080,7 +1016,7 @@ function checkClassSpells(choices: CharacterChoices, caster: CasterChoices): Cre
       continue;
     }
     // SRD: "The chosen spells must be of a level for which you have spell slots."
-    const spell = lookupSpell(id);
+    const spell = content.spellEntry(id);
     if (spell !== null && spell.level > topSlot) {
       problems.push(
         problem('prepared_above_slot_level', at('preparedSpells'), `${spell.name} is level ${spell.level}, and this character has no slot above level ${topSlot}`),
@@ -1105,6 +1041,7 @@ function checkClassSpells(choices: CharacterChoices, caster: CasterChoices): Cre
  * may change, which is a rest rule rather than a creation rule.
  */
 function checkPreparedFromList(
+  content: Content,
   caster: CasterChoices,
   row: ClassLevelRow,
   topSlot: number,
@@ -1131,7 +1068,7 @@ function checkPreparedFromList(
     // the class list, which is the whole point of a domain or subclass grant.
     if (granted.has(id)) continue;
     problems.push(
-      ...checkSpellId(id, at('preparedSpells'), definition.id, {
+      ...checkSpellId(content, id, at('preparedSpells'), definition.id, {
         minLevel: 1,
         maxLevel: topSlot,
         what: `a ${definition.name} spell`,
@@ -1143,50 +1080,63 @@ function checkPreparedFromList(
 }
 
 /**
+ * Spells a feature lets the player choose, checked on the feature's own terms.
+ *
  * SRD Evocation Savant: "Choose two Wizard spells from the Evocation school,
  * each of which must be no higher than level 2, and add them to your spellbook
- * for free."
- *
- * Checked on its own terms rather than folded into the spellbook rules: the
- * school and the level cap are the feature's, not the book's, and a spell that
- * fails them should say which rule it broke.
+ * for free." The school and the level cap are the feature's, not the book's,
+ * so a spell that fails them says which rule it broke. Any feature that
+ * offers a spell choice and grants spells is checked this way — the feature
+ * says what it allows, and nothing here knows which class or subclass it
+ * belongs to.
  */
-function checkEvocationSavant(
+function checkFeatureSpellChoices(
+  content: Content,
   choices: CharacterChoices,
   casters: readonly CasterChoices[],
 ): CreationProblem[] {
-  const picked = choices.featureChoices['evoker:evocation-savant'];
-  if (picked === undefined) return [];
-
-  // The feature belongs to a class, so the book it writes into is that class's.
-  // A Cleric/Wizard's Evoker spells go in the Wizard's book and nowhere else.
-  const caster = casters.find((entry) => entry.definition.id === 'wizard');
-  const field = caster?.at('featureChoices') ?? 'featureChoices';
-
   const problems: CreationProblem[] = [];
-  for (const id of duplicates(picked)) {
-    problems.push(problem('duplicate_spell', field, `Evocation Savant chose ${id} twice`));
-  }
-  for (const id of picked) {
-    problems.push(
-      ...checkSpellId(id, field, 'wizard', {
-        minLevel: 1,
-        maxLevel: 2,
-        school: 'evocation',
-        what: 'Evocation Savant',
-      }),
-    );
-  }
 
-  // The free spells go into the book, so they must not already be in it.
-  const fromLevels = new Set(
-    (caster?.spellbook ?? []).filter((e) => e.origin !== 'feature').map((e) => e.spellId),
-  );
-  for (const id of picked) {
-    if (fromLevels.has(id)) {
-      problems.push(
-        problem('spell_already_known', field, `${id} is already in the spellbook, so Evocation Savant would grant nothing`),
-      );
+  for (const caster of casters) {
+    const subclass = caster.subclassId === undefined ? null : content.subclassById(caster.subclassId);
+    const features = [
+      ...cumulativeFeatures(caster.definition, caster.level),
+      ...(subclass === null ? [] : cumulativeFeatures(subclass, caster.level)),
+    ];
+    for (const feature of features) {
+      if (feature.choice?.kind !== 'spell' || feature.grants?.kind !== 'spells') continue;
+      const picked = choices.featureChoices[feature.id];
+      if (picked === undefined) continue;
+      const field = caster.at('featureChoices');
+
+      for (const id of duplicates(picked)) {
+        problems.push(problem('duplicate_spell', field, `${feature.name} chose ${id} twice`));
+      }
+      for (const id of picked) {
+        problems.push(
+          ...checkSpellId(content, id, field, caster.definition.id, {
+            minLevel: 1,
+            ...(feature.choice.maxLevel === undefined ? {} : { maxLevel: feature.choice.maxLevel }),
+            ...(feature.choice.school === undefined ? {} : { school: feature.choice.school }),
+            what: feature.name,
+          }),
+        );
+      }
+
+      // A spellbook class writes the free spells into the book, so they must
+      // not already be in it; a class without a book has nothing to duplicate.
+      if (caster.definition.spellcasting?.style === 'spellbook') {
+        const fromLevels = new Set(
+          caster.spellbook.filter((e) => e.origin !== 'feature').map((e) => e.spellId),
+        );
+        for (const id of picked) {
+          if (fromLevels.has(id)) {
+            problems.push(
+              problem('spell_already_known', field, `${id} is already in the spellbook, so ${feature.name} would grant nothing`),
+            );
+          }
+        }
+      }
     }
   }
 
@@ -1201,6 +1151,7 @@ function checkEvocationSavant(
  * error rather than a silent gap on a sheet.
  */
 function checkFeats(
+  content: Content,
   choices: CharacterChoices,
   features: readonly FeatureDefinition[],
 ): CreationProblem[] {
@@ -1220,7 +1171,7 @@ function checkFeats(
       continue;
     }
 
-    const definition = featById(made.featId);
+    const definition = content.featById(made.featId);
     if (definition === null) {
       problems.push(problem('unknown_feat', 'feats', `no Origin feat with the id ${made.featId}`));
       continue;
@@ -1240,12 +1191,12 @@ function checkFeats(
     }
 
     taken.push({ feature: feature.id, feat: definition, choice: made });
-    problems.push(...checkFeatChoice(feature.id, definition, made, fixed?.spellList));
+    problems.push(...checkFeatChoice(content, feature.id, definition, made, fixed?.spellList));
   }
 
   // SRD Magic Initiate: "you must choose a different spell list each time."
   const lists = taken
-    .filter((t) => t.feat.id === 'magic-initiate')
+    .filter((t) => t.feat.requires.kind === 'magic-initiate')
     .map((t) => t.choice.spellList);
   for (const list of duplicates(lists.filter((l): l is string => l !== undefined))) {
     problems.push(
@@ -1263,6 +1214,7 @@ function checkFeats(
 }
 
 function checkFeatChoice(
+  content: Content,
   featureId: string,
   definition: FeatDefinition,
   made: FeatChoice,
@@ -1300,13 +1252,13 @@ function checkFeatChoice(
     }
     if (list !== undefined && requires.lists.includes(list)) {
       for (const id of cantrips) {
-        problems.push(...checkSpellId(id, 'feats', list, { minLevel: 0, maxLevel: 0, what: where }));
+        problems.push(...checkSpellId(content, id, 'feats', list, { minLevel: 0, maxLevel: 0, what: where }));
       }
       const one = made.levelOneSpell;
       if (one === undefined) {
         problems.push(problem('missing_level_one_spell', 'feats', `${where} needs one level 1 spell`));
       } else {
-        problems.push(...checkSpellId(one, 'feats', list, { minLevel: 1, maxLevel: 1, what: where }));
+        problems.push(...checkSpellId(content, one, 'feats', list, { minLevel: 1, maxLevel: 1, what: where }));
       }
     }
   }
@@ -1374,8 +1326,8 @@ function hitPointsFor(
  * A single-classed character goes through exactly the same arithmetic it
  * always did, which is the property the existing tests hold this to.
  */
-function multiclassHitPoints(choices: CharacterChoices, constitution: number): number {
-  const starting = classById(choices.classId);
+function multiclassHitPoints(content: Content, choices: CharacterChoices, constitution: number): number {
+  const starting = content.classById(choices.classId);
   if (starting === null) return 1;
 
   const extra = choices.multiclass ?? [];
@@ -1401,7 +1353,7 @@ function multiclassHitPoints(choices: CharacterChoices, constitution: number): n
 
   after(starting, choices.level - 1);
   for (const entry of extra) {
-    const definition = classById(entry.classId);
+    const definition = content.classById(entry.classId);
     if (definition !== null) after(definition, entry.level);
   }
 
@@ -1416,19 +1368,19 @@ function multiclassHitPoints(choices: CharacterChoices, constitution: number): n
  * Wizard's own table, and only a character casting from *two* classes goes to
  * the weighted sum. Pact Magic stays its own pool either way.
  */
-function slotsFor(choices: CharacterChoices): SlotPools {
+function slotsFor(content: Content, choices: CharacterChoices): SlotPools {
   const levels = classLevelsOf(choices);
-  const casters = levels.filter((entry) => classById(entry.classId)?.spellcasting !== undefined);
+  const casters = levels.filter((entry) => content.classById(entry.classId)?.spellcasting !== undefined);
 
   // SRD names Pact Magic as a feature distinct from Spellcasting, and keeps it
   // out of the combined table entirely. So it never joins the sum and never
   // shares a key: a Warlock 3 / Wizard 3 has two level 2 Pact slots *and* two
   // ordinary ones, and one key for both would lose half of them.
-  const pact = casters.some((entry) => pactMagic(entry.classId))
-    ? pactSlotsOf(levels, classById('warlock')?.table ?? [])
+  const pact = casters.some((entry) => pactMagic(content, entry.classId))
+    ? pactSlotsOf(levels, content.classById)
     : {};
 
-  const spellcasters = casters.filter((entry) => !pactMagic(entry.classId));
+  const spellcasters = casters.filter((entry) => !pactMagic(content, entry.classId));
 
   // SRD: "If you multiclass but have the Spellcasting feature from only one
   // class, follow the rules for that class." One caster reads its own table,
@@ -1436,12 +1388,12 @@ function slotsFor(choices: CharacterChoices): SlotPools {
   if (spellcasters.length === 0) return { slots: {}, pact };
   if (spellcasters.length === 1) {
     const only = spellcasters[0];
-    const single = only === undefined ? null : classById(only.classId);
+    const single = only === undefined ? null : content.classById(only.classId);
     const slots = single === null || only === undefined ? {} : slotsAt(single, only.level);
     return { slots, pact };
   }
 
-  return { slots: multiclassSlots(levels, FULL_CASTER_SLOTS()), pact };
+  return { slots: multiclassSlots(levels, content.classById), pact };
 }
 
 /** The two slot pools a character can have, kept apart because SRD keeps them apart. */
@@ -1451,18 +1403,8 @@ interface SlotPools {
 }
 
 /** Whether this class's slots are Pact Magic's rather than Spellcasting's. */
-const pactMagic = (classId: string): boolean =>
-  classById(classId)?.spellcasting?.feature === 'pact-magic';
-
-/**
- * The full-caster slot rows, read off a registered full caster.
- *
- * SRD's Multiclass Spellcaster table is identical to every full caster's own,
- * and `multiclass.test.ts` asserts that for all five of them. Reading one is
- * how a second transcription of the same twenty rows is avoided.
- */
-const FULL_CASTER_SLOTS = (): readonly (readonly number[])[] =>
-  (classById('wizard')?.table ?? []).map((row) => row.spellSlots ?? []);
+const pactMagic = (content: Content, classId: string): boolean =>
+  content.classById(classId)?.spellcasting?.feature === 'pact-magic';
 
 /** SRD "Choose Languages": Common, plus two from the Standard Languages table. */
 function checkLanguages(choices: CharacterChoices): CreationProblem[] {
@@ -1510,6 +1452,7 @@ function checkDmGrants(choices: CharacterChoices): CreationProblem[] {
 
 /** Everything owned: both packages, plus whatever the GM added. */
 function inventoryOf(
+  content: Content,
   choices: CharacterChoices,
   parts: Parts,
 ): Result<{ items: readonly InventoryLine[]; goldPieces: number }> {
@@ -1522,7 +1465,7 @@ function inventoryOf(
     // SRD offers "Choose A or B": the package *or* the money. Each package
     // contributes exactly one of its halves, and both halves come from the
     // same chosen option, so nothing is granted twice.
-    items: openPackages([
+    items: openPackages(content, [
       ...classKit.value.items,
       ...backgroundKit.value.items,
       ...(choices.dmGrants?.items ?? []),
@@ -1534,13 +1477,14 @@ function inventoryOf(
 
 /** Only what is owned can be worn or held. */
 function checkEquipped(
+  content: Content,
   choices: CharacterChoices,
   owned: readonly InventoryLine[],
 ): CreationProblem[] {
   const problems: CreationProblem[] = [];
   const held = new Set(owned.map((line) => line.id));
   for (const itemId of choices.equipped) {
-    if (itemFor(itemId) === null) {
+    if (content.item(itemId) === null) {
       problems.push(problem('unknown_item', 'equipped', `${itemId} is not in the catalogue`));
       continue;
     }
@@ -1557,7 +1501,7 @@ function checkEquipped(
   // character can be born wearing two suits and the sheet has to pick one.
   const slots = new Map<string, string>();
   for (const itemId of choices.equipped) {
-    const armor = itemFor(itemId)?.armor;
+    const armor = content.item(itemId)?.armor;
     if (armor == null) continue;
     const slot = armor.category === 'shield' ? 'shield' : 'body armour';
     const taken = slots.get(slot);
@@ -1578,10 +1522,10 @@ function checkEquipped(
  * SRD prices a pack as a bundle and lists its contents, so a Scholar's Pack is
  * nine things. A character who owns the label owns nothing useful.
  */
-function openPackages(items: readonly EquipmentEntry[]): readonly InventoryLine[] {
+function openPackages(content: Content, items: readonly EquipmentEntry[]): readonly InventoryLine[] {
   const lines: InventoryLine[] = [];
   for (const entry of items) {
-    for (const line of expandPack(entry.id)) {
+    for (const line of content.expandPack(entry.id)) {
       lines.push({ id: line.id, quantity: line.quantity * entry.quantity });
     }
   }
@@ -1598,6 +1542,7 @@ function openPackages(items: readonly EquipmentEntry[]): readonly InventoryLine[
  * *warning* and the table decides what to do about it.
  */
 function gatherProficiencies(
+  content: Content,
   choices: CharacterChoices,
   parts: Parts,
 ): {
@@ -1641,7 +1586,7 @@ function gatherProficiencies(
   // skill you are *already* proficient in and doubles the bonus, so granting
   // proficiency from it would make "Expertise without proficiency" impossible
   // to refuse.
-  for (const feature of grantedFeatures(choices, parts)) {
+  for (const feature of grantedFeatures(content, choices, parts)) {
     if (feature.choice?.kind !== 'skill') continue;
     if (feature.grants?.kind === 'expertise') continue;
     for (const skill of choices.featureChoices[feature.id] ?? []) {
@@ -1657,10 +1602,11 @@ function gatherProficiencies(
 
 /** Every problem with a set of choices, so a caller can show them all at once. */
 export function checkCharacter(
+  content: Content,
   choices: CharacterChoices,
   carried?: readonly InventoryLine[],
 ): readonly CreationProblem[] {
-  const { parts, problems } = resolveParts(choices);
+  const { parts, problems } = resolveParts(content, choices);
   if (parts === null) return problems;
 
   const all = [
@@ -1669,22 +1615,22 @@ export function checkCharacter(
     ...checkSkills(choices, parts.definition),
     ...checkLanguages(choices),
     ...checkDmGrants(choices),
-    ...checkMulticlass(choices),
+    ...checkMulticlass(content, choices),
   ];
 
-  const { skills } = gatherProficiencies(choices, parts);
-  const features = grantedFeatures(choices, parts);
+  const { skills } = gatherProficiencies(content, choices, parts);
+  const features = grantedFeatures(content, choices, parts);
 
   all.push(...checkFeatureChoices(choices, features, skills));
-  all.push(...checkFeats(choices, features));
-  all.push(...checkSpells(choices, parts.definition));
-  all.push(...checkEvocationSavant(choices, castingClassesOf(choices)));
+  all.push(...checkFeats(content, choices, features));
+  all.push(...checkSpells(content, choices, parts.definition));
+  all.push(...checkFeatureSpellChoices(content, choices, castingClassesOf(content, choices)));
 
-  const owned = inventoryOf(choices, parts);
+  const owned = inventoryOf(content, choices, parts);
   if (!owned.ok) {
     all.push(problem(owned.code, 'classEquipment', owned.reason));
   } else {
-    all.push(...checkEquipped(choices, carried ?? owned.value.items));
+    all.push(...checkEquipped(content, choices, carried ?? owned.value.items));
   }
 
   if (choices.name.trim() === '') {
@@ -1712,22 +1658,23 @@ export function checkCharacter(
  * or a GM note that does not re-list last season's chain shirt takes it away.
  */
 export function planCharacter(
+  content: Content,
   choices: CharacterChoices,
   carried?: readonly InventoryLine[],
 ): Result<CharacterPlan> {
-  const problems = checkCharacter(choices, carried);
+  const problems = checkCharacter(content, choices, carried);
   const first = problems[0];
   if (first !== undefined) return err(first.code, `${first.field}: ${first.reason}`);
 
-  const { parts } = resolveParts(choices);
+  const { parts } = resolveParts(content, choices);
   if (parts === null) return err('unknown_class', 'the character has no class');
   const { definition, species } = parts;
 
   const scores = finalScores(choices);
-  const features = grantedFeatures(choices, parts);
-  const { skills: proficient, tools, warnings } = gatherProficiencies(choices, parts);
+  const features = grantedFeatures(content, choices, parts);
+  const { skills: proficient, tools, warnings } = gatherProficiencies(content, choices, parts);
 
-  const expertise = new Set(expertiseSkills(choices, parts));
+  const expertise = new Set(expertiseSkills(content, choices, parts));
   const skills: Partial<Record<Skill, 'proficient' | 'expertise'>> = {};
   for (const skill of proficient) {
     skills[skill] = expertise.has(skill) ? 'expertise' : 'proficient';
@@ -1735,11 +1682,11 @@ export function planCharacter(
 
   // Armour Class reads what is *worn*, not what is owned. A suit of chain mail
   // in the backpack protects nobody.
-  const equipped = choices.equipped.map((itemId) => itemFor(itemId)?.armor ?? null);
+  const equipped = choices.equipped.map((itemId) => content.item(itemId)?.armor ?? null);
   const worn = equipped.find((piece) => piece !== null && piece.category !== 'shield') ?? null;
   const held = equipped.find((piece) => piece !== null && piece.category === 'shield') ?? null;
 
-  const casters = castingClassesOf(choices);
+  const casters = castingClassesOf(content, choices);
 
   // SRD writes the Paladin's three auras as benefits *inside* one aura, and
   // only two features say how big it is — Aura of Protection's 10 feet and
@@ -1980,7 +1927,7 @@ export function planCharacter(
     // found to be a line that could never matter. A character with no Pact
     // slots is a grant that refills nothing, and is skipped rather than
     // pointed at a pool that does not exist.
-    const pactLevels = Object.keys(slotsFor(choices).pact).map(Number);
+    const pactLevels = Object.keys(slotsFor(content, choices).pact).map(Number);
     const restores =
       grant.restores.kind === 'pool'
         ? grant.restores.key
@@ -2063,7 +2010,10 @@ export function planCharacter(
     shield: held,
     armorTraining: combinedArmorTraining(
       definition,
-      (choices.multiclass ?? []).map((entry) => entry.classId),
+      (choices.multiclass ?? []).flatMap((entry) => {
+        const other = content.classById(entry.classId);
+        return other === null ? [] : [other];
+      }),
     ),
     baseSpeed: species.speed,
     // SRD: the starting class grants its weapon proficiencies in full, and a
@@ -2073,7 +2023,7 @@ export function planCharacter(
       ...new Set([
         ...definition.weaponProficiencies,
         ...(choices.multiclass ?? []).flatMap(
-          (entry) => MULTICLASS_GRANTS[entry.classId]?.weapons ?? [],
+          (entry) => content.classById(entry.classId)?.multiclass.weapons ?? [],
         ),
       ]),
     ].sort(),
@@ -2098,7 +2048,7 @@ export function planCharacter(
     spellcastingAbility: casters[0]?.definition.spellcasting?.ability ?? null,
   };
 
-  const owned = inventoryOf(choices, parts);
+  const owned = inventoryOf(content, choices, parts);
   if (!owned.ok) return owned;
 
   // A feat's spells reach usable state here, rather than sitting in a record
@@ -2106,7 +2056,7 @@ export function planCharacter(
   // daily casting; the class's prepared list is untouched by it.
   const granted: GrantedSpell[] = [];
   for (const [featureId, feat] of Object.entries(choices.feats)) {
-    if (feat.featId !== 'magic-initiate') continue;
+    if (content.featById(feat.featId)?.requires.kind !== 'magic-initiate') continue;
     const ability = feat.spellcastingAbility;
     if (ability === undefined) continue;
 
@@ -2143,7 +2093,7 @@ export function planCharacter(
     const ability = caster.definition.spellcasting?.ability;
     if (ability === undefined) continue;
 
-    const fromFeatures = classFeatureSpells(choices, caster);
+    const fromFeatures = classFeatureSpells(content, choices, caster);
     const style = caster.definition.spellcasting?.style ?? 'spellbook';
 
     if (style === 'spellbook') {
@@ -2174,7 +2124,7 @@ export function planCharacter(
       ability,
       cantrips: caster.cantrips,
       prepared: [...caster.preparedSpells, ...alwaysPrepared],
-      slotKind: pactMagic(caster.definition.id) ? 'pact' : 'spell',
+      slotKind: pactMagic(content, caster.definition.id) ? 'pact' : 'spell',
     });
   }
 
@@ -2186,12 +2136,12 @@ export function planCharacter(
     ? [{ source: 'Alert', flat: proficiencyBonusForLevel(choices.level) }]
     : [];
 
-  const pools = slotsFor(choices);
+  const pools = slotsFor(content, choices);
 
   return ok({
     sheet,
     proficiencyBonus: proficiencyBonusForLevel(choices.level),
-    hitPointMaximum: multiclassHitPoints(choices, abilityModifier(scores.con)),
+    hitPointMaximum: multiclassHitPoints(content, choices, abilityModifier(scores.con)),
     hitDie: definition.hitDie,
     spellSlots: pools.slots,
     pactSlots: pools.pact,
@@ -2211,7 +2161,7 @@ export function planCharacter(
     spellcasting,
     initiativeBonuses,
     feats: Object.entries(choices.feats).map(([featureId, feat]) => {
-      const definitionOfFeat = featById(feat.featId);
+      const definitionOfFeat = content.featById(feat.featId);
       return `${definitionOfFeat?.name ?? feat.featId} (${featureId})`;
     }),
     warnings,
@@ -2451,10 +2401,10 @@ export function liftsFor(
  * same reason `poolsFor` reads the level there: a caller that could hand in a
  * different class list is a caller that could hand in the wrong one.
  */
-function hitDiePools(choices: CharacterChoices): readonly PoolDeclaration[] {
+function hitDiePools(content: Content, choices: CharacterChoices): readonly PoolDeclaration[] {
   const byDie = hitDicePools(
     classLevelsOf(choices),
-    (classId) => classById(classId)?.hitDie ?? null,
+    (classId) => content.classById(classId)?.hitDie ?? null,
   );
 
   // Numeric keys iterate in ascending order, so the d8 pool of a Cleric /
@@ -2486,12 +2436,13 @@ function hitDiePools(choices: CharacterChoices): readonly PoolDeclaration[] {
  * could hand in the wrong one.
  */
 function poolsFor(
+  content: Content,
   plan: CharacterPlan,
   features: readonly FeatureDefinition[],
   choices: CharacterChoices,
 ): readonly PoolDeclaration[] {
   const pools: PoolDeclaration[] = [
-    ...hitDiePools(choices),
+    ...hitDiePools(content, choices),
     ...slotPools(plan),
   ];
 
@@ -2580,12 +2531,13 @@ function poolsFor(
 
 /** Creation declares the lot; nothing exists yet for any of them to grow from. */
 function poolEvents(
+  content: Content,
   id: CharacterId,
   plan: CharacterPlan,
   features: readonly FeatureDefinition[],
   choices: CharacterChoices,
 ): GameEvent[] {
-  return poolsFor(plan, features, choices).map((pool) => ({
+  return poolsFor(content, plan, features, choices).map((pool) => ({
     type: 'resource-pool-declared',
     id,
     pool,
@@ -2594,13 +2546,14 @@ function poolEvents(
 
 /** Create a character: the creature, its pools, and the choices that made it. */
 export function createCharacter(
+  content: Content,
   choices: CharacterChoices,
   id: CharacterId,
 ): Result<GameEvent[]> {
-  const plan = planCharacter(choices);
+  const plan = planCharacter(content, choices);
   if (!plan.ok) return plan;
 
-  const definition = classById(choices.classId);
+  const definition = content.classById(choices.classId);
   if (definition === null) return err('unknown_class', `no class called ${choices.classId}`);
 
   return ok([
@@ -2646,8 +2599,15 @@ export function createCharacter(
             source: 'starting money',
           },
         ]),
-    ...choices.equipped.map((itemId) => ({ type: 'item-equipped' as const, id, item: itemId })),
-    ...poolEvents(id, plan.value, plan.value.features, choices),
+    // The armour record is pinned here, so what a creature wears is a fact of
+    // the log rather than of whichever catalogue folds it later.
+    ...choices.equipped.map((itemId) => ({
+      type: 'item-equipped' as const,
+      id,
+      item: itemId,
+      armor: content.item(itemId)?.armor ?? null,
+    })),
+    ...poolEvents(content, id, plan.value, plan.value.features, choices),
   ]);
 }
 
@@ -2704,6 +2664,7 @@ export interface AdvanceChoices {
  */
 export function advanceCharacter(
   state: GameState,
+  content: Content,
   id: CharacterId,
   advance: AdvanceChoices,
 ): Result<GameEvent[]> {
@@ -2722,7 +2683,7 @@ export function advanceCharacter(
   }
 
   const into = advance.classId ?? record.choices.classId;
-  const taken = levelInto(record.choices, into, advance.subclassId);
+  const taken = levelInto(content, record.choices, into, advance.subclassId);
   if (!taken.ok) return taken;
   const { level, multiclass } = taken.value;
 
@@ -2767,13 +2728,13 @@ export function advanceCharacter(
     // What is worn is live state, not a choice made at level 1. A shirt bought
     // and put on in play is on; one taken off is off; and the record the new
     // level stores should say which.
-    equipped: [...creature.equipped],
+    equipped: creature.equipped.map((held) => held.id),
   };
 
-  const plan = planCharacter(choices, creature.inventory);
+  const plan = planCharacter(content, choices, creature.inventory);
   if (!plan.ok) return plan;
 
-  const definition = classById(choices.classId);
+  const definition = content.classById(choices.classId);
   if (definition === null) return err('unknown_class', `no class called ${choices.classId}`);
 
   const events: GameEvent[] = [];
@@ -2790,7 +2751,7 @@ export function advanceCharacter(
   // used to be a second list naming the Hit Die pool and the spell slots and
   // no other kind, which is why a Fighter who reached level 9 in play had
   // Indomitable on the sheet and nothing to spend.
-  for (const pool of poolsFor(plan.value, plan.value.features, choices)) {
+  for (const pool of poolsFor(content, plan.value, plan.value.features, choices)) {
     const held = creature.resources.pools[pool.key];
     if (held === undefined) {
       events.push({ type: 'resource-pool-declared', id, pool });
@@ -2829,11 +2790,12 @@ export function advanceCharacter(
  * class.
  */
 function levelInto(
+  content: Content,
   choices: CharacterChoices,
   into: string,
   subclassId: string | undefined,
 ): Result<{ level: number; multiclass: readonly ClassLevel[] | null }> {
-  if (classById(into) === null) return err('unknown_class', `no class called ${into}`);
+  if (content.classById(into) === null) return err('unknown_class', `no class called ${into}`);
 
   if (into === choices.classId) {
     return ok({ level: choices.level + 1, multiclass: null });

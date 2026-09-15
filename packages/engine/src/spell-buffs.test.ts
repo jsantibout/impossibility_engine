@@ -1,3 +1,4 @@
+import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import { declaredCasting } from './spellcasting.js';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
@@ -87,6 +88,7 @@ const supply = (seed: string, bonus?: number) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   ...(bonus === undefined ? {} : { bonuses: [{ source: 'forced', flat: bonus }] }),
+  content: SRD_CONTENT,
 });
 
 /**

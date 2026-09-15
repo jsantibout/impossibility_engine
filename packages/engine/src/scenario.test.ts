@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FIRE_BOLT, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { Weapon } from '@ie/srd';
 import { armorClass } from './character.js';
@@ -12,7 +13,7 @@ import { createRollIssuer, type RollIssuer } from './rolls.js';
 import { pendingSavesOf, resolveDamage, resolveSpell, resolveTurn } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
-import { FIRE_BOLT, scaledDiceFor } from './spell-definitions.js';
+import { scaledDiceFor } from './spell-definitions.js';
 
 /**
  * The milestone's own ship criterion: **a scripted combat between two parties
@@ -208,6 +209,7 @@ const table = (seed: string) => {
     return {
       issuer: createRollIssuer('r', now.rollsIssued),
       rng: now.rng === null ? createRng(seed) : restoreRng(now.rng),
+      content: SRD_CONTENT,
     };
   };
   /** Roll something, then record where the generator got to. */
@@ -273,7 +275,7 @@ function goblinAttacks(t: Table, who: CharacterId): void {
       t.state(),
       WIZARD,
       { amount: applied.total, source: 'Scimitar', ...(attack.critical ? { critical: true } : {}) },
-      { issuer, rng },
+      { issuer, rng, content: SRD_CONTENT },
     ),
     'damage',
   );
@@ -300,7 +302,7 @@ function wizardActs(t: Table, round: number): void {
     t.state(),
     WIZARD,
     { spellId: 'fire-bolt', targets: [target] },
-    { issuer, rng },
+    { issuer, rng, content: SRD_CONTENT },
   );
   if (outcome.ok) t.push(...outcome.value.events);
 }
@@ -323,7 +325,7 @@ function castHoldPerson(
       t.state(),
       WIZARD,
       { spellId: 'hold-person', targets: [target], slotLevel: 2 },
-      { issuer, rng, bonuses },
+      { issuer, rng, content: SRD_CONTENT, bonuses },
     ),
     'hold person',
   );
@@ -345,7 +347,7 @@ function holdPersonWouldBeRefused(t: Table, target: CharacterId): boolean {
     t.state(),
     WIZARD,
     { spellId: 'hold-person', targets: [target], slotLevel: 2 },
-    { issuer, rng },
+    { issuer, rng, content: SRD_CONTENT },
   );
   return !attempt.ok && attempt.code === 'wrong_creature_type';
 }
@@ -364,7 +366,7 @@ function playScenario(seed: string): GameEvent[] {
   const t = table(seed);
 
   // — the cast ————————————————————————————————————————————————————————————
-  t.push(...unwrap(createCharacter(KESSA, WIZARD), 'create'));
+  t.push(...unwrap(createCharacter(SRD_CONTENT,KESSA, WIZARD), 'create'));
   t.push(goblin(GOBLIN_A), goblin(GOBLIN_B));
 
   // — the ground —————————————————————————————————————————————————————————
@@ -411,7 +413,7 @@ function playScenario(seed: string): GameEvent[] {
       // Ending the turn is an engine operation: it raises whatever the
       // boundary owes and rolls it. Nothing here asks for a repeat save.
       const { issuer, rng } = t.supply();
-      t.push(...unwrap(resolveTurn(t.state(), { issuer, rng }), 'turn').events);
+      t.push(...unwrap(resolveTurn(t.state(), { issuer, rng, content: SRD_CONTENT }), 'turn').events);
     }
   }
 
@@ -521,7 +523,7 @@ describe('what the scripted fight actually did', () => {
    */
   it('refused Hold Person on a Fey goblin', () => {
     const t = table(SEED);
-    t.push(...unwrap(createCharacter(KESSA, WIZARD), 'create'));
+    t.push(...unwrap(createCharacter(SRD_CONTENT,KESSA, WIZARD), 'create'));
     t.push(goblin(GOBLIN_A));
     t.push(
       { type: 'scene-set', extent: { width: 60, depth: 40, height: 20 } },
@@ -593,7 +595,7 @@ const DOOMED = [{ source: 'the variant insists', flat: -40 }];
 
 const controlled = () => {
   const t = table('hold-person-variant');
-  t.push(...unwrap(createCharacter(KESSA, WIZARD), 'create'));
+  t.push(...unwrap(createCharacter(SRD_CONTENT,KESSA, WIZARD), 'create'));
   // A bandit stands in for the goblins here: Hold Person needs a Humanoid, and
   // SRD 2024 goblins are Fey. The main fight proves that refusal; this variant
   // is about what happens once the spell actually lands.
@@ -634,7 +636,7 @@ const endTurn = (
   bonuses: readonly { source: string; flat: number }[],
 ): ReturnType<typeof resolveTurn> => {
   const { issuer, rng } = t.supply();
-  const outcome = resolveTurn(t.state(), { issuer, rng, bonuses });
+  const outcome = resolveTurn(t.state(), { issuer, rng, content: SRD_CONTENT, bonuses });
   if (outcome.ok) t.push(...outcome.value.events);
   return outcome;
 };
@@ -753,7 +755,7 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
         t.state(),
         WIZARD,
         { amount: 7, source: 'Scimitar' },
-        { issuer, rng, bonuses: DOOMED },
+        { issuer, rng, content: SRD_CONTENT, bonuses: DOOMED },
       ),
       'damage',
     );
@@ -779,7 +781,7 @@ describe('Hold Person lands, holds, and lets go when Concentration breaks', () =
         t.state(),
         WIZARD,
         { amount: 7, source: 'Scimitar' },
-        { issuer, rng, bonuses: CERTAIN },
+        { issuer, rng, content: SRD_CONTENT, bonuses: CERTAIN },
       ),
       'damage',
     );

@@ -54,7 +54,6 @@ import {
   applyConditionTo,
   armorClass,
   availableChecks,
-  itemFor,
   parseNotation,
   rollRecorded,
   resolveDamage,
@@ -87,6 +86,7 @@ import {
   type GameState,
 } from '@ie/engine';
 import { carrying, movementLeftFor } from '@ie/engine';
+import { SRD_CONTENT } from '@ie/content';
 import type { CreatureSize } from '@ie/srd';
 import { actionNamesOf, monsterFor, monsterNamed, weaponsOf } from './bestiary.js';
 import type { Session } from './session.js';
@@ -495,7 +495,7 @@ function run(
       return plain({
         may_act: blocked === null,
         ...(blocked === null ? {} : { blocked_because: { code: blocked.code, reason: blocked.reason } }),
-        reactions: reactionOpportunities(state)
+        reactions: reactionOpportunities(state, SRD_CONTENT)
           .filter((o) => o.reactor === id)
           .map((o) => ({ id: o.id, name: o.name, window: o.window, costs_reaction: o.costsReaction })),
         checks_available: availableChecks(state, id).map((c) => ({
@@ -508,7 +508,7 @@ function run(
 
     case 'eligible_targets': {
       const caster = who(input, 'caster');
-      const shortlist = eligibleTargets(state, caster, str(input, 'spell_id'), optNum(input, 'slot_level') ?? 0);
+      const shortlist = eligibleTargets(state, SRD_CONTENT, caster, str(input, 'spell_id'), optNum(input, 'slot_level') ?? 0);
       return plain({
         eligible: shortlist.eligible,
         excluded: shortlist.excluded.map((e) => ({ target: e.target, reason: e.reason })),
@@ -686,7 +686,7 @@ function run(
     case 'give_item': {
       const id = who(input, 'who');
       const item = str(input, 'item_id');
-      if (itemFor(item) === null) {
+      if (SRD_CONTENT.item(item) === null) {
         return {
           outcome: 'refusal',
           code: 'unknown_item',

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GREATER_INVISIBILITY, INVISIBILITY, SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   isErr,
@@ -14,7 +15,6 @@ import { declaredCasting } from './spellcasting.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { endConcentration, resolveAttack, resolveSpell } from './commands.js';
-import { GREATER_INVISIBILITY, INVISIBILITY } from './spell-definitions.js';
 
 /**
  * A condition a spell imposes with **no saving throw**.
@@ -111,7 +111,7 @@ const base = (): GameState => fold('seed', SETUP);
 
 const supply = (seed: string) => {
   const rng: Rng = createRng(seed);
-  return { issuer: createRollIssuer('r'), rng };
+  return { issuer: createRollIssuer('r'), rng, content: SRD_CONTENT };
 };
 
 /** The goblin swings at the scout. The roll's mode is the whole assertion. */

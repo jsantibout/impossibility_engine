@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -62,7 +63,7 @@ const BREN = id('bren');
 const ROWAN = id('rowan');
 const PRIEST = id('priest');
 
-const supply = (seed = 'scene') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'scene') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** A level 1 Fighter, so that every creature in this file arrives by command. */
 const walkOn = (name: string): CharacterChoices => ({
@@ -128,8 +129,8 @@ class Table {
 /** Two creatures on the board, by command, before any scene exists. */
 const cast = (): Table => {
   const table = new Table();
-  table.do('bren', () => createCharacter(walkOn('Bren'), BREN));
-  table.do('rowan', () => createCharacter(walkOn('Rowan'), ROWAN));
+  table.do('bren', () => createCharacter(SRD_CONTENT,walkOn('Bren'), BREN));
+  table.do('rowan', () => createCharacter(SRD_CONTENT,walkOn('Rowan'), ROWAN));
   return table;
 };
 
@@ -604,9 +605,9 @@ describe('an encounter, from nothing, through commands only', () => {
   const encounter = (): Table => {
     const table = new Table();
 
-    table.do('the fighter arrives', () => createCharacter(walkOn('Bren'), BREN));
-    table.do('the scout arrives', () => createCharacter(walkOn('Rowan'), ROWAN));
-    table.do('the priest arrives', () => createCharacter(walkOn('Ysolde'), PRIEST));
+    table.do('the fighter arrives', () => createCharacter(SRD_CONTENT,walkOn('Bren'), BREN));
+    table.do('the scout arrives', () => createCharacter(SRD_CONTENT,walkOn('Rowan'), ROWAN));
+    table.do('the priest arrives', () => createCharacter(SRD_CONTENT,walkOn('Ysolde'), PRIEST));
 
     // The priest has no class table that casts; the DM says what she casts.
     table.do('the priest is more than she seemed', (s) =>

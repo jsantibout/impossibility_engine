@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -7,7 +8,6 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { resolveSpell } from './commands.js';
-import { definitionFor } from './spell-definitions.js';
 import { spellOn } from './fold/release.js';
 
 /**
@@ -101,6 +101,7 @@ const base = (): GameState => fold('seed', SETUP);
 const supply = (seed = 'cast') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const applied = (condition: string, source: string): GameEvent =>
@@ -237,7 +238,7 @@ describe('Lesser Restoration ends a condition', () => {
 
   /** The definition names exactly the four the SRD prints, in the SRD's order. */
   it('names the four conditions the SRD prints', () => {
-    const definition = definitionFor('lesser-restoration');
+    const definition = SRD_CONTENT.spell('lesser-restoration');
     const effect = definition?.effects[0];
     expect(effect?.kind).toBe('end-condition');
     expect(effect && 'conditions' in effect ? effect.conditions : null).toEqual([
@@ -275,7 +276,7 @@ describe('Protection from Poison ends the Poisoned condition', () => {
    * third sentence, and one clause is still declared rather than executed.
    */
   it('names one condition, grants one Resistance, and leaves its last clause unmodelled', () => {
-    const definition = definitionFor('protection-from-poison');
+    const definition = SRD_CONTENT.spell('protection-from-poison');
     const effect = definition?.effects[0];
     expect(effect && 'conditions' in effect ? effect.conditions : null).toEqual(['poisoned']);
     const granted = definition?.effects[1];

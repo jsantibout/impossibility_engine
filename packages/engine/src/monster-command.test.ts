@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -69,6 +70,7 @@ const statBlock = (slug: string): Monster => {
 const supply = (seed = 'monster') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 /** A level 1 Fighter, so that every creature in this file arrives by command. */
@@ -139,7 +141,7 @@ class Table {
 
 const withZombie = (): Table => {
   const table = new Table();
-  table.do('the fighter arrives', () => createCharacter(walkOn('Bren'), BREN));
+  table.do('the fighter arrives', () => createCharacter(SRD_CONTENT,walkOn('Bren'), BREN));
   table.did('the zombie shambles in', (s) => addCreature(s, ZOMBIE, statBlock('zombie')));
   return table;
 };
@@ -155,7 +157,7 @@ const withZombie = (): Table => {
  */
 const fightingA = (who: CharacterId, slug: string): Table => {
   const table = new Table();
-  table.do('the fighter arrives', () => createCharacter(walkOn('Bren'), BREN));
+  table.do('the fighter arrives', () => createCharacter(SRD_CONTENT,walkOn('Bren'), BREN));
   table.did('the monster arrives', (s) => addCreature(s, who, statBlock(slug)));
   table.do('the crypt', (s) => setScene(s, { width: 60, depth: 40, height: 20 }));
   table.do('the slab', (s) => addSceneLandmark(s, 'the slab', { x: 20, y: 20, z: 0 }));
@@ -524,7 +526,7 @@ describe('a qualified immunity is withheld and reported, never applied', () => {
 const encounter = (): Table => {
   const table = new Table();
 
-  table.do('the fighter arrives', () => createCharacter(walkOn('Bren'), BREN));
+  table.do('the fighter arrives', () => createCharacter(SRD_CONTENT,walkOn('Bren'), BREN));
   table.did('the zombie shambles in', (s) => addCreature(s, ZOMBIE, statBlock('zombie')));
 
   table.do('the crypt', (s) => setScene(s, { width: 60, depth: 40, height: 20 }));

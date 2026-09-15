@@ -55,6 +55,7 @@ import { type Placement, type Point, type PointAnchoring } from '../positioning.
 import { damageWindowOpen } from '../reactions.js';
 import { remaining, slotKeyOf, type SlotKind } from '../resources.js';
 import { type RollIssuer } from '../rolls.js';
+import { type Content } from '../content.js';
 import { type ReactionTrigger, type SpellDefinition } from '../spell-definitions.js';
 import { type CastingRoute, routesFor, type SpellcastingState } from '../spellcasting.js';
 import {
@@ -1362,15 +1363,25 @@ export interface DamageResolution {
 }
 
 /**
- * A generator and the effects that touch a Concentration save.
+ * What a command needs that the state does not hold: the dice, the roll
+ * ledger, and the book.
+ *
+ * The dice and the issuer are here because a command that rolls must be handed
+ * a generator it can resume — see `resolveDamage`. The content is here because
+ * a command that casts a spell, swings a weapon or opens a reaction window has
+ * to know what the spell does, what the weapon is and which spells answer the
+ * window, and the engine holds no catalogue of its own. Whatever a command
+ * reads from it is pinned into the events it emits, so the fold never needs
+ * it back.
  *
  * War Caster grants Advantage on saves to maintain Concentration, and Bless is
- * Bless, so this takes the same modes and bonuses as any other D20 Test rather
- * than a narrow signature that would have to be widened later.
+ * Bless, so the modes and bonuses are the same ones any other D20 Test takes.
  */
-export interface ConcentrationSaveSupply {
+export interface Supply {
   readonly issuer: RollIssuer;
   readonly rng: Rng;
+  /** The campaign's content: every spell, class and item this world holds. */
+  readonly content: Content;
   /**
    * Modifiers on the rolls this operation makes.
    *
@@ -1408,7 +1419,7 @@ export function resolveDamage(
   state: GameState,
   id: CharacterId,
   command: DamageCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<DamageResolution> {
   return once(state, `damage:${id}`, command, () => {
     return { events: [], concentration: { kind: 'none' }, duplicate: true };

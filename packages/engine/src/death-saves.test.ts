@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import type { Rng, RngState } from './dice.js';
@@ -82,6 +83,7 @@ const scripted = (values: readonly number[]): Rng => {
 const supply = (rolls: readonly number[]) => ({
   issuer: createRollIssuer('r'),
   rng: scripted(rolls),
+  content: SRD_CONTENT,
 });
 
 /** Advance to Kess's turn, which is the moment the save is owed. */

@@ -1,3 +1,4 @@
+import { type Content } from '../content.js';
 /**
  * What a casting left behind, read back.
  *
@@ -32,7 +33,6 @@ import {
   snapToSpace,
 } from '../positioning.js';
 import {
-  definitionFor,
   ranged,
   type SpellActivation,
   type SpellDefinition,
@@ -207,6 +207,7 @@ export function replacedCastings(
  */
 export function sweptRoute(
   state: GameState,
+  content: Content,
   before: PositionState,
   after: PositionState,
 ): readonly ContextRequest[] {
@@ -216,7 +217,7 @@ export function sweptRoute(
     const record = state.ongoing[castingId];
     if (record === undefined) continue;
 
-    const definition = definitionFor(record.spellId);
+    const definition = content.spell(record.spellId);
     const area = definition?.area;
     // Only an area that is carried, and only one a rule watches as it travels.
     if (area === undefined || area.origin !== 'self') continue;

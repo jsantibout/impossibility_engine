@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -6,7 +7,6 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { armorClassOf } from './standing.js';
-import { definitionFor } from './spell-definitions.js';
 import { checkSpellDefinition } from './spell-schema.js';
 import {
   equipItem,
@@ -118,6 +118,7 @@ const DOOMED: Partial<CharacterSheet> = {
 const supply = (seed = 'ends') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 /**
@@ -166,7 +167,7 @@ class Game {
   constructor(readonly events: GameEvent[]) {}
 
   get state(): GameState {
-    return fold('seed', this.events);
+    return fold('seed', this.events, SRD_CONTENT);
   }
 
   push(more: readonly GameEvent[]): this {
@@ -321,7 +322,7 @@ describe('Mage Armor ends when its target dons armour', () => {
     // 13 + Dex 2, against the unarmoured 10 + 2 it would otherwise be.
     expect(armorClassOf(game.state, ALLY)).toBe(15);
 
-    game.push(unwrap(equipItem(game.state, ALLY, 'chain-shirt'), 'donning armour'));
+    game.push(unwrap(equipItem(game.state, SRD_CONTENT, ALLY, 'chain-shirt'), 'donning armour'));
 
     expect(game.running(casting)).toBe(false);
     expect(game.state.creatures[ALLY]?.armorClasses).toEqual([]);
@@ -340,7 +341,7 @@ describe('Mage Armor ends when its target dons armour', () => {
     const game = new Game(setup());
     const casting = game.cast(WIZ, 'mage-armor', [ALLY]);
 
-    game.push(unwrap(equipItem(game.state, ALLY, 'shield'), 'taking up a shield'));
+    game.push(unwrap(equipItem(game.state, SRD_CONTENT, ALLY, 'shield'), 'taking up a shield'));
 
     expect(game.running(casting)).toBe(true);
     expect(armorClassOf(game.state, ALLY)).toBe(17);
@@ -350,7 +351,7 @@ describe('Mage Armor ends when its target dons armour', () => {
     const game = new Game(setup());
     const casting = game.cast(WIZ, 'mage-armor', [WIZ]);
 
-    game.push(unwrap(equipItem(game.state, ALLY, 'chain-shirt'), 'donning armour'));
+    game.push(unwrap(equipItem(game.state, SRD_CONTENT, ALLY, 'chain-shirt'), 'donning armour'));
 
     expect(game.running(casting)).toBe(true);
   });
@@ -509,7 +510,7 @@ describe('the triggers are pinned on the record at the cast', () => {
   it('ends a casting whose record carries a trigger its definition does not', () => {
     const game = new Game(setup());
     const casting = game.cast(WIZ, 'greater-invisibility', [ALLY]);
-    expect(definitionFor('greater-invisibility')?.endsEarly).toBeUndefined();
+    expect(SRD_CONTENT.spell('greater-invisibility')?.endsEarly).toBeUndefined();
 
     const lent = new Game(
       game.events.map((event) =>
@@ -530,7 +531,7 @@ describe('the triggers are pinned on the record at the cast', () => {
 });
 
 describe('the validator holds a trigger list to the SRD shapes', () => {
-  const base = definitionFor('invisibility')!;
+  const base = SRD_CONTENT.spell('invisibility')!;
 
   const codes = (over: Record<string, unknown>): readonly string[] =>
     checkSpellDefinition({ ...base, ...over } as never).map((problem) => problem.code);
@@ -692,7 +693,7 @@ describe('a pre-versioned record is read from the catalogue, as its area is', ()
       }),
     );
     expect(ongoingSpellOf(legacy.state, casting)?.endsEarly).toEqual(
-      definitionFor('invisibility')?.endsEarly,
+      SRD_CONTENT.spell('invisibility')?.endsEarly,
     );
 
     legacy.hit(FOE, ALLY);
@@ -739,7 +740,7 @@ describe('a pre-versioned record is read from the catalogue, as its area is', ()
 
     // The book says 20 and the record says 15, so only the record can be the
     // source of the answer.
-    expect(definitionFor('web')?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
+    expect(SRD_CONTENT.spell('web')?.area).toEqual({ kind: 'cube', size: 20, origin: 'point' });
     expect(ongoingSpellOf(legacy.state, casting)?.area).toEqual(pinned);
   });
 
@@ -771,7 +772,7 @@ describe('a pre-versioned record is read from the catalogue, as its area is', ()
       ),
     );
 
-    expect(definitionFor('web')?.area).toBeDefined();
+    expect(SRD_CONTENT.spell('web')?.area).toBeDefined();
     expect(ongoingSpellOf(legacy.state, casting)?.area).toBeUndefined();
     expect(ongoingSpellOf(legacy.state, casting)?.areaTrigger).toBeUndefined();
   });

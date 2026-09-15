@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   isErr,
@@ -84,7 +85,7 @@ const barbarian = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
 });
 
 const made = (over: Partial<CharacterChoices> = {}): readonly GameEvent[] =>
-  unwrap(createCharacter(barbarian(over), GRUM), 'create') as GameEvent[];
+  unwrap(createCharacter(SRD_CONTENT,barbarian(over), GRUM), 'create') as GameEvent[];
 
 const base = (over: Partial<CharacterChoices> = {}): GameState => fold('seed', made(over));
 
@@ -96,7 +97,7 @@ const raging = (log: readonly GameEvent[] = made()): readonly GameEvent[] => [
   ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RAGE }), 'rage'),
 ];
 
-const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('turn') as Rng });
+const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('turn') as Rng, content: SRD_CONTENT });
 
 describe('turning it on costs what the SRD says it costs', () => {
   /** SRD: "the number of times shown for your Barbarian level in the Rages column." */
@@ -126,7 +127,7 @@ describe('turning it on costs what the SRD says it costs', () => {
     const armoured: readonly GameEvent[] = [
       ...made(),
       { type: 'items-gained', id: GRUM, items: [{ id: 'ring-mail', quantity: 1 }], source: 'loot' },
-      { type: 'item-equipped', id: GRUM, item: 'ring-mail' },
+      { type: 'item-equipped', id: GRUM, item: 'ring-mail', armor: SRD_CONTENT.item('ring-mail')?.armor ?? null },
     ];
     const out = activateFeature(fold('seed', armoured), GRUM, { feature: RAGE });
     expect(isErr(out)).toBe(true);
@@ -245,7 +246,7 @@ describe('two ways out that nobody commands', () => {
     const armoured = fold('seed', [
       ...raging(),
       { type: 'items-gained', id: GRUM, items: [{ id: 'ring-mail', quantity: 1 }], source: 'loot' },
-      { type: 'item-equipped', id: GRUM, item: 'ring-mail' },
+      { type: 'item-equipped', id: GRUM, item: 'ring-mail', armor: SRD_CONTENT.item('ring-mail')?.armor ?? null },
     ]);
     expect(armoured.creatures.grum!.activeFeatures).not.toContain(RAGE);
   });
@@ -255,7 +256,7 @@ describe('two ways out that nobody commands', () => {
     const off = fold('seed', [
       ...raging(),
       { type: 'items-gained', id: GRUM, items: [{ id: 'ring-mail', quantity: 1 }], source: 'loot' },
-      { type: 'item-equipped', id: GRUM, item: 'ring-mail' },
+      { type: 'item-equipped', id: GRUM, item: 'ring-mail', armor: SRD_CONTENT.item('ring-mail')?.armor ?? null },
       { type: 'item-unequipped', id: GRUM, item: 'ring-mail' },
     ]);
     expect(off.creatures.grum!.activeFeatures).not.toContain(RAGE);

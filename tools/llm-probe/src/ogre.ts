@@ -31,6 +31,7 @@ import {
   type GameEvent,
   type SpellbookEntry,
 } from '@ie/engine';
+import { SRD_CONTENT } from '@ie/content';
 import { monsterFor, weaponsOf } from './bestiary.js';
 import type { Encounter } from './encounter.js';
 
@@ -253,11 +254,11 @@ const ogre = (who: CharacterId): readonly GameEvent[] => {
  */
 function prelude(): readonly GameEvent[] {
   return [
-    ...unwrap(createCharacter(BRANNIS, FIGHTER), 'create Brannis'),
+    ...unwrap(createCharacter(SRD_CONTENT, BRANNIS, FIGHTER), 'create Brannis'),
     { type: 'creature-side-declared', id: FIGHTER, side: 'party' },
-    ...unwrap(createCharacter(ILDA, CLERIC), 'create Ilda'),
+    ...unwrap(createCharacter(SRD_CONTENT, ILDA, CLERIC), 'create Ilda'),
     { type: 'creature-side-declared', id: CLERIC, side: 'party' },
-    ...unwrap(createCharacter(THESSALY, MAGE), 'create Thessaly'),
+    ...unwrap(createCharacter(SRD_CONTENT, THESSALY, MAGE), 'create Thessaly'),
     { type: 'creature-side-declared', id: MAGE, side: 'party' },
     ...ogre(OGRE),
     { type: 'scene-set', extent: { width: 50, depth: 40, height: 20 } },

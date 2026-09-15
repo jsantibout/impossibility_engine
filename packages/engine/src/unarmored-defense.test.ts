@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap } from '@ie/shared';
 import { armorClass, armorClassCalculation, type CharacterSheet } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { advanceCharacter, createCharacter, planCharacter, type CharacterChoices } from './creation.js';
-import { itemFor } from './catalogue.js';
 
 /**
  * A class feature that replaces the Armour Class calculation.
@@ -39,8 +39,8 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const shield = () => itemFor('shield')?.armor ?? null;
-const chainMail = () => itemFor('chain-mail')?.armor ?? null;
+const shield = () => SRD_CONTENT.item('shield')?.armor ?? null;
+const chainMail = () => SRD_CONTENT.item('chain-mail')?.armor ?? null;
 
 const barbarian = { source: 'barbarian:unarmored-defense', ability: 'con' as const, shieldAllowed: true };
 const monk = { source: 'monk:unarmored-defense', ability: 'wis' as const, shieldAllowed: false };
@@ -151,7 +151,7 @@ const krug = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
 describe('creation hands the calculation to the sheet', () => {
   /** Dexterity 14 is +2; Constitution 13 raised by 2 is 15, so +2. */
   it('gives a level 1 Barbarian 10 + Dexterity + Constitution', () => {
-    const plan = unwrap(planCharacter(krug()), 'plan');
+    const plan = unwrap(planCharacter(SRD_CONTENT,krug()), 'plan');
     expect(plan.sheet.unarmoredDefense).toEqual([
       { source: 'barbarian:unarmored-defense', ability: 'con', shieldAllowed: true },
     ]);
@@ -161,6 +161,7 @@ describe('creation hands the calculation to the sheet', () => {
   it('gives a class without the feature nothing at all', () => {
     const plan = unwrap(
       planCharacter(
+        SRD_CONTENT,
         krug({
           classId: 'fighter',
           classSkills: ['athletics', 'survival'],
@@ -174,12 +175,12 @@ describe('creation hands the calculation to the sheet', () => {
   });
 
   it('reaches the creature, and survives a level in another class', () => {
-    const log = unwrap(createCharacter(krug(), KRUG), 'create') as GameEvent[];
+    const log = unwrap(createCharacter(SRD_CONTENT,krug(), KRUG), 'create') as GameEvent[];
     const before: GameState = fold('seed', log);
     expect(armorClass(before.creatures.krug!.sheet)).toBe(14);
 
     const levelled = unwrap(
-      advanceCharacter(before, KRUG, {
+      advanceCharacter(before, SRD_CONTENT, KRUG, {
         classId: 'monk',
         featureChoices: { ...krug().featureChoices, 'monk:weapon-mastery': [] },
       }),

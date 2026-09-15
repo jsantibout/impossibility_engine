@@ -18,7 +18,7 @@
  */
 import type { CharacterId } from '@ie/shared';
 import { isIncapacitated } from '../conditions.js';
-import { itemFor } from '../catalogue.js';
+import type { Content } from '../content.js';
 import { READY, universalAction } from '../actions.js';
 import { type TimedEffect } from '../duration.js';
 
@@ -204,7 +204,22 @@ function interruptedRests(state: GameState, event: GameEvent): GameState {
 }
 
 export function applyEvent(state: GameState, event: GameEvent): GameState {
-  const applied = applyOne(state, event);
+  return applyEventUnder(state, event, null);
+}
+
+/**
+ * {@link applyEvent} bound to the content a log older than pinning was written
+ * against — see `Applying.legacy`. A reducer, so a caller stepping a stored
+ * log event by event has the same one `fold` uses.
+ */
+export function applyEventWith(
+  legacy: Content | null,
+): (state: GameState, event: GameEvent) => GameState {
+  return (state, event) => applyEventUnder(state, event, legacy);
+}
+
+function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | null): GameState {
+  const applied = applyOne(state, event, legacy);
   return reachStartOfTurn(
     dropOrphanedAreaEffects(
       dropStrandedDamage(
@@ -377,7 +392,7 @@ function sustains(creature: CreatureState, feature: string): boolean {
 
 /** SRD Rage: "if you aren't wearing Heavy armor", and "if you don Heavy armor". */
 export function wearsHeavyArmor(creature: CreatureState): boolean {
-  return creature.equipped.some((itemId) => itemFor(itemId)?.armor?.category === 'heavy');
+  return creature.equipped.some((held) => held.armor?.category === 'heavy');
 }
 
 /**
@@ -409,8 +424,12 @@ export function wearsHeavyArmor(creature: CreatureState): boolean {
  * fact rather than a type fact, so `fold-partition.test.ts` derives it from
  * the union and asserts exactly-one.
  */
-function applyOne(state: GameState, event: GameEvent): GameState {
-  const applying: Applying = { state, next: { ...state, eventCount: state.eventCount + 1 } };
+function applyOne(state: GameState, event: GameEvent, legacy: Content | null): GameState {
+  const applying: Applying = {
+    state,
+    next: { ...state, eventCount: state.eventCount + 1 },
+    legacy,
+  };
 
   if (isRosterEvent(event)) return applyRoster(applying, event);
   if (isVitalsEvent(event)) return applyVitals(applying, event);
@@ -429,9 +448,19 @@ function applyOne(state: GameState, event: GameEvent): GameState {
   return unhandledEvent(event);
 }
 
-/** Fold a whole log into the state it describes. */
-export function fold(seed: string, events: readonly GameEvent[]): GameState {
-  return events.reduce(applyEvent, initialState(seed));
+/**
+ * Fold a whole log into the state it describes.
+ *
+ * `legacy` is for a log written before the engine pinned every fact the fold
+ * reads — see `Applying.legacy`. A log this engine writes needs none, and
+ * passing content for one changes nothing: a pinned record is read as pinned.
+ */
+export function fold(
+  seed: string,
+  events: readonly GameEvent[],
+  legacy: Content | null = null,
+): GameState {
+  return events.reduce((state, event) => applyEventUnder(state, event, legacy), initialState(seed));
 }
 
 /**

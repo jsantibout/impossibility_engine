@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng } from './dice.js';
@@ -117,6 +118,7 @@ const TABLE: readonly GameEvent[] = [
 const supply = (flat = 0) => ({
   issuer: createRollIssuer('r'),
   rng: createRng('reactions'),
+  content: SRD_CONTENT,
   bonuses: [{ source: 'the test insists', flat }],
 });
 

@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { pactSlotKey, spellSlotKey } from './resources.js';
 import { classCasting, routesFor } from './spellcasting.js';
 import { spellSaveDcWith } from './character.js';
-import {
-  advanceCharacter,
-  checkCharacter,
-  createCharacter,
-  planCharacter,
-  type CharacterChoices,
-} from './creation.js';
+import { advanceCharacter, checkCharacter, createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { remaining } from './resources.js';
@@ -102,11 +97,11 @@ const gish = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   ...over,
 });
 
-const plan = (over: Partial<CharacterChoices> = {}) => unwrap(planCharacter(gish(over)), 'plan');
+const plan = (over: Partial<CharacterChoices> = {}) => unwrap(planCharacter(SRD_CONTENT,gish(over)), 'plan');
 
 describe('two casting classes, each on its own terms', () => {
   it('is a character the engine will make at all', () => {
-    expect(checkCharacter(gish())).toEqual([]);
+    expect(checkCharacter(SRD_CONTENT,gish())).toEqual([]);
   });
 
   /** SRD: five level 1 Ranger spells, cast with Wisdom. */
@@ -147,6 +142,7 @@ describe('two casting classes, each on its own terms', () => {
   /** A Ranger spell is not a Sorcerer spell, whoever is holding both lists. */
   it('refuses a Sorcerer spell written on the Ranger’s list', () => {
     const problems = checkCharacter(
+      SRD_CONTENT,
       gish({ preparedSpells: ['cure-wounds', 'animal-friendship', 'ensnaring-strike', 'goodberry', 'magic-missile'] }),
     );
     expect(problems.map((p) => p.code)).toContain('spell_not_on_class_list');
@@ -156,6 +152,7 @@ describe('two casting classes, each on its own terms', () => {
   /** And the problem points at the class whose list it belongs to. */
   it('names the class a bad Sorcerer choice belongs to', () => {
     const problems = checkCharacter(
+      SRD_CONTENT,
       gish({
         spellsByClass: {
           sorcerer: {
@@ -177,6 +174,7 @@ describe('two casting classes, each on its own terms', () => {
    */
   it('will not prepare above the class’s own slot level, though the character has such slots', () => {
     const problems = checkCharacter(
+      SRD_CONTENT,
       gish({ preparedSpells: ['cure-wounds', 'animal-friendship', 'ensnaring-strike', 'goodberry', 'spike-growth'] }),
     );
     expect(problems.map((p) => p.code)).toContain('spell_level_not_allowed');
@@ -187,6 +185,7 @@ describe('two casting classes, each on its own terms', () => {
   /** Spells belonging to nobody are refused rather than filed by guess. */
   it('refuses spells that name no class when two classes cast', () => {
     const problems = checkCharacter(
+      SRD_CONTENT,
       gish({
         spellsByClass: {
           ranger: { preparedSpells: ['cure-wounds', 'animal-friendship', 'ensnaring-strike', 'goodberry', 'longstrider'] },
@@ -201,7 +200,7 @@ describe('two casting classes, each on its own terms', () => {
   });
 
   it('refuses a spell list for a class the character does not have', () => {
-    const problems = checkCharacter(gish({ spellsByClass: { bard: { preparedSpells: ['bless'] } } }));
+    const problems = checkCharacter(SRD_CONTENT,gish({ spellsByClass: { bard: { preparedSpells: ['bless'] } } }));
     expect(problems.map((p) => p.code)).toContain('not_a_class_of_this_character');
   });
 });
@@ -217,7 +216,7 @@ describe('slots come from the combined table, spells from each class', () => {
   });
 
   it('declares those slots on the creature', () => {
-    const state = fold('seed', unwrap(createCharacter(gish(), SORREL), 'create') as GameEvent[]);
+    const state = fold('seed', unwrap(createCharacter(SRD_CONTENT,gish(), SORREL), 'create') as GameEvent[]);
     const pools = state.creatures.sorrel!.resources.pools;
     expect(pools[spellSlotKey(3)]?.max).toBe(2);
     expect(pools[spellSlotKey(3)]?.recovers).toBe('long-rest');
@@ -288,14 +287,14 @@ const hexblade = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
 });
 
 const pactPlan = (over: Partial<CharacterChoices> = {}) =>
-  unwrap(planCharacter(hexblade(over)), 'plan');
+  unwrap(planCharacter(SRD_CONTENT,hexblade(over)), 'plan');
 
 const pactState = (): GameState =>
-  fold('seed', unwrap(createCharacter(hexblade(), KAEL), 'create') as GameEvent[]);
+  fold('seed', unwrap(createCharacter(SRD_CONTENT,hexblade(), KAEL), 'create') as GameEvent[]);
 
 describe('Pact Magic is a second pool, not more of the first', () => {
   it('is a character the engine will make at all', () => {
-    expect(checkCharacter(hexblade())).toEqual([]);
+    expect(checkCharacter(SRD_CONTENT,hexblade())).toEqual([]);
   });
 
   /**
@@ -349,6 +348,7 @@ describe('Pact Magic is a second pool, not more of the first', () => {
 describe('advancement keeps both halves', () => {
   it('refuses a Wizard spellbook written under the Warlock', () => {
     const problems = checkCharacter(
+      SRD_CONTENT,
       hexblade({
         spellbook: [{ spellId: 'magic-missile', acquiredAt: 1, origin: 'level' as const }],
       }),
@@ -357,7 +357,7 @@ describe('advancement keeps both halves', () => {
   });
 
   it('replays prefix by prefix', () => {
-    const log = unwrap(createCharacter(hexblade(), KAEL), 'create') as GameEvent[];
+    const log = unwrap(createCharacter(SRD_CONTENT,hexblade(), KAEL), 'create') as GameEvent[];
     for (let n = 0; n <= log.length; n += 1) {
       expect(fold('seed', log.slice(0, n))).toEqual(fold('seed', log.slice(0, n)));
     }
@@ -370,6 +370,7 @@ describe('advancement keeps both halves', () => {
 
   it('is not a valid character when a prerequisite is missed', () => {
     const short = planCharacter(
+      SRD_CONTENT,
       hexblade({
         abilities: {
           method: 'standard-array',
@@ -444,7 +445,7 @@ const TABLE: readonly GameEvent[] = [
 
 const table = (): GameState => fold('seed', TABLE);
 
-const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('cast') as Rng });
+const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('cast') as Rng, content: SRD_CONTENT });
 
 describe('which class is casting is not the engine’s to decide', () => {
   it('refuses a spell prepared through two classes, naming both', () => {
@@ -585,6 +586,7 @@ describe('a level taken in another class', () => {
   const started = (): readonly GameEvent[] =>
     unwrap(
       createCharacter(
+        SRD_CONTENT,
         gish({
           // A plain level 4 Ranger to start with, so the Sorcerer level below
           // is the character's first.
@@ -609,7 +611,7 @@ describe('a level taken in another class', () => {
   ];
 
   const asSorcerer = () =>
-    advanceCharacter(fold('seed', played()), SORREL, {
+    advanceCharacter(fold('seed', played()), SRD_CONTENT, SORREL, {
       classId: 'sorcerer',
       spellsByClass: {
         sorcerer: {
@@ -662,7 +664,7 @@ describe('a level taken in another class', () => {
   });
 
   it('refuses a level in a class nobody registered', () => {
-    const out = advanceCharacter(fold('seed', played()), SORREL, { classId: 'alchemist' });
+    const out = advanceCharacter(fold('seed', played()), SRD_CONTENT, SORREL, { classId: 'alchemist' });
     expect(errored(out)).toBe(true);
     if (!errored(out)) return;
     expect(out.code).toBe('unknown_class');

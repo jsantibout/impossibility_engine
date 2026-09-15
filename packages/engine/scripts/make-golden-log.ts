@@ -11,6 +11,7 @@
  * obvious way to write one.
  */
 import { writeFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { pathToFileURL } from 'node:url';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '../src/character.js';
@@ -113,15 +114,15 @@ let log: GameEvent[] = [
   { type: 'time-advanced', seconds: 600, reason: 'searching the vestry' },
 ];
 
-const dice = () => ({ issuer: createRollIssuer('g'), rng: createRng('golden') });
+const dice = () => ({ issuer: createRollIssuer('g'), rng: createRng('golden'), content: SRD_CONTENT });
 
 const push = (events: readonly GameEvent[]) => {
   log = [...log, ...events];
 };
 
 // Shopping and dressing, before anybody draws anything.
-push(unwrap(purchaseItem(fold('golden', log), CLERIC, 'rope', 2, 'buy-rope'), 'buy'));
-push(unwrap(equipItem(fold('golden', log), CLERIC, 'chain-shirt', 'wear'), 'equip'));
+push(unwrap(purchaseItem(fold('golden', log), SRD_CONTENT, CLERIC, 'rope', 2, 'buy-rope'), 'buy'));
+push(unwrap(equipItem(fold('golden', log), SRD_CONTENT, CLERIC, 'chain-shirt', 'wear'), 'equip'));
 
 push([
   {
@@ -163,7 +164,7 @@ push(
       trigger: 'if the rat comes off the rafters',
       response: { kind: 'spell', spellId: 'inflict-wounds', slotLevel: 1 },
       commandId: 'ready-1',
-    }),
+    }, SRD_CONTENT),
     'ready',
   ),
 );

@@ -18,7 +18,7 @@ import {
   rollAttackDamage,
 } from '../attack.js';
 import { type Bonus, bonusesFor, type ModeSource } from '../bonuses.js';
-import { itemFor } from '../catalogue.js';
+import { type Content } from '../content.js';
 import { spendAttack } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
@@ -31,7 +31,7 @@ import {
   positionOf,
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
-import { definitionFor, isCreatureType, scaledDiceFor } from '../spell-definitions.js';
+import { isCreatureType, scaledDiceFor } from '../spell-definitions.js';
 import {
   armorClassOf,
   checkFeatureDamageTypes,
@@ -41,7 +41,7 @@ import {
 import {
   chooseRoute,
   type ConcentrationConsequence,
-  type ConcentrationSaveSupply,
+  type Supply,
   resolveCastWith,
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
@@ -157,7 +157,7 @@ export function resolveAttack(
   state: GameState,
   id: CharacterId,
   command: AttackCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<AttackResolution> {
   // A retry is a no-op rather than a refusal, and says so rather than looking
   // like a miss: the same contract `resolveDamage` keeps, for the same reason.
@@ -199,7 +199,7 @@ export function resolveAttack(
     // — the weapon —————————————————————————————————————————————————————————
     let weapon: Weapon | null = null;
     if (command.weapon !== null) {
-      const item = itemFor(command.weapon);
+      const item = supply.content.item(command.weapon);
       if (item?.weapon === undefined || item.weapon === null) {
         return err('unknown_item', `${command.weapon} is not a weapon the SRD lists`);
       }
@@ -574,7 +574,7 @@ export function resolveAttackDamage(
   state: GameState,
   id: CharacterId,
   command: AttackDamageCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<AttackResolution> {
   return once(state, `attack-damage:${id}`, command, () => {
     return { events: [], attack: null, unverified: [], duplicate: true };
@@ -587,13 +587,13 @@ export function resolveAttackDamage(
     const attacker = creatureOf(state, id);
     if (attacker === null) return unknownCreature(id);
 
-    const weapon = pending.weapon === null ? null : (itemFor(pending.weapon)?.weapon ?? null);
+    const weapon = pending.weapon === null ? null : (supply.content.item(pending.weapon)?.weapon ?? null);
     const events: GameEvent[] = [];
     const extra: ExtraDamage[] = [...(command.extraDamage ?? [])];
 
     // — the spell cast on the blow ——————————————————————————————————————————
     if (command.smite !== undefined) {
-      const smite = castOnHit(state, id, attacker, pending.target, command.smite);
+      const smite = castOnHit(state, supply.content, id, attacker, pending.target, command.smite);
       if (!smite.ok) return smite;
       events.push(...smite.value.events);
       extra.push(...smite.value.damage);
@@ -701,12 +701,13 @@ export function resolveAttackDamage(
  */
 function castOnHit(
   state: GameState,
+  content: Content,
   id: CharacterId,
   attacker: CreatureState,
   target: CharacterId,
   smite: { readonly spellId: string; readonly slotLevel: number },
 ): Result<{ readonly events: readonly GameEvent[]; readonly damage: readonly ExtraDamage[] }> {
-  const definition = definitionFor(smite.spellId);
+  const definition = content.spell(smite.spellId);
   if (definition === null) {
     return err('no_definition', `${smite.spellId} has no executable definition`);
   }

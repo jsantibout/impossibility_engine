@@ -1,3 +1,4 @@
+import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
@@ -79,7 +80,7 @@ const PLACED: readonly GameEvent[] = [
   { type: 'creature-placed', id: OGRE, placement: { from: { creature: FIGHTER }, feet: 30, bearing: 0 } },
 ];
 
-const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 const swing = (log: readonly GameEvent[], weapon: string | null = 'longsword') =>
   unwrap(

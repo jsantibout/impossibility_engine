@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
   contextRequestsOf,
@@ -140,6 +141,7 @@ const rolled = (): GameEvent[] => {
 const supplyFor = (state: GameState, flat: number) => ({
   issuer: createRollIssuer('r', state.rollsIssued),
   rng: state.rng === null ? createRng('seed') : restoreRng(state.rng),
+  content: SRD_CONTENT,
   bonuses: [{ source: 'the test insists', flat }],
 });
 

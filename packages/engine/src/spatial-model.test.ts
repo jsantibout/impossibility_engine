@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
@@ -9,11 +10,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { anchoringFor, resolveSpell } from './commands.js';
-import {
-  SPELL_DEFINITIONS,
-  definitionFor,
-  type SpellDefinition,
-} from './spell-definitions.js';
+import { type SpellDefinition } from './spell-definitions.js';
 import {
   addLandmark,
   anchoringOf,
@@ -489,6 +486,7 @@ describe('a casting states its convention and keeps it', () => {
   const supply = () => ({
     issuer: createRollIssuer('r'),
     rng: createRng('anchoring') as Rng,
+    content: SRD_CONTENT,
     bonuses: [{ source: 'forced', flat: -40 }],
   });
 
@@ -660,7 +658,7 @@ describe('a casting states its convention and keeps it', () => {
  * precedence itself, which is the half no SRD content exercises.
  */
 describe('a spell may declare the footprint its template wants', () => {
-  const fireball = definitionFor('fireball')!;
+  const fireball = SRD_CONTENT.spell('fireball')!;
 
   const declaring = (anchoring: 'space' | 'intersection'): SpellDefinition => ({
     ...fireball,

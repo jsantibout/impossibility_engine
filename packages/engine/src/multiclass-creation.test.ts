@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass, proficiencyBonus } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { classCasting } from './spellcasting.js';
-import {
-  checkCharacter,
-  createCharacter,
-  planCharacter,
-  type CharacterChoices,
-} from './creation.js';
+import { checkCharacter, createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 
 /**
  * Multiclassing, built rather than merely computed.
@@ -86,13 +82,13 @@ const gish = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   ...over,
 });
 
-const plan = (over: Partial<CharacterChoices> = {}) => unwrap(planCharacter(gish(over)), 'plan');
+const plan = (over: Partial<CharacterChoices> = {}) => unwrap(planCharacter(SRD_CONTENT,gish(over)), 'plan');
 
 const built = (over: Partial<CharacterChoices> = {}): GameState =>
-  fold('seed', unwrap(createCharacter(gish(over), VEX), 'create') as GameEvent[]);
+  fold('seed', unwrap(createCharacter(SRD_CONTENT,gish(over), VEX), 'create') as GameEvent[]);
 
 const rejects = (over: Partial<CharacterChoices>, code: string): void => {
-  const result = planCharacter(gish(over));
+  const result = planCharacter(SRD_CONTENT,gish(over));
   expect(isErr(result)).toBe(true);
   if (isErr(result)) expect(result.code).toBe(code);
 };
@@ -303,9 +299,9 @@ describe('spell slots come from the combined rule only when two classes cast', (
       },
     });
 
-    expect(checkCharacter(both)).toEqual([]);
+    expect(checkCharacter(SRD_CONTENT,both)).toEqual([]);
 
-    const plan = unwrap(planCharacter(both), 'plan');
+    const plan = unwrap(planCharacter(SRD_CONTENT,both), 'plan');
     expect(classCasting(plan.spellcasting, 'wizard')?.ability).toBe('int');
     expect(classCasting(plan.spellcasting, 'cleric')?.ability).toBe('wis');
     // Wizard 3 plus Cleric 2 is a level 5 caster: 4 / 3 / 2.
@@ -328,7 +324,7 @@ describe('hit points come from each class’s own die', () => {
 
   /** And a single-classed Fighter 5 with the same Constitution is more. */
   it('is fewer hit points than five levels of the bigger die', () => {
-    const pureFighter = planCharacter({
+    const pureFighter = planCharacter(SRD_CONTENT,{
       ...gish(),
       level: 5,
       multiclass: [],
@@ -363,7 +359,7 @@ describe('a multiclassed character is a creature the engine accepts', () => {
   });
 
   it('replays prefix by prefix', () => {
-    const log = unwrap(createCharacter(gish(), VEX), 'create');
+    const log = unwrap(createCharacter(SRD_CONTENT,gish(), VEX), 'create');
     for (let n = 0; n <= log.length; n += 1) {
       expect(fold('seed', log.slice(0, n))).toEqual(fold('seed', log.slice(0, n)));
     }

@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -27,7 +28,7 @@ import {
 } from './duration.js';
 import { turnContextFor } from './commands/command.js';
 import { scheduleDelayed } from './commands/spell-effect-riders.js';
-import { conditionRiderOf, definitionFor, riderDurations } from './spell-definitions.js';
+import { conditionRiderOf, riderDurations } from './spell-definitions.js';
 import {
   applyConditionTo,
   beginCombat,
@@ -141,6 +142,7 @@ const PLACED: readonly GameEvent[] = [
 const supply = (seed: string) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const must = <T,>(result: Result<T>): T => unwrap(result, 'turn context');
@@ -253,7 +255,7 @@ describe('a turn-anchored rider outside combat asks for a turn order', () => {
    * runs, where `creatureTypeNeeds` already asks its own second question.
    */
   it('leaves an area trigger’s rider to the moment the trigger fires', () => {
-    const cloud = definitionFor('stinking-cloud')!;
+    const cloud = SRD_CONTENT.spell('stinking-cloud')!;
     const nested = (cloud.areaTrigger?.effects ?? []).flatMap((effect) =>
       conditionRiderOf(effect).map((rider) => rider.lasts),
     );
@@ -645,7 +647,7 @@ describe('no command-layer duration site is left refusing', () => {
       { damage: { dice: '2d4' }, damageType: 'acid' },
       {
         casterId: CASTER,
-        definition: definitionFor('acid-arrow')!,
+        definition: SRD_CONTENT.spell('acid-arrow')!,
         castingId: 'c1',
         castLevel: 2,
         casterLevel: 11,

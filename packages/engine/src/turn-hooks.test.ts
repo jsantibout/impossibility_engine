@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng } from './dice.js';
@@ -86,6 +87,7 @@ const run = (
 const supplyFor = (state: GameState, flat: number) => ({
   issuer: createRollIssuer('r', state.rollsIssued),
   rng: state.rng === null ? createRng('seed') : restoreRng(state.rng),
+  content: SRD_CONTENT,
   bonuses: [{ source: 'the test insists', flat }],
 });
 

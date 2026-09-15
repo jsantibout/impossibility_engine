@@ -12,6 +12,7 @@ export default defineConfig({
       '@ie/shared': pkg('shared'),
       '@ie/srd': pkg('srd'),
       '@ie/engine': pkg('engine'),
+      '@ie/content': pkg('content'),
     },
   },
   test: {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -81,7 +82,7 @@ const SETUP: readonly GameEvent[] = [
   added(OGRE, 'ogres'),
   added(ALLY, 'party'),
   { type: 'items-gained', id: OGRE, items: [{ id: 'greatclub', quantity: 1 }], source: 'kit' },
-  { type: 'item-equipped', id: OGRE, item: 'greatclub' },
+  { type: 'item-equipped', id: OGRE, item: 'greatclub', armor: SRD_CONTENT.item('greatclub')?.armor ?? null },
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
   { type: 'landmark-added', name: 'the ford', at: { x: 100, y: 100, z: 0 } },
   { type: 'creature-placed', id: ROGUE, placement: { from: { landmark: 'the ford' }, feet: 0 } },
@@ -99,7 +100,7 @@ const SETUP: readonly GameEvent[] = [
   },
 ];
 
-const supply = (seed = 'move') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'move') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** Move the rogue somewhere, relative to the ford. */
 const away = (feet: number, forced = false) => ({
@@ -220,7 +221,7 @@ describe('leaving a reach provokes what the SRD says it provokes', () => {
     const polearm: readonly GameEvent[] = [
       ...SETUP.filter((e) => !(e.type === 'item-equipped' && e.id === OGRE)),
       { type: 'items-gained', id: OGRE, items: [{ id: 'glaive', quantity: 1 }], source: 'kit' },
-      { type: 'item-equipped', id: OGRE, item: 'glaive' },
+      { type: 'item-equipped', id: OGRE, item: 'glaive', armor: SRD_CONTENT.item('glaive')?.armor ?? null },
     ];
     // Ten feet is still inside a glaive's reach, so nothing is provoked.
     const near = move(polearm, { placement: { from: { creature: OGRE }, feet: 10, bearing: 90 } });

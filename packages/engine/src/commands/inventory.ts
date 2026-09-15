@@ -7,7 +7,8 @@
  */
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
-import { type CatalogueItem, expandPack, itemFor, type ItemKind } from '../catalogue.js';
+import { type CatalogueItem, type ItemKind } from '../catalogue.js';
+import { type Content } from '../content.js';
 import { type GameEvent, type GameState, type InventoryLine } from '../events.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { once } from '../idempotency.js';
@@ -38,6 +39,7 @@ export const quantityOf = (state: GameState, id: CharacterId, itemId: string): n
  */
 export function purchaseItem(
   state: GameState,
+  content: Content,
   id: CharacterId,
   itemId: string,
   quantity = 1,
@@ -53,7 +55,7 @@ export function purchaseItem(
       return err('bad_quantity', `a purchase takes a positive whole number, got ${quantity}`);
     }
 
-    const item = itemFor(itemId);
+    const item = content.item(itemId);
     if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
     if (item.costCp === null) {
       return err(
@@ -70,7 +72,7 @@ export function purchaseItem(
       );
     }
 
-    const items = expandPack(itemId).map((line) => ({
+    const items = content.expandPack(itemId).map((line) => ({
       id: line.id,
       quantity: line.quantity * quantity,
     }));
@@ -104,6 +106,7 @@ const EQUIPPABLE: ReadonlySet<ItemKind> = new Set<ItemKind>(['armor', 'weapon'])
  */
 export function equipItem(
   state: GameState,
+  content: Content,
   id: CharacterId,
   itemId: string,
   commandId?: string,
@@ -114,7 +117,7 @@ export function equipItem(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
-    const item = itemFor(itemId);
+    const item = content.item(itemId);
     if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
     if (!EQUIPPABLE.has(item.kind)) {
       return err('not_equippable', `${item.name} is carried, not worn or wielded`);
@@ -122,7 +125,7 @@ export function equipItem(
     if (quantityOf(state, id, itemId) < 1) {
       return err('not_owned', `${id} does not have ${item.name}`);
     }
-    if (creature.equipped.includes(itemId)) {
+    if (creature.equipped.some((held) => held.id === itemId)) {
       return err('already_equipped', `${item.name} is already in hand`);
     }
 
@@ -130,7 +133,7 @@ export function equipItem(
     if (item.armor !== null) {
       const slot = item.armor.category === 'shield' ? 'shield' : 'body armour';
       const taken = creature.equipped
-        .map((held) => itemFor(held))
+        .map((held) => content.item(held.id))
         .find((held): held is CatalogueItem => {
           if (held?.armor == null) return false;
           const heldSlot = held.armor.category === 'shield' ? 'shield' : 'body armour';
@@ -146,6 +149,9 @@ export function equipItem(
         type: 'item-equipped',
         id,
         item: itemId,
+        // Pinned: what this item *is* travels with the event, so the fold
+        // never has to open a catalogue to know what the creature wears.
+        armor: item.armor,
         ...(stamp === null ? {} : { command: stamp }),
       },
     ]);
@@ -155,6 +161,7 @@ export function equipItem(
 /** Put something away. It stays owned: taking armour off is not selling it. */
 export function unequipItem(
   state: GameState,
+  content: Content,
   id: CharacterId,
   itemId: string,
   commandId?: string,
@@ -164,8 +171,8 @@ export function unequipItem(
   return once(state, `unequip:${id}`, inputs, () => [], (stamp) => {
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
-    if (!creature.equipped.includes(itemId)) {
-      const item = itemFor(itemId);
+    if (!creature.equipped.some((held) => held.id === itemId)) {
+      const item = content.item(itemId);
       return err('not_equipped', `${item?.name ?? itemId} is not worn or wielded`);
     }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
 import type { Armor } from '@ie/srd';
 import type { CharacterSheet } from './character.js';
@@ -799,6 +800,7 @@ describe('asking for the save after the damage, not before', () => {
 const roller = (state: GameState) => ({
   issuer: createRollIssuer('r', state.rollsIssued),
   rng: state.rng === null ? createRng('seed') : restoreRng(state.rng),
+  content: SRD_CONTENT,
 });
 
 /** A flat bonus big enough that the save cannot fail. */

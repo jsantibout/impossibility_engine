@@ -35,11 +35,11 @@ import {
 } from '../duration.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { definitionFor, needsCasterSheet, statedDamageType } from '../spell-definitions.js';
+import { needsCasterSheet, statedDamageType } from '../spell-definitions.js';
 import { type AreaMoment, castingNumber, type OwedAreaEffect } from '../spells.js';
 import { effectiveConditions, rollModesFor } from '../standing.js';
 import { isDown, rollDeathSave } from '../vitals.js';
-import { type ConcentrationSaveSupply } from './casting.js';
+import { type Supply } from './casting.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { dealSpellDamage } from './damage.js';
 import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
@@ -108,7 +108,7 @@ export function dueDamageOf(state: GameState): readonly (ScheduledDamage & { rea
  */
 function collectDueDamage(
   state: GameState,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<readonly GameEvent[]> {
   const due = dueDamageOf(state);
   if (due.length === 0) return ok([]);
@@ -278,7 +278,7 @@ export function resolveEffectCheck(
   state: GameState,
   who: CharacterId,
   command: EffectCheckCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<EffectCheckResolution> {
   // Before validation, as always: a retry must report the duplicate rather
   // than the world its own first run made — a freed creature asking again
@@ -441,7 +441,7 @@ export interface AreaEffectResolution {
  */
 export function settleAreaEffects(
   state: GameState,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   command: CommandIdentity = {},
 ): Result<AreaEffectResolution> {
   // Before every guard below, as always: a retry arrives at the world its own
@@ -485,7 +485,7 @@ export function settleAreaEffects(
       first = false;
 
       const record = current.ongoing[owed.castingId];
-      const definition = record === undefined ? null : definitionFor(record.spellId);
+      const definition = record === undefined ? null : supply.content.spell(record.spellId);
       // **The clause is the record's, not the book's**, which is the same rule
       // the detectors have followed since the casting began pinning its area:
       // a spell already cast does not change when the catalogue does. This read
@@ -587,7 +587,7 @@ function nextOwed(state: GameState): OwedAreaEffect | null {
  */
 export function resolvePendingSaves(
   state: GameState,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   command: CommandIdentity = {},
 ): Result<TurnResolution> {
   // Before the debt is even read. This command **rolls dice**, and the world
@@ -686,7 +686,7 @@ export function resolvePendingSaves(
  */
 export function resolveTurn(
   state: GameState,
-  supply?: ConcentrationSaveSupply,
+  supply?: Supply,
   command: CommandIdentity = {},
 ): Result<TurnResolution> {
   // A retried advance is the duplicate nobody notices. It doubles no effect
@@ -889,7 +889,7 @@ function deathSaveOwedBy(state: GameState): CharacterId | null {
 function rollTheDeathSave(
   state: GameState,
   who: CharacterId,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<GameEvent[]> {
   const creature = state.creatures[who];
   if (creature === undefined) return unknownCreature(who, 'has no record here');

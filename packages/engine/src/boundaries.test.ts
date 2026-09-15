@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId , isNeedsContext, contextRequestsOf } from '@ie/shared';
 import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -112,7 +113,7 @@ const creature = (
  * Person cannot touch one. That is easy to miss and the engine now catches it.
  */
 const table = (over: Partial<CharacterChoices> = {}): GameEvent[] => [
-  ...unwrap(createCharacter(kessa(over), WIZARD), 'create'),
+  ...unwrap(createCharacter(SRD_CONTENT,kessa(over), WIZARD), 'create'),
   creature(THUG, 'Thug', 'Humanoid'),
   creature(GOBLIN, 'Goblin Warrior', 'Fey'),
   { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
@@ -136,6 +137,7 @@ const supply = (state: GameState, flat?: number) => ({
   issuer: createRollIssuer('r', state.rollsIssued),
   rng: state.rng === null ? createRng('seed') : restoreRng(state.rng),
   ...(flat === undefined ? {} : { bonuses: [{ source: 'the test insists', flat }] }),
+  content: SRD_CONTENT,
 });
 
 const DOOMED = -40;
@@ -184,7 +186,7 @@ describe('creature type is authoritative, not assumed', () => {
 
 describe('a missing fact is a request, not a refusal', () => {
   const untyped = (): GameEvent[] => [
-    ...unwrap(createCharacter(kessa(), WIZARD), 'create'),
+    ...unwrap(createCharacter(SRD_CONTENT,kessa(), WIZARD), 'create'),
     creature(THUG, 'Thug', null),
     { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
     { type: 'landmark-added', name: 'the door', at: { x: 20, y: 20, z: 0 } },
@@ -210,7 +212,7 @@ describe('a missing fact is a request, not a refusal', () => {
 
   it('asks for a position rather than guessing a distance', () => {
     const unplaced: GameEvent[] = [
-      ...unwrap(createCharacter(kessa(), WIZARD), 'create'),
+      ...unwrap(createCharacter(SRD_CONTENT,kessa(), WIZARD), 'create'),
       creature(THUG, 'Thug', 'Humanoid'),
       { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
       { type: 'landmark-added', name: 'the door', at: { x: 20, y: 20, z: 0 } },
@@ -280,7 +282,7 @@ describe('the engine offers the targets it can see', () => {
    */
   it('lists who a spell could legally be cast at', () => {
     const state = fold('seed', table());
-    const eligible = eligibleTargets(state, WIZARD, 'hold-person', 2);
+    const eligible = eligibleTargets(state, SRD_CONTENT, WIZARD, 'hold-person', 2);
 
     expect(eligible.eligible).toEqual([THUG]);
     // The goblin is Fey; it is excluded, with the reason attached.
@@ -292,7 +294,7 @@ describe('the engine offers the targets it can see', () => {
       ...table(),
       { type: 'creature-moved', id: THUG, placement: { from: { creature: WIZARD }, feet: 150, bearing: 0 } },
     ];
-    const eligible = eligibleTargets(fold('seed', far), WIZARD, 'hold-person', 2);
+    const eligible = eligibleTargets(fold('seed', far), SRD_CONTENT, WIZARD, 'hold-person', 2);
     expect(eligible.eligible).toEqual([]);
     expect(eligible.excluded.find((e) => e.target === THUG)?.reason).toContain('range');
   });
@@ -302,7 +304,7 @@ describe('the engine offers the targets it can see', () => {
       ...table().filter((e) => e.type !== 'creature-added' || e.id !== THUG),
       creature(THUG, 'Thug', null),
     ];
-    const eligible = eligibleTargets(fold('seed', untyped), WIZARD, 'hold-person', 2);
+    const eligible = eligibleTargets(fold('seed', untyped), SRD_CONTENT, WIZARD, 'hold-person', 2);
     expect(eligible.needsContext.map((r) => r.subject)).toContain(THUG);
   });
 
@@ -314,7 +316,7 @@ describe('the engine offers the targets it can see', () => {
    * is the missing definition, not the spell.)
    */
   it('says nothing useful about a spell it cannot execute', () => {
-    const eligible = eligibleTargets(fold('seed', table()), WIZARD, 'magic-missile', 1);
+    const eligible = eligibleTargets(fold('seed', table()), SRD_CONTENT, WIZARD, 'magic-missile', 1);
     expect(eligible.eligible).toEqual([]);
     expect(eligible.excluded).toEqual([]);
   });
@@ -327,7 +329,7 @@ describe('Alert rides on the Initiative roll by itself', () => {
     kessa({ feats: { ...kessa().feats, 'human:versatile': { featId: 'alert' } } });
 
   const rolled = (choices: CharacterChoices) => {
-    const log = unwrap(createCharacter(choices, WIZARD), 'create');
+    const log = unwrap(createCharacter(SRD_CONTENT,choices, WIZARD), 'create');
     const state = fold('seed', log);
     const { issuer, rng } = supply(state);
     return unwrap(rollInitiativeFor(state, WIZARD, issuer, rng), 'initiative');
@@ -353,7 +355,7 @@ describe('Alert rides on the Initiative roll by itself', () => {
    * assertion: +2 over the baseline, never +4.
    */
   it('does not double when a caller passes it too', () => {
-    const log = unwrap(createCharacter(alertKessa(), WIZARD), 'create');
+    const log = unwrap(createCharacter(SRD_CONTENT,alertKessa(), WIZARD), 'create');
     const state = fold('seed', log);
     const { issuer, rng } = supply(state);
     const outcome = unwrap(
@@ -366,7 +368,7 @@ describe('Alert rides on the Initiative roll by itself', () => {
   });
 
   it('still takes an unrelated bonus alongside it', () => {
-    const log = unwrap(createCharacter(alertKessa(), WIZARD), 'create');
+    const log = unwrap(createCharacter(SRD_CONTENT,alertKessa(), WIZARD), 'create');
     const state = fold('seed', log);
     const { issuer, rng } = supply(state);
     const outcome = unwrap(
@@ -408,7 +410,7 @@ describe('which grant pays, and with what', () => {
       },
     });
     const state = fold('seed', table(both));
-    const eligible = eligibleTargets(state, WIZARD, 'fire-bolt', 0);
+    const eligible = eligibleTargets(state, SRD_CONTENT, WIZARD, 'fire-bolt', 0);
     expect(eligible.eligible).toContain(GOBLIN);
 
     const outcome = unwrap(
@@ -633,7 +635,7 @@ describe('an invalid target is refused, never swapped for a better one', () => {
   it('refuses the named target even when a legal one is standing right there', () => {
     const state = fold('seed', table());
     // The thug is a perfectly good Hold Person target, and is ignored.
-    expect(eligibleTargets(state, WIZARD, 'hold-person', 2).eligible).toEqual([THUG]);
+    expect(eligibleTargets(state, SRD_CONTENT, WIZARD, 'hold-person', 2).eligible).toEqual([THUG]);
 
     const result = resolveSpell(
       state,
@@ -654,7 +656,7 @@ describe('an invalid target is refused, never swapped for a better one', () => {
    * and, for everyone else, why they are out.
    */
   it('lists the excluded with a reason rather than offering an alternative', () => {
-    const listing = eligibleTargets(fold('seed', table()), WIZARD, 'hold-person', 2);
+    const listing = eligibleTargets(fold('seed', table()), SRD_CONTENT, WIZARD, 'hold-person', 2);
     const excluded = listing.excluded.find((e) => e.target === GOBLIN);
 
     expect(excluded?.reason).toContain('Fey');
@@ -682,7 +684,7 @@ describe('an invalid target is refused, never swapped for a better one', () => {
 describe('answering a request keeps what was already established', () => {
   /** Position and sight are known; only the creature type is missing. */
   const missingTypeOnly = (): GameEvent[] => [
-    ...unwrap(createCharacter(kessa(), WIZARD), 'create'),
+    ...unwrap(createCharacter(SRD_CONTENT,kessa(), WIZARD), 'create'),
     creature(THUG, 'Thug', null),
     { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
     { type: 'landmark-added', name: 'the door', at: { x: 20, y: 20, z: 0 } },
@@ -713,7 +715,7 @@ describe('answering a request keeps what was already established', () => {
   /** Two facts missing, answered one at a time, both surviving. */
   it('accumulates answers rather than replacing them', () => {
     const bare: GameEvent[] = [
-      ...unwrap(createCharacter(kessa(), WIZARD), 'create'),
+      ...unwrap(createCharacter(SRD_CONTENT,kessa(), WIZARD), 'create'),
       creature(THUG, 'Thug', null),
       { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
       { type: 'landmark-added', name: 'the door', at: { x: 20, y: 20, z: 0 } },

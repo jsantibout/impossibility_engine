@@ -26,7 +26,8 @@ import {
   sightBetween,
 } from '../positioning.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
-import { type ConcentrationSaveSupply } from './casting.js';
+import { type Content } from '../content.js';
+import { type Supply } from './casting.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
 import { completeIfSettled, mayAct } from './holds.js';
 import { sweptRoute } from './ongoing.js';
@@ -90,7 +91,7 @@ export function resolveMove(
   state: GameState,
   id: CharacterId,
   command: MoveCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<MoveResolution> {
   return moveWithin(state, id, command, supply, null);
 }
@@ -108,7 +109,7 @@ export function moveWithin(
   state: GameState,
   id: CharacterId,
   command: MoveCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
   allowance: number | null,
 ): Result<MoveResolution> {
   void supply;
@@ -164,7 +165,7 @@ export function moveWithin(
     // **A carried area sweeps, and a move of more than one space does not say
     // what it swept.** Checked before any cost, any budget and any Opportunity
     // Attack, so a move that needs its route stated costs nothing to ask about.
-    const sweeping = sweptRoute(state, scene.value, moved.value.state);
+    const sweeping = sweptRoute(state, supply.content, scene.value, moved.value.state);
     if (sweeping.length > 0) {
       return needsContext(
         'route_required',
@@ -227,7 +228,7 @@ export function moveWithin(
     const opportunity =
       command.forced === true || disengaged
         ? { provoked: [], unverified: [] }
-        : provokedBy(state, id, from, to);
+        : provokedBy(state, supply.content, id, from, to);
 
     if (opportunity.provoked.length === 0) {
       // Nobody is owed a swing, so this is the whole move and the stamp belongs
@@ -276,6 +277,7 @@ export function moveWithin(
  */
 function provokedBy(
   state: GameState,
+  content: Content,
   mover: CharacterId,
   from: Point,
   to: Point,
@@ -303,7 +305,7 @@ function provokedBy(
     if (other.vitals.dead || isIncapacitated(other.conditions)) continue;
     if (state.combat !== null && state.combat.budgets[other.id]?.reaction === false) continue;
 
-    const reach = reachOf(other);
+    const reach = reachOf(content, other);
     const before = distanceToPoint(scene, other.id, from);
     const after = distanceToPoint(scene, other.id, to);
     if (!before.ok || !after.ok) continue;
@@ -354,7 +356,7 @@ export function takeOpportunityAttack(
   state: GameState,
   reactor: CharacterId,
   command: OpportunityCommand,
-  supply: ConcentrationSaveSupply,
+  supply: Supply,
 ): Result<AttackResolution> {
   // Before the offer is checked, exactly as `declineOpportunity` does it: the
   // first run answered the offer and completed the move, so a retry finds no

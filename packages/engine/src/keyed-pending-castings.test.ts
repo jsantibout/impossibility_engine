@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -146,6 +147,7 @@ const TABLE: readonly GameEvent[] = [
 const supply = (seed = 'cast', flat = 0) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
   bonuses: [{ source: 'the test insists', flat }],
 });
 
@@ -372,7 +374,7 @@ describe('two creatures hold two castings open at once', () => {
     const { firstId, secondId, log } = twoCasters();
     const open = world(log);
 
-    const offered = reactionOpportunities(open).filter((o) => o.window === 'casting-a-spell');
+    const offered = reactionOpportunities(open, SRD_CONTENT).filter((o) => o.window === 'casting-a-spell');
     expect(
       offered
         .filter((o) => o.reactor === ALLY)

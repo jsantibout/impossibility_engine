@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DIVINE_STRIKE_DICE, PRIMAL_STRIKE_DICE, SNEAK_ATTACK_DICE, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -6,10 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { resolveAttack, resolveTurn, damageCreature } from './commands.js';
 import { planCharacter, type CharacterChoices } from './creation.js';
-import { SNEAK_ATTACK_DICE } from './rogue.js';
 import { rollAttack } from './attack.js';
-import { DIVINE_STRIKE_DICE } from './cleric.js';
-import { PRIMAL_STRIKE_DICE } from './druid.js';
 import { isErr } from '@ie/shared';
 
 /**
@@ -115,7 +113,7 @@ const rogueChoices = (level: number): CharacterChoices => ({
 });
 
 const rogueSheet = (level: number): CharacterSheet =>
-  unwrap(planCharacter(rogueChoices(level)), `rogue ${level}`).sheet;
+  unwrap(planCharacter(SRD_CONTENT,rogueChoices(level)), `rogue ${level}`).sheet;
 
 const hunterChoices = (option: string): CharacterChoices => ({
   ...common,
@@ -140,7 +138,7 @@ const hunterChoices = (option: string): CharacterChoices => ({
 });
 
 const hunterSheet = (option: string): CharacterSheet =>
-  unwrap(planCharacter(hunterChoices(option)), option).sheet;
+  unwrap(planCharacter(SRD_CONTENT,hunterChoices(option)), option).sheet;
 
 const added = (
   who: CharacterId,
@@ -197,7 +195,7 @@ const fighting = (log: readonly GameEvent[]): readonly GameEvent[] => [
   },
 ];
 
-const supply = (seed = 'stab') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'stab') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /**
  * Swing with the attack roll forced to land, so the test is about the rider.
@@ -692,7 +690,7 @@ describe('a feature whose damage type is chosen at the hit', () => {
   });
 
   const clericSheet = (level: number, option = 'Divine Strike'): CharacterSheet =>
-    unwrap(planCharacter(clericChoices(level, option)), `cleric ${level}`).sheet;
+    unwrap(planCharacter(SRD_CONTENT,clericChoices(level, option)), `cleric ${level}`).sheet;
 
   const clericTable = (level = 7, option = 'Divine Strike'): readonly GameEvent[] => [
     added(CLERIC, 'party', clericSheet(level, option)),
@@ -884,7 +882,7 @@ describe('a feature that lowers which die face is a Critical Hit', () => {
   /** SRD: 19 at Champion 3, 18 at 15. The lowest threshold wins. */
   it('puts the threshold on the sheet at the level the feature says', () => {
     const at = (level: number) => {
-      const plan = planCharacter(championChoices(level));
+      const plan = planCharacter(SRD_CONTENT,championChoices(level));
       if (!plan.ok) return `err:${plan.code}:${plan.reason}`;
       return plan.value.sheet.criticalOn ?? 20;
     };

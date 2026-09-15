@@ -18,6 +18,7 @@
  * after it, and asserts the sequence of creatures that actually acted rather
  * than asserting about an index.
  */
+import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import {
   asCharacterId,
@@ -63,7 +64,7 @@ const added = (who: CharacterId): GameEvent => ({
   creatureType: 'Humanoid',
 });
 
-const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng(SEED) as Rng });
+const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng(SEED) as Rng, content: SRD_CONTENT });
 
 const must = <T,>(result: Result<T>): T => unwrap(result, 'joining combat');
 const refusal = (result: Result<unknown>): string => (isErr(result) ? result.code : 'ok');

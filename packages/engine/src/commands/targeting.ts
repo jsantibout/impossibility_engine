@@ -12,6 +12,7 @@
  * spent.
  */
 
+import { type Content } from '../content.js';
 import {
   type CharacterId,
   type ConditionName,
@@ -43,7 +44,6 @@ import {
 } from '../positioning.js';
 import { type SlotKind } from '../resources.js';
 import {
-  definitionFor,
   DIRECTIONAL_AREAS,
   isCreatureType,
   type SpellArea,
@@ -1110,11 +1110,12 @@ export interface EligibleTargets {
  */
 export function eligibleTargets(
   state: GameState,
+  content: Content,
   casterId: CharacterId,
   spellId: string,
   slotLevel: number,
 ): EligibleTargets {
-  const definition = definitionFor(spellId);
+  const definition = content.spell(spellId);
   const caster = creatureOf(state, casterId);
   if (definition === null || caster === null) {
     return { eligible: [], excluded: [], needsContext: [] };

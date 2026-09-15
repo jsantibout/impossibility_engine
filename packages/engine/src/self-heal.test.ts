@@ -1,4 +1,6 @@
+import { type Content } from './content.js';
 import { describe, expect, it } from 'vitest';
+import { MARTIAL_ARTS_DIE, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -7,7 +9,6 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { useSelfHeal } from './commands.js';
 import { remaining } from './resources.js';
-import { MARTIAL_ARTS_DIE } from './monk.js';
 
 /**
  * Spend a use, roll a die, heal yourself.
@@ -105,7 +106,7 @@ const monk = (level: number, wis: number): CharacterChoices => ({
 
 /** Built, or the refusal — so a broken fixture says which rule it broke. */
 const eventsFor = (choices: CharacterChoices, who: string): readonly GameEvent[] => {
-  const out = createCharacter(choices, id(who));
+  const out = createCharacter(SRD_CONTENT,choices, id(who));
   if (!out.ok) throw new Error(`${choices.classId} ${choices.level}: ${out.code} — ${out.reason}`);
   return out.value;
 };
@@ -113,11 +114,13 @@ const eventsFor = (choices: CharacterChoices, who: string): readonly GameEvent[]
 interface Supply {
   readonly issuer: RollIssuer;
   readonly rng: Rng;
+  readonly content: Content;
 }
 
 const supply = (seed = 'heal'): Supply => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 class Game {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FIRE_BOLT, HOLD_PERSON, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -6,18 +7,8 @@ import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
 import { classCasting, routeFor } from './spellcasting.js';
-import {
-  FIRE_BOLT,
-  HOLD_PERSON,
-  scaledDiceFor,
-  definitionFor,
-  targetCountFor,
-} from './spell-definitions.js';
-import {
-  freeCastPoolKey,
-  createCharacter,
-  type CharacterChoices,
-} from './creation.js';
+import { scaledDiceFor, targetCountFor } from './spell-definitions.js';
+import { freeCastPoolKey, createCharacter, type CharacterChoices } from './creation.js';
 import { pendingSavesOf, resolveSpell, resolveTurn } from './commands.js';
 
 /**
@@ -111,7 +102,7 @@ const dummy = (who: CharacterId, name: string, maxHp = 30): GameEvent => ({
 
 /** A table with the wizard, two victims, a scene, and a fight running. */
 const table = (over: Partial<CharacterChoices> = {}): GameEvent[] => [
-  ...unwrap(createCharacter(kessa(over), WIZARD), 'create'),
+  ...unwrap(createCharacter(SRD_CONTENT,kessa(over), WIZARD), 'create'),
   dummy(GOBLIN, 'Goblin'),
   dummy(OGRE, 'Ogre'),
   { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
@@ -143,6 +134,7 @@ const supply = (state: GameState, flat?: number) => ({
   issuer: createRollIssuer('r', state.rollsIssued),
   rng: state.rng === null ? createRng('seed') : restoreRng(state.rng),
   ...(flat === undefined ? {} : { bonuses: [{ source: 'the test insists', flat }] }),
+  content: SRD_CONTENT,
 });
 
 const CERTAIN = 40;
@@ -218,11 +210,11 @@ describe('the definitions match the SRD', () => {
   });
 
   it('is found by the id the SRD index uses', () => {
-    expect(definitionFor('fire-bolt')).toBe(FIRE_BOLT);
-    expect(definitionFor('hold-person')).toBe(HOLD_PERSON);
+    expect(SRD_CONTENT.spell('fire-bolt')).toBe(FIRE_BOLT);
+    expect(SRD_CONTENT.spell('hold-person')).toBe(HOLD_PERSON);
     // Magic Missile is parsed and has no definition: it hits without an
     // attack roll, and that shape does not exist yet.
-    expect(definitionFor('magic-missile')).toBeNull();
+    expect(SRD_CONTENT.spell('magic-missile')).toBeNull();
   });
 });
 
@@ -270,6 +262,7 @@ describe('what creation granted is what can be cast', () => {
 
     const alert = unwrap(
       createCharacter(
+        SRD_CONTENT,
         kessa({
           feats: {
             ...kessa().feats,

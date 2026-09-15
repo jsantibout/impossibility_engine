@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { SRD_CONTENT } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
@@ -126,6 +127,7 @@ const base = (): GameState => fold('seed', SETUP);
 const supply = (seed = 'cast') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const must = <T,>(result: Result<T>): T => unwrap(result, 'granted defences');

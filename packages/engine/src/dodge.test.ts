@@ -1,3 +1,4 @@
+import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import {
   asCharacterId,
@@ -93,7 +94,7 @@ const SETUP: readonly GameEvent[] = [
   },
 ];
 
-const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng });
+const supply = (seed = 'swing') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
 
 /** Advance to whoever is next, rolling anything the boundary owes. */
 const nextTurn = (log: readonly GameEvent[]): readonly GameEvent[] => [

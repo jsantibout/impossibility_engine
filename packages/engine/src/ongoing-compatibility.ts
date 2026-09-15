@@ -30,7 +30,7 @@
  * difference between a compatibility path and a coupling nobody meant.
  */
 
-import { definitionFor } from './spell-definitions.js';
+import type { SpellDefinition } from './spell-definitions.js';
 import type { OngoingSpell, WrittenOngoing } from './spells.js';
 
 /**
@@ -94,13 +94,26 @@ const isCurrent = (casting: WrittenOngoing): casting is OngoingSpell =>
 export function upgradeOngoing(
   casting: WrittenOngoing,
   holdsNothingOf: (who: string) => boolean,
+  legacy: ((spellId: string) => SpellDefinition | null) | null,
 ): OngoingSpell {
   if (isCurrent(casting)) return casting;
 
   // **Pre-versioned only.** A version 2 record wrote its own area, so opening
   // the book for it would overwrite a fact pinned at the cast with the book as
-  // it reads now — see {@link ONGOING_RECORD_VERSION}.
-  const definition = casting.version === undefined ? definitionFor(casting.spellId) : null;
+  // it reads now — see {@link ONGOING_RECORD_VERSION}. The book it opens is
+  // the one the caller says the log was written against: the engine holds no
+  // catalogue of its own, and a log this old that arrives without one cannot
+  // be folded honestly, so it is refused rather than folded with the rule
+  // silently switched off.
+  let definition: SpellDefinition | null = null;
+  if (casting.version === undefined) {
+    if (legacy === null) {
+      throw new Error(
+        `the ongoing record for ${casting.spellId} (${casting.castingId}) predates pinned areas; replay this log with the content it was written against`,
+      );
+    }
+    definition = legacy(casting.spellId);
+  }
   const area = casting.area ?? definition?.area;
   const areaTrigger = casting.areaTrigger ?? definition?.areaTrigger;
   const endsEarly = casting.endsEarly ?? definition?.endsEarly;

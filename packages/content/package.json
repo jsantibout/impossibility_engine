@@ -1,0 +1,23 @@
+{
+  "name": "@ie/content",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The SRD 5.2.1 catalogue — spells, classes, species, backgrounds, feats and items — as validated engine content.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@ie/engine": "*",
+    "@ie/shared": "*",
+    "@ie/srd": "*"
+  }
+}

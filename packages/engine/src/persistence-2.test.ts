@@ -1,7 +1,8 @@
+import { SRD_CONTENT } from '@ie/content';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
+import { applyEventWith, fold, type GameEvent, type GameState } from './events.js';
 import { spellOn } from './fold/release.js';
 
 /**
@@ -57,7 +58,7 @@ const throughJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 describe('the second stored log still folds', () => {
   it('folds at all', () => {
-    expect(() => fold(SEED, GOLDEN_2)).not.toThrow();
+    expect(() => fold(SEED, GOLDEN_2, SRD_CONTENT)).not.toThrow();
   });
 
   it('is worth folding: it is a campaign, not a stub', () => {
@@ -71,7 +72,7 @@ describe('the second stored log still folds', () => {
    * rule moved.
    */
   it('folds to the state it has always folded to', () => {
-    const state = fold(SEED, GOLDEN_2);
+    const state = fold(SEED, GOLDEN_2, SRD_CONTENT);
 
     // The clock: two fights, an hour of Short Rest and a night of Long Rest.
     expect(state.elapsed).toBe(40_374);
@@ -133,9 +134,9 @@ describe('the second stored log still folds', () => {
       'mace',
       'rope',
     ]);
-    expect(state.creatures.mira?.equipped).toEqual([]);
+    expect(state.creatures.mira?.equipped.map((held) => held.id)).toEqual([]);
     expect(state.creatures.mira?.sheet.armor).toBeNull();
-    expect(state.creatures.thug?.equipped).toEqual(['longsword']);
+    expect(state.creatures.thug?.equipped.map((held) => held.id)).toEqual(['longsword']);
 
     // Exhaustion is a flat penalty per level and is nowhere near the sixth.
     expect(state.creatures.grim?.conditions.exhaustion).toBe(2);
@@ -147,7 +148,7 @@ describe('the second stored log still folds', () => {
    * dealer, and not applied.
    */
   it('folds a damage window that is still open', () => {
-    const pending = fold(SEED, GOLDEN_2).pendingDamage;
+    const pending = fold(SEED, GOLDEN_2, SRD_CONTENT).pendingDamage;
 
     expect(pending).not.toBeNull();
     expect(pending?.target).toBe('nyx');
@@ -169,7 +170,7 @@ describe('the second stored log still folds', () => {
 
     // And the other windows are shut, which is the half that says the reducer
     // closed them rather than never having opened them.
-    const state = fold(SEED, GOLDEN_2);
+    const state = fold(SEED, GOLDEN_2, SRD_CONTENT);
     expect(state.pendingTest).toBeNull();
     expect(state.pendingAttack).toBeNull();
     expect(state.pendingCastings).toEqual({});
@@ -181,7 +182,7 @@ describe('the second stored log still folds', () => {
    * without anybody noticing.
    */
   it('folds the derived rules to what they have always derived', () => {
-    const state = fold(SEED, GOLDEN_2);
+    const state = fold(SEED, GOLDEN_2, SRD_CONTENT);
 
     // Four separate Concentrations, held by four different casters — which
     // is what a casting id is for.
@@ -311,13 +312,13 @@ describe('the second stored log still folds', () => {
     const declared = GOLDEN_2[at] as unknown as { readonly move: Record<string, unknown> };
     expect(declared.move).toHaveProperty('feet');
 
-    const pending = fold(SEED, GOLDEN_2.slice(0, at + 1)).pendingMove;
+    const pending = fold(SEED, GOLDEN_2.slice(0, at + 1), SRD_CONTENT).pendingMove;
     expect(pending?.mover).toBe('thug');
     expect(pending).not.toHaveProperty('feet');
   });
 
   it('folds the same way twice', () => {
-    expect(fold(SEED, GOLDEN_2)).toStrictEqual(fold(SEED, GOLDEN_2));
+    expect(fold(SEED, GOLDEN_2, SRD_CONTENT)).toStrictEqual(fold(SEED, GOLDEN_2, SRD_CONTENT));
   });
 
   /**
@@ -325,8 +326,8 @@ describe('the second stored log still folds', () => {
    * replay can roll again — every outcome is already written down.
    */
   it('folds the same way under a different seed', () => {
-    expect(fold('somebody-elses-seed', GOLDEN_2)).toStrictEqual({
-      ...fold(SEED, GOLDEN_2),
+    expect(fold('somebody-elses-seed', GOLDEN_2, SRD_CONTENT)).toStrictEqual({
+      ...fold(SEED, GOLDEN_2, SRD_CONTENT),
       seed: 'somebody-elses-seed',
     });
   });
@@ -334,11 +335,11 @@ describe('the second stored log still folds', () => {
 
 describe('the second log survives the database', () => {
   it('folds identically after a round trip through JSON', () => {
-    expect(fold(SEED, throughJson(GOLDEN_2))).toStrictEqual(fold(SEED, GOLDEN_2));
+    expect(fold(SEED, throughJson(GOLDEN_2), SRD_CONTENT)).toStrictEqual(fold(SEED, GOLDEN_2, SRD_CONTENT));
   });
 
   it('produces a state that is itself JSON, exactly', () => {
-    const state: GameState = fold(SEED, GOLDEN_2);
+    const state: GameState = fold(SEED, GOLDEN_2, SRD_CONTENT);
     expect(throughJson(state)).toStrictEqual(state);
   });
 
@@ -364,13 +365,14 @@ describe('the second log survives the database', () => {
    * first prefix at which a divergence appears is still the one that fails.
    */
   it('round-trips at every prefix of the log', () => {
-    let plain = fold(SEED, []);
-    let stored = fold(SEED, []);
+    let plain = fold(SEED, [], SRD_CONTENT);
+    let stored = fold(SEED, [], SRD_CONTENT);
     expect(stored).toStrictEqual(plain);
 
+    const step = applyEventWith(SRD_CONTENT);
     for (const event of GOLDEN_2) {
-      plain = applyEvent(plain, event);
-      stored = applyEvent(stored, throughJson(event));
+      plain = step(plain, event);
+      stored = step(stored, throughJson(event));
       expect(stored).toStrictEqual(plain);
     }
   });

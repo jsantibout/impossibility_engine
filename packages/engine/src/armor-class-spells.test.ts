@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
-import { itemFor } from './catalogue.js';
 import type { CharacterSheet } from './character.js';
 import { armorClass } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -10,7 +10,6 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { resolveSpell } from './commands.js';
 import { armorClassOf } from './standing.js';
-import { definitionFor } from './spell-definitions.js';
 
 /**
  * An Armour Class a spell **sets**, rather than one it adds to.
@@ -40,8 +39,8 @@ const WIZARD = id('wizard');
 const FIGHTER = id('fighter');
 const BARBARIAN = id('barbarian');
 
-const leather = () => itemFor('leather-armor')?.armor ?? null;
-const shield = () => itemFor('shield')?.armor ?? null;
+const leather = () => SRD_CONTENT.item('leather-armor')?.armor ?? null;
+const shield = () => SRD_CONTENT.item('shield')?.armor ?? null;
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 5,
@@ -112,6 +111,7 @@ const base = (): GameState => fold('seed', SETUP);
 const supply = (seed = 'cast') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const castOn = (state: GameState, target: CharacterId) =>
@@ -220,7 +220,7 @@ describe('Mage Armor replaces the calculation rather than adding to it', () => {
       armorClass(sheet({ armor: leather() })),
     );
 
-    expect(definitionFor('mage-armor')?.endsEarly).toEqual([
+    expect(SRD_CONTENT.spell('mage-armor')?.endsEarly).toEqual([
       { on: 'target-dons-armor', ends: 'casting' },
     ]);
     expect(out.unverified.join(' ')).not.toContain('dons armor');
@@ -255,7 +255,7 @@ describe('the grant ends with the casting, through the door that already existed
 
   /** SRD Mage Armor: "8 hours". The clock ends it without anybody deciding. */
   it('goes when the eight hours run out', () => {
-    expect(definitionFor('mage-armor')?.durationSeconds).toBe(28_800);
+    expect(SRD_CONTENT.spell('mage-armor')?.durationSeconds).toBe(28_800);
 
     const cast = unwrap(castOn(base(), FIGHTER), 'mage armor');
     const log: readonly GameEvent[] = [

@@ -1,4 +1,6 @@
+import { type Content } from './content.js';
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -29,7 +31,6 @@ import type { DamageComponent } from './attack.js';
 import type { PendingDamage } from './events.js';
 import { spellsForClass } from '@ie/srd';
 import { rowAt, slotsAt } from './progression.js';
-import { allClasses } from './creation.js';
 
 /**
  * A Reaction a class feature takes in answer to something.
@@ -184,7 +185,7 @@ const bard = (level: number): CharacterChoices => ({
  * the transcription rather than the Reactions this file is about.
  */
 function known(classId: string, level: number): { cantrips: string[]; prepared: string[] } {
-  const definition = allClasses().find((c) => c.id === classId);
+  const definition = SRD_CONTENT.classes.find((c) => c.id === classId);
   if (definition === undefined) throw new Error(`no class called ${classId}`);
   const row = unwrap(rowAt(definition, level), `${classId} ${level}`);
   const highest = Object.keys(slotsAt(definition, level)).map(Number);
@@ -259,7 +260,7 @@ const barbarian = (level: number): CharacterChoices => ({
 });
 
 const sheetFor = (choices: CharacterChoices, what: string): CharacterSheet =>
-  unwrap(planCharacter(choices), what).sheet;
+  unwrap(planCharacter(SRD_CONTENT,choices), what).sheet;
 
 const added = (
   who: CharacterId,
@@ -306,11 +307,13 @@ const sees = (from: CharacterId, to: CharacterId, seen = true): GameEvent => ({
 interface Supply {
   readonly issuer: RollIssuer;
   readonly rng: Rng;
+  readonly content: Content;
 }
 
 const supply = (seed = 'react'): Supply => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 /** A log that folds, with the helpers every test in this file wants. */
@@ -484,7 +487,7 @@ describe('the sheet carries the Reactions a class grants', () => {
    */
   it('declares Indomitable as a pool that grows twice', () => {
     const uses = (level: number): number => {
-      const built = unwrap(createCharacter(fighter(level), BRAM), `fighter ${level}`);
+      const built = unwrap(createCharacter(SRD_CONTENT,fighter(level), BRAM), `fighter ${level}`);
       const declared = built.find(
         (e) => e.type === 'resource-pool-declared' && e.pool.key === 'fighter:indomitable',
       );
@@ -502,7 +505,7 @@ describe('the sheet carries the Reactions a class grants', () => {
    * same function every other pool uses.
    */
   it("sizes Dark One's Own Luck off Charisma", () => {
-    const built = unwrap(createCharacter(warlock(6), VEK), 'warlock 6');
+    const built = unwrap(createCharacter(SRD_CONTENT,warlock(6), VEK), 'warlock 6');
     const declared = built.find(
       (e) =>
         e.type === 'resource-pool-declared' && e.pool.key === 'fiend-patron:dark-ones-own-luck',
@@ -529,7 +532,7 @@ const duel = (
   added(defender, 'party', sheet),
   added(THUG, 'thugs', plain()),
   kit(THUG, ['longsword']),
-  { type: 'item-equipped', id: THUG, item: 'longsword' },
+  { type: 'item-equipped', id: THUG, item: 'longsword', armor: SRD_CONTENT.item('longsword')?.armor ?? null },
   ...scene,
   { type: 'creature-placed', id: defender, placement: { from: { landmark: 'the hall' }, feet: 0 } },
   at(THUG, defender, options.feet ?? 5, 0),
@@ -1447,7 +1450,7 @@ describe('Retaliation', () => {
     added(GRIM, 'party', sheetFor(barbarian(10), 'barbarian 10'), 100),
     added(THUG, 'thugs', plain()),
     kit(GRIM, ['greataxe']),
-    { type: 'item-equipped', id: GRIM, item: 'greataxe' },
+    { type: 'item-equipped', id: GRIM, item: 'greataxe', armor: SRD_CONTENT.item('greataxe')?.armor ?? null },
     ...scene,
     { type: 'creature-placed', id: GRIM, placement: { from: { landmark: 'the hall' }, feet: 0 } },
     at(THUG, GRIM, feet, 0),
@@ -1890,7 +1893,7 @@ describe('a retried reaction changes nothing the first one did not', () => {
       added(GRIM, 'party', sheetFor(barbarian(10), 'barbarian 10'), 100),
       added(THUG, 'thugs', plain()),
       kit(GRIM, ['greataxe']),
-      { type: 'item-equipped', id: GRIM, item: 'greataxe' },
+      { type: 'item-equipped', id: GRIM, item: 'greataxe', armor: SRD_CONTENT.item('greataxe')?.armor ?? null },
       ...scene,
       { type: 'creature-placed', id: GRIM, placement: { from: { landmark: 'the hall' }, feet: 0 } },
       at(THUG, GRIM, 5, 0),
@@ -2110,7 +2113,7 @@ describe('reactionOpportunities', () => {
   it('reports the offers on a held damage roll, with what each would cost', () => {
     const g = new Game(duel(NYX, sheetFor(rogue(5), 'rogue 5')));
     swing(g, NYX);
-    expect(reactionOpportunities(g.state)).toEqual([
+    expect(reactionOpportunities(g.state, SRD_CONTENT)).toEqual([
       {
         window: 'damage-rolled',
         reactor: NYX,
@@ -2126,7 +2129,7 @@ describe('reactionOpportunities', () => {
 
   it('reports nothing when no window is open', () => {
     const g = new Game(duel(NYX, sheetFor(rogue(5), 'rogue 5')));
-    expect(reactionOpportunities(g.state)).toEqual([]);
+    expect(reactionOpportunities(g.state, SRD_CONTENT)).toEqual([]);
   });
 
   it('reports a feature and a spell at the settled damage window together', () => {
@@ -2167,7 +2170,7 @@ describe('reactionOpportunities', () => {
       ).events,
     );
 
-    const found = reactionOpportunities(g.state);
+    const found = reactionOpportunities(g.state, SRD_CONTENT);
     expect(found.map((o) => `${o.kind}:${o.id}`).sort()).toEqual([
       'feature:berserker:retaliation',
       'spell:hellish-rebuke',
@@ -2184,7 +2187,7 @@ describe('reactionOpportunities', () => {
     g.push([{ type: 'reaction-spent', id: NYX }]);
     // The offer is still in the record — the engine does not rewrite history —
     // but the discovery query reads the budget as it stands.
-    expect(reactionOpportunities(g.state)).toEqual([]);
+    expect(reactionOpportunities(g.state, SRD_CONTENT)).toEqual([]);
   });
 });
 
@@ -2234,7 +2237,7 @@ describe('the existing Reaction spells still work, and compose with the new wind
   /** The Shield window, discovered rather than guessed at. */
   it('reports a Shield as available while the attack is held, and nothing before', () => {
     const g = new Game(wizardly());
-    expect(reactionOpportunities(g.state)).toEqual([]);
+    expect(reactionOpportunities(g.state, SRD_CONTENT)).toEqual([]);
 
     const out = unwrap(
       resolveAttack(
@@ -2255,7 +2258,7 @@ describe('the existing Reaction spells still work, and compose with the new wind
     // No damage window yet: nothing has been rolled to answer.
     expect(g.state.pendingDamage).toBeNull();
 
-    expect(reactionOpportunities(g.state)).toEqual([
+    expect(reactionOpportunities(g.state, SRD_CONTENT)).toEqual([
       {
         window: 'hit-by-attack',
         reactor: NYX,
@@ -2398,14 +2401,14 @@ describe('the existing Reaction spells still work, and compose with the new wind
     );
 
     // Both open.
-    expect(reactionOpportunities(g.state).map((o) => o.id).sort()).toEqual([
+    expect(reactionOpportunities(g.state, SRD_CONTENT).map((o) => o.id).sort()).toEqual([
       'berserker:retaliation',
       'hellish-rebuke',
     ]);
 
     // The clock moves; both shut.
     g.push([{ type: 'time-advanced', seconds: 6, reason: 'a pause' }]);
-    expect(reactionOpportunities(g.state)).toEqual([]);
+    expect(reactionOpportunities(g.state, SRD_CONTENT)).toEqual([]);
 
     const feature = takeDamageResponse(g.state, GRIM, { feature: 'berserker:retaliation' }, supply());
     const spell = resolveSpell(
@@ -2497,7 +2500,7 @@ describe('an offer is a (reactor, feature) pair, not a reactor', () => {
     );
     expect(g.state.pendingDamage?.offers.map((o) => o.feature)).toEqual(['monk:deflect-attacks']);
     // Still in the record, no longer affordable: the one Reaction is spent.
-    expect(reactionOpportunities(g.state)).toEqual([]);
+    expect(reactionOpportunities(g.state, SRD_CONTENT)).toEqual([]);
     const second = takeDamageReaction(g.state, NYX, { feature: 'monk:deflect-attacks' }, supply());
     expect(isErr(second) ? second.code : 'ok').toBe('no_reaction');
 

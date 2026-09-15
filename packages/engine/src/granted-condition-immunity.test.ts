@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MIND_BLANK, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -9,7 +10,7 @@ import { declaredCasting } from './spellcasting.js';
 import { applyConditionTo, resolveSpell } from './commands.js';
 import { conditionImmunitiesOf } from './standing.js';
 import { spellOn } from './fold/release.js';
-import { MIND_BLANK, type SpellDefinition } from './spell-definitions.js';
+import { type SpellDefinition } from './spell-definitions.js';
 import { checkSpellDefinition, type SpellDefinitionProblem } from './spell-schema.js';
 
 /**
@@ -149,6 +150,7 @@ const base = (): GameState => fold('seed', SETUP);
 const supply = (seed = 'cast') => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
 });
 
 const must = <T,>(result: Result<T>): T => unwrap(result, 'granted condition immunity');

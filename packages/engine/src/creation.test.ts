@@ -1,18 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass, skillModifier, spellSaveDc } from './character.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { hitDieKey } from './rest.js';
 import { countOf, levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
-import {
-  advanceCharacter,
-  checkCharacter,
-  createCharacter,
-  planCharacter,
-  type CharacterChoices,
-  type FeatChoice,
-} from './creation.js';
+import { advanceCharacter, checkCharacter, createCharacter, planCharacter, type CharacterChoices, type FeatChoice } from './creation.js';
 
 const id = (s: string) => asCharacterId(s);
 
@@ -98,13 +92,13 @@ const kessa = (over: Overrides = {}): CharacterChoices => ({
   ...over,
 });
 
-const planned = (over: Overrides = {}) => unwrap(planCharacter(kessa(over)), 'plan');
+const planned = (over: Overrides = {}) => unwrap(planCharacter(SRD_CONTENT,kessa(over)), 'plan');
 
 const built = (over: Overrides = {}): GameState =>
-  fold('seed', unwrap(createCharacter(kessa(over), id('kessa')), 'create'));
+  fold('seed', unwrap(createCharacter(SRD_CONTENT,kessa(over), id('kessa')), 'create'));
 
 const rejects = (over: Overrides, code: string) => {
-  const result = planCharacter(kessa(over));
+  const result = planCharacter(SRD_CONTENT,kessa(over));
   expect(isErr(result)).toBe(true);
   if (isErr(result)) expect(result.code).toBe(code);
 };
@@ -419,11 +413,11 @@ describe('Origin feats and the choices they demand', () => {
   });
 
   it('refuses a missing feat choice, naming every feature that wanted one', () => {
-    const result = planCharacter(kessa({ feats: {} }));
+    const result = planCharacter(SRD_CONTENT,kessa({ feats: {} }));
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('missing_feat_choice');
 
-    const reasons = checkCharacter(kessa({ feats: {} }))
+    const reasons = checkCharacter(SRD_CONTENT,kessa({ feats: {} }))
       .filter((p) => p.code === 'missing_feat_choice')
       .map((p) => p.reason);
     expect(reasons.some((r) => r.includes('sage:magic-initiate-wizard'))).toBe(true);
@@ -640,7 +634,7 @@ describe('creating above level 1 records what the GM decided', () => {
   });
 
   it('asks nothing of a level 1 character', () => {
-    expect(isErr(planCharacter(kessa(novice())))).toBe(false);
+    expect(isErr(planCharacter(SRD_CONTENT,kessa(novice())))).toBe(false);
   });
 });
 
@@ -702,7 +696,7 @@ describe('features are granted, and say what is not automated', () => {
   });
 
   it('refuses a missing feature choice, naming the feature', () => {
-    const result = planCharacter(kessa({ featureChoices: { 'human:skillful': ['perception'] } }));
+    const result = planCharacter(SRD_CONTENT,kessa({ featureChoices: { 'human:skillful': ['perception'] } }));
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.reason).toContain('wizard:scholar');
   });
@@ -717,6 +711,7 @@ describe('features are granted, and say what is not automated', () => {
 describe('every problem at once, for a caller building a form', () => {
   it('lists them all with the field each belongs to', () => {
     const problems = checkCharacter(
+      SRD_CONTENT,
       kessa({ classSkills: ['stealth'], cantrips: [], subclassId: undefined, languages: [] }),
     );
     const codes = problems.map((p) => p.code);
@@ -733,7 +728,7 @@ describe('every problem at once, for a caller building a form', () => {
   });
 
   it('finds nothing wrong with a legal character', () => {
-    expect(checkCharacter(kessa())).toEqual([]);
+    expect(checkCharacter(SRD_CONTENT,kessa())).toEqual([]);
   });
 });
 
@@ -744,12 +739,12 @@ describe('the character can be rebuilt and advanced', () => {
 
     const revived = JSON.parse(JSON.stringify(state)) as GameState;
     expect(revived).toEqual(state);
-    const rebuilt = unwrap(planCharacter(revived.creatures.kessa!.character!.choices), 'replan');
+    const rebuilt = unwrap(planCharacter(SRD_CONTENT,revived.creatures.kessa!.character!.choices), 'replan');
     expect(rebuilt.sheet).toEqual(state.creatures.kessa!.sheet);
   });
 
   it('folds the same log to the same character twice', () => {
-    const events = unwrap(createCharacter(kessa(), id('kessa')), 'create');
+    const events = unwrap(createCharacter(SRD_CONTENT,kessa(), id('kessa')), 'create');
     expect(fold('seed', events)).toEqual(fold('seed', events));
   });
 
@@ -761,6 +756,7 @@ describe('the character can be rebuilt and advanced', () => {
   it('advances a level, preserving copied spells and current state', () => {
     const start = unwrap(
       createCharacter(
+        SRD_CONTENT,
         kessa({
           level: 2,
           subclassId: undefined,
@@ -791,7 +787,7 @@ describe('the character can be rebuilt and advanced', () => {
     const advanced = fold('seed', [
       ...log,
       ...unwrap(
-        advanceCharacter(wounded, id('kessa'), {
+        advanceCharacter(wounded, SRD_CONTENT, id('kessa'), {
           subclassId: 'evoker',
           newSpells: ['misty-step', 'web'],
           copiedSpells: ['blur'],
@@ -836,13 +832,13 @@ describe('the character can be rebuilt and advanced', () => {
     const plain = fold('seed', [
       { type: 'creature-added', id: id('goblin'), name: 'goblin', sheet: planned().sheet, maxHp: 7 },
     ]);
-    const result = advanceCharacter(plain, id('goblin'), {});
+    const result = advanceCharacter(plain, SRD_CONTENT, id('goblin'), {});
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.code).toBe('not_a_character');
   });
 
   it('refuses an advance whose new spells are the wrong number', () => {
-    const result = advanceCharacter(built(novice()), id('kessa'), {
+    const result = advanceCharacter(built(novice()), SRD_CONTENT, id('kessa'), {
       newSpells: ['misty-step'],
       preparedSpells: ['magic-missile', 'shield', 'mage-armor', 'sleep', 'detect-magic'],
       featureChoices: { 'wizard:scholar': ['arcana'] },
