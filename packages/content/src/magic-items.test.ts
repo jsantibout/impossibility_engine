@@ -248,6 +248,41 @@ describe('what an item does not do is data, and quotes the page', () => {
     expect(misquoted).toEqual([]);
   });
 
+  /**
+   * The extra-damage tranche, both halves of it.
+   *
+   * `attack-damage` gained the narrowing `flat-bonus` already had — "this
+   * magic weapon deals an extra 2d6 damage", and no other weapon does — and
+   * what that finished is exactly the items whose extra die is unconditional
+   * once it is tied to the object. An item whose die is conditional on *what
+   * the target is* is not finished by it: "if the target is a Dragon" is a
+   * test of the creature being hit, and nothing on the damage path reads one.
+   *
+   * Written down as data rather than left to the totals, because "which items
+   * this shape finished" is the claim, and a count cannot be wrong in a way
+   * anybody notices.
+   */
+  it('finishes the items whose extra die needed only the narrowing', () => {
+    const complete = SRD_MAGIC_ITEMS.filter((item) => (item.unmodelled ?? []).length === 0);
+    expect(complete.map((item) => item.id)).toContain('vicious-weapon');
+
+    // Still partial, and each note says which clause is still the table's.
+    const stillOwed: Readonly<Record<string, string>> = {
+      'sword-of-wounding': 'Constitution saving throw',
+      'frost-brand': 'extinguish all nonmagical flames',
+      'dragon-slayer': 'if the target is a Dragon',
+      'giant-slayer': 'When you hit a Giant',
+      'holy-avenger': 'When you hit a Fiend or an Undead',
+    };
+    for (const [id, clause] of Object.entries(stillOwed)) {
+      const item = SRD_MAGIC_ITEMS.find((one) => one.id === id);
+      expect(item, id).toBeDefined();
+      const notes = item?.unmodelled ?? [];
+      expect(notes.length, `${id} says nothing about what it still owes`).toBeGreaterThan(0);
+      expect(notes.some((note) => note.includes(clause)), `${id}: "${clause}"`).toBe(true);
+    }
+  });
+
   /** The guard bites: a run the entry does not contain is reported. */
   it('would catch a note that quoted something the page does not say', () => {
     const cloak = SRD_MAGIC_ITEMS.find((item) => item.id === 'cloak-of-elvenkind');

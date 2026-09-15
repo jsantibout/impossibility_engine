@@ -130,6 +130,44 @@ const madeWithThisWeapon = (flat: number, attuned = false): ItemGrant => ({
   ...(attuned ? { requires: [{ kind: 'while-attuned' as const }] } : {}),
 });
 
+/**
+ * "This magic weapon deals an extra NdM damage on a hit", as a grant.
+ *
+ * `madeWithThisWeapon`'s neighbour, and narrowed by the same clause for the
+ * same reason: the die belongs to the *object*, so a character carrying a
+ * Vicious Weapon and a Shortbow gets the 2d6 on one of them. A feature's extra
+ * die — Rage Damage, Sneak Attack — belongs to the character and carries no
+ * narrowing at all, which is the whole difference between the two populations
+ * and why `checkContent` refuses this clause on a class feature.
+ *
+ * **The damage type decides which half of the pipeline it lands in**, and the
+ * book decides the type. Vicious Weapon says "of the same type as the weapon's
+ * normal damage", so it is a *bonus* and meets Resistance with the blade;
+ * Frost Brand says "1d6 Cold damage", so it is *extra* and Slashing Immunity
+ * does nothing to it. Naming no type here is the first of those.
+ *
+ * The bracket is a requirement exactly as it is for a flat bonus: a character
+ * who merely picks a bracketed sword up is *equipped*, so without
+ * `while-attuned` the attunement the SRD asks for would never be asked about.
+ */
+const extraDamageWithThisWeapon = (
+  dice: string,
+  damageType?: string,
+  attuned = false,
+): ItemGrant => ({
+  kind: 'standing',
+  reach: 'self',
+  effects: [
+    {
+      kind: 'attack-damage',
+      dice,
+      onlyWithItem: true,
+      ...(damageType === undefined ? {} : { damageType }),
+    },
+  ],
+  ...(attuned ? { requires: [{ kind: 'while-attuned' as const }] } : {}),
+});
+
 /** "You gain a +N bonus to Armor Class while you wear this ...", as a grant. */
 const armorClassWhileWorn = (flat: number, attuned = false): ItemGrant => ({
   kind: 'standing',
@@ -751,6 +789,47 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
 
   // ── weapons the book names ───────────────────────────────────────────────
   magicWeapon(
+    { id: 'vicious-weapon', name: 'Vicious Weapon', row: 'longsword' },
+    {
+      /**
+       * SRD Vicious Weapon: "Weapon (Any Simple or Martial), Rare. This magic
+       * weapon deals an extra 2d6 damage to any creature it hits. This extra
+       * damage is of the same type as the weapon's normal damage."
+       *
+       * **The whole item is one clause**, which is why it was not in the
+       * catalogue at all until `attack-damage` could be narrowed: a record
+       * carrying nothing but a note would be an item that grants nothing and
+       * looks transcribed. Now it says everything its entry says.
+       *
+       * "To any creature it hits" is the absence of every qualification the
+       * class features carry — no ability, no melee clause, no once per turn —
+       * and "of the same type as the weapon's normal damage" is the absence of
+       * a damage type, which is what a *bonus* is.
+       */
+      grants: [extraDamageWithThisWeapon('2d6')],
+    },
+  ),
+  magicWeapon(
+    { id: 'sword-of-wounding', name: 'Sword of Wounding', row: 'longsword' },
+    {
+      /**
+       * SRD Sword of Wounding: "Weapon (Glaive, Greatsword, Longsword, Rapier,
+       * Scimitar, or Shortsword), Rare (Requires Attunement). When you hit a
+       * creature with an attack using this magic weapon, the target takes an
+       * extra 2d6 Necrotic damage."
+       *
+       * Necrotic and not the blade's own type, so it is *extra* rather than a
+       * bonus: a creature Resistant to Slashing resists the sword and not the
+       * wound.
+       */
+      attunement: {},
+      grants: [extraDamageWithThisWeapon('2d6', 'necrotic', true)],
+      unmodelled: [
+        '"must succeed on a DC 15 Constitution saving throw or be unable to regain Hit Points for 1 hour. The target repeats the save at the end of each of its turns, ending the effect on itself on a success": a save a weapon forces, and a condition of its own that blocks healing and re-rolls each turn — an item declares neither',
+      ],
+    },
+  ),
+  magicWeapon(
     { id: 'dragon-slayer', name: 'Dragon Slayer', row: 'longsword' },
     {
       /**
@@ -760,7 +839,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       grants: [madeWithThisWeapon(1)],
       unmodelled: [
-        '"The weapon deals an extra 3d6 damage of the weapon\'s type if the target is a Dragon": `attack-damage` carries no narrowing to the item that dealt it and no test of what the target is, so a die hung here would be added to every weapon its holder swung, at everything',
+        '"The weapon deals an extra 3d6 damage of the weapon\'s type if the target is a Dragon": the narrowing to the weapon is sayable now and the narrowing to the *target* is not — `attack-damage` has no test of what the creature being hit is, so the die would land on everything this sword touched',
       ],
     },
   ),
@@ -773,7 +852,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       grants: [madeWithThisWeapon(1)],
       unmodelled: [
-        '"When you hit a Giant with this weapon, the Giant takes an extra 2d6 damage of the weapon\'s type and must succeed on a DC 15 Strength saving throw or have the Prone condition": extra damage narrowed to the weapon and to what the target is, and a save a weapon forces, neither of which an item can declare',
+        '"When you hit a Giant with this weapon, the Giant takes an extra 2d6 damage of the weapon\'s type and must succeed on a DC 15 Strength saving throw or have the Prone condition": the narrowing to the weapon is sayable, but "a Giant" is a test of what the target is and the rest is a save a weapon forces, and an item declares neither',
       ],
     },
   ),
@@ -843,16 +922,19 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     {
       /**
        * SRD Frost Brand: "Weapon (Glaive, Greatsword, Longsword, Rapier,
-       * Scimitar, or Shortsword), Very Rare (Requires Attunement). ... while
-       * you hold the weapon, you have Resistance to Fire damage."
+       * Scimitar, or Shortsword), Very Rare (Requires Attunement). When you
+       * hit with an attack roll using this magic weapon, the target takes an
+       * extra 1d6 Cold damage ... while you hold the weapon, you have
+       * Resistance to Fire damage."
        *
-       * The Resistance is the half that is a standing grant, and the sword's
-       * own extra die is the half that is not.
+       * Two grants and not one, because the book writes two sentences about
+       * two different lifetimes: the Resistance is had while the sword is held
+       * and the die is dealt by the sword itself, which is the clause
+       * `onlyWithItem` says.
        */
       attunement: {},
-      grants: [resistanceWhileWorn(['fire'])],
+      grants: [resistanceWhileWorn(['fire']), extraDamageWithThisWeapon('1d6', 'cold', true)],
       unmodelled: [
-        '"When you hit with an attack roll using this magic weapon, the target takes an extra 1d6 Cold damage": `attack-damage` has no narrowing to the item that dealt it, so the die would follow its holder onto every other weapon',
         '"In freezing temperatures, the weapon sheds Bright Light in a 10-foot radius", and "When you draw this weapon, you can extinguish all nonmagical flames within 30 feet of yourself": light, weather and open flame are the DM\'s',
       ],
     },
@@ -908,7 +990,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       attunement: { byClass: ['paladin'] },
       grants: [madeWithThisWeapon(3, true)],
       unmodelled: [
-        '"When you hit a Fiend or an Undead with it, that creature takes an extra 2d10 Radiant damage": extra damage narrowed to the weapon and to what the target is',
+        '"When you hit a Fiend or an Undead with it, that creature takes an extra 2d10 Radiant damage": narrowing the die to the weapon is sayable and narrowing it to what the target is is not — nothing on the damage path reads a creature\'s type',
         '"You and all creatures Friendly to you in the Emanation have Advantage on saving throws against spells and other magical effects": the aura is writable and the narrowing is not — a save has no key for what it is *against*, so the mode would reach every save of every ally',
       ],
     },

@@ -411,7 +411,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 36 | 193 | 166 | 27 |
+| 258 | 38 | 195 | 167 | 28 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -435,7 +435,7 @@ inventing a column that nothing checks.
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 2 | 2 | 0 | 2 |
-| Weapons | 33 | 13 | 126 | 114 | 12 |
+| Weapons | 33 | 15 | 128 | 115 | 13 |
 | Wondrous Items | 127 | 10 | 10 | 3 | 7 |
 
 ### Entries transcribed
@@ -474,6 +474,8 @@ how many of those still carry a clause the engine does not say.
 - **Shield, +1, +2, or +3** (Armor) — 3 recorded, complete
 - **Staff of Fire** (Staffs) — 1 recorded, 1 partial
 - **Stone of Good Luck (Luckstone)** (Wondrous Items) — 1 recorded, complete
+- **Sword of Wounding** (Weapons) — 1 recorded, 1 partial
+- **Vicious Weapon** (Weapons) — 1 recorded, complete
 - **Vorpal Sword** (Weapons) — 1 recorded, 1 partial
 - **Wand of Fireballs** (Wands) — 1 recorded, 1 partial
 - **Wand of Secrets** (Wands) — 1 recorded, 1 partial

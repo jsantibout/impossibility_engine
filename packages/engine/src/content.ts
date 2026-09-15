@@ -669,9 +669,15 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         });
         // And the narrowing, which is the same door in the same wall: it is
         // keyed on the granting item's id, and a class feature has none, so
-        // the benefit would never reach a roll at all.
+        // the benefit would never reach a roll at all. Both members that carry
+        // the clause are refused here — a flat bonus's "made with this magic
+        // weapon" and an extra die's "this magic weapon deals" — because a
+        // rule enforced on one of two spellings is a rule with a hole in it.
         (feature.grants.effects ?? []).forEach((effect, position) => {
-          if (effect.kind === 'flat-bonus' && effect.onlyWithItem === true) {
+          if (
+            (effect.kind === 'flat-bonus' || effect.kind === 'attack-damage') &&
+            effect.onlyWithItem === true
+          ) {
             problems.push({
               field: `${where}.grants.effects[${position}].onlyWithItem`,
               code: 'item_narrowing_on_a_feature',

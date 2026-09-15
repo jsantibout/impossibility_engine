@@ -377,6 +377,10 @@ export function resolveAttack(
       ability: attack.value.ability,
       melee: rangeOf(weapon, command.thrown === true) === null,
       weapon,
+      // SRD Vicious Weapon: "*this magic weapon* deals an extra 2d6 damage" —
+      // the item in hand, not the row it is a magical version of, so the other
+      // sword on the same belt gets nothing.
+      withItem: command.weapon,
       mode: attack.value.roll.mode,
       target: command.target,
       turn: state.combat?.turnsTaken ?? null,
@@ -629,6 +633,9 @@ export function resolveAttackDamage(
       ability: pending.ability,
       melee: rangeOf(weapon, pending.thrown) === null,
       weapon,
+      // The weapon the hit was made with was written down when it landed, so a
+      // held attack narrows on the same fact the ordinary one does.
+      withItem: pending.weapon,
       // Recorded when the attack was held. Absent only in a log written before
       // the field existed, and none has one: `resolveAttack` always sets it.
       mode: pending.mode ?? 'normal',

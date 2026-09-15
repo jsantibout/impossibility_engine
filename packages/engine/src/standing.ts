@@ -197,6 +197,15 @@ export type StandingGrant =
    * The conditions are each feature's own sentence: Rage Damage wants an
    * attack "using Strength", Radiant Strikes one "using a Melee weapon or an
    * Unarmed Strike".
+   *
+   * **And one clause no class feature has**: {@link onlyWithItem}, which is
+   * `flat-bonus`'s narrowing on the member beside it. A feature's die belongs
+   * to the *character* and rides whatever they swing; a magic weapon's belongs
+   * to the *object*, and the SRD writes the difference in as many words —
+   * Vicious Weapon is "this magic weapon deals an extra 2d6 damage", Frost
+   * Brand "when you hit with an attack roll using this magic weapon". Without
+   * it the die would follow its holder onto every other weapon in the pack,
+   * which is a better item than the book prints.
    */
   /**
    * SRD Evasion, which the Rogue and the Monk both have under that name:
@@ -304,6 +313,21 @@ export type StandingGrant =
        * refused before anything is rolled rather than quietly ignored.
        */
       readonly damageTypeChoices?: readonly string[];
+      /**
+       * SRD Vicious Weapon: "**this magic weapon** deals an extra 2d6 damage".
+       *
+       * The same clause `flat-bonus.onlyWithItem` carries and read the same
+       * way — keyed on {@link StandingEffect.feature}, which carries the
+       * granting item's id, so it needs no second field to look anything up
+       * in, and a class feature declaring it would grant nothing at all.
+       * `checkContent` refuses that pairing rather than accepting it.
+       *
+       * It narrows *which weapon*, and nothing else. Whether the die lands at
+       * all still depends on the qualifications above, and an item whose
+       * clause tests what the *target* is — "if the target is a Dragon" — is a
+       * different narrowing that does not exist yet.
+       */
+      readonly onlyWithItem?: boolean;
     };
 
 /**
@@ -1418,6 +1442,21 @@ export interface AttackContext {
   /** Null for an Unarmed Strike, which is not a weapon. */
   readonly weapon: Weapon | null;
   /**
+   * The catalogue id of what the attack was made *with*, for the one clause
+   * that asks — {@link BonusContext.withItem}, on the damage side.
+   *
+   * Not `weapon.id`, and the distinction is load-bearing: a magic weapon's
+   * `weapon` record is the *mundane row* it is a magical version of, so a
+   * Vicious Weapon's record is filed under `longsword` and reading the id off
+   * it would hand the die to every longsword in the world. What narrows is the
+   * item, and only the command knows which item was swung.
+   *
+   * Absent reads as a roll made with nothing, exactly as it does for a flat
+   * bonus: a caller who does not say withholds the benefit rather than
+   * inventing one.
+   */
+  readonly withItem?: string | null;
+  /**
    * How the attack roll came out, after Advantage and Disadvantage cancelled.
    *
    * The *resolved* mode rather than a list of sources, because that is what
@@ -1481,6 +1520,10 @@ export function checkFeatureDamageTypes(
  * of another type is applied separately. Collapsing the two would give a
  * Barbarian's Rage Damage the wrong answer against a Slashing-resistant
  * target, or a Paladin's Radiant the wrong one.
+ *
+ * `context.withItem` narrows, exactly as it does in {@link standingBonuses}:
+ * an effect that says "this magic weapon" is withheld from every attack made
+ * with anything else, including the attacks no object is made with at all.
  */
 /**
  * SRD Sneak Attack's second branch, which is the one the engine can only
@@ -1556,6 +1599,8 @@ export function standingAttackDamage(
   for (const { effect } of standingFor(state, who)) {
     const grant = effect.grant;
     if (grant.kind !== 'attack-damage') continue;
+    // "This magic weapon deals an extra 2d6 damage", and no other weapon does.
+    if (grant.onlyWithItem === true && (context.withItem ?? null) !== effect.feature) continue;
     if (grant.usingAbility !== undefined && grant.usingAbility !== context.ability) continue;
     if (grant.meleeOnly === true && !context.melee) continue;
     if (grant.weaponOnly === true && context.weapon === null) continue;
