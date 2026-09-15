@@ -214,7 +214,13 @@ export function resolveAttackEffect(
     {
       weapon: null,
       targetAc: armorClassOf(current, target),
-      extraDamage: [{ source: definition.name, type: effect.damageType, dice }, ...carried],
+      extraDamage: [
+        // Absent when the spell's amount rolls nothing: `rollAttackDamage`
+        // throws no die for a dice-free extra, and the flat number the line
+        // prints lands on the component below.
+        { source: definition.name, type: effect.damageType, ...(dice === undefined ? {} : { dice }) },
+        ...carried,
+      ],
     },
     attack.value.critical,
   );

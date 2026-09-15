@@ -79,6 +79,21 @@ export function scheduleDelayed(
 ): GameEvent | null {
   const { casterId, definition, castingId, castLevel, casterLevel, unverified } = context;
 
+  // **The one amount that has to roll something.** A delayed hit is filed as a
+  // notation and thrown at the boundary it falls due, so that randomness
+  // enters the log at the roll rather than at the cast; an amount with no dice
+  // has nothing to file. `checkSpellDefinition` refuses one
+  // (`delayed_rolls_nothing`) before any content loads, so reaching here is
+  // the validator and the resolver disagreeing — `casterSheet`'s pattern and
+  // its argument.
+  const notation = scaledDiceFor(delayed.damage, definition.level, casterLevel, castLevel);
+  if (notation === undefined) {
+    throw new Error(
+      `${definition.name} owes ${target} a later hit with no dice to roll when it falls due; ` +
+        'checkSpellDefinition refuses a delayed amount that rolls nothing, so the validator and the resolver disagree',
+    );
+  }
+
   const deadline = resolveDuration(timeView(state), delayedDuration(target));
   if (!deadline.ok) {
     unverified.push(
@@ -93,7 +108,7 @@ export function scheduleDelayed(
       target,
       by: casterId,
       deadline: deadline.value,
-      notation: scaledDiceFor(delayed.damage, definition.level, casterLevel, castLevel),
+      notation,
       damageType: delayed.damageType,
       // Through the canonical encoder, not by hand: `castingIdOf` reads this
       // back to find the casting, and a second spelling of the link is a

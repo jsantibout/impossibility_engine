@@ -280,6 +280,114 @@ describe('each rule refuses something', () => {
     ).toEqual(['cantrip_scaling_on_spell']);
   });
 
+  /**
+   * An amount may say a flat number and no notation — "you gain 10 Temporary
+   * Hit Points" — but an amount that says neither is nothing at all, and
+   * `scaledDiceFor` plus `scaledFlatFor` would resolve it to a silent zero.
+   */
+  it('refuses an amount with neither dice nor a flat number', () => {
+    expect(
+      only({
+        effects: [
+          { kind: 'attack', attack: 'ranged', damage: {}, damageType: 'fire' },
+        ],
+      }),
+    ).toEqual(['amounts_to_nothing']);
+  });
+
+  it('refuses a flat amount whose flat is not a number', () => {
+    expect(
+      only({
+        effects: [
+          { kind: 'attack', attack: 'ranged', damage: { flat: '10' }, damageType: 'fire' },
+        ],
+      }),
+    ).toEqual(['amounts_to_nothing']);
+  });
+
+  it('accepts an amount that is a flat number and no dice', () => {
+    expect(
+      only({
+        effects: [
+          { kind: 'attack', attack: 'ranged', damage: { flat: 10 }, damageType: 'fire' },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  /**
+   * The two *dice* scaling fields add dice to a base notation, and an amount
+   * with no notation has none to add them to: `scaledDiceFor` would have to
+   * invent the die they are counted in. `flatPerSlotLevelAbove` is the one
+   * that survives, because `scaledFlatFor` never looks at the dice.
+   */
+  it('refuses per-slot dice on an amount that rolls none', () => {
+    expect(
+      only({
+        effects: [
+          {
+            kind: 'attack',
+            attack: 'ranged',
+            damage: { flat: 10, perSlotLevelAbove: '1d6' },
+            damageType: 'fire',
+          },
+        ],
+      }),
+    ).toEqual(['scaling_without_dice']);
+  });
+
+  it('refuses a Cantrip Upgrade on an amount that rolls none', () => {
+    expect(
+      only({
+        level: 0,
+        effects: [
+          {
+            kind: 'attack',
+            attack: 'ranged',
+            damage: { flat: 10, cantripUpgradesAt: [5, 11, 17] },
+            damageType: 'fire',
+          },
+        ],
+      }),
+    ).toEqual(['scaling_without_dice']);
+  });
+
+  it('accepts a flat amount that grows flatly with the slot', () => {
+    expect(
+      only({
+        effects: [
+          {
+            kind: 'attack',
+            attack: 'ranged',
+            damage: { flat: 10, flatPerSlotLevelAbove: 5 },
+            damageType: 'fire',
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  /**
+   * A delayed hit is a debt filed as a notation and rolled at the boundary it
+   * falls due — `ScheduledDamage.notation` — so an amount with no dice has
+   * nothing for the schedule to carry and nothing to roll when it arrives.
+   */
+  it('refuses a delayed hit that rolls nothing', () => {
+    expect(
+      only({
+        effects: [
+          {
+            kind: 'attack',
+            attack: 'ranged',
+            damage: { dice: '2d6' },
+            damageType: 'fire',
+            delayed: { damage: { flat: 4 }, damageType: 'fire' },
+          },
+        ],
+      }),
+    ).toEqual(['delayed_rolls_nothing']);
+  });
+
   it('refuses an area and a bounded target list at once', () => {
     expect(
       only({
@@ -1695,6 +1803,15 @@ describe('every member of the definition format has a user or a written exemptio
       // adding a new kind of masking: the flat field and the rider field are
       // the same clause read two ways.
       'SpellEffect.check? + SpellDefinition.check? + ConditionRider.check?',
+      // **The second pair that masks**, and it arrived with `DiceScaling.dice`
+      // becoming optional so that an amount could be a flat number. A payout's
+      // notation and an amount's notation are the same word for the same idea,
+      // exactly as `flat` below — but every damaging spell writes the scaling's
+      // and no definition writes a payout's, because the one SRD spell of that
+      // shape, Heroism, hands over the caster's modifier and rolls nothing. So
+      // `turn-payout.dice` is unwritten and this sweep cannot see it. Recorded
+      // rather than exempted, for the reason the `at` pair above is.
+      'SpellEffect.dice? + DiceScaling.dice?',
       // A payout's printed number and a scaling's printed addend are the same
       // word for the same idea — "plus 4", "regains 1 Hit Point" — and the
       // collision masks nothing today: False Life writes the scaling's, and a

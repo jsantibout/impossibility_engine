@@ -223,14 +223,6 @@ function checkScaling(
     ['dice', scaling.dice],
     ['perSlotLevelAbove', scaling.perSlotLevelAbove],
   ] as const) {
-    // **An absent `dice` is not refused here**, and that is a scope decision
-    // rather than a reading. `scaledDiceFor` splits the notation and does
-    // arithmetic on the halves, so a scaling with none becomes `NaNd6` and the
-    // spell silently rolls nothing — a real gap, and a *required-field* rule
-    // on a value this function can perfectly well read, which is a different
-    // kind of rule from the guards around it. `origin: {}` is the same
-    // question and is not refused either; both belong to a task that is adding
-    // a rule to this file rather than to one making it answer at all.
     if (notation === undefined) continue;
     if (typeof notation !== 'string' || !parseNotation(notation).ok) {
       found.push({
@@ -238,6 +230,35 @@ function checkScaling(
         code: 'bad_dice',
         reason: `"${String(notation)}" is not dice notation`,
       });
+    }
+  }
+
+  // **An amount may roll nothing, and may not be nothing.** SRD Potion of
+  // Heroism's "10 Temporary Hit Points" is a `flat` with no notation beside
+  // it; an amount carrying neither would resolve, silently, to a zero that
+  // every reader would hand over as if the line had printed it.
+  if (scaling.dice === undefined) {
+    if (typeof scaling.flat !== 'number') {
+      found.push({
+        field: path,
+        code: 'amounts_to_nothing',
+        reason:
+          'an amount rolls dice, states a flat number, or both; this states neither, and nothing is not an amount',
+      });
+    }
+    // The two fields that add dice **to the base notation**, on an amount that
+    // has none: `scaledDiceFor` would have to invent the die they are counted
+    // in, so the upcast would silently come to nothing. `flatPerSlotLevelAbove`
+    // is deliberately not here — `scaledFlatFor` never reads a notation, so a
+    // printed number that grows flatly with the slot is perfectly sayable.
+    for (const key of ['perSlotLevelAbove', 'cantripUpgradesAt'] as const) {
+      if (scaling[key] !== undefined) {
+        found.push({
+          field: `${path}.${key}`,
+          code: 'scaling_without_dice',
+          reason: `${key} adds dice to the amount's own notation, and this amount rolls none`,
+        });
+      }
     }
   }
 
@@ -740,8 +761,26 @@ function checkRiders(
         found,
       )
     ) {
+      const before = found.length;
       checkScaling(riders.delayed.damage, level, `${path}.delayed.damage`, found);
       checkDamageType(riders.delayed.damageType, `${path}.delayed.damageType`, found);
+      // **The one host of an amount that may not be dice-free.** A delayed hit
+      // is filed as `ScheduledDamage.notation` and rolled at the boundary it
+      // falls due — randomness enters the log at the roll, never at the cast —
+      // so the debt is carried as a notation and nothing else. An amount with
+      // no dice has none to carry, and `scheduleDelayed` would have nowhere to
+      // put the number. Refused here rather than dropped there.
+      //
+      // Only where the amount itself read cleanly, so a malformed one is
+      // reported as the one defect it is.
+      if (found.length === before && riders.delayed.damage.dice === undefined) {
+        found.push({
+          field: `${path}.delayed.damage`,
+          code: 'delayed_rolls_nothing',
+          reason:
+            'a later hit is filed as a notation and rolled when it falls due, so it has to have dice to roll',
+        });
+      }
     }
   }
 }

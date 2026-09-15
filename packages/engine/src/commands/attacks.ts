@@ -32,7 +32,7 @@ import {
   positionOf,
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
-import { isCreatureType, scaledDiceFor } from '../spell-definitions.js';
+import { isCreatureType, scaledDiceFor, scaledFlatFor } from '../spell-definitions.js';
 import {
   armorClassOf,
   checkFeatureDamageTypes,
@@ -762,13 +762,29 @@ function castOnHit(
     varies !== undefined &&
     varies.types.some((named) => isCreatureType(victim?.creatureType, named));
 
+  const dice = scaledDiceFor(
+    effect.damage,
+    definition.level,
+    attacker.sheet.level,
+    smite.slotLevel,
+  );
+  const flat = scaledFlatFor(effect.damage, definition.level, smite.slotLevel);
+
   return ok({
     events: cast.value,
     damage: [
       {
         source: definition.name,
         type: effect.damageType,
-        dice: scaledDiceFor(effect.damage, definition.level, attacker.sheet.level, smite.slotLevel),
+        // **Both halves of the amount, and either may be absent.**
+        // `ExtraDamage` has carried a `flat` beside its dice since it was
+        // written and this path read only the dice, so a printed number
+        // beside a smite's notation was dropped — no SRD smite prints one, so
+        // nothing changes today. A dice-free amount makes the pair load-
+        // bearing: `rollAttackDamage` throws no die for one and hands over the
+        // flat alone.
+        ...(dice === undefined ? {} : { dice }),
+        ...(flat === 0 ? {} : { flat }),
       },
       ...(singled
         ? [

@@ -1334,11 +1334,21 @@ const POTIONS: readonly CatalogueItem[] = [
      * honour but a description of what a conferral already is: there is no
      * casting to concentrate on.
      *
-     * **The Temporary Hit Points are not here**, and the note below says so.
-     * Transcribing the half the vocabulary can say and declaring the half it
-     * cannot is rule 2 of the three above; the clause left out *adds* to the
-     * benefit rather than limiting it, so what is transcribed is a subset of
-     * the printed potion and never a better one.
+     * **The ten Temporary Hit Points are a `temp-hp` amount with no dice in
+     * it**, which is what `DiceScaling.dice` became optional for: the book
+     * prints a number, the potion hands over that number, and nothing is
+     * thrown for it. `addSpellcastingModifier: false` for the reason the
+     * Potion of Healing's is false — a conferral has no caster.
+     *
+     * **The hour on them is still not here**, and the note below says so:
+     * `temporary-hp-granted` carries no source and no `EffectTarget` names
+     * Temporary Hit Points, so there is nothing a deadline could end.
+     *
+     * That clause *limits* the benefit, which is the direction rule 3 guards,
+     * and the note is deliberately the whole of what is said about it here:
+     * whether Temporary Hit Points should be given a lifetime, or this potion
+     * held back until they can have one, is an open decision recorded rather
+     * than taken. The Bless half does expire on the hour.
      */
     id: 'potion-of-heroism',
     name: 'Potion of Heroism',
@@ -1356,6 +1366,9 @@ const POTIONS: readonly CatalogueItem[] = [
         // the potion's hour, which is why the number is the item's.
         durationSeconds: 3600,
         effects: [
+          // "you gain 10 Temporary Hit Points": a printed number, and nothing
+          // is thrown for it.
+          { kind: 'temp-hp', amount: { flat: 10 }, addSpellcastingModifier: false },
           {
             kind: 'buff',
             bonus: { source: 'Potion of Heroism', dice: '1d4' },
@@ -1366,8 +1379,7 @@ const POTIONS: readonly CatalogueItem[] = [
       },
     ],
     unmodelled: [
-      '"you gain 10 Temporary Hit Points": a `temp-hp` amount with no dice in it. `DiceScaling.dice` is required and `parseNotation` refuses a notation that rolls no dice at all, so there is no way to write a flat ten; every other temp-hp amount in the catalogue rolls something',
-      '"that last for 1 hour": the hour on those Temporary Hit Points. `temporary-hp-granted` carries no source and no EffectTarget names Temporary Hit Points, so even once they can be granted there is nothing for a deadline to end. The Bless half does expire on the hour',
+      '"that last for 1 hour": the hour on those Temporary Hit Points. The ten are granted; the hour is not. `temporary-hp-granted` carries no source and no EffectTarget names Temporary Hit Points, so there is nothing for a deadline to end. The Bless half does expire on the hour',
     ],
   },
 ];

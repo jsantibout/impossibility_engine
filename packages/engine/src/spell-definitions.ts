@@ -58,8 +58,20 @@ export type SpellRange =
  * double it.
  */
 export interface DiceScaling {
-  /** The base roll, e.g. `1d10`. */
-  readonly dice: string;
+  /**
+   * The base roll, e.g. `1d10`.
+   *
+   * **Optional, because an amount need not roll anything.** SRD Potion of
+   * Heroism prints "you gain 10 Temporary Hit Points", and flat numbers are
+   * common throughout the magic-item text; a required notation left them with
+   * nowhere to be written, because `parseNotation` refuses one that rolls no
+   * dice at all. An amount with no dice issues no roll and does not move the
+   * generator.
+   *
+   * An amount carrying neither this nor {@link flat} is nothing at all, and
+   * `checkSpellDefinition` refuses it (`amounts_to_nothing`).
+   */
+  readonly dice?: string;
   /** A flat addend the spell prints alongside the dice: False Life's `+ 4`. */
   readonly flat?: number;
   /** A flat increase per slot level above the spell's own: False Life's `+5`. */
@@ -67,9 +79,18 @@ export interface DiceScaling {
   /**
    * SRD Cantrip Upgrade: the character levels at which one more die is added.
    * Fire Bolt's are 5, 11 and 17.
+   *
+   * Presupposes {@link dice}: it adds a die, and the die it adds is the base
+   * notation's. Refused on an amount that rolls none — `scaling_without_dice`.
    */
   readonly cantripUpgradesAt?: readonly number[];
-  /** Extra dice for each slot level above the spell's own. */
+  /**
+   * Extra dice for each slot level above the spell's own.
+   *
+   * Presupposes {@link dice} for the same reason {@link cantripUpgradesAt}
+   * does. {@link flatPerSlotLevelAbove} is the one that does not, because
+   * {@link scaledFlatFor} never looks at a notation.
+   */
   readonly perSlotLevelAbove?: string;
 }
 
@@ -2552,13 +2573,20 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
  *
  * Damage and healing both come through here: the arithmetic is the same, and
  * the SRD writes both upcasts in the same sentence shape.
+ *
+ * **Absent when the amount rolls nothing**, which is a different answer from
+ * `'0d6'`: a caller that gets it back throws no die and moves no generator.
+ * Neither scaling field can apply to such an amount — both add dice to a base
+ * notation there is none of, and `checkSpellDefinition` refuses the pair —
+ * so there is nothing here to scale and nothing silently dropped.
  */
 export function scaledDiceFor(
   scaling: DiceScaling,
   spellLevel: number,
   casterLevel: number,
   slotLevel: number,
-): string {
+): string | undefined {
+  if (scaling.dice === undefined) return undefined;
   const [count, faces] = scaling.dice.split('d');
   const base = Number(count ?? '1');
   const sides = faces ?? '6';

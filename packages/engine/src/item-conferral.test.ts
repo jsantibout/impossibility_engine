@@ -334,22 +334,36 @@ describe('Potion of Heroism: an effect with something to address', () => {
   });
 
   /**
+   * SRD: "you gain 10 Temporary Hit Points". A printed number with no dice
+   * behind it, which is what `DiceScaling.dice` became optional for — so the
+   * ten are handed over exactly, and nothing is thrown for them.
+   */
+  it('hands over the ten Temporary Hit Points, rolling nothing for them', () => {
+    expect(fold('seed', drunk).creatures['drinker']!.vitals.temporaryHp).toBe(10);
+    // Bless's 1d4 is a stored bonus rolled when a later roll reads it, and the
+    // potion's own numbers are all printed — so the whole draught throws
+    // nothing and the generator stands where it was.
+    expect(drunk.some((e) => e.type === 'rolls-issued')).toBe(false);
+  });
+
+  /**
    * The half of the printed potion this record does **not** do, written where
    * a report can count it rather than left in a comment.
    *
-   * Two open decisions, neither of them this brief's. A flat `temp-hp` amount
-   * cannot be written at all — `DiceScaling.dice` is required and no notation
-   * rolls nothing — and even once it can, nothing could put an hour on it:
-   * `temporary-hp-granted` carries no source and no `EffectTarget` names
-   * Temporary Hit Points.
+   * One open decision, and not this brief's: nothing can put an hour on
+   * Temporary Hit Points, because `temporary-hp-granted` carries no source and
+   * no `EffectTarget` names them.
    */
-  it('says plainly that the Temporary Hit Points are not conferred', () => {
+  it('says plainly that the hour on them is not kept', () => {
     const notes = SRD_CONTENT.item(HEROISM)?.unmodelled ?? [];
-    expect(notes).toHaveLength(2);
-    expect(notes.join(' ')).toContain('10 Temporary Hit Points');
+    expect(notes).toHaveLength(1);
     expect(notes.join(' ')).toContain('last for 1 hour');
-    // And the potion really does confer nothing but the Bless half.
-    expect(fold('seed', drunk).creatures['drinker']!.vitals.temporaryHp).toBe(0);
+
+    // And the ten really do outlive the hour the Bless half dies on.
+    const after = run(drunk, (s) => advanceTime(s, 3600, 'the hour'));
+    const state = fold('seed', after);
+    expect(state.creatures['drinker']!.bonuses).toEqual([]);
+    expect(state.creatures['drinker']!.vitals.temporaryHp).toBe(10);
   });
 });
 

@@ -97,18 +97,31 @@ export function withFlatAddend(
   return [{ ...first, flat: first.flat + addend, total: first.total + addend }, ...rest];
 }
 
+/**
+ * **`dice` may be absent, and then nothing is thrown.** An amount the content
+ * prints as a flat number — Potion of Heroism's ten Temporary Hit Points —
+ * has no notation, and `rollAttackDamage` already answers a dice-free extra
+ * with a component whose roll is null: no die, no roll id, and a generator
+ * that has not moved. The component still comes back, carrying zero, because
+ * `withFlatAddend` lands the printed number on the *first* component and an
+ * empty list would drop it.
+ */
 export function rollSpellDice(
   supply: Supply,
   sheet: CharacterSheet,
   source: string,
   type: string,
-  dice: string,
+  dice: string | undefined,
 ): Result<readonly DamageComponent[]> {
   const rolled = rollAttackDamage(
     supply.issuer,
     supply.rng,
     sheet,
-    { weapon: null, targetAc: 0, extraDamage: [{ source, type, dice }] },
+    {
+      weapon: null,
+      targetAc: 0,
+      extraDamage: [{ source, type, ...(dice === undefined ? {} : { dice }) }],
+    },
     false,
   );
   if (!rolled.ok) return rolled;
