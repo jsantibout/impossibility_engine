@@ -435,8 +435,7 @@ describe('a homebrew potion goes through the same door as the book', () => {
 });
 
 /**
- * **A conferral that prints a save DC**, which is the largest single family in
- * the magic-item chapter: sixty-four of the SRD's 258 entries name one.
+ * **A conferral that prints a save DC.**
  *
  * The DC is the **item's**. SRD writes it as the item's own clause — Wand of
  * Fireballs' "(save DC 15)" — so a wand held by an archmage still saves
@@ -505,13 +504,47 @@ const BILE = JSON.stringify({
   ],
 });
 
+/**
+ * The second kind that rolls against the item's DC: a bonus the target may
+ * shrug off, which is Bane's shape rather than Bless's. It was refused for
+ * want of a DC and for no other reason, so admitting the number admits it.
+ */
+const DREAD = JSON.stringify({
+  id: 'flask-of-faint-dread',
+  name: 'Flask of Faint Dread',
+  kind: 'potion',
+  weightLb: 0.5,
+  costCp: null,
+  armor: null,
+  weapon: null,
+  contents: [],
+  grants: [
+    {
+      kind: 'confers',
+      action: 'bonus-action',
+      saveDc: 15,
+      durationSeconds: 600,
+      effects: [
+        {
+          kind: 'buff',
+          ability: 'wis',
+          bonus: { source: 'Flask of Faint Dread', flat: 2 },
+          applies: ['attack'],
+          direction: 'subtract',
+        },
+      ],
+    },
+  ],
+});
+
 describe('an item that prints a save DC, and the saves rolled against it', () => {
   const content = unwrap(
-    loadContent({ items: [JSON.parse(VENOM), JSON.parse(BILE)] }),
+    loadContent({ items: [JSON.parse(VENOM), JSON.parse(BILE), JSON.parse(DREAD)] }),
     'load',
   );
   const VENOMOUS = 'flask-of-plain-venom';
   const BILIOUS = 'flask-of-rolled-bile';
+  const DREADFUL = 'flask-of-faint-dread';
 
   /** Forced past the DC, or forced under it, so the branch is the assertion. */
   const drink = (item: string, push: number, seed = 'venom') => {
@@ -610,6 +643,34 @@ describe('an item that prints a save DC, and the saves rolled against it', () =>
     const after = fold('seed', [...log, ...out.events]);
     expect(after.creatures['friend']!.vitals.hp).toBe(40 - 8);
     expect(after.creatures['drinker']!.vitals.hp).toBe(40);
+  });
+
+  /**
+   * The other conferred kind that rolls against the number: a bonus with a
+   * save. A failure hangs it and the hour is filed; a success buys nothing at
+   * all, so there is no grant and therefore no timer either.
+   */
+  it('hangs a bonus the target failed to shrug off, and nothing where they did', () => {
+    const failed = drink(DREADFUL, -40);
+    expect(failed.out.outcomes[0]?.save?.dc).toBe(15);
+    expect(failed.out.outcomes[0]?.save?.success).toBe(false);
+    const after = fold('seed', [...failed.log, ...failed.out.events]);
+    expect(after.creatures['drinker']!.bonuses.map((granted) => granted.source)).toEqual([
+      itemSource(DREADFUL),
+    ]);
+    expect(
+      after.timers[timerKey({ kind: 'grants', on: DRINKER, source: itemSource(DREADFUL) })]
+        ?.deadline,
+    ).toEqual({ kind: 'elapsed', at: 600 });
+
+    const saved = drink(DREADFUL, 40);
+    expect(saved.out.outcomes[0]?.save?.success).toBe(true);
+    const shrugged = fold('seed', [...saved.log, ...saved.out.events]);
+    expect(shrugged.creatures['drinker']!.bonuses).toEqual([]);
+    // Nothing was hung, so the item's hour has nothing to end and is not filed.
+    expect(shrugged.timers).toEqual({});
+    // And the flask is drunk either way: a save is not a refusal.
+    expect(shrugged.creatures['drinker']!.inventory).toEqual([]);
   });
 
   /** Rule 5: the DC was read at resolution and the fold never needs it. */

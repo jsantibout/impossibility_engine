@@ -2551,6 +2551,18 @@ export function statesFoughtFact(definition: SpellDefinition): boolean {
  * knowing which host it is serving — the whole point of fixing the branch by
  * the host is that the riders themselves are the same wherever they hang.
  */
+export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
+  const conditions = conditionRiderOf(effect);
+  const modifiers = modifierRidersOf(effect);
+  const delayed =
+    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.delayed : undefined;
+  return {
+    ...(conditions.length === 0 ? {} : { conditions }),
+    ...(modifiers.length === 0 ? {} : { modifiers }),
+    ...(delayed === undefined ? {} : { delayed }),
+  };
+}
+
 /**
  * Does this outcome carry anything at all for `applyRiders` to hang?
  *
@@ -2567,18 +2579,6 @@ export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
     riders.modifiers !== undefined ||
     riders.delayed !== undefined
   );
-}
-
-export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
-  const conditions = conditionRiderOf(effect);
-  const modifiers = modifierRidersOf(effect);
-  const delayed =
-    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.delayed : undefined;
-  return {
-    ...(conditions.length === 0 ? {} : { conditions }),
-    ...(modifiers.length === 0 ? {} : { modifiers }),
-    ...(delayed === undefined ? {} : { delayed }),
-  };
 }
 
 

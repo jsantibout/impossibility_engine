@@ -2330,7 +2330,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     {
       clause: 'take Force damage equal to twice the number of feet you are moved',
       why: 'a-flat-amount-with-no-dice',
-      note: '`DiceScaling.dice` is required, so damage that is a computed number rather than a notation cannot be written at all — the same one-line format question the audit names for Heal, arriving on a distance instead of a maximum.',
+      note: 'An amount may now carry a `flat` and no notation, which is the printed half of this shape. This number is not printed: it is twice the feet the creature was moved, derived at the moment it is dealt, and nothing in the format computes an amount from anything. The audit names the same question for Heal, arriving there on a maximum instead of a distance.',
     },
     {
       clause: "This spell ends instantly if you cast it while you are on the Ethereal Plane",
@@ -3344,7 +3344,7 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     {
       clause: 'The target regains all its Hit Points',
       why: 'a-flat-amount-with-no-dice',
-      note: '`DiceScaling.dice` is required, so a heal that restores the whole of the target\'s maximum rather than a notation cannot be written at all — the audit names this spell\'s sibling, Heal, for the same one-line format question.',
+      note: 'An amount may now carry a `flat` and no notation, which is the printed half of this shape and is all this spell\'s sibling Heal needs. This is the other half: the whole of the target\'s maximum is a number read off the creature at the moment of healing rather than one the spell prints, and nothing in the format derives an amount from a target. The audit names the two together.',
     },
     {
       clause: 'the condition ends',

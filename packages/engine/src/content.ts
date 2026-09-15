@@ -451,8 +451,7 @@ function itemCastsProblems(
  * **A saving throw is not on that list any more.** SRD writes the DC as the
  * *item's* own clause — Wand of Fireballs' "(save DC 15)" — so `saveDc` on the
  * grant is a number the item printed and `save-damage` resolves against it
- * through the resolver a casting uses. Sixty-four of the book's 258 entries
- * name one, which is the largest family there was.
+ * through the resolver a casting uses.
  *
  * **`save` is still refused, and not for want of a DC**: its `condition` is a
  * required field, so every `save` imposes a condition on its failure, and that
