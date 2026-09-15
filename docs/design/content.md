@@ -71,8 +71,12 @@ later level than the grant that reads it, and a table supplying nothing the
 reading grant came for. An item that confers an effect without casting one is
 refused an effect kind a conferral cannot resolve, one that scales by a slot or
 a caster level an item does not have, a lifetime that ends nothing, a grant
-hung with no lifetime at all, and — until each is built — a save DC or a charge
-count.
+hung with no lifetime at all, a save DC on a conferral where nothing rolls
+against it and a conferral that rolls without one, a rider on a conferred
+effect — all three riders are welded to a casting — and, until it is built, a
+charge count. A conferral may now print a DC and be rolled against; what a
+save may still not do is impose a condition, and that is the fold's weld
+between a condition and a casting rather than anything about the DC.
 
 ## Adding content
 
