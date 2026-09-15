@@ -455,9 +455,19 @@ function declaredEventTypes(): readonly string[] {
  * Points at the start of a recipient's turn, damage at the end of one, the
  * boundary that pays nothing because it is the other moment, and Heroism's two
  * halves ending together on a broken Concentration.
+ *
+ * `attuned` and `attunement-ended` are the eighth and ninth, and by the same
+ * construction: neither log was written when an item could be attuned to at
+ * all — no item carried a grant, no creature had an `attuned` list, and both
+ * fixtures fold to exactly the states they always folded to with an empty one.
+ * `attunement.test.ts` folds both and drives them end to end through an SRD
+ * item: worn and not attuned, attuned, stowed while attuned, given up, and the
+ * two endings nobody commands.
  */
 const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'attack-rider-granted',
+  'attuned',
+  'attunement-ended',
   'casting-continued',
   'combatant-joined',
   'condition-immunity-granted',

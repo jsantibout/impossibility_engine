@@ -308,11 +308,37 @@ export type StandingRequirement =
    * alone loses. Read off `equipped` through the sheet's two slots, which is
    * where "owning is not wearing" already put the answer.
    */
-  | { readonly kind: 'unarmored' };
+  | { readonly kind: 'unarmored' }
+  /**
+   * SRD Magic Items: "requires attunement", and the benefit is had only by a
+   * creature that has attuned to the item.
+   *
+   * Read off `attuned` on every read, exactly as `unarmored` is read off
+   * `equipped`: attunement is a relation the creature holds, not a copy of the
+   * benefit stored when somebody attuned. `feature` on the effect carries the
+   * item's id, which is what this looks up.
+   */
+  | { readonly kind: 'while-attuned' }
+  /**
+   * SRD, in almost every magic item's first clause: "While you wear this
+   * cloak", "While holding this rod".
+   *
+   * Separate from `while-attuned` because the SRD writes both on one item and
+   * means two different things: taking the cloak off does not break the
+   * attunement, and it does stop the benefit. An item that is attuned and
+   * stowed keeps the effects that ask only for attunement and loses these.
+   */
+  | { readonly kind: 'while-worn' };
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
-  /** The feature that grants it, so a log can name the rule. */
+  /**
+   * The feature that grants it, so a log can name the rule.
+   *
+   * Or the **item**: a magic item's grant is compiled with the item's id here,
+   * because the item is what grants it. That is also what `while-worn` and
+   * `while-attuned` look up, so the two requirements need no second key.
+   */
   readonly feature: string;
   readonly name: string;
   readonly reach: StandingReach;
@@ -565,8 +591,47 @@ function meetsRequirements(state: GameState, who: CharacterId, effect: StandingE
     ) {
       return false;
     }
+    // The item's own two clauses, read off the creature's relations to it.
+    // `effect.feature` is the item's id for an item grant; a *feature* that
+    // carried one of these would name no item and would never hold, which is
+    // the conservative direction and what `checkContent` refuses outright.
+    if (
+      requirement.kind === 'while-worn' &&
+      !creature.equipped.some((held) => held.id === effect.feature)
+    ) {
+      return false;
+    }
+    if (
+      requirement.kind === 'while-attuned' &&
+      !creature.attuned.some((held) => held.id === effect.feature)
+    ) {
+      return false;
+    }
   }
   return true;
+}
+
+/**
+ * The standing effects this creature's **items** are offering right now.
+ *
+ * Gathered from the two places an item's grants are pinned — what is worn and
+ * what is attuned — and deduplicated by item, because an item that is both is
+ * one item with one set of benefits. Whether any of them actually applies is
+ * still `meetsRequirements`' question: this is the population, not the answer.
+ *
+ * The two lists are both read because they have different lifetimes. Taking a
+ * ring off does not break the attunement, so an attuned item that nobody is
+ * wearing still offers whatever it grants without asking to be worn — and an
+ * item worn by somebody who never attuned to it still offers whatever needs no
+ * attunement.
+ */
+export function itemStandingOf(creature: CreatureState): readonly StandingEffect[] {
+  if (creature.equipped.length === 0 && creature.attuned.length === 0) return [];
+
+  const byItem = new Map<string, readonly StandingEffect[]>();
+  for (const held of creature.attuned) byItem.set(held.id, held.grants ?? []);
+  for (const held of creature.equipped) byItem.set(held.id, held.grants ?? []);
+  return [...byItem.keys()].sort().flatMap((item) => byItem.get(item) ?? []);
 }
 
 /**
@@ -630,6 +695,9 @@ export function standingFor(state: GameState, who: CharacterId): readonly Active
     // second list is not on anybody's sheet, because it belongs to everybody.
     const held = [
       ...(creature.sheet.standing ?? []),
+      // What this creature's magic items grant, pinned when they were put on
+      // or attuned to, and conditional in exactly the way a feature's is.
+      ...itemStandingOf(creature),
       ...UNIVERSAL_ACTION_EFFECTS,
     ].sort((a, b) => a.feature.localeCompare(b.feature));
 
@@ -1165,6 +1233,14 @@ export function combineSpeed(
  * allowance, the Dash and the mounting cost together rather than three times
  * over, and Hypnotic Pattern's Speed of 0 arrives at the same comparison
  * Grappled already arrives at.
+ *
+ * **An item's grant is not read here, and that is a decision rather than an
+ * omission.** `standingFor` gathers what a magic item grants; this function
+ * deliberately reads the creature's own sheet alone, because it is the
+ * function `has-speed` asks — so a Speed granted by an item would be a
+ * question asked of its own answer the moment one carried both clauses. Until
+ * somebody settles that, `checkContent` refuses a `speed` grant on an item by
+ * name rather than accepting one nothing reads.
  *
  * **The two kinds of grant are gathered differently on purpose.** A feature's
  * is derived on every read, because whether a Monk is unarmoured changes the

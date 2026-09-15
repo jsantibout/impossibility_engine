@@ -54,7 +54,7 @@ import {
   type WrittenOngoing,
 } from './spells.js';
 import { type CombatantInput } from './combat.js';
-import { type GrantedAttackRider, type GrantedSpeed } from './standing.js';
+import { type GrantedAttackRider, type GrantedSpeed, type StandingEffect } from './standing.js';
 import { type CoverDegree, type Placement, type SceneExtent, type Point } from './positioning.js';
 
 // `CreatureState` is deliberately not imported: the union names it only in a
@@ -476,10 +476,48 @@ export type GameEvent =
        * through the legacy content it is handed — see `fold`.
        */
       readonly armor?: Armor | null;
+      /**
+       * What this item grants while it is worn, pinned the same way and for
+       * the same reason: a magic item's benefit is written in the catalogue
+       * and read once, here, so the fold never opens one.
+       *
+       * Absent means none. Unlike `armor` there is no legacy reading of it —
+       * every log written before this field existed was written before an item
+       * could grant anything, so "absent" and "nothing" are the same answer and
+       * both frozen fixtures fold unchanged.
+       */
+      readonly grants?: readonly StandingEffect[];
       readonly command?: CommandStamp;
     }
   | {
       readonly type: 'item-unequipped';
+      readonly id: CharacterId;
+      readonly item: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * SRD Magic Items: attuning to one, which takes a Short Rest focused on it.
+   *
+   * Keyed on the catalogue id, because that is all an inventory can say: two
+   * copies of one item cannot be told apart — see {@link AttunedItem}.
+   */
+  | {
+      readonly type: 'attuned';
+      readonly id: CharacterId;
+      readonly item: string;
+      /** What the item grants, pinned as `item-equipped` pins it. */
+      readonly grants?: readonly StandingEffect[];
+      readonly command?: CommandStamp;
+    }
+  /**
+   * Attunement given up on purpose.
+   *
+   * The *other* two ways out — dying, and losing the item — are derived in the
+   * fold and emit nothing, because nobody decides either of them. This is the
+   * one somebody decides.
+   */
+  | {
+      readonly type: 'attunement-ended';
       readonly id: CharacterId;
       readonly item: string;
       readonly command?: CommandStamp;

@@ -95,6 +95,7 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             initiativeBonuses: [],
             inventory: [],
             equipped: [],
+            attuned: [],
             coins: 0,
             character: null,
           },

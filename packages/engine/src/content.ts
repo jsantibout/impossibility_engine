@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@ie/shared';
+import { err, ok, SKILL_ABILITY, type Result } from '@ie/shared';
 import type { CatalogueItem } from './catalogue.js';
 import {
   checkFeatureDefinition,
@@ -19,6 +19,7 @@ import {
   type FeatureDefinition,
   type SubclassDefinition,
 } from './progression.js';
+import { rollSelectorProblems } from './roll-modifiers.js';
 import type { SpellDefinition } from './spell-definitions.js';
 import { checkSpellDefinition, parseSpellDefinition } from './spell-schema.js';
 
@@ -146,6 +147,152 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
 
 /** The optional `FeatureDefinition` fields a reader dereferences — see {@link READABLE_GRANT_KINDS}. */
 export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set(['choice', 'grants', 'grantsFeat']);
+
+/**
+ * The `StandingGrant` kinds an item may carry, and the one it may not.
+ *
+ * Exported for the reason {@link READABLE_GRANT_KINDS} is: this is a union in
+ * `standing.ts` written out as data, and `content.test.ts` derives the same
+ * set from that file and holds the two equal in both directions — so a kind
+ * added to the union without this line changing fails there rather than
+ * turning every item that uses it into a `bad_item_effect` nobody expected.
+ *
+ * `speed` is the exception and it is deliberate: `speedOf` gathers Speed from
+ * the creature's own sheet alone, because it is the function `has-speed` asks
+ * and reading an item's grants there would be a question asked of its own
+ * answer. An item granting a Swim Speed is a real SRD item and a real gap;
+ * refusing it by name is how the gap stays visible instead of becoming a
+ * transcribed item whose benefit silently never applies.
+ */
+export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
+  'roll-mode',
+  'save-bonus',
+  'condition-immunity',
+  'damage-resistance',
+  'evasion',
+  'attack-damage',
+]);
+
+/**
+ * What an item's standing grant may require: every member of the union, held
+ * equal to it by the same derived test {@link ITEM_EFFECT_KINDS} answers to.
+ */
+export const REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
+  'not-incapacitated',
+  'feature-active',
+  'has-speed',
+  'not-wearing-heavy-armor',
+  'unarmored',
+  'while-attuned',
+  'while-worn',
+]);
+
+/**
+ * The two requirements only an item can meet.
+ *
+ * Both are looked up by the *item's* id, which a class feature does not have —
+ * so a feature carrying one would name no item, never hold, and grant nothing
+ * while looking perfectly well-formed.
+ */
+const ITEM_ONLY_REQUIREMENTS: ReadonlySet<string> = new Set(['while-attuned', 'while-worn']);
+
+/**
+ * What an item is allowed to grant, judged once for both input paths.
+ *
+ * Typed content and parsed JSON both arrive at `checkContent`, so this is the
+ * one gate — which is why it reads defensively rather than trusting the type.
+ *
+ * **Only `standing` grants today.** The other kinds are real and are coming —
+ * a charge pool is the existing `pool` shape, and the design note says so —
+ * but nothing executes one from an item yet, and a grant nothing executes is
+ * an item whose line in the book quietly does nothing.
+ */
+function itemGrantProblems(item: CatalogueItem): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const where = `items[${item.id}].grants`;
+  const say = (code: string, reason: string, field = where): void => {
+    found.push({ field, code, reason });
+  };
+
+  (item.grants ?? []).forEach((grant, index) => {
+    const at = `${where}[${index}]`;
+    if (grant === null || typeof grant !== 'object' || !isString((grant as { kind?: unknown }).kind)) {
+      say('bad_item_grant', 'an item grant is an object naming its kind', at);
+      return;
+    }
+    if (grant.kind !== 'standing') {
+      say(
+        'item_grant_not_read',
+        `nothing executes a "${grant.kind}" grant from an item yet; only a standing grant is read from one`,
+        at,
+      );
+      return;
+    }
+
+    // An item has no class level and makes no choices, so the fields a class
+    // feature reads off its table have nothing here to read.
+    for (const field of ['diceCountByLevel', 'feetByLevel', 'onlyIfChoice', 'damageTypesFromChoice'] as const) {
+      if ((grant as unknown as Record<string, unknown>)[field] !== undefined) {
+        say('item_grant_reads_a_level', `an item has no class level and no feature choices, so ${field} would never be read`, `${at}.${field}`);
+      }
+    }
+
+    if (grant.reach !== 'self' && grant.reach !== 'aura') {
+      say('bad_reach', `"${String(grant.reach)}" is neither "self" nor "aura"`, `${at}.reach`);
+    }
+    // A feature's aura borrows its size from whichever feature declares one;
+    // an item is on its own, so an aura with no size would reach nobody.
+    if (grant.reach === 'aura' && !(typeof grant.auraFeet === 'number' && grant.auraFeet > 0)) {
+      say('aura_without_size', 'an item granting an aura says how big it is; no feature is there to declare it', `${at}.auraFeet`);
+    }
+
+    const effects = grant.effects ?? [];
+    if (effects.length === 0) {
+      say('empty_item_grant', 'an item grant with no effects grants nothing', `${at}.effects`);
+    }
+    effects.forEach((effect, position) => {
+      const on = `${at}.effects[${position}]`;
+      if (effect === null || typeof effect !== 'object' || !isString((effect as { kind?: unknown }).kind)) {
+        say('bad_item_effect', 'a standing effect is an object naming its kind', on);
+        return;
+      }
+      if (effect.kind === 'speed') {
+        say('item_speed_grant', 'a Speed granted by an item is not read yet: `speedOf` gathers Speed from the sheet alone, because it is the function a `has-speed` requirement asks', on);
+        return;
+      }
+      if (!ITEM_EFFECT_KINDS.has(effect.kind)) {
+        say('bad_item_effect', `"${effect.kind}" is not a standing effect this engine grants`, on);
+        return;
+      }
+      if (effect.kind === 'roll-mode') {
+        const modifier = effect.modifier;
+        if (modifier === undefined || modifier === null || typeof modifier !== 'object') {
+          say('bad_roll_modifier', 'a roll-mode effect carries a modifier', `${on}.modifier`);
+          return;
+        }
+        if (modifier.mode !== 'advantage' && modifier.mode !== 'disadvantage') {
+          say('bad_roll_mode', 'a granted mode is Advantage or Disadvantage; "normal" grants nothing', `${on}.modifier.mode`);
+        }
+        const selector = modifier.selector;
+        if (selector === undefined || selector === null || typeof selector !== 'object') {
+          say('bad_roll_selector', 'a modifier says which rolls it reaches', `${on}.modifier.selector`);
+          return;
+        }
+        for (const problem of rollSelectorProblems(selector, (skill) => SKILL_ABILITY[skill])) {
+          say(problem.code, problem.reason, `${on}.modifier.selector`);
+        }
+      }
+    });
+
+    (grant.requires ?? []).forEach((requirement, position) => {
+      if (!REQUIREMENT_KINDS.has(requirement?.kind)) {
+        say('bad_requirement', `"${String(requirement?.kind)}" is not a standing requirement`, `${at}.requires[${position}]`);
+      }
+    });
+  });
+
+  return found;
+}
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -313,6 +460,19 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       for (const problem of checkFeatureDefinition(feature, context)) {
         problems.push({ ...problem, field: `${where}.${problem.field}` });
       }
+      // The two requirements an item's grant is looked up by — see
+      // {@link ITEM_ONLY_REQUIREMENTS}. On a class feature they name nothing.
+      if (feature.grants?.kind === 'standing') {
+        (feature.grants.requires ?? []).forEach((requirement, position) => {
+          if (ITEM_ONLY_REQUIREMENTS.has(requirement.kind)) {
+            problems.push({
+              field: `${where}.grants.requires[${position}]`,
+              code: 'item_requirement_on_a_feature',
+              reason: `"${requirement.kind}" is read against the id of the item granting it, and a class feature is not an item, so this would never hold`,
+            });
+          }
+        });
+      }
       // A feature executed by another names one on the same source that
       // actually declares something; otherwise the claim just moves.
       if (feature.executedBy !== undefined) {
@@ -352,6 +512,14 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         problems.push({ field: `items[${item.id}].contents`, code: 'unknown_item', reason: `${item.id} contains ${line.id}, which this content does not hold` });
       }
     }
+    // "Requires attunement by a Druid" names a class this catalogue has to
+    // hold, on the same rule a subclass's parent class does.
+    for (const wanted of item.attunement?.byClass ?? []) {
+      if (classes.length > 0 && !classOf.has(wanted)) {
+        problems.push({ field: `items[${item.id}].attunement.byClass`, code: 'unknown_class', reason: `${item.id} may be attuned by a ${wanted}, which this content does not hold` });
+      }
+    }
+    problems.push(...itemGrantProblems(item));
   }
 
   return problems;
@@ -848,6 +1016,22 @@ function parseItem(value: unknown): Result<CatalogueItem> {
   const s = new Shaped(`items[${isString(value['id']) ? value['id'] : '?'}]`);
   const kind = s.string(value, 'kind');
   const bundleSize = s.optionalInt(value, 'bundleSize');
+  // Presence is the requirement, so `{}` is a complete answer and has to
+  // survive the round trip: an item that requires attunement of anybody is the
+  // commonest kind there is.
+  let attunement: CatalogueItem['attunement'] | null = null;
+  if (value['attunement'] !== undefined) {
+    // Through the collector like every other field, so a malformed one is
+    // reported beside whatever else is wrong rather than short-circuiting the
+    // rest of the item — `checkContent` reports every problem, not the first.
+    const shape = s.object(value, 'attunement');
+    attunement = {
+      ...(shape['byClass'] === undefined ? {} : { byClass: s.strings(shape, 'byClass') }),
+      ...(shape['bySpellcaster'] === undefined
+        ? {}
+        : { bySpellcaster: s.bool(shape, 'bySpellcaster') }),
+    };
+  }
   const weightLb = value['weightLb'];
   const costCp = value['costCp'];
   const item: CatalogueItem = {
@@ -865,6 +1049,13 @@ function parseItem(value: unknown): Result<CatalogueItem> {
       return { id: s.string(l, 'id'), quantity: s.int(l, 'quantity') };
     }),
     ...(bundleSize === undefined ? {} : { bundleSize }),
+    ...(attunement === null ? {} : { attunement }),
+    // Carried as given and judged by `checkContent`, which is the one gate
+    // both the typed and the untyped path pass through — so a homebrew magic
+    // item gets exactly the answers a transcribed one would.
+    ...(Array.isArray(value['grants'])
+      ? { grants: value['grants'] as NonNullable<CatalogueItem['grants']> }
+      : {}),
   };
   const problems = s.problems();
   if (problems.length > 0) return err('bad_item', problems.join('; '));

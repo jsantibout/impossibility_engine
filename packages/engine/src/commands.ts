@@ -74,7 +74,16 @@ export {
   swapInitiativeBetween,
 } from './commands/declarations.js';
 export { declareResourcePool, restoreResourcesOn } from './commands/pools.js';
-export { carrying, coinsOf, equipItem, purchaseItem, unequipItem } from './commands/inventory.js';
+export {
+  attuneItem,
+  attunedItems,
+  carrying,
+  coinsOf,
+  endAttunement,
+  equipItem,
+  purchaseItem,
+  unequipItem,
+} from './commands/inventory.js';
 export {
   ongoingSpellOf,
   ongoingSpellsBy,

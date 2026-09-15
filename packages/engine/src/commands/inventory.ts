@@ -6,10 +6,10 @@
  * second. Chain mail in a backpack protects nobody.
  */
 
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
-import { type CatalogueItem, type ItemKind } from '../catalogue.js';
+import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
+import { type CatalogueItem, itemStandingEffects, type ItemKind } from '../catalogue.js';
 import { type Content } from '../content.js';
-import { type GameEvent, type GameState, type InventoryLine } from '../events.js';
+import { type CreatureState, type GameEvent, type GameState, type InventoryLine } from '../events.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { once } from '../idempotency.js';
 
@@ -90,8 +90,26 @@ export function purchaseItem(
   });
 }
 
-/** Armour and weapons are worn or wielded; a sack of parchment is not. */
-const EQUIPPABLE: ReadonlySet<ItemKind> = new Set<ItemKind>(['armor', 'weapon']);
+/**
+ * What can be worn or wielded; a sack of parchment cannot.
+ *
+ * Armour and weapons, and the five categories the SRD prints its magic items
+ * under. A Potion and a Scroll are deliberately absent: they are consumed
+ * rather than worn, which is a mechanism nothing has built — and letting one
+ * be equipped would be a benefit that never runs out.
+ */
+const EQUIPPABLE: ReadonlySet<ItemKind> = new Set<ItemKind>([
+  'armor',
+  'weapon',
+  'ring',
+  'rod',
+  'staff',
+  'wand',
+  'wondrous',
+]);
+
+/** SRD: "You can be attuned to no more than three magic items at a time." */
+export const ATTUNEMENT_LIMIT = 3;
 
 /**
  * Wear or wield something already owned.
@@ -144,6 +162,8 @@ export function equipItem(
       }
     }
 
+    const grants = itemStandingEffects(item);
+
     return ok([
       {
         type: 'item-equipped',
@@ -152,6 +172,10 @@ export function equipItem(
         // Pinned: what this item *is* travels with the event, so the fold
         // never has to open a catalogue to know what the creature wears.
         armor: item.armor,
+        // And what it *grants*, for the same reason and by the same rule.
+        // Omitted when there is nothing, so every mundane equip event is the
+        // event it has always been.
+        ...(grants.length === 0 ? {} : { grants }),
         ...(stamp === null ? {} : { command: stamp }),
       },
     ]);
@@ -178,6 +202,196 @@ export function unequipItem(
 
     return ok([
       { type: 'item-unequipped', id, item: itemId, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/** The magic items this creature is attuned to, by catalogue id. */
+export function attunedItems(state: GameState, id: CharacterId): readonly string[] {
+  return (creatureOf(state, id)?.attuned ?? []).map((held) => held.id);
+}
+
+/**
+ * Whether this creature meets the line the item prints after "requires
+ * attunement", or what stands in the way.
+ *
+ * Three answers, not two. A Barbarian is **not** a spellcaster and that is a
+ * refusal; a creature nobody has said anything about is an unanswered question
+ * and gets `declareSpellcasting` named as the command that would settle it.
+ * Collapsing the two would refuse a stat block's warlock its own wand.
+ */
+function prerequisiteProblem(creature: CreatureState, item: CatalogueItem): Result<null> {
+  const attunement = item.attunement;
+  if (attunement === undefined) return ok(null);
+
+  const classes = attunement.byClass ?? [];
+  if (classes.length > 0) {
+    const record = creature.character;
+    const taken =
+      record === null
+        ? []
+        : [record.classId, ...(record.choices.multiclass ?? []).map((entry) => entry.classId)];
+    if (!classes.some((wanted) => taken.includes(wanted))) {
+      return err(
+        'prerequisite_unmet',
+        `${item.name} requires attunement by a ${classes.join(' or ')}, and ${creature.id} is ${
+          taken.length === 0 ? 'of no class the engine has been told about' : taken.join('/')
+        }`,
+      );
+    }
+  }
+
+  if (attunement.bySpellcaster === true) {
+    const casts =
+      creature.spellcasting.classes.length > 0 || creature.spellcasting.granted.length > 0;
+    if (!casts) {
+      // A character's spellcasting is derived from the class table at
+      // creation, so an empty one is an answer. A creature with no character
+      // record has simply never been asked.
+      if (creature.character === null) {
+        return needsContext(
+          'unknown_spellcasting',
+          `${item.name} requires attunement by a spellcaster, and nothing says whether ${creature.id} casts anything`,
+          [
+            {
+              kind: 'creature',
+              subject: creature.id,
+              need: `what ${creature.id} can cast, if anything`,
+              because: 'the item is attunable only by a spellcaster',
+              satisfyWith: `a declareSpellcasting command for ${creature.id}`,
+            },
+          ],
+        );
+      }
+      return err(
+        'prerequisite_unmet',
+        `${item.name} requires attunement by a spellcaster, and ${creature.id} casts nothing`,
+      );
+    }
+  }
+
+  return ok(null);
+}
+
+/**
+ * Attune to a magic item, which is what switches its benefit on.
+ *
+ * SRD: "Attuning to an item requires a creature to spend a Short Rest focused
+ * on only that item while being in physical contact with it."
+ *
+ * **The rest is read as one in progress, not as one that ended**, and that is
+ * this command's own decision — the brief left it open and both readings were
+ * defensible. The sentence says the Short Rest is *spent* on the item: the
+ * attuning happens inside the hour, not at the moment it runs out. Hanging it
+ * off `endRest` instead would have made a rest's payout carry a list of items,
+ * given `endRest` the content argument it has never needed, and left no way to
+ * attune during a Long Rest — which is a Short Rest's hour several times over.
+ * So what is required is that the creature **is resting**, and a rest already
+ * broken is refused, because an interrupted rest is not an hour spent focused
+ * on anything.
+ *
+ * What is deliberately *not* enforced is "focused on only that item": whether
+ * somebody spent the hour reading instead is fiction the engine cannot see.
+ * Attuning to two items in one rest is therefore possible here and is the
+ * table's call — named rather than silently allowed.
+ */
+export function attuneItem(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  itemId: string,
+  commandId?: string,
+): Result<GameEvent[]> {
+  const inputs: { commandId?: string; itemId: string } =
+    commandId === undefined ? { itemId } : { commandId, itemId };
+  return once(state, `attune:${id}`, inputs, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const item = content.item(itemId);
+    if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
+    if (item.attunement === undefined) {
+      return err('no_attunement', `${item.name} works for anybody holding it; nothing to attune`);
+    }
+    // "While being in physical contact with it": owning it is the engine's
+    // reading of that, rather than wearing it — you attune to a ring by
+    // holding it, and the benefit is what asks to be worn.
+    if (quantityOf(state, id, itemId) < 1) {
+      return err('not_owned', `${id} does not have ${item.name}`);
+    }
+    if (creature.attuned.some((held) => held.id === itemId)) {
+      return err('already_attuned', `${id} is already attuned to ${item.name}`);
+    }
+    if (creature.attuned.length >= ATTUNEMENT_LIMIT) {
+      return err(
+        'attunement_limit',
+        `${id} is attuned to three items already (${creature.attuned
+          .map((held) => held.id)
+          .join(', ')}), and a creature attunes to no more than three at a time`,
+      );
+    }
+
+    const prerequisite = prerequisiteProblem(creature, item);
+    if (!prerequisite.ok) return prerequisite;
+
+    if (creature.resting === null) {
+      return err(
+        'not_resting',
+        `attuning to ${item.name} takes a Short Rest spent focused on it, and ${id} is not resting`,
+      );
+    }
+    if (creature.resting.interruptedBy !== null) {
+      return err(
+        'rest_interrupted',
+        `${id}'s rest was interrupted by ${creature.resting.interruptedBy}, so no time was spent focused on ${item.name}`,
+      );
+    }
+
+    const grants = itemStandingEffects(item);
+
+    return ok([
+      {
+        type: 'attuned',
+        id,
+        item: itemId,
+        // Pinned exactly as `item-equipped` pins what it reads, so an
+        // attunement goes on offering what the catalogue said at the time.
+        ...(grants.length === 0 ? {} : { grants }),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/**
+ * Give up an attunement.
+ *
+ * SRD lists ending it voluntarily among the ways attunement ends, alongside
+ * the two nobody chooses — dying, and no longer having the item — which the
+ * fold derives instead. No rest is required here: the SRD's own sentence about
+ * a *second* Short Rest is about a cursed item's grip, and a curse is a thing
+ * this engine has no vocabulary for. Refusing every release on the strength of
+ * a rest nobody can see would be inventing the stricter rule.
+ */
+export function endAttunement(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  itemId: string,
+  commandId?: string,
+): Result<GameEvent[]> {
+  const inputs: { commandId?: string; itemId: string } =
+    commandId === undefined ? { itemId } : { commandId, itemId };
+  return once(state, `unattune:${id}`, inputs, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+    if (!creature.attuned.some((held) => held.id === itemId)) {
+      const item = content.item(itemId);
+      return err('not_attuned', `${id} is not attuned to ${item?.name ?? itemId}`);
+    }
+
+    return ok([
+      { type: 'attunement-ended', id, item: itemId, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
 }

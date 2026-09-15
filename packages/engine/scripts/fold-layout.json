@@ -13,6 +13,7 @@
     "ReadiedAction",
     "InventoryLine",
     "EquippedItem",
+    "AttunedItem",
     "GameState",
     "initialState"
   ],
@@ -99,6 +100,7 @@
     "InventoryEvent",
     "isInventoryEvent",
     "mergeItems",
+    "byId",
     "removeItems",
     "withEquipment",
     "applyInventory"
@@ -189,6 +191,7 @@
     "applyEvent",
     "applyEventWith",
     "applyEventUnder",
+    "endLostAttunements",
     "fold",
     "historyOf"
   ]

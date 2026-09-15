@@ -49,10 +49,77 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
   },
 ];
 
+/**
+ * Magic items, transcribed one at a time as the vocabulary reaches them.
+ *
+ * A magic item is a `CatalogueItem` that has grown grants and an attunement
+ * requirement, not a population of its own — see
+ * `docs/design/characters-and-equipment.md`. `@ie/srd` parses all 258 of them;
+ * what decides whether one can be *transcribed* is whether the engine has a
+ * grant kind that says what its line says, and `checkContent` refuses an item
+ * whose grant nothing executes rather than accepting a benefit that never
+ * applies.
+ *
+ * The SRD prints no price and no weight for these — the tables that do are for
+ * mundane gear — so both are null, and buying one is refused exactly as buying
+ * anything the book declines to price is.
+ */
+const MAGIC_ITEMS: readonly CatalogueItem[] = [
+  {
+    /**
+     * SRD Cloak of Elvenkind: "Wondrous Item, Uncommon (requires attunement).
+     * While you wear this cloak, Wisdom (Perception) checks made to perceive
+     * you have Disadvantage, and you have Advantage on Dexterity (Stealth)
+     * checks."
+     *
+     * **Half of that sentence is transcribed and half is not, deliberately.**
+     * The Stealth clause is an ordinary `roll-mode` grant. The Perception one
+     * is a mode on rolls made *against* the wearer, and `against-holder` is
+     * legal only on an attack roll — an attack is the one D20 Test the engine
+     * records a target for, so "checks made to perceive you" cannot be picked
+     * out at all. That clause is the DM's until a selector can say it; it is
+     * named here rather than left to be noticed missing.
+     */
+    id: 'cloak-of-elvenkind',
+    name: 'Cloak of Elvenkind',
+    kind: 'wondrous',
+    weightLb: null,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    attunement: {},
+    grants: [
+      {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: {
+                roll: 'ability-check',
+                relation: 'roller',
+                ability: 'dex',
+                skill: 'stealth',
+              },
+            },
+          },
+        ],
+        // Both clauses of the item's own first line: "while you wear this
+        // cloak", and the "(requires attunement)" on the line above it.
+        requires: [{ kind: 'while-worn' }, { kind: 'while-attuned' }],
+      },
+    ],
+  },
+];
+
 function build(): readonly CatalogueItem[] {
   const items = new Map<string, CatalogueItem>();
 
   for (const item of CLASS_ITEMS) items.set(item.id, item);
+  for (const item of MAGIC_ITEMS) items.set(item.id, item);
 
   for (const entry of GEAR) {
     items.set(entry.id, {

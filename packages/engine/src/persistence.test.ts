@@ -198,6 +198,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'attack-landed',
   'attack-made',
   'attack-rider-granted',
+  'attuned',
+  'attunement-ended',
   'bonus-action-spent',
   'bonus-applied',
   'bonus-removed',

@@ -27,6 +27,7 @@ import type { ReactionOffer } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestState } from './rest.js';
+import type { StandingEffect } from './standing.js';
 import {
   type Deadline,
   type GrantedPayout,
@@ -66,6 +67,40 @@ import type { GameEvent } from './events.js';
 export interface EquippedItem {
   readonly id: string;
   readonly armor: Armor | null;
+  /**
+   * What this item grants while it is worn, pinned when it was put on.
+   *
+   * The same rule the armour record above follows: what a command read from
+   * the catalogue travels with the event, so the fold never opens a catalogue
+   * and a corrected transcription cannot change how last week's log folds.
+   * Absent on everything mundane, and on every log written before items could
+   * grant anything.
+   */
+  readonly grants?: readonly StandingEffect[];
+}
+
+/**
+ * An item this creature has attuned to.
+ *
+ * Keyed by catalogue id, which is the whole of what an inventory can say
+ * today: `InventoryLine` counts copies and gives none of them an identity, so
+ * two Wands of Magic Missiles cannot be told apart. That is survivable here —
+ * attunement is a yes or no per kind of item, and attuning to the second of
+ * two identical wands grants exactly what the first one does — and it will
+ * stop being survivable the moment charges land, because charges are spent
+ * from *one* wand. Item instance identity is named as a later brief's subject
+ * in `docs/design/characters-and-equipment.md`.
+ */
+export interface AttunedItem {
+  readonly id: string;
+  /**
+   * What this item grants while it is attuned, pinned when it was attuned to.
+   *
+   * Pinned separately from the equipped copy rather than read across from it,
+   * because the two have different lifetimes: taking a ring off does not break
+   * the attunement, so the attunement has to carry what it is offering.
+   */
+  readonly grants?: readonly StandingEffect[];
 }
 
 export interface CreatureState {
@@ -361,6 +396,15 @@ export interface CreatureState {
   readonly inventory: readonly InventoryLine[];
   /** The ids actually worn or wielded, which is what Armour Class reads. */
   readonly equipped: readonly EquippedItem[];
+  /**
+   * The magic items this creature has attuned to, sorted by id.
+   *
+   * Beside `equipped` rather than inside it, because the two are different
+   * relations to the same object: attunement survives taking the item off, and
+   * wearing an item you never attuned to is the normal state of a cloak in a
+   * shop. SRD caps this at three, which `attuneItem` enforces.
+   */
+  readonly attuned: readonly AttunedItem[];
   /** Money, in copper — the unit every SRD coin divides into. */
   readonly coins: number;
   /**

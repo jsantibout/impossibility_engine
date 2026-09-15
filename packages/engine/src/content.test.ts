@@ -1,18 +1,23 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT, SRD_CONTENT_INPUT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import type { CatalogueItem } from './catalogue.js';
 import type { CharacterSheet } from './character.js';
 import {
   checkContent,
   createContent,
   emptyContent,
   extendContent,
+  ITEM_EFFECT_KINDS,
   loadContent,
   parseClassDefinition,
   parseSubclassDefinition,
+  REQUIREMENT_KINDS,
   type Content,
 } from './content.js';
-import { activateFeature, resolveSpell } from './commands.js';
+import { activateFeature, attuneItem, equipItem, resolveSpell } from './commands.js';
 import {
   checkCharacter,
   createCharacter,
@@ -22,6 +27,7 @@ import {
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent } from './events.js';
 import { declaredCasting } from './spellcasting.js';
+import { rollModesFor } from './standing.js';
 import { remaining, spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
 
@@ -377,7 +383,225 @@ describe('a homebrew class goes through the same door as the book', () => {
   });
 });
 
+/**
+ * A homebrew magic item, written as the JSON a DM's file would hold.
+ *
+ * Nothing about it is a new population: it is a `CatalogueItem` that carries a
+ * `standing` grant in the vocabulary a class feature is already written in,
+ * plus the line the SRD prints in brackets after the rarity.
+ */
+const QUIET_HAND = JSON.stringify({
+  id: 'gloves-of-the-quiet-hand',
+  name: 'Gloves of the Quiet Hand',
+  kind: 'wondrous',
+  weightLb: 0,
+  costCp: null,
+  armor: null,
+  weapon: null,
+  contents: [],
+  attunement: {},
+  grants: [
+    {
+      kind: 'standing',
+      reach: 'self',
+      effects: [
+        {
+          kind: 'roll-mode',
+          modifier: {
+            mode: 'advantage',
+            selector: {
+              roll: 'ability-check',
+              relation: 'roller',
+              ability: 'dex',
+              skill: 'sleight-of-hand',
+            },
+          },
+        },
+      ],
+      requires: [{ kind: 'while-worn' }, { kind: 'while-attuned' }],
+    },
+  ],
+});
+
+describe('a homebrew magic item goes through the same door as the book', () => {
+  const content = unwrap(loadContent({ items: [JSON.parse(QUIET_HAND)] }), 'load');
+  const GLOVES = 'gloves-of-the-quiet-hand';
+
+  const sleight = (state: ReturnType<typeof fold>) =>
+    rollModesFor(state, {
+      family: 'ability-check',
+      roller: CASTER,
+      ability: 'dex',
+      skill: 'sleight-of-hand',
+    }).modes;
+
+  it('is parsed from JSON text and validated beside the printed items', () => {
+    expect(content.item(GLOVES)?.attunement).toEqual({});
+    expect(content.item(GLOVES)?.grants).toHaveLength(1);
+    expect(SRD_CONTENT.item(GLOVES)).toBeNull();
+  });
+
+  /**
+   * The claim the whole file is about, for items: a magic item nobody wrote
+   * engine code for is owned, worn, attuned to and read off the sheet through
+   * the same commands the SRD's own cloak goes through.
+   */
+  it('is equipped and attuned through the public API, with no engine change', () => {
+    const owned: readonly GameEvent[] = [
+      added(CASTER),
+      { type: 'items-gained', id: CASTER, items: [{ id: GLOVES, quantity: 1 }], source: 'a gift' },
+      { type: 'rest-begun', id: CASTER, kind: 'short' },
+    ];
+    expect(sleight(fold('seed', owned))).toEqual([]);
+
+    const worn = [...owned, ...unwrap(equipItem(fold('seed', owned), content, CASTER, GLOVES), 'equip')];
+    // Worn and not attuned: the item's own bracket has not been satisfied.
+    expect(sleight(fold('seed', worn))).toEqual([]);
+
+    const attuned = [...worn, ...unwrap(attuneItem(fold('seed', worn), content, CASTER, GLOVES), 'attune')];
+    expect(sleight(fold('seed', attuned))).toEqual([
+      { source: 'Gloves of the Quiet Hand', mode: 'advantage' },
+    ]);
+
+    // And the log stands on its own: the grant was pinned when the gloves went
+    // on, so folding with no content at all says the same thing.
+    expect(fold('seed', attuned)).toStrictEqual(fold('seed', attuned, content));
+  });
+});
+
+/**
+ * The two lists an item is validated against are unions in `standing.ts`
+ * written out as data, and this is what holds them there.
+ *
+ * The shape `feature-schema.test.ts` established for `READABLE_GRANT_KINDS`:
+ * derive the set from the source rather than recalling it, and check the
+ * allowlist in both directions. A `StandingGrant` kind added to the union and
+ * not to `ITEM_EFFECT_KINDS` would make every item carrying it fail
+ * `checkContent` with a `bad_item_effect` nobody meant, and nothing else in
+ * the suite would say why.
+ */
+describe('what an item may grant is derived from the union, not recalled', () => {
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  // Comments stripped first: this file's unions name their own members in
+  // prose several times over, and a scan that counted a docstring would
+  // report everything as present and check nothing.
+  const STANDING = readFileSync(`${here}standing.ts`, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  const unionKinds = (name: string): readonly string[] => {
+    const start = STANDING.indexOf(`export type ${name} =`);
+    const end = STANDING.indexOf('\nexport ', start + 1);
+    const body = STANDING.slice(start, end === -1 ? undefined : end);
+    return [...new Set([...body.matchAll(/readonly kind: '([a-z-]+)'/g)].map((m) => m[1]!))].sort();
+  };
+
+  /** The analysis is not vacuous: it finds unions with members in them. */
+  it('reads both unions out of the module', () => {
+    expect(unionKinds('StandingGrant').length).toBeGreaterThan(4);
+    expect(unionKinds('StandingGrant')).toContain('roll-mode');
+    expect(unionKinds('StandingRequirement').length).toBeGreaterThan(4);
+    expect(unionKinds('StandingRequirement')).toContain('unarmored');
+  });
+
+  it('carries every standing requirement, and invents none', () => {
+    expect([...REQUIREMENT_KINDS].sort()).toEqual(unionKinds('StandingRequirement'));
+  });
+
+  /**
+   * And every standing grant but the one deliberately withheld: `speedOf`
+   * gathers Speed from the sheet alone, because it is the function a
+   * `has-speed` requirement asks, so an item's Speed grant is refused by name
+   * rather than accepted and never read.
+   */
+  it('carries every standing grant but Speed, and invents none', () => {
+    expect(unionKinds('StandingGrant')).toContain('speed');
+    expect([...ITEM_EFFECT_KINDS].sort()).toEqual(
+      unionKinds('StandingGrant').filter((kind) => kind !== 'speed'),
+    );
+  });
+});
+
 describe('the one door refuses what it cannot execute, with a path', () => {
+  /**
+   * An item may grant only what something executes from an item, and the
+   * refusals say which is which — a grant nothing reads is an item whose line
+   * in the book quietly does nothing, which is the failure the whole content
+   * validator exists to prevent.
+   */
+  it('refuses an item grant nothing executes, and one no reader reaches', () => {
+    const codesOf = (item: unknown): readonly string[] =>
+      checkContent({ items: [item as CatalogueItem] }).map(
+        (problem) => `${problem.code} @ ${problem.field}`,
+      );
+
+    const gloves = JSON.parse(QUIET_HAND);
+    // A charge pool is the next brief's subject; nothing runs one from an item
+    // today, so an item declaring one is refused rather than accepted inert.
+    expect(codesOf({ ...gloves, grants: [{ kind: 'pool', pool: 'charges', uses: 3 }] })).toContain(
+      'item_grant_not_read @ items[gloves-of-the-quiet-hand].grants[0]',
+    );
+    // A Speed from an item is read by nothing: `speedOf` gathers Speed off the
+    // sheet alone, because it is the function a `has-speed` requirement asks.
+    expect(
+      codesOf({
+        ...gloves,
+        grants: [{ kind: 'standing', reach: 'self', effects: [{ kind: 'speed', feet: 10 }] }],
+      }),
+    ).toContain('item_speed_grant @ items[gloves-of-the-quiet-hand].grants[0].effects[0]');
+    // And a selector describing a roll nobody makes is caught by the same
+    // predicate a spell's is.
+    expect(
+      codesOf({
+        ...gloves,
+        grants: [
+          {
+            kind: 'standing',
+            reach: 'self',
+            effects: [
+              {
+                kind: 'roll-mode',
+                modifier: {
+                  mode: 'advantage',
+                  selector: { roll: 'saving-throw', relation: 'against-holder', ability: 'dex' },
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toContain(
+      'against_holder_without_target @ items[gloves-of-the-quiet-hand].grants[0].effects[0].modifier.selector',
+    );
+  });
+
+  /**
+   * And the two requirements that are an item's alone. Both are looked up by
+   * the id of the item granting them, so a class feature carrying one would
+   * name nothing and hold never — which looks perfectly well-formed.
+   */
+  it('refuses "while worn" on a class feature, which is not an item', () => {
+    const cls = JSON.parse(BLOODHUNTER);
+    cls.features = [
+      {
+        id: 'bloodhunter:borrowed-cloak',
+        name: 'Borrowed Cloak',
+        level: 1,
+        automation: 'engine',
+        note: 'A feature pretending to be an item.',
+        grants: {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'evasion' }],
+          requires: [{ kind: 'while-worn' }],
+        },
+      },
+    ];
+    expect(checkContent({ classes: [cls] }).map((problem) => problem.code)).toContain(
+      'item_requirement_on_a_feature',
+    );
+  });
+
   it('reports every incoherence in a typed catalogue rather than the first', () => {
     const problems = checkContent({
       spells: [{ ...JSON.parse(EMBER_LASH), effects: [{ kind: 'attack', attack: 'ranged', damage: { dice: 'lots' }, damageType: 'fire' }] }],
@@ -422,6 +646,13 @@ describe('the one door refuses what it cannot execute, with a path', () => {
     expect(codeOf({ feats: [{ id: 'x' }] })).toContain('bad_feat');
     expect(codeOf({ spellEntries: [{ id: 'x' }] })).toContain('bad_spell_entry');
     expect(codeOf({ items: [{ id: 'x' }] })).toContain('bad_item');
+    // Including the line an item prints in brackets after its rarity.
+    expect(
+      codeOf({ items: [{ ...JSON.parse(QUIET_HAND), attunement: 'by a Druid' }] }),
+    ).toContain('attunement must be an object');
+    expect(
+      codeOf({ items: [{ ...JSON.parse(QUIET_HAND), attunement: { byClass: 'druid' } }] }),
+    ).toContain('byClass must be a list of strings');
     // And the two parsers a caller may reach directly answer with their own.
     const cls = parseClassDefinition(null);
     expect(isErr(cls) && cls.code).toBe('bad_class');

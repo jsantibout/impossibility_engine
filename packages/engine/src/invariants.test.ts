@@ -59,6 +59,8 @@ import {
   availableChecks,
   resolveEffectCheck,
   endFeature,
+  attuneItem,
+  endAttunement,
   equipItem,
   extendFeature,
   healCreature,
@@ -209,6 +211,21 @@ const SETUP: readonly GameEvent[] = [
       { id: B, initiative: 10, speed: 30 },
     ],
   },
+];
+
+/**
+ * SETUP, plus what attuning needs: an attunable item owned, and the Short Rest
+ * the attuning is spent during.
+ */
+const ATTUNING: readonly GameEvent[] = [
+  ...SETUP,
+  {
+    type: 'items-gained',
+    id: A,
+    items: [{ id: 'cloak-of-elvenkind', quantity: 1 }],
+    source: 'the hoard',
+  },
+  { type: 'rest-begun', id: A, kind: 'short' },
 ];
 
 const supply = (seed = 's') => ({ issuer: createRollIssuer('r'), rng: createRng(seed) as Rng, content: SRD_CONTENT });
@@ -1272,6 +1289,25 @@ const GUARDED: readonly Guarded[] = [
     name: 'unequipItem',
     log: [...SETUP, ...unwrap(equipItem(fold('s', SETUP), SRD_CONTENT, A, 'chain-shirt'), 'eq')],
     run: (s, commandId) => unequipItem(s, SRD_CONTENT, A, 'chain-shirt', commandId),
+  },
+  /**
+   * Attuning, whose retry is the dangerous one of the pair: its own first run
+   * is what makes the world answer `already_attuned`, so a guard written above
+   * the duplicate check would tell a retry its attunement was impossible when
+   * it had in fact landed.
+   */
+  {
+    name: 'attuneItem',
+    log: ATTUNING,
+    run: (s, commandId) => attuneItem(s, SRD_CONTENT, A, 'cloak-of-elvenkind', commandId),
+  },
+  {
+    name: 'endAttunement',
+    log: [
+      ...ATTUNING,
+      ...unwrap(attuneItem(fold('s', ATTUNING), SRD_CONTENT, A, 'cloak-of-elvenkind'), 'attune'),
+    ],
+    run: (s, commandId) => endAttunement(s, SRD_CONTENT, A, 'cloak-of-elvenkind', commandId),
   },
   // The nine facts a DM declares, which had no command at all until IE-016.
   {
@@ -2573,6 +2609,21 @@ describe('unknown is not no', () => {
           supply(),
         );
       },
+    },
+    {
+      // Attuning names a creature, an item and a rest. Two of the three are
+      // established here and the creature is not, which is a thin record
+      // rather than a broken rule — `addCreature` is what would settle it.
+      name: 'attuning for somebody nobody has added',
+      run: () => attuneItem(fold('s', SETUP), SRD_CONTENT, id('the-porter'), 'cloak-of-elvenkind'),
+    },
+    {
+      // And the other end of the pair, which is the same claim about a
+      // creature rather than about an attunement: `not_attuned` would be a
+      // verdict on a record that does not exist.
+      name: 'ending an attunement for somebody nobody has added',
+      run: () =>
+        endAttunement(fold('s', SETUP), SRD_CONTENT, id('the-porter'), 'cloak-of-elvenkind'),
     },
     {
       name: 'rolling a test for somebody nobody has declared',

@@ -8,7 +8,7 @@
  */
 import type { CharacterSheet } from '../character.js';
 import type { GameEvent } from '../events.js';
-import type { EquippedItem, GameState, InventoryLine } from '../state.js';
+import type { AttunedItem, EquippedItem, GameState, InventoryLine } from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -25,6 +25,8 @@ export const INVENTORY_EVENTS = [
   'coins-changed',
   'item-equipped',
   'item-unequipped',
+  'attuned',
+  'attunement-ended',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -51,6 +53,10 @@ export function mergeItems(
     .map(([id, quantity]) => ({ id, quantity }))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
+
+/** One order for every list of items, so state serialises identically. */
+const byId = (a: { readonly id: string }, b: { readonly id: string }): number =>
+  a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
 const removeItems = (
   inventory: readonly InventoryLine[],
@@ -137,9 +143,13 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
         }
         armor = legacy.item(event.item)?.armor ?? null;
       }
-      const equipped = [...creature.equipped, { id: event.item, armor }].sort((a, b) =>
-        a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
-      );
+      const equipped = [
+        ...creature.equipped,
+        // Pinned, both of them: what the item *is* and what it *grants*. A log
+        // older than the grants field was written before an item could grant
+        // anything, so an absent list is none rather than a question.
+        { id: event.item, armor, ...(event.grants === undefined ? {} : { grants: event.grants }) },
+      ].sort(byId);
       return withCreature(
         next,
         event.id,
@@ -158,6 +168,35 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
         next,
         event.id,
         { equipped, sheet: withEquipment(creature.sheet, equipped) },
+        creature,
+      );
+    }
+
+    case 'attuned': {
+      const creature = creatureOf(state, event, event.id);
+      if (creature.attuned.some((held) => held.id === event.item)) {
+        throw new CorruptLogError(event, `${event.id} is already attuned to ${event.item}`);
+      }
+      // The cap is `attuneItem`'s rule, not this seam's: what the fold refuses
+      // is a log that contradicts itself, and a fourth attunement is a log that
+      // broke a rule. The two are different failures and only one of them is a
+      // corrupt log.
+      const attuned: readonly AttunedItem[] = [
+        ...creature.attuned,
+        { id: event.item, ...(event.grants === undefined ? {} : { grants: event.grants }) },
+      ].sort(byId);
+      return withCreature(next, event.id, { attuned }, creature);
+    }
+
+    case 'attunement-ended': {
+      const creature = creatureOf(state, event, event.id);
+      if (!creature.attuned.some((held) => held.id === event.item)) {
+        throw new CorruptLogError(event, `${event.id} is not attuned to ${event.item}`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        { attuned: creature.attuned.filter((held) => held.id !== event.item) },
         creature,
       );
     }

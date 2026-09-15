@@ -221,20 +221,24 @@ export function applyEventWith(
 function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | null): GameState {
   const applied = applyOne(state, event, legacy);
   return reachStartOfTurn(
-    dropOrphanedAreaEffects(
-      dropStrandedDamage(
-        dropOrphanedSaves(
-          dropLapsedReady(
-            expireEffects(
-              endLostFeatures(
-                // Between the two passes that already end a casting nobody
-                // decided to end — a lost Concentration above, an arrived
-                // deadline below — because it is the same kind of fact, and
-                // because the four `drop*` passes below are the safety net for
-                // anything a release orphaned.
-                endTriggeredCastings(
-                  breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
-                  event,
+    // After the drops rather than before them: what ends an attunement is a
+    // death or an item gone, and both are facts the event itself left behind.
+    endLostAttunements(
+      dropOrphanedAreaEffects(
+        dropStrandedDamage(
+          dropOrphanedSaves(
+            dropLapsedReady(
+              expireEffects(
+                endLostFeatures(
+                  // Between the two passes that already end a casting nobody
+                  // decided to end — a lost Concentration above, an arrived
+                  // deadline below — because it is the same kind of fact, and
+                  // because the four `drop*` passes below are the safety net
+                  // for anything a release orphaned.
+                  endTriggeredCastings(
+                    breakLostConcentration(recordCommand(interruptedRests(applied, event), event)),
+                    event,
+                  ),
                 ),
               ),
             ),
@@ -243,6 +247,44 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       ),
     ),
   );
+}
+
+/**
+ * Attunements whose item or whose holder is gone.
+ *
+ * SRD: "Your attunement to an item ends if ... you no longer have the item" —
+ * and death ends it too, because a corpse is attuned to nothing. Neither is a
+ * decision anybody makes, so both are derived after every event, the way a
+ * broken Concentration and a lapsed Rage already are. Nothing is emitted: a
+ * pass that also wrote an event would be a second authority on when it ended.
+ *
+ * **Losing the item is read off the inventory**, which is what "have" means —
+ * owning, not wearing. A thief in the night takes the ring and the attunement
+ * with it, whichever command described the theft.
+ */
+function endLostAttunements(state: GameState): GameState {
+  // Nobody attuned to anything, which is the state of almost every fight.
+  if (!anyCreature(state, (c) => c.attuned.length > 0)) return state;
+
+  const creatures: Record<string, CreatureState> = { ...state.creatures };
+  let dropped = false;
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = creatures[key];
+    if (creature === undefined || creature.attuned.length === 0) continue;
+
+    const kept = creature.vitals.dead
+      ? []
+      : creature.attuned.filter((held) =>
+          creature.inventory.some((line) => line.id === held.id && line.quantity > 0),
+        );
+    if (kept.length === creature.attuned.length) continue;
+
+    dropped = true;
+    creatures[key] = { ...creature, attuned: kept };
+  }
+
+  return dropped ? { ...state, creatures } : state;
 }
 
 /**
