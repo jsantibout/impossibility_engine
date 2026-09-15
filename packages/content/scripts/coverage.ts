@@ -31,7 +31,14 @@ import { writeFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS } from '@ie/content';
 import { pathToFileURL } from 'node:url';
 import { dryBuild, refuseStaleBuild } from './build-freshness.js';
-import { allShapeConsumers } from './missing-shapes.js';
+import {
+  allItemShapeConsumers,
+  allShapeConsumers,
+  itemPiles,
+  parsedItemIds,
+  transcribedItemIds,
+} from './missing-shapes.js';
+import { magicItemEntries } from './magic-items.js';
 import {
   auditClasses,
   auditMagicItems,
@@ -198,6 +205,118 @@ function renderMagicItems(coverage: MagicItemCoverage): readonly string[] {
     lines.push(`- **${entry.name}** (${entry.category}) — ${entry.instances} recorded, ${gaps}`);
   }
 
+  lines.push(...renderItemBlockers(coverage));
+
+  return lines;
+}
+
+/**
+ * Why the rest of the book is not transcribed, counted rather than assumed.
+ *
+ * The section above says how many entries have a record. This one says why the
+ * others do not, and it exists because that had no answer: the three rules at
+ * the head of `packages/content/src/items.ts` say how an omission is *decided*
+ * and the decision itself lived only in the absence of a record.
+ *
+ * **Five piles, and the only one a brief transcribes from is the expensive one
+ * to land in.** *Ready* means somebody read the entry sentence by sentence —
+ * every sentence tripping a mechanical marker carries a written clause — found
+ * no clause needing a shape the engine lacks, and found at least one the grant
+ * vocabulary can write down. Failing any of the three puts the entry in
+ * *unread*, which is where an entry goes by default rather than by decision. A
+ * false positive there costs a builder an afternoon and a false negative costs
+ * the catalogue an item, so the classifier is arranged to fail towards
+ * *unread*.
+ *
+ * *Fiction* is the fifth pile and it is not a lesser *ready*: rule 1 in
+ * `items.ts` refuses a record that carries only notes, so an entry the engine
+ * has nothing to record is finished business rather than pending work.
+ *
+ * **The piles count entries, like *transcribed* above and unlike *instances*.**
+ * They are five parts of one number — every entry of "Magic Items A–Z" is in
+ * exactly one — and none of them is ever divided by a count of records.
+ */
+function renderItemBlockers(coverage: MagicItemCoverage): readonly string[] {
+  const piles = itemPiles(parsedItemIds(), transcribedItemIds());
+  const rows = allItemShapeConsumers();
+  const named = new Map(magicItemEntries().map((entry) => [entry.id, entry]));
+  const lines = [
+    '',
+    '### What blocks the rest',
+    '',
+    'Derived from `packages/content/scripts/missing-shapes.ts`, which holds the',
+    'same missing-shape vocabulary the spells are read against plus the shapes',
+    'only an item has, and every untranscribed entry read against its own SRD',
+    'entry. The question it answers is the one a batch turns on: how many of the',
+    'entries with no record are **blocked** by a mechanic the engine lacks, and',
+    'how many are simply not yet written.',
+    '',
+    'These count **entries**, exactly as *transcribed* above does, and every',
+    'entry of "Magic Items A–Z" is in exactly one of them.',
+    '',
+    '| | Means |',
+    '|---|---|',
+    '| **Transcribed** | at least one catalogue record was read out of the entry |',
+    '| **Blocked** | at least one clause needs a shape the engine does not have, named below |',
+    '| **Ready** | read sentence by sentence; every clause is the table’s or expressible, and at least one is expressible |',
+    '| **Fiction** | read the same way, and there is nothing for a record to carry — `items.ts` rule 1, not a gap |',
+    '| **Unread** | nobody has read it, or nobody could name its blocker without inventing a shape |',
+    '',
+    '| Parsed | Transcribed | Blocked | Ready | Fiction | Unread |',
+    '|---|---|---|---|---|---|',
+    `| ${coverage.parsed} | ${piles.transcribed.length} | ${piles.blocked.length} | ${piles.ready.length} | ${piles.fiction.length} | ${piles.unread.length} |`,
+    '',
+    '**Unread is the honest default**, not a backlog nobody got to. An entry',
+    'whose blocker cannot be named from something this repository has already',
+    'written down says so in its own words rather than being sorted into either',
+    'pile: naming a shape for it would be an architecture decision smuggled in',
+    'as a note, and calling it the table’s would put an entry with nothing to',
+    'record on the list below.',
+    '',
+    '#### Ready to transcribe',
+    '',
+    'Blocked by nothing. Each has been read sentence by sentence, and each has',
+    'at least one clause the grant vocabulary can already say — which is the',
+    'difference between this list and the fiction pile.',
+    '',
+  ];
+  for (const id of piles.ready) {
+    const entry = named.get(id);
+    lines.push(
+      `- **${entry?.name ?? id}** (${entry?.category ?? 'unknown'}) — every clause is the table’s or expressible`,
+    );
+  }
+  lines.push(
+    '',
+    '#### The shapes that block the rest',
+    '',
+    '**Blocks** is every untranscribed entry a shape touches. **Finishes** is',
+    'the entries it is the *only* blocker for — the ones building it would',
+    'release — and it is split into *read* and *unread* for the reason the',
+    'spells’ table splits it: an entry naming one blocker for a paragraph',
+    'printing three passes every guard, so the first column is what a tranche',
+    'may be planned from and the second is what it may be planned from once',
+    'somebody reads it.',
+    '',
+    'Shapes from the spell vocabulary appear here too, and that is the point of',
+    'there being one vocabulary: the heaviest blocker in the whole of "Magic',
+    'Items A–Z" is a spell the catalogue cannot execute, so a tranche aimed at',
+    'wands buys nothing until the spells underneath them exist. A Belt of Giant',
+    'Strength waits on the same missing reader SRD Feeblemind does.',
+    '',
+    '| Shape | Blocks | Finishes (read) | Finishes (unread) |',
+    '|---|---|---|---|',
+  );
+  for (const row of rows) {
+    lines.push(
+      `| \`${row.shape}\` | ${row.blocks.length} | ${row.finishesRead.length} | ${row.finishesUnread.length} |`,
+    );
+  }
+  lines.push(
+    '',
+    'An entry can need more than one shape, so the column does not sum to the',
+    'blocked pile.',
+  );
   return lines;
 }
 
@@ -401,5 +520,10 @@ if (isMainModule) {
   console.log(
     `magic items: ${items.transcribed}/${items.parsed} entries transcribed as ` +
       `${items.instances} records, ${items.partial} of them partial`,
+  );
+  const piles = itemPiles(parsedItemIds(), transcribedItemIds());
+  console.log(
+    `item entries: ${piles.blocked.length} blocked, ${piles.ready.length} ready to transcribe, ` +
+      `${piles.fiction.length} the table's, ${piles.unread.length} unread`,
   );
 }

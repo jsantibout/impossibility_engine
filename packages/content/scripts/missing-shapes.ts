@@ -60,7 +60,13 @@
 
 import { readFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS } from '@ie/content';
+import type { MagicItem } from '@ie/srd';
 import { fileURLToPath } from 'node:url';
+// The join between a catalogue record and the SRD entry it was read from,
+// which the item half of this file needs for exactly the reason the report
+// does: an entry is transcribed when a record resolves to it, and a second
+// spelling of that join would be the second place to get it wrong.
+import { magicItemEntries, transcribedItems } from './magic-items.js';
 
 /**
  * The mechanical shapes that stand between an SRD spell and a finished one.
@@ -4659,14 +4665,27 @@ const occurrences = (text: string, phrase: string): number => {
 export const unanchoredPhrases = (
   spellId: string,
   phrases: readonly string[],
-): readonly UnanchoredClause[] => {
-  const units = printedUnitsOf(spellId);
-  return phrases.flatMap((clause) => {
+): readonly UnanchoredClause[] => unanchoredWithin(spellId, printedUnitsOf(spellId), phrases);
+
+/**
+ * The same question asked of units somebody else assembled.
+ *
+ * Split out when the item population arrived, because "this phrase occurs
+ * exactly once in what the book prints under this heading" is one question and
+ * the two corpora differ only in what the heading is. A second implementation
+ * that normalised differently, or counted overlaps differently, would be the
+ * drifting copy this file keeps a record of.
+ */
+export const unanchoredWithin = (
+  where: string,
+  units: readonly string[],
+  phrases: readonly string[],
+): readonly UnanchoredClause[] =>
+  phrases.flatMap((clause) => {
     const phrase = flatten(clause);
     const matches = units.reduce((total, unit) => total + occurrences(unit, phrase), 0);
-    return matches === 1 ? [] : [{ spell: spellId, clause, matches }];
+    return matches === 1 ? [] : [{ spell: where, clause, matches }];
   });
-};
 
 /** The same, asked of a {@link BLOCKED_ON} entry. */
 export const unanchoredClauses = (
@@ -4830,3 +4849,1225 @@ export function claimedShapes(): ReadonlySet<string> {
 }
 
 export { DEFINED as DEFINED_SPELL_IDS };
+
+// — the untranscribed item population —————————————————————————————————————————
+
+/**
+ * The mechanical shapes that stand between an SRD magic item and a record.
+ *
+ * The item half of {@link MISSING_SHAPES}, and it is **short on purpose**: an
+ * item entry may name any shape in that vocabulary as well, and most of them
+ * do. A Belt of Giant Strength is blocked on the same missing reader SRD
+ * Feeblemind is — `an-ability-score-a-spell-changes` — and giving that gap a
+ * second id because the sentence this time is printed on a belt is the "second
+ * spelling of a derivation" failure this file already keeps a record of. So
+ * what lives here is only what is true of an **item** and false of a casting:
+ * a benefit with no casting to hang on, a charge, an attunement, an instance.
+ *
+ * The rule the spell vocabulary sets applies unchanged: every id names a gap
+ * this repository has already described, and the description says **which**,
+ * because a shape invented here would be an architecture decision smuggled in
+ * as a note. Most of these point at `packages/engine/src/content.ts`, where
+ * `checkContent` refuses an item's grant **by name** — a refusal message is a
+ * gap somebody wrote down and a reviewer read, which is what that rule asks
+ * for.
+ */
+export const ITEM_SHAPES = {
+  'a-spell-an-item-casts-that-nothing-executes':
+    'the item’s line says it casts a named spell and the catalogue has no executable definition of that spell. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Plane Shift cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist.',
+  'a-save-an-item-forces':
+    'a saving throw an item makes somebody roll, against a DC the item itself prints. docs/design/content.md lists it among the shapes an item’s conferral is refused "until each is built — a save DC or a charge count", and packages/engine/src/content.ts says why: "no effect an item may confer rolls a saving throw yet". The SRD prints a DC on an item’s own line constantly — a horn, a wand, a dust — and there is nowhere for it to go.',
+  'a-charge-spent-on-something-other-than-a-casting':
+    'a charge the item’s line spends on something that is not a spell. A `casts` grant takes its price out of the pool and nothing else does: packages/engine/src/content.ts refuses a conferral that names one — "nothing spends a charge for a conferral yet" — so a staff that spends a charge for extra damage on a hit, or a periapt that spends its one daily use to heal, would declare a pool nothing can draw on.',
+  'a-condition-an-item-imposes':
+    'a condition an item puts on a creature, its user or its victim. The conferral vocabulary excludes every kind that hangs one, and packages/engine/src/content.ts gives the reason: "the fold welds a condition instance to a casting", so a condition with no casting behind it reads as a corrupt log. A potion that makes you Invisible and a wand that Paralyzes are the same gap from the two ends.',
+  'a-damage-roll-an-item-makes':
+    'damage an item deals without a casting. packages/engine/src/content.ts enumerates what a conferral may carry and stops short of it — "What is left is the three that move hit points or lift a condition, and the eight sourced-grant families" — so a horn that blasts, a talisman that burns whoever holds it and a poison that harms its drinker each have a number the engine can roll and nowhere to write it.',
+  'a-speed-an-item-grants':
+    'a Speed a worn item gives its wearer. `ITEM_EFFECT_KINDS` omits `speed` on purpose and packages/engine/src/content.ts records the omission as a gap rather than as a decision — "An item granting a Swim Speed is a real SRD item and a real gap; refusing it by name is how the gap stays visible instead of becoming a transcribed item whose benefit silently never applies." Boots, gloves, rings, horseshoes and slippers all print one.',
+  'a-reaction-an-item-grants':
+    'a Reaction the item gives its holder. packages/engine/src/content.ts names the four grant kinds an item’s readers execute — "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and a `reaction` grant is not among them, so a glove that snatches a missile and a ring that turns a failed save into a success have nothing to hang on.',
+  'a-benefit-an-item-switches-on-and-off':
+    'a benefit the holder turns on and later turns off, with no spell cast and no duration running. The same enumeration refuses it — packages/engine/src/content.ts, "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and the two kinds that come closest each say the wrong thing: a standing grant is on whenever the item is worn, and a conferral is a moment with a lifetime the item states. A flaming blade one Bonus Action lights and another puts out is neither.',
+  'a-casting-an-item-stores-or-gives-back':
+    'a spell slot an item returns, or a casting it holds for later on somebody else’s numbers. packages/engine/src/content.ts admits four grants from an item and says of the rest: "The rest are real and are coming, but a grant nothing executes is an item whose line in the book quietly does nothing." A `recovery` grant is one of those, and a stored casting that keeps the original caster’s save DC is not a grant kind at all.',
+  'a-bonus-to-spell-attack-rolls':
+    'the id is packages/engine/src/content.ts’s own and so is the sentence: a standing `flat-bonus` reaches a weapon attack roll and not a spell one, and "the member that says that is `a-bonus-to-spell-attack-rolls` and it does not exist yet". Every staff, talisman, wand and robe in the book that improves a caster prints exactly this line, and writing it as `applies: [attack]` would quietly improve the wrong roll.',
+  'a-language-or-a-proficiency-an-item-grants':
+    'training an item confers — a language you know while you wear it, a weapon you are suddenly proficient with. Both are `FeatureGrant` kinds a class already uses and neither is read from an item: packages/engine/src/content.ts, "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one". One shape rather than two, because one line of the reader admits both and each entry’s own note says which the item wanted.',
+  'an-item-instance-with-a-state-of-its-own':
+    'a fact about **this** copy of an item rather than about the catalogue row. docs/design/characters-and-equipment.md names it as a decision a brief still owes — "an item instance identity (charges keyed on a catalogue id cannot tell two wands apart, and a wand given away carries its charges while pools are per creature)" — and packages/content/src/items.ts already carries the consequence on the one potion that forced it: the other rows of the healing table are left out as "which the SRD files under one entry and which would need four ids, or an item instance record, to sit on one inventory line". An arrow that stops being magical when it hits, a bag with 3d4 beans left in it and a wand that crumbles on its last charge are all that same fact.',
+  'a-version-of-an-item-the-book-leaves-to-the-gm':
+    'one printed entry that is several items, where **the GM chooses which**. Not the `+1, +2, or +3` template, whose versions the book names and rates one by one and which the catalogue expands into records; this is "The GM chooses the type or determines it randomly by rolling on the following table", printed over damage types, giants, dragons, planes and elementals. packages/content/src/items.ts says what it would cost on the entry that already forced the question — the other healing potions "would need four ids, or an item instance record, to sit on one inventory line" — and a record that picked one version for everybody would be a catalogue asserting what the book leaves open.',
+  'a-container-with-a-space-of-its-own':
+    'an item that holds other items. docs/archive/design/characters-and-equipment.md states the absence outright — "No containers." and "Items are a flat list per creature" — so a bag whose capacity, weight and contents are the whole of its rules has nothing to be written against. Several of the book’s wondrous items are containers and nothing else.',
+  'an-object-with-statistics-of-its-own':
+    'a thing with an Armour Class, Hit Points and a position that is not a creature. docs/archive/design/casting.md settled the spell side by refusing exactly this — a casting may hold a point, and "No entity, no object record, no second identity, nothing in the scene’s `positions` table" — while filing "A thing with statistics" under the summons seam, which is still open. A tower, a boat, an animated rope and a sword that hovers and attacks are all on the far side of it.',
+  'an-area-an-item-creates':
+    'a Cone, a Sphere or an Emanation an item puts on the battlefield. docs/archive/design/space-and-areas.md ties an area to the casting that made it — "So a casting’s area sits at a point *or* on a creature, and which it is was decided at the casting by the definition" — and an item that confers effects has no casting, no definition and no area field, so a horn that blasts a 30-foot Cone reaches its targets by hand or not at all.',
+  'what-ends-attunement-besides-a-command':
+    'an attunement that ends, or refuses to end, for a reason no command gives. docs/design/characters-and-equipment.md names it as the second thing a brief still owes — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and the book’s cursed items are the other half of that missing rule: armour that cannot be doffed until a Remove Curse lands is an attunement its holder may not release.',
+  'a-concentration-with-no-casting-behind-it':
+    'Concentration on something that was never cast. docs/archive/design/casting.md makes the casting the unit throughout — "a second Concentration casting breaks the first at its declaration" — and `releaseCasting` is the single door out, so an item whose effect lasts as long as its user maintains Concentration has nothing for that door to close.',
+  'a-benefit-an-item-suspends-on-a-trigger':
+    'a standing benefit switched off by something that happens, and switched back on later. The nearest built mechanism ends a **casting**, and docs/archive/design/casting.md keeps that door narrow on purpose — "`releaseCasting`, the single door" — while an item’s benefit is derived on every read from what is worn and attuned, and nothing in that derivation can see that its wearer took damage two seconds ago.',
+  'a-rider-on-the-face-the-die-showed':
+    'an effect that fires because the d20 came up a particular number. packages/engine/src/spell-definitions.ts names the mechanism while refusing it for a spell — Chromatic Orb is "a chained attack on a dice-face trigger" — and every magic weapon in SRD that acts "when you roll a 20 on the d20 for the attack roll", and every staff destroyed on a 1, wants that same reader.',
+  'a-critical-hit-an-effect-downgrades':
+    'a Critical Hit turned back into an ordinary hit. docs/archive/PROGRESS.md records the only thing that moves a critical today — "The die face that scores a Critical Hit, off the sheet; the Champion" — which widens the range rather than narrowing it, and nothing anywhere takes a critical away once the die has shown the face.',
+} as const;
+
+/** The item vocabulary’s own ids. */
+export type ItemShapeId = keyof typeof ITEM_SHAPES;
+
+/** Every shape an item entry may name: the spell vocabulary, and the item one. */
+export type ItemBlockerId = ShapeId | ItemShapeId;
+
+/**
+ * One sentence of an untranscribed item's printed entry, and what stands in
+ * its way.
+ *
+ * {@link BlockedClause}'s shape, over the other book. The three values mean
+ * what they mean there, with one difference that decides a whole pile below:
+ *
+ * | | |
+ * |---|---|
+ * | `'table'` | fiction, or a rule the engine's resolution path never reaches |
+ * | `'expressible'` | the grant vocabulary already says it; this clause blocks nothing |
+ * | a shape id | mechanical, and this names the shape that blocks it |
+ *
+ * **An entry of nothing but `'table'` is not a transcribable item.**
+ * `packages/content/src/items.ts` rule 1 says why — "A record carrying nothing
+ * but notes would be an item that arrives in a pack, grants nothing and looks
+ * transcribed" — so `'expressible'` is not decoration here: it is the evidence
+ * that there is something to write down, and {@link itemPileOf} sorts on it.
+ */
+export interface ItemClause {
+  /**
+   * A distinctive phrase from this entry's printed text.
+   *
+   * The same rule {@link BlockedClause.clause} follows and for the same reason:
+   * it must occur **exactly once** across the entry's printed fields and the
+   * sentences of its prose, so a reworded entry has to be read again rather
+   * than keeping an adjudication written about the old one.
+   */
+  readonly clause: string;
+  readonly why: 'table' | 'expressible' | ItemBlockerId;
+  readonly note: string;
+}
+
+/**
+ * A blocker on an item, anchored or not.
+ *
+ * A bare shape id is the **grandfathered** form the spell map already has: it
+ * says which shape blocks the entry and nothing about which sentence. Two
+ * hundred entries cannot be read sentence by sentence in one commit, and a map
+ * that pretended otherwise would be worth less than one that says which of its
+ * entries somebody has actually read — so the report prints the two columns
+ * apart, exactly as `COVERAGE.md` prints *finishes (read)* against *(unread)*.
+ */
+export type ItemBlocker = ItemBlockerId | ItemClause;
+
+/**
+ * An entry nobody can place — **the honest default**.
+ *
+ * Two things arrive here and the note says which: an entry nobody has read,
+ * and an entry somebody read and could not name a blocker for without
+ * inventing a shape. They are one claim — *this entry is not ready to be
+ * briefed from* — and the alternative to having the pile is worse in both
+ * directions, because an entry silently filed as blocked invents a rule and an
+ * entry silently filed as ready costs a builder an afternoon.
+ */
+export interface UnreadItemEntry {
+  readonly unread: string;
+}
+
+/** What an entry of {@link ITEM_BLOCKED_ON} may be. */
+export type ItemEntry = readonly ItemBlocker[] | UnreadItemEntry;
+
+const isUnread = (entry: ItemEntry): entry is UnreadItemEntry => !Array.isArray(entry);
+
+/**
+ * What stands between every **untranscribed** SRD magic item and a record.
+ *
+ * `BLOCKED_ON` for the other book. 42 of the 258 entries of "Magic Items A–Z"
+ * have at least one catalogue record; nothing in this repository said why the
+ * rest do not, so the question a batch turns on — *how many are blocked by a
+ * missing shape and how many are simply not yet written* — had no answer but
+ * somebody's impression. `packages/content/src/items.ts` states the three
+ * rules that **decide** an omission; the decision itself lived only in the
+ * absence of a record. This is the decision.
+ *
+ * ### Four piles, and the default is the honest one
+ *
+ * {@link itemPileOf} sorts every parsed entry into exactly one of five states —
+ * transcribed, blocked, ready, fiction, unread — and the two that a brief may
+ * be planned from are the ones that cost something to claim:
+ *
+ * - **ready** is an entry every clause of which the engine can already say,
+ *   with at least one clause that is genuinely `'expressible'`. It is the
+ *   output the next brief transcribes from, so it is deliberately the hardest
+ *   pile to land in: an entry must have been read **sentence by sentence**,
+ *   with a written clause against every sentence tripping one of
+ *   {@link CLAUSE_MARKERS}. An entry nobody read cannot be ready however quiet
+ *   its prose, because "no sentence names a mechanic" is a conclusion somebody
+ *   has to have reached.
+ * - **fiction** is the same reading arriving at nothing to write down. It is a
+ *   pile of its own rather than part of *ready* because of rule 1 in
+ *   packages/content/src/items.ts: a record carrying only notes "would be an
+ *   item that arrives in a pack, grants nothing and looks transcribed". A Bead
+ *   of Nourishment is not waiting on the engine and is not a record either.
+ * - **blocked** names at least one shape, read or grandfathered.
+ * - **unread** is everything else, and it is where an entry goes by default
+ *   rather than by decision.
+ *
+ * A false positive in *ready* costs a builder an afternoon and a false
+ * negative costs the catalogue an item, so the classifier is arranged so that
+ * every way of failing to do the work lands in *unread*.
+ *
+ * ### Most entries are grandfathered, and the report says how many
+ *
+ * Two hundred and sixteen paragraphs read sentence by sentence in one commit
+ * is how a reviewer stops reading — the lesson `BLOCKED_ON` records for its own
+ * backfill. So a blocked entry may name its shapes as bare ids, and
+ * {@link itemConsumersOf} reports what a shape finishes **twice**: among the
+ * entries somebody has read, and among the rest. The difference is the finding,
+ * exactly as it is for spells.
+ *
+ * ### What the reading found that a shape-level guess would not have
+ *
+ * The largest blocker in the book's magic items is not an item mechanism at
+ * all: it is `a-spell-an-item-casts-that-nothing-executes`, and every entry
+ * under it is waiting on a **spell** definition. A wand tranche planned without
+ * reading would have bought wands and found the spells underneath them
+ * missing. Second is a version of an item the book leaves to the GM, which is
+ * a catalogue-shape question rather than an engine one. Both numbers are
+ * `COVERAGE.md`'s to print.
+ */
+export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
+  'adamantine-armor': ['a-critical-hit-an-effect-downgrades'],
+  'ammunition-1-2-or-3': ['an-item-instance-with-a-state-of-its-own'],
+  'ammunition-of-slaying': [
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'amulet-of-health': ['an-ability-score-a-spell-changes'],
+  'amulet-of-proof-against-detection-and-location': {
+    unread:
+      'read, and the blocker cannot be named from anything this repository has written down. "you can’t be targeted by Divination spells or perceived through magical scrying sensors" is a filter on the *school* of a spell reaching the targeting check, and no document here describes a school axis as a gap. Filing it as the table’s would put an entry with nothing to record on the ready list; naming a shape for it would be an architecture decision smuggled in as a note.',
+  },
+  'amulet-of-the-planes': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+  ],
+  'animated-shield': ['a-benefit-an-item-switches-on-and-off', 'what-a-creature-is-holding'],
+  'apparatus-of-the-crab': ['an-object-with-statistics-of-its-own'],
+  'armor-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
+  'armor-of-vulnerability': [
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'what-ends-attunement-besides-a-command',
+  ],
+  'arrow-catching-shield': ['a-reaction-an-item-grants'],
+  'bag-of-beans': [
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'bag-of-devouring': ['a-container-with-a-space-of-its-own'],
+  'bag-of-holding': ['a-container-with-a-space-of-its-own'],
+  'bag-of-tricks': [
+    'a-stat-block-created-mid-fight',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'bead-of-force': [
+    'an-area-an-item-creates',
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'bead-of-nourishment': [
+    {
+      clause: 'provides as much nourishment as 1 day of Rations',
+      why: 'table',
+      note: 'the whole of the entry. Rations feed a character in fiction and the engine has no hunger, no day and no nourishment, so there is nothing here the grant vocabulary is short of — and nothing for a record to carry either, which is rule 1 in packages/content/src/items.ts rather than a blocker.',
+    },
+  ],
+  'belt-of-dwarvenkind': [
+    'a-language-or-a-proficiency-an-item-grants',
+    'a-bonus-narrowed-to-a-skill',
+    'an-ability-score-a-spell-changes',
+    'senses-beyond-declared-sight',
+  ],
+  'belt-of-giant-strength': [
+    'an-ability-score-a-spell-changes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+  ],
+  'berserker-axe': [
+    'a-hit-point-maximum-a-spell-moves',
+    'what-ends-attunement-besides-a-command',
+    'a-save-an-item-forces',
+  ],
+  'boots-of-levitation': ['a-spell-an-item-casts-that-nothing-executes'],
+  'boots-of-speed': [
+    'a-speed-an-effect-multiplies',
+    'a-benefit-an-item-switches-on-and-off',
+    'a-deadline-anchored-to-a-rest',
+  ],
+  'boots-of-striding-and-springing': ['a-speed-an-item-grants'],
+  'bowl-of-commanding-water-elementals': ['a-stat-block-created-mid-fight'],
+  'bracers-of-archery': ['a-language-or-a-proficiency-an-item-grants'],
+  'brazier-of-commanding-fire-elementals': ['a-stat-block-created-mid-fight'],
+  'broom-of-flying': ['movement-modes', 'a-speed-an-item-grants'],
+  'candle-of-invocation': [
+    'a-selector-for-every-d20-test',
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'carpet-of-flying': ['movement-modes', 'a-version-of-an-item-the-book-leaves-to-the-gm'],
+  'censer-of-controlling-air-elementals': ['a-stat-block-created-mid-fight'],
+  'chime-of-opening': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'circlet-of-blasting': ['a-spell-an-item-casts-that-nothing-executes'],
+  'cloak-of-arachnida': [
+    'movement-modes',
+    'a-speed-an-item-grants',
+    'a-save-an-item-forces',
+  ],
+  'cloak-of-displacement': ['a-benefit-an-item-suspends-on-a-trigger'],
+  'cloak-of-invisibility': [
+    'a-condition-an-item-imposes',
+    'a-benefit-an-item-suspends-on-a-trigger',
+  ],
+  'cloak-of-the-bat': [
+    'a-bonus-narrowed-to-a-skill',
+    'movement-modes',
+    'a-spell-an-item-casts-that-nothing-executes',
+  ],
+  'cloak-of-the-manta-ray': ['a-speed-an-item-grants', 'movement-modes'],
+  'crystal-ball': ['a-spell-an-item-casts-that-nothing-executes'],
+  'crystal-ball-of-mind-reading': ['a-spell-an-item-casts-that-nothing-executes'],
+  'crystal-ball-of-telepathy': ['a-spell-an-item-casts-that-nothing-executes'],
+  'crystal-ball-of-true-seeing': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'senses-beyond-declared-sight',
+  ],
+  'cube-of-force': ['a-spell-an-item-casts-that-nothing-executes', 'a-save-an-item-forces'],
+  'cubic-gate': ['a-spell-an-item-casts-that-nothing-executes'],
+  'dagger-of-venom': [
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'a-benefit-an-item-switches-on-and-off',
+  ],
+  'dancing-sword': ['an-object-with-statistics-of-its-own'],
+  'decanter-of-endless-water': [
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+    'a-condition-an-item-imposes',
+  ],
+  'deck-of-illusions': [
+    'a-stat-block-created-mid-fight',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'demon-armor': [
+    'a-language-or-a-proficiency-an-item-grants',
+    'what-ends-attunement-besides-a-command',
+    'a-rider-on-a-later-weapon-attack',
+  ],
+  'dimensional-shackles': ['a-condition-an-item-imposes', 'a-fact-only-the-table-can-declare'],
+  'dragon-orb': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-object-with-statistics-of-its-own',
+  ],
+  'dragon-scale-mail': [
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'a-mode-on-the-save-a-spell-forces',
+  ],
+  'dust-of-disappearance': [
+    'a-condition-an-item-imposes',
+    'a-benefit-an-item-suspends-on-a-trigger',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'dust-of-dryness': [
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'dust-of-sneezing-and-choking': [
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'an-area-an-item-creates',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'dwarven-thrower': ['a-rider-on-a-later-weapon-attack'],
+  'efficient-quiver': ['a-container-with-a-space-of-its-own'],
+  'efreeti-bottle': [
+    'a-stat-block-created-mid-fight',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'elemental-gem': [
+    'a-stat-block-created-mid-fight',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'elixir-of-health': [
+    {
+      clause: 'you are cured of all magical contagions',
+      why: 'table',
+      note: 'a disease is not a condition the engine names and not a state it holds, so there is nothing here for a conferral to end. The table decides what a contagion was and that it is gone.',
+    },
+    {
+      clause: 'the following conditions end on you: Blinded, Deafened, Paralyzed, and Poisoned',
+      why: 'expressible',
+      note: 'an `end-condition` effect on a `confers` grant, which is exactly the kind packages/engine/src/content.ts admits for an item: it needs no casting id, no D20 Test and no save DC, and it outlasts nothing so the grant states no lifetime. Four condition names, printed in the book’s own order.',
+    },
+  ],
+  'energy-bow': [
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'a-spell-an-item-casts-that-nothing-executes',
+  ],
+  'eversmoking-bottle': ['an-area-an-item-creates', 'a-benefit-an-item-switches-on-and-off'],
+  'eyes-of-minute-seeing': ['senses-beyond-declared-sight', 'a-bonus-narrowed-to-a-skill'],
+  'eyes-of-the-eagle': ['a-fact-only-the-table-can-declare'],
+  'feather-token': [
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'a-stat-block-created-mid-fight',
+    'an-object-with-statistics-of-its-own',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'figurine-of-wondrous-power': [
+    'a-stat-block-created-mid-fight',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'flame-tongue': ['a-benefit-an-item-switches-on-and-off'],
+  'folding-boat': ['an-object-with-statistics-of-its-own', 'a-container-with-a-space-of-its-own'],
+  'gauntlets-of-ogre-power': ['an-ability-score-a-spell-changes'],
+  'gem-of-brightness': [
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'an-area-an-item-creates',
+    'a-charge-spent-on-something-other-than-a-casting',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'gem-of-seeing': [
+    'senses-beyond-declared-sight',
+    'a-charge-spent-on-something-other-than-a-casting',
+  ],
+  'gloves-of-missile-snaring': ['a-reaction-an-item-grants'],
+  'gloves-of-swimming-and-climbing': [
+    'a-speed-an-item-grants',
+    'movement-modes',
+    'a-bonus-narrowed-to-a-skill',
+  ],
+  'gloves-of-thievery': [
+    {
+      clause: 'a +5 bonus to Dexterity (Sleight of Hand) checks',
+      why: 'a-bonus-narrowed-to-a-skill',
+      note: 'a `flat-bonus` reaches `ability-check` and that is the whole family, so this five would land on every Intelligence, Wisdom and Strength check the wearer ever makes. The narrowing to one skill is the shape the spell map already names for SRD Enthrall’s Perception penalty, and a pair of gloves prints it the other way up.',
+    },
+  ],
+  'goggles-of-night': [
+    {
+      clause: 'you have Darkvision out to 60 feet',
+      why: 'senses-beyond-declared-sight',
+      note: 'sight is a pairwise declaration and there is nothing else, so Darkvision has no reader: no rule asks whether the goggles’ wearer can see in the dark, and a standing grant has no member that would say so.',
+    },
+    {
+      clause: 'increases its range by 60 feet',
+      why: 'senses-beyond-declared-sight',
+      note: 'and the second sentence needs the first sentence’s answer to be a **number** rather than a fact, which is a second thing the missing reader has to hold.',
+    },
+  ],
+  'handy-haversack': ['a-container-with-a-space-of-its-own'],
+  'hat-of-disguise': ['a-spell-an-item-casts-that-nothing-executes'],
+  'hat-of-many-spells': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'a-save-an-item-forces',
+  ],
+  'headband-of-intellect': ['an-ability-score-a-spell-changes'],
+  'helm-of-brilliance': [
+    'an-area-an-item-creates',
+    'a-damage-roll-an-item-makes',
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-save-an-item-forces',
+    'a-rider-on-the-face-the-die-showed',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'helm-of-comprehending-languages': ['a-spell-an-item-casts-that-nothing-executes'],
+  'helm-of-telepathy': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-fact-only-the-table-can-declare',
+  ],
+  'helm-of-teleportation': ['a-spell-an-item-casts-that-nothing-executes'],
+  'horn-of-blasting': [
+    'an-area-an-item-creates',
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+    'a-condition-an-item-imposes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'horn-of-valhalla': [
+    'a-stat-block-created-mid-fight',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+  ],
+  'horseshoes-of-a-zephyr': [
+    'a-speed-an-item-grants',
+    'difficult-terrain-an-area-creates',
+    'an-exhaustion-level-a-spell-changes',
+  ],
+  'horseshoes-of-speed': ['a-speed-an-item-grants'],
+  'immovable-rod': ['an-object-with-statistics-of-its-own', 'a-fact-only-the-table-can-declare'],
+  'instant-fortress': ['an-object-with-statistics-of-its-own'],
+  'ioun-stone': [
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-ability-score-a-spell-changes',
+    'a-reaction-an-item-grants',
+    'healing-modified-by-an-effect',
+  ],
+  'iron-bands': ['a-condition-an-item-imposes', 'an-item-instance-with-a-state-of-its-own'],
+  'iron-flask': [
+    'a-save-an-item-forces',
+    'a-stat-block-created-mid-fight',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'javelin-of-lightning': [
+    'an-area-an-item-creates',
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+  ],
+  'lantern-of-revealing': [
+    'senses-beyond-declared-sight',
+    'a-benefit-an-item-switches-on-and-off',
+  ],
+  'luck-blade': [
+    'a-roll-result-an-effect-replaces',
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-charge-spent-on-something-other-than-a-casting',
+  ],
+  'mace-of-disruption': [
+    'a-rider-on-a-later-weapon-attack',
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+  ],
+  'mace-of-terror': [
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'a-charge-spent-on-something-other-than-a-casting',
+    'an-action-a-spell-compels-or-forbids',
+  ],
+  'mantle-of-spell-resistance': [
+    {
+      clause: 'Advantage on saving throws against spells',
+      why: 'a-mode-on-the-save-a-spell-forces',
+      note: 'the whole of the entry, and the whole of its blocker: a `RollSelector` picks a saving throw by ability and by nothing else, so there is no way to select *the ones a spell forced*. The cloak would otherwise be four lines of `roll-mode` with `while-worn` and `while-attuned` on it.',
+    },
+  ],
+  'manual-of-bodily-health': [
+    'an-ability-score-a-spell-changes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'manual-of-gainful-exercise': [
+    'an-ability-score-a-spell-changes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'manual-of-golems': [
+    'a-stat-block-created-mid-fight',
+    'a-damage-roll-an-item-makes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+  ],
+  'manual-of-quickness-of-action': [
+    'an-ability-score-a-spell-changes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'marvelous-pigments': [
+    'a-concentration-with-no-casting-behind-it',
+    'an-object-with-statistics-of-its-own',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'medallion-of-thoughts': ['a-spell-an-item-casts-that-nothing-executes'],
+  'mirror-of-life-trapping': [
+    'an-object-with-statistics-of-its-own',
+    'a-save-an-item-forces',
+    'a-benefit-an-item-switches-on-and-off',
+  ],
+  'mysterious-deck': [
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-ability-score-a-spell-changes',
+    'a-stat-block-created-mid-fight',
+    'a-selector-for-every-d20-test',
+  ],
+  'necklace-of-adaptation': ['a-mode-on-the-save-a-spell-forces'],
+  'necklace-of-fireballs': [
+    'a-save-an-item-forces',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'necklace-of-prayer-beads': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  oathbow: [
+    'a-rider-on-a-later-weapon-attack',
+    'a-fact-only-the-table-can-declare',
+    'a-benefit-an-item-suspends-on-a-trigger',
+  ],
+  'oil-of-etherealness': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'oil-of-sharpness': ['an-item-instance-with-a-state-of-its-own'],
+  'oil-of-slipperiness': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-area-an-item-creates',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'pearl-of-power': ['a-casting-an-item-stores-or-gives-back'],
+  'periapt-of-health': [
+    'a-charge-spent-on-something-other-than-a-casting',
+    'a-mode-on-the-save-a-spell-forces',
+  ],
+  'periapt-of-wound-closure': [
+    'a-roll-result-an-effect-replaces',
+    'healing-modified-by-an-effect',
+  ],
+  'philter-of-love': ['a-condition-an-item-imposes'],
+  'pipes-of-haunting': ['a-save-an-item-forces', 'a-condition-an-item-imposes'],
+  'pipes-of-the-sewers': [
+    'a-stat-block-created-mid-fight',
+    'a-save-an-item-forces',
+    'a-fact-only-the-table-can-declare',
+  ],
+  'plate-armor-of-etherealness': ['a-spell-an-item-casts-that-nothing-executes'],
+  'portable-hole': ['a-container-with-a-space-of-its-own'],
+  'potion-of-animal-friendship': ['a-save-an-item-forces'],
+  'potion-of-clairvoyance': ['a-spell-an-item-casts-that-nothing-executes'],
+  'potion-of-climbing': [
+    'a-speed-an-item-grants',
+    'movement-modes',
+    'a-bonus-narrowed-to-a-skill',
+  ],
+  'potion-of-diminution': ['a-spell-an-item-casts-that-nothing-executes'],
+  'potion-of-flying': ['a-speed-an-item-grants', 'movement-modes'],
+  'potion-of-gaseous-form': ['a-spell-an-item-casts-that-nothing-executes'],
+  'potion-of-giant-strength': [
+    'an-ability-score-a-spell-changes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+  ],
+  'potion-of-growth': ['a-spell-an-item-casts-that-nothing-executes'],
+  'potion-of-invisibility': [
+    'a-condition-an-item-imposes',
+    'a-benefit-an-item-suspends-on-a-trigger',
+  ],
+  'potion-of-invulnerability': [
+    {
+      clause: 'you have Resistance to all damage',
+      why: 'expressible',
+      note: 'a `damage-defense` effect on a `confers` grant, with the minute the sentence prints as the grant’s `durationSeconds` — which packages/engine/src/content.ts requires of exactly this kind, because a conferral hangs a sourced grant and there is no casting for `releaseCasting` to end. SRD’s "all damage" is the type list written out, the way Protection from Energy already writes one.',
+    },
+  ],
+  'potion-of-longevity': [
+    {
+      clause: 'your physical age is reduced by 1d6 + 6 years',
+      why: 'table',
+      note: 'age is not a fact the engine holds, so the dice roll here changes nothing it could record. The table ages the character.',
+    },
+    {
+      clause: '10 percent cumulative chance that you instead age',
+      why: 'table',
+      note: 'and the cumulative chance counts how many of these a *character* has drunk, which is a fact about the drinker rather than about the potion — the table’s to keep, and nothing a catalogue record could carry even with item instances.',
+    },
+  ],
+  'potion-of-mind-reading': ['a-spell-an-item-casts-that-nothing-executes'],
+  'potion-of-poison': [
+    'a-damage-roll-an-item-makes',
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+  ],
+  'potion-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
+  'potion-of-speed': ['a-spell-an-item-casts-that-nothing-executes'],
+  'potion-of-vitality': ['an-exhaustion-level-a-spell-changes', 'healing-modified-by-an-effect'],
+  'potion-of-water-breathing': [
+    {
+      clause: 'You can breathe underwater for 24 hours',
+      why: 'table',
+      note: 'breathing is not modelled — nothing drowns, nothing suffocates and no rule asks — so this is a fact the table keeps, and a record carrying it would carry nothing else.',
+    },
+  ],
+  'ring-of-animal-influence': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-save-an-item-forces',
+  ],
+  'ring-of-djinni-summoning': [
+    'a-stat-block-created-mid-fight',
+    'a-concentration-with-no-casting-behind-it',
+  ],
+  'ring-of-elemental-command': [
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'a-language-or-a-proficiency-an-item-grants',
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-save-an-item-forces',
+    'movement-modes',
+    'a-speed-an-item-grants',
+  ],
+  'ring-of-evasion': [
+    'a-reaction-an-item-grants',
+    'a-charge-spent-on-something-other-than-a-casting',
+  ],
+  'ring-of-feather-falling': [
+    {
+      clause: 'take no damage from falling',
+      why: 'table',
+      note: 'falling is not modelled: no rule drops a creature, computes a distance or deals the damage, so a ring that cancels it cancels nothing the engine would have done. The descent rate is the same answer.',
+    },
+  ],
+  'ring-of-free-action': [
+    'difficult-terrain-an-area-creates',
+    'a-condition-immunity-narrowed-to-its-source',
+  ],
+  'ring-of-invisibility': [
+    'a-condition-an-item-imposes',
+    'a-benefit-an-item-switches-on-and-off',
+  ],
+  'ring-of-jumping': ['a-spell-an-item-casts-that-nothing-executes'],
+  'ring-of-mind-shielding': [
+    'a-fact-only-the-table-can-declare',
+    'an-object-with-statistics-of-its-own',
+  ],
+  'ring-of-regeneration': ['healing-modified-by-an-effect'],
+  'ring-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
+  'ring-of-shooting-stars': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-area-an-item-creates',
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+    'a-concentration-with-no-casting-behind-it',
+  ],
+  'ring-of-spell-storing': ['a-casting-an-item-stores-or-gives-back'],
+  'ring-of-spell-turning': ['a-mode-on-the-save-a-spell-forces', 'a-reaction-an-item-grants'],
+  'ring-of-swimming': ['a-speed-an-item-grants', 'movement-modes'],
+  'ring-of-telekinesis': ['a-spell-an-item-casts-that-nothing-executes'],
+  'ring-of-the-ram': [
+    'a-damage-roll-an-item-makes',
+    'a-charge-spent-on-something-other-than-a-casting',
+  ],
+  'ring-of-three-wishes': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'ring-of-warmth': ['a-reduction-an-effect-applies-to-damage'],
+  'ring-of-water-walking': ['a-spell-an-item-casts-that-nothing-executes'],
+  'ring-of-x-ray-vision': [
+    'senses-beyond-declared-sight',
+    'a-benefit-an-item-switches-on-and-off',
+    'a-save-an-item-forces',
+    'an-exhaustion-level-a-spell-changes',
+  ],
+  'robe-of-eyes': [
+    'a-fact-only-the-table-can-declare',
+    'senses-beyond-declared-sight',
+    'a-condition-an-item-imposes',
+    'a-save-an-item-forces',
+  ],
+  'robe-of-scintillating-colors': [
+    'a-condition-an-item-imposes',
+    'a-save-an-item-forces',
+    'a-charge-spent-on-something-other-than-a-casting',
+    'an-area-an-item-creates',
+  ],
+  'robe-of-the-archmagi': ['a-bonus-to-spell-attack-rolls', 'a-mode-on-the-save-a-spell-forces'],
+  'robe-of-useful-items': [
+    'an-object-with-statistics-of-its-own',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'rod-of-absorption': ['a-casting-an-item-stores-or-gives-back', 'a-reaction-an-item-grants'],
+  'rod-of-alertness': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-area-an-item-creates',
+    'senses-beyond-declared-sight',
+  ],
+  'rod-of-lordly-might': [
+    'a-benefit-an-item-switches-on-and-off',
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'a-damage-roll-an-item-makes',
+  ],
+  'rod-of-resurrection': ['a-spell-an-item-casts-that-nothing-executes'],
+  'rod-of-rulership': ['a-save-an-item-forces', 'a-condition-an-item-imposes'],
+  'rod-of-security': ['a-fact-only-the-table-can-declare', 'healing-modified-by-an-effect'],
+  'rope-of-climbing': ['an-object-with-statistics-of-its-own', 'a-bonus-narrowed-to-a-skill'],
+  'rope-of-entanglement': [
+    'an-object-with-statistics-of-its-own',
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+  ],
+  'scarab-of-protection': [
+    'a-reaction-an-item-grants',
+    'a-mode-on-the-save-a-spell-forces',
+    'a-charge-spent-on-something-other-than-a-casting',
+  ],
+  'sending-stones': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'shield-of-missile-attraction': ['what-ends-attunement-besides-a-command'],
+  'slippers-of-spider-climbing': ['a-speed-an-item-grants', 'movement-modes'],
+  'sovereign-glue': [
+    {
+      clause: 'can form a permanent adhesive bond between any two objects',
+      why: 'table',
+      note: 'an adhesive bond is not a mechanical state: nothing in the engine holds two objects together, and no rule would ask.',
+    },
+    {
+      clause: 'a container contains 1d6 + 1 ounces',
+      why: 'an-item-instance-with-a-state-of-its-own',
+      note: 'the ounces are a count on **this** jar, rolled when it is found and spent an ounce at a time. A catalogue row is the same for everybody, so there is nowhere to put them — which is the identity docs/design/characters-and-equipment.md still owes, arriving on an item with no other rules at all.',
+    },
+  ],
+  'spell-scroll': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'spellguard-shield': ['a-mode-on-the-save-a-spell-forces'],
+  'sphere-of-annihilation': [
+    'an-object-with-statistics-of-its-own',
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+  ],
+  'staff-of-charming': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-reaction-an-item-grants',
+    'a-charge-spent-on-something-other-than-a-casting',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'staff-of-frost': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'staff-of-healing': [
+    'a-charge-spent-on-something-other-than-a-casting',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'staff-of-power': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-bonus-to-spell-attack-rolls',
+    'a-rider-on-the-face-the-die-showed',
+    'an-area-an-item-creates',
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+  ],
+  'staff-of-striking': ['a-charge-spent-on-something-other-than-a-casting'],
+  'staff-of-swarming-insects': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-area-an-item-creates',
+    'a-charge-spent-on-something-other-than-a-casting',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'staff-of-the-magi': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-bonus-to-spell-attack-rolls',
+    'a-casting-an-item-stores-or-gives-back',
+    'an-area-an-item-creates',
+    'a-save-an-item-forces',
+    'a-damage-roll-an-item-makes',
+  ],
+  'staff-of-the-python': [
+    'a-stat-block-created-mid-fight',
+    'an-object-with-statistics-of-its-own',
+  ],
+  'staff-of-the-woodlands': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-bonus-to-spell-attack-rolls',
+    'an-object-with-statistics-of-its-own',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'staff-of-thunder-and-lightning': [
+    'a-rider-on-a-later-weapon-attack',
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'an-area-an-item-creates',
+    'a-damage-roll-an-item-makes',
+  ],
+  'staff-of-withering': [
+    'a-charge-spent-on-something-other-than-a-casting',
+    'a-save-an-item-forces',
+    'a-rider-on-a-later-weapon-attack',
+  ],
+  'stone-of-controlling-earth-elementals': ['a-stat-block-created-mid-fight'],
+  'sun-blade': [
+    'a-benefit-an-item-switches-on-and-off',
+    'a-rider-on-a-later-weapon-attack',
+    'a-language-or-a-proficiency-an-item-grants',
+  ],
+  'sword-of-life-stealing': ['a-rider-on-the-face-the-die-showed'],
+  'sword-of-sharpness': [
+    'a-rider-on-the-face-the-die-showed',
+    'an-exhaustion-level-a-spell-changes',
+  ],
+  'talisman-of-pure-good': [
+    'a-bonus-to-spell-attack-rolls',
+    'a-damage-roll-an-item-makes',
+    'a-save-an-item-forces',
+    'a-charge-spent-on-something-other-than-a-casting',
+    'a-filter-on-the-attackers-creature-type',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'talisman-of-the-sphere': [
+    'a-fact-only-the-table-can-declare',
+    'an-object-with-statistics-of-its-own',
+  ],
+  'talisman-of-ultimate-evil': [
+    'a-bonus-to-spell-attack-rolls',
+    'a-damage-roll-an-item-makes',
+    'a-save-an-item-forces',
+    'a-charge-spent-on-something-other-than-a-casting',
+    'a-filter-on-the-attackers-creature-type',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'thunderous-greatclub': [
+    'an-ability-score-a-spell-changes',
+    'an-area-an-item-creates',
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'a-damage-roll-an-item-makes',
+  ],
+  'tome-of-clear-thought': [
+    'an-ability-score-a-spell-changes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'tome-of-leadership-and-influence': [
+    'an-ability-score-a-spell-changes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'tome-of-understanding': [
+    'an-ability-score-a-spell-changes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'trident-of-fish-command': [
+    'a-target-rule-the-format-cannot-state',
+    'a-save-an-item-forces',
+  ],
+  'universal-solvent': [
+    {
+      clause: 'a tube contains 1d6 + 1 ounces',
+      why: 'an-item-instance-with-a-state-of-its-own',
+      note: 'the same count Sovereign Glue’s jar carries, and the same absent identity: an ounce spent is a fact about this tube, and a catalogue row is the same for everybody.',
+    },
+    {
+      clause: 'onto a surface within reach',
+      why: 'table',
+      note: 'reach here is the arm’s, not a weapon’s: nothing is targeted, no roll is made, and the engine’s ruler is never asked. Dissolving an adhesive is the table’s.',
+    },
+  ],
+  'wand-of-binding': ['a-save-an-item-forces', 'a-rider-on-the-face-the-die-showed'],
+  'wand-of-enemy-detection': [
+    'senses-beyond-declared-sight',
+    'a-rider-on-the-face-the-die-showed',
+    'a-charge-spent-on-something-other-than-a-casting',
+  ],
+  'wand-of-fear': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-save-an-item-forces',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'wand-of-lightning-bolts': [
+    'a-save-an-item-forces',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'wand-of-magic-detection': ['a-spell-an-item-casts-that-nothing-executes'],
+  'wand-of-magic-missiles': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'wand-of-paralysis': [
+    'a-save-an-item-forces',
+    'a-condition-an-item-imposes',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'wand-of-polymorph': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'wand-of-the-war-mage-1-2-or-3': [
+    'a-bonus-to-spell-attack-rolls',
+    'a-fact-only-the-table-can-declare',
+  ],
+  'wand-of-wonder': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'a-version-of-an-item-the-book-leaves-to-the-gm',
+    'a-save-an-item-forces',
+    'a-rider-on-the-face-the-die-showed',
+  ],
+  'well-of-many-worlds': {
+    unread:
+      'read, and the blocker cannot be named without inventing a shape. A two-way portal between planes is neither an area, nor an object with statistics, nor a teleport destination stated at a casting, and nothing in this repository has described a planar portal as a gap. It is not fiction either — creatures pass through it — so it may not be filed as the table’s.',
+  },
+  'wind-fan': [
+    'a-spell-an-item-casts-that-nothing-executes',
+    'an-item-instance-with-a-state-of-its-own',
+  ],
+  'winged-boots': [
+    'a-speed-an-item-grants',
+    'movement-modes',
+    'a-charge-spent-on-something-other-than-a-casting',
+  ],
+  'wings-of-flying': [
+    'a-speed-an-item-grants',
+    'movement-modes',
+    'a-benefit-an-item-switches-on-and-off',
+  ],
+};
+
+// — the item query ————————————————————————————————————————————————————————————
+
+/** Every entry of "Magic Items A–Z", by id. */
+export const parsedItemIds = (): readonly string[] => magicItemEntries().map((entry) => entry.id);
+
+/** Every entry at least one catalogue record was read from, by id. */
+export const transcribedItemIds = (): ReadonlySet<string> =>
+  new Set(transcribedItems().map(([, entry]) => entry.id));
+
+/**
+ * The entry's printed fields, which no sentence of its prose states.
+ *
+ * `printedFieldsOf`'s counterpart: the type line and the charge line are
+ * printed *above* the paragraph, and a clause about an attunement bracket or a
+ * charge count has nothing in the prose to anchor to. Kept apart from the
+ * sentences for that function's own reason — only a sentence is a **claim**.
+ */
+export const itemPrintedFieldsOf = (entryId: string): readonly string[] => {
+  const entry = itemEntryOrThrow(entryId);
+  const charges =
+    entry.charges === null
+      ? 'Charges: none'
+      : `Charges: ${entry.charges.maximum ?? entry.charges.formula ?? ''}`;
+  return [
+    `Rarity: ${entry.rarity.text}`,
+    `Attunement: ${entry.requiresAttunement ? (entry.attunementPrerequisite ?? 'Requires Attunement') : 'none'}`,
+    charges,
+  ];
+};
+
+/**
+ * An entry's prose, as sentences.
+ *
+ * **The markup is dropped and the wording is not**, which is the one thing
+ * this does that `sentencesOf` does not have to: the magic-item parser keeps
+ * each entry's prose "verbatim, tables included", and the tables are HTML. A
+ * tag is typesetting by the same argument that makes emphasis wording, so the
+ * tags go and every word between them stays.
+ *
+ * It can still throw {@link SentenceSplitError}, and the loudness is the point:
+ * a few of the book's tables hold a cell longer than any sentence, so the first
+ * person to read one of those entries sentence by sentence finds out rather
+ * than getting one adjudication covering a page. That is the same trade the
+ * spell side made, arriving for a different reason.
+ */
+export const itemSentencesOf = (entryId: string): readonly string[] =>
+  splitSentences(itemEntryOrThrow(entryId).description.replace(/<[^>]*>/g, ' '));
+
+/** Everything a clause may be anchored to: the printed fields, then the prose. */
+export const itemPrintedUnitsOf = (entryId: string): readonly string[] => [
+  ...itemPrintedFieldsOf(entryId),
+  ...itemSentencesOf(entryId),
+];
+
+let itemsById: Map<string, MagicItem> | undefined;
+
+const itemEntryOrThrow = (entryId: string): MagicItem => {
+  itemsById ??= new Map(magicItemEntries().map((entry) => [entry.id, entry]));
+  const found = itemsById.get(entryId);
+  if (found === undefined) throw new Error(`${entryId} is not a parsed SRD magic item`);
+  return found;
+};
+
+/** The clauses an entry names, which for a grandfathered or unread entry is none. */
+export const itemClausesIn = (entry: ItemEntry): readonly ItemClause[] =>
+  isUnread(entry) ? [] : entry.filter((blocker): blocker is ItemClause => typeof blocker !== 'string');
+
+/** The shapes an entry names, however it names them — deduplicated and sorted. */
+export const itemBlockersIn = (entry: ItemEntry): readonly ItemBlockerId[] =>
+  isUnread(entry)
+    ? []
+    : [
+        ...new Set(
+          entry.flatMap((blocker) =>
+            typeof blocker === 'string'
+              ? [blocker]
+              : blocker.why === 'table' || blocker.why === 'expressible'
+                ? []
+                : [blocker.why],
+          ),
+        ),
+      ].sort();
+
+/** The shapes blocking one entry, by id. */
+export const itemBlockersOf = (entryId: string): readonly ItemBlockerId[] =>
+  itemBlockersIn(ITEM_BLOCKED_ON[entryId] ?? []);
+
+/** The phrases an entry's printed text does not say exactly once. */
+export const unanchoredItemClauses = (
+  entryId: string,
+  entry: ItemEntry = ITEM_BLOCKED_ON[entryId] ?? [],
+): readonly UnanchoredClause[] =>
+  unanchoredWithin(
+    entryId,
+    itemPrintedUnitsOf(entryId),
+    itemClausesIn(entry).map((clause) => clause.clause),
+  );
+
+/**
+ * The sentences of an entry's prose that name a mechanic and carry no clause.
+ *
+ * `sentenceGaps` over the other book, reading the **same** marker list. A
+ * second list spelled alike would be a second answer to one question, which is
+ * the failure this whole file is a correction of.
+ */
+export const itemSentenceGaps = (
+  entryId: string,
+  entry: ItemEntry = ITEM_BLOCKED_ON[entryId] ?? [],
+): readonly SentenceGap[] => {
+  const phrases = itemClausesIn(entry).map((clause) => flatten(clause.clause));
+  return itemSentencesOf(entryId)
+    .filter((sentence) => markersIn(sentence).length > 0)
+    .filter((sentence) => !phrases.some((phrase) => sentence.includes(phrase)))
+    .map((sentence) => ({ spell: entryId, sentence, markers: markersIn(sentence) }));
+};
+
+/** Has somebody read this entry sentence by sentence? */
+export const isItemRead = (
+  entryId: string,
+  entry: ItemEntry = ITEM_BLOCKED_ON[entryId] ?? [],
+): boolean => itemClausesIn(entry).length > 0 && itemSentenceGaps(entryId, entry).length === 0;
+
+/**
+ * Where one parsed entry stands, in exactly one word.
+ *
+ * **Total, and arranged so that every way of failing to do the work lands in
+ * `unread`.** An entry with no line at all, an entry that says it is unread, and
+ * an entry claiming no blocker without a recorded reading all arrive at the same
+ * honest answer. `ready` is the only state a brief transcribes from, and the
+ * three conditions on it are the three ways the previous sentence could have
+ * been got wrong: somebody read it, no clause names a shape, and at least one
+ * clause is something the vocabulary can actually write down.
+ */
+export type ItemPile = 'transcribed' | 'blocked' | 'ready' | 'fiction' | 'unread';
+
+export const itemPileOf = (
+  entryId: string,
+  transcribed: ReadonlySet<string>,
+  blockedOn: Readonly<Record<string, ItemEntry>> = ITEM_BLOCKED_ON,
+): ItemPile => {
+  if (transcribed.has(entryId)) return 'transcribed';
+  const entry = blockedOn[entryId];
+  if (entry === undefined || isUnread(entry)) return 'unread';
+  if (itemBlockersIn(entry).length > 0) return 'blocked';
+  if (!isItemRead(entryId, entry)) return 'unread';
+  return itemClausesIn(entry).some((clause) => clause.why === 'expressible') ? 'ready' : 'fiction';
+};
+
+/** Every parsed entry, sorted into its one pile. */
+export const itemPiles = (
+  parsed: readonly string[],
+  transcribed: ReadonlySet<string>,
+  blockedOn: Readonly<Record<string, ItemEntry>> = ITEM_BLOCKED_ON,
+): Readonly<Record<ItemPile, readonly string[]>> => {
+  const piles: Record<ItemPile, string[]> = {
+    transcribed: [],
+    blocked: [],
+    ready: [],
+    fiction: [],
+    unread: [],
+  };
+  for (const id of [...parsed].sort()) piles[itemPileOf(id, transcribed, blockedOn)].push(id);
+  return piles;
+};
+
+/**
+ * The two ways `ITEM_BLOCKED_ON` can fail to cover its population.
+ *
+ * {@link coverageGaps} for items, parameterised for its reason: a guard that
+ * can only be run against the data it already agrees with is not a guard, so
+ * the tests drive this with a synthetic catalogue holding an entry nobody has
+ * read, and with a synthetic transcription that must make a line stale.
+ */
+export const itemCoverageGaps = (
+  parsed: readonly string[],
+  transcribed: ReadonlySet<string>,
+  blockedOn: Readonly<Record<string, unknown>> = ITEM_BLOCKED_ON,
+): { readonly unrecorded: readonly string[]; readonly stale: readonly string[] } => {
+  const open = new Set(parsed.filter((id) => !transcribed.has(id)));
+  return {
+    unrecorded: [...open].filter((id) => blockedOn[id] === undefined).sort(),
+    stale: Object.keys(blockedOn)
+      .filter((id) => !open.has(id))
+      .sort(),
+  };
+};
+
+export interface ItemShapeConsumers {
+  readonly shape: ItemBlockerId;
+  /** Untranscribed entries this shape blocks. */
+  readonly blocks: readonly string[];
+  /** The entries it is the **only** blocker for: building it finishes exactly these. */
+  readonly finishes: readonly string[];
+  /** Of those, the ones somebody has read sentence by sentence. */
+  readonly finishesRead: readonly string[];
+  /** And the ones still grandfathered, which is most of them. */
+  readonly finishesUnread: readonly string[];
+}
+
+/** How many untranscribed entries a shape blocks, and which. */
+export function itemConsumersOf(shape: ItemBlockerId): ItemShapeConsumers {
+  const blocks = sorted(
+    Object.entries(ITEM_BLOCKED_ON)
+      .filter(([, entry]) => itemBlockersIn(entry).includes(shape))
+      .map(([id]) => id),
+  );
+  const finishes = blocks.filter((id) => itemBlockersOf(id).length === 1);
+  return {
+    shape,
+    blocks,
+    finishes,
+    finishesRead: finishes.filter((id) => isItemRead(id)),
+    finishesUnread: finishes.filter((id) => !isItemRead(id)),
+  };
+}
+
+/** Every shape any item entry claims, which is what keeps the map from rotting. */
+export function claimedItemShapes(): ReadonlySet<string> {
+  return new Set(Object.values(ITEM_BLOCKED_ON).flatMap((entry) => itemBlockersIn(entry)));
+}
+
+/**
+ * Every shape an item is blocked on, heaviest first.
+ *
+ * Over the shapes items **claim**, which is the item vocabulary and whichever
+ * of the spell vocabulary the book's items also want — because a shape is worth
+ * building for what it unblocks everywhere, and an item map that printed only
+ * its own ids would hide that the largest item blocker is a missing *spell*.
+ */
+export function allItemShapeConsumers(): readonly ItemShapeConsumers[] {
+  return [...claimedItemShapes()]
+    .map((shape) => itemConsumersOf(shape as ItemBlockerId))
+    .sort(
+      (a, b) =>
+        b.finishes.length - a.finishes.length ||
+        b.blocks.length - a.blocks.length ||
+        a.shape.localeCompare(b.shape),
+    );
+}

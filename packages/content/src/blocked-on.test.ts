@@ -12,6 +12,9 @@ import {
 import {
   ADJUDICATED,
   BLOCKED_ON,
+  ITEM_BLOCKED_ON,
+  ITEM_SHAPES,
+  itemClausesIn,
   MAX_SENTENCE,
   MISSING_SHAPES,
   SPLIT_BUNDLES,
@@ -1253,10 +1256,36 @@ const CITED_SOURCES: readonly CitedSource[] = [
     label: 'docs/archive/design/rolls-and-damage.md',
     files: ['docs/archive/design/rolls-and-damage.md'],
   },
+  // **Two files under one name**, the way `spell-definitions.ts` above already
+  // resolves to two. The archived copy is where the equipment architecture was
+  // reviewed and is what the spell map's notes quote; the current document is
+  // where the magic-item architecture was written afterwards, and it holds the
+  // two sentences the item map cites — the instance identity and what ends an
+  // attunement. Registering a second name for the same document would have
+  // been the drifting copy this table exists to avoid.
   {
     name: 'characters-and-equipment.md',
     label: 'docs/archive/design/characters-and-equipment.md',
-    files: ['docs/archive/design/characters-and-equipment.md'],
+    files: [
+      'docs/archive/design/characters-and-equipment.md',
+      'docs/design/characters-and-equipment.md',
+    ],
+  },
+  // Registered with their first citations, which is what the note on
+  // `claude-integration.md` below says to do. All three are where an **item's**
+  // gaps were already written down and reviewed: the boundary note, the
+  // validator that refuses an item's grant by name, and the catalogue file that
+  // states the three rules deciding what is transcribed.
+  { name: 'content.md', label: 'docs/design/content.md', files: ['docs/design/content.md'] },
+  {
+    name: 'content.ts',
+    label: 'packages/engine/src/content.ts',
+    files: ['packages/engine/src/content.ts'],
+  },
+  {
+    name: 'items.ts',
+    label: 'packages/content/src/items.ts',
+    files: ['packages/content/src/items.ts'],
   },
   // `docs/design/claude-integration.md` is not registered for the same
   // reason: nothing quotes it yet. Register it with its first citation.
@@ -1318,6 +1347,14 @@ function citedProse(): Array<readonly [string, string]> {
     ...Object.entries(BLOCKED_ON).flatMap(([spellId, entry]) =>
       clausesIn(entry).map((clause) => [`${spellId}: ${clause.clause}`, clause.note] as const),
     ),
+    // The item vocabulary and the item map's clause notes, held to the same
+    // rule by the same guard. A second corpus with a second copy of the
+    // attribution rule would be the drifting spelling this file keeps a record
+    // of; one corpus, one rule, two populations.
+    ...Object.entries(ITEM_SHAPES).map(([shape, description]) => [shape, description] as const),
+    ...Object.entries(ITEM_BLOCKED_ON).flatMap(([entryId, entry]) =>
+      itemClausesIn(entry).map((clause) => [`${entryId}: ${clause.clause}`, clause.note] as const),
+    ),
   ];
 }
 
@@ -1334,7 +1371,12 @@ describe('a shape says where this repository already described it', () => {
     const sources = CITED_SOURCES.filter((source) => source.files.length > 0).map(
       (source) => source.name,
     );
-    for (const [shape, description] of Object.entries(MISSING_SHAPES)) {
+    // Both vocabularies, because the item half is a vocabulary over the same
+    // repository and the rule it has to keep is the same one.
+    for (const [shape, description] of [
+      ...Object.entries(MISSING_SHAPES),
+      ...Object.entries(ITEM_SHAPES),
+    ]) {
       const said = description.toLowerCase();
       expect(
         sources.filter((source) => said.includes(source)),
@@ -1345,7 +1387,10 @@ describe('a shape says where this repository already described it', () => {
 
   /** A description that says nothing is a licence, so each must be a real sentence. */
   it('writes a real sentence for every shape', () => {
-    for (const [shape, description] of Object.entries(MISSING_SHAPES)) {
+    for (const [shape, description] of [
+      ...Object.entries(MISSING_SHAPES),
+      ...Object.entries(ITEM_SHAPES),
+    ]) {
       expect(description.length, shape).toBeGreaterThan(120);
     }
   });
