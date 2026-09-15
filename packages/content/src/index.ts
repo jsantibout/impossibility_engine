@@ -27,7 +27,14 @@ import { SORCERER, SORCERER_SUBCLASSES } from './classes/sorcerer.js';
 import { WARLOCK, WARLOCK_SUBCLASSES } from './classes/warlock.js';
 import { WIZARD, WIZARD_SUBCLASSES } from './classes/wizard.js';
 import { SRD_ITEMS } from './items.js';
-import { BACKGROUNDS, FIGHTING_STYLE_FEATS, ORIGIN_FEATS, SPECIES } from './origins.js';
+import {
+  ALIGNMENTS,
+  BACKGROUNDS,
+  FIGHTING_STYLE_FEATS,
+  LANGUAGES,
+  ORIGIN_FEATS,
+  SPECIES,
+} from './origins.js';
 import { SPELL_DEFINITIONS } from './spells.js';
 
 export * from './spells.js';
@@ -88,6 +95,8 @@ export const SRD_CONTENT_INPUT = {
   backgrounds: BACKGROUNDS,
   feats: [...ORIGIN_FEATS, ...FIGHTING_STYLE_FEATS],
   items: SRD_ITEMS,
+  languages: LANGUAGES,
+  alignments: ALIGNMENTS,
 } as const;
 
 /** The SRD 5.2.1 catalogue, validated. */

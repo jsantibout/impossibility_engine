@@ -13,7 +13,12 @@ import {
   type Content,
 } from './content.js';
 import { activateFeature, resolveSpell } from './commands.js';
-import { checkCharacter, createCharacter, type CharacterChoices } from './creation.js';
+import {
+  checkCharacter,
+  createCharacter,
+  planCharacter,
+  type CharacterChoices,
+} from './creation.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent } from './events.js';
 import { declaredCasting } from './spellcasting.js';
@@ -461,5 +466,166 @@ describe('the SRD catalogue is content like any other', () => {
     expect(SRD_CONTENT.featById('magic-initiate')?.requires.kind).toBe('magic-initiate');
     expect(SRD_CONTENT.item('chain-shirt')?.armor?.category).toBe('medium');
     expect(SRD_CONTENT.expandPack('scholars-pack').length).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * Languages and alignments are catalogue, not mechanics.
+ *
+ * A world with its own tongues, or with a different alignment axis, or with
+ * none at all, is a content change and nothing else — the same door the
+ * homebrew spell and the homebrew class above went through. What stays the
+ * engine's is the *rule*: the language everybody speaks plus a fixed number
+ * more, whoever "everybody" turns out to speak in this world.
+ */
+const SKYSPEECH = JSON.stringify({
+  languages: [
+    { id: 'skyspeech', name: 'Skyspeech' },
+    { id: 'deep-hymn', name: 'Deep Hymn', availability: 'rare' },
+  ],
+});
+
+describe('languages and alignments go through the same door as the book', () => {
+  const world = unwrap(extendContent(SRD_CONTENT, JSON.parse(SKYSPEECH)), 'extend');
+  /** A character valid in every other respect, so only the tongue is on trial. */
+  const speaking = (languages: readonly string[]): CharacterChoices => ({
+    ...wizardWith(['identify']),
+    languages,
+  });
+
+  it('lets a character choose a language the SRD never printed', () => {
+    const codes = checkCharacter(world, speaking(['Skyspeech', 'Draconic'])).map((p) => p.code);
+    expect(codes).not.toContain('unknown_language');
+    expect(isErr(createCharacter(world, speaking(['Skyspeech', 'Draconic']), id('kessa')))).toBe(
+      false,
+    );
+  });
+
+  it('refuses one this world does not hold, as a value naming what it does', () => {
+    const problems = checkCharacter(SRD_CONTENT, speaking(['Skyspeech', 'Draconic']));
+    const refusal = problems.find((p) => p.code === 'unknown_language');
+    expect(refusal?.field).toBe('languages');
+    expect(refusal?.reason).toContain('Skyspeech');
+    expect(refusal?.reason).toContain('Dwarvish');
+    expect(
+      isErr(createCharacter(SRD_CONTENT, speaking(['Skyspeech', 'Draconic']), id('kessa'))),
+    ).toBe(true);
+  });
+
+  it('refuses one the world holds but a character does not choose at creation', () => {
+    const codes = checkCharacter(world, speaking(['Deep Hymn', 'Draconic'])).map((p) => p.code);
+    expect(codes).toContain('unknown_language');
+  });
+
+  it('knows whichever language this world gives everyone, not Common by name', () => {
+    const elsewhere = unwrap(
+      createContent({
+        ...SRD_CONTENT_INPUT,
+        languages: [
+          { id: 'skyspeech', name: 'Skyspeech', availability: 'everyone' },
+          { id: 'deep-hymn', name: 'Deep Hymn' },
+          { id: 'root-cant', name: 'Root Cant' },
+        ],
+      }),
+      'elsewhere',
+    );
+    const planned = planCharacter(elsewhere, speaking(['Deep Hymn', 'Root Cant']));
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(planned.value.languages).toEqual(['Skyspeech', 'Deep Hymn', 'Root Cant']);
+  });
+
+  it('counts the choices the same where nobody speaks a common tongue', () => {
+    const babel = unwrap(
+      createContent({
+        ...SRD_CONTENT_INPUT,
+        languages: [
+          { id: 'deep-hymn', name: 'Deep Hymn' },
+          { id: 'root-cant', name: 'Root Cant' },
+        ],
+      }),
+      'babel',
+    );
+    const counted = (world: Content, languages: readonly string[]) =>
+      checkCharacter(world, speaking(languages)).find((p) => p.code === 'wrong_language_count');
+    // The count is the engine's rule and does not move; only the sentence
+    // does, because there is no Common to say "plus" about.
+    expect(counted(babel, ['Deep Hymn'])?.reason).toBe('a character chooses 2 languages, got 1');
+    expect(counted(SRD_CONTENT, ['Draconic'])?.reason).toBe(
+      'a character knows Common plus 2 more, got 1',
+    );
+    expect(counted(babel, ['Deep Hymn', 'Root Cant'])).toBeUndefined();
+  });
+
+  it('takes a world that names no language, and claims nothing about tongues', () => {
+    const wordless = unwrap(createContent({ ...SRD_CONTENT_INPUT, languages: [] }), 'wordless');
+    const codes = checkCharacter(wordless, speaking(['Thorn Speech', 'Tide Cant'])).map(
+      (p) => p.code,
+    );
+    expect(codes).not.toContain('unknown_language');
+    // The count is still the engine's rule, and still bites.
+    expect(checkCharacter(wordless, speaking(['Thorn Speech'])).map((p) => p.code)).toContain(
+      'wrong_language_count',
+    );
+  });
+
+  it('takes a different alignment axis, and refuses the SRD nine against it', () => {
+    const wheel = unwrap(
+      createContent({
+        ...SRD_CONTENT_INPUT,
+        alignments: [
+          { id: 'ordered', name: 'Ordered' },
+          { id: 'wild', name: 'Wild' },
+        ],
+      }),
+      'wheel',
+    );
+    const ordered = { ...wizardWith(['identify']), alignment: 'Ordered' };
+    expect(checkCharacter(wheel, ordered).map((p) => p.code)).not.toContain('unknown_alignment');
+    expect(isErr(createCharacter(wheel, ordered, id('kessa')))).toBe(false);
+
+    const refusal = checkCharacter(wheel, wizardWith(['identify'])).find(
+      (p) => p.code === 'unknown_alignment',
+    );
+    expect(refusal?.reason).toContain('Ordered');
+    expect(refusal?.reason).toContain('Wild');
+  });
+
+  it('takes a world with no alignment axis at all', () => {
+    const axisless = unwrap(createContent({ ...SRD_CONTENT_INPUT, alignments: [] }), 'axisless');
+    const nobody = { ...wizardWith(['identify']), alignment: '' };
+    expect(checkCharacter(axisless, nobody).map((p) => p.code)).not.toContain('unknown_alignment');
+    expect(isErr(createCharacter(axisless, nobody, id('kessa')))).toBe(false);
+  });
+
+  it('refuses a malformed language or alignment at the door, with a path', () => {
+    const codeOf = (value: unknown): string => {
+      const result = loadContent(value);
+      expect(isErr(result)).toBe(true);
+      return result.ok ? '' : `${result.code}: ${result.reason}`;
+    };
+    expect(codeOf({ languages: [{ id: 'x' }] })).toContain('bad_language');
+    expect(codeOf({ languages: [{ id: 'x', name: 'X', availability: 'sometimes' }] })).toContain(
+      'bad_language',
+    );
+    expect(codeOf({ alignments: [{ id: 'x' }] })).toContain('bad_alignment');
+    expect(
+      checkContent({
+        languages: [
+          { id: 'skyspeech', name: 'Skyspeech' },
+          { id: 'sky-speech', name: 'Skyspeech' },
+        ],
+      }).map((p) => p.code),
+    ).toContain('duplicate_name');
+  });
+
+  it('is the SRD’s own list, answered by the catalogue rather than the engine', () => {
+    expect(SRD_CONTENT.languages.map((l) => l.name)).toContain('Common');
+    expect(SRD_CONTENT.languageNamed('Common')?.availability).toBe('everyone');
+    expect(SRD_CONTENT.languageNamed('Ignan')).toBeNull();
+    expect(SRD_CONTENT.alignments).toHaveLength(9);
+    expect(SRD_CONTENT.alignmentNamed('Lawful Sarcastic')).toBeNull();
+    expect(emptyContent().languages).toEqual([]);
+    expect(emptyContent().alignmentNamed('Neutral')).toBeNull();
   });
 });

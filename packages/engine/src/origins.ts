@@ -57,23 +57,40 @@ export const POINT_COSTS: Readonly<Record<number, number>> = {
 };
 
 /**
- * SRD "Choose Languages": "Your character knows at least three languages:
- * Common plus two languages you roll or choose from the Standard Languages
- * table."
+ * A language a world holds.
+ *
+ * Content, not engine: which tongues exist is a campaign's to say, and a
+ * setting with its own — or with none of the SRD's — reaches the engine
+ * through `createContent` like every other catalogue.
+ *
+ * The **name** is the handle. It is what a character's choices name and what
+ * is written on the sheet, so it is what creation matches; the id is the
+ * catalogue's own, unique as every population's is.
  */
-export const COMMON = 'Common';
-export const STANDARD_LANGUAGES: readonly string[] = [
-  'Common',
-  'Common Sign Language',
-  'Draconic',
-  'Dwarvish',
-  'Elvish',
-  'Giant',
-  'Gnomish',
-  'Goblin',
-  'Halfling',
-  'Orc',
-];
+export interface LanguageDefinition {
+  readonly id: string;
+  readonly name: string;
+  /**
+   * How a character comes by it at creation.
+   *
+   * - `everyone` — known without spending a choice. SRD's Common: "Common
+   *   plus two languages you roll or choose".
+   * - `standard` — on the table a character chooses from. The default.
+   * - `rare` — the world holds it, but it is a GM's to hand out rather than a
+   *   creation choice, so choosing it at creation is refused.
+   */
+  readonly availability?: 'everyone' | 'standard' | 'rare';
+}
+
+/**
+ * How many languages a character chooses beyond the ones everyone speaks.
+ *
+ * **A rule of character creation, so it stays an engine number** — the same
+ * kind of thing as {@link STANDARD_ARRAY} and {@link POINT_BUY_BUDGET}, which
+ * SRD prints on the same page and which no catalogue supplies either. What
+ * languages *exist*, and which of them everybody speaks, is the world's
+ * answer and lives in content; how many a character picks is the book's.
+ */
 export const LANGUAGES_CHOSEN = 2;
 
 /** What an Origin feat asks for when it is taken. */
@@ -96,21 +113,19 @@ export interface FeatDefinition {
 }
 
 /**
- * SRD Step 4: "Choose your character's alignment... and note it on your
- * character sheet."
+ * An alignment a world recognises.
  *
- * A required choice with no mechanics attached — 2024 hangs nothing off it.
- * Recorded rather than derived from, and validated only so a typo cannot slip
- * through as an alignment nobody has heard of.
+ * SRD Step 4: "Choose your character's alignment... and note it on your
+ * character sheet." A choice with no mechanics attached — 2024 hangs nothing
+ * off it — recorded rather than derived from, and checked only so a typo
+ * cannot slip through as an alignment nobody has heard of.
+ *
+ * Which alignments there are is the setting's question, not the engine's: the
+ * nine are the SRD's answer, a world with three is as good, and a world that
+ * declares none makes no claim at all and any answer stands. Matched by name,
+ * for the reason {@link LanguageDefinition} is.
  */
-export const ALIGNMENTS: readonly string[] = [
-  'Lawful Good',
-  'Neutral Good',
-  'Chaotic Good',
-  'Lawful Neutral',
-  'Neutral',
-  'Chaotic Neutral',
-  'Lawful Evil',
-  'Neutral Evil',
-  'Chaotic Evil',
-];
+export interface AlignmentDefinition {
+  readonly id: string;
+  readonly name: string;
+}

@@ -6,7 +6,13 @@ import {
   parseFeatureDefinition,
   type FeatureContext,
 } from './feature-schema.js';
-import type { BackgroundDefinition, FeatDefinition, SpeciesDefinition } from './origins.js';
+import type {
+  AlignmentDefinition,
+  BackgroundDefinition,
+  FeatDefinition,
+  LanguageDefinition,
+  SpeciesDefinition,
+} from './origins.js';
 import {
   MAX_LEVEL,
   type ClassDefinition,
@@ -67,6 +73,8 @@ export interface ContentInput {
   readonly backgrounds?: readonly BackgroundDefinition[];
   readonly feats?: readonly FeatDefinition[];
   readonly items?: readonly CatalogueItem[];
+  readonly languages?: readonly LanguageDefinition[];
+  readonly alignments?: readonly AlignmentDefinition[];
 }
 
 export interface Content {
@@ -78,6 +86,8 @@ export interface Content {
   readonly backgrounds: readonly BackgroundDefinition[];
   readonly feats: readonly FeatDefinition[];
   readonly items: readonly CatalogueItem[];
+  readonly languages: readonly LanguageDefinition[];
+  readonly alignments: readonly AlignmentDefinition[];
 
   /** The executable definition, or null: the engine can look a spell up but only executes the ones it has been given. */
   readonly spell: (id: string) => SpellDefinition | null;
@@ -89,6 +99,9 @@ export interface Content {
   readonly backgroundById: (id: string) => BackgroundDefinition | null;
   readonly featById: (id: string) => FeatDefinition | null;
   readonly item: (id: string) => CatalogueItem | null;
+  /** By the name written on a character sheet, which is what a choice names. */
+  readonly languageNamed: (name: string) => LanguageDefinition | null;
+  readonly alignmentNamed: (name: string) => AlignmentDefinition | null;
   /**
    * Everything a pack puts in your hands, the pack itself included.
    *
@@ -171,6 +184,8 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   const backgrounds = input.backgrounds ?? [];
   const feats = input.feats ?? [];
   const items = input.items ?? [];
+  const languages = input.languages ?? [];
+  const alignments = input.alignments ?? [];
 
   for (const [what, rows] of [
     ['spells', spells],
@@ -181,6 +196,8 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
     ['backgrounds', backgrounds],
     ['feats', feats],
     ['items', items],
+    ['languages', languages],
+    ['alignments', alignments],
   ] as const) {
     for (const id of duplicates(rows.map((row) => row.id))) {
       problems.push({ field: `${what}[${id}]`, code: 'duplicate_id', reason: `${what} holds ${id} twice` });
@@ -189,6 +206,17 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       if (!ID.test(row.id)) {
         problems.push({ field: `${what}[${row.id}]`, code: 'bad_id', reason: `"${row.id}" is not a lower-case hyphenated id` });
       }
+    }
+  }
+
+  // Languages and alignments are matched by the name on the sheet, so two of
+  // either sharing a name is the same incoherence a duplicate id is.
+  for (const [what, rows] of [
+    ['languages', languages],
+    ['alignments', alignments],
+  ] as const) {
+    for (const name of duplicates(rows.map((row) => row.name))) {
+      problems.push({ field: `${what}[${name}]`, code: 'duplicate_name', reason: `${what} holds two things called ${name}, and a character's choice names one of them` });
     }
   }
 
@@ -359,6 +387,8 @@ export function createContent(input: ContentInput): Result<Content> {
   const backgrounds = input.backgrounds ?? [];
   const feats = input.feats ?? [];
   const items = input.items ?? [];
+  const languages = input.languages ?? [];
+  const alignments = input.alignments ?? [];
 
   const spellMap = byId(spells);
   const entryMap = byId(entries);
@@ -368,6 +398,8 @@ export function createContent(input: ContentInput): Result<Content> {
   const backgroundMap = byId(backgrounds);
   const featMap = byId(feats);
   const itemMap = byId(items);
+  const languageMap = new Map(languages.map((language) => [language.name, language]));
+  const alignmentMap = new Map(alignments.map((alignment) => [alignment.name, alignment]));
 
   return ok({
     spells,
@@ -378,6 +410,8 @@ export function createContent(input: ContentInput): Result<Content> {
     backgrounds,
     feats,
     items,
+    languages,
+    alignments,
     spell: (id) => spellMap.get(id) ?? null,
     spellEntry: (id) => entryMap.get(id) ?? null,
     classById: (id) => classMap.get(id) ?? null,
@@ -386,6 +420,8 @@ export function createContent(input: ContentInput): Result<Content> {
     backgroundById: (id) => backgroundMap.get(id) ?? null,
     featById: (id) => featMap.get(id) ?? null,
     item: (id) => itemMap.get(id) ?? null,
+    languageNamed: (name) => languageMap.get(name) ?? null,
+    alignmentNamed: (name) => alignmentMap.get(name) ?? null,
     expandPack: (id) => {
       const item = itemMap.get(id);
       if (item === undefined) return [];
@@ -423,6 +459,8 @@ export function extendContent(base: Content, extra: ContentInput): Result<Conten
     backgrounds: [...base.backgrounds, ...(extra.backgrounds ?? [])],
     feats: [...base.feats, ...(extra.feats ?? [])],
     items: [...base.items, ...(extra.items ?? [])],
+    languages: [...base.languages, ...(extra.languages ?? [])],
+    alignments: [...base.alignments, ...(extra.alignments ?? [])],
   });
 }
 
@@ -756,6 +794,37 @@ function parseFeatDefinition(value: unknown): Result<FeatDefinition> {
   return ok(definition);
 }
 
+const AVAILABILITY: ReadonlySet<string> = new Set(['everyone', 'standard', 'rare']);
+
+function parseLanguage(value: unknown): Result<LanguageDefinition> {
+  if (!isShape(value)) return err('bad_language', 'a language is an object');
+  const s = new Shaped(`languages[${isString(value['id']) ? value['id'] : '?'}]`);
+  const availability = s.optionalString(value, 'availability');
+  const language: LanguageDefinition = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+    ...(availability === undefined ? {} : { availability: availability as NonNullable<LanguageDefinition['availability']> }),
+  };
+  const problems = [...s.problems()];
+  if (availability !== undefined && !AVAILABILITY.has(availability)) {
+    problems.push(`languages[${language.id}]: availability is one of ${[...AVAILABILITY].join(', ')}, not "${availability}"`);
+  }
+  if (problems.length > 0) return err('bad_language', problems.join('; '));
+  return ok(language);
+}
+
+function parseAlignment(value: unknown): Result<AlignmentDefinition> {
+  if (!isShape(value)) return err('bad_alignment', 'an alignment is an object');
+  const s = new Shaped(`alignments[${isString(value['id']) ? value['id'] : '?'}]`);
+  const alignment: AlignmentDefinition = {
+    id: s.string(value, 'id'),
+    name: s.string(value, 'name'),
+  };
+  const problems = s.problems();
+  if (problems.length > 0) return err('bad_alignment', problems.join('; '));
+  return ok(alignment);
+}
+
 function parseSpellEntry(value: unknown): Result<SpellEntry> {
   if (!isShape(value)) return err('bad_spell_entry', 'a spell entry is an object');
   const s = new Shaped(`spellEntries[${isString(value['id']) ? value['id'] : '?'}]`);
@@ -842,6 +911,8 @@ export function loadContent(value: unknown): Result<Content> {
     backgrounds: parseAll(value['backgrounds'], 'backgrounds', parseBackgroundDefinition, problems),
     feats: parseAll(value['feats'], 'feats', parseFeatDefinition, problems),
     items: parseAll(value['items'], 'items', parseItem, problems),
+    languages: parseAll(value['languages'], 'languages', parseLanguage, problems),
+    alignments: parseAll(value['alignments'], 'alignments', parseAlignment, problems),
   };
   if (problems.length > 0) return err('bad_content', problems.slice(0, 5).join('; '));
   return createContent(input);

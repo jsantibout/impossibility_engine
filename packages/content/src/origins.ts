@@ -1,10 +1,17 @@
 /**
- * SRD 5.2.1 species, backgrounds and feats, transcribed as data.
+ * SRD 5.2.1 species, backgrounds, feats, languages and alignments,
+ * transcribed as data.
  *
  * Only what the supported creation paths need is here; adding the rest is
  * transcription onto the same structures, not design.
  */
-import type { BackgroundDefinition, FeatDefinition, SpeciesDefinition } from '@ie/engine';
+import type {
+  AlignmentDefinition,
+  BackgroundDefinition,
+  FeatDefinition,
+  LanguageDefinition,
+  SpeciesDefinition,
+} from '@ie/engine';
 
 export const HUMAN: SpeciesDefinition = {
   id: 'human',
@@ -158,4 +165,48 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     repeatable: false,
     note: 'Adding the ability modifier to the off-hand attack is not applied; the engine does not model which hand an attack came from.',
   },
+];
+
+/**
+ * SRD 5.2.1 "Choose Languages", as the catalogue's own answer.
+ *
+ * "Your character knows at least three languages: Common plus two languages
+ * you roll or choose from the Standard Languages table." Common is the one
+ * every character speaks without spending a choice; the rest of the table is
+ * what the two choices come from. The Rare Languages the book prints beside
+ * them are a GM's to hand out rather than a character's to choose, and are
+ * not transcribed yet — adding one is `availability: 'rare'` and nothing else.
+ */
+export const LANGUAGES: readonly LanguageDefinition[] = [
+  { id: 'common', name: 'Common', availability: 'everyone' },
+  { id: 'common-sign-language', name: 'Common Sign Language' },
+  { id: 'draconic', name: 'Draconic' },
+  { id: 'dwarvish', name: 'Dwarvish' },
+  { id: 'elvish', name: 'Elvish' },
+  { id: 'giant', name: 'Giant' },
+  { id: 'gnomish', name: 'Gnomish' },
+  { id: 'goblin', name: 'Goblin' },
+  { id: 'halfling', name: 'Halfling' },
+  { id: 'orc', name: 'Orc' },
+];
+
+/**
+ * SRD 5.2.1 Step 4: "Choose your character's alignment... and note it on your
+ * character sheet."
+ *
+ * The nine the book prints. Nothing in 2024 hangs off the choice
+ * mechanically, so these are recorded rather than read from; they exist so a
+ * typo cannot slip through as an alignment nobody has heard of, and a setting
+ * with a different axis — or none — simply supplies its own.
+ */
+export const ALIGNMENTS: readonly AlignmentDefinition[] = [
+  { id: 'lawful-good', name: 'Lawful Good' },
+  { id: 'neutral-good', name: 'Neutral Good' },
+  { id: 'chaotic-good', name: 'Chaotic Good' },
+  { id: 'lawful-neutral', name: 'Lawful Neutral' },
+  { id: 'neutral', name: 'Neutral' },
+  { id: 'chaotic-neutral', name: 'Chaotic Neutral' },
+  { id: 'lawful-evil', name: 'Lawful Evil' },
+  { id: 'neutral-evil', name: 'Neutral Evil' },
+  { id: 'chaotic-evil', name: 'Chaotic Evil' },
 ];

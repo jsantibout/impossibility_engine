@@ -37,13 +37,10 @@ import type { Content } from './content.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
 import {
-  ALIGNMENTS,
-  COMMON,
   LANGUAGES_CHOSEN,
   POINT_BUY_BUDGET,
   POINT_COSTS,
   STANDARD_ARRAY,
-  STANDARD_LANGUAGES,
   type BackgroundDefinition,
   type FeatDefinition,
   type SpeciesDefinition,
@@ -1406,24 +1403,63 @@ interface SlotPools {
 const pactMagic = (content: Content, classId: string): boolean =>
   content.classById(classId)?.spellcasting?.feature === 'pact-magic';
 
-/** SRD "Choose Languages": Common, plus two from the Standard Languages table. */
-function checkLanguages(choices: CharacterChoices): CreationProblem[] {
+/**
+ * The languages this world hands out for nothing — the SRD's Common.
+ *
+ * Which language that is, or whether there is one, is the catalogue's answer;
+ * the engine only knows that a character does not spend a choice on it.
+ */
+const spokenByEveryone = (content: Content): ReadonlySet<string> =>
+  new Set(
+    content.languages
+      .filter((language) => language.availability === 'everyone')
+      .map((language) => language.name),
+  );
+
+/** Every language a character ends up knowing: the free ones, then the chosen. */
+function languagesKnown(content: Content, choices: CharacterChoices): readonly string[] {
+  const free = spokenByEveryone(content);
+  return [...free, ...choices.languages.filter((language) => !free.has(language))];
+}
+
+/**
+ * SRD "Choose Languages": "Common plus two languages you roll or choose from
+ * the Standard Languages table."
+ *
+ * The count is the book's rule and the engine's number; *which* languages
+ * exist, which one everybody speaks and which are a GM's to grant rather than
+ * a character's to choose are the world's, and come from content. A catalogue
+ * that names no language at all makes no claim about which exist, and the
+ * membership check has nothing to say — the same rule `checkContent` applies
+ * to a granted feat when a catalogue holds no feats.
+ */
+function checkLanguages(content: Content, choices: CharacterChoices): CreationProblem[] {
   const problems: CreationProblem[] = [];
-  const chosen = choices.languages.filter((language) => language !== COMMON);
+  const free = spokenByEveryone(content);
+  const chosen = choices.languages.filter((language) => !free.has(language));
 
   if (chosen.length !== LANGUAGES_CHOSEN) {
+    const rule =
+      free.size === 0
+        ? `a character chooses ${LANGUAGES_CHOSEN} languages`
+        : `a character knows ${[...free].join(', ')} plus ${LANGUAGES_CHOSEN} more`;
     problems.push(
-      problem('wrong_language_count', 'languages', `a character knows Common plus ${LANGUAGES_CHOSEN} more, got ${chosen.length}`),
+      problem('wrong_language_count', 'languages', `${rule}, got ${chosen.length}`),
     );
   }
   for (const language of duplicates(chosen)) {
     problems.push(problem('duplicate_language', 'languages', `${language} is listed twice`));
   }
-  for (const language of chosen) {
-    if (!STANDARD_LANGUAGES.includes(language)) {
-      problems.push(
-        problem('unknown_language', 'languages', `${language} is not on the Standard Languages table`),
-      );
+  if (content.languages.length > 0) {
+    const offered = content.languages.filter(
+      (language) => (language.availability ?? 'standard') === 'standard',
+    );
+    for (const language of chosen) {
+      if (!offered.some((one) => one.name === language)) {
+        problems.push(
+          problem('unknown_language', 'languages', `${language} is not one a character chooses here; choose from: ${offered.map((one) => one.name).join(', ')}`),
+        );
+      }
     }
   }
   return problems;
@@ -1613,7 +1649,7 @@ export function checkCharacter(
     ...problems,
     ...checkAbilities(choices, parts.background),
     ...checkSkills(choices, parts.definition),
-    ...checkLanguages(choices),
+    ...checkLanguages(content, choices),
     ...checkDmGrants(choices),
     ...checkMulticlass(content, choices),
   ];
@@ -1636,9 +1672,11 @@ export function checkCharacter(
   if (choices.name.trim() === '') {
     all.push(problem('no_name', 'name', 'a character needs a name'));
   }
-  if (!ALIGNMENTS.includes(choices.alignment)) {
+  // A world that declares no alignment axis asks nothing about alignment; one
+  // that declares an axis is exhaustive about it.
+  if (content.alignments.length > 0 && content.alignmentNamed(choices.alignment) === null) {
     all.push(
-      problem('unknown_alignment', 'alignment', `choose one of: ${ALIGNMENTS.join(', ')}`),
+      problem('unknown_alignment', 'alignment', `choose one of: ${content.alignments.map((one) => one.name).join(', ')}`),
     );
   }
 
@@ -2152,7 +2190,7 @@ export function planCharacter(
     // SRD: "You begin with the minimum amount of XP required to reach your
     // starting level."
     experiencePoints: XP_THRESHOLDS[choices.level - 1] ?? 0,
-    languages: [COMMON, ...choices.languages.filter((l) => l !== COMMON)],
+    languages: languagesKnown(content, choices),
     alignment: choices.alignment,
     toolProficiencies: tools,
     magicItems: choices.dmGrants?.magicItems ?? [],
