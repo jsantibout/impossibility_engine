@@ -58,3 +58,43 @@ resolver; three rider kinds hang on a settled outcome (a condition, a
 modifier, a delayed hit). A rider is a leaf: it rolls nothing and targets
 nobody of its own. A spell that needs a new kind is engine work; a spell that
 fits an existing one is content.
+
+## Casting from an item
+
+The SRD settles this in one sentence, so the engine does not have to have an
+opinion: "The spell uses its normal casting time, range, and duration, and
+**the user of the item must concentrate if the spell requires
+Concentration**. Many items, such as Potions, **bypass the casting of a
+spell** and confer the spell's effects with its usual duration." Two shapes,
+named in one line, and which is which.
+
+**A wand casting Fireball is a casting.** It goes through `castOrRelease`,
+gets a casting id, a `spell-cast` event, Concentration when the definition
+says so, and an ongoing record Dispel Magic can find. `SlotlessReason` has
+carried `'magic-item'` since it was written, with nothing emitting it; this
+is what it was for. The item's charge pool stands where a feat's
+`freeCastPool` already stands.
+
+**The numbers are the item's, then the wielder's.** A printed DC or attack
+bonus is a field on the grant; the fallback is a rule in the resolver,
+because the item cannot print a rule the SRD prints once — a wielder's own
+ability where the item says to use it, the wielder's choice when they have
+two, and +0 with Proficiency when they have none. They reach the log pinned,
+through the writes a class casting already uses.
+
+**The charge is spent inside the casting's own batch**, after every
+validation and before the first die — the line the free-casting already
+writes. Two commands would be two ids, and the first would land while the
+second refused.
+
+**A potion is not a casting**, by the same sentence. An effect list an item
+confers without casting anything is a second grant kind and a second
+population, and it needs a source that `releaseCasting` can address or
+deliberately cannot. One kind with two behaviours would report itself read
+when only half of it was.
+
+Left open, and worth knowing before somebody meets it: **Counterspell
+triggers on components, an item's spell requires none, and a
+`SpellDefinition` holds no components at all** — so today's reaction window
+would open on a wand. Whether the window reads components or the item route
+refuses it is a rules decision nobody has taken.
