@@ -332,16 +332,14 @@ export function expendCharges(
     if (!hasPool(creature.resources, pool.key)) {
       /**
        * The pool arrives with the equip event, so this is what is left when
-       * the item was equipped by something that is not `equipItem`.
+       * the item reached this hand by some route that did not declare it.
        *
-       * **Creation is that something, today.** `createCharacter` writes its
-       * own `item-equipped` straight from `choices.equipped` and pins only the
-       * armour record — it does not pin an item's `grants` either, which is
-       * the same gap this one sits in and which predates charges. A character
-       * born holding a wand therefore holds a wand with no pool, and is told
-       * so here rather than silently finding it empty. Closing it properly is
-       * `creation.ts`'s to do, in the brief that gives creation the item
-       * compiler; `charges.test.ts` pins the hole so it is a recorded fact.
+       * **Both routes the engine has do declare it.** `equipItem` emits the
+       * declaration above; `createCharacter` emits the same one, compiled from
+       * the same `itemChargePool`, for anything in `choices.equipped`. What is
+       * left for this to catch is a hand-written log — a fixture, a migration,
+       * a caller assembling `item-equipped` itself — and the refusal names the
+       * way through rather than letting the wand look merely empty.
        */
       return err(
         'unknown_pool',

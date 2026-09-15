@@ -182,13 +182,14 @@ describe('an SRD item with charges, end to end through the public API', () => {
 });
 
 /**
- * The one door past `equipItem`, pinned as a fact rather than left to be found.
+ * Creation is the other door onto the same room, and it leaves it the same way.
  *
- * `createCharacter` writes its own `item-equipped` straight from
- * `choices.equipped` and pins only the armour record — it does not pin an
- * item's `grants` either, which is the same gap and predates charges. So a
- * character born holding a wand holds a wand with no pool. What matters is that
- * it *says so* and that there is a way through, both of which are below.
+ * `createCharacter` writes its own `item-equipped` from `choices.equipped`
+ * rather than calling the command — it has no state to call one against — so it
+ * has to compile what it pins from the same two functions `equipItem` compiles
+ * from. It does. A character born holding a wand holds a wand with charges in
+ * it, and the pool arrives on the same event it arrives on for a wand picked up
+ * off the floor.
  */
 describe('a character created already holding a charged item', () => {
   const bornHolding = (): readonly GameEvent[] =>
@@ -209,20 +210,74 @@ describe('a character created already holding a charged item', () => {
       'create',
     );
 
-  it('has no pool yet, and is told so rather than finding the wand empty', () => {
+  it('is born with the pool declared, sized as the book prints it', () => {
     const log = bornHolding();
-    expect(log.some((e) => e.type === 'resource-pool-declared' && e.pool.key === keyOf(WAND))).toBe(
-      false,
+    const declared = log.filter(
+      (e) => e.type === 'resource-pool-declared' && e.pool.key === keyOf(WAND),
     );
+    expect(declared).toHaveLength(1);
+    expect(left(log, WAND)).toBe(3);
+  });
+
+  it('spends its charges without taking the wand off first', () => {
+    const log = run(bornHolding(), (s) => expendCharges(s, SRD_CONTENT, GRUM, WAND));
+    expect(left(log, WAND)).toBe(2);
+  });
+
+  /**
+   * The two doors agree, asserted as state rather than described.
+   *
+   * The same character, the same wand, owned the same way; the only difference
+   * is which door put it in their hand. What the creature *is* afterwards —
+   * what it holds, and what it has left to spend — has to be the same value,
+   * because a difference here is a campaign that plays differently depending on
+   * which turn the DM handed the wand over.
+   */
+  it('is the same creature as one who picked the same wand up', () => {
+    const hoard = {
+      items: [{ id: WAND, quantity: 1 }],
+      goldPieces: 0,
+      magicItems: [WAND],
+      note: 'found in the barrow',
+    };
+    const byCommand = run(
+      unwrap(createCharacter(SRD_CONTENT, barbarian({ dmGrants: hoard }), GRUM), 'create'),
+      (s) => equipItem(s, SRD_CONTENT, GRUM, WAND),
+    );
+
+    const born = fold('seed', bornHolding()).creatures.grum!;
+    const picked = fold('seed', byCommand).creatures.grum!;
+    expect(born.equipped).toStrictEqual(picked.equipped);
+    expect(born.resources).toStrictEqual(picked.resources);
+  });
+
+  /**
+   * And the refusal that was creation's is still reachable, by the only thing
+   * left that can reach it.
+   *
+   * Both doors the engine has declare the pool, so what `unknown_pool` catches
+   * now is a log nobody's command wrote — a fixture, a migration, a caller
+   * assembling `item-equipped` itself. That is what is assembled here, and the
+   * refusal names the way through rather than letting the wand look empty.
+   */
+  it('still refuses a hand-written equip that declared no pool', () => {
+    const log: readonly GameEvent[] = [
+      ...made(),
+      given(GRUM, WAND),
+      { type: 'item-equipped', id: GRUM, item: WAND, armor: null },
+    ];
     const out = expendCharges(fold('seed', log), SRD_CONTENT, GRUM, WAND);
     expect(isErr(out)).toBe(true);
     expect(isErr(out) && out.code).toBe('unknown_pool');
+    expect(isErr(out) && out.reason).toContain('take it off and put it back on');
   });
 
-  it('and the way through is the one the refusal names', () => {
-    let log = run(bornHolding(), (s) => unequipItem(s, SRD_CONTENT, GRUM, WAND));
+  /** And putting it down and picking it up again finds the charges, not a refill. */
+  it('keeps what it has spent across a wand set down and taken back up', () => {
+    let log = run(bornHolding(), (s) => expendCharges(s, SRD_CONTENT, GRUM, WAND));
+    log = run(log, (s) => unequipItem(s, SRD_CONTENT, GRUM, WAND));
     log = run(log, (s) => equipItem(s, SRD_CONTENT, GRUM, WAND));
-    expect(left(log, WAND)).toBe(3);
+    expect(left(log, WAND)).toBe(2);
   });
 });
 

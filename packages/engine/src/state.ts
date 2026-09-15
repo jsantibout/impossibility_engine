@@ -91,12 +91,10 @@ export interface EquippedItem {
  * because charges are spent from *one* wand.
  *
  * Charges have landed and that line is held by a refusal rather than by a
- * record: `equipItem` declines to put a second copy of a charged item in
- * anybody's hand, naming the missing instance record in its reason. The one
- * door past that refusal is creation, which writes its own `item-equipped` —
- * and it declares no charge pool at all, so what comes of it is an
- * `unknown_pool` refusal rather than two wands sharing one. Item
- * instance identity is still a later brief's subject in
+ * record, at **both** doors: `equipItem` declines to put a second copy of a
+ * charged item in anybody's hand, and `checkEquipped` declines to let a
+ * character be born holding one, each naming the missing instance record in
+ * its reason. Item instance identity is still a later brief's subject in
  * `docs/design/characters-and-equipment.md`, and the brief that adds item
  * *transfer* cannot defer it — a wand handed over leaves its charges behind,
  * and no refusal can catch that.

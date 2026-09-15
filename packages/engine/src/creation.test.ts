@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
+import { itemStandingEffects } from './catalogue.js';
 import { armorClass, skillModifier, spellSaveDc } from './character.js';
+import { attuneItem, equipItem } from './commands.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { remaining, spellSlotKey } from './resources.js';
-import { hitDieKey } from './rest.js';
+import { beginRest, hitDieKey } from './rest.js';
+import { rollModesFor } from './standing.js';
 import { countOf, levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
 import { advanceCharacter, checkCharacter, createCharacter, planCharacter, type CharacterChoices, type FeatChoice } from './creation.js';
 
@@ -612,6 +615,110 @@ describe('starting equipment, ownership and what is worn', () => {
     // Chain Shirt is 13 + Dex, capped at +2.
     expect(armorClass(worn.sheet)).toBe(15);
     expect(worn.magicItems).toEqual(['Potion of Healing']);
+  });
+});
+
+/**
+ * Creation is a second door onto `equipItem`'s room, and it has to leave the
+ * room in the same state.
+ *
+ * `createCharacter` has no `GameState` to call a command against — it is
+ * producing the events that will make one — so it writes its own
+ * `item-equipped`. What it must not do is write a *different* one: an item
+ * carries standing grants and a charge pool as well as an armour record, and a
+ * character born wearing a cloak that grants nothing is a log that pins a fact
+ * which was never true of the creature. So creation compiles what it pins from
+ * the same two functions the command compiles from, and these hold the two
+ * doors to the same answer.
+ */
+describe('what an item carries reaches a character created wearing it', () => {
+  const KESSA = id('kessa');
+  const CLOAK = 'cloak-of-elvenkind';
+
+  /** The GM's hand-over, the same in both doors, so only the door differs. */
+  const hoard: Overrides['dmGrants'] = {
+    items: [{ id: CLOAK, quantity: 1 }],
+    goldPieces: 0,
+    magicItems: ['Cloak of Elvenkind'],
+    note: 'found in the barrow',
+  };
+
+  const created = (equipped: readonly string[]): readonly GameEvent[] =>
+    unwrap(createCharacter(SRD_CONTENT, kessa({ dmGrants: hoard, equipped: [...equipped] }), KESSA), 'create');
+
+  const run = (
+    log: readonly GameEvent[],
+    command: (s: GameState) => Result<GameEvent[]>,
+  ): readonly GameEvent[] => [...log, ...unwrap(command(fold('seed', log)), 'command')];
+
+  /** Wearing is not attuning, so the Cloak's own second clause has to be met. */
+  const attunes = (log: readonly GameEvent[]): readonly GameEvent[] =>
+    run(run(log, (s) => beginRest(s, KESSA, 'short')), (s) => attuneItem(s, SRD_CONTENT, KESSA, CLOAK));
+
+  /** The Advantage and Disadvantage reaching a Stealth check right now. */
+  const stealth = (state: GameState) =>
+    rollModesFor(state, {
+      family: 'ability-check',
+      roller: KESSA,
+      ability: 'dex',
+      skill: 'stealth',
+    }).modes;
+
+  it('pins the grants the command pins, and they are live on the sheet', () => {
+    const log = created([CLOAK]);
+    const equipped = log.find((e) => e.type === 'item-equipped' && e.item === CLOAK);
+    expect(equipped !== undefined && 'grants' in equipped ? equipped.grants : undefined).toEqual(
+      itemStandingEffects(SRD_CONTENT.item(CLOAK)!),
+    );
+
+    // And the benefit runs: the cloak is worn from the first event, so the only
+    // thing left between Kessa and Advantage is the attunement.
+    expect(stealth(fold('seed', created([CLOAK])))).toEqual([]);
+    expect(stealth(fold('seed', attunes(log)))).toEqual([
+      { source: 'Cloak of Elvenkind', mode: 'advantage' },
+    ]);
+  });
+
+  it('makes the same creature as one who put the same cloak on afterwards', () => {
+    const born = attunes(created([CLOAK]));
+    const later = attunes(run(created([]), (s) => equipItem(s, SRD_CONTENT, KESSA, CLOAK)));
+
+    const one = fold('seed', born).creatures.kessa!;
+    const other = fold('seed', later).creatures.kessa!;
+    expect(one.equipped).toStrictEqual(other.equipped);
+    expect(one.attuned).toStrictEqual(other.attuned);
+    expect(one.sheet).toStrictEqual(other.sheet);
+    expect(stealth(fold('seed', born))).toStrictEqual(stealth(fold('seed', later)));
+  });
+
+  /**
+   * The point of pinning: a log whose only equip came from creation folds
+   * without a catalogue and still knows what the cloak does.
+   */
+  it('folds to the same state with no content as with it', () => {
+    const log = attunes(created([CLOAK]));
+    expect(fold('seed', log)).toStrictEqual(fold('seed', log, SRD_CONTENT));
+    expect(stealth(fold('seed', log))).toHaveLength(1);
+  });
+
+  /**
+   * `equipItem` refuses a second copy of a charged item because the pool is
+   * keyed by catalogue id and two wands would share one. Creation is the door
+   * that could walk round that refusal, so it makes the same one.
+   */
+  it('refuses a character created holding two of the same charged item', () => {
+    rejects(
+      {
+        dmGrants: {
+          items: [{ id: 'wand-of-secrets', quantity: 2 }],
+          goldPieces: 0,
+          magicItems: ['Wand of Secrets'],
+          note: 'two wands from the same hoard',
+        },
+        equipped: ['wand-of-secrets'],
+      },
+      'no_item_instance',
+    );
   });
 });
 

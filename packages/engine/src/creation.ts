@@ -32,7 +32,7 @@ import type {
   ReactionEffect,
   ReactionFeature,
 } from './reactions.js';
-import { goldToCopper } from './catalogue.js';
+import { goldToCopper, itemChargePool, itemStandingEffects } from './catalogue.js';
 import type { Content } from './content.js';
 import { mergeItems } from './events.js';
 import type { GameEvent, GameState, InventoryLine } from './events.js';
@@ -1532,6 +1532,32 @@ function checkEquipped(
     problems.push(problem('duplicate_equipped', 'equipped', `${itemId} is equipped twice`));
   }
 
+  /**
+   * One charged item per creature, which is the refusal `equipItem` makes and
+   * for the same missing record.
+   *
+   * Charges are a pool keyed by catalogue id, so two Wands of Secrets would be
+   * one pool of three between them: spend from either and both are emptier.
+   * Item instance identity is what fixes that, and it is named as a later
+   * brief's subject in `docs/design/characters-and-equipment.md`. Until then
+   * creation refuses what the command refuses, or being *born* holding the
+   * second wand is the way round a rule play already enforces.
+   */
+  for (const itemId of new Set(choices.equipped)) {
+    const item = content.item(itemId);
+    if (item === null || itemChargePool(item) === null) continue;
+    const copies = owned.find((line) => line.id === itemId)?.quantity ?? 0;
+    if (copies > 1) {
+      problems.push(
+        problem(
+          'no_item_instance',
+          'equipped',
+          `${itemId} is owned ${copies} times and the engine has no item instance record to tell them apart — their charges would be one pool across all of them. Start with one`,
+        ),
+      );
+    }
+  }
+
   // SRD wears one suit of body armour and holds one Shield. `equipItem`
   // already refuses a second of either; creation must refuse it too, or a
   // character can be born wearing two suits and the sheet has to pick one.
@@ -2567,6 +2593,54 @@ function poolsFor(
   return pools;
 }
 
+/**
+ * What a character is born wearing, and everything those items carry.
+ *
+ * **Creation is a second door onto the room `equipItem` opens, and it has to
+ * leave the room in the same state.** It cannot call the command: a command
+ * takes a `GameState`, and this is producing the events that will make one. So
+ * it writes the event itself — and what it must not do is write a *different*
+ * event. An item carries three things now, not one: an armour record, standing
+ * grants, and a charge pool, and a log that pins only the first pins a fact
+ * that was never true of the creature. Since the fold opens no catalogue, that
+ * log is wrong for good.
+ *
+ * The compilers are therefore shared rather than copied — `itemStandingEffects`
+ * and `itemChargePool` are the same two functions `equipItem` reads, so an item
+ * that grows a grant tomorrow reaches both doors on the same day.
+ *
+ * The pool lands **beside its equip event** exactly as the command emits it,
+ * and unconditionally, because nothing has declared anything yet: a creature
+ * being created has no pool for the charges to already be sitting in.
+ */
+function equipEvents(
+  content: Content,
+  id: CharacterId,
+  choices: CharacterChoices,
+): GameEvent[] {
+  const events: GameEvent[] = [];
+  for (const itemId of choices.equipped) {
+    // `checkEquipped` has already refused an id the catalogue does not hold, so
+    // a miss here is a caller who skipped the check; it pins nothing rather
+    // than throwing, which is what the armour read has always done.
+    const item = content.item(itemId);
+    const grants = item === null ? [] : itemStandingEffects(item);
+    events.push({
+      type: 'item-equipped',
+      id,
+      item: itemId,
+      // Pinned, all of it: what the item *is* and what it *grants*. Omitted
+      // when there is nothing, so every mundane equip event is the event it
+      // has always been — which is what keeps the frozen logs where they are.
+      armor: item?.armor ?? null,
+      ...(grants.length === 0 ? {} : { grants }),
+    });
+    const charges = item === null ? null : itemChargePool(item);
+    if (charges !== null) events.push({ type: 'resource-pool-declared', id, pool: charges });
+  }
+  return events;
+}
+
 /** Creation declares the lot; nothing exists yet for any of them to grow from. */
 function poolEvents(
   content: Content,
@@ -2637,14 +2711,9 @@ export function createCharacter(
             source: 'starting money',
           },
         ]),
-    // The armour record is pinned here, so what a creature wears is a fact of
-    // the log rather than of whichever catalogue folds it later.
-    ...choices.equipped.map((itemId) => ({
-      type: 'item-equipped' as const,
-      id,
-      item: itemId,
-      armor: content.item(itemId)?.armor ?? null,
-    })),
+    // What a creature wears, and everything those items carry, pinned so it is
+    // a fact of the log rather than of whichever catalogue folds it later.
+    ...equipEvents(content, id, choices),
     ...poolEvents(content, id, plan.value, plan.value.features, choices),
   ]);
 }
