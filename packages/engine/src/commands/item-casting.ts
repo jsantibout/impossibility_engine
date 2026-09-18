@@ -207,24 +207,40 @@ function chargesFor(
   itemName: string,
   asked: number | undefined,
   spellLevel: number,
-): Result<{ readonly charges: number; readonly castLevel: number }> {
-  const most = grant.upToCharges ?? grant.charges;
-  const spend = asked ?? grant.charges;
+): Result<{ readonly charges: number | null; readonly castLevel: number }> {
+  // SRD Helm of Comprehending Languages prices its casting at nothing, so
+  // there is no count to name — and a request that named one is refused rather
+  // than ignored, which is what every other stated fact on a casting gets.
+  if (grant.atWill === true) {
+    if (asked !== undefined) {
+      return err(
+        'bad_charges',
+        `${itemName} casts it at will and spends no charges, and ${asked} ${asked === 1 ? 'was' : 'were'} named`,
+      );
+    }
+    return ok({ charges: null, castLevel: grant.level ?? spellLevel });
+  }
+
+  // `checkContent` has refused a grant that is neither priced nor at will, so
+  // a cost is here by the time the catalogue is a `Content`.
+  const cost = grant.charges ?? 0;
+  const most = grant.upToCharges ?? cost;
+  const spend = asked ?? cost;
 
   if (!Number.isInteger(spend)) {
     return err('bad_charges', `a casting spends a whole number of charges, got ${spend}`);
   }
-  if (spend < grant.charges || spend > most) {
+  if (spend < cost || spend > most) {
     return err(
       'bad_charges',
-      most === grant.charges
-        ? `${itemName} casts it for ${grant.charges} charge${grant.charges === 1 ? '' : 's'}, and ${spend} ${spend === 1 ? 'was' : 'were'} named`
-        : `${itemName} casts it for ${grant.charges} to ${most} charges, and ${spend} ${spend === 1 ? 'was' : 'were'} named`,
+      most === cost
+        ? `${itemName} casts it for ${cost} charge${cost === 1 ? '' : 's'}, and ${spend} ${spend === 1 ? 'was' : 'were'} named`
+        : `${itemName} casts it for ${cost} to ${most} charges, and ${spend} ${spend === 1 ? 'was' : 'were'} named`,
     );
   }
 
   const base = grant.level ?? spellLevel;
-  return ok({ charges: spend, castLevel: base + (spend - grant.charges) });
+  return ok({ charges: spend, castLevel: base + (spend - cost) });
 }
 
 /**
@@ -238,7 +254,9 @@ function chargesFor(
  *
  * - **"While holding it"**, which the SRD writes on every charged item.
  * - **"(Requires Attunement)"**, which gives nothing until it has it.
- * - **A pool that was declared**, which arrives with the equip event.
+ * - **A pool that was declared**, which arrives with the equip event — asked
+ *   only of an item that prices its casting, because an at-will one has no
+ *   pool to declare and nothing that could run out.
  */
 export function itemRoute(
   creature: CreatureState,
@@ -273,19 +291,29 @@ export function itemRoute(
     );
   }
 
-  const pool = itemChargePool(item);
-  if (pool === null) {
-    return err('no_charges', `${item.name} has no charges to spend on a casting`);
-  }
-  if (!hasPool(creature.resources, pool.key)) {
-    // The pool arrives with the equip event, so this is what is left when the
-    // item reached this hand by a route that declared none — a hand-written
-    // log, a fixture, a migration. Named rather than left looking empty, which
-    // is the answer `expendCharges` gives to the same question.
-    return err(
-      'unknown_pool',
-      `nothing has declared ${item.name}'s charges for ${creature.id}; take it off and put it back on`,
-    );
+  // **The pool, asked for only where there is a price to pay out of it.**
+  //
+  // SRD Helm of Comprehending Languages prints no charge count and no per-dawn
+  // sentence, so an at-will casting has no pool, cannot find one empty and
+  // cannot be refused for the want of one. `checkContent` has already refused
+  // an item that is priced and declares none, so the two cases below are only
+  // ever reached by a casting that really does have something to spend.
+  const priced = grant.atWill !== true;
+  const pool = priced ? itemChargePool(item) : null;
+  if (priced) {
+    if (pool === null) {
+      return err('no_charges', `${item.name} has no charges to spend on a casting`);
+    }
+    if (!hasPool(creature.resources, pool.key)) {
+      // The pool arrives with the equip event, so this is what is left when the
+      // item reached this hand by a route that declared none — a hand-written
+      // log, a fixture, a migration. Named rather than left looking empty, which
+      // is the answer `expendCharges` gives to the same question.
+      return err(
+        'unknown_pool',
+        `nothing has declared ${item.name}'s charges for ${creature.id}; take it off and put it back on`,
+      );
+    }
   }
 
   const spend = chargesFor(grant, item.name, request.charges, definition.level);
@@ -331,11 +359,51 @@ export function itemRoute(
     kind: 'item',
     ability: ability.value,
     item: item.id,
-    pool: pool.key,
-    charges: spend.value.charges,
+    // Both absent together, and only for a casting the book prices at
+    // nothing: there is no pool to name and no count to spend out of it.
+    ...(pool === null || spend.value.charges === null
+      ? {}
+      : { pool: pool.key, charges: spend.value.charges }),
+    ...(grant.targetsSelfOnly === true ? { targetsSelfOnly: true as const } : {}),
     castLevel: spend.value.castLevel,
     numbers: numbersForItem(creature.sheet, grant, ability.value),
   });
+}
+
+/**
+ * Whom this item is willing to cast at, where its own line narrows the spell.
+ *
+ * SRD Ring of Jumping: "While wearing this ring, you can cast _Jump_ from it,
+ * but can target only yourself when you do so." Ring of Water Walking prints
+ * the same narrowing over a spell that reaches ten creatures. The spell's own
+ * `TargetRule` has already had its say — the range, the sight, the count and
+ * the creature type are settled by the time this is asked — and what is left
+ * is the one question the item asked: is every target the creature holding it.
+ *
+ * **A rules-legal refusal, and a value.** It is reached with the targets
+ * settled and before the charge, the action and the first die, so a ring aimed
+ * at an ally costs its wearer nothing; and the reason names the targets it
+ * would not reach, because a caller repairing a request needs to know which.
+ *
+ * The holder *is* the caster: `itemRoute` has already refused a creature who
+ * is not wearing or holding the item, so there is no third party for "only
+ * yourself" to be ambiguous between.
+ */
+export function selfOnlyRefusal(
+  route: CastingRoute,
+  content: Content,
+  definition: SpellDefinition,
+  casterId: CharacterId,
+  targets: readonly CharacterId[],
+): Result<null> {
+  if (route.kind !== 'item' || route.targetsSelfOnly !== true) return ok(null);
+  const others = targets.filter((target) => target !== casterId);
+  if (others.length === 0) return ok(null);
+  const name = content.item(route.item)?.name ?? route.item;
+  return err(
+    'targets_only_yourself',
+    `${name} casts ${definition.name} on whoever is holding it and nobody else, and ${others.join(', ')} ${others.length === 1 ? 'is' : 'are'} not ${casterId}`,
+  );
 }
 
 /**
@@ -446,5 +514,9 @@ export function chargeSpend(
   casterId: CharacterId,
 ): { readonly key: string; readonly amount: number; readonly id: CharacterId } | null {
   if (route.kind !== 'item') return null;
+  // SRD Helm of Comprehending Languages prices its casting at nothing, so
+  // there is no charge in the batch at all — not a charge of zero, which would
+  // be a `resource-spent` for a pool that does not exist.
+  if (route.pool === undefined || route.charges === undefined) return null;
   return { key: route.pool, amount: route.charges, id: casterId };
 }

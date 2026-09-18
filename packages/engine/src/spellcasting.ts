@@ -142,10 +142,25 @@ export type CastingRoute =
       readonly ability: Ability | null;
       /** The catalogue id of the item doing the casting. */
       readonly item: string;
-      /** The pool the charges come out of — the item's own. */
-      readonly pool: string;
-      /** How many charges this casting spends. */
-      readonly charges: number;
+      /**
+       * The pool the charges come out of — the item's own.
+       *
+       * Absent where the item's line prices the casting at nothing, which is
+       * the one case there is no pool to name: SRD Helm of Comprehending
+       * Languages prints no charge count and no per-dawn sentence, so there
+       * is nothing to spend and nothing to spend it from.
+       */
+      readonly pool?: string;
+      /** How many charges this casting spends. Absent for an at-will casting. */
+      readonly charges?: number;
+      /**
+       * SRD Ring of Jumping: "can target only yourself when you do so."
+       *
+       * Read off the grant at the route, like every other thing the item
+       * says, so the narrowing is settled from the catalogue once and checked
+       * against the targets the spell's own rule has already accepted.
+       */
+      readonly targetsSelfOnly?: true;
       /** The level the item casts it at, which the charges may decide. */
       readonly castLevel: number;
       /** Fixed here, because nothing later can ask an item that is not in hand. */

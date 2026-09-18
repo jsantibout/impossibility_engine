@@ -393,7 +393,28 @@ function itemCastsProblems(
     seen.add(grant.spell);
   }
 
-  if (!Number.isInteger(grant.charges) || grant.charges < 1) {
+  // **What the casting costs, and the one item that may answer "nothing".**
+  //
+  // SRD Helm of Comprehending Languages prints no charge count, no per-dawn
+  // sentence and no other limit, so `atWill` is the licence to be free — and
+  // it is a *licence*, declared, rather than an absence read as one. A grant
+  // that names neither is refused, because a dropped field and a free casting
+  // would otherwise be the same record; a grant that names both is refused,
+  // because an item prices its casting once.
+  const atWill = grant.atWill === true;
+  if (atWill && grant.charges !== undefined) {
+    say(
+      'at_will_and_a_price',
+      `${item.id} casts ${String(grant.spell)} at will and for ${String(grant.charges)} charges, and an item's line prices a casting once`,
+      `${at}.atWill`,
+    );
+  } else if (!atWill && grant.charges === undefined) {
+    say(
+      'casts_for_no_price',
+      `${item.id} casts ${String(grant.spell)} and says neither what it costs nor that the book charges nothing for it; an item whose line prints no limit says so with "atWill"`,
+      `${at}.charges`,
+    );
+  } else if (!atWill && (!Number.isInteger(grant.charges) || (grant.charges ?? 0) < 1)) {
     say(
       'bad_charge_cost',
       `the SRD prints what a casting from an item costs on the item's own line, and ${item.id} names ${String(grant.charges)}`,
@@ -401,7 +422,13 @@ function itemCastsProblems(
     );
   }
   if (grant.upToCharges !== undefined) {
-    if (!Number.isInteger(grant.upToCharges) || grant.upToCharges <= grant.charges) {
+    if (atWill) {
+      say(
+        'at_will_and_a_charge_range',
+        `"no more than N charges" is a range of prices, and ${item.id} casts ${String(grant.spell)} for none`,
+        `${at}.upToCharges`,
+      );
+    } else if (!Number.isInteger(grant.upToCharges) || grant.upToCharges <= (grant.charges ?? 0)) {
       say(
         'bad_charge_range',
         `"no more than N charges" is a maximum above the cost, and ${item.id} names ${String(grant.upToCharges)}`,
@@ -423,7 +450,11 @@ function itemCastsProblems(
   // `resources.ts` named "a magic item with seven charges" on the day it was
   // written. An item that casts for a price and declares no pool has an
   // economy with nothing behind it, and `itemRoute` would refuse every casting.
-  if (itemChargePool(item) === null) {
+  //
+  // **Asked only of a casting that has a price.** An at-will casting spends
+  // nothing, so there is nothing for a pool to be behind, and requiring one
+  // would put a limit on the page that the page does not print.
+  if (!atWill && itemChargePool(item) === null) {
     say(
       'casts_without_charges',
       `${item.id} casts ${String(grant.spell)} for charges and declares no charge pool for them to come out of`,

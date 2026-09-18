@@ -253,15 +253,41 @@ describe('every transcribed item agrees with the entry it was read from', () => 
         // table beside the spell. An entry that prints no charge count at all
         // is a per-day property, which is a pool of one and priced by the
         // sentence that says so.
-        const printed =
-          entry.charges === null
-            ? grant.charges === 1 &&
-              contains(entry.description, "can't be used again until the next dawn")
-            : contains(entry.description, `expend ${grant.charges} charge`) ||
-              contains(entry.description, `For ${grant.charges} charge`) ||
-              tablePrices(entry.description).get(name ?? '') === grant.charges;
-        expect(printed, `${item.id} prices ${name} at ${grant.charges}, and its entry does not`)
-          .toBe(true);
+        //
+        // And the fourth way, which is not a price: SRD Helm of Comprehending
+        // Languages prints no charge count, no per-day sentence and no other
+        // limit, so `atWill` is held against the *absence* of all three. An
+        // entry that does print one of them would be an item quietly made
+        // free, which is the mirror of a staff quietly made cheap.
+        if (grant.atWill === true) {
+          expect(grant.charges, `${item.id} casts ${name} at will and names a price`)
+            .toBeUndefined();
+          expect(entry.charges, `${item.id} casts ${name} at will and its entry has charges`)
+            .toBeNull();
+          expect(
+            contains(entry.description, "can't be used again until the next dawn"),
+            `${item.id} casts ${name} at will and its entry prints a per-day limit`,
+          ).toBe(false);
+        } else {
+          const printed =
+            entry.charges === null
+              ? grant.charges === 1 &&
+                contains(entry.description, "can't be used again until the next dawn")
+              : contains(entry.description, `expend ${grant.charges} charge`) ||
+                contains(entry.description, `For ${grant.charges} charge`) ||
+                tablePrices(entry.description).get(name ?? '') === grant.charges;
+          expect(printed, `${item.id} prices ${name} at ${grant.charges}, and its entry does not`)
+            .toBe(true);
+        }
+
+        // SRD Ring of Jumping: "but can target only yourself when you do so."
+        // A narrowing the item prints, and the words it prints it in.
+        if (grant.targetsSelfOnly === true) {
+          expect(
+            contains(entry.description, 'only yourself'),
+            `${item.id} narrows ${name} to its wearer and its entry does not say so`,
+          ).toBe(true);
+        }
 
         if (grant.saveDc !== undefined) {
           expect(

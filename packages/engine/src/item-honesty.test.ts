@@ -141,6 +141,19 @@ describe('an item that casts a spell says which, for what, and out of what', () 
     { ...WAND.grants[1], ...over },
   ];
 
+  /**
+   * The same casting grant with named fields **taken off** rather than
+   * overwritten, because the cases below are about what an entry does not say.
+   */
+  const castsWithout = (
+    drop: readonly string[],
+    over: Record<string, unknown> = {},
+  ): Record<string, unknown> => {
+    const grant: Record<string, unknown> = { ...WAND.grants[1], ...over };
+    for (const field of drop) delete grant[field];
+    return grant;
+  };
+
   it('accepts a wand that casts a spell the catalogue holds', () => {
     expect(problemsOf(WAND.grants)).toEqual([]);
     const loaded = unwrap(
@@ -197,6 +210,53 @@ describe('an item that casts a spell says which, for what, and out of what', () 
     ]);
   });
 
+  /**
+   * SRD Helm of Comprehending Languages: "While wearing this helm, you can
+   * cast _Comprehend Languages_ from it." No charge count, no per-dawn
+   * sentence, no limit at all — so the item has to be able to say that the
+   * book charges nothing for its casting, and `atWill` is where it says so.
+   *
+   * **The licence is written down rather than inferred**, which is why the
+   * absence of a cost is still a refusal on its own: a grant that names
+   * neither a price nor `atWill` is exactly what a malformed entry looks like,
+   * and reading it as free would make every typo a free casting.
+   */
+  it('refuses a casting that names neither a price nor a licence to be free', () => {
+    expect(problemsOf([WAND.grants[0], castsWithout(['charges', 'upToCharges'])])).toEqual([
+      'casts_for_no_price @ items[wand-of-sparks].grants[1].charges',
+    ]);
+  });
+
+  /** And the other way round: a price and a licence to be free is two answers. */
+  it('refuses a casting that is both priced and at will', () => {
+    expect(
+      problemsOf([WAND.grants[0], castsWithout(['upToCharges'], { atWill: true })]),
+    ).toEqual(['at_will_and_a_price @ items[wand-of-sparks].grants[1].atWill']);
+  });
+
+  /**
+   * "You can expend no more than 3 charges" is a range of prices, and an
+   * at-will casting has none for it to be a range of.
+   */
+  it('refuses a charge range on a casting that spends no charges', () => {
+    expect(problemsOf([WAND.grants[0], castsWithout(['charges'], { atWill: true })])).toEqual([
+      'at_will_and_a_charge_range @ items[wand-of-sparks].grants[1].upToCharges',
+    ]);
+  });
+
+  /** An at-will casting needs no pool, which is the whole of what it claims. */
+  it('accepts an at-will casting with no charge pool behind it', () => {
+    expect(problemsOf([castsWithout(['charges', 'upToCharges'], { atWill: true })])).toEqual([]);
+  });
+
+  /**
+   * SRD Ring of Jumping: "you can cast _Jump_ from it, but can target only
+   * yourself when you do so." A narrowing the item prints, accepted on any
+   * casting grant — the spell's own rule still runs, and this runs after it.
+   */
+  it('accepts the narrowing an item prints on its own casting', () => {
+    expect(problemsOf(withCasts({ targetsSelfOnly: true }))).toEqual([]);
+  });
 });
 
 describe('the clause that was a comment is now countable', () => {

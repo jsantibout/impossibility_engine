@@ -235,6 +235,29 @@ const castsSpell = (
 ): ItemGrant => ({ kind: 'casts', spell, charges: cost, ...extra });
 
 /**
+ * The same sentence with no price after it: "you can cast _X_ from it".
+ *
+ * SRD Helm of Comprehending Languages prints one line and nothing else — no
+ * charge count, no "this property can't be used again until the next dawn",
+ * no table — so the item casts and nothing at all runs out. That is a
+ * different claim from the per-day property the Cape of the Mountebank writes,
+ * which is a pool of one, and `atWill` is what distinguishes them: an absence
+ * read as a licence would make a dropped field into a free casting.
+ *
+ * `targetsSelfOnly` is the other clause two rings print — "but can target only
+ * yourself when you do so" — and it is rule 3 of this file answered rather
+ * than triggered: the clause that limits the benefit is now one the engine can
+ * say, so the item goes in narrowed instead of staying out.
+ */
+const castsSpellAtWill = (
+  spell: string,
+  extra: {
+    /** SRD Ring of Jumping: "but can target only yourself when you do so." */
+    readonly targetsSelfOnly?: true;
+  } = {},
+): ItemGrant => ({ kind: 'casts', spell, atWill: true, ...extra });
+
+/**
  * The weapon record a magic weapon is a magical version of.
  *
  * SRD writes a whole family as one entry — "Weapon, +1, +2, or +3: Weapon
@@ -1304,6 +1327,65 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         'the third row of the staff\'s table, "_Wall of Fire_" at 4 charges: the catalogue has no definition of that spell, which is blocked on a wall — an area shape the engine does not hold — and on damage with neither an attack roll nor a save',
         '"If you expend the last charge, roll 1d20. On a 1, the staff crumbles into cinders and is destroyed": an item that destroys itself, which nothing removes from an inventory',
       ],
+    },
+  ),
+  // ── castings the book prices at nothing ──────────────────────────────────
+  wornItem(
+    {
+      id: 'helm-of-comprehending-languages',
+      name: 'Helm of Comprehending Languages',
+      kind: 'wondrous',
+    },
+    {
+      /**
+       * SRD Helm of Comprehending Languages: "Wondrous Item, Uncommon. While
+       * wearing this helm, you can cast _Comprehend Languages_ from it."
+       *
+       * **The whole entry, and the item that proves an at-will casting.** One
+       * sentence: no charge count, no per-dawn line, no bracket, no DC. So
+       * there is no pool, nothing to spend and nothing to run out — which the
+       * `casts` grant could not say until `atWill` existed, and which a pool
+       * of one would have said wrongly, because a helm that worked once a day
+       * is not the helm the book prints.
+       *
+       * What the spell leaves to the table is the spell's note, handed over
+       * through `unverified` on every casting, so this record carries none of
+       * its own.
+       */
+      grants: [castsSpellAtWill('comprehend-languages')],
+    },
+  ),
+  wornItem(
+    { id: 'ring-of-jumping', name: 'Ring of Jumping', kind: 'ring' },
+    {
+      /**
+       * SRD Ring of Jumping: "Ring, Uncommon (Requires Attunement). While
+       * wearing this ring, you can cast _Jump_ from it, but can target only
+       * yourself when you do so."
+       *
+       * **Both new clauses on one line.** The casting is priced at nothing,
+       * and the spell under it — which touches a willing creature, and one
+       * more for each slot level above 1 — is narrowed to whoever is wearing
+       * the ring. Written unnarrowed it would be a ring that let its wearer
+       * Jump an ally, which is a benefit the book does not print.
+       */
+      attunement: {},
+      grants: [castsSpellAtWill('jump', { targetsSelfOnly: true })],
+    },
+  ),
+  wornItem(
+    { id: 'ring-of-water-walking', name: 'Ring of Water Walking', kind: 'ring' },
+    {
+      /**
+       * SRD Ring of Water Walking: "Ring, Uncommon. While wearing this ring,
+       * you cast _Water Walk_ from it, targeting only yourself."
+       *
+       * The same two clauses, printed in different words and over a spell that
+       * reaches ten willing creatures — so the narrowing is doing nine
+       * creatures' worth of work here. No bracket on the type line, so anybody
+       * may put it on.
+       */
+      grants: [castsSpellAtWill('water-walk', { targetsSelfOnly: true })],
     },
   ),
   magicWeapon(

@@ -4875,10 +4875,6 @@ export { DEFINED as DEFINED_SPELL_IDS };
 export const ITEM_SHAPES = {
   'a-spell-an-item-casts-that-nothing-executes':
     'the item’s line says it casts a named spell and the catalogue has **no definition of that spell at all**. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Gate cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist. **The word that decides an entry is *definition*, not *executable*, and this description said otherwise for a batch.** The predicate `checkContent` hands an item is `spells.some(s => s.id === id)` — packages/engine/src/content.ts, the call site of `itemGrantProblems` — and `castFromItem` reads `content.spell(id)`, so a **tracked** definition answers both. That is SRD’s own sentence about what a casting from an item is: "The spell uses its normal casting time, range, and duration, and the user of the item must concentrate if the spell requires Concentration", every word of which a tracked definition already carries. A Wand of Magic Detection and a Ring of Animal Influence came off this shape without a line of spell work, and `item-casts-a-tracked-spell.test.ts` drives both directions so the distinction cannot be lost again. What *should* name this shape is an entry whose spell nothing defines — and, for a **potion**, a spell whose definition resolves nothing, because a `confers` grant carries the definition’s `SpellEffect[]` and "an item that confers an empty list confers nothing". **Two entries still name it and should not**, and they are written down rather than quietly left, because the `Blocks` column is derived from this map and is wrong by them: `amulet-of-the-planes` casts a defined Plane Shift but gates it behind "make a DC 15 Intelligence (Arcana) check", which is a check gating an item’s casting and has no id here; and `chime-of-opening` casts a defined Knock out of a use count that never comes back, which is neither a `dawn` pool nor nothing. Both need their paragraph read before they can be re-pointed, and inventing a shape to move them would be the architecture decision this vocabulary refuses to smuggle in as a note.',
-  'a-spell-an-item-casts-at-will':
-    'the item casts a spell and the book prices it at **nothing** — "While wearing this helm, you can cast _Comprehend Languages_ from it", with no charge count, no per-dawn sentence and no other limit. A `casts` grant has no way to say so: packages/engine/src/content.ts refuses a cost below one ("the SRD prints what a casting from an item costs on the item’s own line") and refuses a grant whose charges come from nowhere ("casts X for charges and declares no charge pool for them to come out of"), and a pool of zero uses is refused too. So an item whose casting the book charges nothing for has an economy the vocabulary cannot express, and inventing a charge for it would print a limit the page does not. Distinct from the per-day property, which **is** a pool of one and which the Cape of the Mountebank already writes.',
-  'a-target-rule-an-item-narrows':
-    'the item casts a spell at fewer targets than the spell itself takes — Ring of Jumping’s "can target only yourself when you do so", Ring of Water Walking’s "targeting only yourself". The `casts` grant carries a spell, a price, a level and the two numbers the item may print, and nothing that narrows a `TargetRule`; the spell’s own rule is what `resolveSpell` checks. This is rule 3 of packages/content/src/items.ts reaching an item that casts — "An item is left out when the clause the engine **cannot** say is the one that *limits* the benefit" — because a ring granting the spell unnarrowed would let its wearer Jump an ally the book never offered.',
   'a-save-an-item-forces':
     'a saving throw an item makes somebody roll — **half built, and the half that is missing is not the DC**. The roll and the number are there: packages/engine/src/content.ts admits the first, "A saving throw is not on that list any more.", and says where the second comes from, "`saveDc` on the grant is a number the item printed and `save-damage` resolves against it through the resolver a casting uses". So a save whose failure is **damage** is writable today, which is why Dust of Dryness’s 10d6 and Javelin of Lightning’s 4d6 no longer name this shape. What is not built is every *other* thing a failed save can do, and the same file gives the reason: "`save` is still refused, and not for want of a DC" — "Its `condition` is a required field and its `repeats` is the repeat save that goes with one, and a repeat save is a `PendingSave` that names a casting id" — which is docs/design/content.md’s own rule that an item conferring an effect is "refused an effect kind a conferral cannot resolve", reaching the one kind every remaining save would need. What still names this shape is therefore a save whose outcome is neither damage nor anything a shape already covers: a wielder who goes berserk, a creature trapped in a flask or a mirror, an Undead simply destroyed. A save that imposes a **condition** is that same weld seen from the other end and names `a-condition-an-item-imposes` instead, which is the id the vocabulary already had for it.',
   'a-charge-spent-on-something-other-than-a-casting':
@@ -5272,7 +5268,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     },
   ],
   'handy-haversack': ['a-container-with-a-space-of-its-own'],
-  'hat-of-disguise': ['a-casting-ended-by-a-trigger', 'a-spell-an-item-casts-at-will'],
+  'hat-of-disguise': ['a-casting-ended-by-a-trigger'],
   'hat-of-many-spells': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-version-of-an-item-the-book-leaves-to-the-gm',
@@ -5286,7 +5282,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-rider-on-the-face-the-die-showed',
     'an-item-instance-with-a-state-of-its-own',
   ],
-  'helm-of-comprehending-languages': ['a-spell-an-item-casts-at-will'],
   'helm-of-telepathy': [
     'a-spell-an-item-casts-that-nothing-executes',
     'a-fact-only-the-table-can-declare',
@@ -5503,7 +5498,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-condition-an-item-imposes',
     'a-benefit-an-item-switches-on-and-off',
   ],
-  'ring-of-jumping': ['a-spell-an-item-casts-at-will', 'a-target-rule-an-item-narrows'],
   'ring-of-mind-shielding': [
     'a-fact-only-the-table-can-declare',
     'an-object-with-statistics-of-its-own',
@@ -5528,7 +5522,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-item-instance-with-a-state-of-its-own',
   ],
   'ring-of-warmth': ['a-reduction-an-effect-applies-to-damage'],
-  'ring-of-water-walking': ['a-spell-an-item-casts-at-will', 'a-target-rule-an-item-narrows'],
   'ring-of-x-ray-vision': [
     'senses-beyond-declared-sight',
     'a-benefit-an-item-switches-on-and-off',
@@ -5552,14 +5545,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   'rod-of-absorption': ['a-casting-an-item-stores-or-gives-back', 'a-reaction-an-item-grants'],
   // Its four spells are all defined, so the spell shape never belonged here;
-  // what its `_Spells._` property has no way to say is the price, because
-  // "While holding the rod, you can cast the following spells from it" names
-  // no charge and no dawn.
-  'rod-of-alertness': [
-    'a-spell-an-item-casts-at-will',
-    'an-area-an-item-creates',
-    'senses-beyond-declared-sight',
-  ],
+  // and what its `_Spells._` property had no way to say — "While holding the
+  // rod, you can cast the following spells from it", naming no charge and no
+  // dawn — is now `atWill`. What is left is the aura it plants and the
+  // Advantage on Initiative it hands whoever is near it.
+  'rod-of-alertness': ['an-area-an-item-creates', 'senses-beyond-declared-sight'],
   'rod-of-lordly-might': [
     'a-benefit-an-item-switches-on-and-off',
     'a-condition-an-item-imposes',

@@ -3541,7 +3541,12 @@ export const JUMP: SpellDefinition = {
   castingTime: 'bonus-action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  // "A willing creature" you touch includes you, which Guidance and Mage
+  // Armor are already transcribed as — and which SRD says of this spell in as
+  // many words from the other end: Ring of Jumping casts Jump "but can target
+  // only yourself when you do so", a sentence with no meaning if the caster
+  // were not a legal target of it.
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
   effects: [],
   durationSeconds: 60,
   unmodelled: [

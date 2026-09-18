@@ -93,6 +93,7 @@ import {
   itemCastOf,
   itemPaysRefusal,
   itemRoute,
+  selfOnlyRefusal,
   numbersFor,
   routeLabel,
 } from './item-casting.js';
@@ -581,6 +582,13 @@ export function castOrRelease(
       if (!named.ok) return named;
       targets = named.value;
     }
+
+    // SRD Ring of Jumping: "but can target only yourself when you do so."
+    // The item narrowing the spell under it, asked once the spell's own rule
+    // has had its say and before anything at all is spent — so a ring aimed at
+    // an ally is a refusal its wearer pays nothing for.
+    const narrowed = selfOnlyRefusal(route, supply.content, definition, casterId, targets);
+    if (!narrowed.ok) return narrowed;
 
     // What the targets **are**, where the spell answers differently by type.
     // Asked here, with the targets settled and before anything is spent, so a

@@ -475,11 +475,31 @@ export type FeatureGrant =
        *
        * SRD Wand of Web: "you can expend 1 charge to cast _Web_". A per-day
        * property is the same sentence with a pool of one behind it — "this
-       * property can't be used again until the next dawn" — which is why this
-       * is required rather than optional: an item that casts for free would be
-       * a benefit with no economy, and none of them is printed that way.
+       * property can't be used again until the next dawn" — and that is still
+       * a price rather than an absence.
+       *
+       * **Optional only because {@link atWill} exists**, and never absent on
+       * its own: `checkContent` refuses a grant that names neither, because
+       * the absence of a cost is also what a malformed entry looks like.
        */
-      readonly charges: number;
+      readonly charges?: number;
+      /**
+       * That the book prices this casting at **nothing**.
+       *
+       * SRD Helm of Comprehending Languages: "While wearing this helm, you can
+       * cast _Comprehend Languages_ from it." No charge count, no per-dawn
+       * sentence, no limit of any kind — so there is no pool to declare, no
+       * charge to spend, and nothing that can run out.
+       *
+       * **A licence that is written down rather than inferred.** A missing
+       * `charges` would have been enough to *mean* free, and that is exactly
+       * why it is not enough to *say* it: a typo, a dropped field and a free
+       * casting would be the same record, and the item that came out of it
+       * would silently be better than the one in the book. Declared with
+       * `charges`, or with {@link upToCharges}, it is refused: an item prices
+       * its casting once.
+       */
+      readonly atWill?: true;
       /**
        * The most this casting may spend, where the item lets the user choose.
        *
@@ -490,6 +510,21 @@ export type FeatureGrant =
        * staff tables print a fixed cost instead and leave this absent.
        */
       readonly upToCharges?: number;
+      /**
+       * SRD Ring of Jumping: "but can target only yourself when you do so."
+       *
+       * The item casting the spell at fewer creatures than the spell itself
+       * takes. Ring of Water Walking prints the same narrowing ("targeting
+       * only yourself") over a spell that reaches ten, and a ring that granted
+       * either unnarrowed would hand out a better ring than the book does.
+       *
+       * **A narrowing rather than a target rule of its own.** The spell's own
+       * `TargetRule` still runs first — range, sight, count, creature type —
+       * and this refuses afterwards, on the one question the item asked: is
+       * every target the creature holding it. So it is a rules-legal refusal
+       * and nothing has been spent when it arrives.
+       */
+      readonly targetsSelfOnly?: true;
       /**
        * The level the least charge count casts it at.
        *
