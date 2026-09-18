@@ -118,6 +118,7 @@
     "VITALS_EVENTS",
     "VitalsEvent",
     "isVitalsEvent",
+    "withoutTimersFor",
     "applyVitals"
   ],
   "fold/upkeep.ts": [

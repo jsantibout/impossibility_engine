@@ -8,7 +8,14 @@
  * A cut between `vitals` and `conditions` would put both halves of those
  * sentences in different modules.
  */
-import { applyCondition, removeCondition, setExhaustion } from '../conditions.js';
+import type { CharacterId } from '@ie/shared';
+import {
+  applyCondition,
+  removeCondition,
+  setExhaustion,
+  type ConditionState,
+} from '../conditions.js';
+import { timerKey, type TimedEffect } from '../duration.js';
 import {
   applyDamageToVitals,
   grantTemporaryHp,
@@ -47,6 +54,46 @@ export type VitalsEvent = Extract<GameEvent, { type: (typeof VITALS_EVENTS)[numb
 
 /** Whether an event is this seam's. Built from the same list, so the two cannot drift. */
 export const isVitalsEvent = seamOf(VITALS_EVENTS);
+
+/**
+ * Drop the deadlines of the condition instances that have just gone.
+ *
+ * The population is the **difference between two condition states**, not the
+ * name the removal happened to carry. A removal by name lifts every instance
+ * of it and each of those lifts whatever it implied, so the honest question is
+ * which instance ids stopped existing — and `timerKey` turns each of them back
+ * into the key its deadline was filed under, the same derivation
+ * `applyConditionTo` used to file it. Nothing here needs to know *why* an
+ * instance went, which is what lets one line serve a cure, a dispel and a
+ * source-named removal alike.
+ *
+ * Insertion order is preserved, so a filtered record is still the sorted one
+ * `sortedTimers` built and a fold stays byte-identical.
+ */
+function withoutTimersFor(
+  state: GameState,
+  on: CharacterId,
+  before: ConditionState,
+  after: ConditionState,
+): GameState {
+  const gone = new Set(
+    before.instances
+      .filter((instance) => !after.instances.some((kept) => kept.id === instance.id))
+      .map((instance) => timerKey({ kind: 'condition', on, instance: instance.id })),
+  );
+  if (gone.size === 0) return state;
+
+  const timers: Record<string, TimedEffect> = {};
+  let dropped = false;
+  for (const [key, timer] of Object.entries(state.timers)) {
+    if (gone.has(key)) {
+      dropped = true;
+      continue;
+    }
+    timers[key] = timer;
+  }
+  return dropped ? { ...state, timers } : state;
+}
 
 /**
  * Reduce one of this seam's events.
@@ -145,7 +192,26 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
       // lifts the Incapacitated it brought — while leaving any other reason
       // for the same condition standing, and leaving Prone behind.
       const conditions = removeCondition(creature.conditions, event.condition, event.source);
-      return withCreature(next, event.id, { conditions }, creature);
+      const lifted = withCreature(next, event.id, { conditions }, creature);
+
+      // **And the deadline goes with the instance it was hung on.**
+      // `applyConditionTo` files an `effect-scheduled` against the condition
+      // *instance* whenever there is a duration, a repeat save or a check, and
+      // a removal by name lifts every instance of that name — so a cure used
+      // to leave those timers standing. A stale one is not merely untidy: the
+      // turn boundary went on raising the repeat save against a condition that
+      // was gone, and a stale span would end the *next* instance of the same
+      // condition early, at a moment measured from one nobody has any more.
+      //
+      // **Derived from the removal rather than written beside it.** A timer is
+      // a deadline on an instance, so an instance that no longer exists has no
+      // deadline, and the fold can read that off the very event it is already
+      // reducing — which keeps a removal one event, the way `expireEffects`
+      // and `endLostFeatures` keep an expiry none at all. The population is the
+      // difference between the two condition states rather than the event's own
+      // name, so an implied instance that carried a deadline of its own goes
+      // with the cause that carried it.
+      return withoutTimersFor(lifted, event.id, creature.conditions, conditions);
     }
 
     case 'exhaustion-set': {
