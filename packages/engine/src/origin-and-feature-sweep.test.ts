@@ -317,6 +317,11 @@ describe('no species, background, feat or feature is special-cased in the runtim
     // excused rather than a word somebody typed here.
     const collisions = REQUIREMENT_KINDS.filter((kind) => POPULATIONS.feat.includes(kind));
     expect(collisions).not.toEqual([]);
+    // Pinned as well as derived, the way the spell sweep pins its two words:
+    // deriving keeps the allowance honest about *why* a word is excused, and
+    // pinning makes a second collision arrive as a failure a reviewer reads
+    // rather than as an exemption that granted itself.
+    expect(collisions).toEqual(['magic-initiate']);
     for (const kind of collisions) {
       expect(source('creation.ts')).toContain(`requires.kind === '${kind}'`);
 
