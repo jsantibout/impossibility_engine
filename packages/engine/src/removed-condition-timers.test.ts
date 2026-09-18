@@ -183,6 +183,29 @@ describe('a repeat save is not raised against a condition that is gone', () => {
     const after = fold('seed', [...held(), ...endConditionsOn(GOBLIN, ['paralyzed'])]);
     expect(Object.keys(after.timers)).not.toContain(key);
   });
+
+  /**
+   * And a save the boundary raised **before** the cure arrived goes with it.
+   *
+   * Nothing here is new — `dropOrphanedSaves` has always dropped a debt whose
+   * effect is gone, and a save nobody can settle is what wedges the turn order
+   * — but it only ever saw the timer. Taking the timer away is what lets the
+   * pass it was already reaching for do its job, so the cure clears an
+   * outstanding save as well as a future one, and `resolveTurn` is not left
+   * refusing `saves_pending` on behalf of a condition nobody has.
+   */
+  it('drops a save already raised, rather than leaving the turn owing it', () => {
+    // No supply, so the boundary raises the save and nothing rolls it.
+    const raise = (s: GameState): Result<GameEvent[]> => {
+      const outcome = resolveTurn(s);
+      return outcome.ok ? { ok: true, value: [...outcome.value.events] } : outcome;
+    };
+    const owing = run(run(held(), raise), raise);
+    expect(pendingSavesOf(fold('seed', owing)).map((p) => p.target)).toEqual([GOBLIN]);
+
+    const cured = [...owing, ...endConditionsOn(GOBLIN, ['paralyzed'])];
+    expect(pendingSavesOf(fold('seed', cured))).toEqual([]);
+  });
 });
 
 describe('a removal by name takes every instance and every timer', () => {
