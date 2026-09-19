@@ -594,6 +594,20 @@ export interface ReleaseCommand extends CommandIdentity {
   readonly placement?: Placement;
   /** How many feet of that move are through Difficult Terrain. */
   readonly difficultFeet?: number;
+  /**
+   * The 5-foot spaces that move passed through — `MoveCommand.route`, and for
+   * the same reason.
+   *
+   * **A readied move is charged for the ground it crosses, so it can be asked
+   * which ground that was.** The allowance is the mover's Speed and the patches
+   * the table has declared come off it exactly as they do on the mover's own
+   * turn, so `chargeTerrain` reaches `route_required` here as readily as it
+   * does from `resolveMove` — and until this field existed the answer to that
+   * question had nowhere to go. The caller was told to send the same command
+   * again with a field the command did not have, which is a refusal that
+   * cannot be acted on however carefully it is read.
+   */
+  readonly route?: readonly Point[];
 }
 
 /**
@@ -711,6 +725,7 @@ function releaseMove(
     {
       placement: command.placement,
       ...(command.difficultFeet === undefined ? {} : { difficultFeet: command.difficultFeet }),
+      ...(command.route === undefined ? {} : { route: command.route }),
     },
     supply,
     allowance,

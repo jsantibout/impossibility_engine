@@ -39,6 +39,7 @@ import {
 } from '../spell-definitions.js';
 import { castingNumber, type OngoingSpell } from '../spells.js';
 import { type ActivateSpellCommand } from './activation.js';
+import { ROUTE_REQUIRED } from './command.js';
 
 /**
  * The spells currently running on a creature, oldest casting first.
@@ -380,8 +381,14 @@ export function relocateOrigin(
       previous = space;
     }
     if (coarse.length > 0) {
+      // `route_required` and not `single_steps_required`: an area walked by a
+      // later activation settles what each leg raised at the end of the one
+      // command, because nothing that happens to the creatures it passes over
+      // can stop the area travelling. A creature carrying an area can be
+      // stopped by what it walks into, which is why the move's own sweep asks
+      // for something else. See {@link ROUTE_REQUIRED}.
       return needsContext(
-        'route_required',
+        ROUTE_REQUIRED,
         `${record.spell}'s area triggers on the creatures it moves into, and ${coarse.length === 1 ? 'one leg of' : `${coarse.length} legs of`} the requested route ${coarse.length === 1 ? 'crosses' : 'cross'} spaces nothing records; send the activation again with \`via\` naming each 5-foot step`,
         coarse,
       );

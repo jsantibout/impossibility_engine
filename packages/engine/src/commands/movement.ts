@@ -32,7 +32,13 @@ import {
 import { type AttackResolution, resolveAttack } from './attacks.js';
 import { type Content } from '../content.js';
 import { type Supply } from './casting.js';
-import { creatureOf, sceneFor, unknownCreature } from './command.js';
+import {
+  creatureOf,
+  ROUTE_REQUIRED,
+  sceneFor,
+  SINGLE_STEPS_REQUIRED,
+  unknownCreature,
+} from './command.js';
 import { completeIfSettled, mayAct } from './holds.js';
 import { sweptRoute } from './ongoing.js';
 
@@ -86,7 +92,10 @@ export interface MoveCommand extends CommandIdentity {
    * has to *settle* what each space raised before the next is entered, so it
    * asks for the move to be re-sent as single steps. Terrain settles nothing —
    * it changes a number — so stating the spaces in one command is the whole of
-   * what it needs.
+   * what it needs. **That is why the two carry different codes**: filling in
+   * this field is the answer to one of them and not the other, and a caller
+   * that could not tell which it had been asked would fill in `route`, be
+   * asked again, and loop. See {@link SINGLE_STEPS_REQUIRED}.
    *
    * A route is a **shortest** path; see `checkRoute` for why a wandering one
    * is refused rather than charged. A move that spends nothing never needs
@@ -201,10 +210,14 @@ export function moveWithin(
     // **A carried area sweeps, and a move of more than one space does not say
     // what it swept.** Checked before any cost, any budget and any Opportunity
     // Attack, so a move that needs its route stated costs nothing to ask about.
+    //
+    // Under its own code, because it is asked first and the other question a
+    // move can be asked about its route is answered a different way. See
+    // {@link SINGLE_STEPS_REQUIRED}.
     const sweeping = sweptRoute(state, supply.content, scene.value, moved.value.state);
     if (sweeping.length > 0) {
       return needsContext(
-        'route_required',
+        SINGLE_STEPS_REQUIRED,
         `${id} is carrying ${sweeping.length === 1 ? 'an area' : 'areas'} that catch every creature they move into, and a move of ${feet} feet crosses spaces nothing records; send the move again as single 5-foot steps`,
         sweeping,
       );
@@ -444,7 +457,7 @@ function chargeTerrain(
   }
 
   return needsContext(
-    'route_required',
+    ROUTE_REQUIRED,
     `the ground between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) is Difficult Terrain in some places and not others, so a ${feet}-foot move costs a different number of feet depending which spaces ${id} crossed`,
     [
       {

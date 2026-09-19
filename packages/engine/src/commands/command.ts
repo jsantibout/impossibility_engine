@@ -35,6 +35,41 @@ import { distanceBetween, positionOf, type PositionState } from '../positioning.
  */
 export const ZERO_HIT_POINTS = 'zero hit points';
 
+/**
+ * Two questions about the spaces something crossed, and the values that tell
+ * them apart.
+ *
+ * Both are `needs-context`, both carry requests of kind `route`, and both can
+ * come back from a single command — but what closes them is not the same
+ * thing, and a caller that could not tell which it had been handed would
+ * answer the wrong one and ask again forever:
+ *
+ * | code | what it wants | what closes it |
+ * |---|---|---|
+ * | `route_required` | which spaces were crossed | the same command again, with the route field filled in — `MoveCommand.route`, `ActivateSpellCommand.via` |
+ * | `single_steps_required` | each space **settled** before the next is entered | several commands, one 5-foot step each |
+ *
+ * The second is not the first with more work, and the difference is a rule
+ * rather than an implementation: a creature that fails its save against the
+ * Web it carried itself into is Restrained, and a Restrained creature's walk
+ * stops in that space. A route stated up front would have the engine deciding
+ * the rest of a walk before knowing whether it happened. So a route is not an
+ * answer to `single_steps_required` and never will be.
+ *
+ * `ContextRequest.kind` stays `route` for both, because what is missing really
+ * is which spaces were crossed. The code is what says **how to supply it**,
+ * and `satisfyWith` says the same thing again in words for whoever is reading.
+ *
+ * Here rather than in `movement.ts` for the reason everything else in this
+ * module is here: `commands/movement.ts` asks both questions and
+ * `commands/ongoing.ts` asks the first, movement already imports ongoing for
+ * `sweptRoute`, and two spellings of one code is two chances for them to
+ * drift apart — which is the bug these constants exist to close.
+ */
+export const ROUTE_REQUIRED = 'route_required';
+/** @see {@link ROUTE_REQUIRED} — the other half of the pair. */
+export const SINGLE_STEPS_REQUIRED = 'single_steps_required';
+
 export const creatureOf = (state: GameState, id: CharacterId) => state.creatures[id] ?? null;
 
 /**

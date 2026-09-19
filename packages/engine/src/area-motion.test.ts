@@ -737,7 +737,25 @@ describe('a route with spaces nobody named is a question, not a refusal', () => 
     // `needs-context` is the channel; `route_required` is which question, and
     // a caller branching on one without the other cannot tell this apart from
     // a missing position or an unnamed scene.
+    //
+    // And `route_required` specifically, which is the code that means *this
+    // command again with the route field filled in*. A creature carrying an
+    // area is asked something else and told so under `single_steps_required`,
+    // because what it walks into can stop it walking.
     expect(isErr(out) ? out.code : 'not asked').toBe('route_required');
+  });
+
+  /**
+   * **The loop, closed in one round trip.** The caller reads the code, fills
+   * in the field the code names, and the activation resolves — which is the
+   * whole of what `route_required` promises, and is why the carried-area
+   * question may not share it.
+   */
+  it('resolves when the caller fills in the field the code names', () => {
+    const { game, beam } = withBeam();
+    const asked = game.moveArea(beam, BEAM_EAST);
+    expect(contextRequestsOf(asked)[0]?.satisfyWith).toMatch(/via/);
+    expect(isErr(game.moveArea(beam, BEAM_EAST, { via: SWEEP_EAST }))).toBe(false);
   });
 
   it('names the fact it is missing and how to supply it', () => {

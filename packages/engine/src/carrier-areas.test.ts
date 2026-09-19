@@ -703,9 +703,15 @@ describe('a carrier move longer than one space is a question, not a guess', () =
   it('asks rather than refusing', () => {
     const { out } = coarse();
     expect(isNeedsContext(out)).toBe(true);
-    // The same code the area's own side of this question carries — one
-    // question asked from two directions, so a caller branches once.
-    expect(isErr(out) ? out.code : 'not asked').toBe('route_required');
+    // **Its own code, and not the one a stated route answers.** This and
+    // Moonbeam's `via` are one question asked from two directions, but they
+    // are not one *answer*: an area a later activation walks settles every leg
+    // at the end of the one command, while a creature carrying an area can be
+    // stopped by what it walks into, so each space has to be settled before
+    // the next is entered. A caller told only "route" would fill in
+    // `MoveCommand.route`, be asked again, and loop — see
+    // `route-refusals.test.ts`, which drives that loop and shows it closed.
+    expect(isErr(out) ? out.code : 'not asked').toBe('single_steps_required');
   });
 
   it('names the casting, both ends and what to send instead', () => {
