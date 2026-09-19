@@ -72,8 +72,8 @@ const CASES = SPELL_DEFINITIONS.map((d) => [d.id, d] as const);
  * whether a transcription is right reads that line before anything else. An
  * independent review found **thirteen** headers naming a class list the book
  * does not print: seven inventing a class — two of them an Artificer, which
- * SRD 5.2.1 has no such thing as — and six dropping one. Six were this
- * batch's and seven had been there for tranches.
+ * SRD 5.2.1 has no such thing as — and six dropping one. Eight were this
+ * batch's and five had been there for tranches.
  *
  * A wrong quotation inside a `>` is worse than a wrong comment, because it is
  * attributed. So the class list joins Range, Duration and the casting time as
@@ -102,7 +102,11 @@ const SOURCE: readonly string[] = readFileSync(
  * already follows for `coverageGaps` and for every marker sweep.
  */
 const quotedClasses = (lines: readonly string[], name: string): readonly string[] | null => {
-  const at = lines.indexOf(` * SRD ${name}:`);
+  // The heading is `SRD <Name>:` or `SRD <Name>, whole:` — three definitions
+  // write the second form, and an exact match silently lost all three.
+  const at = lines.findIndex(
+    (line) => line === ` * SRD ${name}:` || line.startsWith(` * SRD ${name}, `),
+  );
   if (at < 0) return null;
   for (let line = at + 1; line < Math.min(at + 12, lines.length); line += 1) {
     if (lines[line]!.startsWith(' */')) return null;
@@ -194,7 +198,11 @@ describe('the oracle reads every spell the book prints', () => {
  * bound on how many headers were *found* cannot tell one of those from a
  * header the parser stopped understanding. Dispel Magic was in this set for
  * exactly one commit, because its eight classes wrap onto a second line and
- * nothing said so.
+ * nothing said so; Heroism, Divine Favor and Hunter's Mark were in it for a
+ * second commit, because their headers read `SRD Heroism, whole:` and the
+ * lookup wanted a colon straight after the name. Both were the same failure:
+ * a definition the parser could not find looks exactly like one with nothing
+ * to find.
  */
 const NO_CLASS_LIST: readonly string[] = [
   'comprehend-languages',
@@ -202,12 +210,9 @@ const NO_CLASS_LIST: readonly string[] = [
   'detect-magic',
   'dimension-door',
   'disguise-self',
-  'divine-favor',
   'fire-bolt',
   'fly',
-  'heroism',
   'hold-person',
-  'hunters-mark',
   'jump',
   'light',
   'longstrider',
@@ -297,8 +302,12 @@ describe('every definition quotes the class list the book prints', () => {
     ];
     const book = SPELL_INDEX.find((spell) => spell.id === 'fireball');
     expect(book?.classes).toEqual(['sorcerer', 'wizard']);
+    // Read positively, because `not.toEqual` is also satisfied by the parser
+    // returning nothing — which is the failure this whole guard exists to
+    // stop mistaking for agreement.
+    expect(quotedClasses(drifted, 'Fireball')).toEqual(['cleric', 'sorcerer', 'wizard']);
     expect(quotedClasses(drifted, 'Fireball')).not.toEqual([...(book?.classes ?? [])]);
-    // And the right one passes, so the difference is the class rather than
+    // And the real one passes, so the difference is the class rather than
     // the shape of the assertion.
     expect(quoted('fireball')).toEqual([...(book?.classes ?? [])]);
   });
