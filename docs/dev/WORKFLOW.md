@@ -16,9 +16,10 @@ else an agent needs is `CLAUDE.md` and the design note for the subsystem.
 
 ## The loop
 
-1. The owner approves a **batch**: three to six briefs, each bounded enough
-   that a builder never has to invent architecture, with dependencies and
-   what may run in parallel. Silence is not approval.
+1. The owner approves a **batch**: briefs enough to fill four to six hours of
+   *parallel* work, each bounded enough that a builder never has to invent
+   architecture, with dependencies and what may run in parallel. Silence is
+   not approval.
 2. The coordinator launches the parallel-safe briefs. Two briefs that change
    the same module under `commands/` or `fold/`, the `GameEvent` union,
    `state.ts`, or a vocabulary type run one after the other.
@@ -32,8 +33,33 @@ else an agent needs is `CLAUDE.md` and the design note for the subsystem.
    content-specific assumption in the engine — without asking again. Anything
    else goes back to the builder, to the architect (a bounded question), or to
    the owner (a decision).
-5. When the batch is done the coordinator updates `STATUS.md`, reports, and
-   proposes the next batch. It does not start it.
+5. When the batch is done the coordinator updates `STATUS.md`, reports the
+   `COVERAGE.md` delta, and proposes the next batch. It does not start it.
+
+## Choosing what goes in a batch
+
+Three rules, written down after a batch of five briefs moved the catalogue by
+three entries while the two heaviest blockers sat untouched at the top of a
+table that ranks them.
+
+1. **Rank by reach, not by recency.** `COVERAGE.md`'s blocker tables say what
+   each missing shape blocks and what it would finish; that ranking decides
+   what is briefed. `STATUS.md`'s "Next" is a list of things somebody noticed,
+   in the order they noticed them, and is not the same question. Read the
+   shape's own description in `packages/content/scripts/missing-shapes.ts`
+   before ruling it out — more than one entry there says a cheaper thing
+   finishes it than its name suggests.
+2. **A batch is four to six hours of work running at once**, which means
+   briefs measured in hours rather than in fields, as many of them as can run
+   simultaneously. Partition them by **file ownership** rather than by topic:
+   one builder owns a file for the batch and nobody else opens it. Two briefs
+   on one topic that would queue behind each other on the same module belong
+   to one builder instead.
+3. **Every brief names the number it moves** — the entries it completes, the
+   column it shifts. A brief that cannot needs a different justification: a
+   statement in the docs that is false, a bug that loses or corrupts data, or
+   a guard the repository has no test for. Mechanism built ahead of anything
+   that asks for it is how a batch ships nothing.
 
 ## Briefs
 
