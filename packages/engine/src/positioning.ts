@@ -1509,17 +1509,30 @@ function livePatches(state: GameState): readonly (readonly [string, DifficultPat
  */
 export function terrainAt(state: GameState, space: Point): TerrainCharge {
   const scene = state.scene;
-  if (scene === null) return OPEN_FLOOR;
+  return scene === null ? OPEN_FLOOR : chargeAt(scene, livePatches(state), space);
+}
 
+/**
+ * {@link terrainAt} with the live list already in hand.
+ *
+ * The scans below ask about hundreds of spaces against the same handful of
+ * patches, and rebuilding and re-sorting that list per space would be the
+ * whole cost of the question.
+ */
+function chargeAt(
+  scene: PositionState,
+  patches: readonly (readonly [string, DifficultPatch])[],
+  space: Point,
+): TerrainCharge {
   let costPerFoot = ORDINARY_GROUND;
-  const patches: string[] = [];
-  for (const [name, patch] of livePatches(state)) {
+  const over: string[] = [];
+  for (const [name, patch] of patches) {
     if (!spaceInRegion(scene, patch.region, space)) continue;
-    patches.push(name);
+    over.push(name);
     if (patch.costPerFoot > costPerFoot) costPerFoot = patch.costPerFoot;
   }
 
-  return patches.length === 0 ? OPEN_FLOOR : { costPerFoot, patches };
+  return over.length === 0 ? OPEN_FLOOR : { costPerFoot, patches: over };
 }
 
 /** What a stated route costs in feet of movement, and what charged for it. */
@@ -1536,10 +1549,13 @@ export interface RouteCharge {
  * creature entering the next one is no longer doing in the last.
  */
 export function costOfRoute(state: GameState, spaces: readonly Point[]): RouteCharge {
+  const scene = state.scene;
+  const live = scene === null ? [] : livePatches(state);
+
   let cost = 0;
   const patches = new Set<string>();
   for (const space of spaces) {
-    const here = terrainAt(state, space);
+    const here = scene === null ? OPEN_FLOOR : chargeAt(scene, live, space);
     cost += CUBE * here.costPerFoot;
     for (const name of here.patches) patches.add(name);
   }
@@ -1550,11 +1566,20 @@ export function costOfRoute(state: GameState, spaces: readonly Point[]): RouteCh
  * The rate every space a shortest route could enter agrees on, or null.
  *
  * **This is what keeps the engine from asking for a route it does not need.**
- * A route of the length the ruler measured never leaves the box between the
- * two endpoints, so if every space in that box charges the same, every
- * shortest route costs the same and there is nothing the path could tell the
- * engine that it does not already know. Where they disagree, the number
- * depends on ground nobody has named and the engine asks.
+ * If every space any shortest route could enter charges the same, then every
+ * shortest route costs the same and the path has nothing to tell the engine
+ * that it does not already know. Where they disagree, the number depends on
+ * which spaces were crossed, and that is the table's to say.
+ *
+ * **The straight box between the endpoints is the wrong region, and by
+ * exactly the amount Chebyshev distance is not Manhattan.** A move of 5 feet
+ * across and 15 feet along is three steps, and one of them may be spent
+ * sideways and taken back: (100, 100) to (105, 115) can go by way of
+ * (110, 110), which the box misses altogether. The slack on each axis is
+ * half of what the longest axis has to spare over that one — `(D - dᵢ) / 2`,
+ * rounded down to a whole space — and the region below is the box widened by
+ * it and clipped to the scene. That is exact in both directions: every space
+ * inside it is on some shortest route, and no space outside it is.
  *
  * The starting space is excluded, because it is the one space a move does not
  * enter.
@@ -1564,13 +1589,19 @@ export function uniformTerrainBetween(
   from: Point,
   to: Point,
 ): TerrainCharge | null {
-  if (livePatches(state).length === 0) return OPEN_FLOOR;
+  const scene = state.scene;
+  if (scene === null) return OPEN_FLOOR;
+  const live = livePatches(state);
+  if (live.length === 0) return OPEN_FLOOR;
 
   const start = snapPoint(from);
   const end = snapPoint(to);
-  const span = (a: number, b: number): readonly number[] => {
-    const lo = Math.min(a, b);
-    const hi = Math.max(a, b);
+  const reach = distanceBetweenPoints(start, end);
+  /** The spaces one axis may wander to and still arrive in the same number of steps. */
+  const span = (a: number, b: number, limit: number): readonly number[] => {
+    const slack = Math.floor((reach - Math.abs(a - b)) / (2 * CUBE)) * CUBE;
+    const lo = Math.max(0, Math.min(a, b) - slack);
+    const hi = Math.min(limit, Math.max(a, b) + slack);
     const out: number[] = [];
     for (let v = lo; v <= hi; v += CUBE) out.push(v);
     return out;
@@ -1578,11 +1609,11 @@ export function uniformTerrainBetween(
 
   let agreed: TerrainCharge | null = null;
   const patches = new Set<string>();
-  for (const x of span(start.x, end.x)) {
-    for (const y of span(start.y, end.y)) {
-      for (const z of span(start.z, end.z)) {
+  for (const x of span(start.x, end.x, scene.extent.width)) {
+    for (const y of span(start.y, end.y, scene.extent.depth)) {
+      for (const z of span(start.z, end.z, scene.extent.height)) {
         if (x === start.x && y === start.y && z === start.z) continue;
-        const here = terrainAt(state, { x, y, z });
+        const here = chargeAt(scene, live, { x, y, z });
         if (agreed === null) agreed = here;
         else if (agreed.costPerFoot !== here.costPerFoot) return null;
         for (const name of here.patches) patches.add(name);

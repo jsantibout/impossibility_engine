@@ -202,6 +202,37 @@ describe('only the feet inside it cost extra', () => {
     expect(shoved.terrain).toEqual([]);
   });
 
+  /**
+   * **A shortest path can leave the straight line between the endpoints, and
+   * the question has to follow it there.** Chebyshev distance is the longer
+   * axis alone, so a move of 5 feet across and 15 along has 10 feet of slack
+   * sideways: (100, 100) to (105, 115) is three steps, and (110, 110) is on
+   * one of them. Asking only about the box between the endpoints would charge
+   * that walk as open floor while accepting a route through the snag that
+   * costs five feet more.
+   */
+  const SNAG = ball({ x: 110, y: 110, z: 0 }, 0);
+  const CORNER = { placement: { from: { point: { x: 105, y: 115, z: 0 } }, feet: 0 } };
+
+  it('asks about ground a shortest path could reach off the straight line', () => {
+    const out = resolveMove(fold('seed', declare(SETUP, 'the snag', SNAG)), WALKER, CORNER, supply());
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('route_required');
+  });
+
+  it('charges that route what its own spaces cost', () => {
+    const out = move(declare(SETUP, 'the snag', SNAG), {
+      ...CORNER,
+      route: [
+        { x: 105, y: 105, z: 0 },
+        { x: 110, y: 110, z: 0 },
+        { x: 105, y: 115, z: 0 },
+      ],
+    });
+    expect(out.feet).toBe(15);
+    expect(out.cost).toBe(20);
+  });
+
   /** A patch the walk never reaches costs nothing and is not even asked about. */
   it('leaves a creature walking the other way alone', () => {
     const out = move(declare(SETUP, 'the puddle', PUDDLE), west(30));
@@ -238,6 +269,31 @@ describe('Difficult Terrain is not cumulative', () => {
     });
     expect(move(both, east(10)).cost).toBe(40);
     expect(move(both, east(10)).terrain).toEqual(['the thorns', 'the webs']);
+  });
+});
+
+/**
+ * The ground charges what the budget pays, and where there is no budget there
+ * is nothing for it to charge.
+ *
+ * Two cases, one rule. Forced movement is not the creature's movement at all,
+ * and outside combat there is no action economy to spend from — `resolveMove`
+ * has said so since it landed. Putting a question to the table about a number
+ * nobody collects is the same mistake in both.
+ */
+describe('a move that spends nothing', () => {
+  const PUDDLE = ball({ x: 115, y: 100, z: 0 }, 5);
+  const PEACE = SETUP.filter((e) => e.type !== 'combat-started');
+
+  it('is not asked for its route outside combat', () => {
+    const out = move(declare(PEACE, 'the puddle', PUDDLE), east(25));
+    expect(out.cost).toBe(25);
+    expect(out.terrain).toEqual([]);
+  });
+
+  it('spends nothing at all outside combat', () => {
+    const out = move(declare(PEACE, 'the mire', EVERYWHERE), east(25));
+    expect(out.events.some((e) => e.type === 'movement-spent')).toBe(false);
   });
 });
 

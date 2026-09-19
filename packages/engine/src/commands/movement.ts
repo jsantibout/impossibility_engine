@@ -88,9 +88,9 @@ export interface MoveCommand extends CommandIdentity {
    * what it needs.
    *
    * A route is a **shortest** path; see `checkRoute` for why a wandering one
-   * is refused rather than charged. {@link MoveCommand.forced} never needs
-   * one, because Difficult Terrain costs movement and forced movement spends
-   * none.
+   * is refused rather than charged. A move that spends nothing never needs
+   * one at all — forced movement, and any move outside combat — because
+   * Difficult Terrain costs movement and there is none being spent.
    */
   readonly route?: readonly Point[];
 }
@@ -215,16 +215,15 @@ export function moveWithin(
     // has declared are read off the lattice here; the number the mover
     // declares is for ground no patch covers — the snow, the slope, the narrow
     // opening — and every foot of that still costs a foot extra.
-    const ground = chargeTerrain(
-      state,
-      scene.value,
-      id,
-      from,
-      to,
-      feet,
-      command.forced === true,
-      command.route,
-    );
+    // Whether this move will actually spend anything, which is the condition
+    // the whole terrain question hangs on and is the same one the budget
+    // below is gated on. Written once so the two cannot drift.
+    const spends =
+      command.forced !== true &&
+      (allowance !== null ||
+        (state.combat !== null && state.combat.budgets[id] !== undefined));
+
+    const ground = chargeTerrain(state, scene.value, id, from, to, feet, spends, command.route);
     if (!ground.ok) return ground;
 
     const difficult = command.difficultFeet ?? 0;
@@ -346,10 +345,15 @@ export function moveWithin(
  *   the distance at that rate, because no route could have cost differently.
  *
  * The third is what keeps a Web in the far corner of a room from turning
- * every move in that room into a two-step conversation, and it is exact
- * rather than generous: a route of the length the ruler measured never leaves
- * the box between the two endpoints, so if the box agrees, so does every
- * shortest path across it.
+ * every move in that room into a two-step conversation, and the region it
+ * asks about is exact rather than convenient — every space on some shortest
+ * route and no other. `uniformTerrainBetween` is where that region is
+ * computed, and where the reason it is wider than the box between the
+ * endpoints is written down.
+ *
+ * A move that spends nothing is charged nothing and asked nothing, which is
+ * the first line of the body and the one rule forced movement and movement
+ * outside combat share.
  */
 function chargeTerrain(
   state: GameState,
@@ -358,16 +362,18 @@ function chargeTerrain(
   from: Point,
   to: Point,
   feet: number,
-  forced: boolean,
+  spends: boolean,
   route: readonly Point[] | undefined,
 ): Result<{ readonly cost: number; readonly patches: readonly string[] }> {
-  // **Difficult Terrain costs movement, and forced movement spends none.** A
-  // creature shoved by Thunderwave is not moving, and the engine already
-  // reads the SRD that way for a spell's own point: `relocateOrigin` records
-  // that "no Speed is spent, no Difficult Terrain is charged" for exactly
-  // this reason. Asking a shove for its route would be asking the table to
-  // itemise a cost nobody pays.
-  if (forced) return ok({ cost: feet, patches: [] });
+  // **Difficult Terrain costs movement, so where no movement is spent there
+  // is nothing for it to charge and nothing to ask about.** Two cases and one
+  // rule: a creature shoved by Thunderwave is not moving at all, and outside
+  // combat there is no action economy to spend from. The engine already reads
+  // the SRD this way for a spell's own point — `relocateOrigin` records that
+  // "no Speed is spent, no Difficult Terrain is charged" — and putting a
+  // question to the table about a number nobody collects would be the same
+  // mistake in both.
+  if (!spends) return ok({ cost: feet, patches: [] });
 
   if (route !== undefined) {
     const checked = checkRoute(scene, from, to, route);
