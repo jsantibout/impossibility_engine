@@ -289,14 +289,32 @@ describe('the blocked-on map covers the undefined population', () => {
    * own definition of debt rather than fiction — and it is the only spell that
    * prints the clause, which is exactly when a one-consumer shape is cheap to
    * name and impossible to reconstruct later.
+   *
+   * **The spell is written now and the shape is exactly where it was**, which
+   * is the move this whole file exists to make checkable. The Cantrip Upgrade
+   * trips no mechanical marker, so while a tracked entry had to carry one the
+   * reading could not come with the definition — and the shape would have been
+   * retired for want of a claimant the moment Spare the Dying was written. It
+   * is carried by a marker-less entry instead, and `marker-less-blockers.test.ts`
+   * asserts the counterfactual directly.
    */
   it('files the one spell whose range scales with the caster', () => {
     expect(consumersOf('a-range-that-scales-with-caster-level').blocks).toEqual([
       'spare-the-dying',
     ]);
-    expect(blockersOf('spare-the-dying')).toEqual([
-      'a-range-that-scales-with-caster-level',
+    expect(BLOCKED_ON['spare-the-dying']).toBeUndefined();
+    expect(SRD_CONTENT.spell('spare-the-dying')).not.toBeNull();
+    expect(consumersOf('a-range-that-scales-with-caster-level').unseen).toEqual([
+      'spare-the-dying',
+    ]);
+    // And the stabilising half is kept too, under the marker the sentence that
+    // chooses the target does trip.
+    expect(
+      (TRACKED_ADJUDICATED['spare-the-dying'] ?? []).map((entry) => entry.why),
+    ).toEqual([
       'an-effect-that-stabilises-a-dying-creature',
+      'an-effect-that-stabilises-a-dying-creature',
+      'a-range-that-scales-with-caster-level',
     ]);
   });
 });
@@ -1501,8 +1519,11 @@ function citedProse(): Array<readonly [string, string]> {
     ...Object.entries(ADJUDICATED).flatMap(([spellId, entries]) =>
       entries.map((entry) => [`${spellId}: ${entry.clause}`, entry.note] as const),
     ),
+    // Keyed by the clause rather than by the marker, which a marker-less entry
+    // does not have: a label reading "spare-the-dying: null" would name two
+    // entries the same the day a spell wrote two of them.
     ...Object.entries(TRACKED_ADJUDICATED).flatMap(([spellId, written]) =>
-      written.map((entry) => [`${spellId}: ${entry.marker}`, entry.note] as const),
+      written.map((entry) => [`${spellId}: ${entry.clause}`, entry.note] as const),
     ),
     // The undefined population's clause notes, once an entry has any: they cite
     // this repository exactly as the other two maps' notes do, and a guard that
@@ -1937,12 +1958,23 @@ describe('the fought fact is a second build that corrected the query', () => {
    * The fought shape stands because Enthrall's reading of that fact is still
    * unexpressible; the minted id carries the penalty, which was never about
    * the fact at all and which the entry had never recorded.
+   *
+   * **It is a tracked definition now and both halves came with it**, which is
+   * the part that could not be done until a tracked entry was allowed to carry
+   * no marker. The save trips one, so the automatic success is anchored to the
+   * sentence that forces the save; the −10 trips none — `\bcheck\b` does not
+   * match "checks" — so the penalty is the marker-less entry, and without it
+   * `a-bonus-narrowed-to-a-skill` would have had no claimant left in any
+   * population the day this spell was written.
    */
   it('leaves Enthrall blocked, on the outcome and on the penalty', () => {
-    expect(blockersOf('enthrall')).toEqual([
-      'a-bonus-narrowed-to-a-skill',
+    expect(BLOCKED_ON['enthrall']).toBeUndefined();
+    expect(SRD_CONTENT.spell('enthrall')).not.toBeNull();
+    expect((TRACKED_ADJUDICATED['enthrall'] ?? []).map((entry) => entry.why)).toEqual([
       'a-fact-only-the-table-can-declare',
+      'a-bonus-narrowed-to-a-skill',
     ]);
+    expect(consumersOf('a-bonus-narrowed-to-a-skill').unseen).toEqual(['enthrall']);
     expect(consumersOf('a-fact-only-the-table-can-declare').unblocks).toEqual([]);
   });
 
@@ -1967,12 +1999,13 @@ describe('the fought fact is a second build that corrected the query', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
     // Call Lightning was the second undefined consumer and is tracked now, so
     // its reading — the extra 1d10 for being outdoors in a storm — moved into
-    // the tracked map against the sentence it was read from. Enthrall is the
-    // one left, and it is still undefined for the reason the two residues
-    // above record: its blocker sits in a sentence no mechanical marker sees.
-    expect(fact.undefined).toEqual(['enthrall']);
+    // the tracked map against the sentence it was read from. Enthrall was the
+    // one left, and it followed the same way once a tracked entry could carry
+    // the half of it no mechanical marker sees: the undefined population is
+    // empty of this shape and all three claims are live somewhere else.
+    expect(fact.undefined).toEqual([]);
     expect(fact.executed).toEqual(['hunters-mark']);
-    expect(fact.tracked).toEqual(['call-lightning', 'scrying']);
+    expect(fact.tracked).toEqual(['call-lightning', 'enthrall', 'scrying']);
   });
 });
 

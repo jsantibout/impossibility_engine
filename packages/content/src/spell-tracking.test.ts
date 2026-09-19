@@ -20,8 +20,9 @@ import {
   MECHANICAL_MARKERS,
   MISSING_SHAPES,
   TRACKED_ADJUDICATED as ADJUDICATED,
-  sentencesOf,
+  misanchoredAdjudications,
   unanchoredPhrases,
+  unansweredMarkers,
   type MarkerId,
   type TrackedAdjudication,
 } from '../scripts/missing-shapes.js';
@@ -504,15 +505,24 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     expect(clean.length).toBeLessThan(TRACKED.length);
   });
 
+  /**
+   * The demand, asked through {@link unansweredMarkers} rather than restated.
+   *
+   * A marker-less entry answers **no** marker, which is what keeps the entry
+   * form from being a way out of this rule: a spell whose prose trips the
+   * condition marker owes a `condition` entry whether or not somebody also
+   * wrote down a sentence the markers cannot see.
+   * `marker-less-blockers.test.ts` drives that with a synthetic built to fail.
+   */
   it.each(TRACKED.map((s) => [s] as const))(
     'has a written adjudication for every mechanical clause in %s',
     (spellId) => {
-      const found = markersIn(spellId);
-      const written = ADJUDICATED[spellId] ?? [];
-      for (const marker of found) {
-        const entry = written.find((written_) => written_.marker === marker);
-        expect(entry, `${spellId} has a ${marker} clause with no adjudication`).toBeDefined();
-        expect(entry?.note.length ?? 0).toBeGreaterThan(40);
+      expect(
+        unansweredMarkers(spellId),
+        `${spellId} has a clause with no adjudication`,
+      ).toEqual([]);
+      for (const entry of ADJUDICATED[spellId] ?? []) {
+        expect(entry.note.length, `${spellId}/${entry.clause}`).toBeGreaterThan(40);
       }
     },
   );
@@ -520,12 +530,20 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
   /**
    * A stale exemption is the same failure wearing the other face: a spell that
    * once had a clause, no longer does, and keeps a licence for it.
+   *
+   * A marker-less entry is exempt from *this* one and from nothing else, for
+   * the reason it exists: it names no marker, so there is no marker for the
+   * book to have stopped printing. What holds it instead is the anchoring
+   * guard below, which is stricter — the unit it names must still be there and
+   * must still trip nothing.
    */
   it('carries no adjudication for a clause the book does not contain', () => {
     for (const [spellId, written] of Object.entries(ADJUDICATED)) {
       const found = new Set<string>(markersIn(spellId));
       expect(
-        written.map((entry) => entry.marker).filter((marker) => !found.has(marker)),
+        written
+          .map((entry) => entry.marker)
+          .filter((marker) => marker !== null && !found.has(marker)),
         spellId,
       ).toEqual([]);
     }
@@ -550,22 +568,34 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * adjudication cannot be written about a neighbouring clause.
    */
   it('anchors every adjudication to a sentence that names its marker', () => {
-    for (const [spellId, written] of Object.entries(ADJUDICATED)) {
-      expect(
-        unanchoredPhrases(
-          spellId,
-          written.map((entry) => entry.clause),
-        ),
-        spellId,
-      ).toEqual([]);
-      for (const entry of written) {
-        const sentence = sentencesOf(spellId).find((text) => text.includes(entry.clause));
-        expect(sentence, `${spellId}: "${entry.clause}" is in no sentence of the prose`).toBeDefined();
-        const named = MECHANICAL_MARKERS.filter(([, pattern]) => pattern.test(sentence ?? '')).map(
-          ([marker]) => marker,
-        );
-        expect(named, `${spellId}/${entry.marker}`).toContain(entry.marker);
-      }
+    for (const spellId of Object.keys(ADJUDICATED)) {
+      expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
+    }
+  });
+
+  /**
+   * And the entry form that says *the markers see nothing here*.
+   *
+   * It exists because they are a floor: a rule the SRD phrases in none of
+   * their words trips nothing, is demanded of nobody, and used to be **dropped
+   * on the way out of `BLOCKED_ON`** — after which the unclaimed-shape guard
+   * demanded the shape be retired, deleting a gap that is still real. Three
+   * definitions were reverted over that rather than shipped and all three are
+   * in the catalogue now.
+   *
+   * What is asserted here is that the form is in use and that it is a **claim**
+   * rather than a comment: each one names a shape the vocabulary has. Its two
+   * refusals — a sentence a marker can see, and a `why` that is not a shape —
+   * are held by `misanchoredAdjudications` above and driven with synthetics in
+   * `marker-less-blockers.test.ts`.
+   */
+  it('records the blockers no marker could have demanded', () => {
+    const markerLess = Object.entries(ADJUDICATED).flatMap(([spellId, written]) =>
+      written.filter((entry) => entry.marker === null).map((entry) => [spellId, entry] as const),
+    );
+    expect(markerLess.length).toBeGreaterThan(0);
+    for (const [spellId, entry] of markerLess) {
+      expect(Object.keys(MISSING_SHAPES), `${spellId}: "${entry.clause}"`).toContain(entry.why);
     }
   });
 
@@ -1032,22 +1062,64 @@ const ADDED_THIRD: readonly string[] = [
   'wind-walk',
 ];
 
-const ADDED: readonly string[] = [...ADDED_FIRST, ...ADDED_SECOND, ...ADDED_THIRD].sort();
+/**
+ * The fourth pass is three spells and no reading at all — the third pass had
+ * already read them.
+ *
+ * Each of these was written, run and **reverted** on the pass that found the
+ * defect: `TRACKED_ADJUDICATED` was keyed to a mechanical marker, so a spell
+ * leaving `BLOCKED_ON` could only carry the blockers the markers can see in
+ * English, and each of these three turns on one they cannot — a cantrip's
+ * range doubling with caster level, a −10 that reaches one skill, a Construct
+ * that succeeds automatically. The readings would have been dropped and the
+ * unclaimed-shape guard would then have demanded three real gaps be retired,
+ * which is worse than three spells going unwritten.
+ *
+ * `TrackedAdjudication.marker` may be null now, and these are the definitions
+ * that were waiting on it. `marker-less-blockers.test.ts` holds the entry form
+ * itself and asserts the counterfactual: hold the map to the old rule and
+ * exactly these three shapes lose their last claimant.
+ */
+const ADDED_FOURTH: readonly string[] = ['enthrall', 'flesh-to-stone', 'spare-the-dying'];
+
+const ADDED: readonly string[] = [
+  ...ADDED_FIRST,
+  ...ADDED_SECOND,
+  ...ADDED_THIRD,
+  ...ADDED_FOURTH,
+].sort();
 
 describe('every spell this batch added is cast for real', () => {
   it('names them in an order two branches can both append to', () => {
     expect(ADDED_FIRST).toEqual([...ADDED_FIRST].sort());
     expect(ADDED_SECOND).toEqual([...ADDED_SECOND].sort());
     expect(ADDED_THIRD).toEqual([...ADDED_THIRD].sort());
+    expect(ADDED_FOURTH).toEqual([...ADDED_FOURTH].sort());
   });
 
-  /** And the three batches are three batches: nothing is claimed by two. */
-  it('keeps the three passes apart', () => {
-    expect(ADDED_SECOND.filter((id) => ADDED_FIRST.includes(id))).toEqual([]);
-    expect(ADDED_THIRD.filter((id) => ADDED_FIRST.includes(id))).toEqual([]);
-    expect(ADDED_THIRD.filter((id) => ADDED_SECOND.includes(id))).toEqual([]);
-    expect(ADDED_SECOND.length).toBeGreaterThan(0);
-    expect(ADDED_THIRD.length).toBeGreaterThan(0);
+  /** And the four batches are four batches: nothing is claimed by two. */
+  it('keeps the four passes apart', () => {
+    const passes = [ADDED_FIRST, ADDED_SECOND, ADDED_THIRD, ADDED_FOURTH];
+    for (const [at, pass] of passes.entries()) {
+      expect(pass.length, `pass ${at + 1}`).toBeGreaterThan(0);
+      const others = passes.filter((_, other) => other !== at).flat();
+      expect(pass.filter((id) => others.includes(id)), `pass ${at + 1}`).toEqual([]);
+    }
+  });
+
+  /**
+   * And each of the fourth pass's three carries a blocker the markers cannot
+   * see, which is the whole reason it is a fourth pass rather than part of the
+   * third.
+   */
+  it('keeps a marker-less reading for every spell the fourth pass added', () => {
+    for (const spellId of ADDED_FOURTH) {
+      const written = ADJUDICATED[spellId] ?? [];
+      expect(
+        written.filter((entry) => entry.marker === null).length,
+        spellId,
+      ).toBeGreaterThan(0);
+    }
   });
 
   /** Tracked, so every sweep above is already about every one of them. */

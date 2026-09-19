@@ -37,6 +37,7 @@ import {
   itemPiles,
   parsedItemIds,
   transcribedItemIds,
+  TRACKED_ADJUDICATED,
 } from './missing-shapes.js';
 import {
   allFeatureShapeConsumers,
@@ -463,12 +464,20 @@ function renderBlockers(): readonly string[] {
     'see has an answer, which is the same promise the tracked bucket’s guard has',
     'always made in the same words.',
     '',
-    '| Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | Undefined |',
-    '|---|---|---|---|---|---|---|',
+    '**Unseen** is that floor counted rather than described: the tracked spells',
+    'whose claim on a shape is a sentence no marker can see. Those entries exist',
+    'because a reader wrote them, and until they were allowed a spell leaving the',
+    'undefined population dropped every one of them — after which "no shape sits',
+    'unclaimed" demanded the shape be retired, deleting a gap that is still real.',
+    'Every *Unseen* entry is a shape that would have gone that way. It is a subset',
+    'of *Tracked* and is never added to it.',
+    '',
+    '| Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | of which unseen | Undefined |',
+    '|---|---|---|---|---|---|---|---|',
   ];
   for (const row of rows) {
     lines.push(
-      `| \`${row.shape}\` | ${row.blocks.length} | ${row.unblocksRead.length} | ${row.unblocksUnread.length} | ${row.executed.length} | ${row.tracked.length} | ${row.undefined.length} |`,
+      `| \`${row.shape}\` | ${row.blocks.length} | ${row.unblocksRead.length} | ${row.unblocksUnread.length} | ${row.executed.length} | ${row.tracked.length} | ${row.unseen.length} | ${row.undefined.length} |`,
     );
   }
   lines.push(
@@ -542,10 +551,25 @@ function render(coverage: SpellCoverage): string {
   }
 
   lines.push('', '### Tracked today', '');
-  lines.push('Cast for real; the effect is narrated. Each says what it leaves to the DM.', '');
+  lines.push(
+    'Cast for real; the effect is narrated. Each says what it leaves to the DM.',
+    '',
+    'A spell marked *read* carries a blocker **no mechanical marker could have',
+    'demanded**: the sentence is written in none of the guard’s words, so nothing',
+    'asked for it and somebody recorded it because they read the paragraph. Those',
+    'are the entries the *Read* column below is a floor over rather than a proof',
+    'of, told apart from the ones a marker found.',
+    '',
+  );
   for (const definition of named('tracked')) {
     const level = definition.level === 0 ? 'cantrip' : `level ${definition.level}`;
-    lines.push(`- **${definition.name}** (${level}) — ${(definition.unmodelled ?? []).length} noted`);
+    const unseen = (TRACKED_ADJUDICATED[definition.id] ?? []).filter(
+      (entry) => entry.marker === null,
+    ).length;
+    const read = unseen === 0 ? '' : `, ${unseen} read`;
+    lines.push(
+      `- **${definition.name}** (${level}) — ${(definition.unmodelled ?? []).length} noted${read}`,
+    );
   }
 
   lines.push(...renderBlockers());

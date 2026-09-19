@@ -1138,9 +1138,23 @@ export const MECHANICAL_MARKERS = [
 
 export type MarkerId = (typeof MECHANICAL_MARKERS)[number][0];
 
+/**
+ * The mechanics this text names, by the tracked bucket's marker list.
+ *
+ * {@link markersIn} asks the same question of {@link CLAUSE_MARKERS}, which is
+ * a different list for a different population, and the two were never going to
+ * be one. What was two spellings until now is *this* one: the report, the
+ * tracked bucket's coverage guard and the marker-less entry rule all ask which
+ * mechanical markers a run of text trips, and a copy that drifted would let an
+ * entry be filed marker-less against a sentence another copy could see.
+ */
+export const mechanicalMarkersIn = (text: string): readonly MarkerId[] =>
+  MECHANICAL_MARKERS.filter(([, pattern]) => pattern.test(text)).map(([marker]) => marker);
+
 export interface TrackedAdjudication {
   /**
-   * Which mechanic in the spell's prose this answers.
+   * Which mechanic in the spell's prose this answers, or **null** for a
+   * sentence no mechanical marker can see.
    *
    * It was the **key** of a record until IE-044, which capped a spell at one
    * adjudication per marker — and the SRD does not: Tree Stride spends 5 feet
@@ -1148,8 +1162,27 @@ export interface TrackedAdjudication {
    * different ways. Keeping it as a field lifts the cap and keeps the lookup
    * `SPLIT_BUNDLES` records for this population, whose middle slot is a marker
    * key and whose whole value is that it is history nobody may rewrite.
+   *
+   * ### Null is the entry form for a blocker the guard cannot ask for
+   *
+   * The markers read English, so a rule the SRD phrases in none of their words
+   * trips nothing and is demanded of nobody. While every entry here had to
+   * carry one, a spell moving out of {@link BLOCKED_ON} could only bring the
+   * blockers the markers happened to see, and each of the others was **dropped
+   * on the way** — after which "no shape sits unclaimed" demanded the shape be
+   * retired, deleting the record of a gap that is still real. Three finished
+   * definitions were reverted over that rather than shipped.
+   *
+   * So `null` says the thing a marker cannot: *the markers see nothing in this
+   * sentence, and somebody read the paragraph.* It is not a way out of the
+   * anchoring rule, and two rules keep it from becoming one — the unit it
+   * names must trip **no** marker at all, and its {@link why} must be a
+   * {@link MISSING_SHAPES} id, because a sentence the markers cannot see that
+   * blocks nobody is narration and a tracked definition's own `unmodelled` is
+   * where narration already goes. Both are enforced by
+   * {@link misanchoredAdjudications}.
    */
-  readonly marker: MarkerId;
+  readonly marker: MarkerId | null;
   /**
    * A distinctive phrase from the spell's printed SRD entry.
    *
@@ -1157,7 +1190,8 @@ export interface TrackedAdjudication {
    * one implementation: the phrase must occur **exactly once**, and it must sit
    * in a sentence that trips the marker above it — so an adjudication cannot
    * drift onto a neighbouring sentence and cannot be written about a rule the
-   * spell states somewhere else.
+   * spell states somewhere else. Where the marker is null the second half is
+   * inverted rather than waived: the sentence must trip none.
    */
   readonly clause: string;
   /**
@@ -3298,6 +3332,73 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'failing the check costs the creature its movement entirely, and the economy is guarded by the conditions the engine names with no lever for a spell to take a move away directly.',
     },
   ],
+  // — the three the marker-keyed entry form could not carry ——————————————————
+  //
+  // Each of these spells was written, run and reverted, and each for the same
+  // reason: the blocker that matters is printed in words no mechanical marker
+  // knows, so the definition could not bring it out of `BLOCKED_ON` and the
+  // unclaimed-shape guard then demanded the shape be retired. The entry
+  // carrying `marker: null` is the one that was missing.
+  enthrall: [
+    {
+      marker: 'saving-throw',
+      clause: 'to make a Wisdom saving throw',
+      why: 'a-fact-only-the-table-can-declare',
+      note: 'the save is not raised because the sentence after it hands an automatic success to whoever the caster and their companions are fighting, and checks.ts prints an autoFail with no autoSucceed beside it — the fact IE-030 built reads as Advantage and as nothing else.',
+    },
+    {
+      marker: null,
+      clause: 'a −10 penalty to Wisdom (Perception) checks and Passive Perception',
+      why: 'a-bonus-narrowed-to-a-skill',
+      note: 'the whole cost of a failed save, and the markers see none of it: a bonus reaches attacks, saves and ability checks as families, so this would land on every ability check the target makes, and passivePerception reads the sheet rather than any stored bonus.',
+    },
+  ],
+  'flesh-to-stone': [
+    {
+      marker: 'saving-throw',
+      clause: 'A Restrained target makes another Constitution saving throw at the end of each of its turns',
+      why: 'a-repeat-save-counted-to-a-tally',
+      note: 'the death-save shape wearing a spell: three successes end the casting and three failures Petrify, in any order, and a repeat save keeps no running count of either.',
+    },
+    {
+      marker: 'speed',
+      clause: 'On a successful save, its Speed is 0 until the start of your next turn',
+      why: 'a-success-branch-that-does-something',
+      note: 'a rider rides the branch its host made, and a success releases the effect rather than acting — so a success clause that sets a Speed for a turn has no slot to sit in.',
+    },
+    {
+      marker: 'condition',
+      clause: 'If you maintain your Concentration on this spell for the entire possible duration',
+      why: 'an-effect-that-fires-when-the-casting-ends',
+      note: 'holding Concentration to the last second makes the Petrified permanent, which is a consequence hung on the moment a casting runs out, and expiry is derived rather than raised.',
+    },
+    {
+      marker: null,
+      clause: 'Constructs automatically succeed on the save',
+      why: 'an-automatic-success-by-creature-type',
+      note: 'the third outcome by creature type the book prints and the union does not have, beside the automatic failure and the Disadvantage it does — and the sentence is eight words with no mechanical marker in any of them.',
+    },
+  ],
+  'spare-the-dying': [
+    {
+      marker: 'hit-points',
+      clause: "Choose a creature within range that has 0 Hit Points and isn't dead",
+      why: 'an-effect-that-stabilises-a-dying-creature',
+      note: 'the target rule reads a fact about vitals, which a rule counting targets and naming creature types cannot state — and it selects for an effect no spell can reach, so neither half of the sentence has a reader.',
+    },
+    {
+      marker: null,
+      clause: 'The creature becomes Stable',
+      why: 'an-effect-that-stabilises-a-dying-creature',
+      note: 'four words, no marker, and the whole content of the cantrip: the command exists and the event exists and no spell effect reaches either, which is the gap this shape was named for.',
+    },
+    {
+      marker: null,
+      clause: 'The range doubles when you reach levels 5',
+      why: 'a-range-that-scales-with-caster-level',
+      note: 'the only spell in the book whose reach grows with the caster, printed as a Cantrip Upgrade that names no mechanic the markers know — and a definition holds one fixed range, checked before a target is looked at.',
+    },
+  ],
 };
 
 // — the undefined population —————————————————————————————————————————————————
@@ -3542,7 +3643,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   darkness: [],
   dream: ['a-long-casting-time', 'a-rest-an-effect-gives-or-denies'],
   entangle: ['an-area-that-filters-its-catch', 'difficult-terrain-an-area-creates'],
-  enthrall: ['a-bonus-narrowed-to-a-skill', 'a-fact-only-the-table-can-declare'],
   // One sentence, one shape, and both halves of the sentence are that shape:
   // the spell **takes** an action for you and then **grants** you a second way
   // to take it. The shortest paragraph in the book that is still debt.
@@ -3608,12 +3708,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       why: 'table',
       note: 'Nothing mechanical follows from the gear staying behind, which is the reading IE-044 already gave Gaseous Form\'s identical clause: an inventory and an equipped set are held, and there is no object on the ground for them to become.',
     },
-  ],
-  'flesh-to-stone': [
-    'a-repeat-save-counted-to-a-tally',
-    'a-success-branch-that-does-something',
-    'an-automatic-success-by-creature-type',
-    'an-effect-that-fires-when-the-casting-ends',
   ],
   // **The one spell this family still finishes once its paragraphs are read.**
   // Everything Gate prints is the portal, and a portal is the one-scene model's
@@ -3840,10 +3934,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       why: 'expressible',
       note: '`RepeatSave` at `end-of-turn` with `onSuccess: "end-on-target"`, which Hold Person already writes and the scenario test already exercises.',
     },
-  ],
-  'spare-the-dying': [
-    'a-range-that-scales-with-caster-level',
-    'an-effect-that-stabilises-a-dying-creature',
   ],
   wish: [
     'a-casting-that-casts-another-spell',
@@ -4192,6 +4282,109 @@ export const unanchoredClauses = (
     clausesIn(entry).map((blocker) => blocker.clause),
   );
 
+/** A tracked adjudication its own anchoring rule refuses, and what is wrong with it. */
+export interface MisanchoredAdjudication {
+  readonly spell: string;
+  readonly clause: string;
+  readonly complaint: string;
+}
+
+/**
+ * Every tracked adjudication of this spell the anchoring rule refuses.
+ *
+ * One function for both entry forms, because they are one rule read two ways:
+ * an entry names one printed unit, and it says truthfully whether the markers
+ * can see that unit. A marker entry must sit in a unit tripping its own marker;
+ * a marker-less one must sit in a unit tripping none, and must name a shape
+ * that is actually missing.
+ *
+ * Parameterised over the entries for the reason {@link sentenceGaps} is: a
+ * guard that can only be run against the data it already agrees with is not a
+ * guard, so the tests drive this with entries built to be caught before running
+ * it on the real map.
+ */
+export const misanchoredAdjudications = (
+  spellId: string,
+  entries: readonly TrackedAdjudication[] = TRACKED_ADJUDICATED[spellId] ?? [],
+): readonly MisanchoredAdjudication[] => {
+  const units = printedUnitsOf(spellId);
+  const found: MisanchoredAdjudication[] = [];
+  const complain = (clause: string, complaint: string) =>
+    found.push({ spell: spellId, clause, complaint });
+
+  for (const entry of entries) {
+    const phrase = flatten(entry.clause);
+    const unanchored = unanchoredWithin(spellId, units, [entry.clause]);
+    if (unanchored.length > 0) {
+      complain(
+        entry.clause,
+        `the spell's printed entry does not say it exactly once (${unanchored[0]!.matches} matches)`,
+      );
+      continue;
+    }
+    const unit = units.find((text) => text.includes(phrase))!;
+    const named = mechanicalMarkersIn(unit);
+    if (entry.marker === null) {
+      if (named.length > 0) {
+        complain(
+          entry.clause,
+          `it is filed with no marker and the markers see ${named.join(', ')} in the unit it names`,
+        );
+      }
+      if (entry.why === 'table' || entry.why === 'engine') {
+        complain(
+          entry.clause,
+          `a marker-less entry records a blocker, so it must name a missing shape rather than "${entry.why}"`,
+        );
+      }
+    } else if (!named.includes(entry.marker)) {
+      complain(
+        entry.clause,
+        `it is filed under ${entry.marker} and the unit it names trips ${
+          named.length === 0 ? 'no marker' : named.join(', ')
+        }`,
+      );
+    }
+  }
+  return found;
+};
+
+/**
+ * The markers this spell's prose trips that no written entry answers.
+ *
+ * The coverage half of the same rule, and the half a marker-less entry must not
+ * be able to satisfy: `marker === null` matches no marker, so writing one
+ * leaves every demand exactly where it was.
+ */
+export const unansweredMarkers = (
+  spellId: string,
+  entries: readonly TrackedAdjudication[] = TRACKED_ADJUDICATED[spellId] ?? [],
+): readonly MarkerId[] => {
+  const spell = spellByIdOrThrow(spellId);
+  const prose = `${spell.description}\n${spell.higherLevel ?? ''}`;
+  return mechanicalMarkersIn(prose).filter(
+    (marker) => !entries.some((entry) => entry.marker === marker),
+  );
+};
+
+/**
+ * The tracked map with every marker-less entry taken out.
+ *
+ * The counterfactual the entry form exists for, as a value: hold this map to
+ * the rule it had before — every entry carries a marker — and
+ * {@link claimedShapes} loses the readings only a reader could have written,
+ * which is what "the shape gets retired" means arithmetically.
+ */
+export const withoutMarkerLessEntries = (
+  tracked: Readonly<Record<string, readonly TrackedAdjudication[]>>,
+): Readonly<Record<string, readonly TrackedAdjudication[]>> =>
+  Object.fromEntries(
+    Object.entries(tracked).map(([spellId, entries]) => [
+      spellId,
+      entries.filter((entry) => entry.marker !== null),
+    ]),
+  );
+
 /**
  * Has somebody read this spell's paragraph sentence by sentence?
  *
@@ -4247,6 +4440,16 @@ export interface ShapeConsumers {
   readonly executed: readonly string[];
   /** Tracked definitions whose SRD prose was adjudicated to it. */
   readonly tracked: readonly string[];
+  /**
+   * Of those, the ones whose claim no mechanical marker could have demanded.
+   *
+   * The *Read* column's floor, reported rather than described: each of these is
+   * a sentence somebody read in words the guard does not know, and each would
+   * have been dropped — and the shape retired — under the entry form that
+   * required a marker. A reader of the table can tell the two apart, which is
+   * the difference between a floor and a proof.
+   */
+  readonly unseen: readonly string[];
   /** Parsed spells with no definition that this shape blocks. */
   readonly undefined: readonly string[];
   /** Every spell it touches, across all three populations. */
@@ -4292,6 +4495,13 @@ export function consumersOf(shape: ShapeId): ShapeConsumers {
       .filter(([, entries]) => entries.some((entry) => entry.why === shape))
       .map(([id]) => id),
   );
+  const unseen = sorted(
+    Object.entries(TRACKED_ADJUDICATED)
+      .filter(([, entries]) =>
+        entries.some((entry) => entry.why === shape && entry.marker === null),
+      )
+      .map(([id]) => id),
+  );
   const open = sorted(
     Object.entries(BLOCKED_ON)
       .filter(([, entry]) => blockersIn(entry).includes(shape))
@@ -4302,6 +4512,7 @@ export function consumersOf(shape: ShapeId): ShapeConsumers {
     shape,
     executed,
     tracked,
+    unseen,
     undefined: open,
     blocks: sorted([...executed, ...tracked, ...open]),
     unblocks,
@@ -4328,11 +4539,20 @@ export function allShapeConsumers(): readonly ShapeConsumers[] {
     );
 }
 
-/** Every shape any population claims, which is what keeps the map from rotting. */
-export function claimedShapes(): ReadonlySet<string> {
+/**
+ * Every shape any population claims, which is what keeps the map from rotting.
+ *
+ * Parameterised over the tracked map alone, because that is the population
+ * whose entry form changed: a caller may ask what would still be claimed if
+ * every marker-less entry were dropped, which is the counterfactual
+ * {@link withoutMarkerLessEntries} builds and the reason the form exists.
+ */
+export function claimedShapes(
+  tracked: Readonly<Record<string, readonly TrackedAdjudication[]>> = TRACKED_ADJUDICATED,
+): ReadonlySet<string> {
   const claims: readonly (string | undefined)[] = [
     ...Object.values(ADJUDICATED).flatMap((entries) => entries.map((entry) => entry.why)),
-    ...Object.values(TRACKED_ADJUDICATED).flatMap((entries) => entries.map((entry) => entry.why)),
+    ...Object.values(tracked).flatMap((entries) => entries.map((entry) => entry.why)),
     ...Object.values(BLOCKED_ON).flatMap((entry) => blockersIn(entry)),
   ];
   return new Set(

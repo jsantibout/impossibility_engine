@@ -12164,6 +12164,143 @@ export const TSUNAMI: SpellDefinition = {
   ],
 };
 
+/*
+ * — the three the map used to delete —————————————————————————————————————————
+ *
+ * Spare the Dying, Enthrall and Flesh to Stone were each written, run and
+ * **reverted** rather than shipped, and the reason was the same for all three
+ * and had nothing to do with the spells. `TRACKED_ADJUDICATED` was keyed to a
+ * mechanical marker, so a spell moving out of `BLOCKED_ON` could only carry the
+ * blockers the markers can see in the SRD's English — and each of these three
+ * has a blocker written in words the markers do not know: a cantrip's range
+ * doubling with caster level, a −10 that reaches one skill, a Construct that
+ * succeeds automatically. Those readings were dropped on the way, "no shape
+ * sits unclaimed" then demanded that `a-range-that-scales-with-caster-level`,
+ * `a-bonus-narrowed-to-a-skill` and `an-automatic-success-by-creature-type` be
+ * retired, and retiring a gap that is still real is worse than not writing the
+ * definition.
+ *
+ * `TrackedAdjudication.marker` may be null now, which is a marker-less entry:
+ * *the markers see nothing here, and somebody read the paragraph.* So the
+ * readings survive the move, the three shapes keep a claimant, and these are
+ * the definitions that were waiting on it.
+ */
+
+/**
+ * SRD Spare the Dying:
+ *
+ * > _Necromancy Cantrip (Cleric, Druid)._ **Casting Time:** Action.
+ * > **Range:** 15 feet. **Duration:** Instantaneous.
+ * > "Choose a creature within range that has 0 Hit Points and isn't dead. The
+ * > creature becomes Stable. _Cantrip Upgrade._ The range doubles when you
+ * > reach levels 5 (30 feet), 11 (60 feet), and 17 (120 feet)."
+ *
+ * Three sentences, and two of them are debt. `stabilised` is one of the events
+ * a DM declares and no `SpellEffect` reaches it; and this is **the one spell in
+ * the book whose range grows with the caster**, where `range` is a single fixed
+ * `SpellRange` checked on every casting, so a level 5 cleric aiming thirty feet
+ * away is refused the reach the SRD gives them. The definition prints the
+ * fifteen feet the book prints for a level 1 caster and says the rest.
+ */
+export const SPARE_THE_DYING: SpellDefinition = {
+  id: 'spare-the-dying',
+  name: 'Spare the Dying',
+  level: 0,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  // "Range: 15 feet" — the range a level 1 caster has, and the only one a
+  // fixed `SpellRange` can hold.
+  range: { kind: 'ranged', feet: 15 },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'nobody is stabilised: `stabilised` is an event a DM declares and no spell effect reaches it, so the one word this cantrip consists of is the table’s to say',
+    'and the target rule goes with it — "a creature within range that has 0 Hit Points and isn’t dead" selects by a fact about vitals, and a target rule counts targets and names creature types',
+    'the range does not double at levels 5, 11 and 17: a definition holds one fixed range, checked before a target is looked at, and the two scaling axes the format has reach dice rather than reach',
+    'so a caster above level 4 is refused a casting the book allows, and the DM stabilises the ally at thirty feet themselves',
+  ],
+};
+
+/**
+ * SRD Enthrall:
+ *
+ * > _Level 2 Enchantment (Bard, Warlock)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You weave a distracting string of words, causing creatures of your choice
+ * > that you can see within range to make a Wisdom saving throw. Any creature
+ * > you or your companions are fighting automatically succeeds on this save. On
+ * > a failed save, a target has a −10 penalty to Wisdom (Perception) checks and
+ * > Passive Perception until the spell ends."
+ *
+ * One sentence of save and two of outcome, and neither outcome can be written.
+ * `checks.ts` has an `autoFail` and no `autoSucceed`, so the creature you are
+ * fighting cannot be handed its success; and a bonus reaches attacks, saves and
+ * ability checks as families, never one **skill**, while `passivePerception`
+ * reads the sheet and no stored bonus at all. A save whose failure costs
+ * nothing the engine can apply is a save worth not raising.
+ */
+export const ENTHRALL: SpellDefinition = {
+  id: 'enthrall',
+  name: 'Enthrall',
+  level: 2,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  // "creatures of your choice that you can see within range": the SRD states
+  // no count, so range and sight are the whole of the bound.
+  targets: { count: 0, unlimited: true },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Wisdom save is not raised, because neither branch of it can be written down',
+    'the automatic success for "any creature you or your companions are fighting" is an outcome checks.ts has no autoSucceed for, beside its autoFail — and the fact it reads is one IE-030 built for Advantage and for nothing else',
+    'and a failure buys a −10 penalty to Wisdom (Perception) checks and Passive Perception: a bonus reaches attacks, saves and ability checks as whole families and never one skill, so applying it would penalise every ability check the target ever makes, and passivePerception reads the sheet rather than any stored bonus',
+    'so who is distracted, and what they therefore fail to notice, is the DM’s for the minute this runs',
+  ],
+};
+
+/**
+ * SRD Flesh to Stone:
+ *
+ * > _Level 6 Transmutation (Druid, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "The target makes a Constitution saving throw. On a failed save, it has the
+ * > Restrained condition for the duration. On a successful save, its Speed is 0
+ * > until the start of your next turn. Constructs automatically succeed on the
+ * > save. ... If it successfully saves against this spell three times, the
+ * > spell ends. ... The successes and failures needn't be consecutive; keep
+ * > track of both until the target collects three of a kind."
+ *
+ * The death-save shape wearing a spell: a repeat save at the end of every turn
+ * carrying a running tally of three successes and three failures, either of
+ * which finishes it. `RepeatSave` holds no tally, its failure branch does
+ * nothing at all, and its success branch releases the effect rather than
+ * acting — while this spell's success branch sets a Speed. And holding
+ * Concentration for the whole minute makes the Petrified permanent, which is a
+ * consequence hung on the moment a casting runs out.
+ */
+export const FLESH_TO_STONE: SpellDefinition = {
+  id: 'flesh-to-stone',
+  name: 'Flesh to Stone',
+  level: 6,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Constitution save is not raised, so the Restrained condition on a failure is not applied and the Speed of 0 on a success is not set — a rider rides the branch its host made and there is no success-branch slot for one that acts',
+    'a Construct succeeding automatically is an outcome by creature type the engine prints two of and not this one: an automatic failure and Disadvantage, and no automatic success',
+    'the repeat save at the end of each of the target’s turns is not raised, and it could not be counted if it were: three successes end the spell and three failures Petrify, in any order, and a repeat save carries no tally of either',
+    'so the Petrified condition is never applied, and neither is the permanence a caster buys by holding Concentration for the entire minute — nothing fires when a casting runs out',
+    'the statue, and whether Greater Restoration or similar magic is at hand to undo it, are the DM’s',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -12267,6 +12404,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ENHANCE_ABILITY,
   ENLARGE_REDUCE,
   ENSNARING_STRIKE,
+  ENTHRALL,
   ETHEREALNESS,
   EXPEDITIOUS_RETREAT,
   EYEBITE,
@@ -12286,6 +12424,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FLAME_BLADE,
   FLAME_STRIKE,
   FLAMING_SPHERE,
+  FLESH_TO_STONE,
   FLOATING_DISK,
   FLY,
   FOG_CLOUD,
@@ -12433,6 +12572,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SLEEP,
   SLEET_STORM,
   SORCEROUS_BURST,
+  SPARE_THE_DYING,
   SPEAK_WITH_ANIMALS,
   SPEAK_WITH_DEAD,
   SPEAK_WITH_PLANTS,
