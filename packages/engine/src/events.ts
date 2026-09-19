@@ -1507,10 +1507,15 @@ export type GameEvent =
   /**
    * A roll and everything that shaped it, recorded for the audit trail.
    *
-   * This changes no state — the consequences arrive as their own events — but
-   * without it the log cannot answer "why did the goblin die". A roll that
+   * Without it the log cannot answer "why did the goblin die": a roll that
    * Bardic Inspiration lifted and Cutting Words then cut shows all three
-   * contributions with their sources, rather than one unexplained total.
+   * contributions with their sources, rather than one unexplained total. Its
+   * consequences arrive as their own events and `fold/rolls.ts` writes nothing
+   * for it — with one exception, which belongs to the label rather than to the
+   * event: `interruptedRests` in `fold/apply.ts` breaks a rest the roller was
+   * taking when the label is `INITIATIVE_LABEL`, because SRD lists "Rolling
+   * Initiative" first among the things that interrupt one and names the roll
+   * rather than the fight.
    */
   | {
       readonly type: 'roll-recorded';

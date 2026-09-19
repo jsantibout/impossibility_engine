@@ -1323,12 +1323,14 @@ export function abilityScoresOf(
  * components whose source is the spell, so no ability modifier reaches it and
  * the sheet it is handed contributes nothing.
  *
- * **One reader is still outside it, and it is not a roll a command makes.**
- * `rest.ts` adds `abilityModifier(creature.sheet.abilities.con)` to each Hit
- * Die spent on a Short Rest, off the score the sheet was built with. It is the
- * last raw-sheet ability read in the engine, the Amulet of Health's own
- * `unmodelled` note records it, and it is the same one-line substitution
- * whenever somebody owns `rest.ts`.
+ * **And `rest.ts` is inside it too, which was the last one outside.** The
+ * Constitution a Hit Die adds on a Short Rest is read at the moment the die is
+ * thrown, in a command holding the state and the id, so `endRest` asks here
+ * like everything else and an Amulet of Health reaches it. No non-test engine
+ * file reads an ability off `creature.sheet` now. What a substitution still
+ * cannot reach is the one number that is genuinely *folded* rather than
+ * derived — a hit point maximum, paid a level at a time — which is the whole
+ * of what the Amulet of Health's one remaining `unmodelled` note records.
  */
 export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSheet | null {
   const creature = state.creatures[who];
