@@ -56,6 +56,15 @@ door is the failure to test for. A session that resumed the held call would
 make a decision the transcript does not show, and transcript re-dispatch is
 the determinism criterion.
 
+The same holds one step wider. A tool that declares it establishes a kind must
+have the field that carries it; a fact the engine can be told must have a tool
+that tells it; and a refusal that names what the caller has not supplied must
+be answerable through the field it names. `packages/tools/src/doors.test.ts`
+derives all four sets from the engine's own source rather than a list, because
+a list stops guarding the day somebody adds to it and does not think to come
+here. Four doors were found shut by accident before it existed, and six more
+the day it did.
+
 Out of scope until decided: persisting the log (a `Content` holds closures, so
 what is stored is the `ContentInput`), and multiple scenes. Two things a later
 batch owes: an engine command that rolls Initiative *and* begins combat, so
