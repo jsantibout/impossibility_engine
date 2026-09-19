@@ -794,7 +794,7 @@ describe('Advantage the table granted, and who granted it', () => {
     );
     expect(outcome.resolution['mode']).toBe('advantage');
     expect(outcome.resolution['modeSources']).toEqual([
-      { source: 'DM ruling: she has the high ground', mode: 'advantage' },
+      { source: 'DM ruling: Advantage — she has the high ground', mode: 'advantage' },
     ]);
     // And it is not a label on one die: Advantage is two dice, and the roll's
     // own record says how many were thrown.
@@ -821,7 +821,7 @@ describe('Advantage the table granted, and who granted it', () => {
     );
     expect(outcome.resolution['mode']).toBe('disadvantage');
     expect(outcome.resolution['modeSources']).toEqual([
-      { source: 'DM ruling: she is waist deep in the fumes', mode: 'disadvantage' },
+      { source: 'DM ruling: Disadvantage — she is waist deep in the fumes', mode: 'disadvantage' },
     ]);
     expect(outcome.resolution['rolls']).toHaveLength(2);
   });
@@ -844,10 +844,54 @@ describe('Advantage the table granted, and who granted it', () => {
     );
     expect(outcome.resolution['mode']).toBe('normal');
     expect(outcome.resolution['modeSources']).toEqual([
-      { source: 'DM ruling: she has the high ground', mode: 'advantage' },
-      { source: 'DM ruling: the floor is slick with oil', mode: 'disadvantage' },
+      { source: 'DM ruling: Advantage — she has the high ground', mode: 'advantage' },
+      { source: 'DM ruling: Disadvantage — the floor is slick with oil', mode: 'disadvantage' },
     ]);
     expect(outcome.resolution['rolls']).toHaveLength(1);
+  });
+
+  /**
+   * And they cancel **on both tools, whatever words they are given**.
+   *
+   * The two branches of `resolveTest` do not treat `command.modes` alike: the
+   * ability check concatenates them, and the saving throw hands them to
+   * `savingSupport`, which keys named modes by `source` so a caller who also
+   * knows about Danger Sense cannot apply it twice. A source is therefore an
+   * identity, and two rulings that happen to use the same phrase — "the
+   * smoke", for both — would collapse into one on the save and roll it at
+   * Disadvantage while reporting a single ruling. That is the silent drop the
+   * whole field pair exists to refuse, so the mode is part of the source and
+   * this asserts it over both branches and both phrasings.
+   */
+  it.each([
+    ['ability_check', 'dex', 'the high ground', 'the slick floor'],
+    ['ability_check', 'dex', 'the smoke', 'the smoke'],
+    ['saving_throw', 'con', 'the high ground', 'the slick floor'],
+    ['saving_throw', 'con', 'the smoke', 'the smoke'],
+  ])('%s on %s: a ruling each way cancels, given "%s" and "%s"', (tool, ability, up, down) => {
+    const ruled = expectOk(
+      atTheTable('two-dice').call(tool, {
+        who: 'kessa',
+        ability,
+        dc: 12,
+        advantage: up,
+        disadvantage: down,
+      }),
+    ).resolution;
+    const plain = expectOk(
+      atTheTable('two-dice').call(tool, { who: 'kessa', ability, dc: 12 }),
+    ).resolution;
+
+    expect(ruled['mode']).toBe('normal');
+    expect(ruled['rolls']).toHaveLength(1);
+    // Both rulings survive to the record, even spelled the same way.
+    expect(ruled['modeSources']).toEqual([
+      { source: `DM ruling: Advantage — ${up}`, mode: 'advantage' },
+      { source: `DM ruling: Disadvantage — ${down}`, mode: 'disadvantage' },
+    ]);
+    // And the die is the one an unruled call would have thrown, which is what
+    // "cancel" means and what a collapsed pair would not give.
+    expect(ruled['natural']).toBe(plain['natural']);
   });
 
   it('takes no bare flag: the ruling is the field, so there is nothing to send without one', () => {

@@ -142,17 +142,33 @@ const ADVANTAGE_FIELDS = {
     ),
 };
 
-/** The caller's two phrases, in the engine's attributed vocabulary. */
+/**
+ * The caller's two phrases, in the engine's attributed vocabulary.
+ *
+ * **The mode is part of the source, and that is load-bearing rather than
+ * decorative.** A `ModeSource`'s `source` is an *identity* wherever the
+ * engine deduplicates: `savingSupport` keys named modes in a `Map` by it, so
+ * that a caller who also knows about Danger Sense cannot apply it twice.
+ * `resolveTest`'s two branches therefore do not treat these alike — the
+ * ability check concatenates them and the saving throw merges them — and two
+ * rulings a DM happened to spell the same way ("the smoke", for both) would
+ * collapse into one on the save, rolling it at Disadvantage while reporting a
+ * single ruling. Prefixing the mode makes the two phrases two identities, so
+ * both branches cancel and both rulings are recorded.
+ *
+ * Built through {@link ruled} rather than beside it so the prefix a reader
+ * looks for has one spelling in this package.
+ */
 const ruledModes = (args: {
   readonly advantage?: string | undefined;
   readonly disadvantage?: string | undefined;
 }): readonly ModeSource[] => [
   ...(args.advantage === undefined
     ? []
-    : [{ source: ruled(args.advantage), mode: 'advantage' as const }]),
+    : [{ source: ruled(`Advantage — ${args.advantage}`), mode: 'advantage' as const }]),
   ...(args.disadvantage === undefined
     ? []
-    : [{ source: ruled(args.disadvantage), mode: 'disadvantage' as const }]),
+    : [{ source: ruled(`Disadvantage — ${args.disadvantage}`), mode: 'disadvantage' as const }]),
 ];
 
 /**
