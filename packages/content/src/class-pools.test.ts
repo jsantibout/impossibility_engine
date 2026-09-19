@@ -274,15 +274,21 @@ describe('a feature that claims a pool declares one', () => {
   )('%s declares the pool its note claims', (_id, feature) => {
     const grant = feature.grants;
     const declares =
-      // The three routes by which a feature actually ends up with a pool, and
-      // the reason the guard reads the grant rather than counting declarations
-      // in one place: `activated` declares one for a feature you switch on,
-      // `pool` for a feature that *is* a resource, and `spells` for a granted
-      // spell's free daily casting, which `freeCastPoolKey` names and
-      // `boundaries.test.ts` spends.
+      // The routes by which a feature actually ends up with a pool, and the
+      // reason the guard reads the grant rather than counting declarations in
+      // one place: `activated` declares one for a feature you switch on, and
+      // `pool` for a feature that *is* a resource.
+      //
+      // **`spells` was a fourth arm and it was wrong.** It stood for "a
+      // granted spell's free daily casting, which `freeCastPoolKey` names",
+      // and that is true of a **feat** — the loop that calls it reads
+      // `choices.feats` and nothing else — so a class feature's `spells`
+      // grant declares no pool whatever. The arm had one user, Favored Enemy,
+      // whose note claimed a pool it did not have; the note is corrected and
+      // the arm goes with it, because an allow-list entry nothing needs is
+      // the hole this guard exists to be.
       grant?.kind === 'pool' ||
       (grant?.kind === 'activated' && grant.pool !== null) ||
-      grant?.kind === 'spells' ||
       // And `recovery`, whose pool holds the one use the feature's own
       // sentence allows it before a Long Rest.
       grant?.kind === 'recovery' ||

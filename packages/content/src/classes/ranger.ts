@@ -111,7 +111,7 @@ export const RANGER: ClassDefinition = {
       name: 'Favored Enemy',
       level: 1,
       automation: 'manual',
-      note: 'Half of it is applied, which is why this is no longer marked as executed. SRD: "You always have the _Hunter’s Mark_ spell prepared" — a fixed spells grant, and the spell is executed, so the rider really does fire at the marked creature. The rest is not: "You can cast it twice without expending a spell slot, and you regain all expended uses of this ability when you finish a Long Rest" needs a pool a casting can be paid out of, and a feature carries one grant. It was marked executed on the strength of a note saying the free castings were declared as a pool, and no pool was ever declared — `freeCastPoolKey` names one for a **feat**’s granted spell and for nothing a class feature grants.',
+      note: 'Half of it is applied, which is why this is no longer marked as executed. SRD: "You always have the _Hunter’s Mark_ spell prepared" — a fixed spells grant, and the spell is executed, so the rider really does fire at the marked creature. The rest is not: "You can cast it twice without expending a spell slot, and you regain all expended uses of this ability when you finish a Long Rest" needs a pool a casting can be paid out of, and a feature carries one grant. It was marked executed on the strength of a note that said the free castings had somewhere to come out of, and nothing ever declared one — `freeCastPoolKey` names a free-cast pool for a **feat**’s granted spell and for nothing a class feature grants.',
       grants: { kind: 'spells', fixed: ['hunters-mark'] },
     },
     {

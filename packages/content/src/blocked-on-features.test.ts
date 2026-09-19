@@ -342,11 +342,15 @@ describe('the features blocked by nothing', () => {
   });
 
   /**
-   * And they are not the same pile as a feature the engine half does.
+   * And they are not the same pile as a feature with a clause that is not a
+   * blocker.
    *
-   * Ten features are `manual` **and** carry a grant, because the engine does
-   * part of what the book prints. Those halves are `'expressible'`, and a
-   * feature carrying one is still blocked on whatever its other clauses name.
+   * An `'expressible'` clause says *this sentence is not what is standing in
+   * the way* — either because the engine already does that half, as it does
+   * a Barbarian's Rage immunity, or because the vocabulary could write it and
+   * nobody has, as with the Advantage Reckless Attack hands its attackers. A
+   * feature carrying one is still blocked on whatever its other clauses name,
+   * and is not finished business.
    */
   it('keeps a half-built feature out of the table’s pile', () => {
     const half = Object.entries(FEATURE_BLOCKED_ON).filter(([, entry]) =>
