@@ -310,7 +310,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Epic Boon',
       level: 19,
       automation: 'engine',
-      note: 'SRD: "You gain an Epic Boon feat (see “Feats”) or another feat of your choice for which you qualify. Boon of the Night Spirit is recommended." Executed: the choice is held to the Epic Boon category, this catalogue publishes the seven the SRD prints, and each opens with "Increase one ability score of your choice by 1, to a maximum of 30" — a grant creation reads, so the point lands on the score the player named and lifts that one score’s ceiling and no other’s. What a boon leaves undone is its own second benefit, which is recorded on the boon rather than here.',
+      note: 'SRD: "You gain an Epic Boon feat (see “Feats”) or another feat of your choice for which you qualify. Boon of the Night Spirit is recommended." Executed: the choice is held to the Epic Boon category, and this catalogue publishes the seven the SRD prints. Every one of them opens with an Ability Score Increase that creation reads — five of them "Increase one ability score of your choice by 1, to a maximum of 30", while Boon of Irresistible Offense narrows the choice to Strength or Dexterity and Boon of Spell Recall to Intelligence, Wisdom or Charisma — so the point lands on the score the player named out of the set that boon offers, and lifts that one score’s ceiling and no other’s. What a boon leaves undone is its own second benefit, which is recorded on the boon rather than here.',
       choice: { kind: 'feat', choose: 1, category: 'epic-boon' },
     },
     {
