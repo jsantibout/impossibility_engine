@@ -106,6 +106,14 @@ export function withFlatAddend(
  * that has not moved. The component still comes back, carrying zero, because
  * `withFlatAddend` lands the printed number on the *first* component and an
  * empty list would drop it.
+ *
+ * **The weaponless component is dropped by position rather than by name.**
+ * `rollAttackDamage` always contributes the Unarmed Strike first and the one
+ * extra second, so the two readings agree for every caller whose `source` is
+ * a spell's name — and they stop agreeing the moment a caller's source is
+ * free text, which `rollImprovisedDamage` made true: a DM ruling spelled
+ * "Unarmed Strike" would have kept a component carrying a stranger's
+ * Strength modifier.
  */
 export function rollSpellDice(
   supply: Supply,
@@ -126,7 +134,7 @@ export function rollSpellDice(
     false,
   );
   if (!rolled.ok) return rolled;
-  return ok(rolled.value.components.filter((component) => component.source === source));
+  return ok(rolled.value.components.slice(1));
 }
 
 /**

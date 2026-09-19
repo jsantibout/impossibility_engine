@@ -474,3 +474,418 @@ describe('one campaign, both surfaces', () => {
     expect(dm.observe().creatures[0]!.conditions).not.toContain('frightened');
   });
 });
+
+/**
+ * The same wizard, born of a fiend.
+ *
+ * One field of difference that matters — SRD Fiendish Legacy, Infernal: "You
+ * have Resistance to Fire damage" — and the two feature choices that follow
+ * from it, since the human's name a species that is no longer hers.
+ * Everything else is Kessa, so a die thrown at one is the die thrown at the
+ * other and the only thing that can move the number is the Resistance.
+ */
+const tiefling = (name: string): Record<string, unknown> => ({
+  ...wizard(name),
+  speciesId: 'tiefling',
+  featureChoices: {
+    'wizard:scholar': ['arcana'],
+    'tiefling:fiendish-legacy': ['Infernal'],
+    'evoker:evocation-savant': ['burning-hands', 'scorching-ray'],
+  },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'ray-of-frost'],
+      levelOneSpell: 'find-familiar',
+    },
+  },
+});
+
+/** The same table, with a Fire-Resistant Kessa sitting at it. */
+function atTheTableResistant(seed?: string) {
+  const t = table(seed);
+  expectOk(t.call('create_character', { id: 'kessa', choices: tiefling('Kessa') }));
+  return t;
+}
+
+describe('damage the engine rolls, for something nobody has statted', () => {
+  const brazier = (t: ReturnType<typeof table>, dice = '4d6') =>
+    expectOk(
+      t.call('roll_improvised_damage', {
+        target: 'kessa',
+        dice,
+        damageType: 'fire',
+        ruling: 'the falling brazier',
+      }),
+    );
+
+  it('throws the dice itself: the DM said 4d6 and never said what they showed', () => {
+    const t = atTheTable();
+    const before = t.surface.observe().creatures[0]!.hp;
+    const outcome = brazier(t);
+
+    // Nothing in the call is a number the damage could have come from, and
+    // four six-sided dice cannot land outside these bounds.
+    const rolled = outcome.resolution['rolled'] as number;
+    expect(rolled).toBeGreaterThanOrEqual(4);
+    expect(rolled).toBeLessThanOrEqual(24);
+    expect(outcome.resolution['amount']).toBe(rolled);
+    expect(t.surface.observe().creatures[0]!.hp).toBe(before - rolled);
+    expect(JSON.stringify(outcome.events)).toContain('the falling brazier');
+  });
+
+  it('records the roll as the engine’s own, and moves the generator through the log', () => {
+    const t = atTheTable();
+    const before = t.campaign.state().rollsIssued;
+    const outcome = brazier(t);
+
+    const rolls = outcome.resolution['rolls'] as readonly {
+      id: string;
+      source: string;
+      dice: readonly number[];
+      total: number;
+    }[];
+    expect(rolls).toHaveLength(1);
+    expect(rolls[0]!.source).toBe('engine');
+    expect(rolls[0]!.id.length).toBeGreaterThan(0);
+    expect(rolls[0]!.dice).toHaveLength(4);
+    expect(rolls[0]!.total).toBe(outcome.resolution['rolled']);
+
+    // The generator moved, and it moved *through the log* — which is the whole
+    // reason this is an engine command rather than four lines in a tool.
+    expect(outcome.events.some((event) => event.type === 'rolls-issued')).toBe(true);
+    expect(t.campaign.state().rollsIssued).toBe(before + 1);
+  });
+
+  it('is the engine’s dice: the same seed and the same call give the same damage', () => {
+    const roll = (seed: string) => brazier(atTheTable(seed)).resolution['rolled'];
+    expect(roll('one-brazier')).toBe(roll('one-brazier'));
+    const seeds = new Set(['a', 'b', 'c', 'd', 'e', 'f'].map((s) => roll(`brazier-${s}`)));
+    expect(seeds.size).toBeGreaterThan(1);
+  });
+
+  /**
+   * The point of the command. A DM saying "7 damage" states a number that has
+   * already met whatever defences the DM remembered; a DM saying "4d6 fire"
+   * states a kind of damage and lets the engine measure it. This is that
+   * difference measured rather than asserted — one seed, one roll, two
+   * targets, and the only thing between them is the Resistance.
+   */
+  it('a target Resistant to the type takes half of the very same roll', () => {
+    const plain = brazier(atTheTable('one-brazier')).resolution;
+    const resistant = brazier(atTheTableResistant('one-brazier')).resolution;
+
+    expect(resistant['rolled']).toBe(plain['rolled']);
+    expect(plain['amount']).toBe(plain['rolled']);
+    expect(resistant['amount']).toBe(Math.floor((plain['rolled'] as number) / 2));
+    expect(resistant['amount']).toBeLessThan(plain['amount'] as number);
+  });
+
+  it('checks the Concentration the damage put at risk, as any other damage does', () => {
+    const t = table('a-brazier-mid-spell');
+    expectOk(t.call('create_character', { id: 'kessa', choices: wizard('Kessa') }));
+    expectOk(t.call('create_character', { id: 'vex', choices: wizard('Vex') }));
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the bar', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'kessa', fromLandmark: 'the bar', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'vex', fromCreature: 'kessa', feet: 15, bearing: 0 }));
+    expectOk(t.call('declare_sight', { from: 'kessa', to: 'vex', seen: true }));
+    expectOk(
+      t.call('cast_spell', {
+        caster: 'kessa',
+        spellId: 'hold-person',
+        targets: ['vex'],
+        slotLevel: 2,
+      }),
+    );
+    expect(t.surface.observe().creatures.find((c) => c.id === 'kessa')!.concentratingOn).toBe(
+      'Hold Person',
+    );
+
+    // Small dice on purpose: a caster dropped to 0 is Unconscious, therefore
+    // Incapacitated, therefore no longer concentrating, and the engine
+    // answers `already-lost` rather than wasting a die on a save the spell
+    // cannot survive. The save is what this test is about, so she has to
+    // still be standing when the brazier lands.
+    const outcome = expectOk(
+      t.call('roll_improvised_damage', {
+        target: 'kessa',
+        dice: '2d4',
+        damageType: 'fire',
+        ruling: 'the brazier came down on her',
+      }),
+    );
+    expect(t.surface.observe().creatures.find((c) => c.id === 'kessa')!.hp).toBeGreaterThan(0);
+
+    expect((outcome.resolution['concentration'] as { kind: string }).kind).toBe('resolved');
+    expect(
+      outcome.events.some(
+        (event) => event.type === 'roll-recorded' && /maintain/.test(event.label),
+      ),
+    ).toBe(true);
+  });
+
+  it('applies once however many times the transport sends it', () => {
+    const t = atTheTable();
+    const before = t.surface.observe().creatures[0]!.hp;
+    brazier(t);
+    const hurt = t.surface.observe().creatures[0]!.hp;
+    const issued = t.campaign.state().rollsIssued;
+    expect(hurt).toBeLessThan(before);
+
+    const retry = expectOk(t.resend(1));
+    expect(retry.events).toEqual([]);
+    expect(retry.resolution['duplicate']).toBe(true);
+    expect(t.surface.observe().creatures[0]!.hp).toBe(hurt);
+    // And the dice were not thrown a second time either.
+    expect(t.campaign.state().rollsIssued).toBe(issued);
+  });
+
+  it('takes no roll from the caller: an amount is not a field', () => {
+    const t = atTheTable();
+    for (const forged of [{ amount: 24 }, { rolled: 24 }, { total: 24 }]) {
+      const outcome = t.call('roll_improvised_damage', {
+        target: 'kessa',
+        dice: '4d6',
+        damageType: 'fire',
+        ruling: 'the falling brazier',
+        ...forged,
+      });
+      expect(outcome.status).toBe('invalid');
+    }
+  });
+
+  it('refuses a damage type the rules do not print', () => {
+    const t = atTheTable();
+    expect(
+      t.call('roll_improvised_damage', {
+        target: 'kessa',
+        dice: '4d6',
+        damageType: 'embarrassment',
+        ruling: 'the whole room saw',
+      }).status,
+    ).toBe('invalid');
+  });
+
+  it('refuses notation that is not dice as a value, and throws nothing', () => {
+    const t = atTheTable();
+    const before = { log: t.campaign.log().length, rolls: t.campaign.state().rollsIssued };
+    const outcome = t.call('roll_improvised_damage', {
+      target: 'kessa',
+      dice: 'quite a lot',
+      damageType: 'fire',
+      ruling: 'the falling brazier',
+    });
+    expect(outcome.status).toBe('refused');
+    expect(t.campaign.log()).toHaveLength(before.log);
+    expect(t.campaign.state().rollsIssued).toBe(before.rolls);
+  });
+
+  it('asks about a creature nobody has declared, rather than refusing', () => {
+    const t = atTheTable();
+    const outcome = t.call('roll_improvised_damage', {
+      target: 'the-ostler',
+      dice: '2d6',
+      damageType: 'bludgeoning',
+      ruling: 'the beam',
+    });
+    expect(outcome.status).toBe('needs-context');
+    if (outcome.status !== 'needs-context') return;
+    expect(outcome.establish[0]!.kind).toBe('creature');
+  });
+});
+
+describe('a saving throw against a Difficulty Class the table set', () => {
+  it('rolls it, and the class the DM set is what decides it', () => {
+    const against = (dc: number) =>
+      expectOk(atTheTable('one-die').call('saving_throw', { who: 'kessa', ability: 'dex', dc }));
+    const trivial = against(1);
+    const impossible = against(30);
+    expect(trivial.resolution['natural']).toBe(impossible.resolution['natural']);
+    expect(trivial.resolution['dc']).toBe(1);
+    expect(trivial.resolution['success']).toBe(true);
+    expect(impossible.resolution['success']).toBe(false);
+  });
+
+  /**
+   * And it really is the *save* branch. A wizard is proficient in Intelligence
+   * saving throws and in no Intelligence skill, so at level 3 the same die
+   * totals two higher as a save than as a raw ability check — which is a fact
+   * about which of `resolveTest`'s two branches ran, said in a number the
+   * caller never supplied.
+   */
+  it('is a saving throw and not an ability check under another name', () => {
+    const check = expectOk(
+      atTheTable('one-die').call('ability_check', { who: 'kessa', ability: 'int', dc: 10 }),
+    ).resolution;
+    const save = expectOk(
+      atTheTable('one-die').call('saving_throw', { who: 'kessa', ability: 'int', dc: 10 }),
+    ).resolution;
+    expect(save['natural']).toBe(check['natural']);
+    expect(save['total']).toBe((check['total'] as number) + 2);
+  });
+
+  /**
+   * The two fields `ability_check` has that a save has not.
+   *
+   * `resolveTest`'s saving-throw branch reads neither a skill nor the senses
+   * an attempt leans on — `rollSavingThrow` takes no skill at all, and SRD
+   * writes "automatically fails an **ability check** that requires sight".
+   * Offering either would be a field dropped in silence, which is exactly
+   * what the fourth outcome exists to refuse.
+   */
+  it('offers neither a skill nor a sense, because a save reads neither', () => {
+    const t = atTheTable();
+    expect(
+      t.call('saving_throw', { who: 'kessa', ability: 'dex', dc: 10, skill: 'acrobatics' }).status,
+    ).toBe('invalid');
+    expect(
+      t.call('saving_throw', { who: 'kessa', ability: 'dex', dc: 10, requiresSight: true }).status,
+    ).toBe('invalid');
+  });
+
+  it('records the DM’s words for why, so a later reader knows it was a ruling', () => {
+    const outcome = expectOk(
+      atTheTable().call('saving_throw', {
+        who: 'kessa',
+        ability: 'con',
+        dc: 13,
+        because: 'the fumes rolling off the pit',
+      }),
+    );
+    const recorded = outcome.events.find((event) => event.type === 'roll-recorded');
+    expect(JSON.stringify(recorded)).toContain('the fumes rolling off the pit');
+  });
+
+  it('takes no roll from the caller: a natural is not a field', () => {
+    expect(
+      atTheTable().call('saving_throw', { who: 'kessa', ability: 'dex', dc: 10, natural: 20 })
+        .status,
+    ).toBe('invalid');
+  });
+
+  it('asks about a creature nobody has declared', () => {
+    const outcome = atTheTable().call('saving_throw', { who: 'the-ostler', ability: 'wis', dc: 10 });
+    expect(outcome.status).toBe('needs-context');
+    if (outcome.status !== 'needs-context') return;
+    expect(outcome.establish[0]!.kind).toBe('creature');
+  });
+
+  it('applies once however many times the transport sends it', () => {
+    const t = atTheTable();
+    expectOk(t.call('saving_throw', { who: 'kessa', ability: 'dex', dc: 10 }));
+    const retry = expectOk(t.resend(1));
+    expect(retry.events).toEqual([]);
+    expect(retry.resolution['duplicate']).toBe(true);
+  });
+});
+
+describe('Advantage the table granted, and who granted it', () => {
+  it('arrives attributed, and is visible in the roll’s own record', () => {
+    const outcome = expectOk(
+      atTheTable('two-dice').call('ability_check', {
+        who: 'kessa',
+        ability: 'dex',
+        dc: 10,
+        advantage: 'she has the high ground',
+      }),
+    );
+    expect(outcome.resolution['mode']).toBe('advantage');
+    expect(outcome.resolution['modeSources']).toEqual([
+      { source: 'DM ruling: she has the high ground', mode: 'advantage' },
+    ]);
+    // And it is not a label on one die: Advantage is two dice, and the roll's
+    // own record says how many were thrown.
+    expect(outcome.resolution['rolls']).toHaveLength(2);
+  });
+
+  it('and without a ruling the same call throws one die and names nobody', () => {
+    const outcome = expectOk(
+      atTheTable('two-dice').call('ability_check', { who: 'kessa', ability: 'dex', dc: 10 }),
+    );
+    expect(outcome.resolution['mode']).toBe('normal');
+    expect(outcome.resolution['modeSources']).toEqual([]);
+    expect(outcome.resolution['rolls']).toHaveLength(1);
+  });
+
+  it('imposes Disadvantage the same way, on a saving throw', () => {
+    const outcome = expectOk(
+      atTheTable('two-dice').call('saving_throw', {
+        who: 'kessa',
+        ability: 'con',
+        dc: 12,
+        disadvantage: 'she is waist deep in the fumes',
+      }),
+    );
+    expect(outcome.resolution['mode']).toBe('disadvantage');
+    expect(outcome.resolution['modeSources']).toEqual([
+      { source: 'DM ruling: she is waist deep in the fumes', mode: 'disadvantage' },
+    ]);
+    expect(outcome.resolution['rolls']).toHaveLength(2);
+  });
+
+  /**
+   * SRD: Advantage and Disadvantage cancel rather than stack, and the engine
+   * keeps both sources so a normal-looking roll can still say why. Two rulings
+   * in one breath is the case that would otherwise read as a DM who said
+   * nothing at all.
+   */
+  it('two rulings cancel, and both are still named', () => {
+    const outcome = expectOk(
+      atTheTable('two-dice').call('ability_check', {
+        who: 'kessa',
+        ability: 'dex',
+        dc: 10,
+        advantage: 'she has the high ground',
+        disadvantage: 'the floor is slick with oil',
+      }),
+    );
+    expect(outcome.resolution['mode']).toBe('normal');
+    expect(outcome.resolution['modeSources']).toEqual([
+      { source: 'DM ruling: she has the high ground', mode: 'advantage' },
+      { source: 'DM ruling: the floor is slick with oil', mode: 'disadvantage' },
+    ]);
+    expect(outcome.resolution['rolls']).toHaveLength(1);
+  });
+
+  it('takes no bare flag: the ruling is the field, so there is nothing to send without one', () => {
+    const t = atTheTable();
+    for (const bare of [{ advantage: true }, { mode: 'advantage' }, { advantage: '' }]) {
+      expect(t.call('ability_check', { who: 'kessa', ability: 'dex', dc: 10, ...bare }).status).toBe(
+        'invalid',
+      );
+    }
+  });
+});
+
+describe('the same seed and the same calls write the same log', () => {
+  const evening = (seed: string) => {
+    const t = atTheTable(seed);
+    expectOk(
+      t.call('ability_check', {
+        who: 'kessa',
+        ability: 'dex',
+        dc: 14,
+        advantage: 'the rope is already in her hand',
+      }),
+    );
+    expectOk(
+      t.call('roll_improvised_damage', {
+        target: 'kessa',
+        dice: '4d6',
+        damageType: 'fire',
+        ruling: 'the falling brazier',
+      }),
+    );
+    expectOk(t.call('saving_throw', { who: 'kessa', ability: 'con', dc: 12, because: 'the smoke' }));
+    return JSON.stringify(t.campaign.log());
+  };
+
+  it('twice over, and differently under a different seed', () => {
+    expect(evening('one-evening')).toBe(evening('one-evening'));
+    expect(evening('one-evening')).not.toBe(evening('another-evening'));
+    expect(evening('one-evening').length).toBeGreaterThan(100);
+  });
+});

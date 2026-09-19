@@ -19,11 +19,13 @@ import { applyDamage, type DamageComponent, rawDamageTotal } from '../attack.js'
 import { spendReaction } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import {
+  applyEvent,
   type CreatureState,
   type GameEvent,
   type GameState,
   type PendingDamage,
 } from '../events.js';
+import { type CommandIdentity, once } from '../idempotency.js';
 import {
   offersForDamage,
   reactionAddends,
@@ -38,7 +40,8 @@ import {
   type Supply,
   resolveDamage,
 } from './casting.js';
-import { unknownCreature } from './command.js';
+import { creatureOf, unknownCreature } from './command.js';
+import { rollSpellDice } from './rolls.js';
 
 /** What the held damage currently comes to, after everything taken off so far. */
 export function heldDamageTotal(pending: PendingDamage): number {
@@ -273,3 +276,123 @@ export function dealSpellDamage(
   });
 }
 
+/**
+ * Dice a DM called for, thrown by the engine, landed like any other damage.
+ *
+ * The falling brazier, the collapsing floor, the boiling pitch. `resolveDamage`
+ * already takes an *amount* a DM adjudicated, and that is a different act: an
+ * amount has already met whatever defences the person saying it remembered,
+ * where "4d6 Fire" is a kind of damage the engine measures for itself.
+ *
+ * **It is a command because throwing the dice is not something a caller may
+ * do for itself.** `rollAttackDamage` is public and a caller holding an `Rng`
+ * could reach it — and would consume a roll id and advance the generator with
+ * no `rolls-issued` event to record either, because only a command emits one.
+ * The dice would then be one roll ahead of the log, and every number after
+ * them would differ on replay. This is the door that keeps the two in step.
+ *
+ * Everything after the dice is the path a spell's damage already takes
+ * ({@link dealSpellDamage}), so Resistance, Vulnerability, Immunity, Temporary
+ * Hit Points, the drop to 0 and the Unconscious that follows it, death, and
+ * the Concentration save the damage put at risk all behave exactly as they do
+ * for a Fire Bolt. Nothing here re-states any of them.
+ *
+ * **No Reaction window opens**, and that is the same stated limit
+ * {@link landDamage} records for a spell: Uncanny Dodge answers a sword, and a
+ * ceiling is not one.
+ *
+ * The victim's own sheet is what the dice are rolled against, and it
+ * contributes nothing — `rollSpellDice` drops the weaponless component the
+ * roller always adds, and a brazier carries nobody's ability modifier. It is
+ * the victim's rather than the source's because a trap has no sheet at all,
+ * which is the same reading `collectDueDamage` takes for a hit whose caster
+ * may be dead by the time it falls.
+ */
+export interface ImprovisedDamageCommand extends CommandIdentity {
+  /** Dice notation the table called for: `4d6`. Never a number a die showed. */
+  readonly dice: string;
+  /** Which kind, because Resistance is per type and a brazier burns. */
+  readonly damageType: string;
+  /** What did it, in the caller's own words. Recorded as the damage's source. */
+  readonly source: string;
+  /** The creature that dealt it, where one did. A trap has none. */
+  readonly by?: CharacterId;
+}
+
+export interface ImprovisedDamageResolution {
+  readonly events: readonly GameEvent[];
+  /** The dice as they were rolled, each carrying the id the engine issued. */
+  readonly components: readonly DamageComponent[];
+  /** What the dice came to, before the target's defences. */
+  readonly rolled: number;
+  /** What actually landed, after them. */
+  readonly amount: number;
+  readonly concentration: ConcentrationConsequence;
+  /** True when this command id had already been applied; `events` is empty. */
+  readonly duplicate: boolean;
+}
+
+export function rollImprovisedDamage(
+  state: GameState,
+  target: CharacterId,
+  command: ImprovisedDamageCommand,
+  supply: Supply,
+): Result<ImprovisedDamageResolution> {
+  return once(state, `improvised-damage:${target}`, command, () => {
+    return {
+      events: [],
+      components: [],
+      rolled: 0,
+      amount: 0,
+      concentration: { kind: 'none' },
+      duplicate: true,
+    };
+  }, (stamp) => {
+    const victim = creatureOf(state, target);
+    if (victim === null) return unknownCreature(target);
+
+    // Notation is validated before a die is thrown, so a malformed `4d` comes
+    // back as a refusal that moved nothing — which is what makes a refused
+    // call free for a caller that rebuilds its generator from state.
+    const issuedBefore = supply.issuer.count;
+    const rolled = rollSpellDice(
+      supply,
+      victim.sheet,
+      command.source,
+      command.damageType,
+      command.dice,
+    );
+    if (!rolled.ok) return rolled;
+
+    // The stamp rides the `rolls-issued`, which is the one event this command
+    // always writes: the damage that follows could be a zero against an immune
+    // target, and a retry must be a no-op either way.
+    const events: GameEvent[] = [
+      {
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ];
+
+    const hurt = dealSpellDamage(
+      events.reduce(applyEvent, state),
+      target,
+      rolled.value,
+      command.source,
+      supply,
+      command.by === undefined ? {} : { by: command.by },
+    );
+    if (!hurt.ok) return hurt;
+
+    return ok({
+      events: [...events, ...hurt.value.events],
+      components: rolled.value,
+      rolled: rawDamageTotal(rolled.value),
+      amount: hurt.value.amount,
+      concentration: hurt.value.concentration,
+      duplicate: false,
+    });
+  });
+}

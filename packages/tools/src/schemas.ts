@@ -14,7 +14,7 @@
  * the retry *is* the same call.
  */
 
-import { ABILITIES, CONDITIONS, SKILLS } from '@ie/shared';
+import { ABILITIES, CONDITIONS, DAMAGE_TYPES, SKILLS } from '@ie/shared';
 import { z } from 'zod';
 
 /** A creature id, as the caller types it. Branded by the handler, not here. */
@@ -26,6 +26,17 @@ export const creatureId = z
 export const abilitySchema = z.enum(ABILITIES);
 export const skillSchema = z.enum(SKILLS);
 export const conditionSchema = z.enum(CONDITIONS);
+
+/**
+ * The thirteen kinds of damage, and the reason a caller must name one.
+ *
+ * Resistance, Vulnerability and Immunity are all *per type*, so damage with
+ * no type is damage no defence can meet. A DM who wants the fire-immune
+ * creature to burn anyway has a tool for that — `improvised_damage`, which
+ * takes a number already adjudicated — and this is the other one, where the
+ * engine is being asked to measure.
+ */
+export const damageTypeSchema = z.enum(DAMAGE_TYPES);
 
 /**
  * SRD "Creature Size and Space", spelled out rather than imported.

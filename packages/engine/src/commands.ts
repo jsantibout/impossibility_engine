@@ -116,6 +116,11 @@ export type {
   DamageResolution,
   SpellEffectOptions,
 } from './commands/casting.js';
+export { rollImprovisedDamage } from './commands/damage.js';
+export type {
+  ImprovisedDamageCommand,
+  ImprovisedDamageResolution,
+} from './commands/damage.js';
 export { resolveAttack, resolveAttackDamage } from './commands/attacks.js';
 export type { AttackCommand, AttackDamageCommand, AttackResolution } from './commands/attacks.js';
 export {

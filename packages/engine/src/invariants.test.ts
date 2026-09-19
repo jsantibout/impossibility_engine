@@ -79,6 +79,7 @@ import {
   resolveAttackDamage,
   resolveMove,
   resolveDamage,
+  rollImprovisedDamage,
   pendingCastingsOf,
   resolveDeclaredCast,
   resolveSpell,
@@ -1118,6 +1119,22 @@ const GUARDED: readonly Guarded[] = [
     name: 'resolveDamage',
     log: SETUP,
     run: (s, commandId) => resolveDamage(s, B, { amount: 7, source: 'a trap', commandId }, supply()),
+  },
+  /**
+   * The same damage with the dice still to throw, which is the retry that
+   * costs something: an unguarded second send is a second 2d6 and a generator
+   * two rolls further on than the log says.
+   */
+  {
+    name: 'rollImprovisedDamage',
+    log: SETUP,
+    run: (s, commandId) =>
+      rollImprovisedDamage(
+        s,
+        B,
+        { dice: '2d6', damageType: 'fire', source: 'a falling brazier', commandId },
+        supply(),
+      ),
   },
   {
     // A hit whose damage is still to be rolled — the second half of a held
@@ -2370,6 +2387,8 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
     'the casting leaves with its caster, and the creature leaving is bookkeeping about the cast rather than an action: refusing it while a debt stood would leave a fight unable to continue without somebody who is already gone',
   resolveDamage:
     'the outcome of damage rather than a decision anybody makes: SRD ends the Concentration through the Constitution saving throw this command rolls, and settling the debt is frequently what sent the damage here in the first place',
+  rollImprovisedDamage:
+    'the same outcome with the dice still to throw, and exempt for the same reason: the falling brazier is not anybody’s action, nobody in the fight spends a thing on it, and the Concentration it can end is ended by the save `resolveDamage` beneath it rolls — a guard would refuse the ceiling coming down because somebody owed a saving throw',
   settleAreaEffects:
     'the settlement itself, and a guard that refused its own settlement would be a deadlock wearing a rule’s clothes — this is the command that discharges the debt every other one is waiting on',
   settleDamage:

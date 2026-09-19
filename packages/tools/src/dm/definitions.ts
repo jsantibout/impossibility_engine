@@ -31,21 +31,29 @@
  *
  * ## What the slice covers
  *
- * The three things step one's digest named as missing, and the settlement one
- * of them owes:
+ * The three things step one's digest named as missing, the settlement one of
+ * them owes, and the three step one could not build:
  *
  * - `ability_check` — a check against a DC the table decided.
- * - `settle_test` — because a check can open a Reaction window, and a window
+ * - `saving_throw` — the same, for a save the rules did not call for. One
+ *   field on `resolveTest` and two tools on this surface; see its own note.
+ * - `settle_test` — because either can open a Reaction window, and a window
  *   nobody closes wedges every other command. A missing settlement is worse
  *   than a missing mechanic: the game stops rather than the action being
  *   refused.
- * - `improvised_damage` — the chandelier nobody has statted.
+ * - `improvised_damage` — the chandelier nobody has statted, at an amount the
+ *   DM decided.
+ * - `roll_improvised_damage` — the same chandelier with the dice still to
+ *   throw, which is the one thing step one **could not** ship: a surface
+ *   cannot roll, because a roll id and a `rolls-issued` event are a command's
+ *   to issue. `rollImprovisedDamage` is now that command.
  * - `rule_condition` / `end_condition` — a ruled condition, for a span of time
  *   only a DM may state, and the ruling ended when the DM says it is over.
  *
- * A saving throw against a DM's DC is the obvious fourth and is deliberately
- * not here: `resolveTest` takes it as one field, so it is a tool and a test
- * rather than a design, and this batch's brief named three things.
+ * And `advantage` / `disadvantage` on both of the D20 tools, which is not a
+ * tool but is the third thing step one wanted: `TestCommand.modes` existed
+ * and nothing offered it. They are fields whose *value is the reason*, so a
+ * mode cannot arrive unattributed — see {@link ADVANTAGE_FIELDS}.
  *
  * ## Why this is a directory and not a flag
  *
@@ -55,8 +63,15 @@
  */
 
 import type { ConditionName } from '@ie/shared';
-import type { Duration } from '@ie/engine';
-import { applyConditionTo, liftConditionFrom, resolveDamage, resolveTest, settleTest } from '@ie/engine';
+import type { Duration, ModeSource, TestResolution } from '@ie/engine';
+import {
+  applyConditionTo,
+  liftConditionFrom,
+  resolveDamage,
+  resolveTest,
+  rollImprovisedDamage,
+  settleTest,
+} from '@ie/engine';
 import { z } from 'zod';
 import {
   identity,
@@ -74,6 +89,7 @@ import {
   conditionDurationSchema,
   conditionSchema,
   creatureId,
+  damageTypeSchema,
   sensesFields,
   skillSchema,
 } from '../schemas.js';
@@ -95,6 +111,82 @@ const ruling = (what: string) =>
   z.string().min(1).describe(`Why, in one phrase. Recorded in the log as ${what}.`);
 
 /**
+ * Advantage and Disadvantage, as two fields whose *value is the reason*.
+ *
+ * The engine's D20 pipeline does not carry a flag; it carries a `ModeSource`,
+ * which is a mode **and who granted it**, and it keeps sources that cancelled
+ * so a roll that came out normal can still say why. Publishing a boolean would
+ * throw that half away at the door and record "situational" — the placeholder
+ * `checks.ts` invents for a caller who gave no name.
+ *
+ * So the reason is not a field beside the mode, it *is* the field. There is
+ * no way to grant Advantage through this surface without saying why, and no
+ * second spelling of it to keep in step. Both may be sent at once: SRD has
+ * them cancel rather than stack, the engine does that and records both, and
+ * a table that ruled twice should read as a table that ruled twice.
+ */
+const ADVANTAGE_FIELDS = {
+  advantage: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Grant Advantage, and say why in one phrase — "she has the high ground". The words are recorded as the source of it. Omit the field for a roll you have not ruled on.',
+    ),
+  disadvantage: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Impose Disadvantage, and say why in one phrase — "the footing is treacherous". Recorded the same way. Sending both cancels them, and the log still names each.',
+    ),
+};
+
+/** The caller's two phrases, in the engine's attributed vocabulary. */
+const ruledModes = (args: {
+  readonly advantage?: string | undefined;
+  readonly disadvantage?: string | undefined;
+}): readonly ModeSource[] => [
+  ...(args.advantage === undefined
+    ? []
+    : [{ source: ruled(args.advantage), mode: 'advantage' as const }]),
+  ...(args.disadvantage === undefined
+    ? []
+    : [{ source: ruled(args.disadvantage), mode: 'disadvantage' as const }]),
+];
+
+/**
+ * What a D20 Test answers with, for both of the tools that ask for one.
+ *
+ * `mode`, `modeSources` and `rolls` are the roll's **own record** rather than
+ * its result: how many dice were thrown, which way they were read, and who
+ * said so. Without them a DM's ruling would be invisible on the wire — the
+ * only trace of a granted Advantage would be a total that happened to be
+ * higher, which is indistinguishable from a good die.
+ *
+ * **The `roll-recorded` event does not carry them**, and that is a gap in the
+ * log rather than a choice made here: the event declares `contributions`,
+ * which are named *amounts*, and Advantage is not an amount. So a reader of
+ * the log alone can see that a d20 came to 17 and not that two were thrown
+ * for it. Closing that means a field on `GameEvent`, which is a decision
+ * about the log's shape and belongs to whoever owns it.
+ */
+const testResolution = (
+  value: TestResolution,
+  dc: number,
+): Readonly<Record<string, unknown>> => ({
+  natural: value.test?.natural ?? null,
+  total: value.test?.total ?? null,
+  success: value.test?.success ?? null,
+  dc,
+  mode: value.test?.mode ?? null,
+  modeSources: value.test?.modeSources.map((m) => ({ source: m.source, mode: m.mode })) ?? [],
+  rolls: value.test?.rolls ?? [],
+  ...(value.offers.length === 0 ? {} : { mayAnswer: value.offers.map((o) => o.reactor) }),
+  duplicate: value.duplicate,
+});
+
+/**
  * Ask a creature to make an ability check against a DC the table set.
  *
  * The engine had `rollAbilityCheck` complete and correct and reachable from
@@ -112,7 +204,7 @@ const ruling = (what: string) =>
 const ABILITY_CHECK = tool({
   name: 'ability_check',
   description:
-    'Ask a creature for an ability check against a Difficulty Class you have set. You choose the ability, the skill if one applies, and the DC; the engine supplies the modifier, proficiency, Expertise, conditions and every standing bonus, throws the die and decides the outcome. It does not take a roll — if you rolled physical dice, this is not the tool.',
+    'Ask a creature for an ability check against a Difficulty Class you have set. You choose the ability, the skill if one applies, and the DC; the engine supplies the modifier, proficiency, Expertise, conditions and every standing bonus, throws the die and decides the outcome. Give `advantage` or `disadvantage` a phrase to rule one on, and the log records who said so. It does not take a roll — if you rolled physical dice, this is not the tool.',
   mutates: true,
   input: z.strictObject({
     who: creatureId,
@@ -125,9 +217,11 @@ const ABILITY_CHECK = tool({
       .optional()
       .describe('What the check is for, in one phrase: "swinging from the chandelier".'),
     ...sensesFields,
+    ...ADVANTAGE_FIELDS,
   }),
-  run: (context, args) =>
-    settle(
+  run: (context, args) => {
+    const modes = ruledModes(args);
+    return settle(
       context,
       resolveTest(
         context.campaign.state(),
@@ -138,22 +232,81 @@ const ABILITY_CHECK = tool({
           dc: args.dc,
           ...(args.skill === undefined ? {} : { skill: args.skill }),
           ...(args.because === undefined ? {} : { label: args.because }),
+          ...(modes.length === 0 ? {} : { modes }),
           ...senses(args),
           ...identity(context),
         },
         context.campaign.supply(),
       ),
       (value) => value.events,
-      (value) => ({
-        natural: value.test?.natural ?? null,
-        total: value.test?.total ?? null,
-        success: value.test?.success ?? null,
-        dc: args.dc,
-        ...(value.offers.length === 0 ? {} : { mayAnswer: value.offers.map((o) => o.reactor) }),
-        duplicate: value.duplicate,
-      }),
+      (value) => testResolution(value, args.dc),
       (value) => value.unverified,
-    ),
+    );
+  },
+});
+
+/**
+ * Ask a creature for a saving throw against a DC the table set.
+ *
+ * **Step one's digest said this was one field on `resolveTest`, and on the
+ * engine it is.** `TestCommand.kind` is the whole of the difference, and the
+ * save branch gathers everything the check branch does — the ability's save
+ * modifier, proficiency where the class table grants it, Bless, an Aura of
+ * Protection, the conditions that give Disadvantage or fail the save outright.
+ *
+ * It is a second **tool** rather than a `kind` on the first one, because the
+ * other two fields of `ability_check` are not one field's worth of difference:
+ * `rollSavingThrow` takes no skill at all, and the senses an attempt leans on
+ * are read only by the check branch — SRD writes "automatically fails an
+ * **ability check** that requires sight". A single tool would accept both
+ * beside `kind: 'saving-throw'` and drop them in silence, which is exactly the
+ * failure the fourth outcome exists to prevent: a caller told nothing, acting
+ * on a roll that ignored what they said. Two tools, each with the fields its
+ * own branch reads.
+ *
+ * What it is **not** is a door for a save the rules already owe. A spell's
+ * save is rolled by the casting, a turn boundary's by `end_turn`, and a
+ * Concentration save by the damage that put it at risk. This is the save
+ * nothing in the book called for and the table did.
+ */
+const SAVING_THROW = tool({
+  name: 'saving_throw',
+  description:
+    'Ask a creature for a saving throw against a Difficulty Class you have set — the pit trap, the rockfall, the sickening smell. You choose the ability and the DC; the engine supplies the save modifier, proficiency, conditions and every standing bonus, throws the die and decides the outcome. Give `advantage` or `disadvantage` a phrase to rule one on. A save a spell or a turn boundary already owes is rolled by the command that owes it, not here.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId,
+    ability: abilitySchema,
+    dc: difficultyClass,
+    because: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('What the save is against, in one phrase: "the pit trap closing".'),
+    ...ADVANTAGE_FIELDS,
+  }),
+  run: (context, args) => {
+    const modes = ruledModes(args);
+    return settle(
+      context,
+      resolveTest(
+        context.campaign.state(),
+        who(args.who),
+        {
+          kind: 'saving-throw',
+          ability: args.ability,
+          dc: args.dc,
+          ...(args.because === undefined ? {} : { label: args.because }),
+          ...(modes.length === 0 ? {} : { modes }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => testResolution(value, args.dc),
+      (value) => value.unverified,
+    );
+  },
 });
 
 /**
@@ -194,13 +347,13 @@ const SETTLE_TEST = tool({
  * Hit Points absorbed first, dropping to 0 and the Unconscious that comes
  * with it, death, and the Concentration save the damage put at risk.
  *
- * **The amount is not a roll.** A DM who wants dice thrown for the chandelier
- * has nothing to call here yet: no engine command rolls a caller's notation
- * and records the generator it moved, and this layer must not roll one
- * itself — the roll id and the `rolls-issued` event are the engine's to
- * issue, and a surface that threw its own die would desynchronise the
- * campaign's generator from its log. That command is the next thing this
- * surface wants.
+ * **The amount is not a roll**, and it is not a *kind* of damage either. It
+ * goes to the hit points as stated: Resistance, Vulnerability and Immunity
+ * are all per type, and a number with no type is a number no defence can
+ * meet. That is the honest reading of a DM who has already decided how much
+ * it hurt — and it is why {@link ROLL_IMPROVISED_DAMAGE} sits beside this
+ * one rather than replacing it. A DM who wants the engine to measure says
+ * "4d6 Fire" and calls that; a DM who wants ten, flat, says so here.
  */
 const IMPROVISED_DAMAGE = tool({
   name: 'improvised_damage',
@@ -233,6 +386,90 @@ const IMPROVISED_DAMAGE = tool({
       (value) => ({
         damaged: args.target,
         amount: args.amount,
+        concentration: value.concentration,
+        duplicate: value.duplicate,
+      }),
+    ),
+});
+
+/**
+ * The same chandelier, with the dice still to throw.
+ *
+ * "4d6 Fire from the falling brazier" is a different sentence from "17
+ * damage", and the difference is not convenience. An amount has already met
+ * whatever defences the person saying it remembered; **dice and a type are
+ * something the engine can measure** — so Resistance, Vulnerability and
+ * Immunity apply, exactly as they do to a Fire Bolt, along with Temporary Hit
+ * Points, the drop to 0, death and the Concentration save the damage put at
+ * risk.
+ *
+ * **This is the tool step one could not write, and the reason it could not is
+ * the first inviolable rule.** Rolling here would issue a roll id and advance
+ * the campaign's generator with no `rolls-issued` event to record either —
+ * only a command emits one — so the dice would run ahead of the log and every
+ * number after them would differ on replay. `rollAttackDamage` is public and
+ * would have worked; `boundary.test.ts` beside this file forbids importing it
+ * for precisely that reason. `rollImprovisedDamage` is the door, and the die
+ * it throws is the engine's own.
+ *
+ * The DM still states no number. Notation is not a result: the engine decides
+ * what "4d6" comes to, and refuses notation it cannot read without throwing
+ * anything.
+ */
+const ROLL_IMPROVISED_DAMAGE = tool({
+  name: 'roll_improvised_damage',
+  description:
+    'Deal damage from something the rules do not model, and have the engine roll it — "4d6 Fire from the falling brazier". You name the dice and the kind of damage; the engine throws them, applies Resistance, Vulnerability and Immunity to that kind, then Temporary Hit Points, the drop to 0 and the Unconscious that follows it, death, and the Concentration save the damage puts at risk. Use `improvised_damage` instead when you have already decided the number and want it to land as stated.',
+  mutates: true,
+  input: z.strictObject({
+    target: creatureId,
+    dice: z
+      .string()
+      .min(1)
+      .describe('Dice notation: "4d6", "2d10". What the engine throws — never what a die showed.'),
+    damageType: damageTypeSchema.describe('Which kind, because Resistance is measured per kind.'),
+    ruling: ruling('the source of the damage'),
+    by: creatureId
+      .optional()
+      .describe('The creature that dealt it, where one did. A trap has none, and that is an answer.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      rollImprovisedDamage(
+        context.campaign.state(),
+        who(args.target),
+        {
+          dice: args.dice,
+          damageType: args.damageType,
+          source: ruled(args.ruling),
+          ...(args.by === undefined ? {} : { by: who(args.by) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        damaged: args.target,
+        damageType: args.damageType,
+        dice: args.dice,
+        rolled: value.rolled,
+        amount: value.amount,
+        // The dice themselves, with the id the engine issued and the
+        // provenance it stamped. A DM reading `engine` here is reading the
+        // one thing this surface cannot forge.
+        rolls: value.components.flatMap((component) =>
+          component.roll === null
+            ? []
+            : [
+                {
+                  id: component.roll.provenance.id,
+                  source: component.roll.provenance.source,
+                  dice: component.roll.dice.map((die) => die.value),
+                  total: component.roll.total,
+                },
+              ],
+        ),
         concentration: value.concentration,
         duplicate: value.duplicate,
       }),
@@ -350,7 +587,9 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   END_CONDITION,
   IMPROVISED_DAMAGE,
+  ROLL_IMPROVISED_DAMAGE,
   RULE_CONDITION,
+  SAVING_THROW,
   SETTLE_TEST,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 

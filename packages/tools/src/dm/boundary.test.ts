@@ -460,6 +460,50 @@ describe('every file of this package is swept by one of the two boundary files',
   });
 });
 
+/**
+ * One creature, built through the surface's own door, for the cache test
+ * below to throw dice at.
+ *
+ * A level 1 Wizard rather than `session.test.ts`'s Kessa: everything this
+ * file needs is a sheet the engine will roll against, and the shorter the
+ * fixture the less there is to go stale beside a copy of it.
+ */
+const APPRENTICE: Record<string, unknown> = {
+  name: 'Kessa',
+  classId: 'wizard',
+  level: 1,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 8, dex: 14, con: 13, int: 15, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { int: 2, con: 1 },
+  classSkills: ['investigation', 'insight'],
+  languages: ['Draconic', 'Elvish'],
+  alignment: 'Chaotic Good',
+  cantrips: ['fire-bolt', 'light', 'prestidigitation'],
+  spellbook: ['magic-missile', 'shield', 'detect-magic', 'feather-fall', 'mage-armor', 'sleep'].map(
+    (spellId) => ({ spellId, acquiredAt: 1, origin: 'level' as const }),
+  ),
+  preparedSpells: ['magic-missile', 'shield', 'mage-armor', 'sleep'],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: { 'wizard:scholar': ['arcana'], 'human:skillful': ['perception'] },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'ray-of-frost'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'skilled', proficiencies: ['stealth', 'nature', 'survival'] },
+  },
+};
+
 describe('the DM campaign’s cache is the fold', () => {
   it('agrees with a fresh fold after every call', () => {
     const campaign = createCampaign({ content: SRD_CONTENT, seed: 'dm-cache' });
@@ -476,6 +520,50 @@ describe('the DM campaign’s cache is the fold', () => {
     call('ability_check', { who: 'nobody', ability: 'dex', dc: 10 });
     call('improvised_damage', { target: 'nobody', amount: 3, ruling: 'a trap' });
     call('look');
+  });
+
+  /**
+   * And again over the three calls that **throw dice**, which is the half the
+   * test above cannot reach: every tool it names either writes nothing or
+   * asks about a creature nobody has declared, so the generator never moves.
+   *
+   * `rolls-issued` is the only event that moves `rng` and `rollsIssued`, and
+   * a stepped cache that disagreed with a fresh fold about where the
+   * generator stands would be invisible until the next roll came out
+   * different — which is exactly the failure a tool surface rolling for
+   * itself would cause, and the reason these three are engine commands.
+   */
+  it('agrees with a fresh fold after every call that throws a die', () => {
+    const campaign = createCampaign({ content: SRD_CONTENT, seed: 'dm-dice-cache' });
+    const surface = createDmSurface(campaign);
+    let calls = 0;
+    const call = (tool: string, input: unknown = {}) => {
+      const outcome = surface.call({ tool, input, commandId: `toolu_${++calls}` });
+      expect(outcome.status, `${tool}: ${JSON.stringify(outcome).slice(0, 300)}`).toBe('ok');
+      expect(JSON.stringify(campaign.state())).toBe(
+        JSON.stringify(fold(campaign.seed, campaign.log())),
+      );
+      return outcome;
+    };
+
+    call('create_character', { id: 'kessa', choices: APPRENTICE });
+    call('ability_check', {
+      who: 'kessa',
+      ability: 'dex',
+      dc: 12,
+      advantage: 'the rope is already in her hand',
+    });
+    call('saving_throw', { who: 'kessa', ability: 'con', dc: 12, disadvantage: 'the smoke' });
+    call('roll_improvised_damage', {
+      target: 'kessa',
+      dice: '2d4',
+      damageType: 'fire',
+      ruling: 'the falling brazier',
+    });
+
+    // Non-vacuous: dice really were thrown, and the log really does say so.
+    expect(campaign.state().rollsIssued).toBeGreaterThan(2);
+    expect(campaign.log().filter((event) => event.type === 'rolls-issued').length).toBe(3);
   });
 });
 
