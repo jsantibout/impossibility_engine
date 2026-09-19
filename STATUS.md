@@ -137,6 +137,30 @@ to homebrew.
   rules keep it from being an escape hatch: the sentence must genuinely trip
   nothing, and the entry must name a real missing shape rather than the table.
   Three definitions that had been written and thrown away over this are in.
+- **A count with no ceiling** — a tally beside the charge pools: a count of
+  uses carrying what empties it, springing into existence at the first use
+  because nothing declares one. A pool refuses when it runs out; a tally
+  cannot refuse, which is the whole reason it is not a pool. Wind Fan's
+  cumulative fifth of a chance rides on it, and Augury, Commune and Divination
+  fit the same shape when somebody writes them.
+- **A use the item fails to make** — an ordinary `ok` whose resolution says no
+  casting came of it, the way a missed attack is an ordinary `ok` that dealt
+  nothing. The fan rolls, tears, is unequipped as well as lost — tatters left
+  equipped are a route a casting would still find — and spends the action it
+  cost.
+- **A grant spent by the roll it reaches** — `oneShot` on a roll modifier and
+  `roll-modifier-consumed` to end it, whose fold body is the same call a
+  deadline makes. Both endings stand and the first wins. The rule is the roll
+  it **reached**, not the roll it changed: a one-shot Disadvantage cancelled to
+  normal by an Advantage is still spent, because the sentence counts rolls
+  rather than outcomes. A selector may also pin the other participant, so Vex
+  narrows to one creature and an attacker holds one per creature rather than
+  one in total. Guiding Bolt and Vicious Mockery run on it.
+- **A fall somebody declared** — the sixth reaction window and the first
+  opened by a declaration rather than by something the engine is in the middle
+  of doing. The fact is `lastDamage`'s twin with the dealer dropped, carrying
+  no height, no rate and no landing, and it closes on the same two facts every
+  other window does. Feather Fall is cast against it.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -177,19 +201,17 @@ to homebrew.
   an amount may now be a printed number with no dice in it, which the two
   scaling fields that add dice to a notation refuse and the one that adds a
   flat number does not.
-- **One reader still takes the built sheet**, and it is not a roll a command
-  makes: `rest.ts` adds a Constitution modifier to every Hit Die a Short Rest
-  spends, so an Amulet of Health does not reach it. Everything else asks
-  `sheetAsItStands` — the attack roll and its damage, the ability check, the
+- Every ability a roll reads now asks `sheetAsItStands` — the attack roll and its damage, the ability check, the
   saving throw, Initiative, a Reaction's addend, a spell's save DC and attack
   bonus, an item's casting, both spell-effect modules for caster and victim,
   the Concentration save, the check and save a turn boundary repeats, and
-  `selfHealAddend`. The substitution happens in the commands, where the state
-  is; `attack.ts` and `checks.ts` take a sheet and hold no state, and a roller
-  that went looking for a worn item would be the second derivation
-  `sheetAsItStands` exists to prevent. `rollSpellDice` is not a gap. Two
-  catalogue notes came off entirely rather than being reworded, because a note
-  kept alive past the gap it described is what that field exists to prevent.
+  `selfHealAddend` and the Constitution a Hit Die adds on a Short Rest. No
+  non-test engine file reads an ability off `creature.sheet`. What a
+  substitution cannot reach is the one number that is genuinely *folded*
+  rather than derived — a hit point maximum, paid a level at a time — which is
+  all the Amulet of Health's one remaining note records. Three catalogue notes
+  came off entirely rather than being reworded, because a note kept alive past
+  the gap it described is what that field exists to prevent.
 - Seven emitters of `roll-recorded` pass no modes, so the field's absence
   means both "nobody ruled" and "this emitter never says". An attack roll and
   an Initiative roll can each carry Advantage and neither records it.
@@ -198,112 +220,83 @@ to homebrew.
   model-driven fight can wedge.
 - No carried weight, no ammunition spent. Objects that are not creatures
   are not modelled.
-- An item cannot fail at being used. Wind Fan's cumulative 20% wants a use
-  that records a roll, destroys the fan and produces **no casting** — which is
-  not an `err`, because a refusal carries no events, and not a
-  `SpellResolution`, because that type requires a `castingId` a casting that
-  never happened does not have. It also wants a count of uses since dawn, and
-  the only per-copy state the engine holds is a charge pool whose size the
-  transcription guard reads off the entry's printed text. Wind Fan prints no
-  count, so a pool of six is `100/20` derived.
+- Two copies of the Wind Fan in one pack share one count of uses, which is
+  why it is transcribed as partial. Only an item carrying a charge pool is
+  labelled with an instance when it is gained, and a fan has no charges; the
+  key already goes through `instancedPoolKey`, so the day that predicate
+  widens the count follows the copy with no further change.
+- **Nothing above the engine can declare a fall**, so Feather Fall is
+  uncastable from the tool surface although the engine casts it. That is the
+  fourth time a door has been found shut behind a room that was finished, after
+  the route field, the damage type and the Improvement's abilities — which is
+  a pattern rather than three accidents.
 - Overriding printed content with homebrew of the same id is refused; only
   adding beside it is supported.
 
 ## Next
 
-Ranked by what each shape **finishes**. That column has now mis-sized briefs
-in three consecutive batches, and the last one was mis-sized by the column
-itself: `a-weapon-mastery-property` read 6/6 and a builder proved those six
-features are blocked on four shapes, so it reads 6 blocked and 0 finished
-today. Read the shape's own description, then check it against the book and
-the code, before briefing anything here.
+Ranked by what each shape **finishes**. That column mis-sized briefs in three
+consecutive batches, and once was wrong in the table itself — read the shape's
+own description, then check it against the book and the code, before briefing
+anything here.
 
-1. **A feature that changes a casting's damage.** Five features, five
-   finished — the leader of the feature map now, read off the data rather
-   than remembered. The notation, the die and the type are the definition's
-   and are pinned when the casting is written, so a modifier on one
-   Evocation's damage, a d6 that becomes a d10, and a maximised backlash each
-   want the same reader that does not exist.
-2. **A one-shot roll modifier.** A modifier consumed by the roll it changes,
-   which the spell map has carried as `a-one-shot-roll-modifier` and the
-   feature map now shares rather than spelling twice. It needs a way to end a
-   grant **by name** outside a casting: `withoutGrants` is reachable only
-   through a casting id, `releaseGrants` has one caller (the expiring `grants`
-   timer), and the only by-name removal in the engine is `bonus-removed`,
-   which touches `creature.bonuses` alone. So it wants a new `GameEvent`
-   member or a second door onto `releaseGrants` — **an owner's decision.** It
-   also wants a third `RollRelation`, "against that creature, by me", which
-   `roll-modifiers.ts` already names in its own words about Bestow Curse.
-   Unblocks Sap, Vex, Guiding Bolt and Vicious Mockery together.
+1. **A door for every fact the engine can be told.** Four times now a room has
+   been finished and the door left shut: the `move` tool declared
+   `establishes: ['route']` with no `route` field behind it, `cast_spell` had
+   nowhere to name a damage type five spells print, `featChoice` had no
+   `abilities` so the Improvement this repository published could not be
+   taken, and `declareFalling` is reachable from no tool at all, so Feather
+   Fall is uncastable from the surface that exists to cast it. Three were
+   found by builders doing something else. **The brief is the sweep, not the
+   fourth patch**: a test that every `establishes` has a field, every engine
+   `needs-context` kind has a door, and every declared fact has a tool — then
+   whatever it finds.
+2. **A feature that changes a casting's damage.** Five features, five
+   finished; the leader of the feature map, read off the data.
 3. **Weapon mastery's buildable half.** The record of which weapons, plus
-   Graze, Cleave, Push, Slow and Topple — each routed through events that
-   already exist, worked out and written into the shape's description. It
-   finishes no feature until entry 2 lands (Sap, Vex) and the Light property's
-   extra attack lands (Nick), because `automation` is binary. Build it for the
-   mechanics or wait for the column to move: **an owner's decision.** Two
-   wrinkles it must settle: nothing derives a bearing from two positions, and
-   creature size lives only on the map, where an undeclared size silently
-   becomes Medium with no counterpart to `isHeightDeclared`.
-4. **A fall the engine can see.** Feather Fall's blocker is not falling
-   damage and not gravity — it is that no fact says a creature is falling.
-   Every reaction window reads a held state field and there is none for this,
-   so the window could never open. A fourth `SpellReactionWindow` member also
-   breaks `triggerRefusal`'s exhaustive switch in `commands/casting.ts`, which
-   is the type system asking the same question. The narrow form: **is a fall a
-   declared fact**, like cover, sight and creature type? If yes it is one
-   `GameEvent`, one small region of `state.ts`, a command in `facts.ts`, the
-   fourth window, the switch case and the opportunity arm — no heights, no
-   rate of descent, no landing damage, none of which Feather Fall's text
-   needs. `falling` has three claimants (Feather Fall, Reverse Gravity,
-   `monk:slow-fall`), so it leaves no map until all three are written.
-5. **The Ability Score Improvement cannot be taken through a tool.**
-   `featChoice` in `packages/tools/src/schemas.ts` has no `abilities` field,
-   so the feat this repository published last batch cannot be chosen through
-   `create_character`, and a character above level 3 cannot be built on the
-   model surface as the book builds one. We shipped the feat and left the door
-   shut.
-6. **The eighth reader.** `rest.ts:283` adds
-   `abilityModifier(creature.sheet.abilities.con)` to every Hit Die a Short
-   Rest spends, off the score the sheet was built with, so an Amulet of Health
-   does not reach it. It is the last raw-sheet ability read in non-test engine
-   code, swept for independently by a builder and its reviewer. One line, one
-   test, and the Amulet's own `unmodelled` note comes off with it.
-7. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
-   shape now that identity and the score verbs have been spent.
-8. **The Light property's extra attack.** The action economy counts one Attack
-   action, not the attacks in it, which `docs/design/characters-and-equipment.md`
-   already files. Nick is nothing without it.
+   Graze, Cleave, Push, Slow and Topple, each routed through events that
+   already exist and written out in the shape's description. Sap and Vex are
+   no longer blocked — `oneShot` and `counterpart` landed this batch — so what
+   remains outside it is Nick (the Light property's extra attack) and the Long
+   Rest re-choice. Two wrinkles it must settle: nothing derives a bearing from
+   two positions, and creature size lives only on the map, where an undeclared
+   size silently becomes Medium with no counterpart to `isHeightDeclared`.
+4. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
+   shape left.
+5. **Falling damage**, which `monk:slow-fall` waits on and Reverse Gravity's
+   producer needs: a damage tagged as a fall, with a height the table
+   declares. `falling` keeps two claimants until both are written.
+6. **An instance for an item with no charges.** Widening
+   `issueItemCopies`'s predicate in `commands/inventory.ts` (and the
+   `itemChargePool(item, instance)!` beneath it, which would otherwise push a
+   null) makes the Wind Fan complete rather than partial, and is the last of
+   the copy-identity work.
+7. **The Light property's extra attack.** The action economy counts one Attack
+   action, not the attacks in it. Nick is nothing without it.
 
-### Loose ends a brief should absorb rather than own
+### Guards that would have caught something this session
 
-- `packages/engine/src/commands/targeting.ts:578` says "the two spells that
-  print a list" and five do: Spirit Guardians, Fire Shield, Protection from
-  Energy, Chromatic Orb, Sorcerous Burst. The tools surface carried the same
-  sentence and a reviewer caught it there.
-- The five-spell row in the tools' own prose has no guard keeping it true. The
-  suggested one asserts those names equal the ids carrying `damageTypeStated`
-  in `SRD_CONTENT`, which puts a catalogue assertion in `@ie/tools` — a call
-  worth making deliberately.
-- Three paths reachable and unexercised: `declare_difficult_terrain.source`,
-  `activate_spell` with a non-empty `targets`, and `activate_spell` with no
-  `to`.
+- `riderDuration`'s tail is a ternary, so a **new** `RiderDuration` member
+  would compile and silently become a caster start-of-turn deadline. It
+  predates this batch and no member added since can fall through both
+  pre-flight loops, but it is exactly what a sweep should hold.
+- `content.ts` validates a feature's `roll-mode` grant through the selector
+  alone, so `oneShot` is unchecked there. Meaningless on a derived standing
+  grant today; one line when the feature door is built.
+- A `SOLE`-style `it.each([])` registers zero tests and passes for ever. One
+  list held exactly one row this batch and a builder noticed while emptying
+  it; nothing would have said so.
 - `fold-import-boundary.test.ts` constructs an `ESLint` and lints text in
   process; its first case can exceed the 5s default timeout under full-suite
-  load and passes alone. Observed on an untouched base commit by two agents
-  independently. A timeout on that describe block, in whichever brief next
-  opens the file.
+  load and passes warm. Observed independently by three agents on untouched
+  commits. A timeout on that describe block, in whichever brief next opens it.
 
 ### Decisions waiting on the owner
 
-1. **What a use of an item that the item fails to make *is*.** A fourth
-   outcome beside ok, err and needs-context, or an optional `failed` arm on
-   `SpellResolution` with `castingId` made optional — and whether a count of
-   uses with no printed size may be a charge pool. Wind Fan is small once
-   answered.
-2. **A grant ended by name outside a casting** (entry 2), and **whether to
-   build mechanism ahead of the column** (entry 3).
-3. **Is a fall a declared fact** (entry 4).
+None. The three from last session — the failed item-use, the grant ended by
+name, the fall as a declared fact — were answered, and all three answers
+changed the design the question assumed.
 
-Separately, and absorbed by none of the above: Augury, Divination, Commune
-and Secret Chest need a count of castings back to a Long Rest that nothing
-keeps.
+Separately, and absorbed by none of the above: Augury, Divination, Commune and
+Secret Chest print a cumulative chance the tally now holds; what they still
+need is the consequence a failed one has.
