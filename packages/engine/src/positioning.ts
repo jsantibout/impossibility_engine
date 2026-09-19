@@ -1389,6 +1389,17 @@ export function sensesReaching(
  * Null is the important value: it is not "no", it is "ask". A spell that
  * requires sight turns it into a request to go and establish the fact.
  *
+ * **A creature can see itself, and that is the engine's fact rather than the
+ * table's.** It used to be null, and the hole that left was the worst defect
+ * this module has had: `resolveTargets` turned the null into a request to
+ * establish whether a caster could see themselves, and {@link declareSight}
+ * refused to record the answer — so Healing Word and Mass Healing Word could
+ * not be cast on their own casters at all, and Boots of Levitation had no way
+ * into a catalogue. The refusal was right; asking was not. So the pair
+ * answers first, before the declaration, before cover and before any sense:
+ * there is nothing for a table to establish and nothing a wall could stand
+ * in the way of.
+ *
  * **A declaration always outranks a sense.** Sight here is a fact the table
  * states, because computing it needs obstacle geometry; a sense is a fact
  * about the creature doing the looking, and all it may do is answer where
@@ -1415,6 +1426,7 @@ export function sightBetween(
   to: CharacterId,
   senses: readonly CreatureSense[] = [],
 ): boolean | null {
+  if (from === to) return true;
   const declared = state.sight[coverKey(from, to)];
   if (declared !== undefined) return declared;
   if (!canBeTargeted(coverBetween(state, from, to))) return null;

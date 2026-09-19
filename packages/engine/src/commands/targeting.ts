@@ -42,6 +42,7 @@ import {
   sightBetween,
   snapToSpace,
 } from '../positioning.js';
+import { sensesOf } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
   DIRECTIONAL_AREAS,
@@ -1030,7 +1031,11 @@ export function namedTargets(
       // SRD Hold Person: "a Humanoid that you can see." Unknown is a fact to
       // establish; declared *unseen* is the refusal.
       if (definition.requiresSight === true) {
-        const seen = sightBetween(state.scene, casterId, target);
+        // **The caster's senses, because the caster is the one looking.**
+        // "A creature *you* can see" names the caster in as many words, and
+        // a target's own Darkvision says nothing about whether the caster
+        // can pick them out. A declaration still outranks both.
+        const seen = sightBetween(state.scene, casterId, target, sensesOf(state, casterId));
         if (seen === null) {
           needs.push({
             kind: 'visibility',
@@ -1213,7 +1218,10 @@ export function eligibleTargets(
         continue;
       }
       if (definition.requiresSight === true) {
-        const seen = sightBetween(state.scene, casterId, target.id);
+        // The caster's senses again, and for the reason `namedTargets` gives:
+        // the shortlist and the resolution must answer one question the same
+        // way, or a target the engine offered would be refused when aimed at.
+        const seen = sightBetween(state.scene, casterId, target.id, sensesOf(state, casterId));
         if (seen === null) {
           needsContext.push({
             kind: 'visibility',

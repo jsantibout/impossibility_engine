@@ -62,6 +62,7 @@ import {
   positionOf,
   sightBetween,
 } from '../positioning.js';
+import { sensesOf } from '../standing.js';
 import { creatureOf, sceneFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 
@@ -303,7 +304,11 @@ function teleportSight(
   }
 
   const scene = state.scene;
-  const seen = scene === null ? null : sightBetween(scene, who, anchor.creature);
+  // **The teleporting creature's senses**: "an unoccupied space *you* can
+  // see" is the mover's clause, and the anchor's own Darkvision shows the
+  // mover nothing.
+  const seen =
+    scene === null ? null : sightBetween(scene, who, anchor.creature, sensesOf(state, who));
   if (seen === false) {
     return err(
       'cannot_see_destination',

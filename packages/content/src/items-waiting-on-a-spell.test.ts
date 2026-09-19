@@ -239,25 +239,32 @@ describe('the spells the eighteen items were waiting for', () => {
  * SRD Boots of Levitation: "_Wondrous Item, Rare (Requires Attunement)._ While
  * you wear these boots, you can cast _Levitate_ on yourself."
  *
- * **The item Levitate was written for, and the one entry of this batch an
- * engine line still stops.** Levitate reaches "One creature ... of your choice
- * that you can see within range", so the definition carries `requiresSight`;
- * the boots narrow it to the wearer; and `sightBetween(scene, x, x)` answers
- * **null**, which `resolveTargets` turns into a request to establish whether
- * the wearer can see themselves. There is no way to satisfy it: `declareSight`
+ * **The item Levitate was written for, and the engine line that stopped it is
+ * gone.** Levitate reaches "One creature ... of your choice that you can see
+ * within range", so the definition carries `requiresSight`; the boots narrow
+ * it to the wearer; and `sightBetween(scene, x, x)` used to answer **null**,
+ * which `resolveTargets` turned into a request to establish whether the
+ * wearer could see themselves. There was no way to satisfy it: `declareSight`
  * refuses the pair outright, in the engine's own words — "a creature can see
- * itself" — so the fact the resolver asks for is one the fold will not record.
+ * itself" — so the fact the resolver asked for was one the fold would not
+ * record.
  *
- * Two rules disagreeing about the same pair is an engine defect one line wide,
- * and it is **older than this batch**: Healing Word, Mass Healing Word, Mass
- * Cure Wounds and Cure Wounds all carry `self` beside `requiresSight` and
- * every one of them is unreachable on its own caster. Driven here because a
- * defect nobody drives is a defect nobody fixes, and the boots are left out
- * for the reason `items.ts` rule 1 gives: a record whose every use is refused
- * would be an item that arrives in a pack and looks transcribed.
+ * The refusal was never the wrong half; asking was. `sightBetween` now
+ * answers **true** for a creature and itself, before the declaration and
+ * before any sense, so the request never arises and the refusal costs
+ * nothing. The defect was older and wider than this entry — Healing Word and
+ * Mass Healing Word pair `self` with `requiresSight` and neither could be
+ * cast on its own caster — and `seeing-yourself.test.ts` in the engine drives
+ * that half. This drives the boots' own shape: an at-will casting an item
+ * narrows to its wearer.
+ *
+ * The boots themselves are still out of `ITEM_SHAPES`, which is a
+ * transcription left for whoever owns that file rather than a rule that
+ * stops them; the homebrew pair below is the same record in every word that
+ * matters.
  */
-describe('the boots the engine will not let anybody see themselves through', () => {
-  it('is not in the catalogue, and Levitate is', () => {
+describe('the boots nothing stops any more', () => {
+  it('is not in the catalogue yet, and Levitate is', () => {
     expect(SRD_CONTENT.item('boots-of-levitation')).toBeNull();
     expect(SRD_CONTENT.spell('levitate')?.requiresSight).toBe(true);
     expect(SRD_CONTENT.spell('levitate')?.targets.self).toBe(true);
@@ -298,8 +305,8 @@ describe('the boots the engine will not let anybody see themselves through', () 
     expect(out.unverified.join(' ')).toContain('Levitate');
   });
 
-  /** And the defect, from both ends: the ask nobody can answer. */
-  it('asks whether a creature can see itself, and refuses to be told', () => {
+  /** The boots' own casting: at will, on the wearer, with nothing declared. */
+  const booted = () => {
     const log: readonly GameEvent[] = [added(BEARER), added(OTHER), ...SCENE];
     const built = extendContent(SRD_CONTENT, {
       items: [
@@ -330,16 +337,32 @@ describe('the boots the engine will not let anybody see themselves through', () 
       ],
       (s) => equipItem(s, content, BEARER, 'boots-of-rising'),
     );
-    const out = resolveSpell(
-      fold('seed', worn),
-      BEARER,
-      { spellId: 'levitate', targets: [BEARER], item: 'boots-of-rising' },
-      supply('boots', content),
-    );
-    expect(isErr(out) && out.code).toBe('needs_context');
-    expect(isErr(out) && out.reason).toContain('can see');
+    return { content, worn };
+  };
 
-    // And the fact it asks for cannot be recorded, which is the other half.
+  it('levitates its wearer, with nobody having declared that they can see themselves', () => {
+    const { content, worn } = booted();
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', worn),
+        BEARER,
+        { spellId: 'levitate', targets: [BEARER], item: 'boots-of-rising' },
+        supply('boots', content),
+      ),
+      'the boots on their wearer',
+    );
+
+    expect(castOf(out.events)?.concentration).toBe(true);
+    expect(castOf(out.events)?.slotless).toBe('magic-item');
+    expect(ongoingSpellOf(fold('seed', [...worn, ...out.events]), out.castingId)).not.toBeNull();
+  });
+
+  /**
+   * And the declaration is still refused — which is now a refusal of
+   * something nobody needs, rather than the other half of a deadlock.
+   */
+  it('still refuses to be told a creature can see itself', () => {
+    const { worn } = booted();
     expect(() =>
       fold('seed', [...worn, { type: 'sight-declared', from: BEARER, to: BEARER, seen: true }]),
     ).toThrow(/a creature can see itself/);

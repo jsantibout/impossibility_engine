@@ -4,6 +4,7 @@ import { abilityModifier } from './character.js';
 import { isIncapacitated } from './conditions.js';
 import { distanceBetween, sightBetween } from './positioning.js';
 import { remaining } from './resources.js';
+import { sensesOf } from './standing.js';
 import type { GameState } from './events.js';
 
 /**
@@ -379,7 +380,14 @@ function seen(
   feature: ReactionFeature,
   unverified: string[],
 ): boolean {
-  const line = state.scene === null ? null : sightBetween(state.scene, reactor, actor);
+  // **The reactor's senses.** `ReactionFeature.requiresSight` says who must
+  // see whom — "the reactor must see the creature whose roll they are
+  // answering" — so the looker is the reactor, and the Bard's Darkvision is
+  // what settles Cutting Words rather than the Ogre's.
+  const line =
+    state.scene === null
+      ? null
+      : sightBetween(state.scene, reactor, actor, sensesOf(state, reactor));
   if (line === false) return false;
   if (line === null) {
     unverified.push(

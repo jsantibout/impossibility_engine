@@ -28,6 +28,7 @@ import { type SpellCheck } from '../spell-definitions.js';
 import {
   effectiveConditions,
   rollModesFor,
+  sensesOf,
   standingBonuses,
   standingSaveBonuses,
 } from '../standing.js';
@@ -241,6 +242,16 @@ export function checkBonuses(
  * The sight clause is the **target's** view of the attacker, not the
  * attacker's of the target, and a scene nobody has set is `null` rather than
  * `false`: undeclared is not the same as blind.
+ *
+ * **So the senses read are the target's**, which is the one place in the
+ * engine where the looker runs against the direction of the action: Dodge's
+ * "if *you* can see the attacker" is spoken by the creature being rolled
+ * against, and the attacker's own Darkvision has nothing to say about it.
+ * `rollModesFor` calls this the *holder's* view, and the holder is the
+ * target for every `ifSeen` grant that exists — all of them select
+ * `against-holder`, because the clause is only ever written on the defending
+ * side. A grant that held `ifSeen` on the roller would need its own answer
+ * rather than this one, and there is nowhere in the engine to write one.
  */
 export function defendingModes(
   state: GameState,
@@ -250,7 +261,12 @@ export function defendingModes(
   return rollModesFor(
     state,
     { family: 'attack', roller: attacker, against: target },
-    { seenByHolder: state.scene === null ? null : sightBetween(state.scene, target, attacker) },
+    {
+      seenByHolder:
+        state.scene === null
+          ? null
+          : sightBetween(state.scene, target, attacker, sensesOf(state, target)),
+    },
   );
 }
 
@@ -290,7 +306,14 @@ export function enemyWithinFiveFeet(
     if (isIncapacitated(other.conditions) || other.vitals.dead) continue;
     // "…who can see you." Declared blindness is a fact and excuses the
     // attacker; an undeclared sight line is not, and leaves the rule standing.
-    if (sightBetween(scene, other.id, id) === false) continue;
+    //
+    // The **enemy's** senses, because the enemy is who must see — and they
+    // cannot change this answer, which is worth saying rather than leaving a
+    // reader to wonder. A sense only ever turns "nobody has said" into yes,
+    // and the only value that excuses the attacker here is a declared no. It
+    // is threaded through anyway so that the looker is named at every call
+    // and a later rule that wants to tell null from true already has it.
+    if (sightBetween(scene, other.id, id, sensesOf(state, other.id)) === false) continue;
 
     const apart = distanceBetween(scene, id, other.id);
     if (!apart.ok || apart.value > 5) continue;

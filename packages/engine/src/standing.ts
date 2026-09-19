@@ -1175,12 +1175,16 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  * the declaration alone gets half the answer, and the half it is missing is
  * the whole of what a species trait grants.
  *
- * **No command routes through this yet.** Every caller of `sightBetween`
- * today — targeting, movement, teleport, the Opportunity Attack window —
- * holds a `PositionState` and asks the pairwise question, and re-pointing
- * them at a creature's senses is a task of its own with its own refusals to
- * think about. What is here is the seam and the reader, said plainly rather
- * than a claim that every rule already consults a sense.
+ * **Every rule that asks about sight now asks with a sense.** Five call
+ * sites do it, and each names the looker rather than the actor, because they
+ * are not the same creature: a casting and its shortlist read the *caster's*
+ * (`namedTargets`, `eligibleTargets`), a teleport reads the *mover's*
+ * (`teleportSight`), an Opportunity Attack and a Reaction feature read the
+ * *reactor's* (`provokedBy`, `reaches`), and Dodge's "if you can see the
+ * attacker" reads the *target's* (`defendingModes`) — the one clause written
+ * from the defending side. Four of those hold a `PositionState` rather than
+ * a `GameState` and so call {@link sightBetween} with `sensesOf` directly;
+ * this is the reader for everything that holds the whole state.
  */
 export function canSee(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
   if (state.scene === null) return null;

@@ -12,7 +12,7 @@ import { spendMovement, spendReaction } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { speedOf } from '../standing.js';
+import { sensesOf, speedOf } from '../standing.js';
 import {
   dismount,
   distanceToPoint,
@@ -325,7 +325,11 @@ function provokedBy(
     // SRD: "a creature that you can see". Declared unseen is a refusal;
     // undeclared is a fact nobody has established, and withholding the
     // Reaction on that basis would be the engine deciding it.
-    const seen = sightBetween(scene, other.id, mover);
+    // **The would-be attacker's senses**, because they are the one who has to
+    // see: "a creature that you can see leaves your reach" is written from
+    // the reactor's side, and a mover's own Darkvision would not help the
+    // creature swinging at them one bit.
+    const seen = sightBetween(scene, other.id, mover, sensesOf(state, other.id));
     if (seen === false) continue;
     if (seen === null) {
       unverified.push(
