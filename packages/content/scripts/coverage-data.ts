@@ -211,13 +211,31 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'misty-step',
   'moonbeam',
   'poison-spray',
+  // Driven end to end by `executed-second-pass.test.ts`: the ten-minute rite
+  // declared and settled, the 2d8 and its per-slot die measured over sixty
+  // seeds by the gap between two means, and the Short Rest it does not confer
+  // named in its own clause.
+  'prayer-of-healing',
   'produce-flame',
   'protection-from-energy',
   'protection-from-poison',
   'ray-of-frost',
   'ray-of-sickness',
+  // Driven end to end by `executed-second-pass.test.ts`: the minute on the
+  // clock, the slot spent only when the rite finishes, 4d8 + 15 held to its
+  // bounds and to its mean over sixty seeds, and the hit point a turn read
+  // off the target's vitals after the turn was advanced rather than off the
+  // dice — a payout the casting rolls nothing of would otherwise pass every
+  // assertion in the file while being wrong.
+  'regenerate',
   'sacred-flame',
   'shatter',
+  // Driven end to end by `executed-second-pass.test.ts`: refused by the
+  // ordinary casting command, then settled onto a held greatsword hit, with
+  // the 2d6 Radiant and its per-slot die measured as the gap between two
+  // populations of sixty swings rather than pair by pair — naming the smite
+  // advances the generator, so the same seed no longer rolls the same sword.
+  'shining-smite',
   'shocking-grasp',
   // Driven end to end by `carrier-areas.test.ts`, and partial as well: the two
   // are different axes, and while they were one state this spell could only be

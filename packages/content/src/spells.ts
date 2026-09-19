@@ -9041,27 +9041,1865 @@ export const MASS_HEAL: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Thaumaturgy:
+ *
+ * > _Transmutation Cantrip (Cleric)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Up to 1 minute.
+ * > "You manifest a minor wonder within range. You create one of the effects
+ * > below within range. If you cast this spell multiple times, you can have up
+ * > to three of its 1-minute effects active at a time."
+ * > _Booming Voice._ "Your voice booms up to three times as loud as normal for
+ * > 1 minute. For the duration, you have Advantage on Charisma (Intimidation)
+ * > checks."
+ *
+ * **The cantrip that is one branch away from being executed.** Five of its six
+ * wonders are fiction — eyes, flames, a door, a sound, tremors — and the sixth
+ * grants a mode `roll-modifiers.ts` writes exactly. What stands between them is
+ * that a definition's effects are fixed when it is written and this spell's are
+ * picked at the table, so a `roll-mode` here would boom the caster's voice
+ * every time they flickered a candle.
+ */
+export const THAUMATURGY: SpellDefinition = {
+  id: 'thaumaturgy',
+  name: 'Thaumaturgy',
+  level: 0,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'which of the six wonders was worked is not recorded: altered eyes, a booming voice, flames that flicker, a door that flies open, a phantom sound and harmless tremors are one choice made at the casting, and a definition’s effects are written once and run every time',
+    'so the Advantage on Charisma (Intimidation) checks the Booming Voice branch grants is not granted either — the mode itself is ordinary, and granting it unconditionally would be a cantrip that intimidated while it rumbled the floor',
+    '"you can have up to three of its 1-minute effects active at a time" counts castings of one spell against each other, and nothing counts them; a fourth is not refused',
+  ],
+};
+
+/**
+ * SRD Protection from Evil and Good:
+ *
+ * > _Level 1 Abjuration (Cleric, Druid, Paladin, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "Until the spell ends, one willing creature you touch is protected against
+ * > creatures that are Aberrations, Celestials, Elementals, Fey, Fiends, or
+ * > Undead. The protection grants several benefits. Creatures of those types
+ * > have Disadvantage on attack rolls against the target. The target also can't
+ * > be possessed by or gain the Charmed or Frightened conditions from them. If
+ * > the target is already possessed, Charmed, or Frightened by such a creature,
+ * > the target has Advantage on any new saving throw against the relevant
+ * > effect."
+ *
+ * **Three benefits and one word ruins all three: *them*.** Every clause is a
+ * mechanic the engine has — a mode on an attack roll, an Immunity to two named
+ * conditions, a mode on a save — and every one of them is narrowed to the six
+ * creature types the first sentence names. A `RollSelector` has no axis for the
+ * *attacker's* type, `conditionImmunitiesOf` is told nothing about what is
+ * causing the condition, and nothing records what a saving throw was against.
+ * Writing any of the three unqualified would protect the target from its own
+ * party.
+ */
+export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
+  id: 'protection-from-evil-and-good',
+  name: 'Protection from Evil and Good',
+  level: 1,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the Disadvantage on attack rolls is not granted: it belongs only to attackers that are Aberrations, Celestials, Elementals, Fey, Fiends or Undead, and a roll selector has no axis for the attacker’s creature type — an unqualified grant would give the target Disadvantage against everybody who swings at it',
+    'the Immunity to being Charmed or Frightened is not granted either, for the same word: "from them" narrows it to those six types, and the condition-immunity reader answers about a condition and is told nothing about what is trying to cause it',
+    'nor is the Advantage on a new saving throw "against the relevant effect": nothing records what a save was against, so the mode could not find the saves it belongs to',
+    'possession is not a state the engine holds, so neither the protection from it nor the save against it is anything the engine could apply',
+  ],
+};
+
+/**
+ * SRD Unseen Servant:
+ *
+ * > _Level 1 Conjuration (Bard, Warlock, Wizard) (Ritual)._
+ * > **Casting Time:** Action or Ritual. **Range:** 60 feet.
+ * > **Duration:** 1 hour.
+ * > "This spell creates an Invisible, mindless, shapeless, Medium force that
+ * > performs simple tasks at your command until the spell ends. The servant
+ * > springs into existence in an unoccupied space on the ground within range.
+ * > It has AC 10, 1 Hit Point, and a Strength of 2, and it can't attack. If it
+ * > drops to 0 Hit Points, the spell ends."
+ *
+ * A stat block in one sentence — an Armour Class, a Hit Point total and an
+ * ability score — for a thing no casting can put in the scene. What the engine
+ * owes it is the Ritual, the hour and the slot.
+ */
+export const UNSEEN_SERVANT: SpellDefinition = {
+  id: 'unseen-servant',
+  name: 'Unseen Servant',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'action',
+  ritual: true,
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'no servant appears: "AC 10, 1 Hit Point, and a Strength of 2" is a stat block printed inside a spell, and nothing a casting does adds a creature to the scene — so the unoccupied space it springs into is the DM’s too',
+    'and the two endings that hang off it are not watched: the spell ending when the servant drops to 0 Hit Points, and ending when a command would take it more than 60 feet from the caster',
+    'the Bonus Action that moves it 15 feet and has it handle an object is not offered; the economy is built and the thing being moved is not',
+    'what the servant fetches, cleans, mends, folds, lights, serves or pours is the DM’s and always will be',
+  ],
+};
+
+/**
+ * SRD Alter Self:
+ *
+ * > _Level 2 Transmutation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 hour.
+ * > "You alter your physical form. Choose one of the following options. Its
+ * > effects last for the duration, during which you can take a Magic action to
+ * > replace the option you chose with a different one."
+ * > _Aquatic Adaptation._ "You can breathe underwater and gain a Swim Speed
+ * > equal to your Speed."
+ * > _Natural Weapons._ "When you use your Unarmed Strike to deal damage with
+ * > that new growth, it deals 1d6 damage of the type in parentheses instead of
+ * > dealing the normal damage for your Unarmed Strike."
+ *
+ * Three branches, chosen at the casting and swapped on a later Magic action,
+ * and the two that are arithmetic are arithmetic the engine does not have: a
+ * Swim Speed is a movement mode with no reader, and the claw is a rider on an
+ * Unarmed Strike the spell never sees.
+ */
+export const ALTER_SELF: SpellDefinition = {
+  id: 'alter-self',
+  name: 'Alter Self',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'which of the three forms was taken is not recorded, and neither is the Magic action that swaps it for another; a definition’s effects are written once and these are chosen at the table',
+    'the Swim Speed is not granted: Fly, Climb and Swim are not distinguished from walking, so there is nothing for "equal to your Speed" to be equal to',
+    'the 1d6 Slashing, Piercing or Bludgeoning from claws, fangs, horns or hooves is not dealt, and the spellcasting modifier does not replace Strength on those rolls: both ride on an Unarmed Strike made later, which this casting never sees',
+    'breathing underwater, and every word of what the caster looks like, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Augury:
+ *
+ * > _Level 2 Divination (Cleric, Druid, Wizard) (Ritual)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** Self.
+ * > **Duration:** Instantaneous.
+ * > "You receive an omen from an otherworldly entity about the results of a
+ * > course of action that you plan to take within the next 30 minutes. The GM
+ * > chooses the omen from the Omens table."
+ * > "If you cast the spell more than once before finishing a Long Rest, there
+ * > is a cumulative 25 percent chance for each casting after the first that you
+ * > get no answer."
+ *
+ * The omen is the GM's by the book's own word. What is not the GM's is the
+ * percentage: a cumulative 25 per cent per casting since the last Long Rest is
+ * two things the engine cannot do — throw a die that is not a d20, and count
+ * castings back to a rest.
+ */
+export const AUGURY: SpellDefinition = {
+  id: 'augury',
+  name: 'Augury',
+  level: 2,
+  school: 'divination',
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the omen is the GM’s, in the book’s own words: "The GM chooses the omen from the Omens table" — Weal, Woe, both or neither',
+    'the "cumulative 25 percent chance for each casting after the first" is not rolled: no effect asks for a die that is not a d20, and nothing counts this caster’s castings back to their last Long Rest',
+  ],
+};
+
+/**
+ * SRD Dragon's Breath:
+ *
+ * > _Level 2 Transmutation (Sorcerer, Wizard)._ **Casting Time:** Bonus Action.
+ * > **Range:** Touch. **Duration:** Concentration, up to 1 minute.
+ * > "You touch one willing creature, and choose Acid, Cold, Fire, Lightning, or
+ * > Poison. Until the spell ends, the target can take a Magic action to exhale
+ * > a 15-foot Cone. Each creature in that area makes a Dexterity saving throw,
+ * > taking 3d6 damage of the chosen type on a failed save or half as much
+ * > damage on a successful one."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 2."
+ *
+ * The Cone, the Dexterity save and the halved damage are all ordinary. What is
+ * not is who breathes and what the action does: an activation belongs to the
+ * caster and this one belongs to the creature they touched, and every
+ * registered activation resolves an attack or moves an area rather than
+ * evoking a fresh one.
+ */
+export const DRAGONS_BREATH: SpellDefinition = {
+  id: 'dragons-breath',
+  name: "Dragon's Breath",
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'bonus-action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'nobody exhales: the Magic action that breathes the Cone is taken by the creature the caster touched, and a spell’s later action is the caster’s — nobody else may act through a casting',
+    'so the 15-foot Cone is never resolved either, and with it the Dexterity saving throw and the 3d6 of the chosen type, half as much on a success, growing by 1d6 for each slot level above 2',
+    'which of Acid, Cold, Fire, Lightning or Poison was chosen is not recorded, because there is nothing left for the choice to type',
+  ],
+};
+
+/**
+ * SRD Silence:
+ *
+ * > _Level 2 Illusion (Bard, Cleric, Ranger) (Ritual)._
+ * > **Casting Time:** Action or Ritual. **Range:** 120 feet.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "For the duration, no sound can be created within or pass through a
+ * > 20-foot-radius Sphere centered on a point you choose within range. Any
+ * > creature or object entirely inside the Sphere has Immunity to Thunder
+ * > damage, and creatures have the Deafened condition while entirely inside it.
+ * > Casting a spell that includes a Verbal component is impossible there."
+ *
+ * Both mechanical clauses are the same missing half: a value derived from where
+ * a creature is *standing right now*. An Immunity is a standing effect and this
+ * one is granted by a place; the Deafened is a condition that ends when its
+ * holder walks out of an area, which `space-and-areas.md` says has no shape at
+ * all.
+ */
+export const SILENCE: SpellDefinition = {
+  id: 'silence',
+  name: 'Silence',
+  level: 2,
+  school: 'illusion',
+  castingTime: 'action',
+  ritual: true,
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the Immunity to Thunder damage is not granted: it belongs to whoever is entirely inside the Sphere at the moment the damage lands, and a defence is a standing grant hung on a creature rather than a value derived from where it is standing',
+    'the Deafened condition is not applied either, for the other half of the same reason: it lasts "while entirely inside it", and a condition that ends when its holder leaves an area has no shape here',
+    'a spell with a Verbal component is not refused inside the Sphere: that is the action economy read through geometry, and nothing asks where a caster is standing before it spends their action',
+    'the silence itself is the DM’s — sound is not a fact the engine holds',
+  ],
+};
+
+/**
+ * SRD Animate Dead:
+ *
+ * > _Level 3 Necromancy (Cleric, Wizard)._ **Casting Time:** 1 minute.
+ * > **Range:** 10 feet. **Duration:** Instantaneous.
+ * > "Choose a pile of bones or a corpse of a Medium or Small Humanoid within
+ * > range. The target becomes an Undead creature: a **Skeleton** if you chose
+ * > bones or a **Zombie** if you chose a corpse (see "Monsters" for the stat
+ * > blocks). On each of your turns, you can take a Bonus Action to mentally
+ * > command any creature you made with this spell if the creature is within 60
+ * > feet of you."
+ * > _Using a Higher-Level Spell Slot._ "You animate or reassert control over
+ * > two additional Undead creatures for each spell slot level above 3."
+ *
+ * **Not one sentence of it trips a marker and every sentence of it is the
+ * DM's**, which is a combination worth writing down: the spell's whole content
+ * is a creature the engine cannot add to the scene and a command structure over
+ * it. What is real is the rite, the ten feet and the slot.
+ */
+export const ANIMATE_DEAD: SpellDefinition = {
+  id: 'animate-dead',
+  name: 'Animate Dead',
+  level: 3,
+  school: 'necromancy',
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'ranged', feet: 10 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'no Skeleton and no Zombie appear: a stat block out of the monster list is still a creature added to the scene mid-fight, which no casting does',
+    'the target is "a pile of bones or a corpse of a Medium or Small Humanoid", which is an object and a size and a type on something that is not a creature — the format selects creatures by type, and nothing selects a corpse',
+    'so the Bonus Action that commands them, the 60 feet it reaches, the 24 hours of control, the recasting that reasserts it over up to four, and the two more per slot level above 3 are all the DM’s',
+  ],
+};
+
+/**
+ * SRD Blink:
+ *
+ * > _Level 3 Transmutation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** 1 minute.
+ * > "Roll 1d6 at the end of each of your turns for the duration. On a roll of
+ * > 4–6, you vanish from your current plane of existence and appear in the
+ * > Ethereal Plane (the spell ends instantly if you are already on that
+ * > plane)."
+ * > "You return to the other plane at the start of your next turn and when the
+ * > spell ends if you are on the Ethereal Plane. You return to an unoccupied
+ * > space of your choice that you can see within 10 feet of the space you
+ * > left."
+ *
+ * A d6 at a turn boundary deciding which of two planes the caster is on: the
+ * die is one no effect can ask for, and the plane is a second place the engine
+ * has nowhere to put anybody.
+ */
+export const BLINK: SpellDefinition = {
+  id: 'blink',
+  name: 'Blink',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the 1d6 at the end of each of the caster’s turns is not rolled: the generator throws any notation it is given and no spell effect asks it for one, and a payout at a turn boundary hands over hit points rather than branching on a face',
+    'so the vanishing on a 4–6 does not happen, and neither does the return at the start of the next turn: there is one scene, and the Ethereal Plane is a second place to put a creature',
+    'what the caster can perceive of the plane they left, and who can perceive them, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Phantom Steed:
+ *
+ * > _Level 3 Illusion (Wizard) (Ritual)._ **Casting Time:** 1 minute or Ritual.
+ * > **Range:** 30 feet. **Duration:** 1 hour.
+ * > "A Large, quasi-real, horselike creature appears on the ground in an
+ * > unoccupied space of your choice within range. ... The steed uses the Riding
+ * > Horse stat block (see "Monsters"), except it has a Speed of 100 feet and
+ * > can travel 13 miles in an hour. ... The spell ends early if the steed takes
+ * > any damage."
+ *
+ * A stat block with one number changed, and a casting that ends when a creature
+ * the engine never made takes damage.
+ */
+export const PHANTOM_STEED: SpellDefinition = {
+  id: 'phantom-steed',
+  name: 'Phantom Steed',
+  level: 3,
+  school: 'illusion',
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'no steed appears: a Riding Horse with its Speed overridden to 100 feet is a stat block created mid-fight, and nothing a casting does adds one to the scene',
+    'so "the spell ends early if the steed takes any damage" is not watched either — the fact it reads is damage to a creature that is not there',
+    'the saddle, bit and bridle, their puff of smoke ten feet from the steed, the thirteen miles in an hour and the minute the rider has to dismount are the DM’s',
+  ],
+};
+
+/**
+ * SRD Plant Growth:
+ *
+ * > _Level 3 Transmutation (Bard, Druid, Ranger)._
+ * > **Casting Time:** Action (Overgrowth) or 8 hours (Enrichment).
+ * > **Range:** 150 feet. **Duration:** Instantaneous.
+ * > _Overgrowth._ "Choose a point within range. All normal plants in a
+ * > 100-foot-radius Sphere centered on that point become thick and overgrown. A
+ * > creature moving through that area must spend 4 feet of movement for every 1
+ * > foot it moves."
+ * > _Enrichment._ "All plants in a half-mile radius centered on a point within
+ * > range become enriched for 365 days."
+ *
+ * **A casting time that is two casting times**, and the oracle reads the first:
+ * the Action is Overgrowth and the eight hours are Enrichment, and a definition
+ * holds one bucket. So the Action branch is what is cast, and the other is said
+ * plainly rather than silently dropped.
+ */
+export const PLANT_GROWTH: SpellDefinition = {
+  id: 'plant-growth',
+  name: 'Plant Growth',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the Enrichment branch is not castable at all: it takes eight hours where the Overgrowth takes an Action, and a definition carries one casting time — the year of doubled harvests was never arithmetic anyway',
+    'the four feet of movement per foot are not charged: Difficult Terrain is declared by the foot on the move that crosses it, and deriving it from an area needs the path a move does not record',
+    'the areas the caster excludes from the Sphere are the DM’s, and so is every word about what the plants look like',
+  ],
+};
+
+/**
+ * SRD Revivify:
+ *
+ * > _Level 3 Necromancy (Cleric, Druid, Paladin, Ranger)._
+ * > **Casting Time:** Action. **Range:** Touch. **Duration:** Instantaneous.
+ * > "You touch a creature that has died within the last minute. That creature
+ * > revives with 1 Hit Point. This spell can't revive a creature that has died
+ * > of old age, nor does it restore any missing body parts."
+ *
+ * Three sentences, and the middle one is a rule the engine refuses by design:
+ * `healCreature` will not heal a corpse, and the refusal costs no slot. Reviving
+ * is not healing with a small number in it.
+ */
+export const REVIVIFY: SpellDefinition = {
+  id: 'revivify',
+  name: 'Revivify',
+  level: 3,
+  school: 'necromancy',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'nobody is revived: "That creature revives with 1 Hit Point" is not a heal of one — healing refuses a dead creature outright, and lifting death is the rule that refusal exists to keep out of a hit point total',
+    'the minute since the creature died is not measured, and neither is old age or a missing body part; all three are the DM’s',
+  ],
+};
+
+/**
+ * SRD Wind Wall:
+ *
+ * > _Level 3 Evocation (Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 1 minute.
+ * > "A wall of strong wind rises from the ground at a point you choose within
+ * > range. You can make the wall up to 50 feet long, 15 feet high, and 1 foot
+ * > thick. ... When the wall appears, each creature in its area makes a Strength
+ * > saving throw, taking 4d8 Bludgeoning damage on a failed save or half as much
+ * > damage on a successful one."
+ *
+ * The save and the halved damage are the most ordinary shape in the book; the
+ * *area* is a length, a height and a thickness shaped along a path, and one
+ * spell holds one template.
+ */
+export const WIND_WALL: SpellDefinition = {
+  id: 'wind-wall',
+  name: 'Wind Wall',
+  level: 3,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Strength saving throw and the 4d8 Bludgeoning, half on a success, are not resolved: they are resolved over the wall, and a wall with a length, a height and a thickness shaped along a continuous path is not one of the six templates a casting may hold',
+    'nothing is stopped by it either: a barrier that turns back Small flying creatures, ordinary projectiles and creatures in gaseous form is the geometry’s missing half',
+    'fog, smoke and gases kept at bay, and loose material flying upward, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Divination:
+ *
+ * > _Level 4 Divination (Cleric, Druid, Wizard) (Ritual)._
+ * > **Casting Time:** Action or Ritual. **Range:** Self.
+ * > **Duration:** Instantaneous.
+ * > "This spell puts you in contact with a god or a god's servants. You ask one
+ * > question about a specific goal, event, or activity to occur within 7 days.
+ * > The GM offers a truthful reply, which might be a short phrase or cryptic
+ * > rhyme."
+ * > "If you cast the spell more than once before finishing a Long Rest, there is
+ * > a cumulative 25 percent chance for each casting after the first that you get
+ * > no answer."
+ *
+ * The answer is the GM's in the book's own words. Augury's percentage, on a
+ * bigger slot.
+ */
+export const DIVINATION: SpellDefinition = {
+  id: 'divination',
+  name: 'Divination',
+  level: 4,
+  school: 'divination',
+  castingTime: 'action',
+  ritual: true,
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the reply is the GM’s, in the book’s own words: "The GM offers a truthful reply, which might be a short phrase or cryptic rhyme"',
+    'the "cumulative 25 percent chance for each casting after the first" is not rolled: no effect asks the generator for a die that is not a d20, and nothing counts this caster’s castings back to their last Long Rest',
+  ],
+};
+
+/**
+ * SRD Secret Chest:
+ *
+ * > _Level 4 Conjuration (Wizard)._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Until dispelled.
+ * > "You hide a chest and all its contents on the Ethereal Plane. ... While the
+ * > chest remains on the Ethereal Plane, you can take a Magic action and touch
+ * > the replica to recall the chest. ... After 60 days, there is a cumulative 5
+ * > percent chance at the end of each day that the spell ends. The spell also
+ * > ends if you cast this spell again or if the Tiny replica chest is
+ * > destroyed."
+ *
+ * Objects on a plane there is no second place for, and a casting whose ending is
+ * a percentage thrown once a day after the sixtieth.
+ */
+export const SECRET_CHEST: SpellDefinition = {
+  id: 'secret-chest',
+  name: 'Secret Chest',
+  level: 4,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  untilDispelled: true,
+  unmodelled: [
+    'the chest and its twelve cubic feet are objects, and objects are not modelled; the Ethereal Plane they go to is a second place the engine has nowhere to put anything',
+    'the Magic action that recalls the chest, and the one that sends it back, are not offered: an activation resolves an attack or moves an area, and neither of those is fetching a box',
+    'the "cumulative 5 percent chance at the end of each day" after the sixtieth is not rolled, so the spell never ends that way; nor does it end on a recasting or on the replica being destroyed',
+  ],
+};
+
+/**
+ * SRD Aura of Life:
+ *
+ * > _Level 4 Abjuration (Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 10 minutes.
+ * > "An aura radiates from you in a 30-foot Emanation for the duration. While in
+ * > the aura, you and your allies have Resistance to Necrotic damage, and your
+ * > Hit Point maximums can't be reduced. If an ally with 0 Hit Points starts its
+ * > turn in the aura, that ally regains 1 Hit Point."
+ *
+ * Three clauses and three different missing readers: a Resistance that depends on
+ * where a creature is standing, a Hit Point maximum nothing may move and
+ * therefore nothing may forbid moving, and a payout gated on the recipient's
+ * current Hit Points.
+ */
+export const AURA_OF_LIFE: SpellDefinition = {
+  id: 'aura-of-life',
+  name: 'Aura of Life',
+  level: 4,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the Resistance to Necrotic damage is not granted: it belongs to whoever is inside the Emanation when the damage lands, and a defence is a standing grant on a creature rather than a value derived from where it is standing',
+    'the Hit Point maximums that "can\'t be reduced" are not protected: no effect moves a maximum, so there is nothing to stand in front of',
+    'and the ally at 0 Hit Points does not regain one: a payout at a turn boundary hands over what it was told to and cannot first ask what the recipient’s Hit Points are',
+  ],
+};
+
+/**
+ * SRD Wall of Stone:
+ *
+ * > _Level 5 Evocation (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "A nonmagical wall of solid stone springs into existence at a point you
+ * > choose within range. The wall is 6 inches thick and is composed of ten
+ * > 10-foot-by-10-foot panels. ... Each panel has AC 15 and 30 Hit Points per
+ * > inch of thickness, and it has Immunity to Poison and Psychic damage. ... If
+ * > you maintain your Concentration on this spell for its full duration, the
+ * > wall becomes permanent and can't be dispelled."
+ *
+ * Ten panels, each of them an object with an Armour Class, a Hit Point total
+ * and defences — and a duration that changes kind if the caster holds
+ * Concentration to the end. The first is a thing with statistics that is not a
+ * creature; the second is a consequence hung on a casting running out.
+ */
+export const WALL_OF_STONE: SpellDefinition = {
+  id: 'wall-of-stone',
+  name: 'Wall of Stone',
+  level: 5,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the wall is not in the world: ten contiguous 10-foot panels shaped as the caster likes is not one of the six templates a casting may hold, and a wall that stops a creature crossing it is the geometry’s missing half besides',
+    'each panel’s AC 15, its 30 Hit Points per inch and its Immunity to Poison and Psychic damage are a stat block on an object, and an object with statistics of its own is not a creature the engine can add',
+    'so nobody is pushed aside when it appears, the Dexterity save against being enclosed is not rolled, and the Reaction that moves a creature its Speed out of the enclosure is not offered',
+    '"If you maintain your Concentration on this spell for its full duration, the wall becomes permanent" hangs a consequence on the moment a casting runs out, and nothing fires when one does',
+  ],
+};
+
+/**
+ * SRD Wall of Ice:
+ *
+ * > _Level 6 Evocation (Wizard)._ **Casting Time:** Action. **Range:** 120 feet.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "You create a wall of ice on a solid surface within range. ... If the wall
+ * > cuts through a creature's space when it appears, the creature is pushed to
+ * > one side of the wall (you choose which side) and makes a Dexterity saving
+ * > throw, taking 10d6 Cold damage on a failed save or half as much damage on a
+ * > successful one. ... It has AC 12 and 30 Hit Points per 10-foot section, and
+ * > it has Immunity to Cold, Poison, and Psychic damage and Vulnerability to
+ * > Fire damage."
+ *
+ * Wall of Stone's problems with a dome and a sheet of frigid air added: a shape
+ * that is a hemisphere *or* ten panels, a second area left behind where a
+ * section was destroyed, and forced movement no effect causes.
+ */
+export const WALL_OF_ICE: SpellDefinition = {
+  id: 'wall-of-ice',
+  name: 'Wall of Ice',
+  level: 6,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the wall is not in the world: a dome, a globe or ten contiguous panels is a wall and a choice of walls, where a casting holds one fixed template — so the Dexterity save and the 10d6 Cold, half on a success, are never resolved',
+    'and nobody is pushed to one side of it: forced movement is something a command does and no spell effect reaches',
+    'the AC 12, the 30 Hit Points per section and the Immunities to Cold, Poison and Psychic with Vulnerability to Fire are a stat block on an object, which is not a creature the engine can add',
+    'so the sheet of frigid air a destroyed section leaves behind is not created either, and with it the Constitution save and the 5d6 Cold for crossing it the first time on a turn',
+    'the 2d6 and 1d6 a slot above 6 adds to those two numbers are not added, because neither number is rolled',
+  ],
+};
+
+/**
+ * SRD Wall of Thorns:
+ *
+ * > _Level 6 Conjuration (Druid)._ **Casting Time:** Action. **Range:** 120 feet.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "You create a wall of tangled brush bristling with needle-sharp thorns. ...
+ * > When the wall appears, each creature in its area makes a Dexterity saving
+ * > throw, taking 7d8 Piercing damage on a failed save or half as much damage on
+ * > a successful one. ... For every 1 foot a creature moves through the wall, it
+ * > must spend 4 feet of movement. Furthermore, the first time a creature enters
+ * > a space in the wall on a turn or ends its turn there, the creature makes a
+ * > Dexterity saving throw, taking 7d8 Slashing damage."
+ *
+ * The trigger is Web's exactly — entering a space the first time on a turn, or
+ * ending a turn there — and the thing it hangs on is a wall sixty feet long,
+ * ten high and five thick, or a ring twenty across.
+ */
+export const WALL_OF_THORNS: SpellDefinition = {
+  id: 'wall-of-thorns',
+  name: 'Wall of Thorns',
+  level: 6,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the wall is not in the world: "60 feet long, 10 feet high, and 5 feet thick or a circle that has a 20-foot diameter" is a wall, and a choice between two of them, where a casting holds one fixed template',
+    'so neither Dexterity save is rolled — the 7d8 Piercing when it appears, and the 7d8 Slashing on the first entry or the end of a turn inside it, which is Web’s own trigger on a shape the engine cannot describe',
+    'the four feet of movement per foot are not charged: Difficult Terrain is declared by the foot on the move that crosses it, and no area derives it',
+    'the wall blocking line of sight is the DM’s: cover and sight stay declared rather than ray-cast',
+  ],
+};
+
+/**
+ * SRD Blade Barrier:
+ *
+ * > _Level 6 Evocation (Cleric)._ **Casting Time:** Action. **Range:** 90 feet.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "You create a wall of whirling blades made of magical energy. ... You make a
+ * > straight wall up to 100 feet long, 20 feet high, and 5 feet thick, or a
+ * > ringed wall up to 60 feet in diameter, 20 feet high, and 5 feet thick. The
+ * > wall provides Three-Quarters Cover, and its space is Difficult Terrain. Any
+ * > creature in the wall's space makes a Dexterity saving throw, taking 6d10
+ * > Force damage on a failed save or half as much damage on a successful one."
+ *
+ * The same shape as Wall of Thorns and the same two reasons; the cover it
+ * provides is the third thing, and cover is declared here rather than derived
+ * from anything standing in the way.
+ */
+export const BLADE_BARRIER: SpellDefinition = {
+  id: 'blade-barrier',
+  name: 'Blade Barrier',
+  level: 6,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 90 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the wall is not in the world: a hundred feet long by twenty high by five thick, or a ring sixty across, is a wall and a choice of walls where a casting holds one template',
+    'so the Dexterity save and the 6d10 Force, half on a success, are not resolved — neither on the creature caught when it appears nor on the one that enters or ends its turn in it',
+    'its space being Difficult Terrain is not charged: the ruler is told by the foot what crossed difficult ground, and no area tells it',
+    'the Three-Quarters Cover it provides is the DM’s, because cover is declared rather than derived from what stands in the way',
+  ],
+};
+
+/**
+ * SRD Fire Storm:
+ *
+ * > _Level 7 Evocation (Cleric, Druid, Sorcerer)._ **Casting Time:** Action.
+ * > **Range:** 150 feet. **Duration:** Instantaneous.
+ * > "A storm of fire appears within range. The area of the storm consists of up
+ * > to ten 10-foot Cubes, which you arrange as you like. Each Cube must be
+ * > contiguous with at least one other Cube. Each creature in the area makes a
+ * > Dexterity saving throw, taking 7d10 Fire damage on a failed save or half as
+ * > much damage on a successful one."
+ *
+ * **One sentence of arithmetic and one sentence of geometry**, and the geometry
+ * is the whole of what stops it: the save and the halved 7d10 are `save-damage`
+ * exactly, over an area that is ten Cubes rather than one.
+ */
+export const FIRE_STORM: SpellDefinition = {
+  id: 'fire-storm',
+  name: 'Fire Storm',
+  level: 7,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the storm is not in the world: "up to ten 10-foot Cubes, which you arrange as you like" is ten templates in one area, and a casting holds one — so the Dexterity save and the 7d10 Fire, half on a success, have no area to be resolved over',
+    'flammable objects that are not worn or carried starting to burn is the DM’s',
+  ],
+};
+
+/**
+ * SRD Meteor Swarm:
+ *
+ * > _Level 9 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 1 mile. **Duration:** Instantaneous.
+ * > "Blazing orbs of fire plummet to the ground at four different points you can
+ * > see within range. Each creature in a 40-foot-radius Sphere centered on each
+ * > of those points makes a Dexterity saving throw. A creature takes 20d6 Fire
+ * > damage and 20d6 Bludgeoning damage on a failed save or half as much damage
+ * > on a successful one. A creature in the area of more than one fiery Sphere is
+ * > affected only once."
+ *
+ * Fire Storm's problem with four Spheres instead of ten Cubes, and one sentence
+ * more: a creature caught by two of them is hit once, which is a rule about the
+ * overlap of areas a casting cannot have.
+ */
+export const METEOR_SWARM: SpellDefinition = {
+  id: 'meteor-swarm',
+  name: 'Meteor Swarm',
+  level: 9,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 5280 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the four Spheres are not in the world: four 40-foot-radius templates at four chosen points is four areas in one casting, and a casting holds one — so the Dexterity save and the 20d6 Fire plus 20d6 Bludgeoning, half on a success, are not resolved',
+    'and the rule that a creature caught by more than one Sphere "is affected only once" is a rule about areas overlapping, which there is no second area to overlap with',
+    'the nonmagical objects that take the damage and catch fire are the DM’s',
+  ],
+};
+
+/**
+ * SRD Awaken:
+ *
+ * > _Level 5 Transmutation (Bard, Druid)._ **Casting Time:** 8 hours.
+ * > **Range:** Touch. **Duration:** Instantaneous.
+ * > "The target must be either a Beast or Plant creature with an Intelligence of
+ * > 3 or less or a natural plant that isn't a creature. The target gains an
+ * > Intelligence of 10 and the ability to speak one language you know. ... The
+ * > awakened target has the Charmed condition for 30 days or until you or your
+ * > allies deal damage to it."
+ *
+ * **The last clause is the one the engine could write and the first two are
+ * what stop it.** A Charmed condition for thirty days that ends when the caster
+ * or an ally deals damage is a transcribed cause on a built mechanism; the
+ * target rule selects by type *and* by an ability score, and what the spell
+ * then does is set that score to 10.
+ */
+export const AWAKEN: SpellDefinition = {
+  id: 'awaken',
+  name: 'Awaken',
+  level: 5,
+  school: 'transmutation',
+  castingTime: 'long',
+  castingSeconds: 28_800,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'the target rule is not checked: "a Beast or Plant creature with an Intelligence of 3 or less" selects by type and by an ability score, and a target rule reads a type and whether armour is worn — and the other half of the sentence is a plant that is not a creature at all',
+    'the Intelligence of 10 is not set: a score is fixed at creation and by advancement, and no effect moves one',
+    'so the Charmed for thirty days — which the engine could hang and could end when the caster or an ally deals damage — is not applied either, because there is nothing it could be applied to that the rule above admits',
+    'the awakened plant’s statistics, the language it speaks, and the attitude it chooses when the Charmed ends are the DM’s',
+  ],
+};
+
+/**
+ * SRD Animate Objects:
+ *
+ * > _Level 5 Transmutation (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Choose a number of nonmagical objects within range that aren't being worn
+ * > or carried, aren't fixed to a surface, and aren't Gargantuan. ... Each target
+ * > animates, sprouts legs, and becomes a Construct that uses the **Animated
+ * > Object** stat block; this creature is under your control until the spell
+ * > ends or until it is reduced to 0 Hit Points."
+ *
+ * The targets are objects selected by size and by whether anybody is holding
+ * them, and what they become is a stat block. Both halves of the spell are
+ * things the engine has no room for.
+ */
+export const ANIMATE_OBJECTS: SpellDefinition = {
+  id: 'animate-objects',
+  name: 'Animate Objects',
+  level: 5,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'nothing is animated: an Animated Object is a stat block, and no casting adds a creature to the scene — so the Construct, its Initiative beside the caster’s, its Slam and the 1d4, 1d6 or 1d12 a bigger slot adds to that Slam are all the DM’s',
+    'the targets cannot be chosen either: they are objects, counted by size against the caster’s spellcasting modifier, and selected by not being worn, carried, fixed down or Gargantuan',
+    'so the two Hit Point sentences are not watched — control ending at 0 Hit Points, and the remaining damage carrying over to the object form',
+    'the Bonus Action that commands them within 500 feet is not offered',
+  ],
+};
+
+/**
+ * SRD Commune:
+ *
+ * > _Level 5 Divination (Cleric) (Ritual)._ **Casting Time:** 1 minute or Ritual.
+ * > **Range:** Self. **Duration:** 1 minute.
+ * > "You contact a deity or a divine proxy and ask up to three questions that
+ * > can be answered with yes or no. ... If you cast the spell more than once
+ * > before finishing a Long Rest, there is a cumulative 25 percent chance for
+ * > each casting after the first that you get no answer."
+ *
+ * The three questions are the GM's; the percentage is Augury's, on the rite
+ * that runs a minute and leaves a minute to ask in.
+ */
+export const COMMUNE: SpellDefinition = {
+  id: 'commune',
+  name: 'Commune',
+  level: 5,
+  school: 'divination',
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the three yes-or-no questions and their answers are the GM’s, and so is the "unclear" a deity gives for what it does not know',
+    'the "cumulative 25 percent chance for each casting after the first" is not rolled: no effect asks the generator for a die that is not a d20, and nothing counts castings back to a Long Rest',
+  ],
+};
+
+/**
+ * SRD Contact Other Plane:
+ *
+ * > _Level 5 Divination (Warlock, Wizard) (Ritual)._
+ * > **Casting Time:** 1 minute or Ritual. **Range:** Self.
+ * > **Duration:** 1 minute.
+ * > "Contacting this otherworldly intelligence can break your mind. When you
+ * > cast this spell, make a DC 15 Intelligence saving throw. On a successful
+ * > save, you can ask the entity up to five questions. ... On a failed save, you
+ * > take 6d6 Psychic damage and have the Incapacitated condition until you
+ * > finish a Long Rest. A _Greater Restoration_ spell cast on you ends this
+ * > effect."
+ *
+ * **A save the caster makes against a DC the book prints.** Every saving throw
+ * a spell forces is measured against the casting's own pinned DC, and a spell
+ * check may already name a number where a save may not; and the condition it
+ * imposes lasts until a rest, which is neither a span nor a moment in the turn
+ * order.
+ */
+export const CONTACT_OTHER_PLANE: SpellDefinition = {
+  id: 'contact-other-plane',
+  name: 'Contact Other Plane',
+  level: 5,
+  school: 'divination',
+  castingTime: 'long',
+  castingSeconds: 60,
+  ritual: true,
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the DC 15 Intelligence saving throw is not rolled: a save a spell forces is always measured against the casting’s own spell save DC, and a printed number has nowhere to be stated — an ability check may name one and a saving throw may not',
+    'so the 6d6 Psychic damage on a failure is not dealt, and the Incapacitated condition is not applied: it lasts "until you finish a Long Rest", which is neither a span of seconds nor a moment in the turn order',
+    'and Greater Restoration ending it is a spell ending another spell’s effect, which the dispel path reaches only for an ongoing casting — this one is Instantaneous in everything but the minute it gives you to ask in',
+    'the five questions and the one-word answers are the GM’s',
+  ],
+};
+
+/**
+ * SRD Creation:
+ *
+ * > _Level 5 Illusion (Sorcerer, Wizard)._ **Casting Time:** 1 minute.
+ * > **Range:** 30 feet. **Duration:** Special.
+ * > "You pull wisps of shadow material from the Shadowfell to create an object
+ * > within range. ... The object must be no larger than a 5-foot Cube, and the
+ * > object must be of a form and material that you have seen. The spell's
+ * > duration depends on the object's material, as shown in the Materials
+ * > table."
+ *
+ * **The one Duration in the book the oracle has no number for**, because the
+ * book gives none: "Special", resolved by a table of five materials from
+ * twenty-four hours down to one minute. A definition holds one span, so this
+ * one holds none and says why.
+ */
+export const CREATION: SpellDefinition = {
+  id: 'creation',
+  name: 'Creation',
+  level: 5,
+  school: 'illusion',
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'no deadline is scheduled, because the book prints none: "Duration: Special" is resolved by the material the caster chose — a day for vegetable matter down to a minute for adamantine — and a definition carries one span, not a table indexed by a choice made at the casting',
+    'the object is an object: a 5-foot Cube of a form and material the caster has seen, growing by 5 feet for each slot level above 5, and nothing here is modelled',
+    'using one as another spell’s Material component causing that spell to fail is the DM’s',
+  ],
+};
+
+/**
+ * SRD Conjure Elemental:
+ *
+ * > _Level 5 Conjuration (Druid, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "Whenever a creature you can see enters the spirit's space or starts its
+ * > turn within 5 feet of the spirit, you can force that creature to make a
+ * > Dexterity saving throw if the spirit has no creature Restrained. On failed
+ * > save, the target takes 8d8 damage of the spirit's type, and the target has
+ * > the Restrained condition until the spell ends. At the start of each of its
+ * > turns, the Restrained target repeats the save. On a failed save, the target
+ * > takes 4d8 damage of the spirit's type."
+ *
+ * **The repeat save whose failure acts**, in the clearest form the book prints
+ * it: the boundary save deals 4d8 on a failure, and a repeat save releases an
+ * effect on a success and does nothing at all on a failure. Beside it the area
+ * catches only a creature the caster can see, and only while the spirit holds
+ * nobody.
+ */
+export const CONJURE_ELEMENTAL: SpellDefinition = {
+  id: 'conjure-elemental',
+  name: 'Conjure Elemental',
+  level: 5,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the Dexterity save the spirit forces is not raised: what it catches is filtered twice — only a creature the caster can see, and only "if the spirit has no creature Restrained" — and an area catches every creature in it',
+    'so the 8d8 of the chosen type and the Restrained until the spell ends are not applied, nor the 1d8 a slot above 5 adds',
+    'and the repeat save at the start of the Restrained target’s turns is not raised: its failure deals 4d8, where a repeat save releases an effect on a success and has no failure branch at all',
+    'which of air, earth, fire or water the spirit is, and so which of Lightning, Thunder, Fire or Cold it deals, is chosen at the casting and not recorded',
+  ],
+};
+
+/**
+ * SRD Geas:
+ *
+ * > _Level 5 Enchantment (Bard, Cleric, Druid, Paladin, Wizard)._
+ * > **Casting Time:** 1 minute. **Range:** 60 feet. **Duration:** 30 days.
+ * > "You give a verbal command to a creature that you can see within range ...
+ * > The target must succeed on a Wisdom saving throw or have the Charmed
+ * > condition for the duration. ... While Charmed, the creature takes 5d10
+ * > Psychic damage if it acts in a manner directly counter to your command. It
+ * > takes this damage no more than once each day."
+ * > _Using a Higher-Level Spell Slot._ "If you use a level 7 or 8 spell slot,
+ * > the duration is 365 days. If you use a level 9 spell slot, the spell lasts
+ * > until it is ended by one of the spells mentioned above."
+ *
+ * **The upcast changes what kind of duration the spell has**, which is the half
+ * of that sentence a table of seconds cannot say: a level 9 Geas runs until
+ * dispelled, and `durationAtSlot` holds spans. Beside it sits damage fired by
+ * disobedience, once a day.
+ */
+export const GEAS: SpellDefinition = {
+  id: 'geas',
+  name: 'Geas',
+  level: 5,
+  school: 'enchantment',
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 2_592_000,
+  unmodelled: [
+    'the Wisdom saving throw and the Charmed it imposes are not applied: what makes the condition worth having is the damage below it, and without that the spell would charm somebody and forbid nothing',
+    'the 5d10 Psychic for acting "directly counter to your command" is not dealt: the trigger is a judgement about behaviour, and "no more than once each day" is a tally nothing keeps',
+    'the 365 days a level 7 or 8 slot buys are not applied, and the level 9 slot’s "until it is ended" is not either — a slot may lengthen a span and may not change it into no deadline at all',
+    'the automatic success for a target that cannot understand the command, the suicidal command that ends the spell, and Remove Curse, Greater Restoration or Wish ending it are the DM’s',
+  ],
+};
+
+/**
+ * SRD Mislead:
+ *
+ * > _Level 5 Illusion (Bard, Warlock, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 hour.
+ * > "You gain the Invisible condition at the same time that an illusory double
+ * > of you appears where you are standing. The double lasts for the duration,
+ * > but the invisibility ends immediately after you make an attack roll, deal
+ * > damage, or cast a spell. As a Magic action, you can move the illusory double
+ * > up to twice your Speed and make it gesture, speak, and behave in whatever
+ * > way you choose."
+ *
+ * **Invisibility's three causes, ending one half of a casting rather than the
+ * casting.** The engine ends a whole casting on those three triggers and has
+ * done since Invisibility; here the double outlives the invisibility, so the
+ * ending has to reach one effect and not the spell.
+ */
+export const MISLEAD: SpellDefinition = {
+  id: 'mislead',
+  name: 'Mislead',
+  level: 5,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the Invisible condition is not applied, and it is the one thing here the engine could do: what it cannot do is end *it* on the three triggers Invisibility already carries while leaving the double standing, because those triggers end a casting rather than one of its effects',
+    'the double is not in the scene: an intangible, invulnerable copy of the caster standing somewhere is a second thing with a position and no stat block to hang it on',
+    'so the Magic action that moves it twice the caster’s Speed is not offered, and neither is seeing through its eyes or hearing through its ears',
+  ],
+};
+
+/**
+ * SRD Planar Binding:
+ *
+ * > _Level 5 Abjuration (Bard, Cleric, Druid, Warlock, Wizard)._
+ * > **Casting Time:** 1 hour. **Range:** 60 feet. **Duration:** 24 hours.
+ * > "You attempt to bind a Celestial, an Elemental, a Fey, or a Fiend to your
+ * > service. The creature must be within range for the entire casting of the
+ * > spell. ... At the completion of the casting, the target must succeed on a
+ * > Charisma saving throw or be bound to serve you for the duration. If the
+ * > creature was summoned or created by another spell, that spell's duration is
+ * > extended to match the duration of this spell."
+ * > _Using a Higher-Level Spell Slot._ "The duration increases with a spell slot
+ * > of level 6 (10 days), 7 (30 days), 8 (180 days), and 9 (366 days)."
+ *
+ * The hour is real and the slot table is a table `durationAtSlot` could hold;
+ * what the save buys is service, which is not a condition, and the sentence
+ * beside it reaches into another casting and moves its deadline.
+ */
+export const PLANAR_BINDING: SpellDefinition = {
+  id: 'planar-binding',
+  name: 'Planar Binding',
+  level: 5,
+  school: 'abjuration',
+  castingTime: 'long',
+  castingSeconds: 3600,
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'the target rule is not checked: "a Celestial, an Elemental, a Fey, or a Fiend" is four creature types where a target rule names one, so any creature at all may be aimed at',
+    'the Charisma saving throw is not rolled, because being "bound to serve you" is not a condition and not any state the engine holds',
+    'and the sentence beside it reaches into a second casting — "that spell\'s duration is extended to match the duration of this spell" — which is one ongoing spell rewriting another’s deadline, and nothing does that',
+    'the ten, thirty, a hundred and eighty and three hundred and sixty-six days a bigger slot buys are not applied',
+    'what the bound creature does with its orders, and how a Hostile one twists them, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Raise Dead:
+ *
+ * > _Level 5 Necromancy (Bard, Cleric, Paladin)._ **Casting Time:** 1 hour.
+ * > **Range:** Touch. **Duration:** Instantaneous.
+ * > "With a touch, you revive a dead creature if it has been dead no longer than
+ * > 10 days and it wasn't Undead when it died. The creature returns to life with
+ * > 1 Hit Point. ... The target takes a −4 penalty to D20 Tests. Every time the
+ * > target finishes a Long Rest, the penalty is reduced by 1 until it becomes
+ * > 0."
+ *
+ * Revivify's refusal at an hour's length, plus a penalty on every D20 Test that
+ * wears off one point per Long Rest — a selector the bonus vocabulary does not
+ * have, decreasing on a deadline anchored to a rest.
+ */
+export const RAISE_DEAD: SpellDefinition = {
+  id: 'raise-dead',
+  name: 'Raise Dead',
+  level: 5,
+  school: 'necromancy',
+  castingTime: 'long',
+  castingSeconds: 3600,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'nobody is raised: "The creature returns to life with 1 Hit Point" is not a heal of one, because healing refuses a dead creature outright and lifting death is the rule that refusal keeps out of a hit point total',
+    'the −4 penalty is not applied: it reaches *every* D20 Test, which is a selector the bonus vocabulary does not have — attacks, saves and ability checks are three families and there is no member meaning all of them',
+    'and it would not wear off if it were: "every time the target finishes a Long Rest, the penalty is reduced by 1" is a deadline anchored to a rest, which is neither a span nor a moment in the turn order',
+    'the ten days, the poisons neutralised, the mortal wounds closed and the missing head that makes the spell fail are the DM’s',
+  ],
+};
+
+/**
+ * SRD Reincarnate:
+ *
+ * > _Level 5 Necromancy (Druid)._ **Casting Time:** 1 hour. **Range:** Touch.
+ * > **Duration:** Instantaneous.
+ * > "You touch a dead Humanoid or a piece of one. If the creature has been dead
+ * > no longer than 10 days, the spell forms a new body for it and calls the soul
+ * > to enter that body. Roll 1d10 and consult the table below to determine the
+ * > body's species, or the GM chooses another playable species."
+ *
+ * A d10 indexing a table of species, and a species is content the engine holds
+ * and nothing rewrites on a living sheet — on top of raising the dead, which
+ * `healCreature` refuses by design.
+ */
+export const REINCARNATE: SpellDefinition = {
+  id: 'reincarnate',
+  name: 'Reincarnate',
+  level: 5,
+  school: 'necromancy',
+  castingTime: 'long',
+  castingSeconds: 3600,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'nobody is reincarnated: forming a new body and calling a soul into it is raising the dead, which healing refuses outright and no effect kind reaches',
+    'the 1d10 on the species table is not rolled: no effect asks the generator for a die that is not a d20, and there is nowhere for the face it showed to be looked up',
+    'and the new species is not written onto the sheet: a species is chosen at creation, and losing the traits of one and gaining another’s is advancement rather than a spell',
+  ],
+};
+
+/**
+ * SRD Teleportation Circle:
+ *
+ * > _Level 5 Conjuration (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** 1 minute. **Range:** 10 feet. **Duration:** 1 round.
+ * > "As you cast the spell, you draw a 5-foot-radius circle on the ground
+ * > inscribed with sigils that link your location to a permanent teleportation
+ * > circle of your choice whose sigil sequence you know and that is on the same
+ * > plane of existence as you. A shimmering portal opens within the circle you
+ * > drew and remains open until the end of your next turn. Any creature that
+ * > enters the portal instantly appears within 5 feet of the destination circle
+ * > or in the nearest unoccupied space if that space is occupied."
+ *
+ * Teleportation is built and the destination is not: the far end of this spell
+ * is a circle somewhere else in the world, and there is one scene.
+ */
+export const TELEPORTATION_CIRCLE: SpellDefinition = {
+  id: 'teleportation-circle',
+  name: 'Teleportation Circle',
+  level: 5,
+  school: 'conjuration',
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'ranged', feet: 10 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 6,
+  unmodelled: [
+    'nobody is teleported: the destination is "a permanent teleportation circle of your choice" somewhere else on the plane, and there is one scene — so a spell that moves a creature has no position to move it to',
+    'and nobody enters a portal either: the spell moves whoever walks into the circle during the round rather than whoever the caster named, which is a trigger on a place rather than a target list',
+    'the sigil sequences, the two a caster starts knowing, the minute it takes to memorise another and the 365 days of daily casting that make a circle permanent are all the DM’s',
+  ],
+};
+
+/**
+ * SRD Contingency:
+ *
+ * > _Level 6 Abjuration (Wizard)._ **Casting Time:** 10 minutes.
+ * > **Range:** Self. **Duration:** 10 days.
+ * > "Choose a spell of level 5 or lower that you can cast, that has a casting
+ * > time of an action, and that can target you. You cast that spell — called
+ * > the contingent spell — as part of casting _Contingency_, expending a spell
+ * > slot for both, but the contingent spell doesn't come into effect. Instead,
+ * > it takes effect when a certain circumstance occurs."
+ *
+ * One casting holding another for later, which is the stack `docs/design/
+ * casting.md` declined outright — and a trigger stated in words the caster
+ * chooses when the rite is performed.
+ */
+export const CONTINGENCY: SpellDefinition = {
+  id: 'contingency',
+  name: 'Contingency',
+  level: 6,
+  school: 'abjuration',
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 864_000,
+  unmodelled: [
+    'no contingent spell is stored and none goes off: a casting that holds another until a circumstance occurs is exactly the stack the engine declined — there is none, and a Counterspell answering a Counterspell is refused rather than nested',
+    'so the second slot the rite spends is not spent either, and the ten days it would wait are only a clock',
+    'the circumstance the caster describes, and whether it has occurred, are the DM’s',
+  ],
+};
+
+/**
+ * SRD Create Undead:
+ *
+ * > _Level 6 Necromancy (Cleric, Warlock, Wizard)._ **Casting Time:** 1 minute.
+ * > **Range:** 10 feet. **Duration:** Instantaneous.
+ * > "You can cast this spell only at night. Choose up to three corpses of Medium
+ * > or Small Humanoids within range. Each one becomes a **Ghoul** under your
+ * > control (see "Monsters" for the stat blocks)."
+ * > _Using a Higher-Level Spell Slot._ "If you use a level 7 spell slot, you can
+ * > animate or reassert control over four Ghouls. If you use a level 8 spell
+ * > slot, you can animate or reassert control over five Ghouls or two Ghasts or
+ * > Wights. If you use a level 9 spell slot, you can animate or reassert control
+ * > over six Ghouls, three Ghasts or Wights, or two Mummies."
+ *
+ * Animate Dead at night, with an upcast table that changes *which* stat block
+ * arrives as well as how many. The book says where the spell's content lives —
+ * "See 'Monsters' for these stat blocks" — and it is not in the spell.
+ */
+export const CREATE_UNDEAD: SpellDefinition = {
+  id: 'create-undead',
+  name: 'Create Undead',
+  level: 6,
+  school: 'necromancy',
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'ranged', feet: 10 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'no Ghoul appears, and no Ghast, Wight or Mummy: the spell’s whole product is a monster-list stat block, and no casting adds a creature to the scene',
+    'the targets cannot be chosen either — "three corpses of Medium or Small Humanoids" selects by size, and selects corpses rather than creatures',
+    'so the upcast table is not applied: four, five or six Ghouls, two or three Ghasts or Wights, two Mummies is a table naming four monster entries and choosing between them by slot level',
+    'that it may be cast only at night, what the caster commands, and the Dodge an uncommanded creature takes are all the DM’s',
+  ],
+};
+
+/**
+ * SRD Forbiddance:
+ *
+ * > _Level 6 Abjuration (Cleric) (Ritual)._
+ * > **Casting Time:** 10 minutes or Ritual. **Range:** Touch.
+ * > **Duration:** 1 day.
+ * > "You create a ward against magical travel that protects up to 40,000 square
+ * > feet of floor space to a height of 30 feet above the floor. For the
+ * > duration, creatures can't teleport into the area or use portals ... When a
+ * > creature of a chosen type enters the spell's area for the first time on a
+ * > turn or ends its turn there, the creature takes 5d10 Radiant or Necrotic
+ * > damage (your choice when you cast this spell)."
+ *
+ * The trigger is Web's and the damage is ordinary; what the area has to do is
+ * catch only the creature types chosen at the casting, and refuse a teleport
+ * aimed into it.
+ */
+export const FORBIDDANCE: SpellDefinition = {
+  id: 'forbiddance',
+  name: 'Forbiddance',
+  level: 6,
+  school: 'abjuration',
+  castingTime: 'long',
+  castingSeconds: 600,
+  ritual: true,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'the 5d10 Radiant or Necrotic is not dealt: the trigger is Web’s exactly — the first entry on a turn, or ending a turn there — and the area has to catch only Aberrations, Celestials, Elementals, Fey, Fiends or Undead, chosen at the casting, where an area catches everyone standing in it',
+    'the ward against teleporting and planar travel into the area is not enforced: an effect that refuses another casting has no state to sit in',
+    'the forty thousand square feet by thirty high is not a template the engine holds, the password is not recorded, the overlap with another Forbiddance is not refused, and the thirty days that make it permanent are not counted',
+  ],
+};
+
+/**
+ * SRD Guards and Wards:
+ *
+ * > _Level 6 Abjuration (Bard, Wizard)._ **Casting Time:** 1 hour.
+ * > **Range:** Touch. **Duration:** 24 hours.
+ * > "You create a ward that protects up to 2,500 square feet of floor space ...
+ * > In addition, at each intersection or branching passage offering a choice of
+ * > direction, there is a 50 percent chance that a creature other than you
+ * > believes it is going in the opposite direction from the one it chooses."
+ *
+ * A building's worth of fiction with one number in it, and that number is a
+ * coin the engine has no effect to ask for — beside a list of lesser spells the
+ * ward may cast, which is the stack again.
+ */
+export const GUARDS_AND_WARDS: SpellDefinition = {
+  id: 'guards-and-wards',
+  name: 'Guards and Wards',
+  level: 6,
+  school: 'abjuration',
+  castingTime: 'long',
+  castingSeconds: 3600,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'the "50 percent chance that a creature other than you believes it is going in the opposite direction" is not rolled: no effect asks the generator for a die that is not a d20',
+    'the spells the ward may hold — Dancing Lights, Magic Mouth, Stinking Cloud, Gust of Wind — are a casting casting another spell, which there is no stack for',
+    'the corridors, doors, stairs, fog and webs are the DM’s, and so is the 2,500 square feet of floor the ward covers',
+  ],
+};
+
+/**
+ * SRD Heroes' Feast:
+ *
+ * > _Level 6 Conjuration (Bard, Cleric, Druid)._ **Casting Time:** 10 minutes.
+ * > **Range:** Self. **Duration:** Instantaneous.
+ * > "You conjure a feast that appears on a surface in an unoccupied 10-foot Cube
+ * > next to you. The feast takes 1 hour to consume ... A creature that partakes
+ * > gains several benefits, which last for 24 hours. The creature has Resistance
+ * > to Poison damage, and it has Immunity to the Frightened and Poisoned
+ * > conditions. Its Hit Point maximum also increases by 2d10, and it gains the
+ * > same number of Hit Points."
+ *
+ * **Two of its three benefits are expressible and the third is not, and they
+ * arrive together.** A Resistance and two condition Immunities are grants the
+ * engine writes; a Hit Point maximum is set at creation and by advancement, and
+ * no effect moves one.
+ */
+export const HEROES_FEAST: SpellDefinition = {
+  id: 'heroes-feast',
+  name: "Heroes' Feast",
+  level: 6,
+  school: 'conjuration',
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'nobody partakes: who eats is decided over the hour the feast takes to consume, and a casting applies its effects to the targets it was given at the moment it resolved — so the twelve creatures and the 24 hours their benefits run for are the DM’s',
+    'the Resistance to Poison damage and the Immunity to the Frightened and Poisoned conditions are grants the engine writes, and they are not granted, because the benefit beside them cannot be',
+    'the 2d10 the Hit Point maximum increases by is not applied: a maximum is set when a creature is added and by advancement, and no effect moves one — so the Hit Points gained with it have no room to go into',
+  ],
+};
+
+/**
+ * SRD Magnificent Mansion:
+ *
+ * > _Level 7 Conjuration (Bard, Wizard)._ **Casting Time:** 1 minute.
+ * > **Range:** 300 feet. **Duration:** 24 hours.
+ * > "You conjure a shimmering door in range ... The door leads to an
+ * > extradimensional dwelling ... When the spell ends, any creatures or objects
+ * > left inside the extradimensional space are expelled into the unoccupied
+ * > spaces nearest to the entrance."
+ *
+ * The door stands in the scene and what is behind it does not: there is one
+ * scene, so nobody can be inside the dwelling and nobody has to be expelled
+ * from it.
+ */
+export const MAGNIFICENT_MANSION: SpellDefinition = {
+  id: 'magnificent-mansion',
+  name: 'Magnificent Mansion',
+  level: 7,
+  school: 'conjuration',
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'ranged', feet: 300 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'the dwelling behind the door is a second place and the engine holds one scene, so nobody is ever inside it and the expulsion into the nearest unoccupied spaces when the day runs out never happens',
+    'the door itself, who may pass through it, the thirty feet within which the caster may open or close it, and the hundred servants are the DM’s',
+  ],
+};
+
+/**
+ * SRD Planar Ally:
+ *
+ * > _Level 6 Conjuration (Cleric)._ **Casting Time:** 10 minutes.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "You beseech an otherworldly entity for aid. ... That entity sends a
+ * > Celestial, an Elemental, or a Fiend loyal to it to aid you, making the
+ * > creature appear in an unoccupied space within range."
+ *
+ * Whatever the GM sends, it is a stat block appearing in the fight; everything
+ * after that is bargaining.
+ */
+export const PLANAR_ALLY: SpellDefinition = {
+  id: 'planar-ally',
+  name: 'Planar Ally',
+  level: 6,
+  school: 'conjuration',
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'nobody is sent: a Celestial, an Elemental or a Fiend appearing in an unoccupied space within range is a stat block added to the scene mid-fight, which no casting does',
+    'the bargaining, the payment, the task and how long it takes are the DM’s from first word to last',
+  ],
+};
+
+/**
+ * SRD Irresistible Dance:
+ *
+ * > _Level 6 Enchantment (Bard, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** Concentration, up to 1 minute.
+ * > "One creature that you can see within range must make a Wisdom saving throw.
+ * > On a successful save, the target dances comically until the end of its next
+ * > turn, during which it must spend all its movement to dance in place. On a
+ * > failed save, the target has the Charmed condition for the duration. While
+ * > Charmed, the target dances comically, must use all its movement to dance in
+ * > place, and has Disadvantage on Dexterity saving throws and attack rolls, and
+ * > other creatures have Advantage on attack rolls against it. On each of its
+ * > turns, the target can take an action to collect itself and repeat the save,
+ * > ending the spell on itself on a success."
+ *
+ * **Almost every clause is built and three sentences are not, and they are
+ * three different gaps.** A *successful* save that still costs the target a
+ * turn has no branch to ride; the movement spent dancing is the action economy;
+ * and the repeat save is raised by the target spending an action rather than by
+ * a turn boundary.
+ */
+export const IRRESISTIBLE_DANCE: SpellDefinition = {
+  id: 'irresistible-dance',
+  name: 'Irresistible Dance',
+  level: 6,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Wisdom saving throw is not rolled, and its **success** is the first reason: a successful save here still makes the target dance until the end of its next turn, and a rider rides the failure — there is no success branch to hang one on',
+    'so the Charmed a failure imposes is not applied, nor the Disadvantage on Dexterity saves and attack rolls, nor the Advantage other creatures get against it — all three are ordinary riders on a save that cannot be written',
+    '"must use all its movement to dance in place" is the action economy, which no spell effect reaches',
+    'and the repeat save is raised by the target **taking an action** to collect itself rather than by a turn boundary, which is the only thing that raises one',
+  ],
+};
+
+/**
+ * SRD Clone:
+ *
+ * > _Level 8 Necromancy (Wizard)._ **Casting Time:** 1 hour. **Range:** Touch.
+ * > **Duration:** Instantaneous.
+ * > "You touch a creature or at least 1 cubic inch of its flesh. An inert
+ * > duplicate of that creature forms inside the vessel used in the spell's
+ * > casting and finishes growing after 120 days ... If the original creature
+ * > dies after the clone finishes forming, the creature's soul transfers to the
+ * > clone if the soul is free and willing to return."
+ *
+ * A hundred and twenty days of growing, and then a death that moves a soul. The
+ * spell's whole content is raising the dead on a delay nothing counts.
+ */
+export const CLONE: SpellDefinition = {
+  id: 'clone',
+  name: 'Clone',
+  level: 8,
+  school: 'necromancy',
+  castingTime: 'long',
+  castingSeconds: 3600,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'no duplicate forms and no soul transfers: bringing a creature back in another body is raising the dead, which healing refuses outright and no effect kind reaches',
+    'the 120 days it takes to finish growing are not counted, and neither is the vessel remaining undisturbed — an Instantaneous casting schedules nothing',
+    'the age of the finished clone, the original’s remains going inert, and whether a soul is free and willing are the DM’s',
+  ],
+};
+
+/**
+ * SRD Control Weather:
+ *
+ * > _Level 8 Transmutation (Cleric, Druid, Wizard)._
+ * > **Casting Time:** 10 minutes. **Range:** Self.
+ * > **Duration:** Concentration, up to 8 hours.
+ * > "You take control of the weather within 5 miles of you for the duration.
+ * > You must be outdoors to cast this spell, and it ends early if you go
+ * > indoors. ... It takes 1d4 × 10 minutes for the new conditions to take
+ * > effect. ... When you change the weather conditions, find a current condition
+ * > on the following tables and change its stage by one, up or down."
+ *
+ * The weather is the DM's and the *delay* is not: a 1d4 multiplied by ten
+ * minutes is a die no effect asks for, deciding a moment nothing schedules.
+ */
+export const CONTROL_WEATHER: SpellDefinition = {
+  id: 'control-weather',
+  name: 'Control Weather',
+  level: 8,
+  school: 'transmutation',
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'the "1d4 × 10 minutes" before the new conditions take effect is not rolled and nothing waits for it: no effect asks the generator for a die outside the D20 pipeline, and there is nothing for the result to schedule',
+    'the three stage tables — precipitation, temperature and wind — are the DM’s, and so is the direction of the wind and everything the weather then does',
+    'being outdoors is a fact the engine does not hold, so the spell does not end when the caster walks inside',
+  ],
+};
+
+/**
+ * SRD Power Word Stun:
+ *
+ * > _Level 8 Enchantment (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "You overwhelm the mind of one creature you can see within range. If the
+ * > target has 150 Hit Points or fewer, it has the Stunned condition. Otherwise,
+ * > its Speed is 0 until the start of your next turn. The Stunned target makes a
+ * > Constitution saving throw at the end of each of its turns, ending the
+ * > condition on itself on a success."
+ *
+ * **Every consequence is built and the question in front of them is not.** A
+ * Stunned with a repeat save at the end of each turn is Hold Person's shape; a
+ * Speed of zero until the start of the caster's next turn is a rider with a
+ * duration. What decides between them is a threshold on the target's current
+ * Hit Points, read before anything is rolled, and the vitals are there with
+ * nothing to ask them.
+ */
+export const POWER_WORD_STUN: SpellDefinition = {
+  id: 'power-word-stun',
+  name: 'Power Word Stun',
+  level: 8,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [],
+  unmodelled: [
+    'neither branch is taken, because nothing can ask the question in front of them: "if the target has 150 Hit Points or fewer" is a threshold on current Hit Points read before anything is rolled, and no effect consults the vitals',
+    'so the Stunned condition is not applied and its Constitution save at the end of each of the target’s turns is not raised — both are shapes the engine has had since Hold Person',
+    'and the other branch, a Speed of 0 until the start of the caster’s next turn, is not applied either',
+  ],
+};
+
+/**
+ * SRD Power Word Kill:
+ *
+ * > _Level 9 Enchantment (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "You compel one creature you can see within range to die. If the target has
+ * > 100 Hit Points or fewer, it dies. Otherwise, it takes 12d12 Psychic damage."
+ *
+ * Two sentences and two different gaps: a threshold on current Hit Points, and
+ * damage that neither an attack roll nor a saving throw decides.
+ */
+export const POWER_WORD_KILL: SpellDefinition = {
+  id: 'power-word-kill',
+  name: 'Power Word Kill',
+  level: 9,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [],
+  unmodelled: [
+    'the target does not die: "if the target has 100 Hit Points or fewer" is a threshold on current Hit Points read before anything is rolled, and no effect asks the vitals a question',
+    'and the 12d12 Psychic on the other branch is not dealt: damage a spell simply applies, with neither an attack roll nor a saving throw in front of it, has no effect kind — the same gap Magic Missile is blocked on',
+  ],
+};
+
+/**
+ * SRD Power Word Heal:
+ *
+ * > _Level 9 Enchantment (Bard, Cleric)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "A wave of healing energy washes over one creature you can see within range.
+ * > The target regains all its Hit Points. If the creature has the Charmed,
+ * > Frightened, Paralyzed, Poisoned, or Stunned condition, the condition ends.
+ * > If the creature has the Prone condition, it can use its Reaction to stand
+ * > up."
+ *
+ * **Heal's sentence with the number taken out.** A printed flat amount is
+ * expressible now; "all its Hit Points" is an amount *derived* from the target,
+ * which is the residue that shape still names — and the Reaction to stand up is
+ * the action economy.
+ */
+export const POWER_WORD_HEAL: SpellDefinition = {
+  id: 'power-word-heal',
+  name: 'Power Word Heal',
+  level: 9,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  requiresSight: true,
+  effects: [],
+  unmodelled: [
+    'nobody is healed: a heal carries a notation or a printed number, and "all its Hit Points" is an amount derived from the target’s own maximum — the half of the flat-amount shape that is still missing',
+    'so the Charmed, Frightened, Paralyzed, Poisoned and Stunned are not ended either: end-condition takes exactly that printed list and hangs on the healing above it',
+    'the Reaction the Prone creature may use to stand up is the action economy, which no spell effect reaches',
+  ],
+};
+
+/**
+ * SRD Time Stop:
+ *
+ * > _Level 9 Transmutation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Instantaneous.
+ * > "You briefly stop the flow of time for everyone but yourself. No time passes
+ * > for other creatures, while you take 1d4 + 1 turns in a row, during which you
+ * > can use actions and move as normal. This spell ends if one of the actions
+ * > you use during this period, or any effects that you create during it,
+ * > affects a creature other than you or an object being worn or carried by
+ * > someone other than you."
+ *
+ * A die that is not a d20 deciding how many extra turns to insert into the
+ * order, and a casting ended by what the caster does with them.
+ */
+export const TIME_STOP: SpellDefinition = {
+  id: 'time-stop',
+  name: 'Time Stop',
+  level: 9,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'the 1d4 + 1 turns are neither rolled nor taken: no effect asks the generator for a die outside the D20 pipeline, and the initiative order is a list of creatures rather than something a spell inserts turns into',
+    'so the spell does not end when one of those actions affects somebody else, nor when the caster moves more than 1,000 feet from where it was cast',
+  ],
+};
+
+/**
+ * SRD True Resurrection:
+ *
+ * > _Level 9 Necromancy (Cleric, Druid)._ **Casting Time:** 1 hour.
+ * > **Range:** Touch. **Duration:** Instantaneous.
+ * > "You touch a creature that has been dead for no longer than 200 years and
+ * > that died for any reason except old age. The creature is revived with all
+ * > its Hit Points. ... The spell can provide a new body if the original no
+ * > longer exists, in which case you must speak the creature's name."
+ *
+ * Raise Dead at the top of the book, with the amount derived rather than
+ * printed: all of a maximum rather than one.
+ */
+export const TRUE_RESURRECTION: SpellDefinition = {
+  id: 'true-resurrection',
+  name: 'True Resurrection',
+  level: 9,
+  school: 'necromancy',
+  castingTime: 'long',
+  castingSeconds: 3600,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'nobody is revived: healing refuses a dead creature outright, and lifting death is the rule that refusal keeps out of a hit point total',
+    'and the amount could not be stated if it did: "all its Hit Points" is derived from the target’s own maximum, where a heal carries a notation or a printed number',
+    'the two hundred years, the wounds closed, the poison neutralised, the contagions cured, the curses lifted, the organs replaced, the Undead restored and the new body conjured within ten feet are the DM’s',
+  ],
+};
+
+/**
+ * SRD Regenerate:
+ *
+ * > _Level 7 Transmutation (Bard, Cleric, Druid)._ **Casting Time:** 1 minute.
+ * > **Range:** Touch. **Duration:** 1 hour.
+ * > "A creature you touch regains 4d8 + 15 Hit Points. For the duration, the
+ * > target regains 1 Hit Point at the start of each of its turns, and any
+ * > severed body parts regrow after 2 minutes."
+ *
+ * **The one spell `a-long-casting-time` was the only recorded blocker of, and
+ * that shape has been built for two tranches.** The rite runs on the clock, the
+ * flat addend beside the dice is a field `DiceScaling` has always carried, and
+ * the hit point a turn is the printed number `turn-payout.flat` names this
+ * spell for. So the entry was not a blocker at all — it was a spell nobody had
+ * written, which is the finding rather than the definition.
+ *
+ * The regrown limbs are the only clause left, and they are fiction.
+ */
+export const REGENERATE: SpellDefinition = {
+  id: 'regenerate',
+  name: 'Regenerate',
+  level: 7,
+  school: 'transmutation',
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [
+    // "regains 4d8 + 15 Hit Points" — the addend is part of the healing, which
+    // is the bug `docs/rules/srd-policy.md` records Finger of Death having for
+    // weeks: a minimum of 19 catches a definition that dropped the fifteen.
+    { kind: 'heal', healing: { dice: '4d8', flat: 15 }, addSpellcastingModifier: false },
+    // "the target regains 1 Hit Point at the start of each of its turns" — the
+    // recipient's own turn, and a printed number rather than a notation.
+    { kind: 'turn-payout', at: 'start-of-turn', payout: 'healing', flat: 1 },
+  ],
+  durationSeconds: 3600,
+  unmodelled: [
+    'severed body parts regrowing after 2 minutes is fiction: a limb is not a thing the engine holds, and neither is the two minutes it takes to come back',
+  ],
+};
+
+/**
+ * SRD Prayer of Healing:
+ *
+ * > _Level 2 Abjuration (Cleric, Paladin)._ **Casting Time:** 10 minutes.
+ * > **Range:** 30 feet. **Duration:** Instantaneous.
+ * > "Up to five creatures of your choice who remain within range for the
+ * > spell's entire casting gain the benefits of a Short Rest and also regain
+ * > 2d8 Hit Points. A creature can't be affected by this spell again until that
+ * > creature finishes a Long Rest."
+ * > _Using a Higher-Level Spell Slot._ "The healing increases by 1d8 for each
+ * > spell slot level above 2."
+ *
+ * **The first executed spell in the catalogue whose casting takes ten minutes.**
+ * The healing is `heal` with an upcast, over five targets; what it leaves is the
+ * Short Rest the same sentence confers, and the once-per-Long-Rest limit beside
+ * it.
+ */
+export const PRAYER_OF_HEALING: SpellDefinition = {
+  id: 'prayer-of-healing',
+  name: 'Prayer of Healing',
+  level: 2,
+  school: 'abjuration',
+  castingTime: 'long',
+  castingSeconds: 600,
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 5, self: true },
+  effects: [
+    { kind: 'heal', healing: { dice: '2d8', perSlotLevelAbove: '1d8' }, addSpellcastingModifier: false },
+  ],
+  unmodelled: [
+    'the benefits of a Short Rest are not conferred: a rest is a span the engine measures and its payout is the rest command’s, so no effect hands one over without the hour',
+    '"A creature can’t be affected by this spell again until that creature finishes a Long Rest" is not enforced: a deadline is a span of seconds or a moment in the turn order, and a rest is neither',
+    'that the five must "remain within range for the spell’s entire casting" is not checked — range is measured when the rite settles, and nobody records where they stood for the ten minutes before',
+  ],
+};
+
+/**
+ * SRD Shining Smite:
+ *
+ * > _Level 2 Transmutation (Paladin)._ **Casting Time:** Bonus Action, which
+ * > you take immediately after hitting a creature with a Melee weapon or an
+ * > Unarmed Strike. **Range:** Self.
+ * > **Duration:** Concentration, up to 1 minute.
+ * > "The target hit by the strike takes an extra 2d6 Radiant damage from the
+ * > attack. Until the spell ends, the target sheds Bright Light in a 5-foot
+ * > radius, attack rolls against it have Advantage, and it can't benefit from
+ * > the Invisible condition."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
+ * > spell slot level above 2."
+ *
+ * Divine Smite's shape with a rider the engine cannot reach. The extra dice
+ * join the attack that has already hit, which is what `attack-damage` is for;
+ * the sentence after them grants Advantage *to everybody else* and switches off
+ * a benefit the Invisible condition derives.
+ */
+export const SHINING_SMITE: SpellDefinition = {
+  id: 'shining-smite',
+  name: 'Shining Smite',
+  level: 2,
+  school: 'transmutation',
+  // The trigger is the hit `resolveAttackDamage` is settling, so the command
+  // enforces it rather than the definition — Divine Smite's and Searing
+  // Smite's reading, on the third spell printing that casting time.
+  castingTime: 'bonus-action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [{ kind: 'attack-damage', damage: { dice: '2d6', perSlotLevelAbove: '1d6' }, damageType: 'radiant' }],
+  durationSeconds: 60,
+  unmodelled: [
+    'the Advantage on attack rolls against the target is not granted: it belongs to every other creature in the fight rather than to the one this casting touched, and a spell applies its effects to the targets it reached',
+    'and "it can’t benefit from the Invisible condition" switches off a benefit the condition layer derives while leaving the condition on the creature, which only a feature’s standing effect can do',
+    'the Bright Light in a 5-foot radius is the DM’s, because light is not a state the engine holds',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
   AID,
   ALARM,
+  ALTER_SELF,
   ANIMAL_FRIENDSHIP,
   ANIMAL_MESSENGER,
+  ANIMATE_DEAD,
+  ANIMATE_OBJECTS,
   ANTILIFE_SHELL,
   ARCANE_EYE,
   ARCANE_LOCK,
   ARCANE_SWORD,
   ARCANISTS_MAGIC_AURA,
+  AUGURY,
+  AURA_OF_LIFE,
+  AWAKEN,
   BANE,
   BANISHMENT,
   BARKSKIN,
   BEACON_OF_HOPE,
   BEFUDDLEMENT,
   BLACK_TENTACLES,
+  BLADE_BARRIER,
   BLESS,
   BLIGHT,
   BLINDNESS_DEAFNESS,
+  BLINK,
   BLUR,
   BURNING_HANDS,
   CHAIN_LIGHTNING,
@@ -9071,19 +10909,27 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   CHROMATIC_ORB,
   CIRCLE_OF_DEATH,
   CLAIRVOYANCE,
+  CLONE,
   CLOUDKILL,
   COLOR_SPRAY,
   COMMAND,
+  COMMUNE,
   COMMUNE_WITH_NATURE,
   COMPREHEND_LANGUAGES,
   COMPULSION,
   CONE_OF_COLD,
+  CONJURE_ELEMENTAL,
   CONJURE_FEY,
+  CONTACT_OTHER_PLANE,
   CONTAGION,
+  CONTINGENCY,
   CONTINUAL_FLAME,
+  CONTROL_WEATHER,
   COUNTERSPELL,
   CREATE_FOOD_AND_WATER,
   CREATE_OR_DESTROY_WATER,
+  CREATE_UNDEAD,
+  CREATION,
   CURE_WOUNDS,
   DANCING_LIGHTS,
   DARKVISION,
@@ -9099,11 +10945,13 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DISINTEGRATE,
   DISPEL_MAGIC,
   DISSONANT_WHISPERS,
+  DIVINATION,
   DIVINE_FAVOR,
   DIVINE_SMITE,
   DOMINATE_BEAST,
   DOMINATE_MONSTER,
   DOMINATE_PERSON,
+  DRAGONS_BREATH,
   DRUIDCRAFT,
   ELDRITCH_BLAST,
   ELEMENTALISM,
@@ -9121,6 +10969,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FINGER_OF_DEATH,
   FIRE_BOLT,
   FIRE_SHIELD,
+  FIRE_STORM,
   FIREBALL,
   FLAME_BLADE,
   FLAME_STRIKE,
@@ -9128,12 +10977,14 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FLOATING_DISK,
   FLY,
   FOG_CLOUD,
+  FORBIDDANCE,
   FORCECAGE,
   FORESIGHT,
   FREEDOM_OF_MOVEMENT,
   FREEZING_SPHERE,
   GASEOUS_FORM,
   GATE,
+  GEAS,
   GENTLE_REPOSE,
   GLIBNESS,
   GLOBE_OF_INVULNERABILITY,
@@ -9142,6 +10993,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   GREATER_INVISIBILITY,
   GREATER_RESTORATION,
   GUARDIAN_OF_FAITH,
+  GUARDS_AND_WARDS,
   GUIDANCE,
   GUIDING_BOLT,
   GUST_OF_WIND,
@@ -9152,6 +11004,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HEALING_WORD,
   HEAT_METAL,
   HELLISH_REBUKE,
+  HEROES_FEAST,
   HEROISM,
   HIDEOUS_LAUGHTER,
   HOLD_MONSTER,
@@ -9168,6 +11021,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   INSECT_PLAGUE,
   INSTANT_SUMMONS,
   INVISIBILITY,
+  IRRESISTIBLE_DANCE,
   JUMP,
   KNOCK,
   LEGEND_LORE,
@@ -9183,6 +11037,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MAGE_HAND,
   MAGIC_MOUTH,
   MAGIC_WEAPON,
+  MAGNIFICENT_MANSION,
   MAJOR_IMAGE,
   MASS_CURE_WOUNDS,
   MASS_HEAL,
@@ -9191,10 +11046,12 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MELD_INTO_STONE,
   MENDING,
   MESSAGE,
+  METEOR_SWARM,
   MIND_BLANK,
   MIND_SPIKE,
   MINOR_ILLUSION,
   MIRROR_IMAGE,
+  MISLEAD,
   MISTY_STEP,
   MOONBEAM,
   MOVE_EARTH,
@@ -9202,29 +11059,43 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   PASS_WITHOUT_TRACE,
   PASSWALL,
   PHANTASMAL_KILLER,
+  PHANTOM_STEED,
+  PLANAR_ALLY,
+  PLANAR_BINDING,
   PLANE_SHIFT,
+  PLANT_GROWTH,
   POISON_SPRAY,
   POLYMORPH,
+  POWER_WORD_HEAL,
+  POWER_WORD_KILL,
+  POWER_WORD_STUN,
+  PRAYER_OF_HEALING,
   PRESTIDIGITATION,
   PRIVATE_SANCTUM,
   PRODUCE_FLAME,
   PROTECTION_FROM_ENERGY,
+  PROTECTION_FROM_EVIL_AND_GOOD,
   PROTECTION_FROM_POISON,
   PURIFY_FOOD_AND_DRINK,
+  RAISE_DEAD,
   RAY_OF_ENFEEBLEMENT,
   RAY_OF_FROST,
   RAY_OF_SICKNESS,
+  REGENERATE,
+  REINCARNATE,
   REMOVE_CURSE,
   RESILIENT_SPHERE,
   RESISTANCE,
   RESURRECTION,
   REVERSE_GRAVITY,
+  REVIVIFY,
   ROPE_TRICK,
   SACRED_FLAME,
   SANCTUARY,
   SCORCHING_RAY,
   SCRYING,
   SEARING_SMITE,
+  SECRET_CHEST,
   SEE_INVISIBILITY,
   SEEMING,
   SEQUESTER,
@@ -9233,7 +11104,9 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SHIELD,
   SHIELD_OF_FAITH,
   SHILLELAGH,
+  SHINING_SMITE,
   SHOCKING_GRASP,
+  SILENCE,
   SILENT_IMAGE,
   SLEEP,
   SLEET_STORM,
@@ -9255,23 +11128,32 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   TELEKINESIS,
   TELEPATHIC_BOND,
   TELEPORT,
+  TELEPORTATION_CIRCLE,
+  THAUMATURGY,
   THUNDERWAVE,
+  TIME_STOP,
   TINY_HUT,
   TONGUES,
   TRANSPORT_VIA_PLANTS,
   TREE_STRIDE,
+  TRUE_RESURRECTION,
   TRUE_SEEING,
   TRUE_STRIKE,
+  UNSEEN_SERVANT,
   VAMPIRIC_TOUCH,
   VICIOUS_MOCKERY,
   VITRIOLIC_SPHERE,
   WALL_OF_FIRE,
   WALL_OF_FORCE,
+  WALL_OF_ICE,
+  WALL_OF_STONE,
+  WALL_OF_THORNS,
   WARDING_BOND,
   WATER_BREATHING,
   WATER_WALK,
   WEB,
   WEIRD,
+  WIND_WALL,
   WORD_OF_RECALL,
   ZONE_OF_TRUTH,
 ];

@@ -2014,6 +2014,14 @@ describe('no spell is special-cased in the runtime', () => {
    * engine is built on and has nothing whatever to do with a Cleric shouting
    * "Grovel". Excluded the day the spell catalogue gained the spell.
    *
+   * **`divination` is the eighth, and it is the book colliding with itself**:
+   * the SRD prints eight schools of magic and names one spell after one of
+   * them. `SCHOOLS` in `spell-schema.ts` transcribes the eight, which is the
+   * same transcription-of-a-glossary that excuses `darkvision` and
+   * `resistance` — and the alternative is a catalogue that may never hold a
+   * level 4 Divination because the validator has to know what school it is
+   * in. Excluded the day the spell catalogue gained the spell.
+   *
    * Named one word at a time rather than matched loosely, so each exclusion
    * is reviewed instead of being a heuristic that quietly stops catching
    * things.
@@ -2026,6 +2034,7 @@ describe('no spell is special-cased in the runtime', () => {
     'teleport',
     'command',
     'resistance',
+    'divination',
   ]);
 
   /**
@@ -2156,6 +2165,7 @@ describe('no spell is special-cased in the runtime', () => {
     expect([...ALSO_VOCABULARY].sort()).toEqual([
       'command',
       'darkvision',
+      'divination',
       'heal',
       'light',
       'resistance',
@@ -2200,6 +2210,17 @@ describe('no spell is special-cased in the runtime', () => {
     expect(source('monster.ts')).toContain(
       "readonly kind: 'immunity' | 'resistance' | 'vulnerability';",
     );
+    // And the eighth, which is a school of magic: the validator transcribes
+    // the book's eight and one of them is spelled like a spell. Pinned the
+    // way the glossary above is — the file that owns the mechanic writes the
+    // word only where the eight are being listed.
+    expect(source('spell-schema.ts')).toContain("const SCHOOLS: ReadonlySet<string> = new Set([");
+    expect(
+      source('spell-schema.ts')
+        .split('\n')
+        .filter((line) => line.includes("'divination'"))
+        .map((line) => line.trim()),
+    ).toEqual(["'divination',"]);
   });
 
   it('allows the two data constructs and nothing around them', () => {

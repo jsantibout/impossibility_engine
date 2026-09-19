@@ -351,6 +351,38 @@ const castAndSettle = (spellId: string, bonus = -40, seed = 'cast'): readonly Ga
 };
 
 /**
+ * The same drive, returning the **outcome** rather than the events.
+ *
+ * `castAt` hands back a declaration for a casting of a minute or more, and a
+ * declaration resolves nothing: the outcomes arrive when the rite settles. That
+ * was invisible while every long casting in the catalogue was tracked — a
+ * tracked spell has no outcomes either way — and the first executed one, SRD
+ * Regenerate, would have failed the sweep below for being long rather than for
+ * being wrong. So the sweep asks the settled casting, exactly as the
+ * one-casting sweep above already does.
+ */
+const castFully = (spellId: string, bonus = -40, seed = 'cast') => {
+  const base = logFor(spellId);
+  const first = unwrap(castAt(fold('seed', base), spellId, bonus, seed), spellId);
+  const definition = SRD_CONTENT.spell(spellId)!;
+  if (definition.castingTime !== 'long') return first;
+
+  const open = fold('seed', [...base, ...first.events]);
+  const castingId = pendingCastingsOf(open)[0]!.castingId;
+  const tick = unwrap(advanceTime(open, definition.castingSeconds!, 'the rite'), `tick ${spellId}`);
+  const settled = unwrap(
+    resolveDeclaredCast(fold('seed', [...base, ...first.events, ...tick]), castingId, supply(seed, bonus)),
+    `settle ${spellId}`,
+  );
+  return {
+    ...settled,
+    events: [...first.events, ...tick, ...settled.events],
+    outcomes: [...first.outcomes, ...settled.outcomes],
+    unverified: [...first.unverified, ...settled.unverified],
+  };
+};
+
+/**
  * A spell cast on an attack that has hit is not cast through this command at
  * all — SRD Divine Smite's casting time is "immediately after hitting a
  * target", and `resolveSpell` has no attack to hand it. They are driven by
@@ -378,7 +410,7 @@ describe('every definition in the catalogue actually casts', () => {
   it.each(CASTABLE.map((d) => [d.id] as const))('resolves %s', (spellId) => {
     // A failed save for anything that allows one, so the interesting branch is
     // the one that runs.
-    const out = unwrap(castAt(fold('seed', logFor(spellId)), spellId, -40), spellId);
+    const out = castFully(spellId);
     expect(out.castingId.length).toBeGreaterThan(0);
 
     expect(out.events.length).toBeGreaterThan(0);

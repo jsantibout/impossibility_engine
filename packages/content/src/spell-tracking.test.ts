@@ -441,14 +441,23 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * review caught the first attempt at this moving from a half to a third,
    * which left nineteen spells of slack — the guard would then have tolerated
    * the share falling by another third in silence, which is giving the claim
-   * away rather than restating it. The share is a shade under a half, so the
-   * bound is 45 per cent: close enough behind to move again when the
-   * catalogue does, and to have to say so when it moves. How many spells sit
-   * on each side is `COVERAGE.md`'s to print rather than this file's.
+   * away rather than restating it. So the bound sits a spell or two behind the
+   * share and has to be restated whenever the catalogue moves. How many spells
+   * sit on each side is `COVERAGE.md`'s to print rather than this file's.
+   *
+   * **Moved from 45 per cent to 37 by the second catalogue pass, and the new
+   * one is tighter than the old.** That pass wrote fifty-two definitions,
+   * forty-nine of them tracked, and only seven of the forty-nine were clean:
+   * what is left in `BLOCKED_ON` is the mechanically dense tail, so the
+   * numerator grew far more slowly than the denominator. Against the
+   * population it was written for, 45 per cent left 4.75 spells of slack and
+   * a gap of 3.8 points; 37 leaves 3.6 spells and 2.1 points against the
+   * population now — so the guard has less room to lose the claim in than
+   * before, not more, which is the only thing that makes moving it honest.
    */
   it('leaves a large part of the tracked bucket with nothing mechanical to explain', () => {
     const clean = TRACKED.filter((spellId) => markersIn(spellId).length === 0);
-    expect(clean.length).toBeGreaterThan(TRACKED.length * 0.45);
+    expect(clean.length).toBeGreaterThan(TRACKED.length * 0.37);
     // And the other side is non-empty too, or the sweep below checks nothing.
     expect(clean.length).toBeLessThan(TRACKED.length);
   });
@@ -799,7 +808,7 @@ describe('a tracked spell’s target rule is the SRD’s, not a placeholder', ()
  * prints, and the table is told what it is being left to decide. Anything
  * further is that spell's own test.
  */
-const ADDED: readonly string[] = [
+const ADDED_FIRST: readonly string[] = [
   'aid',
   'animal-messenger',
   'antilife-shell',
@@ -857,9 +866,87 @@ const ADDED: readonly string[] = [
   'zone-of-truth',
 ];
 
+/**
+ * The second pass over the same ground, and it is a different population.
+ *
+ * `ADDED_FIRST` was written easy end first — the spells whose whole text is
+ * fiction. What was left after it is the tail: every one of these was in
+ * `BLOCKED_ON` naming a shape the engine really does not have, so each arrives
+ * with its blocker quoted in `TRACKED_ADJUDICATED` rather than with an empty
+ * paragraph. That is why the *clean* share below had to move and the rest of
+ * this file did not: nothing about what a tracked definition owes changed, and
+ * the share of tracked spells with a mechanical sentence in them did.
+ *
+ * Kept as a second list rather than merged into the first, because the claim
+ * each makes is about a batch — "these are the spells this pass wrote" — and a
+ * merged list would let a later pass add nothing and still look like the
+ * others. Both are sorted and both are swept, which is what the sweeps care
+ * about.
+ */
+const ADDED_SECOND: readonly string[] = [
+  'alter-self',
+  'animate-dead',
+  'animate-objects',
+  'augury',
+  'aura-of-life',
+  'awaken',
+  'blade-barrier',
+  'blink',
+  'clone',
+  'commune',
+  'conjure-elemental',
+  'contact-other-plane',
+  'contingency',
+  'control-weather',
+  'create-undead',
+  'creation',
+  'divination',
+  'dragons-breath',
+  'fire-storm',
+  'forbiddance',
+  'geas',
+  'guards-and-wards',
+  'heroes-feast',
+  'irresistible-dance',
+  'magnificent-mansion',
+  'meteor-swarm',
+  'mislead',
+  'phantom-steed',
+  'planar-ally',
+  'planar-binding',
+  'plant-growth',
+  'power-word-heal',
+  'power-word-kill',
+  'power-word-stun',
+  'protection-from-evil-and-good',
+  'raise-dead',
+  'reincarnate',
+  'revivify',
+  'secret-chest',
+  'silence',
+  'teleportation-circle',
+  'thaumaturgy',
+  'time-stop',
+  'true-resurrection',
+  'unseen-servant',
+  'wall-of-ice',
+  'wall-of-stone',
+  'wall-of-thorns',
+  'wind-wall',
+];
+
+const ADDED: readonly string[] = [...ADDED_FIRST, ...ADDED_SECOND].sort();
+
 describe('every spell this batch added is cast for real', () => {
   it('names them in an order two branches can both append to', () => {
-    expect(ADDED).toEqual([...ADDED].sort());
+    expect(ADDED_FIRST).toEqual([...ADDED_FIRST].sort());
+    expect(ADDED_SECOND).toEqual([...ADDED_SECOND].sort());
+  });
+
+  /** And the two batches are two batches: nothing is claimed by both. */
+  it('keeps the two passes apart', () => {
+    expect(ADDED_SECOND.filter((id) => ADDED_FIRST.includes(id))).toEqual([]);
+    expect(ADDED_SECOND.length).toBeGreaterThan(0);
   });
 
   /** Tracked, so every sweep above is already about every one of them. */
