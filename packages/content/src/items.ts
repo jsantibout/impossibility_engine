@@ -111,12 +111,16 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  *   a maximum of 30" after forty-eight hours of study outlives every rest
  *   and lands on a folded number rather than a derived one.
  *
- * Two more entries do print the set and are still out. The Belt of Giant
- * Strength keeps a second blocker — its versions are a table of its own —
- * and the Thunderous Greatclub's "your Strength is 20 unless your Strength
- * is already equal to or greater than that score" is one clause of six, the
- * other five being an area, a save, a condition, a rider and a damage roll
- * an item makes. The score is no longer what blocks either of them.
+ * Two more entries print the set and are still out, for different reasons,
+ * and the difference is where the number is. The Thunderous Greatclub prints
+ * its own — "your Strength is 20 unless your Strength is already equal to or
+ * greater than that score" — so the score has stopped being what blocks it,
+ * and what keeps it out is the other five clauses: an area, a save, a
+ * condition, a rider and a damage roll an item makes. The Belt of Giant
+ * Strength prints none: "your Strength changes to a score granted by the
+ * belt ... see the table below", and the table is five versions at four
+ * rarities. So the score is still its blocker as well as the versions, and
+ * it will stay one until a record can say which belt this is.
  */
 
 /** A `FeatureGrant` in the position an item puts one, named once. */
