@@ -11516,7 +11516,7 @@ export const SUMMON_DRAGON: SpellDefinition = {
  * > action or a Magic action to begin reverting ... Reverting takes 1 minute,
  * > during which the target has the Stunned condition."
  *
- * The minute of casting, the eight hours and the eleven creatures are real.
+ * The minute of casting, the eight hours and the ten creatures are real.
  * One sentence carries three different absences — a Fly Speed, a condition
  * immunity and a damage Resistance — and the sentence after it narrows a
  * creature's whole action list to two entries.

@@ -2223,13 +2223,18 @@ describe('a consumer count is a query', () => {
   it('names the largest blocker in the undefined population', () => {
     const ranked = [...allShapeConsumers()].sort((a, b) => b.blocks.length - a.blocks.length);
     expect(ranked[0]!.shape).toBe('an-action-a-spell-compels-or-forbids');
-    // **Moved from 20 to 15 by the third catalogue pass.** Not one of the
-    // twelve undefined spells this shape blocked was finished by building it,
-    // and ten of them were written as tracked definitions instead — so the
-    // consumers moved from the undefined column into the tracked one and the
-    // total fell by the two that are still held back. The ranking is
-    // unchanged, which is the point: a shape nobody has built is still the
-    // heaviest thing in the book.
+    // **Moved from 20 to 15 by the third catalogue pass, and the total fell
+    // further than the tracked column rose.** Twelve undefined spells named
+    // this shape; ten of them were written, and only two carry the claim into
+    // `TRACKED_ADJUDICATED` — Confusion and Tsunami, whose blocking sentences
+    // trip a mechanical marker. The other eight lost it, because the
+    // adjudication map is keyed by marker and their sentences trip none; what
+    // each of them says about the shape now lives in the definition's own
+    // `unmodelled`, which no consumer count reads. So `blocks` went 28 to 20
+    // while `tracked` went 4 to 6, and the eight-spell difference is the
+    // asymmetry between the two maps rather than eight gaps being closed.
+    // The ranking is unchanged, which is the point: a shape nobody has built
+    // is still the heaviest thing in the book.
     expect(ranked[0]!.blocks.length).toBeGreaterThan(15);
   });
 });
@@ -2489,7 +2494,7 @@ describe('a shape that gets built is content work, not a merge', () => {
   });
 });
 
-describe('a shape may finish nothing and still block forty-two spells', () => {
+describe('a shape may finish nothing and still block every long casting there is', () => {
   /**
    * **IE-034 built the largest blocker in the book and IE-036 spent it**, and
    * what is left is the state this file had not seen before: a shape with a
@@ -2536,13 +2541,14 @@ describe('a shape may finish nothing and still block forty-two spells', () => {
     // mechanism IE-034 built. **Moved from 30 to 10 by the second catalogue
     // pass, which wrote twenty-four more of them** — the floor follows the
     // population down and the count belongs to `COVERAGE.md`.
-    // **Moved from 10 to 3 by the third catalogue pass**, which wrote eight
+    // **Moved from 10 to 3 by the third catalogue pass**, which wrote ten
     // more of them — Antipathy/Sympathy, Astral Projection, Glyph of Warding,
     // Imprisonment, Magic Circle, Magic Jar, Simulacrum, Symbol, Tsunami and
     // Wind Walk. The floor follows the population down and the count belongs
-    // to `COVERAGE.md`; what is left in the undefined population is three
-    // spells and two of them are held back by a decision rather than by a
-    // mechanic, so this floor is near the end of being worth keeping.
+    // to `COVERAGE.md`; what is left is four spells, and Dream and Mirage
+    // Arcane are held back by a printed Range the oracle has no kind for
+    // rather than by any mechanic, so this floor is near the end of being
+    // worth keeping at all.
     expect(casting.blocks.length).toBeGreaterThan(3);
     expect(claimedShapes().has('a-long-casting-time')).toBe(true);
     for (const id of ['scrying', 'tiny-hut', 'private-sanctum', 'resurrection']) {
