@@ -97,8 +97,10 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  * - a **bounded delta with a lifetime** — an Ioun Stone's "Your Dexterity
  *   increases by 2, to a maximum of 20, while this deep-red sphere orbits
  *   your head", the Belt of Dwarvenkind's "Your Constitution increases by 2,
- *   to a maximum of 20", and the Thunderous Greatclub's +4 on top of
- *   whatever a belt already set. That is `ability-score-increase`'s
+ *   to a maximum of 20", and the Thunderous Greatclub's +4 on top of "the
+ *   Strength score bestowed by your _Belt of Giant Strength_ or _Gauntlets
+ *   of Ogre Power_" — which lands on one item still blocked and one this
+ *   paragraph has just transcribed. That is `ability-score-increase`'s
  *   arithmetic on a standing grant's lifetime, and neither member has both:
  *   the one with the arithmetic is answered at creation, and the one with
  *   the lifetime writes absolutes.
