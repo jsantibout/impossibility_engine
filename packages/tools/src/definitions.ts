@@ -946,8 +946,10 @@ const MOVE = tool({
       // name for them. Reported because the difference between `feetMoved` and
       // `movementCost` is otherwise an unexplained number: a caller told a
       // 15-foot walk cost 20 and not which ground took the other five has to
-      // narrate a slog it cannot see. It is also the only way the answer to a
-      // `route_required` is visibly *about* the patch the question named.
+      // narrate a slog it cannot see. The name is the caller's own, from
+      // `declare_difficult_terrain`, so this closes that loop too — the ground
+      // somebody declared comes back as the ground that charged. The
+      // `route_required` request itself names no patch; it names coordinates.
       (value) => ({
         feetMoved: value.feet,
         movementCost: value.cost,
