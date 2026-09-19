@@ -653,6 +653,104 @@ describe('every definition this batch executed resolves its own dice', () => {
   });
 
   /**
+   * SRD Fire Shield: "The warm shield grants you Resistance to Cold damage,
+   * and the chill shield grants you Resistance to Fire damage."
+   *
+   * **The one definition in this batch that rolls no dice of its own**, which
+   * is exactly why it needed driving rather than reading: an independent
+   * review turned `defense: 'resistant'` into `'immune'` and turned the
+   * stated-type list from Cold and Fire into Cold and Acid, and the whole
+   * suite stayed green for both. What a granted defence does is only visible
+   * in somebody else's damage, so that is what this measures — Ray of Frost,
+   * thrown at the shielded caster by a second creature, with and without the
+   * shield and under each of the two things the caster may state.
+   *
+   * Three castings, and the three answers are different numbers: no shield is
+   * full damage, the shield the caster asked Cold of is half, and the shield
+   * they asked Fire of is full again because Ray of Frost is Cold. An
+   * Immunity would read zero at the second, and a list naming Acid would be
+   * refused at the third.
+   */
+  it('halves the Cold that reaches a warm Fire Shield, and only the Cold', () => {
+    // The shield goes up out of combat, because it wants no turn order and
+    // the Cold that tests it does: Ray of Frost's halved Speed lasts "until
+    // the start of your next turn", which has no meaning outside a fight.
+    const shielded = (stated: string | null): readonly GameEvent[] => {
+      const raised =
+        stated === null
+          ? []
+          : unwrap(
+              resolveSpell(
+                base(),
+                CASTER,
+                {
+                  spellId: 'fire-shield',
+                  targets: [CASTER],
+                  slotLevel: 4,
+                  damageType: stated,
+                },
+                supply('shield', 40),
+              ),
+              `fire-shield stating ${stated}`,
+            ).events;
+      return [
+        ...SETUP,
+        ...raised,
+        // A second creature who knows one cantrip, because Fire Shield is
+        // Range Self and the caster cannot throw Cold at themselves. It acts
+        // first, so the Cold arrives on its own turn.
+        {
+          type: 'spellcasting-declared',
+          id: TARGET,
+          spellcasting: declaredCasting({ ability: 'int', cantrips: ['ray-of-frost'] }),
+        },
+        {
+          type: 'combat-started',
+          combatants: [
+            { id: TARGET, initiative: 20, speed: 30 },
+            { id: CASTER, initiative: 10, speed: 30 },
+            { id: BYSTANDER, initiative: 5, speed: 30 },
+          ],
+        },
+      ];
+    };
+
+    const over = (log: readonly GameEvent[]): readonly number[] =>
+      SEEDS.map((seed) => {
+        const out = unwrap(
+          resolveSpell(
+            fold('seed', log),
+            TARGET,
+            { spellId: 'ray-of-frost', targets: [CASTER] },
+            supply(seed, 40),
+          ),
+          'ray-of-frost',
+        );
+        return out.outcomes[0]?.attack?.hit === false ? -1 : (out.outcomes[0]?.damage ?? 0);
+      }).filter((damage) => damage >= 0);
+
+    const bare = over(shielded(null));
+    const warm = over(shielded('cold'));
+    const chill = over(shielded('fire'));
+    expect(bare.length).toBeGreaterThan(18);
+    expect(warm.length).toBe(bare.length);
+    expect(chill.length).toBe(bare.length);
+
+    // Halved, which an Immunity would read as nothing and no defence at all
+    // would read as the full number.
+    expect(mean(warm)).toBeLessThan(mean(bare) * 0.6);
+    expect(mean(warm)).toBeGreaterThan(mean(bare) * 0.4);
+    // And the other shield resists Fire, so the Cold comes through whole.
+    expect(chill).toEqual(bare);
+
+    // The two the book prints are the whole of the list, and a casting that
+    // states neither is refused rather than guessed at.
+    expect(SRD_CONTENT.spell('fire-shield')?.damageTypeStated).toEqual(['cold', 'fire']);
+    expect(isErr(statingType('fire-shield', 'acid'))).toBe(true);
+    expect(isErr(statingType('fire-shield', undefined))).toBe(true);
+  });
+
+  /**
    * SRD Searing Smite: "As you hit the target, it takes an extra 1d6 Fire
    * damage from the attack."
    *

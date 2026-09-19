@@ -7,7 +7,13 @@ import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent } from '@ie/engine';
 import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
-import { advanceTime, pendingCastingsOf, resolveDeclaredCast, resolveSpell } from '@ie/engine';
+import {
+  advanceTime,
+  pendingCastingsOf,
+  resolveDamage,
+  resolveDeclaredCast,
+  resolveSpell,
+} from '@ie/engine';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -429,13 +435,20 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * book the share of tracked spells with a mechanical sentence in them rises,
    * and it passed half on the batch that wrote fifty-five of them. What the
    * guard is for is unchanged — a marker list that fired on every paragraph
-   * would make the adjudication map a tax rather than a record — so the bound
-   * is a third rather than a half, and the number of spells on each side of
-   * it is `COVERAGE.md`'s to print rather than this file's.
+   * would make the adjudication map a tax rather than a record.
+   *
+   * **The new bound follows the population rather than clearing it.** A
+   * review caught the first attempt at this moving from a half to a third,
+   * which left nineteen spells of slack — the guard would then have tolerated
+   * the share falling by another third in silence, which is giving the claim
+   * away rather than restating it. The share is a shade under a half, so the
+   * bound is 45 per cent: close enough behind to move again when the
+   * catalogue does, and to have to say so when it moves. How many spells sit
+   * on each side is `COVERAGE.md`'s to print rather than this file's.
    */
   it('leaves a large part of the tracked bucket with nothing mechanical to explain', () => {
     const clean = TRACKED.filter((spellId) => markersIn(spellId).length === 0);
-    expect(clean.length).toBeGreaterThan(TRACKED.length / 3);
+    expect(clean.length).toBeGreaterThan(TRACKED.length * 0.45);
     // And the other side is non-empty too, or the sweep below checks nothing.
     expect(clean.length).toBeLessThan(TRACKED.length);
   });
@@ -923,6 +936,48 @@ describe('every spell this batch added is cast for real', () => {
       { type: 'time-advanced', seconds, reason: 'the party waits' },
     ]);
     expect(Object.keys(expired.timers), spellId).toHaveLength(0);
+  });
+
+  /**
+   * A count the book prints, driven rather than read back.
+   *
+   * **The oracle has no column for a target count**, so a definition saying
+   * one where the SRD says three would agree with every automatic check there
+   * is — a review turned Aid's three into one and nothing went red. What the
+   * catalogue can prove is the refusal: three are accepted and a fourth is
+   * not, which no wrong number sits between.
+   */
+  it('takes the three creatures Aid names, and refuses a fourth', () => {
+    expect(unwrap(cast('aid', { targets: [ALLY, FOE, BEAST] }), 'aid at three').castingId.length)
+      .toBeGreaterThan(0);
+    // "Choose up to three creatures within range", and the caster standing
+    // inside their own thirty feet is an eligible fourth rather than an
+    // illegal target — so what refuses this is the count.
+    const four = cast('aid', { targets: [ALLY, FOE, BEAST, WIZARD] });
+    expect(isErr(four)).toBe(true);
+    if (isErr(four)) expect(four.code).toBe('too_many_targets');
+  });
+
+  /**
+   * SRD Sanctuary: "The spell ends if the warded creature makes an attack
+   * roll, casts a spell, or deals damage."
+   *
+   * Invisibility's three causes on a casting with no effects under it, and
+   * the half of this spell the engine really does. Asserted by **driving**
+   * one of the three, because an equality check on the `endsEarly` list is
+   * the definition agreeing with itself: the ward goes up, the warded
+   * creature hurts somebody, and the casting is gone.
+   */
+  it('ends Sanctuary when the warded creature deals damage', () => {
+    const warded = [...SETUP, ...resolved('sanctuary', { targets: [ALLY] }).events];
+    expect(Object.keys(fold('seed', warded).ongoing)).toHaveLength(1);
+
+    const struck = unwrap(
+      resolveDamage(fold('seed', warded), FOE, { amount: 4, source: 'a mace', by: ALLY }, supply()),
+      'the ward is broken',
+    );
+    const after = fold('seed', [...warded, ...struck.events]);
+    expect(Object.keys(after.ongoing)).toHaveLength(0);
   });
 
   /** And every one of them tells the table what it is being left, verbatim. */

@@ -164,9 +164,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'charm-monster',
   'charm-person',
   'chill-touch',
+  'chromatic-orb',
   'circle-of-death',
   'compulsion',
   'cone-of-cold',
+  'conjure-fey',
   'counterspell',
   'cure-wounds',
   'dimension-door',
@@ -179,6 +181,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'fear',
   'finger-of-death',
   'fire-bolt',
+  'fire-shield',
   'fireball',
   'flame-blade',
   'flame-strike',
@@ -220,6 +223,7 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // are different axes, and while they were one state this spell could only be
   // recorded as the second. Saying "untested" of a spell with its own suite
   // would be the same report telling a different lie.
+  'sorcerous-burst',
   'spirit-guardians',
   'spiritual-weapon',
   // Driven end to end in `area-triggers.test.ts`: conjured at a point, a

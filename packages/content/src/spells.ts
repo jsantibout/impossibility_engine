@@ -1194,7 +1194,7 @@ export const SHATTER: SpellDefinition = {
 /**
  * SRD Cone of Cold:
  *
- * > _Level 5 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > _Level 5 Evocation (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
  * > **Range:** Self. **Duration:** Instantaneous.
  * > "Each creature in a 60-foot Cone originating from you makes a Constitution
  * > saving throw, taking 8d8 Cold damage on a failed save or half as much
@@ -2173,7 +2173,7 @@ export const FEAR: SpellDefinition = {
 /**
  * SRD Hypnotic Pattern:
  *
- * > _Level 3 Illusion (Bard, Druid, Sorcerer, Warlock, Wizard)._
+ * > _Level 3 Illusion (Bard, Sorcerer, Warlock, Wizard)._
  * > **Casting Time:** Action. **Range:** 120 feet.
  * > **Duration:** Concentration, up to 1 minute.
  * > "Each creature in the area who can see the pattern must succeed on a
@@ -2848,7 +2848,7 @@ export const VICIOUS_MOCKERY: SpellDefinition = {
 /**
  * SRD Grease:
  *
- * > _Level 1 Conjuration (Wizard)._ **Casting Time:** Action. **Range:** 60
+ * > _Level 1 Conjuration (Sorcerer, Wizard)._ **Casting Time:** Action. **Range:** 60
  * > feet. **Duration:** 1 minute.
  * > "Nonflammable grease covers the ground in a 10-foot square centered on a
  * > point within range and turns it into Difficult Terrain for the duration.
@@ -6374,7 +6374,7 @@ export const DETECT_THOUGHTS: SpellDefinition = {
 /**
  * SRD Enlarge/Reduce:
  *
- * > _Level 2 Transmutation (Artificer, Bard, Druid, Sorcerer, Wizard)._
+ * > _Level 2 Transmutation (Bard, Druid, Sorcerer, Wizard)._
  * > **Casting Time:** Action. **Range:** 30 feet.
  * > **Duration:** Concentration, up to 1 minute.
  * > "For the duration, the spell enlarges or reduces a creature or an object
@@ -6490,7 +6490,7 @@ export const PRIVATE_SANCTUM: SpellDefinition = {
 /**
  * SRD Resilient Sphere:
  *
- * > _Level 4 Abjuration (Artificer, Wizard)._ **Casting Time:** Action.
+ * > _Level 4 Abjuration (Wizard)._ **Casting Time:** Action.
  * > **Range:** 30 feet. **Duration:** Concentration, up to 1 minute.
  * > "A shimmering sphere encloses a Large or smaller creature or object within
  * > range. An unwilling creature must succeed on a Dexterity saving throw or
@@ -6807,7 +6807,7 @@ export const DRUIDCRAFT: SpellDefinition = {
 /**
  * SRD Elementalism:
  *
- * > _Transmutation Cantrip (Druid, Sorcerer, Warlock, Wizard)._
+ * > _Transmutation Cantrip (Druid, Sorcerer, Wizard)._
  * > **Casting Time:** Action. **Range:** 30 feet. **Duration:**
  * > Instantaneous.
  * > "You exert control over the elements, creating one of the following
@@ -7194,7 +7194,7 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
 /**
  * SRD Gust of Wind:
  *
- * > _Level 2 Evocation (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > _Level 2 Evocation (Druid, Ranger, Sorcerer, Wizard)._ **Casting Time:** Action.
  * > **Range:** Self. **Duration:** Concentration, up to 1 minute.
  * > "A Line of strong wind 60 feet long and 10 feet wide blasts from you in a
  * > direction you choose for the duration. Each creature in the Line must
@@ -7579,7 +7579,7 @@ export const CHROMATIC_ORB: SpellDefinition = {
 /**
  * SRD Expeditious Retreat:
  *
- * > _Level 1 Transmutation (Bard, Sorcerer, Warlock, Wizard)._
+ * > _Level 1 Transmutation (Sorcerer, Warlock, Wizard)._
  * > **Casting Time:** Bonus Action. **Range:** Self.
  * > **Duration:** Concentration, up to 10 minutes.
  * > "This spell lets you move at an incredible pace. When you cast this spell
@@ -7730,7 +7730,7 @@ export const SANCTUARY: SpellDefinition = {
 /**
  * SRD Searing Smite:
  *
- * > _Level 1 Evocation (Paladin, Ranger)._ **Casting Time:** Bonus Action,
+ * > _Level 1 Evocation (Paladin)._ **Casting Time:** Bonus Action,
  * > which you take immediately after hitting a target with a Melee weapon or
  * > an Unarmed Strike. **Range:** Self. **Duration:** 1 minute.
  * > "As you hit the target, it takes an extra 1d6 Fire damage from the
@@ -7838,7 +7838,10 @@ export const AID: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 3 },
+  // "Choose up to three creatures within range": a caster standing within
+  // thirty feet of themselves is one of them, and the SRD prints no clause
+  // excluding them. Three is the ceiling rather than a demand.
+  targets: { count: 3, self: true },
   effects: [],
   durationSeconds: 28_800,
   unmodelled: [
@@ -8554,7 +8557,7 @@ export const HEAT_METAL: SpellDefinition = {
 /**
  * SRD Flaming Sphere:
  *
- * > _Level 2 Conjuration (Druid, Wizard)._ **Casting Time:** Action.
+ * > _Level 2 Conjuration (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
  * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
  * > "You create a 5-foot-diameter sphere of fire in an unoccupied space on
  * > the ground within range. … Any creature that ends its turn within 5 feet
@@ -8663,7 +8666,7 @@ export const ARCANE_EYE: SpellDefinition = {
 /**
  * SRD Fire Shield:
  *
- * > _Level 4 Evocation (Druid, Wizard)._ **Casting Time:** Action.
+ * > _Level 4 Evocation (Druid, Sorcerer, Wizard)._ **Casting Time:** Action.
  * > **Range:** Self. **Duration:** 10 minutes.
  * > "Wispy flames wreathe your body for the duration, shedding Bright Light
  * > in a 10-foot radius and Dim Light for an additional 10 feet. The flames
@@ -8709,7 +8712,7 @@ export const FIRE_SHIELD: SpellDefinition = {
 /**
  * SRD Guardian of Faith:
  *
- * > _Level 4 Conjuration (Cleric, Paladin)._ **Casting Time:** Action.
+ * > _Level 4 Conjuration (Cleric)._ **Casting Time:** Action.
  * > **Range:** 30 feet. **Duration:** 8 hours.
  * > "A Large spectral guardian appears and hovers for the duration in an
  * > unoccupied space that you can see within range. The guardian occupies
@@ -8822,7 +8825,8 @@ export const ANTILIFE_SHELL: SpellDefinition = {
 /**
  * SRD Greater Restoration:
  *
- * > _Level 5 Abjuration (Bard, Cleric, Druid)._ **Casting Time:** Action.
+ * > _Level 5 Abjuration (Bard, Cleric, Druid, Paladin, Ranger)._
+ * > **Casting Time:** Action.
  * > **Range:** Touch. **Duration:** Instantaneous.
  * > "You touch a creature and magically remove one of the following effects
  * > from it: 1 Exhaustion level; the Charmed or Petrified condition; a curse,

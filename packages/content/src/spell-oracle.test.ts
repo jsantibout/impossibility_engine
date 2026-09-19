@@ -64,6 +64,53 @@ const printed = (id: string): ParsedSpell => {
 const CASES = SPELL_DEFINITIONS.map((d) => [d.id, d] as const);
 
 /**
+ * The quoted SRD header above each definition, and the classes it names.
+ *
+ * **The blockquote is the review surface and nothing was checking it.** Every
+ * definition in `spells.ts` opens with the book's own header — _Level 2
+ * Evocation (Druid, Ranger, Sorcerer, Wizard)._ — and a reader weighing
+ * whether a transcription is right reads that line before anything else. An
+ * independent review found **eleven** headers naming a class list the book
+ * does not print: four inventing a class, five dropping one, two doing both.
+ * Six were this batch's and five had been there for tranches.
+ *
+ * A wrong quotation inside a `>` is worse than a wrong comment, because it is
+ * attributed. So the class list joins Range, Duration and the casting time as
+ * a printed field held against the parsed book — and it is read out of the
+ * **source**, the way `spell-tracking.test.ts` reads the SRD's prose, because
+ * a docstring is not a value the runtime can be asked for.
+ *
+ * What is deliberately *not* asserted is that every definition has one: the
+ * eight built by a shared helper share a docstring, and a handful of the
+ * oldest print the school and the Ritual tag without a class list at all.
+ * Those are quiet rather than wrong. The count that is checked is how many
+ * headers were found, so a regex that stopped matching cannot pass by
+ * checking nothing.
+ */
+const SOURCE = readFileSync(
+  fileURLToPath(new URL('./spells.ts', import.meta.url)),
+  'utf8',
+).split('\n');
+
+/** The classes a definition's own blockquote names, or null where it names none. */
+const quotedClasses = (name: string): readonly string[] | null => {
+  const at = SOURCE.indexOf(` * SRD ${name}:`);
+  if (at < 0) return null;
+  for (let line = at + 1; line < Math.min(at + 12, SOURCE.length); line += 1) {
+    if (SOURCE[line]!.startsWith(' */')) return null;
+    // The header is the first italic run in the quote, and the school word is
+    // what tells it from a quoted sentence that happens to be emphasised.
+    const header = /^ \* > _(?:Level \d )?\w+(?: Cantrip)?((?: \([^)]*\))*)\._/.exec(SOURCE[line]!);
+    if (header === null) continue;
+    const groups = [...header[1]!.matchAll(/\(([^)]*)\)/g)].map((m) => m[1]!);
+    const classes = groups.filter((group) => group !== 'Ritual');
+    if (classes.length === 0) return null;
+    return classes[0]!.split(',').map((one) => one.trim().toLowerCase());
+  }
+  return null;
+};
+
+/**
  * The grammar has to cover the whole book, not the corner of it the catalogue
  * happens to use. A parser that silently returns null for a wording it does
  * not know reports no problems and checks nothing — the lesson
@@ -126,6 +173,30 @@ describe('the oracle reads every spell the book prints', () => {
       open: true,
     });
     expect(srdDuration('Until dispelled or triggered')?.open).toBe(true);
+  });
+});
+
+describe('every definition quotes the class list the book prints', () => {
+  const QUOTED = SPELL_DEFINITIONS.map((d) => [d.id, quotedClasses(d.name)] as const).filter(
+    (entry): entry is readonly [string, readonly string[]] => entry[1] !== null,
+  );
+
+  /** Most of the catalogue carries one, so the sweep is not checking nothing. */
+  it('finds a quoted class list on most of the catalogue', () => {
+    expect(QUOTED.length).toBeGreaterThan(SPELL_DEFINITIONS.length / 2);
+  });
+
+  it.each(QUOTED)('%s names the classes the SRD grants it', (id, quoted) => {
+    const book = SPELL_INDEX.find((spell) => spell.id === id);
+    expect(book, `${id} is not in the SRD index`).toBeDefined();
+    expect([...quoted].sort()).toEqual([...(book?.classes ?? [])].sort());
+  });
+
+  /** And the reader really can tell a wrong list from a right one. */
+  it('catches a class the book does not grant', () => {
+    const book = SPELL_INDEX.find((spell) => spell.id === 'fireball');
+    expect(book?.classes).toEqual(['sorcerer', 'wizard']);
+    expect([...(book?.classes ?? []), 'cleric'].sort()).not.toEqual([...(book?.classes ?? [])]);
   });
 });
 

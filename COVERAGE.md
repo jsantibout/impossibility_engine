@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 125 (36.9%) | 107 (31.6%) | 54 | 77 (22.7%) |
+| 339 | 125 (36.9%) | 107 (31.6%) | 54 | 81 (23.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -55,13 +55,13 @@ a plain statement of what the table decides.
 - **Charm Monster** (level 4) — verified
 - **Charm Person** (level 1) — verified
 - **Chill Touch** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
-- **Chromatic Orb** (level 1) — untested, partial — a clause the engine owns is still unbuilt
+- **Chromatic Orb** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Circle of Death** (level 6) — verified
 - **Cloudkill** (level 5) — untested, partial — a clause the engine owns is still unbuilt
 - **Color Spray** (level 1) — untested
 - **Compulsion** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Cone of Cold** (level 5) — verified
-- **Conjure Fey** (level 6) — untested
+- **Conjure Fey** (level 6) — verified
 - **Contagion** (level 5) — untested, partial — a clause the engine owns is still unbuilt
 - **Counterspell** (level 3) — verified
 - **Cure Wounds** (level 1) — verified
@@ -79,7 +79,7 @@ a plain statement of what the table decides.
 - **Fear** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Finger of Death** (level 7) — verified, partial — a clause the engine owns is still unbuilt
 - **Fire Bolt** (cantrip) — verified
-- **Fire Shield** (level 4) — untested, partial — a clause the engine owns is still unbuilt
+- **Fire Shield** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Fireball** (level 3) — verified
 - **Flame Blade** (level 2) — verified, partial — a clause the engine owns is still unbuilt
 - **Flame Strike** (level 5) — verified
@@ -129,7 +129,7 @@ a plain statement of what the table decides.
 - **Shield** (level 1) — untested, partial — a clause the engine owns is still unbuilt
 - **Shield of Faith** (level 1) — untested
 - **Shocking Grasp** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
-- **Sorcerous Burst** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
+- **Sorcerous Burst** (cantrip) — verified, partial — a clause the engine owns is still unbuilt
 - **Spirit Guardians** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Spiritual Weapon** (level 2) — verified
 - **Starry Wisp** (cantrip) — untested, partial — a clause the engine owns is still unbuilt
