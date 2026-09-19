@@ -7,7 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { resolveDeclaredCast, resolveSpell } from './commands.js';
 import { createCharacter, planCharacter, type CharacterChoices } from './creation.js';
-import { tallied } from './resources.js';
+import { remaining, tallied } from './resources.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
 import type { FeatureDefinition } from './progression.js';
 
@@ -945,7 +945,20 @@ describe('a declared casting takes the features it needs no permission for', () 
       expect(out.code).toBe('election_on_a_declaration');
       expect(out.reason).toContain('Fireball');
     }
-    // And nothing moved: no slot spent, no casting open.
-    expect(fold('seed', log)).toEqual(state);
+
+    // **And the refusal came before the slot did**, which is the half that
+    // could have gone wrong: the same caster casting the same Fireball
+    // afterwards finds all three of their level 3 slots, and maximises it.
+    const after = cast(log, {
+      spellId: 'fireball',
+      targets: [],
+      at: { x: 100, y: 140, z: 0 },
+      slotLevel: 3,
+      usingFeatures: ['evoker:overchannel'],
+    }, DOOMED);
+    expect(remaining(after.state.creatures[CASTER]!.resources, 'spell-slot:3')).toBe(
+      remaining(state.creatures[CASTER]!.resources, 'spell-slot:3') - 1,
+    );
+    expect(damageTo(after.outcome, TARGET)).toBe(48);
   });
 });

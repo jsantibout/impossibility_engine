@@ -1960,10 +1960,17 @@ export interface EffectRun {
    * rule: SRD Overchannel says "on the turn you cast it", and the other four
    * alter the damage the casting deals rather than the debts it leaves. Both
    * casting paths supply it — `resolveOnTargets` for one made now,
-   * `resolveDeclaredCast` for one made a minute ago — and what omits it is
-   * every run that is not a casting: an activation of a spell already running,
-   * an area settling later, a scheduled hit falling due, and an item's
-   * conferral. Each of those rolls what the definition prints.
+   * `resolveDeclaredCast` for one made a minute ago — and the three runs that
+   * are not castings omit it: an activation of a spell already running, an area
+   * settling later, and an item's conferral. Each of those rolls what the
+   * definition prints.
+   *
+   * A scheduled hit falling due is not in that list because it is not a run at
+   * all: `collectDueDamage` rolls and lands the debt itself and reaches neither
+   * {@link runEffects} nor {@link resolveEffects}. It prints the definition's
+   * dice for the same reason the three above do — a casting's alterations are
+   * spent on the turn it was made — and it would need its own reader to do
+   * anything else.
    *
    * The one thing a declared casting cannot carry is an *elected* feature,
    * because nothing on the declaration records one; it is refused there rather
