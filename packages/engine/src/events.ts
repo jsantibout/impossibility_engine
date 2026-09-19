@@ -434,6 +434,7 @@ export type GameEvent =
       readonly condition: ConditionName;
       /** Lift only this cause. Omitted, every instance of the condition goes. */
       readonly source?: string;
+      readonly command?: CommandStamp;
     }
   | {
       readonly type: 'exhaustion-set';

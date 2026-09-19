@@ -116,6 +116,22 @@ import {
 
 // — the shape of a definition —————————————————————————————————————————————
 
+/**
+ * **Several of the declarations below are exported for the DM's surface**,
+ * which lives under `dm/` and is built out of exactly the same plumbing: the
+ * `tool` factory, the `settle` protocol and its `settleEvents` shorthand, the
+ * `identity` that carries the transport's id, and the two converters that
+ * turn a caller's strings into the engine's vocabulary. A second copy of any
+ * of them would be a second answer to "what is an outcome", and the outcome
+ * is the contract both surfaces publish.
+ *
+ * The direction is one-way and structural. `dm/` imports this file; nothing
+ * here may import `dm/`, and `dm/boundary.test.ts` walks the imports out of
+ * `surface.ts` to prove it. `settle` in particular stays *here*, beside the
+ * only two `campaign.append` call sites in the package, because where the log
+ * is written is a fact worth being able to count.
+ */
+
 export interface ToolContext {
   readonly campaign: Campaign;
   /**
@@ -142,7 +158,7 @@ export interface ToolDefinition {
   invoke(context: ToolContext, raw: unknown): ToolOutcome;
 }
 
-interface ToolSpec<S extends z.ZodType> {
+export interface ToolSpec<S extends z.ZodType> {
   readonly name: string;
   readonly description: string;
   readonly mutates: boolean;
@@ -163,7 +179,7 @@ const issuesOf = (error: z.ZodError): readonly ArgumentIssue[] =>
     message: issue.message,
   }));
 
-function tool<S extends z.ZodType>(spec: ToolSpec<S>): ToolDefinition {
+export function tool<S extends z.ZodType>(spec: ToolSpec<S>): ToolDefinition {
   return {
     name: spec.name,
     description: spec.description,
@@ -196,7 +212,7 @@ function tool<S extends z.ZodType>(spec: ToolSpec<S>): ToolDefinition {
  * There is no path from a tool to the log that does not pass through an
  * engine command, which is invariant 1 kept by construction.
  */
-function settle<T>(
+export function settle<T>(
   context: ToolContext,
   result: Result<T>,
   eventsOf: (value: T) => readonly GameEvent[],
@@ -210,7 +226,7 @@ function settle<T>(
 }
 
 /** The common case: a command that answers with nothing but its events. */
-const settleEvents = (
+export const settleEvents = (
   context: ToolContext,
   result: Result<readonly GameEvent[]>,
   resolution: Readonly<Record<string, unknown>> = {},
@@ -230,7 +246,7 @@ const settleEvents = (
  * creature's Speed changed is answered `command_id_reused` rather than as a
  * duplicate, because the Speed is pinned into the fingerprint.
  */
-const identity = (context: ToolContext, suffix = ''): { commandId: string } => ({
+export const identity = (context: ToolContext, suffix = ''): { commandId: string } => ({
   commandId: suffix === '' ? context.commandId : `${context.commandId}:${suffix}`,
 });
 
@@ -284,7 +300,7 @@ function choicesOf(input: z.infer<typeof characterChoicesSchema>): CharacterChoi
   };
 }
 
-const who = (id: string): CharacterId => asCharacterId(id);
+export const who = (id: string): CharacterId => asCharacterId(id);
 
 const point = (input: z.infer<typeof pointSchema>): Point => ({
   x: input.x,
@@ -303,7 +319,7 @@ const placementOf = (input: z.infer<typeof placementSchema>): Placement => ({
   ...(input.size === undefined ? {} : { size: input.size }),
 });
 
-const senses = (input: {
+export const senses = (input: {
   readonly requiresSight?: boolean | undefined;
   readonly requiresHearing?: boolean | undefined;
 }): { senses?: { requiresSight?: boolean; requiresHearing?: boolean } } => {

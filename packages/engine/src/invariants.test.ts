@@ -47,6 +47,7 @@ import {
   useFreeObjectInteraction,
   applyConditionTo,
   applySpellEffect,
+  liftConditionFrom,
   damageCreature,
   declareCreatureType,
   declineOpportunity,
@@ -1208,6 +1209,17 @@ const GUARDED: readonly Guarded[] = [
     name: 'applyConditionTo',
     log: SETUP,
     run: (s, commandId) => applyConditionTo(s, B, 'frightened', 'a dragon', [], undefined, undefined, { commandId }),
+  },
+  {
+    /**
+     * And the other half of the pair, which a DM reaches for exactly as
+     * often: the ruling that imposed a condition is over. It emits one
+     * `condition-removed` and nothing else, so the stamp has nowhere to ride
+     * but that event — the shape this sweep exists to catch.
+     */
+    name: 'liftConditionFrom',
+    log: [...SETUP, { type: 'condition-applied', id: B, condition: 'frightened', source: 'a dragon' }],
+    run: (s, commandId) => liftConditionFrom(s, B, 'frightened', 'a dragon', { commandId }),
   },
   {
     name: 'endConcentration',
@@ -2910,6 +2922,12 @@ describe('unknown is not no', () => {
       name: 'spending a charge for somebody nobody has added',
       run: () =>
         expendCharges(fold('s', SETUP), SRD_CONTENT, id('the-porter'), 'wand-of-secrets'),
+    },
+    {
+      // And lifting one from them. Saying a creature is no longer Frightened
+      // is a claim that it exists; the record being thin is not a rule.
+      name: 'lifting a condition from somebody nobody has declared',
+      run: () => liftConditionFrom(fold('s', SETUP), id('the-ostler'), 'frightened'),
     },
     {
       name: 'rolling a test for somebody nobody has declared',

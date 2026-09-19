@@ -1,81 +1,29 @@
 /**
- * The door itself: a name, some arguments, and one of four outcomes.
+ * The model's door: twenty-four tools, and not one of them takes a number the
+ * caller produced.
  *
- * Everything above the engine goes through `call`. It never throws for
- * anything a caller could have sent — an unknown tool, malformed arguments,
- * a rules refusal and a missing fact are all *values*, which is invariant 6
- * carried up one layer. An exception escaping this function is a programmer
- * error in the tools package and should be read as one.
+ * That rule is `definitions.ts`'s to argue and this file's to *hold to*, by
+ * being the one place the model's list is turned into something callable.
+ * There is no second argument: a caller cannot hand this factory a different
+ * list, and it can see no list but `TOOLS` — `dm/boundary.test.ts` walks the
+ * imports out of this file and asserts that nothing under `dm/` is reachable
+ * from any of them.
  *
- * The surface holds no state of its own. The {@link Campaign} holds the log;
- * this is a dispatch table over it, so two surfaces over one campaign are the
- * same surface.
+ * The other door is {@link createDmSurface}, one directory down. Both are
+ * published, because "separately obtainable" is the point: a model-driven
+ * session builds this one and never holds a tool that takes a DC, an amount
+ * or a span of time. Neither surface can reach the external-roll functions,
+ * which is the line beneath both.
+ *
+ * The mechanism they share is {@link createDispatch}, which is not published.
  */
 
 import type { Campaign } from './campaign.js';
-import type { ToolDefinition } from './definitions.js';
+import { createDispatch, type Surface } from './dispatch.js';
 import { TOOLS } from './definitions.js';
-import type { ContextRequestKind, ToolOutcome } from './outcome.js';
-import { invalid } from './outcome.js';
-import { observe, type Observation } from './observe.js';
 
-export interface ToolCall {
-  /** Which tool. */
-  readonly tool: string;
-  /** Its arguments, exactly as they arrived. Validated, never trusted. */
-  readonly input: unknown;
-  /**
-   * The transport's `tool_use.id`.
-   *
-   * Required, and deliberately not something the caller's arguments may
-   * carry: it is the idempotency key, and a caller that chose its own could
-   * choose a fresh one on a retry — which is precisely the failure the key
-   * exists to absorb.
-   */
-  readonly commandId: string;
-}
+export type { Surface, ToolCall } from './dispatch.js';
 
-export interface Surface {
-  /** Every tool, in the stable sorted order the prompt cache depends on. */
-  readonly tools: readonly ToolDefinition[];
-  /** Which tools declare that they establish a given `ContextRequest.kind`. */
-  doorsFor(kind: ContextRequestKind): readonly string[];
-  /** Run one call. Four outcomes; no exceptions for anything a caller sent. */
-  call(request: ToolCall): ToolOutcome;
-  /** The authoritative state, for a caller between calls. */
-  observe(): Observation;
-}
-
-export function createSurface(campaign: Campaign, tools: readonly ToolDefinition[] = TOOLS): Surface {
-  const byName = new Map(tools.map((definition) => [definition.name, definition]));
-
-  const doors = new Map<ContextRequestKind, string[]>();
-  for (const definition of tools) {
-    for (const kind of definition.establishes) {
-      const found = doors.get(kind);
-      if (found === undefined) doors.set(kind, [definition.name]);
-      else found.push(definition.name);
-    }
-  }
-
-  const doorsFor = (kind: ContextRequestKind): readonly string[] => doors.get(kind) ?? [];
-
-  return {
-    tools,
-    doorsFor,
-    observe: () => observe(campaign.state()),
-    call(request: ToolCall): ToolOutcome {
-      const definition = byName.get(request.tool);
-      if (definition === undefined) {
-        return invalid(
-          'unknown_tool',
-          `${request.tool} is not a tool on this surface; the tools are ${[...byName.keys()].join(', ')}`,
-        );
-      }
-      return definition.invoke(
-        { campaign, commandId: request.commandId, doorsFor },
-        request.input,
-      );
-    },
-  };
+export function createSurface(campaign: Campaign): Surface {
+  return createDispatch(campaign, TOOLS);
 }

@@ -63,7 +63,7 @@ export {
   setExhaustionLevel,
 } from './commands/creatures.js';
 export type { AddCreatureOutcome, DamageCommand } from './commands/creatures.js';
-export { applyConditionTo, whyCondition } from './commands/conditions.js';
+export { applyConditionTo, liftConditionFrom, whyCondition } from './commands/conditions.js';
 export { declareCreatureType } from './commands/facts.js';
 export {
   declareCreatureDead,

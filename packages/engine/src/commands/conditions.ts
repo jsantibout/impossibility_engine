@@ -17,7 +17,7 @@ import {
   type RepeatSave,
   resolveDuration,
 } from '../duration.js';
-import { type GameEvent, type GameState } from '../events.js';
+import { type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { castingIdOf } from '../spells.js';
 import { conditionImmunitiesOf } from '../standing.js';
@@ -167,12 +167,82 @@ export function applyConditionTo(
  * nothing. A caller that wants to report whether anything was actually cured
  * asks the creature first; that is a question about the outcome rather than
  * about the removal, and only one of the two callers has an outcome to report.
+ *
+ * **`source` is the other reading, and it is not the SRD's.** The paragraph
+ * above is about a rule that ends *a condition*, and neither of the two
+ * callers inside the engine passes one. {@link liftConditionFrom} does: a DM
+ * ending a ruling of their own is making a claim about **one cause** — the
+ * chandelier is off the goblin, and the dragon is still a dragon — and the
+ * event already carries the field the reducer narrows on. One builder either
+ * way, so the two readings cannot drift into two removals.
+ *
+ * **`stamp` is passed in rather than added afterwards** for the same reason.
+ * A command that wanted to identify its removal could spread the stamp onto
+ * what came back, and then the event would be built in two places — here, and
+ * wherever the spread was written. The builder still builds the whole event;
+ * a caller with no identity to record passes nothing and gets what it always
+ * got.
  */
 export function endConditionsOn(
   id: CharacterId,
   conditions: readonly ConditionName[],
+  source?: string,
+  stamp: CommandStamp | null = null,
 ): readonly GameEvent[] {
-  return conditions.map((condition) => ({ type: 'condition-removed', id, condition }));
+  return conditions.map((condition) => ({
+    type: 'condition-removed',
+    id,
+    condition,
+    ...(source === undefined ? {} : { source }),
+    ...(stamp === null ? {} : { command: stamp }),
+  }));
+}
+
+/**
+ * Take a condition off a creature, as a command rather than as a batch.
+ *
+ * {@link endConditionsOn} is a *builder*, and that is right for its two
+ * callers: `useHealingTouch` and the `end-condition` spell effect are already
+ * inside commands of their own, which spend the pool, hold the identity and
+ * carry the stamp. It is wrong for the only other caller there could be — the
+ * layer above the engine, where a DM who ruled a creature Frightened now rules
+ * that it is over. Handing that caller the builder would append events no
+ * command identified, so a retried "it is over" is a second `condition-removed`
+ * nothing can tell from the first, and `appliedCommands` never hears about
+ * either.
+ *
+ * So this is the builder with what every sibling has around it: the creature
+ * must exist, the event carries the stamp, a retry does nothing, and an id
+ * reused for different work is refused. **It is the same builder**, called
+ * rather than copied, so which instances go is decided in one place and the
+ * reading above stays one reading.
+ *
+ * One condition rather than a list, because a command is one intent: a ruling
+ * that ends two conditions at once is two rulings and two ids, and a list
+ * under one id would make a partial retry unanswerable.
+ *
+ * **A creature nobody has added is homework.** Saying a creature is no longer
+ * Frightened is a claim that it exists, and absence from the record is not
+ * evidence that it does not.
+ */
+export function liftConditionFrom(
+  state: GameState,
+  id: CharacterId,
+  condition: ConditionName,
+  /** Lift only this cause. Omitted, every reason for the condition goes. */
+  source?: string,
+  command: CommandIdentity = {},
+): Result<readonly GameEvent[]> {
+  return once(
+    state,
+    `lift-condition:${id}`,
+    { ...command, condition, ...(source === undefined ? {} : { source }) },
+    () => [],
+    (stamp) => {
+      if (creatureOf(state, id) === null) return unknownCreature(id);
+      return ok(endConditionsOn(id, [condition], source, stamp));
+    },
+  );
 }
 
 /**
