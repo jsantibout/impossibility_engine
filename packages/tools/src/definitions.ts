@@ -30,6 +30,9 @@
  * | `difficultFeet` on a move | the move's own distance. Declared terrain, on the same grounds as cover: five of SRD's six cases are fiction, and working them out means modelling the room. Its only direction of abuse is self-harm |
  * | `route` on a move, `via` on an activation | `checkRoute`, which takes only a walk of single spaces between two endpoints the engine worked out itself — and then charges what its own ground says. A route is which way somebody went, and the cost of going that way is never the caller's |
  * | `damageType` on a casting | the list the spell prints. A handful print one — Chromatic Orb, Sorcerous Burst, Protection from Energy, Fire Shield, Spirit Guardians — and the SRD leaves which lands to the caster or to what the caster is; the engine refuses to choose, and refused to hear an answer until this field existed |
+ * | `fought` on a casting | the roster. Which creatures you are already fighting is a fact about the fiction — the Charms roll *the target's* save with Advantage for it, so naming one is against the caster's own interest — and an empty list is the answer "none of them" |
+ * | `teleportTo` on a casting | the distance the spell prints, the space being unoccupied, the scene's extent and declared sight. A placement like every other, measured from a landmark or a creature |
+ * | `slotKind`, `payment`, `source` on a casting | resource *choices* of the same kind as `slotLevel`: which of two pools a Warlock multiclass spends, whether a grant's free casting or a slot pays, which class or feature casts it. Each is refused unless the caster actually has it |
  *
  * The consequence is deliberate: an action the engine does not model has no
  * legal path through this surface at step one. It finds a rule the engine
@@ -38,13 +41,18 @@
  * ## What the slice covers
  *
  * Enough to run a fight end to end, and nothing beyond it. Initiative, the
- * scene and the facts a fight needs declared — sides, types, sight, cover and
- * where the ground is rough — movement, attacks, casting, acting again through
- * a spell already running, conditions applied and ended, the two engine debts
- * that can wedge a fight (a held move, an owed area effect), the turn
- * boundary, and the three queries a caller needs to choose among them. Rests,
- * advancement, inventory, equipment, items, readied actions, teleportation and
- * mounts are all left for later batches; none of them is needed to fight.
+ * scene and the facts a fight needs declared — sides, types, sight, cover,
+ * where the ground is rough and who is falling — movement, attacks, casting,
+ * acting again through a spell already running, conditions applied and ended,
+ * the two engine debts that can wedge a fight (a held move, an owed area
+ * effect), the turn boundary, and the three queries a caller needs to choose
+ * among them. Rests, advancement, inventory, equipment, items, readied
+ * actions and mounts are all left for later batches; none of them is needed
+ * to fight.
+ *
+ * A spell's *own* teleport is here, since `cast_spell.teleportTo` is the
+ * field Misty Step's refusal names; a `teleport` tool moving a creature for
+ * reasons of its own is not, and is still a later batch's.
  *
  * ## Why each tool declares what it establishes
  *
@@ -79,6 +87,7 @@ import {
   declareCreatureSide,
   declareCreatureType,
   declareDifficultTerrain,
+  declareFalling,
   declareSightBetween,
   declineOpportunity,
   eligibleTargets,
@@ -802,6 +811,50 @@ const DECLARE_DIFFICULT_TERRAIN = tool({
 });
 
 /**
+ * Say that a creature is falling — the fourth declared fact, and the one
+ * *Feather Fall* waits for.
+ *
+ * `declareFalling` landed in the engine with a Reaction window, a trigger
+ * rule and a target rule, and reached no tool. The consequence was the shape
+ * this whole sweep is about: SRD Feather Fall is a spell the engine casts for
+ * real — a level 1 slot, a Reaction, a minute on the clock, five targets each
+ * checked for being within range and actually falling — and a model-driven
+ * session could not cast it, because nothing it could say made anybody
+ * falling. Every attempt was `no_trigger`, which is a true answer to a
+ * question the caller had no way to change.
+ *
+ * It is declared for the reason cover, sight and rough ground are: the engine
+ * drops nobody off anything. A ledge gives way, a rope parts, a Reverse
+ * Gravity ends — all of it is fiction, and deducing a fall would mean
+ * modelling the room.
+ *
+ * **What it does not take is the point.** No height, no rate, no landing: the
+ * SRD gives the rate as "60 feet per round" against a distance it leaves to
+ * the DM, so a field for either would be this surface asking a caller to
+ * produce the one number the engine exists not to invent. The fall is a
+ * moment, worth exactly one Reaction window, and the engine closes it on the
+ * turn or the clock with nothing to take back and nothing to call afterwards.
+ *
+ * Re-declaring under a fresh call is a second fall rather than a
+ * contradiction — somebody pushed off a second ledge a minute later is
+ * falling again — and a transport's retry is told apart from that by the
+ * command id, as everywhere else.
+ */
+const DECLARE_FALLING = tool({
+  name: 'declare_falling',
+  description:
+    'Say that a creature is falling, right now — the ledge gave way, the rope parted, they were thrown off the bridge. It opens the moment a Reaction can answer: Feather Fall is cast on a creature somebody has said is falling, and nothing else makes that true. Say it as the fall happens; the moment closes when the turn or the clock moves on. Give no height and no distance — how far they fall and what the landing costs are yours to narrate and the engine never asks.',
+  mutates: true,
+  input: z.object({ who: creatureId.describe('The creature coming off whatever they were on.') }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareFalling(context.campaign.state(), who(args.who), identity(context)),
+      { established: 'falling', who: args.who },
+    ),
+});
+
+/**
  * Roll Initiative, and put the rolls where they belong.
  *
  * **Nobody supplies a number.** The Initiative total is the engine's, and so
@@ -1015,6 +1068,33 @@ const ATTACK = tool({
     ),
 });
 
+/**
+ * Cast a spell — and state the facts a casting states rather than derives.
+ *
+ * **Five of the fields below exist because the engine refuses without them.**
+ * `resolveSpell` answers `fought_fact_required`, `destination_required`,
+ * `slot_kind_required`, `payment_required` and `class_required` naming
+ * exactly what it wants, before a slot is spent; each names a field of
+ * `CastSpellRequest`, and until now this tool had none of them. A refusal a
+ * caller cannot act on is the defect `routes.test.ts` was written about
+ * standing one layer up, and the cost was concrete: Charm Person, Charm
+ * Monster and Animal Friendship all print the fighting clause, Misty Step and
+ * Dimension Door both teleport, and none of the five was castable from the
+ * surface that exists to cast spells. `doors.test.ts` derives that list from
+ * the engine's own refusal codes so the next one cannot land quietly.
+ *
+ * **None of them is a number the caller produced**, which is the rule that
+ * decided they could be here at all. `fought` and `teleportTo` are facts —
+ * who is already in melee with whom, which space somebody blinks to — and the
+ * engine validates both against what it holds: an unknown creature is
+ * refused, a duplicate is refused, and a destination is checked for distance,
+ * occupancy, the scene's extent and declared sight. `slotKind`, `payment` and
+ * `source` are resource *choices* exactly as `slotLevel` already is: which of
+ * two pools, whether the day's free casting or a slot, which of two classes
+ * prepared it. Each changes which resource is spent and which spellcasting
+ * ability applies; none states what anything costs, and the engine refuses
+ * any of them that the caster does not actually have.
+ */
 const CAST_SPELL = tool({
   name: 'cast_spell',
   description:
@@ -1038,6 +1118,36 @@ const CAST_SPELL = tool({
       .describe(
         'Which of the types a spell prints this casting uses, for the few that print a list and leave the choice to the caster or to what the caster is — Spirit Guardians’ Radiant or Necrotic, Chromatic Orb’s whole list, Protection from Energy’s. Leaving it out for one of those is refused, and so is naming one for a spell that prints a single type.',
       ),
+    fought: z
+      .array(creatureId)
+      .optional()
+      .describe(
+        'Which of the targets you or your allies are already fighting, for a spell that prints the clause — Charm Person and Charm Monster roll that creature’s save with Advantage. A list, because an upcast Charm names several and the answer differs per creature. Send an empty list to say you are fighting none of them; leaving it out entirely is refused, because silence is not an answer the engine may fill in.',
+      ),
+    teleportTo: placementSchema
+      .optional()
+      .describe(
+        'Where a teleporting spell puts its target — Misty Step’s "unoccupied space you can see", Dimension Door’s "the spot desired". Measured from a landmark or a creature like every other destination, never as a raw coordinate. The engine checks the distance, the space and the sight; which space is yours.',
+      ),
+    slotKind: z
+      .enum(['spell', 'pact'])
+      .optional()
+      .describe(
+        'Which pool the slot comes out of, for a Warlock multiclassed into another caster: Pact Magic and Spellcasting are different resources at the same level, and the engine will not choose between them.',
+      ),
+    payment: z
+      .enum(['slot', 'free-casting'])
+      .optional()
+      .describe(
+        'How to pay, when a feature grants a free casting and a slot would also serve — Magic Initiate’s once-a-day spell is the common one. Spending the day’s free casting instead of a slot is a decision, so the engine refuses to default it.',
+      ),
+    source: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which route casts it, when more than one would serve: `class:<classId>` for one of a multiclass caster’s classes, or a granting feature’s id. Each brings its own spellcasting ability and therefore its own save DC, which is why the engine asks rather than picking.',
+      ),
   }),
   run: (context, args) => {
     const state = context.campaign.state();
@@ -1051,6 +1161,15 @@ const CAST_SPELL = tool({
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
       ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
+      // **An empty `fought` is an answer and is never elided.** "We are
+      // fighting none of them" is a fact the caster stated; absence is a
+      // caller who has not read the spell, and the engine tells the two
+      // apart. Every other stated fact here is absent-or-present.
+      ...(args.fought === undefined ? {} : { fought: args.fought.map(who) }),
+      ...(args.teleportTo === undefined ? {} : { teleportTo: placementOf(args.teleportTo) }),
+      ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
+      ...(args.payment === undefined ? {} : { payment: args.payment }),
+      ...(args.source === undefined ? {} : { source: args.source }),
       ...identity(context),
     };
     return settle(
@@ -1357,6 +1476,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLARE_COVER,
   DECLARE_CREATURE_TYPE,
   DECLARE_DIFFICULT_TERRAIN,
+  DECLARE_FALLING,
   DECLARE_SIDE,
   DECLARE_SIGHT,
   DECLINE_OPPORTUNITY,
