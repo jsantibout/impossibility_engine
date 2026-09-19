@@ -70,9 +70,10 @@ const CASES = SPELL_DEFINITIONS.map((d) => [d.id, d] as const);
  * definition in `spells.ts` opens with the book's own header — _Level 2
  * Evocation (Druid, Ranger, Sorcerer, Wizard)._ — and a reader weighing
  * whether a transcription is right reads that line before anything else. An
- * independent review found **eleven** headers naming a class list the book
- * does not print: four inventing a class, five dropping one, two doing both.
- * Six were this batch's and five had been there for tranches.
+ * independent review found **thirteen** headers naming a class list the book
+ * does not print: seven inventing a class — two of them an Artificer, which
+ * SRD 5.2.1 has no such thing as — and six dropping one. Six were this
+ * batch's and seven had been there for tranches.
  *
  * A wrong quotation inside a `>` is worse than a wrong comment, because it is
  * attributed. So the class list joins Range, Duration and the casting time as
@@ -80,28 +81,42 @@ const CASES = SPELL_DEFINITIONS.map((d) => [d.id, d] as const);
  * **source**, the way `spell-tracking.test.ts` reads the SRD's prose, because
  * a docstring is not a value the runtime can be asked for.
  *
- * What is deliberately *not* asserted is that every definition has one: the
- * eight built by a shared helper share a docstring, and a handful of the
- * oldest print the school and the Ritual tag without a class list at all.
- * Those are quiet rather than wrong. The count that is checked is how many
- * headers were found, so a regex that stopped matching cannot pass by
- * checking nothing.
+ * **The whole quote is read rather than its first line.** The first version
+ * of this matched one line, so a header long enough to wrap — Dispel Magic
+ * lists eight classes — parsed as nothing and was skipped in silence, which
+ * is the same guard failing the way it was written to catch. A skipped entry
+ * is now a named one: {@link NO_CLASS_LIST} is written out, so a header that
+ * stops parsing fails here rather than quietly leaving the population.
  */
-const SOURCE = readFileSync(
+const SOURCE: readonly string[] = readFileSync(
   fileURLToPath(new URL('./spells.ts', import.meta.url)),
   'utf8',
 ).split('\n');
 
-/** The classes a definition's own blockquote names, or null where it names none. */
-const quotedClasses = (name: string): readonly string[] | null => {
-  const at = SOURCE.indexOf(` * SRD ${name}:`);
+/**
+ * The classes a definition's own blockquote names, or null where it names
+ * none.
+ *
+ * Parameterised over the lines rather than reading the file, so the guard can
+ * be driven against a header built to be caught — a rule this repository
+ * already follows for `coverageGaps` and for every marker sweep.
+ */
+const quotedClasses = (lines: readonly string[], name: string): readonly string[] | null => {
+  const at = lines.indexOf(` * SRD ${name}:`);
   if (at < 0) return null;
-  for (let line = at + 1; line < Math.min(at + 12, SOURCE.length); line += 1) {
-    if (SOURCE[line]!.startsWith(' */')) return null;
-    // The header is the first italic run in the quote, and the school word is
-    // what tells it from a quoted sentence that happens to be emphasised.
-    const header = /^ \* > _(?:Level \d )?\w+(?: Cantrip)?((?: \([^)]*\))*)\._/.exec(SOURCE[line]!);
-    if (header === null) continue;
+  for (let line = at + 1; line < Math.min(at + 12, lines.length); line += 1) {
+    if (lines[line]!.startsWith(' */')) return null;
+    if (!lines[line]!.startsWith(' * > _')) continue;
+    // The italic run may wrap, so the quote is joined until it closes. The
+    // school word is what tells a header from a quoted sentence that happens
+    // to be emphasised.
+    let quote = '';
+    for (let more = line; more < lines.length && lines[more]!.startsWith(' * > '); more += 1) {
+      quote = `${quote}${quote === '' ? '' : ' '}${lines[more]!.slice(' * > '.length)}`;
+      if (quote.includes('._')) break;
+    }
+    const header = /^_(?:Level \d )?\w+(?: Cantrip)?((?: \([^)]*\))*)\._/.exec(quote);
+    if (header === null) return null;
     const groups = [...header[1]!.matchAll(/\(([^)]*)\)/g)].map((m) => m[1]!);
     const classes = groups.filter((group) => group !== 'Ritual');
     if (classes.length === 0) return null;
@@ -110,12 +125,6 @@ const quotedClasses = (name: string): readonly string[] | null => {
   return null;
 };
 
-/**
- * The grammar has to cover the whole book, not the corner of it the catalogue
- * happens to use. A parser that silently returns null for a wording it does
- * not know reports no problems and checks nothing — the lesson
- * `packages/srd/raw` taught when `animals.md` yielded 0 creatures.
- */
 describe('the oracle reads every spell the book prints', () => {
   it('measures against the whole SRD, not a sample', () => {
     expect(SPELL_INDEX.length).toBe(339);
@@ -176,27 +185,122 @@ describe('the oracle reads every spell the book prints', () => {
   });
 });
 
+/**
+ * The definitions whose blockquote names no class list at all, by name.
+ *
+ * **A skipped entry has to be a named one.** A run of the oldest definitions
+ * print the school and a Ritual tag and stop — _Evocation Cantrip._,
+ * _Level 1 Divination (Ritual)._ — which is quiet rather than wrong, and a
+ * bound on how many headers were *found* cannot tell one of those from a
+ * header the parser stopped understanding. Dispel Magic was in this set for
+ * exactly one commit, because its eight classes wrap onto a second line and
+ * nothing said so.
+ */
+const NO_CLASS_LIST: readonly string[] = [
+  'comprehend-languages',
+  'darkvision',
+  'detect-magic',
+  'dimension-door',
+  'disguise-self',
+  'divine-favor',
+  'fire-bolt',
+  'fly',
+  'heroism',
+  'hold-person',
+  'hunters-mark',
+  'jump',
+  'light',
+  'longstrider',
+  'mage-armor',
+  'mage-hand',
+  'misty-step',
+  'prestidigitation',
+  'speak-with-animals',
+  'spider-climb',
+  'tree-stride',
+  'water-breathing',
+];
+
 describe('every definition quotes the class list the book prints', () => {
-  const QUOTED = SPELL_DEFINITIONS.map((d) => [d.id, quotedClasses(d.name)] as const).filter(
+  const quoted = (id: string): readonly string[] | null => {
+    const definition = SPELL_DEFINITIONS.find((d) => d.id === id);
+    return definition === undefined ? null : quotedClasses(SOURCE, definition.name);
+  };
+
+  const QUOTED = SPELL_DEFINITIONS.map((d) => [d.id, quotedClasses(SOURCE, d.name)] as const).filter(
     (entry): entry is readonly [string, readonly string[]] => entry[1] !== null,
   );
 
-  /** Most of the catalogue carries one, so the sweep is not checking nothing. */
-  it('finds a quoted class list on most of the catalogue', () => {
-    expect(QUOTED.length).toBeGreaterThan(SPELL_DEFINITIONS.length / 2);
+  /** Every definition carries one, or is on the list that says it does not. */
+  it('reads a class list off every definition but the ones named here', () => {
+    const silent = SPELL_DEFINITIONS.filter((d) => quoted(d.id) === null).map((d) => d.id);
+    expect([...silent].sort()).toEqual([...NO_CLASS_LIST].sort());
   });
 
-  it.each(QUOTED)('%s names the classes the SRD grants it', (id, quoted) => {
+  it('names them in an order two branches can both append to', () => {
+    expect(NO_CLASS_LIST).toEqual([...NO_CLASS_LIST].sort());
+  });
+
+  it.each(QUOTED)('%s names the classes the SRD grants it', (id, list) => {
     const book = SPELL_INDEX.find((spell) => spell.id === id);
     expect(book, `${id} is not in the SRD index`).toBeDefined();
-    expect([...quoted].sort()).toEqual([...(book?.classes ?? [])].sort());
+    expect([...list].sort()).toEqual([...(book?.classes ?? [])].sort());
   });
 
-  /** And the reader really can tell a wrong list from a right one. */
+  /**
+   * And the parser really reads what it claims to, driven against headers
+   * built to be caught rather than against the corpus it already agrees with.
+   */
+  it('reads a header that wraps, and one that does not', () => {
+    const wrapped = [
+      ' * SRD Made Up:',
+      ' *',
+      ' * > _Level 3 Abjuration (Bard, Cleric, Druid, Paladin, Ranger, Sorcerer,',
+      ' * > Warlock, Wizard)._ **Casting Time:** Action.',
+      ' */',
+    ];
+    expect(quotedClasses(wrapped, 'Made Up')).toEqual([
+      'bard',
+      'cleric',
+      'druid',
+      'paladin',
+      'ranger',
+      'sorcerer',
+      'warlock',
+      'wizard',
+    ]);
+
+    // A Ritual tag is a second parenthesis and not a class list, and a header
+    // that carries only one names nobody.
+    expect(
+      quotedClasses(
+        [' * SRD Made Up:', ' * > _Level 1 Divination (Ritual)._ **Range:** Self.', ' */'],
+        'Made Up',
+      ),
+    ).toBeNull();
+
+    // And a cantrip, whose header has no level.
+    expect(
+      quotedClasses(
+        [' * SRD Made Up:', ' * > _Evocation Cantrip (Cleric)._ **Range:** 60 feet.', ' */'],
+        'Made Up',
+      ),
+    ).toEqual(['cleric']);
+  });
+
+  /** The sweep bites: a header naming a class the book does not grant fails. */
   it('catches a class the book does not grant', () => {
+    const drifted = [
+      ' * SRD Fireball:',
+      ' * > _Level 3 Evocation (Cleric, Sorcerer, Wizard)._ **Range:** 150 feet.',
+      ' */',
+    ];
     const book = SPELL_INDEX.find((spell) => spell.id === 'fireball');
     expect(book?.classes).toEqual(['sorcerer', 'wizard']);
-    expect([...(book?.classes ?? []), 'cleric'].sort()).not.toEqual([...(book?.classes ?? [])]);
+    expect(quotedClasses(drifted, 'Fireball')).not.toEqual([...(book?.classes ?? [])]);
+    // And the right one passes, so the difference is the class rather than
+    // the shape of the assertion.
+    expect(quoted('fireball')).toEqual([...(book?.classes ?? [])]);
   });
 });
 

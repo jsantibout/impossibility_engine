@@ -950,12 +950,31 @@ describe('every spell this batch added is cast for real', () => {
   it('takes the three creatures Aid names, and refuses a fourth', () => {
     expect(unwrap(cast('aid', { targets: [ALLY, FOE, BEAST] }), 'aid at three').castingId.length)
       .toBeGreaterThan(0);
-    // "Choose up to three creatures within range", and the caster standing
-    // inside their own thirty feet is an eligible fourth rather than an
-    // illegal target — so what refuses this is the count.
     const four = cast('aid', { targets: [ALLY, FOE, BEAST, WIZARD] });
     expect(isErr(four)).toBe(true);
     if (isErr(four)) expect(four.code).toBe('too_many_targets');
+  });
+
+  /**
+   * And the caster is one of the three, which is a separate claim.
+   *
+   * SRD's *Targeting Yourself*: "If a spell targets a creature of your
+   * choice, you can choose yourself unless the creature must be hostile or
+   * specifically a creature other than you." Aid says "Choose up to three
+   * creatures within range" and prints no such exclusion, so a caster
+   * standing inside their own thirty feet is eligible. **The count check runs
+   * first**, so the refusal above passes either way and says nothing about
+   * this: the discriminating case is a legal three that includes the caster,
+   * which is refused outright without the flag.
+   */
+  it('lets Aid reach the caster, whom the SRD does not exclude', () => {
+    const out = unwrap(cast('aid', { targets: [WIZARD, ALLY, FOE] }), 'aid on the caster');
+    expect(out.events.filter((e) => e.type === 'spell-cast')).toHaveLength(1);
+    // And the spell that does exclude its caster still does, so the flag is a
+    // reading of Aid rather than a hole in the rule.
+    const shared = cast('plane-shift', { targets: [WIZARD] });
+    expect(isErr(shared)).toBe(true);
+    if (isErr(shared)) expect(shared.code).toBe('cannot_target_self');
   });
 
   /**
