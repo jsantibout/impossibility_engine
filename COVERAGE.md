@@ -677,7 +677,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 75 | 232 | 178 | 54 |
+| 258 | 76 | 233 | 178 | 55 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -695,7 +695,7 @@ inventing a column that nothing checks.
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
 | Armor | 19 | 10 | 54 | 48 | 6 |
-| Potions | 24 | 6 | 6 | 1 | 5 |
+| Potions | 24 | 7 | 7 | 1 | 6 |
 | Rings | 22 | 5 | 5 | 4 | 1 |
 | Rods | 7 | 1 | 1 | 0 | 1 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
@@ -749,6 +749,7 @@ how many of those still carry a clause the engine does not say.
 - **Nine Lives Stealer** (Weapons) — 1 recorded, 1 partial
 - **Periapt of Proof against Poison** (Wondrous Items) — 1 recorded, 1 partial
 - **Plate Armor of Etherealness** (Armor) — 1 recorded, 1 partial
+- **Potion of Diminution** (Potions) — 1 recorded, 1 partial
 - **Potion of Gaseous Form** (Potions) — 1 recorded, 1 partial
 - **Potion of Growth** (Potions) — 1 recorded, 1 partial
 - **Potion of Heroism** (Potions) — 1 recorded, complete
@@ -807,7 +808,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 75 | 173 | 2 | 4 | 4 |
+| 258 | 76 | 172 | 2 | 4 | 4 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -864,7 +865,6 @@ the next tranche makes false.
 | `a-fact-only-the-table-can-declare` | 11 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
 | `a-mode-on-the-save-a-spell-forces` | 6 | 1 | 1 |
-| `a-random-outcome-that-is-not-a-d20` | 5 | 1 | 1 |
 | `a-casting-an-item-stores-or-gives-back` | 4 | 0 | 2 |
 | `a-target-rule-the-format-cannot-state` | 2 | 1 | 1 |
 | `a-charge-spent-on-something-other-than-a-casting` | 18 | 0 | 1 |
@@ -876,6 +876,7 @@ the next tranche makes false.
 | `a-language-or-a-proficiency-an-item-grants` | 5 | 0 | 1 |
 | `healing-modified-by-an-effect` | 5 | 0 | 1 |
 | `a-benefit-an-item-suspends-on-a-trigger` | 4 | 0 | 1 |
+| `a-random-outcome-that-is-not-a-d20` | 4 | 0 | 1 |
 | `what-ends-attunement-besides-a-command` | 4 | 0 | 1 |
 | `a-save-keyed-to-a-condition` | 3 | 0 | 1 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 | 1 |
