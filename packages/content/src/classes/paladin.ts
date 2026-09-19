@@ -144,7 +144,8 @@ export const PALADIN: ClassDefinition = {
       name: "Paladin's Smite",
       level: 2,
       automation: 'manual',
-      note: 'Divine Smite is always prepared and costs a spell slot; casting it as a Bonus Action after a hit needs a reaction-shaped trigger the engine does not have.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "You always have the _Divine Smite_ spell prepared" — a fixed spells grant, the move Favored Enemy already makes with Hunter’s Mark, so the spell is on the sheet without being one of the prepared spells the class table counts. The rest is not: "you can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again" needs a pool a casting can be paid out of, and a feature carries one grant; and casting it as a Bonus Action after a hit needs a reaction-shaped trigger the engine does not have.',
+      grants: { kind: 'spells', fixed: ['divine-smite'] },
     },
     {
       id: 'paladin:channel-divinity',
@@ -213,7 +214,7 @@ export const PALADIN: ClassDefinition = {
       name: 'Abjure Foes',
       level: 9,
       automation: 'manual',
-      note: 'The Channel Divinity that Frightens and restricts is not executed.',
+      note: 'Not executed. Every part of it is a thing a feature cannot do: SRD asks each target to "succeed on a Wisdom saving throw", a failure hangs the Frightened condition on them for a minute, and while Frightened in this way a target "can do only one of the following on its turns: move, take an action, or take a Bonus Action", which is the action economy answering to somebody other than the engine.',
     },
     {
       id: 'paladin:aura-of-courage',
@@ -322,7 +323,7 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
       name: 'Holy Nimbus',
       level: 20,
       automation: 'manual',
-      note: 'The bright light, the Radiant damage to enemies in it, and Advantage on saves against spells cast by Fiends and Undead are not modelled.',
+      note: 'None of it is modelled. The bright light is fiction. The Radiant damage to enemies in the aura is damage a feature deals with no attack roll and no save. The Advantage on any saving throw a Fiend or an Undead forces is a mode selected by who is on the other end of the save, which no selector can name. And the ten minutes it runs for, and the level 5 slot that buys the use back, are each their own absence.',
     },
   ],
 };

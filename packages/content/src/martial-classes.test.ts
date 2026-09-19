@@ -5,6 +5,7 @@ import { armorClass, armorClassCalculation } from '@ie/engine';
 import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { carrying } from '@ie/engine';
 import { createCharacter, planCharacter, type CharacterChoices } from '@ie/engine';
+import { createRng, createRollIssuer, useRecovery } from '@ie/engine';
 
 /**
  * The Barbarian and the Monk, which are the same class twice in the one place
@@ -233,5 +234,74 @@ describe('two classes want the same hook, with two different rules', () => {
     expect(armorClass({ ...shan, shield })).toBe(12);
     expect(shan.armorTraining.shields).toBe(false);
     expect(armorClassCalculation({ ...shan, shield }).source).toBeNull();
+  });
+});
+
+/**
+ * SRD Persistent Rage, whose first sentence is Uncanny Metabolism's with the
+ * Monk's pool swapped out.
+ *
+ * > "When you roll Initiative, you can regain all expended uses of Rage.
+ * > After you regain uses of Rage in this way, you can't do so again until
+ * > you finish a Long Rest."
+ *
+ * Half a feature, which is why it keeps its note: the ten-minute Rage that
+ * needs no extending, and the ending on Unconscious rather than Incapacitated,
+ * are a feature rewriting another feature's activation and have no shape.
+ * What the grant does carry is driven here, because a recovery that reaches
+ * the sheet and refills nothing is exactly the failure `class-pools.test.ts`
+ * was written for.
+ */
+describe("a Barbarian's Persistent Rage gives the Rages back", () => {
+  const atLevel = (level: number): CharacterChoices =>
+    barbarian({
+      level,
+      feats: {
+        ...originFeats,
+        ...(level >= 4 ? { 'barbarian:ability-score-improvement': { featId: 'savage-attacker' } } : {}),
+      },
+    });
+
+  const logAt = (level: number): readonly GameEvent[] =>
+    unwrap(createCharacter(SRD_CONTENT, atLevel(level), GRUM), 'create') as GameEvent[];
+
+  const recoveries = (level: number) =>
+    (fold('seed', logAt(level)).creatures.grum?.sheet.recoveries ?? []).map((r) => r.feature);
+
+  it('arrives at the level the Barbarian table prints it, and not before', () => {
+    expect(recoveries(14)).not.toContain('barbarian:persistent-rage');
+    expect(recoveries(15)).toContain('barbarian:persistent-rage');
+  });
+
+  /** "regain **all** expended uses of Rage" — the whole pool, at Initiative. */
+  it('refills the Rage pool at the first turn of a fight, once per Long Rest', () => {
+    const log: GameEvent[] = [
+      ...logAt(15),
+      { type: 'combat-started', combatants: [{ id: GRUM, initiative: 20, speed: 30 }] },
+      { type: 'resource-spent', id: GRUM, key: 'rage', amount: 5 },
+    ];
+    const before = fold('seed', log);
+    const rage = before.creatures.grum!.resources.pools['rage']!;
+    expect(rage.max - rage.spent).toBe(0);
+
+    const supply = { issuer: createRollIssuer('r'), rng: createRng('seed') };
+    const used = unwrap(
+      useRecovery(before, GRUM, { feature: 'barbarian:persistent-rage' }, supply),
+      'recovery',
+    );
+    const after = fold('seed', [...log, ...used]);
+    const back = after.creatures.grum!.resources.pools['rage']!;
+    expect(back.spent).toBe(0);
+
+    // Its own limit is a pool of one, spent by the use and refilling on a
+    // Long Rest — which is what "you can't do so again until" means.
+    const own = after.creatures.grum!.resources.pools['barbarian:persistent-rage']!;
+    expect(own.max).toBe(1);
+    expect(own.spent).toBe(1);
+    expect(own.recovers).toBe('long-rest');
+
+    expect(
+      isErr(useRecovery(after, GRUM, { feature: 'barbarian:persistent-rage' }, supply)),
+    ).toBe(true);
   });
 });

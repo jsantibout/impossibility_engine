@@ -111,7 +111,7 @@ export const RANGER: ClassDefinition = {
       name: 'Favored Enemy',
       level: 1,
       automation: 'engine',
-      note: 'Hunter’s Mark is always prepared, and the free castings are declared as a pool refilling on a Long Rest. The spell itself has no executable definition, so casting it is refused rather than approximated.',
+      note: 'Hunter’s Mark is always prepared, and the spell is executed — an attack rider on the ranger that fires only against the marked creature. What is **not** granted is the free castings: SRD, "You can cast it twice without expending a spell slot, and you regain all expended uses of this ability when you finish a Long Rest", which needs a pool a casting can be paid out of, and a feature carries one grant.',
       grants: { kind: 'spells', fixed: ['hunters-mark'] },
     },
     {
@@ -211,14 +211,19 @@ export const RANGER: ClassDefinition = {
       name: 'Precise Hunter',
       level: 17,
       automation: 'manual',
-      note: 'Advantage against the target of your Hunter’s Mark is not applied, because nothing tracks who is marked.',
+      note: 'Advantage against the target of your Hunter’s Mark is not applied. The mark itself is tracked — the casting’s attack rider fires only against the creature it resolved on — and what nothing can say is the other half: a `RollSelector` names a family, an ability and a skill, and has no way to pick out the attack rolls made against **one named creature**.',
     },
     {
       id: 'ranger:feral-senses',
       name: 'Feral Senses',
       level: 18,
-      automation: 'manual',
-      note: 'Blindsight is not modelled; sight is declared between pairs of creatures and has no senses behind it.',
+      automation: 'engine',
+      note: 'SRD: "Your connection to the forces of nature grants you Blindsight with a range of 30 feet." The whole of the trait, and a `sense` grant says it: `sightBetween` consults a sense wherever nobody has declared a sight line, so a Ranger 18 sees a creature within 30 feet that nobody declared them able to see. The note this replaces said Blindsight was not modelled, which stopped being true when the sense vocabulary arrived for Darkvision.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [{ kind: 'sense', sense: 'blindsight', feet: 30 }],
+      },
     },
     {
       id: 'ranger:epic-boon',
@@ -233,7 +238,7 @@ export const RANGER: ClassDefinition = {
       name: 'Foe Slayer',
       level: 20,
       automation: 'manual',
-      note: 'The extra 1d10 Force damage once per turn is a bonus the caller supplies.',
+      note: 'Not applied. SRD 5.2.1 writes the whole feature as one sentence — "The damage die of your _Hunter’s Mark_ is a d10 rather than a d6" — so it is a feature reaching into a casting the character made and changing the notation the definition pinned, and the casting pins its numbers at the casting for exactly the reason that cannot happen.',
     },
   ],
 };
@@ -292,7 +297,7 @@ export const HUNTER: SubclassDefinition = {
       name: "Superior Hunter's Prey",
       level: 11,
       automation: 'manual',
-      note: 'Spreading Hunter’s Mark damage to a second creature is not modelled, because Hunter’s Mark is not.',
+      note: 'Spreading Hunter’s Mark damage to a second creature is not modelled. The spell is executed and the mark is tracked; what has no shape is a feature reaching into a casting the character already made and giving its rider a second creature to fire at.',
     },
     {
       id: 'hunter:superior-hunters-defense',

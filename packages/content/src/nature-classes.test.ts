@@ -6,6 +6,7 @@ import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { slotsAt } from '@ie/engine';
 import { highestSlotLevel } from '@ie/engine';
 import { createCharacter, planCharacter, type CharacterChoices } from '@ie/engine';
+import { canSee, sensesOf } from '@ie/engine';
 
 /**
  * The last three classes, and what completing the set proves.
@@ -304,5 +305,82 @@ describe('all twelve classes are in', () => {
     ] as const) {
       expect(built(choices, who).creatures[who]?.character?.level).toBe(3);
     }
+  });
+});
+
+/**
+ * SRD Feral Senses: "Your connection to the forces of nature grants you
+ * Blindsight with a range of 30 feet."
+ *
+ * The whole of the trait in one `sense` grant, which is why the note goes
+ * rather than narrowing. Driven through `canSee`, because a sense on a sheet
+ * that no sight question consults would be the grant nothing reads this
+ * repository keeps finding.
+ */
+describe("a Ranger's Feral Senses reach past a declaration", () => {
+  const RANGER_SPELLS = SRD_CONTENT.spellEntries
+    .filter((entry) => entry.classes.includes('ranger') && entry.level >= 1 && entry.level <= 5)
+    .map((entry) => entry.id);
+
+  const atLevel = (level: number): CharacterChoices =>
+    ranger({
+      level,
+      preparedSpells: RANGER_SPELLS.slice(0, 14),
+      featureChoices: {
+        'human:skillful': ['athletics'],
+        'ranger:deft-explorer': ['survival'],
+        'hunter:hunters-prey': ['Colossus Slayer'],
+        'ranger:expertise': ['perception', 'stealth'],
+        'hunter:defensive-tactics': ['Escape the Horde'],
+      },
+      feats: {
+        ...common.feats,
+        'ranger:fighting-style': { featId: 'archery' },
+        'ranger:ability-score-improvement': { featId: 'savage-attacker' },
+      },
+    });
+
+  const SORREL = id('sorrel');
+  const QUARRY = id('quarry');
+
+  /** A scene with the quarry twenty-five feet off and nobody declaring sight. */
+  const scene = (level: number, feet: number): GameState =>
+    fold('seed', [
+      ...(unwrap(createCharacter(SRD_CONTENT, atLevel(level), SORREL), 'create') as GameEvent[]),
+      {
+        type: 'creature-added',
+        id: QUARRY,
+        name: 'the quarry',
+        sheet: fold(
+          'seed',
+          unwrap(createCharacter(SRD_CONTENT, atLevel(level), QUARRY), 'quarry') as GameEvent[],
+        ).creatures.quarry!.sheet,
+        maxHp: 20,
+        diesAtZero: true,
+        creatureType: 'Beast',
+        side: 'foes',
+      },
+      { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
+      { type: 'landmark-added', name: 'the thicket', at: { x: 80, y: 80, z: 0 } },
+      { type: 'creature-placed', id: SORREL, placement: { from: { landmark: 'the thicket' }, feet: 0 } },
+      {
+        type: 'creature-placed',
+        id: QUARRY,
+        placement: { from: { creature: SORREL }, feet, bearing: 0 },
+      },
+    ]);
+
+  it('sees inside thirty feet without anybody declaring it, and not outside', () => {
+    // Level 17 has no sense at all, so the question is still the table's.
+    expect(canSee(scene(17, 25), SORREL, QUARRY)).toBeNull();
+
+    expect(canSee(scene(18, 25), SORREL, QUARRY)).toBe(true);
+    // "with a range of 30 feet" — and the thirty-fifth foot is outside it.
+    expect(canSee(scene(18, 35), SORREL, QUARRY)).toBeNull();
+  });
+
+  it('reaches the sheet as Blindsight out to thirty feet', () => {
+    expect(sensesOf(scene(18, 25), SORREL)).toEqual([{ sense: 'blindsight', feet: 30 }]);
+    expect(sensesOf(scene(17, 25), SORREL)).toEqual([]);
   });
 });

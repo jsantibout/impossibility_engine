@@ -192,7 +192,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Cunning Strike',
       level: 5,
       automation: 'manual',
-      note: 'Trading Sneak Attack dice for Poison, Trip or Withdraw is not modelled, because Sneak Attack itself is not.',
+      note: 'Trading Sneak Attack dice for Poison, Trip or Withdraw is not modelled. Sneak Attack itself is executed — the dice are read off the Rogue table and added to a qualifying hit — and what has no shape is spending some of those dice as a price, and the three things the price buys: a saving throw the feature forces, a condition it imposes, and a move it hands its holder.',
     },
     {
       id: 'rogue:uncanny-dodge',
@@ -249,14 +249,14 @@ export const ROGUE: ClassDefinition = {
       name: 'Improved Cunning Strike',
       level: 11,
       automation: 'manual',
-      note: 'Two Cunning Strike effects at once, neither of which is modelled.',
+      note: 'Using two Cunning Strike options on one hit is this feature rewriting the level 5 one, and neither the rewriting nor the options is modelled: paying for an effect in Sneak Attack dice is a trade nothing expresses, and each option still forces a save, imposes a condition or moves its user.',
     },
     {
       id: 'rogue:devious-strikes',
       name: 'Devious Strikes',
       level: 14,
       automation: 'manual',
-      note: 'Daze, Knock Out and Obscure as Cunning Strike options are not modelled.',
+      note: 'Three more Cunning Strike options, which is this feature lengthening the level 5 feature’s list. None of the three is modelled either: each is bought with Sneak Attack dice, each forces a Constitution or Dexterity saving throw, and Knock Out and Obscure hang the Unconscious and Blinded conditions on the target while Daze forbids all but one of its actions on its next turn.',
     },
     {
       id: 'rogue:slippery-mind',
@@ -316,14 +316,14 @@ export const THIEF: SubclassDefinition = {
       name: 'Supreme Sneak',
       level: 9,
       automation: 'manual',
-      note: 'Spending Sneak Attack dice for Stealth Advantage is not modelled.',
+      note: 'Not applied. SRD gives one more Cunning Strike option — "_Stealth Attack (Cost: 1d6)._ If you have the Hide action’s Invisible condition, this attack doesn’t end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover" — which needs the same trade of Sneak Attack dice every Cunning Strike option needs, and the engine takes no Hide action for the exception to widen.',
     },
     {
       id: 'thief:use-magic-device',
       name: 'Use Magic Device',
       level: 13,
       automation: 'manual',
-      note: 'Attuning to more items and using any Spell Scroll are not modelled; magic items are not modelled at all.',
+      note: 'Magic items are modelled now, and none of the three benefits reaches one. The attunement cap is a constant every creature shares and no feature raises it. The refund — SRD, "Whenever you use a magic item property that expends charges, roll 1d6. On a roll of 6, you use the property without expending the charges" — is a die the engine can throw that nothing asks it to. And a Spell Scroll is an item that casts whatever is written on it, which no catalogue record can say.',
     },
     {
       id: 'thief:thiefs-reflexes',

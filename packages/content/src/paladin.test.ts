@@ -184,7 +184,40 @@ describe('a Paladin prepares from the Paladin list', () => {
     const plan = unwrap(planCharacter(SRD_CONTENT,paladin()), 'plan');
     expect(casting(plan).prepared).toContain('shield-of-faith');
     expect(casting(plan).prepared).toContain('protection-from-evil-and-good');
-    expect(casting(plan).prepared).toHaveLength(6);
+    // Three chosen, two from the oath, and Divine Smite from Paladin's Smite.
+    expect(casting(plan).prepared).toHaveLength(7);
+  });
+
+  /**
+   * SRD Paladin's Smite: "You always have the _Divine Smite_ spell prepared."
+   *
+   * The same fixed grant the Ranger makes of Hunter's Mark, and it is the
+   * whole of the first sentence: the spell is on the list at Paladin 2 without
+   * the player choosing it and without spending one of the count the table
+   * prints. What the feature still leaves to a DM is the free casting, which
+   * is why the note stays.
+   */
+  it('has Divine Smite prepared from level 2, over the count the table prints', () => {
+    const plan = unwrap(planCharacter(SRD_CONTENT,paladin()), 'plan');
+    expect(casting(plan).prepared).toContain('divine-smite');
+    // Nobody chose it: the four the table prints are the four asked for.
+    expect(paladin().preparedSpells).not.toContain('divine-smite');
+
+    // At level 1 the feature has not arrived, so neither has the spell — and
+    // a level 1 Paladin has no subclass either, which is what makes this the
+    // feature's own grant rather than the oath's.
+    const one = unwrap(
+      planCharacter(
+        SRD_CONTENT,
+        paladin({
+          level: 1,
+          subclassId: undefined,
+          preparedSpells: ['bless', 'cure-wounds'],
+        }),
+      ),
+      'plan',
+    );
+    expect(casting(one).prepared).not.toContain('divine-smite');
   });
 });
 

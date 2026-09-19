@@ -342,7 +342,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 230 | 91 |
+| 12 / 12 | 12 / 12 | 230 | 93 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -356,14 +356,117 @@ believe it has twelve working classes when it has twelve validated ones.
 | Bard | known | 17 | 8 |
 | Cleric | prepared-from-list | 16 | 6 |
 | Druid | prepared-from-list | 14 | 5 |
-| Fighter | none | 21 | 10 |
+| Fighter | none | 21 | 11 |
 | Monk | none | 26 | 11 |
 | Paladin | prepared-from-list | 22 | 12 |
-| Ranger | known | 22 | 8 |
+| Ranger | known | 22 | 9 |
 | Rogue | none | 24 | 7 |
 | Sorcerer | known | 15 | 5 |
 | Warlock | known | 14 | 5 |
 | Wizard | spellbook | 15 | 5 |
+
+### What blocks the rest
+
+Derived from `packages/content/scripts/missing-feature-shapes.ts`, which
+holds the shapes only a feature wants plus the ones it shares with the
+spells and the magic items, and every manual feature read against its own
+`automation: 'manual'` note. Species and background traits are counted
+here too, because a species trait is the same `FeatureDefinition` a class
+feature is and four of them turn out to want one shape.
+
+**Blocks** is every manual feature a shape touches. **Finishes** is the
+features it is the *only* blocker for — the ones building it would take off
+the list. Those are different numbers, and reporting only the first is how
+one family came to be ranked three ways in three documents.
+
+A shape from the spell or item vocabulary appears here whenever the gap is
+the same gap: Slow Fall waits on the missing `falling` Feather Fall waits
+on, a Dragon Companion on the summons Arcane Hand waits on, and Greater
+Divine Intervention on a spell nothing defines. Giving any of those a
+second id because the sentence this time is printed on a class table would
+be the second spelling of one derivation.
+
+| Shape | Blocks | Finishes |
+|---|---|---|
+| `an-ability-score-an-advancement-raises` | 14 | 12 |
+| `an-ability-score-maximum-above-20` | 14 | 12 |
+| `a-weapon-mastery-property` | 6 | 6 |
+| `a-feature-that-changes-a-castings-damage` | 5 | 5 |
+| `an-action-a-spell-compels-or-forbids` | 10 | 4 |
+| `a-roll-result-an-effect-replaces` | 5 | 4 |
+| `a-feature-that-rewrites-another-features-rule` | 10 | 3 |
+| `a-casting-paid-for-out-of-a-feature-pool` | 9 | 3 |
+| `a-save-keyed-to-a-condition` | 4 | 3 |
+| `an-option-re-chosen-on-a-rest` | 4 | 3 |
+| `healing-modified-by-an-effect` | 4 | 3 |
+| `a-feature-that-changes-what-a-casting-costs` | 6 | 2 |
+| `a-move-a-feature-hands-its-holder` | 6 | 2 |
+| `an-attack-the-class-redefines` | 5 | 2 |
+| `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
+| `movement-modes` | 4 | 2 |
+| `a-feature-that-changes-who-a-casting-catches` | 3 | 2 |
+| `an-attack-roll-selected-by-the-ability-it-uses` | 3 | 2 |
+| `a-hit-point-maximum-a-spell-moves` | 2 | 2 |
+| `a-pool-refilled-to-a-floor` | 2 | 2 |
+| `a-spell-list-that-is-not-your-class-list` | 2 | 2 |
+| `an-effect-that-intercepts-dropping-to-0` | 2 | 2 |
+| `heroic-inspiration` | 2 | 2 |
+| `a-resource-traded-for-another` | 12 | 1 |
+| `a-condition-a-feature-imposes` | 6 | 1 |
+| `a-spell-an-item-casts-that-nothing-executes` | 5 | 1 |
+| `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
+| `a-rule-the-engine-fixes-for-everybody` | 4 | 1 |
+| `a-bonus-an-ability-modifier-sizes` | 3 | 1 |
+| `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
+| `a-one-shot-roll-modifier` | 3 | 1 |
+| `a-stat-block-created-mid-fight` | 3 | 1 |
+| `a-condition-a-feature-ends` | 2 | 1 |
+| `a-creature-fact-an-effect-overrides` | 2 | 1 |
+| `a-die-behaviour-a-spell-asks-for` | 2 | 1 |
+| `a-reaction-effect-the-vocabulary-lacks` | 2 | 1 |
+| `an-area-an-item-creates` | 2 | 1 |
+| `a-bonus-narrowed-to-a-skill` | 1 | 1 |
+| `a-concentration-rule-that-names-its-casting` | 1 | 1 |
+| `a-declared-fact-a-feature-sets` | 1 | 1 |
+| `a-roll-mode-a-feature-takes-away` | 1 | 1 |
+| `a-turn-a-spell-inserts-into-the-order` | 1 | 1 |
+| `an-effect-that-waits-for-a-later-trigger` | 1 | 1 |
+| `falling` | 1 | 1 |
+| `a-saving-throw-a-feature-forces` | 7 | 0 |
+| `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
+| `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
+| `temporary-hit-points-a-feature-grants` | 4 | 0 |
+| `a-feature-that-carries-a-second-grant` | 3 | 0 |
+| `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
+| `a-mode-on-the-save-a-spell-forces` | 2 | 0 |
+| `a-speed-a-feature-reduces` | 2 | 0 |
+| `a-turn-boundary-payout-a-feature-owes` | 2 | 0 |
+| `a-world-fact-nothing-can-represent` | 2 | 0 |
+| `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
+| `a-bonus-to-spell-attack-rolls` | 1 | 0 |
+| `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
+| `a-second-place-to-put-a-creature` | 1 | 0 |
+| `an-exhaustion-level-a-spell-changes` | 1 | 0 |
+| `an-outcome-of-a-spells-own-damage` | 1 | 0 |
+| `forced-movement-a-spell-causes` | 1 | 0 |
+| `jumping` | 1 | 0 |
+
+A feature can need more than one shape, so neither column sums to the
+manual total.
+
+**Some features are nobody’s work.** A Fighting Style is its feat’s debt,
+Thieves’ Cant and Druidic are languages, and Hunter’s Lore is knowledge —
+each is marked manual, each is finished business, and each is listed rather
+than omitted, because an entry silently missing from a ranking looks
+exactly like an entry nobody read:
+
+- `champion:additional-fighting-style`
+- `druid:druidic`
+- `fighter:fighting-style`
+- `hunter:hunters-lore`
+- `paladin:fighting-style`
+- `ranger:fighting-style`
+- `rogue:thieves-cant`
 
 ## Origins
 
@@ -429,7 +532,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 61 | 218 | 177 | 41 |
+| 258 | 61 | 218 | 176 | 42 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -447,7 +550,7 @@ inventing a column that nothing checks.
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
 | Armor | 19 | 10 | 54 | 48 | 6 |
-| Potions | 24 | 6 | 6 | 1 | 5 |
+| Potions | 24 | 6 | 6 | 0 | 6 |
 | Rings | 22 | 5 | 5 | 4 | 1 |
 | Rods | 7 | 0 | 0 | 0 | 0 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
@@ -496,7 +599,7 @@ how many of those still carry a clause the engine does not say.
 - **Plate Armor of Etherealness** (Armor) — 1 recorded, 1 partial
 - **Potion of Gaseous Form** (Potions) — 1 recorded, 1 partial
 - **Potion of Growth** (Potions) — 1 recorded, 1 partial
-- **Potion of Heroism** (Potions) — 1 recorded, complete
+- **Potion of Heroism** (Potions) — 1 recorded, 1 partial
 - **Potion of Invisibility** (Potions) — 1 recorded, 1 partial
 - **Potion of Speed** (Potions) — 1 recorded, 1 partial
 - **Potions of Healing** (Potions) — 1 recorded, 1 partial

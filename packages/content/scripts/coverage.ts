@@ -38,6 +38,10 @@ import {
   parsedItemIds,
   transcribedItemIds,
 } from './missing-shapes.js';
+import {
+  allFeatureShapeConsumers,
+  featuresTheTableOwns,
+} from './missing-feature-shapes.js';
 import { magicItemEntries } from './magic-items.js';
 import {
   auditClasses,
@@ -77,6 +81,77 @@ function renderClasses(coverage: ClassCoverage): readonly string[] {
     lines.push(`| ${row.name} | ${row.style} | ${row.features} | ${row.executed} |`);
   }
 
+  lines.push(...renderFeatureBlockers());
+
+  return lines;
+}
+
+/**
+ * Why the rest of the features are manual, ranked rather than recalled.
+ *
+ * The table above says how many features the engine runs. This says what
+ * stands in the way of the others, and it exists because that had no answer
+ * anywhere: every manual feature has carried a note saying what is missing
+ * since the day it was transcribed, and those notes — the best evidence in the
+ * repository about where the next mechanic should go — were prose scattered
+ * across twelve class files and `origins.ts`, read by nothing.
+ *
+ * **Blocks** is every manual feature a shape touches. **Finishes** is the ones
+ * it is the *only* blocker for, which is the column a tranche is planned from,
+ * and the two are different numbers for the same reason they are on the spells
+ * and the items: reporting only one is how one family came to be ranked three
+ * ways in three documents.
+ *
+ * It counts **features**, exactly as the column above does, and a feature may
+ * need more than one shape — so the column does not sum to the manual total.
+ * Species and background traits are in it: they are the same
+ * `FeatureDefinition` and the same notes, and leaving them out would have
+ * hidden a shape four of them share.
+ */
+function renderFeatureBlockers(): readonly string[] {
+  const rows = allFeatureShapeConsumers();
+  const lines = [
+    '',
+    '### What blocks the rest',
+    '',
+    'Derived from `packages/content/scripts/missing-feature-shapes.ts`, which',
+    'holds the shapes only a feature wants plus the ones it shares with the',
+    'spells and the magic items, and every manual feature read against its own',
+    '`automation: \'manual\'` note. Species and background traits are counted',
+    'here too, because a species trait is the same `FeatureDefinition` a class',
+    'feature is and four of them turn out to want one shape.',
+    '',
+    '**Blocks** is every manual feature a shape touches. **Finishes** is the',
+    'features it is the *only* blocker for — the ones building it would take off',
+    'the list. Those are different numbers, and reporting only the first is how',
+    'one family came to be ranked three ways in three documents.',
+    '',
+    'A shape from the spell or item vocabulary appears here whenever the gap is',
+    'the same gap: Slow Fall waits on the missing `falling` Feather Fall waits',
+    'on, a Dragon Companion on the summons Arcane Hand waits on, and Greater',
+    'Divine Intervention on a spell nothing defines. Giving any of those a',
+    'second id because the sentence this time is printed on a class table would',
+    'be the second spelling of one derivation.',
+    '',
+    '| Shape | Blocks | Finishes |',
+    '|---|---|---|',
+  ];
+  for (const row of rows) {
+    lines.push(`| \`${row.shape}\` | ${row.blocks.length} | ${row.finishes.length} |`);
+  }
+  lines.push(
+    '',
+    'A feature can need more than one shape, so neither column sums to the',
+    'manual total.',
+    '',
+    '**Some features are nobody’s work.** A Fighting Style is its feat’s debt,',
+    'Thieves’ Cant and Druidic are languages, and Hunter’s Lore is knowledge —',
+    'each is marked manual, each is finished business, and each is listed rather',
+    'than omitted, because an entry silently missing from a ranking looks',
+    'exactly like an entry nobody read:',
+    '',
+  );
+  for (const id of featuresTheTableOwns()) lines.push(`- \`${id}\``);
   return lines;
 }
 

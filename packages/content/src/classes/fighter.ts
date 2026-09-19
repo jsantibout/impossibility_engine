@@ -196,8 +196,30 @@ export const FIGHTER: ClassDefinition = {
       id: 'fighter:tactical-mind',
       name: 'Tactical Mind',
       level: 2,
-      automation: 'manual',
-      note: 'Spending a use of Second Wind to add 1d10 to a failed ability check is not wired to the check machinery.',
+      automation: 'engine',
+      note: 'SRD: "When you fail an ability check, you can expend a use of your Second Wind to push yourself toward success. Rather than regaining Hit Points, you roll 1d10 and add the number rolled to the ability check... If the check still fails, this use of Second Wind isn’t expended." Peerless Skill’s shape with the Bard’s die swapped for a printed 1d10 and the Bardic Inspiration pool swapped for Second Wind’s: an intervention offered on a failed **check** only, costing no Reaction because the SRD asks for none, and refunded when the new total still misses. "Rather than regaining Hit Points" is the sentence the shared pool already enforces — a use spent here is a use Second Wind’s healing no longer has.',
+      grants: {
+        kind: 'reaction',
+        // No Reaction: the SRD grants it as a bare permission, the way
+        // Indomitable and Peerless Skill are granted.
+        costsReaction: false,
+        reach: { kind: 'self' },
+        // Second Wind's own pool, named rather than declared — the move
+        // Cutting Words makes on Bardic Inspiration.
+        pool: 'second-wind',
+        does: [
+          {
+            kind: 'intervene',
+            amount: { dice: '1d10' },
+            direction: 'bonus',
+            // "When you fail an **ability check**" — and nothing about saves.
+            tests: ['ability-check'],
+            outcome: 'failure',
+            // "If the check still fails, this use ... isn’t expended."
+            refundedOnFailure: true,
+          },
+        ],
+      },
     },
     {
       id: 'fighter:subclass',
@@ -345,7 +367,17 @@ export const CHAMPION: SubclassDefinition = {
       name: 'Survivor',
       level: 18,
       automation: 'manual',
-      note: 'Advantage on Death Saving Throws and the regeneration while Bloodied are not applied.',
+      note: 'Half of Defy Death is applied, which is why this is not marked as executed. SRD: "You have Advantage on Death Saving Throws" — a death save is its own roll family and `rollTheDeathSave` gathers the standing modes for it, so the Advantage is real. The rest is not: "when you roll 18–20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it" widens the face that counts as a natural 20, which only a Critical Hit has a threshold for, and Heroic Rally’s "regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied" is healing at a turn boundary that nothing pays out.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'roll-mode',
+            modifier: { mode: 'advantage', selector: { roll: 'death-save', relation: 'roller' } },
+          },
+        ],
+      },
     },
   ],
 };

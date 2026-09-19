@@ -145,7 +145,7 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Reckless Attack',
       level: 2,
       automation: 'manual',
-      note: 'Trading Advantage on your attacks for Advantage on attacks against you is not modelled: nothing holds a per-turn stance that later rolls read.',
+      note: 'Not applied, and the stance is no longer the reason: an activated feature runs to the start of the holder’s next turn, grants standing effects while it runs, and may cost no action and no use at all. What no grant can say is the narrowing. SRD: "Doing so gives you Advantage on attack rolls using Strength" — a `RollSelector` allows an ability only on an ability check and a saving throw, because an SRD attack roll is not a Strength attack roll in the language Advantage is granted in, so the mode would reach every swing the Barbarian makes. The other half, "attack rolls against you have Advantage", is `against-holder` and is expressible today.',
     },
     {
       id: 'barbarian:subclass',
@@ -214,14 +214,14 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Instinctive Pounce',
       level: 7,
       automation: 'manual',
-      note: 'Moving half your Speed when you Rage is not applied, because Rage itself is only a pool.',
+      note: 'Moving half your Speed when you Rage is not applied. Rage is a whole activated feature now rather than a pool, and the half that is still missing is the move: `moveCreature` is a command somebody takes, and no feature hands its holder a move that costs nothing out of the turn’s allowance.',
     },
     {
       id: 'barbarian:brutal-strike',
       name: 'Brutal Strike',
       level: 9,
       automation: 'manual',
-      note: 'Forgoing Advantage for extra damage and a Forceful or Hamstring effect is not modelled.',
+      note: 'Not applied, and it needs Reckless Attack before anything else. Forgoing a mode you were granted is a price no feature can pay; Forceful Blow pushes the target fifteen feet and then moves the Barbarian half their Speed toward it, and no feature reaches either; and Hamstring Blow reduces a Speed, which the Speed grant deliberately leaves to the condition layer.',
     },
     {
       id: 'barbarian:relentless-rage',
@@ -235,21 +235,30 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Improved Brutal Strike',
       level: 13,
       automation: 'manual',
-      note: 'More Brutal Strike effects, none of which is modelled.',
+      note: 'Two more Brutal Strike options, and lengthening another feature’s list is itself a restatement the engine has no member for. Neither option is modelled either: Staggering Blow gives the target Disadvantage on its next saving throw and stops its Opportunity Attacks until the start of your next turn, and Sundering Blow gives the next attack roll another creature makes against the target a bonus of five.',
     },
     {
       id: 'barbarian:persistent-rage',
       name: 'Persistent Rage',
       level: 15,
       automation: 'manual',
-      note: 'Half of it is now buildable and deliberately not built. Regaining all uses of Rage when Initiative is rolled, once per Long Rest, is the same shape as Uncanny Metabolism and would be a recovery grant. The other half is not: "your Rage now lasts for 10 minutes without you needing to do anything to extend it", and "ends early if you have the Unconscious condition (not just the Incapacitated condition)", are a feature changing another feature’s activation — a shape with one user, which is a guess dressed up as a structure. Executing one half and not the other is the state this file does not have.',
+      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "When you roll Initiative, you can regain all expended uses of Rage. After you regain uses of Rage in this way, you can’t do so again until you finish a Long Rest" — Uncanny Metabolism’s sentence with the Monk’s pool swapped for the Rages column and the healing left off, so it is a recovery grant with a pool of one behind it. The other half is not: "your Rage is so fierce that it now lasts for 10 minutes without you needing to do anything to extend it from round to round" and the ending on Unconscious rather than Incapacitated are a feature rewriting another feature’s activation, and an `ActivatedFeature`’s deadline, cap and exits are fixed when the sheet is built.',
+      grants: {
+        kind: 'recovery',
+        // The feature's own once-per-Long-Rest limit, which is a pool of one.
+        pool: 'barbarian:persistent-rage',
+        poolLabel: 'Persistent Rage',
+        restores: { kind: 'pool', key: 'rage' },
+        upTo: 'all',
+        moment: 'initiative',
+      },
     },
     {
       id: 'barbarian:improved-brutal-strike-2',
       name: 'Improved Brutal Strike',
       level: 17,
       automation: 'manual',
-      note: 'Two Brutal Strike effects at once, neither of which is modelled.',
+      note: 'Nothing here is its own mechanism: the extra damage steps to 2d10 and two Brutal Strike effects may be used at once, both of which are this feature rewriting the level 9 one. `executedBy` is the member for an Improved X that only raises a number, and it is refused against a feature that declares nothing — which Brutal Strike does not, because none of it is built.',
     },
     {
       id: 'barbarian:indomitable-might',
@@ -287,7 +296,7 @@ export const PATH_OF_THE_BERSERKER: SubclassDefinition = {
       name: 'Frenzy',
       level: 3,
       automation: 'manual',
-      note: 'The extra Necrotic damage while Raging is a bonus the caller supplies; nothing knows a Barbarian is Raging.',
+      note: 'Not applied, and being inside a Rage is no longer the reason: a standing effect may require a named feature to be active, which is how Mindless Rage reads the Barbarian’s own Rage. What blocks this one is Reckless Attack. SRD: "If you use Reckless Attack while your Rage is active, you deal extra damage to the first target you hit on your turn with a Strength-based attack" — Reckless Attack is manual because no selector can narrow an attack roll to the ability it was made with, so there is no stance here for a requirement to read.',
     },
     {
       id: 'berserker:mindless-rage',
