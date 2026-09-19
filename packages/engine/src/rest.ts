@@ -7,6 +7,7 @@ import type { GameEvent, GameState } from './events.js';
 import { once } from './idempotency.js';
 import { remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
+import { sheetAsItStands } from './standing.js';
 
 /**
  * Short and Long Rests.
@@ -280,7 +281,14 @@ export function endRest(
       events.push({ type: 'resources-restored', id, recovers: 'short-rest' });
 
       if (requested.length > 0 && supply !== undefined) {
-        const constitution = abilityModifier(creature.sheet.abilities.con);
+        // The sheet as it stands, not the one the character was built with:
+        // "add your Constitution modifier" is read at the moment the die is
+        // thrown, so an item that *sets* Constitution — an Amulet of Health —
+        // reaches it. This command holds the state and the id, which is the
+        // whole reason the substitution is available here.
+        const constitution = abilityModifier(
+          (sheetAsItStands(state, id) ?? creature.sheet).abilities.con,
+        );
         const issuedBefore = supply.issuer.count;
         let regained = 0;
 

@@ -8,7 +8,9 @@ import { fold, type GameEvent } from './events.js';
 import type { GameState } from './state.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { attuneItem, equipItem, unequipItem } from './commands/inventory.js';
-import { beginRest } from './rest.js';
+import { createRng, restoreRng } from './dice.js';
+import { createRollIssuer } from './rolls.js';
+import { SHORT_REST, beginRest, endRest, hitDieKey, type RestResolution } from './rest.js';
 import {
   abilityScoresOf,
   armorClassOf,
@@ -513,6 +515,82 @@ describe('the three SRD items the grant frees', () => {
   }
 
   /**
+   * The Constitution a Hit Die adds, which is the last folded-looking reader
+   * and turned out not to be folded at all.
+   *
+   * SRD: "For each Hit Point Die you spend in this way, roll the die and add
+   * your Constitution modifier to it." That addend is decided at the moment
+   * the die is thrown, in a command holding the state and the creature's id,
+   * so it is a derived read wearing a folded number's clothes — and it was
+   * the one place a set Constitution stopped. The hit point *maximum* beside
+   * it really is folded, which is why one of the amulet's two notes comes off
+   * here and the other stays.
+   *
+   * Asserted as the number Constitution contributes rather than as a range,
+   * so a die that happened to roll well cannot pass for a modifier.
+   */
+  describe('the Constitution a Hit Die adds on a Short Rest', () => {
+    const AMULET = 'amulet-of-health';
+    /** Six off a level 1 Fighter, taken before the rest begins: damage breaks one. */
+    const HURT: GameEvent = { type: 'damage-taken', id: WHO, amount: 6 };
+    const AN_HOUR: GameEvent = { type: 'time-advanced', seconds: SHORT_REST, reason: 'resting' };
+
+    /** Hurt first, then an hour of rest, with the amulet on or left in the pack. */
+    const hurtAndResting = (worn: boolean): readonly GameEvent[] => {
+      const resting = after([...built(owner(LOW), SRD_CONTENT), HURT], (state) =>
+        unwrap(beginRest(state, WHO, 'short'), 'rest'),
+      );
+      if (!worn) return resting;
+      const attuned = after(resting, (state) =>
+        unwrap(attuneItem(state, SRD_CONTENT, WHO, AMULET, `attune-${AMULET}`), 'attune'),
+      );
+      return after(attuned, (state) =>
+        unwrap(equipItem(state, SRD_CONTENT, WHO, AMULET, `equip-${AMULET}`), 'equip'),
+      );
+    };
+
+    /** End the rest, spending the Fighter's one d10. */
+    const spendTheDie = (log: readonly GameEvent[]): RestResolution => {
+      const ready = [...log, AN_HOUR];
+      const state = fold('seed', ready);
+      return unwrap(
+        endRest(state, WHO, { hitDice: [hitDieKey(10)] }, {
+          issuer: createRollIssuer('hit-die', state.rollsIssued),
+          rng: state.rng === null ? createRng('seed') : restoreRng(state.rng),
+        }),
+        'end rest',
+      );
+    };
+
+    it('adds the score the amulet sets, not the one the sheet was built with', () => {
+      // The sheet really was built on 14, which is what makes the assertion
+      // below about the amulet rather than about the assignment.
+      expect(fold('seed', built(owner(LOW), SRD_CONTENT)).creatures[WHO]?.sheet.abilities.con).toBe(
+        14,
+      );
+
+      const on = spendTheDie(hurtAndResting(true));
+      const die = on.hitDice[0]!;
+      expect(die.regained).toBe(die.natural + abilityModifier(19));
+      expect(on.hitPointsRegained).toBe(die.natural + 4);
+
+      // And the log says where the 4 came from, since the narration reads it.
+      const recorded = on.events.find((event) => event.type === 'roll-recorded');
+      expect(recorded).toMatchObject({
+        label: 'Hit Die (d10)',
+        contributions: [{ source: 'Constitution', amount: 4 }],
+      });
+    });
+
+    it('adds the built score when the amulet is off, and the same die shows it', () => {
+      const off = spendTheDie(hurtAndResting(false));
+      const die = off.hitDice[0]!;
+      expect(die.regained).toBe(die.natural + abilityModifier(14));
+      expect(off.hitPointsRegained).toBe(die.natural + 2);
+    });
+  });
+
+  /**
    * And what each of them still does not do, recorded rather than implied.
    *
    * **The note this used to pin is gone, because its sentence stopped being
@@ -524,11 +602,13 @@ describe('the three SRD items the grant frees', () => {
    * the table nothing and say so by carrying no note at all. A note kept alive
    * to keep a field non-empty is exactly what `unmodelled` exists to prevent.
    *
-   * The amulet is the exception, and it is the exception for a reason that is
-   * about Constitution rather than about the amulet: a Constitution is *folded*
-   * in two places as well as derived everywhere else — into the hit point
-   * maximum every level paid, and into the Hit Points a Hit Die restores on a
-   * Short Rest. Neither is a reader a sheet substitution reaches.
+   * The amulet is the exception, and it is down to one note for a reason that
+   * is about Constitution rather than about the amulet: a Constitution is
+   * *folded* into the hit point maximum every level paid, and a maximum is not
+   * a reader a sheet substitution reaches. Its second note is gone, because the
+   * Hit Die it described was a derived read all along and asks
+   * {@link sheetAsItStands} now — pinned below by its absence, since a note
+   * outliving its gap is what this field exists to prevent.
    */
   it('says in the catalogue what a set score still does not reach', () => {
     for (const { id } of PRINTED) {
@@ -539,8 +619,11 @@ describe('the three SRD items the grant frees', () => {
     expect(SRD_CONTENT.item('headband-of-intellect')?.unmodelled).toBeUndefined();
 
     const amulet = SRD_CONTENT.item('amulet-of-health')?.unmodelled ?? [];
-    expect(amulet).toHaveLength(2);
-    expect(amulet.some((note) => note.includes('hit point maximum'))).toBe(true);
-    expect(amulet.some((note) => note.includes('Short Rest'))).toBe(true);
+    expect(amulet).toHaveLength(1);
+    expect(amulet[0]).toContain('hit point maximum');
+    // The Hit Die note is gone with the gap it described, and nothing else in
+    // the catalogue claims a rest reads the built score either.
+    expect(amulet.some((note) => note.includes('Hit Die'))).toBe(false);
+    expect(amulet.some((note) => note.includes('Short Rest'))).toBe(false);
   });
 });
