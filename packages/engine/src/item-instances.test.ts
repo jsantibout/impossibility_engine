@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, isErr, expect as unwrap, type Result } from '@ie/shared';
+import {
+  asCharacterId,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+  type Result,
+} from '@ie/shared';
 import type { CatalogueItem } from './catalogue.js';
 import { itemChargePool } from './catalogue.js';
 import { extendContent, type Content } from './content.js';
@@ -152,11 +158,25 @@ describe('two copies of a charged item are two records', () => {
     expect(chargesLeft(state(log), SRD_CONTENT, GRUM, 'item:2')).toBe(3);
   });
 
+  /**
+   * **A refusal and not a question**, which is a classification worth pinning
+   * rather than leaving to be re-argued.
+   *
+   * `needs-context` is for a record that is *thin* — a fact the engine has
+   * never been told, which some other command would declare. Nothing is thin
+   * here: the engine knows exactly what is in the pack, and it is the request
+   * that has two answers. `abilityForItem`'s `class_required` is the same
+   * shape and the same subsystem — "used with your own spellcasting ability
+   * and this creature has more than one; name one of …" — and it is a refusal
+   * for the same reason. Nothing was spent either way, and the caller names a
+   * copy and asks again.
+   */
   it('refuses to guess which copy, and names them', () => {
     const out = equipItem(state(withTwoWands()), SRD_CONTENT, GRUM, WAND);
     expect(isErr(out)).toBe(true);
     expect(isErr(out) && out.code).toBe('ambiguous_copy');
     expect(isErr(out) && out.reason).toMatch(/item:1/);
+    expect(isNeedsContext(out)).toBe(false);
   });
 
   it('is what the equip event pinned, so the fold opens no catalogue', () => {
@@ -192,6 +212,58 @@ describe('the ids are a function of the log, and the fold checks them', () => {
       },
     ];
     expect(() => fold('seed', log)).toThrow(/one copy/);
+  });
+});
+
+describe('a character joining a world that has issued records', () => {
+  /**
+   * Creation is a gain door, and the only one a charged item can come through
+   * until a DM has a command for handing over what the party found: the SRD
+   * prints no price for a magic item, so `purchaseItem` refuses it. So
+   * `createCharacter` has to issue records — and it has no state of its own to
+   * count from, which is what the fourth argument is.
+   */
+  const NYX = id('nyx');
+  const elf = (over: Partial<CharacterChoices> = {}): CharacterChoices =>
+    barbarian({ name: 'Nyx', ...over });
+
+  it('numbers its copies from where the world left off', () => {
+    const first = withTwoWands();
+    const second = unwrap(
+      createCharacter(SRD_CONTENT, elf({ dmGrants: hoard(WAND, 1) }), NYX, state(first)),
+      'create',
+    );
+    const world = fold('seed', [...first, ...second]);
+    expect(world.creatures.nyx?.inventory.find((line) => line.id === WAND)?.instance).toBe(
+      'item:3',
+    );
+    expect(world.itemsIssued).toBe(3);
+    expect(Object.keys(world.creatures.nyx!.resources.pools)).toContain(
+      `${WAND}:charges@item:3`,
+    );
+  });
+
+  /**
+   * And forgetting it is loud rather than quiet. The copies are numbered from
+   * one — right for the empty world every other caller creates into — and the
+   * fold refuses the id that is not next, which is the whole reason the fold
+   * verifies rather than assigns.
+   */
+  it('is refused by the fold when the world is not the one it counted from', () => {
+    const first = withTwoWands();
+    const second = unwrap(
+      createCharacter(SRD_CONTENT, elf({ dmGrants: hoard(WAND, 1) }), NYX),
+      'create',
+    );
+    expect(() => fold('seed', [...first, ...second])).toThrow(CorruptLogError);
+    expect(() => fold('seed', [...first, ...second])).toThrow(/expected item item:3, got item:1/);
+  });
+
+  /** Nothing charged, nothing issued: the argument is never needed for rope. */
+  it('needs nothing of the argument for a character carrying no such thing', () => {
+    const first = withTwoWands();
+    const second = unwrap(createCharacter(SRD_CONTENT, elf(), NYX), 'create');
+    expect(fold('seed', [...first, ...second]).itemsIssued).toBe(2);
   });
 });
 
@@ -346,6 +418,20 @@ describe('a copy that leaves is the copy that leaves', () => {
       'drinking it',
     );
     expect(lines([...bought, ...used.events], FLASK)).toEqual([]);
+  });
+
+  /**
+   * And the fold refuses the loss the commands are careful not to write: one
+   * that names the kind when every copy of it has a record, which would
+   * remove nothing at all and say nothing about it.
+   */
+  it('refuses a hand-written loss that names no copy', () => {
+    const log: readonly GameEvent[] = [
+      ...withTwoWands(),
+      { type: 'items-lost', id: GRUM, items: [{ id: WAND, quantity: 1 }], source: 'by hand' },
+    ];
+    expect(() => fold('seed', log)).toThrow(CorruptLogError);
+    expect(() => fold('seed', log)).toThrow(/has to name which/);
   });
 
   it('takes the only copy there is without being told its id', () => {

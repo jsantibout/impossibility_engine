@@ -167,13 +167,36 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
 
     case 'items-lost': {
       const creature = creatureOf(state, event, event.id);
-      // A named copy that is not there is a log contradicting itself, and it
-      // would otherwise vanish silently: a negative line merges with nothing
-      // and is filtered away, leaving the copy still owned. Counted things
-      // keep the reading they have always had — `loseItems` is what refuses to
-      // take more rope than there is.
+      /**
+       * A loss that would remove nothing is a log contradicting itself, and
+       * both ways of writing one are caught here.
+       *
+       * A negative line merges only with a line under the same key, so a loss
+       * that finds none is filtered away by the `quantity > 0` rule and leaves
+       * the thing still owned — silently, which is the one outcome a reducer
+       * must not have. Two ways to write it: naming a copy nobody has, and
+       * naming only the *kind* when every copy of that kind has a record of
+       * its own. The second is the one a hand-written log falls into, and it
+       * is also why `loseItems` and `useItem` resolve the copy before they
+       * emit.
+       *
+       * Counted things keep the reading they have always had: taking five
+       * rations from two removes both and says nothing, because that line did
+       * find its stack. `loseItems` is what refuses to take more than there is.
+       */
       for (const line of event.items) {
-        if (line.instance === undefined) continue;
+        if (line.instance === undefined) {
+          const kind = creature.inventory.filter((owned) => owned.id === line.id);
+          if (kind.length > 0 && kind.every((owned) => owned.instance !== undefined)) {
+            throw new CorruptLogError(
+              event,
+              `${event.id}'s ${line.id} are copies with records of their own (${kind
+                .map((owned) => owned.instance)
+                .join(', ')}); a loss has to name which`,
+            );
+          }
+          continue;
+        }
         if (!creature.inventory.some((owned) => owned.instance === line.instance)) {
           throw new CorruptLogError(event, `${event.id} does not have ${line.instance}`);
         }
