@@ -5,6 +5,7 @@
     "AppliedCommand",
     "CommandStamp",
     "LastDamage",
+    "FallMoment",
     "PendingAttack",
     "PendingMove",
     "PendingCasting",

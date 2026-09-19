@@ -56,6 +56,7 @@ import {
   liftConditionFrom,
   damageCreature,
   declareCreatureType,
+  declareFalling,
   declareDifficultTerrain,
   declineOpportunity,
   endConcentration,
@@ -1310,6 +1311,16 @@ const GUARDED: readonly Guarded[] = [
     name: 'declareCreatureType',
     log: untyped(),
     run: (s, commandId) => declareCreatureType(s, C, 'Fey', { commandId }),
+  },
+  {
+    /**
+     * A momentary fact, so the retry question is the sharper one: declaring a
+     * fall again under a *new* id is a second fall and must land, while the
+     * same id twice is one fall however many times it is sent.
+     */
+    name: 'declareFalling',
+    log: SETUP,
+    run: (s, commandId) => declareFalling(s, B, { commandId }),
   },
   {
     name: 'declareDifficultTerrain',

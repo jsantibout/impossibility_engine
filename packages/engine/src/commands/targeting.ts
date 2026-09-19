@@ -41,6 +41,7 @@ import {
   positionOf,
   snapToSpace,
 } from '../positioning.js';
+import { fallWindowOpen } from '../reactions.js';
 import { canSee } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
@@ -1038,6 +1039,20 @@ export function namedTargets(
           `${definition.name} is cast on a creature who is not wearing armor; ${target} is wearing ${worn.name}`,
         );
       }
+    }
+
+    // SRD Feather Fall: "up to five **falling** creatures within range". The
+    // trigger said that *somebody* is falling; this says which of them this
+    // casting may reach, and the two are different questions — the thug on the
+    // floor watching the climber drop past him answers the first and fails
+    // the second. A creature nobody declared falling is a plain no, for the
+    // reason `mustBeUnarmored` above is: the fact is the engine's to read, and
+    // a question here would tell a caller which declaration to invent.
+    if (definition.targets.mustBeFalling === true && fallWindowOpen(state, target) === null) {
+      return err(
+        'target_not_falling',
+        `${definition.name} is cast on a falling creature, and nobody has said ${target} is falling`,
+      );
     }
 
     if (state.scene === null) {

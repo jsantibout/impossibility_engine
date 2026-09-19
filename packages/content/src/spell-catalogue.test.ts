@@ -213,7 +213,14 @@ const logFor = (spellId: string): readonly GameEvent[] => {
                 },
               },
             ] as readonly GameEvent[])
-          : [];
+          : definition?.trigger === 'creature-falling'
+            ? // A fall declared for the creature the fixture goes on to cast
+              // at, because this window's target rule reads the same fact the
+              // trigger does — "up to five **falling** creatures" — so a fall
+              // declared for anybody else would open the window and refuse
+              // every target in it.
+              ([{ type: 'fall-declared', id: TARGET }] as readonly GameEvent[])
+            : [];
 
   if (!anchored && triggered.length === 0) return typed;
 

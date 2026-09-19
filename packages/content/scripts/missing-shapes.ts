@@ -218,7 +218,7 @@ export const MISSING_SHAPES = {
   'a-second-place-to-put-a-creature':
     'there is one scene, so a creature sent elsewhere has nowhere to be. `docs/design/spell-definitions.md`: "A destination *outside* the scene is different in kind ... there is one scene, so Plane Shift and Word of Recall have no position to move anybody to", and `docs/design/casting.md`: "the real fix is the doctrine’s multiple-scenes seam".',
   falling:
-    '`docs/design/casting.md` lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". Nothing drops, nothing takes fall damage, and no rate of descent has anything to be measured against.',
+    '`docs/design/casting.md` lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". **The trigger half is built and the rest is not**: a fall is a declared fact now, `fall-declared` beside `lastDamage`, and the Reaction window derived from it is what let Feather Fall be written. What is still missing is everything with a number in it — nothing takes fall damage, no height is held anywhere, and no rate of descent has anything to be measured against, so the Monk’s Slow Fall cannot reduce a damage nobody deals and Reverse Gravity cannot say that a failed save means a creature fell upward.',
   jumping:
     'jumping, which nothing models, so a jump distance has nothing to be measured against. Jump’s own clause in spell-definitions.ts says it: "the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count".',
   'forced-movement-a-spell-causes':
@@ -1809,7 +1809,31 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'saving-throw',
       clause: 'A creature can make a Dexterity saving throw to grab a fixed object it can reach',
       why: 'falling',
-      note: 'the save is ordinary and what it avoids is a fall upward; falling is not a rule the engine has at all, so there is nothing for a success to prevent.',
+      note: 'the save is ordinary and what it avoids is a fall upward. A fall is a fact the table can now declare, which is the half Feather Fall needed — but nothing lets an effect *produce* one, so a failed save here has no way to say the creature fell, and the fall upward still ends against a ceiling nothing models.',
+    },
+  ],
+  /**
+   * The spell the `falling` shape was named for, and now a definition — so
+   * what it still owes is two sentences rather than the whole paragraph.
+   *
+   * Both are marker-less, and that is the form working as designed: the SRD
+   * writes a descent rate and a fall's damage in none of the guard's words —
+   * `speed` is `Speed` with a capital and this says "rate of descent",
+   * `movement-cost` wants "feet of movement" — so nothing demanded these
+   * entries and somebody read the paragraph.
+   */
+  'feather-fall': [
+    {
+      marker: null,
+      clause: 'rate of descent slows to 60 feet per round',
+      why: 'falling',
+      note: 'the declared fall says a creature is falling and nothing else: no height, no speed downward, and so no rate for this to slow. The SRD prints the new rate and leaves the distance to the DM, so a descent the engine measured would be one it had invented the number for.',
+    },
+    {
+      marker: null,
+      clause: 'the creature takes no damage from the fall',
+      why: 'falling',
+      note: 'falling damage is not modelled — it needs damage tagged as a fall and a height the table declares — so there is nothing here for the spell to prevent. The same missing half the Monk’s Slow Fall waits on, which is why the shape stays on the map with the spell written.',
     },
   ],
   sequester: [
@@ -3698,10 +3722,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   darkness: [],
   dream: ['a-long-casting-time', 'a-rest-an-effect-gives-or-denies'],
   entangle: ['an-area-that-filters-its-catch', 'difficult-terrain-an-area-creates'],
-  // One sentence, one shape, and both halves of the sentence are that shape:
-  // the spell **takes** an action for you and then **grants** you a second way
-  // to take it. The shortest paragraph in the book that is still debt.
-  'feather-fall': ['falling'],
   'find-familiar': [
     {
       clause: 'Casting Time: 1 hour or Ritual',

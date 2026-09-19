@@ -2187,6 +2187,54 @@ export const FEAR: SpellDefinition = {
 };
 
 /**
+ * SRD Feather Fall:
+ *
+ * > _Level 1 Transmutation (Bard, Sorcerer, Wizard)._
+ * > **Casting Time:** Reaction, which you take when you or a creature you can
+ * > see within 60 feet of you falls. **Range:** 60 feet.
+ * > **Duration:** 1 minute.
+ * > "Choose up to five falling creatures within range. A falling creature's
+ * > rate of descent slows to 60 feet per round until the spell ends. If a
+ * > creature lands before the spell ends, the creature takes no damage from
+ * > the fall, and the spell ends for that creature."
+ *
+ * **The spell the whole `falling` shape was named for**, and it is here as a
+ * *tracked* definition rather than an executed one, which is the honest split
+ * of its three sentences. The first is the engine's: five targets, each of
+ * whom must be falling, each within 60 feet, answered as a Reaction at the
+ * moment the table declares the fall — a slot, an action-economy cost and a
+ * minute on the clock, all of them the engine's to spend and to run out.
+ *
+ * The other two are a descent the engine does not measure and damage it does
+ * not deal. The SRD gives the rate ("60 feet per round") and gives the height
+ * to the DM, so a landing this engine recognised would be one it had invented
+ * the distance for. `TRACKED_ADJUDICATED` records both against the shape,
+ * which keeps `falling` on the map for the Monk's Slow Fall and for Reverse
+ * Gravity rather than retiring it on the strength of the half that got built.
+ */
+export const FEATHER_FALL: SpellDefinition = {
+  id: 'feather-fall',
+  name: 'Feather Fall',
+  level: 1,
+  school: 'transmutation',
+  castingTime: 'reaction',
+  trigger: 'creature-falling',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  // "up to five falling creatures within range" — a maximum rather than a
+  // demand, and `self: true` because the trigger names the caster first: "when
+  // **you** or a creature you can see ... falls".
+  targets: { count: 5, self: true, mustBeFalling: true },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the rate of descent is not slowed: nothing in the engine measures a descent, and the SRD gives the new rate as 60 feet per round against a height only the DM holds',
+    'a creature that lands before the spell ends takes no damage from the fall and the spell ends for that creature; falling damage is the table’s, so the DM decides what the landing costs and ends the casting for whoever reaches the ground',
+    'the trigger’s "a creature you can see" goes unchecked, as Counterspell’s does: the 60 feet is the spell’s Range and is checked, and which falls a caster perceives the engine has never modelled',
+  ],
+};
+
+/**
  * SRD Hypnotic Pattern:
  *
  * > _Level 3 Illusion (Bard, Sorcerer, Warlock, Wizard)._
@@ -12559,6 +12607,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FAITHFUL_HOUND,
   FALSE_LIFE,
   FEAR,
+  FEATHER_FALL,
   FIND_STEED,
   FIND_THE_PATH,
   FIND_TRAPS,

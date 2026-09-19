@@ -514,6 +514,36 @@ export type GameEvent =
     }
   | { readonly type: 'stabilised'; readonly id: CharacterId; readonly command?: CommandStamp }
 
+  /**
+   * Somebody at the table says this creature is falling.
+   *
+   * SRD Feather Fall: "Reaction, which you take when you or a creature you can
+   * see within 60 feet of you **falls**"; SRD Slow Fall: "You can take a
+   * Reaction **when you fall**." Both answer an instant, and the engine could
+   * not say that instant had arrived — nothing drops, nothing is pushed off
+   * anything, and no height is held anywhere. So the fall is a **declared
+   * fact**, the answer cover, sight and a creature's type already get: fiction
+   * supplies what the engine cannot see, and everything downstream is derived.
+   *
+   * **It carries no height, no rate and no "until when"**, and that is the
+   * point rather than an omission. A landing declaration would be the engine
+   * modelling a descent it holds no distance for; a duration would need a
+   * height the SRD gives only as a rate ("60 feet per round"), which is a
+   * number this engine exists not to invent. What the moment *is* worth is
+   * settled by {@link fallWindowOpen}, on the two facts already in state —
+   * the turn and the clock — exactly as `lastDamage` is.
+   *
+   * **Nobody's fall, twice, is two falls.** A creature knocked off a second
+   * ledge a minute later declares again and gets a fresh moment, because the
+   * event records when rather than whether: re-declaring simply overwrites,
+   * which is what a momentary fact means.
+   */
+  | {
+      readonly type: 'fall-declared';
+      readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
+
   // — conditions ——————————————————————————————————————————————
   | {
       readonly type: 'condition-applied';

@@ -46,7 +46,7 @@ import {
   type PendingCasting,
 } from '../events.js';
 import { type Placement, type Point, type PointAnchoring } from '../positioning.js';
-import { damageWindowOpen } from '../reactions.js';
+import { damageWindowOpen, fallingNow } from '../reactions.js';
 import { remaining, slotKeyOf, type SlotKind } from '../resources.js';
 import { type RollIssuer } from '../rolls.js';
 import { type Content } from '../content.js';
@@ -163,6 +163,33 @@ export function triggerRefusal(
     case 'casting-a-spell': {
       const answered = answeredCasting(state, definition, request);
       return answered.ok ? null : answered;
+    }
+
+    case 'creature-falling': {
+      // SRD: "when **you or a creature you can see** within 60 feet of you
+      // falls" — so the trigger is anybody's fall and not the caster's, which
+      // is why this asks the whole roster rather than one creature the way
+      // `damaged-by-creature` does. Who may then be *targeted* is the target
+      // rule's question and `mustBeFalling` answers it; the sixty feet and the
+      // sight are the range and sight checks every casting already makes.
+      const falling = fallingNow(state);
+      if (falling.length > 0) return null;
+
+      // **One code for both halves of "not now", and it is a verdict.** A
+      // creature nobody declared falling is not falling — an event the log
+      // does not hold is false here rather than unknown, which is the reading
+      // `damaged-by-creature` takes of damage that never happened. Asking for
+      // context instead would be the engine telling a caller that inventing a
+      // fall would unlock a level 1 slot.
+      const ever = Object.keys(state.creatures).some(
+        (key) => state.creatures[key as CharacterId]?.falling !== null,
+      );
+      return err(
+        'no_trigger',
+        ever
+          ? `${definition.name} answers a fall as it happens, and the moment has passed`
+          : `${definition.name} is a Reaction taken when you or a creature you can see falls, and nobody in this game is falling`,
+      );
     }
 
     default: {

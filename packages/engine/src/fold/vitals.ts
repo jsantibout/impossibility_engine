@@ -47,6 +47,7 @@ export const VITALS_EVENTS = [
   'exhaustion-set',
   'creature-died',
   'hit-point-maximum-raised',
+  'fall-declared',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -242,6 +243,22 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
     case 'stabilised': {
       const creature = creatureOf(state, event, event.id);
       return withCreature(next, event.id, { vitals: stabilize(creature.vitals) }, creature);
+    }
+
+    case 'fall-declared': {
+      const creature = creatureOf(state, event, event.id);
+      // **The two facts the engine already holds about "now", and no third.**
+      // It is `damage-taken`'s line with the dealer taken off, because a fall
+      // is dealt by the world: the turn in combat and the clock outside one
+      // are the whole of the window, and `fallWindowOpen` reads them back with
+      // the rule `damageWindowOpen` wrote. A height or a rate written here
+      // would be a number nobody at the table supplied.
+      return withCreature(
+        next,
+        event.id,
+        { falling: { turn: state.combat?.turnsTaken ?? null, elapsed: state.elapsed } },
+        creature,
+      );
     }
 
     case 'condition-applied': {

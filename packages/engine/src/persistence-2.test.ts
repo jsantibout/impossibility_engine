@@ -500,6 +500,15 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // and left mid-move, two that overlap, a refusal that names what slowed the
   // walker, and a patch that stops charging when its casting stops running.
   'difficult-terrain-declared',
+  // A fall somebody declared. Neither log could carry one: nothing in the
+  // engine could say a creature was falling until the window SRD Feather Fall
+  // answers needed a fact to read, and both fixtures fold to the states they
+  // always folded to with the field `null` on every creature.
+  // `falling.test.ts` folds it and drives it end to end — the window open in
+  // the turn of the declaration, shut by the next turn and by the clock, the
+  // opportunity appearing and disappearing on the same rule, and the spell
+  // cast through the public API.
+  'fall-declared',
   'item-transferred',
   // A grant a roll used up. No frozen log carries a one-shot modifier — the
   // mechanic postdates both of them by a long way — so neither could carry the

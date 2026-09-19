@@ -5,6 +5,11 @@
  * A `ContextRequest` names the command that satisfies it; this is where those
  * commands live. Creature type is the durable one — declared once, and a
  * contradicting declaration is refused rather than absorbed.
+ *
+ * The three differ in how long what they say lasts, and each says which: a
+ * creature's type is permanent, a patch of Difficult Terrain stands until the
+ * ground changes, and a fall is **momentary** — one instant, closed by the
+ * turn or the clock, with nothing to take back.
  */
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
@@ -57,6 +62,49 @@ export function declareCreatureType(
     return ok([
       { type: 'creature-type-declared', id, creatureType, ...(stamp === null ? {} : { command: stamp }) },
     ]);
+  });
+}
+
+/**
+ * Say that a creature is falling, now.
+ *
+ * The fact SRD *Feather Fall* and the Monk's Slow Fall both answer, and the
+ * one the engine had no way to hold: nothing in it drops a creature off
+ * anything, nothing holds a height, and so the Reaction window those two name
+ * could never open. It is the third fact of this shape — cover, sight, a
+ * creature's type — and it arrives through the same door, which is the whole
+ * of why this is a command rather than a flag a spell could set for itself.
+ *
+ * **What it does not say is as load-bearing as what it does.** There is no
+ * height, no rate of descent and no landing: the SRD gives the rate only as
+ * "60 feet per round" and gives the distance to the DM, so an engine that
+ * recorded either would be inventing the number it exists not to invent. The
+ * moment is worth exactly one window, and {@link fallWindowOpen} closes it on
+ * the turn and the clock — the rule `lastDamage` already lives by.
+ *
+ * **Re-declaring is a new fall, not a contradiction**, which is
+ * `declareDifficultTerrain`'s rule rather than `declareCreatureType`'s and for
+ * a sharper reason than either: a creature's type is what it *is*, and a fall
+ * is something that is happening to it. Somebody who is pushed off a second
+ * ledge a minute later is falling again, and refusing that would be the engine
+ * holding a momentary fact as though it were a permanent one. A caller that
+ * genuinely means "again" and a caller retrying are told apart by the command
+ * id, as everywhere else.
+ *
+ * There is no `declareLanded` twin, deliberately. Landing ends the window the
+ * moment the turn or the clock moves, with no event and no machinery, and an
+ * ending nobody has to remember is one nobody can forget.
+ */
+export function declareFalling(
+  state: GameState,
+  id: CharacterId,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `declare-falling:${id}`, { ...command }, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    return ok([{ type: 'fall-declared', id, ...(stamp === null ? {} : { command: stamp }) }]);
   });
 }
 

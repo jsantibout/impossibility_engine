@@ -12,7 +12,7 @@
  * class features actually name: a damage roll that has not landed, and a D20
  * Test whose effects have not occurred.
  *
- * See `reactions.ts` for the vocabulary and why it is a table of five members
+ * See `reactions.ts` for the vocabulary and why it is a table of six members
  * rather than a trigger language.
  */
 
@@ -44,6 +44,7 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import { distanceBetween } from '../positioning.js';
 import {
   damageWindowOpen,
+  fallingNow,
   offersForTest,
   reactionAddends,
   reactionFeatureOf,
@@ -861,7 +862,7 @@ export function takeDamageResponse(
  * NPC want to spend its Reaction?) without inventing the *trigger* that would
  * make the choice legal.
  *
- * Five windows, four sources:
+ * Six windows, five sources:
  *
  * | Window | Where the opportunity comes from |
  * |---|---|
@@ -870,8 +871,9 @@ export function takeDamageResponse(
  * | `test-rolled` | the offers the engine computed when it held the test |
  * | `damaged-by-creature` | a feature or a Reaction spell, against `lastDamage` |
  * | `casting-a-spell` | a Reaction spell somebody else can cast — *Counterspell* |
+ * | `creature-falling` | a Reaction spell anybody can cast, against a declared fall |
  *
- * Two of those read a list already in state and three derive one, and the
+ * Two of those read a list already in state and four derive one, and the
  * difference is exactly whether the window holds an outcome open. A window
  * that holds something had to know who could answer before it opened.
  *
@@ -1012,6 +1014,21 @@ export function reactionOpportunities(state: GameState, content: Content): reado
 
     for (const chance of spellsFor(who, 'damaged-by-creature')) {
       found.push({ ...chance, against: hurt.by });
+    }
+  }
+
+  // The declared window. Nothing is held open here either, and the fact it
+  // reads came from the table rather than from a resolution — see
+  // `ReactionWindow`. **Every caster, including the one who is falling**: SRD
+  // writes the trigger as "when *you or* a creature you can see ... falls", so
+  // unlike `casting-a-spell` the subject is not excluded from answering.
+  for (const faller of fallingNow(state)) {
+    for (const key of Object.keys(state.creatures).sort()) {
+      const who = key as CharacterId;
+      if (!canReact(who)) continue;
+      for (const chance of spellsFor(who, 'creature-falling')) {
+        found.push({ ...chance, against: faller });
+      }
     }
   }
 

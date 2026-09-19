@@ -143,6 +143,14 @@ const SETUP: readonly GameEvent[] = [
   { type: 'sight-declared', from: WIZARD, to: ALLY, seen: true },
   { type: 'sight-declared', from: WIZARD, to: FOE, seen: true },
   { type: 'sight-declared', from: WIZARD, to: BEAST, seen: true },
+  // The ally is falling, which is the same discipline the types above follow:
+  // the fixture supplies the moment a Reaction spell answers rather than the
+  // spell being excused its own casting time. A fall is momentary and this
+  // table never moves a turn or the clock, so the window stays open for every
+  // cast driven off `SETUP` — and closes in the `inCombat` logs below, which
+  // start a fight after it and so are a different instant. `falling.test.ts`
+  // is where the opening and closing are the subject.
+  { type: 'fall-declared', id: ALLY },
   {
     type: 'spellcasting-declared',
     id: WIZARD,

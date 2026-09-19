@@ -1663,6 +1663,21 @@ export interface TargetRule {
    * rule.
    */
   readonly mustBeUnarmored?: true;
+  /**
+   * SRD *Feather Fall*: "Choose up to five **falling** creatures within range."
+   *
+   * The third clause of this kind, and it reads a fact of a third sort: a
+   * creature's type is durable and declared once, armour is authoritative
+   * state the engine keeps, and a fall is a **moment** — so this asks
+   * `fallWindowOpen` rather than the field, and a creature who fell a minute
+   * ago is no more a target than one who never fell.
+   *
+   * Like `mustBeUnarmored` and unlike `mustBeType`, an absent declaration is a
+   * plain **no** rather than a question: the trigger has already established
+   * that somebody is falling, and asking who else might be would be inviting a
+   * caller to add a second faller to widen the spell.
+   */
+  readonly mustBeFalling?: true;
   /** Whether the caster may pick themselves. */
   readonly self?: boolean;
   /**

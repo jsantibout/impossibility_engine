@@ -89,6 +89,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             activeFeatures: [],
             readied: null,
             lastDamage: null,
+            // Nobody falls into a game. Absent is what every log written
+            // before this field existed says, so both frozen fixtures fold
+            // unchanged.
+            falling: null,
             bonuses: [],
             armorClasses: [],
             rollModifiers: [],

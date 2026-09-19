@@ -22,7 +22,9 @@ import {
   attuneItem,
   awardItems,
   chargesLeft,
+  declareFalling,
   equipItem,
+  reactionOpportunities,
   resolveSpell,
 } from './commands.js';
 import {
@@ -200,6 +202,67 @@ describe('a homebrew spell goes through the same door as the book', () => {
     expect(checkCharacter(SRD_CONTENT, wizardWith(['ember-lash'])).map((p) => p.code)).toContain(
       'unknown_spell',
     );
+  });
+
+  /**
+   * A homebrew Reaction spell naming a window the SRD's own spells name.
+   *
+   * This is the test that says `creature-falling` is **vocabulary** rather
+   * than a special case for *Feather Fall*: a spell nobody printed, loaded
+   * from JSON text, refused before the fall and cast after it, with no engine
+   * change of any kind. The fact it reads comes from a command — a fall is
+   * declared, like cover and sight — and the opportunity query offers the
+   * homebrew spell on exactly the same rule it offers the book's.
+   */
+  const CATCH_THE_FALLEN = JSON.stringify({
+    id: 'catch-the-fallen',
+    name: 'Catch the Fallen',
+    level: 1,
+    school: 'abjuration',
+    castingTime: 'reaction',
+    trigger: 'creature-falling',
+    concentration: false,
+    range: { kind: 'ranged', feet: 30 },
+    targets: { count: 1, mustBeFalling: true },
+    effects: [{ kind: 'temp-hp', amount: { dice: '1d6' }, addSpellcastingModifier: false }],
+    durationSeconds: 60,
+  });
+
+  it('answers a window the engine already has, with nobody having to add one', () => {
+    const homebrew = unwrap(loadContent({ spells: [JSON.parse(CATCH_THE_FALLEN)] }), 'load');
+    const log = table(homebrew);
+
+    const early = resolveSpell(
+      fold('seed', log),
+      CASTER,
+      { spellId: 'catch-the-fallen', targets: [TARGET], slotLevel: 1 },
+      supply(homebrew),
+    );
+    expect(isErr(early)).toBe(true);
+    if (isErr(early)) expect(early.code).toBe('no_trigger');
+
+    const falling = [
+      ...log,
+      ...unwrap(declareFalling(fold('seed', log), TARGET), 'a fall'),
+    ];
+    expect(
+      reactionOpportunities(fold('seed', falling), homebrew).map((chance) => [
+        chance.window,
+        chance.id,
+        chance.against,
+      ]),
+    ).toContainEqual(['creature-falling', 'catch-the-fallen', TARGET]);
+
+    const cast = resolveSpell(
+      fold('seed', falling),
+      CASTER,
+      { spellId: 'catch-the-fallen', targets: [TARGET], slotLevel: 1 },
+      supply(homebrew),
+    );
+    expect(isErr(cast)).toBe(false);
+    if (!cast.ok) return;
+    const after = fold('seed', [...falling, ...cast.value.events]);
+    expect(after.creatures[TARGET]?.vitals.temporaryHp ?? 0).toBeGreaterThan(0);
   });
 
   it('may not shadow a printed spell', () => {

@@ -278,6 +278,17 @@ export interface CreatureState {
    */
   readonly lastDamage: LastDamage | null;
   /**
+   * That this creature is falling, and when the table said so.
+   *
+   * Beside `lastDamage` rather than on the scene with cover and sight, and the
+   * difference is the one that decides everything else about it. Cover and
+   * sight are **standing** facts, three-valued and pairwise, that hold until
+   * something changes them. A fall is **momentary** and about one creature, so
+   * it lives where the other momentary per-creature fact lives and closes by
+   * the same rule: see {@link FallMoment}.
+   */
+  readonly falling: FallMoment | null;
+  /**
    * Named bonuses a running effect has hung on this creature.
    *
    * Bless adds 1d4 to attack rolls and saves; Bane subtracts one. They are
@@ -523,6 +534,26 @@ export interface CommandStamp {
  */
 export interface LastDamage {
   readonly by: CharacterId;
+  readonly turn: number | null;
+  readonly elapsed: number;
+}
+
+/**
+ * That this creature is falling, and the moment it was said.
+ *
+ * {@link LastDamage}'s shape with its one identifying field taken away, for
+ * the reason that field is on the other: damage is dealt *by* somebody and a
+ * Reaction to it burns them, while a fall is dealt by the world and Feather
+ * Fall answers whoever is dropping. The two remaining fields are the whole of
+ * the window — the turn it happened on in combat, the clock instant outside
+ * one — because they are the two facts the engine already holds about "now".
+ *
+ * **There is no height, no rate and no landing here**, and a reader tempted to
+ * add one should read {@link GameEvent} on `fall-declared` first: every one of
+ * the three is a number the SRD makes the table's, and a fall that the engine
+ * claimed to measure would be the engine inventing it.
+ */
+export interface FallMoment {
   readonly turn: number | null;
   readonly elapsed: number;
 }

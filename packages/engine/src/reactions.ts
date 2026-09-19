@@ -6,6 +6,7 @@ import { distanceBetween } from './positioning.js';
 import { remaining } from './resources.js';
 import { canSee } from './standing.js';
 import type { GameState } from './events.js';
+import type { FallMoment } from './state.js';
 
 /**
  * The moments a Reaction can answer, named once for everything that answers
@@ -30,6 +31,14 @@ import type { GameState } from './events.js';
  * | `damaged-by-creature` | **everything** — the damage landed | nothing | *Hellish Rebuke*, Retaliation |
  * | `test-rolled` | the d20's total, and whether it beat the DC | the effects of that outcome | Indomitable, Dark One's Own Luck, Peerless Skill, Cutting Words, the Sphinx |
  * | `casting-a-spell` | the casting is declared and the action spent | the slot, the effects | *Counterspell* |
+ * | `creature-falling` | the table has said a creature is falling | how far, how long, and what it lands on | *Feather Fall*; the Monk's Slow Fall |
+ *
+ * **Five of the six are points in a resolution; the sixth is a declaration.**
+ * `creature-falling` is open because somebody at the table said so rather than
+ * because the engine is in the middle of something, which is what it costs to
+ * name an instant the engine has no other way to see — and the reason it is
+ * still a *window* rather than a trigger bus is that it closes on the same two
+ * facts as the rest and holds nothing open.
  *
  * **`damaged-by-creature` is in both columns**, and that overlap is the
  * evidence this vocabulary is shared rather than merely tidy: a spell
@@ -40,8 +49,9 @@ import type { GameState } from './events.js';
  * **What this deliberately is not.** There is no predicate language, no
  * registry, no subscription and no ordering engine. A window is a named point
  * in a resolution path, and adding one means adding a point to a path — which
- * is why two of the five arrived with the mechanics that needed them and three
- * were already there under other names.
+ * is why two of the six arrived with the mechanics that needed them, three were
+ * already there under other names, and the sixth arrived with a fact the table
+ * declares.
  */
 export type ReactionWindow =
   /** SRD *Shield*: "when you are hit by an attack roll". Damage is unrolled. */
@@ -74,7 +84,27 @@ export type ReactionWindow =
    */
   | 'test-rolled'
   /** SRD *Counterspell*: "a creature in the process of casting a spell". */
-  | 'casting-a-spell';
+  | 'casting-a-spell'
+  /**
+   * SRD *Feather Fall*: "when you or a creature you can see within 60 feet of
+   * you **falls**"; SRD Slow Fall: "when you fall".
+   *
+   * **The first window opened by a declaration rather than by a resolution**,
+   * and that is the whole of what is new about it. Every other member is a
+   * point in something the engine is in the middle of doing — an attack it
+   * rolled, damage it typed, a test it settled, a casting it is holding — and
+   * the moment is open because the engine has not finished. Nothing in the
+   * engine drops a creature off anything, so this one is open because somebody
+   * at the table said a fall happened, exactly as they say where the cover is.
+   *
+   * It closes by the rule {@link damageWindowOpen} already writes and for the
+   * same reason: "when you fall" means now, the finest grain the engine has
+   * for now is the turn, and outside combat the clock stands in for it. A
+   * creature nobody said fell is not falling — a fact the log does not hold is
+   * false here, not unknown, which is what keeps a Reaction spell from being
+   * unlocked by inventing its trigger.
+   */
+  | 'creature-falling';
 
 /**
  * The windows a **spell** answers.
@@ -85,7 +115,7 @@ export type ReactionWindow =
  */
 export type SpellReactionWindow = Extract<
   ReactionWindow,
-  'hit-by-attack' | 'damaged-by-creature' | 'casting-a-spell'
+  'hit-by-attack' | 'damaged-by-creature' | 'casting-a-spell' | 'creature-falling'
 >;
 
 /**
@@ -96,6 +126,12 @@ export type SpellReactionWindow = Extract<
  * changing the Armour Class the way *Shield* and Parry do; the two that look
  * as though they might (Uncanny Dodge, Deflect Attacks) are triggered by the
  * hit and **act on the damage**, so they belong to `damage-rolled`.
+ *
+ * `creature-falling` is absent, and deliberately: the Monk's Slow Fall names
+ * that window in as many words and *does* something this engine cannot — it
+ * reduces "any damage you take from the fall", and falling damage is a table
+ * ruling with a height nobody holds. A window a feature could name and no
+ * feature could answer would be an offer the command layer had to refuse.
  */
 export type FeatureReactionWindow = Extract<
   ReactionWindow,
@@ -565,6 +601,43 @@ export function damageWindowOpen(
   if (hurt.turn !== (state.combat?.turnsTaken ?? null)) return null;
   if (hurt.elapsed !== state.elapsed) return null;
   return hurt;
+}
+
+/**
+ * Whether the moment a Reaction to a *fall* answers is still open.
+ *
+ * {@link damageWindowOpen}'s twin, reading the other momentary fact on a
+ * creature and reading it the same way. SRD writes the trigger as "when you
+ * ... fall", which is the same "immediately" *Hellish Rebuke* gets, so it gets
+ * the same two comparisons: the turn, which is the finest grain the engine has
+ * for now, and the clock, which stands in where there are no turns.
+ *
+ * **Nothing here decides when a fall ends**, because nothing in the engine
+ * knows. The declaration says a creature fell and this says the saying is
+ * still current; how far the creature had to go and what it hit are the
+ * table's, and a landing this function could recognise would need a height no
+ * event carries.
+ *
+ * Two clients are already written into the SRD — *Feather Fall* answers it and
+ * the Monk's Slow Fall answers it — which is the same evidence
+ * `damaged-by-creature` offered that a window is vocabulary rather than one
+ * spell's special case. Only the spell can reach it today; see
+ * {@link FeatureReactionWindow} for what the feature is still waiting on.
+ */
+export function fallWindowOpen(state: GameState, who: CharacterId): FallMoment | null {
+  const fell = state.creatures[who]?.falling ?? null;
+  if (fell === null) return null;
+  if (fell.turn !== (state.combat?.turnsTaken ?? null)) return null;
+  if (fell.elapsed !== state.elapsed) return null;
+  return fell;
+}
+
+/** Everybody the table has said is falling, right now, in a stable order. */
+export function fallingNow(state: GameState): readonly CharacterId[] {
+  return Object.keys(state.creatures)
+    .sort()
+    .map((key) => key as CharacterId)
+    .filter((who) => fallWindowOpen(state, who) !== null);
 }
 
 /**

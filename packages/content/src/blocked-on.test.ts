@@ -2365,10 +2365,18 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    * says so. That is a different departure from the other three and the
    * assertion below says which — the shape stands, and the spell no longer
    * waits on it to be cast at all.
+   *
+   * **Feather Fall left that second way**, and took the list's only row with
+   * it. What replaces the row is the one spell left in the whole map with a
+   * single blocker, because the claim this list makes is about *being* the
+   * last thing between a spell and a definition, and a list with nothing in it
+   * makes no claim at all — an `it.each` over an empty array registers no
+   * tests and goes green for ever.
    */
   const SOLE: readonly (readonly [string, ShapeId])[] = [
-    // "Choose up to five falling creatures within range."
-    ['feather-fall', 'falling'],
+    // "If it takes any damage or is targeted by another spell, this spell
+    // ends, and no memories are modified."
+    ['modify-memory', 'a-casting-ended-by-a-trigger'],
   ];
 
   it.each(SOLE)('%s is blocked on %s and nothing else', (spellId, shape) => {
@@ -2409,6 +2417,21 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     expect(BLOCKED_ON['barkskin']).toBeUndefined();
     expect(claimedShapes().has('an-armor-class-a-spell-floors')).toBe(true);
     expect(SRD_CONTENT.spell('barkskin')?.effects).toEqual([]);
+
+    // **A fourth, and the first to leave on a shape that was half built.**
+    // Feather Fall waited on `falling` and nothing else, and what it actually
+    // needed was the *trigger* half: a fall the engine can see. That is built
+    // — a declared fact and a Reaction window over it — so the spell is cast
+    // for real. The half with the numbers in it is not, and `falling` keeps
+    // two tracked claimants saying so rather than being retired on the
+    // strength of the half that landed.
+    expect(BLOCKED_ON['feather-fall']).toBeUndefined();
+    expect(claimedShapes().has('falling')).toBe(true);
+    expect(SRD_CONTENT.spell('feather-fall')?.effects).toEqual([]);
+    expect((TRACKED_ADJUDICATED['feather-fall'] ?? []).map((entry) => entry.why)).toEqual([
+      'falling',
+      'falling',
+    ]);
   });
 });
 
