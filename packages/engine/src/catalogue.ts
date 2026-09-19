@@ -296,10 +296,13 @@ export function itemCastings(item: CatalogueItem): readonly ItemCastsGrant[] {
  * replay reads the chance the engine actually used out of the roll it wrote
  * rather than out of this year's catalogue.
  *
- * **The count is the copy's**, by the same argument and the same suffix the
- * charges use: a fan waved five times is that fan, not the other one in the
- * pack. A copy with no record of its own keeps the unsuffixed key, which is
- * what an item no door labels gets.
+ * **The count follows the copy wherever a copy has a record**, by the same
+ * argument and the same suffix the charges use: a wand waved five times is that
+ * wand, not the other one in the pack. A copy with no record keeps the
+ * unsuffixed key and so shares its count with its fellows — which is what the
+ * one item in the book that can fail actually gets, because only an item with a
+ * charge pool is labelled when it is gained and this one has no charges at all.
+ * The Wind Fan's own record says so in its `unmodelled`.
  *
  * The chance itself is {@link cumulativeChance} over the count the command
  * reads back under this key, because the count is state and this function has

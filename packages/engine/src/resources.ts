@@ -202,6 +202,15 @@ export function declarePool(
   if (state.pools[key] !== undefined) {
     return err('duplicate_pool', `${key} is already declared`);
   }
+  // And the same rule from the other side, which {@link tally} states: one name
+  // never means both. A pool declared over a count of uses would be spendable,
+  // refusable and refilled to a maximum the count never had.
+  if (state.tallies[key] !== undefined) {
+    return err(
+      'tally_not_a_pool',
+      `${key} is a count of this creature's uses, which is counted rather than spent`,
+    );
+  }
 
   if (
     regainsOnShortRest !== undefined &&

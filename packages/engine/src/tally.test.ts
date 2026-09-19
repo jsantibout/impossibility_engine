@@ -123,6 +123,14 @@ describe('a tally counts and has no size', () => {
     expect(isErr(out) && out.code).toBe('pool_not_a_tally');
   });
 
+  /** And the same rule from the other side, so neither door can blur the name. */
+  it('refuses a pool declared over a key that is already counted', () => {
+    const counted = unwrap(tally(resourceState(), FAN, 'dawn'), 'tally');
+    const out = declarePool(counted, { key: FAN, label: 'charges', max: 3, recovers: 'dawn' });
+    expect(isErr(out)).toBe(true);
+    expect(isErr(out) && out.code).toBe('tally_not_a_pool');
+  });
+
   it('refuses an amount that is not a positive whole number', () => {
     expect(isErr(tally(resourceState(), FAN, 'dawn', 0))).toBe(true);
     expect(isErr(tally(resourceState(), FAN, 'dawn', 1.5))).toBe(true);
