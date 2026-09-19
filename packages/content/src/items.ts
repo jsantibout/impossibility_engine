@@ -83,25 +83,34 @@ const CLASS_ITEMS: readonly CatalogueItem[] = [
  * Longsword is a Longsword, and it weighs what the table says a Longsword
  * weighs.
  *
- * **Three entries are expressible and are not here**, which is a boundary
- * rather than a reading. The `ability-score-set` standing grant landed with
- * the batch that wrote this paragraph, so "Your Constitution is 19 while you
- * wear this amulet" is now a sentence the vocabulary says — the Amulet of
+ * **Three entries arrived with the grant that says them**, and they are the
+ * clearest case in the catalogue of rule 2 rather than rule 1: the Amulet of
  * Health, the Gauntlets of Ogre Power and the Headband of Intellect each
- * have that one clause and nothing else. Transcribing one makes its line in
- * `scripts/missing-shapes.ts` stale, and `blocked-on-items.test.ts` fails
- * until the line goes with the record; that file was reserved to other work
- * while this was written, so the grant is proved through homebrew in
- * `packages/engine/src/ability-score-set.test.ts` and the three records wait
- * for one commit that can hold both halves.
+ * print one sentence, `ability-score-set` says it, and what each record does
+ * *not* deliver is how far a set score reaches into the roll pipeline — which
+ * is `unmodelled` on all three rather than a reason to leave them out.
  *
  * Their neighbours are **not** freed by it, and the difference is the verb.
- * The Belt of Giant Strength sets a score and keeps a second blocker: its
- * versions are a table of its own. The manuals and the tomes say "your
- * Constitution increases by 2, to a maximum of 30" after forty-eight hours
- * of study — a *permanent* change, applied by an event nothing emits, which
- * is what is left of `an-ability-score-a-spell-changes` once the set is
- * taken out of it.
+ * `ability-score-set` writes an **absolute held while something is worn**,
+ * and three other verbs are printed on entries that still wait:
+ *
+ * - a **bounded delta with a lifetime** — an Ioun Stone's "Your Dexterity
+ *   increases by 2, to a maximum of 20, while this deep-red sphere orbits
+ *   your head", the Belt of Dwarvenkind's "Your Constitution increases by 2,
+ *   to a maximum of 20", and the Thunderous Greatclub's +4 on top of
+ *   whatever a belt already set. That is `ability-score-increase`'s
+ *   arithmetic on a standing grant's lifetime, and neither member has both:
+ *   the one with the arithmetic is answered at creation, and the one with
+ *   the lifetime writes absolutes.
+ * - a **set with a deadline** rather than a garment — the Potion of Giant
+ *   Strength's "your Strength score changes for 1 hour", which wants a
+ *   conferral, and `CONFERRED_EFFECT_KINDS` does not admit this kind.
+ * - a **permanent** raise — the three manuals and three tomes, whose +2 "to
+ *   a maximum of 30" after forty-eight hours of study outlives every rest
+ *   and lands on a folded number rather than a derived one.
+ *
+ * The Belt of Giant Strength does print the set, and keeps a second blocker:
+ * its versions are a table of its own.
  */
 
 /** A `FeatureGrant` in the position an item puts one, named once. */

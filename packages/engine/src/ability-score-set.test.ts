@@ -495,8 +495,11 @@ describe('the three SRD items the grant frees', () => {
             unwrap(unequipItem(state, SRD_CONTENT, WHO, id, `off-${id}`), 'unequip'),
           ),
         );
-        // Taking it off takes the score with it, even though the attunement
-        // survives: the grant asks to be worn as well.
+        // Taking it off takes the score with it, and the attunement is
+        // still there — asserted, because without it the score could have
+        // stopped for the other reason and this would say nothing about
+        // `while-worn`.
+        expect(off.creatures[WHO]?.attuned.some((held) => held.id === id)).toBe(true);
         expect(abilityScoresOf(off, WHO)[ability]).toBe(
           off.creatures[WHO]?.sheet.abilities[ability],
         );
