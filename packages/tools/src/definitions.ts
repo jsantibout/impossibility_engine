@@ -25,9 +25,11 @@
  * |---|---|
  * | `slotLevel` | a resource *choice*, not a quantity: the caster's remaining slots |
  * | `feet`, `bearing`, `elevation` on a placement | the scene's extent, the lattice, occupancy — and, for a move, the Speed left |
- * | `x`, `y`, `z` on a landmark or an area's origin | the scene's extent. This is map-making, and something has to anchor the room |
+ * | `x`, `y`, `z` on a landmark, an area's origin or a patch of rough ground, and that patch's `radius` | the scene's extent. This is map-making, and something has to anchor the room |
  * | `width`, `depth`, `height` on a scene | nothing. A room's size is fiction, and the engine holds it only so a 60-foot tavern cannot contain a 1000-foot gap |
  * | `difficultFeet` on a move | the move's own distance. Declared terrain, on the same grounds as cover: five of SRD's six cases are fiction, and working them out means modelling the room. Its only direction of abuse is self-harm |
+ * | `route` on a move, `via` on an activation | `checkRoute`, which takes only a walk of single spaces between two endpoints the engine worked out itself — and then charges what its own ground says. A route is which way somebody went, and the cost of going that way is never the caller's |
+ * | `damageType` on a casting | the list the spell prints. Two spells print one, and the SRD leaves which lands to the caster or to what the caster is; the engine refuses to choose, and refused to hear an answer until this field existed |
  *
  * The consequence is deliberate: an action the engine does not model has no
  * legal path through this surface at step one. It finds a rule the engine
@@ -36,12 +38,13 @@
  * ## What the slice covers
  *
  * Enough to run a fight end to end, and nothing beyond it. Initiative, the
- * scene and the facts a fight needs declared, movement, attacks, casting,
- * conditions applied and ended, the two engine debts that can wedge a fight
- * (a held move, an owed area effect), the turn boundary, and the three
- * queries a caller needs to choose among them. Rests, advancement, inventory,
- * equipment, items, readied actions, teleportation and mounts are all left
- * for later batches; none of them is needed to fight.
+ * scene and the facts a fight needs declared — sides, types, sight, cover and
+ * where the ground is rough — movement, attacks, casting, acting again through
+ * a spell already running, conditions applied and ended, the two engine debts
+ * that can wedge a fight (a held move, an owed area effect), the turn
+ * boundary, and the three queries a caller needs to choose among them. Rests,
+ * advancement, inventory, equipment, items, readied actions, teleportation and
+ * mounts are all left for later batches; none of them is needed to fight.
  *
  * ## Why each tool declares what it establishes
  *
@@ -65,14 +68,17 @@ import type {
   Point,
 } from '@ie/engine';
 import {
+  activateSpell,
   addSceneLandmark,
   applyConditionTo,
   applyEvent,
+  areaPointAt,
   availableChecks,
   createCharacter,
   declareCoverBetween,
   declareCreatureSide,
   declareCreatureType,
+  declareDifficultTerrain,
   declareSightBetween,
   declineOpportunity,
   eligibleTargets,
@@ -109,8 +115,10 @@ import {
   conditionDurationSchema,
   conditionSchema,
   creatureId,
+  damageTypeSchema,
   placementSchema,
   pointSchema,
+  routeSchema,
   sensesFields,
 } from './schemas.js';
 
@@ -729,6 +737,71 @@ const DECLARE_COVER = tool({
 });
 
 /**
+ * Where the ground is rough — the declaration `route_required` presupposes.
+ *
+ * **Without it the question could not be asked on this surface at all.** A
+ * move is only asked which spaces it crossed where the ground disagrees with
+ * itself along the way, and the only thing that makes ground expensive is a
+ * declared patch: no SRD spell in the catalogue emits one, so a model-driven
+ * session had no way to put a mire in a room, and therefore no way to reach
+ * the refusal `move.route` answers. A field for an answer to a question
+ * nothing could ask is half a door.
+ *
+ * It is the third of the declared facts, beside cover and sight, and it is
+ * declared for exactly their reason: five of the SRD's six examples of
+ * Difficult Terrain — rubble, undergrowth, furniture, a slope, a narrow
+ * opening — are fiction the engine holds no record of, and deducing them
+ * means modelling the room.
+ *
+ * **Two of the engine's fields are deliberately left off.** `costPerFoot` is
+ * not offered, so every patch declared here costs the glossary's rate: the
+ * larger rate the book prints belongs to two *spells*, which will print it
+ * themselves when they are executed, and a caller free to name any rate is a
+ * caller naming a mechanically authoritative number. The shape is a radius
+ * from a point rather than the whole area vocabulary, because a patch of
+ * rubble is a blob and a Cone of mud is not a thing the table says; a patch
+ * that needs another shape is a decision for whoever needs one.
+ */
+const DECLARE_DIFFICULT_TERRAIN = tool({
+  name: 'declare_difficult_terrain',
+  description:
+    'Say where the ground is rough — rubble, undergrowth, mud, a scree slope, the ice. Every foot of movement through it costs one extra foot, and the engine works out which spaces the patch covers, what crossing them costs, and what happens where two overlap. Declared rather than deduced, exactly like cover: the room is fiction and the engine holds no record of it. Naming a patch that already exists replaces it, because ground changes.',
+  mutates: true,
+  input: z.object({
+    patch: z
+      .string()
+      .min(1)
+      .describe('The table’s name for it, e.g. the mire. A refusal about a move quotes it back.'),
+    at: pointSchema.describe('The middle of the patch.'),
+    radius: z
+      .number()
+      .finite()
+      .nonnegative()
+      .describe('How far it reaches from there, in feet. 0 is the one space.'),
+    source: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The castingId of a running spell that made this ground expensive, if one did. The patch stops charging the moment that casting stops running.',
+      ),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareDifficultTerrain(context.campaign.state(), args.patch, {
+        region: {
+          origin: areaPointAt(point(args.at)),
+          shape: { kind: 'sphere', radius: args.radius },
+        },
+        ...(args.source === undefined ? {} : { source: args.source }),
+        ...identity(context),
+      }),
+      { established: 'difficult terrain', patch: args.patch },
+    ),
+});
+
+/**
  * Roll Initiative, and put the rolls where they belong.
  *
  * **Nobody supplies a number.** The Initiative total is the engine's, and so
@@ -846,6 +919,11 @@ const MOVE = tool({
         .nonnegative()
         .optional()
         .describe('How many feet of this move are through Difficult Terrain. Each costs one extra foot.'),
+      route: routeSchema
+        .optional()
+        .describe(
+          'The 5-foot spaces this move passed through, in order, ending where it ends. Send it when a move came back `route_required`: the same call again with this filled in is the whole of the answer. Not the answer to `single_steps_required`, which wants the walk re-sent as several calls of one space each.',
+        ),
     })
     .and(placementSchema),
   run: (context, args) =>
@@ -858,6 +936,7 @@ const MOVE = tool({
           placement: placementOf(args),
           ...(args.forced === true ? { forced: true } : {}),
           ...(args.difficultFeet === undefined ? {} : { difficultFeet: args.difficultFeet }),
+          ...(args.route === undefined ? {} : { route: args.route.map(point) }),
           ...identity(context),
         },
         context.campaign.supply(),
@@ -941,6 +1020,11 @@ const CAST_SPELL = tool({
       .enum(['space', 'intersection'])
       .optional()
       .describe('Whether `at` and `towards` name a space or the intersection four spaces meet at.'),
+    damageType: damageTypeSchema
+      .optional()
+      .describe(
+        'Only for a spell that prints two types and leaves which one to the casting — Spirit Guardians’ Radiant or Necrotic, Protection from Energy’s choice of five. Naming one for a spell that prints a single type is refused, and so is leaving it out for a spell that prints a list.',
+      ),
   }),
   run: (context, args) => {
     const state = context.campaign.state();
@@ -953,6 +1037,7 @@ const CAST_SPELL = tool({
       ...(towards.value === undefined ? {} : { towards: towards.value }),
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
+      ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
       ...identity(context),
     };
     return settle(
@@ -963,6 +1048,71 @@ const CAST_SPELL = tool({
       (value) => value.unverified,
     );
   },
+});
+
+/**
+ * Acting through a spell that is still running — and the only door `via` has.
+ *
+ * **It is here because `route_required` is otherwise unanswerable.** The
+ * engine asks a moving area which spaces it crossed, names `via` as the field
+ * that answers, and until this tool existed there was no call on this surface
+ * carrying that field or any other part of an activation: a model that cast
+ * Moonbeam could never move the beam, and one that was asked the route
+ * question by anything but a move had nowhere to put the answer. That is the
+ * same defect the engine closed for itself — a refusal naming a field the
+ * command does not have — standing one layer up.
+ *
+ * It takes no number. `to` and `via` are spaces on the lattice, the same
+ * map-making `at` on a casting already is; the allowance the area may travel,
+ * the sum of the legs, what the beam does to whoever it arrives on and whether
+ * the caster can spend the action are all the engine's, read off the record
+ * the casting pinned.
+ *
+ * **One call, not two**, because SRD writes Spiritual Weapon's move and swing
+ * as one Bonus Action: a second command would charge a second action or none.
+ * So the move, the route and the target ride together, exactly as
+ * `ActivateSpellCommand` has them.
+ */
+const ACTIVATE_SPELL = tool({
+  name: 'activate_spell',
+  description:
+    'Use a spell that is still running, on a later turn — Vampiric Touch striking again, Spiritual Weapon moving and then striking, Moonbeam’s beam walked across the room. The engine spends the action the spell asks for, reads the numbers the casting was made with, and rolls what it does. Name `to` for where the area ends up, and `via` for the spaces it crossed getting there.',
+  mutates: true,
+  establishes: ['route'],
+  input: z.object({
+    caster: creatureId.describe('Whose casting it is. Nobody else may act through it.'),
+    castingId: z.string().min(1).describe('From the cast_spell that started it.'),
+    targets: z
+      .array(creatureId)
+      .describe('Who it is aimed at this time. Empty for an activation whose whole content is moving the area.'),
+    to: pointSchema
+      .optional()
+      .describe('Where the area ends up. Required when the action’s whole content is moving it, and left out by a spell that only strikes again.'),
+    via: routeSchema
+      .optional()
+      .describe(
+        'The 5-foot spaces the area crossed on the way, in order. Send it when an activation came back `route_required`: the same call again with this filled in is the whole of the answer. Each leg is settled where it happens, so a beam walked over three creatures is asked about all three.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      activateSpell(
+        context.campaign.state(),
+        who(args.caster),
+        {
+          castingId: args.castingId,
+          targets: args.targets.map(who),
+          ...(args.to === undefined ? {} : { to: point(args.to) }),
+          ...(args.via === undefined ? {} : { via: args.via.map(point) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({ castingId: value.castingId, outcomes: value.outcomes }),
+      (value) => value.unverified,
+    ),
 });
 
 const APPLY_CONDITION = tool({
@@ -1184,6 +1334,7 @@ const END_TURN = tool({
  * invalidate the cache the first time somebody moved one.
  */
 export const TOOLS: readonly ToolDefinition[] = [
+  ACTIVATE_SPELL,
   ADD_LANDMARK,
   APPLY_CONDITION,
   ATTACK,
@@ -1192,6 +1343,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   CREATE_CHARACTER,
   DECLARE_COVER,
   DECLARE_CREATURE_TYPE,
+  DECLARE_DIFFICULT_TERRAIN,
   DECLARE_SIDE,
   DECLARE_SIGHT,
   DECLINE_OPPORTUNITY,

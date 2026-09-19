@@ -179,9 +179,18 @@ describe('the surface cannot reach the external-roll functions', () => {
     // `fight.test.ts` runs a whole fight through `surface.call`. If it needed
     // the engine, the package would not yet be a door — so its import list is
     // part of the claim rather than a convention.
-    const fight = sources().find((source) => source.file === 'fight.test.ts');
-    expect(fight).toBeDefined();
-    expect(fight!.text).not.toContain("from '@ie/engine'");
+    //
+    // `routes.test.ts` is held to the same claim for the same reason, and it
+    // is the sharper of the two: it drives a refusal, the answer to it and the
+    // resolution that follows, including the patch of ground that provokes the
+    // question. An engine import there would mean the loop closes only for a
+    // caller that can reach past the door — which is the defect the file is
+    // about.
+    for (const file of ['fight.test.ts', 'routes.test.ts']) {
+      const driven = sources().find((source) => source.file === file);
+      expect(driven).toBeDefined();
+      expect(driven!.text).not.toContain("from '@ie/engine'");
+    }
   });
 
   it('publishes no tool whose name suggests one', () => {

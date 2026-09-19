@@ -1,6 +1,6 @@
 /**
- * The model's door: twenty-four tools, and not one of them takes a number the
- * caller produced.
+ * The model's door: every tool a model-driven session may call, and not one of
+ * them takes a number the caller produced.
  *
  * That rule is `definitions.ts`'s to argue and this file's to *hold to*, by
  * being the one place the model's list is turned into something callable.

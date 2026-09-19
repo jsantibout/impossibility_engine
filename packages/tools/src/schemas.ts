@@ -63,6 +63,31 @@ export const pointSchema = z.object({
 });
 
 /**
+ * The 5-foot spaces something crossed on the way, in order, ending where it
+ * ends — the field that answers a `route_required`.
+ *
+ * **A route is a statement of fact, not a number the caller produced**, and
+ * the engine is what makes that true rather than this schema. `checkRoute`
+ * refuses anything that is not a walk of single spaces between the two
+ * endpoints the engine worked out for itself: the wrong number of spaces, a
+ * step longer than one, a space outside the scene, or an end that is not where
+ * the move ends. What it accepts it then reads against ground it already
+ * holds, patch by patch, and charges what that ground says. The caller says
+ * which way they went; every number that follows is the engine's.
+ *
+ * **Raw coordinates, where a creature's destination is always a placement.**
+ * That rule is about *where somebody ends up* — "creatures are never placed at
+ * a coordinate" — and a route decides nothing of the kind: both its ends are
+ * already fixed by the call it rides on, and the request that asks for it
+ * names them both in feet. A waypoint measured from a landmark would be a
+ * sentence nobody can write about the middle of a walk.
+ */
+export const routeSchema = z
+  .array(pointSchema)
+  .min(1, 'a route is at least one space')
+  .describe('The 5-foot spaces crossed, in order, ending where the move or the area ends.');
+
+/**
  * Where a creature goes, which is always relative to something established.
  *
  * Exactly one anchor, enforced here rather than left to the engine, because
