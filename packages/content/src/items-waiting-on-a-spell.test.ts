@@ -1262,20 +1262,24 @@ describe('the four wands whose remainder was a note', () => {
     expect(left([...wearing('wand-of-lightning-bolts'), ...bolt.events], 'wand-of-lightning-bolts'))
       .toBe(4);
 
-    // And the Wand of Binding's two prices, the dearer of them first.
+    // And the Wand of Binding's two prices, the dearer of them first: five
+    // out of seven, then two, off one pool and down to nothing.
     const bound = castFrom('wand-of-binding', 'hold-monster', { targets: [OTHER] });
     expect(left(bound.log, 'wand-of-binding')).toBe(2);
-    const cheaper = resolveSpell(
-      fold('seed', bound.log),
-      BEARER,
-      {
-        spellId: 'hold-person',
-        targets: [OTHER],
-        item: 'wand-of-binding',
-        commandId: 'the-cheaper-one',
-      },
-      supply('hold'),
+    const cheaper = unwrap(
+      resolveSpell(
+        fold('seed', bound.log),
+        BEARER,
+        {
+          spellId: 'hold-person',
+          targets: [OTHER],
+          item: 'wand-of-binding',
+          commandId: 'the-cheaper-one',
+        },
+        supply('hold'),
+      ),
+      'Hold Person from the wand',
     );
-    expect(isErr(cheaper)).toBe(false);
+    expect(left([...bound.log, ...cheaper.events], 'wand-of-binding')).toBe(0);
   });
 });

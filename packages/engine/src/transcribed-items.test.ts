@@ -748,10 +748,29 @@ describe('a count the book rolls at the copy’s birth', () => {
  * different source, which is the whole claim a catalogue makes.
  */
 describe('a sense an item grants, read off what is worn', () => {
+  /**
+   * The scene, plus somebody standing past the range the goggles reach.
+   *
+   * Everybody `PRELUDE` places stands within twenty-five feet, so a grant of
+   * thirty feet would answer every question below exactly as one of sixty
+   * does — which is a test agreeing with the wrong number. The sentry is a
+   * hundred feet off, and nobody has declared anything about them.
+   */
+  const SENTRY = id('sentry');
+
   const nightfall = (): readonly GameEvent[] =>
     worn(
-      run(PRELUDE, (s) =>
-        awardItems(s, supply('the-goggles'), HERO, [{ id: 'goggles-of-night' }], 'the hoard'),
+      run(
+        [
+          ...PRELUDE,
+          added(SENTRY, 'goblins'),
+          {
+            type: 'creature-placed',
+            id: SENTRY,
+            placement: { from: { creature: HERO }, feet: 100, bearing: 270 },
+          },
+        ],
+        (s) => awardItems(s, supply('the-goggles'), HERO, [{ id: 'goggles-of-night' }], 'the hoard'),
       ),
       'goggles-of-night',
     );
@@ -769,7 +788,7 @@ describe('a sense an item grants, read off what is worn', () => {
    * built, and the difference between a grant that applies and one that is
    * merely stored.
    */
-  it('answers the sight question for a creature inside the range and not beyond it', () => {
+  it('answers the sight question inside the range, and leaves it open beyond', () => {
     const state = fold('seed', nightfall());
     // FOE stands five feet away and FRIEND twenty, both inside sixty.
     expect(canSee(state, HERO, FOE)).toBe(true);
@@ -777,6 +796,13 @@ describe('a sense an item grants, read off what is worn', () => {
     // WITCH is twenty-five feet away and can see the hero by declaration; the
     // hero's own answer is the goggles', not the declaration's.
     expect(canSee(state, HERO, WITCH)).toBe(true);
+
+    // **And the sixty is a number rather than a licence.** The sentry is a
+    // hundred feet off, outside what the lenses reach, and the answer there
+    // is the three-valued one the seam is for: `null` is "ask the table",
+    // not "no". A grant of thirty feet would have passed every line above
+    // and fails this one.
+    expect(canSee(state, HERO, SENTRY)).toBeNull();
 
     // Taken off, the sense goes with them: a worn benefit is derived on every
     // read rather than stored, so nothing has to remember to take it away.
