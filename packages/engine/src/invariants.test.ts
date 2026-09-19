@@ -6,6 +6,7 @@ import {
   asCharacterId,
   isErr,
   isNeedsContext,
+  ok,
   contextRequestsOf,
   expect as unwrap,
   type CharacterId,
@@ -34,6 +35,7 @@ import {
   declareDawn,
   declareSightBetween,
   declareSpellcasting,
+  dismissStrandedSummons,
   dismountRider,
   joinCombat,
   loseItems,
@@ -44,6 +46,7 @@ import {
   rollInitiativeAndBeginCombat,
   setScene,
   stabiliseCreature,
+  strandedSummons,
   summonCreature,
   swapInitiativeBetween,
   transferItem,
@@ -1022,6 +1025,36 @@ const ZOMBIE: Monster = (() => {
   return found;
 })();
 
+/**
+ * A creature standing on a spell that has already ended.
+ *
+ * `dismissStrandedSummons` sweeps what the fold noticed, so a fixture with
+ * nothing stranded would run it twice with nothing to do and prove nothing
+ * about its identity. A's Disguise Self holds a Zombie; the Disguise Self is
+ * then dismissed, and the Zombie is owed a departure.
+ */
+const STRANDED: readonly GameEvent[] = (() => {
+  const cast = unwrap(
+    resolveSpell(fold('s', SETUP), A, { spellId: 'disguise-self', targets: [] }, supply()),
+    'the disguise',
+  );
+  let log: readonly GameEvent[] = [...SETUP, ...cast.events];
+  log = [
+    ...log,
+    ...unwrap(
+      summonCreature(fold('s', log), {
+        id: id('a-summoned-thing'),
+        monster: ZOMBIE,
+        by: A,
+        castingId: cast.castingId,
+        initiative: 14,
+      }),
+      'the summons',
+    ).events,
+  ];
+  return [...log, ...unwrap(endOngoingSpell(fold('s', log), A, cast.castingId, null), 'the end')];
+})();
+
 const GUARDED: readonly Guarded[] = [
   {
     name: 'settleAreaEffects',
@@ -1032,6 +1065,14 @@ const GUARDED: readonly Guarded[] = [
     name: 'addCreature',
     log: SETUP,
     run: (s, commandId) => addCreature(s, id('a-zombie'), ZOMBIE, { commandId }),
+  },
+  {
+    name: 'dismissStrandedSummons',
+    // A hound the wizard's Bless was holding, with the Bless already ended:
+    // the sweep has exactly one creature to take away, so a retry under one
+    // id is the difference between one departure and a refusal.
+    log: STRANDED,
+    run: (s, commandId) => dismissStrandedSummons(s, { commandId }),
   },
   {
     name: 'summonCreature',
@@ -2395,6 +2436,8 @@ const ENDS_A_CASTING_UNGUARDED: Readonly<Record<string, string>> = {
     'the same moment reached through the dice, which is the whole of what it adds: it rolls Initiative and hands the order to beginCombat, so the casting it can end is the one that boundary’s payout ends, and it is exempt for the same reason and no other',
   removeCreatureEverywhere:
     'the casting leaves with its caster, and the creature leaving is bookkeeping about the cast rather than an action: refusing it while a debt stood would leave a fight unable to continue without somebody who is already gone',
+  dismissStrandedSummons:
+    'it is removeCreatureEverywhere aimed at whoever the fold already noticed was standing on a spell that is over, so it ends a casting for exactly that command\u2019s reason and no other \u2014 a summons sustaining a summons takes the second one with it \u2014 and it is the settlement of a thing the reducer raised, which settleAreaEffects is exempt for in the same words: a guard that refused its own settlement would be a deadlock wearing a rule\u2019s clothes',
   resolveDamage:
     'the outcome of damage rather than a decision anybody makes: SRD ends the Concentration through the Constitution saving throw this command rolls, and settling the debt is frequently what sent the damage here in the first place',
   rollImprovisedDamage:
@@ -2523,6 +2566,10 @@ const DECLARED_NOT_ACTED: Readonly<Record<string, string>> = {
     'not an action in the turn economy: a bonus stopping is the end of something, and nobody spends anything to have an effect wear off',
   addCreature:
     'not an action in the turn economy: a monster walking through the door is a fact the DM declares, and SRD spends nothing on anybody’s turn to have one arrive',
+  dismissStrandedSummons:
+    'not an action in the turn economy: the spell that was holding the creature here has already ended, through whatever spent its own cost \u2014 a dismissal, a deadline, a rockfall \u2014 and clearing away what that ending left behind costs nobody a turn\u2019s budget, exactly as removeCreatureEverywhere beside it costs nobody one',
+  strandedSummons:
+    'not an action in the turn economy, and not an action at all: it is the question "who is standing here on a spell that is over", read off state and answering it changes nothing. It is in this list rather than exempt from it because the list\u2019s scope is the module, and a question the engine can answer must stay answerable while a mandatory area effect stands owed \u2014 which is exactly what the half below proves',
   summonCreature:
     'not an action in the turn economy: the casting that conjured the creature spent its own Action, its slot and its Concentration through resolveSpell, and the creature then arriving costs nobody a second budget — the same reading damage and healing take, applied to the thing a spell produced rather than to the thing it did',
   damageCreature:
@@ -2625,6 +2672,13 @@ describe('the DM-declared commands declare facts rather than taking actions', ()
       name: 'summonCreature',
       run: (s) => summonCreature(s, { id: id('a-conjured-thing'), monster: ZOMBIE, by: A, initiative: 14 }),
     },
+    // Nothing is stranded in this fixture, so what it proves is the half the
+    // list is about: a command that may be sent while a mandatory area effect
+    // stands owed. The sweep it does is driven in `summoning.test.ts`.
+    { name: 'dismissStrandedSummons', run: (s) => dismissStrandedSummons(s) },
+    // A question rather than a command, wrapped so this list can ask it: what
+    // it proves here is that the engine goes on answering while a debt stands.
+    { name: 'strandedSummons', run: (s) => ok(strandedSummons(s)) },
     // C is the creature on the floor at 0 hit points, so healing has something
     // to do and a removal has somebody to remove; A is whole, so damage does.
     { name: 'damageCreature', run: (s) => damageCreature(s, A, { amount: 5, source: 'a trap' }) },

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import {
   asCharacterId,
-  contextRequestsOf,
   isErr,
   isNeedsContext,
   expect as unwrap,
@@ -17,10 +16,15 @@ import { declaredCasting } from './spellcasting.js';
 import { currentCombatant } from './combat.js';
 import {
   damageCreature,
+  dismissStrandedSummons,
   endConcentration,
   endOngoingSpell,
+  joinCombat,
+  resolveAttack,
   resolveSpell,
   resolveTurn,
+  rollInitiativeFor,
+  strandedSummons,
   summonCreature,
   takeDodge,
 } from './commands.js';
@@ -331,8 +335,17 @@ describe('the log alone raises the creature', () => {
   });
 });
 
-// — it goes when the casting goes ——————————————————————————————————————————
+// — it goes when the casting goes —————————————————————————
 
+/**
+ * **The engine notices; a command performs.** A casting ends five ways and
+ * four of them are found in the fold rather than commanded — so the *fact*
+ * that a summons is standing on a spell that is over is derived, and
+ * {@link strandedSummons} is where it is said. The departure itself cannot
+ * be: a creature leaving is a batch that settles what the leaver owed, and
+ * the reducer emits nothing. So `dismissStrandedSummons` performs it, exactly
+ * as `settleAreaEffects` performs what the boundary raised.
+ */
 describe('a summoned creature leaves with the casting that made it', () => {
   const summoned = (): { g: Game; castingId: string } => {
     const g = new Game().fight();
@@ -353,31 +366,40 @@ describe('a summoned creature leaves with the casting that made it', () => {
     return { g, castingId };
   };
 
-  it('goes when the caster dismisses it', () => {
+  it('is stranded the moment the caster dismisses the spell, and goes when swept', () => {
     const { g, castingId } = summoned();
-    g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
+    expect(strandedSummons(g.state)).toEqual([]);
 
+    g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
+    expect(strandedSummons(g.state)).toEqual([HOUND]);
+
+    g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
     expect(g.state.creatures[HOUND]).toBeUndefined();
     expect(g.state.scene?.positions[HOUND]).toBeUndefined();
     expect(g.state.combat?.order.some((c) => c.id === HOUND)).toBe(false);
+    expect(strandedSummons(g.state)).toEqual([]);
   });
 
-  it('goes when the Concentration is dropped', () => {
+  it('is stranded when the Concentration is dropped', () => {
     const { g } = summoned();
     g.push(unwrap(endConcentration(g.state, WIZ, 'voluntary'), 'dropping'));
-    expect(g.state.creatures[HOUND]).toBeUndefined();
+    expect(strandedSummons(g.state)).toEqual([HOUND]);
   });
 
   /**
    * The half no command sees. Concentration broken by unconsciousness is
-   * derived in the fold — nobody decides it — so a summons that only went
-   * when somebody sent a command would outlive its spell exactly here.
+   * derived in the fold — nobody decides it — and the engine still knows the
+   * hound is owed a departure, which is the whole point of the query being
+   * the seam rather than each ending being made to remember.
    */
-  it('goes when nobody decided anything, because the caster fell', () => {
+  it('is stranded when nobody decided anything, because the caster fell', () => {
     const { g } = summoned();
     g.push(unwrap(damageCreature(g.state, WIZ, { amount: 200, source: 'a rockfall' }), 'felling'));
 
     expect(g.state.creatures[WIZ]?.concentration).toBeNull();
+    expect(strandedSummons(g.state)).toEqual([HOUND]);
+
+    g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
     expect(g.state.creatures[HOUND]).toBeUndefined();
   });
 
@@ -391,6 +413,7 @@ describe('a summoned creature leaves with the casting that made it', () => {
       ).events,
     );
     g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
+    g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
 
     // An Animate Dead skeleton outlives the Instantaneous casting that raised
     // it, and a creature bound to nothing is that creature.
@@ -403,7 +426,13 @@ describe('a summoned creature leaves with the casting that made it', () => {
     g.push([{ type: 'combat-started', combatants: [{ id: WIZ, initiative: 20, speed: 30 }] }]);
     g.push(
       unwrap(
-        summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId, initiative: 12 }),
+        summonCreature(g.state, {
+          id: HOUND,
+          monster: CONJURED_HOUND,
+          by: WIZ,
+          castingId,
+          initiative: 12,
+        }),
         'summoning',
       ).events,
     );
@@ -412,8 +441,70 @@ describe('a summoned creature leaves with the casting that made it', () => {
     expect(g.state.combat?.order.map((c) => c.id)).toEqual([HOUND]);
 
     g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
+    g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
     expect(g.state.creatures[HOUND]).toBeUndefined();
     expect(g.state.combat).toBeNull();
+  });
+
+  it('sweeps nothing into an empty batch rather than a refusal', () => {
+    const { g } = summoned();
+    expect(unwrap(dismissStrandedSummons(g.state), 'sweeping nothing')).toEqual([]);
+  });
+
+  /**
+   * The reason the departure is a batch and not a fold transition, stated as
+   * a test: a creature that owes a held hit cannot simply be deleted, and
+   * `removeCreatureEverywhere` is what closes the hold before the key goes.
+   * A derived pass, emitting nothing, would leave the debt standing — and
+   * every command that could settle it then answers `unknown_creature`, so
+   * the fight could never advance again.
+   */
+  it('settles what a departing summons owed, rather than stranding it', () => {
+    const g = new Game([
+      ...SETUP,
+      { type: 'items-gained', id: WIZ, items: [{ id: 'dagger', quantity: 1 }], source: 'kit' },
+    ]);
+    const castingId = g.cast(WIZ, 'bless', [WIZ]);
+    g.push(
+      unwrap(
+        summonCreature(g.state, {
+          id: HOUND,
+          monster: CONJURED_HOUND,
+          by: WIZ,
+          castingId,
+          placement: { from: { creature: WIZ }, feet: 5, bearing: 90 },
+        }),
+        'the hound',
+      ).events,
+    );
+    g.push(
+      unwrap(
+        resolveAttack(
+          g.state,
+          WIZ,
+          // Held, and staged to land: the debt is the point and the dice are
+          // not, which is the reading `invariants.test.ts` takes of the same
+          // hold.
+          {
+            target: HOUND,
+            weapon: 'dagger',
+            hold: true,
+            attackBonuses: [{ source: 'staged', flat: 40 }],
+          },
+          supply('hit'),
+        ),
+        'swing',
+      ).events,
+    );
+    expect(g.state.pendingAttack).not.toBeNull();
+
+    // The rockfall: nobody decides the Concentration broke, so nobody could
+    // have been asked to settle the hold first.
+    g.push(unwrap(damageCreature(g.state, WIZ, { amount: 200, source: 'a rockfall' }), 'felling'));
+    g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
+
+    expect(g.state.creatures[HOUND]).toBeUndefined();
+    expect(g.state.pendingAttack).toBeNull();
   });
 });
 
@@ -443,17 +534,65 @@ describe('what a summoning refuses, and what it asks for', () => {
     expect(isNeedsContext(refused)).toBe(true);
   });
 
-  it('asks for an Initiative total rather than inventing one', () => {
+  /**
+   * **A fight running and no total stated is silence, not a refusal**, and
+   * the reason is that the refusal would name no route. A creature that does
+   * not exist cannot be rolled for, so a `needs-context` asking for a total
+   * could only be satisfied by a number the caller invented — the one thing
+   * the doctrine forbids outright. The creature arrives instead, and the two
+   * commands that give a rung in a running order both work the moment it is
+   * in the game.
+   */
+  it('arrives without a rung in the order when nobody stated one', () => {
     const g = new Game().fight();
     const castingId = g.cast(WIZ, 'bless', [WIZ]);
-    const asked = summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId });
+    const out = unwrap(
+      summonCreature(g.state, { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId }),
+      'summoning with no total',
+    );
+    g.push(out.events);
 
-    expect(isNeedsContext(asked)).toBe(true);
-    expect(isErr(asked) && asked.code).toBe('initiative_required');
-    expect(contextRequestsOf(asked).map((r) => r.kind)).toEqual(['turn-order']);
-    // And it names the command that would settle it, which is what every
-    // `needs-context` in this engine owes its caller.
-    expect(contextRequestsOf(asked)[0]?.satisfyWith).toContain('rollInitiativeFor');
+    expect(g.state.creatures[HOUND]).toBeDefined();
+    expect(g.state.combat?.order.some((c) => c.id === HOUND)).toBe(false);
+
+    // And the route exists: the engine rolls, and the roll seats it.
+    const rolled = unwrap(
+      rollInitiativeFor(g.state, HOUND, createRollIssuer('i'), createRng('init') as Rng),
+      'rolling for the hound',
+    );
+    g.push(unwrap(joinCombat(g.state, { id: HOUND, initiative: rolled.total, speed: 40 }), 'joining'));
+    expect(g.state.combat?.order.some((c) => c.id === HOUND)).toBe(true);
+  });
+
+  it('refuses a casting that is not the summoner’s', () => {
+    const g = new Game();
+    const castingId = g.cast(WIZ, 'bless', [WIZ]);
+    const refused = summonCreature(g.state, {
+      id: HOUND,
+      monster: CONJURED_HOUND,
+      by: FOE,
+      castingId,
+    });
+    expect(isErr(refused) && refused.code).toBe('not_your_spell');
+  });
+
+  /**
+   * A retry that changed where the creature stands is a different command,
+   * and being told so beats being told `duplicate` and having the placement
+   * silently dropped.
+   */
+  it('refuses a recycled command id that moved the placement', () => {
+    const g = new Game();
+    const castingId = g.cast(WIZ, 'bless', [WIZ]);
+    const first = { id: HOUND, monster: CONJURED_HOUND, by: WIZ, castingId } as const;
+    g.push(unwrap(summonCreature(g.state, first, { commandId: 'the-hound' }), 'first').events);
+
+    const moved = summonCreature(
+      g.state,
+      { ...first, placement: { from: { creature: WIZ }, feet: 10, bearing: 90 } },
+      { commandId: 'the-hound' },
+    );
+    expect(isErr(moved) && moved.code).toBe('command_id_reused');
   });
 
   it('needs no Initiative when no fight is running', () => {
@@ -574,7 +713,7 @@ describe('one departure can be the end of another', () => {
    * until something else happened to happen.
    */
   it('takes a summons that a departing summons was sustaining', () => {
-    const SPRITE = id('sprite');
+    const SPRITE = id('a-sprite');
     const g = new Game();
     const first = g.cast(WIZ, 'bless', [WIZ], 'one');
     g.push(
@@ -620,8 +759,13 @@ describe('one departure can be the end of another', () => {
     expect(g.state.creatures[SPRITE]).toBeDefined();
 
     g.push(unwrap(endOngoingSpell(g.state, WIZ, first, null), 'dismissing'));
+    // Only the hound is stranded yet: the sprite's own spell is still
+    // running, and stops only because the hound leaving takes it.
+    expect(strandedSummons(g.state)).toEqual([HOUND]);
 
+    g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
     expect(g.state.creatures[HOUND]).toBeUndefined();
     expect(g.state.creatures[SPRITE]).toBeUndefined();
+    expect(strandedSummons(g.state)).toEqual([]);
   });
 });

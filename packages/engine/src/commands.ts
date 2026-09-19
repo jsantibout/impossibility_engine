@@ -57,10 +57,12 @@ export { recordD20Test } from './commands/rolls.js';
 export {
   addCreature,
   damageCreature,
+  dismissStrandedSummons,
   grantTemporaryHpTo,
   healCreature,
   removeCreatureEverywhere,
   setExhaustionLevel,
+  strandedSummons,
   summonCreature,
 } from './commands/creatures.js';
 export type { AddCreatureOutcome, DamageCommand, Summons } from './commands/creatures.js';

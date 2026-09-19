@@ -19,7 +19,7 @@
  * that against the code rather than against this sentence.
  */
 
-import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
+import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import type { Monster } from '@ie/srd';
 import { hasCondition } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
@@ -184,11 +184,22 @@ export interface Summons {
   /** Where it appears. Its size is the stat block's and is not the caller's to state. */
   readonly placement?: Omit<Placement, 'size'>;
   /**
-   * Its Initiative total, which the caller rolled.
+   * A **stated** Initiative total, for a DM who gives one.
    *
-   * The engine ranks and does not roll on anybody's behalf — `joinCombat`
-   * says so at length — so a fight that is running and no total is a
-   * `needs-context` naming the command that would produce one.
+   * SRD's glossary: "sometimes a GM might have combatants use their
+   * Initiative scores instead of rolling Initiative", which is the same
+   * number `beginCombat` and `joinCombat` already take from a caller. The
+   * engine ranks and does not roll on anybody's behalf here.
+   *
+   * **Absent is not a refusal.** A creature that does not exist yet cannot be
+   * rolled for — `rollInitiativeFor` answers `unknown_creature` — so a
+   * `needs-context` asking for a total would name no route a caller could
+   * take, and the only way to satisfy it would be to invent a number. So the
+   * creature arrives without a rung in the order, and the two commands that
+   * have always given one now work, because the creature is in the game:
+   * `rollInitiativeFor` throws the die, `joinCombat` seats it. The same "two
+   * commands" {@link addCreature} already documents for what a monster casts
+   * and whose side it is on.
    */
   readonly initiative?: number;
   /** Ties, as `beginCombat` and `joinCombat` take them. */
@@ -232,23 +243,41 @@ export function summonCreature(
 ): Result<AddCreatureOutcome> {
   const { id, monster, by, castingId } = summons;
 
-  // The stat block's **id** rather than the whole of it, for the reason
-  // `addCreature` fingerprints it that way.
+  // **Every input that shapes the batch, and the stat block by its id.** The
+  // id alone is `addCreature`'s reading and the reason is the same — a parsed
+  // monster is kilobytes of JSON and a fingerprint lives in state for as long
+  // as the game does. Everything else goes in whole: a retry that moved the
+  // placement or changed the Initiative total is a *different* command, and
+  // fingerprinting only the creature would answer it `duplicate` and drop it
+  // silently, which is exactly the outcome `identify` exists to refuse.
   return once(
     state,
     `summon-creature:${id}`,
-    { ...command, monster: monster.id, by, ...(castingId === undefined ? {} : { castingId }) },
+    // The spread order is the whole of it: everything the caller stated, and
+    // then the stat block replaced by its id.
+    { ...command, ...summons, monster: monster.id },
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
       const summoner = creatureOf(state, by);
       if (summoner === null) return unknownCreature(by);
 
+      const holding = castingId === undefined ? null : state.ongoing[castingId];
       // A binding to a casting that is not running would be taken away by the
       // very next fold, so the creature would arrive and vanish in one batch.
-      // Refusing is the honest answer, and it is the same code `endOngoingSpell`
-      // answers for a casting nobody is running.
-      if (castingId !== undefined && state.ongoing[castingId] === undefined) {
+      // Refusing is the honest answer, and it is the same code
+      // `endOngoingSpell` answers for a casting nobody is running.
+      if (castingId !== undefined && holding === undefined) {
         return err('not_ongoing', `${castingId} is not a spell that is still running`);
+      }
+      // SRD: "**you** can dismiss it" — a casting is its caster's, which is
+      // the rule `endOngoingSpell` states in the same words and the same
+      // code. A creature held here by somebody else's spell would have a
+      // summoner and a lifetime that disagreed about whose it was.
+      if (holding != null && holding.caster !== by) {
+        return err(
+          'not_your_spell',
+          `${castingId} is ${holding.caster}'s casting; it cannot be what holds ${by}'s ${id} here`,
+        );
       }
 
       // Everything the creature *is* comes from here, unchanged and
@@ -287,28 +316,9 @@ export function summonCreature(
         });
       }
 
-      // **Last, and after every refusal**, so a creature that was already in
-      // the game is told so rather than asked for a number it would never
-      // have used. A fight is on and nobody has said where this creature
-      // falls in it: the engine ranks and does not roll, so that is a missing
-      // fact rather than a broken rule.
-      if (state.combat !== null) {
-        if (summons.initiative === undefined) {
-          return needsContext(
-            'initiative_required',
-            `a fight is running and nothing has said where ${id} falls in the order`,
-            [
-              {
-                kind: 'turn-order',
-                subject: id,
-                need: `${id}'s Initiative total`,
-                because: `${id} is arriving in a fight that is already under way`,
-                satisfyWith: `a rollInitiativeFor command for ${id}, then this summonCreature command carrying the total`,
-              },
-            ],
-          );
-        }
-
+      // A fight is running and the DM stated a total. See `Summons.initiative`
+      // for why its absence is silence rather than a refusal.
+      if (state.combat !== null && summons.initiative !== undefined) {
         const joining = {
           id,
           initiative: summons.initiative,
@@ -331,6 +341,84 @@ export function summonCreature(
       return ok({ events, unverified: arrival.value.unverified, duplicate: false });
     },
   );
+}
+
+/**
+ * Every creature still standing on a casting that is over.
+ *
+ * **What the engine knows, said out loud, because it may not act on it
+ * alone.** A summons goes when its spell does, and a casting ends five ways
+ * of which four are things nobody decides — a deadline arrived, a
+ * Concentration broken by unconsciousness, a trigger pulled, the caster
+ * leaving. The fold finds all four, and the fold emits nothing; a creature
+ * leaving is a **batch** (`removeCreatureEverywhere`), because it has to
+ * settle what the leaver owed before the key goes. So the two halves cannot
+ * meet inside the reducer, and this is the honest seam: the engine reports
+ * who is owed a departure and {@link dismissSummons} performs it.
+ *
+ * `withheldEndings` is the same shape for the same reason — an ending the
+ * engine can see and will not invent.
+ *
+ * Sorted, so the answer is fixed however the cast was assembled.
+ */
+export function strandedSummons(state: GameState): readonly CharacterId[] {
+  return Object.keys(state.creatures)
+    .sort()
+    .flatMap((key) => {
+      const creature = state.creatures[key];
+      const bond = creature?.summonedBy;
+      if (creature === undefined || bond == null) return [];
+      return state.ongoing[bond.castingId] === undefined ? [creature.id] : [];
+    });
+}
+
+/**
+ * Take away every creature whose casting is over.
+ *
+ * The settling half of {@link strandedSummons}, and `settleAreaEffects` is
+ * the shape it copies: the fold notices, the command performs, and what is
+ * performed is whatever is owed rather than something the caller has to name.
+ *
+ * **The departure is the one the engine already models**, unchanged: each
+ * creature goes through {@link removeCreatureEverywhere}, which settles the
+ * holds it owed, ends the spell it was itself sustaining, takes it off the
+ * map and out of the Initiative order, and ends the fight rather than
+ * emptying it. Nothing about a summons leaving is different from anything
+ * else leaving, so nothing about it is written twice.
+ *
+ * **To a fixed point, each removal folded forward before the next is asked
+ * for.** A summons may be sustaining a summons — the hound's own spell
+ * holding a sprite — and the sprite is stranded only in the world the
+ * hound's departure leaves. Same reading `removeCreatureEverywhere` takes of
+ * its own settlement, one level up.
+ *
+ * **An empty batch is a real answer.** Nothing stranded is not a rule
+ * anybody broke, and a caller sweeping after every ending must not have to
+ * tell "nothing to do" from a refusal.
+ */
+export function dismissStrandedSummons(
+  state: GameState,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, 'dismiss-stranded-summons', { ...command }, () => [], (stamp) => {
+    const events: GameEvent[] = [];
+    let current = state;
+
+    for (;;) {
+      const who = strandedSummons(current)[0];
+      if (who === undefined) break;
+      const gone = removeCreatureEverywhere(current, who);
+      if (!gone.ok) return gone;
+      events.push(...gone.value);
+      current = gone.value.reduce(applyEvent, current);
+    }
+
+    if (events.length === 0 || stamp === null) return ok(events);
+    // The stamp rides the last event — the `creature-removed` of the last
+    // creature to go, which is the one event this command is certain to have
+    // emitted if it emitted anything at all.
+    return ok([...events.slice(0, -1), { ...events[events.length - 1]!, command: stamp }]);
+  });
 }
 
 export interface DamageCommand extends CommandIdentity {
