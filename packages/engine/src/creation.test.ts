@@ -170,7 +170,7 @@ describe('steps 1-3: class, origin and ability scores', () => {
           assignment: { str: 8, dex: 14, con: 13, int: 19, wis: 12, cha: 10 },
         },
       },
-      'score_above_twenty',
+      'score_above_maximum',
     );
   });
 

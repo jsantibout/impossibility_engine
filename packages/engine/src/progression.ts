@@ -76,7 +76,49 @@ export type FeatureChoice =
    */
   | { readonly kind: 'option'; readonly choose: number; readonly from: readonly string[] }
   | { readonly kind: 'subclass'; readonly choose: 1 }
-  | { readonly kind: 'feat'; readonly choose: number; readonly category?: string };
+  | { readonly kind: 'feat'; readonly choose: number; readonly category?: string }
+  /**
+   * Points of ability score, spread the way the feature's own sentence
+   * spreads them.
+   *
+   * SRD Ability Score Improvement: "increase one ability score of your choice
+   * by 2, or increase two ability scores of your choice by 1 each"; an Epic
+   * Boon: "Increase one ability score of your choice by 1". Every class prints
+   * both and neither was sayable, so every Improvement in the catalogue
+   * offered the feat half and refused the other.
+   *
+   * **Answered one ability per point.** `featureChoices` is a list of strings
+   * and a point is the unit the sentence counts in, so `['str', 'str']` is
+   * the first branch and `['str', 'dex']` the second. The spread a player took
+   * is therefore *counted out of their answer* rather than declared beside it,
+   * and there is no second field for the two to disagree through.
+   */
+  | {
+      readonly kind: 'ability-score';
+      /**
+       * The branches the sentence prints, each as the points it puts into
+       * that many distinct scores: `[[2], [1, 1]]` is the Improvement's own
+       * sentence and `[[1]]` is an Epic Boon's.
+       *
+       * A list of branches rather than a total with a cap per score, because
+       * two numbers would *cover* the SRD's sentence instead of saying it:
+       * they admit spreads no book prints, and a feature offering three of
+       * four possible splits could not be written at all.
+       * `checkFeatureDefinition` holds every branch to the same total, because
+       * the length of a legal answer is read from it.
+       */
+      readonly spreads: readonly (readonly number[])[];
+      /**
+       * That the same sentence offers a feat instead — SRD: "or another feat
+       * of your choice for which you qualify", and an Epic Boon's category.
+       *
+       * The fork is unambiguous because the two halves are answered in
+       * different places: the scores go in `featureChoices` and the feat in
+       * `feats`, both keyed by this feature's id. `checkCharacter` refuses
+       * neither and refuses both.
+       */
+      readonly orFeat?: { readonly category?: string };
+    };
 
 /**
  * What one option of a feature's choice *means* to whatever is written in
@@ -192,6 +234,39 @@ export type FeatureGrant =
    * and Rogue's Expertise are the same feature under two names.
    */
   | { readonly kind: 'expertise' }
+  /**
+   * What a feature does to an ability score without asking: raise it, lift
+   * its ceiling, or both.
+   *
+   * SRD writes the two as one sentence every time it writes either — Primal
+   * Champion's "Your Strength and Constitution scores increase by 4, to a
+   * maximum of 25", Body and Mind's the same of Dexterity and Wisdom, an Epic
+   * Boon's "Increase one ability score of your choice by 1, to a maximum of
+   * 30" — so they are one member rather than two.
+   *
+   * **The ceiling moves for the scores this feature touches and for no
+   * others**, which is the whole of what the member is for.
+   * `ABILITY_SCORE_MAXIMUM` in `character.ts` is the rule for every score of
+   * every character, and a capstone that lifted it for all six would hand out
+   * five more points than the book does. Which scores those are is
+   * {@link raises} where the feature names them, and the abilities this
+   * feature's own `ability-score` choice named where it asks instead.
+   */
+  | {
+      readonly kind: 'ability-score-increase';
+      /**
+       * Scores this feature raises outright — SRD Primal Champion.
+       *
+       * A fixed grant asks the player nothing, exactly as a fixed `spells`
+       * grant does, so a feature carrying one carries no `ability-score`
+       * choice and `checkContent` refuses a feature that carries both:
+       * writing a capstone as a choice with one legal answer would demand the
+       * player type back an answer the book already gave.
+       */
+      readonly raises?: readonly { readonly ability: Ability; readonly points: number }[];
+      /** SRD's "to a maximum of 25", for the scores above and for no others. */
+      readonly maximum?: number;
+    }
   /**
    * Spells the feature adds to what the character can cast, outside the
    * counts the class table prints.
@@ -426,6 +501,37 @@ export type FeatureGrant =
        * `while-worn` on a feature.
        */
       readonly uses?: number;
+      /**
+       * The **fifth** sizing, and the item's other one: dice the copy's
+       * charge maximum is rolled from, where the book rolls for it rather
+       * than printing a number.
+       *
+       * SRD Necklace of Fireballs: "A necklace has 1d6 + 3 beads". Sovereign
+       * Glue: "a container contains 1d6 + 1 ounces". The count is a fact
+       * about the copy the party found — this necklace has five beads, that
+       * one has eight — so it is rolled once, when the copy is gained, and
+       * pinned into the pool the copy is born with; replay reads the log and
+       * rerolls nothing.
+       *
+       * **Beside {@link uses} and never with it**, because two maxima for one
+       * pool is a choice nothing could make. `checkContent` refuses both, and
+       * refuses a pool that names neither — a rolled maximum is what lets a
+       * pool leave `uses` out, and nothing else does.
+       *
+       * **Item-only, for {@link uses}'s own reason.** A class feature's pool
+       * is sized from its class table and no table has ever rolled, so
+       * `poolSizeOf` has nothing to read here and `checkContent` refuses it on
+       * a feature. It lived on `CatalogueItem` itself until it was moved here:
+       * there it escaped the validator entirely, so a malformed one loaded
+       * clean and refused later at the award, and one written on an item with
+       * no pool was silently inert.
+       *
+       * Only a door that can roll may hand such a copy over — `awardItems`
+       * takes a `Supply` and rolls; `purchaseItem` and `createCharacter`
+       * cannot — so a copy gained through one of those is labelled and left
+       * unsized, which `expendCharges` refuses out loud rather than guessing.
+       */
+      readonly usesRolled?: string;
       readonly recovers: Recovery;
       /** SRD: "you regain one expended use when you finish a Short Rest." */
       readonly regainsOnShortRest?: number;

@@ -92,29 +92,6 @@ export interface CatalogueItem {
    */
   readonly attunement?: ItemAttunement;
   /**
-   * Dice the copy's charge maximum is rolled from, where the book rolls for it
-   * rather than printing a number.
-   *
-   * SRD Necklace of Fireballs: "A necklace has 1d6+3 beads". Sovereign Glue:
-   * "a container contains 1d6+1 ounces". The count is a fact about the copy
-   * the party found — this necklace has five beads, that one has eight — so it
-   * is rolled once, when the copy is gained, and pinned into the pool the copy
-   * is born with. Replay reads the log and rerolls nothing.
-   *
-   * It sits on the item rather than in the `pool` grant beside `uses` for one
-   * reason: a class feature's pool is sized from the class table, and no table
-   * has ever rolled. The grant's four sizings are what a *feature* can read,
-   * and this is the item's own line.
-   *
-   * **Only a door that can roll may hand one of these over.** `awardItems`
-   * takes a `Supply` and rolls; `purchaseItem` and `createCharacter` cannot —
-   * the first has no generator and the second is producing the events a state
-   * will be folded from — so a copy gained through one of those is labelled
-   * and its pool is left undeclared, which `expendCharges` refuses out loud
-   * rather than guessing the printed number.
-   */
-  readonly chargesRolled?: string;
-  /**
    * What the item does, in the vocabulary a class feature is already written
    * in.
    *
@@ -268,11 +245,16 @@ export function itemChargePool(item: CatalogueItem, instance?: string): PoolDecl
  * cannot be declared by a door with no generator, and a `PoolDeclaration`
  * carrying dice instead of a number would push that decision into the fold.
  * An item that rolls nothing and an item with no charges at all both answer
- * null, so a caller asks one question.
+ * null, so a caller asks one question — which is the same **first** pool
+ * {@link itemChargePool} reads, because `checkContent` refuses an item that
+ * declares two.
  */
 export function itemChargeRoll(item: CatalogueItem): string | null {
-  if (item.chargesRolled === undefined || itemChargePool(item) === null) return null;
-  return item.chargesRolled;
+  for (const grant of item.grants ?? []) {
+    if (grant.kind !== 'pool') continue;
+    return grant.usesRolled ?? null;
+  }
+  return null;
 }
 
 /** What the item casts, in the grant's own words. */

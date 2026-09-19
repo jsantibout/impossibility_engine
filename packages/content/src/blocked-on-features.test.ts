@@ -266,41 +266,57 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
   });
 
   /**
-   * The finding, which is what the next batch is planned from.
+   * The finding that planned the first batch, kept as the record of what
+   * happened to it.
    *
    * Reading a hundred and sixty notes put the same two shapes at the top, and
-   * they are the same shape twice over: every class prints an Ability Score
-   * Improvement the engine can only take as a feat, and every class prints an
-   * Epic Boon whose one mechanical sentence raises a score past 20. Between
-   * them they are the largest single block of manual features in the
-   * catalogue, and neither is a combat mechanic.
+   * they were the same shape twice over: every class printed an Ability Score
+   * Improvement the engine could only take as a feat, and every class printed
+   * an Epic Boon whose one mechanical sentence raised a score past 20. Between
+   * them they were the largest single block of manual features in the
+   * catalogue, and neither was a combat mechanic — which is exactly why no
+   * amount of work on spells or items had ever surfaced them.
+   *
+   * Both were built. Twenty-four class features and two capstones are
+   * `automation: 'engine'` now, their lines are gone from the map above, and
+   * the two ids are gone from {@link FEATURE_SHAPES} — which the
+   * unclaimed-shape guard would have insisted on anyway. So the assertion is
+   * the conversion's own: **nothing here is blocked on either of them any
+   * more, and the vocabulary no longer names them.**
    */
-  it('ranks the advancement shapes first, above anything a fight uses', () => {
-    const top = allFeatureShapeConsumers()
-      .slice(0, 2)
-      .map((row) => row.shape)
-      .sort();
-    expect(top).toEqual([
+  it('has retired the advancement shapes it ranked first', () => {
+    for (const shape of [
       'an-ability-score-an-advancement-raises',
       'an-ability-score-maximum-above-20',
-    ]);
-    // Twelve classes each, which is what makes them the heaviest rather than
-    // a detail: the number itself is COVERAGE.md's to print.
-    for (const shape of top) {
-      expect(featureConsumersOf(shape as never).finishes.length).toBeGreaterThan(9);
+    ]) {
+      expect(Object.keys(FEATURE_SHAPES)).not.toContain(shape);
+      expect(claimedFeatureShapes().has(shape)).toBe(false);
+      expect(featureConsumersOf(shape as never).blocks).toEqual([]);
+    }
+    // And the features themselves left the map, rather than the shape being
+    // quietly swapped for another id on the same lines.
+    for (const id of [
+      'barbarian:ability-score-improvement',
+      'wizard:epic-boon',
+      'barbarian:primal-champion',
+      'monk:body-and-mind',
+    ]) {
+      expect(FEATURE_BLOCKED_ON[id]).toBeUndefined();
+      expect(MANUAL).not.toContain(id);
     }
   });
 
   /**
-   * And the heaviest thing a **fight** would notice, which is a different
-   * question and deliberately answered apart.
+   * And the heaviest thing a **fight** would notice, which used to be a
+   * different question and is now the same one.
+   *
+   * The two advancement shapes stood above it and neither was a combat
+   * mechanic; both have been built, so weapon mastery is the head of the
+   * whole ranking rather than the head of a filtered one. The filter is kept
+   * and is empty, because what it excluded is the thing that moved.
    */
   it('ranks weapon mastery first among the shapes a fight would notice', () => {
-    const inCombat = allFeatureShapeConsumers().filter(
-      (row) =>
-        row.shape !== 'an-ability-score-an-advancement-raises' &&
-        row.shape !== 'an-ability-score-maximum-above-20',
-    );
+    const inCombat = allFeatureShapeConsumers();
     expect(inCombat[0]?.shape).toBe('a-weapon-mastery-property');
     expect(featureConsumersOf('a-weapon-mastery-property').blocks).toEqual([
       'barbarian:weapon-mastery',

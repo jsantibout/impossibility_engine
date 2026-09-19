@@ -20,6 +20,7 @@ import {
   type FeatureGrant,
   type SubclassDefinition,
 } from './progression.js';
+import { parseNotation } from './dice.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem, type Recovery } from './resources.js';
 import { EFFECT_END_CAUSES } from './duration.js';
@@ -134,6 +135,7 @@ export interface ContentProblem {
  * added or removed without this line changing fails there.
  */
 export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
+  'ability-score-increase',
   'activated',
   'critical-range',
   'expertise',
@@ -349,10 +351,32 @@ function itemPoolProblems(
   if (!isString(grant.key) || grant.key.trim() === '') {
     say('bad_pool_key', 'a pool is found by its key, and a blank one finds nothing', `${at}.key`);
   }
-  if (!Number.isInteger(grant.uses) || (grant.uses ?? 0) < 1) {
+  // Two sizings, and exactly one of them. The book prints a number on most
+  // items' lines and rolls for a few — "A necklace has 1d6 + 3 beads" — so a
+  // pool that names neither is sized by nothing and a pool that names both is
+  // sized twice, which is a choice nothing downstream could make.
+  const rolled: unknown = grant.usesRolled;
+  if (rolled !== undefined) {
+    if (grant.uses !== undefined) {
+      say(
+        'item_pool_sized_twice',
+        `${item.id} prints a charge count and rolls for one; an item's line does one or the other`,
+        `${at}.usesRolled`,
+      );
+    }
+    // The same reading `regainsAtDawn` is held to, by the same parser: dice,
+    // and never a stated number, which is what `uses` is for.
+    if (!isString(rolled) || !parseNotation(rolled).ok) {
+      say(
+        'bad_rolled_uses',
+        `"${String(rolled)}" is not dice a charge maximum can be rolled from; a printed count is "uses"`,
+        `${at}.usesRolled`,
+      );
+    }
+  } else if (!Number.isInteger(grant.uses) || (grant.uses ?? 0) < 1) {
     say(
       'item_pool_without_uses',
-      `${item.id} declares charges without saying how many; the SRD prints a number on the item's own line`,
+      `${item.id} declares charges without saying how many; the SRD prints a number on the item's own line, or dice to roll one from`,
       `${at}.uses`,
     );
   }
@@ -1080,6 +1104,18 @@ function itemGrantProblems(
     found.push({ field, code, reason });
   };
 
+  // Where the rolled charge maximum used to live, and where nothing reads it
+  // any more. Refused rather than ignored, because an unknown field is data
+  // written against a later engine and this one is data written against an
+  // earlier one: a necklace carrying it would load clean and be beadless.
+  if ((item as unknown as Record<string, unknown>)['chargesRolled'] !== undefined) {
+    found.push({
+      field: `items[${item.id}].chargesRolled`,
+      code: 'rolled_uses_without_a_pool',
+      reason: `a rolled charge maximum is a sizing of the item's charge pool and belongs in its "pool" grant as "usesRolled"; on ${item.id} itself nothing reads it`,
+    });
+  }
+
   let pools = 0;
   let conferrals = 0;
   const casts = new Set<string>();
@@ -1089,6 +1125,17 @@ function itemGrantProblems(
     if (grant === null || typeof grant !== 'object' || !isString((grant as { kind?: unknown }).kind)) {
       say('bad_item_grant', 'an item grant is an object naming its kind', at);
       return;
+    }
+    // A rolled charge maximum sizes a **pool**, and only `itemChargeRoll`
+    // reads one, off the item's first pool grant. Written anywhere else it is
+    // the failure the field's old home had — inert, and indistinguishable
+    // from a line the transcriber thought had landed.
+    if (grant.kind !== 'pool' && (grant as Record<string, unknown>)['usesRolled'] !== undefined) {
+      say(
+        'rolled_uses_without_a_pool',
+        `${item.id} rolls for a charge maximum on a "${grant.kind}" grant, and a rolled maximum sizes the item's charge pool; nothing would read it here`,
+        `${at}.usesRolled`,
+      );
     }
     if (grant.kind === 'pool') {
       pools += 1;
@@ -1498,6 +1545,16 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           field: `${where}.grants.uses`,
           code: 'item_sizing_on_a_feature',
           reason: `a flat number of uses is how an item's line sizes its charges, and poolSizeOf sizes a feature's pool from its class table, so ${feature.id} would be sized by a number nothing reads`,
+        });
+      }
+      // And the item's other sizing, refused for the sharper half of the same
+      // reason: no class table has ever rolled, and only the doors that hand
+      // an item copy over can roll one.
+      if (feature.grants?.kind === 'pool' && feature.grants.usesRolled !== undefined) {
+        problems.push({
+          field: `${where}.grants.usesRolled`,
+          code: 'item_rolled_sizing_on_a_feature',
+          reason: `a rolled charge maximum is an item copy's, rolled once by the door that hands the copy over; a class table has never rolled, so ${feature.id} would be sized by dice nothing throws`,
         });
       }
       // The item's own route, on a class feature — the same door again. SRD

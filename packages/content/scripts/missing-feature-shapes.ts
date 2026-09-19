@@ -88,10 +88,6 @@ import {
 export const FEATURE_SHAPES = {
   'a-weapon-mastery-property':
     'Cleave, Graze, Nick, Push, Sap, Slow, Topple and Vex are parsed onto the weapons that print them and executed by nothing, and no feature records **which** weapons a character has mastery with. Five classes print the feature and a sixth swaps one property for another. `FeatureGrant` in packages/engine/src/progression.ts is the list of what a feature may do — "Deliberately few. A feature whose effect does not fit one of these is `automation: \'manual\'` with a note saying what a DM still has to do" — and a mastery is not on it, at either end: neither the choice of weapons nor the property\'s own rule.',
-  'an-ability-score-an-advancement-raises':
-    'the Ability Score Improvement taken as **scores** rather than as a feat. `FeatureChoice` in packages/engine/src/progression.ts is "What a feature asks the player to decide, when it asks anything", and its five members are a skill, a spell, a named option, a subclass and a feat, and two points of ability spread over one score or two is none of them, so every ASI in the catalogue offers the feat half and refuses the other. Twelve classes print it and two capstones raise two scores outright.',
-  'an-ability-score-maximum-above-20':
-    'a score allowed past 20. `docs/design/time-and-turns.md` records the same ceiling from the other side — "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place" — and the cap is a constant creation enforces on every character, so a capstone that raises the Strength maximum to 25 and an Epic Boon that lifts one above 20 both arrive at a number nothing may exceed.',
   'a-saving-throw-a-feature-forces':
     'a feature that makes **somebody else** roll. A casting forces a save through its definition and an item through a `save` conferral; packages/engine/src/content.ts enumerates what an item\'s readers run — "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and a class feature reaches none of those, so a Breath Weapon, a Stunning Strike and a Channel Divinity that Frightens have a printed DC and nothing to roll it against.',
   'a-condition-a-feature-imposes':
@@ -240,18 +236,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the half a standing roll-mode already says, and the reason this feature is one shape away rather than two.',
     },
   ],
-  'barbarian:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'a feat that does nothing is that feat’s debt, and a feat declares no automation for anything to count.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker, and the one every class prints.',
-    },
-  ],
   'barbarian:instinctive-pounce': [
     {
       clause: 'no feature hands its holder a move that costs nothing out of the turn’s allowance',
@@ -341,30 +325,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the D20 Test half of the substitution the damage dice already have.',
     },
   ],
-  'barbarian:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'the half of the boon list that names a mechanic; the rest is each boon’s own debt.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'a boon that does nothing is that boon’s, which is the reading the ASI note takes of a feat.',
-    },
-  ],
-  'barbarian:primal-champion': [
-    {
-      clause: 'Raising the Strength and Constitution maximums to 25',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'the ceiling, which creation enforces on every character.',
-    },
-    {
-      clause: 'ability scores cap at 20 everywhere',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'and the scores themselves: a capstone handing out ability points has no advancement shape to hand them through.',
-    },
-  ],
   'berserker:frenzy': [
     {
       clause: 'a standing effect may require a named feature to be active',
@@ -410,18 +370,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a rules reading rather than a gap, written down so the 2014 answer does not creep back.',
     },
   ],
-  'bard:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'bard:font-of-inspiration': [
     {
       clause: 'Regaining Bardic Inspiration on a Short Rest',
@@ -465,18 +413,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the moment is built — a recovery may fire at Initiative — and "until you have two" is the sizing that is not.',
     },
   ],
-  'bard:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
-    },
-  ],
   'bard:words-of-creation': [
     {
       clause: 'Power Word Heal and Power Word Kill always prepared',
@@ -515,18 +451,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a number read off the holder’s own sheet, which only a save bonus does.',
     },
   ],
-  'cleric:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'cleric:sear-undead': [
     {
       clause: 'Turn Undead itself is a Channel Divinity option the engine does not execute',
@@ -549,18 +473,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the once-per-long-rest limit is not tracked',
       why: 'a-casting-paid-for-out-of-a-feature-pool',
       note: 'a pool of one behind a free casting, which only an item’s `casts` grant has.',
-    },
-  ],
-  'cleric:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'cleric:greater-divine-intervention': [
@@ -641,18 +553,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'and the catalogue defines no Find Familiar either, so the casting would have nothing to run.',
     },
   ],
-  'druid:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'druid:wild-resurgence': [
     {
       clause: 'Trading a Wild Shape use for a level 1 slot, and the reverse',
@@ -665,18 +565,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Casting while Wild Shaped is not modelled, because Wild Shape is not',
       why: 'a-creature-fact-an-effect-overrides',
       note: 'Wild Shape writes over what the engine holds authoritatively about a creature, which is the spell map’s own id for Arcanist’s Magic Aura.',
-    },
-  ],
-  'druid:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'druid:archdruid': [
@@ -719,18 +607,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the same shape the other four classes want, with the properties spelled out.',
     },
   ],
-  'fighter:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'fighter:tactical-shift': [
     {
       clause: 'The free half-Speed move on a Second Wind',
@@ -750,18 +626,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Advantage on the next attack after a miss is not tracked between attacks',
       why: 'a-one-shot-roll-modifier',
       note: 'the spell map’s own id: a mode consumed by the roll it changes.',
-    },
-  ],
-  'fighter:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'champion:additional-fighting-style': [
@@ -802,18 +666,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'the attack layer reads a weapon or the fixed Unarmed Strike, and has no notion of a class changing either',
       why: 'an-attack-the-class-redefines',
       note: 'the growing die, the Dexterity fist and the Bonus Action strike are three sentences of one absence.',
-    },
-  ],
-  'monk:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
     },
   ],
   'monk:slow-fall': [
@@ -897,30 +749,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'and it costs three Focus Points at once, where an activation spends exactly one use.',
     },
   ],
-  'monk:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
-    },
-  ],
-  'monk:body-and-mind': [
-    {
-      clause: 'to a maximum of 25',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'the ceiling, which creation enforces on every character and nothing lifts.',
-    },
-    {
-      clause: 'Raising Dexterity and Wisdom by 4',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'and the raise itself, which no advancement shape carries.',
-    },
-  ],
   'open-hand:technique': [
     {
       clause: 'because Flurry of Blows is not',
@@ -980,18 +808,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'and casting it as a Bonus Action after a hit, which changes what the casting costs and when.',
     },
   ],
-  'paladin:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'paladin:faithful-steed': [
     {
       clause: 'Find Steed always prepared',
@@ -1024,18 +840,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'which is the action economy answering to somebody other than the engine',
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'the restriction on what a Frightened target may do on its turns.',
-    },
-  ],
-  'paladin:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'oath-of-devotion:sacred-weapon': [
@@ -1112,18 +916,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the feat’s own debt, exactly as the Fighter’s Fighting Style is.',
     },
   ],
-  'ranger:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'ranger:tireless': [
     {
       clause: 'Temporary Hit Points as a Magic action',
@@ -1165,18 +957,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'The mark itself is tracked',
       why: 'expressible',
       note: 'recorded because the note used to claim otherwise: Hunter’s Mark is executed and the rider fires only at its target.',
-    },
-  ],
-  'ranger:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'ranger:foe-slayer': [
@@ -1264,18 +1044,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'both halves of the Speed sentence are built, which is why they are recorded rather than counted as missing.',
     },
   ],
-  'rogue:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'rogue:cunning-strike': [
     {
       clause: 'spending some of those dice as a price',
@@ -1354,18 +1122,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'No attack roll having Advantage against you while you are not Incapacitated',
       why: 'a-roll-mode-a-feature-takes-away',
       note: 'a mode cancelled rather than opposed, which the presence model has no member for.',
-    },
-  ],
-  'rogue:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'rogue:stroke-of-luck': [
@@ -1461,18 +1217,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'every other option changes the casting — its range, its targets, its components, its action — for Sorcery Points.',
     },
   ],
-  'sorcerer:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'sorcerer:sorcery-incarnate': [
     {
       clause: 'Using two Metamagic options on one spell',
@@ -1483,18 +1227,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'spending Sorcery Points to use Innate Sorcery again',
       why: 'a-resource-traded-for-another',
       note: 'one pool spent to refill another.',
-    },
-  ],
-  'sorcerer:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'sorcerer:arcane-apotheosis': [
@@ -1556,18 +1288,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the half of the list that names a mechanic rather than a catalogue entry.',
     },
   ],
-  'warlock:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'warlock:contact-patron': [
     {
       clause: 'Contact Other Plane always prepared',
@@ -1590,18 +1310,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'One free casting each of a level 6, 7, 8 and 9 spell',
       why: 'a-feature-that-carries-a-second-grant',
       note: 'and the spells are chosen at four different levels on one feature, which one grant cannot hold.',
-    },
-  ],
-  'warlock:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'warlock:eldritch-master': [
@@ -1656,18 +1364,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a refusal the casting layer owns, recorded so the feature’s note stays true to it.',
     },
   ],
-  'wizard:ability-score-improvement': [
-    {
-      clause: 'Whether a feat does anything is a property of the feat, not of this feature',
-      why: 'table',
-      note: 'as every other class prints it.',
-    },
-    {
-      clause: 'taking the increase as ability scores rather than as a feat',
-      why: 'an-ability-score-an-advancement-raises',
-      note: 'the feature’s own blocker.',
-    },
-  ],
   'wizard:memorize-spell': [
     {
       clause: 'Swapping a prepared spell on a Short Rest',
@@ -1680,18 +1376,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Casting the chosen spells at will',
       why: 'a-casting-paid-for-out-of-a-feature-pool',
       note: 'the at-will end of the same grant: an item may cast for nothing and a feature may not.',
-    },
-  ],
-  'wizard:epic-boon': [
-    {
-      clause: 'raise an ability score maximum above 20',
-      why: 'an-ability-score-maximum-above-20',
-      note: 'as every class prints it.',
-    },
-    {
-      clause: 'the choice is recorded and validated rather than applied',
-      why: 'table',
-      note: 'the boon’s own debt, and no Epic Boon in the SRD is content here yet.',
     },
   ],
   'wizard:signature-spells': [

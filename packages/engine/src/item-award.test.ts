@@ -111,8 +111,9 @@ const BEADS: CatalogueItem = {
   armor: null,
   weapon: null,
   contents: [],
-  chargesRolled: '1d6+3',
-  grants: [{ kind: 'pool', key: `${NECKLACE}:charges`, uses: 3, recovers: 'special' }],
+  grants: [
+    { kind: 'pool', key: `${NECKLACE}:charges`, usesRolled: '1d6+3', recovers: 'special' },
+  ],
 };
 
 const HOARD: Content = unwrap(extendContent(SRD_CONTENT, { items: [BEADS] }), 'homebrew');

@@ -1,4 +1,5 @@
 import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
+import { ABILITY_SCORE_MAXIMUM } from './character.js';
 import type { FeatureDefinition, FeatureOptionMeaning, PoolSizing } from './progression.js';
 
 /**
@@ -130,6 +131,190 @@ const poolSizingOf = (
   }
   return null;
 };
+
+/** A spread as the rules compare them: the points, largest first. */
+const asSpread = (points: readonly number[]): string =>
+  [...points].sort((a, b) => b - a).join('+');
+
+/**
+ * The branches an `ability-score` choice prints, judged against the two
+ * things that read them.
+ *
+ * `checkFeatureChoices` counts the player's answer into a spread and looks for
+ * it here, and it reads the length a legal answer must have off the branches'
+ * common total — so branches that disagree about the total would make one of
+ * them unanswerable, which is the quiet kind of wrong.
+ */
+function abilityChoiceProblems(
+  feature: FeatureDefinition,
+): readonly FeatureDefinitionProblem[] {
+  const asked = feature.choice;
+  if (asked === undefined || asked.kind !== 'ability-score') return [];
+  const found: FeatureDefinitionProblem[] = [];
+  const spreads: unknown = asked.spreads;
+
+  if (!Array.isArray(spreads) || spreads.length === 0) {
+    return [
+      {
+        field: 'choice.spreads',
+        code: 'bad_ability_spread',
+        reason:
+          'a choice that raises ability scores prints at least one branch, as the points it puts into that many distinct scores',
+      },
+    ];
+  }
+
+  const totals = new Set<number>();
+  const seen = new Set<string>();
+  (spreads as readonly unknown[]).forEach((spread, index) => {
+    const at = `choice.spreads[${index}]`;
+    if (!Array.isArray(spread) || spread.length === 0) {
+      found.push({
+        field: at,
+        code: 'bad_ability_spread',
+        reason: 'a branch puts points into at least one score; one that puts none raises nothing',
+      });
+      return;
+    }
+    // Six scores, six places for a point to go: a branch naming more distinct
+    // scores than a creature has could never be answered.
+    if (spread.length > ABILITY_NAMES.size) {
+      found.push({
+        field: at,
+        code: 'bad_ability_spread',
+        reason: `a branch spreads points over ${String(spread.length)} distinct scores and a creature has ${String(ABILITY_NAMES.size)}`,
+      });
+      return;
+    }
+    const bad = (spread as readonly unknown[]).findIndex((points) => !isCount(points));
+    if (bad !== -1) {
+      found.push({
+        field: `${at}[${bad}]`,
+        code: 'bad_ability_spread',
+        reason: `a score is raised by a whole number of at least one point, not ${String((spread as readonly unknown[])[bad])}`,
+      });
+      return;
+    }
+    const points = spread as readonly number[];
+    totals.add(points.reduce((sum, one) => sum + one, 0));
+    const shape = asSpread(points);
+    if (seen.has(shape)) {
+      found.push({
+        field: at,
+        code: 'duplicate_ability_spread',
+        reason: `${shape} is printed twice, and one branch of a sentence is one way of answering it`,
+      });
+    }
+    seen.add(shape);
+  });
+
+  if (totals.size > 1) {
+    found.push({
+      field: 'choice.spreads',
+      code: 'uneven_ability_spreads',
+      reason: `the branches hand out ${[...totals].sort((a, b) => a - b).join(' and ')} points, and the length of a legal answer is read off that total, so one of them could never be answered`,
+    });
+  }
+
+  return found;
+}
+
+/**
+ * The scores an `ability-score-increase` grant raises, and the ceiling it
+ * lifts for them.
+ *
+ * A grant that lifts a maximum for no score lifts it for nobody, and a
+ * feature that both names its scores and asks which is two sentences the SRD
+ * never prints together — both would read as transcribed and grant something
+ * other than what the book says.
+ */
+function abilityGrantProblems(
+  feature: FeatureDefinition,
+): readonly FeatureDefinitionProblem[] {
+  const grant = feature.grants;
+  if (grant === undefined || grant.kind !== 'ability-score-increase') return [];
+  const found: FeatureDefinitionProblem[] = [];
+  const asks = feature.choice?.kind === 'ability-score';
+  const raises: unknown = grant.raises;
+
+  if (raises !== undefined) {
+    if (asks) {
+      found.push({
+        field: 'grants.raises',
+        code: 'ability_raise_and_choice',
+        reason: `${feature.id} names the scores it raises and asks which to raise; the SRD writes one sentence or the other, and a reader cannot tell which the maximum belongs to`,
+      });
+    }
+    if (!Array.isArray(raises) || raises.length === 0) {
+      found.push({
+        field: 'grants.raises',
+        code: 'bad_ability_raise',
+        reason: 'a feature that raises scores outright names at least one, with the points it adds',
+      });
+    } else {
+      const named = new Set<string>();
+      (raises as readonly unknown[]).forEach((raise, index) => {
+        const at = `grants.raises[${index}]`;
+        const entry = raise as { ability?: unknown; points?: unknown } | null;
+        if (entry === null || typeof entry !== 'object') {
+          found.push({ field: at, code: 'bad_ability_raise', reason: 'a raise names an ability and the points it adds' });
+          return;
+        }
+        if (typeof entry.ability !== 'string' || !ABILITY_NAMES.has(entry.ability as Ability)) {
+          found.push({
+            field: `${at}.ability`,
+            code: 'bad_ability_raise',
+            reason: `"${String(entry.ability)}" is not one of the six abilities`,
+          });
+          return;
+        }
+        if (!isCount(entry.points)) {
+          found.push({
+            field: `${at}.points`,
+            code: 'bad_ability_raise',
+            reason: `a score is raised by a whole number of at least one point, not ${String(entry.points)}`,
+          });
+        }
+        if (named.has(entry.ability)) {
+          found.push({
+            field: `${at}.ability`,
+            code: 'duplicate_ability_raise',
+            reason: `${entry.ability} is raised twice by one sentence, and the second would be read and the first forgotten`,
+          });
+        }
+        named.add(entry.ability);
+      });
+    }
+  }
+
+  const maximum: unknown = grant.maximum;
+  if (maximum !== undefined) {
+    if (!Number.isInteger(maximum) || (maximum as number) <= ABILITY_SCORE_MAXIMUM) {
+      found.push({
+        field: 'grants.maximum',
+        code: 'bad_ability_maximum',
+        reason: `a lifted ceiling is a whole number above the ${ABILITY_SCORE_MAXIMUM} every score already has, not ${String(maximum)}`,
+      });
+    }
+    if (raises === undefined && !asks) {
+      found.push({
+        field: 'grants.maximum',
+        code: 'ability_maximum_lifts_nothing',
+        reason: `${feature.id} lifts a ceiling for the scores it touches, and it neither names a score nor asks for one, so it would lift nothing for anybody`,
+      });
+    }
+  }
+
+  if (raises === undefined && maximum === undefined) {
+    found.push({
+      field: 'grants',
+      code: 'empty_ability_grant',
+      reason: `${feature.id} neither raises a score nor lifts a ceiling, so nothing about it reaches a sheet`,
+    });
+  }
+
+  return found;
+}
 
 /**
  * Everything wrong with a feature definition, rather than the first thing.
@@ -395,6 +580,13 @@ export function checkFeatureDefinition(
       }
     }
   }
+
+  // Rule 9. Two points of ability, and a score above twenty — the shape every
+  // class prints twice. Both halves are checkable one definition at a time,
+  // because both live on the same feature: the branches the sentence offers,
+  // and the scores its grant raises or lifts a ceiling for.
+  found.push(...abilityChoiceProblems(feature));
+  found.push(...abilityGrantProblems(feature));
 
   // And the reading end of the same rule: the field says where a choice is
   // read *from*, so a grant that reads no choice names a source for nothing.

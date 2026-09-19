@@ -21,6 +21,25 @@ import type { Armor } from '@ie/srd';
 
 export type AbilityScores = Readonly<Record<Ability, number>>;
 
+/**
+ * The ceiling on an ability score, for every character and every score no
+ * feature has lifted.
+ *
+ * **Here rather than in `progression.ts` beside `MAX_LEVEL`, and rather than
+ * as the bare `20` `creation.ts` used to carry inside one refusal.** A level
+ * is progression's subject; a score is this file's — `AbilityScores` and
+ * `abilityModifier` are what the rest of the engine reads a score through, so
+ * the number a score may not pass belongs beside them, and one name is what
+ * lets a second reader ask the same question rather than repeat the literal.
+ *
+ * It is a **default and not a constant of the rules**: an `ability-score-increase`
+ * grant lifts it for the scores its own feature touches — SRD's Epic Boons
+ * reach 30 and two capstones reach 25 — and nothing lifts it for all six at
+ * once. `creation.ts` resolves the per-ability ceiling, because only the
+ * character's features know which of them have been lifted.
+ */
+export const ABILITY_SCORE_MAXIMUM = 20;
+
 export type ProficiencyLevel = 'none' | 'proficient' | 'expertise';
 
 export interface ArmorTraining {
