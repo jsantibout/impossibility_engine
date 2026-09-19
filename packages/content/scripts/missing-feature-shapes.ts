@@ -227,7 +227,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
       why: 'a-one-shot-roll-modifier',
-      note: 'the spell map’s own id rather than a feature-side twin: "its next attack roll" and "your next attack roll against that creature" are Guiding Bolt’s missing mechanic arriving on a weapon. Vex wants a second thing besides — a selector narrowed to the attacker, which roll-modifiers.ts names as the unbuilt third relation — and that is why it is filed here rather than treated as expressible.',
+      note: 'the spell map’s own id rather than a feature-side twin, and it takes both directions the spell map names for it: Vex is Guiding Bolt’s "the next attack roll against it" and Sap is Vicious Mockery’s "the next attack roll it makes", arriving on a weapon instead of a spell. Vex wants a second thing besides — a selector narrowed to the attacker, which roll-modifiers.ts names as the unbuilt third relation — and that is why it is filed here rather than treated as expressible.',
     },
     {
       clause:
@@ -236,7 +236,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the neighbouring half this shape already files — extra attacks inside the Attack action — reached from the weapon rather than from the Monk. Nick changes where the Light property’s swing is paid for, and nothing pays for one today.',
     },
     {
-      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      clause: 'changing what was chosen on a Long Rest is an option re-answered',
       why: 'an-option-re-chosen-on-a-rest',
       note: 'the feature’s second paragraph, which every printing class writes and which the record alone does not satisfy: a FeatureChoice is answered once at creation and frozen into the sheet.',
     },
@@ -636,7 +636,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the Light property is parsed and its extra attack is modelled nowhere, so the sentence Nick rewrites has no subject in the engine at all.',
     },
     {
-      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      clause: 'changing what was chosen on a Long Rest is an option re-answered',
       why: 'an-option-re-chosen-on-a-rest',
       note: 'the second paragraph again, and the reason the record alone leaves the feature manual: a rest is observable and nothing hangs a re-choice off one.',
     },
@@ -835,9 +835,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the same missing subject: a Scimitar or a Dagger is a legal pick and the sentence its mastery writes has nothing in the economy to rewrite.',
     },
     {
-      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      clause: 'changing what was chosen on a Long Rest is an option re-answered',
       why: 'an-option-re-chosen-on-a-rest',
-      note: 'the Paladin prints the widest version of it — the kinds, plural, rather than one of them — so the record being written once at creation is further from the book here than anywhere else.',
+      note: 'the Paladin, the Ranger and the Rogue print the wider version of it word for word — "change the kinds of weapons you chose", every choice rather than one of them — where the Barbarian and the Fighter change one. The clause is worded for the mechanic rather than for either phrasing, because a record written once at creation cannot do either.',
     },
   ],
   'paladin:fighting-style': [
@@ -963,7 +963,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause:
         'recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing',
       why: 'a-weapon-mastery-property',
-      note: 'the same shape the other four classes want, and the class the book gives a ranged example for: a Longbow is Slow, which is one of the five that would run.',
+      note: 'the same shape the other four classes want, and the class whose printed example reaches furthest across the eight: the book offers a Ranger Longbows and Shortswords, which is one property that would run and one that would not.',
     },
     {
       clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
@@ -977,7 +977,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the Ranger’s own worked example swaps to Scimitars, which is the Nick property, so this is not a corner of the feature either.',
     },
     {
-      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      clause: 'changing what was chosen on a Long Rest is an option re-answered',
       why: 'an-option-re-chosen-on-a-rest',
       note: 'the whole of the feature’s second half: the book spends two sentences on the swap and the engine can record neither the original choice nor the swap.',
     },
@@ -1091,12 +1091,12 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause:
         'recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing',
       why: 'a-weapon-mastery-property',
-      note: 'the same shape the other four classes want, on the class whose proficiencies are the narrowest — Martial weapons that have the Finesse or Light property — so the record has the most to validate against here.',
+      note: 'the same shape the other four classes want, on the class whose proficiencies are the narrowest of the five: Simple weapons, and of the Martial ones only those with the Finesse or Light property. So the record has the most to validate against here, and a Rogue is the character a refusal by name would first be written for.',
     },
     {
       clause: 'Sap and Vex each want a modifier consumed by the roll it changes',
       why: 'a-one-shot-roll-modifier',
-      note: 'the worst case of the four, because Vex is on almost everything a Rogue is proficient with: a Rapier, a Shortsword, a Shortbow and a Hand Crossbow are all Vex, so the property a Rogue is most likely to pick is one of the two nothing can run.',
+      note: 'the worst case of the five, because Vex sits on three of the five Martial weapons a Rogue may take at all — the Rapier, the Shortsword and the Hand Crossbow, against a Scimitar and a Whip — so the property this class is likeliest to choose is one of the two nothing can run.',
     },
     {
       clause:
@@ -1105,7 +1105,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the book’s own example for this class is Daggers, which is Nick, and a Rogue is the character most likely to want the Light property’s second swing in the first place.',
     },
     {
-      clause: 'changing one of the choices on a Long Rest is an option re-answered',
+      clause: 'changing what was chosen on a Long Rest is an option re-answered',
       why: 'an-option-re-chosen-on-a-rest',
       note: 'the second paragraph once more, and the last of the four mechanics one Weapon Mastery feature is waiting on.',
     },

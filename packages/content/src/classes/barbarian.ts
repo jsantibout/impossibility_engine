@@ -123,7 +123,7 @@ export const BARBARIAN: ClassDefinition = {
       name: 'Weapon Mastery',
       level: 1,
       automation: 'manual',
-      note: 'Which kinds of Simple or Martial Melee weapon a Barbarian has mastery with is recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing. Cleave, Graze, Push, Slow and Topple would follow the record; Sap and Vex each want a modifier consumed by the roll it changes; Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect; and changing one of the choices on a Long Rest is an option re-answered, which a choice frozen at creation cannot be.',
+      note: 'Which kinds of Simple or Martial Melee weapon a Barbarian has mastery with is recorded nowhere, and the eight properties are parsed onto the weapons that print them and executed by nothing. Cleave, Graze, Push, Slow and Topple would follow the record; Sap and Vex each want a modifier consumed by the roll it changes; Nick redirects the extra attack the Light property gives, and the Attack action holds no such attack to redirect; and changing what was chosen on a Long Rest is an option re-answered, which a choice frozen at creation cannot be.',
     },
     {
       id: 'barbarian:danger-sense',
