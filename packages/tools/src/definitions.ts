@@ -1078,7 +1078,7 @@ const ATTACK = tool({
  * `CastSpellRequest`, and until now this tool had none of them. A refusal a
  * caller cannot act on is the defect `routes.test.ts` was written about
  * standing one layer up, and the cost was concrete: Charm Person, Charm
- * Monster and Animal Friendship all print the fighting clause, Misty Step and
+ * Monster and the Dominates all print the fighting clause, Misty Step and
  * Dimension Door both teleport, and none of the five was castable from the
  * surface that exists to cast spells. `doors.test.ts` derives that list from
  * the engine's own refusal codes so the next one cannot land quietly.

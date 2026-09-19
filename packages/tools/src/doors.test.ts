@@ -364,30 +364,68 @@ const DECLARATIONS: Readonly<Record<string, { readonly tool: string } | { readon
   },
 };
 
-/** The engine's declaration commands, by the file that exports each. */
-function engineDeclarations(): ReadonlyMap<string, string> {
-  const found = new Map<string, string>();
-  for (const { file, text } of sourcesUnder(join(ENGINE, 'commands'))) {
-    for (const match of text.matchAll(/^export function (declare[A-Z]\w*)/gm)) {
-      found.set(match[1]!, file);
+/**
+ * Every `declare*` the engine exports, split by what it returns.
+ *
+ * **The split is the whole engine's, not a directory's.** A declaration a
+ * session can make is a *command*: it returns `Result<GameEvent[]>`, and a
+ * caller reaches it or does not. Beneath several of them is a pure function
+ * of the same name over one region of state — `declareCover` under
+ * `declareCoverBetween`, `declarePool` under `declareResourcePool` — which
+ * emits nothing and is not a door at all. Sweeping only `commands/` would
+ * have told the two apart by where somebody filed them, and file placement is
+ * a convention a future declaration can break silently; the return type is
+ * what the engine actually says.
+ */
+function engineDeclarations(): {
+  readonly commands: ReadonlyMap<string, string>;
+  readonly stateLevel: ReadonlyMap<string, string>;
+} {
+  const commands = new Map<string, string>();
+  const stateLevel = new Map<string, string>();
+  let seen = 0;
+  for (const { file, text } of engineSources()) {
+    seen += [...text.matchAll(/^export function declare[A-Z]/gm)].length;
+    for (const match of text.matchAll(
+      /^export function (declare[A-Z]\w*)\([\s\S]*?\):\s*([\w<>[\] ]+?)\s*\{/gm,
+    )) {
+      const emitsEvents = /^Result<\s*GameEvent\[\]\s*>$/.test(match[2]!.trim());
+      (emitsEvents ? commands : stateLevel).set(match[1]!, file);
     }
   }
-  return found;
+  // A regex that stopped matching would empty the tables and pass everything
+  // below in silence. Every export the coarse sweep found has to have been
+  // classified by the fine one.
+  expect(commands.size + stateLevel.size).toBe(seen);
+  return { commands, stateLevel };
 }
 
 describe('every fact the engine can be told has a tool that tells it', () => {
   it('records exactly the declaration commands the engine exports', () => {
-    expect(Object.keys(DECLARATIONS).sort()).toEqual([...engineDeclarations().keys()].sort());
+    expect(Object.keys(DECLARATIONS).sort()).toEqual([...engineDeclarations().commands.keys()].sort());
   });
 
   it('sweeps something: the engine does export declarations', () => {
-    expect(engineDeclarations().size).toBeGreaterThan(5);
-    expect([...engineDeclarations().keys()]).toContain('declareCreatureType');
+    expect(engineDeclarations().commands.size).toBeGreaterThan(5);
+    expect([...engineDeclarations().commands.keys()]).toContain('declareCreatureType');
+  });
+
+  /**
+   * And the other half of the split is real, so the classifier is doing work
+   * rather than putting everything in one bucket. These write no event and
+   * are reached only through the commands above them, which is why they are
+   * not doors and are not in the table.
+   */
+  it('finds the state-level halves too, and does not count them as doors', () => {
+    const stateLevel = [...engineDeclarations().stateLevel.keys()];
+    expect(stateLevel.length).toBeGreaterThan(0);
+    expect(stateLevel).toContain('declareCover');
+    for (const name of stateLevel) expect(Object.keys(DECLARATIONS)).not.toContain(name);
   });
 
   it('answers each with a tool on this surface that calls that command', () => {
     const shut: string[] = [];
-    const surfaceSource = definitionsText();
+    const surfaceSource = stripComments(definitionsText());
     for (const [command, answer] of Object.entries(DECLARATIONS)) {
       if (!('tool' in answer)) continue;
       if (!TOOL_NAMES.includes(answer.tool)) shut.push(`${command}: there is no ${answer.tool}`);

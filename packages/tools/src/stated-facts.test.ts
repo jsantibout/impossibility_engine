@@ -8,7 +8,7 @@
  * `slot_kind_required`. **Every one of those was unanswerable from this
  * surface** — the refusal arrived, the field it named did not exist on
  * `cast_spell`, and the caller's only move was to cast something else. Charm
- * Person, Charm Monster and Animal Friendship print the fighting clause;
+ * Person, Charm Monster and the Dominates print the fighting clause;
  * Misty Step and Dimension Door teleport; a Magic Initiate's granted spell
  * can be paid for two ways and a Warlock multiclass has two pools to pay
  * from. None of it could be cast, and the engine executes all of it.
