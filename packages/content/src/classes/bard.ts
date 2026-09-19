@@ -135,7 +135,7 @@ export const BARD: ClassDefinition = {
       name: 'Ability Score Improvement',
       level: 4,
       automation: 'engine',
-      note: 'SRD: "increase one ability score of your choice by 2, or increase two ability scores of your choice by 1 each", or take a feat instead. Both halves reach the sheet: the points land on the scores the player named and stop at 20 unless a later feature has lifted that score’s own ceiling, and a feat is recorded and read exactly as it always was. Whether a feat does anything is a property of the feat, not of this feature — Alert’s Initiative Proficiency, Magic Initiate’s spells and free daily casting, and Skilled’s three proficiencies all reach the sheet, while Savage Attacker’s reroll does not.',
+      note: 'SRD: "increase one ability score of your choice by 2, or increase two ability scores of your choice by 1 each", or take a feat instead. Both halves reach the sheet: the points land on the scores the player named and stop at 20 unless a later feature has lifted that score’s own ceiling, and a feat is recorded and read exactly as it always was. Whether a feat does anything is a property of the feat, not of this feature — Alert’s Initiative Proficiency, Magic Initiate’s spells and free daily casting, and Skilled’s three proficiencies all reach the sheet, while Savage Attacker’s reroll does not. What is still short of the book is the **repeats**: the class table says "You gain this feature again" at later levels and this catalogue holds one entry for it, so a character past level 4 is offered the choice once.',
       choice: { kind: 'ability-score', spreads: [[2], [1, 1]], orFeat: {} },
     },
     {
