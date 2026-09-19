@@ -59,7 +59,8 @@ import {
  *   commands. So the engine says who is owed a departure
  *   (`strandedSummons`) and a command performs it
  *   (`dismissStrandedSummons`); until it is called, a summons whose spell
- *   ended goes on acting, and the tests below say so rather than pretending
+ *   ended is still on the roster, still on the map and still holding its
+ *   rung in the order, and the tests below say so rather than pretending
  *   otherwise.
  */
 
@@ -378,6 +379,14 @@ describe('a summoned creature leaves with the casting that made it', () => {
     g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
     expect(strandedSummons(g.state)).toEqual([HOUND]);
 
+    // **And it is still standing there**, which is the gap the query exists
+    // to report rather than to hide: nothing refuses to go on without the
+    // sweep, so until somebody calls it the hound is on the roster, on the
+    // map and holding its rung in the order.
+    expect(g.state.creatures[HOUND]).toBeDefined();
+    expect(g.state.scene?.positions[HOUND]).toBeDefined();
+    expect(g.state.combat?.order.some((c) => c.id === HOUND)).toBe(true);
+
     g.push(unwrap(dismissStrandedSummons(g.state), 'sweeping'));
     expect(g.state.creatures[HOUND]).toBeUndefined();
     expect(g.state.scene?.positions[HOUND]).toBeUndefined();
@@ -613,8 +622,8 @@ describe('what a summoning refuses, and what it asks for', () => {
 
   /**
    * The casting is checked before the creature is built, so a summoning that
-   * names both a dead casting and a creature already in the game is told
-   * about the casting. Either answer would be true; what matters is that it
+   * names both a casting nobody is running and a creature already in the
+   * game is told about the casting. Either answer is true; what matters is
    * is the same one every time, because a caller branching on the code
    * cannot branch on a coin.
    */
