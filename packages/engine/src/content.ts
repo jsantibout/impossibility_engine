@@ -666,12 +666,17 @@ function itemConfersProblems(
     );
   }
 
-  // **What one use costs, judged the way a casting's price is.** SRD prints
-  // both on the item's own line — "you can expend 1 charge to cast _Web_" and
-  // "you can expend up to 3 charges" — so the rules `itemCastsProblems` keeps
-  // about a price are asked of a second host rather than spelled a second way:
-  // a whole number of at least one, a maximum strictly above it, and a pool on
-  // the same item for the charges to come out of.
+  // **What one use costs, judged by the rules a casting's price is judged by.**
+  // SRD prints both on the item's own line — "you can expend 1 charge to cast
+  // _Web_" and "you can expend up to 3 charges" — and the three rules are the
+  // same three: a whole number of at least one, a maximum strictly above the
+  // cost, and a pool on the same item for the charges to come out of.
+  //
+  // **Written out again rather than shared with `itemCastsProblems`.** Each
+  // host names its own code and its own path, so a caller repairing an entry
+  // is told which of the two they wrote — the reason `casts_without_charges`
+  // and `confers_without_charges` are two codes for one economy rather than
+  // one code reported at two paths.
   //
   // **Absent stays the common case and stays a bottle.** A conferral that
   // names no price is used up, declares no pool and is refused nothing here.
