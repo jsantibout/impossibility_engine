@@ -99,7 +99,7 @@ export const FEATURE_SHAPES = {
   'a-condition-a-feature-ends':
     'a condition a feature takes **off**. One grant removes conditions and it is welded to a healing pool — `lifts-conditions` in packages/engine/src/progression.ts is Restoring Touch, and the file says what it is: "It widens a feature it does not own, which is the shape Improved Critical already has — a second feature restating the first rather than a second mechanism." A feature that ends a condition on its own holder, with no pool and no touch, has nothing to restate.',
   'a-pool-the-proficiency-bonus-sizes':
-    'a resource counted in Proficiency Bonuses. packages/engine/src/progression.ts names the sizings and the reason there are three — "The SRD sizes a pool three ways and each is here because a feature uses it" — a column of the class table, an ability modifier with a floor, and a multiple of the class level. "A number of times equal to your Proficiency Bonus" is a fourth, four origin traits print it, and no species has a class table for the first sizing to read.',
+    'a resource counted in Proficiency Bonuses. packages/engine/src/progression.ts names the sizings and the reason there are three — "The SRD sizes a pool three ways and each is here because a feature uses it" — a column of the class table, an ability modifier with a floor, and a multiple of the class level. "A number of times equal to your Proficiency Bonus" is a fourth, most of the origin traits with a limit print it, and no species has a class table for the first sizing to read.',
   'a-pool-refilled-to-a-floor':
     'a recovery that tops a pool up to a number rather than giving back a share of it. `Recovery`\'s `upTo` in packages/engine/src/progression.ts is half the class level, half the maximum, or all, and the SRD prints a fourth shape twice — "until you have two", "until you have 4 if you have 3 or fewer" — where what is regained depends on what is left rather than on the pool\'s size.',
   'a-resource-traded-for-another':
@@ -133,7 +133,7 @@ export const FEATURE_SHAPES = {
   'a-turn-boundary-payout-a-feature-owes':
     'a feature that pays out at the start or the end of a turn. The queue is real and it is a casting\'s: `docs/design/time-and-turns.md` says "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes", and every debt it raises belongs to an ongoing spell. A Champion who regenerates at the start of each of their turns and a Monk who sheds a condition at the end of theirs have nothing in that queue.',
   'temporary-hit-points-a-feature-grants':
-    'Temporary Hit Points from a feature. The state is real — `Vitals.temporaryHp`, which a spell writes and a rest clears — and the only healing a feature reaches is `HealGrant` in packages/engine/src/progression.ts, "Hit points a feature gives its holder, as the class text writes the sum", which restores Hit Points rather than laying temporary ones over them. Three features print the sentence and none of them can say it.',
+    'Temporary Hit Points from a feature. The state is real — `Vitals.temporaryHp`, which a spell writes and a rest clears — and the only healing a feature reaches is `HealGrant` in packages/engine/src/progression.ts, "Hit points a feature gives its holder, as the class text writes the sum", which restores Hit Points rather than laying temporary ones over them. A class feature, a subclass feature and a species trait each print the sentence and none of them can say it.',
   'heroic-inspiration':
     'Heroic Inspiration, which the engine holds nothing for at all: no field, no event and no command. It is not even a pool: packages/engine/src/progression.ts describes that member as "A named resource the feature *is*, rather than one it spends", and this is a resource no feature **is** — it arrives from a rest or from a fight and is spent on any D20 Test. A class feature grants it during combat and a species trait grants it on a Long Rest, so what both record is the permission and nothing that could ever be spent.',
   'a-rule-the-engine-fixes-for-everybody':
@@ -172,14 +172,19 @@ export type FeatureBlockerId = ShapeId | ItemShapeId | FeatureShapeId;
  * | | |
  * |---|---|
  * | `'table'` | fiction, or judgement the engine should never take from a DM |
- * | `'expressible'` | a grant the feature already carries; this clause blocks nothing |
+ * | `'expressible'` | the engine can already say it; this clause blocks nothing |
  * | a shape id | mechanical, and this names the shape that blocks it |
  *
- * `'expressible'` is not decoration. Ten features in the catalogue are
- * `manual` **and** carry a grant — a Barbarian's Rage immunity, a Dwarf's
- * Poison Resistance, a Champion's Advantage on Death Saving Throws — because
- * the engine does half of what the book prints. Those halves are recorded
- * here, so a shape's *finishes* column counts what is genuinely left.
+ * `'expressible'` is not decoration, and it is **wider than "the feature
+ * carries a grant"** on purpose. Some of the features below are `manual` and
+ * carry one — a Barbarian's Rage immunity, a Dwarf's Poison Resistance, a
+ * Champion's Advantage on Death Saving Throws — because the engine does half
+ * of what the book prints. Others carry none and have a half the vocabulary
+ * could write today and nobody has: Reckless Attack's Advantage for the
+ * attacker, Steady Aim's Speed of 0, the mark Precise Hunter reads. Both are
+ * the same claim — *this sentence is not what is standing in the way* — and
+ * recording both is what keeps a shape's *finishes* column counting what is
+ * genuinely left rather than what somebody has not got round to.
  */
 export interface FeatureClause {
   /**
@@ -1081,6 +1086,18 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Ranger —
+  'ranger:favored-enemy': [
+    {
+      clause: 'the rider really does fire at the marked creature',
+      why: 'expressible',
+      note: 'the fixed spells grant, and the executed spell underneath it.',
+    },
+    {
+      clause: 'needs a pool a casting can be paid out of',
+      why: 'a-casting-paid-for-out-of-a-feature-pool',
+      note: 'Paladin’s Smite’s blocker on a second half-caster, which is what makes it a shape.',
+    },
+  ],
   'ranger:weapon-mastery': [
     {
       clause: 'Mastery properties are parsed onto weapons but not executed',
@@ -1401,9 +1418,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the spell map’s own id, arriving on a charge that is sometimes not spent.',
     },
     {
-      clause: 'a Spell Scroll is an item that casts whatever is written on it',
-      why: 'a-spell-an-item-casts-that-nothing-executes',
-      note: 'the item map’s own id at its widest: a `casts` grant names one spell, and a scroll names whichever one it holds.',
+      clause: 'a casting made with the Thief’s Intelligence rather than the item’s or the wielder’s',
+      why: 'a-feature-that-changes-what-a-casting-costs',
+      note: 'the feature’s own half. The Spell Scroll record the benefit needs is the item map’s line rather than this one’s, and naming a shape for it here would file an item’s gap under a feature.',
     },
   ],
   'thief:thiefs-reflexes': [

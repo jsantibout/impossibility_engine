@@ -370,10 +370,19 @@ describe('the features blocked by nothing', () => {
  * files, which the spell map has no reason to.
  *
  * `srd` resolves to nothing on purpose, so a quotation of the book is skipped
- * rather than looked up in whichever document was named before it. It is
- * listed **before** `srd-policy.md`, whose path contains it, because
- * {@link citationsIn} takes the last name matching at an offset and the more
- * specific document has to win.
+ * rather than looked up in whichever document was named before it — every
+ * description here quotes an SRD sentence somewhere, and checking one against
+ * a design note would fail on prose that is perfectly correct.
+ *
+ * **What that costs, said plainly rather than left to be discovered.** `srd`
+ * is matched anywhere, including inside an earlier quoted run, so a
+ * description that quotes a repository sentence containing the word "SRD" and
+ * then quotes a second one has its *second* quotation skipped. The corpus
+ * assertion below only asks that each named document be quoted once across
+ * the whole vocabulary, so it does not catch that either. The guard is a
+ * **floor**: what it promises is that no description misquotes the last
+ * document it named before the run, which is the same promise the spell map's
+ * copy of this rule makes in the same words.
  */
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 

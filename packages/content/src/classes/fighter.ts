@@ -367,7 +367,7 @@ export const CHAMPION: SubclassDefinition = {
       name: 'Survivor',
       level: 18,
       automation: 'manual',
-      note: 'Half of Defy Death is applied, which is why this is not marked as executed. SRD: "You have Advantage on Death Saving Throws" — a death save is its own roll family and `rollTheDeathSave` gathers the standing modes for it, so the Advantage is real. The rest is not: "when you roll 18–20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it" widens the face that counts as a natural 20, which only a Critical Hit has a threshold for, and Heroic Rally’s "regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied" is healing at a turn boundary that nothing pays out.',
+      note: 'Half of Defy Death is applied, which is why this is not marked as executed. SRD: "You have Advantage on Death Saving Throws" — a death save is its own roll family and `rollTheDeathSave` gathers the standing modes for it, so the Advantage is real. The rest is not: "when you roll 18–20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it" widens the face that counts as a natural 20, which only a Critical Hit has a threshold for, and Heroic Rally’s "regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point" is healing at a turn boundary that nothing pays out.',
       grants: {
         kind: 'standing',
         reach: 'self',

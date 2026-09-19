@@ -384,3 +384,37 @@ describe("a Ranger's Feral Senses reach past a declaration", () => {
     expect(sensesOf(scene(17, 25), SORREL)).toEqual([]);
   });
 });
+
+/**
+ * SRD Favored Enemy, whose two sentences the engine answers one of.
+ *
+ * > "You always have the _Hunter's Mark_ spell prepared. You can cast it twice
+ * > without expending a spell slot, and you regain all expended uses of this
+ * > ability when you finish a Long Rest."
+ *
+ * **It was marked executed on the strength of a note claiming a pool nobody
+ * declared** — the failure `class-pools.test.ts` was written for, wearing the
+ * one disguise that guard cannot see through, because the guard reads a
+ * feature's own note and this note said the pool was there. `freeCastPoolKey`
+ * names a pool for a **feat's** granted spell and for nothing a class feature
+ * grants, so a Ranger has Hunter's Mark prepared and nothing to cast it out
+ * of but a slot. Both halves are asserted, because the first is what the
+ * feature really does and the second is why it is honest for it to be manual.
+ */
+describe("a Ranger's Favored Enemy prepares the spell and buys no casting", () => {
+  it('has Hunter’s Mark prepared without anybody choosing it', () => {
+    const prepared = classCasting(plan(ranger()).spellcasting, 'ranger')?.prepared ?? [];
+    expect(prepared).toContain('hunters-mark');
+    expect(ranger().preparedSpells).not.toContain('hunters-mark');
+  });
+
+  it('declares no pool for the free castings the SRD prints', () => {
+    const pools = built(ranger(), 'sorrel').creatures.sorrel?.resources.pools ?? {};
+    expect(Object.keys(pools).filter((key) => key.includes('favored-enemy'))).toEqual([]);
+    expect(Object.keys(pools).filter((key) => key.includes('hunters-mark'))).toEqual([]);
+    // And the feature says so rather than claiming otherwise.
+    const feature = RANGER.features.find((one) => one.id === 'ranger:favored-enemy');
+    expect(feature?.automation).toBe('manual');
+    expect(feature?.grants).toEqual({ kind: 'spells', fixed: ['hunters-mark'] });
+  });
+});

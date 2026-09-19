@@ -342,7 +342,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 230 | 93 |
+| 12 / 12 | 12 / 12 | 230 | 92 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -359,7 +359,7 @@ believe it has twelve working classes when it has twelve validated ones.
 | Fighter | none | 21 | 11 |
 | Monk | none | 26 | 11 |
 | Paladin | prepared-from-list | 22 | 12 |
-| Ranger | known | 22 | 9 |
+| Ranger | known | 22 | 8 |
 | Rogue | none | 24 | 7 |
 | Sorcerer | known | 15 | 5 |
 | Warlock | known | 14 | 5 |
@@ -392,14 +392,14 @@ be the second spelling of one derivation.
 | `an-ability-score-maximum-above-20` | 14 | 12 |
 | `a-weapon-mastery-property` | 6 | 6 |
 | `a-feature-that-changes-a-castings-damage` | 5 | 5 |
+| `a-casting-paid-for-out-of-a-feature-pool` | 10 | 4 |
 | `an-action-a-spell-compels-or-forbids` | 10 | 4 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
 | `a-feature-that-rewrites-another-features-rule` | 10 | 3 |
-| `a-casting-paid-for-out-of-a-feature-pool` | 9 | 3 |
 | `a-save-keyed-to-a-condition` | 4 | 3 |
 | `an-option-re-chosen-on-a-rest` | 4 | 3 |
 | `healing-modified-by-an-effect` | 4 | 3 |
-| `a-feature-that-changes-what-a-casting-costs` | 6 | 2 |
+| `a-feature-that-changes-what-a-casting-costs` | 7 | 2 |
 | `a-move-a-feature-hands-its-holder` | 6 | 2 |
 | `an-attack-the-class-redefines` | 5 | 2 |
 | `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
@@ -413,9 +413,9 @@ be the second spelling of one derivation.
 | `heroic-inspiration` | 2 | 2 |
 | `a-resource-traded-for-another` | 12 | 1 |
 | `a-condition-a-feature-imposes` | 6 | 1 |
-| `a-spell-an-item-casts-that-nothing-executes` | 5 | 1 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 1 |
+| `a-spell-an-item-casts-that-nothing-executes` | 4 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 3 | 1 |
 | `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
 | `a-one-shot-roll-modifier` | 3 | 1 |

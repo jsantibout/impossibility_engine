@@ -323,7 +323,7 @@ export const THIEF: SubclassDefinition = {
       name: 'Use Magic Device',
       level: 13,
       automation: 'manual',
-      note: 'Magic items are modelled now, and none of the three benefits reaches one. The attunement cap is a constant every creature shares and no feature raises it. The refund — SRD, "Whenever you use a magic item property that expends charges, roll 1d6. On a roll of 6, you use the property without expending the charges" — is a die the engine can throw that nothing asks it to. And a Spell Scroll is an item that casts whatever is written on it, which no catalogue record can say.',
+      note: 'Magic items are modelled now, and none of the three benefits reaches one. The attunement cap is a constant every creature shares and no feature raises it. The refund — SRD, "Whenever you use a magic item property that expends charges, roll 1d6. On a roll of 6, you use the property without expending the charges" — is a die the engine can throw that nothing asks it to. And the Spell Scroll benefit is waiting on two different things: the catalogue holds no Spell Scroll record, which is the item map’s entry rather than this feature’s, and what the feature would add to one is a casting made with the Thief’s Intelligence rather than the item’s or the wielder’s, gated behind an Intelligence (Arcana) check.',
     },
     {
       id: 'thief:thiefs-reflexes',
