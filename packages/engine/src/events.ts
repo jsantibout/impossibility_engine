@@ -1458,6 +1458,16 @@ export type GameEvent =
        * has been written since the first log and the two frozen fixtures
        * carry it. An additive field nothing fills in for an unmodified roll
        * leaves every one of those bytes where it was.
+       *
+       * **Only `recordD20Test` fills it today, so absent means two things**,
+       * and that is a gap being recorded rather than a shape being claimed.
+       * Seven commands build this event directly — the weapon attack,
+       * Initiative, a feature's die, a DM's stated roll, a scene roll and the
+       * two spell-effect rollers — and none of them passes its modes, though
+       * an attack roll and an Initiative roll can both carry Advantage. Every
+       * one is a one-line change in a module this field did not own; until
+       * they are made, a reader of the log can tell a ruled check or save
+       * from an unruled one and cannot tell a ruled attack from one.
        */
       readonly modes?: readonly ModeSource[];
       /** How it came out, in the caller's own words. */

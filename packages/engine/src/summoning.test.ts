@@ -379,10 +379,11 @@ describe('a summoned creature leaves with the casting that made it', () => {
     g.push(unwrap(endOngoingSpell(g.state, WIZ, castingId, null), 'dismissing'));
     expect(strandedSummons(g.state)).toEqual([HOUND]);
 
-    // **And it is still standing there**, which is the gap the query exists
-    // to report rather than to hide: nothing refuses to go on without the
-    // sweep, so until somebody calls it the hound is on the roster, on the
-    // map and holding its rung in the order.
+    // **And it is still standing there**, which is what makes the query a
+    // report rather than the removal: noticing changes nothing, so until
+    // somebody sweeps the hound is on the roster, on the map and holding its
+    // rung in the order. What the noticing now buys is that the turn will not
+    // move on past it — see the last describe in this file.
     expect(g.state.creatures[HOUND]).toBeDefined();
     expect(g.state.scene?.positions[HOUND]).toBeDefined();
     expect(g.state.combat?.order.some((c) => c.id === HOUND)).toBe(true);
