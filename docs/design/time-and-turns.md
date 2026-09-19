@@ -16,7 +16,9 @@ into the other:
   and depends on whose turn the effect began.
 
 A deadline is hung on an `EffectTarget`: a condition, a bonus, a grant, a
-casting, or a creature's Temporary Hit Points. The last takes no source,
+casting, or a creature's Temporary Hit Points. A rule about what a creature
+may do is a grant like the others, so a spell that forbids an Action expires
+through the same machinery and needs none of its own. The last takes no source,
 because Temporary Hit Points do not stack and a creature holds exactly one
 pool, so the creature is the whole of the identity and two deadlines can
 never stand over one pool.

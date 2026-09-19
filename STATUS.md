@@ -88,6 +88,16 @@ to homebrew.
   would finish, all rendered into `COVERAGE.md` and held against the documents
   they quote. The feature map's two heaviest entries are an Ability Score
   Improvement and an Epic Boon, neither of which is a rule of combat.
+- **A creature a casting puts there** — a summons arrives with its whole sheet
+  pinned into the event, on the summoner's side, able to act when its
+  Initiative comes, and the fold raises it from the log with no catalogue
+  open. What a spell forbids is built too: a restriction is a sourced grant
+  with a deadline, refused at the six places the economy is spent, and a
+  compulsion is a fact about legality rather than an instruction — the engine
+  never takes the Dash.
+- **A DM who rolls** — dice notation the engine throws down the ordinary
+  damage path, a saving throw against a DC the table set, and Advantage from
+  a ruling recorded as its source.
 - **Replay** — a scripted four-round fight and two frozen logs fold
   byte-identically.
 
@@ -128,10 +138,21 @@ to homebrew.
   an amount may now be a printed number with no dice in it, which the two
   scaling fields that add dice to a notation refuse and the one that adds a
   flat number does not.
-- A rolled charge maximum escapes the content validator. `chargesRolled` is a
-  field on the catalogue row rather than on the `pool` grant, so a malformed
-  one loads clean and refuses later, at the award, where every other pool
-  string is refused at the door. No SRD item uses it yet.
+- A summons is not taken away when its spell ends. The fold notices —
+  `strandedSummons` reports every creature standing on a casting that is no
+  longer running — and a command performs the removal, because a reducer
+  emits nothing and a creature deleted inside another command's forward fold
+  wedges the fight. But nothing calls the sweep and nothing refuses to
+  proceed without it, which is weaker than the debt `resolveTurn` will not
+  advance past.
+- A casting hangs exactly one action rule, keyed by its source, so SRD Magic
+  Jar's two sentences would evict each other. The remedy is the compound key
+  `rollModifierKey` already uses.
+- An ability score cannot be raised by the thing that raises it. The
+  vocabulary is built and two capstones use it; SRD puts both the Improvement
+  and the Epic Boon on a **feat**, and a feat can neither carry a grant a
+  reader reads nor be asked which scores. Nothing above level 19 is buildable
+  until it can.
 - No carried weight, no ammunition spent. Objects that are not creatures
   are not modelled.
 - Overriding printed content with homebrew of the same id is refused; only
@@ -140,35 +161,40 @@ to homebrew.
 ## Next
 
 Ranked by what each unblocks, which is `COVERAGE.md`'s three blocker tables
-rather than the order these were noticed in.
+rather than the order these were noticed in. Two entries near the top exist
+because a builder read the book and found the table overstated.
 
-1. **An Ability Score Improvement, and a score above 20.** The two heaviest
-   entries in the feature map: fourteen features each, twelve finished each,
-   and every class prints both. `FeatureChoice` has no member for two points
-   of ability, and nothing lifts a maximum. Neither needs a rule of combat.
-2. **Where a rolled charge maximum lives.** Decided: beside `uses` in the
-   `pool` grant as an item-only member, validated in `content.ts` on the
-   precedent `casts` already sets. Until then `chargesRolled` is the one pool
-   string refused late rather than at the door.
-3. **Weapon mastery** — six features across five classes, and the only entry
-   in the feature map whose two columns are equal: everything it touches, it
-   finishes. The heaviest thing a fight would notice.
-4. **The item entries a spell stopped blocking.** Twenty-two entries still
-   name `a-spell-an-item-casts-that-nothing-executes` whose spell now exists,
-   and Rod of Resurrection and Sovereign Glue are transcribable. The shape's
-   count is overstated until somebody re-reads them, and that count is what a
-   tranche gets planned from.
-5. **Notation a DM rolls.** The DM surface adjudicates an amount because
-   rolling in the tools layer would advance the generator without the event
-   only a command emits. It wants `rollImprovisedDamage` in the engine, plus a
-   saving throw against a stated DC and the modes for Advantage.
-6. **Three mechanics that must land together** — a resource traded for
+1. **A grant read off a feat** — 24 features blocked, 24 finished, and the
+   single heaviest entry in any of the three tables. One brief owning both
+   `origins.ts` files: publish the Ability Score Improvement feat and the nine
+   Epic Boons, give `FeatRequirement` a member for which ability scores (and a
+   level prerequisite, which it also lacks), admit the grant to
+   `FEAT_GRANT_KINDS`, and add the reader beside the `initiative-proficiency`
+   one. A level 19 character becomes buildable for the first time.
+2. **An action a spell compels, split three ways.** The shape is three
+   mechanisms wearing one id and the count was measuring consumers: forbidding
+   (built), repricing or granting an extra action (half built — an additional
+   action is a change to the budget's size), and taking the turn for you (not
+   buildable without deciding who plays the creature). Split the id before
+   anyone plans from it again.
+3. **Make the stranded-summons sweep a debt.** Decided: a debt `resolveTurn`
+   refuses to advance past, on `owedAreaEffects`' pattern, rather than a
+   boundary sweep — the engine's posture is that forgetting a rule stops the
+   game instead of quietly losing it, and a ghost creature left standing after
+   its spell ended is exactly what goes unnoticed.
+4. **The Improvement's repeats** — the class table grants it again at 8, 12
+   and 16, Fighter also at 6 and 14, Rogue also at 10, and the catalogue holds
+   one entry per class, so a Fighter 16 is offered one grant rather than four.
+   ~40 entries, and several fixtures already name ids that do not exist.
+5. **A condition an item imposes** — now the heaviest item blocker at 28,
+   having overtaken the instance shape when that dropped from 41 to 12.
+6. **Damage with neither an attack roll nor a save** — Magic Missile and
+   Power Word Kill record the identical gap, and two engine tests name Magic
+   Missile as a spell with no definition, which is what holds it.
+7. **Three mechanics that must land together** — a resource traded for
    another, a saving throw a feature forces, a condition a feature imposes.
-   Cunning Strike, Stunning Strike and the Channel Divinities all want all
-   three; any one alone buys nothing.
-7. **Two spells that need a decision before a transcription.** Darkness makes
-   Sunburst's "dispels magical Darkness" reachable and needs a shape for a
-   dispel narrowed to one named spell with a level cap; Magic Missile is held
-   only by two engine tests naming it as a spell with no definition.
-8. **The populations the sweeps do not cover**: subclass ids, and language and
-   alignment names, the last needing a construct allowance for `'Giant'`.
+   Cunning Strike, Stunning Strike and the Channel Divinities want all three.
+8. **Two seams a review named.** `resolveTest`'s branches treat
+   `command.modes` differently — one concatenates, one merges by source — and
+   `roll-recorded` carries no modes, so a DM's ruling cannot be audited from
+   the log alone.

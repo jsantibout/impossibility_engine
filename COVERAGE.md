@@ -805,12 +805,13 @@ aimed at wands would have bought nothing until the spells underneath them
 existed. A Belt of Giant Strength still waits on the same missing reader
 SRD Feeblemind does.
 
-That finding was then spent: the spells were written, the entries waiting
-on them alone came off, and `a-spell-an-item-casts-that-nothing-executes`
-finishes only the two potions whose spell is *defined and resolves
-nothing* — the half of that shape no amount of transcription reaches,
-because a potion confers an effect list rather than casting a spell. What
-is heaviest now is an item instance with a state of its own.
+That finding was then spent: the spells were written and the entries
+waiting on them alone came off. What is left of that shape is the half no
+amount of transcription reaches — a spell whose definition resolves
+nothing, which a potion confers as an empty effect list rather than
+casting. The table below says what is heaviest now; it is derived on
+every run, and a sentence here naming one would be a count in prose that
+the next tranche makes false.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) |
 |---|---|---|---|
