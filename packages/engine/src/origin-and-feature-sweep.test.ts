@@ -160,26 +160,30 @@ describe('no species, background, feat or feature is special-cased in the runtim
   // — what the sweep found the day it was written ——————————————————————————
 
   /**
-   * **One breach, on the record and not fixed here.**
+   * **The record is empty, and the machinery stays.**
    *
-   * There were two. The second was cosmetic — `feature-schema.ts` taught the
-   * id format with `"wizard:arcane-recovery"`, a live SRD feature — and it
-   * went the way this record is designed to send a breach: the example became
-   * a generic one, this list's entry was deleted in the same commit, and the
-   * skipped assertion below came back for it.
+   * There were two. The first was cosmetic — `feature-schema.ts` taught the id
+   * format with `"wizard:arcane-recovery"`, a live SRD feature — and the
+   * example became a generic one. The second was `creation.ts` reading one
+   * feat by name, `feat.featId === 'alert'`, and paying out the Initiative
+   * bonus itself; it went the way this record is designed to send a breach.
+   * Alert's benefit is declared by the feat now — `FeatureGrant`
+   * `initiative-proficiency`, read by `declaredInitiativeBonuses` — and the
+   * entry was deleted in the same commit that made the deletion necessary,
+   * because the test below fails while a fixed breach is still recorded.
    *
-   * A breach in engine code is its own brief: fixing `creation.ts` means
-   * deciding how a feat confers an initiative bonus through the grant
-   * vocabulary, which is engine work with a rules question inside it, and
-   * smuggling it into the commit that discovered it would hide both. So each
-   * is recorded with the line that is wrong, the honest assertion is written
-   * and **skipped** so the suite says out loud what it is not checking, and
-   * a separate test below holds each breached file to *exactly* this record —
-   * so a new id smuggled into `creation.ts` tomorrow still fails, and a breach
-   * that gets fixed fails too, until its entry here is deleted.
+   * The shape is kept rather than deleted with the last entry. A breach in
+   * engine code is its own brief, and the discipline is the point: it is
+   * recorded with the line that is wrong, the honest assertion is written and
+   * **skipped** so the suite says out loud what it is not checking, and a
+   * separate test holds each breached file to *exactly* this record — so a new
+   * id smuggled into a breached file still fails, and a breach that gets fixed
+   * fails too, until its entry here is deleted. With nothing recorded, every
+   * runtime file is swept by the two unconditional sweeps above and nothing is
+   * excused at all, which is the state this record exists to reach.
    *
-   * What is not done is the thing this whole sweep exists to prevent: quietly
-   * widening an exemption until the breach is spelled "allowed".
+   * What is never done is the thing this whole sweep exists to prevent:
+   * quietly widening an exemption until the breach is spelled "allowed".
    */
   interface Breach {
     readonly file: string;
@@ -188,17 +192,7 @@ describe('no species, background, feat or feature is special-cased in the runtim
     readonly compared: readonly string[];
   }
 
-  const BREACHES: readonly Breach[] = [
-    {
-      // The engine reads one feat by name and pays out the bonus itself. A
-      // catalogue without `alert` loses the rule; a catalogue that spells it
-      // differently never gets it. This is Rule 4, mechanically.
-      file: 'creation.ts',
-      line: "const hasAlert = Object.values(choices.feats).some((feat) => feat.featId === 'alert');",
-      named: ['feat alert'],
-      compared: ["featId === 'alert'"],
-    },
-  ];
+  const BREACHES: readonly Breach[] = [];
 
   const BREACHED = new Set(BREACHES.map((breach) => breach.file));
   const CLEAN = RUNTIME.filter((file) => !BREACHED.has(file));
@@ -219,8 +213,8 @@ describe('no species, background, feat or feature is special-cased in the runtim
     },
   );
 
-  /** The honest assertion for the two that fail it, written and skipped. */
-  it.skip.each(BREACHES)(
+  /** The honest assertion for any that fail it, written and skipped. */
+  it.skip.each(BREACHES.length === 0 ? [] : BREACHES)(
     'A BREACH ON THE RECORD, NOT FIXED HERE — $file holds `$line`',
     (breach) => {
       expect(namedIn(source(breach.file)), breach.file).toEqual([]);
@@ -236,16 +230,22 @@ describe('no species, background, feat or feature is special-cased in the runtim
    * that says "delete this entry", and the only way a skipped test ever comes
    * back.
    */
-  it.each(BREACHES)('holds $file to exactly the breach on the record, and no more', (breach) => {
-    expect(source(breach.file), breach.file).toContain(breach.line);
-    expect(namedIn(source(breach.file)), breach.file).toEqual(breach.named);
-    expect(comparedIn(source(breach.file)), breach.file).toEqual(breach.compared);
+  it('holds every breached file to exactly the breach on the record, and no more', () => {
+    for (const breach of BREACHES) {
+      expect(source(breach.file), breach.file).toContain(breach.line);
+      expect(namedIn(source(breach.file)), breach.file).toEqual(breach.named);
+      expect(comparedIn(source(breach.file)), breach.file).toEqual(breach.compared);
+    }
+    // And with an empty record, every runtime file is swept above with nothing
+    // excused — asserted rather than assumed, so emptying the list cannot be
+    // mistaken for deleting the sweep.
+    expect(CLEAN).toEqual(RUNTIME);
   });
 
   // — the proof that none of the above is vacuous ————————————————————————
 
   /**
-   * The mutation, driven against **every** file the sweep covers — the two
+   * The mutation, driven against **every** file the sweep covers — any
    * breached ones included, since they are still swept for anything new.
    *
    * One smuggled special case per population, so no kind is covered only in

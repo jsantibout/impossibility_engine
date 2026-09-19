@@ -364,6 +364,29 @@ export type FeatureGrant =
    */
   | { readonly kind: 'save-proficiency'; readonly abilities: readonly Ability[] | 'all' }
   /**
+   * The holder adds their Proficiency Bonus to Initiative.
+   *
+   * SRD Alert prints the benefit under that name — **Initiative Proficiency**:
+   * "When you roll Initiative, you can add your Proficiency Bonus to the
+   * roll." Named for the rule rather than for the feat that has it, exactly as
+   * `evasion` next door is named for the rule two classes share, and carrying
+   * no fields for the same reason: there is nothing about it to vary.
+   *
+   * **It exists because the engine used to pay it out itself.** `creation.ts`
+   * compared a chosen feat's id against a literal, which is inviolable rule 4
+   * broken mechanically: a catalogue without that feat lost the rule, and a
+   * catalogue that spelled it differently never got it. A feat declares this
+   * instead, and creation reads the declaration.
+   *
+   * **A number rather than a mode**, and the distinction is the SRD's own.
+   * Feral Instinct's "Advantage on Initiative rolls" is a `standing`
+   * `roll-mode` on the `initiative` family and already works; this is
+   * arithmetic, and it is the Proficiency Bonus rather than a printed figure,
+   * which is why `flat-bonus` cannot say it — that member carries a number the
+   * item printed, and this one is read off the character's own level.
+   */
+  | { readonly kind: 'initiative-proficiency' }
+  /**
    * A named resource the feature *is*, rather than one it spends.
    *
    * Nine features were marked as executed on the strength of a note saying

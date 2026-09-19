@@ -429,7 +429,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 61 | 218 | 176 | 42 |
+| 258 | 61 | 218 | 177 | 41 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -447,7 +447,7 @@ inventing a column that nothing checks.
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
 | Armor | 19 | 10 | 54 | 48 | 6 |
-| Potions | 24 | 6 | 6 | 0 | 6 |
+| Potions | 24 | 6 | 6 | 1 | 5 |
 | Rings | 22 | 5 | 5 | 4 | 1 |
 | Rods | 7 | 0 | 0 | 0 | 0 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
@@ -496,7 +496,7 @@ how many of those still carry a clause the engine does not say.
 - **Plate Armor of Etherealness** (Armor) — 1 recorded, 1 partial
 - **Potion of Gaseous Form** (Potions) — 1 recorded, 1 partial
 - **Potion of Growth** (Potions) — 1 recorded, 1 partial
-- **Potion of Heroism** (Potions) — 1 recorded, 1 partial
+- **Potion of Heroism** (Potions) — 1 recorded, complete
 - **Potion of Invisibility** (Potions) — 1 recorded, 1 partial
 - **Potion of Speed** (Potions) — 1 recorded, 1 partial
 - **Potions of Healing** (Potions) — 1 recorded, 1 partial

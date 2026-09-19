@@ -328,7 +328,18 @@ describe('Potion of Heroism: an effect with something to address', () => {
     const state = fold('seed', again);
     const key = timerKey({ kind: 'grants', on: DRINKER, source: itemSource(HEROISM) });
     expect(state.timers[key]?.deadline).toEqual({ kind: 'elapsed', at: 1800 + 3600 });
-    expect(Object.keys(state.timers)).toEqual([key]);
+
+    // **The Temporary Hit Points are the exception, and it is the pool's own
+    // rule rather than this potion's.** SRD: they do not stack — "you choose
+    // whether to keep the ones you have or gain the new ones" — and a second
+    // ten over a held ten leaves the pool exactly where it was, so the points
+    // being held are still the *first* draught's and they keep the hour that
+    // was hung on them. `fold/vitals.ts` decides that, by the pool moving or
+    // not; `useItem` asks the same question and gets the same answer, which is
+    // the only way the two cannot come to disagree.
+    const pool = timerKey({ kind: 'temporary-hit-points', on: DRINKER });
+    expect(state.timers[pool]?.deadline).toEqual({ kind: 'elapsed', at: 3600 });
+    expect(Object.keys(state.timers).sort()).toEqual([key, pool].sort());
   });
 
   it('folds the same with the catalogue and without it', () => {
@@ -349,23 +360,150 @@ describe('Potion of Heroism: an effect with something to address', () => {
   });
 
   /**
-   * The half of the printed potion this record does **not** do, written where
-   * a report can count it rather than left in a comment.
-   *
-   * One open decision, and not this brief's: nothing can put an hour on
-   * Temporary Hit Points, because `temporary-hp-granted` carries no source and
-   * no `EffectTarget` names them.
+   * SRD: "you gain 10 Temporary Hit Points **that last for 1 hour**." The
+   * clause the item's line used to record as unmodelled, because nothing could
+   * hang a deadline on a pool. `EffectTarget` names one now, so the conferral
+   * files a third timer beside the condition's and the grant's — keyed by the
+   * creature, because a creature holds exactly one pool.
    */
-  it('says plainly that the hour on them is not kept', () => {
-    const notes = SRD_CONTENT.item(HEROISM)?.unmodelled ?? [];
-    expect(notes).toHaveLength(1);
-    expect(notes.join(' ')).toContain('last for 1 hour');
+  it('puts the printed hour on the Temporary Hit Points', () => {
+    const key = timerKey({ kind: 'temporary-hit-points', on: DRINKER });
+    expect(fold('seed', drunk).timers[key]?.deadline).toEqual({ kind: 'elapsed', at: 3600 });
+  });
 
-    // And the ten really do outlive the hour the Bless half dies on.
-    const after = run(drunk, (s) => advanceTime(s, 3600, 'the hour'));
+  it('keeps them for the hour and takes them at the end of it', () => {
+    const nearly = run(drunk, (s) => advanceTime(s, 3599, 'most of an hour'));
+    expect(fold('seed', nearly).creatures['drinker']!.vitals.temporaryHp).toBe(10);
+
+    const after = run(nearly, (s) => advanceTime(s, 1, 'the last second'));
     const state = fold('seed', after);
+    expect(state.creatures['drinker']!.vitals.temporaryHp).toBe(0);
+    // The Bless half goes on the same second, and nothing is left standing.
     expect(state.creatures['drinker']!.bonuses).toEqual([]);
+    expect(state.timers).toEqual({});
+  });
+
+  /** And the potion's line no longer records a clause it now keeps. */
+  it('records nothing unmodelled about the hour', () => {
+    expect(SRD_CONTENT.item(HEROISM)?.unmodelled ?? []).toEqual([]);
+  });
+
+  /**
+   * **The timer is filed only where the grant was taken.**
+   *
+   * `grantTemporaryHp` keeps the larger pool, so a ten poured over a held
+   * twenty changes nothing — and the key is the *creature*, not the source, so
+   * a deadline filed anyway would sit over points this potion never granted
+   * and end them an hour early. The owner's ruling of 2026-09-18 is what that
+   * would break: Temporary Hit Points with no stated duration last until they
+   * are spent or until a Long Rest.
+   */
+  it('files no deadline over a bigger pool it did not replace', () => {
+    const stocked: readonly GameEvent[] = [
+      ...held,
+      { type: 'temporary-hp-granted', id: DRINKER, amount: 20 },
+    ];
+    const sipped = run(stocked, (s) => useItem(s, DRINKER, { item: HEROISM }, supply()));
+    const state = fold('seed', sipped);
+
+    expect(state.creatures['drinker']!.vitals.temporaryHp).toBe(20);
+    expect(state.timers[timerKey({ kind: 'temporary-hit-points', on: DRINKER })]).toBeUndefined();
+
+    // The twenty outlive the potion's hour, which is the whole point.
+    const after = run(sipped, (s) => advanceTime(s, 3600, 'the hour'));
+    expect(fold('seed', after).creatures['drinker']!.vitals.temporaryHp).toBe(20);
+  });
+
+  /** A bigger grant *does* replace the pool, and brings its own hour with it. */
+  it('files one over a smaller pool it did replace', () => {
+    const stocked: readonly GameEvent[] = [
+      ...held,
+      { type: 'temporary-hp-granted', id: DRINKER, amount: 4 },
+    ];
+    const sipped = run(stocked, (s) => useItem(s, DRINKER, { item: HEROISM }, supply()));
+    const state = fold('seed', sipped);
+
     expect(state.creatures['drinker']!.vitals.temporaryHp).toBe(10);
+    expect(state.timers[timerKey({ kind: 'temporary-hit-points', on: DRINKER })]?.deadline).toEqual(
+      { kind: 'elapsed', at: 3600 },
+    );
+  });
+
+  /**
+   * **A potion whose only clause is the pool may state the hour too.**
+   *
+   * `conferral_lifetime_ends_nothing` refuses a duration that would end
+   * nothing, and the hour on Temporary Hit Points ends something — so the
+   * validator lets one through where nothing else is hung. It is still not
+   * *required*: unstated, the points last until they are spent or until a
+   * Long Rest, which is the owner's ruling of 2026-09-18 and a complete item
+   * rather than an unfinished one.
+   */
+  it('lets an item hang an hour on nothing but the pool, and lets it hang none', () => {
+    const vigour = (over: Record<string, unknown>) => ({
+      id: 'potion-of-vigour',
+      name: 'Potion of Vigour',
+      kind: 'potion',
+      weightLb: 0.5,
+      costCp: null,
+      armor: null,
+      weapon: null,
+      contents: [],
+      grants: [
+        {
+          kind: 'confers',
+          action: 'bonus-action',
+          effects: [{ kind: 'temp-hp', amount: { flat: 8 }, addSpellcastingModifier: false }],
+          ...over,
+        },
+      ],
+    });
+    expect(checkContent({ items: [vigour({ durationSeconds: 60 }) as unknown as CatalogueItem] }))
+      .toEqual([]);
+    expect(checkContent({ items: [vigour({}) as unknown as CatalogueItem] })).toEqual([]);
+
+    // And the one that states an hour really files it, while the one that
+    // states none files nothing at all.
+    const timed = unwrap(loadContent({ items: [vigour({ durationSeconds: 60 })] }), 'load');
+    const open = unwrap(loadContent({ items: [vigour({})] }), 'load');
+    const pool = timerKey({ kind: 'temporary-hit-points', on: DRINKER });
+    const log = [...TABLE, ...carrying('potion-of-vigour')];
+
+    const withHour = run(log, (s) =>
+      useItem(s, DRINKER, { item: 'potion-of-vigour' }, supply('vigour', timed)),
+    );
+    expect(fold('seed', withHour).timers[pool]?.deadline).toEqual({ kind: 'elapsed', at: 60 });
+
+    const without = run(log, (s) =>
+      useItem(s, DRINKER, { item: 'potion-of-vigour' }, supply('vigour', open)),
+    );
+    expect(fold('seed', without).timers).toEqual({});
+    expect(fold('seed', without).creatures['drinker']!.vitals.temporaryHp).toBe(8);
+  });
+
+  /**
+   * The order the fold needs, asserted as an order.
+   *
+   * `temporary-hp-granted` drops whatever deadline stood over the pool it
+   * replaced, so an `effect-scheduled` written *before* it would be thrown
+   * away by the very event that made it necessary. `applyConditionTo` writes
+   * the condition first and its timer behind it, and this is the same rule on
+   * the pool.
+   */
+  it('logs the grant before the deadline that measures it', () => {
+    const granted = drunk.findIndex((event) => event.type === 'temporary-hp-granted');
+    const scheduled = drunk.findIndex(
+      (event) => event.type === 'effect-scheduled' && event.target.kind === 'temporary-hit-points',
+    );
+    expect(granted).toBeGreaterThanOrEqual(0);
+    expect(scheduled).toBeGreaterThan(granted);
+
+    // And the order is load-bearing rather than incidental: the same two
+    // events the other way round fold to a pool with no deadline on it.
+    const reversed = [...drunk];
+    [reversed[granted], reversed[scheduled]] = [reversed[scheduled]!, reversed[granted]!];
+    expect(fold('seed', reversed).timers[timerKey({ kind: 'temporary-hit-points', on: DRINKER })])
+      .toBeUndefined();
   });
 });
 

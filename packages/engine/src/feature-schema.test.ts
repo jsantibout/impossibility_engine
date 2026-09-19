@@ -554,17 +554,23 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
    *
    * A magic item is a `CatalogueItem` that has grown grants written in this
    * same `FeatureGrant` vocabulary — see `docs/design/characters-and-equipment.md`
-   * — so an item writing a member is a writer of it, and two members have no
-   * class writer at all. They are the two halves of one SRD sentence: `casts`
+   * — so an item writing a member is a writer of it, and a feat declaring one
+   * is too. Three members have no class writer at all. They are the two halves of one SRD sentence: `casts`
    * is an item casting a spell from its own charges, and `confers` is an item
    * that "bypasses the casting of a spell" and hands the effects over
    * directly. Both are looked up by the granting item's id and `checkContent`
    * refuses either on a feature outright.
    *
-   * Reading only the classes would report that as a member nobody writes,
+   * **And a feat is the third writer.** SRD Alert declares
+   * `initiative-proficiency`, which `creation.ts` reads off the feat; the
+   * engine used to pay that bonus out by comparing a chosen feat's id against
+   * a literal, and the member exists so that it no longer has to. No class
+   * feature writes it, exactly as none writes `casts`.
+   *
+   * Reading only the classes would report all three as members nobody writes,
    * which is the one thing this guard must not do: the population is what has
    * grown, not the vocabulary's honesty. The third case below holds the
-   * widening to exactly that one member, in both directions.
+   * widening to exactly those members, in both directions.
    */
   const written: ReadonlySet<string> = new Set([
     ...POPULATION.flatMap((entry) =>
@@ -572,6 +578,9 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
     ),
     ...SRD_CONTENT.items.flatMap((item) =>
       (item.grants ?? []).map((grant) => String(grant.kind)),
+    ),
+    ...SRD_CONTENT.feats.flatMap((feat) =>
+      feat.grants === undefined ? [] : [String(feat.grants.kind)],
     ),
   ]);
 
@@ -594,7 +603,7 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
    * has an item writing each member no class does, and the members the two
    * populations share are shared rather than quietly item-only.
    */
-  it('has the item catalogue writing what the class tables do not', () => {
+  it('has the items and the feats writing what the class tables do not', () => {
     const fromClasses = new Set(
       POPULATION.flatMap((entry) =>
         entry.feature.grants === undefined ? [] : [String(entry.feature.grants.kind)],
@@ -603,8 +612,18 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
     expect([...written].filter((kind) => !fromClasses.has(kind)).sort()).toEqual([
       'casts',
       'confers',
+      'initiative-proficiency',
     ]);
     expect(fromClasses.has('pool')).toBe(true);
+
+    // And each of the two later populations really writes its own, so a
+    // widening cannot be satisfied by the population beside it.
+    const fromFeats = new Set(
+      SRD_CONTENT.feats.flatMap((feat) =>
+        feat.grants === undefined ? [] : [String(feat.grants.kind)],
+      ),
+    );
+    expect([...fromFeats]).toEqual(['initiative-proficiency']);
   });
 
   it('reports a member nobody writes, driven over a synthetic one', () => {

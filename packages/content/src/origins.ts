@@ -666,7 +666,12 @@ export const ORIGIN_FEATS: readonly FeatDefinition[] = [
     category: 'origin',
     requires: { kind: 'none' },
     repeatable: false,
-    note: 'Initiative Proficiency is applied: creation returns it as a named bonus in initiativeBonuses, which rollInitiative takes like any other. The Initiative swap is not - swapping two combatants after the roll needs a decision nobody has modelled, and swapInitiative exists but nothing offers it.',
+    // SRD prints two benefits under Alert and this is the first of them,
+    // "Initiative Proficiency". Declared rather than described: creation reads
+    // the grant, puts the Proficiency Bonus into initiativeBonuses under this
+    // feat name, and rollInitiative takes it like any other named bonus.
+    grants: { kind: 'initiative-proficiency' },
+    note: 'Initiative Swap is not applied: "you can swap your Initiative with one willing ally" needs a decision about whose choice that is and when it is offered, which nobody has modelled - swapInitiative exists and nothing offers it.',
   },
   {
     id: 'magic-initiate',
@@ -703,10 +708,17 @@ export const ORIGIN_FEATS: readonly FeatDefinition[] = [
  * one, so the prerequisite is enforced by where the choice is offered rather
  * than by a rule here.
  *
- * None is executed. Every one of them is a modifier the caller supplies, and
- * the engine has said so since `bonuses.ts` was written: "whether Archery is
- * in play is a question about feats and inventory, which the engine does not
- * model; the layer that knows passes them in."
+ * **None of the four is executed, and a feat can declare a grant now**, so
+ * each note below says what is really left rather than "feats are not
+ * executed". Two of them are blocked on a *narrowing* the grant vocabulary
+ * cannot write — Archery's "with Ranged weapons", Defense's "while wearing
+ * armour" — and two on a rule that is not a grant at all: Great Weapon
+ * Fighting is a dice-layer option the caller opts into per roll, and
+ * Two-Weapon Fighting asks which hand an attack came from, which no attack
+ * carries. What `bonuses.ts` said when it was written still holds for the
+ * first two: "whether Archery is in play is a question about feats and
+ * inventory, which the engine does not model; the layer that knows passes
+ * them in."
  */
 export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
   {
@@ -715,7 +727,7 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     category: 'fighting-style',
     requires: { kind: 'none' },
     repeatable: false,
-    note: 'The +2 to attack rolls with Ranged weapons is a named bonus the caller passes to the roll; nothing adds it automatically.',
+    note: 'The +2 to attack rolls is a named bonus the caller passes to the roll; nothing adds it automatically. What blocks declaring it is the narrowing rather than the arithmetic: a flat-bonus reaches every weapon attack, and "with Ranged weapons" is a clause StandingGrant can only write about an item (onlyWithItem), not about a category of weapon.',
   },
   {
     id: 'defense',
@@ -723,7 +735,7 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     category: 'fighting-style',
     requires: { kind: 'none' },
     repeatable: false,
-    note: 'The +1 to Armour Class while wearing armour is not applied: Armour Class is derived from the armour and Dexterity, and has no place for a feat yet.',
+    note: 'The +1 to Armour Class is not applied. The arithmetic has a shape now - a standing flat-bonus applying to ac, which magic armour already uses - and two things are missing: a StandingRequirement for "while wearing armour" (the union has unarmored and not-wearing-heavy-armor, which are its opposites), and a feat carrying a standing grant at all, which FEAT_GRANT_KINDS does not yet admit.',
   },
   {
     id: 'great-weapon-fighting',

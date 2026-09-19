@@ -312,7 +312,7 @@ export function useItem(
     // **A deadline on what this actually hung, and on nothing else.** SRD
     // Potion of Heroism: "you are under the effect of the _Bless_ spell" for an
     // hour. There is no casting for `releaseCasting` to end, so the timer is
-    // the only door — and there are two kinds of it, because there are two
+    // the only door — and there are three kinds of it, because there are three
     // kinds of thing a conferral leaves behind and they are ended by different
     // doors and keyed by different strings.
     //
@@ -321,7 +321,9 @@ export function useItem(
     // deadline ends is everything that source granted there; `held` is also the
     // only answer that covers an `attack-rider`, which lands on the user and
     // not on the target. A **condition** is filed per instance, because that is
-    // what identifies it and what a refresh has to replace.
+    // what identifies it and what a refresh has to replace. A **pool** of
+    // Temporary Hit Points is filed per creature, because a creature holds
+    // exactly one and the SRD is explicit that they do not stack.
     //
     // `checkContent` has already refused a conferral that hangs either and
     // names no duration, and one that names a duration and hangs nothing.
@@ -366,6 +368,44 @@ export function useItem(
           if (!timer.ok) return timer;
           events.push(timer.value);
         }
+      }
+
+      // **And the pool of Temporary Hit Points, which is the third kind.**
+      // SRD Potion of Heroism: "you gain 10 Temporary Hit Points **that last
+      // for 1 hour**." Neither of the two above can carry that — the points
+      // are not a condition and not one of the eight sourced grant families —
+      // so the deadline goes on the pool itself, which `EffectTarget` names.
+      //
+      // **Only where the grant was actually taken.** `grantTemporaryHp` keeps
+      // the larger pool, so a ten poured over a held twenty changes nothing;
+      // and the key here is `temporary-hit-points|<who>`, the *creature*
+      // rather than the source, because a creature holds exactly one pool. A
+      // timer filed anyway would stand over points this item never granted and
+      // end them early — the owner's ruling of 2026-09-18 is what that would
+      // break, since Temporary Hit Points with no stated duration last until
+      // they are spent or until a Long Rest. The pool moving is the honest
+      // test of which of the two happened, and it is the same test
+      // `fold/vitals.ts` applies when it decides whether to drop the deadline
+      // the replaced pool was carrying. Asked of the world the run started
+      // from and the world it ended in, so the two cannot disagree.
+      //
+      // **After the grant event and not before.** `temporary-hp-granted` drops
+      // whatever deadline stood over the pool it replaced, so an
+      // `effect-scheduled` written ahead of it would be thrown away by the
+      // very event that made it necessary — the order `applyConditionTo`
+      // already writes, the thing first and its timer behind it.
+      for (const outcome of resolved.value.outcomes) {
+        if (outcome.temporaryHp === undefined) continue;
+        const before = state.creatures[outcome.target]?.vitals.temporaryHp ?? 0;
+        const after = world.creatures[outcome.target]?.vitals.temporaryHp ?? 0;
+        if (after === before) continue;
+        const timer = schedule(
+          world,
+          { kind: 'temporary-hit-points', on: outcome.target },
+          lasts,
+        );
+        if (!timer.ok) return timer;
+        events.push(timer.value);
       }
 
       // **And a `grants` timer only where a grant is actually held.** `held`

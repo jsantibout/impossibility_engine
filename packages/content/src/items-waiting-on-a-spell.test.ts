@@ -905,16 +905,16 @@ describe('three potions confer a spell’s effects without casting it', () => {
   /**
    * SRD Potion of Gaseous Form: the Resistance and the three saves.
    *
-   * **Four and not five**, and the fifth is a collision rather than a missing
-   * mechanic: the spell grants Immunity to the Prone condition through a
-   * `condition-immunity` effect, `CONFERRED_EFFECT_KINDS` admits that kind,
-   * and `RIDER_FIELDS` refuses a conferred effect carrying a field called
-   * `conditions` — which is the outcome rider a saving throw hangs *and* this
-   * kind's own required list. Driven in both directions, because a note
-   * saying "the engine refuses this" is worth exactly as much as the refusal
-   * it claims.
+   * **Five, and the fifth used to be refused by a name collision.** The spell
+   * grants Immunity to the Prone condition through a `condition-immunity`
+   * effect, `CONFERRED_EFFECT_KINDS` admits that kind, and `RIDER_FIELDS`
+   * refused a conferred effect carrying a field called `conditions` — which is
+   * the outcome rider a saving throw hangs *and* this kind's own required
+   * list. The rider refusal is about riders again, and the potion confers what
+   * the spell executes. Driven in both directions, because a note saying "the
+   * engine does this" is worth exactly as much as the behaviour it claims.
    */
-  it('a Potion of Gaseous Form confers four of the spell’s own effects', () => {
+  it('a Potion of Gaseous Form confers five of the spell’s own effects', () => {
     const { log } = drink('potion-of-gaseous-form');
     const after = fold('seed', log);
     expect(
@@ -927,6 +927,12 @@ describe('three potions confer a spell’s effects without casting it', () => {
         .sort(),
     ).toEqual(['con', 'dex', 'str']);
 
+    // The fifth: "You have Immunity to the Prone condition", conferred with
+    // nothing cast, filed under the item's own bare source.
+    expect(after.creatures[BEARER]?.grantedConditionImmunities).toEqual([
+      { source: 'item:potion-of-gaseous-form', conditions: ['prone'] },
+    ]);
+
     // Nothing was cast, so there is no casting for anything to end — and the
     // hour is therefore the *whole* of what ends it, driven to the second
     // rather than asserted in a comment.
@@ -937,27 +943,44 @@ describe('three potions confer a spell’s effects without casting it', () => {
     ]);
     expect(nearly.creatures[BEARER]?.grantedDefenses).toHaveLength(1);
     expect(nearly.creatures[BEARER]?.rollModifiers).toHaveLength(3);
+    expect(nearly.creatures[BEARER]?.grantedConditionImmunities).toHaveLength(1);
     const gone = fold('seed', [
       ...log,
       { type: 'time-advanced', seconds: 3600, reason: 'the crawl' } as GameEvent,
     ]);
     expect(gone.creatures[BEARER]?.grantedDefenses).toEqual([]);
     expect(gone.creatures[BEARER]?.rollModifiers).toEqual([]);
+    expect(gone.creatures[BEARER]?.grantedConditionImmunities).toEqual([]);
   });
 
-  it('is refused the Immunity the spell it copies executes', () => {
-    // The spell does grant it.
+  /**
+   * And the rule that used to refuse it still refuses what it was about.
+   *
+   * A `ConditionRider` on a conferred saving throw is welded to the casting
+   * that hung it, and an item casts nothing. Driven here as well as in the
+   * engine's own file, because this is where the collision was first written
+   * down as a gap.
+   */
+  it('still refuses a rider condition on a conferred saving throw', () => {
+    // The spell grants the Immunity, and now so does the potion.
     expect(
       SRD_CONTENT.spell('gaseous-form')?.effects.some(
         (effect) => effect.kind === 'condition-immunity',
+      ),
+    ).toBe(true);
+    expect(
+      (SRD_CONTENT.item('potion-of-gaseous-form')?.grants ?? []).some(
+        (grant) =>
+          grant.kind === 'confers' &&
+          grant.effects.some((effect) => effect.kind === 'condition-immunity'),
       ),
     ).toBe(true);
 
     const built = extendContent(SRD_CONTENT, {
       items: [
         {
-          id: 'potion-of-the-refused-immunity',
-          name: 'potion-of-the-refused-immunity',
+          id: 'potion-of-the-refused-rider',
+          name: 'potion-of-the-refused-rider',
           kind: 'potion',
           weightLb: null,
           costCp: null,
@@ -968,8 +991,16 @@ describe('three potions confer a spell’s effects without casting it', () => {
             {
               kind: 'confers',
               action: 'bonus-action',
+              saveDc: 13,
               durationSeconds: 3600,
-              effects: [{ kind: 'condition-immunity', conditions: ['prone'] }],
+              effects: [
+                {
+                  kind: 'save',
+                  ability: 'con',
+                  condition: 'poisoned',
+                  conditions: [{ name: 'prone' }],
+                },
+              ],
             },
           ],
         },

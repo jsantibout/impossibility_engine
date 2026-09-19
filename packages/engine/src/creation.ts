@@ -2195,11 +2195,12 @@ export function planCharacter(
 
   const spellcasting: SpellcastingState = { classes, granted };
 
-  // SRD Alert: "When you roll Initiative, you can add your Proficiency Bonus."
-  const hasAlert = Object.values(choices.feats).some((feat) => feat.featId === 'alert');
-  const initiativeBonuses = hasAlert
-    ? [{ source: 'Alert', flat: proficiencyBonusForLevel(choices.level) }]
-    : [];
+  const initiativeBonuses = declaredInitiativeBonuses(
+    content,
+    choices,
+    features,
+    proficiencyBonusForLevel(choices.level),
+  );
 
   const pools = slotsFor(content, choices);
 
@@ -2231,6 +2232,54 @@ export function planCharacter(
     }),
     warnings,
   });
+}
+
+/**
+ * Everything that adds a number to this character's Initiative, **declared**.
+ *
+ * SRD Alert prints the benefit under a name: Initiative Proficiency, "When you
+ * roll Initiative, you can add your Proficiency Bonus to the roll." This used
+ * to be executed by reading that one feat's id, which is inviolable rule 4
+ * broken mechanically — a catalogue without the feat lost the rule, and a
+ * catalogue that spelled it differently never got it. Now the feat declares
+ * `initiative-proficiency` and this reads the declaration, so a homebrew feat
+ * saying the same thing gets the same bonus with no engine change.
+ *
+ * **Asked of features as well as feats**, because the grant is a member of the
+ * one grant vocabulary and `READABLE_GRANT_KINDS` therefore lets a feature
+ * declare it. A kind a feature may declare and no reader answers for is
+ * precisely the failure `feature-schema.ts` exists to catch, so the reader
+ * covers both holders rather than leaving one silently inert. No SRD class
+ * feature declares it today; Feral Instinct's "Advantage on Initiative rolls"
+ * is a `roll-mode` and goes down a different road.
+ *
+ * **Named, and deduplicated by name.** The source is what the log says the
+ * number came from and what `rollInitiativeFor` deduplicates a caller's own
+ * copy against, so two holders of one name contribute once — the reading a
+ * repeatable feat taken twice would otherwise get wrong, and the same rule
+ * `bonusesFor` keeps about a source granting twice.
+ */
+function declaredInitiativeBonuses(
+  content: Content,
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+  proficiencyBonus: number,
+): readonly { readonly source: string; readonly flat: number }[] {
+  const named = new Map<string, number>();
+
+  const declare = (source: string, grant: FeatureGrant | undefined): void => {
+    if (grant?.kind !== 'initiative-proficiency') return;
+    named.set(source, proficiencyBonus);
+  };
+
+  for (const feature of features) declare(feature.name, feature.grants);
+  for (const feat of Object.values(choices.feats)) {
+    const definition = content.featById(feat.featId);
+    if (definition === null) continue;
+    declare(definition.name, definition.grants);
+  }
+
+  return [...named].map(([source, flat]) => ({ source, flat }));
 }
 
 /**

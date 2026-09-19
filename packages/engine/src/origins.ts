@@ -1,5 +1,5 @@
 import type { Ability, Skill } from '@ie/shared';
-import type { EquipmentPackage, FeatureDefinition } from './progression.js';
+import type { EquipmentPackage, FeatureDefinition, FeatureGrant } from './progression.js';
 
 /**
  * Species and backgrounds, transcribed from SRD 5.2.1 "Character Origins".
@@ -33,7 +33,7 @@ export interface BackgroundDefinition {
    * None of these increases can raise a score above 20."
    */
   readonly abilities: readonly Ability[];
-  /** The Origin feat it confers. Feats are recorded, not executed. */
+  /** The Origin feat it confers; what that feat does is its own declaration. */
   readonly feat: string;
   readonly skillProficiencies: readonly Skill[];
   readonly toolProficiency: string;
@@ -108,8 +108,30 @@ export interface FeatDefinition {
   readonly requires: FeatRequirement;
   /** Taking it twice is legal only for these, and only under the feat's own terms. */
   readonly repeatable: boolean;
-  /** What a DM still has to apply, because the engine does not execute feats. */
+  /** What a DM still has to apply, beyond whatever {@link grants} declares. */
   readonly note: string;
+  /**
+   * What the feat confers, in the vocabulary a feature's grant is written in.
+   *
+   * **Why a feat has one at all.** The engine used to pay out SRD Alert's
+   * Initiative bonus by reading that feat's id, which is inviolable rule 4
+   * broken mechanically. A feat that declares what it confers takes the
+   * knowledge out of the engine and puts it where every other mechanic of the
+   * catalogue already lives, and a homebrew feat saying the same thing gets
+   * the same treatment with no engine change.
+   *
+   * **At most one, exactly as a `FeatureDefinition` carries at most one.** A
+   * feat whose text does two mechanical things is two grants' worth of
+   * vocabulary and a decision about how they compose, and no SRD feat needs
+   * it yet.
+   *
+   * **Held to what creation executes.** `checkContent` refuses a kind nothing
+   * reads off a feat — see `FEAT_GRANT_KINDS` — for the reason an item's
+   * conferral is held to `CONFERRED_EFFECT_KINDS`: a grant nobody reads is a
+   * line in the book that quietly does nothing, which is the failure the
+   * content validator exists to prevent. The list grows when a reader does.
+   */
+  readonly grants?: FeatureGrant;
 }
 
 /**

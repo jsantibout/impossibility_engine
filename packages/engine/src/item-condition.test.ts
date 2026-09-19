@@ -641,9 +641,14 @@ describe('a conferral that hangs a grant still files one', () => {
     const drunk = run(log, (s) => useItem(s, DRINKER, { item: HEROISM }, supply('heroism')));
     const state = fold('seed', drunk);
 
+    // The grant's timer and the pool's, and **no condition's**: this potion
+    // confers no condition, so the door that files one by instance stays
+    // shut. The pool's arrived with the hour on the ten Temporary Hit Points.
     const key = timerKey({ kind: 'grants', on: DRINKER, source: itemSource(HEROISM) });
-    expect(Object.keys(state.timers)).toEqual([key]);
+    const pool = timerKey({ kind: 'temporary-hit-points', on: DRINKER });
+    expect(Object.keys(state.timers).sort()).toEqual([key, pool].sort());
     expect(state.timers[key]?.deadline).toEqual({ kind: 'elapsed', at: 3600 });
+    expect(state.timers[pool]?.deadline).toEqual({ kind: 'elapsed', at: 3600 });
   });
 
   it('refuses the potion to somebody who cannot be reached', () => {

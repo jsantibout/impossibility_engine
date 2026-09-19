@@ -1828,15 +1828,12 @@ const POTIONS: readonly CatalogueItem[] = [
      * thrown for it. `addSpellcastingModifier: false` for the reason the
      * Potion of Healing's is false — a conferral has no caster.
      *
-     * **The hour on them is still not here**, and the note below says so:
-     * `temporary-hp-granted` carries no source and no `EffectTarget` names
-     * Temporary Hit Points, so there is nothing a deadline could end.
-     *
-     * That clause *limits* the benefit, which is the direction rule 3 guards,
-     * and the note is deliberately the whole of what is said about it here:
-     * whether Temporary Hit Points should be given a lifetime, or this potion
-     * held back until they can have one, is an open decision recorded rather
-     * than taken. The Bless half does expire on the hour.
+     * **And the hour on them is kept.** `EffectTarget` names a creature's
+     * pool of Temporary Hit Points, so the conferral files a deadline on it
+     * beside the one it files on the Bless half, and both come due on the same
+     * second. The key is the creature rather than the item, because the SRD is
+     * explicit that Temporary Hit Points do not stack: a creature holds one
+     * pool, and one pool has one lifetime.
      */
     id: 'potion-of-heroism',
     name: 'Potion of Heroism',
@@ -1865,9 +1862,6 @@ const POTIONS: readonly CatalogueItem[] = [
           },
         ],
       },
-    ],
-    unmodelled: [
-      '"that last for 1 hour": the hour on those Temporary Hit Points. The ten are granted; the hour is not. `temporary-hp-granted` carries no source and no EffectTarget names Temporary Hit Points, so there is nothing for a deadline to end. The Bless half does expire on the hour',
     ],
   },
   {
@@ -2022,22 +2016,19 @@ const POTIONS: readonly CatalogueItem[] = [
      * you gain the effect of the _Gaseous Form_ spell for 1 hour (no
      * Concentration required) or until you end the effect as a Bonus Action."
      *
-     * Four effects out of one sentence of the spell: the Resistance to three
-     * physical damage types, and Advantage on saving throws with each of
-     * three abilities. Everything else about being a cloud is the spell's
-     * note, and the ones a drinker would notice are repeated here because a
-     * conferral hands nothing over from a definition — it carries its own
-     * list, so it carries its own gaps too.
+     * Five effects out of one sentence of the spell: the Resistance to three
+     * physical damage types, Immunity to the Prone condition, and Advantage
+     * on saving throws with each of three abilities. Everything else about
+     * being a cloud is the spell's note, and the ones a drinker would notice
+     * are repeated here because a conferral hands nothing over from a
+     * definition — it carries its own list, so it carries its own gaps too.
      *
-     * **The fifth clause is a name collision rather than a missing mechanic**,
-     * and the note below says so. Gaseous Form the *spell* grants Immunity to
-     * the Prone condition with a `condition-immunity` effect, and
-     * `CONFERRED_EFFECT_KINDS` admits that kind — but `RIDER_FIELDS` refuses
-     * any conferred effect carrying a field called `conditions`, which is the
-     * name of the outcome rider a saving throw hangs *and* the name of this
-     * kind's own required list. So the validator refuses the one sentence the
-     * spell it is copied from executes, and the gap is an engine one line
-     * wide rather than a rule nobody has built.
+     * **The Immunity was the fifth and was refused by a name collision.**
+     * `CONFERRED_EFFECT_KINDS` admitted `condition-immunity` and `RIDER_FIELDS`
+     * refused any conferred effect carrying a field called `conditions` —
+     * which is the outcome rider a saving throw hangs *and* this kind's own
+     * required list. The refusal is about the rider again rather than about
+     * the spelling, and the clause the spell executes is conferred here.
      */
     id: 'potion-of-gaseous-form',
     name: 'Potion of Gaseous Form',
@@ -2054,6 +2045,9 @@ const POTIONS: readonly CatalogueItem[] = [
         durationSeconds: 3600,
         effects: [
           { kind: 'damage-defense', damageTypes: ['bludgeoning', 'piercing', 'slashing'], defense: 'resistant' },
+          // "You have Immunity to the Prone condition" — the spell's own
+          // effect, conferred rather than cast.
+          { kind: 'condition-immunity', conditions: ['prone'] },
           {
             kind: 'roll-mode',
             modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' } },
@@ -2071,7 +2065,6 @@ const POTIONS: readonly CatalogueItem[] = [
     ],
     unmodelled: [
       '"or until you end the effect as a Bonus Action": a conferral is a moment with a lifetime the item states and there is no casting for a dismissal to address, so the hour runs to the end',
-      'the Immunity to the Prone condition that Gaseous Form grants is not conferred: `CONFERRED_EFFECT_KINDS` admits the `condition-immunity` kind and `RIDER_FIELDS` refuses any conferred effect carrying a field named `conditions`, which is that kind\'s own required list as well as the name of a saving throw\'s outcome rider — so the two rules collide on the field name and the potion is refused a sentence the spell it copies executes',
       'the movement Gaseous Form prescribes — a Fly Speed of 10 feet and hovering, and no other method — is not applied: the engine tracks one Speed and no movement modes, so the drinker keeps the Speed they had',
       'what Gaseous Form forbids is not forbidden: talking, manipulating objects, letting go of anything held, attacking and casting are an action economy rider and a fact about what is in a creature\'s hands, and the engine has neither',
       'passing through narrow openings, treating liquids as solid surfaces, and occupying another creature\'s space are the DM\'s',

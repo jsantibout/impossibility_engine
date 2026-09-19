@@ -138,6 +138,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'critical-range',
   'expertise',
   'extra-attack',
+  'initiative-proficiency',
   'lifts-conditions',
   'pool',
   'reaction',
@@ -148,6 +149,23 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'unarmored-defense',
   'widens-reaction',
 ]);
+
+/**
+ * The `FeatureGrant` kinds a **feat** may declare.
+ *
+ * Narrower than {@link READABLE_GRANT_KINDS}, and the difference is where the
+ * grant is read from rather than what it means. A class feature's grant is
+ * compiled onto the sheet by a dozen passes in `creation.ts` and evaluated by
+ * `standing.ts` on every read; a feat is not a feature and goes through none
+ * of that — creation reads a feat's declaration on its own, one kind at a
+ * time. So the list is the kinds that reader answers for, and a feat
+ * declaring anything else is refused rather than accepted and never executed.
+ *
+ * The same argument `CONFERRED_EFFECT_KINDS` makes for an item, and it grows
+ * the same way: a kind joins this list in the commit that teaches creation to
+ * read it off a feat, with the test that proves it arrives.
+ */
+export const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set(['initiative-proficiency']);
 
 /** The optional `FeatureDefinition` fields a reader dereferences — see {@link READABLE_GRANT_KINDS}. */
 export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
@@ -656,6 +674,36 @@ const rollsASave = (record: Record<string, unknown>): boolean =>
 const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed'];
 
 /**
+ * The admitted kinds whose `conditions` is **their own required list**.
+ *
+ * Two rules met here and contradicted each other. `CONFERRED_EFFECT_KINDS`
+ * admits `condition-immunity` — SRD writes "has Immunity to the Charmed
+ * condition" on items as readily as on spells — and the rule above refuses any
+ * conferred effect carrying a field called `conditions`, because an
+ * {@link OutcomeRiders} `conditions` is a list of {@link ConditionRider}s
+ * welded to the casting that hung it. But `conditions` is also the name of
+ * `condition-immunity`'s required list, the one saying what the creature is
+ * immune *to*, and of `end-condition`'s, the one saying what it lifts. So the
+ * one Immunity a potion wanted was refused by a rule that was never about it.
+ *
+ * Fixed by making the refusal about the rider rather than about the spelling.
+ * Both kinds are leaves — neither can host a rider at all, which is what their
+ * own docstrings in `spell-definitions.ts` say and what the type says — so on
+ * these two the field is the kind's own and the rider rule has nothing to
+ * refuse. `modifiers` and `delayed` are untouched: no admitted kind spells
+ * either of those as something of its own.
+ *
+ * Read after `checkEffectValue` has passed, which is what makes a list of
+ * kinds honest here: by then the effect is known to be well formed for the
+ * kind it says it is, so the name of the field really does mean what that
+ * kind's declaration says it means.
+ */
+const CONDITIONS_IS_THE_KINDS_OWN: ReadonlySet<string> = new Set([
+  'condition-immunity',
+  'end-condition',
+]);
+
+/**
  * What a {@link ConditionRider} can say that a conferral has no casting for.
  *
  * The `condition` kind is conferrable — SRD Potion of Invisibility — and what
@@ -793,6 +841,7 @@ function itemConfersProblems(
   }
 
   let hangs = false;
+  let outlasts = false;
   let rolls = false;
   let conditions = 0;
   grant.effects.forEach((effect, index) => {
@@ -812,7 +861,19 @@ function itemConfersProblems(
       );
       return;
     }
-    if (CONFERRED_GRANT_KINDS.has(kind)) hangs = true;
+    if (CONFERRED_GRANT_KINDS.has(kind)) {
+      hangs = true;
+      outlasts = true;
+    }
+    // **Temporary Hit Points outlast the moment without demanding a lifetime,
+    // and they are the only thing here that does both.** SRD Potion of
+    // Heroism states an hour on them, so a duration is not a number that ends
+    // nothing; and the owner's ruling of 2026-09-18 is that Temporary Hit
+    // Points with no stated duration last until they are spent or until a
+    // Long Rest, so an item that states none is complete rather than
+    // unfinished. `useItem` files the deadline on the pool when one is
+    // stated — see `EffectTarget` `temporary-hit-points`.
+    if (kind === 'temp-hp') outlasts = true;
     if (rollsASave(record)) rolls = true;
 
     // **A condition hangs too, and not as a grant.** It is a condition
@@ -822,6 +883,7 @@ function itemConfersProblems(
     // that needs the casting it has not got.
     if (kind === 'condition') {
       hangs = true;
+      outlasts = true;
       conditions += 1;
       const rider = record['condition'];
       if (typeof rider === 'object' && rider !== null) {
@@ -842,6 +904,7 @@ function itemConfersProblems(
     // itself, at the paths this kind writes them at.
     if (kind === 'save') {
       hangs = true;
+      outlasts = true;
       conditions += 1;
       for (const field of CONFERRED_CONDITION_FIELDS) {
         if (record[field] === undefined) continue;
@@ -882,8 +945,11 @@ function itemConfersProblems(
     }
     // A rider hangs off the outcome and is welded to the casting that hung it.
     // Admitting the saving throw does not admit what a spell's failure branch
-    // carries — see {@link RIDER_FIELDS}.
+    // carries — see {@link RIDER_FIELDS}. What it also does not do is refuse a
+    // kind its own required list because the list shares a rider's name; see
+    // {@link CONDITIONS_IS_THE_KINDS_OWN}.
     for (const rider of RIDER_FIELDS) {
+      if (rider === 'conditions' && CONDITIONS_IS_THE_KINDS_OWN.has(kind)) continue;
       if (record[rider] !== undefined) {
         say(
           'conferral_rider_needs_a_casting',
@@ -923,10 +989,17 @@ function itemConfersProblems(
     );
   }
 
-  // **Required exactly when something hangs, and refused when nothing does.**
-  // There is no casting for `releaseCasting` to end, so a grant with no
-  // deadline would run for ever; and a deadline with nothing to end would file
-  // a timer that takes nothing away.
+  // **Required exactly when something hangs, and refused when nothing could
+  // outlast the moment.** There is no casting for `releaseCasting` to end, so
+  // a grant with no deadline would run for ever; and a deadline with nothing
+  // to end would file a timer that takes nothing away.
+  //
+  // **The two questions are not the same one**, and Temporary Hit Points are
+  // where they come apart: a stated hour ends them, so a duration is not a
+  // number that ends nothing — but they need no deadline to be complete,
+  // because unstated they last until they are spent or until a Long Rest. So
+  // `hangs` decides whether a lifetime is *required* and `outlasts` whether
+  // one is *allowed*, and every other kind sets both together.
   if (grant.durationSeconds === undefined) {
     if (hangs) {
       say(
@@ -941,7 +1014,7 @@ function itemConfersProblems(
       `a conferral lasts a whole number of seconds, got ${String(grant.durationSeconds)}`,
       `${at}.durationSeconds`,
     );
-  } else if (!hangs) {
+  } else if (!hangs && !outlasts) {
     say(
       'conferral_lifetime_ends_nothing',
       `${item.id} confers nothing that outlasts the moment it is used, so a duration would end nothing`,
@@ -1259,6 +1332,40 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         field: `spells[${spell.id}]`,
         code: 'entry_disagrees',
         reason: `the definition says level ${spell.level} ${spell.school} and the entry says level ${entry.level} ${entry.school}`,
+      });
+    }
+  }
+
+  // **What a feat declares, held to what creation reads off one.** The same
+  // rule an item's conferral keeps, for the same reason: a grant nothing
+  // executes is a line in the book that quietly does nothing. Untyped input
+  // reaches here as well as typed, so the shape is asked before the kind.
+  for (const feat of feats) {
+    const declared: unknown = (feat as { readonly grants?: unknown }).grants;
+    if (declared === undefined) continue;
+    const where = `feats[${feat.id}].grants`;
+    if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) {
+      problems.push({
+        field: where,
+        code: 'bad_feat_grant',
+        reason: 'what a feat confers is one grant object, written in the feature grant vocabulary',
+      });
+      continue;
+    }
+    const kind: unknown = (declared as Record<string, unknown>)['kind'];
+    if (typeof kind !== 'string') {
+      problems.push({
+        field: `${where}.kind`,
+        code: 'bad_feat_grant',
+        reason: 'a grant says which kind it is, as a string',
+      });
+      continue;
+    }
+    if (!FEAT_GRANT_KINDS.has(kind)) {
+      problems.push({
+        field: `${where}.kind`,
+        code: 'feat_grant_not_read',
+        reason: `nothing reads "${kind}" off a feat — creation compiles a class feature's grants onto the sheet and a feat goes through none of that — so ${feat.id} would declare a benefit nobody ever pays`,
       });
     }
   }
@@ -1972,6 +2079,15 @@ function parseFeatDefinition(value: unknown): Result<FeatDefinition> {
       : kind === 'proficiencies'
         ? { kind, choose: s.int(requiresShape, 'choose') }
         : { kind: 'none' };
+  // Shape only, exactly as `checkFeatureShape` reads a feature's grant: an
+  // object with a string kind. Whether the kind is one creation reads off a
+  // feat is `checkContent`'s question, asked of typed and untyped input alike.
+  const declared: unknown = value['grants'];
+  if (declared !== undefined && !(isShape(declared) && typeof declared['kind'] === 'string')) {
+    return err('bad_feat', `${where}.grants: a grant is an object saying which kind it is`);
+  }
+  const grants = declared as FeatDefinition['grants'];
+
   const definition: FeatDefinition = {
     id: s.string(value, 'id'),
     name: s.string(value, 'name'),
@@ -1979,6 +2095,7 @@ function parseFeatDefinition(value: unknown): Result<FeatDefinition> {
     requires,
     repeatable: s.bool(value, 'repeatable'),
     note: s.string(value, 'note'),
+    ...(grants === undefined ? {} : { grants }),
   };
   const problems = s.problems();
   if (problems.length > 0) return err('bad_feat', problems.join('; '));
