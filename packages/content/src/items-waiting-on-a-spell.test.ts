@@ -69,12 +69,12 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const added = (who: CharacterId): GameEvent => ({
+const added = (who: CharacterId, maxHp = 40): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
   sheet: sheet(),
-  maxHp: 40,
+  maxHp,
   diesAtZero: false,
   creatureType: 'Humanoid',
   side: 'party',
@@ -660,10 +660,19 @@ describe('the rod the engine cannot price, and the two spells it would cast', ()
     return built.value;
   };
 
+  /**
+   * A patient with more than seventy hit points to lose.
+   *
+   * **Found by mutation.** With the default forty, dropping Heal's printed
+   * amount to sixty changed nothing anybody could see: a target down thirty
+   * comes back to full either way, so the number the SRD prints was asserted
+   * by nothing. The wound has to be deeper than the healing for the healing
+   * to be the number under test.
+   */
   const holdingRod = (content: Content): readonly GameEvent[] => {
     const base: readonly GameEvent[] = [
       added(BEARER),
-      added(OTHER),
+      added(OTHER, 120),
       ...SCENE,
       {
         type: 'items-gained',
@@ -679,7 +688,7 @@ describe('the rod the engine cannot price, and the two spells it would cast', ()
     const content = withRod();
     const log: readonly GameEvent[] = [
       ...holdingRod(content),
-      { type: 'damage-taken', id: OTHER, amount: 30, source: 'the wight' },
+      { type: 'damage-taken', id: OTHER, amount: 100, source: 'the wight' },
       { type: 'condition-applied', id: OTHER, condition: 'poisoned', source: 'the wight' },
     ];
     const out = unwrap(
@@ -696,9 +705,10 @@ describe('the rod the engine cannot price, and the two spells it would cast', ()
       chargesLeft(after, content, BEARER, 'rod-of-raising'),
       'one of five charges',
     ).toBe(4);
-    // Seventy restores the thirty that were lost, and no more.
-    expect(after.creatures[OTHER]?.vitals.hp).toBe(40);
-    expect(out.outcomes[0]?.healed).toBe(30);
+    // Seventy exactly: a hundred lost out of a hundred and twenty, so the
+    // printed number lands whole and is not swallowed by the cap.
+    expect(out.outcomes[0]?.healed).toBe(70);
+    expect(after.creatures[OTHER]?.vitals.hp).toBe(90);
     expect(after.creatures[OTHER]?.conditions.conditions ?? []).not.toContain('poisoned');
     // No slot, and no spellcasting modifier on top of the printed seventy.
     expect(castOf(out.events)?.slotless).toBe('magic-item');
