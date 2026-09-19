@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 212 (62.5%) | 110 (32.4%) | 55 | 84 (24.8%) |
+| 339 | 214 (63.1%) | 110 (32.4%) | 55 | 84 (24.8%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -181,6 +181,7 @@ of, told apart from the ones a marker found.
 - **Blade Barrier** (level 6) — 4 noted
 - **Blink** (level 3) — 3 noted
 - **Call Lightning** (level 3) — 4 noted
+- **Calm Emotions** (level 2) — 5 noted, 1 read
 - **Clairvoyance** (level 3) — 3 noted
 - **Clone** (level 8) — 3 noted
 - **Command** (level 1) — 6 noted
@@ -254,6 +255,7 @@ of, told apart from the ones a marker found.
 - **Guardian of Faith** (level 4) — 4 noted
 - **Guards and Wards** (level 6) — 3 noted
 - **Gust of Wind** (level 2) — 5 noted
+- **Hallow** (level 5) — 7 noted, 2 read
 - **Hallucinatory Terrain** (level 4) — 3 noted
 - **Heat Metal** (level 2) — 4 noted
 - **Heroes' Feast** (level 6) — 3 noted
@@ -416,15 +418,15 @@ of *Tracked* and is never added to it.
 | `a-casting-ended-by-a-trigger` | 14 | 0 | 1 | 3 | 9 | 0 | 2 |
 | `falling` | 2 | 0 | 1 | 0 | 1 | 0 | 1 |
 | `a-random-outcome-that-is-not-a-d20` | 17 | 0 | 0 | 0 | 14 | 0 | 3 |
-| `a-choice-made-at-the-casting` | 15 | 0 | 0 | 4 | 10 | 0 | 1 |
+| `a-choice-made-at-the-casting` | 15 | 0 | 0 | 4 | 11 | 1 | 0 |
 | `a-stat-block-created-mid-fight` | 14 | 0 | 0 | 1 | 12 | 0 | 1 |
 | `a-second-place-to-put-a-creature` | 12 | 0 | 0 | 1 | 8 | 0 | 3 |
 | `a-wall-or-several-templates-in-one-area` | 10 | 0 | 0 | 0 | 10 | 0 | 0 |
-| `an-effect-that-suppresses-other-magic` | 10 | 0 | 0 | 0 | 8 | 0 | 2 |
+| `an-effect-that-suppresses-other-magic` | 10 | 0 | 0 | 0 | 9 | 0 | 1 |
 | `difficult-terrain-an-area-creates` | 10 | 0 | 0 | 5 | 3 | 0 | 2 |
 | `a-repeat-save-raised-by-a-trigger` | 8 | 0 | 0 | 6 | 2 | 0 | 0 |
-| `a-spells-effects-applied-to-different-targets` | 8 | 0 | 0 | 2 | 4 | 0 | 2 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 8 | 0 | 0 | 1 | 6 | 0 | 1 |
+| `a-spells-effects-applied-to-different-targets` | 8 | 0 | 0 | 2 | 5 | 0 | 1 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 8 | 0 | 0 | 1 | 7 | 0 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 7 | 0 | 0 | 3 | 4 | 0 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 7 | 0 | 0 | 0 | 7 | 0 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 7 | 0 | 0 | 2 | 4 | 0 | 1 |
@@ -434,20 +436,20 @@ of *Tracked* and is never added to it.
 | `a-target-rule-the-format-cannot-state` | 5 | 0 | 0 | 0 | 5 | 0 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 4 | 0 | 1 |
 | `what-a-creature-is-holding` | 5 | 0 | 0 | 3 | 2 | 0 | 0 |
-| `a-barrier-that-blocks-passage` | 4 | 0 | 0 | 0 | 3 | 0 | 1 |
+| `a-barrier-that-blocks-passage` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 4 | 0 | 0 | 3 | 1 | 0 | 0 |
 | `a-creature-fact-an-effect-overrides` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
-| `a-creature-type-predicate-an-area-reads` | 4 | 0 | 0 | 0 | 3 | 0 | 1 |
+| `a-creature-type-predicate-an-area-reads` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-fact-only-the-table-can-declare` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
-| `a-long-casting-time` | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 4 | 0 | 0 | 0 | 3 | 0 | 1 |
 | `an-activation-that-forces-a-saving-throw` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-activation-that-resolves-an-area` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `forced-movement-a-spell-causes` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `healing-that-raises-the-dead` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
-| `a-condition-immunity-narrowed-to-its-source` | 3 | 0 | 0 | 0 | 2 | 0 | 1 |
+| `a-condition-immunity-narrowed-to-its-source` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
+| `a-long-casting-time` | 3 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `a-one-shot-roll-modifier` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `a-repeat-save-counted-to-a-tally` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
@@ -474,9 +476,9 @@ of *Tracked* and is never added to it.
 | `an-outcome-that-breaks-concentration` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `targeting-rules-that-differ-within-one-casting` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
-| `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-casting-that-casts-another-spell` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| `a-condition-a-spell-suppresses` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| `a-condition-a-spell-suppresses` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-duration-the-slot-changes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
@@ -552,18 +554,17 @@ be the second spelling of one derivation.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-weapon-mastery-property` | 6 | 6 |
 | `a-feature-that-changes-a-castings-damage` | 5 | 5 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 10 | 4 |
 | `an-action-a-spell-compels-or-forbids` | 10 | 4 |
 | `a-roll-result-an-effect-replaces` | 5 | 4 |
 | `a-feature-that-rewrites-another-features-rule` | 10 | 3 |
+| `an-option-re-chosen-on-a-rest` | 9 | 3 |
 | `a-save-keyed-to-a-condition` | 4 | 3 |
-| `an-option-re-chosen-on-a-rest` | 4 | 3 |
 | `healing-modified-by-an-effect` | 4 | 3 |
+| `an-attack-the-class-redefines` | 10 | 2 |
 | `a-feature-that-changes-what-a-casting-costs` | 7 | 2 |
 | `a-move-a-feature-hands-its-holder` | 6 | 2 |
-| `an-attack-the-class-redefines` | 5 | 2 |
 | `a-spell-a-source-that-does-not-cast-grants` | 4 | 2 |
 | `movement-modes` | 4 | 2 |
 | `a-feature-that-changes-who-a-casting-catches` | 3 | 2 |
@@ -574,13 +575,13 @@ be the second spelling of one derivation.
 | `an-effect-that-intercepts-dropping-to-0` | 2 | 2 |
 | `heroic-inspiration` | 2 | 2 |
 | `a-resource-traded-for-another` | 12 | 1 |
+| `a-one-shot-roll-modifier` | 9 | 1 |
 | `a-condition-a-feature-imposes` | 6 | 1 |
 | `a-grant-gated-on-one-option-of-a-choice` | 4 | 1 |
 | `a-rule-the-engine-fixes-for-everybody` | 4 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 4 | 1 |
 | `a-bonus-an-ability-modifier-sizes` | 3 | 1 |
 | `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
-| `a-one-shot-roll-modifier` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
@@ -597,6 +598,7 @@ be the second spelling of one derivation.
 | `a-saving-throw-a-feature-forces` | 7 | 0 |
 | `a-benefit-that-runs-for-a-printed-span` | 6 | 0 |
 | `a-pool-the-proficiency-bonus-sizes` | 6 | 0 |
+| `a-weapon-mastery-property` | 6 | 0 |
 | `temporary-hit-points-a-feature-grants` | 4 | 0 |
 | `a-feature-that-carries-a-second-grant` | 3 | 0 |
 | `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
@@ -694,7 +696,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 76 | 233 | 178 | 55 |
+| 258 | 76 | 233 | 180 | 53 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -719,7 +721,7 @@ inventing a column that nothing checks.
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 8 | 8 | 1 | 7 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 29 | 29 | 9 | 20 |
+| Wondrous Items | 127 | 29 | 29 | 11 | 18 |
 
 ### Entries transcribed
 
@@ -751,12 +753,12 @@ how many of those still carry a clause the engine does not say.
 - **Elven Chain** (Armor) — 1 recorded, 1 partial
 - **Eyes of Charming** (Wondrous Items) — 1 recorded, 1 partial
 - **Frost Brand** (Weapons) — 1 recorded, 1 partial
-- **Gauntlets of Ogre Power** (Wondrous Items) — 1 recorded, 1 partial
+- **Gauntlets of Ogre Power** (Wondrous Items) — 1 recorded, complete
 - **Giant Slayer** (Weapons) — 1 recorded, 1 partial
 - **Glamoured Studded Leather** (Armor) — 1 recorded, 1 partial
 - **Goggles of Night** (Wondrous Items) — 1 recorded, 1 partial
 - **Hammer of Thunderbolts** (Weapons) — 1 recorded, 1 partial
-- **Headband of Intellect** (Wondrous Items) — 1 recorded, 1 partial
+- **Headband of Intellect** (Wondrous Items) — 1 recorded, complete
 - **Helm of Comprehending Languages** (Wondrous Items) — 1 recorded, complete
 - **Helm of Teleportation** (Wondrous Items) — 1 recorded, complete
 - **Holy Avenger** (Weapons) — 1 recorded, 1 partial
