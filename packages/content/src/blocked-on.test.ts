@@ -1192,10 +1192,23 @@ describe('what a shape finishes is two numbers', () => {
     expect(rows.filter((row) => row.unblocksUnread.length > 0).length).toBeGreaterThan(0);
   });
 
-  /** A grandfathered spell is counted, and counted in the column that says so. */
+  /**
+   * A grandfathered spell is counted, and counted in the column that says so.
+   *
+   * Barkskin used to stand here and was the whole of what an Armour Class
+   * floor finishes; the spell catalogue batch wrote it tracked, so the shape
+   * now finishes nobody from either column and holds its claimant in the
+   * tracked population instead. The example moved to a spell that is still
+   * undefined, which is what the first column of this table is about — and
+   * the shape it belongs to has to be one no entry has read a clause for.
+   */
   it('still counts a spell nobody has read', () => {
-    expect(consumersOf('an-armor-class-a-spell-floors').unblocksUnread).toEqual(['barkskin']);
-    expect(consumersOf('an-armor-class-a-spell-floors').unblocksRead).toEqual([]);
+    expect(consumersOf('a-reduction-an-effect-applies-to-damage').unblocksUnread).toEqual([]);
+    expect(consumersOf('an-armor-class-a-spell-floors').unblocks).toEqual([]);
+    expect(consumersOf('an-armor-class-a-spell-floors').tracked).toEqual(['barkskin']);
+    const unread = allShapeConsumers().filter((row) => row.unblocksUnread.length > 0);
+    expect(unread.length).toBeGreaterThan(0);
+    for (const row of unread) expect(row.unblocksRead).not.toEqual(row.unblocksUnread);
   });
 
   /** And the markers the coverage guard reads are the honesty guard's, not a second list. */
@@ -2108,9 +2121,6 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    * waits on it to be cast at all.
    */
   const SOLE: readonly (readonly [string, ShapeId])[] = [
-    // "the target's skin assumes a bark-like appearance, and the target has an
-    // Armor Class of 17 if its AC is lower than that" — a floor on the total.
-    ['barkskin', 'an-armor-class-a-spell-floors'],
     // "You touch a creature that has died within the last minute."
     ['revivify', 'healing-that-raises-the-dead'],
     // "Choose up to five falling creatures within range."
@@ -2136,6 +2146,15 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     expect(BLOCKED_ON['scorching-ray']).toBeUndefined();
     expect(claimedShapes().has('several-attack-rolls-from-one-casting')).toBe(true);
     expect(SRD_CONTENT.spell('scorching-ray')?.effects).toEqual([]);
+
+    // And a third departure the same way, which is what makes Scorching Ray's
+    // a class rather than an exception: Barkskin is tracked, the floor on an
+    // Armour Class is still missing, and the shape keeps the spell as a
+    // tracked claimant instead of an undefined one. What changes is which
+    // population holds it, not whether the debt is owed.
+    expect(BLOCKED_ON['barkskin']).toBeUndefined();
+    expect(claimedShapes().has('an-armor-class-a-spell-floors')).toBe(true);
+    expect(SRD_CONTENT.spell('barkskin')?.effects).toEqual([]);
   });
 });
 

@@ -1480,6 +1480,172 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'damage that lands with no attack roll and no saving throw at all, on a turn boundary `AreaTrigger` can already name. Every damage-bearing effect kind the format has hangs off a roll, so this one has nothing to be written as even once the wall exists.',
     },
   ],
+  aid: [
+    {
+      marker: 'hit-points',
+      clause: "Each target's Hit Point maximum and current Hit Points increase by 5",
+      why: 'a-hit-point-maximum-a-spell-moves',
+      note: 'the five hit points are ordinary and the maximum is not: `vitals.ts` raises a current total and caps it at the maximum, and nothing moves the maximum itself for a span and then moves it back when the span runs out.',
+    },
+  ],
+  barkskin: [
+    {
+      marker: 'armor-class',
+      clause: 'the target has an Armor Class of 17 if its AC is lower than that',
+      why: 'an-armor-class-a-spell-floors',
+      note: 'a floor rather than a calculation: the `armor-class` effect supplies a base the engine then picks between, and 17 written that way would either beat a plate-armoured 18 down or be discarded, depending which way the comparison ran. Neither is the sentence.',
+    },
+  ],
+  'death-ward': [
+    {
+      marker: 'hit-points',
+      clause: 'the target instead drops to 1 Hit Point',
+      why: 'an-effect-that-intercepts-dropping-to-0',
+      note: 'the hit point is nothing and the interception is the whole spell: dropping to 0 is an engine-owned batch performed inside the operation that applies the damage, and there is no seam in it for an effect to say "stop at 1 instead".',
+    },
+  ],
+  'enhance-ability': [
+    {
+      marker: 'roll-mode',
+      clause: 'the target has Advantage on ability checks using the chosen ability',
+      why: 'a-choice-made-at-the-casting',
+      note: 'a `RollModifier` names Advantage on ability checks of a stated ability perfectly well — Contagion’s adjudication says exactly that from the other side — and which of the five this casting chose has nowhere to be recorded.',
+    },
+  ],
+  foresight: [
+    {
+      marker: 'roll-mode',
+      clause: 'the target has Advantage on D20 Tests, and other creatures have Disadvantage on attack rolls against it',
+      why: 'a-selector-for-every-d20-test',
+      note: 'there is deliberately no `RollModifier` member for D20 Tests as a family, and the second half of the sentence needs something else again — a mode the *attacker* rolls with, granted by a spell cast on the defender.',
+    },
+  ],
+  glibness: [
+    {
+      marker: 'ability-check',
+      clause: 'when you make a Charisma check, you can replace the number you roll with a 15',
+      why: 'a-roll-result-an-effect-replaces',
+      note: 'a substitution rather than a modifier, taken after the die is seen: `interveneAfterRoll` reaches a roll that has happened and adds to it, and nothing throws the result away in favour of a printed number.',
+    },
+  ],
+  'major-image': [
+    {
+      marker: 'ability-check',
+      clause: 'determine that it is an illusion with a successful Intelligence (Investigation) check',
+      why: 'engine',
+      note: 'Silent Image’s sentence two levels up, and the same answer: the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against a Concentration casting timer that ends with the Concentration.',
+    },
+  ],
+  'meld-into-stone': [
+    {
+      marker: 'movement-cost',
+      clause: 'You can use 5 feet of movement to leave the stone where you entered it',
+      why: 'a-world-fact-nothing-can-represent',
+      note: 'the five feet are spendable and what they buy is stepping out of a stone, which is a state the world model has no room for — the same place Tree Stride’s five feet hang from, so the step they pay for has no representation to cost anything.',
+    },
+    {
+      marker: 'dice',
+      clause: 'expels you and deals 6d6 Force damage to you',
+      why: 'a-world-fact-nothing-can-represent',
+      note: 'the dice are ordinary and being expelled is not: the damage is a consequence of having been inside the stone, and the sentence after it deals a flat 50 for the same reason.',
+    },
+    {
+      marker: 'condition',
+      clause: 'you move into an unoccupied space closest to where you first entered and have the Prone condition',
+      why: 'a-world-fact-nothing-can-represent',
+      note: 'placing a creature in the nearest unoccupied space and applying Prone are both ordinary; what is missing is the expulsion they follow from, which is the state this whole paragraph hangs on.',
+    },
+  ],
+  'mirror-image': [
+    {
+      marker: 'condition',
+      clause: 'if it has the Blinded condition, Blindsight, or Truesight',
+      why: 'senses-beyond-declared-sight',
+      note: 'whether the spell applies at all is decided by what the *attacker* can perceive. Sight here is a pairwise declaration and Blindsight and Truesight are senses no rule reads off an attacker, so the exception has nothing to consult.',
+    },
+  ],
+  seeming: [
+    {
+      marker: 'saving-throw',
+      clause: 'An unwilling target can make a Charisma saving throw',
+      why: 'table',
+      note: 'what the save refuses is an appearance, and nothing mechanical follows from being disguised — the engine’s resolution path never arrives at what a creature looks like, which is Disguise Self’s reading over a crowd.',
+    },
+    {
+      marker: 'ability-check',
+      clause: 'make an Intelligence (Investigation) check against your spell save DC',
+      why: 'engine',
+      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against the casting’s own timer, which the eight hours give it; the table decides only that somebody looked closely.',
+    },
+  ],
+  shapechange: [
+    {
+      marker: 'hit-points',
+      clause: 'you gain a number of Temporary Hit Points equal to the Hit Points of the first form',
+      why: 'a-creature-fact-an-effect-overrides',
+      note: 'the amount is read off a second creature’s sheet, and the engine holds one sheet per creature with no way to lend another. Their vanishing at the end of the spell is the same absence read from the other end.',
+    },
+    {
+      marker: 'hit-points',
+      clause: 'Your game statistics are replaced by the stat block of the chosen form',
+      why: 'a-creature-fact-an-effect-overrides',
+      note: 'the sentence that says so outright, with the long list of what survives it. A sheet is a fact the engine holds authoritatively and reads for every roll it makes, and nothing writes over one for a duration.',
+    },
+  ],
+  'sleet-storm': [
+    {
+      marker: 'saving-throw',
+      clause: 'it must succeed on a Dexterity saving throw or have the Prone condition and lose Concentration',
+      why: 'an-outcome-that-breaks-concentration',
+      note: 'the Cylinder is a shape the engine has and both trigger moments are `AreaTrigger` members by name, so all of this is expressible except the last three words — and writing the save without them would drop half of what a failure costs.',
+    },
+    {
+      marker: 'condition',
+      clause: 'have the Prone condition and lose Concentration',
+      why: 'an-outcome-that-breaks-concentration',
+      note: 'the Prone half is an ordinary condition rider and is welded to the half that is not: one failed save imposes both, and no outcome of a saving throw asks for somebody’s Concentration to break.',
+    },
+  ],
+  'spike-growth': [
+    {
+      marker: 'dice',
+      clause: 'it takes 2d4 Piercing damage for every 5 feet it travels',
+      why: 'a-distance-a-creature-travels-inside-an-area',
+      note: 'the dice are multiplied by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which of those feet were where — so there is no number for the dice to be multiplied by.',
+    },
+    {
+      marker: 'ability-check',
+      clause: 'succeed on a Wisdom (Perception or Survival) check against your spell save DC',
+      why: 'a-check-another-creature-may-attempt',
+      note: 'the check belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on — an effect on a creature is that creature’s, a casting with no victim is anybody’s, and this is neither.',
+    },
+  ],
+  'warding-bond': [
+    {
+      marker: 'armor-class',
+      clause: 'a +1 bonus to AC',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'the bonus is ordinary and the fence around it is not: it holds only "While the target is within 60 feet of you", which is a distance between two creatures that changes on every move and that nothing re-reads a grant against.',
+    },
+    {
+      marker: 'saving-throw',
+      clause: 'bonus to AC and saving throws',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'the same grant reaching the other family of rolls, inside the same sixty feet — one sentence, three benefits, and one absence underneath all of them.',
+    },
+    {
+      marker: 'defence',
+      clause: 'it has Resistance to all damage',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'Resistance to every damage type is a defence `defensesOf` applies readily; what it cannot do is hold it only while the two creatures are close enough, and drop it the moment either of them walks away.',
+    },
+    {
+      marker: 'hit-points',
+      clause: 'The spell ends if you drop to 0 Hit Points',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'dropping to 0 Hit Points is one of the causes that shape names as still missing, and the clause beside it — the two creatures drifting more than sixty feet apart — is another of them in the same sentence.',
+    },
+  ],
   resistance: [
     {
       marker: 'dice',
@@ -1800,7 +1966,6 @@ export type BlockedEntry = ShapeId | BlockedClause;
  *   than a declared placeholder.
  */
 export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
-  aid: ['a-hit-point-maximum-a-spell-moves'],
   'alter-self': [
     'a-choice-made-at-the-casting',
     'a-rider-on-a-later-weapon-attack',
@@ -2115,7 +2280,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'Two different upcast scalings for two different effects, which is what `DiceScaling` being per-effect already buys — nothing here needs a second field.',
     },
   ],
-  'arcanists-magic-aura': ['a-creature-fact-an-effect-overrides'],
   'astral-projection': [
     {
       clause: 'Casting Time: 1 hour',
@@ -2206,7 +2370,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'An attitude is not a fact the engine holds and should never be one it decides. The condition ending is mechanical and is already answered above; what follows it is the table\'s.',
     },
   ],
-  barkskin: ['an-armor-class-a-spell-floors'],
   'bestow-curse': [
     {
       clause: 'must succeed on a Wisdom saving throw or become cursed for the duration',
@@ -2558,7 +2721,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   ],
   creation: ['a-choice-made-at-the-casting', 'a-long-casting-time'],
   darkness: [],
-  'death-ward': ['an-effect-that-intercepts-dropping-to-0'],
   'delayed-blast-fireball': [
     'an-area-trigger-on-the-casters-turn',
     'an-effect-that-fires-when-the-casting-ends',
@@ -2655,10 +2817,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'an-outcome-that-breaks-concentration',
     'difficult-terrain-an-area-creates',
     'forced-movement-a-spell-causes',
-  ],
-  'enhance-ability': [
-    'a-choice-made-at-the-casting',
-    'a-spells-effects-applied-to-different-targets',
   ],
   'ensnaring-strike': [
     'a-check-another-creature-may-attempt',
@@ -2841,18 +2999,12 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'an-effect-that-suppresses-other-magic',
     'forced-movement-a-spell-causes',
   ],
-  foresight: ['a-long-casting-time', 'a-selector-for-every-d20-test'],
   // **The one spell this family still finishes once its paragraphs are read.**
   // Everything Gate prints is the portal, and a portal is the one-scene model's
   // absence rather than a mechanism beside it — so the whole entry files under
   // one shape and nothing else is owed.
   geas: ['a-casting-ended-by-a-trigger', 'a-duration-the-slot-changes', 'a-long-casting-time'],
   'giant-insect': ['a-stat-block-created-mid-fight'],
-  glibness: ['a-roll-result-an-effect-replaces'],
-  'globe-of-invulnerability': [
-    'a-standing-effect-derived-from-where-a-creature-stands',
-    'an-effect-that-suppresses-other-magic',
-  ],
   'glyph-of-warding': [
     'a-casting-that-casts-another-spell',
     'a-choice-made-at-the-casting',
@@ -3237,7 +3389,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-spells-effects-applied-to-different-targets',
     'damage-with-neither-an-attack-roll-nor-a-save',
   ],
-  'magic-weapon': ['a-rider-on-a-later-weapon-attack'],
   'magnificent-mansion': [
     {
       clause: 'Casting Time: 1 minute',
@@ -3265,7 +3416,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'Creatures coming back out when the day runs out, from the place they could not have been in. Placement into the nearest unoccupied spaces is ordinary and never gets to run.',
     },
   ],
-  'major-image': ['a-duration-the-slot-changes'],
   'mass-heal': [
     'a-flat-amount-with-no-dice',
     'a-spells-effects-applied-to-different-targets',
@@ -3302,7 +3452,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The return, and the space it left has to have been remembered for the whole duration while the creature was nowhere. Placement into the nearest unoccupied space is ordinary; coming back from nowhere is not.',
     },
   ],
-  'meld-into-stone': ['a-world-fact-nothing-can-represent'],
   'meteor-swarm': [
     {
       clause: 'four different points you can see within range',
@@ -3342,11 +3491,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // finish it, the build proved the storage was different, and the debt it left
   // was paid by the task the prediction's failure was what briefed.
   'mirage-arcane': ['a-long-casting-time', 'difficult-terrain-an-area-creates'],
-  'mirror-image': [
-    'a-random-outcome-that-is-not-a-d20',
-    'a-spell-that-answers-a-later-attack',
-    'senses-beyond-declared-sight',
-  ],
   // SRD ends the **invisibility** here and not the casting — "The double lasts
   // for the duration, but the invisibility ends immediately after you make an
   // attack roll, deal damage, or cast a spell" — so IE-032's three causes name
@@ -3382,7 +3526,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
   ],
   'modify-memory': ['a-casting-ended-by-a-trigger'],
-  'pass-without-trace': ['a-standing-effect-derived-from-where-a-creature-stands'],
   // **The payout entry was mis-filed, and the printed sentence is what says
   // so.** "**On each of your turns**, such a phantasm can deal 2d8 Psychic
   // damage to the target if it is in the phantasm's area or within 5 feet of
@@ -3624,7 +3767,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'An object being destroyed is a fact no consequence event holds — the two scopes IE-032 built are the target acting and the caster or an ally striking, and the engine has no objects for either to reach. The recast half of the same sentence is `replacesPriorCasting` and needs nothing.',
     },
   ],
-  seeming: ['a-spells-effects-applied-to-different-targets'],
   sending: [
     {
       clause: 'a creature you have met or a creature described to you by someone who has met it',
@@ -3648,7 +3790,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     },
   ],
   sequester: ['a-casting-ended-by-a-trigger', 'an-effect-that-suppresses-other-magic'],
-  shapechange: ['a-target-rule-the-format-cannot-state'],
   'shining-smite': [
     'a-condition-benefit-an-effect-takes-away',
     'a-spells-effects-applied-to-different-targets',
@@ -3721,7 +3862,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'Dropping to 0 Hit Points is named in that shape\'s own description as a cause `CastingEndTrigger` has no member for. Here it is the spell\'s own creation whose vitals run out, and the casting — an "Until dispelled" one — is what ends.',
     },
   ],
-  'sleet-storm': ['an-outcome-that-breaks-concentration', 'difficult-terrain-an-area-creates'],
   slow: [
     {
       clause: 'up to six creatures of your choice in a 40-foot Cube within range',
@@ -3767,11 +3907,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   'spare-the-dying': [
     'a-range-that-scales-with-caster-level',
     'an-effect-that-stabilises-a-dying-creature',
-  ],
-  'speak-with-plants': ['difficult-terrain-an-area-creates'],
-  'spike-growth': [
-    'a-distance-a-creature-travels-inside-an-area',
-    'difficult-terrain-an-area-creates',
   ],
   'storm-of-vengeance': [
     'an-activation-that-resolves-an-area',
@@ -4220,11 +4355,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       why: 'expressible',
       note: '`DiceScaling` is per-effect, so two effects scaling together by slot is two ordinary tables rather than a shared one.',
     },
-  ],
-  'warding-bond': [
-    'a-casting-ended-by-a-trigger',
-    'a-spell-that-answers-a-later-attack',
-    'a-standing-effect-derived-from-where-a-creature-stands',
   ],
   'wind-walk': [
     {

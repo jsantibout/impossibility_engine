@@ -7814,16 +7814,717 @@ export const SLEEP: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Aid:
+ *
+ * > _Level 2 Abjuration (Bard, Cleric, Druid, Paladin, Ranger)._
+ * > **Casting Time:** Action. **Range:** 30 feet. **Duration:** 8 hours.
+ * > "Choose up to three creatures within range. Each target's Hit Point
+ * > maximum and current Hit Points increase by 5 for the duration."
+ * > _Using a Higher-Level Spell Slot._ "Each target's Hit Points increase by
+ * > 5 for each spell slot level above 2."
+ *
+ * Twenty-two words, and both of them are the **maximum**. Healing raises
+ * current hit points and stops at the maximum; this raises the maximum and
+ * carries the current total up with it, and puts it back eight hours later.
+ * Nothing in `vitals.ts` moves a maximum for a duration, which is the one
+ * absence between this spell and a definition that does it all.
+ */
+export const AID: SpellDefinition = {
+  id: 'aid',
+  name: 'Aid',
+  level: 2,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 3 },
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'nobody is bolstered: "Each target’s Hit Point maximum and current Hit Points increase by 5 for the duration" moves a Hit Point maximum for a span and then moves it back, and nothing does that — healing raises the current total and stops at the maximum',
+    'the slot scaling is the same sentence again with a bigger number, and lands nowhere for the same reason',
+  ],
+};
+
+/**
+ * SRD Arcanist's Magic Aura:
+ *
+ * > _Level 2 Illusion (Wizard)._ **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** 24 hours.
+ * > "With a touch, you place an illusion on a willing creature or an object
+ * > that isn't being worn or carried. … _Mask (Creature)._ Choose a creature
+ * > type other than the target's actual type. Spells and other magical
+ * > effects treat the target as if it were a creature of the chosen type."
+ *
+ * **The only spell in the book that lies to another spell.** A creature type
+ * is a fact the engine holds authoritatively — `mustBeType` reads it, and SRD
+ * policy records the Goblin Warrior being Fey as the reason it has to — and
+ * this hangs a second answer over the top of it for a day. Not one sentence
+ * of the paragraph trips a marker, which is the floor working as a floor:
+ * what makes this a blocker is reading it.
+ */
+export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
+  id: 'arcanists-magic-aura',
+  name: "Arcanist's Magic Aura",
+  level: 2,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'the Mask is not applied: "Spells and other magical effects treat the target as if it were a creature of the chosen type" overrides a creature fact the engine holds and every target rule reads, and nothing writes over one for a duration',
+    'the False Aura is the DM’s: objects are not modelled, and what an aura looks like to a Detect Magic that itself resolves nothing is narration twice over',
+    'the thirty consecutive castings that make the illusion permanent are the DM’s; the engine holds no such history',
+  ],
+};
+
+/**
+ * SRD Barkskin:
+ *
+ * > _Level 2 Transmutation (Druid, Ranger)._ **Casting Time:** Bonus Action.
+ * > **Range:** Touch. **Duration:** 1 hour.
+ * > "You touch a willing creature. Until the spell ends, the target's skin
+ * > assumes a bark-like appearance, and the target has an Armor Class of 17
+ * > if its AC is lower than that."
+ *
+ * **A floor, not a replacement and not a bonus**, and the difference is the
+ * whole spell. Mage Armor supplies a *calculation* — 13 plus Dexterity — and
+ * the engine picks the best calculation a creature has. This supplies a
+ * finished number and only when it beats whatever the creature already has,
+ * which is neither an `armor-class` effect nor a bonus.
+ */
+export const BARKSKIN: SpellDefinition = {
+  id: 'barkskin',
+  name: 'Barkskin',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the Armour Class is not floored: "the target has an Armor Class of 17 if its AC is lower than that" is a minimum applied to whatever the creature already has, and the `armor-class` effect supplies a base calculation instead — 17 written as one would beat a plate-armoured Paladin’s 18 down, or be ignored, depending on which way the comparison ran',
+    'whether the creature touched is willing is not modelled; willingness is fiction',
+    'the bark-like appearance is narration',
+  ],
+};
+
+/**
+ * SRD Enhance Ability:
+ *
+ * > _Level 2 Transmutation (Bard, Cleric, Druid, Ranger, Sorcerer, Wizard)._
+ * > **Casting Time:** Action. **Range:** Touch.
+ * > **Duration:** Concentration, up to 1 hour.
+ * > "You touch a creature and choose Strength, Dexterity, Intelligence,
+ * > Wisdom, or Charisma. For the duration, the target has Advantage on
+ * > ability checks using the chosen ability."
+ * > _Using a Higher-Level Spell Slot._ "You can target one additional
+ * > creature for each spell slot level above 2. You can choose a different
+ * > ability for each target."
+ *
+ * **The Advantage is ordinary and the choice is not.** A `RollModifier` names
+ * Advantage on ability checks of a stated ability perfectly well — Contagion's
+ * adjudication says so in the other direction — and a casting has nowhere to
+ * record which of the five was picked. The upcast makes it worse rather than
+ * better: one choice *per target*, which is a spell's effects differing across
+ * the creatures one casting caught.
+ */
+export const ENHANCE_ABILITY: SpellDefinition = {
+  id: 'enhance-ability',
+  name: 'Enhance Ability',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the Advantage is not granted: the modifier itself is ordinary and the ability it applies to is chosen when the slot is spent, which a casting has nowhere to record',
+    '"You can choose a different ability for each target" is worse than one choice: it is a casting whose effects differ from target to target, and a casting applies its effects to all of them alike',
+  ],
+};
+
+/**
+ * SRD Magic Weapon:
+ *
+ * > _Level 2 Transmutation (Paladin, Ranger, Sorcerer, Wizard)._
+ * > **Casting Time:** Bonus Action. **Range:** Touch. **Duration:** 1 hour.
+ * > "You touch a nonmagical weapon. Until the spell ends, that weapon becomes
+ * > a magic weapon with a +1 bonus to attack rolls and damage rolls. The
+ * > spell ends early if you cast it again."
+ * > _Using a Higher-Level Spell Slot._ "The bonus increases to +2 with a
+ * > level 3–5 spell slot. The bonus increases to +3 with a level 6+ spell
+ * > slot."
+ *
+ * The bonus is arithmetic the engine does on every attack a magic weapon
+ * makes; what it cannot do is put the bonus on **this** weapon for an hour.
+ * A weapon is an item a creature owns and wields, not a thing a casting can
+ * write a property onto — which is the same absence Shillelagh has, one
+ * level up and with a plus instead of a die.
+ */
+export const MAGIC_WEAPON: SpellDefinition = {
+  id: 'magic-weapon',
+  name: 'Magic Weapon',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  // "The spell ends early if you cast it again."
+  replacesPriorCasting: true,
+  unmodelled: [
+    'the weapon is not enchanted: "that weapon becomes a magic weapon with a +1 bonus to attack rolls and damage rolls" is a rider on every later attack made with one particular weapon, and a casting hangs none — nor is which weapon was touched a fact the engine keeps',
+    'the bonus growing to +2 at a level 3–5 slot and +3 at level 6+ is a band table over a rider that is not applied',
+  ],
+};
+
+/**
+ * SRD Mirror Image:
+ *
+ * > _Level 2 Illusion (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Self. **Duration:** 1 minute.
+ * > "Three illusory duplicates of yourself appear in your space. … Each time
+ * > a creature hits you with an attack roll during the spell's duration, roll
+ * > a d6 for each of your remaining duplicates. If any of the d6s rolls a 3
+ * > or higher, one of the duplicates is hit instead of you, and the duplicate
+ * > is destroyed. … The spell ends when all three duplicates are destroyed. A
+ * > creature is unaffected by this spell if it has the Blinded condition,
+ * > Blindsight, or Truesight."
+ *
+ * Three different absences in one paragraph, and they stack: the spell has to
+ * be **offered somebody else's attack** after it has hit, it then throws a
+ * handful of d6s that are not a D20 Test, and whether it applies at all is
+ * decided by what the attacker can see. Sanctuary and Shield wait on the
+ * first of those; this one waits on all three.
+ */
+export const MIRROR_IMAGE: SpellDefinition = {
+  id: 'mirror-image',
+  name: 'Mirror Image',
+  level: 2,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the duplicates are not in the world: three of them appearing in the caster’s space, moving with them and being destroyed one at a time are the DM’s',
+    'the deflection is not offered: "Each time a creature hits you with an attack roll during the spell’s duration, roll a d6 for each of your remaining duplicates" answers somebody else’s attack after it has landed, and a casting is offered no such window',
+    'so the d6s are not thrown either — a handful of dice that is not a D20 Test has nothing to ask the generator for — and "The spell ends when all three duplicates are destroyed" counts something that never happens',
+    'the exception is not applied: an attacker with the Blinded condition, Blindsight or Truesight is unaffected, and what an attacker can perceive is a pairwise declaration rather than a sense the engine reads',
+  ],
+};
+
+/**
+ * SRD Pass without Trace:
+ *
+ * > _Level 2 Abjuration (Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 hour.
+ * > "You radiate a concealing aura in a 30-foot Emanation for the duration.
+ * > While in the aura, you and each creature you choose have a +10 bonus to
+ * > Dexterity (Stealth) checks and leave no tracks."
+ *
+ * The bonus is a `Bonus` the engine applies all day and the **while** is the
+ * problem: it holds for as long as a creature is inside a 30-foot Emanation
+ * that moves with the caster, and lapses the moment it steps out. Nothing
+ * derives a modifier from where a creature is standing, which is the same
+ * absence Spirit Guardians' halved Speed has.
+ */
+export const PASS_WITHOUT_TRACE: SpellDefinition = {
+  id: 'pass-without-trace',
+  name: 'Pass without Trace',
+  level: 2,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the bonus is not granted: "While in the aura, you and each creature you choose have a +10 bonus to Dexterity (Stealth) checks" holds only while a creature stands inside a 30-foot Emanation that travels with the caster, and no effect derives a modifier from where somebody is standing',
+    'leaving no tracks is the DM’s',
+  ],
+};
+
+/**
+ * SRD Spike Growth:
+ *
+ * > _Level 2 Transmutation (Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** 150 feet. **Duration:** Concentration, up to 10 minutes.
+ * > "The ground in a 20-foot-radius Sphere centered on a point within range
+ * > sprouts hard spikes and thorns. The area becomes Difficult Terrain for
+ * > the duration. When a creature moves into or within the area, it takes
+ * > 2d4 Piercing damage for every 5 feet it travels. … Any creature that
+ * > can't see the area when the spell is cast must take a Search action and
+ * > succeed on a Wisdom (Perception or Survival) check against your spell
+ * > save DC to recognize the terrain as hazardous before entering it."
+ *
+ * **The damage is per five feet travelled**, which is the sentence that makes
+ * this more than another Difficult Terrain spell: the engine charges movement
+ * by the foot and never asks how far inside an area those feet were spent, so
+ * there is no number for the dice to be multiplied by.
+ */
+export const SPIKE_GROWTH: SpellDefinition = {
+  id: 'spike-growth',
+  name: 'Spike Growth',
+  level: 2,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the ground is not changed: "The area becomes Difficult Terrain for the duration" is terrain an area creates, and Difficult Terrain is declared by the foot on the move that crosses it rather than held by the ground',
+    'the spikes deal nothing: "it takes 2d4 Piercing damage for every 5 feet it travels" multiplies the dice by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which feet were where',
+    'the Wisdom (Perception or Survival) check that spots the hazard is not offered: it belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on',
+  ],
+};
+
+/**
+ * SRD Warding Bond:
+ *
+ * > _Level 2 Abjuration (Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** 1 hour.
+ * > "You touch another creature that is willing and create a mystic
+ * > connection between you and the target until the spell ends. While the
+ * > target is within 60 feet of you, it gains a +1 bonus to AC and saving
+ * > throws, and it has Resistance to all damage. Also, each time it takes
+ * > damage, you take the same amount of damage. The spell ends if you drop
+ * > to 0 Hit Points or if you and the target become separated by more than
+ * > 60 feet."
+ *
+ * Every benefit the spell grants is one the engine applies on its own — a
+ * bonus to Armour Class, a bonus to saves, Resistance to all damage — and
+ * every one of them is fenced by **"while the target is within 60 feet of
+ * you"**. A distance between two creatures changes on every move and nothing
+ * re-reads a grant when it does, which is the same absence that makes the
+ * spell's own ending unwritable.
+ */
+export const WARDING_BOND: SpellDefinition = {
+  id: 'warding-bond',
+  name: 'Warding Bond',
+  level: 2,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  // "another creature", so not the caster: the whole spell is a bond between
+  // two of them.
+  targets: { count: 1 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'none of the three benefits is granted: the +1 to AC, the +1 to saving throws and the Resistance to all damage are each ordinary, and all three hold only "While the target is within 60 feet of you" — a standing effect derived from where two creatures are standing, which nothing re-reads when either of them moves',
+    'the shared damage is not dealt: "each time it takes damage, you take the same amount of damage" is a consequence of somebody else’s damage landing, and no effect answers one',
+    'the two endings are not written: dropping to 0 Hit Points and drifting more than 60 feet apart are causes no `CastingEndTrigger` expresses, and neither is the recast on either of the connected creatures',
+    'whether the creature touched is willing is not modelled; willingness is fiction',
+  ],
+};
+
+/**
+ * SRD Major Image:
+ *
+ * > _Level 3 Illusion (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** 120 feet.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "You create the image of an object, a creature, or some other visible
+ * > phenomenon that is no larger than a 20-foot Cube. … A creature that takes
+ * > a Study action to examine the image can determine that it is an illusion
+ * > with a successful Intelligence (Investigation) check against your spell
+ * > save DC."
+ * > _Using a Higher-Level Spell Slot._ "The spell lasts until dispelled,
+ * > without requiring Concentration, if cast with a level 4+ spell slot."
+ *
+ * Silent Image two levels up, with the same one sentence of arithmetic — and
+ * one sentence the format deliberately refuses. `durationAtSlot` names this
+ * spell in its own docstring as the thing it does **not** express: a slot
+ * that changes how long a spell lasts is a band table, and a slot that
+ * changes *what kind of duration it has* is a different sentence.
+ */
+export const MAJOR_IMAGE: SpellDefinition = {
+  id: 'major-image',
+  name: 'Major Image',
+  level: 3,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
+  unmodelled: [
+    'what the image is, the 20-foot Cube it fits in, and the sounds, smells and temperature it seems to have are the DM’s',
+    'the Magic action that moves the image, and altering its appearance as it goes, need an ongoing effect a later turn can act through',
+    'a level 4+ slot is not honoured: "The spell lasts until dispelled, without requiring Concentration" changes what kind of duration the spell has rather than how long it runs, which is the one sentence the slot-banded duration table declines to express',
+    'seeing through the image is narration; the engine records the roll and nothing else changes',
+  ],
+};
+
+/**
+ * SRD Meld into Stone:
+ *
+ * > _Level 3 Transmutation (Cleric, Druid, Ranger) (Ritual)._
+ * > **Casting Time:** Action or Ritual. **Range:** Touch.
+ * > **Duration:** 8 hours.
+ * > "You step into a stone object or surface large enough to fully contain
+ * > your body, merging yourself and your equipment with the stone for the
+ * > duration. … You can use 5 feet of movement to leave the stone where you
+ * > entered it, which ends the spell. You otherwise can't move. … its partial
+ * > destruction or a change in its shape … expels you and deals 6d6 Force
+ * > damage to you. … If expelled, you move into an unoccupied space closest
+ * > to where you first entered and have the Prone condition."
+ *
+ * **Every clause hangs on being inside the stone**, and there is no stone —
+ * which is the same place Tree Stride's five feet of movement hang from, and
+ * why both are filed under a world fact nothing can represent. The dice, the
+ * Prone and the shunt to the nearest unoccupied space are all ordinary; what
+ * is missing is the state they are consequences of.
+ */
+export const MELD_INTO_STONE: SpellDefinition = {
+  id: 'meld-into-stone',
+  name: 'Meld into Stone',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  ritual: true,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'nobody is merged with anything: being inside a stone object is a state the world model has no room for, and every other sentence of this spell is a consequence of it',
+    'so the 5 feet of movement spent stepping out are not charged, and neither is "You otherwise can’t move"',
+    'the Disadvantage on a Wisdom (Perception) check to hear through the stone is not applied, because there is nothing to hear through',
+    'the expulsions are not performed: 6d6 Force damage for the stone’s partial destruction, 50 Force damage for its complete destruction, the move to the nearest unoccupied space and the Prone condition on arrival all follow from being expelled from somewhere',
+  ],
+};
+
+/**
+ * SRD Sleet Storm:
+ *
+ * > _Level 3 Conjuration (Druid, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 150 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Until the spell ends, sleet falls in a 40-foot-tall, 20-foot-radius
+ * > Cylinder centered on a point you choose within range. The area is Heavily
+ * > Obscured, and exposed flames in the area are doused. Ground in the
+ * > Cylinder is Difficult Terrain. When a creature enters the Cylinder for
+ * > the first time on a turn or starts its turn there, it must succeed on a
+ * > Dexterity saving throw or have the Prone condition and lose
+ * > Concentration."
+ *
+ * **One sentence short of Web.** The Cylinder is a shape the engine has, the
+ * two trigger moments are `AreaTrigger`'s two by name, and the Prone is an
+ * ordinary condition — so all but one clause of the save is expressible. The
+ * clause that is not is "and lose Concentration": breaking somebody's
+ * Concentration is something the engine does readily and nothing lets an
+ * *outcome* ask for it, so writing the save would drop half of what a failure
+ * costs.
+ */
+export const SLEET_STORM: SpellDefinition = {
+  id: 'sleet-storm',
+  name: 'Sleet Storm',
+  level: 3,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 150 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the save is not raised, because half of what a failure costs cannot be written: "have the Prone condition and lose Concentration" pairs an ordinary condition with a broken Concentration, and no outcome of a saving throw asks for one',
+    'the Cylinder is not a template and the ground in it is not changed: Difficult Terrain is declared by the foot on the move that crosses it, and no area declares any',
+    'the Heavily Obscured area and the exposed flames it douses are the DM’s; the engine has no lighting and no obscurement',
+  ],
+};
+
+/**
+ * SRD Speak with Plants:
+ *
+ * > _Level 3 Transmutation (Bard, Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** 10 minutes.
+ * > "You imbue plants in an immobile 30-foot Emanation with limited sentience
+ * > and animation … You can also turn Difficult Terrain caused by plant
+ * > growth (such as thickets and undergrowth) into ordinary terrain that
+ * > lasts for the duration. Or you can turn ordinary terrain where plants are
+ * > present into Difficult Terrain that lasts for the duration."
+ *
+ * A conversation with a hedge, and one mechanical sentence in the middle of
+ * it that goes **both ways**: this is the only spell in the book that can
+ * take Difficult Terrain away as well as make it. Neither direction has
+ * anywhere to be written, because the ground holds no such property.
+ */
+export const SPEAK_WITH_PLANTS: SpellDefinition = {
+  id: 'speak-with-plants',
+  name: 'Speak with Plants',
+  level: 3,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the terrain is not changed in either direction: turning plant-grown Difficult Terrain into ordinary ground, and ordinary ground into Difficult Terrain, are both terrain an area creates, and Difficult Terrain is the caller’s statement on the move that crosses it rather than a property the ground holds',
+    'the conversation is the DM’s: questioning plants about the past day, giving them simple commands, and talking to a Plant creature as if you shared a language are all narration',
+  ],
+};
+
+/**
+ * SRD Death Ward:
+ *
+ * > _Level 4 Abjuration (Cleric, Paladin)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** 8 hours.
+ * > "You touch a creature and grant it a measure of protection from death.
+ * > The first time the target would drop to 0 Hit Points before the spell
+ * > ends, the target instead drops to 1 Hit Point, and the spell ends. If the
+ * > spell is still in effect when the target is subjected to an effect that
+ * > would kill it instantly without dealing damage, that effect is negated
+ * > against the target, and the spell ends."
+ *
+ * **Dropping to 0 is an engine-owned batch**, and that is exactly the trouble:
+ * the transition from damage to unconsciousness happens inside the operation
+ * that applies the damage, and there is no seam in it for a spell to say
+ * "stop at 1 instead". The hit point itself is nothing; the interception is
+ * the whole spell.
+ */
+export const DEATH_WARD: SpellDefinition = {
+  id: 'death-ward',
+  name: 'Death Ward',
+  level: 4,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 28_800,
+  unmodelled: [
+    'the ward does not catch anybody: "The first time the target would drop to 0 Hit Points before the spell ends, the target instead drops to 1 Hit Point" intercepts a transition the damage operation performs on its own, and nothing hangs on that moment',
+    'nor is the second half applied: an effect that would kill the target outright without dealing damage is negated, which is the same interception on a different door',
+    'so the spell does not end on either of them, because neither happens',
+  ],
+};
+
+/**
+ * SRD Seeming:
+ *
+ * > _Level 5 Illusion (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 30 feet. **Duration:** 8 hours.
+ * > "You give an illusory appearance to each creature of your choice that you
+ * > can see within range. An unwilling target can make a Charisma saving
+ * > throw, and if it succeeds, it is unaffected by this spell. … A creature
+ * > that takes the Study action to examine a target can make an Intelligence
+ * > (Investigation) check against your spell save DC."
+ *
+ * Disguise Self over a crowd, and it inherits Disguise Self's answer: what
+ * anybody looks like is fiction, and the Investigation check against the
+ * spell save DC is arithmetic and is rolled. The eight hours give the casting
+ * a timer for the check to hang on, which a Concentration-free illusion does
+ * not always have.
+ */
+export const SEEMING: SpellDefinition = {
+  id: 'seeming',
+  name: 'Seeming',
+  level: 5,
+  school: 'illusion',
+  castingTime: 'action',
+  // "each creature of your choice that you can see within range": the SRD
+  // states no count, so range and sight are the whole of the bound.
+  targets: { count: 0, unlimited: true },
+  requiresSight: true,
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  effects: [],
+  durationSeconds: 28_800,
+  check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
+  unmodelled: [
+    'the Charisma saving throw an unwilling target may make is not rolled, because what it would refuse is an appearance: nothing mechanical follows from being disguised, so the save decides nothing the engine holds',
+    'the appearances are the DM’s, and so is the sentence that lets each target have a different one — a casting applies its effects to all of its targets alike',
+    'the foot of height, the changed equipment and the hat things pass through are narration; the engine records the Investigation roll and nothing else changes',
+  ],
+};
+
+/**
+ * SRD Globe of Invulnerability:
+ *
+ * > _Level 6 Abjuration (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 minute.
+ * > "An immobile, shimmering barrier appears in a 10-foot Emanation around
+ * > you and remains for the duration. Any spell of level 5 or lower cast from
+ * > outside the barrier can't affect anything within it. Such a spell can
+ * > target creatures and objects within the barrier, but the spell has no
+ * > effect on them. Similarly, the area within the barrier is excluded from
+ * > areas of effect created by such spells."
+ * > _Using a Higher-Level Spell Slot._ "The barrier blocks spells of 1 level
+ * > higher for each spell slot level above 6."
+ *
+ * The whole spell is **other people's spells failing**, and there is no state
+ * in which a casting is being refused by a place. Dispel Magic built the half
+ * of that shape which *ends* a casting; this is the half that stops one
+ * landing, and it needs a second fact besides — where the caster of the other
+ * spell was standing when they cast it.
+ */
+export const GLOBE_OF_INVULNERABILITY: SpellDefinition = {
+  id: 'globe-of-invulnerability',
+  name: 'Globe of Invulnerability',
+  level: 6,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'nothing is blocked: "Any spell of level 5 or lower cast from outside the barrier can’t affect anything within it" is an area refusing other magic, and there is no state in which a casting is being refused by a place',
+    'the threshold is not read either — a level higher for each slot level above 6 — and neither is the fact it is compared against, which is where the other caster was standing',
+    'the exclusion of the globe’s interior from another spell’s area is the same absence read from the area’s side',
+    'the barrier itself is not in the world: a 10-foot Emanation around the caster that nothing consults',
+  ],
+};
+
+/**
+ * SRD Glibness:
+ *
+ * > _Level 8 Enchantment (Bard, Warlock)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** 1 hour.
+ * > "Until the spell ends, when you make a Charisma check, you can replace
+ * > the number you roll with a 15. Additionally, no matter what you say,
+ * > magic that would determine if you are telling the truth indicates that
+ * > you are being truthful."
+ *
+ * **A replacement, not a bonus and not a mode.** The die is rolled and then
+ * the number it showed is thrown away in favour of 15 — at the caster's
+ * option, after seeing it. `interveneAfterRoll` reaches a roll that has
+ * happened and adds to it; nothing substitutes the result, which is what
+ * separates this from every modifier in `roll-modifiers.ts`.
+ */
+export const GLIBNESS: SpellDefinition = {
+  id: 'glibness',
+  name: 'Glibness',
+  level: 8,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'the number is not replaced: "when you make a Charisma check, you can replace the number you roll with a 15" substitutes a roll result rather than adding to one, and every modifier the engine has adds, subtracts or changes how many dice are thrown',
+    'magic that reads the truth is told a lie: with no spell in the catalogue determining whether somebody is telling the truth, there is nothing for this sentence to answer, and it is the DM’s',
+  ],
+};
+
+/**
+ * SRD Foresight:
+ *
+ * > _Level 9 Divination (Bard, Druid, Warlock, Wizard)._
+ * > **Casting Time:** 1 minute. **Range:** Touch. **Duration:** 8 hours.
+ * > "You touch a willing creature and bestow a limited ability to see into
+ * > the immediate future. For the duration, the target has Advantage on D20
+ * > Tests, and other creatures have Disadvantage on attack rolls against it.
+ * > The spell ends early if you cast it again."
+ *
+ * **"D20 Tests" as a family is deliberately absent from `RollModifier`**, and
+ * three SRD spells write the phrase — this one, Resurrection's toll on the
+ * caster, and Raise Dead's penalty on the target. The half that names attack
+ * rolls against the target is the other side of the same gap: a mode the
+ * *attacker* rolls with, granted by a spell on the defender.
+ */
+export const FORESIGHT: SpellDefinition = {
+  id: 'foresight',
+  name: 'Foresight',
+  level: 9,
+  school: 'divination',
+  // "Casting Time: 1 minute."
+  castingTime: 'long',
+  castingSeconds: 60,
+  concentration: false,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 28_800,
+  // "The spell ends early if you cast it again."
+  replacesPriorCasting: true,
+  unmodelled: [
+    'the Advantage is not granted: "the target has Advantage on D20 Tests" needs a selector for D20 Tests as a family, which `RollModifier` deliberately does not carry',
+    'nor is the Disadvantage: "other creatures have Disadvantage on attack rolls against it" is a mode the attacker rolls with, granted by a spell cast on the defender, and a modifier is hung on the creature that rolls',
+    'whether the creature touched is willing is not modelled; willingness is fiction',
+  ],
+};
+
+/**
+ * SRD Shapechange:
+ *
+ * > _Level 9 Transmutation (Druid, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** Concentration, up to 1 hour.
+ * > "You shape-shift into another creature for the duration or until you take
+ * > a Magic action to shape-shift into a different eligible form. … When you
+ * > cast the spell, you gain a number of Temporary Hit Points equal to the
+ * > Hit Points of the first form into which you shape-shift. … Your game
+ * > statistics are replaced by the stat block of the chosen form, but you
+ * > retain your creature type; alignment; personality; Intelligence, Wisdom,
+ * > and Charisma scores; Hit Points; Hit Point Dice; proficiencies; and
+ * > ability to communicate."
+ *
+ * Polymorph pointed at the caster and unbounded by Beast, and the same
+ * absence four levels up: every number comes off a **second creature's**
+ * sheet, the engine holds one sheet per creature, and the form is selected by
+ * a Challenge Rating no target rule can ask for.
+ */
+export const SHAPECHANGE: SpellDefinition = {
+  id: 'shapechange',
+  name: 'Shapechange',
+  level: 9,
+  school: 'transmutation',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 3600,
+  unmodelled: [
+    'nobody shape-shifts: "Your game statistics are replaced by the stat block of the chosen form" writes over a creature’s sheet for a duration, and a sheet is a fact the engine holds authoritatively with nothing that overrides one',
+    'which form was chosen is the DM’s, and so is the bound on it: "a creature that has a Challenge Rating no higher than your level or Challenge Rating", having seen the sort of creature before, and it being neither a Construct nor an Undead',
+    'the Temporary Hit Points are not granted, because the amount is the Hit Points of a form nothing can look up, and they cannot vanish at the end of a spell that never granted them',
+    'the Magic action that changes form again on a later turn needs an ongoing effect a turn can act through',
+    'what happens to the caster’s equipment is the DM’s',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
+  AID,
   ALARM,
   ANIMAL_FRIENDSHIP,
   ANIMAL_MESSENGER,
   ARCANE_LOCK,
   ARCANE_SWORD,
+  ARCANISTS_MAGIC_AURA,
   BANE,
   BANISHMENT,
+  BARKSKIN,
   BEACON_OF_HOPE,
   BEFUDDLEMENT,
   BLACK_TENTACLES,
@@ -7856,6 +8557,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DANCING_LIGHTS,
   DARKVISION,
   DAYLIGHT,
+  DEATH_WARD,
   DEMIPLANE,
   DETECT_EVIL_AND_GOOD,
   DETECT_MAGIC,
@@ -7874,6 +8576,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   DRUIDCRAFT,
   ELDRITCH_BLAST,
   ELEMENTALISM,
+  ENHANCE_ABILITY,
   ENLARGE_REDUCE,
   ETHEREALNESS,
   EXPEDITIOUS_RETREAT,
@@ -7891,11 +8594,14 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   FLOATING_DISK,
   FLY,
   FOG_CLOUD,
+  FORESIGHT,
   FREEDOM_OF_MOVEMENT,
   FREEZING_SPHERE,
   GASEOUS_FORM,
   GATE,
   GENTLE_REPOSE,
+  GLIBNESS,
+  GLOBE_OF_INVULNERABILITY,
   GOODBERRY,
   GREASE,
   GREATER_INVISIBILITY,
@@ -7937,18 +8643,23 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   MAGE_ARMOR,
   MAGE_HAND,
   MAGIC_MOUTH,
+  MAGIC_WEAPON,
+  MAJOR_IMAGE,
   MASS_CURE_WOUNDS,
   MASS_HEALING_WORD,
   MASS_SUGGESTION,
+  MELD_INTO_STONE,
   MENDING,
   MESSAGE,
   MIND_BLANK,
   MIND_SPIKE,
   MINOR_ILLUSION,
+  MIRROR_IMAGE,
   MISTY_STEP,
   MOONBEAM,
   MOVE_EARTH,
   NONDETECTION,
+  PASS_WITHOUT_TRACE,
   PASSWALL,
   PHANTASMAL_KILLER,
   PLANE_SHIFT,
@@ -7973,6 +8684,8 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SCRYING,
   SEARING_SMITE,
   SEE_INVISIBILITY,
+  SEEMING,
+  SHAPECHANGE,
   SHATTER,
   SHIELD,
   SHIELD_OF_FAITH,
@@ -7980,10 +8693,13 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SHOCKING_GRASP,
   SILENT_IMAGE,
   SLEEP,
+  SLEET_STORM,
   SORCEROUS_BURST,
   SPEAK_WITH_ANIMALS,
   SPEAK_WITH_DEAD,
+  SPEAK_WITH_PLANTS,
   SPIDER_CLIMB,
+  SPIKE_GROWTH,
   SPIRIT_GUARDIANS,
   SPIRITUAL_WEAPON,
   STARRY_WISP,
@@ -8008,6 +8724,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   VITRIOLIC_SPHERE,
   WALL_OF_FIRE,
   WALL_OF_FORCE,
+  WARDING_BOND,
   WATER_BREATHING,
   WATER_WALK,
   WEB,

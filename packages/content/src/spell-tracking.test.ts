@@ -160,7 +160,13 @@ const cast = (
   const wanted = definition.targets.mustBeType;
   const at = wanted === undefined ? ALLY : TYPED[wanted];
   if (at === undefined) throw new Error(`${spellId} wants a ${wanted} and this table has none`);
-  const targets = definition.targets.count === 0 ? [] : [at];
+  // A spell that aims at nobody gets nobody, and `unlimited` is the third
+  // state: the SRD states no count, so the list is not empty — it is
+  // bounded by range and sight instead. The same predicate
+  // `spell-catalogue.test.ts` casts the executed bucket with.
+  const aimsAtNobody =
+    definition.targets.count === 0 && definition.targets.unlimited !== true;
+  const targets = aimsAtNobody ? [] : [at];
   return resolveSpell(
     fold('seed', log),
     WIZARD,
@@ -763,28 +769,47 @@ describe('a tracked spell’s target rule is the SRD’s, not a placeholder', ()
  * further is that spell's own test.
  */
 const ADDED: readonly string[] = [
+  'aid',
   'animal-messenger',
+  'arcanists-magic-aura',
+  'barkskin',
   'command',
   'create-or-destroy-water',
   'dancing-lights',
   'daylight',
+  'death-ward',
   'druidcraft',
   'elementalism',
+  'enhance-ability',
   'expeditious-retreat',
   'faerie-fire',
   'fog-cloud',
+  'foresight',
   'freedom-of-movement',
+  'glibness',
+  'globe-of-invulnerability',
   'goodberry',
   'gust-of-wind',
   'ice-knife',
+  'magic-weapon',
+  'major-image',
+  'meld-into-stone',
+  'mirror-image',
+  'pass-without-trace',
   'polymorph',
   'purify-food-and-drink',
   'resistance',
   'sanctuary',
+  'seeming',
+  'shapechange',
   'shillelagh',
   'sleep',
+  'sleet-storm',
+  'speak-with-plants',
+  'spike-growth',
   'true-strike',
   'wall-of-fire',
+  'warding-bond',
   'zone-of-truth',
 ];
 
