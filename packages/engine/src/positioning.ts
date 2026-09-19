@@ -1575,11 +1575,19 @@ export function costOfRoute(state: GameState, spaces: readonly Point[]): RouteCh
  * exactly the amount Chebyshev distance is not Manhattan.** A move of 5 feet
  * across and 15 feet along is three steps, and one of them may be spent
  * sideways and taken back: (100, 100) to (105, 115) can go by way of
- * (110, 110), which the box misses altogether. The slack on each axis is
- * half of what the longest axis has to spare over that one — `(D - dᵢ) / 2`,
- * rounded down to a whole space — and the region below is the box widened by
- * it and clipped to the scene. That is exact in both directions: every space
- * inside it is on some shortest route, and no space outside it is.
+ * (110, 110), which the box misses altogether.
+ *
+ * The region is therefore the spaces `p` with `cheb(from, p) + cheb(p, to)`
+ * equal to the distance itself — a walk of single spaces reaching `p` and
+ * then the destination is exactly that long, so it is a shortest route if and
+ * only if the two halves add up. That is the same set `checkRoute` will
+ * accept, which is the property that matters: the engine never charges
+ * without asking about ground a route it would accept could have crossed.
+ *
+ * The per-axis slack `(D - dᵢ) / 2`, rounded down to a whole space, is the
+ * enclosing box the scan walks — necessary but not sufficient on its own,
+ * because the two halves can reach their maxima on different axes, which is
+ * why the test above is applied inside it rather than instead of it.
  *
  * The starting space is excluded, because it is the one space a move does not
  * enter.
@@ -1613,7 +1621,12 @@ export function uniformTerrainBetween(
     for (const y of span(start.y, end.y, scene.extent.depth)) {
       for (const z of span(start.z, end.z, scene.extent.height)) {
         if (x === start.x && y === start.y && z === start.z) continue;
-        const here = chargeAt(scene, live, { x, y, z });
+        const space = { x, y, z };
+        // The box is the enclosure; this is the region. See above.
+        if (distanceBetweenPoints(start, space) + distanceBetweenPoints(space, end) > reach) {
+          continue;
+        }
+        const here = chargeAt(scene, live, space);
         if (agreed === null) agreed = here;
         else if (agreed.costPerFoot !== here.costPerFoot) return null;
         for (const name of here.patches) patches.add(name);

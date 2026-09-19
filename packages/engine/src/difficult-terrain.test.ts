@@ -188,21 +188,6 @@ describe('only the feet inside it cost extra', () => {
   });
 
   /**
-   * A shove is not the creature's movement, so it spends none of it and the
-   * ground charges nothing — the reading `relocateOrigin` already records for
-   * a spell's own point. Asking a shove for its route would be asking the
-   * table to itemise a cost nobody pays.
-   */
-  it('charges nothing for movement somebody else is doing to you', () => {
-    const shoved = move(declare(SETUP, 'the puddle', PUDDLE), {
-      placement: { from: { landmark: 'the ford' }, feet: 25, bearing: 90 },
-      forced: true,
-    });
-    expect(shoved.cost).toBe(25);
-    expect(shoved.terrain).toEqual([]);
-  });
-
-  /**
    * **A shortest path can leave the straight line between the endpoints, and
    * the question has to follow it there.** Chebyshev distance is the longer
    * axis alone, so a move of 5 feet across and 15 along has 10 feet of slack
@@ -218,6 +203,20 @@ describe('only the feet inside it cost extra', () => {
     const out = resolveMove(fold('seed', declare(SETUP, 'the snag', SNAG)), WALKER, CORNER, supply());
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('route_required');
+  });
+
+  /**
+   * And no further than that. The region is the spaces `p` where
+   * `cheb(from, p) + cheb(p, to)` is the distance itself, which is exactly
+   * what `checkRoute` will accept — so (95, 100) is out, three steps being
+   * one too few to go backwards and still arrive. Asking about a space no
+   * route the engine would take could contain is a question with no answer
+   * the caller could give.
+   */
+  it('does not ask about ground no shortest path can reach', () => {
+    const out = move(declare(SETUP, 'the backtrack', ball({ x: 95, y: 100, z: 0 }, 0)), CORNER);
+    expect(out.cost).toBe(15);
+    expect(out.terrain).toEqual([]);
   });
 
   it('charges that route what its own spaces cost', () => {
@@ -273,27 +272,59 @@ describe('Difficult Terrain is not cumulative', () => {
 });
 
 /**
- * The ground charges what the budget pays, and where there is no budget there
- * is nothing for it to charge.
- *
- * Two cases, one rule. Forced movement is not the creature's movement at all,
- * and outside combat there is no action economy to spend from — `resolveMove`
- * has said so since it landed. Putting a question to the table about a number
- * nobody collects is the same mistake in both.
+ * Outside combat there is no budget, so there is nothing to run out of — and
+ * therefore nothing worth stopping the table to ask about. The walk is still
+ * a walk through a mire, so what the ground costs is still reported; what
+ * changes is that an unanswerable question is reported rather than raised.
  */
-describe('a move that spends nothing', () => {
+describe('a move outside combat', () => {
   const PUDDLE = ball({ x: 115, y: 100, z: 0 }, 5);
   const PEACE = SETUP.filter((e) => e.type !== 'combat-started');
 
-  it('is not asked for its route outside combat', () => {
-    const out = move(declare(PEACE, 'the puddle', PUDDLE), east(25));
-    expect(out.cost).toBe(25);
-    expect(out.terrain).toEqual([]);
+  it('still reports what unambiguous ground cost', () => {
+    const out = move(declare(PEACE, 'the mire', EVERYWHERE), east(25));
+    expect(out.cost).toBe(50);
+    expect(out.terrain).toEqual(['the mire']);
+    expect(out.events.some((e) => e.type === 'movement-spent')).toBe(false);
   });
 
-  it('spends nothing at all outside combat', () => {
-    const out = move(declare(PEACE, 'the mire', EVERYWHERE), east(25));
-    expect(out.events.some((e) => e.type === 'movement-spent')).toBe(false);
+  it('is not asked for a route it has no budget to spend', () => {
+    const out = move(declare(PEACE, 'the puddle', PUDDLE), east(25));
+    expect(out.cost).toBe(25);
+    expect(out.unverified.join(' ')).toContain('the puddle');
+  });
+});
+
+/**
+ * SRD makes an Opportunity Attack available only when a creature moves "using
+ * its action, its Bonus Action, its Reaction, or one of its speeds", and a
+ * shove is none of those. It is not the creature's movement at all, so it
+ * spends no Speed — and Difficult Terrain costs Speed, so it charges nothing.
+ * `relocateOrigin` already records the same reading for a spell's own point:
+ * "no Speed is spent, no Difficult Terrain is charged".
+ *
+ * Both doors obey it, which is the point of these two: a patch the table
+ * declared and a number the mover declared are the same rule reached two
+ * ways, and a shove that ignored one and paid the other would be an
+ * inconsistency nothing in the book supports.
+ */
+describe('movement somebody else is doing to you', () => {
+  it('is charged nothing by a patch', () => {
+    const shoved = move(declare(SETUP, 'the mire', EVERYWHERE), {
+      placement: { from: { landmark: 'the ford' }, feet: 25, bearing: 90 },
+      forced: true,
+    });
+    expect(shoved.cost).toBe(25);
+    expect(shoved.terrain).toEqual([]);
+  });
+
+  it('is charged nothing by the feet the mover declares either', () => {
+    const shoved = move(SETUP, {
+      placement: { from: { landmark: 'the ford' }, feet: 25, bearing: 90 },
+      forced: true,
+      difficultFeet: 25,
+    });
+    expect(shoved.cost).toBe(25);
   });
 });
 

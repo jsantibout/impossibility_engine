@@ -215,15 +215,8 @@ export function moveWithin(
     // has declared are read off the lattice here; the number the mover
     // declares is for ground no patch covers — the snow, the slope, the narrow
     // opening — and every foot of that still costs a foot extra.
-    // Whether this move will actually spend anything, which is the condition
-    // the whole terrain question hangs on and is the same one the budget
-    // below is gated on. Written once so the two cannot drift.
-    const spends =
-      command.forced !== true &&
-      (allowance !== null ||
-        (state.combat !== null && state.combat.budgets[id] !== undefined));
-
-    const ground = chargeTerrain(state, scene.value, id, from, to, feet, spends, command.route);
+    const charging = chargingOf(state, id, command, allowance);
+    const ground = chargeTerrain(state, scene.value, id, from, to, feet, charging, command.route);
     if (!ground.ok) return ground;
 
     const difficult = command.difficultFeet ?? 0;
@@ -234,7 +227,11 @@ export function moveWithin(
       );
     }
     const terrain = ground.value.patches;
-    const cost = ground.value.cost + difficult;
+    // **Both doors obey the same rule**, which is the whole reason `charging`
+    // is one value rather than a condition spelled twice: a shove pays neither
+    // the patches nor the feet the mover declared, because it is not the
+    // creature's movement and Difficult Terrain costs movement.
+    const cost = ground.value.cost + (charging === 'none' ? 0 : difficult);
 
     // — what it costs ——————————————————————————————————————————————————————
     //
@@ -313,7 +310,7 @@ export function moveWithin(
         feet,
         cost,
         terrain,
-        unverified: opportunity.unverified,
+        unverified: [...opportunity.unverified, ...ground.value.unverified],
         duplicate: false,
       });
     }
@@ -329,20 +326,64 @@ export function moveWithin(
       ...(stamp === null ? {} : { command: stamp }),
     });
 
-    return ok({ events, feet, cost, terrain, unverified: opportunity.unverified, duplicate: false });
+    return ok({
+      events,
+      feet,
+      cost,
+      terrain,
+      unverified: [...opportunity.unverified, ...ground.value.unverified],
+      duplicate: false,
+    });
   });
+}
+
+/**
+ * What the ground is allowed to do to this move.
+ *
+ * **One value rather than a condition spelled in three places**, because the
+ * three answers differ and each is a rule:
+ *
+ * | | | |
+ * |---|---|---|
+ * | `spend` | a budget is being drawn on | charge exactly, and ask when the path decides the number |
+ * | `report` | there is no budget | charge what is unambiguous, and never ask |
+ * | `none` | a shove | charge nothing, by either door |
+ *
+ * `spend` is the same predicate the budget below is gated on, and is written
+ * here so the two cannot drift.
+ */
+type Charging = 'spend' | 'report' | 'none';
+
+function chargingOf(
+  state: GameState,
+  id: CharacterId,
+  command: MoveCommand,
+  allowance: number | null,
+): Charging {
+  if (command.forced === true) return 'none';
+  if (allowance !== null) return 'spend';
+  return state.combat !== null && state.combat.budgets[id] !== undefined ? 'spend' : 'report';
+}
+
+interface TerrainChargeOutcome {
+  readonly cost: number;
+  readonly patches: readonly string[];
+  /** What the engine could not settle and did not stop the table to ask about. */
+  readonly unverified: readonly string[];
 }
 
 /**
  * What the ground charged for this move, and which patches charged it.
  *
- * Three cases, and only the middle one costs the caller a second round trip:
+ * Four cases, and only one of them costs the caller a second round trip:
  *
+ * - **a shove** — charged nothing at all, by either door; see below;
  * - **a route was stated** — check it, and read the spaces one by one;
- * - **the ground along the way disagrees with itself** — refuse
- *   `route_required`, naming the field that answers it;
  * - **every space a shortest route could enter charges the same** — charge
- *   the distance at that rate, because no route could have cost differently.
+ *   the distance at that rate, because no route could have cost differently;
+ * - **the ground disagrees with itself** — refuse `route_required`, naming
+ *   the field that answers it, or, where nothing is being spent, hand back
+ *   the open-ground figure and say that is what it is.
  *
  * The third is what keeps a Web in the far corner of a room from turning
  * every move in that room into a two-step conversation, and the region it
@@ -350,10 +391,6 @@ export function moveWithin(
  * route and no other. `uniformTerrainBetween` is where that region is
  * computed, and where the reason it is wider than the box between the
  * endpoints is written down.
- *
- * A move that spends nothing is charged nothing and asked nothing, which is
- * the first line of the body and the one rule forced movement and movement
- * outside combat share.
  */
 function chargeTerrain(
   state: GameState,
@@ -362,48 +399,77 @@ function chargeTerrain(
   from: Point,
   to: Point,
   feet: number,
-  spends: boolean,
+  charging: Charging,
   route: readonly Point[] | undefined,
-): Result<{ readonly cost: number; readonly patches: readonly string[] }> {
-  // **Difficult Terrain costs movement, so where no movement is spent there
-  // is nothing for it to charge and nothing to ask about.** Two cases and one
-  // rule: a creature shoved by Thunderwave is not moving at all, and outside
-  // combat there is no action economy to spend from. The engine already reads
-  // the SRD this way for a spell's own point — `relocateOrigin` records that
-  // "no Speed is spent, no Difficult Terrain is charged" — and putting a
-  // question to the table about a number nobody collects would be the same
-  // mistake in both.
-  if (!spends) return ok({ cost: feet, patches: [] });
+): Result<TerrainChargeOutcome> {
+  // **Difficult Terrain costs movement, and a shove is not the creature's
+  // movement.** SRD offers an Opportunity Attack only against a creature
+  // moving "using its action, its Bonus Action, its Reaction, or one of its
+  // speeds", and being thrown by Thunderwave is none of those; `relocateOrigin`
+  // already records the same reading for a spell's own point — "no Speed is
+  // spent, no Difficult Terrain is charged".
+  if (charging === 'none') return ok({ cost: feet, patches: [], unverified: [] });
 
   if (route !== undefined) {
     const checked = checkRoute(scene, from, to, route);
     if (!checked.ok) return checked;
-    return ok(costOfRoute(state, checked.value));
+    return ok({ ...costOfRoute(state, checked.value), unverified: [] });
   }
 
   // Nothing was entered, so nothing charged. A zero-foot move is a mount, a
   // dismount, or a placement that resolved to where the creature already was.
-  if (feet === 0) return ok({ cost: 0, patches: [] });
+  if (feet === 0) return ok({ cost: 0, patches: [], unverified: [] });
 
   const uniform = uniformTerrainBetween(state, from, to);
-  if (uniform === null) {
-    return needsContext(
-      'route_required',
-      `the ground between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) is Difficult Terrain in some places and not others, so a ${feet}-foot move costs a different number of feet depending which spaces ${id} crossed`,
-      [
-        {
-          kind: 'route',
-          subject: id,
-          need: `the ${feet / 5} spaces ${id} passed through, in order, ending where the move ends`,
-          because:
-            'every foot of movement in Difficult Terrain costs one extra foot, and which feet those were is not something the engine may decide',
-          satisfyWith: `the same resolveMove command with route filled in, as ${feet / 5} points of 5 feet each`,
-        },
-      ],
-    );
+  if (uniform !== null) {
+    return ok({ cost: feet * uniform.costPerFoot, patches: uniform.patches, unverified: [] });
   }
 
-  return ok({ cost: feet * uniform.costPerFoot, patches: uniform.patches });
+  // **Outside combat there is nothing to run out of, so the question is
+  // reported rather than raised.** A walk through a mire is still a walk
+  // through a mire and what unambiguous ground costs is still charged above;
+  // what would be wrong is stopping the table to itemise a route against a
+  // budget that does not exist. The figure handed back is then the
+  // open-ground one, and saying so is what keeps it from passing as the
+  // answer.
+  if (charging === 'report') {
+    return ok({
+      cost: feet,
+      patches: [],
+      unverified: [
+        `${nearby(state)} lies between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}), and no route was stated, so ${feet} feet is what this move would have cost on open ground; outside combat nothing was spent either way`,
+      ],
+    });
+  }
+
+  return needsContext(
+    'route_required',
+    `the ground between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) is Difficult Terrain in some places and not others, so a ${feet}-foot move costs a different number of feet depending which spaces ${id} crossed`,
+    [
+      {
+        kind: 'route',
+        subject: id,
+        need: `the ${feet / 5} spaces ${id} passed through, in order, ending where the move ends`,
+        because:
+          'every foot of movement in Difficult Terrain costs one extra foot, and which feet those were is not something the engine may decide',
+        satisfyWith: `the same resolveMove command with route filled in, as ${feet / 5} points of 5 feet each`,
+      },
+    ],
+  );
+}
+
+/**
+ * What to call the mixed ground in a report nobody asked a question about.
+ *
+ * The patches anywhere in the scene, because the point of the sentence is to
+ * tell a reader which declaration made the figure approximate, and a walk
+ * that could have crossed any of them is exactly the case this branch is in.
+ */
+function nearby(state: GameState): string {
+  const scene = state.scene;
+  if (scene === null) return 'Difficult Terrain';
+  const names = Object.keys(scene.terrain).sort();
+  return names.length === 0 ? 'Difficult Terrain' : names.join(' or ');
 }
 
 /** The tail of a refusal that names what slowed the mover, or nothing at all. */
