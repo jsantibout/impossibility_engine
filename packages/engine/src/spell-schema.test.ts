@@ -1997,6 +1997,14 @@ describe('no spell is special-cased in the runtime', () => {
    * catalogue that may never hold two spells because their slugs collide with
    * the vocabulary every spell is written in.
    *
+   * **`resistance` is the seventh, and the book is again the reason**: the
+   * *rules glossary* defines Resistance as one of the three ways damage is
+   * adjusted, and `monster.ts` transcribes it as a `kind` on a qualified
+   * defence — `'immunity' | 'resistance' | 'vulnerability'`. SRD Resistance
+   * the cantrip is a different arithmetic wearing the same word: it takes a
+   * 1d4 off a total where the defence halves one. Excluded on Darkvision's
+   * precedent exactly, and for the same reason.
+   *
    * **`command` is the sixth, and it is the flattest collision yet**: SRD
    * Command is a level 1 Enchantment, and `command` is the field every
    * idempotent event carries. `fold/apply.ts` writes `if (!('command' in
@@ -2015,6 +2023,7 @@ describe('no spell is special-cased in the runtime', () => {
     'heal',
     'teleport',
     'command',
+    'resistance',
   ]);
 
   /**
@@ -2147,6 +2156,7 @@ describe('no spell is special-cased in the runtime', () => {
       'darkvision',
       'heal',
       'light',
+      'resistance',
       'shield',
       'teleport',
     ]);
@@ -2185,6 +2195,9 @@ describe('no spell is special-cased in the runtime', () => {
     // the field every idempotent event carries, read in the one place the
     // fold reads it.
     expect(source('fold/apply.ts')).toContain("!('command' in event)");
+    expect(source('monster.ts')).toContain(
+      "readonly kind: 'immunity' | 'resistance' | 'vulnerability';",
+    );
   });
 
   it('allows the two data constructs and nothing around them', () => {

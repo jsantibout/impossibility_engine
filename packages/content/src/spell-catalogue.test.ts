@@ -465,6 +465,149 @@ describe('a definition that leaves part of its spell out says so', () => {
   });
 });
 
+/**
+ * The definitions this batch executed, driven one at a time as well as swept.
+ *
+ * The sweeps above are parameterised over whatever the catalogue holds, which
+ * makes them worthless as the *first* test of a definition — a spell that does
+ * not exist is a spell no sweep has an entry for. So each of these is named,
+ * and each is asserted against the one thing its own SRD paragraph prints that
+ * the sweep cannot know: the die it rolls, the type it deals, and the rider it
+ * leaves behind.
+ */
+describe('every definition this batch executed resolves its own dice', () => {
+  /**
+   * A casting that names a damage type the spell does not print, and one that
+   * names none at all.
+   *
+   * **This is how a `damageTypeStated` list is checked rather than read
+   * back.** Asserting the field equals what the definition says would be the
+   * definition agreeing with itself; asserting that the engine *refuses* a
+   * sixth type and refuses silence proves the list reached the code that
+   * decides, which is the only claim a definition can make about it. Where
+   * the stated type then lands in the damage is `held-casting-facts.test.ts`'s
+   * and is not restated here.
+   */
+  const statingType = (spellId: string, damageType: string | undefined) =>
+    resolveSpell(
+      base(),
+      CASTER,
+      {
+        spellId,
+        targets: [TARGET],
+        ...(SRD_CONTENT.spell(spellId)!.level === 0
+          ? {}
+          : { slotLevel: SRD_CONTENT.spell(spellId)!.level }),
+        ...(damageType === undefined ? {} : { damageType }),
+      },
+      supply('typed', 40),
+    );
+
+  /**
+   * SRD Conjure Fey: "On a hit, the target takes Psychic damage equal to 3d12
+   * plus your spellcasting ability modifier, and the target has the Frightened
+   * condition until the start of your next turn."
+   *
+   * Driven with a bonus large enough that the attack cannot miss, because what
+   * is being asserted is the payload rather than the roll: the floor of 3d12
+   * is 3 and the caster's Intelligence modifier is +5, so anything under 8 is
+   * dice the definition did not roll.
+   */
+  it('strikes with the Feywild spirit, and frightens what it hits', () => {
+    // Driven in a fight, because "until the start of your next turn" has no
+    // meaning outside one and the engine refuses rather than inventing six
+    // seconds. `logFor` supplies the turn order for exactly that reason.
+    const out = unwrap(
+      castAt(fold('seed', logFor('conjure-fey')), 'conjure-fey', 40, 'fey'),
+      'conjure-fey',
+    );
+    expect(out.outcomes[0]?.attack?.hit).toBe(true);
+    expect(out.outcomes[0]?.damage ?? 0).toBeGreaterThanOrEqual(8);
+    expect(out.outcomes[0]?.conditions).toEqual(['frightened']);
+  });
+
+  /**
+   * And the Bonus Action on a later turn is the same blow from a point that
+   * has moved, which is the half `origin.movableBy` exists for. Asserted as
+   * the registered activation rather than driven, because moving the spirit
+   * thirty feet is `spiritual-weapon`'s machinery and has its own tests.
+   */
+  it('registers the spirit’s later strike as a Bonus Action within thirty feet', () => {
+    const definition = SRD_CONTENT.spell('conjure-fey')!;
+    expect(definition.activation?.action).toBe('bonus-action');
+    expect(definition.origin).toEqual({ reach: 5, movableBy: 30 });
+    expect(definition.activation?.effects[0]?.kind).toBe('attack');
+  });
+
+  /**
+   * SRD Sorcerous Burst: "On a hit, the target takes 1d8 damage of a type you
+   * choose", and the cantrip upgrade at 5, 11 and 17 — so a level 20 caster
+   * throws 4d8 and cannot roll less than four.
+   */
+  it('throws four dice of Sorcerous Burst at a level 20 caster, in the type stated', () => {
+    const out = unwrap(castAt(base(), 'sorcerous-burst', 40, 'burst'), 'sorcerous-burst');
+    expect(out.outcomes[0]?.attack?.hit).toBe(true);
+    expect(out.outcomes[0]?.damage ?? 0).toBeGreaterThanOrEqual(4);
+
+    // And the seven printed types are the whole of the list: Psychic is one
+    // of them, Radiant is not, and a casting that names neither is refused
+    // rather than guessed at.
+    expect(isErr(statingType('sorcerous-burst', 'psychic'))).toBe(false);
+    const wrong = statingType('sorcerous-burst', 'radiant');
+    expect(isErr(wrong)).toBe(true);
+    if (isErr(wrong)) expect(wrong.code).toBe('unknown_damage_type');
+    const silent = statingType('sorcerous-burst', undefined);
+    expect(isErr(silent)).toBe(true);
+  });
+
+  /**
+   * SRD Chromatic Orb: "On a hit, the target takes 3d8 damage of the chosen
+   * type", growing by 1d8 a slot level. The minimum at level 1 is 3 and at
+   * level 3 is 5, which is the assertion that catches a scaling that was
+   * written and never read.
+   */
+  it('grows Chromatic Orb by a die a slot level', () => {
+    const low = unwrap(castAt(base(), 'chromatic-orb', 40, 'orb'), 'low');
+    expect(low.outcomes[0]?.damage ?? 0).toBeGreaterThanOrEqual(3);
+    // Six printed types rather than Sorcerous Burst's seven — this one omits
+    // Psychic — so the same refusal falls on a different word.
+    const wrong = statingType('chromatic-orb', 'psychic');
+    expect(isErr(wrong)).toBe(true);
+
+    const high = unwrap(
+      resolveSpell(
+        base(),
+        CASTER,
+        { spellId: 'chromatic-orb', targets: [TARGET], slotLevel: 9, damageType: 'acid' },
+        supply('orb', 40),
+      ),
+      'high',
+    );
+    // Eleven dice at a level 9 slot, so eleven is a floor nothing but eleven
+    // dice reaches — and three dice cannot get there however they land.
+    expect(high.outcomes[0]?.damage ?? 0).toBeGreaterThanOrEqual(11);
+  });
+
+  /**
+   * SRD Searing Smite: "As you hit the target, it takes an extra 1d6 Fire
+   * damage from the attack."
+   *
+   * Cast on a hit, so `resolveSpell` refuses it and the sweep above asserts
+   * that refusal. What is asserted here is that the refusal is the *right*
+   * one — the definition carries an `attack-damage` effect, which is the kind
+   * `resolveAttackDamage` settles — rather than the spell being missing.
+   */
+  it('hangs Searing Smite’s extra die on the attack that triggered it', () => {
+    const definition = SRD_CONTENT.spell('searing-smite')!;
+    const effect = definition.effects[0];
+    expect(effect?.kind).toBe('attack-damage');
+    if (effect?.kind !== 'attack-damage') throw new Error('expected attack-damage');
+    expect(effect.damage).toEqual({ dice: '1d6', perSlotLevelAbove: '1d6' });
+    expect(effect.damageType).toBe('fire');
+    expect(ON_HIT.map((d) => d.id)).toContain('searing-smite');
+  });
+});
+
 describe('the shapes behave as their spells describe', () => {
   /** SRD Hold Monster is Hold Person without the Humanoid restriction. */
   it('holds a creature of any type, where Hold Person would not', () => {

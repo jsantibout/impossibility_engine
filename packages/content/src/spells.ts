@@ -7367,6 +7367,453 @@ export const WALL_OF_FIRE: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Resistance:
+ *
+ * > _Abjuration Cantrip (Cleric, Druid)._ **Casting Time:** Action.
+ * > **Range:** Touch. **Duration:** Concentration, up to 1 minute.
+ * > "You touch a willing creature and choose a damage type: Acid,
+ * > Bludgeoning, Cold, Fire, Lightning, Necrotic, Piercing, Poison, Radiant,
+ * > Slashing, or Thunder. When the creature takes damage of the chosen type
+ * > before the spell ends, the creature reduces the total damage taken by
+ * > 1d4. A creature can benefit from this spell only once per turn."
+ *
+ * **Not Resistance the defence**, which is the reason this cantrip is worth
+ * reading twice: `defensesOf` halves a type and this subtracts a die from it,
+ * and the two are different arithmetic with the same name. Nothing in the
+ * damage pipeline takes a die away from a total, so the minute of
+ * Concentration runs and the 1d4 does not.
+ */
+export const RESISTANCE: SpellDefinition = {
+  id: 'resistance',
+  name: 'Resistance',
+  level: 0,
+  school: 'abjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'touch' },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the die is not subtracted: "the creature reduces the total damage taken by 1d4" is a reduction applied to damage, and the pipeline adjusts, halves and doubles a total but never takes a roll off one',
+    'which damage type was chosen is not recorded, because nothing reads it — the eleven the spell prints would be a `damageTypeStated` list if there were an effect for it to choose the type of',
+    'the once-per-turn limit is not enforced, because nothing is applied for it to limit',
+    'whether the creature touched is willing is not modelled; willingness is fiction',
+  ],
+};
+
+/**
+ * SRD Shillelagh:
+ *
+ * > _Transmutation Cantrip (Druid)._ **Casting Time:** Bonus Action.
+ * > **Range:** Self. **Duration:** 1 minute.
+ * > "A Club or Quarterstaff you are holding is imbued with nature's power.
+ * > For the duration, you can use your spellcasting ability instead of
+ * > Strength for the attack and damage rolls of melee attacks using that
+ * > weapon, and the weapon's damage die becomes a d8. If the attack deals
+ * > damage, it can be Force damage or the weapon's normal damage type (your
+ * > choice). The spell ends early if you cast it again or if you let go of
+ * > the weapon."
+ * > _Cantrip Upgrade._ "The damage die changes when you reach levels 5 (d10),
+ * > 11 (d12), and 17 (2d6)."
+ *
+ * Every clause rides a **later** weapon attack, which is the shape a casting
+ * has no way to hang anything on. The one clause that does not is the recast
+ * — `replacesPriorCasting` is exactly "if you cast it again" — so that half
+ * is real and the rest is the table's.
+ */
+export const SHILLELAGH: SpellDefinition = {
+  id: 'shillelagh',
+  name: 'Shillelagh',
+  level: 0,
+  school: 'transmutation',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  // SRD: "The spell ends early if you cast it again."
+  replacesPriorCasting: true,
+  unmodelled: [
+    'the substituted ability is not applied: "you can use your spellcasting ability instead of Strength for the attack and damage rolls of melee attacks using that weapon" is a rider on every later attack with one particular weapon, and a casting hangs none',
+    'the weapon’s damage die is not changed, and neither is the upgrade that changes it again: "The damage die changes when you reach levels 5 (d10), 11 (d12), and 17 (2d6)" rewrites a weapon’s printed die for a duration',
+    'the choice between Force damage and the weapon’s normal type is not recorded, because no later attack reads it',
+    'which weapon was imbued is not held, so "if you let go of the weapon" cannot end the spell: what is in a creature’s hands is not a fact the engine keeps',
+  ],
+};
+
+/**
+ * SRD Sorcerous Burst:
+ *
+ * > _Evocation Cantrip (Sorcerer)._ **Casting Time:** Action.
+ * > **Range:** 120 feet. **Duration:** Instantaneous.
+ * > "You cast sorcerous energy at one creature or object within range. Make a
+ * > ranged spell attack against the target. On a hit, the target takes 1d8
+ * > damage of a type you choose: Acid, Cold, Fire, Lightning, Poison,
+ * > Psychic, or Thunder. If you roll an 8 on a d8 for this spell, you can
+ * > roll another d8, and add it to the damage. When you cast this spell, the
+ * > maximum number of these d8s you can add to the spell's damage equals your
+ * > spellcasting ability modifier."
+ * > _Cantrip Upgrade._ "The damage increases by 1d8 when you reach levels 5
+ * > (2d8), 11 (3d8), and 17 (4d8)."
+ *
+ * Fire Bolt with the type named at the casting, and one sentence more. The
+ * third user of `damageTypeStated` and the first to print **seven** options,
+ * which is what a field rather than a flag is for.
+ */
+export const SORCEROUS_BURST: SpellDefinition = {
+  id: 'sorcerous-burst',
+  name: 'Sorcerous Burst',
+  level: 0,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 120 },
+  targets: { count: 1 },
+  damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'poison', 'psychic', 'thunder'],
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      // `damageType` is the placeholder that makes the definition well-formed;
+      // the stated answer is what lands, exactly as Protection from Energy's
+      // `damageTypes` is.
+      damage: { dice: '1d8', cantripUpgradesAt: [5, 11, 17] },
+      damageType: 'acid',
+    },
+  ],
+  unmodelled: [
+    'the exploding die is not rolled: "If you roll an 8 on a d8 for this spell, you can roll another d8, and add it to the damage" reads the face of one die out of a roll that comes back as a total, and the cap beside it — as many extra dice as the caster’s spellcasting ability modifier — adds nothing because none are added',
+  ],
+};
+
+/**
+ * SRD True Strike:
+ *
+ * > _Divination Cantrip (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Action. **Range:** Self. **Duration:** Instantaneous.
+ * > "Guided by a flash of magical insight, you make one attack with the
+ * > weapon used in the spell's casting. The attack uses your spellcasting
+ * > ability for the attack and damage rolls instead of using Strength or
+ * > Dexterity. If the attack deals damage, it can be Radiant damage or the
+ * > weapon's normal damage type (your choice)."
+ * > _Cantrip Upgrade._ "Whether you deal Radiant damage or the weapon's
+ * > normal damage type, the attack deals extra Radiant damage when you reach
+ * > levels 5 (1d6), 11 (2d6), and 17 (3d6)."
+ *
+ * **2024 rewrote this cantrip entirely** and the 2014 version — Advantage on
+ * your next attack roll — is not this spell at all. What it is now is a
+ * weapon attack made through a casting, with the caster's spellcasting
+ * ability substituted and a die of Radiant added on top: three riders on one
+ * swing the casting does not take. So the Action goes and the swing is the
+ * table's.
+ */
+export const TRUE_STRIKE: SpellDefinition = {
+  id: 'true-strike',
+  name: 'True Strike',
+  level: 0,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  unmodelled: [
+    'no attack is made: "you make one attack with the weapon used in the spell’s casting" is a weapon swing taken through a casting, and `resolveAttack` is reached by an attack command rather than by a spell',
+    'the substituted ability is not applied: "The attack uses your spellcasting ability for the attack and damage rolls instead of using Strength or Dexterity" is a rider on the attack the casting did not make',
+    'the extra Radiant die is not added: "the attack deals extra Radiant damage when you reach levels 5 (1d6), 11 (2d6), and 17 (3d6)" rides the same swing, and so does the choice of damage type beside it',
+  ],
+};
+
+/**
+ * SRD Chromatic Orb:
+ *
+ * > _Level 1 Evocation (Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 90 feet. **Duration:** Instantaneous.
+ * > "You hurl an orb of energy at a target within range. Choose Acid, Cold,
+ * > Fire, Lightning, Poison, or Thunder for the type of orb you create, and
+ * > then make a ranged spell attack against the target. On a hit, the target
+ * > takes 3d8 damage of the chosen type. If you roll the same number on two
+ * > or more of the d8s, the orb leaps to a different target of your choice
+ * > within 30 feet of the target. Make an attack roll against the new target,
+ * > and make a new damage roll. The orb can't leap again unless you cast the
+ * > spell with a level 2+ spell slot."
+ * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d8 for each
+ * > spell slot level above 1. The orb can leap a maximum number of times
+ * > equal to the level of the slot expended, and a creature can be targeted
+ * > only once by each casting of this spell."
+ *
+ * **Executed rather than tracked, and Scorching Ray is the reason the two
+ * spells part company here.** One of three rays is a third of that spell's
+ * damage, so resolving one would be resolving a third of it; this spell's
+ * whole printed payload is the first orb, and the leap is a bonus that fires
+ * on a coincidence. So the 3d8 lands, scales by slot, and the leap is quoted.
+ */
+export const CHROMATIC_ORB: SpellDefinition = {
+  id: 'chromatic-orb',
+  name: 'Chromatic Orb',
+  level: 1,
+  school: 'evocation',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 90 },
+  targets: { count: 1 },
+  damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'poison', 'thunder'],
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
+      damageType: 'acid',
+    },
+  ],
+  unmodelled: [
+    'the orb does not leap, because the trigger reads the individual dice of a damage roll: "If you roll the same number on two or more of the d8s" asks which faces came up, and a damage roll comes back as a total',
+    'nor is the leap resolved: hurling the orb at a second creature is a second attack roll and a second damage roll out of one casting, and an effect rolls one attack per target',
+    'the bounds on the leaping are not applied either: a maximum number of times equal to the level of the slot expended, and a creature targeted only once by each casting, both count something that never happens',
+  ],
+};
+
+/**
+ * SRD Expeditious Retreat:
+ *
+ * > _Level 1 Transmutation (Bard, Sorcerer, Warlock, Wizard)._
+ * > **Casting Time:** Bonus Action. **Range:** Self.
+ * > **Duration:** Concentration, up to 10 minutes.
+ * > "This spell lets you move at an incredible pace. When you cast this spell
+ * > and as a Bonus Action on each of your turns until the spell ends, you can
+ * > take the Dash action."
+ *
+ * Twenty words, and both halves are the action economy: the spell hands the
+ * caster a **use of the Dash action** at the casting and again every turn.
+ * The only lever a spell has on the economy is a condition the engine names,
+ * so the ten minutes of Concentration run and the Dash is the table's.
+ */
+export const EXPEDITIOUS_RETREAT: SpellDefinition = {
+  id: 'expeditious-retreat',
+  name: 'Expeditious Retreat',
+  level: 1,
+  school: 'transmutation',
+  castingTime: 'bonus-action',
+  concentration: true,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 600,
+  unmodelled: [
+    'the Dash at the casting is not taken: "When you cast this spell and as a Bonus Action on each of your turns until the spell ends, you can take the Dash action" grants an action rather than compelling one, and nothing lets a spell reach the action economy except by naming a condition',
+    'nor is the Bonus Action on each later turn offered, for the same reason and out of the same sentence',
+  ],
+};
+
+/**
+ * SRD Goodberry:
+ *
+ * > _Level 1 Conjuration (Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** Self. **Duration:** 24 hours.
+ * > "Ten berries appear in your hand and are infused with magic for the
+ * > duration. A creature can take a Bonus Action to eat one berry. Eating a
+ * > berry restores 1 Hit Point, and the berry provides enough nourishment to
+ * > sustain a creature for one day. Uneaten berries disappear when the spell
+ * > ends."
+ *
+ * The healing is one hit point and the engine restores hit points all day;
+ * what it cannot do is hold **ten berries in somebody's hand**. `inventory`
+ * and `equipped` are real and only armour and weapons have a slot, so the
+ * berry that would be eaten has nowhere to sit between the casting and the
+ * Bonus Action that eats it.
+ */
+export const GOODBERRY: SpellDefinition = {
+  id: 'goodberry',
+  name: 'Goodberry',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 86_400,
+  unmodelled: [
+    'the berries are not in anybody’s hand: ten of them appearing, being eaten one at a time on a Bonus Action, and disappearing uneaten when the spell ends are all the DM’s, because what a creature is holding is not a fact the engine keeps',
+    'the healing is not applied: "Eating a berry restores 1 Hit Point" is arithmetic the engine does readily, and there is no berry for it to follow from',
+    'the day’s nourishment one berry provides is the DM’s; the engine tracks no hunger',
+  ],
+};
+
+/**
+ * SRD Ice Knife:
+ *
+ * > _Level 1 Conjuration (Druid, Sorcerer, Wizard)._ **Casting Time:**
+ * > Action. **Range:** 60 feet. **Duration:** Instantaneous.
+ * > "You create a shard of ice and fling it at one creature within range.
+ * > Make a ranged spell attack against the target. On a hit, the target takes
+ * > 1d10 Piercing damage. Hit or miss, the shard then explodes. The target
+ * > and each creature within 5 feet of it must succeed on a Dexterity saving
+ * > throw or take 2d6 Cold damage."
+ * > _Using a Higher-Level Spell Slot._ "The Cold damage increases by 1d6 for
+ * > each spell slot level above 1."
+ *
+ * **Two rolls in sequence, and the second is the bigger one.** An attack for
+ * 1d10 and then a burst for 2d6 on everyone nearby is one casting the format
+ * resolves as two effects over two different populations — the named target,
+ * and a Sphere centred on wherever the shard landed. Writing the attack alone
+ * would deal less than half the spell at every slot level, which is Scorching
+ * Ray's reading arriving at the same answer from the other side: a definition
+ * that resolves the smaller half is not the spell.
+ */
+export const ICE_KNIFE: SpellDefinition = {
+  id: 'ice-knife',
+  name: 'Ice Knife',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [],
+  unmodelled: [
+    'the shard is not thrown: "On a hit, the target takes 1d10 Piercing damage" is an ordinary ranged spell attack, and it is the smaller half of the spell',
+    'the burst is not resolved: "The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 Cold damage" is a second roll sequenced after the first, over an area centred on wherever the shard arrived — a point the casting does not hold',
+    'the Cold damage growing by 1d6 for each slot level above 1 is ordinary scaling with nothing to scale',
+  ],
+};
+
+/**
+ * SRD Sanctuary:
+ *
+ * > _Level 1 Abjuration (Cleric)._ **Casting Time:** Bonus Action.
+ * > **Range:** 30 feet. **Duration:** 1 minute.
+ * > "You ward a creature within range. Until the spell ends, any creature who
+ * > targets the warded creature with an attack roll or a damaging spell must
+ * > succeed on a Wisdom saving throw or either choose a new target or lose
+ * > the attack or spell. This spell doesn't protect the warded creature from
+ * > areas of effect. The spell ends if the warded creature makes an attack
+ * > roll, casts a spell, or deals damage."
+ *
+ * **The last sentence is Invisibility's, word for word in a different
+ * order**, and it is the half of this spell the engine really does: three
+ * `CastingEndTrigger`s that IE-032 built, hung on a casting with no effects
+ * under it. The ward itself answers a later attack, which is the shape
+ * Shield and Mirror Image are also waiting on.
+ */
+export const SANCTUARY: SpellDefinition = {
+  id: 'sanctuary',
+  name: 'Sanctuary',
+  level: 1,
+  school: 'abjuration',
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'ranged', feet: 30 },
+  targets: { count: 1, self: true },
+  effects: [],
+  durationSeconds: 60,
+  // "The spell ends if the warded creature makes an attack roll, casts a
+  // spell, or deals damage." The same three causes Invisibility prints, and
+  // the same scope: the book says *the spell* ends, not the ward on one
+  // creature.
+  endsEarly: [
+    { on: 'target-attacks', ends: 'casting' },
+    { on: 'target-casts', ends: 'casting' },
+    { on: 'target-deals-damage', ends: 'casting' },
+  ],
+  unmodelled: [
+    'the ward is not applied: "any creature who targets the warded creature with an attack roll or a damaging spell must succeed on a Wisdom saving throw" is a spell answering somebody else’s later attack, and there is no window in which an attack is offered to another creature’s casting',
+    'so the branch the save buys — "either choose a new target or lose the attack or spell" — is not offered either',
+    '"This spell doesn’t protect the warded creature from areas of effect" is the exception to a rule that is not applied',
+    'an attack roll that costs no Attack action — an Opportunity Attack, or any swing outside combat — ends this spell only if it hits: the attack roll itself is recorded on `roll-recorded`, which changes no state by rule, so nothing may hang the ending on it',
+  ],
+};
+
+/**
+ * SRD Searing Smite:
+ *
+ * > _Level 1 Evocation (Paladin, Ranger)._ **Casting Time:** Bonus Action,
+ * > which you take immediately after hitting a target with a Melee weapon or
+ * > an Unarmed Strike. **Range:** Self. **Duration:** 1 minute.
+ * > "As you hit the target, it takes an extra 1d6 Fire damage from the
+ * > attack. At the start of each of its turns until the spell ends, the
+ * > target takes 1d6 Fire damage and then makes a Constitution saving throw.
+ * > On a failed save, the spell continues. On a successful save, the spell
+ * > ends."
+ * > _Using a Higher-Level Spell Slot._ "All the damage increases by 1d6 for
+ * > each spell slot level above 1."
+ *
+ * Divine Smite's sibling, and the same `attack-damage` effect: the casting
+ * time is a Bonus Action with the hit attached, so `resolveSpell` refuses it
+ * and `resolveAttackDamage` settles it on the attack that triggered it. What
+ * Divine Smite does not print is the minute of burning afterwards, and that
+ * is a repeat save whose **failure** branch acts.
+ */
+export const SEARING_SMITE: SpellDefinition = {
+  id: 'searing-smite',
+  name: 'Searing Smite',
+  level: 1,
+  school: 'evocation',
+  // The trigger is the hit `resolveAttackDamage` is settling, so it is the
+  // command rather than the definition that enforces it — Divine Smite's
+  // reading, on the spell that prints the same casting time.
+  castingTime: 'bonus-action',
+  concentration: false,
+  range: { kind: 'self' },
+  targets: { count: 0 },
+  effects: [
+    {
+      kind: 'attack-damage',
+      damage: { dice: '1d6', perSlotLevelAbove: '1d6' },
+      damageType: 'fire',
+    },
+  ],
+  durationSeconds: 60,
+  unmodelled: [
+    'the burning is not run: "At the start of each of its turns until the spell ends, the target takes 1d6 Fire damage and then makes a Constitution saving throw" is a repeat save whose failure branch acts, and a repeat save releases an effect on a success and does nothing at all on a failure',
+    'so the two branches beneath it are not taken either: the spell continuing on a failed save, and ending on a successful one',
+  ],
+};
+
+/**
+ * SRD Sleep:
+ *
+ * > _Level 1 Enchantment (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Each creature of your choice in a 5-foot-radius Sphere centered on a
+ * > point within range must succeed on a Wisdom saving throw or have the
+ * > Incapacitated condition until the end of its next turn, at which point it
+ * > must repeat the save. If the target fails the second save, the target has
+ * > the Unconscious condition for the duration. The spell ends on a target if
+ * > it takes damage or someone within 5 feet of it takes an action to shake
+ * > it out of the spell's effect. Creatures that don't sleep, such as elves,
+ * > or that have Immunity to the Exhaustion condition automatically succeed
+ * > on saves against this spell."
+ *
+ * **2024 rewrote this spell too**, and the hit-point total everybody
+ * remembers is gone: it is a save now, and the save repeats once and
+ * *deepens* on the second failure. A repeat save in this engine releases an
+ * effect on a success and does nothing on a failure, which is the wrong way
+ * round for every sentence here.
+ */
+export const SLEEP: SpellDefinition = {
+  id: 'sleep',
+  name: 'Sleep',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 0 },
+  effects: [],
+  durationSeconds: 60,
+  unmodelled: [
+    'the save is not rolled and the Incapacitated is not applied: the condition lasts "until the end of its next turn, at which point it must repeat the save", and the repeat is a save whose **failure** deepens the effect rather than a save whose success releases it',
+    'so the second failure is not applied either: "If the target fails the second save, the target has the Unconscious condition for the duration"',
+    'the 5-foot-radius Sphere is not a template, and "Each creature of your choice" inside it is a filter on what an area catches; nothing is resolved over either',
+    'the two ways out are not offered: "The spell ends on a target if it takes damage" is any damage from anybody, which no casting-end cause expresses, and somebody within 5 feet taking an action to shake the sleeper awake is a check nobody else may attempt',
+    'the automatic successes are not granted: creatures that do not sleep, and creatures with Immunity to the Exhaustion condition, are an outcome read off the target’s own defences, and `checks.ts` carries an automatic failure and no automatic success',
+  ],
+};
+
 export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ACID_ARROW,
   ACID_SPLASH,
@@ -7389,6 +7836,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   CHARM_MONSTER,
   CHARM_PERSON,
   CHILL_TOUCH,
+  CHROMATIC_ORB,
   CIRCLE_OF_DEATH,
   CLAIRVOYANCE,
   CLOUDKILL,
@@ -7428,6 +7876,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ELEMENTALISM,
   ENLARGE_REDUCE,
   ETHEREALNESS,
+  EXPEDITIOUS_RETREAT,
   FABRICATE,
   FAERIE_FIRE,
   FALSE_LIFE,
@@ -7447,6 +7896,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   GASEOUS_FORM,
   GATE,
   GENTLE_REPOSE,
+  GOODBERRY,
   GREASE,
   GREATER_INVISIBILITY,
   GUIDANCE,
@@ -7464,6 +7914,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   HOLD_PERSON,
   HUNTERS_MARK,
   HYPNOTIC_PATTERN,
+  ICE_KNIFE,
   ICE_STORM,
   IDENTIFY,
   ILLUSORY_SCRIPT,
@@ -7513,17 +7964,23 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   RAY_OF_SICKNESS,
   REMOVE_CURSE,
   RESILIENT_SPHERE,
+  RESISTANCE,
   RESURRECTION,
   ROPE_TRICK,
   SACRED_FLAME,
+  SANCTUARY,
   SCORCHING_RAY,
   SCRYING,
+  SEARING_SMITE,
   SEE_INVISIBILITY,
   SHATTER,
   SHIELD,
   SHIELD_OF_FAITH,
+  SHILLELAGH,
   SHOCKING_GRASP,
   SILENT_IMAGE,
+  SLEEP,
+  SORCEROUS_BURST,
   SPEAK_WITH_ANIMALS,
   SPEAK_WITH_DEAD,
   SPIDER_CLIMB,
@@ -7545,6 +8002,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   TRANSPORT_VIA_PLANTS,
   TREE_STRIDE,
   TRUE_SEEING,
+  TRUE_STRIKE,
   VAMPIRIC_TOUCH,
   VICIOUS_MOCKERY,
   VITRIOLIC_SPHERE,

@@ -108,8 +108,8 @@ describe('the blocked-on map covers the undefined population', () => {
     // once — Magic Missile, which used to stand here, among them. The
     // synthetic has to name a spell that is **still** undefined, which is why
     // it moves every time the real thing catches up with it.
-    const defined = new Set([...DEFINED_SPELL_IDS, 'chromatic-orb']);
-    expect(coverageGaps(PARSED, defined).stale).toEqual(['chromatic-orb']);
+    const defined = new Set([...DEFINED_SPELL_IDS, 'true-polymorph']);
+    expect(coverageGaps(PARSED, defined).stale).toEqual(['true-polymorph']);
   });
 
   /** Neither synthetic case is vacuous: the real catalogue has no gap either way. */
@@ -812,7 +812,6 @@ describe('the four highest-leverage families are read sentence by sentence', () 
         'bestow-curse',
         'confusion',
         'conjure-woodland-beings',
-        'expeditious-retreat',
         'eyebite',
         'irresistible-dance',
         'magic-jar',
@@ -891,10 +890,17 @@ describe('the four highest-leverage families are read sentence by sentence', () 
    * findings, and the difference is that one of them left a definition behind.
    */
   it('moves three of the four counts off zero, and says what became of each', () => {
+    // **And one of the two was collected, the way Gate's was.** Expeditious
+    // Retreat is twenty words and both of them are the action economy, so the
+    // spell catalogue batch wrote it tracked rather than waiting for the
+    // shape: the Concentration and the ten minutes are real and the Dash is
+    // the table's. A read count going to zero because somebody wrote the
+    // spell is the opposite finding from one that was never anything else.
     expect(consumersOf('an-action-a-spell-compels-or-forbids').unblocksRead).toEqual([
       'conjure-woodland-beings',
-      'expeditious-retreat',
     ]);
+    expect(BLOCKED_ON['expeditious-retreat']).toBeUndefined();
+    expect(SRD_CONTENT.spell('expeditious-retreat')).not.toBeNull();
     // Collected: Gate is defined, so the shape finishes nobody who is left.
     expect(consumersOf('a-second-place-to-put-a-creature').unblocksRead).toEqual([]);
     expect(BLOCKED_ON['gate']).toBeUndefined();
@@ -2449,8 +2455,19 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
     expect(blockersOf('awaken')).not.toContain('a-casting-ended-by-a-trigger');
     expect(blockersOf('awaken')).toContain('a-long-casting-time');
     // "The spell ends if the warded creature makes an attack roll, casts a
-    // spell, or deals damage." — Invisibility's three, word for word.
-    expect(blockersOf('sanctuary')).toEqual(['a-spell-that-answers-a-later-attack']);
+    // spell, or deals damage." — Invisibility's three, word for word, and the
+    // spell catalogue batch **spent** that reading: Sanctuary is tracked now
+    // and writes all three `endsEarly` causes, with the ward it cannot answer
+    // left to the table. The shape it kept is the one it always had.
+    expect(BLOCKED_ON['sanctuary']).toBeUndefined();
+    expect(SRD_CONTENT.spell('sanctuary')?.endsEarly?.map((end) => end.on)).toEqual([
+      'target-attacks',
+      'target-casts',
+      'target-deals-damage',
+    ]);
+    expect(TRACKED_ADJUDICATED['sanctuary']?.map((entry) => entry.why)).toEqual([
+      'a-spell-that-answers-a-later-attack',
+    ]);
   });
 
   /** And the shape is still claimed, so the unclaimed-shape guard keeps it. */

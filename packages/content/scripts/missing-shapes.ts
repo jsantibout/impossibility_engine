@@ -550,6 +550,23 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "it can’t regain Hit Points until the end of your next turn." Healing is the engine’s arithmetic from end to end, and nothing can stand in front of it and refuse — so a Cure Wounds lands that the spell had forbidden.',
     },
   ],
+  'chromatic-orb': [
+    {
+      clause: 'reads the individual dice of a damage roll',
+      why: 'a-die-behaviour-a-spell-asks-for',
+      note: 'the leap fires on "If you roll the same number on two or more of the d8s", which asks which faces a damage roll showed. A damage roll comes back as a total, and no effect kind asks the generator about the dice inside one.',
+    },
+    {
+      clause: 'a second attack roll and a second damage roll out of one casting',
+      why: 'several-attack-rolls-from-one-casting',
+      note: 'an effect rolls one attack per target, and the leap is a further attack at a creature the casting never named — the shape Scorching Ray and Eldritch Blast are both blocked on, arriving here on a spell whose first orb is executed.',
+    },
+    {
+      clause: 'a maximum number of times equal to the level of the slot expended',
+      why: 'several-attack-rolls-from-one-casting',
+      note: 'the cap counts leaps, and so does the rule that a creature may be targeted only once by a casting; both are bookkeeping over a sequence of attacks that is not produced, so they come with the shape rather than before it.',
+    },
+  ],
   cloudkill: [
     {
       clause: 'the same save again when the Sphere moves',
@@ -904,6 +921,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "the target has Advantage on saving throws to avoid or end the Poisoned condition". A `RollModifier` selects a save by ability and by nothing else, so the nearest sayable thing is Advantage on every Constitution save the target ever makes — which is a different and much larger spell. The engine rolls those saves without it.',
     },
   ],
+  'searing-smite': [
+    {
+      clause: 'a repeat save whose failure branch acts',
+      why: 'a-repeat-save-that-does-something-on-a-failure',
+      note: 'the burning deals 1d6 Fire damage at the start of each of the target’s turns and then asks for a Constitution save. `RepeatSave.onSuccess` releases an effect and the failure branch does nothing at all, which is the wrong way round for every sentence of this paragraph.',
+    },
+    {
+      clause: 'the spell continuing on a failed save, and ending on a successful one',
+      why: 'a-repeat-save-that-does-something-on-a-failure',
+      note: 'the two branches the save chooses between, and the second is the one the existing mechanism could express. Recorded separately because the damage above it is the half that has no branch to sit in, and a single entry would have hidden which of the two is missing.',
+    },
+  ],
   shield: [
     {
       clause: 'Magic Missile',
@@ -916,6 +945,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'cannot make Opportunity Attacks',
       why: 'an-action-a-spell-compels-or-forbids',
       note: 'SRD: the target "can’t make Opportunity Attacks until the start of its next turn". The engine offers and spends that Reaction itself, and nothing forbids one action while leaving the rest of the budget alone.',
+    },
+  ],
+  'sorcerous-burst': [
+    {
+      clause: 'reads the face of one die out of a roll that comes back as a total',
+      why: 'a-die-behaviour-a-spell-asks-for',
+      note: 'the exploding die asks whether an 8 came up on a d8 and adds another on the strength of it, up to the caster’s spellcasting ability modifier. The generator throws a notation and returns a total; nothing asks it which faces it showed.',
     },
   ],
   'spirit-guardians': [
@@ -1442,6 +1478,86 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side',
       why: 'damage-with-neither-an-attack-roll-nor-a-save',
       note: 'damage that lands with no attack roll and no saving throw at all, on a turn boundary `AreaTrigger` can already name. Every damage-bearing effect kind the format has hangs off a roll, so this one has nothing to be written as even once the wall exists.',
+    },
+  ],
+  resistance: [
+    {
+      marker: 'dice',
+      clause: 'the creature reduces the total damage taken by 1d4',
+      why: 'a-reduction-an-effect-applies-to-damage',
+      note: 'the die is ordinary and the subtraction is not: the damage pipeline adjusts a total, halves it for Resistance and doubles it for Vulnerability, and has no step that takes a roll off one. Not the defence of the same name — this cantrip and `defensesOf` are different arithmetic wearing one word.',
+    },
+  ],
+  shillelagh: [
+    {
+      marker: 'dice',
+      clause: 'The damage die changes when you reach levels 5 (d10)',
+      why: 'a-rider-on-a-later-weapon-attack',
+      note: 'the die being changed belongs to a weapon rather than to the spell, and every later swing with that weapon would have to read it. A casting hangs no notation on a weapon, which is the same absence the substituted ability in the sentence above has.',
+    },
+  ],
+  'true-strike': [
+    {
+      marker: 'dice',
+      clause: 'when you reach levels 5 (1d6), 11 (2d6), and 17 (3d6)',
+      why: 'a-rider-on-a-later-weapon-attack',
+      note: 'the cantrip upgrade adds dice to a weapon attack the casting itself is supposed to make, and a casting reaches `resolveAttack` through no door at all — an attack command is how a swing happens.',
+    },
+    {
+      marker: 'extra-damage',
+      clause: 'the attack deals extra Radiant damage',
+      why: 'a-rider-on-a-later-weapon-attack',
+      note: 'extra damage of a stated type on somebody’s weapon swing is the attack-rider grant, which hangs a notation and a damage type together and which no spell definition can write. The same sentence, and the other mechanic in it.',
+    },
+  ],
+  goodberry: [
+    {
+      marker: 'hit-points',
+      clause: 'Eating a berry restores 1 Hit Point',
+      why: 'what-a-creature-is-holding',
+      note: 'the hit point is arithmetic `healCreature` does all day; what has no representation is the berry. An inventory and an equipped set are held and only armour and weapons have a slot, so ten berries in a hand are nowhere and nothing can be eaten out of them.',
+    },
+  ],
+  'ice-knife': [
+    {
+      marker: 'dice',
+      clause: 'the target takes 1d10 Piercing damage',
+      why: 'a-second-roll-sequenced-after-the-first',
+      note: 'an ordinary ranged spell attack, and the smaller half of the spell: writing it alone would deal under half the printed damage at every slot level, which is the reading Scorching Ray got for the same reason from the other side.',
+    },
+    {
+      marker: 'saving-throw',
+      clause: 'must succeed on a Dexterity saving throw or take 2d6 Cold damage',
+      why: 'a-second-roll-sequenced-after-the-first',
+      note: 'the burst follows the attack hit or miss, over a Sphere centred on wherever the shard arrived — a second roll sequenced after the first, against a point the casting does not hold.',
+    },
+  ],
+  sanctuary: [
+    {
+      marker: 'saving-throw',
+      clause: 'must succeed on a Wisdom saving throw or either choose a new target or lose the attack or spell',
+      why: 'a-spell-that-answers-a-later-attack',
+      note: 'the save belongs to whoever attacks the warded creature, so the spell has to be offered a window on somebody else’s attack. There is none: the reaction windows a casting answers are the caster’s own, and Shield and Mirror Image wait on the same absence.',
+    },
+  ],
+  sleep: [
+    {
+      marker: 'saving-throw',
+      clause: 'must succeed on a Wisdom saving throw or have the Incapacitated condition',
+      why: 'a-repeat-save-that-does-something-on-a-failure',
+      note: 'the first save is ordinary and the repeat it schedules is not: the condition lasts until the end of the target’s next turn "at which point it must repeat the save", and a failure there deepens the effect where `RepeatSave` only ever releases one on a success.',
+    },
+    {
+      marker: 'condition',
+      clause: 'the target has the Unconscious condition for the duration',
+      why: 'a-repeat-save-that-does-something-on-a-failure',
+      note: 'the Unconscious is an ordinary condition with an ordinary duration, and what puts it there is the failure branch of the repeat above. Nothing writes that branch, so there is no moment at which this sentence could fire.',
+    },
+    {
+      marker: 'defence',
+      clause: 'have Immunity to the Exhaustion condition automatically succeed on saves against this spell',
+      why: 'an-outcome-that-reads-the-targets-defences',
+      note: 'creatures that do not sleep, and creatures immune to Exhaustion, succeed without rolling. `checks.ts` carries an automatic **failure** and no automatic success, and the condition immunity that decides it is read off the target rather than stated by the spell.',
     },
   ],
   'faerie-fire': [
@@ -2242,7 +2358,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'The indifference is an attitude, which the engine does not hold and should never decide; a trigger that ends a fact the engine is not keeping belongs to the table for the same reason, and the damage marker fires on the trigger rather than on any damage the spell deals.',
     },
   ],
-  'chromatic-orb': ['a-die-behaviour-a-spell-asks-for', 'several-attack-rolls-from-one-casting'],
   clone: ['a-long-casting-time', 'healing-that-raises-the-dead'],
   commune: ['a-long-casting-time', 'a-random-outcome-that-is-not-a-d20'],
   // **The one place in this reading where the vocabulary ran out.** The upcast
@@ -2555,18 +2670,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // One sentence, one shape, and both halves of the sentence are that shape:
   // the spell **takes** an action for you and then **grants** you a second way
   // to take it. The shortest paragraph in the book that is still debt.
-  'expeditious-retreat': [
-    {
-      clause: 'You take the Dash action',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'The casting spends an action on the caster\'s behalf. `mayAct` guards every spender and the only lever a spell has on the economy is a condition the engine names, so a spell that takes an action *for* you has nothing to call.',
-    },
-    {
-      clause: 'you can take that action again as a Bonus Action',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'And the other half: a standing grant of an extra way to Dash, for the duration. Granting an action is named in this shape\'s own description beside forbidding one, and no rider expresses either.',
-    },
-  ],
   eyebite: [
     {
       clause: 'your eyes become an inky void',
@@ -2756,7 +2859,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-creature-type-predicate-an-area-reads',
     'a-long-casting-time',
   ],
-  goodberry: ['what-a-creature-is-holding'],
   'greater-restoration': [
     'a-choice-made-at-the-casting',
     'a-hit-point-maximum-a-spell-moves',
@@ -2883,7 +2985,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-spell-that-answers-a-later-attack',
     'a-standing-effect-derived-from-where-a-creature-stands',
   ],
-  'ice-knife': ['a-second-roll-sequenced-after-the-first'],
   imprisonment: [
     {
       clause: 'Casting Time: 1 minute',
@@ -3484,11 +3585,8 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-random-outcome-that-is-not-a-d20',
     'healing-that-raises-the-dead',
   ],
-  resistance: ['a-reduction-an-effect-applies-to-damage'],
   'reverse-gravity': ['falling', 'forced-movement-a-spell-causes'],
   revivify: ['healing-that-raises-the-dead'],
-  sanctuary: ['a-spell-that-answers-a-later-attack'],
-  'searing-smite': ['a-repeat-save-that-does-something-on-a-failure'],
   'secret-chest': [
     {
       clause: 'Duration: Until dispelled',
@@ -3551,11 +3649,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   ],
   sequester: ['a-casting-ended-by-a-trigger', 'an-effect-that-suppresses-other-magic'],
   shapechange: ['a-target-rule-the-format-cannot-state'],
-  shillelagh: [
-    'a-casting-ended-by-a-trigger',
-    'a-choice-made-at-the-casting',
-    'a-rider-on-a-later-weapon-attack',
-  ],
   'shining-smite': [
     'a-condition-benefit-an-effect-takes-away',
     'a-spells-effects-applied-to-different-targets',
@@ -3628,12 +3721,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: 'Dropping to 0 Hit Points is named in that shape\'s own description as a cause `CastingEndTrigger` has no member for. Here it is the spell\'s own creation whose vitals run out, and the casting — an "Until dispelled" one — is what ends.',
     },
   ],
-  sleep: [
-    'a-casting-ended-by-a-trigger',
-    'a-check-another-creature-may-attempt',
-    'a-repeat-save-that-does-something-on-a-failure',
-    'an-outcome-that-reads-the-targets-defences',
-  ],
   'sleet-storm': ['an-outcome-that-breaks-concentration', 'difficult-terrain-an-area-creates'],
   slow: [
     {
@@ -3677,7 +3764,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       note: '`RepeatSave` at `end-of-turn` with `onSuccess: "end-on-target"`, which Hold Person already writes and the scenario test already exercises.',
     },
   ],
-  'sorcerous-burst': ['a-die-behaviour-a-spell-asks-for'],
   'spare-the-dying': [
     'a-range-that-scales-with-caster-level',
     'an-effect-that-stabilises-a-dying-creature',
@@ -3887,7 +3973,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
     'a-long-casting-time',
     'healing-that-raises-the-dead',
   ],
-  'true-strike': ['a-rider-on-a-later-weapon-attack'],
   // The heaviest paragraph in this family: four shapes were recorded and reading
   // it finds four more, every one of them a shape this map already names.
   tsunami: [
