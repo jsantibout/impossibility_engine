@@ -266,57 +266,61 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
   });
 
   /**
-   * The finding that planned the first batch, kept as the record of what
-   * happened to it.
+   * The finding that planned the first batch, and what reading the book did
+   * to it.
    *
-   * Reading a hundred and sixty notes put the same two shapes at the top, and
-   * they were the same shape twice over: every class printed an Ability Score
-   * Improvement the engine could only take as a feat, and every class printed
-   * an Epic Boon whose one mechanical sentence raised a score past 20. Between
-   * them they were the largest single block of manual features in the
-   * catalogue, and neither was a combat mechanic — which is exactly why no
-   * amount of work on spells or items had ever surfaced them.
+   * Reading a hundred and sixty notes put two shapes at the top — an Ability
+   * Score Improvement the engine could only take as a feat, and an Epic Boon
+   * whose one mechanical sentence raised a score past 20 — and they were
+   * ranked apart because nobody had opened `classes.md` beside `feats.md`.
+   * They are one shape and it is neither of those: SRD prints both sentences
+   * on **the feat the class feature grants**, so what stands in the way is
+   * that nothing reads a grant off a feat.
    *
-   * Both were built. Twenty-four class features and two capstones are
-   * `automation: 'engine'` now, their lines are gone from the map above, and
-   * the two ids are gone from {@link FEATURE_SHAPES} — which the
-   * unclaimed-shape guard would have insisted on anyway. So the assertion is
-   * the conversion's own: **nothing here is blocked on either of them any
-   * more, and the vocabulary no longer names them.**
+   * The engine vocabulary those two shapes asked for was built — the
+   * `ability-score` choice, the `ability-score-increase` grant, a per-score
+   * ceiling — and the two capstones that genuinely carry the sentence on the
+   * feature use it. The twenty-four class features do not, because the
+   * catalogue may not print a rule the book does not: a feature handing out
+   * bare points offers a branch SRD never writes. So the two ids retire, the
+   * one that is really in the way replaces them, and it blocks the
+   * twenty-four rather than being their second spelling.
    */
-  it('has retired the advancement shapes it ranked first', () => {
+  it('has replaced the two advancement shapes with the one really in the way', () => {
     for (const shape of [
       'an-ability-score-an-advancement-raises',
       'an-ability-score-maximum-above-20',
     ]) {
       expect(Object.keys(FEATURE_SHAPES)).not.toContain(shape);
       expect(claimedFeatureShapes().has(shape)).toBe(false);
-      expect(featureConsumersOf(shape as never).blocks).toEqual([]);
     }
-    // And the features themselves left the map, rather than the shape being
-    // quietly swapped for another id on the same lines.
-    for (const id of [
-      'barbarian:ability-score-improvement',
-      'wizard:epic-boon',
-      'barbarian:primal-champion',
-      'monk:body-and-mind',
-    ]) {
+
+    // The twenty-four are blocked on one thing, and it is the feat's host.
+    const feats = featureConsumersOf('a-grant-read-off-a-feat');
+    expect(feats.blocks).toHaveLength(24);
+    expect(feats.finishes).toHaveLength(24);
+    expect(feats.blocks).toContain('barbarian:ability-score-improvement');
+    expect(feats.blocks).toContain('wizard:epic-boon');
+
+    // And the two that really do carry it on the feature are executed, so
+    // they left the map rather than moving to the new id.
+    for (const id of ['barbarian:primal-champion', 'monk:body-and-mind']) {
       expect(FEATURE_BLOCKED_ON[id]).toBeUndefined();
       expect(MANUAL).not.toContain(id);
     }
   });
 
   /**
-   * And the heaviest thing a **fight** would notice, which used to be a
-   * different question and is now the same one.
+   * And the heaviest thing a **fight** would notice, which is a different
+   * question and deliberately answered apart.
    *
-   * The two advancement shapes stood above it and neither was a combat
-   * mechanic; both have been built, so weapon mastery is the head of the
-   * whole ranking rather than the head of a filtered one. The filter is kept
-   * and is empty, because what it excluded is the thing that moved.
+   * The advancement shape still stands above it and is still not a combat
+   * mechanic; it is one shape now rather than two.
    */
   it('ranks weapon mastery first among the shapes a fight would notice', () => {
-    const inCombat = allFeatureShapeConsumers();
+    const inCombat = allFeatureShapeConsumers().filter(
+      (row) => row.shape !== 'a-grant-read-off-a-feat',
+    );
     expect(inCombat[0]?.shape).toBe('a-weapon-mastery-property');
     expect(featureConsumersOf('a-weapon-mastery-property').blocks).toEqual([
       'barbarian:weapon-mastery',

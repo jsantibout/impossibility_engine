@@ -402,7 +402,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 230 | 118 |
+| 12 / 12 | 12 / 12 | 230 | 94 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -412,18 +412,18 @@ believe it has twelve working classes when it has twelve validated ones.
 
 | Class | Casting | Features | Executed |
 |---|---|---|---|
-| Barbarian | none | 24 | 12 |
-| Bard | known | 17 | 10 |
-| Cleric | prepared-from-list | 16 | 8 |
-| Druid | prepared-from-list | 14 | 7 |
-| Fighter | none | 21 | 13 |
-| Monk | none | 26 | 14 |
-| Paladin | prepared-from-list | 22 | 14 |
-| Ranger | known | 22 | 10 |
-| Rogue | none | 24 | 9 |
-| Sorcerer | known | 15 | 7 |
-| Warlock | known | 14 | 7 |
-| Wizard | spellbook | 15 | 7 |
+| Barbarian | none | 24 | 10 |
+| Bard | known | 17 | 8 |
+| Cleric | prepared-from-list | 16 | 6 |
+| Druid | prepared-from-list | 14 | 5 |
+| Fighter | none | 21 | 11 |
+| Monk | none | 26 | 12 |
+| Paladin | prepared-from-list | 22 | 12 |
+| Ranger | known | 22 | 8 |
+| Rogue | none | 24 | 7 |
+| Sorcerer | known | 15 | 5 |
+| Warlock | known | 14 | 5 |
+| Wizard | spellbook | 15 | 5 |
 
 ### What blocks the rest
 
@@ -448,6 +448,7 @@ be the second spelling of one derivation.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
+| `a-grant-read-off-a-feat` | 24 | 24 |
 | `a-weapon-mastery-property` | 6 | 6 |
 | `a-feature-that-changes-a-castings-damage` | 5 | 5 |
 | `a-casting-paid-for-out-of-a-feature-pool` | 10 | 4 |
