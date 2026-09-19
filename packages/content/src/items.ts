@@ -1432,24 +1432,33 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
   // — so a tracked definition answers both, and SRD's own sentence about a
   // casting from an item is every word arithmetic a tracked definition carries.
 
-  // **The Boots of Levitation are not here, and the reason is one engine
-  // line rather than a missing rule.**
+  // **The Boots of Levitation are not here, and what kept them out has been
+  // repaired.**
   //
   // SRD: "While you wear these boots, you can cast _Levitate_ on yourself."
   // Levitate is defined, the grant is an at-will casting narrowed by
-  // `targetsSelfOnly`, and every word of the record is writable. What is not
-  // is the casting: Levitate reaches "One creature ... of your choice that
-  // you can see within range", so the definition carries `requiresSight`,
-  // and `sightBetween` answers **null** for a creature and itself — which
-  // the resolver turns into a request to establish a fact `declareSight`
-  // refuses to record, in the engine’s own words: "a creature can see
-  // itself".
+  // `targetsSelfOnly`, and every word of the record was writable except the
+  // casting: Levitate reaches "One creature ... of your choice that you can
+  // see within range", so the definition carries `requiresSight`, and
+  // `sightBetween` used to answer **null** for a creature and itself — which
+  // the resolver turned into a request to establish a fact `declareSight`
+  // would not record. A record every use of which is refused is rule 1, so
+  // the boots stayed out.
   //
-  // So the boots would be a record every use of which is refused, which is
-  // rule 1. The defect is older than this entry — Cure Wounds, Healing Word,
-  // Mass Healing Word and Mass Cure Wounds all pair `self` with
-  // `requiresSight` and none of them can be cast on its own caster either —
-  // and `items-waiting-on-a-spell.test.ts` drives both halves of it.
+  // A creature can see itself as of the repair to `sightBetween` that landed
+  // beside this commit rather than in it, and that repair frees **every spell
+  // whose definition pairs `targets.self` with `requiresSight`** — Levitate
+  // among them. Not one of them could be cast on its own caster before, and
+  // the shape is what to look for rather than a list of names: this comment
+  // has already named the wrong ones twice, and any list goes stale the next
+  // time `requiresSight` is written in `spells.ts`. Cure Wounds and Mass Cure
+  // Wounds only look like the shape — they carry `self` and no
+  // `requiresSight`, and were never caught by this at all.
+  //
+  // **Transcribing the boots is a brief of its own and is not this one's.**
+  // What is left for it is the record itself, here, and the entry's line in
+  // `packages/content/scripts/missing-shapes.ts`, which still files
+  // `boots-of-levitation` under a blocker that is gone.
   wornItem(
     { id: 'circlet-of-blasting', name: 'Circlet of Blasting', kind: 'wondrous' },
     {

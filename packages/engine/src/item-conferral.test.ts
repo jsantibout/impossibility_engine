@@ -479,6 +479,49 @@ describe('Potion of Heroism: an effect with something to address', () => {
     );
     expect(fold('seed', without).timers).toEqual({});
     expect(fold('seed', without).creatures['drinker']!.vitals.temporaryHp).toBe(8);
+
+    // And two helpings in one line are one pool, so they are one deadline:
+    // the key is the creature, and a second identical `effect-scheduled`
+    // would be a line in the log saying nothing the first did not.
+    const twice = unwrap(
+      loadContent({
+        items: [
+          {
+            ...vigour({ durationSeconds: 60 }),
+            grants: [
+              {
+                kind: 'confers',
+                action: 'bonus-action',
+                durationSeconds: 60,
+                effects: [
+                  { kind: 'temp-hp', amount: { flat: 8 }, addSpellcastingModifier: false },
+                  { kind: 'temp-hp', amount: { flat: 12 }, addSpellcastingModifier: false },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      'load',
+    );
+    const doubled = unwrap(
+      useItem(
+        fold('seed', log),
+        DRINKER,
+        { item: 'potion-of-vigour' },
+        supply('vigour', twice),
+      ),
+      'drink',
+    );
+    expect(
+      doubled.events.filter(
+        (event) =>
+          event.type === 'effect-scheduled' && event.target.kind === 'temporary-hit-points',
+      ),
+    ).toHaveLength(1);
+    expect(fold('seed', [...log, ...doubled.events]).creatures['drinker']!.vitals.temporaryHp).toBe(
+      12,
+    );
   });
 
   /**

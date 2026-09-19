@@ -394,11 +394,18 @@ export function useItem(
       // `effect-scheduled` written ahead of it would be thrown away by the
       // very event that made it necessary — the order `applyConditionTo`
       // already writes, the thing first and its timer behind it.
+      //
+      // **Once per creature**, because the key is the creature: a conferral
+      // carrying two `temp-hp` effects at one target hands over one pool, and
+      // a second identical `effect-scheduled` would be a line in the log
+      // saying nothing the first did not.
+      const pooled = new Set<CharacterId>();
       for (const outcome of resolved.value.outcomes) {
-        if (outcome.temporaryHp === undefined) continue;
+        if (outcome.temporaryHp === undefined || pooled.has(outcome.target)) continue;
         const before = state.creatures[outcome.target]?.vitals.temporaryHp ?? 0;
         const after = world.creatures[outcome.target]?.vitals.temporaryHp ?? 0;
         if (after === before) continue;
+        pooled.add(outcome.target);
         const timer = schedule(
           world,
           { kind: 'temporary-hit-points', on: outcome.target },

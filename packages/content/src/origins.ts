@@ -120,7 +120,7 @@ export const DRAGONBORN: SpeciesDefinition = {
       name: 'Darkvision',
       level: 1,
       automation: 'engine',
-      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 60 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Two things around it are still the DM. No command routes through canSee yet - every rule in the engine that requires sight asks for a declared line - so a spell cast on this character in the dark still wants one. And what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
+      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 60 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Every engine rule that asks whether one creature can see another goes through canSee, so this trait is read by the rule that wanted it rather than waiting on a declared line. What is left around it is the light: what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
       grants: {
         kind: 'standing',
         reach: 'self',
@@ -149,7 +149,7 @@ export const DWARF: SpeciesDefinition = {
       name: 'Darkvision',
       level: 1,
       automation: 'engine',
-      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 120 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Two things around it are still the DM. No command routes through canSee yet - every rule in the engine that requires sight asks for a declared line - so a spell cast on this character in the dark still wants one. And what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
+      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 120 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Every engine rule that asks whether one creature can see another goes through canSee, so this trait is read by the rule that wanted it rather than waiting on a declared line. What is left around it is the light: what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
       grants: {
         kind: 'standing',
         reach: 'self',
@@ -197,7 +197,7 @@ export const ELF: SpeciesDefinition = {
       name: 'Darkvision',
       level: 1,
       automation: 'engine',
-      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 60 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Two things around it are still the DM. No command routes through canSee yet - every rule in the engine that requires sight asks for a declared line - so a spell cast on this character in the dark still wants one. And what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
+      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 60 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Every engine rule that asks whether one creature can see another goes through canSee, so this trait is read by the rule that wanted it rather than waiting on a declared line. What is left around it is the light: what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
       grants: {
         kind: 'standing',
         reach: 'self',
@@ -258,7 +258,7 @@ export const GNOME: SpeciesDefinition = {
       name: 'Darkvision',
       level: 1,
       automation: 'engine',
-      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 60 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Two things around it are still the DM. No command routes through canSee yet - every rule in the engine that requires sight asks for a declared line - so a spell cast on this character in the dark still wants one. And what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
+      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 60 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Every engine rule that asks whether one creature can see another goes through canSee, so this trait is read by the rule that wanted it rather than waiting on a declared line. What is left around it is the light: what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
       grants: {
         kind: 'standing',
         reach: 'self',
@@ -443,7 +443,7 @@ export const ORC: SpeciesDefinition = {
       name: 'Darkvision',
       level: 1,
       automation: 'engine',
-      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 120 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Two things around it are still the DM. No command routes through canSee yet - every rule in the engine that requires sight asks for a declared line - so a spell cast on this character in the dark still wants one. And what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
+      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 120 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Every engine rule that asks whether one creature can see another goes through canSee, so this trait is read by the rule that wanted it rather than waiting on a declared line. What is left around it is the light: what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
       grants: {
         kind: 'standing',
         reach: 'self',
@@ -472,7 +472,7 @@ export const TIEFLING: SpeciesDefinition = {
       name: 'Darkvision',
       level: 1,
       automation: 'engine',
-      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 60 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Two things around it are still the DM. No command routes through canSee yet - every rule in the engine that requires sight asks for a declared line - so a spell cast on this character in the dark still wants one. And what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
+      note: 'The trait is one sentence and the sentence is applied: Darkvision and its 60 feet are a standing grant on the sheet, and canSee answers with them out to that range where nobody has declared a sight line and nobody has declared Total Cover. Every engine rule that asks whether one creature can see another goes through canSee, so this trait is read by the rule that wanted it rather than waiting on a declared line. What is left around it is the light: what the SRD glossary says Darkvision does to Dim Light and Darkness is not simulated, because the engine holds no light, which is why a declared line outranks the sense rather than the other way about.',
       grants: {
         kind: 'standing',
         reach: 'self',
