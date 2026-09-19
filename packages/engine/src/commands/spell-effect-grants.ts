@@ -19,7 +19,7 @@ import { ABILITY_NAMES, type CharacterId, ok, type Result } from '@ie/shared';
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameState } from '../events.js';
 import { armorClassOf, sheetAsItStands, speedOf } from '../standing.js';
-import { recordD20Test, savingSupport } from './rolls.js';
+import { alteredRiderDice, recordD20Test, savingSupport } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /**
@@ -309,7 +309,15 @@ export function resolveAttackRiderEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { casterId, source, events, outcomes, held } = ctx;
+  const { casterId, source, events, outcomes, held, alters } = ctx;
+
+  // **SRD Foe Slayer, pinned here and nowhere else**: "The damage die of your
+  // _Hunter's Mark_ is a d10 rather than a d6." The rider is the one notation a
+  // casting writes down for later turns to roll, so the caster's feature has to
+  // reach it *before* the event rather than at every attack that reads it back
+  // — which is what lets a replay throw a d10 with no idea the feature exists.
+  const dice = alteredRiderDice(alters, effect.dice);
+  if (!dice.ok) return dice;
 
   held.add(casterId);
   events.push({
@@ -317,7 +325,7 @@ export function resolveAttackRiderEffect(
     id: casterId,
     rider: {
       source,
-      dice: effect.dice,
+      dice: dice.value,
       damageType: effect.damageType,
       ...(effect.weaponOnly === undefined ? {} : { weaponOnly: effect.weaponOnly }),
       ...(effect.marksTarget === undefined ? {} : { target }),

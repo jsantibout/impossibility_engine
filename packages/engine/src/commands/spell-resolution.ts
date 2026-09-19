@@ -82,10 +82,14 @@ import {
   type SpellEffect,
   teleportOf,
   statedDamageType,
+  damageTypesDealt,
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
 import { castingSource, type CastingNumbers, type CastingTime } from '../spells.js';
-import { sheetAsItStands } from '../standing.js';
+import {
+  castingDamageFeatures,
+  sheetAsItStands,
+} from '../standing.js';
 import {
   answeredCasting,
   choosePayment,
@@ -109,8 +113,15 @@ import {
 } from './item-casting.js';
 import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
+import { payCastingDamageCost } from './damage.js';
 import { replacedCastings } from './ongoing.js';
-import { effectCheckFrom } from './rolls.js';
+import {
+  type CastingAlterations,
+  castingAlterations,
+  effectCheckFrom,
+  electedFeatures,
+  NO_ALTERATIONS,
+} from './rolls.js';
 import {
   type CastingOrigin,
   type EffectContext,
@@ -1142,6 +1153,60 @@ function resolveOnTargets(
   // other number, so the substitution happens at the casting and never again.
   const numbers = numbersFor(sheetAsItStands(state, casterId) ?? caster.sheet, route);
 
+  // What the caster's own features do to this casting's damage, asked once,
+  // here, where the request and the route are both in hand. `castLevel` is the
+  // slot's level and `running` is the effect list as the casting's stated type
+  // leaves it, so a Sorcerer's affinity reads the type the spell is actually
+  // dealing rather than the one the definition prints first.
+  const elected = electedFeatures(state, casterId, request.usingFeatures);
+  if (!elected.ok) return elected;
+  const reaching = castingDamageFeatures(state, casterId, {
+    spell: definition.id,
+    school: definition.school,
+    // A class's route says whose spell this is; a feat's grant and an item's
+    // say nobody's, which is the honest answer to "a **Wizard** spell".
+    classId: route.kind === 'cantrip' || route.kind === 'prepared' ? route.classId : null,
+    damageTypes: damageTypesDealt(running),
+    slotLevel: castLevel,
+    using: elected.value,
+  });
+  const alters = castingAlterations(reaching, sheetAsItStands(state, casterId) ?? caster.sheet);
+  const costs = reaching.filter((feature) => feature.costs !== undefined);
+
+  /**
+   * SRD Overchannel's price, charged immediately after the casting that bought
+   * it — "you take 2d12 Necrotic damage for each level of the spell slot
+   * **immediately after you cast it**."
+   *
+   * Wrapped around the resolution rather than run inside it, because it is the
+   * *casting command's* debt and not the effect list's: an area settling a
+   * minute later and an activation run the same list, and neither of them is a
+   * casting anybody made. `events` is the batch both halves share, so the
+   * charge lands in the resolution's own events by appending to it.
+   */
+  const charged = (resolution: Result<SpellResolution>): Result<SpellResolution> => {
+    if (!resolution.ok || costs.length === 0) return resolution;
+    const issuedBefore = supply.issuer.count;
+    let current = events.reduce(applyEvent, state);
+    for (const feature of costs) {
+      const paid = payCastingDamageCost(current, casterId, feature, castLevel, supply);
+      if (!paid.ok) return paid;
+      events.push(...paid.value);
+      current = paid.value.reduce(applyEvent, current);
+    }
+    // Where the backlash threw dice, the generator's bookmark goes in the log
+    // beside them — the same event `runEffects` writes for the spell's own,
+    // and the same place in the batch: after what it accounts for.
+    if (supply.issuer.count > issuedBefore) {
+      events.push({
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      });
+    }
+    return resolution;
+  };
+
   // — paying for it ——————————————————————————————————————————————————————
   //
   // A free casting from a feat spends its own pool; anything else goes through
@@ -1160,25 +1225,28 @@ function resolveOnTargets(
   // `hold` to ask for one, which is where that rule is actually enforced — a
   // runtime guard here would be unreachable code claiming to be a rule.
   if (held !== null) {
-    return resolveEffects(state, casterId, caster, definition, {
-      castLevel,
-      numbers,
-      route,
-      targets,
-      unverified,
-      supply,
-      castingId: held.castingId,
-      events,
-      effects: running,
-      ...(origin === null ? {} : { from: origin }),
-      ...(fought === undefined ? {} : { fought }),
-      ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
-      // A released spell leaves the same thing running that a cast one does.
-      // This was the one resolution path of three that wrote no record, so a
-      // readied Bless was running, concentrated on, and invisible to Dispel
-      // Magic.
-      ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
-    });
+    return charged(
+      resolveEffects(state, casterId, caster, definition, {
+        castLevel,
+        numbers,
+        route,
+        targets,
+        unverified,
+        supply,
+        castingId: held.castingId,
+        events,
+        effects: running,
+        ...(origin === null ? {} : { from: origin }),
+        ...(fought === undefined ? {} : { fought }),
+        ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
+        alters,
+        // A released spell leaves the same thing running that a cast one does.
+        // This was the one resolution path of three that wrote no record, so a
+        // readied Bless was running, concentrated on, and invisible to Dispel
+        // Magic.
+        ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+      }),
+    );
   }
 
   // **Two reasons to declare rather than resolve, and one of them is not the
@@ -1381,26 +1449,29 @@ function resolveOnTargets(
     return ok({ events, castingId, outcomes: [], unverified });
   }
 
-  const resolved = resolveEffects(state, casterId, caster, definition, {
-    castLevel,
-    numbers,
-    route,
-    targets,
-    unverified,
-    supply,
-    castingId,
-    events,
-    effects: running,
-    ...(origin === null ? {} : { from: origin }),
-    ...(fought === undefined ? {} : { fought }),
-    ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
-    // The casting this Reaction answers, as an **id** rather than as the record
-    // that was read. The resolver looks it up again on the state its own events
-    // have been folded into, so it settles exactly the casting the trigger
-    // accepted and reads it as it now stands.
-    ...(context.answers === undefined ? {} : { answers: context.answers }),
-    ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
-  });
+  const resolved = charged(
+    resolveEffects(state, casterId, caster, definition, {
+      castLevel,
+      numbers,
+      route,
+      targets,
+      unverified,
+      supply,
+      castingId,
+      events,
+      effects: running,
+      ...(origin === null ? {} : { from: origin }),
+      ...(fought === undefined ? {} : { fought }),
+      ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
+      alters,
+      // The casting this Reaction answers, as an **id** rather than as the record
+      // that was read. The resolver looks it up again on the state its own events
+      // have been folded into, so it settles exactly the casting the trigger
+      // accepted and reads it as it now stands.
+      ...(context.answers === undefined ? {} : { answers: context.answers }),
+      ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+    }),
+  );
   if (!resolved.ok) return resolved;
 
   // The spell has landed; now the attack it answered is re-measured against
@@ -1644,6 +1715,8 @@ export function resolveEffects(
      * exists rather than making a second one.
      */
     readonly becomesOngoing?: OngoingRecordPlan;
+    /** What the caster's features do to this casting's damage — see EffectRun. */
+    readonly alters?: CastingAlterations;
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, castingId, events } = context;
@@ -1675,6 +1748,7 @@ export function resolveEffects(
     ...(context.fought === undefined ? {} : { fought: context.fought }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
+    ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
   if (!resolved.ok) return resolved;
   const { numbers, outcomes, held } = resolved.value;
@@ -1775,6 +1849,17 @@ export interface EffectRun {
   readonly fought?: readonly CharacterId[];
   readonly teleportTo?: Placement;
   readonly answers?: string;
+  /**
+   * What the caster's features do to this casting's damage, and what electing
+   * one of them costs — see {@link CastingAlterations} and `castingDamageCost`.
+   *
+   * **Supplied only where a casting is being made**, which is the whole of the
+   * rule: SRD Overchannel says "on the turn you cast it", and the other four
+   * alter the damage the casting deals rather than the debts it leaves. So an
+   * activation, an area settling a minute later and an item's conferral all
+   * omit it and roll what the definition prints.
+   */
+  readonly alters?: CastingAlterations;
 }
 
 /** What a run leaves behind, for whoever has to write the record of it. */
@@ -1949,6 +2034,7 @@ export function runEffects(
     events,
     outcomes,
     held,
+    alters: run.alters ?? NO_ALTERATIONS(),
     ...(run.from === undefined ? {} : { from: run.from }),
     ...(run.fought === undefined ? {} : { fought: run.fought }),
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),

@@ -219,8 +219,19 @@ export const EVOKER: SubclassDefinition = {
       id: 'evoker:potent-cantrip',
       name: 'Potent Cantrip',
       level: 3,
-      automation: 'manual',
-      note: 'Half damage on a missed cantrip attack or a successful save is not applied; the damage pipeline has no notion of a cantrip.',
+      automation: 'engine',
+      note: 'Applied. SRD: "When you cast a cantrip at a creature and you miss with the attack roll or the target succeeds on a saving throw against the cantrip, the target takes half the cantrip\'s damage (if any) but suffers no additional effect from the cantrip." A `casting-damage` grant over slot level 0, which is what a cantrip is cast at; both branches already deal half and already hang no rider, so the feature supplies the `half` the definition prints on neither. It says nothing about which class the cantrip came from, so a cantrip from a feat carries it too.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'casting-damage',
+            when: { slotLevels: { from: 0, to: 0 } },
+            alters: { kind: 'half-when-avoided' },
+          },
+        ],
+      },
     },
     {
       id: 'evoker:sculpt-spells',
@@ -233,15 +244,48 @@ export const EVOKER: SubclassDefinition = {
       id: 'evoker:empowered-evocation',
       name: 'Empowered Evocation',
       level: 10,
-      automation: 'manual',
-      note: 'Adding the Intelligence modifier to an Evocation damage roll is a bonus the caller supplies.',
+      automation: 'engine',
+      note: 'Applied. SRD: "Whenever you cast a Wizard spell from the Evocation school, you can add your Intelligence modifier to one damage roll of that spell." Elemental Affinity\'s sentence on a second class, which is what makes it a shape rather than one subclass\'s quirk. "A **Wizard** spell" is the route rather than the list, so a Sorcerer/Wizard casting Fireball through the Sorcerer half is not reached; "you can" means the casting names the feature or it adds nothing.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'casting-damage',
+            when: { classId: 'wizard', school: 'evocation' },
+            alters: { kind: 'ability-modifier', ability: 'int' },
+            optional: true,
+          },
+        ],
+      },
     },
     {
       id: 'evoker:overchannel',
       name: 'Overchannel',
       level: 14,
-      automation: 'manual',
-      note: 'Maximised damage and the escalating Necrotic backlash are not modelled.',
+      automation: 'engine',
+      note: 'Applied, both sentences. SRD: "When you cast a Wizard spell with a spell slot of levels 1–5 that deals damage, you can deal maximum damage with that spell on the turn you cast it. The first time you do so, you suffer no adverse effect. If you use this feature again before you finish a Long Rest, you take 2d12 Necrotic damage for each level of the spell slot immediately after you cast it. This damage ignores Resistance and Immunity. Each time you use this feature again before finishing a Long Rest, the Necrotic damage per spell level increases by 1d12." Maximum damage throws nothing at all, so the dice are the highest they could have been and the generator has not moved; the price is a count with no ceiling, because a pool of one would refuse the second use where the book charges for it.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'casting-damage',
+            when: { classId: 'wizard', slotLevels: { from: 1, to: 5 }, dealsDamage: true },
+            alters: { kind: 'maximum' },
+            optional: true,
+            costs: {
+              freeUses: 1,
+              dicePerSlotLevel: '2d12',
+              increasesBy: '1d12',
+              damageType: 'necrotic',
+              ignoresDefenses: true,
+              key: 'evoker:overchannel',
+              recovers: 'long-rest',
+            },
+          },
+        ],
+      },
     },
   ],
 };

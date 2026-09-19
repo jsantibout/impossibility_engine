@@ -2304,6 +2304,32 @@ export function statedDamageType(
 }
 
 /**
+ * Every kind of damage an effect list deals, sorted and without repeats.
+ *
+ * SRD Elemental Affinity asks it of a whole casting — "when you cast a spell
+ * that deals damage of that type" — so the question is the list's rather than
+ * any one effect's, and a spell printing two types answers for both. Read off
+ * the list the casting is actually running, so a stated type reaches it: Spirit
+ * Guardians deals Radiant *or* Necrotic and the casting already said which.
+ *
+ * `plus`, the second damage an area trigger's host may carry, is folded in for
+ * the same reason a rider is not: it is damage this list deals, where a rider's
+ * die is thrown on a later turn by an attack that has not happened.
+ */
+export function damageTypesDealt(effects: readonly SpellEffect[]): readonly string[] {
+  const types = new Set<string>();
+  for (const effect of effects) {
+    if ('damageType' in effect && typeof effect.damageType === 'string') {
+      types.add(effect.damageType);
+    }
+    if ('plus' in effect && effect.plus !== undefined) {
+      for (const part of effect.plus) types.add(part.damageType);
+    }
+  }
+  return [...types].sort();
+}
+
+/**
  * How a deadline finishes the sentence a refusal starts.
  *
  * "…until **the spell ends**", "…until **the start of the caster's next

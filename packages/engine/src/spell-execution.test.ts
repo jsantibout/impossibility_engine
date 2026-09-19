@@ -288,10 +288,26 @@ describe('casting Fire Bolt', () => {
     expect(state.creatures.goblin!.vitals.hp).toBe(30 - (hit.damage ?? 0));
   });
 
-  it('misses without dealing damage', () => {
+  /**
+   * **And Kessa is an Evoker**, so a missed cantrip still stings.
+   *
+   * SRD Potent Cantrip: "When you cast a cantrip at a creature and you miss
+   * with the attack roll ... the target takes half the cantrip's damage (if
+   * any) but suffers no additional effect from the cantrip." The miss is still
+   * a miss — `affected` is false, exactly as a made saving throw against a
+   * spell that halves is — and the half of a 1d10 is what lands. This assertion
+   * used to read "without dealing damage" and was right until the Evoker's
+   * level 3 feature was executed; it is the same fixture and the rule moved
+   * under it, which is the whole point of driving features through a real
+   * character.
+   */
+  it('misses, and an Evoker still deals half', () => {
     const { outcome, state } = cast(table(), { spellId: 'fire-bolt', targets: [GOBLIN] }, DOOMED);
     expect(outcome.outcomes[0]).toMatchObject({ affected: false });
-    expect(state.creatures.goblin!.vitals.hp).toBe(30);
+    const dealt = outcome.outcomes[0]?.damage ?? 0;
+    expect(dealt).toBeGreaterThanOrEqual(0);
+    expect(dealt).toBeLessThanOrEqual(5);
+    expect(state.creatures.goblin!.vitals.hp).toBe(30 - dealt);
   });
 
   it('spends the action and no slot', () => {

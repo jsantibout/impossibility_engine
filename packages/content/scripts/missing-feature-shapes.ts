@@ -144,8 +144,6 @@ export const FEATURE_SHAPES = {
     'a rule about Concentration that is true of **one** spell. The Concentration save reads the damage that threatened it and knows nothing about which casting is at risk, which is the same absence `docs/design/rolls-and-damage.md` records for a saving throw — "nothing records what a save was against". A Ranger who keeps Concentration on Hunter\'s Mark and on nothing else cannot be told apart from one who keeps it on everything.',
   'a-feature-that-changes-what-a-casting-costs':
     'a feature that changes the price of a casting the character makes — its components, its action, its slot, or how many of the caster\'s own tricks ride on it. A casting pins what it read at the casting, which `docs/design/content.md` states as the rule the whole fold depends on: "A command pins what it read into its events (a casting\'s area and numbers, an equip event\'s armour record), so a stored log folds the same under any catalogue." Nothing stands between the caster\'s sheet and that pinning.',
-  'a-feature-that-changes-a-castings-damage':
-    'a feature that changes the dice a spell rolls. The same pinning: the notation, the die and the type are the definition\'s and are fixed when the casting is written. So a modifier added to one Evocation\'s damage, a d6 that becomes a d10, a cantrip that deals half on a miss and a maximised Necrotic backlash are all a caster\'s feature reaching into arithmetic `docs/design/content.md` keeps deliberately out of its reach.',
   'a-feature-that-changes-who-a-casting-catches':
     'a feature that changes a spell\'s targets or its area\'s catch. `docs/design/space-and-areas.md` keeps the one filter an area has narrow on purpose — "Designating creatures unaffected is a choice, and never allegiance ... it is **explicit**, because a cleric may spare an enemy and may decline to spare an ally" — and that choice belongs to the casting rather than to a feature of the caster. Doubling a spell\'s targets, sparing creatures from your own Evocation and spreading a rider to a second creature all want the same missing reader.',
   'a-declared-fact-a-feature-sets':
@@ -1034,13 +1032,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'recorded because the note used to claim otherwise: Hunter’s Mark is executed and the rider fires only at its target.',
     },
   ],
-  'ranger:foe-slayer': [
-    {
-      clause: 'changing the notation the definition pinned',
-      why: 'a-feature-that-changes-a-castings-damage',
-      note: 'the whole feature in 5.2.1: a d6 that becomes a d10 on a casting already written.',
-    },
-  ],
   'hunter:hunters-lore': [
     {
       clause: 'narration the engine could answer but is not asked',
@@ -1340,18 +1331,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'the spell map’s own id: the maximum is set at creation and by advancement, and nothing else moves it.',
     },
   ],
-  'draconic-sorcery:elemental-affinity': [
-    {
-      clause: 'The Resistance is applied',
-      why: 'expressible',
-      note: 'a standing damage-resistance read off the option chosen.',
-    },
-    {
-      clause: 'needs a hook into a spell’s own damage roll',
-      why: 'a-feature-that-changes-a-castings-damage',
-      note: 'the Charisma modifier added to one damage roll of a spell the Sorcerer cast.',
-    },
-  ],
   'draconic-sorcery:dragon-wings': [
     {
       clause: 'A Fly Speed is not modelled',
@@ -1477,32 +1456,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'two castings out of a pool that refills on a Short Rest.',
     },
   ],
-  'evoker:potent-cantrip': [
-    {
-      clause: 'the damage pipeline has no notion of a cantrip',
-      why: 'a-feature-that-changes-a-castings-damage',
-      note: 'half damage where the definition offers none, decided by the caster’s feature.',
-    },
-  ],
   'evoker:sculpt-spells': [
     {
       clause: 'Choosing creatures to automatically succeed is not modelled',
       why: 'a-feature-that-changes-who-a-casting-catches',
       note: 'an area’s catch narrowed by a feature rather than by the casting’s own designation.',
-    },
-  ],
-  'evoker:empowered-evocation': [
-    {
-      clause: 'Adding the Intelligence modifier to an Evocation damage roll',
-      why: 'a-feature-that-changes-a-castings-damage',
-      note: 'Elemental Affinity’s blocker on a second class, which is what makes it a shape.',
-    },
-  ],
-  'evoker:overchannel': [
-    {
-      clause: 'Maximised damage and the escalating Necrotic backlash',
-      why: 'a-feature-that-changes-a-castings-damage',
-      note: 'a spell’s dice maximised, and then a cost paid in damage for having done it.',
     },
   ],
 

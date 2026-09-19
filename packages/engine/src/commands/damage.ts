@@ -16,6 +16,7 @@
 
 import { type Ability, type CharacterId, err, ok, type Result } from '@ie/shared';
 import { applyDamage, type DamageComponent, rawDamageTotal } from '../attack.js';
+import { parseNotation } from '../dice.js';
 import { spendReaction } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import {
@@ -33,8 +34,8 @@ import {
   type ReactionFeature,
   type ReactionOffer,
 } from '../reactions.js';
-import { remaining } from '../resources.js';
-import { defensesOf } from '../standing.js';
+import { remaining, tallied } from '../resources.js';
+import { type CastingDamageFeature, defensesOf } from '../standing.js';
 import {
   type ConcentrationConsequence,
   type Supply,
@@ -246,7 +247,19 @@ export function dealSpellDamage(
   components: readonly DamageComponent[],
   source: string,
   supply: Supply,
-  options: { readonly critical?: boolean; readonly by?: CharacterId },
+  options: {
+    readonly critical?: boolean;
+    readonly by?: CharacterId;
+    /**
+     * SRD Overchannel: "This damage ignores Resistance and Immunity."
+     *
+     * The target's defences are not consulted at all rather than cancelled one
+     * by one, because the sentence names both halves of `DamageDefenses` and
+     * says nothing about Vulnerability — and an empty record is exactly "a
+     * creature with no defences", which `applyDefenses` already answers for.
+     */
+    readonly ignoresDefenses?: boolean;
+  },
 ): Result<{
   readonly events: readonly GameEvent[];
   readonly amount: number;
@@ -257,7 +270,10 @@ export function dealSpellDamage(
 
   // A creature's own defences and the ones its features grant, together. The
   // stat block's entries alone would miss a Sorcerer's Elemental Affinity.
-  const applied = applyDamage(components, defensesOf(state, target));
+  const applied = applyDamage(
+    components,
+    options.ignoresDefenses === true ? {} : defensesOf(state, target),
+  );
   const resolved = resolveDamage(
     state,
     target,
@@ -276,6 +292,92 @@ export function dealSpellDamage(
     amount: applied.total,
     concentration: resolved.value.concentration,
   });
+}
+
+/**
+ * What a `casting-damage` feature charges its holder for having used it.
+ *
+ * SRD Overchannel, which is the only line in the book of this shape: "The first
+ * time you do so, you suffer no adverse effect. If you use this feature again
+ * before you finish a Long Rest, you take 2d12 Necrotic damage for each level
+ * of the spell slot immediately after you cast it. This damage ignores
+ * Resistance and Immunity. Each time you use this feature again before
+ * finishing a Long Rest, the Necrotic damage per spell level increases by
+ * 1d12."
+ *
+ * Three sentences and three decisions:
+ *
+ * - **The use is always counted**, including the free one, because "the first
+ *   time" is a fact about how many uses have gone before and nothing else could
+ *   answer it. The count is a `Tally` — see {@link CastingDamageCost} for why
+ *   it is not a pool — and the tag rides the use because nothing declares one.
+ * - **The dice are `(base + extra × step) × slot level`**, where `extra` is how
+ *   many uses have already been paid for. The second use of the feature at a
+ *   level 3 slot is 6d12; the third is 9d12.
+ * - **The damage ignores the caster's defences**, which is the one clause that
+ *   needed anything new on the damage path — and it is an *absence* of
+ *   defences rather than a cancellation of each, because that is what the
+ *   sentence names.
+ *
+ * Everything after the dice is the path a spell's damage already takes, so the
+ * drop to 0, the Unconscious, death and the Concentration the backlash put at
+ * risk all behave exactly as a Fire Bolt's would.
+ */
+export function payCastingDamageCost(
+  state: GameState,
+  who: CharacterId,
+  feature: CastingDamageFeature,
+  slotLevel: number,
+  supply: Supply,
+): Result<readonly GameEvent[]> {
+  const cost = feature.costs;
+  if (cost === undefined) return ok([]);
+
+  const caster = creatureOf(state, who);
+  if (caster === null) return unknownCreature(who);
+
+  const used = tallied(caster.resources, cost.key);
+  const counted: GameEvent = {
+    type: 'resource-spent',
+    id: who,
+    key: cost.key,
+    amount: 1,
+    tally: cost.recovers,
+  };
+  const events: GameEvent[] = [counted];
+  if (used < cost.freeUses) return ok(events);
+
+  const base = parseNotation(cost.dicePerSlotLevel);
+  if (!base.ok) return base;
+  const step = parseNotation(cost.increasesBy);
+  if (!step.ok) return step;
+  if (base.value.sides !== step.value.sides) {
+    return err(
+      'mismatched_backlash_dice',
+      `${feature.name} escalates by a d${step.value.sides} on a cost printed in d${base.value.sides}s; one price is counted in one die`,
+    );
+  }
+
+  const perLevel = base.value.count + (used - cost.freeUses) * step.value.count;
+  const count = perLevel * Math.max(0, slotLevel);
+  if (count <= 0) return ok(events);
+
+  const current = events.reduce(applyEvent, state);
+  const rolled = rollSpellDice(
+    supply,
+    caster.sheet,
+    feature.name,
+    cost.damageType,
+    `${count}d${base.value.sides}`,
+  );
+  if (!rolled.ok) return rolled;
+
+  const hurt = dealSpellDamage(current, who, rolled.value, feature.name, supply, {
+    ...(cost.ignoresDefenses === true ? { ignoresDefenses: true } : {}),
+  });
+  if (!hurt.ok) return hurt;
+
+  return ok([...events, ...hurt.value.events]);
 }
 
 /**

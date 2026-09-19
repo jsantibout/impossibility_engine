@@ -816,13 +816,10 @@ describe('features are granted, and say what is not automated', () => {
     const manual = planned().features.filter((f) => f.automation === 'manual');
     // Versatile and Magic Initiate left this list when their mechanics were
     // actually applied: the feat's proficiencies and spells reach the sheet,
-    // and the free daily casting is a pool the engine spends. What is left is
-    // genuinely unexecuted.
-    expect(manual.map((f) => f.id)).toEqual([
-      'wizard:ritual-adept',
-      'evoker:potent-cantrip',
-      'human:resourceful',
-    ]);
+    // and the free daily casting is a pool the engine spends. Potent Cantrip
+    // left it the day a feature could reach into a casting's damage. What is
+    // left is genuinely unexecuted.
+    expect(manual.map((f) => f.id)).toEqual(['wizard:ritual-adept', 'human:resourceful']);
     for (const feature of manual) expect(feature.note.length).toBeGreaterThan(0);
   });
 

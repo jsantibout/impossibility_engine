@@ -404,7 +404,13 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     expect(consumers.finishes).toEqual([]);
 
     const ranked = allFeatureShapeConsumers();
-    expect(ranked[0]?.shape).toBe('a-feature-that-changes-a-castings-damage');
+    // The leader this replaced — a feature that changes a casting's damage —
+    // is gone from the map entirely, which is what a shape leaving looks like:
+    // its five features are executed, so there is nothing for it to block.
+    expect(ranked.map((row) => row.shape)).not.toContain(
+      'a-feature-that-changes-a-castings-damage',
+    );
+    expect(ranked[0]?.shape).toBe('a-casting-paid-for-out-of-a-feature-pool');
     expect(ranked.map((row) => row.shape).indexOf('a-weapon-mastery-property')).toBeGreaterThan(0);
   });
 

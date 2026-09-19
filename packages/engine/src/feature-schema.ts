@@ -1,5 +1,6 @@
 import { ABILITIES, err, ok, type Ability, type Result } from '@ie/shared';
 import { ABILITY_SCORE_MAXIMUM } from './character.js';
+import { parseNotation } from './dice.js';
 import type { FeatureDefinition, FeatureOptionMeaning, PoolSizing } from './progression.js';
 
 /**
@@ -654,6 +655,65 @@ export function checkFeatureDefinition(
       feature.id,
     ),
   );
+
+  // Rule 10. A feature that reaches into a casting's damage, and the two
+  // things it can say that nothing downstream could recover from.
+  //
+  // **A band that reaches no slot**, which is a narrowing that narrows to
+  // nothing: a feature written `{ from: 5, to: 1 }` matches no casting at all,
+  // and there is no moment at which anybody would find out.
+  //
+  // **A price counted in two dice.** SRD Overchannel escalates a d12 cost by a
+  // d12, and the arithmetic is "how many of *the* die", so a cost printed in
+  // d12s and escalating by d8s has no single answer. The resolver refuses it
+  // (`mismatched_backlash_dice`) and this refuses it at the door, which is
+  // where a catalogue error belongs.
+  if (grant?.kind === 'standing') {
+    (grant.effects ?? []).forEach((effect, index) => {
+      if (effect.kind !== 'casting-damage') return;
+      const at = `grants.effects[${index}]`;
+      const band = effect.when.slotLevels;
+      if (band !== undefined && band.from > band.to) {
+        found.push({
+          field: `${at}.when.slotLevels`,
+          code: 'empty_slot_band',
+          reason: `levels ${band.from} to ${band.to} is a band no slot falls in, so this feature would reach nothing`,
+        });
+      }
+      const cost = effect.costs;
+      if (cost !== undefined) {
+        const base = parseNotation(cost.dicePerSlotLevel);
+        const step = parseNotation(cost.increasesBy);
+        if (!base.ok || !step.ok) {
+          found.push({
+            field: `${at}.costs`,
+            code: 'bad_backlash_dice',
+            reason: `a price is paid in dice: "${cost.dicePerSlotLevel}" and "${cost.increasesBy}" are not both notation`,
+          });
+        } else if (base.value.sides !== step.value.sides) {
+          found.push({
+            field: `${at}.costs.increasesBy`,
+            code: 'mismatched_backlash_dice',
+            reason: `a price printed in d${base.value.sides}s cannot escalate by a d${step.value.sides}; one price is counted in one die`,
+          });
+        }
+        if (!Number.isInteger(cost.freeUses) || cost.freeUses < 0) {
+          found.push({
+            field: `${at}.costs.freeUses`,
+            code: 'bad_free_uses',
+            reason: `"the first time you do so" is a whole number of free uses, not ${String(cost.freeUses)}`,
+          });
+        }
+        if (cost.key.trim().length === 0) {
+          found.push({
+            field: `${at}.costs.key`,
+            code: 'bad_backlash_key',
+            reason: 'the uses are counted under a key, and a blank one names no tally',
+          });
+        }
+      }
+    });
+  }
 
   // And the reading end of the same rule: the field says where a choice is
   // read *from*, so a grant that reads no choice names a source for nothing.

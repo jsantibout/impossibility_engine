@@ -32,6 +32,7 @@ import {
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
 import { spellOfSource } from './spells.js';
+import type { Recovery } from './resources.js';
 import type { DamageDefenses, DefenseKind } from './attack.js';
 import type { Weapon } from '@ie/srd';
 import { canUseFeatureThisTurn, movementLeft } from './combat.js';
@@ -74,6 +75,161 @@ export type StandingReach =
    * its own origin.
    */
   | { readonly kind: 'aura'; readonly feet: number };
+
+/**
+ * Which castings a `casting-damage` grant reaches.
+ *
+ * Every field is a **narrowing** and an absent one asks nothing, which is the
+ * reading `RollSelector` already takes: a feature that names no school reaches
+ * every school. The five SRD sentences between them write all five fields, and
+ * no one feature writes more than three.
+ *
+ * | SRD | What it narrows |
+ * |---|---|
+ * | Foe Slayer, "the damage die of your _Hunter's Mark_" | {@link spell} |
+ * | Empowered Evocation, "a Wizard spell from the Evocation school" | {@link classId}, {@link school} |
+ * | Elemental Affinity, "a spell that deals damage of that type" | {@link damageTypes} |
+ * | Potent Cantrip, "a cantrip" | {@link slotLevels} |
+ * | Overchannel, "a Wizard spell with a spell slot of levels 1–5" | {@link classId}, {@link slotLevels} |
+ */
+export interface CastingDamageWhen {
+  /** One spell, by catalogue id. The engine compares it and never names one. */
+  readonly spell?: string;
+  /** The school the definition declares — a property of the spell, not a branch. */
+  readonly school?: string;
+  /**
+   * The class the casting was **routed through**.
+   *
+   * SRD says "a **Wizard** spell", which is not "a spell on the Wizard list": a
+   * Sorcerer/Wizard who prepared Fireball through the Sorcerer half casts it as
+   * a Sorcerer, and Empowered Evocation says nothing about that casting. Read
+   * off `CastingRoute.classId`, so a feat's grant and an item's casting match
+   * no feature that names one.
+   */
+  readonly classId?: string;
+  /**
+   * The damage types the casting deals; any one of them is enough.
+   *
+   * Filled from the feature's own choice where the grant says
+   * `damageTypesFromChoice` — the same column Elemental Affinity's Resistance
+   * already reads, because the SRD writes both halves off one choice and a
+   * second question would be the player answering twice.
+   */
+  readonly damageTypes?: readonly string[];
+  /**
+   * The band of slot levels, inclusive, the casting was made at.
+   *
+   * The **slot's** level and not the spell's, which is what Overchannel says —
+   * "a spell slot of levels 1–5" — and what makes a cantrip `0` to `0` rather
+   * than a fourth kind of question.
+   */
+  readonly slotLevels?: { readonly from: number; readonly to: number };
+  /**
+   * SRD Overchannel: "a Wizard spell with a spell slot of levels 1–5 **that
+   * deals damage**."
+   *
+   * That the casting deals damage of *some* kind, where {@link damageTypes}
+   * asks which. One writer, and it is here because the feature charges for
+   * itself: without it a Wizard casting Detect Magic with Overchannel elected
+   * would count a use and pay 6d12 for having maximised nothing.
+   */
+  readonly dealsDamage?: true;
+}
+
+/**
+ * What a feature does to the damage a casting was going to deal.
+ *
+ * **Four arms of one field rather than four grants.** All four are asked for at
+ * one moment, by one reader, and each is a single arithmetic operation on a
+ * notation already in hand; four grant kinds would be four copies of
+ * {@link CastingDamageWhen} and four call sites for one question, and the
+ * repeated `when` is precisely what makes this a shape rather than five special
+ * cases.
+ *
+ * Only `ability-modifier` has two SRD writers. That is said rather than hidden:
+ * the other three are each one feature's own sentence, exactly as
+ * `attack-damage.advantageOrAdjacentAlly` is, and not one of them brings any
+ * machinery of its own.
+ */
+export type CastingDamageAlteration =
+  /**
+   * SRD Elemental Affinity: "you can add your Charisma modifier to **one damage
+   * roll** of that spell." SRD Empowered Evocation says the same of
+   * Intelligence. Two classes, one sentence, which is what makes it a shape.
+   *
+   * The modifier is read off the caster's sheet at the casting, so a Headband
+   * of Intellect moves it exactly as it moves the save DC.
+   */
+  | { readonly kind: 'ability-modifier'; readonly ability: Ability }
+  /**
+   * SRD Foe Slayer: "The damage die of your _Hunter's Mark_ is a d10 rather
+   * than a d6."
+   *
+   * A substitution over the notation rather than a number: `3d6` becomes `3d10`
+   * and a notation rolling any other die is left alone. It reaches a **pinned**
+   * notation too — the die an `attack-rider` writes into its own event — which
+   * is what lets a replay roll a d10 without knowing the feature exists.
+   */
+  | { readonly kind: 'die'; readonly from: number; readonly to: number }
+  /**
+   * SRD Potent Cantrip: "When you cast a cantrip at a creature and you miss
+   * with the attack roll or the target succeeds on a saving throw against the
+   * cantrip, the target takes half the cantrip's damage (if any) but suffers no
+   * additional effect from the cantrip."
+   *
+   * A floor where the definition offers none: an `attack` that prints no
+   * `onMiss` reads as `half`, and a `save-damage` whose `onSuccess` is `none`
+   * reads as `half`. "No additional effect" is what both of those branches
+   * already do — neither hangs a rider — so nothing here says it twice.
+   */
+  | { readonly kind: 'half-when-avoided' }
+  /**
+   * SRD Overchannel: "you can deal maximum damage with that spell on the turn
+   * you cast it."
+   *
+   * **Nothing is thrown.** Every die takes its highest face, so the component
+   * comes back with no roll at all and the generator has not moved — the honest
+   * reading of "maximum damage", and the one a replay reproduces for free. A
+   * Critical Hit is applied first, because the SRD doubles the dice and this
+   * maximises whatever dice the attack ends up rolling.
+   */
+  | { readonly kind: 'maximum' };
+
+/**
+ * What using one of these features costs its holder — the one SRD feature of
+ * this shape that prints a price.
+ *
+ * SRD Overchannel: "The first time you do so, you suffer no adverse effect. If
+ * you use this feature again before you finish a Long Rest, you take 2d12
+ * Necrotic damage for each level of the spell slot immediately after you cast
+ * it. This damage ignores Resistance and Immunity. Each time you use this
+ * feature again before finishing a Long Rest, the Necrotic damage per spell
+ * level increases by 1d12."
+ *
+ * **A count, not a pool**, and `Tally` in `resources.ts` is exactly the tool: a
+ * pool of one would refuse the second use, where the book has the second use
+ * happen and charges for it. Nothing declares a tally, so the key and the
+ * recovery ride the use, which is why both are fields here.
+ *
+ * One writer, stated rather than dressed up as a general mechanism. It is a
+ * field on the grant the maximisation lives on because the SRD's sentence makes
+ * the two one feature, and the price is meaningless without it.
+ */
+export interface CastingDamageCost {
+  /** SRD: "The first time you do so, you suffer no adverse effect." */
+  readonly freeUses: number;
+  /** SRD: "2d12 Necrotic damage **for each level of the spell slot**". */
+  readonly dicePerSlotLevel: string;
+  /** SRD: "the Necrotic damage per spell level **increases by 1d12**". */
+  readonly increasesBy: string;
+  readonly damageType: string;
+  /** SRD: "This damage ignores Resistance and Immunity." */
+  readonly ignoresDefenses?: true;
+  /** What the uses are counted under — a tally's key, as a pool's is. */
+  readonly key: string;
+  /** SRD: "before you finish a **Long Rest**", which zeroes the count. */
+  readonly recovers: Recovery;
+}
 
 /** What a standing benefit does. */
 export type StandingGrant =
@@ -386,6 +542,56 @@ export type StandingGrant =
        * different narrowing that does not exist yet.
        */
       readonly onlyWithItem?: boolean;
+    }
+  /**
+   * A feature of the **caster** that reaches into a casting's own arithmetic.
+   *
+   * Everything a spell deals is the definition's and is settled when the
+   * casting is written; five SRD features say otherwise, and until this member
+   * none of them had anywhere to say it. They are one shape because they share
+   * a reader: something consulted once, at the casting, that asks *is this
+   * casting one I reach* ({@link CastingDamageWhen}) and then *what do I do to
+   * the damage it was going to deal* ({@link CastingDamageAlteration}).
+   *
+   * **A standing grant rather than a `FeatureGrant` of its own**, for the
+   * reason `evasion` beside it is one: it is a property the holder has
+   * continuously and is derived on every read, and the moment it bites is a
+   * moment somebody else's command is in the middle of. It also lets Elemental
+   * Affinity carry both halves of one SRD sentence — the Resistance and this —
+   * as two effects of one grant, which a feature holding a single
+   * `FeatureGrant` could not.
+   *
+   * **The alteration is pinned, never the feature.** A notation a feature
+   * rewrote reaches the log rewritten, and nothing the fold reads has to know
+   * the feature existed: `attack-rider-granted` carries the d10, and every
+   * other alteration is spent before the dice and lands in the amounts the
+   * damage events already record.
+   *
+   * It reaches the casting itself and no later moment of it. SRD Overchannel
+   * says "on the turn you cast it", and what the other four alter is the damage
+   * the casting deals rather than the debts it leaves behind — so an area
+   * catching somebody a minute later, a delayed hit and a turn payout all roll
+   * what the definition prints.
+   */
+  | {
+      readonly kind: 'casting-damage';
+      /** Which castings it reaches; absent fields ask nothing. */
+      readonly when: CastingDamageWhen;
+      /** What it does to what they deal. */
+      readonly alters: CastingDamageAlteration;
+      /**
+       * SRD "**you can** add your Charisma modifier", "**you can** deal maximum
+       * damage": the caster elects it, casting by casting.
+       *
+       * Three of the five say it and two do not — Potent Cantrip's cantrips
+       * "affect even creatures that avoid the brunt of the effect" and Foe
+       * Slayer's die simply *is* a d10 — so it is a field rather than a rule.
+       * An elected feature is named on the request; one that is not elected
+       * does nothing, which is how "you can" is declined.
+       */
+      readonly optional?: true;
+      /** What electing it costs — see {@link CastingDamageCost}. */
+      readonly costs?: CastingDamageCost;
     };
 
 /**
@@ -1808,6 +2014,107 @@ export function evadesHalfDamage(
 ): boolean {
   if (ability !== 'dex' || !offersHalfOnSuccess) return false;
   return standingFor(state, who).some(({ effect }) => effect.grant.kind === 'evasion');
+}
+
+/** The casting a `casting-damage` grant is being asked about. */
+export interface CastingDamageQuery {
+  /** The definition's own id, for the feature that names one spell. */
+  readonly spell: string;
+  readonly school: string;
+  /** The class the route went through; null for a feat's grant or an item's. */
+  readonly classId: string | null;
+  /** Every damage type this casting deals, as the definition and the cast leave it. */
+  readonly damageTypes: readonly string[];
+  /** The slot's level, and `0` for a cantrip. */
+  readonly slotLevel: number;
+  /** The features the caster elected on this casting — see `optional`. */
+  readonly using: readonly string[];
+}
+
+/** One feature reaching into this casting, with the name the log reads it under. */
+export interface CastingDamageFeature {
+  readonly feature: string;
+  readonly name: string;
+  readonly when: CastingDamageWhen;
+  readonly alters: CastingDamageAlteration;
+  readonly costs?: CastingDamageCost;
+}
+
+/**
+ * Whether one `casting-damage` grant reaches this casting.
+ *
+ * Every clause is a narrowing and an absent one asks nothing. Kept apart from
+ * the gatherer so the rule can be read as five lines rather than found inside a
+ * loop — the shape `standingAttackDamage`'s qualifications wear.
+ */
+function castingReached(when: CastingDamageWhen, query: CastingDamageQuery): boolean {
+  if (when.spell !== undefined && when.spell !== query.spell) return false;
+  if (when.school !== undefined && when.school !== query.school) return false;
+  if (when.classId !== undefined && when.classId !== query.classId) return false;
+  if (when.dealsDamage === true && query.damageTypes.length === 0) return false;
+  if (
+    when.damageTypes !== undefined &&
+    !when.damageTypes.some((type) => query.damageTypes.includes(type))
+  ) {
+    return false;
+  }
+  if (
+    when.slotLevels !== undefined &&
+    (query.slotLevel < when.slotLevels.from || query.slotLevel > when.slotLevels.to)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * The caster's features that reach this casting's damage.
+ *
+ * Asked of the **caster**, which is what makes it the offensive twin of
+ * {@link evadesHalfDamage}: the Evoker deciding a cantrip still stings is the
+ * one casting it. Derived from standing effects on every read, so a feature
+ * suppressed by its own requirement reaches nothing — and an optional one that
+ * the caster did not name on this casting reaches nothing either, which is how
+ * SRD's "you can" is declined.
+ */
+export function castingDamageFeatures(
+  state: GameState,
+  who: CharacterId,
+  query: CastingDamageQuery,
+): readonly CastingDamageFeature[] {
+  const found: CastingDamageFeature[] = [];
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'casting-damage') continue;
+    if (grant.optional === true && !query.using.includes(effect.feature)) continue;
+    if (!castingReached(grant.when, query)) continue;
+    found.push({
+      feature: effect.feature,
+      name: effect.name,
+      when: grant.when,
+      alters: grant.alters,
+      ...(grant.costs === undefined ? {} : { costs: grant.costs }),
+    });
+  }
+  return found;
+}
+
+/**
+ * Every `casting-damage` feature this creature holds that the caller may elect,
+ * whether or not it reaches any particular casting.
+ *
+ * What a refusal needs: a caller who names a feature this creature has not got
+ * is told so, and one who names a feature that simply does not reach the spell
+ * they are casting is not refused at all — the grant is a narrowing and casting
+ * outside it is legal. The same three-valued discipline every stated fact takes.
+ */
+export function electableCastingDamage(
+  state: GameState,
+  who: CharacterId,
+): readonly string[] {
+  return standingFor(state, who)
+    .filter(({ effect }) => effect.grant.kind === 'casting-damage' && effect.grant.optional === true)
+    .map(({ effect }) => effect.feature);
 }
 
 export function standingAttackDamage(

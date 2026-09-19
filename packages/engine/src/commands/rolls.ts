@@ -12,13 +12,15 @@ import {
   type Ability,
   ABILITY_NAMES,
   type CharacterId,
+  err,
   ok,
   type Result,
   type RollMode,
 } from '@ie/shared';
 import { type DamageComponent, rollAttackDamage } from '../attack.js';
+import { parseNotation } from '../dice.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
-import { type CharacterSheet } from '../character.js';
+import { abilityModifier, type CharacterSheet } from '../character.js';
 import { type D20TestResult, skillName } from '../checks.js';
 import { type ConditionState, isIncapacitated } from '../conditions.js';
 import { type EffectCheck } from '../timers.js';
@@ -27,7 +29,9 @@ import { distanceBetween } from '../positioning.js';
 import { type SpellCheck } from '../spell-definitions.js';
 import {
   canSee,
+  type CastingDamageFeature,
   effectiveConditions,
+  electableCastingDamage,
   rollModesFor,
   standingBonuses,
   standingSaveBonuses,
@@ -105,6 +109,195 @@ export function withFlatAddend(
   if (addend === 0 || components.length === 0) return components;
   const [first, ...rest] = components as readonly [DamageComponent, ...DamageComponent[]];
   return [{ ...first, flat: first.flat + addend, total: first.total + addend }, ...rest];
+}
+
+/**
+ * What the caster's own features are doing to this casting's damage, gathered
+ * once at the casting and read by every damage roll it makes.
+ *
+ * The four arms of `CastingDamageAlteration` collapsed into the four questions
+ * a damage roll actually asks, because a roll site wants "what die, how much
+ * flat, and is there a floor" rather than a list to walk. Gathered by
+ * `castingDamageFeatures`; assembled by the casting command; `NO_ALTERATIONS`
+ * is what every other run of an effect list carries.
+ *
+ * **`addend` is mutable on purpose**, which is the `events`/`outcomes`/`held`
+ * rule of `EffectContext` applied to a number. SRD says "add your Charisma
+ * modifier to **one damage roll** of that spell", and the only way one roll out
+ * of several can take it is for the taking to be recorded somewhere both of
+ * them can see. {@link takeCastingAddend} is the taking.
+ */
+export interface CastingAlterations {
+  /** SRD Foe Slayer: a die replaced wherever this casting rolls that die. */
+  die: { readonly from: number; readonly to: number } | null;
+  /** SRD Overchannel: every die takes its highest face and nothing is thrown. */
+  maximum: boolean;
+  /** SRD Potent Cantrip: a miss and a made save still deal half. */
+  halfWhenAvoided: boolean;
+  /** Not yet taken by any roll of this casting. Zeroed by the first that does. */
+  addend: number;
+}
+
+/** What a casting with no such feature behind it carries. */
+export const NO_ALTERATIONS = (): CastingAlterations => ({
+  die: null,
+  maximum: false,
+  halfWhenAvoided: false,
+  addend: 0,
+});
+
+/**
+ * Take the "one damage roll" addend, once.
+ *
+ * Zero every time after the first, which is what makes SRD's *one* roll one
+ * roll: a Fireball that catches six goblins rolls six times in this engine —
+ * the definition's dice are thrown per target — and the modifier lands on the
+ * first of them. That is a choice rather than a rule, made here rather than
+ * buried, and it is the closest honest reading available: the SRD lets the
+ * caster pick which roll, and the engine never picks between candidates when
+ * the caller could say, so what it does instead is take the first and record
+ * the number it added in the damage the log already carries.
+ */
+export function takeCastingAddend(alterations: CastingAlterations): number {
+  const taken = alterations.addend;
+  alterations.addend = 0;
+  return taken;
+}
+
+/**
+ * The features the caster elected on this casting, or a refusal naming one they
+ * have not got.
+ *
+ * **Refused when the creature does not hold it, accepted when it simply does
+ * not reach.** A caller who names a feature this caster has no claim to has
+ * made a mistake worth reporting; a caller who elects Overchannel and then
+ * casts a cantrip has done something the rules allow, because a grant's `when`
+ * is a narrowing and casting outside one is legal. Refusing the second would be
+ * the engine inventing a rule, and it would make every optional feature a thing
+ * the caller had to re-decide per spell.
+ */
+export function electedFeatures(
+  state: GameState,
+  who: CharacterId,
+  named: readonly string[] | undefined,
+): Result<readonly string[]> {
+  if (named === undefined || named.length === 0) return ok([]);
+  const held = electableCastingDamage(state, who);
+  const stranger = named.find((feature) => !held.includes(feature));
+  if (stranger !== undefined) {
+    return err(
+      'no_such_feature',
+      `${who} has no feature ${stranger} that this casting could use`,
+    );
+  }
+  return ok(named);
+}
+
+/**
+ * The features reaching this casting, as the four questions a damage roll asks.
+ *
+ * Every arm collapses here and the ability modifier is read **now**, off the
+ * sheet as it stands, for the reason every other number a casting makes is: it
+ * is the caster's modifier at the moment they cast, and a Headband of Intellect
+ * moves it exactly as it moves the save DC.
+ *
+ * Two features adding a modifier to one casting both land, and both land on the
+ * same roll — a Sorcerer/Wizard casting a Fire Evocation as a Wizard is reached
+ * by Elemental Affinity and Empowered Evocation at once, and each says "one
+ * damage roll of that spell" without saying it must be a different one.
+ */
+export function castingAlterations(
+  features: readonly CastingDamageFeature[],
+  sheet: CharacterSheet,
+): CastingAlterations {
+  const alterations = NO_ALTERATIONS();
+  for (const feature of features) {
+    const alters = feature.alters;
+    switch (alters.kind) {
+      case 'ability-modifier':
+        alterations.addend += abilityModifier(sheet.abilities[alters.ability]);
+        break;
+      case 'die':
+        // The first wins, and no SRD feature writes a second: a die substituted
+        // twice would be two features disagreeing about one notation, which is
+        // a rules dispute rather than arithmetic.
+        if (alterations.die === null) alterations.die = { from: alters.from, to: alters.to };
+        break;
+      case 'half-when-avoided':
+        alterations.halfWhenAvoided = true;
+        break;
+      case 'maximum':
+        alterations.maximum = true;
+        break;
+    }
+  }
+  return alterations;
+}
+
+/**
+ * A casting's damage notation as its caster's features leave it, and whatever
+ * they turn into a flat number.
+ *
+ * Two of the four alterations are about the dice and this is where both of them
+ * happen, before anything is thrown:
+ *
+ * - **`die`** substitutes the face count and leaves the rest alone, so SRD Foe
+ *   Slayer's `1d6` becomes `1d10` and a notation rolling anything else is
+ *   untouched.
+ * - **`maximum`** throws nothing at all: the notation goes away and its highest
+ *   possible total comes back as a flat number. The generator does not move,
+ *   which is why a maximised casting replays without a die.
+ *
+ * `doubled` is the Critical Hit, and it matters only to `maximum`: the SRD
+ * doubles the dice and this maximises whatever dice end up being rolled, so a
+ * critical maximises twice as many of them. For `die` it is irrelevant, because
+ * `rollAttackDamage` does its own doubling over whatever notation it is given.
+ */
+export function alteredCastingDice(
+  alterations: CastingAlterations,
+  dice: string | undefined,
+  doubled = false,
+): Result<{ readonly dice?: string; readonly flat: number }> {
+  if (dice === undefined) return ok({ flat: 0 });
+
+  let notation = dice;
+  if (alterations.die !== null) {
+    const parsed = parseNotation(notation);
+    if (!parsed.ok) return parsed;
+    if (parsed.value.sides === alterations.die.from) {
+      notation = `${parsed.value.count}d${alterations.die.to}`;
+    }
+  }
+
+  if (!alterations.maximum) return ok({ dice: notation, flat: 0 });
+
+  const parsed = parseNotation(notation);
+  if (!parsed.ok) return parsed;
+  const count = doubled ? parsed.value.count * 2 : parsed.value.count;
+  return ok({ flat: count * parsed.value.sides });
+}
+
+/**
+ * A pinned notation as the caster's features leave it.
+ *
+ * The half of {@link alteredCastingDice} that reaches a die nobody is throwing
+ * yet — SRD Hunter's Mark's rider, written into `attack-rider-granted` at the
+ * casting and rolled by every later attack. Only the substitution reaches here:
+ * a maximisation is about what this casting deals "on the turn you cast it",
+ * and a rider is by definition every turn after.
+ */
+export function alteredRiderDice(
+  alterations: CastingAlterations,
+  dice: string,
+): Result<string> {
+  if (alterations.die === null) return ok(dice);
+  const parsed = parseNotation(dice);
+  if (!parsed.ok) return parsed;
+  return ok(
+    parsed.value.sides === alterations.die.from
+      ? `${parsed.value.count}d${alterations.die.to}`
+      : dice,
+  );
 }
 
 /**

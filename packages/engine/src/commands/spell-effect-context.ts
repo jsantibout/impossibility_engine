@@ -19,6 +19,7 @@ import { type SpellDefinition, type SpellEffect } from '../spell-definitions.js'
 import { type CastingRoute } from '../spellcasting.js';
 import { type CastingNumbers } from '../spells.js';
 import { type Supply } from './casting.js';
+import { type CastingAlterations } from './rolls.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
 /**
@@ -141,6 +142,17 @@ export interface EffectContext {
   readonly ability: Ability | null;
   /** The numbers this casting was made with, pinned at the cast. */
   readonly numbers: CastingNumbers;
+  /**
+   * What the caster's own features are doing to this casting's damage.
+   *
+   * The fourth mutable member, and mutable for the same reason the other three
+   * are: SRD writes "add your Charisma modifier to **one** damage roll of that
+   * spell", so the first roll that takes the addend has to be able to tell the
+   * rest that it is gone. `NO_ALTERATIONS()` for every run that is not a
+   * casting being made — a conferral, an activation, an area settling a minute
+   * later — because each of those is a moment the five features do not reach.
+   */
+  readonly alters: CastingAlterations;
   readonly attackModifier: number;
   readonly saveDc: number;
   readonly supply: Supply;

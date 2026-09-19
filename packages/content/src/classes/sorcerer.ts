@@ -258,13 +258,23 @@ export const DRACONIC_SORCERY: SubclassDefinition = {
       id: 'draconic-sorcery:elemental-affinity',
       name: 'Elemental Affinity',
       level: 6,
-      automation: 'manual',
-      note: 'The Resistance is applied: SRD, "Choose one of those types: Acid, Cold, Fire, Lightning, or Poison. You have Resistance to that damage type." Its text names no condition, so a Stunned Sorcerer still resists. The other half is not applied — "when you cast a spell that deals damage of that type, you can add your Charisma modifier to one damage roll of that spell" needs a hook into a spell’s own damage roll, which no other feature wants yet.',
+      automation: 'engine',
+      note: 'Both halves are applied, off one choice. SRD: "Choose one of those types: Acid, Cold, Fire, Lightning, or Poison. You have Resistance to that damage type, and when you cast a spell that deals damage of that type, you can add your Charisma modifier to one damage roll of that spell." The Resistance names no condition, so a Stunned Sorcerer still resists; the Charisma modifier is a `casting-damage` grant reading the same chosen type, and "you can" means the casting names the feature or it adds nothing.',
       choice: { kind: 'option', choose: 1, from: ['Acid', 'Cold', 'Fire', 'Lightning', 'Poison'] },
       grants: {
         kind: 'standing',
         reach: 'self',
-        effects: [{ kind: 'damage-resistance', damageTypes: [] }],
+        effects: [
+          { kind: 'damage-resistance', damageTypes: [] },
+          {
+            kind: 'casting-damage',
+            // The type is filled from the same answer the Resistance reads: one
+            // choice, two halves of one printed sentence.
+            when: { damageTypes: [] },
+            alters: { kind: 'ability-modifier', ability: 'cha' },
+            optional: true,
+          },
+        ],
         damageTypesFromChoice: true,
       },
     },

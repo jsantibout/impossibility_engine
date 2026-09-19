@@ -416,6 +416,29 @@ export interface CastSpellRequest extends CommandIdentity {
    * leaving it to the layer that knows, exactly as it is for every other cast.
    */
   readonly ritual?: true;
+  /**
+   * Which of the caster's own features this casting uses, by feature id.
+   *
+   * SRD writes three of the five damage-altering features as a permission —
+   * "**you can** add your Charisma modifier", "**you can** deal maximum damage"
+   * — and a permission is declined by saying nothing. So an optional feature
+   * does nothing unless it is named here, which is the same three-valued
+   * discipline {@link CastSpellRequest.fought} and the designation already take:
+   * stated, or not stated, never guessed.
+   *
+   * **It is not a number and never could be.** What the caller supplies is the
+   * caster's decision to use a feature they hold; the engine reads the feature
+   * off the sheet, decides whether it reaches this casting, and does the
+   * arithmetic itself. A feature the creature has not got is refused; one they
+   * have that simply does not reach this spell is not, because casting outside
+   * a feature's narrowing is legal and refusing it would be the engine
+   * inventing a rule.
+   *
+   * A feature that is **not** optional needs no mention: SRD Potent Cantrip's
+   * cantrips "affect even creatures that avoid the brunt of the effect" whether
+   * their caster thought about it or not.
+   */
+  readonly usingFeatures?: readonly string[];
 }
 
 /**

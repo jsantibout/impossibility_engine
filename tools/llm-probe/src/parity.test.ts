@@ -156,6 +156,9 @@ const AUDIT: readonly {
       charges: because(
         'how many of an item\'s charges a casting spends, which is the wielder\'s decision exactly as a slot level is. Refused without `item` above, so it is the same fact and waits on the same tool — and only the seven wands whose line reads "no more than 3 charges" offer a choice at all; everything else is priced at one number the grant already holds',
       ),
+      usingFeatures: because(
+        'which of the caster\'s own features this casting uses. SRD writes three of the five damage-altering features as a permission — "you can add your Charisma modifier", "you can deal maximum damage" — and a permission the caller cannot send is a permission nobody ever has. It is a genuine decision and not a number: Overchannel charges escalating Necrotic damage for a second use, so a surface that decided it for the caster would be spending the wizard\'s hit points on their behalf. No creature in either benchmark holds one of the five — they arrive at Sorcerer 6, Wizard 3, 10 and 14 and Ranger 20 — so a published field would refuse every value it could be sent today. Publish it the day a benchmark character has one, and publish the list of what they hold beside it, because a model cannot elect a feature it has not been told about',
+      ),
     },
   },
   {

@@ -214,6 +214,12 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-damage',
   'sense',
   'ability-score-set',
+  // Read from an item exactly as it is read from a feature: the gatherer is
+  // `standingFor`, which folds a worn item's effects in beside a class's, so a
+  // staff that empowered its wielder's Evocations would be executed rather than
+  // transcribed and ignored. No SRD item prints the sentence today; the list's
+  // rule is what a reader reaches, not what the book happens to have written.
+  'casting-damage',
 ]);
 
 /**

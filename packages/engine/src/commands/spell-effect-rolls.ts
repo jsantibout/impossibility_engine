@@ -39,7 +39,9 @@ import {
   recordD20Test,
   rollSpellDice,
   savingSupport,
+  takeCastingAddend,
   withFlatAddend,
+  alteredCastingDice,
 } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 import { applyRiders, conditionLanding, repeatSaveFrom } from './spell-effect-riders.js';
@@ -72,6 +74,7 @@ export function resolveAttackEffect(
     attackModifier,
     saveDc,
     from,
+    alters,
   } = ctx;
   // A rider is welded to the casting that hung it and a `damage-scheduled`
   // names one, so the three kinds that roll a D20 Test are refused on an item
@@ -172,17 +175,29 @@ export function resolveAttackEffect(
     // target's own defences, exactly as a made saving throw is —
     // "half the damage that would be dealt" is half of what the *spell*
     // deals, and Resistance then halves that again.
-    if (effect.onMiss !== 'half') {
+    //
+    // **And the caster's own features may write this branch where the
+    // definition prints none.** SRD Potent Cantrip: "you miss with the attack
+    // roll ... the target takes half the cantrip's damage (if any) but suffers
+    // no additional effect" — which is this branch word for word, so the
+    // feature supplies the missing `half` rather than a second miss path.
+    if (effect.onMiss !== 'half' && !alters.halfWhenAvoided) {
       outcomes.push({ target, attack: attack.value, affected: false });
       return ok(current);
     }
+
+    const splashDice = alteredCastingDice(
+      alters,
+      scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
+    );
+    if (!splashDice.ok) return splashDice;
 
     const splash = rollSpellDice(
       supply,
       casterSheet().sheet,
       definition.name,
       effect.damageType,
-      scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
+      splashDice.value.dice,
     );
     if (!splash.ok) return splash;
 
@@ -192,7 +207,9 @@ export function resolveAttackEffect(
       withFlatAddend(
         splash.value,
         scaledFlatFor(effect.damage, definition.level, castLevel) +
-          (effect.addSpellcastingModifier === true ? numbers.spellcastingModifier : 0),
+          (effect.addSpellcastingModifier === true ? numbers.spellcastingModifier : 0) +
+          splashDice.value.flat +
+          takeCastingAddend(alters),
       ).map((component) => ({ ...component, total: Math.floor(component.total / 2) })),
       definition.name,
       supply,
@@ -216,7 +233,17 @@ export function resolveAttackEffect(
     return ok(current);
   }
 
-  const dice = scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel);
+  // The definition's dice, as the caster's own features leave them: SRD Foe
+  // Slayer substitutes the die, SRD Overchannel takes the maximum and throws
+  // nothing. The critical goes in because the SRD doubles the dice first and a
+  // maximisation maximises whatever dice end up rolling.
+  const scaled = alteredCastingDice(
+    alters,
+    scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
+    attack.value.critical,
+  );
+  if (!scaled.ok) return scaled;
+  const dice = scaled.value.dice;
   // **A spell attack is an attack roll**, and SRD Hunter's Mark says "whenever
   // you hit it with an attack roll" — so a Fire Bolt aimed at the quarry
   // carries the Force. Divine Favor's `weaponOnly` is what keeps its Radiant
@@ -270,7 +297,12 @@ export function resolveAttackEffect(
         scaledFlatFor(effect.damage, definition.level, castLevel) +
           (effect.addSpellcastingModifier === true
             ? numbers.spellcastingModifier
-            : 0),
+            : 0) +
+          // What the caster's features turned into a flat number — a
+          // maximisation's total — and the one damage roll SRD Elemental
+          // Affinity and Empowered Evocation each add a modifier to.
+          scaled.value.flat +
+          takeCastingAddend(alters),
       ),
       ...rolled.value.components.filter((c) => riderNames.has(c.source)),
     ],
@@ -356,6 +388,7 @@ export function resolveSaveDamageEffect(
     outcomes,
     held,
     saveDc,
+    alters,
   } = ctx;
   let current = world;
 
@@ -412,16 +445,24 @@ export function resolveSaveDamageEffect(
     ),
   );
 
+  // SRD Potent Cantrip: "the target succeeds on a saving throw against the
+  // cantrip, the target takes half the cantrip's damage (if any)". A floor the
+  // *caster's* feature puts under a success the definition gave nothing for,
+  // read here rather than at the branches below so that one value answers for
+  // what a success buys and Evasion is asked about the sentence as it now
+  // stands.
+  const onSuccess = alters.halfWhenAvoided ? 'half' : effect.onSuccess;
+
   // SRD Evasion: a successful Dexterity save against an effect that
   // would have halved the damage takes **none** of it, and a failed one
   // takes half. Read off the *target's* features, because it is a
   // defence rather than something the caster does.
-  const evading = evadesHalfDamage(current, target, effect.ability, effect.onSuccess === 'half');
+  const evading = evadesHalfDamage(current, target, effect.ability, onSuccess === 'half');
 
   // Nothing at all on a success means no damage roll either: the spell
   // did nothing, and rolling would move the generator for no reason.
   // Evasion reaches the same place from the other direction.
-  if (save.value.success && (effect.onSuccess === 'none' || evading)) {
+  if (save.value.success && (onSuccess === 'none' || evading)) {
     outcomes.push({ target, save: save.value, damage: 0, affected: false });
     return ok(current);
   }
@@ -434,19 +475,30 @@ export function resolveSaveDamageEffect(
   ];
   const rolledParts: DamageComponent[] = [];
   for (const part of parts) {
-    const dice = scaledDiceFor(part.damage, level, numbers.casterLevel, castLevel);
+    const dice = alteredCastingDice(
+      alters,
+      scaledDiceFor(part.damage, level, numbers.casterLevel, castLevel),
+    );
+    if (!dice.ok) return dice;
     const rolled = rollSpellDice(
       supply,
       casterSheet().sheet,
       name,
       part.damageType,
-      dice,
+      dice.value.dice,
     );
     if (!rolled.ok) return rolled;
     rolledParts.push(
       ...withFlatAddend(
         rolled.value,
-        scaledFlatFor(part.damage, level, castLevel),
+        // The printed addend, plus whatever the caster's features turned into a
+        // flat number, plus the one damage roll a modifier rides. A spell that
+        // prints two types — Ice Knife's Piercing and Cold — takes the modifier
+        // on the first of them and the rest of the list gets nothing, which is
+        // what "one damage roll" says.
+        scaledFlatFor(part.damage, level, castLevel) +
+          dice.value.flat +
+          takeCastingAddend(alters),
       ),
     );
   }

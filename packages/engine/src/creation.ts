@@ -2093,17 +2093,24 @@ export function planCharacter(
       // the choice. Read from the chooser, because the table belongs to the
       // question rather than to any of the traits written in terms of it.
       const meanings = chooser?.optionMeans;
+      const chosenTypes = (): readonly string[] =>
+        picked
+          .flatMap((option) =>
+            meanings === undefined ? [option] : (meanings[option]?.damageTypes ?? []),
+          )
+          .map((type) => type.toLowerCase());
       let effect: StandingGrant =
-        grant.damageTypesFromChoice === true && declared.kind === 'damage-resistance'
-          ? {
-              ...declared,
-              damageTypes: picked
-                .flatMap((option) =>
-                  meanings === undefined ? [option] : (meanings[option]?.damageTypes ?? []),
-                )
-                .map((type) => type.toLowerCase()),
-            }
-          : declared;
+        grant.damageTypesFromChoice !== true
+          ? declared
+          : declared.kind === 'damage-resistance'
+            ? { ...declared, damageTypes: chosenTypes() }
+            : // SRD Elemental Affinity writes both halves off one choice — "You
+              // have Resistance to that damage type, and when you cast a spell
+              // that deals damage of that type" — so the second half reads the
+              // same answer rather than asking the player again.
+              declared.kind === 'casting-damage'
+              ? { ...declared, when: { ...declared.when, damageTypes: chosenTypes() } }
+              : declared;
 
       // SRD Sneak Attack's dice are a column of the Rogue table, read at that
       // class's own level — the same rule Rage Damage's flat bonus follows.

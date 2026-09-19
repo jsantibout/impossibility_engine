@@ -261,8 +261,19 @@ export const RANGER: ClassDefinition = {
       id: 'ranger:foe-slayer',
       name: 'Foe Slayer',
       level: 20,
-      automation: 'manual',
-      note: 'Not applied. SRD 5.2.1 writes the whole feature as one sentence — "The damage die of your _Hunter’s Mark_ is a d10 rather than a d6" — so it is a feature reaching into a casting the character made and changing the notation the definition pinned, and the casting pins its numbers at the casting for exactly the reason that cannot happen.',
+      automation: 'engine',
+      note: 'Applied. SRD 5.2.1 writes the whole feature as one sentence — "The damage die of your _Hunter’s Mark_ is a d10 rather than a d6" — and a `casting-damage` grant naming that one spell is the whole of it. The substitution happens at the casting, so the d10 is what the rider event pins: every later attack rolls the die the log says, and a replay never has to know the feature exists.',
+      grants: {
+        kind: 'standing',
+        reach: 'self',
+        effects: [
+          {
+            kind: 'casting-damage',
+            when: { spell: 'hunters-mark' },
+            alters: { kind: 'die', from: 6, to: 10 },
+          },
+        ],
+      },
     },
   ],
 };
