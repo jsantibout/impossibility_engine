@@ -698,7 +698,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         },
       ],
       unmodelled: [
-        'the Constitution a Hit Die adds on a Short Rest. The rest adds the modifier off the score the sheet was built with, because it reads the creature rather than asking what is worn — every other number a Constitution decides, the Concentration save included, moves with the amulet',
+        'the Constitution a Hit Die adds on a Short Rest, which is added off the score the sheet was built with because a rest reads the creature rather than asking what is worn. Every other number a Constitution decides, the Concentration save included, moves with the amulet',
         'what a Constitution of 19 does to a hit point maximum. "Your Constitution is 19 while you wear this amulet" changes the modifier every level paid, and a maximum is a folded number rather than a derived one, so putting the amulet on does not add hit points and taking it off does not take them away',
       ],
     },
