@@ -32,6 +32,18 @@ the granted modifiers on it, then from what the caller supplied. A
 (roller or target), one selector for spells and class features alike.
 Exhaustion is a flat penalty per level, not Disadvantage.
 
+A casting's damage may be altered before it is rolled, by the caster's own
+features and by nothing else. The alterations are gathered once, at the
+casting, and reach the three sites a casting rolls damage at and the one
+notation it pins; they do not reach an area settling later, an activation, a
+scheduled hit or an item's conferral, because each of those is a moment the
+five SRD features do not speak about. A maximised casting throws nothing at
+all, so the generator has not moved and a replay reproduces it for free.
+Overchannel's price is a `Tally` — a count with no ceiling, because a pool of
+one would refuse the second use where the book charges for it — and its damage
+is dealt against no defences at all, which is what "ignores Resistance and
+Immunity" names.
+
 **A grant can also be spent.** SRD Guiding Bolt says "the next attack roll
 made against it" and Vicious Mockery "the next attack roll it makes": a
 modifier used up by the roll it reaches, rather than one that runs until the

@@ -94,6 +94,19 @@ or feature that needs a mechanic the engine lacks is engine work first: add
 the kind, its resolver or reader, and its validator rule, with tests; then
 the content.
 
+A feature may also reach into a casting's own arithmetic. `casting-damage` is
+a `StandingGrant` whose `when` says which castings it reaches — a spell, a
+school, the class the route went through, a damage type, a band of slot levels
+— and whose `alters` says what it does to what they deal: an ability modifier
+added to one damage roll, a die substituted, a floor under a miss or a made
+save, or every die at its maximum. Only the first has two SRD writers; the
+other three are each one feature's own sentence and say so. What such a
+feature alters is **pinned as altered** — the die a rider carries is the die
+the log says — so the rule the fold depends on is unchanged. An optional one
+is named on the casting through `usingFeatures`, which carries no number: the
+caller states that the caster is using a feature they hold, and the engine
+does the arithmetic.
+
 Content-specific assumptions the engine may **not** grow back: class names
 as strings, feature ids as strings, spell ids compared to literals. The
 sweep in `spell-schema.test.ts` holds the spell and class half of that and
