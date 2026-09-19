@@ -5,7 +5,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { resolveSpell } from './commands.js';
+import { resolveDeclaredCast, resolveSpell } from './commands.js';
 import { createCharacter, planCharacter, type CharacterChoices } from './creation.js';
 import { tallied } from './resources.js';
 import { levelGrantedSpells, type SpellbookEntry } from './spellbook.js';
@@ -568,6 +568,41 @@ describe('Potent Cantrip puts half under a miss and a made save', () => {
     expect(damageTo(outcome, TARGET)).toBe(0);
   });
 
+  /**
+   * **And Evasion is asked about the spell, not about the feature.**
+   *
+   * SRD Evasion triggers on "an effect that allows you to make a Dexterity
+   * saving throw to take only half damage". Acid Splash allows a save to take
+   * *none*, and Potent Cantrip does not turn it into a spell that offers half —
+   * it says the target still takes half anyway. So a Rogue's Evasion does not
+   * start biting because the wizard opposite them reached level 3, which is the
+   * wrong creature's feature deciding: a failed save takes the cantrip's full
+   * damage either way.
+   */
+  it('leaves a target with Evasion exactly where the spell left them', () => {
+    const evading = (who: CharacterId): GameEvent => {
+      const base = dummy(who);
+      if (base.type !== 'creature-added') throw new Error('not a creature');
+      return {
+        ...base,
+        sheet: {
+          ...base.sheet,
+          standing: [
+            { feature: 'rogue:evasion', name: 'Evasion', reach: { kind: 'self' }, grant: { kind: 'evasion' } },
+          ],
+        },
+      };
+    };
+    const at = { x: 100, y: 140, z: 0 } as const;
+    const nimble = table(evoker(3)).map((event) =>
+      event.type === 'creature-added' && event.id === TARGET ? evading(TARGET) : event,
+    );
+    const failed = cast(nimble, { spellId: 'acid-splash', targets: [], at }, DOOMED);
+    const plain = cast(table(evoker(3)), { spellId: 'acid-splash', targets: [], at }, DOOMED);
+    expect(damageTo(failed.outcome, TARGET)).toBe(damageTo(plain.outcome, TARGET));
+    expect(damageTo(failed.outcome, TARGET)).toBeGreaterThan(0);
+  });
+
   /** "A cantrip", and nothing else: a level 1 slot is outside the sentence. */
   it('does nothing to a levelled spell', () => {
     const request = {
@@ -707,10 +742,24 @@ describe('Overchannel deals maximum damage and charges for it', () => {
     expect(damageTo(outcome, TARGET)).toBe(60);
   });
 
-  /** "a spell slot of levels 1–5": a level 6 slot is outside the sentence. */
+  /**
+   * "a spell slot of levels 1–5": a level 6 slot is outside the sentence.
+   *
+   * The dice are thrown rather than maximised, so the number is the seed's and
+   * the control beside it is what makes it mean anything: an unelected casting
+   * at the same slot rolls the same, and neither is the 66 an 11d6 maximum
+   * would have been. The use is not counted either — the feature did nothing.
+   */
   it('does nothing at a slot level above five', () => {
-    const { outcome } = cast(table(evoker()), { ...FIREBALL, slotLevel: 6 }, DOOMED);
-    expect(damageTo(outcome, TARGET)).toBeLessThan(11 * 6);
+    const elected = cast(table(evoker()), { ...FIREBALL, slotLevel: 6 }, DOOMED);
+    const plain = cast(
+      table(evoker()),
+      { spellId: 'fireball', targets: [], at: { x: 100, y: 140, z: 0 }, slotLevel: 6 },
+      DOOMED,
+    );
+    expect(damageTo(elected.outcome, TARGET)).toBe(36);
+    expect(damageTo(plain.outcome, TARGET)).toBe(36);
+    expect(tallied(elected.state.creatures[CASTER]!.resources, 'evoker:overchannel')).toBe(0);
   });
 
   /**
@@ -814,6 +863,89 @@ describe('Overchannel deals maximum damage and charges for it', () => {
   /** A maximised casting throws no die for its damage, and a replay folds the same. */
   it('replays byte-identically with no catalogue', () => {
     const { log, state } = cast(table(evoker()), FIREBALL, DOOMED);
+    expect(fold('seed', log)).toEqual(state);
+  });
+});
+
+// — a casting declared now and settled later ————————————————————————————
+
+/**
+ * SRD "Longer Casting Times" and SRD Ready both make a casting a *process*: it
+ * is declared, held open for a Counterspell, and settled afterwards. What
+ * reaches that settlement is everything the declaration pinned — and an
+ * election is the one thing it cannot pin, because `PendingCasting` carries no
+ * field for one.
+ *
+ * So the two halves part company, and both are here: a feature that needs no
+ * election reaches the settlement exactly as it reaches any other casting, and
+ * an election is **refused at the declaration** rather than accepted and
+ * quietly dropped a minute later.
+ */
+describe('a declared casting takes the features it needs no permission for', () => {
+  const evoker = (level: number) =>
+    character('wizard', level, level >= 14 ? ['fireball'] : ['fire-bolt', 'acid-splash']);
+
+  const declare = (
+    log: readonly GameEvent[],
+    request: Parameters<typeof resolveSpell>[2],
+    flat?: number,
+  ) => {
+    const state = fold('seed', log);
+    const held = unwrap(resolveSpell(state, CASTER, request, supply(state, flat)), 'declare');
+    const after = [...log, ...held.events];
+    const mid = fold('seed', after);
+    const settled = unwrap(resolveDeclaredCast(mid, held.castingId!, supply(mid, flat)), 'settle');
+    return { outcome: settled, state: fold('seed', [...after, ...settled.events]) };
+  };
+
+  /** Potent Cantrip needs nobody's permission, so a held Fire Bolt still stings. */
+  it('still deals half of a missed cantrip settled a moment later', () => {
+    const { outcome } = declare(
+      table(evoker(3)),
+      { spellId: 'fire-bolt', targets: [TARGET], hold: true },
+      DOOMED,
+    );
+    expect(outcome.outcomes[0]).toMatchObject({ affected: false });
+    expect(damageTo(outcome, TARGET)).toBe(3);
+  });
+
+  /** And a Wizard 2 settling the same held cantrip takes nothing from a miss. */
+  it('leaves a Wizard without the feature dealing nothing', () => {
+    const { outcome } = declare(
+      table(evoker(2)),
+      { spellId: 'fire-bolt', targets: [TARGET], hold: true },
+      DOOMED,
+    );
+    expect(damageTo(outcome, TARGET)).toBe(-1);
+  });
+
+  /**
+   * **The election is refused, not dropped.** A caster who says they are using
+   * Overchannel and holds the casting open is told that the declaration cannot
+   * carry the answer, before a slot goes anywhere.
+   */
+  it('refuses an elected feature on a casting it cannot record one for', () => {
+    const log = table(evoker(14));
+    const state = fold('seed', log);
+    const out = resolveSpell(
+      state,
+      CASTER,
+      {
+        spellId: 'fireball',
+        targets: [],
+        at: { x: 100, y: 140, z: 0 },
+        slotLevel: 3,
+        hold: true,
+        usingFeatures: ['evoker:overchannel'],
+      },
+      supply(state),
+    );
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) {
+      expect(out.code).toBe('election_on_a_declaration');
+      expect(out.reason).toContain('Fireball');
+    }
+    // And nothing moved: no slot spent, no casting open.
     expect(fold('seed', log)).toEqual(state);
   });
 });

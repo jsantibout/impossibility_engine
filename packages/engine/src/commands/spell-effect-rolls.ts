@@ -457,7 +457,16 @@ export function resolveSaveDamageEffect(
   // would have halved the damage takes **none** of it, and a failed one
   // takes half. Read off the *target's* features, because it is a
   // defence rather than something the caster does.
-  const evading = evadesHalfDamage(current, target, effect.ability, onSuccess === 'half');
+  //
+  // **And off the definition's own sentence rather than the altered one.** SRD
+  // Evasion's trigger is "an effect that allows you to make a Dexterity saving
+  // throw to take only half damage", which is a fact about the spell: Acid
+  // Splash allows a save to take *none*, and a caster's Potent Cantrip does not
+  // turn it into a spell that offers half — it says the target still takes half
+  // anyway. Reading the altered value here would have let one creature's
+  // Evasion start biting because somebody else levelled, which is the wrong
+  // creature's feature deciding.
+  const evading = evadesHalfDamage(current, target, effect.ability, effect.onSuccess === 'half');
 
   // Nothing at all on a success means no damage roll either: the spell
   // did nothing, and rolling would move the generator for no reason.

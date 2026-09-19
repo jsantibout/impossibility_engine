@@ -88,6 +88,7 @@ import { type CastingRoute } from '../spellcasting.js';
 import { castingSource, type CastingNumbers, type CastingTime } from '../spells.js';
 import {
   castingDamageFeatures,
+  type CastingDamageFeature,
   sheetAsItStands,
 } from '../standing.js';
 import {
@@ -287,7 +288,35 @@ export function resolveDeclaredCast(
     // does not have to spell the copy out a second time.
     const stated = statedFacts(pending);
 
-    return resolveEffects(state, pending.caster, caster, definition, {
+    // **And what their own features do to the damage, asked again here.** The
+    // route was re-derived just above for the reason this is: both are facts
+    // about a sheet that nothing between the declaration and the settlement can
+    // have changed, and a derived value written into the log would be a
+    // derivation pretending to be history.
+    //
+    // `using` is empty and can only be empty: an *elected* feature is the one
+    // thing a declaration cannot record, so `resolveOnTargets` refuses one on a
+    // declaration rather than dropping it. What reaches here is every feature
+    // that needs no election — Foe Slayer's die, Potent Cantrip's floor — which
+    // is the whole of what a long casting could have wanted.
+    const running = statedDamageType(definition.effects, pending.damageType);
+    const damage = castingDamageOf(state, pending.caster, caster, {
+      definition,
+      effects: running,
+      route: chosen.value,
+      castLevel: pending.level,
+      using: [],
+    });
+    const charged = chargingWith(
+      state,
+      pending.caster,
+      damage,
+      pending.level,
+      supply,
+      events,
+    );
+
+    return charged(resolveEffects(state, pending.caster, caster, definition, {
       castLevel: pending.level,
       route: chosen.value,
       ...(pending.numbers === undefined ? {} : { numbers: pending.numbers }),
@@ -301,7 +330,7 @@ export function resolveDeclaredCast(
       // the cast, so the substitution has to reach the casting's own effects
       // and not only an area trigger's. Identity when nothing was stated,
       // which is every other spell in the book.
-      effects: statedDamageType(definition.effects, pending.damageType),
+      effects: running,
       ...(pending.origin === undefined ? {} : { from: pending.origin }),
       // The third stated fact, read back off the record rather than from a
       // fresh request there is none of. A held Charm Person settles with the
@@ -335,7 +364,8 @@ export function resolveDeclaredCast(
             },
           }
         : {}),
-    });
+      alters: damage.alters,
+    }));
   });
 }
 
@@ -1051,6 +1081,96 @@ function castingEconomy(
   );
 }
 
+/** What a caster's own features are doing to a casting, and what it costs. */
+interface CastingDamage {
+  readonly alters: CastingAlterations;
+  /** The features whose alteration this casting is paying for. Usually empty. */
+  readonly costs: readonly CastingDamageFeature[];
+}
+
+/**
+ * The caster's features that reach this casting, gathered once.
+ *
+ * **Both casting paths ask this**, which is why it is a function rather than
+ * two blocks: an atomic casting asks it in {@link resolveOnTargets} and a
+ * declared one asks it again at its settlement, where the route has been
+ * re-derived off a sheet nothing between the two moments can have changed.
+ * Written twice they would have drifted the first time a narrowing was added.
+ */
+function castingDamageOf(
+  state: GameState,
+  casterId: CharacterId,
+  caster: CreatureState,
+  of: {
+    readonly definition: SpellDefinition;
+    /** The list this casting is actually running, stated damage type and all. */
+    readonly effects: readonly SpellEffect[];
+    readonly route: CastingRoute | null;
+    readonly castLevel: number;
+    /** The optional features the caster elected; empty where none could be. */
+    readonly using: readonly string[];
+  },
+): CastingDamage {
+  const reaching = castingDamageFeatures(state, casterId, {
+    spell: of.definition.id,
+    school: of.definition.school,
+    // A class's route says whose spell this is; a feat's grant and an item's
+    // say nobody's, which is the honest answer to "a **Wizard** spell".
+    classId:
+      of.route?.kind === 'cantrip' || of.route?.kind === 'prepared' ? of.route.classId : null,
+    damageTypes: damageTypesDealt(of.effects),
+    slotLevel: of.castLevel,
+    using: of.using,
+  });
+  return {
+    alters: castingAlterations(reaching, sheetAsItStands(state, casterId) ?? caster.sheet),
+    costs: reaching.filter((feature) => feature.costs !== undefined),
+  };
+}
+
+/**
+ * SRD Overchannel's price, charged immediately after the casting that bought it
+ * — "you take 2d12 Necrotic damage for each level of the spell slot
+ * **immediately after you cast it**."
+ *
+ * Wrapped around the resolution rather than run inside it, because it is the
+ * *casting command's* debt and not the effect list's: an area settling a minute
+ * later and an activation run the same list, and neither of them is a casting
+ * anybody made. `events` is the batch both halves share, so the charge lands in
+ * the resolution's own events by appending to it.
+ */
+function chargingWith(
+  state: GameState,
+  casterId: CharacterId,
+  damage: CastingDamage,
+  castLevel: number,
+  supply: Supply,
+  events: GameEvent[],
+): (resolution: Result<SpellResolution>) => Result<SpellResolution> {
+  return (resolution) => {
+    if (!resolution.ok || damage.costs.length === 0) return resolution;
+    const issuedBefore = supply.issuer.count;
+    let current = events.reduce(applyEvent, state);
+    for (const feature of damage.costs) {
+      const paid = payCastingDamageCost(current, casterId, feature, castLevel, supply);
+      if (!paid.ok) return paid;
+      events.push(...paid.value);
+      current = paid.value.reduce(applyEvent, current);
+    }
+    // Where the backlash threw dice, the generator's bookmark goes in the log
+    // beside them — the same event `runEffects` writes for the spell's own, and
+    // the same place in the batch: after what it accounts for.
+    if (supply.issuer.count > issuedBefore) {
+      events.push({
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      });
+    }
+    return resolution;
+  };
+}
+
 /**
  * Pay for the casting and apply its effects to the targets already settled.
  *
@@ -1154,58 +1274,20 @@ function resolveOnTargets(
   const numbers = numbersFor(sheetAsItStands(state, casterId) ?? caster.sheet, route);
 
   // What the caster's own features do to this casting's damage, asked once,
-  // here, where the request and the route are both in hand. `castLevel` is the
-  // slot's level and `running` is the effect list as the casting's stated type
-  // leaves it, so a Sorcerer's affinity reads the type the spell is actually
-  // dealing rather than the one the definition prints first.
+  // here, where the request and the route are both in hand. `running` is the
+  // effect list as the casting's stated type leaves it, so a Sorcerer's
+  // affinity reads the type the spell is actually dealing rather than the one
+  // the definition prints first.
   const elected = electedFeatures(state, casterId, request.usingFeatures);
   if (!elected.ok) return elected;
-  const reaching = castingDamageFeatures(state, casterId, {
-    spell: definition.id,
-    school: definition.school,
-    // A class's route says whose spell this is; a feat's grant and an item's
-    // say nobody's, which is the honest answer to "a **Wizard** spell".
-    classId: route.kind === 'cantrip' || route.kind === 'prepared' ? route.classId : null,
-    damageTypes: damageTypesDealt(running),
-    slotLevel: castLevel,
+  const reaching = castingDamageOf(state, casterId, caster, {
+    definition,
+    effects: running,
+    route,
+    castLevel,
     using: elected.value,
   });
-  const alters = castingAlterations(reaching, sheetAsItStands(state, casterId) ?? caster.sheet);
-  const costs = reaching.filter((feature) => feature.costs !== undefined);
-
-  /**
-   * SRD Overchannel's price, charged immediately after the casting that bought
-   * it — "you take 2d12 Necrotic damage for each level of the spell slot
-   * **immediately after you cast it**."
-   *
-   * Wrapped around the resolution rather than run inside it, because it is the
-   * *casting command's* debt and not the effect list's: an area settling a
-   * minute later and an activation run the same list, and neither of them is a
-   * casting anybody made. `events` is the batch both halves share, so the
-   * charge lands in the resolution's own events by appending to it.
-   */
-  const charged = (resolution: Result<SpellResolution>): Result<SpellResolution> => {
-    if (!resolution.ok || costs.length === 0) return resolution;
-    const issuedBefore = supply.issuer.count;
-    let current = events.reduce(applyEvent, state);
-    for (const feature of costs) {
-      const paid = payCastingDamageCost(current, casterId, feature, castLevel, supply);
-      if (!paid.ok) return paid;
-      events.push(...paid.value);
-      current = paid.value.reduce(applyEvent, current);
-    }
-    // Where the backlash threw dice, the generator's bookmark goes in the log
-    // beside them — the same event `runEffects` writes for the spell's own,
-    // and the same place in the batch: after what it accounts for.
-    if (supply.issuer.count > issuedBefore) {
-      events.push({
-        type: 'rolls-issued',
-        count: supply.issuer.count - issuedBefore,
-        rng: supply.rng.snapshot(),
-      });
-    }
-    return resolution;
-  };
+  const alters = reaching.alters;
 
   // — paying for it ——————————————————————————————————————————————————————
   //
@@ -1213,6 +1295,7 @@ function resolveOnTargets(
   // the ordinary casting command, which owns slots, the action, and the
   // Concentration that starts or is replaced.
   const events: GameEvent[] = [];
+  const charged = chargingWith(state, casterId, reaching, castLevel, supply, events);
 
   // SRD Ready: "you cast it as normal (expending any resources used to cast
   // it) but hold its energy." The expending happened when it was readied, so
@@ -1256,6 +1339,26 @@ function resolveOnTargets(
   // and both settle through `resolveDeclaredCast`; what differs is only when
   // the settlement is allowed to happen.
   const declaring = request.hold === true || casting.castingTime === 'long';
+
+  // **And a declared casting may not elect a feature**, because it has nowhere
+  // to write the election down. Everything a settlement reads is pinned on
+  // `spell-declared` — the stated type, the designation, the space a teleport
+  // named — and this is not: `PendingCasting` carries no such field, so a
+  // casting held open for a Counterspell would settle a minute later having
+  // silently forgotten that its caster said they were using Overchannel.
+  //
+  // Refused rather than dropped, which is the rule a stated fact that cannot be
+  // honoured follows everywhere else. The features that need no election reach
+  // a declared casting perfectly well — the settlement asks for them again off
+  // the same sheet, and a Ranger's Foe Slayer does not care how long the
+  // casting took. Pinning the election is the change that would lift this, and
+  // it is a field on a pending record rather than a rule.
+  if (declaring && (request.usingFeatures ?? []).length > 0) {
+    return err(
+      'election_on_a_declaration',
+      `${definition.name} is declared now and settled later, and nothing on the declaration records which of ${casterId}'s features the casting uses; cast it without holding it, or leave the feature out`,
+    );
+  }
 
   // SRD: a Ritual "doesn't expend a spell slot" — nor a feat's free casting,
   // nor anything else. So there is no payment to choose and none is asked for;
@@ -1855,9 +1958,16 @@ export interface EffectRun {
    *
    * **Supplied only where a casting is being made**, which is the whole of the
    * rule: SRD Overchannel says "on the turn you cast it", and the other four
-   * alter the damage the casting deals rather than the debts it leaves. So an
-   * activation, an area settling a minute later and an item's conferral all
-   * omit it and roll what the definition prints.
+   * alter the damage the casting deals rather than the debts it leaves. Both
+   * casting paths supply it — `resolveOnTargets` for one made now,
+   * `resolveDeclaredCast` for one made a minute ago — and what omits it is
+   * every run that is not a casting: an activation of a spell already running,
+   * an area settling later, a scheduled hit falling due, and an item's
+   * conferral. Each of those rolls what the definition prints.
+   *
+   * The one thing a declared casting cannot carry is an *elected* feature,
+   * because nothing on the declaration records one; it is refused there rather
+   * than dropped. See `resolveOnTargets`.
    */
   readonly alters?: CastingAlterations;
 }

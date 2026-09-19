@@ -304,10 +304,10 @@ describe('casting Fire Bolt', () => {
   it('misses, and an Evoker still deals half', () => {
     const { outcome, state } = cast(table(), { spellId: 'fire-bolt', targets: [GOBLIN] }, DOOMED);
     expect(outcome.outcomes[0]).toMatchObject({ affected: false });
-    const dealt = outcome.outcomes[0]?.damage ?? 0;
-    expect(dealt).toBeGreaterThanOrEqual(0);
-    expect(dealt).toBeLessThanOrEqual(5);
-    expect(state.creatures.goblin!.vitals.hp).toBe(30 - dealt);
+    // The number rather than a range: a half that came out zero is exactly the
+    // reading this assertion used to hold, and a range would not tell them apart.
+    expect(outcome.outcomes[0]?.damage).toBe(3);
+    expect(state.creatures.goblin!.vitals.hp).toBe(27);
   });
 
   it('spends the action and no slot', () => {
