@@ -118,6 +118,14 @@ to homebrew.
   rather than a printed number. It is thrown once, at the first deadline the
   use files, down the same non-d20 path a charge pool's maximum takes; what
   reaches the log is the resolved deadline, so a replay never re-rolls it.
+- **A route a tool can carry** — the model's surface has the field the engine
+  asks for, and a session can answer `route_required` without a human reaching
+  past it: a declared patch, a walk refused, the same call with the spaces
+  named, and a cost neither endpoint implies. Two doors arrived with it
+  because the loop could not be driven without them — an activation acting
+  through a running casting, and a third declared fact beside cover and sight
+  saying where the ground is rough, which charges the glossary's rate because
+  no caller may name one.
 - **Two refusals a caller can tell apart** — the ground that disagrees with
   itself asks for a route and is answered by one command carrying it; a
   carried area asks for single steps and is answered by several, and no route
@@ -169,20 +177,19 @@ to homebrew.
   an amount may now be a printed number with no dice in it, which the two
   scaling fields that add dice to a notation refuse and the one that adds a
   flat number does not.
-- A set ability score reaches the attack roll, its damage, the ability check,
-  the saving throw, Initiative and a Reaction's addend, and **seven readers
-  still take the built sheet**: a spell's save DC and spell attack bonus, an
-  item's casting, two spell-effect modules, the Concentration save — which an
-  Amulet of Health directly prints — the check and save a turn boundary
-  repeats, and `selfHealAddend`. The substitution happens in the commands,
-  where the state is; `attack.ts` and `checks.ts` take a sheet and hold no
-  state, and a roller that went looking for a worn item would be the second
-  derivation `sheetAsItStands` exists to prevent. The remaining seven are
-  named one by one in that function's docstring. Three catalogue entries —
-  Amulet of Health, Gauntlets of Ogre Power, Headband of Intellect — still
-  carry an `unmodelled` note saying the rolls read the built score, which is
-  now false and is pinned by a passing assertion, so the note and the pin move
-  together.
+- **One reader still takes the built sheet**, and it is not a roll a command
+  makes: `rest.ts` adds a Constitution modifier to every Hit Die a Short Rest
+  spends, so an Amulet of Health does not reach it. Everything else asks
+  `sheetAsItStands` — the attack roll and its damage, the ability check, the
+  saving throw, Initiative, a Reaction's addend, a spell's save DC and attack
+  bonus, an item's casting, both spell-effect modules for caster and victim,
+  the Concentration save, the check and save a turn boundary repeats, and
+  `selfHealAddend`. The substitution happens in the commands, where the state
+  is; `attack.ts` and `checks.ts` take a sheet and hold no state, and a roller
+  that went looking for a worn item would be the second derivation
+  `sheetAsItStands` exists to prevent. `rollSpellDice` is not a gap. Two
+  catalogue notes came off entirely rather than being reworded, because a note
+  kept alive past the gap it described is what that field exists to prevent.
 - Seven emitters of `roll-recorded` pass no modes, so the field's absence
   means both "nobody ruled" and "this emitter never says". An attack roll and
   an Initiative roll can each carry Advantage and neither records it.
@@ -204,68 +211,98 @@ to homebrew.
 
 ## Next
 
-Ranked by what each shape **finishes**, which is the column beside the one
-that mis-sized four briefs. Entries quoting a builder are quoted rather than
-re-derived.
+Ranked by what each shape **finishes**. That column has now mis-sized briefs
+in three consecutive batches, and the last one was mis-sized by the column
+itself: `a-weapon-mastery-property` read 6/6 and a builder proved those six
+features are blocked on four shapes, so it reads 6 blocked and 0 finished
+today. Read the shape's own description, then check it against the book and
+the code, before briefing anything here.
 
-1. **A weapon mastery property.** Six manual features, all six finished by
-   this one shape and by nothing else — the top of the feature blocker map by
-   the column that does not lie. It is two halves and they are one brief: the
-   record of which weapons a character has mastery with, and the eight
-   properties' own rules (Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex)
-   inside the attack layer. Five classes print the feature and a sixth swaps
-   one property for another. It owns `attack.ts` and the attack commands for
-   its batch, so nothing else that touches a roll runs beside it.
-2. **A feature that changes a casting's damage.** Five features, five
-   finished. The notation, the die and the type are the definition's and are
-   pinned when the casting is written, so a modifier on one Evocation's
-   damage, a d6 that becomes a d10, and a maximised backlash each want the
-   same reader that does not exist.
-3. **The seven readers that still take the built sheet.** Named one by one in
-   the `sheetAsItStands` docstring by the builder that closed the first six:
-   `spell-resolution.ts`, `item-casting.ts`, `spell-effect-rolls.ts`,
-   `spell-effect-magic.ts`, `casting.ts` (the Concentration save, which an
-   Amulet of Health directly prints), `turns.ts` and `features.ts`. Each is
-   the same one-line substitution. It also rewords the three catalogue notes
-   that now say something false, and moves the assertion pinning them.
-   `rollSpellDice` is **not** among them and needs no change.
-4. **A tool that can carry a route.** `packages/tools/src/definitions.ts:833`
-   declares `establishes: ['route']` on the `move` tool and its input schema
-   has no `route` field; nothing in `packages/tools` mentions `route` or
-   `via`. So the engine now asks a question precisely and the door advertised
-   for the answer cannot receive it — a model-driven caller still wedges,
-   which was most of the point of telling the two refusals apart.
-5. **A casting ended by a trigger, re-cut.** The mechanic exists; what is
-   left is the cause vocabulary, and one brief must own `timers.ts`,
-   `spells.ts`, `fold/endings.ts`, `fold/release.ts`, `spell-definitions.ts`
-   and `spell-schema.ts` together, because `EFFECT_END_CAUSES ⊆
-   END_TRIGGER_CAUSES` is pinned by a test. `target-takes-damage` finishes
-   Modify Memory; a source-item cause plus a route field on `OngoingSpell`
-   finishes Hat of Disguise. No new event and no fixture moves: `damage-taken`
-   carries `by`, `creature-died` covers True Polymorph, `item-unequipped`
-   covers the hat. Everything else in that shape finishes nothing alone.
-6. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
+1. **A feature that changes a casting's damage.** Five features, five
+   finished — the leader of the feature map now, read off the data rather
+   than remembered. The notation, the die and the type are the definition's
+   and are pinned when the casting is written, so a modifier on one
+   Evocation's damage, a d6 that becomes a d10, and a maximised backlash each
+   want the same reader that does not exist.
+2. **A one-shot roll modifier.** A modifier consumed by the roll it changes,
+   which the spell map has carried as `a-one-shot-roll-modifier` and the
+   feature map now shares rather than spelling twice. It needs a way to end a
+   grant **by name** outside a casting: `withoutGrants` is reachable only
+   through a casting id, `releaseGrants` has one caller (the expiring `grants`
+   timer), and the only by-name removal in the engine is `bonus-removed`,
+   which touches `creature.bonuses` alone. So it wants a new `GameEvent`
+   member or a second door onto `releaseGrants` — **an owner's decision.** It
+   also wants a third `RollRelation`, "against that creature, by me", which
+   `roll-modifiers.ts` already names in its own words about Bestow Curse.
+   Unblocks Sap, Vex, Guiding Bolt and Vicious Mockery together.
+3. **Weapon mastery's buildable half.** The record of which weapons, plus
+   Graze, Cleave, Push, Slow and Topple — each routed through events that
+   already exist, worked out and written into the shape's description. It
+   finishes no feature until entry 2 lands (Sap, Vex) and the Light property's
+   extra attack lands (Nick), because `automation` is binary. Build it for the
+   mechanics or wait for the column to move: **an owner's decision.** Two
+   wrinkles it must settle: nothing derives a bearing from two positions, and
+   creature size lives only on the map, where an undeclared size silently
+   becomes Medium with no counterpart to `isHeightDeclared`.
+4. **A fall the engine can see.** Feather Fall's blocker is not falling
+   damage and not gravity — it is that no fact says a creature is falling.
+   Every reaction window reads a held state field and there is none for this,
+   so the window could never open. A fourth `SpellReactionWindow` member also
+   breaks `triggerRefusal`'s exhaustive switch in `commands/casting.ts`, which
+   is the type system asking the same question. The narrow form: **is a fall a
+   declared fact**, like cover, sight and creature type? If yes it is one
+   `GameEvent`, one small region of `state.ts`, a command in `facts.ts`, the
+   fourth window, the switch case and the opportunity arm — no heights, no
+   rate of descent, no landing damage, none of which Feather Fall's text
+   needs. `falling` has three claimants (Feather Fall, Reverse Gravity,
+   `monk:slow-fall`), so it leaves no map until all three are written.
+5. **The Ability Score Improvement cannot be taken through a tool.**
+   `featChoice` in `packages/tools/src/schemas.ts` has no `abilities` field,
+   so the feat this repository published last batch cannot be chosen through
+   `create_character`, and a character above level 3 cannot be built on the
+   model surface as the book builds one. We shipped the feat and left the door
+   shut.
+6. **The eighth reader.** `rest.ts:283` adds
+   `abilityModifier(creature.sheet.abilities.con)` to every Hit Die a Short
+   Rest spends, off the score the sheet was built with, so an Amulet of Health
+   does not reach it. It is the last raw-sheet ability read in non-test engine
+   code, swept for independently by a builder and its reviewer. One line, one
+   test, and the Amulet's own `unmodelled` note comes off with it.
+7. **A condition an item imposes** — 28 blocked, 5 finished, the heaviest item
    shape now that identity and the score verbs have been spent.
-7. **Calm Emotions and Hallow.** Both were blocked only by the marker-less
-   entry form, which now exists; neither has been written. Hallow prints a
-   24-hour casting and eight blockers, so it is the harder of the two by a
-   distance.
-8. **Feather Fall, for one small mechanic.** `SpellReactionWindow` admits
-   exactly three triggers and a fall is not one; `falling` is that spell's
-   only recorded blocker and its paragraph is one of three clean ones left.
+8. **The Light property's extra attack.** The action economy counts one Attack
+   action, not the attacks in it, which `docs/design/characters-and-equipment.md`
+   already files. Nick is nothing without it.
 
-**A decision before anything above touches it:** what a use of an item that
-the item fails to make *is*. Wind Fan needs a fourth outcome beside ok, err
-and needs-context, or an optional `failed` arm on `SpellResolution` with
-`castingId` made optional — and it needs to be settled whether a count of
-uses with no printed size may be a charge pool. Both questions are the
-owner's; a builder found them rather than inventing an answer.
+### Loose ends a brief should absorb rather than own
 
-**One known flake**, observed independently on an untouched base commit by two
-agents: `fold-import-boundary.test.ts` constructs an `ESLint` and lints text
-in process, and its first case can exceed the 5s default timeout under
-full-suite load. It passes alone. A timeout on that describe block belongs in
-whichever brief next opens the file.
+- `packages/engine/src/commands/targeting.ts:578` says "the two spells that
+  print a list" and five do: Spirit Guardians, Fire Shield, Protection from
+  Energy, Chromatic Orb, Sorcerous Burst. The tools surface carried the same
+  sentence and a reviewer caught it there.
+- The five-spell row in the tools' own prose has no guard keeping it true. The
+  suggested one asserts those names equal the ids carrying `damageTypeStated`
+  in `SRD_CONTENT`, which puts a catalogue assertion in `@ie/tools` — a call
+  worth making deliberately.
+- Three paths reachable and unexercised: `declare_difficult_terrain.source`,
+  `activate_spell` with a non-empty `targets`, and `activate_spell` with no
+  `to`.
+- `fold-import-boundary.test.ts` constructs an `ESLint` and lints text in
+  process; its first case can exceed the 5s default timeout under full-suite
+  load and passes alone. Observed on an untouched base commit by two agents
+  independently. A timeout on that describe block, in whichever brief next
+  opens the file.
+
+### Decisions waiting on the owner
+
+1. **What a use of an item that the item fails to make *is*.** A fourth
+   outcome beside ok, err and needs-context, or an optional `failed` arm on
+   `SpellResolution` with `castingId` made optional — and whether a count of
+   uses with no printed size may be a charge pool. Wind Fan is small once
+   answered.
+2. **A grant ended by name outside a casting** (entry 2), and **whether to
+   build mechanism ahead of the column** (entry 3).
+3. **Is a fall a declared fact** (entry 4).
 
 Separately, and absorbed by none of the above: Augury, Divination, Commune
 and Secret Chest need a count of castings back to a Long Rest that nothing
