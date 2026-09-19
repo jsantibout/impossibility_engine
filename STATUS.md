@@ -183,7 +183,7 @@ re-derived.
    `attack.ts`, `checks.ts` and the command layer. Until it lands, an item
    that sets Strength to 21 moves the sheet and not the roll.
 3. **A casting ended by a trigger, re-cut.** The mechanic exists; what is
-   left is the cause vocabulary, and one brief must own `duration.ts`,
+   left is the cause vocabulary, and one brief must own `timers.ts`,
    `spells.ts`, `fold/endings.ts`, `fold/release.ts`, `spell-definitions.ts`
    and `spell-schema.ts` together, because `EFFECT_END_CAUSES ⊆
    END_TRIGGER_CAUSES` is pinned by a test. `target-takes-damage` finishes

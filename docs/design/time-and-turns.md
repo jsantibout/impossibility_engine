@@ -1,6 +1,6 @@
 # Time: durations, turn boundaries, rests
 
-Read before changing `duration.ts`, `clock.ts`, `rest.ts`,
+Read before changing `time.ts`, `timers.ts`, `rest.ts`,
 `commands/turns.ts`, `fold/timers.ts`, `fold/expiry.ts` or
 `fold/upkeep.ts`.
 
@@ -47,6 +47,39 @@ remembering.
 order and raises whatever the new boundary owes: repeat saves, area
 triggers, delayed damage, casting completions. Once-per-turn caps and
 "first time each turn" clauses are stamped on the record they belong to.
+
+The vocabulary is `time.ts`'s: a `TurnMoment` is the start or the end of a
+turn, and `TurnAnchor` is the turn-anchored subset of `Duration`. Nothing
+spells either pair inline; `time-vocabulary.test.ts` fails on a file that
+does.
+
+### The boundary, in order
+
+One `turn-advanced` carries two moments a round apart, and the end is
+finished before the start is raised, because what catches a creature as its
+turn begins is a question about the world the previous end left behind.
+
+1. `resolveTurn` refuses while any debt stands: a held move, attack, damage
+   or test, a declared casting, an owed repeat save, a stranded summons, an
+   owed area effect.
+2. It emits `turn-advanced`. The fold (`fold/combat.ts`) advances the order:
+   the finisher's `ended` and the next creature's `begun` count up, and a
+   round that wraps charges the clock six seconds through `withCombat`.
+3. Still in the fold, the end is raised (`fold/turns.ts`): repeat saves owed
+   at the finisher's end, its end-of-turn area effects, a long casting the
+   finisher did not sustain fails, and the start is marked pending.
+4. The derived passes run: deadlines that have passed expire, orphaned debts
+   drop. `reachStartOfTurn` waits while the end still owes anything.
+5. Back in the command, the end is settled in a fixed order: due scheduled
+   damage first, because it can break a Concentration; then area effects;
+   then payouts; then the death save, last so a start-of-turn heal can
+   matter; then the repeat saves. Each settlement is an event and folds.
+6. When the end owes nothing, the fold reaches the start: the next
+   creature's start-of-turn area effects are raised, and `mayAct` refuses
+   that creature until they are settled.
+
+A fight opening is the same moment by a second door: `combat-started`
+marks the first combatant's start pending and step 6 reaches it.
 
 ## Rests
 
