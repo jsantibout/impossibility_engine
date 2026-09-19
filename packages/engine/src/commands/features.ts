@@ -26,6 +26,7 @@ import {
   type HealAmount,
   recoveryCap,
   selfHealAddend,
+  sheetAsItStands,
 } from '../standing.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
@@ -329,7 +330,12 @@ function rollAndHeal(
   const rolled = rollRecorded(supply.issuer, supply.rng, heal.dice);
   if (!rolled.ok) return rolled;
 
-  const addend = selfHealAddend(heal, creature.sheet.abilities);
+  // The abilities as they stand. `selfHealAddend` says the ability case is
+  // derived "so the number is the one on the sheet when the die is thrown",
+  // and an item that sets a score is exactly what that sentence was written to
+  // outlive — but only the command holds the state to ask.
+  const sheet = sheetAsItStands(state, id) ?? creature.sheet;
+  const addend = selfHealAddend(heal, sheet.abilities);
   // SRD Wholeness of Body: "(minimum of 1 Hit Point regained)". Second Wind
   // and Uncanny Metabolism name no floor, and neither could reach one.
   const amount = Math.max(heal.minimum ?? 1, rolled.value.total + addend.amount);

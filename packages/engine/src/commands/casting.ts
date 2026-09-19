@@ -63,7 +63,7 @@ import {
   type SlotlessReason,
   validateSpellName,
 } from '../spells.js';
-import { armorClassOf } from '../standing.js';
+import { armorClassOf, sheetAsItStands } from '../standing.js';
 import { concentrationSaveDc } from '../vitals.js';
 import { creatureOf, turnContextFor, unknownCreature } from './command.js';
 import { applyConditionTo, schedule } from './conditions.js';
@@ -1477,7 +1477,13 @@ export function resolveDamage(
     // several operations in a turn, and `count` runs from where it was created.
     const issuedBefore = supply.issuer.count;
     const support = savingSupport(after, id, caster, 'con', supply);
-    const save = rollSavingThrow(supply.issuer, supply.rng, caster.sheet, 'con', {
+    // **The sheet as it stands.** SRD Amulet of Health prints "Your
+    // Constitution is 19 while you wear this amulet", and this is the
+    // Constitution save the book most often has in mind. Read off `after`,
+    // which is the world the damage has already landed in — the amulet is worn
+    // or it is not, and the blow does not change that.
+    const sheet = sheetAsItStands(after, id) ?? caster.sheet;
+    const save = rollSavingThrow(supply.issuer, supply.rng, sheet, 'con', {
       dc: check.dc,
       conditions: support.conditions,
       modes: support.modes,

@@ -27,6 +27,7 @@ import {
   effectiveConditions,
   evadesHalfDamage,
   grantedAttackRiders,
+  sheetAsItStands,
 } from '../standing.js';
 import { applyConditionTo } from './conditions.js';
 import { healCreature } from './creatures.js';
@@ -351,7 +352,14 @@ export function resolveSaveDamageEffect(
     )
       ? effect.againstType.outcome
       : null;
-  const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+  // **The sheet as it stands**, so an item that *sets* the ability this save is
+  // made with reaches the save rather than stopping at the page. Read off
+  // `current` — the world this effect is landing in — and asked here rather
+  // than in `checks.ts`, which takes a sheet and holds no state on purpose: a
+  // roller that went looking for a worn item would be the second derivation
+  // `sheetAsItStands` exists to prevent.
+  const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+  const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
     dc: saveDc,
     conditions: support.conditions,
     // Presence, not arithmetic: it goes in as a named source and
@@ -537,7 +545,10 @@ export function resolveSaveEffect(
 
   // A saving throw, and a condition on a failure.
   const support = savingSupport(current, target, victim, effect.ability, supply);
-  const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+  // The sheet as it stands — see `resolveSaveDamageEffect`. Two resolvers roll
+  // two saves, so one of them moving is not the other moving.
+  const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+  const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
     dc: saveDc,
     conditions: support.conditions,
     // SRD Charm Person: "It does so with Advantage if you or your allies are

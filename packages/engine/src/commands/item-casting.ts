@@ -260,6 +260,19 @@ function chargesFor(
  */
 export function itemRoute(
   creature: CreatureState,
+  /**
+   * The wielder's sheet **as it stands**, handed in rather than read off the
+   * creature.
+   *
+   * SRD leaves a wand that prints no save DC to "your spell save DC", and a
+   * Headband of Intellect changes what that is. The substitution is made in the
+   * command that holds the `GameState` — see `sheetAsItStands` — so this
+   * function, which has none, takes the answer instead of deriving a second
+   * one. The creature is still needed beside it: the attunement, what is in
+   * hand and which spellcasting abilities are on offer are all facts about the
+   * creature rather than about the sheet.
+   */
+  sheet: CharacterSheet,
   content: Content,
   definition: SpellDefinition,
   request: ItemCastRequest,
@@ -370,7 +383,7 @@ export function itemRoute(
       : { pool: pool.key, charges: spend.value.charges }),
     ...(grant.targetsSelfOnly === true ? { targetsSelfOnly: true as const } : {}),
     castLevel: spend.value.castLevel,
-    numbers: numbersForItem(creature.sheet, grant, ability.value),
+    numbers: numbersForItem(sheet, grant, ability.value),
   });
 }
 

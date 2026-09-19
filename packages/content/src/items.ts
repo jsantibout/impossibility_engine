@@ -683,6 +683,10 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        *
        * Two requirements from two clauses, as the Ring of Protection has:
        * the bracket on the type line and "while you wear" in the sentence.
+       *
+       * The only one of the three that still leaves anything to the table, and
+       * both notes are about the same thing: a Constitution is *derived* into
+       * every D20 Test and *folded* into two numbers the engine settled once.
        */
       attunement: {},
       grants: [
@@ -694,7 +698,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         },
       ],
       unmodelled: [
-        'the score reaches the readers that derive from state and not the ones that take a sheet: `abilityScoresOf` and `sheetAsItStands` answer with it, and `armorClassOf` and a save-bonus aura move with it, while an ability check, a saving throw and an attack roll are still rolled off the score the sheet was built with, because `checks.ts` and `attack.ts` are handed `creature.sheet` by their commands',
+        'the Constitution a Hit Die adds on a Short Rest. The rest adds the modifier off the score the sheet was built with, because it reads the creature rather than asking what is worn — every other number a Constitution decides, the Concentration save included, moves with the amulet',
         'what a Constitution of 19 does to a hit point maximum. "Your Constitution is 19 while you wear this amulet" changes the modifier every level paid, and a maximum is a folded number rather than a derived one, so putting the amulet on does not add hit points and taking it off does not take them away',
       ],
     },
@@ -709,6 +713,14 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        *
        * The Amulet of Health's sentence on a different score, which is what
        * made a `set` a shape rather than one item's quirk.
+       *
+       * **And it carries no `unmodelled` note, because there is nothing left
+       * to note.** Every number a Strength decides is derived on the read now —
+       * the attack roll and its damage, the Athletics check, the Strength save,
+       * the Armour Class a heavy suit's requirement penalises, the Heavy
+       * weapon's Disadvantage — because each command asks `sheetAsItStands` and
+       * hands the answer to the roller. A note kept alive past the gap it
+       * described is exactly what this field exists to prevent.
        */
       attunement: {},
       grants: [
@@ -719,7 +731,6 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
           requires: WORN_AND_ATTUNED,
         },
       ],
-      unmodelled: ['the score reaches the readers that derive from state and not the ones that take a sheet: `abilityScoresOf` and `sheetAsItStands` answer with it, and `armorClassOf` and a save-bonus aura move with it, while an ability check, a saving throw and an attack roll are still rolled off the score the sheet was built with, because `checks.ts` and `attack.ts` are handed `creature.sheet` by their commands'],
     },
   ),
   wornItem(
@@ -731,9 +742,11 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * has no effect on you if your Intelligence is 19 or higher without
        * it."
        *
-       * The third printing of the same sentence. A Wizard's spell save DC is
-       * derived from Intelligence and is one of the readers the note below
-       * says this does not reach yet.
+       * The third printing of the same sentence, and the one that shows what
+       * the substitution bought: a Wizard's spell save DC and spell attack
+       * modifier are derived from Intelligence at the moment of the casting,
+       * so a headband put on between two fights changes both — and it carries
+       * no `unmodelled` note for the same reason the gauntlets carry none.
        */
       attunement: {},
       grants: [
@@ -744,7 +757,6 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
           requires: WORN_AND_ATTUNED,
         },
       ],
-      unmodelled: ['the score reaches the readers that derive from state and not the ones that take a sheet: `abilityScoresOf` and `sheetAsItStands` answer with it, and `armorClassOf` and a save-bonus aura move with it, while an ability check, a saving throw and an attack roll are still rolled off the score the sheet was built with, because `checks.ts` and `attack.ts` are handed `creature.sheet` by their commands'],
     },
   ),
 

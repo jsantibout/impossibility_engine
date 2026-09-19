@@ -43,7 +43,7 @@ import {
   type OwedAreaEffect,
   spellOfSource,
 } from '../spells.js';
-import { effectiveConditions, rollModesFor } from '../standing.js';
+import { effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
 import { isDown, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
 import { type DamageComponent } from '../attack.js';
@@ -522,7 +522,11 @@ export function resolveEffectCheck(
       ...(check.skill === undefined ? {} : { skill: check.skill }),
     }).modes;
 
-    const rolled = rollAbilityCheck(supply.issuer, supply.rng, creature.sheet, check.ability, {
+    // **The sheet as it stands**, so a Belt of Giant Strength is behind the
+    // heave that tears free of the tentacles. Asked here, where the state is,
+    // and handed to `checks.ts`, which takes a sheet and holds none.
+    const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+    const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, check.ability, {
       dc: check.dc,
       ...(check.skill === undefined ? {} : { skill: check.skill }),
       conditions: effectiveConditions(state, who),
@@ -808,7 +812,11 @@ export function resolvePendingSaves(
       }
 
       const support = savingSupport(state, pending.target, creature, pending.ability, supply);
-      const save = rollSavingThrow(supply.issuer, supply.rng, creature.sheet, pending.ability, {
+      // The sheet as it stands: a save the boundary repeats is a save, and an
+      // item that sets the ability it is made with is worn or it is not at the
+      // moment the die is thrown.
+      const sheet = sheetAsItStands(state, pending.target) ?? creature.sheet;
+      const save = rollSavingThrow(supply.issuer, supply.rng, sheet, pending.ability, {
         dc: pending.dc,
         conditions: support.conditions,
         modes: support.modes,

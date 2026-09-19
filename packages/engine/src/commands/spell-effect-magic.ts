@@ -17,7 +17,7 @@ import {
   type GameEvent,
   type GameState,
 } from '../events.js';
-import { effectiveConditions } from '../standing.js';
+import { effectiveConditions, sheetAsItStands } from '../standing.js';
 import { ongoingSpellsOn } from './ongoing.js';
 import { checkBonuses, recordD20Test, savingSupport } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
@@ -182,7 +182,11 @@ export function resolveInterruptCastingEffect(
   }
 
   const support = savingSupport(current, target, victim, effect.ability, supply);
-  const save = rollSavingThrow(supply.issuer, supply.rng, victim.sheet, effect.ability, {
+  // The sheet as it stands, so an Amulet of Health reaches the Constitution
+  // save SRD Counterspell asks the interrupted caster for. Read off `current`,
+  // which has the Counterspell's own casting folded into it.
+  const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+  const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
     dc: saveDc,
     conditions: support.conditions,
     modes: support.modes,

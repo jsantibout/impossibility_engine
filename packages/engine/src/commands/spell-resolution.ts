@@ -76,6 +76,7 @@ import {
 } from '../spell-definitions.js';
 import { type CastingRoute } from '../spellcasting.js';
 import { castingSource, type CastingNumbers, type CastingTime } from '../spells.js';
+import { sheetAsItStands } from '../standing.js';
 import {
   answeredCasting,
   choosePayment,
@@ -495,7 +496,16 @@ export function castOrRelease(
     const chosen =
       fromItem.value === null
         ? chooseRoute(caster.spellcasting, request.spellId, request.source)
-        : itemRoute(caster, supply.content, definition, fromItem.value);
+        : // The sheet as it stands, because a wand that printed no numbers
+          // leaves them to the wielder's own — and an item that sets the
+          // ability those are derived from is on the wielder right now.
+          itemRoute(
+            caster,
+            sheetAsItStands(state, casterId) ?? caster.sheet,
+            supply.content,
+            definition,
+            fromItem.value,
+          );
     if (!chosen.ok) return chosen;
     const route = chosen.value;
 
@@ -891,7 +901,12 @@ function resolveOnTargets(
   // attack modifier every effect rolls with, and the pair the ongoing record
   // pins. A class route derives them from the sheet; an item route has already
   // answered, because nothing later can ask a wand that is not in hand.
-  const numbers = numbersFor(caster.sheet, route);
+  //
+  // **The sheet as it stands**, so a Headband of Intellect moves the save DC
+  // and the spell attack modifier a wizard's casting is made with. Asked once,
+  // here, where the state is — and pinned into the events below like every
+  // other number, so the substitution happens at the casting and never again.
+  const numbers = numbersFor(sheetAsItStands(state, casterId) ?? caster.sheet, route);
 
   // — paying for it ——————————————————————————————————————————————————————
   //
@@ -1553,6 +1568,13 @@ export function runEffects(
    * this is refused before it gets here — `settleAreaEffects` checks, and a
    * test asserts no registered spell can reach it — so arriving here with no
    * caster is a programmer error rather than a rules dispute, and is loud.
+   *
+   * **And it is the sheet as it stands.** The substitution is made here, once,
+   * rather than by each resolver that reaches for a sheet: this is the command,
+   * and it is where the state is. The same object comes back for the
+   * overwhelming majority of casters, because `sheetAsItStands` hands back the
+   * creature's own sheet when nothing is setting a score — so a resolver that
+   * compares identity still sees what it always saw.
    */
   const casterSheet = (): CreatureState => {
     if (caster === null) {
@@ -1561,7 +1583,8 @@ export function runEffects(
           'the caller should have refused this effect rather than reaching here',
       );
     }
-    return caster;
+    const standing = sheetAsItStands(state, casterId);
+    return standing === null || standing === caster.sheet ? caster : { ...caster, sheet: standing };
   };
 
   /**

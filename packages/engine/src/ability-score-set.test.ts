@@ -38,12 +38,15 @@ import {
  * `standing.ts` move with a set score and are proved here: `armorClassOf`,
  * which asks `sheetAsItStands` because it wants a whole sheet, and
  * `standingSaveBonuses`, which asks `abilityScoresOf` because it wants one
- * holder's one score. The rollers above them — an attack, its damage, an
- * ability check, a saving throw, Initiative — move too, and are driven
- * through the public commands in `set-score-reaches-the-roll.test.ts`,
- * because `attack.ts` and `checks.ts` take a sheet and hold no state: the
- * substitution is the command's to make. `sheetAsItStands` names what is
- * still outside it.
+ * holder's one score. The rollers above them move too, and are driven through
+ * the public commands in two files rather than here, because `attack.ts` and
+ * `checks.ts` take a sheet and hold no state: the substitution is the
+ * command's to make. `set-score-reaches-the-roll.test.ts` drives an attack,
+ * its damage, an ability check, a saving throw, Initiative and a Reaction's
+ * addend; `set-score-reaches-the-casting.test.ts` drives the casting family —
+ * a spell save DC, a spell attack modifier, an item's casting, the rolls a
+ * spell's effects make, the Concentration save, the two rolls a turn boundary
+ * repeats and a self-heal's addend.
  *
  * Driven through homebrew items for `content.test.ts`'s reason — a mechanic
  * proved only against the book's own catalogue is a mechanic that might be
@@ -510,25 +513,34 @@ describe('the three SRD items the grant frees', () => {
   }
 
   /**
-   * And what each of them still does not do, recorded rather than implied:
-   * three records carry the note, and it is the same note.
+   * And what each of them still does not do, recorded rather than implied.
    *
-   * **The note as written is now out of date and this assertion pins it.** It
-   * says an ability check, a saving throw and an attack roll are rolled off
-   * the built score "because `checks.ts` and `attack.ts` are handed
-   * `creature.sheet` by their commands", and they no longer are — the commands
-   * hand them {@link sheetAsItStands}. Rewording it is a `packages/content`
-   * change, which this batch did not own; when it happens, the string this
-   * matches on moves with it.
+   * **The note this used to pin is gone, because its sentence stopped being
+   * true.** It said an ability check, a saving throw and an attack roll were
+   * rolled off the built score "because `checks.ts` and `attack.ts` are handed
+   * `creature.sheet` by their commands"; every reader it named — and the
+   * casting family beside them — is handed {@link sheetAsItStands} by its
+   * command now, so the two items whose whole text is a derived score leave
+   * the table nothing and say so by carrying no note at all. A note kept alive
+   * to keep a field non-empty is exactly what `unmodelled` exists to prevent.
+   *
+   * The amulet is the exception, and it is the exception for a reason that is
+   * about Constitution rather than about the amulet: a Constitution is *folded*
+   * in two places as well as derived everywhere else — into the hit point
+   * maximum every level paid, and into the Hit Points a Hit Die restores on a
+   * Short Rest. Neither is a reader a sheet substitution reaches.
    */
-  it('says in the catalogue how far the set reaches', () => {
+  it('says in the catalogue what a set score still does not reach', () => {
     for (const { id } of PRINTED) {
       const notes = SRD_CONTENT.item(id)?.unmodelled ?? [];
-      expect(notes.length, id).toBeGreaterThan(0);
-      expect(notes.some((note) => note.includes('creature.sheet')), id).toBe(true);
+      expect(notes.some((note) => note.includes('creature.sheet')), id).toBe(false);
     }
-    // The amulet carries a second, because a Constitution is not only a
-    // modifier.
-    expect(SRD_CONTENT.item('amulet-of-health')?.unmodelled).toHaveLength(2);
+    expect(SRD_CONTENT.item('gauntlets-of-ogre-power')?.unmodelled).toBeUndefined();
+    expect(SRD_CONTENT.item('headband-of-intellect')?.unmodelled).toBeUndefined();
+
+    const amulet = SRD_CONTENT.item('amulet-of-health')?.unmodelled ?? [];
+    expect(amulet).toHaveLength(2);
+    expect(amulet.some((note) => note.includes('hit point maximum'))).toBe(true);
+    expect(amulet.some((note) => note.includes('Short Rest'))).toBe(true);
   });
 });
