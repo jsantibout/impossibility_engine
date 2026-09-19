@@ -2125,13 +2125,27 @@ describe('no spell is special-cased in the runtime', () => {
     expect(source('fold/inventory.ts')).toContain("category === 'shield'");
     expect(source('attack.ts')).toContain("weapon.properties.includes('light')");
     // And the third: the glossary's four senses, transcribed once so that the
-    // validator and the union cannot drift apart. The whole construct is
-    // pinned rather than the word, so the allowance is as narrow as the two
-    // above — a `darkvision` written anywhere else in that file would be the
-    // cantrip and would still have to justify itself here.
-    expect(source('positioning.ts')).toContain(
+    // validator and the union cannot drift apart. The construct is pinned, so
+    // the allowance is answering for something that is really there.
+    //
+    // **What it is not is narrow, and neither are the two above.** The
+    // exclusion is word-level and global: `namedIn` drops the word from `IDS`
+    // before it scans any file, so a `'darkvision'` in `attack.ts` would go
+    // unreported exactly as a `'shield'` there would. That is the price of a
+    // word the book uses twice, and the compensation is the assertion below —
+    // the file that owns the mechanic writes the word only where the glossary
+    // is being transcribed, which is checkable and is checked.
+    const GLOSSARY = [
       "export const SENSE_NAMES = ['blindsight', 'darkvision', 'tremorsense', 'truesight'] as const;",
-    );
+      "export const SIGHT_SENSES: ReadonlySet<SenseName> = new Set<SenseName>([",
+    ];
+    for (const construct of GLOSSARY) expect(source('positioning.ts')).toContain(construct);
+    expect(
+      source('positioning.ts')
+        .split('\n')
+        .filter((line) => line.includes("'darkvision'"))
+        .map((line) => line.trim()),
+    ).toEqual([GLOSSARY[0], "'darkvision',"]);
   });
 
   it('allows the two data constructs and nothing around them', () => {
