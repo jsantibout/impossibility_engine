@@ -22,8 +22,8 @@
  *
  * **Every set on the left of those claims is read out of the engine's own
  * source**, never retyped here: the kinds out of `ContextRequest`, the
- * declarations out of `commands/`, the codes out of the `err` literals the
- * engine actually writes. A guard over a hand-written list stops guarding the
+ * declarations out of every `declare*` the engine exports, the codes out of
+ * the `err` literals the engine actually writes. A guard over a hand-written list stops guarding the
  * day somebody adds the thirteenth item and does not think to come here,
  * which is precisely how the four gaps above were able to land. The tables in
  * this file are *answers*, and each is asserted to cover exactly the derived
@@ -368,37 +368,107 @@ const DECLARATIONS: Readonly<Record<string, { readonly tool: string } | { readon
  * Every `declare*` the engine exports, split by what it returns.
  *
  * **The split is the whole engine's, not a directory's.** A declaration a
- * session can make is a *command*: it returns `Result<GameEvent[]>`, and a
- * caller reaches it or does not. Beneath several of them is a pure function
- * of the same name over one region of state — `declareCover` under
- * `declareCoverBetween`, `declarePool` under `declareResourcePool` — which
- * emits nothing and is not a door at all. Sweeping only `commands/` would
- * have told the two apart by where somebody filed them, and file placement is
- * a convention a future declaration can break silently; the return type is
- * what the engine actually says.
+ * session can make is a *command*: it hands back the engine's own
+ * `GameEvent`s, and a caller reaches it or does not. Beneath several of them
+ * is a pure function of the same name over one region of state —
+ * `declareCover` under `declareCoverBetween`, `declarePool` under
+ * `declareResourcePool` — which returns a `PositionState` or a
+ * `ResourceState`, emits nothing, and is not a door at all. Sweeping only
+ * `commands/` would have told the two apart by where somebody filed them,
+ * and file placement is a convention a future declaration can break in
+ * silence.
+ *
+ * **The test is whether `GameEvent` is in the return type at all**, not
+ * whether it is spelled the way today's ten spell it. `Result<readonly
+ * GameEvent[]>` is a form the engine already writes elsewhere, and an exact
+ * match on `Result<GameEvent[]>` would have filed the next command written
+ * that way under *state-level* — leaving a door nothing guards, which is the
+ * failure this widening exists to end and in the direction that hurts. So the
+ * predicate is loose, and the two assertions below are what keep it honest:
+ * every name the coarse sweep sees is classified, and every state-level entry
+ * has to show a `Result` of something that is not a `GameEvent`.
  */
-function engineDeclarations(): {
-  readonly commands: ReadonlyMap<string, string>;
-  readonly stateLevel: ReadonlyMap<string, string>;
+interface Declaration {
+  readonly file: string;
+  readonly returns: string;
+}
+
+function declarationsIn(sources: readonly { file: string; text: string }[]): {
+  readonly commands: ReadonlyMap<string, Declaration>;
+  readonly stateLevel: ReadonlyMap<string, Declaration>;
 } {
-  const commands = new Map<string, string>();
-  const stateLevel = new Map<string, string>();
+  const commands = new Map<string, Declaration>();
+  const stateLevel = new Map<string, Declaration>();
   let seen = 0;
-  for (const { file, text } of engineSources()) {
+  for (const { file, text } of sources) {
     seen += [...text.matchAll(/^export function declare[A-Z]/gm)].length;
     for (const match of text.matchAll(
-      /^export function (declare[A-Z]\w*)\([\s\S]*?\):\s*([\w<>[\] ]+?)\s*\{/gm,
+      /^export function (declare[A-Z]\w*)\([\s\S]*?\):\s*([\w<>[\]|, ]+?)\s*\{/gm,
     )) {
-      const emitsEvents = /^Result<\s*GameEvent\[\]\s*>$/.test(match[2]!.trim());
-      (emitsEvents ? commands : stateLevel).set(match[1]!, file);
+      const returns = match[2]!.trim();
+      const bucket = /\bGameEvent\b/.test(returns) ? commands : stateLevel;
+      bucket.set(match[1]!, { file, returns });
     }
   }
-  // A regex that stopped matching would empty the tables and pass everything
-  // below in silence. Every export the coarse sweep found has to have been
-  // classified by the fine one.
+  // A regex that stopped matching would empty both buckets and pass
+  // everything below in silence. Every export the coarse sweep found has to
+  // have been classified by the fine one.
   expect(commands.size + stateLevel.size).toBe(seen);
   return { commands, stateLevel };
 }
+
+const engineDeclarations = (): ReturnType<typeof declarationsIn> =>
+  declarationsIn(engineSources());
+
+describe('the classifier can tell a command from the state beneath it', () => {
+  /**
+   * The detector's own test, in `boundary.test.ts`'s form: a detector nobody
+   * tested is a guard nobody tested. These are the shapes a declaration could
+   * actually be written in, fed to the classifier rather than trusted to a
+   * reading of the regex — and the misclassification that matters is a
+   * *command* filed as state-level, because that is a door nothing would
+   * guard.
+   */
+  const classify = (source: string): 'command' | 'state-level' | 'unread' => {
+    const found = declarationsIn([{ file: 'fixture.ts', text: source }]);
+    if (found.commands.size === 1) return 'command';
+    if (found.stateLevel.size === 1) return 'state-level';
+    return 'unread';
+  };
+
+  it('reads the ten spellings of a command the engine might write', () => {
+    expect(classify('export function declareX(s: GameState): Result<GameEvent[]> {')).toBe(
+      'command',
+    );
+    // The form the engine already uses elsewhere, and the one an exact match
+    // on `Result<GameEvent[]>` filed under state-level.
+    expect(classify('export function declareX(s: GameState): Result<readonly GameEvent[]> {')).toBe(
+      'command',
+    );
+    expect(classify('export function declareX(s: GameState): Result<GameEvent[] | null> {')).toBe(
+      'command',
+    );
+    // A multi-line signature with a nested object parameter and a default —
+    // `declareDawn`'s actual shape.
+    expect(
+      classify(
+        'export function declareX(\n  state: GameState,\n  supply: { readonly rng: Rng },\n  command: CommandIdentity = {},\n): Result<GameEvent[]> {',
+      ),
+    ).toBe('command');
+  });
+
+  it('reads a state-level half as one', () => {
+    expect(classify('export function declareX(s: PositionState): Result<PositionState> {')).toBe(
+      'state-level',
+    );
+  });
+
+  it('and reads nothing into a file that declares nothing', () => {
+    expect(classify('export function somethingElse(s: GameState): Result<GameEvent[]> {')).toBe(
+      'unread',
+    );
+  });
+});
 
 describe('every fact the engine can be told has a tool that tells it', () => {
   it('records exactly the declaration commands the engine exports', () => {
@@ -415,12 +485,22 @@ describe('every fact the engine can be told has a tool that tells it', () => {
    * rather than putting everything in one bucket. These write no event and
    * are reached only through the commands above them, which is why they are
    * not doors and are not in the table.
+   *
+   * **Each has to show what it returns instead.** A signature the regex read
+   * wrongly, or one it read past into somebody else's, would land a real
+   * command here and be quietly excused; requiring a `Result` of something
+   * that is not a `GameEvent` means such an entry has to look like a
+   * state-level function to be treated as one.
    */
   it('finds the state-level halves too, and does not count them as doors', () => {
-    const stateLevel = [...engineDeclarations().stateLevel.keys()];
+    const stateLevel = [...engineDeclarations().stateLevel.entries()];
     expect(stateLevel.length).toBeGreaterThan(0);
-    expect(stateLevel).toContain('declareCover');
-    for (const name of stateLevel) expect(Object.keys(DECLARATIONS)).not.toContain(name);
+    expect(stateLevel.map(([name]) => name)).toContain('declareCover');
+    for (const [name, declaration] of stateLevel) {
+      expect(Object.keys(DECLARATIONS)).not.toContain(name);
+      expect(declaration.returns, name).toMatch(/^Result<[\w ]+>$/);
+      expect(declaration.returns, name).not.toContain('GameEvent');
+    }
   });
 
   it('answers each with a tool on this surface that calls that command', () => {
