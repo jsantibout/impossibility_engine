@@ -9,7 +9,12 @@ import type { GameState } from './state.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { attuneItem, equipItem, unequipItem } from './commands/inventory.js';
 import { beginRest } from './rest.js';
-import { abilityScoresOf, armorClassOf, sheetAsItStands } from './standing.js';
+import {
+  abilityScoresOf,
+  armorClassOf,
+  sheetAsItStands,
+  standingSaveBonuses,
+} from './standing.js';
 
 /**
  * A score an item **sets**, which is a third verb.
@@ -29,13 +34,15 @@ import { abilityScoresOf, armorClassOf, sheetAsItStands } from './standing.js';
  * - **The modifier moves with it**, because a score is not a number on its
  *   own.
  *
- * **How far the third one reaches, said plainly.** `sheetAsItStands` is the
- * substitution, and what asks it today is `armorClassOf` and
- * `standingSaveBonuses` — both in `standing.ts`. `attack.ts`, `checks.ts`
- * and every command above them read `creature.sheet` directly, so an ability
- * check made with a set Strength still rolls the stored one. Those files
- * were not this batch's to change; the tests below say which side of that
- * line each of them is on rather than implying the whole pipeline moved.
+ * **How far the third one reaches, said plainly.** Two readers move with a
+ * set score, both in `standing.ts`: `armorClassOf`, which asks
+ * `sheetAsItStands` because it wants a whole sheet, and
+ * `standingSaveBonuses`, which asks `abilityScoresOf` because it wants one
+ * holder's one score. `attack.ts`, `checks.ts` and every command above them
+ * read `creature.sheet` directly, so an ability check made with a set
+ * Strength still rolls the stored one. Those files were not this batch's to
+ * change; the tests below say which side of that line each of them is on
+ * rather than implying the whole pipeline moved.
  *
  * Driven through homebrew items, for `content.test.ts`'s reason and for one
  * more: the SRD items this frees are not in the catalogue yet — see the
@@ -101,8 +108,46 @@ const GREATER: CatalogueItem = {
   ],
 };
 
+/**
+ * A Paladin's aura, as an item, beside something that sets the score it is
+ * sized by.
+ *
+ * SRD Aura of Protection: "you and your allies have a bonus to saving throws
+ * equal to your Charisma modifier (minimum bonus of +1)" — the *holder's*
+ * modifier. It is the one reader in this file that wants a single score
+ * rather than a sheet, so it is the one that has to be driven separately.
+ */
+const AEGIS: CatalogueItem = {
+  ...BRACERS,
+  id: 'aegis-of-the-warden',
+  name: 'Aegis of the Warden',
+  grants: [
+    {
+      kind: 'standing',
+      reach: 'self',
+      effects: [{ kind: 'save-bonus', fromAbility: 'cha', minimum: 1 }],
+      requires: [{ kind: 'while-worn' }],
+    },
+  ],
+};
+
+/** And the thing that moves the Charisma the aegis is sized by. */
+const TORC: CatalogueItem = {
+  ...BRACERS,
+  id: 'torc-of-command',
+  name: 'Torc of Command',
+  grants: [
+    {
+      kind: 'standing',
+      reach: 'self',
+      effects: [{ kind: 'ability-score-set', ability: 'cha', score: 20 }],
+      requires: [{ kind: 'while-worn' }],
+    },
+  ],
+};
+
 const CONTENT: Content = unwrap(
-  extendContent(SRD_CONTENT, { items: [BRACERS, CIRCLET, GREATER] }),
+  extendContent(SRD_CONTENT, { items: [BRACERS, CIRCLET, GREATER, AEGIS, TORC] }),
   'extend',
 );
 
@@ -139,10 +184,12 @@ const fighter = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
       { id: BRACERS.id, quantity: 1 },
       { id: CIRCLET.id, quantity: 1 },
       { id: GREATER.id, quantity: 1 },
+      { id: AEGIS.id, quantity: 1 },
+      { id: TORC.id, quantity: 1 },
     ],
     goldPieces: 0,
-    magicItems: [BRACERS.id, CIRCLET.id, GREATER.id],
-    note: 'the three under test',
+    magicItems: [BRACERS.id, CIRCLET.id, GREATER.id, AEGIS.id, TORC.id],
+    note: 'the five under test',
   },
   ...over,
 });
@@ -271,6 +318,22 @@ describe('a score an item sets', () => {
     expect(armorClassOf(attunedTo(CIRCLET.id), WHO) - armorClassOf(bare, WHO)).toBe(
       abilityModifier(18) - abilityModifier(15),
     );
+  });
+
+  /**
+   * The other reader that moves, and it moves through a different door:
+   * `standingSaveBonuses` wants one holder's one score, so it asks
+   * {@link abilityScoresOf} rather than for a whole sheet.
+   */
+  it('resizes an aura that is sized by the score an item set', () => {
+    const aura = (state: GameState) =>
+      standingSaveBonuses(state, WHO, 'wis').reduce((sum, one) => sum + (one.flat ?? 0), 0);
+
+    // Charisma 14 is a +2, and the aegis pays the holder's own modifier.
+    expect(aura(wearing(AEGIS.id))).toBe(abilityModifier(14));
+    // The torc sets it to 20, and the aura is the modifier of the score as
+    // it stands rather than the one the sheet was built with.
+    expect(aura(wearing(AEGIS.id, TORC.id))).toBe(abilityModifier(20));
   });
 
   /** And the sheet is the same object when nothing is setting anything. */

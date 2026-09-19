@@ -871,6 +871,9 @@ export function standingSaveBonuses(
 
     // The holder's score as it stands, so a Paladin wearing something that
     // sets their Charisma radiates the aura that score gives.
+    // `abilityScoresOf` rather than `sheetAsItStands`: this wants one
+    // holder's one score, and the substitution would build a sheet nobody
+    // here reads.
     const flat = Math.max(
       effect.grant.minimum,
       abilityModifier(abilityScoresOf(state, from)[effect.grant.fromAbility]),
@@ -1236,15 +1239,17 @@ export function canSee(state: GameState, from: CharacterId, to: CharacterId): bo
  * This creature's six ability scores **as they stand**: what the sheet says,
  * and whatever is setting one right now.
  *
- * The reader for `ability-score-set`, and the only one — every other question
- * about a score goes through {@link sheetAsItStands} so that no second path
- * can disagree with this one about what a Strength is.
+ * The reader for `ability-score-set`, and the only one. Everything that wants
+ * a *sheet* goes through {@link sheetAsItStands}, which is this function plus
+ * a substitution; what wants one score asks here. Two functions, one
+ * derivation, so no second path can disagree with this one about what a
+ * Strength is.
  *
  * Two rules, and both are the SRD's own sentence rather than a policy:
  *
  * - **A set never lowers.** "It has no effect on you if your Constitution is
  *   19 or higher without it" is printed on every item that sets a score, so
- *   it is kept here once instead of nine times.
+ *   it is kept here once rather than by each of them.
  * - **The highest of several wins**, which follows from the first: two belts
  *   are two sentences, each saying "your Strength is at least this", and the
  *   order they are read in cannot be allowed to matter. It is the move
@@ -1296,9 +1301,11 @@ export function abilityScoresOf(
  * What this does **not** do is reach the readers that take a sheet straight
  * off the state. `attack.ts`, `checks.ts` and the commands above them read
  * `creature.sheet`, and threading this in there is a change to files this
- * did not own; the two readers in this file do it today, so an Armour Class
- * and an Aura of Protection move with a set score and an ability check does
- * not yet.
+ * did not own. Two things in this file move with a set score today —
+ * `armorClassOf` through this function, and `standingSaveBonuses` through
+ * {@link abilityScoresOf}, because it wants one holder's one score rather
+ * than a sheet — so an Armour Class and an Aura of Protection follow a set
+ * and an ability check does not yet.
  */
 export function sheetAsItStands(state: GameState, who: CharacterId): CharacterSheet | null {
   const creature = state.creatures[who];
